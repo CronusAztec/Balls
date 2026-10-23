@@ -19300,6 +19300,44 @@ await smokeBlock("blueprint", async () => {
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
   check("the Mode Lab card is on the landing page", (await page.locator('img[src$="/modes/blueprint.webp"]').count()) === 1);
 }
+{
+  // --- review fix (blueprint) --- the one-card lab family shares a row with journey: the families of a row line up (their
+  // headings, divider lines and first posters at one height) on the landing page and in the studio's mode picker, in English
+  // and Polish – a family's heading row once took up the height its taller neighbour left, 10 px out of line
+  const rows = (p) =>
+    p.evaluate(() => {
+      const walls = document.querySelectorAll("section#modes > div.grid");
+      const wall = walls[walls.length - 1];
+      const byRow = new Map();
+      for (const family of wall?.children ?? []) {
+        const h3 = family.querySelector("h3")?.getBoundingClientRect();
+        const img = family.querySelector("img")?.getBoundingClientRect();
+        if (!h3 || !img) continue;
+        const key = Math.round(h3.top);
+        byRow.set(key, [...(byRow.get(key) ?? []), { name: family.querySelector("h3").firstChild?.textContent?.trim(), line: Math.round(h3.bottom), poster: Math.round(img.top) }]);
+      }
+      const shared = [...byRow.values()].filter((r) => r.length > 1);
+      return { shared: shared.length, off: shared.filter((r) => new Set(r.map((f) => f.line)).size > 1 || new Set(r.map((f) => f.poster)).size > 1) };
+    });
+  const wide = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    const p = await wide.newPage();
+    const seen = {};
+    for (const [locale, width] of [["en", 1280], ["en", 1536], ["pl", 390], ["pl", 1280]]) {
+      await p.setViewportSize({ width, height: 900 });
+      await p.goto(`${BASE}/${locale}/`, { waitUntil: "networkidle" });
+      seen[`landing ${locale}@${width}`] = await rows(p);
+    }
+    await p.setViewportSize({ width: 1280, height: 900 });
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await p.getByTestId("stage-strip").getByRole("button").first().click();
+    await p.locator("dialog section#modes img").first().waitFor({ timeout: 10000 }).catch(() => {});
+    seen["picker en@1280"] = await rows(p);
+    check("mode lab: the families sharing a row of the modes wall line up (headings, dividers, posters), on the landing and in the picker", Object.values(seen).every((s) => s.shared > 0 && s.off.length === 0), `(${JSON.stringify(seen)})`);
+  } finally {
+    await wide.close();
+  }
+}
 const bpCatalogIds = [...(/BLUEPRINT_CATALOG_IDS = \[([^\]]*)\]/.exec(fs.readFileSync(new URL("../src/lib/blueprint/catalog/index.ts", import.meta.url), "utf8"))?.[1] ?? "").matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
 const bpMessages = JSON.parse(fs.readFileSync(new URL("../messages/en.json", import.meta.url), "utf8")).Blueprints;
 const bpWaitData = async (p, key, want, ms = 8000) => {

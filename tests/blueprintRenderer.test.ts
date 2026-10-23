@@ -4,9 +4,13 @@ import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, CLOCK_LAST_SEC, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endTitle, mixHex, overlayPlacement, recorderSquare } from "@/components/simulator/blueprintRenderer";
-import { encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
+import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, CLOCK_LAST_SEC, CORNER_MIN_SCALE, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endTitle, mixHex, overlayPlacement, recorderSquare } from "@/components/simulator/blueprintRenderer";
+import { BLUEPRINT_CATALOG_IDS, encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
+import { WALL_HALF } from "@/lib/blueprint/runtime/world";
 import { TilesLayer, crackHash, traceCracks } from "@/components/simulator/tilesRenderer";
+import en from "../messages/en.json";
+import pl from "../messages/pl.json";
+import es from "../messages/es.json";
 
 /*
  * --- blueprint --- Mode Lab's canvas drawing (components/simulator/blueprintRenderer.ts) without a browser: the still
@@ -59,6 +63,41 @@ function fakeCanvases() {
     return canvas;
   };
   return { factory, made };
+}
+
+/** --- review fix (blueprint) --- A 2D context for the overlay's text: measureText at 0.68 em a character (wider than bold capitals), each fillText with its font size and alignment, each fill() with its style. */
+function textContext() {
+  const state: Record<string, unknown> = { globalAlpha: 1, shadowBlur: 0, fillStyle: "", strokeStyle: "", lineWidth: 1, font: "10px sans-serif", textAlign: "left" };
+  const texts: { text: string; x: number; y: number; size: number; align: string; maxWidth: number }[] = [];
+  const fills: string[] = [];
+  const size = () => Number(/([\d.]+)px/.exec(String(state.font))?.[1] ?? 10);
+  const ctx = new Proxy(state, {
+    get: (_t, prop: string) => {
+      if (prop in state) return state[prop];
+      if (prop === "measureText") return (text: string) => ({ width: 0.68 * size() * String(text).length });
+      if (prop === "fillText") return (text: string, x: number, y: number, maxWidth = Infinity) => texts.push({ text, x, y, size: size(), align: String(state.textAlign), maxWidth });
+      if (prop === "fill") return () => fills.push(String(state.fillStyle));
+      if (prop === "createRadialGradient" || prop === "createLinearGradient") return () => ({ addColorStop: () => {} });
+      return () => {};
+    },
+    set: (_t, prop: string, value) => {
+      state[prop] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, texts, fills };
+}
+/** The dark plate an overlay block goes on when it cannot keep clear of the arena. */
+const PLATE = "rgba(6, 8, 16, 0.62)";
+const MESSAGES = { en, pl, es };
+/** The canvas' labels in a language: the catalog games' names and HUD words, as the page passes them. */
+function labelsOf(msgs: typeof en) {
+  const games = msgs.Blueprints as unknown as Record<string, Record<string, string>>;
+  return {
+    ...DEFAULT_BLUEPRINT_LABELS,
+    arenaFull: msgs.Blueprint.canvasArenaFull,
+    catalog: Object.fromEntries(BLUEPRINT_CATALOG_IDS.map((id) => [id, { name: games[id].name, hud: [0, 1, 2].map((i) => games[id][`hud${i}`]).filter(Boolean) }])),
+  };
 }
 
 const blurs = (rec: Recorded) => rec.sets.filter((s) => s.prop === "shadowBlur" && Number(s.value) > 0).length;
@@ -243,6 +282,63 @@ describe("blueprint renderer: cracks, trails, banner and dataset", () => {
     expect(landscape.plate).toBe(false);
     expect(landscape.left + landscape.maxWidth).toBeLessThanOrEqual(recorderSquare(800, 450).x0);
     expect(overlayPlacement(450, 450, recorderSquare(450, 450), blockH, 0).plate).toBe(true);
+  });
+
+  // --- review fix (blueprint) --- a square frame (a phone's stage, a 1:1 clip) has no free band: the HUD hugs the corners a
+  // circle leaves free, in every language, instead of a plate over the rim, the outer tiles or the turning exit
+  it("keeps every catalog game's title and counters clear of its arena in a square frame, in en, pl and es, and the clock too", () => {
+    const square = (patch: Partial<SimulatorSettings>, seconds: number) => {
+      const settings = { ...defaultSettings("blueprint"), ...patch };
+      const engine = createEngineForSettings({ ...config, width: 450, height: 450 }, "blueprint", modeSettingsOfSettings(settings) as ModeSettings, 1);
+      for (let i = 0; i < Math.round(seconds * 60); i++) engine.update(1000 / 60, 0);
+      return engine.getBlueprintView();
+    };
+    // every line drawn: its box (the text's width at about 0.68 em a character – wider than bold capitals are – and its
+    // font's height, the outline included) never reaches the rim's line; no plate goes over the arena
+    const problems = (view: ReturnType<typeof square>, labels: typeof DEFAULT_BLUEPRINT_LABELS, inset: number) => {
+      const { ctx, texts, fills } = textContext();
+      new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, view, labels, inset);
+      const w = view.world!;
+      const out: string[] = [];
+      if (fills.includes(PLATE)) out.push("a plate");
+      const fs = 0.03 * 450;
+      for (const t of texts) {
+        const width = Math.min(0.68 * t.size * t.text.length, t.maxWidth);
+        const [l, r] = t.align === "right" ? [t.x - width, t.x] : [t.x, t.x + width];
+        const nx = Math.max(l, Math.min(w.cx, r));
+        const ny = Math.max(t.y - 0.62 * t.size, Math.min(w.cy, t.y + 0.62 * t.size));
+        if (Math.hypot(nx - w.cx, ny - w.cy) < w.R + WALL_HALF) out.push(`"${t.text}" over the arena`);
+        if (t.size < CORNER_MIN_SCALE * 0.62 * fs - 0.06) out.push(`"${t.text}" at ${t.size.toFixed(1)} px`); // (a font's size is written to 0.1 px)
+      }
+      return out;
+    };
+    for (const [locale, msgs] of Object.entries(MESSAGES)) {
+      const labels = labelsOf(msgs);
+      for (const id of BLUEPRINT_CATALOG_IDS) {
+        const view = square({ blPreset: id }, 3);
+        // a 1:1 clip (no inset) and a phone's live stage (the page's 52 px inset: no block keeps clear below it)
+        for (const inset of [0, 52]) expect([locale, id, inset, problems(view, labels, inset)]).toEqual([locale, id, inset, []]);
+      }
+    }
+    // the clock of the last seconds, in the other corner
+    const spec = sanitizeBlueprint({ v: 1, meta: { name: "Clock" }, arena: { shape: "circle", size: 0.92 }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], finish: { timeoutSec: CLOCK_LAST_SEC + 3 } }).blueprint;
+    const clockView = square({ blSpec: encodeBlueprint(spec) }, 5.5);
+    const { ctx, texts } = textContext();
+    new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, clockView, DEFAULT_BLUEPRINT_LABELS, 52);
+    expect(texts.filter((t) => t.align === "right").map((t) => t.text)).toEqual(["0:08"]);
+    expect(problems(clockView, DEFAULT_BLUEPRINT_LABELS, 52)).toEqual([]);
+    // a smaller arena leaves room under the page's inset: the block stays below it
+    const small = sanitizeBlueprint({ ...spec, arena: { shape: "circle", size: 0.6 } }).blueprint;
+    const below = textContext();
+    new BlueprintLayer(fakeCanvases().factory).drawOverlay(below.ctx, square({ blSpec: encodeBlueprint(small) }, 1), DEFAULT_BLUEPRINT_LABELS, 52);
+    expect(Math.min(...below.texts.map((t) => t.y - 0.62 * t.size))).toBeGreaterThanOrEqual(52);
+    // an arena that leaves no corner free (a box filling the square): the block on a plate at full size
+    const box = sanitizeBlueprint({ ...spec, arena: { shape: "box", size: 0.92 } }).blueprint;
+    const plated = textContext();
+    new BlueprintLayer(fakeCanvases().factory).drawOverlay(plated.ctx, square({ blSpec: encodeBlueprint(box) }, 1), DEFAULT_BLUEPRINT_LABELS, 0);
+    expect(plated.fills).toContain(PLATE);
+    expect(plated.texts[0].text).toBe("CLOCK");
+    expect(plated.texts[0].size).toBeCloseTo(0.9 * 0.03 * 450, 0);
   });
 
   it("draws one clock: none beside a HUD counter of the time, else only in the last seconds before the timeout", () => {

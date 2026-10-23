@@ -155,3 +155,67 @@ describe("blueprint catalog: three locales", () => {
       }
     });
 });
+
+// --- review fix (blueprint) --- Mode Lab says what the visitor sees, in the visitor's language (docs/COPY-STYLE.md)
+describe("blueprint catalog: the visitor's words", () => {
+  type Node = string | { [key: string]: Node };
+  /** Every string of Mode Lab a visitor reads, by its key: the card, the heading, the panel, the canvas and every game's own. */
+  const modeLabCopy = (messages: unknown): [string, string][] => {
+    const m = messages as { Controls: Record<string, Node>; Blueprint: Node; Blueprints: Node; Modes: Record<string, Node>; Headings: Record<string, Node> };
+    const out: [string, string][] = [];
+    const walk = (node: Node | undefined, key: string) => {
+      if (typeof node === "string") out.push([key, node]);
+      else if (node) for (const [k, v] of Object.entries(node)) walk(v, `${key}.${k}`);
+    };
+    for (const [k, v] of Object.entries(m.Controls)) if (k === "modeBlueprint" || /^bl[A-Z]/.test(k)) walk(v, `Controls.${k}`);
+    walk(m.Blueprint, "Blueprint");
+    walk(m.Blueprints, "Blueprints");
+    walk(m.Modes.blueprint, "Modes.blueprint");
+    walk(m.Headings.modesLab, "Headings.modesLab");
+    return out;
+  };
+
+  it("never names the format a game is written in, nor seeds, in any language: a game, its rules, a shared game link", () => {
+    const offenders: string[] = [];
+    for (const [locale, messages] of LOCALES) {
+      const copy = modeLabCopy(messages);
+      expect(copy.length, locale).toBeGreaterThan(100);
+      for (const [key, text] of copy) if (/blueprint|\bseeds?\b|seed[óa]|semill|ziarn/i.test(text)) offenders.push(`${locale} ${key}: ${text}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("introduces Mode Lab in at most three sentences, each naming at most three things", () => {
+    for (const [locale, messages] of LOCALES) {
+      const intro = (messages as unknown as { Controls: { blDesc: string } }).Controls.blDesc;
+      const sentences = intro.split(/(?<=[.!?])\s+/);
+      expect(sentences.length, `${locale}: ${intro}`).toBeLessThanOrEqual(3);
+      // a list of more than three things has three commas or more ("an arena, its balls and the rules that make them break, merge, multiply or race")
+      for (const s of sentences) expect([locale, s, (s.match(/,/g) ?? []).length <= 2]).toEqual([locale, s, true]);
+    }
+  });
+
+  it("describes each game without a number its sliders change, so the description holds at every slider value", () => {
+    // the number words a default slider value could be said as (2 to 12)
+    const WORDS: Record<string, Record<number, string[]>> = {
+      en: { 2: ["two"], 3: ["three"], 4: ["four"], 5: ["five"], 6: ["six"], 7: ["seven"], 8: ["eight"], 9: ["nine"], 10: ["ten"], 11: ["eleven"], 12: ["twelve"] },
+      pl: { 2: ["dwa", "dwie", "dwóch", "dwu", "dwoma"], 3: ["trzy", "trzech"], 4: ["cztery", "czterech"], 5: ["pięć", "pięciu"], 6: ["sześć", "sześciu"], 7: ["siedem", "siedmiu"], 8: ["osiem", "ośmiu"], 9: ["dziewięć", "dziewięciu"], 10: ["dziesięć", "dziesięciu"], 11: ["jedenaście"], 12: ["dwanaście"] },
+      es: { 2: ["dos"], 3: ["tres"], 4: ["cuatro"], 5: ["cinco"], 6: ["seis"], 7: ["siete"], 8: ["ocho"], 9: ["nueve"], 10: ["diez"], 11: ["once"], 12: ["doce"] },
+    };
+    const offenders: string[] = [];
+    for (const id of BLUEPRINT_CATALOG_IDS) {
+      const bp = catalogBlueprint(id);
+      const defaults = bp.params.map((_, i) => paramValue(bp, i));
+      for (const [locale, messages] of LOCALES) {
+        const m = messages.Blueprints[id];
+        for (const key of ["description", "line"]) {
+          const text = String(m[key] ?? "");
+          if (/\d/.test(text)) offenders.push(`${locale} ${id}.${key} has a number: ${text}`);
+          for (const v of defaults)
+            for (const word of WORDS[locale][v] ?? []) if (new RegExp(`(?<!\\p{L})${word}(?!\\p{L})`, "iu").test(text)) offenders.push(`${locale} ${id}.${key} says "${word}" (a slider starts at ${v}): ${text}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

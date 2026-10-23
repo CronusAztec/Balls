@@ -20,7 +20,9 @@ import { WALL_HALF } from "@/lib/blueprint/runtime/world";
  *    timeout (top right), ARENA FULL when the ball ceiling refused a ball and, once the run is over, the end banner (the
  *    result line in the winner's colour on a dark band, popping in on the run's clock). --- review fix (blueprint) --- The
  *    title block and the clock sit in the frame's free band when it has one (above the square in a portrait frame, beside
- *    it in a landscape one), so they never cover the arena; in a square frame they sit in its top corners on a dark plate.
+ *    it in a landscape one), so they never cover the arena; in a square frame (a phone's stage, a 1:1 clip) they hug its top
+ *    corners, which a circle leaves free, set smaller when they must (fitCorner()), and only an arena that leaves no corner
+ *    free (a box filling the square) puts them on a dark plate over it.
  *    The clock shows only when no HUD counter already shows the time, and only in the last CLOCK_LAST_SEC before the
  *    timeout: one clock on screen, never one counting up beside one counting down.
  * Nothing is blurred per frame (the Merge Ring lesson: a `shadowBlur` draw blurs the whole box of a big shape): what does
@@ -103,7 +105,68 @@ export function overlayPlacement(width: number, height: number, sq: HudSquare, b
   if (sq.y0 >= blockH + inset + 0.02 * sq.side) return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 - 0.02 * sq.side - blockH, maxWidth: 0.6 * sq.side, plate: false };
   // landscape: the bands beside the square (the block in the left one, the clock in the right one), level with its top
   if (height <= width && sq.x0 >= 0.3 * sq.side) return { left: pad, right: width - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: sq.x0 - 1.5 * pad, plate: false };
+  // no free band: the square's top corners – on a plate, unless fitCorner() finds the block a place clear of the arena
   return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: 0.6 * sq.side, plate: true };
+}
+
+/** --- review fix (blueprint) --- One line of an overlay block: its width at full size (world px), its font size and its centre below the block's top. */
+export interface OverlayLine {
+  width: number;
+  size: number;
+  at: number;
+}
+
+/** --- review fix (blueprint) --- What the overlay keeps clear of: the arena's centre and outer radius (a box: its half side), and how far (world px). */
+export interface ArenaBounds {
+  cx: number;
+  cy: number;
+  r: number;
+  box: boolean;
+  margin: number;
+}
+
+/** --- review fix (blueprint) --- The smallest a corner block is set to keep clear of the arena (× its full size); smaller, it goes on a plate. */
+export const CORNER_MIN_SCALE = 0.72;
+
+/**
+ * --- review fix (blueprint) --- Whether a line's box (world px; `size` its font size, the outline included) keeps clear of
+ * the arena: outside its circle – the rim, the rings – by the margin, or outside its box.
+ */
+export function lineClear(left: number, right: number, centreY: number, size: number, a: ArenaBounds): boolean {
+  const top = centreY - 0.62 * size;
+  const bottom = centreY + 0.62 * size;
+  const reach = a.r + a.margin;
+  if (a.box) return bottom <= a.cy - reach || top >= a.cy + reach || right <= a.cx - reach || left >= a.cx + reach;
+  const nx = Math.max(left, Math.min(a.cx, right));
+  const ny = Math.max(top, Math.min(a.cy, bottom));
+  return Math.hypot(nx - a.cx, ny - a.cy) >= reach;
+}
+
+/**
+ * --- review fix (blueprint) --- A frame without a free band (a phone's square stage, a 1:1 clip): where a corner block of
+ * `lines`, set from `x` (left-aligned, or right-aligned at `x`), keeps clear of the arena – a circle leaves the square's
+ * corners free. It tries each of `tops` in turn (the page's inset first) at full size, then each a little smaller, down
+ * to CORNER_MIN_SCALE; null when none keeps clear (the block then goes on a plate at full size). A catalog arena fills 0.92
+ * of the square, so below a live square stage's 52 px inset no block keeps clear of it: the block then sits in the corner
+ * above it – nothing of the page overlays the canvas' top corners (the stage strip sits above the canvas, the transport bar
+ * below it; the recording pill shows only while recording, when the inset is 0 anyway).
+ */
+export function fitCorner(lines: readonly OverlayLine[], x: number, alignRight: boolean, tops: readonly number[], arena: ArenaBounds, maxWidth: number): { top: number; scale: number } | null {
+  for (let scale = 1; scale >= CORNER_MIN_SCALE - 1e-9; scale -= 0.04) {
+    for (const top of tops) {
+      let clear = true;
+      for (const l of lines) {
+        const w = Math.min(l.width, maxWidth) * scale;
+        const o = 0.12 * l.size * scale;
+        if (!lineClear(alignRight ? x - w - o : x - o, alignRight ? x + o : x + w + o, top + l.at * scale, l.size * scale, arena)) {
+          clear = false;
+          break;
+        }
+      }
+      if (clear) return { top, scale };
+    }
+  }
+  return null;
 }
 export const RING_BREAK_SEC = 0.55;
 /** A broken ring's pieces, and how far out they fly (× its radius). */
@@ -347,12 +410,24 @@ export class BlueprintLayer {
   private clockText = "";
   private readonly hudKeys: string[] = [];
   private readonly hudTexts: string[] = [];
+  /**
+   * --- review fix (blueprint) --- Each counter's widest line this run: a corner block is fitted to it, so it never grows back
+   * as a count falls and changes size at most when a count gains a digit. A new run (another world, the clock back) resets it.
+   */
+  private readonly fitWidths: number[] = [];
+  private fitRun: object | null = null;
+  private fitClock = -1;
   /** HUD lines drawn this frame (the watermark's title block). */
   private lines = 0;
   private arenaFullOn = false;
   /** --- review fix (blueprint) --- The title block and the clock as drawn this frame (world px; w 0: not drawn), for the watermark. */
   readonly hudRect: OverlayRect = { x: 0, y: 0, w: 0, h: 0 };
   readonly clockRect: OverlayRect = { x: 0, y: 0, w: 0, h: 0 };
+  /** --- review fix (blueprint) --- The rim's line width as last drawn (the overlay keeps clear of it and of the exits' posts). */
+  private rimLw = 2;
+  private readonly leftLines: OverlayLine[] = [];
+  private readonly rightLines: OverlayLine[] = [];
+  private readonly arenaBounds: ArenaBounds = { cx: 0, cy: 0, r: 0, box: false, margin: 0 };
   private readonly exitOrder = new Int8Array(4);
   /** The spec the static bitmap was drawn for (a new run of another spec rebuilds it). */
   private staticSpec: object | null = null;
@@ -379,6 +454,7 @@ export class BlueprintLayer {
     const palette = bp.look.palette;
     const rim = palette[bp.look.rim] ?? palette[0] ?? "#ffffff";
     const lw = Math.max(2, Math.min(6, opts.wallThickness));
+    this.rimLw = lw;
     // a rim that turns (exits on a spinning rim) and the rings are drawn every frame; everything else is still
     const rimTurns = w.shape === "circle" && w.exitAt.length > 0 && bp.arena.spinDegPerSec !== 0;
     if (bp !== this.staticSpec) {
@@ -752,7 +828,9 @@ export class BlueprintLayer {
   /**
    * The recorder's square: the title and up to two HUD counters at its top left, the clock at its top right, ARENA FULL under
    * it and, once the run is over, the end banner in the middle – the corners in the frame's free band when it has one
-   * (overlayPlacement()); `inset` moves them below the page's buttons.
+   * (overlayPlacement()); `inset` moves them below the page's buttons. --- review fix (blueprint) --- A frame without a free
+   * band sets each corner block clear of the arena (fitCorner(): smaller when it must, above the inset when only there it
+   * keeps clear), and on a plate at full size only when nothing keeps it clear (a box that fills the square).
    */
   drawOverlay(ctx: CanvasRenderingContext2D, view: BlueprintView, labels: BlueprintLabels, inset = 0) {
     const bp = view.bp;
@@ -767,20 +845,20 @@ export class BlueprintLayer {
     const lines = 1 + (marker ? 1 : 0) + view.hud.length;
     const blockH = (lines + 0.5) * 1.1 * fs;
     const place = overlayPlacement(w.width, w.height, sq, blockH, inset);
-    const top = place.top;
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.lineJoin = "round";
-    // (an outline, not a blur: the text reads on any floor)
-    const text = (s: string, x: number, y: number, size: number) => {
-      ctx.lineWidth = Math.max(2, 0.22 * size);
+    // (an outline, not a blur: the text reads on any floor; `k` the block's scale)
+    const text = (s: string, x: number, y: number, size: number, k: number) => {
+      ctx.lineWidth = Math.max(2 * k, 0.22 * size);
       ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
-      ctx.strokeText(s, x, y, place.maxWidth);
-      ctx.fillText(s, x, y, place.maxWidth);
+      ctx.strokeText(s, x, y, place.maxWidth * k);
+      ctx.fillText(s, x, y, place.maxWidth * k);
     };
+    const font = (weight: number, size: number) => `${weight} ${size.toFixed(1)}px sans-serif`;
     const title = (cat?.name ?? bp.meta.name).toUpperCase();
     for (let i = 0; i < view.hud.length; i++) {
       const h = view.hud[i];
@@ -791,36 +869,61 @@ export class BlueprintLayer {
         this.hudTexts[i] = label ? `${label.toUpperCase()} ${h.value}` : h.value;
       }
     }
-    // the block's width, for its plate and the watermark (the widest line, at most maxWidth)
-    ctx.font = `800 ${(0.9 * fs).toFixed(1)}px sans-serif`;
-    let width = ctx.measureText(title).width;
-    ctx.font = `700 ${(0.78 * fs).toFixed(1)}px sans-serif`;
-    for (let i = 0; i < view.hud.length; i++) width = Math.max(width, ctx.measureText(this.hudTexts[i]).width);
+    // the block's lines at full size: the title, the link's marker, the counters (their widths for the fit, the plate and
+    // the watermark)
+    const L = this.leftLines;
+    L.length = 0;
+    ctx.font = font(800, 0.9 * fs);
+    L.push({ width: ctx.measureText(title).width, size: 0.9 * fs, at: 0.5 * fs });
     if (marker) {
-      ctx.font = `700 ${(0.62 * fs).toFixed(1)}px sans-serif`;
-      width = Math.max(width, ctx.measureText(marker).width);
+      ctx.font = font(700, 0.62 * fs);
+      L.push({ width: ctx.measureText(marker).width, size: 0.62 * fs, at: 1.5 * fs });
     }
+    ctx.font = font(700, 0.78 * fs);
+    // (a counter at its widest this run: the block keeps its size while the counts move)
+    if (w !== this.fitRun || view.clockSec < this.fitClock) {
+      this.fitRun = w;
+      this.fitWidths.length = 0;
+    }
+    this.fitClock = view.clockSec;
+    for (let i = 0; i < view.hud.length; i++) {
+      this.fitWidths[i] = Math.max(this.fitWidths[i] ?? 0, ctx.measureText(this.hudTexts[i]).width);
+      L.push({ width: this.fitWidths[i], size: 0.78 * fs, at: (0.5 + 1.1 * (i + 1 + (marker ? 1 : 0))) * fs });
+    }
+    let width = 0;
+    for (const l of L) width = Math.max(width, l.width);
     width = Math.min(width, place.maxWidth);
+    // no free band: the corners, clear of the arena (the rim's line, the exits' posts and a little glow) where they can be
+    const a = this.arenaBounds;
+    a.cx = w.cx;
+    a.cy = w.cy;
+    a.r = w.R;
+    a.box = w.shape === "box";
+    a.margin = WALL_HALF + this.rimLw / 2 + (w.exitAt.length > 0 ? 2.2 * this.rimLw + 3 : 4);
+    const tops = inset > 0 ? [place.top, place.top - inset] : [place.top];
+    const fitL = place.plate ? fitCorner(L, place.left, false, tops, a, place.maxWidth) : null;
+    const top = fitL ? fitL.top : place.top;
+    const k = fitL ? fitL.scale : 1;
     const r = this.hudRect;
-    r.x = place.left - 0.35 * fs;
-    r.y = top - 0.2 * fs;
-    r.w = width + 0.7 * fs;
-    r.h = blockH;
-    if (place.plate) plate(ctx, r, 0.4 * fs);
-    ctx.font = `800 ${(0.9 * fs).toFixed(1)}px sans-serif`;
+    r.x = place.left - 0.35 * fs * k;
+    r.y = top - 0.2 * fs * k;
+    r.w = (width + 0.7 * fs) * k;
+    r.h = blockH * k;
+    if (place.plate && !fitL) plate(ctx, r, 0.4 * fs);
+    ctx.font = font(800, 0.9 * fs * k);
     ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-    text(title, place.left, top + 0.5 * fs, 0.9 * fs);
+    text(title, place.left, top + 0.5 * fs * k, 0.9 * fs * k, k);
     this.lines = 1;
     if (marker) {
-      ctx.font = `700 ${(0.62 * fs).toFixed(1)}px sans-serif`;
+      ctx.font = font(700, 0.62 * fs * k);
       ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      text(marker, place.left, top + 1.5 * fs, 0.62 * fs);
+      text(marker, place.left, top + 1.5 * fs * k, 0.62 * fs * k, k);
       this.lines++;
     }
     for (let i = 0; i < view.hud.length; i++) {
-      ctx.font = `700 ${(0.78 * fs).toFixed(1)}px sans-serif`;
+      ctx.font = font(700, 0.78 * fs * k);
       ctx.fillStyle = i === 0 ? accent : "rgba(255, 255, 255, 0.82)";
-      text(this.hudTexts[i], place.left, top + (0.5 + 1.1 * (i + 1 + (marker ? 1 : 0))) * fs, 0.78 * fs);
+      text(this.hudTexts[i], place.left, top + (0.5 + 1.1 * (i + 1 + (marker ? 1 : 0))) * fs * k, 0.78 * fs * k, k);
       this.lines++;
     }
     // the clock: seconds left until the timeout – one clock on screen (none when a HUD counter shows the time), and only
@@ -832,37 +935,40 @@ export class BlueprintLayer {
       this.clockKey = left;
       this.clockText = labels.timeLeft(left);
     }
-    const clockFont = `700 ${(0.85 * fs).toFixed(1)}px sans-serif`;
-    const fullFont = `800 ${(0.75 * fs).toFixed(1)}px sans-serif`;
-    let rightW = 0;
+    const R = this.rightLines;
+    R.length = 0;
     if (showClock) {
-      ctx.font = clockFont;
-      rightW = ctx.measureText(this.clockText).width;
+      ctx.font = font(700, 0.85 * fs);
+      R.push({ width: ctx.measureText(this.clockText).width, size: 0.85 * fs, at: 0.5 * fs });
     }
     if (this.arenaFullOn) {
-      ctx.font = fullFont;
-      rightW = Math.max(rightW, ctx.measureText(labels.arenaFull).width);
+      ctx.font = font(800, 0.75 * fs);
+      R.push({ width: ctx.measureText(labels.arenaFull).width, size: 0.75 * fs, at: (showClock ? 1.6 : 0.5) * fs });
     }
-    const rows = (showClock ? 1 : 0) + (this.arenaFullOn ? 1 : 0);
     const c = this.clockRect;
     c.w = 0;
-    if (rows > 0) {
-      c.w = Math.min(rightW, place.maxWidth) + 0.7 * fs;
-      c.x = place.right + 0.35 * fs - c.w;
-      c.y = top - 0.2 * fs;
-      c.h = (rows * 1.1 + 0.3) * fs;
-      if (place.plate) plate(ctx, c, 0.4 * fs);
-    }
-    ctx.textAlign = "right";
-    if (showClock) {
-      ctx.font = clockFont;
-      ctx.fillStyle = left <= 5 ? "#fb7185" : "rgba(255, 255, 255, 0.82)";
-      text(this.clockText, place.right, top + 0.5 * fs, 0.85 * fs);
-    }
-    if (this.arenaFullOn) {
-      ctx.font = fullFont;
-      ctx.fillStyle = "#fbbf24";
-      text(labels.arenaFull, place.right, top + (showClock ? 1.6 : 0.5) * fs, 0.75 * fs);
+    if (R.length > 0) {
+      let rightW = 0;
+      for (const l of R) rightW = Math.max(rightW, l.width);
+      const fitR = place.plate ? fitCorner(R, place.right, true, tops, a, place.maxWidth) : null;
+      const rTop = fitR ? fitR.top : place.top;
+      const kr = fitR ? fitR.scale : 1;
+      c.w = (Math.min(rightW, place.maxWidth) + 0.7 * fs) * kr;
+      c.x = place.right + 0.35 * fs * kr - c.w;
+      c.y = rTop - 0.2 * fs * kr;
+      c.h = (R.length * 1.1 + 0.3) * fs * kr;
+      if (place.plate && !fitR) plate(ctx, c, 0.4 * fs);
+      ctx.textAlign = "right";
+      if (showClock) {
+        ctx.font = font(700, 0.85 * fs * kr);
+        ctx.fillStyle = left <= 5 ? "#fb7185" : "rgba(255, 255, 255, 0.82)";
+        text(this.clockText, place.right, rTop + 0.5 * fs * kr, 0.85 * fs * kr, kr);
+      }
+      if (this.arenaFullOn) {
+        ctx.font = font(800, 0.75 * fs * kr);
+        ctx.fillStyle = "#fbbf24";
+        text(labels.arenaFull, place.right, rTop + (showClock ? 1.6 : 0.5) * fs * kr, 0.75 * fs * kr, kr);
+      }
     }
     ctx.restore();
     if (view.result.finished) this.drawBanner(ctx, view, labels, sq);

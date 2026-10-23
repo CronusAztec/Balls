@@ -11,7 +11,12 @@ import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/s
 import enMessages from "../messages/en.json";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
-import { blueprintLinkNotice } from "@/components/simulator/sections/BlueprintSection";
+import { blueprintLinkNotice, blueprintVerdictLine } from "@/components/simulator/sections/BlueprintSection";
+import type { CheckProblem, PlayabilityReport } from "@/lib/blueprint";
+import { createTranslator } from "next-intl";
+import { readFileSync } from "node:fs";
+import plMessages from "../messages/pl.json";
+import esMessages from "../messages/es.json";
 import { resolveProjectSettings } from "@/lib/project";
 import { EMPTY_QUEUE, enqueue, journalOf, restoreQueue } from "@/lib/desktop/renderQueue";
 
@@ -316,5 +321,41 @@ describe("blueprint: the Ball & Physics section in Mode Lab", () => {
     expect(ballControlsOf("blueprint")).toEqual({ speed: false, size: false, color: false, gravity: false });
     for (const key of ["ballSpeed", "ballSize", "ballColor", "gravity"]) expect([key, sectionKeyShown(key, { ...PANEL, mode: "blueprint" }, false)]).toEqual([key, false]);
     for (const key of ["ballSpeed", "ballSize", "ballColor", "gravity"]) expect([key, sectionKeyShown(key, { ...PANEL, mode: "classic" }, false)]).toEqual([key, true]);
+  });
+});
+
+// --- review fix (blueprint) --- Check playability's verdict in the visitor's language: the locale's decimals, runs (never
+// seeds) and, for a game that is not playable yet, its first problem in plain words
+describe("blueprint: the playability verdict in the visitor's words", () => {
+  const MESSAGES = { en: enMessages, pl: plMessages, es: esMessages };
+  const say = (locale: keyof typeof MESSAGES) => {
+    const t = createTranslator({ locale, messages: MESSAGES[locale] as never, namespace: "Controls" as never }) as unknown as (key: string, values?: Record<string, string | number>) => string;
+    const problems = (MESSAGES[locale] as unknown as { Blueprint: { problem: Record<string, string> } }).Blueprint.problem;
+    return (r: PlayabilityReport, timeoutSec = 60) => blueprintVerdictLine(r, timeoutSec, locale, t, (code) => problems[code] ?? "");
+  };
+  const report = (patch: Partial<PlayabilityReport>): PlayabilityReport => ({ verdict: "playable", feedback: [], problems: [], seeds: [1, 2, 3, 4].map((seed) => ({ seed }) as never), finishedByCondition: 4, medianFinishSec: 20.25, ...patch });
+
+  it("writes the seconds as the locale does and counts runs, never seeds", () => {
+    const playable = report({ finishedByCondition: 3, medianFinishSec: 20.3 });
+    expect(say("en")(playable)).toBe("Playable. It ends after about 20.3 s on 3 of 4 runs.");
+    expect(say("pl")(playable)).toBe("Da się grać. Kończy się po około 20,3 s w 3 z 4 prób.");
+    expect(say("es")(playable)).toBe("Se puede jugar. Termina tras unos 20,3 s en 3 de 4 pruebas.");
+    expect(say("en")(report({ verdict: "endless" }), 90)).toBe("It never ends by itself. Every run reached the 90 s limit.");
+  });
+
+  it("says a game that is not playable yet by its first problem, in plain words, and how many more there are", () => {
+    const broken = report({ verdict: "broken", problems: ["endless", "quiet", "short"] });
+    expect(say("en")(broken)).toBe("Not playable yet. It never ends by itself. Make the finish easier to reach. 2 more problems to fix.");
+    expect(say("pl")(report({ verdict: "broken", problems: ["arenaFull"] }))).toBe("Jeszcze nie da się grać. Arena zapełniła się kulkami. Twórz albo dziel mniej kulek.");
+    expect(say("es")(report({ verdict: "broken", problems: ["quiet", "fast"] }))).toBe("Aún no se puede jugar. Es demasiado silencioso. Dale sonido a los golpes. Queda un problema más por resolver.");
+    // every problem the check can find (lib/blueprint/check.ts CheckProblem) has its sentence in every language
+    const union = /export type CheckProblem = ([^;]+);/.exec(readFileSync("src/lib/blueprint/check.ts", "utf8"))?.[1] ?? "";
+    const codes = [...union.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1] as CheckProblem);
+    expect(codes.length).toBeGreaterThanOrEqual(10);
+    for (const locale of ["en", "pl", "es"] as const)
+      for (const code of codes) {
+        const line = say(locale)(report({ verdict: "broken", problems: [code] }));
+        expect([locale, code, line.length > say(locale)(report({ verdict: "broken", problems: [] })).length + 10]).toEqual([locale, code, true]);
+      }
   });
 });

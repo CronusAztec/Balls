@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type CheckProblem, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
 
 export interface BlueprintSectionProps {
@@ -53,6 +53,25 @@ export function blueprintLinkNotice(r: Pick<ResolvedBlueprint, "notes" | "newer"
   const said = r.unreadable ? 1 : r.newer.length;
   return { notice, fixed: Math.max(0, r.notes.length - said) };
 }
+
+/**
+ * --- review fix (blueprint) --- Check playability's verdict in the visitor's words (Controls.blCheck*): playable – the median
+ * finish in seconds as the locale writes them (Intl.NumberFormat: "20,3" in Polish and Spanish), on how many of the runs it
+ * ended –, endless – the limit every run reached –, or not playable yet with its first problem in plain words
+ * (Blueprint.problem.<code>: what goes wrong and what to change) and how many more there are. `t` says a Controls key,
+ * `problem` a problem's sentence ("" when it has none).
+ */
+export function blueprintVerdictLine(r: PlayabilityReport, timeoutSec: number, locale: string, t: (key: string, values?: Record<string, string | number>) => string, problem: (code: CheckProblem) => string): string {
+  if (r.verdict === "playable") {
+    const seconds = new Intl.NumberFormat(locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(r.medianFinishSec);
+    return t("blCheckPlayable", { seconds, ended: r.finishedByCondition, runs: r.seeds.length });
+  }
+  if (r.verdict === "endless") return t("blCheckEndless", { seconds: Math.round(timeoutSec) });
+  const first = r.problems[0];
+  const line = t("blCheckBroken", { problem: first ? problem(first) : "" });
+  return r.problems.length > 1 ? `${line} ${t("blCheckMore", { count: r.problems.length - 1 })}` : line;
+}
+
 export default function BlueprintSection({ t, search, matches, settings: s, update }: BlueprintSectionProps) {
   const b = useTranslations("Blueprints");
   const how = useTranslations("Blueprint.how");
@@ -146,15 +165,8 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
     update({ blParams: formatParamValues(next) });
   };
 
-  const nf1 = new Intl.NumberFormat(locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-  const verdictLine = (r: PlayabilityReport) => {
-    if (r.verdict === "playable") return t("blCheckPlayable", { seconds: nf1.format(r.medianFinishSec), ended: r.finishedByCondition, runs: r.seeds.length });
-    if (r.verdict === "endless") return t("blCheckEndless", { seconds: Math.round(resolved.blueprint.finish.timeoutSec) });
-    // the first problem in plain words, then how many more
-    const first = r.problems[0];
-    const line = t("blCheckBroken", { problem: first && problemT.has(first) ? problemT(first) : "" });
-    return r.problems.length > 1 ? `${line} ${t("blCheckMore", { count: r.problems.length - 1 })}` : line;
-  };
+  // the verdict: the first problem in plain words, then how many more
+  const verdictLine = (r: PlayabilityReport) => blueprintVerdictLine(r, resolved.blueprint.finish.timeoutSec, locale, t, (code) => (problemT.has(code) ? problemT(code) : ""));
 
   const selected = fromLink || unreadable ? "" : resolved.catalogId;
   const gamesLabel = useId();
