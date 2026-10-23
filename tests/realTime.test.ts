@@ -1,0 +1,396 @@
+import fs from "fs";
+import path from "path";
+import { describe, expect, it } from "vitest";
+import {
+  CATCH_UP_BUDGET_MS,
+  DEBT_CAP_MS,
+  DRAW_BUDGET_MS,
+  EXPORT_CATCH_UP_STEPS,
+  MAX_STEPS_PER_CALLBACK,
+  MIN_DRAW_INTERVAL_MS,
+  OfflineRealTime,
+  PAUSE_GAP_MS,
+  RealTimeClock,
+  STEP_MS,
+  stepCostMs,
+  type RealTimeInput,
+  type RealTimeStepper,
+} from "@/lib/simulation/realTime";
+import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget";
+import { PhysicsEngine } from "@/lib/physics/engine";
+import { MIN_DILATION } from "@/lib/physics/multipliers";
+import { MODE_IDS, type PhysicsConfig } from "@/lib/physics/types";
+import { createEngineForSettings } from "@/lib/simulation/finder";
+import { bounceMathBeatConfig, type BounceRule } from "@/lib/simulation/bounceMath";
+import { BASELINE_FILE, FINGERPRINT_CONFIG, FINGERPRINT_FRAMES, FINGERPRINT_MODE_SETTINGS, FINGERPRINT_SAMPLE_EVERY, FINGERPRINT_SEED, diffFingerprint, parseBaselineLiteral, type Fingerprint } from "@/lib/agentKit/fingerprint";
+
+// --- slow-motion --- The real-time scheduler of the Slow motion switch (src/lib/simulation/realTime.ts) on a fake clock, and the
+// engine's dilation accessor it pays steps by (`PhysicsEngine.getStepTimeScale()`): 1 on every default step of every mode.
+
+const ROOT = path.resolve(__dirname, "..");
+
+/** A fake stepper: every step returns `scale()` and costs `stepCpuMs` of the fake clock. */
+function fakeStepper(scale: () => number = () => 1, stepCpuMs = 0) {
+  let clock = 0;
+  let steps = 0;
+  const stepper: RealTimeStepper & { steps: () => number; advance: (ms: number) => void } = {
+    step: () => {
+      steps++;
+      clock += stepCpuMs;
+      return scale();
+    },
+    now: () => clock,
+    steps: () => steps,
+    advance: (ms) => {
+      clock += ms;
+    },
+  };
+  return stepper;
+}
+
+const run = (simSpeed = 1, drawDue = true): RealTimeInput => ({ running: true, simSpeed, drawDue });
+
+describe("the real-time scheduler (--- slow-motion ---)", () => {
+  it("names its bounds: the frame budget for a drawing callback, and finite caps everywhere", () => {
+    expect(DRAW_BUDGET_MS).toBe(FRAME_BUDGET_MS);
+    expect([STEP_MS, DEBT_CAP_MS, PAUSE_GAP_MS, CATCH_UP_BUDGET_MS, MIN_DRAW_INTERVAL_MS, MAX_STEPS_PER_CALLBACK, EXPORT_CATCH_UP_STEPS]).toEqual([16.666, 500, 1000, 28, 100, 4096, 256]);
+    expect(CATCH_UP_BUDGET_MS).toBeGreaterThan(DRAW_BUDGET_MS);
+    // A step pays its time scale; a run that is over or a clock that stands still pays a whole step.
+    expect(stepCostMs(1)).toBe(STEP_MS);
+    expect(stepCostMs(0.25)).toBeCloseTo(STEP_MS / 4, 12);
+    for (const frozen of [0, -1, NaN, Infinity]) expect(stepCostMs(frozen), String(frozen)).toBe(STEP_MS);
+  });
+
+  it("runs one whole step per 16.666 ms at real time, and pays it exactly", () => {
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper();
+    expect(clock.tick(0, run(), stepper).steps).toBe(0); // (the first callback starts the clock)
+    for (let i = 1; i <= 600; i++) {
+      const t = clock.tick(i * STEP_MS, run(), stepper);
+      expect(t.steps, `callback ${i}`).toBe(1);
+      expect(t.draw).toBe(true);
+      expect(t.frameMs).toBeCloseTo(STEP_MS, 9);
+    }
+    expect(clock.steps).toBe(600);
+    expect(Math.abs(clock.debtMs)).toBeLessThan(1e-6);
+    expect([clock.lostMs, clock.framesSkipped]).toEqual([0, 0]);
+  });
+
+  it("repays the engine's time dilation with steps: 0.25 gives 4 steps per 16.666 ms, 2^-4 gives 16", () => {
+    for (const [dilation, perFrame] of [
+      [0.25, 4],
+      [0.5, 2],
+      [1 / 16, 16],
+    ] as const) {
+      const clock = new RealTimeClock();
+      const stepper = fakeStepper(() => dilation);
+      clock.tick(0, run(), stepper);
+      const counts: number[] = [];
+      for (let i = 1; i <= 120; i++) counts.push(clock.tick(i * STEP_MS, run(), stepper).steps);
+      // The first callback pays a whole step's debt with steps it learns are shorter; from then on, exactly `perFrame`.
+      expect(counts.slice(1).every((n) => n === perFrame), `${dilation}: ${counts.slice(0, 8).join(",")}`).toBe(true);
+      expect(counts.reduce((a, b) => a + b, 0)).toBe(120 * perFrame);
+      expect(clock.lostMs).toBe(0);
+    }
+  });
+
+  it("scales the debt and its cap with the playback speed", () => {
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper();
+    clock.tick(0, run(4), stepper);
+    expect(clock.tick(STEP_MS, run(4), stepper).steps).toBe(4);
+    expect(clock.tick(2 * STEP_MS, run(8), stepper).steps).toBe(8);
+    // 900 ms of wall at 4x owes 3,600 ms: capped at 500 × 4, the rest lost
+    const slow = new RealTimeClock();
+    const stuck = fakeStepper(() => 1, 1); // 1 ms a step: the budget stops it
+    slow.tick(0, run(4), stuck);
+    const t = slow.tick(900, run(4), stuck);
+    expect(t.wantedMs).toBeCloseTo(3600, 9);
+    expect(slow.lostMs).toBeCloseTo(3600 - DEBT_CAP_MS * 4, 9);
+    expect(slow.debtMs).toBeCloseTo(DEBT_CAP_MS * 4 - t.paidMs, 9);
+  });
+
+  it("caps the debt at 500 ms and counts the excess as lost time, so a slow device never spirals", () => {
+    const clock = new RealTimeClock();
+    const heavy = fakeStepper(() => 1, 40); // a step costs 40 ms of CPU: one a callback
+    clock.tick(0, run(), heavy);
+    let lostBefore = 0;
+    for (let i = 1; i <= 50; i++) {
+      const t = clock.tick(i * 40, run(), heavy);
+      expect(t.steps, `callback ${i}`).toBe(1); // never more than its budget plus one step
+      expect(clock.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
+      expect(clock.lostMs).toBeGreaterThanOrEqual(lostBefore);
+      lostBefore = clock.lostMs;
+    }
+    // 50 callbacks of 40 ms owed 2,000 ms; 50 steps paid 833.3 ms; the cap holds 500 at most: the rest is lost, and counted
+    expect(clock.lostMs).toBeGreaterThan(0);
+    expect(clock.lostMs + clock.debtMs + 50 * STEP_MS).toBeCloseTo(50 * 40, 6);
+  });
+
+  it("treats a gap over a second as a pause: the debt starts over and the callback counts as one frame", () => {
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper();
+    clock.tick(0, run(), stepper);
+    clock.tick(STEP_MS, run(), stepper);
+    const t = clock.tick(STEP_MS + 5000, run(), stepper); // a hidden tab for five seconds
+    expect(t.paused).toBe(true);
+    expect(t.wallMs).toBe(STEP_MS);
+    expect(t.steps).toBe(1);
+    expect(t.frameMs).toBe(STEP_MS);
+    expect(clock.lostMs).toBe(0);
+    // exactly a second is still time owed (the gap must pass it); a clock that went back is a pause too
+    const edge = clock.tick(STEP_MS + 5000 + PAUSE_GAP_MS, run(), stepper);
+    expect([edge.paused, clock.lostMs > 0]).toEqual([false, true]);
+    expect(clock.tick(0, run(), stepper).paused).toBe(true);
+  });
+
+  it("always runs at least one whole step when one is owed, and respects the budget after it", () => {
+    // A step that costs 50 ms of CPU: one runs, then the budget stops the callback (12 ms drawing, 28 catching up).
+    const slow = new RealTimeClock();
+    const fifty = fakeStepper(() => 1, 50);
+    slow.tick(0, run(), fifty);
+    const t = slow.tick(200, run(), fifty);
+    expect(t.steps).toBe(1);
+    // 5 ms steps: the step that crosses the 12 ms budget is the last one (15 ms: the budget plus at most one step).
+    const five = new RealTimeClock();
+    const fives = fakeStepper(() => 1, 5);
+    five.tick(0, run(), fives);
+    expect(five.tick(400, run(), fives).steps).toBe(3);
+    // 1 ms steps at 8x (a debt far past one frame): a drawing callback spends its 12 ms budget.
+    const quick = new RealTimeClock();
+    const one = fakeStepper(() => 1, 1);
+    quick.tick(0, run(8), one);
+    const drawn = quick.tick(400, run(8), one); // the first frame is overdue: it draws whatever is owed
+    expect(drawn.draw).toBe(true);
+    expect(drawn.catchUp).toBe(false);
+    expect(drawn.steps).toBe(DRAW_BUDGET_MS);
+    // The next callback still owes and its frame is not overdue: it skips the draw and catches up to 28 ms.
+    const caught = quick.tick(400 + STEP_MS, run(8), one);
+    expect(caught.catchUp).toBe(true);
+    expect(caught.draw).toBe(false);
+    expect(caught.steps).toBe(CATCH_UP_BUDGET_MS);
+    expect(quick.framesSkipped).toBe(1);
+    // Nothing owed: no step at all.
+    const idle = new RealTimeClock();
+    const none = fakeStepper();
+    idle.tick(0, run(), none);
+    expect(idle.tick(STEP_MS / 2, run(), none).steps).toBe(0);
+  });
+
+  it("draws at least every 100 ms while it catches up, and the drawn frame covers the skipped callbacks' time", () => {
+    const clock = new RealTimeClock();
+    const heavy = fakeStepper(() => 1, 30); // 30 ms a step: the device cannot keep up
+    clock.tick(0, run(), heavy);
+    let now = 0;
+    let lastDraw = 0;
+    let covered = 0;
+    let wall = 0;
+    for (let i = 0; i < 40; i++) {
+      now += 33;
+      const t = clock.tick(now, run(), heavy);
+      wall += t.wallMs;
+      if (t.draw) {
+        expect(now - lastDraw, `callback ${i}`).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 33);
+        lastDraw = now;
+        covered += t.frameMs;
+      }
+    }
+    expect(clock.framesSkipped).toBeGreaterThan(0);
+    expect(covered).toBeCloseTo(wall - (now - lastDraw), 9);
+  });
+
+  it("owes nothing while the run does not play, and draws every due frame then", () => {
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper();
+    clock.tick(0, run(), stepper);
+    for (let i = 1; i <= 10; i++) {
+      const t = clock.tick(i * 100, { running: false, simSpeed: 1, drawDue: i % 2 === 0 }, stepper);
+      expect(t.steps).toBe(0);
+      expect(t.draw).toBe(i % 2 === 0);
+    }
+    expect([clock.debtMs, clock.lostMs, stepper.steps()]).toEqual([0, 0, 0]);
+    expect(clock.tick(1000 + STEP_MS, run(), stepper).steps).toBe(1); // resumes on whole steps, with no burst
+  });
+
+  it("ends every callback: a run that is over, a clock that stands still, a dilation of 2^-20", () => {
+    for (const [name, scale] of [
+      ["over", () => 1],
+      ["frozen", () => 0],
+      ["NaN", () => NaN],
+      ["2^-20", () => MIN_DILATION],
+    ] as const) {
+      const clock = new RealTimeClock();
+      const free = fakeStepper(scale); // steps that cost nothing: only the debt and the step guard end the loop
+      clock.tick(0, run(), free);
+      const t = clock.tick(400, run(), free);
+      expect(t.steps, name).toBeLessThanOrEqual(MAX_STEPS_PER_CALLBACK);
+      expect(t.steps, name).toBeGreaterThan(0);
+      if (name === "2^-20") {
+        expect(MIN_DILATION).toBe(2 ** -20);
+        expect(t.steps).toBe(MAX_STEPS_PER_CALLBACK);
+        expect(t.draw).toBe(true); // (the first frame is overdue: drawn whatever is owed)
+      } else expect(t.steps, name).toBe(Math.floor(400 / STEP_MS + 1e-9));
+    }
+  });
+
+  it("starts over on reset", () => {
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper(() => 0.5, 40);
+    clock.tick(0, run(), stepper);
+    clock.tick(900, run(), stepper);
+    clock.tick(950, run(), stepper);
+    expect(clock.lostMs + clock.debtMs).toBeGreaterThan(0);
+    clock.reset();
+    expect([clock.debtMs, clock.lostMs, clock.framesSkipped, clock.steps, clock.owesStep]).toEqual([0, 0, 0, 0, false]);
+    expect(clock.tick(5000, run(), stepper).steps).toBe(0); // (a new clock: the first callback owes nothing)
+  });
+});
+
+describe("the fast export's real-time scheduler (--- slow-motion ---)", () => {
+  /** Renders `frames` video frames of a run whose dilation follows `scaleAt(step)`, in chunks of 8; returns the steps per frame. */
+  function exportRun(frames: number, scaleAt: (step: number) => number, cap = EXPORT_CATCH_UP_STEPS) {
+    const offline = new OfflineRealTime(cap);
+    let step = 0;
+    const perFrame: number[] = [];
+    const lagged: boolean[] = [];
+    for (let f = 0; f < frames; f++) {
+      offline.beginFrame();
+      let ran = 0;
+      while (offline.pending) ran += offline.advance(() => scaleAt(step++), 8);
+      perFrame.push(ran);
+      lagged.push(offline.endFrame());
+    }
+    return { offline, perFrame, lagged };
+  }
+
+  it("pays one step a frame at real time, and repays dilation with steps (0.25: four a frame)", () => {
+    expect(exportRun(60, () => 1).perFrame.every((n) => n === 1)).toBe(true);
+    const quarter = exportRun(60, () => 0.25);
+    expect(quarter.perFrame.slice(1).every((n) => n === 4)).toBe(true);
+    expect(quarter.offline.laggedFrames).toBe(0);
+  });
+
+  it("stops a frame at its step cap, counts it as slower than real time, and keeps the debt within its cap", () => {
+    const tiny = exportRun(40, () => MIN_DILATION);
+    expect(tiny.perFrame.every((n) => n === EXPORT_CATCH_UP_STEPS)).toBe(true);
+    expect(tiny.lagged.every(Boolean)).toBe(true);
+    expect(tiny.offline.laggedFrames).toBe(40);
+    expect(tiny.offline.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
+    expect(tiny.offline.lostMs).toBeGreaterThan(0);
+    // A short heavy stretch, then real time again: the debt is repaid, and only the capped frames count.
+    const dip = exportRun(60, (s) => (s >= 10 && s < 10 + 3 * 256 ? 1 / 1024 : 1));
+    expect(dip.offline.laggedFrames).toBeGreaterThan(0);
+    expect(dip.offline.laggedFrames).toBeLessThan(10);
+    expect(dip.perFrame.slice(-5).every((n) => n === 1)).toBe(true);
+  });
+
+  it("is deterministic: the same steps give the same frames, chunked or not, with no wall clock", () => {
+    const scale = (s: number) => (s % 97 < 40 ? 1 / 8 : s % 13 === 0 ? 1 / 512 : 1);
+    const a = exportRun(120, scale);
+    const b = exportRun(120, scale);
+    expect(b.perFrame).toEqual(a.perFrame);
+    expect(b.lagged).toEqual(a.lagged);
+    expect([b.offline.steps, b.offline.debtMs, b.offline.lostMs]).toEqual([a.offline.steps, a.offline.debtMs, a.offline.lostMs]);
+    // one chunk per frame instead of chunks of 8: the same steps
+    const whole = new OfflineRealTime();
+    let step = 0;
+    const perFrame: number[] = [];
+    for (let f = 0; f < 120; f++) {
+      whole.beginFrame();
+      perFrame.push(whole.advance(() => scale(step++)));
+      whole.endFrame();
+    }
+    expect(perFrame).toEqual(a.perFrame);
+  });
+});
+
+describe("the engine's step time scale (--- slow-motion ---)", () => {
+  const baseline = parseBaselineLiteral(fs.readFileSync(path.join(ROOT, BASELINE_FILE), "utf8"));
+
+  it("is 1 on every default step of all 48 modes, whose fingerprints stay their BASELINE entries", { timeout: 60_000 }, () => {
+    expect(MODE_IDS.length).toBe(48);
+    for (const mode of MODE_IDS) {
+      const engine = createEngineForSettings(FINGERPRINT_CONFIG, mode, FINGERPRINT_MODE_SETTINGS, FINGERPRINT_SEED);
+      expect(engine.getStepTimeScale(), mode).toBe(1);
+      const samples: number[][] = [];
+      let off = 0;
+      for (let i = 1; i <= FINGERPRINT_FRAMES; i++) {
+        engine.update(1000 / 60, 0);
+        if (engine.getStepTimeScale() !== 1) off++;
+        if (i % FINGERPRINT_SAMPLE_EVERY === 0) samples.push(...engine.getBalls().slice(0, 2).map((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
+      }
+      expect(off, mode).toBe(0);
+      const print: Fingerprint = { samples, broken: [...engine.getBrokenWalls()].sort((a, b) => a - b), walls: engine.getCircularWalls().map((w) => Math.round(w.radius * 1000)) };
+      expect(diffFingerprint(print, baseline[mode]), mode).toEqual({ equal: true, differences: [] });
+    }
+  });
+
+  const config: PhysicsConfig = { ...FINGERPRINT_CONFIG };
+  const STEP = 1000 / 60;
+  const timeScaleRule: BounceRule = { param: "timeScale", trigger: "start", every: 1, op: "set", amount: 0.5, scope: "ball" };
+
+  it("equals the plan's dilation on a dilated multipliers run, without the bounce-math clock of 0.5", () => {
+    const engine = new PhysicsEngine({ ...config, bounceMath: { rules: [timeScaleRule], beat: bounceMathBeatConfig(120), wallThickness: 2, wallWobble: 0, showValues: true } });
+    engine.setCinematicEnabled(false);
+    engine.setSeed(1);
+    engine.initMode("classic");
+    engine.applyBallMultiplier(engine.getBalls()[0], "speed", 1000);
+    let dilated = 0;
+    let planned = 0;
+    for (let f = 0; f < 600 && !engine.isSimulationFinished(); f++) {
+      const before = engine.getElapsedMs();
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+      const scale = engine.getStepTimeScale();
+      // The step covered 1000/60 × dilation × clock; the accessor holds the dilation alone.
+      expect((engine.getElapsedMs() - before) / (STEP * 0.5), `frame ${f}`).toBeCloseTo(scale, 9);
+      const view = engine.getMultiplierView();
+      if (view.subSteps > 0) {
+        planned++;
+        expect(view.dilation, `frame ${f}`).toBeCloseTo(scale * 0.5, 12);
+      }
+      expect(scale).toBeGreaterThan(0);
+      expect(scale).toBeLessThanOrEqual(1);
+      if (scale < 1) dilated++;
+    }
+    expect(planned).toBeGreaterThan(0);
+    expect(dilated).toBeGreaterThan(0);
+    // A new run starts on whole steps.
+    engine.initMode("classic");
+    expect(engine.getStepTimeScale()).toBe(1);
+  });
+
+  it("is 1 for a run that is over (a ball that outgrew the arena), so a page paying it always ends its loop", () => {
+    const engine = new PhysicsEngine({ ...config });
+    engine.setCinematicEnabled(false);
+    engine.setSeed(2);
+    engine.initMode("classic");
+    const b = engine.getBalls()[0];
+    engine.applyBallMultiplier(b, "speed", 1000);
+    let sawDilation = false;
+    for (let round = 0; round < 60 && !engine.isSimulationFinished(); round++) {
+      engine.applyBallMultiplier(b, "size", 1.25);
+      for (let f = 0; f < 30 && !engine.isSimulationFinished(); f++) {
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        if (engine.getStepTimeScale() < 1) sawDilation = true;
+      }
+    }
+    expect(engine.getMultiplierView().outgrown).toBe(true);
+    expect(sawDilation).toBe(true);
+    engine.update(STEP, 0);
+    expect(engine.getStepTimeScale()).toBe(1);
+  });
+
+  it("never touches the run: a seed's steps are the same whether or not anyone reads it", () => {
+    const a = createEngineForSettings(FINGERPRINT_CONFIG, "multipliers", FINGERPRINT_MODE_SETTINGS, 99);
+    const b = createEngineForSettings(FINGERPRINT_CONFIG, "multipliers", FINGERPRINT_MODE_SETTINGS, 99);
+    for (let i = 0; i < 300; i++) {
+      a.update(STEP, 0);
+      b.update(STEP, 0);
+      b.getStepTimeScale();
+    }
+    expect(b.getBalls().map((x) => [x.x, x.y])).toEqual(a.getBalls().map((x) => [x.x, x.y]));
+    expect(b.getElapsedMs()).toBe(a.getElapsedMs());
+  });
+});

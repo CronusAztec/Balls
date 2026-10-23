@@ -217,6 +217,11 @@ export class PhysicsEngine {
   private infiniteMode = false;
   private infiniteTimer = 0;
   private _elapsedMs = 0;
+  /**
+   * --- slow-motion --- The time scale of the last step: the share of a fixed step its plan let it simulate (the time dilation of
+   * multipliers, the limits runtime and a mode's sub-step ceiling), 1 for a whole step. Never the bounce-math clock.
+   */
+  private lastStepTimeScale = 1;
   private circularWalls: CircularWall[] = [];
   private wallRotations: number[] = [];
   private brokenWalls = new Set<number>();
@@ -2389,7 +2394,7 @@ export class PhysicsEngine {
   getElapsedMs() {
     return this._elapsedMs;
   }
-  // --- slow-motion --- the Slow motion switch (`PhysicsConfig.slowMotion`)
+  // --- slow-motion --- the Slow motion switch (`PhysicsConfig.slowMotion`) and the time scale the page pays steps by
   /**
    * Turns Slow motion on or off. Off puts `slowMotion: false` in the config; on takes the key out again, so `{ ...engine.config }`
    * (the fast export's engines, the finder's) is byte for byte a config from before the switch. No run restarts: the page paces
@@ -2405,6 +2410,15 @@ export class PhysicsEngine {
   /** Whether Slow motion is on (the default: no `slowMotion: false` in the config). */
   slowMotionOn(): boolean {
     return this._config.slowMotion !== false;
+  }
+  /**
+   * The time scale of the last step: the share of a fixed step (1000 / 60 ms) it simulated after the engine's time dilation – a
+   * plan's `dilation` (multipliers, the limits runtime, a mode's sub-step ceiling) – and 1 for a whole step, a new run and a run
+   * that is over. The bounce-math "timeScale" clock is left out (a rule, not slow motion). With Slow motion off the page pays a
+   * step 16.666 × this of its real-time debt (lib/simulation/realTime.ts): a dilated run then plays in real time.
+   */
+  getStepTimeScale(): number {
+    return this.lastStepTimeScale;
   }
   // --- end slow-motion ---
   // --- loop-foundation --- the loop contract (lib/loop/loopContract.ts): the mode's seamless cycle and its seams
@@ -2554,6 +2568,7 @@ export class PhysicsEngine {
     // at the current time – at the old run's clock it would leave a stale pulse scale that the new rings' base radii are
     // then divided by (syncWallBaseRadii()), and a restarted or replayed run would play on different rings.
     this._elapsedMs = 0;
+    this.lastStepTimeScale = 1; // --- slow-motion --- a new run starts on whole steps
     this.applyTimeline(0);
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
     this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
@@ -2845,6 +2860,7 @@ export class PhysicsEngine {
     // --- gerald-multipliers --- a ball outgrew the arena: the run is over, only the confetti keeps flying
     const mult = this.multipliers;
     if (mult.isOutgrown()) {
+      this.lastStepTimeScale = 1; // --- slow-motion --- (a run that is over: whole steps)
       this.updateParticles(frameMs / 1000);
       return;
     }
@@ -2886,7 +2902,10 @@ export class PhysicsEngine {
       const modeSpeedBound = this.currentMode?.stepSpeedBound?.(this.ctx, (this.FIXED_STEP_MS * clock) / 1000) ?? 0;
       beginPairStep(limitsOn ? PAIR_STEP_BUDGET : Infinity); // --- uncap-all --- (an extreme step's pair checks are budgeted; a normal one never meets it)
       if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
-      if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
+      if (limitsOn && mult.isOutgrown()) {
+        this.lastStepTimeScale = 1; // --- slow-motion --- (no step ran: a run that is over pays whole steps)
+        break; // the ball ate the arena before the step began: the run is over
+      }
       const plan =
         multActive || limitsOn || editorFast || modeSpeedBound > 0
           ? mult.planStep(
@@ -2906,6 +2925,9 @@ export class PhysicsEngine {
         plan.dilation *= subCeiling / plan.subSteps;
         plan.subSteps = subCeiling;
       }
+      // --- slow-motion --- the dilation of this step, which the page repays with Slow motion off (lib/simulation/realTime.ts); the
+      // bounce-math clock stays out of it: a rule the visitor wrote, not slow motion
+      this.lastStepTimeScale = plan ? plan.dilation : 1;
       const stepMs = (plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS) * clock;
       if (plan && clock !== 1) mult.getView().dilation = plan.dilation * clock; // --- bounce-math --- (SLOW-MO only while the world really runs slow)
       this._elapsedMs += stepMs;
