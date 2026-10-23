@@ -455,7 +455,13 @@ export class BlueprintRun implements WorldEvents {
 
   /* ------------------------------------------------------------------ the clock and the spawners */
 
+  /**
+   * Queues an event for the rules. --- review fix (blueprint) --- An event no rule listens to is not queued: it never uses
+   * the step's event budget (a crowd's contacts would crowd out the tile a rule waits for). Its count, sound and payoff
+   * are the caller's, already done.
+   */
   private push(trigger: Trigger, self: WorldBall | null, other: WorldBall | null, tile: number, rule: number) {
+    if (rule < 0 && this.compiled.byTrigger[trigger].length === 0) return;
     if (!this.queue.push(trigger, self, other, tile, rule)) {
       this.stats.droppedEvents++;
       return;
@@ -646,17 +652,17 @@ export class BlueprintRun implements WorldEvents {
     if (broke) this.push("tileBroken", ball, null, tile, -1);
   }
 
+  /**
+   * A contact that starts: `a` is self, the ball that was faster before it (the world measured both before the bounce –
+   * --- review fix (blueprint) --- after it, a head-on hit of equal balls has swapped their speeds).
+   */
   ballHit(a: WorldBall, b: WorldBall, impact: number): void {
     if (this.done.finished) return;
     if (impact >= MIN_HIT_SPEED) {
       this.ctx.noteCollide?.(a.ball, b.ball); // --- bounce-math --- a ball-to-ball hit
       this.voice("ballHit", Math.max(a.tier, b.tier) - 1, impact);
     }
-    // the faster ball is self (ties: the older one)
-    const sa = a.vx * a.vx + a.vy * a.vy;
-    const sb = b.vx * b.vx + b.vy * b.vy;
-    const aFirst = sa > sb || (sa === sb && a.id < b.id);
-    this.push("ballHit", aFirst ? a : b, aFirst ? b : a, -1, -1);
+    this.push("ballHit", a, b, -1, -1);
   }
 
   ringPass(ball: WorldBall, ring: number): void {

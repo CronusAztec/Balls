@@ -139,13 +139,29 @@ async function explainTool(tb, args) {
 
 // --- blueprint --- the five bp-* tools: the Blueprint library alone (bundle.mjs loadBlueprintKit), no engine, no browser
 
-/** A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). */
+/**
+ * A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). ---
+ * review fix (blueprint) --- `blueprint` is the game as it plays: the slider values of the link (`blv`) or of the call
+ * (`params`) applied, as Mode Lab applies them; `base` is the spec before them, and `params` says what was applied.
+ */
 function blueprintOf(bk, args) {
   const input = bk.blueprintInput(args);
   if (!input.ok) throw new ToolError(input.error);
   const errors = bk.validateBlueprint(input.raw);
-  const { blueprint, notes, newer } = bk.sanitizeBlueprint(input.raw);
-  return { source: input.source, blueprint, errors, notes, newer };
+  const { blueprint: base, notes, newer } = bk.sanitizeBlueprint(input.raw);
+  if (!input.params.length) return { source: input.source, catalogId: input.catalogId, base, blueprint: base, errors, notes, newer, params: null };
+  const applied = bk.applyBlueprintParams(base, input.params);
+  const values = bk.formatParamValues(input.params);
+  const params = {
+    from: input.paramsFrom === "link" ? "the link's blv" : "params",
+    blv: values,
+    sliders: base.params.map((p, i) => ({ id: p.id, value: bk.paramValue(applied.blueprint, i), own: bk.paramValue(base, i) })),
+    ...(applied.notes.length ? { notes: applied.notes } : {}),
+    note: base.params.length
+      ? `Slider values applied (${input.paramsFrom === "link" ? "from the link's blv" : "from params"}): this is the game the link plays, not the spec's own defaults.`
+      : "The spec has no sliders: the slider values change nothing.",
+  };
+  return { source: input.source, catalogId: input.catalogId, base, blueprint: applied.blueprint, errors, notes, newer, params };
 }
 
 async function bpSchemaTool(bk, args) {
@@ -162,10 +178,11 @@ async function bpSchemaTool(bk, args) {
 }
 
 async function bpValidateTool(bk, args) {
-  const { source, blueprint, errors, notes, newer } = blueprintOf(bk, args);
+  const { source, blueprint, errors, notes, newer, params } = blueprintOf(bk, args);
   return {
     valid: errors.length === 0,
     source,
+    ...(params ? { params } : {}),
     errors,
     sanitizerNotes: notes,
     newer,
@@ -182,7 +199,7 @@ async function bpValidateTool(bk, args) {
 export const BP_CHECK_SLOW_MS = 20_000;
 
 async function bpCheckTool(bk, args) {
-  const { source, blueprint, errors, notes } = blueprintOf(bk, args);
+  const { source, blueprint, errors, notes, params } = blueprintOf(bk, args);
   const started = Date.now();
   const report = bk.playabilityCheck(blueprint, args.seeds ? { seeds: args.seeds } : {});
   const wallMs = Date.now() - started;
@@ -191,6 +208,7 @@ async function bpCheckTool(bk, args) {
     feedback: report.feedback,
     problems: report.problems,
     source,
+    ...(params ? { params } : {}),
     ...(errors.length ? { validationErrors: errors, checked: "the sanitized spec (validation errors above)", sanitizerNotes: notes } : {}),
     digest: bk.blueprintDigest(blueprint),
     medianFinishSec: report.medianFinishSec,
@@ -201,13 +219,16 @@ async function bpCheckTool(bk, args) {
 }
 
 async function bpLinkTool(bk, args) {
-  const { source, blueprint, errors } = blueprintOf(bk, args);
-  const code = bk.encodeBlueprint(blueprint);
-  const query = args.catalog !== undefined ? bk.catalogQuery(args.catalog) : bk.blueprintQuery(blueprint);
+  const { source, catalogId, base, blueprint, errors, params } = blueprintOf(bk, args);
+  // (a link carries the spec as written and its slider values beside it, as Mode Lab's Copy link writes them)
+  const code = bk.encodeBlueprint(base);
+  const game = catalogId ? bk.catalogQuery(catalogId) : bk.blueprintQuery(base);
+  const query = params && params.blv && base.params.length ? `${game}&blv=${params.blv}` : game;
   const link = bk.simulatorLink(query, args.locale ?? "en");
   const shareCode = await bk.encodeShareCode(new URLSearchParams(query));
   return {
     source,
+    ...(params ? { params } : {}),
     ...(errors.length ? { validationErrors: errors } : {}),
     code,
     codeChars: code.length,

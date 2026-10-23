@@ -112,6 +112,74 @@ describe("blueprint runtime: every action does what it says", () => {
   });
 });
 
+// --- review fix (blueprint) --- a contact is one event, its self the ball that came in faster; a tile's events are facts
+describe("blueprint runtime: contacts and the events of a step", () => {
+  it("makes self of a ballHit the ball that was faster before the hit, not the one the bounce left faster", () => {
+    // (equal balls swap their speeds in a head-on hit: measured after it, the slow ball would convert the fast one)
+    const bp = spec({ arena: { gravity: { x: 0, y: 0 } }, bodies: [{ id: "fast", radius: 10, team: 0 }, { id: "slow", radius: 10, team: 1 }], spawners: [{ body: "fast", at: "left", dir: "right", speed: 300 }, { body: "slow", at: "right", dir: "left", speed: 50 }], vars: [{ id: "hits" }], rules: [{ when: "ballHit", maxFires: 1, do: [{ act: "team", target: "other", to: "self" }, { act: "grow", target: "self", by: 5 }, { act: "var", id: "hits" }] }] });
+    for (const seed of [1, 3, 5]) {
+      const r = new HeadlessBlueprint(bp, { seed });
+      let before: number[] = [];
+      for (let i = 0; i < 60 * 5 && r.vars[0] === 0; i++) {
+        before = r.world.balls.map((b) => Math.round(Math.hypot(b.vx, b.vy)));
+        r.step();
+      }
+      expect(before, `seed ${seed}`).toEqual([300, 50]);
+      const [fast, slow] = r.world.balls;
+      expect([r.vars[0], fast.team, slow.team, fast.r, slow.r], `seed ${seed}`).toEqual([1, 0, 0, 15, 10]);
+    }
+  });
+
+  it("raises one ballHit a contact: a heap at rest stays quiet, and two balls passing through each other raise one", () => {
+    const heap = spec({ arena: { gravity: { x: 0, y: 400 }, restitution: 0.3 }, bodies: [{ id: "ball", radius: 10 }], spawners: [{ body: "ball", at: "random", count: 8, everySec: 0.1, maxTotal: 40, speed: 0 }], vars: [{ id: "hits" }], rules: [{ when: "ballHit", do: [{ act: "var", id: "hits" }, { act: "sound", voice: "hit" }] }] });
+    const r = run(heap, 8);
+    expect(r.world.aliveCount()).toBe(40);
+    const [hits, sounds] = [r.vars[0], r.stats.sounds];
+    expect(hits).toBeGreaterThan(40);
+    for (let i = 0; i < 300; i++) r.step();
+    expect([r.vars[0] - hits, r.stats.sounds - sounds]).toEqual([0, 0]);
+    const ghosts = spec({ arena: { gravity: { x: 0, y: 0 } }, bodies: [{ id: "ghost", radius: 75, collide: "pass" }], spawners: [{ body: "ghost", at: "left", dir: "right", speed: 200 }, { body: "ghost", at: "right", dir: "left", speed: 200 }], ...count("ballHit") });
+    expect(run(ghosts, 1.5).vars[0]).toBe(1);
+  });
+
+  it("starts a contact again when a rule changes either ball's tier or team: an orb merged up to its neighbour's tier merges on", () => {
+    const bp = spec({ arena: { gravity: { x: 0, y: 600 }, restitution: 0.2 }, bodies: [{ id: "a", radius: 30, tier: 1 }, { id: "b", radius: 30, tier: 2, color: 1 }], spawners: [{ body: "a", at: "left", speed: 0 }, { body: "b", at: "right", speed: 0 }], vars: [{ id: "merges" }], rules: [{ when: "ballHit", with: "sameTier", do: [{ act: "merge" }, { act: "var", id: "merges" }] }, { when: "timer", sec: 3, of: "a", maxFires: 1, do: [{ act: "tier", by: 1 }] }] });
+    const r = run(bp, 2.9);
+    const [a, b] = r.world.balls;
+    // (resting against each other at the bowl's bottom: one contact, no new hit)
+    expect(Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r).toBeLessThan(1);
+    expect([r.world.aliveCount(), r.vars[0]]).toEqual([2, 0]);
+    for (let i = 0; i < 60; i++) r.step();
+    expect([r.world.aliveCount(), r.vars[0], r.world.balls.find((x) => x.alive)!.tier]).toEqual([1, 1, 3]);
+  });
+
+  it("runs a tile's rules after an earlier rule removed its ball: tileHit → remove, then tileBroken → spawn at the tile", () => {
+    const shots = { arena: { gravity: { x: 0, y: 0 } }, vars: [{ id: "broke" }], spawners: [{ body: "shot", at: "bottom", dir: "up", speed: 400, everySec: 0.25, maxTotal: 40 }] };
+    const grid = (hp: number) => ({ layout: "grid", rows: 2, cols: 10, hp, area: { x: -0.8, y: -0.8, w: 1.6, h: 0.3 } });
+    const bp = spec({ ...shots, bodies: [{ id: "shot", radius: 5 }, { id: "shard", radius: 3, gravityScale: 0, color: 1, collide: "pass" }], tiles: grid(1), rules: [{ when: "tileHit", of: "shot", do: [{ act: "remove" }] }, { when: "tileBroken", do: [{ act: "var", id: "broke" }, { act: "spawn", body: "shard", at: "tile", speed: 0 }] }] });
+    const r = run(bp, 12);
+    const shards = r.world.balls.filter((b) => b.alive && b.body === 1);
+    const f = r.world.tiles;
+    const atATile = shards.filter((s) => Array.from({ length: r.world.tileCount }, (_, i) => Math.hypot(f.px[i] - s.x, f.py[i] - s.y)).some((d) => d < 0.5));
+    expect(r.stats.tilesBroken).toBeGreaterThan(10);
+    expect([r.vars[0], shards.length, atATile.length]).toEqual([r.stats.tilesBroken, r.stats.tilesBroken, r.stats.tilesBroken]);
+    // a damage that breaks the tile raises its tileBroken the next step, by when the shot is gone: it still runs
+    const damaged = spec({ ...shots, bodies: [{ id: "shot", radius: 5 }], tiles: grid(3), rules: [{ when: "tileHit", do: [{ act: "damage", amount: 5 }, { act: "remove" }] }, { when: "tileBroken", do: [{ act: "var", id: "broke" }] }] });
+    const d = run(damaged, 12);
+    expect(d.stats.tilesBroken).toBeGreaterThan(10);
+    expect(d.vars[0]).toBe(d.stats.tilesBroken);
+  });
+
+  it("queues no event a rule does not listen to: a crowd's contacts never crowd out the tiles a rule waits for", () => {
+    const bp = spec({ arena: { gravity: { x: 0, y: 400 }, restitution: 0.9 }, bodies: [{ id: "sand", radius: 6 }, { id: "shot", radius: 5, gravityScale: 0, color: 1 }], vars: [{ id: "broke" }], tiles: { rows: 6, cols: 16, hp: 1, area: { x: -0.7, y: -0.75, w: 1.4, h: 0.45 } }, spawners: [{ body: "sand", at: "bottom", count: 8, speed: 0, everySec: 0.05, maxTotal: 260 }, { body: "shot", at: "center", count: 3, speed: 600, dir: "up", startSec: 3 }], rules: [{ when: "tileBroken", of: "shot", do: [{ act: "var", id: "broke" }, { act: "spawn", body: "shot", at: "tile", speed: 600 }] }], finish: { any: [{ when: "tilesCleared" }], timeoutSec: 40 } });
+    const r = new HeadlessBlueprint(bp, { seed: 1 });
+    expect(r.runToEnd()).toMatchObject({ reason: "condition" });
+    expect([r.stats.tilesBroken, r.vars[0], r.stats.droppedEvents]).toEqual([96, 96, 0]);
+    // (nothing listens to a wall, a peg or a contact here: only the tiles' events and the start were queued)
+    expect(r.stats.events).toBeLessThanOrEqual(2 * 96 + 1);
+  });
+});
+
 describe("blueprint runtime: its contracts", () => {
   const busy = () => spec({ bodies: [ball, { id: "red", radius: 9, team: 1 }], spawners: [{ body: "ball", at: "random", count: 6 }, { body: "red", at: "random", count: 6 }], rules: [{ when: "ballHit", with: "otherTeam", chance: 0.5, do: [{ act: "team", target: "other", to: "self" }] }], finish: { timeoutSec: 30, any: [{ when: "teamsLeft", atMost: 1 }] } });
   const snapshot = (r: HeadlessBlueprint) => JSON.stringify({ balls: r.world.balls.map((b) => [b.id, b.x, b.y, b.vx, b.vy, b.r, b.team]), stats: r.stats, result: r.result() });

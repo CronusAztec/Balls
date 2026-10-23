@@ -14,7 +14,8 @@
  *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step – a ball
  *    that covers more than BIG_CELLS cells is tested directly against the others instead, and a sub-step tests at most its
  *    share of BLUEPRINT_PAIR_TESTS_PER_STEP pairs and walks at most its share of BLUEPRINT_PAIR_VISITS_PER_STEP grid
- *    entries (the rest are skipped and counted: `droppedPairs`);
+ *    entries (the rest are skipped and counted: `droppedPairs`); a contact is reported once, the step it starts, with the
+ *    ball that was faster before it first;
  *  - `cull()` (end of each step): a ball gone non-finite or past BLUEPRINT_SPEED_CEILING is taken out (counted), so the
  *    canvas never draws one and no sub-step plan has to follow one; a radius past BLUEPRINT_RADIUS_CEILING stops at it,
  *    whatever set it; `sweep()` drops an escaped ball's ghost whose numbers went non-finite;
@@ -48,6 +49,11 @@ export const GRAZE_RATIO = 0.25;
 export function isHit(impact: number, speed: number): boolean {
   return impact >= MIN_HIT_SPEED && impact >= GRAZE_RATIO * speed;
 }
+/**
+ * --- review fix (blueprint) --- How far apart (px) two balls in contact may drift and still be the same contact: a ball
+ * resting in a heap parts from its neighbour by a hair and settles back, and that is no new hit.
+ */
+export const CONTACT_SLACK = 1;
 /** Half the thickness of the rim, the rings and an exit's edges (px). */
 export const WALL_HALF = 2;
 /** The static grid's and the pair grid's cell (px). */
@@ -71,7 +77,7 @@ export interface NewWorldBall {
   r: number;
   /** Gravity scale. */
   gs: number;
-  /** Passes through other balls (still touching them for ballHit). */
+  /** Passes through other balls (still touching them for ballHit: once as it enters one). */
   pass: boolean;
   body: number;
   tier: number;
@@ -102,6 +108,11 @@ export class WorldBall {
   pd = 0;
   /** The step of its last wall hit (one wall hit a step). */
   lastWall = -1;
+  /**
+   * --- review fix (blueprint) --- The step a rule last changed its tier or team (−1: never): its contacts start afresh
+   * the next step, so a `with` is judged on the new facts – an orb merged up to the tier of the orb it rests on merges on.
+   */
+  factsStep = -1;
   private teamSlot: number;
   private colorSlot: number;
   private readonly palette: readonly string[];
@@ -180,6 +191,9 @@ export class WorldBall {
     this.ball.color = this.palette[this.colorSlot] ?? this.palette[0] ?? "#ffffff";
   }
 }
+
+/** A pair of balls as one number, the same whichever comes first. */
+const pairKey = (a: WorldBall, b: WorldBall) => (a.id < b.id ? a.id * 1_048_576 + b.id : b.id * 1_048_576 + a.id);
 
 /** Clock degrees (0 = top, clockwise) → a screen angle in radians (0 = right, clockwise with y down). */
 export const clockToAngle = (deg: number) => ((deg - 90) * Math.PI) / 180;
@@ -314,7 +328,12 @@ export class BlueprintWorld {
   private pairSeen = new Int32Array(0);
   private pairBig = new Uint8Array(0);
   private readonly bigList: number[] = [];
-  private readonly pairKeys = new Set<number>();
+  /**
+   * --- review fix (blueprint) --- The pairs in contact this step and last step: a contact raises ballHit once, the step
+   * it starts – a ball resting on another, or one passing through it, touches it every step and is still one contact.
+   */
+  private pairKeys = new Set<number>();
+  private lastPairKeys = new Set<number>();
 
   constructor(bp: Blueprint, width: number, height: number) {
     this.bp = bp;
@@ -1000,7 +1019,8 @@ export class BlueprintWorld {
   }
 
   /**
-   * Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once a step.
+   * Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once, the step
+   * its contact starts (touch()).
    * --- review fix (blueprint) --- Work is bounded, not only the count: a big ball (more than BIG_CELLS cells) is tested
    * directly against every other ball, never through every cell it covers, and a sub-step makes at most its share of
    * BLUEPRINT_PAIR_TESTS_PER_STEP pair tests (`work`: the pairs looked at for a contact) and walks at most its share of
@@ -1129,28 +1149,51 @@ export class BlueprintWorld {
     }
   }
 
-  /** A new step: the pairs reported this step are forgotten; `stepSec` is its length (the pair and tile budgets are shared over its sub-steps). */
+  /**
+   * A new step: last step's contacts are kept to tell a new contact from one that goes on, this step's start empty;
+   * `stepSec` is its length (the pair and tile budgets are shared over its sub-steps).
+   */
   beginStep(step: number, timeSec: number, stepSec = FIXED_STEP_SEC) {
     this.step = step;
     this.timeSec = timeSec;
     this.stepSec = stepSec;
+    const last = this.lastPairKeys;
+    this.lastPairKeys = this.pairKeys;
+    this.pairKeys = last;
     this.pairKeys.clear();
     this.tileStepStart = this.tileTests();
     this.subDone = 0;
   }
 
+  /**
+   * Two balls that may touch: an overlapping pair parts and bounces (unless one passes through), and a contact that starts
+   * this step raises ballHit once. --- review fix (blueprint) --- Self is the ball that was faster BEFORE the bounce (ties:
+   * the older one): with equal masses a head-on bounce swaps the speeds, so measured after it the slower ball would be
+   * self. A pair still in contact from last step raises nothing (a heap at rest, a ball passing through another), unless
+   * a rule changed either ball's tier or team last step (`factsStep`): its `with` is then judged again.
+   */
   private touch(a: WorldBall, b: WorldBall, events: WorldEvents) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const reach = a.r + b.r;
     const d2 = dx * dx + dy * dy;
-    if (d2 >= reach * reach) return;
+    if (d2 >= reach * reach) {
+      // a pair a hair apart is still the same contact (a heap's balls part and settle again): it is kept, never re-raised
+      const near = reach + CONTACT_SLACK;
+      if (d2 < near * near) {
+        const key = pairKey(a, b);
+        if (this.continues(key, a, b)) this.pairKeys.add(key);
+      }
+      return;
+    }
     this.overlaps++;
     const d = Math.sqrt(d2);
     // coincident balls part along a fixed direction (the later ball to the right): no randomness, no NaN
     const nx = d > 0 ? dx / d : 1;
     const ny = d > 0 ? dy / d : 0;
     const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+    const sa = a.vx * a.vx + a.vy * a.vy;
+    const sb = b.vx * b.vx + b.vy * b.vy;
     if (!a.pass && !b.pass) {
       const ma = a.r * a.r;
       const mb = b.r * b.r;
@@ -1169,11 +1212,16 @@ export class BlueprintWorld {
         b.vy += (jn / mb) * ny;
       }
     }
-    const lo = a.id < b.id ? a.id : b.id;
-    const hi = a.id < b.id ? b.id : a.id;
-    const key = lo * 1_048_576 + hi;
+    const key = pairKey(a, b);
     if (this.pairKeys.has(key)) return;
     this.pairKeys.add(key);
-    events.ballHit(a, b, vn < 0 ? -vn : 0);
+    if (this.continues(key, a, b)) return;
+    const aFirst = sa > sb || (sa === sb && a.id < b.id);
+    events.ballHit(aFirst ? a : b, aFirst ? b : a, vn < 0 ? -vn : 0);
+  }
+
+  /** Whether a pair's contact goes on from last step: it touched then, and no rule changed either ball's tier or team since. */
+  private continues(key: number, a: WorldBall, b: WorldBall): boolean {
+    return this.lastPairKeys.has(key) && a.factsStep < this.step - 1 && b.factsStep < this.step - 1;
   }
 }

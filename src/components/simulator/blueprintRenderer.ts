@@ -22,7 +22,8 @@ import { WALL_HALF } from "@/lib/blueprint/runtime/world";
  *    title block and the clock sit in the frame's free band when it has one (above the square in a portrait frame, beside
  *    it in a landscape one), so they never cover the arena; in a square frame (a phone's stage, a 1:1 clip) they hug its top
  *    corners, which a circle leaves free, set smaller when they must (fitCorner()), and only an arena that leaves no corner
- *    free (a box filling the square) puts them on a dark plate over it.
+ *    free (a box filling the square) puts them on a dark plate over it. A recorded or exported frame always uses the
+ *    square's corners: a clip is the square alone, and the band would leave it without its HUD.
  *    The clock shows only when no HUD counter already shows the time, and only in the last CLOCK_LAST_SEC before the
  *    timeout: one clock on screen, never one counting up beside one counting down.
  * Nothing is blurred per frame (the Merge Ring lesson: a `shadowBlur` draw blurs the whole box of a big shape): what does
@@ -97,14 +98,18 @@ export interface OverlayRect {
  * --- review fix (blueprint) --- Where the overlay's title block (left) and clock (right) go in a frame of `width` × `height`
  * world px round its recorder square: in the free band above the square (portrait) or beside it (landscape) when the block
  * fits there, else in the square's top corners on a dark plate. `blockH` is the title block's height, `inset` the page's
- * buttons at the top of a live portrait or square frame.
+ * buttons at the top of a live portrait or square frame. --- review fix (blueprint) --- A frame that is `recorded` (Record
+ * Video, the fast export, the batch, the bot, the render queue) keeps everything inside the square: the recorder and the
+ * export copy only the square, so a block in the band would never reach the clip. The band is a live-view nicety.
  */
-export function overlayPlacement(width: number, height: number, sq: HudSquare, blockH: number, inset: number): { left: number; right: number; top: number; maxWidth: number; plate: boolean } {
+export function overlayPlacement(width: number, height: number, sq: HudSquare, blockH: number, inset: number, recorded = false): { left: number; right: number; top: number; maxWidth: number; plate: boolean } {
   const pad = 0.04 * sq.side;
-  // portrait: the band above the square, the block's bottom just over the square's top edge
-  if (sq.y0 >= blockH + inset + 0.02 * sq.side) return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 - 0.02 * sq.side - blockH, maxWidth: 0.6 * sq.side, plate: false };
-  // landscape: the bands beside the square (the block in the left one, the clock in the right one), level with its top
-  if (height <= width && sq.x0 >= 0.3 * sq.side) return { left: pad, right: width - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: sq.x0 - 1.5 * pad, plate: false };
+  if (!recorded) {
+    // portrait: the band above the square, the block's bottom just over the square's top edge
+    if (sq.y0 >= blockH + inset + 0.02 * sq.side) return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 - 0.02 * sq.side - blockH, maxWidth: 0.6 * sq.side, plate: false };
+    // landscape: the bands beside the square (the block in the left one, the clock in the right one), level with its top
+    if (height <= width && sq.x0 >= 0.3 * sq.side) return { left: pad, right: width - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: sq.x0 - 1.5 * pad, plate: false };
+  }
   // no free band: the square's top corners – on a plate, unless fitCorner() finds the block a place clear of the arena
   return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: 0.6 * sq.side, plate: true };
 }
@@ -830,9 +835,11 @@ export class BlueprintLayer {
    * it and, once the run is over, the end banner in the middle – the corners in the frame's free band when it has one
    * (overlayPlacement()); `inset` moves them below the page's buttons. --- review fix (blueprint) --- A frame without a free
    * band sets each corner block clear of the arena (fitCorner(): smaller when it must, above the inset when only there it
-   * keeps clear), and on a plate at full size only when nothing keeps it clear (a box that fills the square).
+   * keeps clear), and on a plate at full size only when nothing keeps it clear (a box that fills the square). --- review fix
+   * (blueprint) --- A `recorded` frame (a recording or an export: the clip is the square alone) draws them in the square's
+   * corners whatever the frame's shape, so every clip carries the title, the counters, the clock and ARENA FULL.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: BlueprintView, labels: BlueprintLabels, inset = 0) {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: BlueprintView, labels: BlueprintLabels, inset = 0, recorded = false) {
     const bp = view.bp;
     const w = view.world;
     if (!bp || !w) return;
@@ -844,7 +851,7 @@ export class BlueprintLayer {
     const marker = view.catalogId === "" && labels.fromLink ? labels.fromLink : "";
     const lines = 1 + (marker ? 1 : 0) + view.hud.length;
     const blockH = (lines + 0.5) * 1.1 * fs;
-    const place = overlayPlacement(w.width, w.height, sq, blockH, inset);
+    const place = overlayPlacement(w.width, w.height, sq, blockH, inset, recorded);
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;

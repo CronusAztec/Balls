@@ -69,14 +69,17 @@ say: {winner} {time} {balls} {var}
 | `obstacleHit` | a ball (self) hits a peg, bumper, bar or spinner |
 | `tileHit` | a ball (self) hits a tile (every hit chips 1 HP off it) |
 | `tileBroken` | a ball (self) breaks a tile (the `tile` spawn point is where it was) |
-| `ballHit` | two balls touch: self is the faster one (or the one `of` names), other the second |
+| `ballHit` | two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names), other the second |
 | `escape` | a ball (self) leaves the arena through an exit or past the last ring |
 | `ringPass` | a ball (self) passes outward through a ring's gap |
 | `countReached` | a count (`what`) crosses `atLeast` or `atMost` (fires again only after it goes back) |
 
 A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),
 `every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.
-An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse.
+An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its
+rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands
+at the tile); only a ballHit whose ball is gone by then is skipped. A contact raises one ballHit, as it starts: balls resting
+on each other or passing through each other raise no more, until they part or a rule changes either one's tier or team.
 
 ## Actions (`do`, up to 4 a rule)
 
@@ -496,12 +499,12 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
 
 Four colours collide: the faster ball converts the slower one. The last colour standing wins.
 
-Link: `?mode=blueprint&blp=conquer` · digest `77f29a49` · check: playable, median end 12.21 s, outcomes "GOLD WINS", "RED WINS", "GREEN WINS".
+Link: `?mode=blueprint&blp=conquer` · digest `31e468d1` · check: playable, median end 12.83 s, outcomes "RED WINS", "BLUE WINS", "GREEN WINS".
 
 ```text
 "Colour Conquest": "Four colours collide: the faster ball converts the slower one. The last colour standing wins."
 Arena: a circle, no gravity, bounce 1.
-Bodies: red (11 px), blue (11 px, team 1), green (11 px, team 2), gold (11 px, team 3).
+Bodies: red (9 px), blue (9 px, team 1), green (9 px, team 2), gold (9 px, team 3).
 Start: (per) reds at random places at 230 px/s; (per) blues at random places at 230 px/s; (per) greens at random places at 230 px/s; (per) golds at random places at 230 px/s.
 Rule: when a ball touches a ball of another team: the other ball joins its team, then recolour the other ball (team), then a merge note.
 Rule: every 6 s: speed every ball × 1.12.
@@ -516,24 +519,24 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
  "bodies": [
   {
    "id": "red",
-   "radius": 11
+   "radius": 9
   },
   {
    "color": 1,
    "id": "blue",
-   "radius": 11,
+   "radius": 9,
    "team": 1
   },
   {
    "color": 2,
    "id": "green",
-   "radius": 11,
+   "radius": 9,
    "team": 2
   },
   {
    "color": 3,
    "id": "gold",
-   "radius": 11,
+   "radius": 9,
    "team": 3
   }
  ],
@@ -671,7 +674,7 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
 
 Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.
 
-Link: `?mode=blueprint&blp=tierClimb` · digest `c7f720cc` · check: playable, median end 23.18 s, outcomes "TIER 8 REACHED".
+Link: `?mode=blueprint&blp=tierClimb` · digest `c7f720cc` · check: playable, median end 25.29 s, outcomes "TIER 8 REACHED".
 
 ```text
 "Tier Climb": "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it."

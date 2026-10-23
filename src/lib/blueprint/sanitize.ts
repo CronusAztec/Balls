@@ -160,7 +160,8 @@ interface NumRule {
 
 function describeRange(r: NumRule): string {
   const whole = r.int ? "a whole number" : "a number";
-  if (r.min !== undefined && r.max !== undefined) return `${whole} from ${r.min} to ${r.max}`;
+  // --- review fix (blueprint) --- (a domain open at its lower end says so: an obstacle's radius 0 is refused)
+  if (r.min !== undefined && r.max !== undefined) return r.above ? `${whole} above ${r.min}, up to ${r.max}` : `${whole} from ${r.min} to ${r.max}`;
   if (r.min !== undefined) return r.above ? `${whole} above ${r.min}` : `${whole} from ${r.min} up`;
   return `${r.int ? "a whole" : "a finite"} number`;
 }

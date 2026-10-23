@@ -48,10 +48,22 @@ const world: JsonSchema = {
 
 // --- blueprint --- a Blueprint, given one way: a spec (the JSON object), a link code, a catalog id or the Lite form
 const bpSpec: JsonSchema = { type: "object", description: "A Blueprint v1 spec (the JSON object; docs/agents/BLUEPRINTS.md). Give spec, code, catalog or lite: exactly one." };
-const bpCode: JsonSchema = { type: "string", minLength: 3, maxLength: 20_000, description: "A Blueprint link code (b1.…) or a link / query string holding bls=b1.… (never fetched)." };
+const bpCode: JsonSchema = {
+  type: "string",
+  minLength: 3,
+  maxLength: 20_000,
+  description: "A Blueprint link code (b1.…), or a Mode Lab link / query string holding bls=b1.… or blp=<catalog id> (never fetched); its slider values (blv) are applied, as the page plays them.",
+};
 const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape)." };
 const bpLite: JsonSchema = { type: "object", description: "A Blueprint in the Lite form (enum words only: the app's small local model writes it)." };
-const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite };
+// --- review fix (blueprint) --- the sliders a game is played with, as a link's blv writes them
+const bpParams: JsonSchema = {
+  type: "string",
+  maxLength: 400,
+  pattern: "^[0-9eE+., -]*$",
+  description: "Slider values, comma-separated in the order of the spec's params (an empty place keeps the spec's own value), as a Mode Lab link's blv writes them: \"3,60\". They replace a link's own blv.",
+};
+const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite, params: bpParams };
 /** The tools that take a Blueprint (exactly one of spec, code, catalog, lite). */
 export const BLUEPRINT_INPUT_TOOLS: ReadonlySet<string> = new Set(["bp-validate", "bp-check", "bp-link"]);
 

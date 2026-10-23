@@ -2841,7 +2841,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- spiral-glass --- Spiral Glass: the tiles left, the progress ring and the caption (screen space, part of the recording).
       if (spiralGlassView) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- blueprint --- Mode Lab: the title, the HUD counters, the clock, ARENA FULL and the end banner (screen space, part of the recording).
-      if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // (--- review fix (blueprint) --- a recorded or exported frame keeps the HUD inside the square: the clip is the square alone)
+      if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, recordingRef.current || !!offline);
       // --- gerald-conveyor --- Conveyor Belt: the title and the counter (screen space, part of the recording).
       if (conveyorView) conveyorLayer.drawOverlay(ctx, conveyorView, (labelsRef.current ?? DEFAULT_LABELS).conveyor ?? DEFAULT_CONVEYOR_LABELS, size.width, size.height, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)

@@ -19633,7 +19633,9 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
     const inset = Math.round(0.025 * side);
     const bw = Math.round(0.2 * side);
     const y = zone.b - inset - bh;
-    return { left: { x: zone.x + inset, y, w: bw, h: bh }, right: { x: zone.r - inset - bw, y, w: bw, h: bh } };
+    // --- review fix (blueprint) --- (the HUD's corner: the title and the counters at the square's top left, outside a 0.92 arena)
+    const hud = { x: sq.x + 0.03 * side, y: sq.y + 0.015 * side, w: 0.17 * side, h: 0.095 * side };
+    return { left: { x: zone.x + inset, y, w: bw, h: bh }, right: { x: zone.r - inset - bw, y, w: bw, h: bh }, hud };
   }`;
   /** Plays a downloaded video in a page of the site and measures the badge regions at `times` (s): their bright and lime shares. */
   const decode = async (p, file, times) => {
@@ -19680,7 +19682,7 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
                 targets.shift();
                 g.drawImage(v, 0, 0);
                 const regions = regionsFor(c.width, c.height);
-                frames.push({ t: +meta.mediaTime.toFixed(2), left: stats(regions.left), right: stats(regions.right) });
+                frames.push({ t: +meta.mediaTime.toFixed(2), left: stats(regions.left), right: stats(regions.right), hud: stats(regions.hud) });
               }
               if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
               else done();
@@ -19703,7 +19705,10 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
   const at = (decoded, t) => decoded.frames.find((f) => Math.abs(f.t - t) < 0.6);
   const marked = (decoded, early, late) => badge(at(decoded, early)?.left) && noBadge(at(decoded, early)?.right) && badge(at(decoded, late)?.right) && noBadge(at(decoded, late)?.left);
   const clean = (decoded, times) => decoded.frames.length >= times.length && times.every((t) => noBadge(at(decoded, t)?.left) && noBadge(at(decoded, t)?.right));
-  const brief = (decoded) => JSON.stringify(decoded.error ? decoded : { size: `${decoded.width}×${decoded.height}`, frames: decoded.frames.map((f) => ({ t: f.t, L: [f.left.bright, f.left.lime], R: [f.right.bright, f.right.lime] })) });
+  // --- review fix (blueprint) --- the HUD reaches the clip: its white title and counters light the square's top-left corner,
+  // which the arena's circle leaves dark (they used to sit in the band beside the square, which no clip holds)
+  const hudShown = (decoded, times) => decoded.frames.length >= times.length && times.every((t) => (at(decoded, t)?.hud?.bright ?? 0) >= 0.02);
+  const brief = (decoded) => JSON.stringify(decoded.error ? decoded : { size: `${decoded.width}×${decoded.height}`, frames: decoded.frames.map((f) => ({ t: f.t, L: [f.left.bright, f.left.lime], R: [f.right.bright, f.right.lime], HUD: f.hud.bright })) });
   const save = async (download, name) => {
     if (!download) return null;
     const file = path.join(outDir, `blueprint-${name}-${download.suggestedFilename()}`);
@@ -19815,6 +19820,7 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
         !!freeFile && freeDecoded.width === 1080 && freeDecoded.height === 1920 && marked(freeDecoded, 2.5, 6.6) && !!proFile && clean(proDecoded, [2.5, 6.6]),
         `(free ${freeFile ? path.basename(freeFile) : "none"} ${brief(freeDecoded)}; pro ${proFile ? path.basename(proFile) : "none"} ${brief(proDecoded)})`,
       );
+      check("mode lab: a fast export of a landscape page carries the title and the counters inside its square, free and Pro", hudShown(freeDecoded, [2.5, 6.6]) && hudShown(proDecoded, [2.5, 6.6]), `(free ${brief(freeDecoded)}; pro ${brief(proDecoded)})`);
     } else check("mode lab: a free fast export carries the watermark and a Pro export none – skipped (no WebCodecs in this browser)", true);
 
     // (c) a free recording (Record Video, stopped by hand after 7.6 s)
@@ -19832,6 +19838,7 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
     const recFile = await save(recorded, "record-free");
     const recDecoded = recFile ? await decode(free, recFile, [2.5, 6.9]) : { frames: [] };
     check("mode lab: a free recording carries the watermark in its pixels (bottom left, then bottom right)", !!recFile && recDecoded.height > recDecoded.width && marked(recDecoded, 2.5, 6.9), `(${recFile ? path.basename(recFile) : "none"} ${brief(recDecoded)})`);
+    check("mode lab: a recording of a landscape page carries the title and the counters inside its square", !!recFile && hudShown(recDecoded, [2.5, 6.9]), `(${recFile ? path.basename(recFile) : "none"} ${brief(recDecoded)})`);
   } finally {
     for (const c of bpContexts) await c.close().catch(() => {});
   }

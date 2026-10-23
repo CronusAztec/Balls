@@ -92,102 +92,102 @@
       "spawned": 128,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 396,
+      "sounds": 392,
       "peakBalls": 128
     },
     "conquer": {
-      "digest": "77f29a49",
+      "digest": "31e468d1",
       "samples": [
         [
-          197574,
-          427398
+          350117,
+          444380
         ],
         [
-          190329,
-          449791
+          254728,
+          251969
         ],
         [
-          52184,
-          402015
+          100532,
+          266085
         ],
         [
-          97686,
-          395535
+          299765,
+          263346
         ],
         [
-          84871,
-          523476
+          58271,
+          486840
         ],
         [
-          134702,
-          335222
+          228051,
+          226061
         ],
         [
-          318677,
-          522190
+          381354,
+          438504
         ],
         [
-          240271,
-          493792
+          110405,
+          480766
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 2504,
-      "result": "GOLD WINS",
-      "winner": 3,
+      "steps": 770,
+      "result": "RED WINS",
+      "winner": 0,
       "spawned": 24,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 2579,
+      "sounds": 487,
       "peakBalls": 24
     },
     "tierClimb": {
       "digest": "c7f720cc",
       "samples": [
         [
-          211954,
-          581604
+          208027,
+          585758
         ],
         [
-          251924,
-          587345
+          181334,
+          588748
         ],
         [
-          186275,
-          578271
+          344449,
+          549247
         ],
         [
-          300132,
-          568513
+          142751,
+          568837
         ],
         [
-          168092,
-          568249
+          177114,
+          577266
         ],
         [
-          360647,
-          534694
+          146960,
+          579846
         ],
         [
-          151196,
-          562334
+          178626,
+          572395
         ],
         [
-          209242,
-          595492
+          143579,
+          578288
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 1154,
+      "steps": 1620,
       "result": "TIER 8 REACHED",
       "winner": -1,
-      "spawned": 241,
+      "spawned": 338,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 215,
-      "peakBalls": 34
+      "sounds": 306,
+      "peakBalls": 40
     },
     "plinkoRace": {
       "digest": "ad34af37",
@@ -225,7 +225,7 @@
       "spawned": 4,
       "escaped": 1,
       "tilesBroken": 0,
-      "sounds": 124,
+      "sounds": 121,
       "peakBalls": 4
     },
     "growEscape": {

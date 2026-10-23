@@ -109,7 +109,10 @@ export function renderBlueprintDocs(): string {
   p(
     "A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),",
     "`every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.",
-    "An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse.",
+    "An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its",
+    "rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands",
+    "at the tile); only a ballHit whose ball is gone by then is skipped. A contact raises one ballHit, as it starts: balls resting",
+    "on each other or passing through each other raise no more, until they part or a rule changes either one's tier or team.",
   );
   p("## Actions (`do`, up to 4 a rule)", "", table(["Action", "What it does", "Fields and defaults"], ACTIONS.map((a) => [code(a), ACTION_DOCS[a], fields(ACTION_DEFAULTS[a] as Record<string, unknown>)])));
   p("`target` is `self` (the event's ball), `other` (ballHit's second ball) or `all` (every ball of the rule's `of`). A rule with a trigger that has no ball (start, timer, beat, bar, countReached) acts on every ball.");

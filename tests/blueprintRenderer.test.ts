@@ -284,6 +284,44 @@ describe("blueprint renderer: cracks, trails, banner and dataset", () => {
     expect(overlayPlacement(450, 450, recorderSquare(450, 450), blockH, 0).plate).toBe(true);
   });
 
+  // --- review fix (blueprint) --- a clip is the recorder's square alone (Record Video, the fast export, the batch, the bot,
+  // the render queue): a recorded frame draws the title, the counters, the clock and ARENA FULL inside it, whatever its shape
+  it("keeps the title, the counters, the clock and ARENA FULL inside the recorder's square in a recorded frame, portrait and landscape", () => {
+    expect(overlayPlacement(450, 800, recorderSquare(450, 800), 60, 0, true)).toMatchObject({ plate: true, top: recorderSquare(450, 800).y0 + 0.03 * 450 });
+    expect(overlayPlacement(800, 450, recorderSquare(800, 450), 60, 0, true)).toMatchObject({ plate: true, left: recorderSquare(800, 450).x0 + 0.04 * 450 });
+    const clockSpec = sanitizeBlueprint({ v: 1, meta: { name: "Clock" }, arena: { shape: "circle", size: 0.92 }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], hud: [{ show: "balls", label: "balls" }], finish: { timeoutSec: CLOCK_LAST_SEC + 3 } }).blueprint;
+    const full = sanitizeBlueprint({ v: 1, meta: { name: "Full" }, bodies: [{ id: "b", radius: 4 }], spawners: [0, 1].map(() => ({ body: "b", count: 8, everySec: 0.02, maxTotal: 400, speed: 100 })), hud: [{ show: "balls", label: "balls" }], finish: { timeoutSec: 30 } }).blueprint;
+    for (const [width, height] of [[800, 450], [450, 800]]) {
+      const sq = recorderSquare(width, height);
+      const cases: [string, Partial<SimulatorSettings>, number][] = [
+        ...BLUEPRINT_CATALOG_IDS.map((id) => [id, { blPreset: id }, 3] as [string, Partial<SimulatorSettings>, number]),
+        ["the clock", { blSpec: encodeBlueprint(clockSpec) }, 5.5],
+        ["ARENA FULL", { blSpec: encodeBlueprint(full) }, 2],
+      ];
+      for (const [name, patch, seconds] of cases) {
+        const settings = { ...defaultSettings("blueprint"), ...patch };
+        const engine = createEngineForSettings({ ...config, width, height }, "blueprint", modeSettingsOfSettings(settings) as ModeSettings, 1);
+        for (let i = 0; i < Math.round(seconds * 60); i++) engine.update(1000 / 60, 0);
+        const view = engine.getBlueprintView();
+        const live = textContext();
+        new BlueprintLayer(fakeCanvases().factory).drawOverlay(live.ctx, view, DEFAULT_BLUEPRINT_LABELS, 0);
+        const { ctx, texts } = textContext();
+        new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, view, DEFAULT_BLUEPRINT_LABELS, 0, true);
+        // the same lines as the live view draws in its band – every one of them inside the square
+        expect([width, name, texts.map((t) => t.text)]).toEqual([width, name, live.texts.map((t) => t.text)]);
+        expect(texts.length, `${width} ${name}`).toBeGreaterThanOrEqual(2);
+        for (const t of texts) {
+          const w = Math.min(0.68 * t.size * t.text.length, t.maxWidth);
+          const [l, r] = t.align === "right" ? [t.x - w, t.x] : [t.x, t.x + w];
+          const inside = l >= sq.x0 - 0.5 && r <= sq.x0 + sq.side + 0.5 && t.y - 0.62 * t.size >= sq.y0 - 0.5 && t.y + 0.62 * t.size <= sq.y0 + sq.side + 0.5;
+          expect(inside, `${width}×${height} ${name}: "${t.text}" at ${t.x.toFixed(0)},${t.y.toFixed(0)} outside the square ${sq.x0},${sq.y0} ${sq.side}`).toBe(true);
+        }
+        if (name === "the clock") expect(texts.filter((t) => t.align === "right").map((t) => t.text)).toEqual(["0:08"]);
+        if (name === "ARENA FULL") expect(texts.map((t) => t.text)).toContain("ARENA FULL");
+      }
+    }
+  });
+
   // --- review fix (blueprint) --- a square frame (a phone's stage, a 1:1 clip) has no free band: the HUD hugs the corners a
   // circle leaves free, in every language, instead of a plate over the rim, the outer tiles or the turning exit
   it("keeps every catalog game's title and counters clear of its arena in a square frame, in en, pl and es, and the clock too", () => {

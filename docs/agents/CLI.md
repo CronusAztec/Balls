@@ -131,9 +131,13 @@ it) and a missing install or browser (install it, and change no code). Never re-
 
 A Blueprint is a game mode as a JSON spec, run by one sandboxed interpreter (`src/lib/blueprint/`); the language, its
 ceilings and the catalog are in `docs/agents/BLUEPRINTS.md`. The tools take one Blueprint a call: `spec` (the object),
-`code` (a `b1.` code, or a link or query string holding `bls=`; never fetched), `catalog` (a built-in id) or `lite` (the
-enum-only Lite form). They write nothing; `bp-check` plays the spec on the real runtime (the engine in the blueprint mode,
-as the page and the finder play it), the others load the Blueprint library alone.
+`code` (a `b1.` code, or a link or query string holding `bls=` or `blp=`; never fetched), `catalog` (a built-in id) or
+`lite` (the enum-only Lite form). They write nothing; `bp-check` plays the spec on the real runtime (the engine in the
+blueprint mode, as the page and the finder play it), the others load the Blueprint library alone.
+
+A link's slider values (`blv`, which Mode Lab's Copy link always writes) are applied as the page applies them, so the tools
+judge the game the link plays; `params` (the same comma-separated form, `"3,60"`) gives them for any Blueprint and takes the
+place of a link's. The result's `params` then says what was applied. A link whose game cannot be read is refused.
 
 - `bp-validate` is strict: an unknown field, a value past its domain, a dangling reference or a formula that does not compile
   is an error with its path. It also returns the tolerant sanitizer's notes: what it would drop or change to play the spec.

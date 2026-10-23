@@ -8,10 +8,10 @@ export const conquer = {
   meta: { name: "Colour Conquest", description: "Four colours collide: the faster ball converts the slower one. The last colour standing wins.", family: "battle", author: "builtin" },
   arena: { shape: "circle", size: 0.92 },
   bodies: [
-    { id: "red", radius: 11, color: 0, team: 0 },
-    { id: "blue", radius: 11, color: 1, team: 1 },
-    { id: "green", radius: 11, color: 2, team: 2 },
-    { id: "gold", radius: 11, color: 3, team: 3 },
+    { id: "red", radius: 9, color: 0, team: 0 },
+    { id: "blue", radius: 9, color: 1, team: 1 },
+    { id: "green", radius: 9, color: 2, team: 2 },
+    { id: "gold", radius: 9, color: 3, team: 3 },
   ],
   vars: [{ id: "per", start: 6 }],
   spawners: [

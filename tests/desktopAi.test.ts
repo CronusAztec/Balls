@@ -60,6 +60,14 @@ describe("json schema subset", () => {
     expect(validateJson(schema, {})).toEqual(['$: missing "n"']);
     expect(validateJson({ oneOf: [{ type: "string" }, { type: "number" }] }, true)[0]).toMatch(/must be/);
   });
+  // --- blueprint --- a bound the value must be above (a Blueprint's radius, timer or slider step)
+  it("refuses a value at or below an exclusiveMinimum, and takes one above it", () => {
+    const above: JsonSchema = { type: "number", exclusiveMinimum: 0, maximum: 2 };
+    expect(validateJson(above, 0)).toEqual(["$: must be > 0"]);
+    expect(validateJson(above, -1)).toEqual(["$: must be > 0"]);
+    expect(validateJson(above, 0.001)).toEqual([]);
+    expect(validateJson(above, 2)).toEqual([]);
+  });
   it("refuses keys named after Object.prototype's members, and never takes an inherited one for present", () => {
     // (JSON.parse makes "__proto__" an own key; a plain lookup would find Object.prototype's members and wave them through)
     for (const key of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
