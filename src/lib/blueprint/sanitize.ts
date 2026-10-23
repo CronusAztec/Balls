@@ -12,11 +12,13 @@
  * What is never limited: the physics scalars – speeds, radii, gravity, bounciness, spin – take any finite number, as every
  * setting of the simulator does (lib/uncap.ts); only a value that means nothing (NaN, ±Infinity, a radius of 0 or less) is
  * refused. What is limited: the structure (list lengths, the tile, obstacle, ball and rule ceilings, the spec's bytes) and a
- * few design domains (an arena's size, an exit's width, a team index, a probability).
+ * few design domains (an arena's size, an exit's width, a team index, a probability). --- review fix (blueprint) --- And two
+ * work ceilings on a ball (lib/uncap.ts BLUEPRINT_CEILINGS): a radius of at most BLUEPRINT_RADIUS_CEILING (a ball as big as
+ * the world) and a spawn speed of at most BLUEPRINT_SPEED_CEILING either way – past them the runtime could not hold the ball.
  */
 import { blueprintBytes } from "./codec";
 import { compileBlueprintFormula } from "./formula";
-import { BLUEPRINT_LIMITS as L } from "./limits";
+import { BLUEPRINT_LIMITS as L, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING } from "./limits";
 import {
   ACTION_AT,
   ACTION_DEFAULTS,
@@ -146,6 +148,8 @@ interface NumRule {
   max?: number;
   int?: boolean;
   required?: boolean;
+  /** --- review fix (blueprint) --- `max` is a work ceiling of a physics scalar (named here), not a design domain: its own sentence. */
+  ceiling?: string;
 }
 
 function describeRange(r: NumRule): string {
@@ -154,6 +158,9 @@ function describeRange(r: NumRule): string {
   if (r.min !== undefined) return r.above ? `${whole} above ${r.min}` : `${whole} from ${r.min} up`;
   return `${r.int ? "a whole" : "a finite"} number`;
 }
+
+/** --- review fix (blueprint) --- A spawn speed: either way up to the speed ceiling (a faster ball could not be followed). */
+const SPEED_RULE = { min: -BLUEPRINT_SPEED_CEILING, max: BLUEPRINT_SPEED_CEILING, ceiling: "ball speed ceiling, px/s" } as const;
 
 /** A number in its domain; the default when missing or meaningless; snapped into a design domain (tolerant). */
 function num(rd: Reader, path: string, value: unknown, r: NumRule): number {
@@ -170,12 +177,14 @@ function num(rd: Reader, path: string, value: unknown, r: NumRule): number {
     issue(rd, path, `must be a whole number, got ${n}`);
     n = Math.round(n);
   }
+  const range = r.ceiling ? { ...r, max: undefined } : r;
   if (r.min !== undefined && (r.above ? n <= r.min : n < r.min)) {
-    issue(rd, path, `must be ${describeRange(r)}, got ${n}`);
+    // (a ceiling either way – a speed – says so on both sides)
+    issue(rd, path, r.ceiling && r.max !== undefined && r.min === -r.max ? `${n} is past the ${r.ceiling} (${r.min})` : `must be ${describeRange(range)}, got ${n}`);
     n = r.above ? r.def : r.min;
   }
   if (r.max !== undefined && n > r.max) {
-    issue(rd, path, `must be ${describeRange(r)}, got ${n}`);
+    issue(rd, path, r.ceiling ? `${n} is past the ${r.ceiling} (${r.max})` : `must be ${describeRange(r)}, got ${n}`);
     n = r.max;
   }
   return n === 0 ? 0 : n; // (−0 → 0: JSON writes them alike)
@@ -361,7 +370,7 @@ function readArena(rd: Reader, raw: unknown): BlueprintArena {
   const rr = own(a, "rings");
   if (shape === "rings" || (rr !== undefined && rr !== null)) {
     const r = readRecord(rd, "arena.rings", rr) ?? {};
-    unknownFields(rd, "arena.rings", r, ["count", "gapDeg", "spinDegPerSec", "alternate", "breakOnPass", "inner"]);
+    unknownFields(rd, "arena.rings", r, ["count", "gapDeg", "spinDegPerSec", "alternate", "breakOnPass", "inner", "rim"]);
     const D = DEFAULTS.rings;
     rings = {
       count: num(rd, "arena.rings.count", own(r, "count"), { def: D.count, min: 1, max: L.rings, int: true }),
@@ -370,6 +379,7 @@ function readArena(rd: Reader, raw: unknown): BlueprintArena {
       alternate: bool(rd, "arena.rings.alternate", own(r, "alternate"), D.alternate),
       breakOnPass: bool(rd, "arena.rings.breakOnPass", own(r, "breakOnPass"), D.breakOnPass),
       inner: num(rd, "arena.rings.inner", own(r, "inner"), { def: D.inner, min: 0.1, max: 0.9 }),
+      rim: bool(rd, "arena.rings.rim", own(r, "rim"), D.rim),
     };
     if (shape !== "rings") {
       issue(rd, "arena.rings", 'rings need arena.shape "rings"');
@@ -395,7 +405,7 @@ function readBodies(rd: Reader, raw: unknown): BlueprintBody[] {
       const D = DEFAULTS.body;
       return {
         id,
-        radius: num(rd, join(p, "radius"), own(b, "radius"), { def: D.radius, min: 0, above: true }),
+        radius: num(rd, join(p, "radius"), own(b, "radius"), { def: D.radius, min: 0, above: true, max: BLUEPRINT_RADIUS_CEILING, ceiling: "ball radius ceiling, px" }),
         color: num(rd, join(p, "color"), own(b, "color"), { def: D.color, min: 0, max: L.palette - 1, int: true }),
         gravityScale: num(rd, join(p, "gravityScale"), own(b, "gravityScale"), { def: D.gravityScale }),
         hp: num(rd, join(p, "hp"), own(b, "hp"), { def: D.hp, min: 0, int: true }),
@@ -528,7 +538,7 @@ function readSpawners(rd: Reader, raw: unknown): BlueprintSpawner[] {
         body,
         at: oneOf(rd, join(p, "at"), own(s, "at"), SPAWN_AT, D.at),
         count: numOrFormula(rd, join(p, "count"), own(s, "count"), { def: D.count, min: 1, max: L.perSpawn, int: true }),
-        speed: numOrFormula(rd, join(p, "speed"), own(s, "speed"), { def: D.speed }),
+        speed: numOrFormula(rd, join(p, "speed"), own(s, "speed"), { def: D.speed, ...SPEED_RULE }),
         dir: oneOf(rd, join(p, "dir"), own(s, "dir"), DIRECTIONS, D.dir),
         startSec: num(rd, join(p, "startSec"), own(s, "startSec"), { def: D.startSec, min: 0 }),
         everySec: num(rd, join(p, "everySec"), own(s, "everySec"), { def: D.everySec, min: 0 }),
@@ -586,7 +596,7 @@ function readAction(rd: Reader, path: string, raw: unknown, when: Trigger): Blue
         body,
         count: numOrFormula(rd, p("count"), f("count"), { def: 1, min: 0, max: L.perSpawn, int: true }),
         at,
-        speed: numOrFormula(rd, p("speed"), f("speed"), { def: 250 }),
+        speed: numOrFormula(rd, p("speed"), f("speed"), { def: 250, ...SPEED_RULE }),
         dir: oneOf(rd, p("dir"), f("dir"), DIRECTIONS, D.dir),
       };
     }

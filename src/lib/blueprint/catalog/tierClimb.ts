@@ -4,7 +4,7 @@
  */
 export const tierClimb = {
   v: 1,
-  meta: { name: "Tier Climb", description: "Orbs rain down and two of a tier merge into the next. First to tier 8 ends it.", family: "rhythm", author: "builtin" },
+  meta: { name: "Tier Climb", description: "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.", family: "rhythm", author: "builtin" },
   arena: { shape: "circle", size: 0.92, restitution: 0.55, gravity: { x: 0, y: 520 } },
   bodies: [{ id: "orb", radius: 9, color: 0 }],
   spawners: [{ body: "orb", at: "top", count: 1, speed: 80, dir: "down", everySec: 0.08, maxTotal: 400 }],

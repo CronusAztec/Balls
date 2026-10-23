@@ -1503,18 +1503,24 @@
     "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",
     "modeBlueprint": "Mode Lab",
     "blTitle": "Mode Lab",
-    "blDesc": "Each game here is a Blueprint: an arena, its balls and the rules that make them break, merge, multiply or race. Pick a game and tune its sliders. A Blueprint link opens here too.",
+    "blDesc": "Every game here is built from rules that make balls break, merge or multiply. Pick a game and tune its sliders. A shared game link opens here too.",
     "blPreset": "Game",
     "blFromLink": "From a link",
     "blLinkNote": "This game came with a link. Pick one from the list to go back to the built-in games.",
+    "blLinkUnreadable": "This game link could not be read. It may be cut short.",
+    "blLinkNewer": "This game needs a newer version of the site. Parts of it may not play.",
     "blRepaired": "Values fixed on load: {count}",
     "blHow": "How it plays",
     "blCheck": "Check playability",
     "blChecking": "Checking…",
-    "blCheckPlayable": "Playable. It ends after about {seconds} s on {ended} of {seeds} seeds.",
+    "blCheckingRun": "Checking run {n} of {total}…",
+    "blCheckPlayable": "Playable. It ends after about {seconds} s on {ended} of {runs} runs.",
     "blCheckEndless": "It never ends by itself. Every run reached the {seconds} s limit.",
-    "blCheckBroken": "Not playable yet. Problems found: {problems}.",
+    "blCheckBroken": "Not playable yet. {problem}",
+    "blCheckMore": "{count, plural, one {One more problem to fix.} other {# more problems to fix.}}",
     "blCopyLink": "Copy link",
+    "blCopyFailed": "Could not copy. Select the link below and copy it.",
+    "blLinkField": "Game link",
     "blCopied": "Copied",
     "bounceMath": "Bounce math",
     "bounceMathTip": "Rules that change a value by a mathematical step every time something happens – the ball gets bouncier, faster or bigger on every bounce, gravity flips every bar, the ball pumps on the beat. Rules apply in list order, and there is no upper limit unless you set a max.",
@@ -2901,7 +2907,8 @@
       "item2": "Create and export video recordings of simulations.",
       "item3": "Save simulation presets to your browser's local storage.",
       "footer": "You keep ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. This gives you no rights in names or works that belong to others, such as the character names in Fight League. A mention of {siteDomain} is always appreciated.",
-      "licence": "You keep your rights in what you upload. When you publish through the relay, you give us permission to store the clip for up to 24 hours and to send it to the platforms you chose, and nothing more. You confirm that you have the rights to everything in the clip and that it breaks no law and no platform rule."
+      "licence": "You keep your rights in what you upload. When you publish through the relay, you give us permission to store the clip for up to 24 hours and to send it to the platforms you chose, and nothing more. You confirm that you have the rights to everything in the clip and that it breaks no law and no platform rule.",
+      "games": "Games in Mode Lab can come from a link someone shared. Their name and their lines are the author's words, not ours. Share only games you made or may share. A game must not pretend to come from {siteName}, advertise or mislead."
     },
     "acceptable": {
       "title": "Acceptable Use",
@@ -4085,6 +4092,7 @@
     "canvasTimeLeft": "[min]:[sec]",
     "canvasEndedAt": "in [seconds] s",
     "canvasNobody": "NOBODY",
+    "canvasFromLink": "FROM A LINK",
     "team": {
       "red": "RED",
       "blue": "BLUE",
@@ -4103,6 +4111,7 @@
       "box": "a box",
       "rings": "{count, plural, one {# spinning ring} other {# spinning rings}}",
       "ringsBreak": "a ring shatters when a ball gets through",
+      "ringsRim": "inside a solid rim, so no ball gets out",
       "gravityDown": "gravity pulls the balls down",
       "gravityUp": "gravity pulls the balls up",
       "gravitySide": "gravity pulls the balls sideways",
@@ -4224,6 +4233,32 @@
       "orJoin": "{a} or {b}",
       "endLine": "when {conds}, or after {sec} s",
       "endTimeout": "after {sec} s"
+    },
+    "problem": {
+      "fault": "A rule failed while it ran. Simplify the rule that fires last.",
+      "nan": "Balls flew out of range. Use smaller speeds or gravity.",
+      "droppedEvents": "Too much happens at once. Use fewer balls touching each other.",
+      "droppedFirings": "Rules fire too often. Give the busiest rule a pause.",
+      "arenaFull": "The arena filled up with balls. Spawn or split less.",
+      "heavy": "It is too heavy for a browser tab. Use fewer or smaller balls.",
+      "slow": "It plays in slow motion. Slow the balls down or make them bigger.",
+      "fast": "A ball got too fast and was taken out. Make the speed-up gentler.",
+      "crowded": "Too many balls touch at once. Use fewer or smaller balls.",
+      "busy": "Rules change too many balls at once. Let the busiest rule change one ball.",
+      "quiet": "It is too quiet. Give the hits a sound.",
+      "still": "Nothing moves at the start. Give the balls a push or some gravity.",
+      "endless": "It never ends by itself. Make the finish easier to reach.",
+      "fewEnd": "Most runs never reach the finish. Make it easier or give it more time.",
+      "short": "It ends too quickly for a clip. Aim for six seconds or more.",
+      "long": "Most runs only just finish in time. Make the finish a little easier."
+    },
+    "unit": {
+      "s": "{n} s",
+      "deg": "{n}°",
+      "degPerSec": "{n}°/s",
+      "px": "{n} px",
+      "pxPerSec": "{n} px/s",
+      "pxPerSec2": "{n} px/s²"
     }
   },
   "Blueprints": {
@@ -4243,7 +4278,7 @@
     },
     "ringBreaker": {
       "name": "Ring Breaker",
-      "description": "Every ring a ball gets through shatters and doubles every ball. Break all eight.",
+      "description": "Every ring a ball gets through shatters and doubles every ball. Break every ring.",
       "line": "Every ring that falls doubles the balls",
       "hud0": "rings",
       "hud1": "balls",
@@ -4270,7 +4305,7 @@
     },
     "tierClimb": {
       "name": "Tier Climb",
-      "description": "Orbs rain down and two of a tier merge into the next. The first orb to reach tier 8 ends it.",
+      "description": "Orbs rain down and two of a tier merge into the next. The first orb to reach the target tier ends it.",
       "line": "Two of a tier merge into the next",
       "hud0": "top tier",
       "hud1": "orbs",
@@ -4297,11 +4332,11 @@
     },
     "growEscape": {
       "name": "Grow or Go",
-      "description": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?",
+      "description": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?",
       "line": "Bigger every bounce, find the gap",
       "hud0": "bounces",
       "hud1": "time",
-      "say0": "ESCAPED AFTER [bounces] BOUNCES",
+      "say0": "ESCAPED AFTER BOUNCE [bounces]",
       "say1": "TOO BIG TO ESCAPE",
       "timeoutSay": "TIME UP",
       "params": {

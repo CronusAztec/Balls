@@ -84,6 +84,8 @@ export default function ModesOverview({ interactive = false, current, onPicked, 
 
   // One grid for the whole wall: a family with a full row of modes or more spans every column, a small family (one or two
   // modes) only as many as it has, so small families share a row. Each family is a subgrid of it (its heading on top).
+  // --- review fix (blueprint) --- a family packs its rows at the top (content-start): sharing a row with a taller family, its
+  // heading would otherwise grow to fill the row and push its divider and cards out of line with its neighbour's
   const wallGrid = cx("grid gap-x-4 gap-y-12", variant === "picker" ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5");
 
   return (
@@ -103,7 +105,7 @@ export default function ModesOverview({ interactive = false, current, onPicked, 
       )}
       <div className={cx(wallGrid, variant === "page" ? "mt-12" : "mt-8")}>
         {shown.map(({ id, modes }) => (
-          <div key={id} className="grid grid-cols-subgrid gap-y-0" style={{ gridColumn: modes.length > 2 ? "1 / -1" : `span ${modes.length}` }}>
+          <div key={id} className="grid grid-cols-subgrid content-start gap-y-0" style={{ gridColumn: modes.length > 2 ? "1 / -1" : `span ${modes.length}` }}>
             <h3 className="col-span-full mb-5 flex items-baseline gap-3 border-b border-line pb-3 text-md font-medium text-ink">
               {heading(id)}
               <span aria-hidden="true" className="num text-xs text-ink-3">

@@ -5,7 +5,7 @@
  * ceiling (tiles, balls, rings…) or a design domain puts it back in range, exactly as it would in a spec written that way.
  */
 import { sanitizeBlueprint } from "./sanitize";
-import { numberAt, setNumberAt, type Blueprint } from "./schema";
+import { numberAt, paramPathSteps, setNumberAt, type Blueprint } from "./schema";
 
 /** The value parameter `i` has in a spec (its path's number), or NaN. */
 export function paramValue(bp: Blueprint, i: number): number {
@@ -52,4 +52,29 @@ export function applyBlueprintParams(bp: Blueprint, values: readonly (number | n
   });
   const { blueprint, notes } = sanitizeBlueprint(copy);
   return { blueprint, notes };
+}
+
+// --- review fix (blueprint) --- the unit a slider shows its value in
+/** The unit a parameter's value is in: seconds, degrees, degrees a second, px, px a second, px a second² – or none (a count). */
+export type ParamUnit = "s" | "deg" | "degPerSec" | "px" | "pxPerSec" | "pxPerSec2" | "";
+
+/** The unit of parameter `i` of a spec, read from the field its path names (and, for an action's number, the action). */
+export function paramUnit(bp: Blueprint, i: number): ParamUnit {
+  const p = bp.params[i];
+  const steps = p ? paramPathSteps(p.at) : null;
+  if (!steps) return "";
+  const key = String(steps[steps.length - 1]);
+  if (/DegPerSec$/.test(key)) return "degPerSec";
+  if (/Deg$/.test(key)) return "deg";
+  if (key === "sec" || /Sec$/.test(key)) return "s";
+  if (steps[0] === "arena" && steps[1] === "gravity") return "pxPerSec2";
+  if (key === "speed") return "pxPerSec";
+  if (key === "radius") return "px";
+  // an action's number: a grow's is px and an impulse's px/s; the others are counts or factors
+  if (steps[0] === "rules" && steps[2] === "do") {
+    const action = bp.rules[steps[1] as number]?.do[steps[3] as number];
+    if (action?.act === "grow" && key === "by") return "px";
+    if (action?.act === "impulse" && key === "amount") return "pxPerSec";
+  }
+  return "";
 }

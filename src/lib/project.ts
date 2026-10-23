@@ -22,6 +22,7 @@ import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/s
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
+import { BLUEPRINT_SPEC_MAX_CHARS } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) ---
 import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
@@ -42,6 +43,12 @@ export const PROJECT_MAX_FILE_BYTES = Math.ceil((PROJECT_MAX_BYTES * 4) / 3) + 4
 export const PROJECT_NAME_MAX = 60;
 /** Longest text setting kept from a file (the panel's text fields are far shorter). */
 const MAX_TEXT_SETTING = 500;
+/**
+ * --- review fix (blueprint) --- The text settings a file may carry longer than MAX_TEXT_SETTING, each up to its own limit:
+ * Mode Lab's Blueprint of a link (`blSpec`, a whole `b1.` code: the catalog's run 1,000 to 1,900 characters, the codec takes
+ * BLUEPRINT_CODE_MAX_CHARS). presetToSettings() validates it after, as it does a link's.
+ */
+const LONG_TEXT_SETTINGS: Readonly<Record<string, number>> = { blSpec: BLUEPRINT_SPEC_MAX_CHARS };
 
 export const PROJECT_ASSET_KINDS = ["ballImage", "hitSample", "wallBreakSound", "sliceSong", "musicBed", "midi", "paintPicture", "backgroundImage", "beatMedia"] as const; // --- video-beats --- (beatMedia: the imported video / audio)
 export type ProjectAssetKind = (typeof PROJECT_ASSET_KINDS)[number];
@@ -308,7 +315,7 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
         clean[key] = range && value < range.min && !SIGNED_KEYS.has(key) ? range.min : value;
       }
     } else if (typeof fallback === "string") {
-      if (typeof value === "string") clean[key] = value.slice(0, MAX_TEXT_SETTING);
+      if (typeof value === "string") clean[key] = value.slice(0, LONG_TEXT_SETTINGS[key] ?? MAX_TEXT_SETTING);
     } else if (typeof value === typeof fallback) clean[key] = value;
   }
   const settings = presetToSettings(clean as Partial<SimulatorSettings>);

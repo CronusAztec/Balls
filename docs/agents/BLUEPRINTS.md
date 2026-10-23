@@ -43,7 +43,7 @@ This is the text a model's prompt gets (`blueprintVocabulary()`, at most 500 tok
 ```text
 Blueprint v1 (JSON). Bodies in px; obstacles in arena units -1..1; angles 0=top, clockwise.
 {v:1,meta:{name<=28,description,family:escape|rhythm|battle},
-arena:{shape:circle|box|rings,size .5-.95,restitution,gravity:{x,y},spinDegPerSec,exits<=4:[{atDeg,widthDeg}],rings:{count,gapDeg,breakOnPass}},
+arena:{shape:circle|box|rings,size .5-.95,restitution,gravity:{x,y},spinDegPerSec,exits<=4:[{atDeg,widthDeg}],rings:{count,gapDeg,breakOnPass,rim}},
 bodies<=4:[{id,radius,color 0-5,gravityScale,hp,tier,team 0-5,collide:bounce|pass}],
 tiles:{layout:grid|ring,rows,cols(<=600),hp,hpStep,pierce,style:glass|brick|neon},
 obstacles<=8:[{kind:peg|bumper|pegGrid|pegRing|bar|spinner,x,y,...}],vars<=4:[{id,start}],
@@ -193,17 +193,24 @@ Fixed work and memory ceilings (`BLUEPRINT_CEILINGS` in `src/lib/uncap.ts`, the 
 | `ruleFiringsPerStep` | 64 | rule firings one step runs |
 | `spawnsPerStep` | 8 | balls one step adds (the rest wait, in order) |
 | `soundsPerStep` | 6 | sounds one step plays |
+| `ballRadius` | 225 | a ball's radius in px (a body, a grow, a merge or a split stops there) |
+| `ballSpeed` | 100000 | a ball's speed in px/s (a faster ball is taken out and counted) |
+| `subStepsPerStep` | 16 | sub-steps of one step (slow motion beyond) |
+| `pairTestsPerStep` | 64000 | ball-pair tests one step makes (the rest of a sub-step's are skipped and counted) |
+| `actionBallsPerStep` | 4096 | balls the rules' actions change in one step (further actions are dropped and counted) |
 
-The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps.
+The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the run plays in slow motion instead.
 
 ## The playability check
 
 `bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts
 only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:
 
-- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault, a ball gone NaN, dropped events or firings, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
+- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
 - **endless:** every seed runs into the timeout;
 - **broken:** anything else. The feedback says what to change, in plain sentences.
+
+A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size).
 
 ## The Lite form (small local models)
 
@@ -354,13 +361,13 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
 
 ### Ring Breaker (`ringBreaker`)
 
-Every ring a ball gets through shatters and doubles every ball. Break all eight.
+Every ring a ball gets through shatters and doubles every ball. Break every ring.
 
-Link: `?mode=blueprint&blp=ringBreaker` · digest `2e7e2b2e` · check: playable, median end 7.99 s, outcomes "ALL RINGS DOWN".
+Link: `?mode=blueprint&blp=ringBreaker` · digest `b5dfc3d7` · check: playable, median end 7.85 s, outcomes "ALL RINGS DOWN".
 
 ```text
-"Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break all eight."
-Arena: 8 spinning rings with 28° gaps that break when a ball gets through, no gravity, bounce 1.
+"Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break every ring."
+Arena: 8 spinning rings with 28° gaps that break when a ball gets through, inside a solid rim, no gravity, bounce 1.
 Bodies: ball (7 px).
 Start: 1 ball at the center at (260 + 80 * r) px/s.
 Rule: at the start: push every ball right at (15 + 25 * r) px/s.
@@ -374,7 +381,8 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
   "rings": {
    "count": 8,
    "gapDeg": 28,
-   "inner": 0.2
+   "inner": 0.2,
+   "rim": true
   },
   "shape": "rings",
   "size": 0.92
@@ -412,7 +420,7 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
  },
  "meta": {
   "author": "builtin",
-  "description": "Every ring a ball gets through shatters and doubles every ball. Break all eight.",
+  "description": "Every ring a ball gets through shatters and doubles every ball. Break every ring.",
   "name": "Ring Breaker"
  },
  "params": [
@@ -659,12 +667,12 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
 
 ### Tier Climb (`tierClimb`)
 
-Orbs rain down and two of a tier merge into the next. First to tier 8 ends it.
+Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.
 
-Link: `?mode=blueprint&blp=tierClimb` · digest `ae9e02fd` · check: playable, median end 23.18 s, outcomes "TIER 8 REACHED".
+Link: `?mode=blueprint&blp=tierClimb` · digest `c7f720cc` · check: playable, median end 23.18 s, outcomes "TIER 8 REACHED".
 
 ```text
-"Tier Climb": "Orbs rain down and two of a tier merge into the next. First to tier 8 ends it."
+"Tier Climb": "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it."
 Arena: a circle, gravity 0, 520 px/s², bounce 0.55.
 Bodies: orb (9 px).
 Start: 1 orb at the top at 80 px/s, again every 0.08 s (up to 400).
@@ -721,7 +729,7 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
  },
  "meta": {
   "author": "builtin",
-  "description": "Orbs rain down and two of a tier merge into the next. First to tier 8 ends it.",
+  "description": "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.",
   "family": "rhythm",
   "name": "Tier Climb"
  },
@@ -945,18 +953,18 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
 
 ### Grow or Go (`growEscape`)
 
-Every bounce makes the ball bigger. Can it find the gap before it no longer fits?
+Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?
 
-Link: `?mode=blueprint&blp=growEscape` · digest `02f95ef7` · check: playable, median end 20.27 s, outcomes "TOO BIG TO ESCAPE".
+Link: `?mode=blueprint&blp=growEscape` · digest `55ffef0b` · check: playable, median end 19.63 s, outcomes "ESCAPED AFTER BOUNCE 10", "ESCAPED AFTER BOUNCE 4", "ESCAPED AFTER BOUNCE 26", "TOO BIG TO ESCAPE".
 
 ```text
-"Grow or Go": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?"
+"Grow or Go": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?"
 Arena: a circle with an exit that turns, no gravity, bounce 1.
-Bodies: ball (9 px).
-Start: 1 ball at the top at 420 px/s.
-Rule: when a ball hits a wall: grow it by 1 px, then speed it × 1.015, then bounces + 1.
+Bodies: ball (8 px).
+Start: 1 ball at the top at 110 px/s.
+Rule: when a ball hits a wall: grow it by 1 px, then speed it × 1.15, then bounces + 1.
 Rule: on every beat: a gap note.
-Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces reaches 32 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
+Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reaches 28 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
 ```
 
 ```json
@@ -964,29 +972,29 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
  "arena": {
   "exits": [
    {
-    "atDeg": 200,
-    "widthDeg": 15
+    "atDeg": 180,
+    "widthDeg": 21
    }
   ],
   "size": 0.92,
-  "spinDegPerSec": 25
+  "spinDegPerSec": 40
  },
  "bodies": [
   {
    "color": 3,
    "id": "ball",
-   "radius": 9
+   "radius": 8
   }
  ],
  "finish": {
   "any": [
    {
     "atLeast": 1,
-    "say": "ESCAPED AFTER {bounces} BOUNCES",
+    "say": "ESCAPED AFTER BOUNCE {bounces}",
     "when": "escaped"
    },
    {
-    "atLeast": 32,
+    "atLeast": 28,
     "say": "TOO BIG TO ESCAPE",
     "what": "bounces",
     "when": "count"
@@ -1010,7 +1018,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
  },
  "meta": {
   "author": "builtin",
-  "description": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?",
+  "description": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?",
   "name": "Grow or Go"
  },
  "params": [
@@ -1046,7 +1054,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
     },
     {
      "act": "speed",
-     "scale": 1.015
+     "scale": 1.15
     },
     {
      "act": "var",
@@ -1074,7 +1082,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
    "at": "top",
    "body": "ball",
    "dir": "up",
-   "speed": 420
+   "speed": 110
   }
  ],
  "v": 1,

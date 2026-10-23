@@ -50,7 +50,8 @@ describe("blueprint check: the verdicts on broken specs", () => {
   });
 
   it("a NaN spec is broken: its balls went out of range", () => {
-    const report = playabilityCheck(spec({ arena: { gravity: { x: 0, y: 1e308 } }, bodies: [{ id: "ball" }], spawners: [{ body: "ball", speed: 1e308 }], finish: { timeoutSec: 20, any: [{ when: "count", what: "balls", atMost: 0 }] } }));
+    // (a spawn speed past BLUEPRINT_SPEED_CEILING is refused by the validator now: gravity × gravityScale overflows instead)
+    const report = playabilityCheck(spec({ arena: { gravity: { x: 0, y: 1e308 } }, bodies: [{ id: "ball", gravityScale: 1e308 }], spawners: [{ body: "ball", speed: 300 }], finish: { timeoutSec: 20, any: [{ when: "count", what: "balls", atMost: 0 }] } }));
     expect(report.verdict).toBe("broken");
     expect(report.seeds.every((s) => s.nanBalls > 0)).toBe(true);
     expect(report.feedback.join("\n")).toMatch(/NaN or infinity/);

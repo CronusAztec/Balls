@@ -1503,18 +1503,24 @@
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
     "modeBlueprint": "Laboratorio de modos",
     "blTitle": "Laboratorio de modos",
-    "blDesc": "Cada juego aquí es un Blueprint: una arena, sus bolas y las reglas que las hacen romperse, fusionarse, multiplicarse o competir. Elige un juego y ajusta sus deslizadores. Un enlace de Blueprint también se abre aquí.",
+    "blDesc": "Cada juego de aquí nace de reglas que hacen que las bolas se rompan, se fusionen o se multipliquen. Elige un juego y ajusta sus controles. Un enlace compartido de un juego también se abre aquí.",
     "blPreset": "Juego",
     "blFromLink": "De un enlace",
     "blLinkNote": "Este juego llegó con un enlace. Elige uno de la lista para volver a los juegos incluidos.",
+    "blLinkUnreadable": "No se pudo leer el enlace del juego. Puede que esté cortado.",
+    "blLinkNewer": "Este juego necesita una versión más nueva del sitio. Puede que una parte no funcione.",
     "blRepaired": "Valores corregidos al cargar: {count}",
     "blHow": "Cómo se juega",
     "blCheck": "Comprobar si se puede jugar",
     "blChecking": "Comprobando…",
-    "blCheckPlayable": "Se puede jugar. Termina tras unos {seconds} s en {ended} de {seeds} semillas.",
+    "blCheckingRun": "Comprobando la prueba {n} de {total}…",
+    "blCheckPlayable": "Se puede jugar. Termina tras unos {seconds} s en {ended} de {runs} pruebas.",
     "blCheckEndless": "Nunca termina sola. Cada tirada llegó al límite de {seconds} s.",
-    "blCheckBroken": "Aún no se puede jugar. Problemas encontrados: {problems}.",
+    "blCheckBroken": "Aún no se puede jugar. {problem}",
+    "blCheckMore": "{count, plural, one {Queda un problema más por resolver.} other {Quedan # problemas más por resolver.}}",
     "blCopyLink": "Copiar enlace",
+    "blCopyFailed": "No se pudo copiar. Selecciona el enlace de abajo y cópialo.",
+    "blLinkField": "Enlace del juego",
     "blCopied": "Copiado",
     "bounceMath": "Matemáticas del rebote",
     "bounceMathTip": "Reglas que cambian un valor con un paso matemático cada vez que pasa algo: la pelota rebota más, va más rápido o crece en cada rebote, la gravedad se invierte en cada compás, la pelota late al ritmo. Las reglas se aplican en el orden de la lista y no hay límite superior salvo que pongas un máximo.",
@@ -2901,7 +2907,8 @@
       "item2": "Crear y exportar grabaciones de vídeo de las simulaciones.",
       "item3": "Guardar presets de simulación en el almacenamiento local de tu navegador.",
       "footer": "Conservas la propiedad de todo lo que crees con el Servicio y puedes usar los vídeos exportados para cualquier fin, incluido el comercial, sin atribución. Esto no te da derechos sobre nombres u obras que pertenecen a otros, como los nombres de los personajes de Fight League. Una mención a {siteDomain} siempre se agradece.",
-      "licence": "Conservas tus derechos sobre lo que subes. Cuando publicas a través del relay, nos das permiso para guardar el clip hasta 24 horas y enviarlo a las plataformas que elegiste, y nada más. Confirmas que tienes los derechos sobre todo lo que contiene el clip y que no infringe ninguna ley ni ninguna norma de las plataformas."
+      "licence": "Conservas tus derechos sobre lo que subes. Cuando publicas a través del relay, nos das permiso para guardar el clip hasta 24 horas y enviarlo a las plataformas que elegiste, y nada más. Confirmas que tienes los derechos sobre todo lo que contiene el clip y que no infringe ninguna ley ni ninguna norma de las plataformas.",
+      "games": "Los juegos del Laboratorio de modos pueden llegar en un enlace que alguien compartió. Su nombre y sus textos son palabras de su autor, no nuestras. Comparte solo juegos que hayas creado o que puedas compartir. Un juego no puede fingir que viene de {siteName}, anunciar nada ni engañar."
     },
     "acceptable": {
       "title": "Uso aceptable",
@@ -4085,11 +4092,12 @@
     "canvasTimeLeft": "[min]:[sec]",
     "canvasEndedAt": "en [seconds] s",
     "canvasNobody": "NADIE",
+    "canvasFromLink": "DE UN ENLACE",
     "team": {
       "red": "ROJO",
       "blue": "AZUL",
       "green": "VERDE",
-      "gold": "ORO",
+      "gold": "DORADO",
       "purple": "MORADO",
       "cyan": "CIAN"
     },
@@ -4103,6 +4111,7 @@
       "box": "una caja",
       "rings": "{count, plural, one {# anillo giratorio} other {# anillos giratorios}}",
       "ringsBreak": "un anillo se rompe cuando una bola lo atraviesa",
+      "ringsRim": "dentro de un borde cerrado, así que ninguna bola sale",
       "gravityDown": "la gravedad tira de las bolas hacia abajo",
       "gravityUp": "la gravedad tira de las bolas hacia arriba",
       "gravitySide": "la gravedad tira de las bolas hacia un lado",
@@ -4169,7 +4178,7 @@
         "teams": "los equipos que quedan",
         "tier": "el nivel más alto",
         "time": "el reloj",
-        "var": "«{name}»"
+        "var": "el contador «{name}»"
       },
       "target": {
         "self": "la bola",
@@ -4198,9 +4207,9 @@
         "damageTileSome": "la loseta recibe daño extra",
         "damage": "{who} pierde {n} PV",
         "damageSome": "{who} recibe daño",
-        "varAdd": "«{name}» sube {n}",
-        "varSet": "«{name}» pasa a {n}",
-        "varMul": "«{name}» se multiplica por {n}",
+        "varAdd": "el contador «{name}» sube {n}",
+        "varSet": "el contador «{name}» pasa a {n}",
+        "varMul": "el contador «{name}» se multiplica por {n}",
         "impulse": "{who} recibe un empujón",
         "fx": "un destello",
         "sound": "suena una nota"
@@ -4224,6 +4233,32 @@
       "orJoin": "{a} o {b}",
       "endLine": "cuando {conds}, o a los {sec} s",
       "endTimeout": "a los {sec} s"
+    },
+    "problem": {
+      "fault": "Una regla falló durante la partida. Simplifica la regla que actúa al final.",
+      "nan": "Las bolas se salieron de rango. Usa velocidades o gravedad más bajas.",
+      "droppedEvents": "Pasan demasiadas cosas a la vez. Haz que se toquen menos bolas.",
+      "droppedFirings": "Las reglas actúan demasiado a menudo. Dale una pausa a la regla más activa.",
+      "arenaFull": "La arena se llenó de bolas. Crea o divide menos bolas.",
+      "heavy": "Es demasiado para una pestaña del navegador. Usa menos bolas o más pequeñas.",
+      "slow": "Se juega a cámara lenta. Frena las bolas o hazlas más grandes.",
+      "fast": "Una bola fue demasiado rápida y se retiró. Acelera con más suavidad.",
+      "crowded": "Se tocan demasiadas bolas a la vez. Usa menos bolas o más pequeñas.",
+      "busy": "Las reglas cambian demasiadas bolas a la vez. Haz que la regla más activa cambie una sola.",
+      "quiet": "Es demasiado silencioso. Dale sonido a los golpes.",
+      "still": "Nada se mueve al empezar. Dales a las bolas un empujón o algo de gravedad.",
+      "endless": "Nunca termina sola. Haz que la meta sea más fácil de alcanzar.",
+      "fewEnd": "La mayoría de las pruebas no llega a la meta. Facilítala o dale más tiempo.",
+      "short": "Termina demasiado pronto para un clip. Apunta a seis segundos o más.",
+      "long": "La mayoría de las pruebas termina justo a tiempo. Facilita un poco la meta."
+    },
+    "unit": {
+      "s": "{n} s",
+      "deg": "{n}°",
+      "degPerSec": "{n}°/s",
+      "px": "{n} px",
+      "pxPerSec": "{n} px/s",
+      "pxPerSec2": "{n} px/s²"
     }
   },
   "Blueprints": {
@@ -4243,7 +4278,7 @@
     },
     "ringBreaker": {
       "name": "Rompeanillos",
-      "description": "Cada anillo que cruza una bola se rompe y duplica todas las bolas. Rompe los ocho.",
+      "description": "Cada anillo que cruza una bola se rompe y duplica todas las bolas. Rompe todos los anillos.",
       "line": "Cada anillo que cae duplica las bolas",
       "hud0": "anillos",
       "hud1": "bolas",
@@ -4261,8 +4296,8 @@
       "line": "Un choque convierte, gana el último color",
       "hud0": "colores en juego",
       "hud1": "tiempo",
-      "say0": "GANA [winner]",
-      "timeoutSay": "[winner] VA EN CABEZA",
+      "say0": "¡GANA EL [winner]!",
+      "timeoutSay": "EL [winner] VA EN CABEZA",
       "params": {
         "per": "Bolas por color",
         "boost": "Acelera cada"
@@ -4270,7 +4305,7 @@
     },
     "tierClimb": {
       "name": "Escalada de niveles",
-      "description": "Llueven orbes y dos del mismo nivel se fusionan en el siguiente. El primer orbe en llegar al nivel 8 termina.",
+      "description": "Llueven orbes y dos del mismo nivel se fusionan en el siguiente. El primer orbe en llegar al nivel objetivo termina.",
       "line": "Dos del mismo nivel se funden en el siguiente",
       "hud0": "nivel máximo",
       "hud1": "orbes",
@@ -4283,11 +4318,11 @@
       }
     },
     "plinkoRace": {
-      "name": "Carrera de clavos",
+      "name": "Carrera entre clavos",
       "description": "Cuatro bolas caen entre clavos y persiguen una salida que gira. Gana la primera en salir.",
       "line": "Cuatro bolas corren entre los clavos",
       "hud0": "tiempo",
-      "say0": "[winner] GANA LA CARRERA",
+      "say0": "EL [winner] GANA LA CARRERA",
       "timeoutSay": "NADIE SALIÓ",
       "params": {
         "exit": "Ancho de la salida",
@@ -4297,11 +4332,11 @@
     },
     "growEscape": {
       "name": "Crece o escapa",
-      "description": "Cada rebote agranda la bola. ¿Encontrará el hueco antes de dejar de caber?",
+      "description": "Cada rebote agranda y acelera la bola. ¿Encontrará el hueco antes de dejar de caber?",
       "line": "Más grande en cada rebote, busca la salida",
       "hud0": "rebotes",
       "hud1": "tiempo",
-      "say0": "ESCAPÓ TRAS [bounces] REBOTES",
+      "say0": "ESCAPÓ TRAS EL REBOTE [bounces]",
       "say1": "DEMASIADO GRANDE PARA ESCAPAR",
       "timeoutSay": "SE ACABÓ EL TIEMPO",
       "params": {

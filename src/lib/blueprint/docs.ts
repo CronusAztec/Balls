@@ -3,7 +3,7 @@
  * runtime and the prompts read (schema.ts, limits.ts, lite.ts, the catalog), so the guide cannot drift from the code.
  * `npm run blueprints:docs` writes it; tests/blueprintDocs.test.ts fails while the file differs from renderBlueprintDocs().
  */
-import { playabilityCheck, PLAYABLE_FIRST_MOTION_SEC, PLAYABLE_MIN_SEC, PLAYABLE_MIN_SOUNDS } from "./check";
+import { CHECK_HEAVY_STEP_COST, playabilityCheck, PLAYABLE_FIRST_MOTION_SEC, PLAYABLE_MIN_SEC, PLAYABLE_MIN_SOUNDS } from "./check";
 import { blueprintDigest, blueprintJson, catalogQuery } from "./codec";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "./catalog";
 import { blueprintVocabulary, describeBlueprint } from "./describe";
@@ -50,6 +50,11 @@ const CEILING_WHY: Record<keyof typeof BLUEPRINT_CEILINGS, string> = {
   ruleFiringsPerStep: "rule firings one step runs",
   spawnsPerStep: "balls one step adds (the rest wait, in order)",
   soundsPerStep: "sounds one step plays",
+  ballRadius: "a ball's radius in px (a body, a grow, a merge or a split stops there)",
+  ballSpeed: "a ball's speed in px/s (a faster ball is taken out and counted)",
+  subStepsPerStep: "sub-steps of one step (slow motion beyond)",
+  pairTestsPerStep: "ball-pair tests one step makes (the rest of a sub-step's are skipped and counted)",
+  actionBallsPerStep: "balls the rules' actions change in one step (further actions are dropped and counted)",
 };
 
 /** The whole guide, as Markdown. */
@@ -150,7 +155,7 @@ export function renderBlueprintDocs(): string {
     "",
     table(["Ceiling", "Value", "What it bounds"], (Object.keys(BLUEPRINT_CEILINGS) as (keyof typeof BLUEPRINT_CEILINGS)[]).map((k) => [code(k), String(BLUEPRINT_CEILINGS[k]), CEILING_WHY[k]])),
     "",
-    `The shape of a spec (\`BLUEPRINT_LIMITS\` in \`src/lib/blueprint/limits.ts\`): ${L.bodies} bodies, ${L.exits} exits, ${L.obstaclePatterns} obstacle patterns, ${L.vars} variables, ${L.spawners} spawners, ${L.actionsPerRule} actions a rule, ${L.finishConditions} finish conditions, ${L.hud} HUD counters, ${L.palette} colours, ${L.teams} teams, ${L.rings} rings, ${L.perSpawn} balls a spawn, names of ${L.nameChars} and descriptions of ${L.descriptionChars} characters. A step has 4 to ${BLUEPRINT_MAX_SUBSTEPS} sub-steps.`,
+    `The shape of a spec (\`BLUEPRINT_LIMITS\` in \`src/lib/blueprint/limits.ts\`): ${L.bodies} bodies, ${L.exits} exits, ${L.obstaclePatterns} obstacle patterns, ${L.vars} variables, ${L.spawners} spawners, ${L.actionsPerRule} actions a rule, ${L.finishConditions} finish conditions, ${L.hud} HUD counters, ${L.palette} colours, ${L.teams} teams, ${L.rings} rings, ${L.perSpawn} balls a spawn, names of ${L.nameChars} and descriptions of ${L.descriptionChars} characters. A step has 4 to ${BLUEPRINT_MAX_SUBSTEPS} sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past ${BLUEPRINT_MAX_SUBSTEPS} the run plays in slow motion instead.`,
   );
   p(
     "## The playability check",
@@ -158,9 +163,11 @@ export function renderBlueprintDocs(): string {
     "`bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts",
     "only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:",
     "",
-    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault, a ball gone NaN, dropped events or firings, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
+    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
     "- **endless:** every seed runs into the timeout;",
     "- **broken:** anything else. The feedback says what to change, in plain sentences.",
+    "",
+    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size).`,
   );
   p(
     "## The Lite form (small local models)",

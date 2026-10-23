@@ -446,6 +446,9 @@ describe("legal audit: the terms page", () => {
     expect(en.Terms.ai.content).toContain("We do not see your prompts or outputs.");
     expect(en.Terms.ugc.licence).toContain("store the clip for up to 24 hours");
     expect(page).toContain('<p>{t("ugc.licence")}</p>');
+    // --- review fix (blueprint) --- Mode Lab's games shared in links: their texts are their authors', never the site posing
+    expect(en.Terms.ugc.games).toBe("Games in Mode Lab can come from a link someone shared. Their name and their lines are the author's words, not ours. Share only games you made or may share. A game must not pretend to come from {siteName}, advertise or mislead.");
+    expect(page).toContain('<p>{t("ugc.games", v)}</p>');
     expect(en.Terms.takedown.title).toBe("Reporting content");
     expect(en.Terms.takedown.content).toContain("write to {email}");
     expect(en.Terms.takedown.content).toContain("close the accounts of repeat infringers");
@@ -457,6 +460,8 @@ describe("legal audit: the terms page", () => {
     expect(en.Disclaimer.asIs.content).toMatch(/Nothing here limits the rights you have as a consumer under the law of your country\.$/);
     each((locale, flat) => {
       for (const key of ["Terms.age.content", "Terms.termination.content", "Terms.law.content", "Terms.law.countryFallback", "Terms.ai.content", "Terms.ugc.licence", "Terms.takedown.content", "Terms.takedown.agent", "Terms.acceptable.youtube"]) expect(flat[key], `${locale} ${key}`).toBeTruthy();
+      expect(flat["Terms.ugc.games"], locale).toContain("{siteName}");
+      expect(flat["Terms.ugc.games"], locale).not.toMatch(/ — | – |;/);
       expect(flat["Terms.law.content"], locale).toContain("{country}");
       expect(flat["Terms.takedown.content"], locale).toContain("{email}");
       for (const ph of ["{legalName}", "{address}", "{email}"]) expect(flat["Terms.takedown.agent"], locale).toContain(ph);

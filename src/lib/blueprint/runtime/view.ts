@@ -47,6 +47,8 @@ export interface BlueprintView {
   notes: string[];
   /** The newer features a spec named that this version does not know. */
   newer: string[];
+  /** --- review fix (blueprint) --- The run is over and the HUD and counts hold the finishing step's values (the world turns on). */
+  frozen: boolean;
 }
 
 export function createBlueprintView(): BlueprintView {
@@ -73,6 +75,7 @@ export function createBlueprintView(): BlueprintView {
     steps: 0,
     notes: [],
     newer: [],
+    frozen: false,
   };
 }
 
@@ -95,20 +98,28 @@ export function attachBlueprintView(view: BlueprintView, run: BlueprintRun, cata
   view.tilesTotal = run.world.tileCount;
   view.notes = notes;
   view.newer = newer;
+  view.frozen = false;
   refreshBlueprintView(view, run);
 }
 
-/** Copies the run's numbers into the view (end of every step). */
+/**
+ * Copies the run's numbers into the view (end of every step). --- review fix (blueprint) --- From the finishing step on, the
+ * HUD counters and the counts hold that step's values: the balls still bounce under the end banner, but the clock, the ball
+ * count and the rest no longer move, so the last frame agrees with the banner. Only the run's clock (`clockSec`, the
+ * banner's pop-in and the effects) goes on.
+ */
 export function refreshBlueprintView(view: BlueprintView, run: BlueprintRun) {
-  view.timeSec = run.done.finished ? run.done.timeSec : run.timeSec;
   view.clockSec = run.timeSec;
+  view.arenaFullAtSec = run.arenaFullAtSec;
+  view.flashAtSec = run.flashAtSec;
+  if (view.frozen) return;
+  view.frozen = run.done.finished;
+  view.timeSec = run.done.finished ? run.done.timeSec : run.timeSec;
   for (const h of view.hud) h.value = hudText(h.show, run.count(h.show));
   view.balls = run.world.aliveCount();
   view.tiles = run.world.tilesAlive;
   view.rings = run.world.ringsAlive();
   view.escaped = run.stats.escaped;
-  view.arenaFullAtSec = run.arenaFullAtSec;
-  view.flashAtSec = run.flashAtSec;
   view.result = run.done;
   view.dropped = run.stats.droppedEvents + run.stats.droppedFirings;
   view.faults = run.stats.faults;

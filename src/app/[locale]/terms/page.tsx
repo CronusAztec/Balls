@@ -113,6 +113,8 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
         <p>{t("ugc.footer", v)}</p>
         {/* --- legal-audit --- the licence a publish through the relay gives us: storage for 24 hours and the send, nothing more */}
         <p>{t("ugc.licence")}</p>
+        {/* --- review fix (blueprint) --- games shared in links: the author's words, not ours, and never posing as the site */}
+        <p>{t("ugc.games", v)}</p>
       </section>
       <section id="acceptable">
         <h2>{heading("acceptable")}</h2>

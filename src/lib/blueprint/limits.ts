@@ -8,29 +8,39 @@
  * tab, so it needs the owner's review.
  */
 import {
+  BLUEPRINT_ACTION_BALLS_PER_STEP,
   BLUEPRINT_BALL_CEILING,
   BLUEPRINT_CEILINGS,
   BLUEPRINT_EVENTS_PER_STEP,
   BLUEPRINT_JSON_MAX_BYTES,
   BLUEPRINT_OBSTACLE_CEILING,
+  BLUEPRINT_PAIR_TESTS_PER_STEP,
+  BLUEPRINT_RADIUS_CEILING,
   BLUEPRINT_RULE_CEILING,
   BLUEPRINT_RULE_FIRINGS_PER_STEP,
   BLUEPRINT_SOUNDS_PER_STEP,
   BLUEPRINT_SPAWNS_PER_STEP,
+  BLUEPRINT_SPEED_CEILING,
+  BLUEPRINT_SUBSTEP_CEILING,
   BLUEPRINT_TILE_CEILING,
   BLUEPRINT_TIMEOUT_CEILING_SEC,
 } from "@/lib/uncap";
 
 export {
+  BLUEPRINT_ACTION_BALLS_PER_STEP,
   BLUEPRINT_BALL_CEILING,
   BLUEPRINT_CEILINGS,
   BLUEPRINT_EVENTS_PER_STEP,
   BLUEPRINT_JSON_MAX_BYTES,
   BLUEPRINT_OBSTACLE_CEILING,
+  BLUEPRINT_PAIR_TESTS_PER_STEP,
+  BLUEPRINT_RADIUS_CEILING,
   BLUEPRINT_RULE_CEILING,
   BLUEPRINT_RULE_FIRINGS_PER_STEP,
   BLUEPRINT_SOUNDS_PER_STEP,
   BLUEPRINT_SPAWNS_PER_STEP,
+  BLUEPRINT_SPEED_CEILING,
+  BLUEPRINT_SUBSTEP_CEILING,
   BLUEPRINT_TILE_CEILING,
   BLUEPRINT_TIMEOUT_CEILING_SEC,
 };
@@ -91,7 +101,14 @@ export const BLUEPRINT_STEP_BUDGETS = {
   ruleFirings: BLUEPRINT_RULE_FIRINGS_PER_STEP,
   spawns: BLUEPRINT_SPAWNS_PER_STEP,
   sounds: BLUEPRINT_SOUNDS_PER_STEP,
+  /** Ball-pair tests a step, shared out over its sub-steps (past it a sub-step's remaining pairs are skipped and counted). */
+  pairTests: BLUEPRINT_PAIR_TESTS_PER_STEP,
+  /** Balls the actions of a step change (past it the step's further actions are dropped and counted). */
+  actionBalls: BLUEPRINT_ACTION_BALLS_PER_STEP,
 } as const;
 
-/** Sub-steps of one 60 Hz step: at least the engine's 4, more for fast balls, never more than this (work ceiling). */
-export const BLUEPRINT_MAX_SUBSTEPS = 16;
+/**
+ * Sub-steps of one 60 Hz step: at least the engine's 4, more for fast balls, never more than this (work ceiling) – past it
+ * the step shortens instead (slow motion). The mode hands it to the engine (`GameMode.subStepCeiling`), which bounds its plan.
+ */
+export const BLUEPRINT_MAX_SUBSTEPS = BLUEPRINT_SUBSTEP_CEILING;

@@ -1,22 +1,26 @@
 /*
- * --- blueprint --- Catalog: Grow or Go (escape). One ball, one gap in a turning rim; every bounce makes the ball bigger. It
- * has to find the gap before it no longer fits through: two endings, and the seed decides which.
+ * --- blueprint --- Catalog: Grow or Go (escape). One ball, one gap in a turning rim; every bounce makes the ball bigger and
+ * faster. It has to find the gap before it no longer fits through: two endings, and the seed decides which (24 of seeds
+ * 1-40 escape). --- review fix (blueprint) --- It starts slow at the top with the exit at the bottom, so it is never out in
+ * its first 6 s (seeds 1-40: the earliest at 6.25 s, the longest run 23 s), and it loses on the bounce it stops fitting: a
+ * 21° exit of the 207 px rim lets a ball of up to 35 px through, and an 8 px ball growing 1 px a bounce outgrows it on
+ * bounce 28.
  */
 export const growEscape = {
   v: 1,
-  meta: { name: "Grow or Go", description: "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?", family: "escape", author: "builtin" },
-  arena: { shape: "circle", size: 0.92, spinDegPerSec: 25, exits: [{ atDeg: 200, widthDeg: 15 }] },
-  bodies: [{ id: "ball", radius: 9, color: 3 }],
+  meta: { name: "Grow or Go", description: "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?", family: "escape", author: "builtin" },
+  arena: { shape: "circle", size: 0.92, spinDegPerSec: 40, exits: [{ atDeg: 180, widthDeg: 21 }] },
+  bodies: [{ id: "ball", radius: 8, color: 3 }],
   vars: [{ id: "bounces" }],
-  spawners: [{ body: "ball", at: "top", count: 1, speed: 420, dir: "up" }],
+  spawners: [{ body: "ball", at: "top", count: 1, speed: 110, dir: "up" }],
   rules: [
-    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: 1.015 }, { act: "var", id: "bounces", op: "add", value: 1 }] },
+    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: 1.15 }, { act: "var", id: "bounces", op: "add", value: 1 }] },
     { when: "beat", do: [{ act: "sound", voice: "gap", pitch: -7 }] },
   ],
   finish: {
     any: [
-      { when: "escaped", say: "ESCAPED AFTER {bounces} BOUNCES" },
-      { when: "count", what: "bounces", atLeast: 32, say: "TOO BIG TO ESCAPE" },
+      { when: "escaped", say: "ESCAPED AFTER BOUNCE {bounces}" },
+      { when: "count", what: "bounces", atLeast: 28, say: "TOO BIG TO ESCAPE" },
     ],
     timeoutSec: 60,
   },

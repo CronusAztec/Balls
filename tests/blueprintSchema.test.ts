@@ -10,6 +10,8 @@ import {
   BLUEPRINT_CEILINGS,
   BLUEPRINT_CODE_MAX_CHARS,
   BLUEPRINT_LIMITS,
+  BLUEPRINT_MAX_SUBSTEPS,
+  BLUEPRINT_STEP_BUDGETS,
   blueprintBytes,
   blueprintDigest,
   blueprintJsonSchema,
@@ -90,10 +92,15 @@ describe("blueprint: strict validation says where and why", () => {
       expect(errors.some((e) => expected.test(e)), errors.join("\n")).toBe(true);
     });
 
-  it("takes any finite physics number – speeds, radii, gravity, bounciness – and refuses only meaningless ones", () => {
-    const huge = base({ arena: { gravity: { x: -1e9, y: 1e12 }, restitution: 50, spinDegPerSec: -1e6 }, bodies: [{ id: "ball", radius: 1e6, gravityScale: -3 }], spawners: [{ body: "ball", speed: 1e15 }] });
+  it("takes any finite physics number – gravity, bounciness, spin; speeds and radii up to their work ceilings – and refuses only meaningless ones", () => {
+    // --- review fix (blueprint) --- a ball's radius and a spawn speed stop at BLUEPRINT_RADIUS_CEILING and BLUEPRINT_SPEED_CEILING
+    const huge = base({ arena: { gravity: { x: -1e9, y: 1e12 }, restitution: 50, spinDegPerSec: -1e6 }, bodies: [{ id: "ball", radius: uncap.BLUEPRINT_RADIUS_CEILING, gravityScale: -3 }], spawners: [{ body: "ball", speed: -uncap.BLUEPRINT_SPEED_CEILING }] });
     expect(validateBlueprint(huge)).toEqual([]);
     expect(validateBlueprint(base({ arena: { restitution: -1 } }))[0]).toMatch(/^arena\.restitution: must be a number from 0 up, got -1$/);
+    const past = validateBlueprint(base({ bodies: [{ id: "ball", radius: 1e6 }], spawners: [{ body: "ball", speed: 1e15 }] }));
+    expect(past).toEqual(["bodies[0].radius: 1000000 is past the ball radius ceiling, px (225)", "spawners[0].speed: 1000000000000000 is past the ball speed ceiling, px/s (100000)"]);
+    const fixed = sanitizeBlueprint(base({ bodies: [{ id: "ball", radius: 1e6 }], spawners: [{ body: "ball", speed: -1e15 }] })).blueprint;
+    expect([fixed.bodies[0].radius, fixed.spawners[0].speed]).toEqual([uncap.BLUEPRINT_RADIUS_CEILING, -uncap.BLUEPRINT_SPEED_CEILING]);
   });
 
   it("reports at most a bounded number of problems for any garbage", () => {
@@ -233,7 +240,10 @@ describe("blueprint: the compact form, the code and the digest", () => {
 
 describe("blueprint: the sandbox ceilings (lib/uncap.ts)", () => {
   it("are the owner's fixed work and memory ceilings, re-exported unchanged by the library", () => {
-    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6 });
+    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6, ballRadius: 225, ballSpeed: 100_000, subStepsPerStep: 16, pairTestsPerStep: 64_000, actionBallsPerStep: 4_096 });
+    // --- review fix (blueprint) --- the work ceilings on one ball and one step, re-exported as the runtime reads them
+    expect([uncap.BLUEPRINT_RADIUS_CEILING, uncap.BLUEPRINT_SPEED_CEILING, uncap.BLUEPRINT_SUBSTEP_CEILING, uncap.BLUEPRINT_PAIR_TESTS_PER_STEP, uncap.BLUEPRINT_ACTION_BALLS_PER_STEP]).toEqual([225, 100_000, 16, 64_000, 4_096]);
+    expect([BLUEPRINT_MAX_SUBSTEPS, BLUEPRINT_STEP_BUDGETS.pairTests, BLUEPRINT_STEP_BUDGETS.actionBalls]).toEqual([16, 64_000, 4_096]);
     expect(BLUEPRINT_CEILINGS).toBe(uncap.BLUEPRINT_CEILINGS);
     expect([uncap.BLUEPRINT_BALL_CEILING, uncap.BLUEPRINT_TILE_CEILING, uncap.BLUEPRINT_OBSTACLE_CEILING, uncap.BLUEPRINT_RULE_CEILING, uncap.BLUEPRINT_TIMEOUT_CEILING_SEC, uncap.BLUEPRINT_JSON_MAX_BYTES]).toEqual([400, 600, 48, 16, 180, 6000]);
     expect([BLUEPRINT_LIMITS.balls, BLUEPRINT_LIMITS.tiles, BLUEPRINT_LIMITS.obstacles, BLUEPRINT_LIMITS.rules, BLUEPRINT_LIMITS.maxTimeoutSec, BLUEPRINT_LIMITS.specBytes]).toEqual([400, 600, 48, 16, 180, 6000]);

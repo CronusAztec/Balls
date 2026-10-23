@@ -11,6 +11,7 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { encodeBlueprint } from "./codec";
+import { BLUEPRINT_STEP_CEILING_FACTOR } from "./runtime/finish";
 import type { Blueprint } from "./schema";
 import type { BlueprintRun, RunResult, RunStats } from "./runtime/run";
 import type { BlueprintWorld } from "./runtime/world";
@@ -83,12 +84,21 @@ export class HeadlessBlueprint {
     this.engine.consumeSoundEvents();
   }
 
-  /** Steps until the result is decided or `maxSec` of steps passed (default: the timeout and 2 s). */
-  runToEnd(maxSec = this.run.bp.finish.timeoutSec + 2): RunResult {
-    const steps = Math.ceil(maxSec * 60);
+  /**
+   * Steps until the result is decided, or `maxSec` of steps passed. --- review fix (blueprint) --- By default it steps until
+   * the run is decided, however slowly the engine let simulated time pass (fast balls slow it down): a run always ends
+   * within its step ceiling (finish.ts BLUEPRINT_STEP_CEILING_FACTOR × the timeout's steps), so that is the bound.
+   */
+  runToEnd(maxSec?: number): RunResult {
+    const steps = maxSec === undefined ? blueprintStepBound(this.run.bp) : Math.ceil(maxSec * 60);
     for (let i = 0; i < steps && !this.finished; i++) this.step();
     return this.result();
   }
+}
+
+/** The most steps a run of this spec takes before it is decided (its step ceiling, and one more). */
+export function blueprintStepBound(bp: Blueprint): number {
+  return Math.ceil(bp.finish.timeoutSec * 60 * BLUEPRINT_STEP_CEILING_FACTOR) + 1;
 }
 
 /** Runs a spec headless from a seed to its end (or `maxSec`): the result and the counts. */

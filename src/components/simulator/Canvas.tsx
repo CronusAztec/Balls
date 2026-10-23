@@ -2478,10 +2478,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
       else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
+        // --- review fix (blueprint) --- a ball whose position or radius is not a finite number (a stranger's link may make one
+        // for a sub-step) is not drawn: a gradient on it would throw and stop the frame loop (the plain path skips it the same way)
+        if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && ball.radius > 0 && Number.isFinite(ball.radius))) return;
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
         const teamSprite = isColorMatch || customImage ? null : teamLayer.spriteOf(ball);
-        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall ? rainbowColors[index] : ball.color);
+        // --- review fix (blueprint) --- Mode Lab's balls wear their palette colour (a team, a tier): never the Rainbow Ball's
+        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall && !blueprintView ? rainbowColors[index] : ball.color);
         // Trail
         // --- blueprint --- Mode Lab: a Blueprint's look decides (look.trail): a streak in the ball's own colour, never the rainbow
         if (blueprintView) {

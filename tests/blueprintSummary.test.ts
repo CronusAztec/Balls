@@ -114,10 +114,11 @@ describe("blueprint summary: How it plays", () => {
     expect(conquer).toContain("Every 6 s: every ball speeds up");
     expect(conquer[conquer.length - 1]).toBe("End: when one team is left, or after 90 s, the team with the most balls wins");
     const grow = say("en", summarizeBlueprint(catalogBlueprint("growEscape")));
-    expect(grow[grow.length - 1]).toBe("End: when a ball escapes or “bounces” reaches 32, or after 60 s");
+    expect(grow[grow.length - 1]).toBe("End: when a ball escapes or “bounces” reaches 28, or after 60 s");
     // a catalog game's variables by the HUD's own words (the panel passes them in the page's language)
     const named = say("pl", summarizeBlueprint(catalogBlueprint("growEscape"), { varName: (id) => (id === "bounces" ? "odbicia" : id) }));
-    expect(named[named.length - 1]).toBe("Koniec: gdy kulka ucieknie lub „odbicia” dojdzie do 32, albo po 60 s");
+    // (--- review fix (blueprint) --- a variable is "the counter" in Polish, so its verb agrees: "licznik „odbicia” dojdzie")
+    expect(named[named.length - 1]).toBe("Koniec: gdy kulka ucieknie lub licznik „odbicia” dojdzie do 28, albo po 60 s");
     expect(say("en", summarizeBlueprint(catalogBlueprint("plinkoRace"))).pop()).toBe("End: when a ball escapes, or after 60 s, the first ball out wins");
   });
 
@@ -150,8 +151,9 @@ describe("blueprint summary: How it plays", () => {
 
   it("follows a slider: Ring Breaker's ring count shows in its arena line", () => {
     const rb = catalogBlueprint("ringBreaker");
-    expect(say("en", summarizeBlueprint(rb))[0]).toBe("Arena: 8 spinning rings, a ring shatters when a ball gets through");
+    // (--- review fix (blueprint) --- Ring Breaker's rings sit inside a solid rim, so the swarm stays on screen at the end)
+    expect(say("en", summarizeBlueprint(rb))[0]).toBe("Arena: 8 spinning rings, a ring shatters when a ball gets through, inside a solid rim, so no ball gets out");
     const three = sanitizeBlueprint({ ...rb, arena: { ...rb.arena, rings: { ...rb.arena.rings!, count: 3 } } }).blueprint;
-    expect(say("pl", summarizeBlueprint(three))[0]).toBe("Arena: 3 wirujące pierścienie, pierścień pęka, gdy kulka przez niego przeleci");
+    expect(say("pl", summarizeBlueprint(three))[0]).toBe("Arena: 3 wirujące pierścienie, pierścień pęka, gdy kulka przez niego przeleci, w zamkniętej obręczy, więc żadna kulka nie ucieknie");
   });
 });

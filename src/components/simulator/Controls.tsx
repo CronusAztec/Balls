@@ -496,7 +496,7 @@ export default function Controls(props: ControlsProps) {
       {/* --- low-findings-2 --- a mode whose balls are its own (Colour Sort) leaves out the page's speed, size and colour (panelKeys.ts ballControlsOf()) */}
       {ballControlsOf(s.mode).speed && <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />}
       {ballControlsOf(s.mode).size && <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />}
-      {showAdvanced && (
+      {showAdvanced && ballControlsOf(s.mode).gravity /* --- review fix (blueprint) --- (Mode Lab's gravity is the Blueprint's) */ && (
         <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} />
       )}
       {!props.ballImage && !props.ballEmoji && ballControlsOf(s.mode).color && (

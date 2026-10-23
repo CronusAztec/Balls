@@ -1503,18 +1503,24 @@
     "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",
     "modeBlueprint": "Laboratorium trybów",
     "blTitle": "Laboratorium trybów",
-    "blDesc": "Każda gra tutaj to Blueprint: arena, jej kulki i reguły, przez które pękają, łączą się, mnożą albo ścigają. Wybierz grę i ustaw jej suwaki. Link do Blueprintu też otwiera się tutaj.",
+    "blDesc": "Każda gra tutaj powstaje z reguł, przez które kulki pękają, łączą się albo mnożą. Wybierz grę i ustaw jej suwaki. Udostępniony link do gry też otworzy się tutaj.",
     "blPreset": "Gra",
     "blFromLink": "Z linku",
     "blLinkNote": "Ta gra przyszła z linkiem. Wybierz grę z listy, żeby wrócić do wbudowanych.",
+    "blLinkUnreadable": "Nie udało się odczytać linku do gry. Mógł zostać ucięty.",
+    "blLinkNewer": "Ta gra wymaga nowszej wersji strony. Część z niej może nie działać.",
     "blRepaired": "Wartości poprawione przy wczytaniu: {count}",
     "blHow": "Jak się gra",
     "blCheck": "Sprawdź, czy da się grać",
     "blChecking": "Sprawdzam…",
-    "blCheckPlayable": "Da się grać. Kończy się po około {seconds} s w {ended} z {seeds} prób.",
+    "blCheckingRun": "Sprawdzam próbę {n} z {total}…",
+    "blCheckPlayable": "Da się grać. Kończy się po około {seconds} s w {ended} z {runs} prób.",
     "blCheckEndless": "Nie kończy się sama. Każdy bieg doszedł do limitu {seconds} s.",
-    "blCheckBroken": "Jeszcze nie da się grać. Znalezione problemy: {problems}.",
+    "blCheckBroken": "Jeszcze nie da się grać. {problem}",
+    "blCheckMore": "{count, plural, one {Do poprawy jeszcze jeden problem.} few {Do poprawy jeszcze # problemy.} many {Do poprawy jeszcze # problemów.} other {Do poprawy jeszcze # problemu.}}",
     "blCopyLink": "Kopiuj link",
+    "blCopyFailed": "Nie udało się skopiować. Zaznacz link poniżej i skopiuj go.",
+    "blLinkField": "Link do gry",
     "blCopied": "Skopiowano",
     "bounceMath": "Matematyka odbić",
     "bounceMathTip": "Reguły, które zmieniają wartość o matematyczny krok za każdym razem, gdy coś się dzieje – piłka staje się sprężystsza, szybsza albo większa przy każdym odbiciu, grawitacja odwraca się co takt, piłka pulsuje w rytm muzyki. Reguły działają w kolejności listy i nie ma górnej granicy, dopóki nie ustawisz maksimum.",
@@ -2901,7 +2907,8 @@
       "item2": "Tworzyć i eksportować nagrania wideo symulacji.",
       "item3": "Zapisywać presety symulacji w pamięci lokalnej przeglądarki.",
       "footer": "Zachowujesz prawa do wszystkiego, co stworzysz w Serwisie, i możesz wykorzystywać wyeksportowane filmy w dowolnym celu, także komercyjnym, bez podawania źródła. Nie daje Ci to praw do nazw ani dzieł należących do innych, na przykład do nazw postaci w Fight League. Wzmianka o {siteDomain} jest zawsze mile widziana.",
-      "licence": "Zachowujesz prawa do tego, co wgrywasz. Publikując przez relay, pozwalasz nam przechowywać klip do 24 godzin i wysłać go do wybranych przez Ciebie platform, i nic więcej. Potwierdzasz, że masz prawa do wszystkiego, co jest w klipie, i że nie narusza on prawa ani zasad żadnej platformy."
+      "licence": "Zachowujesz prawa do tego, co wgrywasz. Publikując przez relay, pozwalasz nam przechowywać klip do 24 godzin i wysłać go do wybranych przez Ciebie platform, i nic więcej. Potwierdzasz, że masz prawa do wszystkiego, co jest w klipie, i że nie narusza on prawa ani zasad żadnej platformy.",
+      "games": "Gry w Laboratorium trybów mogą pochodzić z linku, który ktoś udostępnił. Ich nazwa i teksty to słowa autora, nie nasze. Udostępniaj tylko gry, które stworzyłeś albo możesz udostępniać. Gra nie może udawać, że pochodzi od {siteName}, ani niczego reklamować czy wprowadzać w błąd."
     },
     "acceptable": {
       "title": "Dozwolone użycie",
@@ -4085,6 +4092,7 @@
     "canvasTimeLeft": "[min]:[sec]",
     "canvasEndedAt": "w [seconds] s",
     "canvasNobody": "NIKT",
+    "canvasFromLink": "Z LINKU",
     "team": {
       "red": "CZERWONY",
       "blue": "NIEBIESKI",
@@ -4103,6 +4111,7 @@
       "box": "pudełko",
       "rings": "{count, plural, one {# wirujący pierścień} few {# wirujące pierścienie} many {# wirujących pierścieni} other {# wirującego pierścienia}}",
       "ringsBreak": "pierścień pęka, gdy kulka przez niego przeleci",
+      "ringsRim": "w zamkniętej obręczy, więc żadna kulka nie ucieknie",
       "gravityDown": "grawitacja ciągnie kulki w dół",
       "gravityUp": "grawitacja ciągnie kulki w górę",
       "gravitySide": "grawitacja ciągnie kulki w bok",
@@ -4112,7 +4121,7 @@
       "tileLayers": "w {rows, plural, one {# warstwie} few {# warstwach} many {# warstwach} other {# warstwach}}",
       "tileRows": "w {rows, plural, one {# rzędzie} few {# rzędach} many {# rzędach} other {# rzędach}}",
       "tileHits": "{hp, plural, one {płytka pęka po jednym uderzeniu} few {płytka pęka po # uderzeniach} many {płytka pęka po # uderzeniach} other {płytka pęka po # uderzeniach}}",
-      "tileHitsRange": "płytka pęka po {from} do {to} uderzeniach",
+      "tileHitsRange": "płytka pęka po {from}–{to} uderzeniach",
       "pegs": "{count, plural, one {# kołek} few {# kołki} many {# kołków} other {# kołka}}",
       "bumpers": "{count, plural, one {# odbijacz} few {# odbijacze} many {# odbijaczy} other {# odbijacza}}",
       "bars": "{count, plural, one {# belka} few {# belki} many {# belek} other {# belki}}",
@@ -4169,7 +4178,7 @@
         "teams": "liczba drużyn",
         "tier": "najwyższy poziom",
         "time": "zegar",
-        "var": "„{name}”"
+        "var": "licznik „{name}”"
       },
       "target": {
         "self": "kulka",
@@ -4198,9 +4207,9 @@
         "damageTileSome": "płytka dostaje dodatkowe obrażenia",
         "damage": "{who} traci {n} HP",
         "damageSome": "{who} dostaje obrażenia",
-        "varAdd": "„{name}” rośnie o {n}",
-        "varSet": "„{name}” zmienia się na {n}",
-        "varMul": "„{name}” mnoży się przez {n}",
+        "varAdd": "licznik „{name}” rośnie o {n}",
+        "varSet": "licznik „{name}” zmienia się na {n}",
+        "varMul": "licznik „{name}” mnoży się przez {n}",
         "impulse": "{who} dostaje pchnięcie",
         "fx": "błysk",
         "sound": "gra nuta"
@@ -4224,6 +4233,32 @@
       "orJoin": "{a} lub {b}",
       "endLine": "gdy {conds}, albo po {sec} s",
       "endTimeout": "po {sec} s"
+    },
+    "problem": {
+      "fault": "Reguła zawiodła w trakcie gry. Uprość regułę, która działa ostatnia.",
+      "nan": "Kulki wyleciały poza zakres. Użyj mniejszych prędkości albo słabszej grawitacji.",
+      "droppedEvents": "Za dużo dzieje się naraz. Niech mniej kulek się ze sobą styka.",
+      "droppedFirings": "Reguły działają za często. Daj najczęstszej regule przerwę.",
+      "arenaFull": "Arena zapełniła się kulkami. Twórz albo dziel mniej kulek.",
+      "heavy": "To za dużo dla karty przeglądarki. Użyj mniej kulek albo mniejszych.",
+      "slow": "Gra toczy się w zwolnionym tempie. Spowolnij kulki albo je powiększ.",
+      "fast": "Kulka rozpędziła się za bardzo i zniknęła. Przyspieszaj łagodniej.",
+      "crowded": "Za dużo kulek styka się naraz. Użyj mniej kulek albo mniejszych.",
+      "busy": "Reguły zmieniają naraz za dużo kulek. Niech najczęstsza reguła zmienia jedną kulkę.",
+      "quiet": "Jest za cicho. Daj uderzeniom dźwięk.",
+      "still": "Na starcie nic się nie rusza. Daj kulkom pchnięcie albo trochę grawitacji.",
+      "endless": "Gra nie kończy się sama. Ułatw dotarcie do mety.",
+      "fewEnd": "Większość prób nie dochodzi do mety. Ułatw ją albo daj więcej czasu.",
+      "short": "Kończy się za szybko jak na klip. Celuj w sześć sekund albo więcej.",
+      "long": "Większość prób kończy się na styk. Ułatw trochę metę."
+    },
+    "unit": {
+      "s": "{n} s",
+      "deg": "{n}°",
+      "degPerSec": "{n}°/s",
+      "px": "{n} px",
+      "pxPerSec": "{n} px/s",
+      "pxPerSec2": "{n} px/s²"
     }
   },
   "Blueprints": {
@@ -4243,7 +4278,7 @@
     },
     "ringBreaker": {
       "name": "Łamacz pierścieni",
-      "description": "Każdy pierścień, przez który przejdzie kulka, pęka i podwaja wszystkie kulki. Rozbij wszystkie osiem.",
+      "description": "Każdy pierścień, przez który przejdzie kulka, pęka i podwaja wszystkie kulki. Rozbij wszystkie pierścienie.",
       "line": "Każdy rozbity pierścień podwaja kulki",
       "hud0": "pierścienie",
       "hud1": "kulki",
@@ -4270,7 +4305,7 @@
     },
     "tierClimb": {
       "name": "Wspinaczka poziomów",
-      "description": "Kule spadają, a dwie z tego samego poziomu łączą się w następny. Pierwsza kula na poziomie 8 kończy grę.",
+      "description": "Kule spadają, a dwie z tego samego poziomu łączą się w następny. Pierwsza kula na poziomie docelowym kończy grę.",
       "line": "Dwie z jednego poziomu łączą się w wyższą",
       "hud0": "najwyższy poziom",
       "hud1": "kule",
@@ -4283,7 +4318,7 @@
       }
     },
     "plinkoRace": {
-      "name": "Wyścig kołków",
+      "name": "Wyścig przez kołki",
       "description": "Cztery kulki spadają przez kołki i gonią obracające się wyjście. Wygrywa pierwsza, która wyjdzie.",
       "line": "Cztery kulki ścigają się przez kołki",
       "hud0": "czas",
@@ -4297,11 +4332,11 @@
     },
     "growEscape": {
       "name": "Rośnij albo uciekaj",
-      "description": "Każde odbicie powiększa kulkę. Czy znajdzie szczelinę, zanim przestanie się w niej mieścić?",
+      "description": "Każde odbicie powiększa i przyspiesza kulkę. Czy znajdzie szczelinę, zanim przestanie się w niej mieścić?",
       "line": "Rośnie z każdym odbiciem, znajdź wyjście",
       "hud0": "odbicia",
       "hud1": "czas",
-      "say0": "UCIECZKA PO [bounces] ODBICIACH",
+      "say0": "UCIECZKA PO [bounces]. ODBICIU",
       "say1": "ZA DUŻA, ŻEBY UCIEC",
       "timeoutSay": "KONIEC CZASU",
       "params": {

@@ -160,7 +160,8 @@ describe("blueprint runtime: its contracts", () => {
   });
 
   it("takes a ball gone non-finite out of play and counts it, instead of spreading NaN", () => {
-    const nan = spec({ arena: { gravity: { x: 0, y: 1e308 } }, bodies: [ball], spawners: [{ body: "ball", speed: 1e308 }] });
+    // (a spawn speed past BLUEPRINT_SPEED_CEILING is refused by the validator now: gravity × gravityScale overflows instead)
+    const nan = spec({ arena: { gravity: { x: 0, y: 1e308 } }, bodies: [{ ...ball, gravityScale: 1e308 }], spawners: [{ body: "ball", speed: 300 }] });
     const r = run(nan, 2);
     expect(r.stats.nanBalls).toBeGreaterThan(0);
     expect(r.world.balls.every((b) => Number.isFinite(b.x) && Number.isFinite(b.vy))).toBe(true);

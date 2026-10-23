@@ -694,6 +694,12 @@ export interface GameMode {
    * then skips the pair loop, so a collision can never disturb the shapes' rhythms.
    */
   readonly ballsPassThrough?: boolean;
+  /**
+   * --- review fix (blueprint) --- The most sub-steps a planned step of this mode may take (a work ceiling: Mode Lab's
+   * BLUEPRINT_SUBSTEP_CEILING); past it the engine shortens the step instead – slow motion, as past its own 64. Unset: the
+   * engine's own plan, exactly as before.
+   */
+  readonly subStepCeiling?: number;
   init(ctx: ModeContext): void;
   onPreUpdate(ctx: ModeContext, dtMs: number): void;
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number): void;

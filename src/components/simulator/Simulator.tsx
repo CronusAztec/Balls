@@ -3817,6 +3817,7 @@ export default function Simulator() {
         endedAt: (seconds) => fill("Blueprint.canvasEndedAt", { seconds }),
         teamNames: ["red", "blue", "green", "gold", "purple", "cyan"].map((c) => t(`Blueprint.team.${c}`)),
         nobody: t("Blueprint.canvasNobody"),
+        fromLink: t("Blueprint.canvasFromLink"), // --- review fix (blueprint) --- (under a shared game's title: it is its author's)
         catalog: Object.fromEntries(
           BLUEPRINT_CATALOG_IDS.map((id) => {
             const has = (k: string) => t.has(`Blueprints.${id}.${k}`);

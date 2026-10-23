@@ -16,9 +16,13 @@ import { WALL_HALF } from "@/lib/blueprint/runtime/world";
  *  - `drawTrail()` for each ball while the spec's look asks for trails: a tapering streak in the ball's own colour;
  *  - `drawEffects()` over the balls: a ring in its new colour round a ball a hit just converted to another team, each
  *    ball's label (its tier, or its hit points) and the spec's white flash;
- *  - `drawOverlay()` in the recorder's square: the title and the HUD counters (top left), the clock counting down to the
+ *  - `drawOverlay()` round the recorder's square: the title and the HUD counters (top left), the clock counting down to the
  *    timeout (top right), ARENA FULL when the ball ceiling refused a ball and, once the run is over, the end banner (the
- *    result line in the winner's colour on a dark band, popping in on the run's clock).
+ *    result line in the winner's colour on a dark band, popping in on the run's clock). --- review fix (blueprint) --- The
+ *    title block and the clock sit in the frame's free band when it has one (above the square in a portrait frame, beside
+ *    it in a landscape one), so they never cover the arena; in a square frame they sit in its top corners on a dark plate.
+ *    The clock shows only when no HUD counter already shows the time, and only in the last CLOCK_LAST_SEC before the
+ *    timeout: one clock on screen, never one counting up beside one counting down.
  * Nothing is blurred per frame (the Merge Ring lesson: a `shadowBlur` draw blurs the whole box of a big shape): what does
  * not move – the floor, a rim that does not turn, the box, the pegs and bars – is drawn once into an offscreen bitmap
  * (`LayerCache`, glow included) and blitted 1:1; the standing tiles are a second bitmap redrawn only when a tile is hit or
@@ -58,6 +62,8 @@ export interface BlueprintLabels {
   teamNames: string[];
   /** "Nobody", the {winner} of a run without one. */
   nobody: string;
+  /** --- review fix (blueprint) --- The marker under the title of a game from a link (its name and lines are its author's). */
+  fromLink?: string;
   /** Each catalog entry's texts, by its id. */
   catalog: Record<string, BlueprintCatalogLabels>;
 }
@@ -68,11 +74,37 @@ export const DEFAULT_BLUEPRINT_LABELS: BlueprintLabels = {
   endedAt: (s) => `${s} s`,
   teamNames: ["RED", "BLUE", "GREEN", "GOLD", "PURPLE", "CYAN"],
   nobody: "NOBODY",
+  fromLink: "FROM A LINK",
   catalog: {},
 };
 
 /** How long ARENA FULL stays up after the last refused ball, a broken ring shatters and a peg glows (s of the run). */
 export const ARENA_FULL_SEC = 1.5;
+/** --- review fix (blueprint) --- The countdown shows only in the last this many seconds before the timeout (s of the run). */
+export const CLOCK_LAST_SEC = 10;
+
+/** A box of the overlay (world px). */
+export interface OverlayRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * --- review fix (blueprint) --- Where the overlay's title block (left) and clock (right) go in a frame of `width` × `height`
+ * world px round its recorder square: in the free band above the square (portrait) or beside it (landscape) when the block
+ * fits there, else in the square's top corners on a dark plate. `blockH` is the title block's height, `inset` the page's
+ * buttons at the top of a live portrait or square frame.
+ */
+export function overlayPlacement(width: number, height: number, sq: HudSquare, blockH: number, inset: number): { left: number; right: number; top: number; maxWidth: number; plate: boolean } {
+  const pad = 0.04 * sq.side;
+  // portrait: the band above the square, the block's bottom just over the square's top edge
+  if (sq.y0 >= blockH + inset + 0.02 * sq.side) return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 - 0.02 * sq.side - blockH, maxWidth: 0.6 * sq.side, plate: false };
+  // landscape: the bands beside the square (the block in the left one, the clock in the right one), level with its top
+  if (height <= width && sq.x0 >= 0.3 * sq.side) return { left: pad, right: width - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: sq.x0 - 1.5 * pad, plate: false };
+  return { left: sq.x0 + pad, right: sq.x0 + sq.side - pad, top: sq.y0 + 0.03 * sq.side + inset, maxWidth: 0.6 * sq.side, plate: true };
+}
 export const RING_BREAK_SEC = 0.55;
 /** A broken ring's pieces, and how far out they fly (× its radius). */
 export const RING_SHARDS = 14;
@@ -318,6 +350,9 @@ export class BlueprintLayer {
   /** HUD lines drawn this frame (the watermark's title block). */
   private lines = 0;
   private arenaFullOn = false;
+  /** --- review fix (blueprint) --- The title block and the clock as drawn this frame (world px; w 0: not drawn), for the watermark. */
+  readonly hudRect: OverlayRect = { x: 0, y: 0, w: 0, h: 0 };
+  readonly clockRect: OverlayRect = { x: 0, y: 0, w: 0, h: 0 };
   private readonly exitOrder = new Int8Array(4);
   /** The spec the static bitmap was drawn for (a new run of another spec rebuilds it). */
   private staticSpec: object | null = null;
@@ -428,7 +463,7 @@ export class BlueprintLayer {
       g.lineTo(w.barBx[i], w.barBy[i]);
       g.stroke();
     }
-    if (!withRim || w.shape === "rings") return;
+    if (!withRim || (w.shape === "rings" && !w.ringRim)) return; // (--- review fix (blueprint) --- rings inside a solid rim draw it)
     if (w.shape === "box") {
       const x = w.cx - w.R - WALL_HALF;
       const y = w.cy - w.R - WALL_HALF;
@@ -715,9 +750,9 @@ export class BlueprintLayer {
   }
 
   /**
-   * The recorder's square: the title and up to two HUD counters in the top-left corner, the clock in the top-right one,
-   * ARENA FULL under it and, once the run is over, the end banner in the middle; `inset` moves the corners below the page's
-   * buttons.
+   * The recorder's square: the title and up to two HUD counters at its top left, the clock at its top right, ARENA FULL under
+   * it and, once the run is over, the end banner in the middle – the corners in the frame's free band when it has one
+   * (overlayPlacement()); `inset` moves them below the page's buttons.
    */
   drawOverlay(ctx: CanvasRenderingContext2D, view: BlueprintView, labels: BlueprintLabels, inset = 0) {
     const bp = view.bp;
@@ -725,27 +760,28 @@ export class BlueprintLayer {
     if (!bp || !w) return;
     const sq = recorderSquare(w.width, w.height, this.sq);
     const fs = Math.max(11, 0.03 * sq.side);
-    const top = sq.y0 + 0.03 * sq.side + inset;
-    const pad = 0.04 * sq.side;
     const cat = view.catalogId ? labels.catalog[view.catalogId] : undefined;
     const accent = bp.look.palette[bp.look.rim] ?? "#22d3ee";
+    // (a game from a link says so under its title: its name and lines are its author's, not the site's)
+    const marker = view.catalogId === "" && labels.fromLink ? labels.fromLink : "";
+    const lines = 1 + (marker ? 1 : 0) + view.hud.length;
+    const blockH = (lines + 0.5) * 1.1 * fs;
+    const place = overlayPlacement(w.width, w.height, sq, blockH, inset);
+    const top = place.top;
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
     // (an outline, not a blur: the text reads on any floor)
     const text = (s: string, x: number, y: number, size: number) => {
       ctx.lineWidth = Math.max(2, 0.22 * size);
-      ctx.strokeText(s, x, y);
-      ctx.fillText(s, x, y);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.strokeText(s, x, y, place.maxWidth);
+      ctx.fillText(s, x, y, place.maxWidth);
     };
-    ctx.font = `800 ${(0.9 * fs).toFixed(1)}px sans-serif`;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-    text((cat?.name ?? bp.meta.name).toUpperCase(), sq.x0 + pad, top + 0.5 * fs, 0.9 * fs);
-    this.lines = 1;
+    const title = (cat?.name ?? bp.meta.name).toUpperCase();
     for (let i = 0; i < view.hud.length; i++) {
       const h = view.hud[i];
       const label = cat?.hud?.[i] ?? h.label ?? h.show;
@@ -754,26 +790,79 @@ export class BlueprintLayer {
         this.hudKeys[i] = key;
         this.hudTexts[i] = label ? `${label.toUpperCase()} ${h.value}` : h.value;
       }
-      ctx.font = `700 ${(0.78 * fs).toFixed(1)}px sans-serif`;
-      ctx.fillStyle = i === 0 ? accent : "rgba(255, 255, 255, 0.82)";
-      text(this.hudTexts[i], sq.x0 + pad, top + (0.5 + 1.1 * (i + 1)) * fs, 0.78 * fs);
+    }
+    // the block's width, for its plate and the watermark (the widest line, at most maxWidth)
+    ctx.font = `800 ${(0.9 * fs).toFixed(1)}px sans-serif`;
+    let width = ctx.measureText(title).width;
+    ctx.font = `700 ${(0.78 * fs).toFixed(1)}px sans-serif`;
+    for (let i = 0; i < view.hud.length; i++) width = Math.max(width, ctx.measureText(this.hudTexts[i]).width);
+    if (marker) {
+      ctx.font = `700 ${(0.62 * fs).toFixed(1)}px sans-serif`;
+      width = Math.max(width, ctx.measureText(marker).width);
+    }
+    width = Math.min(width, place.maxWidth);
+    const r = this.hudRect;
+    r.x = place.left - 0.35 * fs;
+    r.y = top - 0.2 * fs;
+    r.w = width + 0.7 * fs;
+    r.h = blockH;
+    if (place.plate) plate(ctx, r, 0.4 * fs);
+    ctx.font = `800 ${(0.9 * fs).toFixed(1)}px sans-serif`;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+    text(title, place.left, top + 0.5 * fs, 0.9 * fs);
+    this.lines = 1;
+    if (marker) {
+      ctx.font = `700 ${(0.62 * fs).toFixed(1)}px sans-serif`;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      text(marker, place.left, top + 1.5 * fs, 0.62 * fs);
       this.lines++;
     }
-    // the clock: seconds left until the timeout
+    for (let i = 0; i < view.hud.length; i++) {
+      ctx.font = `700 ${(0.78 * fs).toFixed(1)}px sans-serif`;
+      ctx.fillStyle = i === 0 ? accent : "rgba(255, 255, 255, 0.82)";
+      text(this.hudTexts[i], place.left, top + (0.5 + 1.1 * (i + 1 + (marker ? 1 : 0))) * fs, 0.78 * fs);
+      this.lines++;
+    }
+    // the clock: seconds left until the timeout – one clock on screen (none when a HUD counter shows the time), and only
+    // near the end, so a long timeout never promises a long game; ARENA FULL under it
     const left = Math.max(0, Math.ceil(view.timeoutSec - view.timeSec));
-    if (left !== this.clockKey) {
+    const showClock = !view.result.finished && left <= CLOCK_LAST_SEC && !view.hud.some((h) => h.show === "time");
+    this.arenaFullOn = view.clockSec - view.arenaFullAtSec < ARENA_FULL_SEC;
+    if (showClock && left !== this.clockKey) {
       this.clockKey = left;
       this.clockText = labels.timeLeft(left);
     }
-    ctx.textAlign = "right";
-    ctx.font = `700 ${(0.85 * fs).toFixed(1)}px sans-serif`;
-    ctx.fillStyle = left <= 5 && !view.result.finished ? "#fb7185" : "rgba(255, 255, 255, 0.82)";
-    text(this.clockText, sq.x0 + sq.side - pad, top + 0.5 * fs, 0.85 * fs);
-    this.arenaFullOn = view.clockSec - view.arenaFullAtSec < ARENA_FULL_SEC;
+    const clockFont = `700 ${(0.85 * fs).toFixed(1)}px sans-serif`;
+    const fullFont = `800 ${(0.75 * fs).toFixed(1)}px sans-serif`;
+    let rightW = 0;
+    if (showClock) {
+      ctx.font = clockFont;
+      rightW = ctx.measureText(this.clockText).width;
+    }
     if (this.arenaFullOn) {
-      ctx.font = `800 ${(0.75 * fs).toFixed(1)}px sans-serif`;
+      ctx.font = fullFont;
+      rightW = Math.max(rightW, ctx.measureText(labels.arenaFull).width);
+    }
+    const rows = (showClock ? 1 : 0) + (this.arenaFullOn ? 1 : 0);
+    const c = this.clockRect;
+    c.w = 0;
+    if (rows > 0) {
+      c.w = Math.min(rightW, place.maxWidth) + 0.7 * fs;
+      c.x = place.right + 0.35 * fs - c.w;
+      c.y = top - 0.2 * fs;
+      c.h = (rows * 1.1 + 0.3) * fs;
+      if (place.plate) plate(ctx, c, 0.4 * fs);
+    }
+    ctx.textAlign = "right";
+    if (showClock) {
+      ctx.font = clockFont;
+      ctx.fillStyle = left <= 5 ? "#fb7185" : "rgba(255, 255, 255, 0.82)";
+      text(this.clockText, place.right, top + 0.5 * fs, 0.85 * fs);
+    }
+    if (this.arenaFullOn) {
+      ctx.font = fullFont;
       ctx.fillStyle = "#fbbf24";
-      text(labels.arenaFull, sq.x0 + sq.side - pad, top + 1.6 * fs, 0.75 * fs);
+      text(labels.arenaFull, place.right, top + (showClock ? 1.6 : 0.5) * fs, 0.75 * fs);
     }
     ctx.restore();
     if (view.result.finished) this.drawBanner(ctx, view, labels, sq);
@@ -838,9 +927,14 @@ export class BlueprintLayer {
     ctx.restore();
   }
 
-  /** The HUD this frame drew, so the live watermark badge keeps clear of it (the title block in both top corners). */
+  /** The HUD this frame drew, so the live watermark badge keeps clear of it: the title block and the clock where they were drawn. */
   noteHud(hud: LiveHud, sq: HudSquare, inset: number) {
-    noteTitleBlock(hud, sq, inset, Math.max(this.lines, this.arenaFullOn ? 2 : 1), "both");
+    if (this.hudRect.w <= 0) {
+      noteTitleBlock(hud, sq, inset, Math.max(this.lines, this.arenaFullOn ? 2 : 1), "both");
+      return;
+    }
+    hud.block(this.hudRect.x, this.hudRect.y, this.hudRect.w, this.hudRect.h);
+    if (this.clockRect.w > 0) hud.block(this.clockRect.x, this.clockRect.y, this.clockRect.w, this.clockRect.h);
   }
 }
 
@@ -869,4 +963,18 @@ export class BlueprintDataset {
     set("blueprintFault", view.faults > 0 ? "1" : "0");
     set("blueprintEscaped", String(view.escaped));
   }
+}
+
+/** --- review fix (blueprint) --- A dark rounded plate behind overlay text that sits over the arena (a square frame). */
+function plate(ctx: CanvasRenderingContext2D, r: OverlayRect, radius: number) {
+  const rr = Math.min(radius, r.h / 2, r.w / 2);
+  ctx.beginPath();
+  ctx.moveTo(r.x + rr, r.y);
+  ctx.arcTo(r.x + r.w, r.y, r.x + r.w, r.y + r.h, rr);
+  ctx.arcTo(r.x + r.w, r.y + r.h, r.x, r.y + r.h, rr);
+  ctx.arcTo(r.x, r.y + r.h, r.x, r.y, rr);
+  ctx.arcTo(r.x, r.y, r.x + r.w, r.y, rr);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(6, 8, 16, 0.62)";
+  ctx.fill();
 }

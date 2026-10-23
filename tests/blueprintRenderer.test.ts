@@ -4,7 +4,8 @@ import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endTitle, mixHex } from "@/components/simulator/blueprintRenderer";
+import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, CLOCK_LAST_SEC, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endTitle, mixHex, overlayPlacement, recorderSquare } from "@/components/simulator/blueprintRenderer";
+import { encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
 import { TilesLayer, crackHash, traceCracks } from "@/components/simulator/tilesRenderer";
 
 /*
@@ -229,5 +230,59 @@ describe("blueprint renderer: cracks, trails, banner and dataset", () => {
     const texts = rec.calls.filter((c) => c.name === "fillText").map((c) => c.args[0]);
     expect(texts).toContain("WSZYSTKIE PIERŚCIENIE PADŁY");
     expect(rec.sets.filter((s) => s.prop === "globalAlpha").map((s) => s.value)).toContain(1);
+  });
+
+  // --- review fix (blueprint) --- the HUD keeps clear of the arena, one clock, a HUD frozen at the finish, a link's marker
+  it("puts the title block above the square in a portrait frame, beside it in a landscape one, and on a plate in a square one", () => {
+    const blockH = 60;
+    const portrait = overlayPlacement(450, 800, recorderSquare(450, 800), blockH, 52);
+    expect(portrait.plate).toBe(false);
+    expect(portrait.top + blockH).toBeLessThanOrEqual(recorderSquare(450, 800).y0);
+    expect(portrait.top).toBeGreaterThanOrEqual(52);
+    const landscape = overlayPlacement(800, 450, recorderSquare(800, 450), blockH, 0);
+    expect(landscape.plate).toBe(false);
+    expect(landscape.left + landscape.maxWidth).toBeLessThanOrEqual(recorderSquare(800, 450).x0);
+    expect(overlayPlacement(450, 450, recorderSquare(450, 450), blockH, 0).plate).toBe(true);
+  });
+
+  it("draws one clock: none beside a HUD counter of the time, else only in the last seconds before the timeout", () => {
+    const texts = (patch: Partial<SimulatorSettings>, seconds: number) => {
+      const engine = engineFor(patch);
+      for (let i = 0; i < Math.round(seconds * 60); i++) engine.update(1000 / 60, 0);
+      const { ctx, rec } = fakeContext();
+      new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, engine.getBlueprintView(), DEFAULT_BLUEPRINT_LABELS, 0);
+      return rec.calls.filter((c) => c.name === "fillText").map((c) => String(c.args[0]));
+    };
+    const clock = /^\d+:\d\d$/;
+    // Colour Conquest shows "TIME …" in its HUD: never a second clock
+    expect(texts({ blPreset: "conquer" }, 2).filter((t) => clock.test(t))).toEqual([]);
+    // Glass Hatchery (60 s): no clock early on, the countdown in its last CLOCK_LAST_SEC
+    const spec = sanitizeBlueprint({ v: 1, meta: { name: "Clock" }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], finish: { timeoutSec: CLOCK_LAST_SEC + 3 } }).blueprint;
+    expect(texts({ blSpec: encodeBlueprint(spec) }, 1).filter((t) => clock.test(t))).toEqual([]);
+    expect(texts({ blSpec: encodeBlueprint(spec) }, 5.5).filter((t) => clock.test(t))).toEqual(["0:08"]);
+  });
+
+  it("freezes the HUD and the counts at the finishing step while the world turns on under the banner", () => {
+    const engine = engineFor({ blPreset: "ringBreaker", blParams: "3" });
+    const view = engine.getBlueprintView();
+    for (let i = 0; i < 60 * 60 && !view.result.finished; i++) engine.update(1000 / 60, 0);
+    expect(view.result.finished).toBe(true);
+    const at = { hud: view.hud.map((h) => h.value), balls: view.balls, time: view.timeSec, clock: view.clockSec };
+    for (let i = 0; i < 80; i++) engine.update(1000 / 60, 0);
+    expect({ hud: view.hud.map((h) => h.value), balls: view.balls, time: view.timeSec }).toEqual({ hud: at.hud, balls: at.balls, time: at.time });
+    expect(view.clockSec).toBeGreaterThan(at.clock + 1);
+  });
+
+  it("marks a game from a link under its title (its name is its author's), never a catalog game", () => {
+    const own = sanitizeBlueprint({ v: 1, meta: { name: "Mine" }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], finish: { timeoutSec: 30 } }).blueprint;
+    const drawn = (patch: Partial<SimulatorSettings>) => {
+      const engine = engineFor(patch);
+      engine.update(1000 / 60, 0);
+      const { ctx, rec } = fakeContext();
+      new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, engine.getBlueprintView(), { ...DEFAULT_BLUEPRINT_LABELS, fromLink: "Z LINKU" }, 0);
+      return rec.calls.filter((c) => c.name === "fillText").map((c) => String(c.args[0]));
+    };
+    expect(drawn({ blSpec: encodeBlueprint(own) })).toEqual(expect.arrayContaining(["MINE", "Z LINKU"]));
+    expect(drawn({ blPreset: "hatchery" })).not.toContain("Z LINKU");
   });
 });

@@ -16,8 +16,8 @@ export { isSummaryPhrase, sayPhrase, summarizeBlueprint, summaryKeys, type Summa
 export * from "./check";
 export { BLUEPRINT_DOCS_FILE, renderBlueprintDocs } from "./docs";
 export { BLUEPRINT_CATALOG, BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId, type BlueprintCatalogId } from "./catalog";
-export { applyBlueprintParams, formatParamValues, paramValue, parseParamValues } from "./params";
+export { applyBlueprintParams, formatParamValues, paramUnit, paramValue, parseParamValues, type ParamUnit } from "./params";
 export { BlueprintRun, blueprintMidi, blueprintSoundEvent, mulberry32, type FinishReason, type RunOptions, type RunResult, type RunStats } from "./runtime/run";
 export { BlueprintWorld, FIXED_STEP_SEC, MIN_HIT_SPEED, GRAZE_RATIO, clockToAngle, type WorldBall } from "./runtime/world";
 export type { WorldEvents } from "./runtime/events";
-export { BLUEPRINT_RUN_CONFIG, HeadlessBlueprint, runBlueprint, type HeadlessOptions } from "./headless";
+export { BLUEPRINT_RUN_CONFIG, HeadlessBlueprint, blueprintStepBound, runBlueprint, type HeadlessOptions } from "./headless";

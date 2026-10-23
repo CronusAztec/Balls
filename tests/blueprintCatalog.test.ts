@@ -101,6 +101,43 @@ describe("blueprint catalog: the sliders", () => {
   });
 });
 
+// --- review fix (blueprint) --- the two retuned games end the way a clip needs them to
+describe("blueprint catalog: endings a clip can use", () => {
+  it("Grow or Go has both endings, is never out in its first 6 s and loses on the bounce the ball stops fitting", () => {
+    const bp = catalogBlueprint("growEscape");
+    let escapes = 0;
+    let early = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const r = new HeadlessBlueprint(bp, { seed }).runToEnd();
+      expect(r.reason, `seed ${seed}`).toBe("condition");
+      if (r.condition === 0) {
+        escapes++;
+        if (r.timeSec < 6) early++;
+        expect(r.result, `seed ${seed}`).toMatch(/^ESCAPED AFTER BOUNCE \d+$/);
+      } else expect(r.result, `seed ${seed}`).toBe("TOO BIG TO ESCAPE");
+    }
+    expect(escapes).toBeGreaterThanOrEqual(6);
+    expect(20 - escapes).toBeGreaterThanOrEqual(6);
+    expect(early).toBe(0);
+    // the loss line is the first bounce at which the ball no longer fits through the exit (between its two posts)
+    const R = 225 * bp.arena.size;
+    const fit = R * Math.sin(((bp.arena.exits[0].widthDeg / 2) * Math.PI) / 180) - 2;
+    const grow = bp.rules[0].do[0];
+    const by = grow.act === "grow" && typeof grow.by === "number" ? grow.by : NaN;
+    expect(bp.finish.any[1].atLeast).toBe(Math.floor((fit - bp.bodies[0].radius) / by) + 1);
+  });
+
+  it("Ring Breaker keeps its whole swarm on screen under the end banner: the rings sit inside a solid rim", () => {
+    for (const seed of [1, 2, 3]) {
+      const h = new HeadlessBlueprint(catalogBlueprint("ringBreaker"), { seed });
+      expect(h.runToEnd()).toMatchObject({ reason: "condition", result: "ALL RINGS DOWN" });
+      const atFinish = h.world.aliveCount();
+      for (let i = 0; i < 90; i++) h.step();
+      expect([seed, h.world.aliveCount(), h.stats.escaped]).toEqual([seed, atFinish, 0]);
+    }
+  });
+});
+
 describe("blueprint catalog: three locales", () => {
   for (const id of BLUEPRINT_CATALOG_IDS)
     it(`${id}: its name, description, HUD labels, ending lines and slider labels exist in en, pl and es`, () => {

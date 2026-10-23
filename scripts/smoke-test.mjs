@@ -19405,6 +19405,52 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
   check("mode lab: Copy link of a Blueprint of a link carries its spec, and the copy opens it", b.link.includes(`bls=${bpCode}`) && bOpen?.linked === "1" && bOpen.data.blueprintName === "Smoke Box", `(${b.link.slice(0, 120)}, ${JSON.stringify(bOpen && { linked: bOpen.linked, name: bOpen.data.blueprintName })})`);
 }
 {
+  // --- review fix (blueprint) --- a cut game link says so (no built-in game shows as picked); Check playability runs in
+  // slices, so a crowd of 400 balls never blocks the page, and answers in a live region; a slider shows its unit
+  const crowd = { v: 1, meta: { name: "Smoke Crowd" }, bodies: [{ id: "b", radius: 12 }], arena: { gravity: { x: 0, y: 300 } }, spawners: [{ body: "b", count: 8, everySec: 0.05, maxTotal: 400, at: "random" }], sound: { voices: { ballHit: "hit" } }, finish: { timeoutSec: 20 } };
+  const crowdCode = `b1.${Buffer.from(JSON.stringify(crowd)).toString("base64url")}`;
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${crowdCode.slice(0, Math.floor(crowdCode.length * 0.6))}`, { waitUntil: "networkidle" });
+  const unreadable = await page.getByTestId("blueprint-link-unreadable").isVisible().catch(() => false);
+  const picked = await page.getByTestId("blueprint-catalog").getAttribute("data-value").catch(() => null);
+  check("mode lab: a cut game link says it could not be read, and no built-in game shows as picked", unreadable && picked === "", `(notice=${unreadable}, picked=${JSON.stringify(picked)})`);
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${crowdCode}`, { waitUntil: "networkidle" });
+  const watched = await page.evaluate(() => {
+    // two witnesses: the long tasks Chromium reports, and the widest gap between ticks of a 20 ms timer
+    window.__bpLongest = 0;
+    window.__bpGap = 0;
+    let last = performance.now();
+    window.__bpTick = setInterval(() => {
+      const now = performance.now();
+      window.__bpGap = Math.max(window.__bpGap, now - last);
+      last = now;
+    }, 20);
+    const longtask = (PerformanceObserver.supportedEntryTypes ?? []).includes("longtask");
+    if (longtask) {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) window.__bpLongest = Math.max(window.__bpLongest, e.duration);
+      }).observe({ type: "longtask" });
+    }
+    return longtask;
+  });
+  await page.getByTestId("blueprint-check").click();
+  const verdict = page.getByTestId("blueprint-verdict");
+  await verdict.waitFor({ timeout: 120_000 }).catch(() => {});
+  const live = await page.getByTestId("blueprint-verdict-status").evaluate((el) => `${el.getAttribute("role")}|${el.getAttribute("aria-live")}`).catch(() => "");
+  const verdictOf = await verdict.getAttribute("data-verdict").catch(() => null);
+  const { longest, gap } = await page.evaluate(() => {
+    clearInterval(window.__bpTick);
+    return { longest: window.__bpLongest, gap: window.__bpGap };
+  });
+  check(
+    "mode lab: Check playability of a 400-ball crowd answers in a live region and never blocks the page",
+    !!verdictOf && live === "status|polite" && longest < 250 && gap < 300,
+    `(verdict=${verdictOf}, live=${live}, longest task ${watched ? `${Math.round(longest)} ms` : "not reported"}, widest timer gap ${Math.round(gap)} ms)`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=growEscape`, { waitUntil: "networkidle" });
+  const exitRow = await page.getByTestId("blueprint").locator('[data-uncap-slider="blParam1"] label').innerText().catch(() => "");
+  check("mode lab: a slider shows its value with its unit", /21\s*°/.test(exitRow), `(${JSON.stringify(exitRow)})`);
+}
+{
   // Every catalog game by its link, at 8× to its finish: the HUD in the game's own words while it runs, the banner one of its
   // result lines (a placeholder filled in), no dropped work and no fault.
   const lineRe = (template) => new RegExp(`^${template.toUpperCase().replace(/[.*+?^${}()|\\]/g, "\\$&").replace(/\\?\[[A-Z0-9]+\\?\]|\[[A-Z0-9]+\]/g, ".+")}$`);

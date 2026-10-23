@@ -2878,6 +2878,13 @@ export class PhysicsEngine {
             )
           : null;
       if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length, this.circularWalls.length); // --- unlimited --- (thousands of fast balls, a thousand rings: a bounded step)
+      // --- review fix (blueprint) --- a mode's own sub-step ceiling (Mode Lab's sandbox): fewer sub-steps shorten the step in
+      // proportion, so no ball moves further per sub-step than the plan allowed (slow motion beyond)
+      const subCeiling = this.currentMode?.subStepCeiling;
+      if (plan && subCeiling !== undefined && plan.subSteps > subCeiling) {
+        plan.dilation *= subCeiling / plan.subSteps;
+        plan.subSteps = subCeiling;
+      }
       const stepMs = (plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS) * clock;
       if (plan && clock !== 1) mult.getView().dilation = plan.dilation * clock; // --- bounce-math --- (SLOW-MO only while the world really runs slow)
       this._elapsedMs += stepMs;

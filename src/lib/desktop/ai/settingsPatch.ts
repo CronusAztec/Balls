@@ -14,6 +14,7 @@ import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-p
 import { WT_MODELS, WT_SOURCES } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { SB_LIFE_RULES } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 import { SCOREBOARD_POSITIONS } from "@/lib/teams"; // --- low-findings-2 ---
+import { BLUEPRINT_PRESET_IDS, blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) ---
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -56,6 +57,20 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   wtSource: WT_SOURCES, // --- wave-tank --- (a wave-maker and a barrier, or point sources)
   sbLife: SB_LIFE_RULES, // --- string-battle-alive --- (the String Battle's life rule: alive while a thread holds, or the lives; sbDuel is its duel switch)
   scoreboardPosition: SCOREBOARD_POSITIONS, // --- low-findings-2 --- (a core setting: the teams scoreboard's corner)
+  blPreset: BLUEPRINT_PRESET_IDS, // --- review fix (blueprint) --- (Mode Lab's game: the catalog's ids, so a model's grammar and a refusal name them)
+};
+
+/**
+ * --- review fix (blueprint) --- What a mode's own setting means, for the prompt, when "<mode> setting" says too little: Mode
+ * Lab's game (its ids) and its sliders (the playing game's, in order, each with its range).
+ */
+const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) => string>> = {
+  blPreset: () => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}`,
+  blParams: (current) => {
+    const params = resolveBlueprintSpec(blueprintSettingsOf(current)).base.params;
+    if (!params.length) return "Mode Lab's slider values (this game has none)";
+    return `Mode Lab's slider values, comma-separated in this order: ${params.map((p) => `${p.id} (${p.min} to ${p.max})`).join(", ")}; an empty place keeps the game's own value`;
+  },
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);
@@ -223,7 +238,7 @@ export function assistantSettings(current: SimulatorSettings): [key: string, des
   if (prefix) {
     for (const [key, value] of Object.entries(current as unknown as Settings)) {
       if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || list.some(([k]) => k === key)) continue;
-      if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, `${current.mode} setting`]);
+      if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, MODE_SETTING_NOTES[key] ? `${current.mode} setting: ${MODE_SETTING_NOTES[key](current)}` : `${current.mode} setting`]);
     }
   }
   return list;

@@ -1,11 +1,15 @@
 /*
  * --- blueprint --- Blueprints in words: describeBlueprint() says what a spec does in plain sentences (the Mode Lab panel,
  * the CLI, an AI's prompt), and blueprintVocabulary() is the whole language in at most 500 tokens, for a model's prompt.
- * The spec's own texts (name, description, result lines) are quoted as data, never as instructions.
+ * The spec's own texts (name, description, result lines) are quoted as data, never as instructions – --- review fix
+ * (blueprint) --- as JSON strings (`quote()`), so a text with a double quote in it cannot close its quotes and read as the
+ * summary's own words.
  */
 import { BLUEPRINT_LIMITS as L } from "./limits";
 import { COUNT_REFS, DEFAULT_SAY, FINISH_KINDS, FORMULA_NAMES, TRIGGERS, WINNERS, WITH_RELATIONS, type Blueprint, type BlueprintAction, type BlueprintRule, type Num } from "./schema";
 
+/** A spec's own text as a quoted JSON string: its quotes and backslashes escaped. */
+const quote = (text: string) => JSON.stringify(text);
 const num = (n: Num) => (typeof n === "number" ? String(Math.round(n * 1000) / 1000) : `(${n})`);
 const plural = (n: Num, one: string, many = `${one}s`) => `${num(n)} ${n === 1 ? one : many}`;
 
@@ -65,11 +69,11 @@ function action(a: BlueprintAction): string {
 export function describeBlueprint(bp: Blueprint): string {
   const a = bp.arena;
   const lines: string[] = [];
-  lines.push(`"${bp.meta.name}"${bp.meta.description ? `: "${bp.meta.description}"` : ""}`);
+  lines.push(`${quote(bp.meta.name)}${bp.meta.description ? `: ${quote(bp.meta.description)}` : ""}`);
   const gravity = a.gravity.x === 0 && a.gravity.y === 0 ? "no gravity" : `gravity ${a.gravity.x}, ${a.gravity.y} px/s²`;
   const shape =
     a.shape === "rings" && a.rings
-      ? `${a.rings.count} spinning rings with ${a.rings.gapDeg}° gaps${a.rings.breakOnPass ? " that break when a ball gets through" : ""}`
+      ? `${a.rings.count} spinning rings with ${a.rings.gapDeg}° gaps${a.rings.breakOnPass ? " that break when a ball gets through" : ""}${a.rings.rim ? ", inside a solid rim" : ""}`
       : a.shape === "box"
         ? "a box"
         : `a circle${a.exits.length ? ` with ${a.exits.length === 1 ? "an exit" : `${a.exits.length} exits`}${a.spinDegPerSec ? (a.exits.length === 1 ? " that turns" : " that turn") : ""}` : ""}`;
@@ -86,7 +90,7 @@ export function describeBlueprint(bp: Blueprint): string {
     lines.push(`Rule: ${WHEN[r.when](r)}${filters.length ? ` (${filters.join(", ")})` : ""}: ${r.do.map(action).join(", then ")}.`);
   }
   const ends = bp.finish.any.map((c) => {
-    const say = `"${c.say || DEFAULT_SAY[c.when]}"`;
+    const say = quote(c.say || DEFAULT_SAY[c.when]);
     switch (c.when) {
       case "escaped":
         return `${plural(c.atLeast ?? 1, c.of ?? "ball")} escaped ${say}`;
@@ -102,7 +106,7 @@ export function describeBlueprint(bp: Blueprint): string {
         return `${c.atMost ?? 1} team${c.atMost === 1 ? "" : "s"} or fewer are left ${say}`;
     }
   });
-  lines.push(`Ends: ${ends.length ? `when ${ends.join(", or when ")}; ` : ""}after ${bp.finish.timeoutSec} s at the latest "${bp.finish.timeoutSay}"${bp.finish.winner !== "none" ? `; the winner is ${bp.finish.winner}` : ""}.`);
+  lines.push(`Ends: ${ends.length ? `when ${ends.join(", or when ")}; ` : ""}after ${bp.finish.timeoutSec} s at the latest ${quote(bp.finish.timeoutSay)}${bp.finish.winner !== "none" ? `; the winner is ${bp.finish.winner}` : ""}.`);
   return lines.join("\n");
 }
 
@@ -111,7 +115,7 @@ export function blueprintVocabulary(): string {
   return [
     "Blueprint v1 (JSON). Bodies in px; obstacles in arena units -1..1; angles 0=top, clockwise.",
     `{v:1,meta:{name<=${L.nameChars},description,family:escape|rhythm|battle},`,
-    "arena:{shape:circle|box|rings,size .5-.95,restitution,gravity:{x,y},spinDegPerSec,exits<=4:[{atDeg,widthDeg}],rings:{count,gapDeg,breakOnPass}},",
+    "arena:{shape:circle|box|rings,size .5-.95,restitution,gravity:{x,y},spinDegPerSec,exits<=4:[{atDeg,widthDeg}],rings:{count,gapDeg,breakOnPass,rim}},",
     `bodies<=${L.bodies}:[{id,radius,color 0-5,gravityScale,hp,tier,team 0-5,collide:bounce|pass}],`,
     `tiles:{layout:grid|ring,rows,cols(<=${L.tiles}),hp,hpStep,pierce,style:glass|brick|neon},`,
     `obstacles<=8:[{kind:peg|bumper|pegGrid|pegRing|bar|spinner,x,y,...}],vars<=4:[{id,start}],`,

@@ -1,5 +1,6 @@
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId } from "@/lib/blueprint/catalog";
 import { BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_CODE_PREFIX, BLUEPRINT_LINK_KEYS, decodeBlueprint } from "@/lib/blueprint/codec";
+import { BLUEPRINT_MAX_SUBSTEPS } from "@/lib/blueprint/limits";
 import { applyBlueprintParams, formatParamValues, parseParamValues } from "@/lib/blueprint/params";
 import { sanitizeBlueprint } from "@/lib/blueprint/sanitize";
 import type { Blueprint } from "@/lib/blueprint/schema";
@@ -39,6 +40,11 @@ export interface BlueprintSettings {
 }
 
 export const DEFAULT_BLUEPRINT_SETTINGS: BlueprintSettings = { preset: "hatchery", spec: "", params: "" };
+
+/** --- review fix (blueprint) --- The catalog's ids (`blPreset`'s values), for the app AI's settings schema. */
+export const BLUEPRINT_PRESET_IDS: readonly string[] = BLUEPRINT_CATALOG_IDS;
+/** --- review fix (blueprint) --- The longest `blSpec` a link, a project file or the render queue keeps (the codec's limit). */
+export const BLUEPRINT_SPEC_MAX_CHARS = BLUEPRINT_CODE_MAX_CHARS;
 
 /** Slider ranges, keyed by the SimulatorSettings field names: none – a Blueprint's sliders are the spec's own (`params`). */
 export const BLUEPRINT_RANGES = {} as const;
@@ -111,7 +117,9 @@ export function readBlueprintParams(params: URLSearchParams, settings: Blueprint
   const preset = params.get(BLUEPRINT_LINK_KEYS.preset);
   if (preset !== null && isBlueprintCatalogId(preset)) settings.blPreset = preset;
   const spec = params.get(BLUEPRINT_LINK_KEYS.spec);
-  if (spec !== null) settings.blSpec = cleanCode(spec);
+  // --- review fix (blueprint) --- a link's code that cannot even be a code (cut, too long, stray characters) is kept as the
+  // bare prefix: it never decodes, so the panel says the link could not be read instead of quietly playing a catalog game
+  if (spec !== null) settings.blSpec = spec.trim() === "" ? "" : cleanCode(spec) || BLUEPRINT_CODE_PREFIX;
   const values = params.get("blv");
   if (values !== null) settings.blParams = formatParamValues(parseParamValues(values));
 }
@@ -129,6 +137,8 @@ export interface ResolvedBlueprint {
   notes: string[];
   /** Features a newer version wrote (the spec plays without them). */
   newer: string[];
+  /** --- review fix (blueprint) --- A link's Blueprint was given but could not be read (cut short, damaged): the catalog entry plays. */
+  unreadable: boolean;
 }
 
 /** The spec the settings play: a link's spec when it reads, else the catalog entry; the slider values applied. Never throws. */
@@ -137,6 +147,7 @@ export function resolveBlueprintSpec(settings: BlueprintSettings): ResolvedBluep
   let base: Blueprint | null = null;
   let catalogId = "";
   let newer: string[] = [];
+  let unreadable = false;
   if (settings.spec) {
     const decoded = decodeBlueprint(settings.spec);
     if (decoded.ok) {
@@ -144,7 +155,10 @@ export function resolveBlueprintSpec(settings: BlueprintSettings): ResolvedBluep
       base = s.blueprint;
       notes.push(...s.notes);
       newer = s.newer;
-    } else notes.push(`$: the link's Blueprint could not be read (${decoded.error}); playing the catalog entry instead`);
+    } else {
+      unreadable = true;
+      notes.push(`$: the link's Blueprint could not be read (${decoded.error}); playing the catalog entry instead`);
+    }
   }
   if (!base) {
     catalogId = isBlueprintCatalogId(settings.preset) ? settings.preset : DEFAULT_BLUEPRINT_SETTINGS.preset;
@@ -152,7 +166,7 @@ export function resolveBlueprintSpec(settings: BlueprintSettings): ResolvedBluep
   }
   const applied = applyBlueprintParams(base, parseParamValues(settings.params));
   notes.push(...applied.notes);
-  return { blueprint: applied.blueprint, catalogId, base, notes, newer };
+  return { blueprint: applied.blueprint, catalogId, base, notes, newer, unreadable };
 }
 
 /* ------------------------------------------------------------------ the mode */
@@ -172,6 +186,8 @@ export class BlueprintMode implements GameMode {
   readonly ballsMayRest = true;
   /** The world resolves the balls against each other (by mass, with the spec's bounciness): not the engine's pair pass. */
   readonly ballsPassThrough = true;
+  /** --- review fix (blueprint) --- A planned step takes at most this many sub-steps (the sandbox's work ceiling); slow motion beyond. */
+  readonly subStepCeiling = BLUEPRINT_MAX_SUBSTEPS;
   private settings: BlueprintSettings = { ...DEFAULT_BLUEPRINT_SETTINGS };
   private resolved: ResolvedBlueprint | null = null;
   private resolvedKey = "";

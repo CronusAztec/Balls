@@ -19,7 +19,7 @@
  * spec asks for it. No clock: a seed replays exactly. A finished run keeps its world turning (the balls still bounce under
  * the end banner) but records, plays and fires nothing more.
  */
-import { BLUEPRINT_LIMITS as L, BLUEPRINT_STEP_BUDGETS as BUDGET, BLUEPRINT_BALL_CEILING } from "../limits";
+import { BLUEPRINT_LIMITS as L, BLUEPRINT_STEP_BUDGETS as BUDGET, BLUEPRINT_BALL_CEILING, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING } from "../limits";
 import { evaluateBlueprintFormula, SLOT } from "../formula";
 import type { Blueprint, FxKind, Trigger, Voice, VoiceTrigger } from "../schema";
 import { compileBlueprint, type CompiledBlueprint, type CompiledNum } from "./compile";
@@ -47,6 +47,22 @@ export interface RunStats {
   faults: number;
   /** Balls that went non-finite and were taken out. */
   nanBalls: number;
+  /** --- review fix (blueprint) --- Balls past the speed ceiling (BLUEPRINT_SPEED_CEILING) that were taken out. */
+  fastBalls: number;
+  /** --- review fix (blueprint) --- Sub-steps whose ball-pair tests ran past their share of the step's (the rest skipped). */
+  droppedPairs: number;
+  /** --- review fix (blueprint) --- Actions dropped because the step's actions had already changed BLUEPRINT_ACTION_BALLS_PER_STEP balls. */
+  droppedActions: number;
+  /** --- review fix (blueprint) --- Ball sub-steps of the run (each ball's move and contacts in one sub-step: a work count). */
+  ballSteps: number;
+  /** --- review fix (blueprint) --- Balls the rules' actions changed. */
+  actionBalls: number;
+  /**
+   * --- review fix (blueprint) --- The run's work so far, in units a tab pays for (deterministic, about 30 ns each in Node):
+   * ball sub-steps, events, rule firings, the balls their actions changed, contact tests and pair-grid items walked, and the
+   * pairs found overlapping, each weighted by what it costs (STEP_COST). The check judges a step by it.
+   */
+  cost: number;
   sounds: number;
   /** Sounds past the per-step budget (silent, not an error). */
   soundsCapped: number;
@@ -111,6 +127,25 @@ export interface StepEffect {
   r: number;
 }
 
+/**
+ * --- review fix (blueprint) --- What each kind of work costs a step, in RunStats.cost units (about 30 ns in Node; measured on
+ * the catalog and the review's hostile specs): a ball's sub-step (its move, tiles, obstacles, arena) and an event dominate,
+ * a pair test or a grid item walked is cheap, and a pair found overlapping – resolved and looked up in the step's reported
+ * pairs – costs about a ball's sub-step's tenth (400 balls the size of the arena that pass through each other overlap in
+ * every pair test: 60,000 a step, the most of any spec measured).
+ */
+export const STEP_COST = { ballStep: 10, event: 20, firing: 20, actionBall: 5, pairTest: 0.1, overlap: 1.2 } as const;
+
+/** A count from a slot's value: whole, from 0 to `max`; −1 for a value that means nothing. */
+function wholeCount(v: number, max: number): number {
+  if (!Number.isFinite(v)) return -1;
+  const k = Math.round(v);
+  return k < 0 ? 0 : k > max ? max : k;
+}
+
+/** countWas before a countReached rule's first look at its count (the first look is its baseline: it never fires on it). */
+export const COUNT_UNSEEN = 2;
+
 /** The up-and-down walk of scale degrees the wall hits play by default, one step a hit (a run of bounces is a tune, not one note). */
 const WALL_WALK = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1] as const;
 
@@ -131,6 +166,12 @@ export class BlueprintRun implements WorldEvents {
     refusedActions: 0,
     faults: 0,
     nanBalls: 0,
+    fastBalls: 0,
+    droppedPairs: 0,
+    droppedActions: 0,
+    ballSteps: 0,
+    actionBalls: 0,
+    cost: 0,
     sounds: 0,
     soundsCapped: 0,
     firstMotionSec: null,
@@ -153,6 +194,8 @@ export class BlueprintRun implements WorldEvents {
   queue = new EventQueue(BUDGET.events);
   pending = new EventQueue(BUDGET.events);
   firingsThisStep = 0;
+  /** --- review fix (blueprint) --- Balls this step's actions changed (BLUEPRINT_ACTION_BALLS_PER_STEP). */
+  actionBallsThisStep = 0;
   readonly ruleMatches: Float64Array;
   readonly ruleFires: Float64Array;
   readonly ruleLast: Float64Array;
@@ -175,6 +218,8 @@ export class BlueprintRun implements WorldEvents {
   private soundsThisStep = 0;
   private wallHits = 0;
   private readonly spawnerFired: number[];
+  /** --- review fix (blueprint) --- How many times each spawner fired (its formulas' n), apart from the period it is in. */
+  private readonly spawnerFirings: number[];
   private readonly spawnerMade: number[];
   private readonly escapedByBody: number[];
   private readonly finishSounds: Voice[] = [];
@@ -193,9 +238,10 @@ export class BlueprintRun implements WorldEvents {
     this.ruleFires = new Float64Array(n);
     this.ruleLast = new Float64Array(n).fill(-Infinity);
     this.ruleTimerFired = new Float64Array(n);
-    this.countWas = new Uint8Array(n);
+    this.countWas = new Uint8Array(n).fill(COUNT_UNSEEN);
     this.finishArmed = new Uint8Array(bp.finish.any.length);
     this.spawnerFired = new Array(bp.spawners.length).fill(0);
+    this.spawnerFirings = new Array(bp.spawners.length).fill(0);
     this.spawnerMade = new Array(bp.spawners.length).fill(0);
     this.escapedByBody = new Array(bp.bodies.length).fill(0);
     // the first balls: every spawner due at 0 s places its balls at once (so the engine adds no default ball of its own)
@@ -222,12 +268,13 @@ export class BlueprintRun implements WorldEvents {
     this.world.wallBounciness = this.ctx.getPhysicsExtras().wallBounciness;
     this.world.tiles.clockMs = this.timeSec * 1000;
     if (this.done.finished) {
-      this.world.beginStep(this.stats.steps, this.timeSec);
+      this.world.beginStep(this.stats.steps, this.timeSec, dt);
       return;
     }
     this.stats.steps++;
-    this.world.beginStep(this.stats.steps, this.timeSec);
+    this.world.beginStep(this.stats.steps, this.timeSec, dt);
     this.firingsThisStep = 0;
+    this.actionBallsThisStep = 0;
     this.soundsThisStep = 0;
     this.stepSounds.length = 0;
     this.stepEffects.length = 0;
@@ -248,7 +295,9 @@ export class BlueprintRun implements WorldEvents {
   /** onBallStep: one engine ball's contacts in this sub-step (a ball the world does not know – a ghost – is left alone). */
   ballStep(ball: Ball, dtSec: number): void {
     const wb = this.world.byId.get(ball.id);
-    if (wb) this.world.ballStep(wb, dtSec, this);
+    if (!wb) return;
+    this.stats.ballSteps++;
+    this.world.ballStep(wb, dtSec, this);
   }
 
   /** onPostSubStep: the balls against each other. */
@@ -259,6 +308,7 @@ export class BlueprintRun implements WorldEvents {
   /** onPostUpdate: the rules, the sweep, the new balls, the finish, the sounds. */
   postStep(): void {
     if (this.done.finished) {
+      this.world.cull();
       this.world.sweep(this.ctx);
       return;
     }
@@ -274,11 +324,16 @@ export class BlueprintRun implements WorldEvents {
       }
     }
     this.queue.clear();
+    this.world.cull(); // --- review fix (blueprint) --- (an action's ball gone non-finite or too fast never reaches the canvas)
     this.world.sweep(this.ctx);
     this.drainSpawns(BUDGET.spawns);
     this.noteBalls();
     this.stats.nanBalls = this.world.nanBalls;
+    this.stats.fastBalls = this.world.fastBalls;
+    this.stats.droppedPairs = this.world.droppedPairs;
     this.stats.contacts = this.world.work;
+    const st = this.stats;
+    st.cost = STEP_COST.ballStep * st.ballSteps + STEP_COST.event * st.events + STEP_COST.firing * st.firings + STEP_COST.actionBall * st.actionBalls + STEP_COST.pairTest * (this.world.work + this.world.pairVisits) + STEP_COST.overlap * this.world.overlaps;
     checkFinish(this);
     this.flush();
   }
@@ -289,14 +344,18 @@ export class BlueprintRun implements WorldEvents {
     this.finishSounds.push(this.done.reason === "condition" ? "merge" : "hit");
   }
 
-  /** The fastest speed of a ball in play (px/s), or 0 when the engine's own sub-steps are enough (stepSpeedBound). */
+  /**
+   * The fastest speed of a ball in play (px/s), or 0 when the engine's own sub-steps are enough (stepSpeedBound). --- review
+   * fix (blueprint) --- Every ball is planned for: the engine's sub-steps up to the mode's ceiling (BLUEPRINT_SUBSTEP_CEILING),
+   * slow motion beyond; a ball past the speed ceiling is not – the step's cull() takes it out.
+   */
   fastestBall(stepSec: number): number {
     let vmax = 0;
     let rmin = Infinity;
     for (const b of this.world.balls) {
       if (!b.alive) continue;
       const v = Math.hypot(b.vx, b.vy);
-      if (!(v <= 1e5)) return 0; // (a ball gone wild: the world takes it out; planning sub-steps for it would only freeze the step)
+      if (!(v <= BLUEPRINT_SPEED_CEILING)) continue;
       if (v > vmax) vmax = v;
       if (b.r < rmin) rmin = b.r;
     }
@@ -354,8 +413,15 @@ export class BlueprintRun implements WorldEvents {
         if (due <= this.spawnerFired[i]) return;
       }
       this.spawnerFired[i] = due;
-      const n = this.spawnerFired[i];
-      const count = Math.min(spec.maxTotal - this.spawnerMade[i], this.countOf(s.count, n, null, L.perSpawn, 1));
+      // --- review fix (blueprint) --- n is how many times the spawner fired (1 the first time), not the period it is in
+      const n = ++this.spawnerFirings[i];
+      const want = this.countOf(s.count, n, null, L.perSpawn);
+      // a count or a speed that means nothing (a formula giving NaN) refuses the firing: counted, never applied
+      if (want < 0) {
+        this.stats.refusedActions++;
+        return;
+      }
+      const count = Math.min(spec.maxTotal - this.spawnerMade[i], want);
       if (count <= 0) return;
       const speed = this.valueOf(s.speed, n, null);
       if (!Number.isFinite(speed)) {
@@ -367,16 +433,52 @@ export class BlueprintRun implements WorldEvents {
     });
   }
 
-  /** Queues a new ball (it joins at the end of the step); a queue as long as the ball ceiling refuses it (ARENA FULL). */
-  queueBall(ball: NewWorldBall) {
+  /**
+   * Queues a new ball (it joins at the end of the step); a queue as long as the ball ceiling refuses it (ARENA FULL). ---
+   * review fix (blueprint) --- A ball that would be meaningless – a position, a velocity or a radius that is not a finite
+   * number, a radius of 0 or less, a speed past the ceiling – is refused and counted, never queued; a radius past the radius
+   * ceiling stops at it. True when it was queued.
+   */
+  queueBall(ball: NewWorldBall): boolean {
+    if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && ball.r > 0 && Number.isFinite(ball.r)) || ball.vx * ball.vx + ball.vy * ball.vy > BLUEPRINT_SPEED_CEILING * BLUEPRINT_SPEED_CEILING) {
+      this.stats.refusedActions++;
+      return false;
+    }
+    if (ball.r > BLUEPRINT_RADIUS_CEILING) ball.r = BLUEPRINT_RADIUS_CEILING;
     if (this.spawnQueue.length >= BLUEPRINT_BALL_CEILING) {
       this.noteArenaFull();
-      return;
+      return false;
     }
     this.spawnQueue.push(ball);
+    return true;
   }
 
-  private noteArenaFull() {
+  /** --- review fix (blueprint) --- How many more balls the arena takes: the ball ceiling less the balls in play and those queued. */
+  ballRoom(): number {
+    return BLUEPRINT_BALL_CEILING - this.world.aliveCount() - this.spawnQueue.length;
+  }
+
+  /**
+   * --- review fix (blueprint) --- Takes `balls` from the step's action budget (BLUEPRINT_ACTION_BALLS_PER_STEP): false – and
+   * the action dropped and counted – when the step's actions have already changed that many balls.
+   */
+  spendActionBalls(balls: number): boolean {
+    if (this.actionBallsThisStep + balls > BUDGET.actionBalls) {
+      this.stats.droppedActions++;
+      this.actionBallsThisStep = BUDGET.actionBalls; // (the budget is spent: the step's further actions on balls are dropped at once)
+      return false;
+    }
+    this.actionBallsThisStep += balls;
+    this.stats.actionBalls += balls;
+    return true;
+  }
+
+  /** Whether this step's actions have changed as many balls as they may. */
+  actionBudgetSpent(): boolean {
+    return this.actionBallsThisStep >= BUDGET.actionBalls;
+  }
+
+  noteArenaFull() {
     this.stats.arenaFull++;
     this.arenaFullAtSec = this.timeSec;
     this.ctx.noteArenaFull?.();
@@ -510,6 +612,7 @@ export class BlueprintRun implements WorldEvents {
 
   /** A visual effect (recorded for the renderer, and the engine's particles and camera moments where it has them). */
   effect(kind: EffectKind, x: number, y: number, color: number, r: number) {
+    if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(r))) return; // --- review fix (blueprint) --- (never a burst the canvas cannot draw)
     if (this.stepEffects.length < 32) this.stepEffects.push({ kind, x, y, color, r });
     if (kind === "flash") this.flashAtSec = this.timeSec;
   }
@@ -553,27 +656,47 @@ export class BlueprintRun implements WorldEvents {
   valueOf(num: CompiledNum | undefined, n: number, self: WorldBall | null): number {
     if (num === undefined) return NaN;
     if (typeof num === "number") return num;
+    this.prepareSlots(num, n);
+    return this.slotValue(num, self);
+  }
+
+  /**
+   * --- review fix (blueprint) --- The slots a formula reads that are the same for every ball of an action – n, the clock,
+   * the counts and the variables –, filled once per action (an action on every ball no longer counts the balls once a ball).
+   * A constant needs none.
+   */
+  prepareSlots(num: CompiledNum | undefined, n: number) {
+    if (num === undefined || typeof num === "number") return;
     const s = this.slots;
     s[SLOT.n] = n;
     s[SLOT.t] = this.timeSec;
     s[SLOT.b] = this.beats;
-    s[SLOT.r] = num.usesR ? this.random() : 0;
     s[SLOT.balls] = this.world.aliveCount();
     s[SLOT.tiles] = this.world.tilesAlive;
     s[SLOT.escaped] = this.stats.escaped;
+    for (let i = 0; i < this.vars.length; i++) s[SLOT.firstVar + i] = this.vars[i];
+  }
+
+  /** A number slot's value for one ball, after prepareSlots(): the ball's own slots (tier, size, speed) and a fresh r. */
+  slotValue(num: CompiledNum | undefined, self: WorldBall | null): number {
+    if (num === undefined) return NaN;
+    if (typeof num === "number") return num;
+    const s = this.slots;
+    s[SLOT.r] = num.usesR ? this.random() : 0;
     s[SLOT.tier] = self ? self.tier : 0;
     s[SLOT.size] = self ? self.r : 0;
     s[SLOT.speed] = self ? Math.hypot(self.vx, self.vy) : 0;
-    for (let i = 0; i < this.vars.length; i++) s[SLOT.firstVar + i] = this.vars[i];
     return evaluateBlueprintFormula(num, s);
   }
 
-  /** A count slot: whole, from 0 to `max` (a meaningless result: `fallback`). */
-  countOf(num: CompiledNum | undefined, n: number, self: WorldBall | null, max: number, fallback: number): number {
-    const v = this.valueOf(num, n, self);
-    if (!Number.isFinite(v)) return fallback;
-    const k = Math.round(v);
-    return k < 0 ? 0 : k > max ? max : k;
+  /** A count slot: whole, from 0 to `max`; −1 when the result means nothing (NaN, ±Infinity) – the caller refuses it. */
+  countOf(num: CompiledNum | undefined, n: number, self: WorldBall | null, max: number): number {
+    return wholeCount(this.valueOf(num, n, self), max);
+  }
+
+  /** A count slot for one ball after prepareSlots() (an action on several balls). */
+  countOfSlot(num: CompiledNum | undefined, self: WorldBall | null, max: number): number {
+    return wholeCount(this.slotValue(num, self), max);
   }
 
   /** A count the spec names (`what`), of a body (−1: every ball). */

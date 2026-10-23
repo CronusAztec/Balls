@@ -110,10 +110,13 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
  * --- low-findings-2 --- The Ball section's core controls in a mode: Ball Speed, Ball Size and Ball Color (with its Rainbow switch).
  * Colour Sort's balls are the mode's own – their speed and size are the Colour Sort block's, and their colours are the sort
  * itself (a single colour or a rainbow would hide what is sorted) – so the page-level three are not shown there.
+ * --- review fix (blueprint) --- Mode Lab's balls are the Blueprint's: their speed, size, colour and gravity are the spec's
+ * (a Rainbow Ball would hide its teams and tiers), so none of the four page-level controls is shown there either.
  */
-export function ballControlsOf(mode: ModeId): { speed: boolean; size: boolean; color: boolean } {
-  if (mode === "colourSort") return { speed: false, size: false, color: false };
-  return { speed: true, size: true, color: true };
+export function ballControlsOf(mode: ModeId): { speed: boolean; size: boolean; color: boolean; gravity: boolean } {
+  if (mode === "colourSort") return { speed: false, size: false, color: false, gravity: true };
+  if (mode === "blueprint") return { speed: false, size: false, color: false, gravity: false };
+  return { speed: true, size: true, color: true, gravity: true };
 }
 
 /** The arena games' block: the battle's controls in Battle Royale, the flag's in Capture the Flag (the heading and the nudge in both). */
@@ -230,6 +233,7 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   if (key === "ballColor") return !p.ballPicture && ballControlsOf(p.mode).color; // --- low-findings-2 --- (and ballSpeed / ballSize below)
   if (key === "ballSpeed") return ballControlsOf(p.mode).speed;
   if (key === "ballSize") return ballControlsOf(p.mode).size;
+  if (key === "gravity") return ballControlsOf(p.mode).gravity; // --- review fix (blueprint) ---
   if (MULTIPLIER_GROUP_SET.has(key)) return multipliers;
   const walls = wallControlsOf(p.mode);
   if (key === "wallCount") return walls.wallCount;

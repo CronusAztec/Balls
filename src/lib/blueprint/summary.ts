@@ -166,6 +166,7 @@ function arenaLine(c: Ctx): SummaryLine {
   if (a.shape === "rings" && a.rings) {
     parts.push(p("rings", { count: a.rings.count }));
     if (a.rings.breakOnPass) parts.push(p("ringsBreak"));
+    if (a.rings.rim) parts.push(p("ringsRim")); // --- review fix (blueprint) ---
   } else if (a.shape === "box") parts.push(p("box"));
   else if (a.exits.length) {
     parts.push(p("circleExits", { count: a.exits.length }));

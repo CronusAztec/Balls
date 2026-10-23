@@ -128,6 +128,36 @@ export const BLUEPRINT_CEILINGS = {
   spawnsPerStep: 8,
   /** Sounds one step plays (the hit voices and the sound actions); the rest of the step's are silent. */
   soundsPerStep: 6,
+  /**
+   * --- review fix (blueprint) --- A ball's radius (px): half the world's shorter side (WORLD_SIDE 450), so a ball that size
+   * already covers any arena (225 px × size). A body, a grow, a merge or a split stops there: past it a ball would only cover
+   * more of the pair grid (a link of 400 huge balls made every pair test every other) or go infinite and stop the canvas.
+   */
+  ballRadius: 225,
+  /**
+   * --- review fix (blueprint) --- A ball's speed (px/s): 1,600 px a step, four times across the largest arena. A ball an
+   * endless speed-up takes past it is taken out and counted (the playability check says broken), as a non-finite one is: no
+   * sub-step plan can follow it and it would only freeze on the rim, firing a wall hit every step.
+   */
+  ballSpeed: 100_000,
+  /**
+   * --- review fix (blueprint) --- Sub-steps of one 60 Hz step: the engine plans enough that no ball moves more than half
+   * its radius; past this many the step itself shortens instead (slow motion, the engine's time dilation), so 400 tiny fast
+   * balls cost at most 400 × this many ball sub-steps a step.
+   */
+  subStepsPerStep: 16,
+  /**
+   * --- review fix (blueprint) --- Ball-pair tests one step makes (shared out over its sub-steps): a crowd of 400 small balls
+   * piled in a bowl needs a tenth of it. Past it the rest of the sub-step's pairs are skipped and counted (droppedPairs), so
+   * balls that all overlap cannot make a step quadratic.
+   */
+  pairTestsPerStep: 64_000,
+  /**
+   * --- review fix (blueprint) --- Balls the rules' actions change in one step (an action with target "all" changes every
+   * ball, and each runs its formula): past it the step's further actions are dropped and counted, like rule firings past
+   * theirs (64 firings × 4 actions × 400 balls would be 100,000 formula runs a step).
+   */
+  actionBallsPerStep: 4_096,
 } as const;
 export const BLUEPRINT_BALL_CEILING = BLUEPRINT_CEILINGS.balls;
 export const BLUEPRINT_TILE_CEILING = BLUEPRINT_CEILINGS.tiles;
@@ -139,6 +169,11 @@ export const BLUEPRINT_EVENTS_PER_STEP = BLUEPRINT_CEILINGS.eventsPerStep;
 export const BLUEPRINT_RULE_FIRINGS_PER_STEP = BLUEPRINT_CEILINGS.ruleFiringsPerStep;
 export const BLUEPRINT_SPAWNS_PER_STEP = BLUEPRINT_CEILINGS.spawnsPerStep;
 export const BLUEPRINT_SOUNDS_PER_STEP = BLUEPRINT_CEILINGS.soundsPerStep;
+export const BLUEPRINT_RADIUS_CEILING = BLUEPRINT_CEILINGS.ballRadius;
+export const BLUEPRINT_SPEED_CEILING = BLUEPRINT_CEILINGS.ballSpeed;
+export const BLUEPRINT_SUBSTEP_CEILING = BLUEPRINT_CEILINGS.subStepsPerStep;
+export const BLUEPRINT_PAIR_TESTS_PER_STEP = BLUEPRINT_CEILINGS.pairTestsPerStep;
+export const BLUEPRINT_ACTION_BALLS_PER_STEP = BLUEPRINT_CEILINGS.actionBallsPerStep;
 // --- end blueprint ---
 
 // --- orb-grid ---

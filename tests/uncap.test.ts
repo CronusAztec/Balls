@@ -954,4 +954,25 @@ describe("uncap-all: Mode Lab (a Blueprint's numbers, and the sandbox ceilings t
     }
     expect(engine.getBlueprintView().timeoutSec).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.timeoutSec);
   });
+
+  // --- review fix (blueprint) --- the work ceilings on one ball and one step
+  it("stops a Blueprint ball's radius and speed, and a step's sub-steps, only at BLUEPRINT_CEILINGS", () => {
+    // Grow or Go's grow slider ends at 3 px a bounce: typed far past it, the ball grows as typed until the radius ceiling
+    const grow = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=growEscape&blv=1e9"));
+    const engine = createEngineForSettings(physicsConfigOfSettings(grow), "blueprint", modeSettingsOfSettings(grow), 3);
+    expect(engine.getBlueprintView().bp!.rules[0].do[0]).toMatchObject({ act: "grow", by: 1e9 });
+    for (let i = 0; i < 60 * 3; i++) {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      for (const b of engine.getBalls()) expect(b.radius).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.ballRadius);
+    }
+    // Glass Hatchery's ball speed ends at 600 px/s: 50,000 plays as typed (under the speed ceiling), in at most 16 sub-steps a step
+    const fast = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=hatchery&blv=,,50000"));
+    const fastEngine = createEngineForSettings(physicsConfigOfSettings(fast), "blueprint", modeSettingsOfSettings(fast), 3);
+    expect(Math.hypot(fastEngine.getBalls()[0].vx, fastEngine.getBalls()[0].vy)).toBeCloseTo(50_000, 6);
+    const run = fastEngine.blueprintMode.getRun()!;
+    for (let i = 0; i < 60; i++) fastEngine.update(1000 / 60, 0);
+    expect(run.stats.ballSteps / run.stats.steps / Math.max(1, run.stats.peakBalls)).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.subStepsPerStep);
+    for (const b of fastEngine.getBalls()) expect(Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
+  });
 });

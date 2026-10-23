@@ -189,6 +189,7 @@ async function bpCheckTool(bk, args) {
   return {
     verdict: report.verdict,
     feedback: report.feedback,
+    problems: report.problems,
     source,
     ...(errors.length ? { validationErrors: errors, checked: "the sanitized spec (validation errors above)", sanitizerNotes: notes } : {}),
     digest: bk.blueprintDigest(blueprint),

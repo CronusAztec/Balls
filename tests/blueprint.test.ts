@@ -5,9 +5,14 @@ import { END_HOLD_SEC, blueprintSettingsOf, defaultBlueprintFields, resolveBluep
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
-import { assistantSettings } from "@/lib/desktop/ai/settingsPatch";
+import { assistantSettings, changesSchema, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { modeDetail } from "@/lib/agentKit/modeCatalog";
+import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
+import enMessages from "../messages/en.json";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, catalogBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
+import { resolveProjectSettings } from "@/lib/project";
+import { EMPTY_QUEUE, enqueue, journalOf, restoreQueue } from "@/lib/desktop/renderQueue";
 
 /*
  * --- blueprint --- Mode Lab, the blueprint mode (src/lib/physics/modes/blueprint.ts): its registration, its settings and
@@ -209,5 +214,76 @@ describe("blueprint mode: in the engine", () => {
     engine.setConfig({ ballColor: "#123456" });
     const palette = engine.getBlueprintView().bp!.look.palette;
     for (const b of engine.getBalls()) expect(palette).toContain(b.color);
+  });
+});
+
+// --- review fix (blueprint) --- a link's Blueprint survives a project file, the render queue's journal and a link that cannot be read
+describe("blueprint: a link's game through a project file and the render queue", () => {
+  // a catalog game renamed: a link-sized code (well over the 500 characters other text settings keep)
+  const mine = sanitizeBlueprint({ ...catalogBlueprint("conquer"), meta: { ...catalogBlueprint("conquer").meta, name: "My Conquest" } }).blueprint;
+  const code = encodeBlueprint(mine);
+
+  it("keeps a whole b1. code in a project file, so the game comes back by its name", () => {
+    expect(code.length).toBeGreaterThan(1000);
+    const settings = resolveProjectSettings({ ...defaultSettings("blueprint"), mode: "blueprint", blSpec: code });
+    expect(settings.blSpec).toBe(code);
+    expect(resolveBlueprintSpec(blueprintSettingsOf(settings)).blueprint.meta.name).toBe("My Conquest");
+  });
+
+  it("keeps it through the desktop render queue's journal and a restart", () => {
+    const settings = { ...defaultSettings("blueprint"), blSpec: code };
+    const q = enqueue(EMPTY_QUEUE, [{ name: "mine", source: { kind: "seed" }, settings, seed: 3, resolution: "1080x1920", fps: 60, codec: "h264", preset: "native", meta: { title: "mine", platform: null, hook: null, caption: null, hashtags: [] } }], 1000, () => "job-1");
+    const { state } = restoreQueue(JSON.parse(JSON.stringify(journalOf(q, 5))), 100);
+    expect(state.jobs[0].settings.blSpec).toBe(code);
+    expect(resolveBlueprintSpec(blueprintSettingsOf(state.jobs[0].settings)).blueprint.meta.name).toBe("My Conquest");
+  });
+
+  it("says a link's game could not be read – cut short or past the codec's length – instead of quietly playing another", () => {
+    const cut = settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${code.slice(0, Math.floor(code.length * 0.6))}`));
+    const r = resolveBlueprintSpec(blueprintSettingsOf(cut));
+    expect([r.unreadable, r.catalogId]).toEqual([true, "hatchery"]);
+    const huge = settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=b1.${"A".repeat(20_000)}`));
+    expect(resolveBlueprintSpec(blueprintSettingsOf(huge)).unreadable).toBe(true);
+    const fine = settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${code}`));
+    expect(resolveBlueprintSpec(blueprintSettingsOf(fine))).toMatchObject({ unreadable: false, catalogId: "" });
+  });
+});
+
+// --- review fix (blueprint) --- the app's AI and the agent toolbox see the catalog and Mode Lab's link keys
+describe("blueprint: the app's AI and the modes tool know Mode Lab's settings", () => {
+  const current = { ...defaultSettings("blueprint"), blPreset: "growEscape" };
+
+  it("offers the catalog's ids for blPreset, in the patch schema and in a refusal", () => {
+    const schema = JSON.stringify(changesSchema(current));
+    for (const id of BLUEPRINT_CATALOG_IDS) expect(schema).toContain(`"${id}"`);
+    const check = validateSettingsPatch(current, { blPreset: "Ring Breaker" });
+    expect(check.ok).toBe(false);
+    if (!check.ok) expect(check.errors.join("\n")).toMatch(/ringBreaker/);
+    expect(validateSettingsPatch(current, { blPreset: "ringBreaker" })).toMatchObject({ ok: true, patch: { blPreset: "ringBreaker" } });
+  });
+
+  it("names the playing game's sliders, in order with their ranges, for blParams", () => {
+    const line = settingsCatalog(current).split("\n").find((l) => l.startsWith("blParams"))!;
+    expect(line).toContain("grow (0.2 to 3), exit (8 to 40), limit (10 to 60)");
+  });
+
+  it("lists blPreset, blParams and the link-only blSpec with their link keys, each kept by a link", () => {
+    const detail = modeDetail("blueprint", enMessages as never)!;
+    const fields = Object.fromEntries(detail.fieldList.map((f) => [f.key, f]));
+    expect([fields.blPreset?.url, fields.blParams?.url, fields.blSpec?.url]).toEqual(["blp", "blv", "bls"]);
+    expect([fields.blPreset?.roundTrip, fields.blParams?.roundTrip, fields.blSpec?.roundTrip]).toEqual([true, true, true]);
+    expect(fields.blSpec?.linkOnly).toBe(true);
+    expect(detail.linkProblems).toEqual([]);
+  });
+});
+
+// --- review fix (blueprint) --- the page's ball controls that a Blueprint ignores are not offered in Mode Lab
+describe("blueprint: the Ball & Physics section in Mode Lab", () => {
+  const PANEL: Omit<PanelShown, "mode"> = { ballPicture: false, showTrails: true, glassGates: false, wobblyWalls: false, simulationFound: false, bannerText: false, arenas: false, teams: false, captions: false, videoBackground: false, videoBeats: true, batch: true, bot: true };
+
+  it("hides Ball Speed, Ball Size, Ball Color (and its Rainbow) and Gravity: a Blueprint's balls and gravity are its own", () => {
+    expect(ballControlsOf("blueprint")).toEqual({ speed: false, size: false, color: false, gravity: false });
+    for (const key of ["ballSpeed", "ballSize", "ballColor", "gravity"]) expect([key, sectionKeyShown(key, { ...PANEL, mode: "blueprint" }, false)]).toEqual([key, false]);
+    for (const key of ["ballSpeed", "ballSize", "ballColor", "gravity"]) expect([key, sectionKeyShown(key, { ...PANEL, mode: "classic" }, false)]).toEqual([key, true]);
   });
 });

@@ -3,6 +3,8 @@ import { MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SETTING_OPTIONS, assistantSettings } from "@/lib/desktop/ai/settingsPatch";
 import { jsonView, type JsonValue } from "./jsonView";
+import { encodeBlueprint } from "@/lib/blueprint/codec"; // --- review fix (blueprint) ---
+import { catalogBlueprint } from "@/lib/blueprint/catalog"; // --- review fix (blueprint) ---
 
 /*
  * --- agent-cli --- `npm run agent -- modes`: the mode catalog as an agent needs it – every MODE_ID with its family
@@ -52,7 +54,21 @@ export interface ModeField {
   roundTrip: boolean | null;
   /** --- agent-cli --- presetToSettings() resolves the field: a wrong-typed value comes back as one of the field's type (null: nothing to check). */
   resolved: boolean | null;
+  /** --- review fix (blueprint) --- A field only a link sets (no slider, never the app AI's patch): Mode Lab's Blueprint of a link. */
+  linkOnly?: boolean;
 }
+
+/**
+ * --- review fix (blueprint) --- A free-text field's sample value for the link checks (it has no options of its own to try):
+ * Mode Lab's slider values and its Blueprint of a link, so their link keys (blv, bls) are found and checked too.
+ */
+const TEXT_SAMPLES: Readonly<Record<string, () => string>> = {
+  blParams: () => "3",
+  blSpec: () => encodeBlueprint(catalogBlueprint("conquer")),
+};
+
+/** --- review fix (blueprint) --- The fields a mode's links carry that its block does not list (they are never a patch's). */
+const LINK_ONLY_FIELDS: Readonly<Partial<Record<ModeId, readonly string[]>>> = { blueprint: ["blSpec"] };
 
 export interface ModeDetail extends ModeSummary {
   description: string | null;
@@ -76,8 +92,10 @@ export function commonPrefix(keys: readonly string[]): string | null {
 
 /** The keys of the mode's own block (the app AI's mode settings), in the settings' order. */
 function modeBlockKeys(defaults: SimulatorSettings): string[] {
+  const own = `${defaults.mode} setting`;
+  // (--- review fix (blueprint) --- a mode's setting may carry a note after its "<mode> setting: ")
   return assistantSettings(defaults)
-    .filter(([, description]) => description === `${defaults.mode} setting`)
+    .filter(([, description]) => description === own || description.startsWith(`${own}: `))
     .map(([key]) => key);
 }
 
@@ -118,7 +136,7 @@ function perturbed(key: string, value: unknown): unknown {
   }
   if (typeof value === "string") {
     const options = SETTING_OPTIONS[key];
-    return options?.find((o) => o !== value) ?? null;
+    return options?.find((o) => o !== value) ?? (TEXT_SAMPLES[key] ? TEXT_SAMPLES[key]() : null);
   }
   return null;
 }
@@ -151,7 +169,7 @@ function candidates(key: string, value: unknown): unknown[] {
     for (let k = 1; k <= 4; k++) for (const v of [value + k * step, value - k * step]) if (!r || (v >= r.min && v <= r.max)) out.push(v);
     return out;
   }
-  if (typeof value === "string") return (SETTING_OPTIONS[key] ?? []).filter((o) => o !== value);
+  if (typeof value === "string") return (SETTING_OPTIONS[key] ?? (TEXT_SAMPLES[key] ? [TEXT_SAMPLES[key]()] : [])).filter((o) => o !== value);
   const one = perturbed(key, value);
   return one === null || one === undefined ? [] : [one];
 }
@@ -227,13 +245,15 @@ export function modeDetail(mode: string, messages: EnMessages, io: LinkIo = SITE
   const defaults = defaultSettings(mode);
   const base = io.write(defaults);
   const engine = new Set(engineSettingKeys(mode));
-  const fieldList = modeFieldKeys(defaults).keys.map((key) => ({
+  const linkOnly = new Set(LINK_ONLY_FIELDS[mode] ?? []);
+  const fieldList: ModeField[] = [...modeFieldKeys(defaults).keys, ...linkOnly].map((key) => ({
     key,
     default: jsonView((defaults as unknown as Record<string, unknown>)[key]).value,
     range: rangeOf(key),
     url: urlKeyOf(defaults, key, base, io),
     engine: engine.has(key),
     ...linkChecks(defaults, key, io),
+    ...(linkOnly.has(key) ? { linkOnly: true } : {}),
   }));
   const linkProblems = fieldList.flatMap((f) => [...(f.roundTrip === false ? [`${f.key}: a share link loses it (link writer or reader)`] : []), ...(f.resolved === false ? [`${f.key}: presetToSettings() does not resolve it`] : [])]);
   return { ...summaryOf(mode, messages), description: modeText(messages, mode, "description"), fieldList, linkProblems };

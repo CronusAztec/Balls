@@ -5,7 +5,7 @@
  * references (a body id a rule names), formulas and the spec's byte size, which a schema cannot.
  */
 import type { JsonSchema } from "@/lib/desktop/ai/jsonSchema";
-import { BLUEPRINT_LIMITS as L } from "./limits";
+import { BLUEPRINT_LIMITS as L, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING } from "./limits";
 import {
   ACTION_AT,
   ACTION_DOCS,
@@ -65,7 +65,7 @@ function obstacleSchema(): JsonSchema {
 function actionSchema(): JsonSchema {
   const target = words(ACTION_TARGETS);
   const variants: Record<(typeof ACTIONS)[number], Record<string, JsonSchema>> = {
-    spawn: { body: id, count: formula("balls", 0, L.perSpawn), at: words(ACTION_AT), speed: formula("px/s"), dir: words(DIRECTIONS) },
+    spawn: { body: id, count: formula("balls", 0, L.perSpawn), at: words(ACTION_AT), speed: formula("px/s", -BLUEPRINT_SPEED_CEILING, BLUEPRINT_SPEED_CEILING), dir: words(DIRECTIONS) },
     split: { target, into: formula("balls", 2, L.perSpawn), scale: num("radius factor", 0) },
     merge: { scale: num("radius factor; 0 = areas add up", 0) },
     remove: { target },
@@ -97,9 +97,9 @@ export function blueprintJsonSchema(): JsonSchema {
         gravity: obj({ x: num("px/s²"), y: num("px/s²") }),
         spinDegPerSec: num("the rim and its exits turn"),
         exits: list(obj({ atDeg: num("clock degrees"), widthDeg: num(undefined, 1, 180) }, ["atDeg", "widthDeg"]), L.exits, 0, "gaps in a circle's rim"),
-        rings: nullable(obj({ count: int(undefined, 1, L.rings), gapDeg: num(undefined, 5, 180), spinDegPerSec: num(), alternate: { type: "boolean" }, breakOnPass: { type: "boolean" }, inner: num(undefined, 0.1, 0.9) })),
+        rings: nullable(obj({ count: int(undefined, 1, L.rings), gapDeg: num(undefined, 5, 180), spinDegPerSec: num(), alternate: { type: "boolean" }, breakOnPass: { type: "boolean" }, inner: num(undefined, 0.1, 0.9), rim: { type: "boolean", description: "a solid rim round the rings: no ball escapes" } })),
       }),
-      bodies: list(obj({ id, radius: num("px", 0), color: int("palette index", 0, L.palette - 1), gravityScale: num(), hp: int(undefined, 0), tier: int(undefined, 1, L.maxTier), team: int(undefined, 0, L.teams - 1), collide: words(BODY_COLLIDE) }, ["id"]), L.bodies, 1),
+      bodies: list(obj({ id, radius: num("px", 0, BLUEPRINT_RADIUS_CEILING), color: int("palette index", 0, L.palette - 1), gravityScale: num(), hp: int(undefined, 0), tier: int(undefined, 1, L.maxTier), team: int(undefined, 0, L.teams - 1), collide: words(BODY_COLLIDE) }, ["id"]), L.bodies, 1),
       tiles: nullable(
         obj({
           layout: words(TILE_LAYOUTS),
@@ -118,7 +118,7 @@ export function blueprintJsonSchema(): JsonSchema {
       obstacles: list(obstacleSchema(), L.obstaclePatterns),
       vars: list(obj({ id, start: num() }, ["id"]), L.vars),
       spawners: list(
-        obj({ body: id, at: words(SPAWN_AT), count: formula("balls", 1, L.perSpawn), speed: formula("px/s"), dir: words(DIRECTIONS), startSec: num(undefined, 0), everySec: num("0: once", 0), onBeat: { type: "boolean" }, maxTotal: int(undefined, 1, L.balls) }, ["body"]),
+        obj({ body: id, at: words(SPAWN_AT), count: formula("balls", 1, L.perSpawn), speed: formula("px/s", -BLUEPRINT_SPEED_CEILING, BLUEPRINT_SPEED_CEILING), dir: words(DIRECTIONS), startSec: num(undefined, 0), everySec: num("0: once", 0), onBeat: { type: "boolean" }, maxTotal: int(undefined, 1, L.balls) }, ["body"]),
         L.spawners,
         1,
       ),

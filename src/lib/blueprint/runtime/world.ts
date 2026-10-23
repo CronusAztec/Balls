@@ -8,7 +8,11 @@
  *  - `ballStep()` (the mode's onBallStep, right after the engine moved the ball): tiles first – TileField sweeps the move, so
  *    nothing tunnels –, then pegs, bars and spinners, then the arena (rim, exits, box walls, rings, escapes), then the spec's
  *    gravity (the engine's is off for these balls: gravityScale 0);
- *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step;
+ *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step – a ball
+ *    that covers more than BIG_CELLS cells is tested directly against the others instead, and a sub-step tests at most its
+ *    share of BLUEPRINT_PAIR_TESTS_PER_STEP (the rest are skipped and counted: `droppedPairs`);
+ *  - `cull()` (end of each step): a ball gone non-finite or past BLUEPRINT_SPEED_CEILING is taken out (counted), so the
+ *    canvas never draws one and no sub-step plan has to follow one;
  *  - `advance()` (once a step): the rim, the rings' gaps and the spinners turn.
  *
  * It knows nothing of rules: it reports what happened (a wall hit, a tile broken, an escape…) to the interpreter
@@ -22,8 +26,8 @@
  */
 import type { Ball, ModeContext, NewBall } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BLUEPRINT_TILE_CEILING } from "../limits";
-import type { Blueprint } from "../schema";
+import { BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_TILE_CEILING } from "../limits";
+import { RINGS_RIM_OUTER, type Blueprint } from "../schema";
 import type { WorldEvents } from "./events";
 
 export const FIXED_STEP_SEC = 1 / 60;
@@ -43,6 +47,12 @@ export function isHit(impact: number, speed: number): boolean {
 export const WALL_HALF = 2;
 /** The static grid's and the pair grid's cell (px). */
 const CELL = 32;
+/**
+ * --- review fix (blueprint) --- A ball whose box covers more cells than this is "big": it stays out of the pair grid and is
+ * tested directly against every other ball (a ball the size of the arena in every cell made each pair test every other).
+ * A tier-10 orb of Tier Climb (62 px) covers at most 25.
+ */
+export const BIG_CELLS = 25;
 const TAU = Math.PI * 2;
 /** How long an escaped ball keeps flying out of the frame (ms; the canvas fades it), before the engine drops it. */
 export const ESCAPE_GHOST_MS = 1000;
@@ -78,8 +88,9 @@ export class WorldBall {
   hp: number;
   pass: boolean;
   gs: number;
-  /** False once it escaped, popped or was removed (the step sweeps it out). */
-  alive = true;
+  /** --- review fix (blueprint) --- The world's count of live balls, kept as balls die (aliveCount() reads it, no loop). */
+  private readonly live: { n: number };
+  private isAlive = true;
   /** It left through an exit or past the last ring: it flies on out of the frame as a fading ghost. */
   escaped = false;
   /** Distance from the centre where the sub-step began (ring passes). */
@@ -90,9 +101,10 @@ export class WorldBall {
   private colorSlot: number;
   private readonly palette: readonly string[];
 
-  constructor(ball: Ball, nb: NewWorldBall, palette: readonly string[]) {
+  constructor(ball: Ball, nb: NewWorldBall, palette: readonly string[], live: { n: number } = { n: 1 }) {
     this.ball = ball;
     this.id = ball.id;
+    this.live = live;
     this.body = nb.body;
     this.tier = nb.tier;
     this.hp = nb.hp;
@@ -104,6 +116,15 @@ export class WorldBall {
     ball.team = nb.team;
   }
 
+  /** False once it escaped, popped or was removed (the step sweeps it out); a ball never comes back to life. */
+  get alive() {
+    return this.isAlive;
+  }
+  set alive(v: boolean) {
+    if (v || !this.isAlive) return;
+    this.isAlive = false;
+    this.live.n--;
+  }
   get x() {
     return this.ball.x;
   }
@@ -200,6 +221,8 @@ export class BlueprintWorld {
   readonly ringGapHalf: number = 0;
   /** A ring breaks when a ball passes outward through its gap. */
   readonly ringBreak: boolean = false;
+  /** --- review fix (blueprint) --- A solid rim round the rings (rings.rim): it holds every ball in, so none escapes. */
+  readonly ringRim: boolean = false;
   /** When each ring broke (s of the run; −1: standing) – the renderer's shatter. */
   readonly ringBrokeAt: number[] = [];
 
@@ -250,8 +273,21 @@ export class BlueprintWorld {
   timeSec = 0;
   /** Balls that went non-finite (NaN / ±Infinity) and were taken out. */
   nanBalls = 0;
+  /** Balls alive (each WorldBall keeps it as it dies). */
+  private readonly live = { n: 0 };
   /** Pair checks and contact tests of the run (a work count, deterministic). */
   work = 0;
+  /** --- review fix (blueprint) --- Balls past BLUEPRINT_SPEED_CEILING that were taken out. */
+  fastBalls = 0;
+  /** --- review fix (blueprint) --- Sub-steps whose pair tests ran past their share of BLUEPRINT_PAIR_TESTS_PER_STEP (the rest skipped). */
+  droppedPairs = 0;
+  /** --- review fix (blueprint) --- Pair-grid items the pair pass walked (its real cost; `work` counts the pairs it tested). */
+  pairVisits = 0;
+  /** --- review fix (blueprint) --- Pair tests that found the two balls overlapping (each resolves and reports: the costly kind). */
+  overlaps = 0;
+  /** The step's length (s) and the last sub-step's (the pair budget's share). */
+  private stepSec = FIXED_STEP_SEC;
+  private subSec = FIXED_STEP_SEC / 4;
 
   /** The ball's speed (relative to the surface) before the last resolved contact: whether it was a hit or a graze. */
   private lastSpeed = 0;
@@ -261,6 +297,8 @@ export class BlueprintWorld {
   private pairStart = new Int32Array(0);
   private pairItems = new Int32Array(0);
   private pairSeen = new Int32Array(0);
+  private pairBig = new Uint8Array(0);
+  private readonly bigList: number[] = [];
   private readonly pairKeys = new Set<number>();
 
   constructor(bp: Blueprint, width: number, height: number) {
@@ -280,8 +318,11 @@ export class BlueprintWorld {
       const rg = a.rings;
       this.ringGapHalf = ((rg.gapDeg / 2) * Math.PI) / 180;
       this.ringBreak = rg.breakOnPass;
+      this.ringRim = rg.rim;
+      // (inside a solid rim the rings end at RINGS_RIM_OUTER; without one the outermost ring is the rim)
+      const outer = rg.rim ? Math.max(RINGS_RIM_OUTER, rg.inner) : 1;
       for (let k = 0; k < rg.count; k++) {
-        this.ringF.push(rg.count === 1 ? 1 : rg.inner + ((1 - rg.inner) * k) / (rg.count - 1));
+        this.ringF.push(rg.count === 1 ? outer : rg.inner + ((outer - rg.inner) * k) / (rg.count - 1));
         this.ringR.push(0);
         this.ringAlive.push(true);
         this.ringBrokeAt.push(-1);
@@ -495,7 +536,8 @@ export class BlueprintWorld {
     const fresh: NewBall = { x: nb.x, y: nb.y, vx: nb.vx, vy: nb.vy, radius: nb.r, color: this.bp.look.palette[nb.color] ?? "#ffffff", gravityScale: 0, team: nb.team };
     ctx.addBall(fresh);
     const ball = ctx.getBalls()[ctx.getBalls().length - 1] ?? engineBalls[engineBalls.length - 1];
-    const wb = new WorldBall(ball, nb, this.bp.look.palette);
+    this.live.n++;
+    const wb = new WorldBall(ball, nb, this.bp.look.palette, this.live);
     wb.pd = Math.hypot(nb.x - this.cx, nb.y - this.cy);
     this.balls.push(wb);
     this.byId.set(wb.id, wb);
@@ -505,16 +547,15 @@ export class BlueprintWorld {
   /** Adopts a ball the engine made itself (a split of the "split" ball interaction) with `parent`'s slots. */
   adopt(ball: Ball, parent: WorldBall): WorldBall {
     ball.gravityScale = 0;
-    const wb = new WorldBall(ball, { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy, r: ball.radius, gs: parent.gs, pass: parent.pass, body: parent.body, tier: parent.tier, team: parent.team, hp: parent.hp, color: parent.color }, this.bp.look.palette);
+    this.live.n++;
+    const wb = new WorldBall(ball, { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy, r: ball.radius, gs: parent.gs, pass: parent.pass, body: parent.body, tier: parent.tier, team: parent.team, hp: parent.hp, color: parent.color }, this.bp.look.palette, this.live);
     this.balls.push(wb);
     this.byId.set(wb.id, wb);
     return wb;
   }
 
   aliveCount(): number {
-    let n = 0;
-    for (const b of this.balls) if (b.alive) n++;
-    return n;
+    return this.live.n;
   }
 
   get tilesAlive(): number {
@@ -590,6 +631,7 @@ export class BlueprintWorld {
    * bars and spinners, then the arena; last the spec's gravity.
    */
   ballStep(b: WorldBall, h: number, events: WorldEvents) {
+    this.subSec = h;
     if (!b.alive) return;
     const ball = b.ball;
     if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius))) {
@@ -606,6 +648,25 @@ export class BlueprintWorld {
     if (b.alive && b.gs !== 0) {
       ball.vx += this.gx * b.gs * h;
       ball.vy += this.gy * b.gs * h;
+    }
+  }
+
+  /**
+   * --- review fix (blueprint) --- The end of a step (after the rules): a ball whose position, velocity or radius is not a
+   * finite number, or that moves faster than BLUEPRINT_SPEED_CEILING, is taken out (counted: nanBalls, fastBalls) before the
+   * canvas draws it – an action may have made one this step, and the engine's next move would carry it on.
+   */
+  cull() {
+    for (const b of this.balls) {
+      if (!b.alive) continue;
+      const ball = b.ball;
+      if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius) && ball.radius > 0)) {
+        b.alive = false;
+        this.nanBalls++;
+      } else if (ball.vx * ball.vx + ball.vy * ball.vy > BLUEPRINT_SPEED_CEILING * BLUEPRINT_SPEED_CEILING) {
+        b.alive = false;
+        this.fastBalls++;
+      }
     }
   }
 
@@ -715,8 +776,15 @@ export class BlueprintWorld {
       for (let k = 0; k < this.ringR.length; k++) {
         if (!this.ringAlive[k]) continue;
         const rk = this.ringR[k];
-        // passed outward through the gap this sub-step (a breaking ring is gone for every ball at once)
-        if (b.pd < rk && d >= rk) {
+        const half = this.ringGapHalf;
+        const off = Math.abs(angleDiff(ang, this.ringGapAt[k]));
+        const angular = b.r / Math.max(rk, 1);
+        // passed outward through the gap this sub-step (a breaking ring is gone for every ball at once) – --- review fix
+        // (blueprint) --- only through the gap: a ball that crossed the ring anywhere else (one wider than its band, squeezed
+        // across by the rings beside it) passed nothing – it is a wall contact on the side it came from
+        const inGap = off <= half + angular;
+        const crossed = (b.pd < rk) !== (d < rk);
+        if (crossed && inGap && d >= rk) {
           if (this.ringBreak) {
             this.ringAlive[k] = false;
             this.ringBrokeAt[k] = this.timeSec;
@@ -724,10 +792,8 @@ export class BlueprintWorld {
           events.ringPass(b, k);
           if (!this.ringAlive[k]) continue;
         }
-        if (Math.abs(d - rk) >= b.r + WALL_HALF) continue;
-        const half = this.ringGapHalf;
-        const off = Math.abs(angleDiff(ang, this.ringGapAt[k]));
-        const angular = b.r / Math.max(rk, 1);
+        const squeezed = crossed && !inGap;
+        if (!squeezed && Math.abs(d - rk) >= b.r + WALL_HALF) continue;
         if (off <= half - angular) continue; // inside the gap
         if (off < half + angular) {
           // at the gap's edges
@@ -737,14 +803,17 @@ export class BlueprintWorld {
           }
           if (off <= half) continue; // (the centre is in the gap: only the edges)
         }
-        const inside = d < rk;
+        const inside = squeezed ? b.pd < rk : d < rk;
         const ux = d > 0 ? dx / d : 1;
         const uy = d > 0 ? dy / d : 0;
         const pen = inside ? d + b.r + WALL_HALF - rk : rk + WALL_HALF + b.r - d;
         const impact = this.resolve(b, inside ? -ux : ux, inside ? -uy : uy, pen, this.bounceOf(b));
         this.reportWall(b, impact, events);
       }
-      if (d - b.r > R + WALL_HALF) this.escapeBall(b, events);
+      // a solid rim round the rings holds every ball; else one past the last ring is out (where the rings left it: a ball
+      // squeezed past the outer ring was pushed back inside)
+      if (this.ringRim) this.holdInRim(b, events);
+      else if (Math.hypot(b.x - this.cx, b.y - this.cy) - b.r > R + WALL_HALF) this.escapeBall(b, events);
       return;
     }
     // circle
@@ -889,7 +958,13 @@ export class BlueprintWorld {
     if (isHit(impact, this.lastSpeed)) events.obstacleHit(b, of, impact);
   }
 
-  /** Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once a step. */
+  /**
+   * Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once a step.
+   * --- review fix (blueprint) --- Work is bounded, not only the count: a big ball (more than BIG_CELLS cells) is tested
+   * directly against every other ball, never through every cell it covers, and a sub-step makes at most its share of
+   * BLUEPRINT_PAIR_TESTS_PER_STEP pair tests – past it the rest of its pairs are skipped and the sub-step is counted
+   * (`droppedPairs`). Small balls are tested in exactly the order they always were.
+   */
   collidePairs(events: WorldEvents) {
     const balls = this.balls;
     const n = balls.length;
@@ -900,19 +975,32 @@ export class BlueprintWorld {
       this.pairCount = new Int32Array(cells + 1);
       this.pairStart = new Int32Array(cells + 1);
     }
-    if (this.pairSeen.length < n) this.pairSeen = new Int32Array(Math.max(n, 64));
+    if (this.pairSeen.length < n) {
+      this.pairSeen = new Int32Array(Math.max(n, 64));
+      this.pairBig = new Uint8Array(Math.max(n, 64));
+    }
     const count = this.pairCount;
+    const isBig = this.pairBig;
+    const big = this.bigList;
+    big.length = 0;
     count.fill(0);
     let total = 0;
     for (let i = 0; i < n; i++) {
       const b = balls[i];
+      isBig[i] = 0;
       if (!b.alive) continue;
       const c0 = this.cellX(b.x - b.r);
       const c1 = this.cellX(b.x + b.r);
       const r0 = this.cellY(b.y - b.r);
       const r1 = this.cellY(b.y + b.r);
+      const covered = (c1 - c0 + 1) * (r1 - r0 + 1);
+      if (covered > BIG_CELLS) {
+        isBig[i] = 1;
+        big.push(i);
+        continue;
+      }
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) count[r * cols + c]++;
-      total += (c1 - c0 + 1) * (r1 - r0 + 1);
+      total += covered;
     }
     if (this.pairItems.length < total) this.pairItems = new Int32Array(Math.max(total, this.pairItems.length * 2));
     const start = this.pairStart;
@@ -925,18 +1013,21 @@ export class BlueprintWorld {
     start[cells] = acc;
     for (let i = 0; i < n; i++) {
       const b = balls[i];
-      if (!b.alive) continue;
+      if (!b.alive || isBig[i]) continue;
       const c0 = this.cellX(b.x - b.r);
       const c1 = this.cellX(b.x + b.r);
       const r0 = this.cellY(b.y - b.r);
       const r1 = this.cellY(b.y + b.r);
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.pairItems[count[r * cols + c]++] = i;
     }
+    // this sub-step's share of the step's pair tests (every item a ball's cells hold is one)
+    const budget = Math.ceil(BLUEPRINT_PAIR_TESTS_PER_STEP * Math.min(1, this.subSec / Math.max(this.stepSec, 1e-9)));
+    let spent = 0;
     const seen = this.pairSeen;
     seen.fill(-1, 0, n);
     for (let i = 0; i < n; i++) {
       const a = balls[i];
-      if (!a.alive) continue;
+      if (!a.alive || isBig[i]) continue;
       const c0 = this.cellX(a.x - a.r);
       const c1 = this.cellX(a.x + a.r);
       const r0 = this.cellY(a.y - a.r);
@@ -944,7 +1035,14 @@ export class BlueprintWorld {
       for (let r = r0; r <= r1; r++)
         for (let c = c0; c <= c1; c++) {
           const cell = r * cols + c;
-          for (let q = start[cell]; q < start[cell + 1]; q++) {
+          const end = start[cell + 1];
+          if (spent + (end - start[cell]) > budget) {
+            this.droppedPairs++;
+            return;
+          }
+          spent += end - start[cell];
+          this.pairVisits += end - start[cell];
+          for (let q = start[cell]; q < end; q++) {
             const j = this.pairItems[q];
             if (j <= i || seen[j] === i) continue;
             seen[j] = i;
@@ -956,12 +1054,31 @@ export class BlueprintWorld {
           }
         }
     }
+    // the big balls: each against every other ball (a pair of big ones once)
+    for (const i of big) {
+      const a = balls[i];
+      if (spent + n > budget) {
+        this.droppedPairs++;
+        return;
+      }
+      spent += n;
+      this.pairVisits += n;
+      for (let j = 0; j < n; j++) {
+        if (j === i || (isBig[j] && j < i)) continue;
+        const b = balls[j];
+        if (!b.alive) continue;
+        this.work++;
+        if (j < i) this.touch(b, a, events);
+        else this.touch(a, b, events);
+      }
+    }
   }
 
-  /** A new step: the pairs reported this step are forgotten. */
-  beginStep(step: number, timeSec: number) {
+  /** A new step: the pairs reported this step are forgotten; `stepSec` is its length (the pair budget is shared over its sub-steps). */
+  beginStep(step: number, timeSec: number, stepSec = FIXED_STEP_SEC) {
     this.step = step;
     this.timeSec = timeSec;
+    this.stepSec = stepSec;
     this.pairKeys.clear();
   }
 
@@ -971,6 +1088,7 @@ export class BlueprintWorld {
     const reach = a.r + b.r;
     const d2 = dx * dx + dy * dy;
     if (d2 >= reach * reach) return;
+    this.overlaps++;
     const d = Math.sqrt(d2);
     // coincident balls part along a fixed direction (the later ball to the right): no randomness, no NaN
     const nx = d > 0 ? dx / d : 1;

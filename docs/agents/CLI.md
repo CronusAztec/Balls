@@ -139,7 +139,9 @@ as the page and the finder play it), the others load the Blueprint library alone
   is an error with its path. It also returns the tolerant sanitizer's notes: what it would drop or change to play the spec.
 - `bp-check` plays the sanitized spec on seeds 1-4 and judges it on counts only (finish condition, median end, faults,
   NaN, dropped events, ARENA FULL, sounds, first motion), so its verdict and report are identical on every machine. It
-  reports validation errors too, when there are any.
+  reports validation errors too, when there are any. A seed a browser tab could not play stops early, on counts alone:
+  `heavy` (a second of steps costs too many work units) or `slow` (the run plays in slow motion), so the tool always
+  returns quickly; `problems` names what each feedback sentence is about.
 - `bp-docs` never writes the guide; `npm run blueprints:docs` does, and `npm run -s blueprints:docs -- --check` exits 1 while
   it is stale.
 

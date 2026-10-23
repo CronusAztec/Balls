@@ -49,35 +49,51 @@
       "peakBalls": 121
     },
     "ringBreaker": {
-      "digest": "2e7e2b2e",
+      "digest": "b5dfc3d7",
       "samples": [
         [
-          212426,
-          397180
+          263914,
+          392757
         ],
         [
-          204875,
-          383273
+          178352,
+          375911
         ],
         [
-          185587,
-          376250
+          263076,
+          417726
         ],
         [
-          161836,
-          447246
+          217779,
+          409499
+        ],
+        [
+          235023,
+          434469
+        ],
+        [
+          254030,
+          363284
+        ],
+        [
+          309324,
+          378507
+        ],
+        [
+          272598,
+          358552
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 381,
+      "steps": 746,
       "result": "ALL RINGS DOWN",
       "winner": -1,
-      "spawned": 136,
+      "spawned": 128,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 348,
-      "peakBalls": 136
+      "sounds": 396,
+      "peakBalls": 128
     },
     "conquer": {
       "digest": "77f29a49",
@@ -127,7 +143,7 @@
       "peakBalls": 24
     },
     "tierClimb": {
-      "digest": "ae9e02fd",
+      "digest": "c7f720cc",
       "samples": [
         [
           211954,
@@ -213,34 +229,34 @@
       "peakBalls": 4
     },
     "growEscape": {
-      "digest": "02f95ef7",
+      "digest": "55ffef0b",
       "samples": [
         [
-          159651,
-          419519
+          180179,
+          452630
         ],
         [
-          262947,
-          433164
+          258632,
+          399664
         ],
         [
-          197635,
-          308329
+          187937,
+          394884
         ],
         [
-          168968,
-          537391
+          324815,
+          386147
         ]
       ],
       "reason": "condition",
-      "condition": 1,
-      "steps": 1279,
-      "result": "TOO BIG TO ESCAPE",
+      "condition": 0,
+      "steps": 1081,
+      "result": "ESCAPED AFTER BOUNCE 10",
       "winner": -1,
       "spawned": 1,
-      "escaped": 0,
+      "escaped": 1,
       "tilesBroken": 0,
-      "sounds": 67,
+      "sounds": 41,
       "peakBalls": 1
     }
   }

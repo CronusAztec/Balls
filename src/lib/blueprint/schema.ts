@@ -199,7 +199,15 @@ export interface BlueprintRings {
   breakOnPass: boolean;
   /** The innermost ring's radius (arena units); the outermost is the rim. */
   inner: number;
+  /**
+   * --- review fix (blueprint) --- A solid rim round the rings that never breaks: the rings sit inside it (the outermost at
+   * RINGS_RIM_OUTER) and no ball ever escapes – once every ring is down, the balls stay in the arena.
+   */
+  rim: boolean;
 }
+
+/** --- review fix (blueprint) --- Where the outermost ring sits inside a solid rim (arena units). */
+export const RINGS_RIM_OUTER = 0.88;
 
 export interface BlueprintArena {
   shape: ArenaShape;
@@ -405,7 +413,7 @@ export const DEFAULT_VOICES: Readonly<Record<VoiceTrigger, Voice | "none">> = {
 export const DEFAULTS = {
   meta: { description: "", family: "escape" as BlueprintFamily, author: "user" as BlueprintAuthor, needs: [] as string[] },
   arena: { shape: "circle" as ArenaShape, size: 0.9, restitution: 1, gravity: { x: 0, y: 0 }, spinDegPerSec: 0 },
-  rings: { count: 5, gapDeg: 40, spinDegPerSec: 30, alternate: true, breakOnPass: true, inner: 0.35 },
+  rings: { count: 5, gapDeg: 40, spinDegPerSec: 30, alternate: true, breakOnPass: true, inner: 0.35, rim: false },
   body: { radius: 10, color: 0, gravityScale: 1, hp: 0, tier: 1, team: 0, collide: "bounce" as BodyCollide },
   tiles: {
     layout: "grid" as TileLayout,
