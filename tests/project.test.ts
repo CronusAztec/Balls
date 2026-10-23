@@ -18,6 +18,7 @@ import {
   projectMediaPatch,
   projectNameFromFileName,
   projectSizeCheck,
+  projectTextLimit,
   resolveExtras,
   resolveProjectSettings,
   sanitizeProjectName,
@@ -27,7 +28,18 @@ import {
 } from "@/lib/project";
 import { bytesToBase64 } from "@/lib/base64";
 import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
-import { defaultSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+// --- unlimited-sizes --- the list settings' own limits
+import { BM_NOTES_MAX } from "@/lib/physics/beatMachine";
+import { MAX_MARKERS, serializeMarkers } from "@/lib/simulation/beatSource";
+import { MAX_CUSTOM_LENGTH, MAX_CUSTOM_RATIOS } from "@/lib/physics/modes/polyrhythm";
+import { WT_GAPS_MAX, WT_SECTION_CEILING } from "@/lib/physics/waveTank";
+import { FL_CONFERENCE_TOKEN, FL_DIVISION_TOKEN, FL_ENTRANT_CEILING } from "@/lib/physics/modes/fightLeagueShow";
+import { FL_CONFERENCES, FL_DIVISIONS, FL_ROSTER } from "@/lib/physics/modes/fightLeagueRoster";
+import { SC_STARS_MAX } from "@/lib/physics/starChords";
+import { FS_BALL_CEILING_KEY } from "@/lib/physics/funnelSpin";
+import { PF_LIST_MAX } from "@/lib/physics/perfectFit";
+import { JOURNEY_STAGE_CEILING, MEMORY_CEILINGS } from "@/lib/uncap";
 
 function bytesOf(length: number, seed = 7): Uint8Array {
   const out = new Uint8Array(length);
@@ -272,5 +284,62 @@ describe("project enumerations (review fix: security-robustness)", () => {
   it("a wall-break sound that is not a built-in clip is none", () => {
     expect(resolveProjectSettings({ mode: "classic", wallBreakSound: "https://attacker.example/x.wav" }).wallBreakSound).toBeNull();
     expect(resolveProjectSettings({ mode: "classic", wallBreakSound: 5 }).wallBreakSound).toBeNull();
+  });
+});
+
+// --- unlimited-sizes --- a project file keeps every list a link keeps (it cut every text setting at 500 characters)
+describe("project files keep long lists whole (unlimited-sizes)", () => {
+  /** Tokens repeated up to exactly `length` characters (the last one may be cut: the list settings below keep the text as typed). */
+  const typed = (tokens: readonly string[], length: number, separator = " ") => {
+    let out = "";
+    for (let i = 0; out.length < length; i++) out += (i ? separator : "") + tokens[i % tokens.length];
+    return out.slice(0, length);
+  };
+  /** The longest list each setting keeps, in the form presetToSettings() leaves it (so a link round-trips it). */
+  const longest = (): Record<string, { mode: SimulatorSettings["mode"]; value: string }> => {
+    const entrants = [...FL_ROSTER.map((r) => r.id), ...FL_DIVISIONS.map((d) => FL_DIVISION_TOKEN + d), ...Object.keys(FL_CONFERENCES).map((c) => FL_CONFERENCE_TOKEN + c)];
+    const longestEntrant = entrants.reduce((a, b) => (b.length > a.length ? b : a));
+    const markers = Array.from({ length: MAX_MARKERS }, (_, i) => 1000 + i * 700 + (i % 7) * 31); // uneven gaps: no runs to fold
+    return {
+      bmNotes: { mode: "beatMachine", value: typed(["C4", "E4", "G4", "B4", "D5", "-"], BM_NOTES_MAX) },
+      beatMarkers: { mode: "classic", value: serializeMarkers(markers) },
+      prCustom: { mode: "polyrhythm", value: typed(Array.from({ length: MAX_CUSTOM_RATIOS }, (_, i) => String(999 - i)), MAX_CUSTOM_LENGTH, ",") },
+      wtGaps: { mode: "waveTank", value: typed(Array.from({ length: WT_SECTION_CEILING }, (_, i) => `${(i % 4096) + 1}@${10 + (i % 50)}`), WT_GAPS_MAX, ", ") },
+      journeyStages: { mode: "journey", value: [...Array.from({ length: JOURNEY_STAGE_CEILING }, (_, i) => ["multipliers-s", "bullseye-l", "funnel-s"][i % 3]), "home"].join(",") },
+      flEntrants: { mode: "fightLeague", value: Array.from({ length: FL_ENTRANT_CEILING }, () => longestEntrant).join(",") },
+      scStars: { mode: "starChords", value: Array.from({ length: SC_STARS_MAX }, (_, i) => `${9007199254740991 - i}/${9007199254740990 - i}`).join(",") },
+      vxWaves: { mode: "vortex", value: Array.from({ length: MEMORY_CEILINGS[FS_BALL_CEILING_KEY] }, (_, i) => (i % 2 ? "1.7976931348623157e+308" : String(9007199254740991 - i))).join(", ") },
+      pfBoxes: { mode: "perfectFit", value: typed(["500×500", "499×498", "12×5"], PF_LIST_MAX, ", ") },
+      pfSections: { mode: "perfectFit", value: typed(["2000", "1999", "4"], PF_LIST_MAX, ",") },
+    };
+  };
+
+  it("a 4,000-character beat machine list comes back whole through a saved and opened file", () => {
+    const settings = { ...defaultSettings("beatMachine"), bmNotes: typed(["C4", "E4", "G4", "B4"], BM_NOTES_MAX) };
+    expect(settings.bmNotes).toHaveLength(4000);
+    const opened = parseProject(serializeProject(buildProject({ name: "Long notes", settings })));
+    expect(opened.ok && opened.project.settings.bmNotes).toBe(settings.bmNotes);
+  });
+
+  it("every list setting at its longest comes back exactly as a link keeps it", () => {
+    for (const [key, { mode, value }] of Object.entries(longest())) {
+      const kept = (presetToSettings({ mode, [key]: value } as Partial<SimulatorSettings>) as unknown as Record<string, unknown>)[key];
+      expect(typeof kept, key).toBe("string");
+      if (!["pfBoxes", "pfSections"].includes(key)) expect((kept as string).length, key).toBeGreaterThan(500); // past the old cut
+      const settings = { ...defaultSettings(mode), [key]: kept } as SimulatorSettings;
+      expect((resolveProjectSettings(settings) as unknown as Record<string, unknown>)[key], key).toBe(kept);
+      expect(projectTextLimit(key), key).toBeGreaterThanOrEqual((kept as string).length);
+    }
+  });
+
+  it("a Fight League entrant list has room for its ceiling of custom fighters (my- and 24 more characters)", () => {
+    expect(projectTextLimit("flEntrants")).toBeGreaterThanOrEqual(FL_ENTRANT_CEILING * ("my-".length + 24 + 1));
+  });
+
+  it("other texts still stop at 500 characters, and a list past its own limit at that limit", () => {
+    expect(projectTextLimit("ballColor")).toBe(500);
+    expect(projectTextLimit("brText")).toBe(500);
+    expect(resolveProjectSettings({ mode: "classic", ballColor: "x".repeat(600) }).ballColor).toHaveLength(500);
+    expect(resolveProjectSettings({ mode: "beatMachine", bmNotes: "C4 ".repeat(2000) }).bmNotes).toHaveLength(BM_NOTES_MAX);
   });
 });

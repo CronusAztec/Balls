@@ -376,6 +376,7 @@ export default function Simulator() {
   const [findCount, setFindCount] = useState(1); // --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at
   const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareTooLarge, setShareTooLarge] = useState(false); // --- unlimited-sizes --- (the long link was copied: the settings do not fit a code)
   // --- site-redesign --- read after hydration (the server has no MediaRecorder), so the server-rendered page and the
   // first client render agree
   const recordingSupported = useSyncExternalStore(subscribeNever, () => VideoRecorder.isSupported(), () => false);
@@ -3608,7 +3609,9 @@ export default function Simulator() {
 
   const copyShareLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(shortShareLink.get() ?? (await shortShareLink.make())); // --- project-files --- the short ?c= link (the long one without CompressionStream)
+      const choice = shortShareLink.get() ?? (await shortShareLink.make()); // --- project-files --- the short ?c= link (the long one without CompressionStream)
+      await navigator.clipboard.writeText(choice.link);
+      setShareTooLarge(choice.tooLarge); // --- unlimited-sizes --- (and the long one for settings too big for a code, said under the canvas)
       track("share_copy"); // --- analytics --- (README "Analytics events")
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
@@ -4457,6 +4460,8 @@ export default function Simulator() {
         <FreeWatermarkNote recording={isRecording} /* --- free-watermark --- videos without Pro carry the watermark */ />
         {/* --- project-files --- a ?c= share code that could not be read */}
         <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
+        {/* --- unlimited-sizes --- settings too big for a short link: the long one was copied */}
+        <ShareCodeNotice t={t} notice={shareTooLarge ? "tooLarge" : null} onDismiss={() => setShareTooLarge(false)} />
         {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}
         <SoftCeilingNotice settings={s} />
         {recordingError && (

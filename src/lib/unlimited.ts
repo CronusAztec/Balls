@@ -285,11 +285,15 @@ export function readUnlimitedParams(params: URLSearchParams, settings: Numbers, 
   }
   const extra = params.get(UNLIMITED_EXTRA_PARAM);
   if (extra) {
-    for (const entry of extra.split(",").slice(0, 400)) {
+    // --- unlimited-sizes --- every entry is read (the first 400 were), so a link with every key-less setting past its slider
+    // keeps them all; the walk stops once each setting has its value, and unknown keys or repeats never push one out
+    const known = new Set(keys);
+    for (const entry of extra.split(",")) {
+      if (given.size >= known.size) break;
       const at = entry.indexOf(":");
       if (at <= 0) continue;
       const key = entry.slice(0, at);
-      if (keys.includes(key) && !given.has(key)) given.set(key, entry.slice(at + 1));
+      if (known.has(key) && !given.has(key)) given.set(key, entry.slice(at + 1));
     }
   }
   for (const key of keys) {

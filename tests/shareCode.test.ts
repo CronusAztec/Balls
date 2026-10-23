@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { base64ToBytes, base64UrlToBytes, bytesToBase64, bytesToBase64Url } from "@/lib/base64";
-import { SHARE_CODE_PARAM, decodeShareCode, encodeShareCode, mergeShareParams, paramsToPayload, payloadToParams, shareCodeUrl, supportsShareCodes } from "@/lib/shareCode";
+import { SHARE_CODE_MAX_LENGTH, SHARE_CODE_PARAM, SHARE_PAYLOAD_MAX_BYTES, decodeShareCode, encodeShareCode, makeShareCode, mergeShareParams, paramsToPayload, payloadToParams, shareCodeUrl, supportsShareCodes } from "@/lib/shareCode";
+import { MAX_OBSTACLES, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- unlimited-sizes ---
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 /** Deterministic pseudo-random bytes (no Math.random in tests either). */
@@ -158,5 +159,63 @@ describe("share codes", () => {
   it("build the short link from the page address", () => {
     expect(shareCodeUrl("https://cronusaztec.github.io/Balls/en/simulator/", "abc_-1")).toBe("https://cronusaztec.github.io/Balls/en/simulator/?c=abc_-1");
     expect(shareCodeUrl("http://localhost:3000/pl/simulator/?mode=classic&g=5#x", "Z")).toBe("http://localhost:3000/pl/simulator/?c=Z");
+  });
+});
+
+// --- unlimited-sizes --- a code carries its values whole or not at all
+describe("share codes never cut a value (unlimited-sizes)", () => {
+  /** A full layout of every kind with three-decimal positions and decimal angles and speeds: about 26 characters an obstacle in the link. */
+  function fullLayout(): EditorObstacle[] {
+    let x = 7;
+    const next = () => {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      return ((x >>> 0) % 1999) / 1000 - 0.999;
+    };
+    const kinds = ["blocker", "spinner", "peg", "spinner", "bumper", "blocker"] as const;
+    return Array.from({ length: MAX_OBSTACLES }, (_, i) => ({ kind: kinds[i % kinds.length], x: next(), y: next(), size: 10 + (i % 9) + 0.5, angle: ((i * 37) % 360) + 0.5, rpm: 20 + (i % 9) + 0.5 }));
+  }
+
+  it("a 25,000-character obstacle list travels whole (it was cut at 20,000 characters, mid-entry)", async () => {
+    const settings = { ...defaultSettings("classic"), obstacles: fullLayout() };
+    const params = settingsToSearchParams(settings);
+    const obs = params.get("obs")!;
+    expect(obs.length).toBeGreaterThan(25_000);
+    const made = await makeShareCode(params);
+    expect(made.ok).toBe(true);
+    if (!made.ok) return;
+    expect(made.code.length).toBeLessThanOrEqual(SHARE_CODE_MAX_LENGTH);
+    const decoded = await decodeShareCode(made.code);
+    expect(decoded.ok && decoded.params.get("obs")).toBe(obs);
+    expect(decoded.ok && settingsFromSearchParams(decoded.params).obstacles).toEqual(settingsFromSearchParams(params).obstacles);
+    expect(settingsFromSearchParams(params).obstacles).toHaveLength(MAX_OBSTACLES);
+  });
+
+  it("a payload keeps a long value whole and refuses one past the payload's own bound, never cutting it", () => {
+    const long = "p:0.1,0.2,6;".repeat(2500); // 30,000 characters
+    expect(payloadToParams({ mode: "classic", obs: long })?.get("obs")).toBe(long);
+    expect(payloadToParams({ mode: "classic", obs: "x".repeat(SHARE_PAYLOAD_MAX_BYTES + 1) })).toBeNull();
+    expect(payloadToParams(Object.fromEntries(Array.from({ length: 1001 }, (_, i) => [`k${i}`, i])))).toBeNull();
+  });
+
+  it("make no code the page could not open again: the page shares the long link instead", async () => {
+    // Text that does not compress: its code would be longer than a link may carry.
+    const noise = bytesToBase64Url(bytesOf(18_000, 11));
+    expect(await makeShareCode(new URLSearchParams({ mode: "classic", top: noise }))).toEqual({ ok: false, error: "too-large" });
+    expect(await encodeShareCode(new URLSearchParams({ mode: "classic", top: noise }))).toBeNull();
+    // A payload past its bound, and more parameters than a code holds.
+    expect(await makeShareCode(new URLSearchParams({ mode: "classic", top: "a".repeat(SHARE_PAYLOAD_MAX_BYTES) }))).toEqual({ ok: false, error: "too-large" });
+    const many = new URLSearchParams(Array.from({ length: 1001 }, (_, i) => [`k${i}`, "1"] as [string, string]));
+    expect(await makeShareCode(many)).toEqual({ ok: false, error: "too-large" });
+    // What fits is a code, and it opens to the same link.
+    const fits = await makeShareCode(settingsToSearchParams(settingsOf(HEAVY_LINK)));
+    expect(fits.ok).toBe(true);
+    if (fits.ok) expect(await encodeShareCode(settingsToSearchParams(settingsOf(HEAVY_LINK)))).toBe(fits.code);
+  });
+
+  it("say 'unsupported' without CompressionStream", async () => {
+    vi.stubGlobal("CompressionStream", undefined);
+    expect(await makeShareCode(settingsToSearchParams(defaultSettings()))).toEqual({ ok: false, error: "unsupported" });
   });
 });

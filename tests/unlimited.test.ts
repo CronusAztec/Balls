@@ -47,10 +47,12 @@ import {
   formatHuge,
   isUnlimitedKey,
   parseUnlimitedValue,
+  readUnlimitedParams,
   sliderPosition,
   sliderValue,
   softCeiling,
   visualValue,
+  writeUnlimitedParams,
 } from "@/lib/unlimited";
 import { CS_BALL_CEILING } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
 
@@ -226,6 +228,25 @@ describe("No limits: parsing", () => {
     const s = { ...defaultSettings("classic"), unlimited: true, ballSpeed: 1e9, wallCount: 1e5, windX: -1e6 };
     const off = settingsFromSearchParams(settingsToSearchParams({ ...s, unlimited: false }));
     expect([off.unlimited, off.ballSpeed, off.wallCount, off.windX]).toEqual([false, 1e9, 1e5, -1e6]);
+  });
+
+  // --- unlimited-sizes --- infx read only its first 400 entries
+  it("reads every infx entry: 450 settings without a link key of their own all come back, unknown or repeated entries first", () => {
+    const keys = Array.from({ length: 450 }, (_, i) => `x${i}`);
+    const ranges = Object.fromEntries(keys.map((k) => [k, { min: 0, max: 10, step: 1 }]));
+    const defaults = Object.fromEntries(keys.map((k) => [k, 1]));
+    const big = Object.fromEntries(keys.map((k, i) => [k, 100 + i]));
+    const params = new URLSearchParams();
+    writeUnlimitedParams(big, params, keys, ranges, new Map());
+    expect(params.get("infx")!.split(",")).toHaveLength(450);
+    const read: Record<string, unknown> = { ...defaults };
+    readUnlimitedParams(params, read, defaults, keys, ranges, new Map());
+    expect(read).toEqual(big);
+    // 500 unknown or repeated entries ahead of the real ones push none of them out (the first entry of a key wins).
+    const noisy = new URLSearchParams({ infx: [...Array.from({ length: 250 }, (_, i) => `nope${i}:5`), ...Array.from({ length: 250 }, () => "x0:100"), params.get("infx")!].join(",") });
+    const again: Record<string, unknown> = { ...defaults };
+    readUnlimitedParams(noisy, again, defaults, keys, ranges, new Map());
+    expect(again).toEqual(big);
   });
 });
 

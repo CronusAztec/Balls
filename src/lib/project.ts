@@ -21,8 +21,17 @@ import { base64ToBytes, bytesToBase64 } from "@/lib/base64";
 import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
-import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
+import { SIGNED_KEYS, memoryCeiling } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- memoryCeiling: the Sound Vortex waves' limit)
 import { BLUEPRINT_SPEC_MAX_CHARS } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) ---
+// --- unlimited-sizes --- the list settings' own limits (LONG_TEXT_SETTINGS)
+import { BM_NOTES_MAX } from "@/lib/physics/beatMachine";
+import { MAX_MARKER_TEXT } from "@/lib/simulation/beatSource";
+import { MAX_CUSTOM_LENGTH } from "@/lib/physics/modes/polyrhythm";
+import { WT_GAPS_MAX } from "@/lib/physics/waveTank";
+import { JOURNEY_TEXT_CEILING } from "@/lib/physics/journey/sequence";
+import { FL_ENTRANT_CEILING } from "@/lib/physics/modes/fightLeagueShow";
+import { SC_STARS_MAX } from "@/lib/physics/starChords";
+import { FS_BALL_CEILING_KEY } from "@/lib/physics/funnelSpin";
 import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
@@ -43,12 +52,40 @@ export const PROJECT_MAX_FILE_BYTES = Math.ceil((PROJECT_MAX_BYTES * 4) / 3) + 4
 export const PROJECT_NAME_MAX = 60;
 /** Longest text setting kept from a file (the panel's text fields are far shorter). */
 const MAX_TEXT_SETTING = 500;
+// --- unlimited-sizes --- the longest text a list entry takes, with its separator
+/** A number of a list ("6, 12, 24"): the longest text a double has ("1.7976931348623157e+308", 23 characters) and ", ". */
+const NUMBER_ENTRY_CHARS = 25;
+/** A star of Chord Stars ("5/2,"): two whole numbers of at most 16 digits (normalizeStar()), a slash and a comma. */
+const STAR_ENTRY_CHARS = 34;
+/** A Fight League entrant ("division:modernAnime,"): the longest is a custom fighter's id (`my-` and up to 24 more) and a comma. */
+const ENTRANT_ENTRY_CHARS = 32;
 /**
  * --- review fix (blueprint) --- The text settings a file may carry longer than MAX_TEXT_SETTING, each up to its own limit:
  * Mode Lab's Blueprint of a link (`blSpec`, a whole `b1.` code: the catalog's run 1,000 to 1,900 characters, the codec takes
  * BLUEPRINT_CODE_MAX_CHARS). presetToSettings() validates it after, as it does a link's.
+ * --- unlimited-sizes --- and every list setting whose own validation keeps more than MAX_TEXT_SETTING, at that limit, so a
+ * file keeps what a link keeps (it cut them all at 500 characters): a typed beat machine list, video beat markers, custom
+ * polyrhythm ratios, wave tank gaps, a Journey's stages, a Fight League bracket's entrants, Chord Stars' stars and Sound
+ * Vortex waves (as many as the run plays: one ball a wave at least, so up to the balls' ceiling). Perfect Fit's lists
+ * (PF_LIST_MAX) and Mode Lab's slider values (16) stay within MAX_TEXT_SETTING.
  */
-const LONG_TEXT_SETTINGS: Readonly<Record<string, number>> = { blSpec: BLUEPRINT_SPEC_MAX_CHARS };
+const LONG_TEXT_SETTINGS: Readonly<Record<string, number>> = {
+  blSpec: BLUEPRINT_SPEC_MAX_CHARS,
+  // --- unlimited-sizes ---
+  bmNotes: BM_NOTES_MAX,
+  beatMarkers: MAX_MARKER_TEXT,
+  prCustom: MAX_CUSTOM_LENGTH,
+  wtGaps: WT_GAPS_MAX,
+  journeyStages: JOURNEY_TEXT_CEILING,
+  flEntrants: FL_ENTRANT_CEILING * ENTRANT_ENTRY_CHARS,
+  scStars: SC_STARS_MAX * STAR_ENTRY_CHARS,
+  vxWaves: memoryCeiling(FS_BALL_CEILING_KEY, Number.MAX_SAFE_INTEGER) * NUMBER_ENTRY_CHARS,
+};
+
+/** --- unlimited-sizes --- The longest text of `key` a project file keeps (presetToSettings() then validates it like a link's). */
+export function projectTextLimit(key: string): number {
+  return Math.max(LONG_TEXT_SETTINGS[key] ?? 0, MAX_TEXT_SETTING);
+}
 
 export const PROJECT_ASSET_KINDS = ["ballImage", "hitSample", "wallBreakSound", "sliceSong", "musicBed", "midi", "paintPicture", "backgroundImage", "beatMedia"] as const; // --- video-beats --- (beatMedia: the imported video / audio)
 export type ProjectAssetKind = (typeof PROJECT_ASSET_KINDS)[number];
@@ -315,7 +352,7 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
         clean[key] = range && value < range.min && !SIGNED_KEYS.has(key) ? range.min : value;
       }
     } else if (typeof fallback === "string") {
-      if (typeof value === "string") clean[key] = value.slice(0, LONG_TEXT_SETTINGS[key] ?? MAX_TEXT_SETTING);
+      if (typeof value === "string") clean[key] = value.slice(0, projectTextLimit(key)); // --- unlimited-sizes --- (each list at its own limit)
     } else if (typeof value === typeof fallback) clean[key] = value;
   }
   const settings = presetToSettings(clean as Partial<SimulatorSettings>);
