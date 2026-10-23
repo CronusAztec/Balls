@@ -1515,6 +1515,7 @@
     "blCheck": "Comprobar si se puede jugar",
     "blChecking": "Comprobando…",
     "blCheckingRun": "Comprobando la prueba {n} de {total}…",
+    "blCheckStop": "Detener la comprobación",
     "blCheckPlayable": "Se puede jugar. Termina tras unos {seconds} s en {ended} de {runs} pruebas.",
     "blCheckEndless": "Nunca termina sola. Cada tirada llegó al límite de {seconds} s.",
     "blCheckBroken": "Aún no se puede jugar. {problem}",

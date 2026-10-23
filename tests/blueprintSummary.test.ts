@@ -107,6 +107,19 @@ describe("blueprint summary: How it plays", () => {
     expect(say("es", summarizeBlueprint(catalogBlueprint("hatchery")))[3]).toBe("Final: cuando todas las losetas están rotas, o a los 60 s");
   });
 
+  // --- review fix (blueprint) --- a tile's range of hits, and a counter with a verb that agrees, as Polish and Spanish say them
+  it("says a tile's range of hits and a counter's change the way Polish and Spanish do", () => {
+    expect(say("pl", summarizeBlueprint(catalogBlueprint("hatchery")))[0]).toBe("Arena: koło, 120 szklanych płytek w 6 warstwach, płytka pęka po 2–17 uderzeniach");
+    expect(say("es", summarizeBlueprint(catalogBlueprint("hatchery")))[0]).toBe("Arena: un círculo, 120 losetas de cristal en 6 capas, de 2 a 17 golpes rompen una loseta");
+    const all = (locale: Locale) => say(locale, summarizeBlueprint(sanitizeBlueprint(EVERYTHING).blueprint)).join("\n");
+    // a counter named by a plural noun ("odbicia", "rebotes") takes the verb of "the counter", never one of its own
+    expect(all("pl")).toContain("licznik „score” rośnie o 1");
+    expect(all("pl")).toContain("licznik „score” mnoży się przez 2");
+    expect(all("pl")).toContain("gdy 2 kulki uciekną lub licznik „score” dojdzie do 30");
+    expect(all("es")).toContain("el contador «score» sube 1");
+    expect(all("es")).toContain("cuando escapan 2 bolas o el contador «score» llega a 30");
+  });
+
   it("names the faster and the slower ball of a collision, joins the endings with or and says who wins", () => {
     const conquer = say("en", summarizeBlueprint(catalogBlueprint("conquer")));
     expect(conquer[1]).toBe("Start: 24 balls in random spots, 4 teams");

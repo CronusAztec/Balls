@@ -1515,6 +1515,7 @@
     "blCheck": "Check playability",
     "blChecking": "Checking…",
     "blCheckingRun": "Checking run {n} of {total}…",
+    "blCheckStop": "Stop the check",
     "blCheckPlayable": "Playable. It ends after about {seconds} s on {ended} of {runs} runs.",
     "blCheckEndless": "It never ends by itself. Every run reached the {seconds} s limit.",
     "blCheckBroken": "Not playable yet. {problem}",

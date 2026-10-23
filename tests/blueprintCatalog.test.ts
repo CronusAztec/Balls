@@ -185,6 +185,21 @@ describe("blueprint catalog: the visitor's words", () => {
     expect(offenders).toEqual([]);
   });
 
+  // --- review fix (blueprint) --- a race through pegs (never a race of pegs), the gold team, a winning colour with its article
+  it("names the peg race as a race through pegs, and says a winning colour as Spanish does, with its article", () => {
+    expect([en.Blueprints.plinkoRace.name, pl.Blueprints.plinkoRace.name, es.Blueprints.plinkoRace.name]).toEqual(["Peg Race", "Wyścig przez kołki", "Carrera entre clavos"]);
+    // the colours are the teams' names, said as nouns: "el dorado" wins, not "oro" (gold the metal)
+    expect(Object.values(es.Blueprint.team)).toEqual(["ROJO", "AZUL", "VERDE", "DORADO", "MORADO", "CIAN"]);
+    const lines: string[] = [];
+    for (const id of BLUEPRINT_CATALOG_IDS)
+      for (const [key, text] of Object.entries(es.Blueprints[id] as Record<string, unknown>))
+        if (typeof text === "string" && text.includes("[winner]")) {
+          lines.push(key);
+          expect([id, key, /(^|¡|\s)EL \[winner\]/.test(text)]).toEqual([id, key, true]);
+        }
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("introduces Mode Lab in at most three sentences, each naming at most three things", () => {
     for (const [locale, messages] of LOCALES) {
       const intro = (messages as unknown as { Controls: { blDesc: string } }).Controls.blDesc;

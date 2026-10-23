@@ -4693,6 +4693,41 @@ await smokeBlock("project-files", async () => {
     `(status "${importText}", link ${importedParams.toString()}, track "${importedTrack.replace(/\s+/g, " ").trim()}")`,
   );
 
+  // --- review fix (blueprint) --- a Mode Lab game from a link (its whole bls code, longer than the 500 characters other text
+  // settings keep) survives Export and Import: it comes back by its name, never as the built-in default game
+  {
+    const bpGame = {
+      v: 1,
+      meta: { name: "Project Game", description: "A few balls bounce through pegs and bumpers in a box until the clock runs out, saved in a project file and opened again." },
+      arena: { shape: "box", gravity: { x: 0, y: 300 } },
+      bodies: [{ id: "b", radius: 10 }],
+      obstacles: [-0.4, 0, 0.4].map((x) => ({ kind: "peg", x, y: 0.2, r: 0.03 })).concat([-0.2, 0.2].map((x) => ({ kind: "bumper", x, y: 0.5, r: 0.05, kick: 120 }))),
+      spawners: [{ body: "b", count: 3, speed: 300, at: "top" }],
+      sound: { voices: { wallHit: "hit" } },
+      finish: { timeoutSec: 30 },
+    };
+    const bpCode = `b1.${Buffer.from(JSON.stringify(bpGame)).toString("base64url")}`;
+    await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${bpCode}`, { waitUntil: "networkidle" });
+    await openProjectBlock();
+    await page.locator("#project-name").fill("Game project");
+    const [gameDownload] = await Promise.all([page.waitForEvent("download", { timeout: 20000 }), page.getByRole("button", { name: /Export project/ }).click()]);
+    const gamePath = path.join(outDir, gameDownload.suggestedFilename());
+    await gameDownload.saveAs(gamePath);
+    await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await openProjectBlock();
+    await page.locator("#project-file-input").setInputFiles(gamePath);
+    const gameStatus = await projectStatus();
+    await page.waitForTimeout(300);
+    const back = {
+      status: gameStatus,
+      same: linkParams().get("bls") === bpCode,
+      linked: await page.getByTestId("blueprint").getAttribute("data-blueprint-link").catch(() => null),
+      about: (await page.getByTestId("blueprint-about").innerText().catch(() => "")).split("\n")[0],
+      unreadable: await page.getByTestId("blueprint-link-unreadable").isVisible().catch(() => false),
+    };
+    check("a Mode Lab game of a link survives Export and Import of a project file, by its name", bpCode.length > 500 && /Opened/.test(back.status) && back.same && back.linked === "1" && back.about === "Project Game" && !back.unreadable, `(${bpCode.length} chars, ${JSON.stringify(back)})`);
+  }
+
   // Drop the file on the panel: the outline shows while it is dragged, the drop imports it.
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
   const dropZone = page.getByTestId("project-drop-zone");
@@ -19503,6 +19538,38 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
     "mode lab: Check playability of a 400-ball crowd answers in a live region and never blocks the page",
     !!verdictOf && live === "status|polite" && longest < 250 && gap < 300,
     `(verdict=${verdictOf}, live=${live}, longest task ${watched ? `${Math.round(longest)} ms` : "not reported"}, widest timer gap ${Math.round(gap)} ms)`,
+  );
+  // a second press stops a running check: its progress is a live region, and no verdict follows
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${crowdCode}`, { waitUntil: "networkidle" });
+  const checkButton = page.getByTestId("blueprint-check");
+  await checkButton.click();
+  const progress = await page.getByTestId("blueprint-check-progress").innerText({ timeout: 3000 }).catch(() => "");
+  const runningBefore = await checkButton.getAttribute("data-running").catch(() => null);
+  await checkButton.click();
+  await page.waitForTimeout(400);
+  const stopped = {
+    progress,
+    runningBefore,
+    runningAfter: await checkButton.getAttribute("data-running").catch(() => null),
+    label: await checkButton.innerText().catch(() => ""),
+    verdict: await page.getByTestId("blueprint-verdict").count(),
+  };
+  check(
+    "mode lab: a second press of Check playability stops the check, with no verdict",
+    /^Checking run 1 of 4/.test(stopped.progress) && stopped.runningBefore === "1" && stopped.runningAfter === "0" && stopped.label === "Check playability" && stopped.verdict === 0,
+    `(${JSON.stringify(stopped)})`,
+  );
+  // Copy link where the clipboard refuses: it says so in its live status line and offers the link to select by hand
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: () => Promise.reject(new DOMException("blocked", "NotAllowedError")) } }));
+  await page.getByTestId("blueprint-copy").click();
+  const refused = {
+    field: await page.getByTestId("blueprint-link-field").inputValue({ timeout: 3000 }).catch(() => ""),
+    status: await page.getByTestId("blueprint-copy-status").innerText().catch(() => ""),
+  };
+  check(
+    "mode lab: Copy link where the clipboard refuses says it could not copy and offers the link to select",
+    refused.field.includes("mode=blueprint") && refused.field.includes(`bls=${crowdCode}`) && /^Could not copy/.test(refused.status),
+    `(${JSON.stringify({ field: refused.field.slice(0, 120), status: refused.status })})`,
   );
   await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=growEscape`, { waitUntil: "networkidle" });
   const exitRow = await page.getByTestId("blueprint").locator('[data-uncap-slider="blParam1"] label').innerText().catch(() => "");

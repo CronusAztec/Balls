@@ -1515,6 +1515,7 @@
     "blCheck": "Sprawdź, czy da się grać",
     "blChecking": "Sprawdzam…",
     "blCheckingRun": "Sprawdzam próbę {n} z {total}…",
+    "blCheckStop": "Przerwij sprawdzanie",
     "blCheckPlayable": "Da się grać. Kończy się po około {seconds} s w {ended} z {runs} prób.",
     "blCheckEndless": "Nie kończy się sama. Każdy bieg doszedł do limitu {seconds} s.",
     "blCheckBroken": "Jeszcze nie da się grać. {problem}",

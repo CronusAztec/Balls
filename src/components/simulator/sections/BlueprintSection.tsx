@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type CheckProblem, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type Blueprint, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
 
 export interface BlueprintSectionProps {
@@ -28,8 +28,9 @@ export const BLUEPRINT_KEYS = ["blPreset"];
  * changes.
  *
  * --- review fix (blueprint) --- The check runs in slices of CHECK_SLICE_MS (lib/blueprint/check.ts PlayabilityRun: a seed is
- * stepped until the slice's time is up, then the page yields), so a heavy link never blocks the tab; a new spec, a second
- * game or leaving Mode Lab cancels it. Its verdict is a live region in the visitor's language: the seconds formatted for the
+ * stepped until the slice's time is up, then the page yields), so a heavy link never blocks the tab; its progress (the run it
+ * is on) is a live region, and a second press of its button (Stop), a new spec, a second game or leaving Mode Lab cancels
+ * it. Its verdict is a live region in the visitor's language: the seconds formatted for the
  * locale, the first problem in plain words. A link whose game cannot be read (cut short) or that needs a newer site says
  * so (blueprintLinkNotice()), and no built-in game shows as picked. The sliders show their unit; Copy link says so when it
  * worked and offers the link to select by hand when the clipboard refuses.
@@ -70,6 +71,34 @@ export function blueprintVerdictLine(r: PlayabilityReport, timeoutSec: number, l
   const first = r.problems[0];
   const line = t("blCheckBroken", { problem: first ? problem(first) : "" });
   return r.problems.length > 1 ? `${line} ${t("blCheckMore", { count: r.problems.length - 1 })}` : line;
+}
+
+/**
+ * --- review fix (blueprint) --- A slider's value as the panel shows it: in the page's number format, with as many decimals
+ * as its step has, and in its unit (paramUnit(): "6 s", "21°", "30°/s", "0,6 px", "300 px/s"); a count shows bare. `unitText`
+ * says a unit's message (Blueprint.unit.<unit>) with the number filled in.
+ */
+export function blueprintParamDisplay(bp: Blueprint, i: number, value: number, locale: string, unitText: (unit: Exclude<ParamUnit, "">, n: string) => string): string {
+  const step = bp.params[i]?.step ?? 1;
+  const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+  const n = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
+  const unit = paramUnit(bp, i);
+  return unit ? unitText(unit, n) : n;
+}
+
+/**
+ * --- review fix (blueprint) --- Copy link's outcome: "copied" when the clipboard took the link, "failed" when there is no
+ * clipboard (an insecure page, an old browser) or it refused (a blocked permission), so the panel offers the link to select
+ * by hand instead of doing nothing.
+ */
+export async function copyGameLink(link: string, clipboard: Pick<Clipboard, "writeText"> | undefined | null): Promise<"copied" | "failed"> {
+  try {
+    if (!clipboard?.writeText) return "failed";
+    await clipboard.writeText(link);
+    return "copied";
+  } catch {
+    return "failed";
+  }
 }
 
 export default function BlueprintSection({ t, search, matches, settings: s, update }: BlueprintSectionProps) {
@@ -119,6 +148,11 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
     },
     [],
   );
+  // (a second press while it runs stops it: a heavy game's check can take a while, and the visitor may not want to wait)
+  const stopCheck = () => {
+    token.current++;
+    setRunning(null);
+  };
   const runCheck = () => {
     const mine = ++token.current;
     const run = new PlayabilityRun(resolved.blueprint);
@@ -150,14 +184,9 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
     const params = settingsToSearchParams(s);
     const link = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
     setCopiedLink(link);
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(link);
-      setCopy("copied");
-      setTimeout(() => setCopy((c) => (c === "copied" ? "idle" : c)), 1500);
-    } catch {
-      setCopy("failed");
-    }
+    const outcome = await copyGameLink(link, typeof navigator === "undefined" ? undefined : navigator.clipboard);
+    setCopy(outcome);
+    if (outcome === "copied") setTimeout(() => setCopy((c) => (c === "copied" ? "idle" : c)), 1500);
   };
 
   const setParam = (i: number, v: number) => {
@@ -241,11 +270,9 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
           const value = values[i] ?? paramValue(base, i);
           // a slider named by the spec: its label is the spec's (or the catalog's message), not a message key
           const paramT = Object.assign((key: string) => (key === `blParam${i}` ? label : t(key)), t) as Translate;
-          const decimals = p.step >= 1 ? 0 : p.step >= 0.1 ? 1 : 2;
           // the value in the page's number format, with its unit (s, °, °/s, px, px/s, px/s²)
-          const n = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
-          const unit = paramUnit(base, i);
-          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={{ min: p.min, max: p.max, step: p.step }} onChange={(v) => setParam(i, v)} display={unit ? unitT(unit, { n }) : n} />;
+          const display = blueprintParamDisplay(base, i, value, locale, (unit, n) => unitT(unit, { n }));
+          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={{ min: p.min, max: p.max, step: p.step }} onChange={(v) => setParam(i, v)} display={display} />;
         })}
       {/* --- How it plays: the arena, the start, every rule and the ending, in plain words */}
       {!search && (
@@ -262,12 +289,15 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
       )}
       {!search && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button type="button" onClick={runCheck} disabled={!!running} className="px-2 py-1 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-40 cursor-pointer" data-testid="blueprint-check">
-            {running ? t("blCheckingRun", { n: running.n, total: running.total }) : t("blCheck")}
+          <button type="button" onClick={running ? stopCheck : runCheck} className="px-2 py-1 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 cursor-pointer" data-testid="blueprint-check" data-running={running ? "1" : "0"}>
+            {running ? t("blCheckStop") : t("blCheck")}
           </button>
           <button type="button" onClick={() => void copyLink()} className="px-2 py-1 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 cursor-pointer" data-testid="blueprint-copy">
             {copy === "copied" ? t("blCopied") : t("blCopyLink")}
           </button>
+          <span role="status" aria-live="polite" className="text-ink-3" data-testid="blueprint-check-progress">
+            {running ? t("blCheckingRun", { n: running.n, total: running.total }) : ""}
+          </span>
           <span role="status" aria-live="polite" className="sr-only" data-testid="blueprint-copy-status">
             {copy === "copied" ? t("blCopied") : copy === "failed" ? t("blCopyFailed") : ""}
           </span>
