@@ -865,6 +865,11 @@ export interface SimulatorSettings {
   // runs that melt but never crash; off by default (URL `inf`)
   unlimited: boolean;
   // --- end unlimited ---
+  // --- slow-motion --- Slow motion, one switch over every automatic slow-motion moment (lib/simulation/realTime.ts): on (the
+  // default) everything plays as it always did; off, the run plays in real time. It travels in the physics config only while
+  // it is off (`PhysicsConfig.slowMotion: false`), and in a link only as `smo=0`, so a default link and config are unchanged
+  slowMotion: boolean;
+  // --- end slow-motion ---
   // --- uncap-all --- the uncapped Bouncier: every bounce adds (Bounciness − 1) × the Ball Speed to the rebound, with no
   // ceiling (1 = off, 1.03 = the old switch; URL `bnc`, the old boolean `bounce` still works); `bouncierEnabled` follows it
   bounciness: number;
@@ -1431,12 +1436,13 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- blueprint --- the feature's fields (out here too; a Blueprint sizes and colours its own balls)
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
+    slowMotion: true, // --- slow-motion --- (on: every slow-motion moment, as always; out here, past the core literal's fast-path limit)
   };
 }
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */> {
   return {
     mode,
     gravity: 300,
@@ -1839,6 +1845,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mpk: "multiplierPickups",
   ne: "neverEscape", // --- rigged ---
   [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1`
+  smo: "slowMotion", // --- slow-motion --- only ever written as `smo=0` (on is the default)
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -2606,6 +2613,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolvePerfectFitFields(merged)); // --- perfect-fit --- valid numbers from their minimum up, a known variant, clean lists, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
+  merged.slowMotion = preset.slowMotion !== false; // --- slow-motion --- a real boolean: only false turns it off (a preset, file or journal from before it is on)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)
   return merged;
 }

@@ -114,6 +114,7 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["cinematicEnabled", "drama director (near misses)"],
   ["screenShake", "screen shake on hits"],
   ["cameraZoom", "camera zoom"],
+  ["slowMotion", "slow motion: near misses, duel cuts, hit stops, the replay, Bullseye and the KO finale (false = real time)"], // --- slow-motion ---
   ["ballFace", "face on the ball"],
   ["ballName", "name label on the ball"],
   ["scoreboardPosition", "corner of the teams scoreboard"], // --- low-findings-2 --- (core: never a mode's setting)

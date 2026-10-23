@@ -2389,6 +2389,24 @@ export class PhysicsEngine {
   getElapsedMs() {
     return this._elapsedMs;
   }
+  // --- slow-motion --- the Slow motion switch (`PhysicsConfig.slowMotion`)
+  /**
+   * Turns Slow motion on or off. Off puts `slowMotion: false` in the config; on takes the key out again, so `{ ...engine.config }`
+   * (the fast export's engines, the finder's) is byte for byte a config from before the switch. No run restarts: the page paces
+   * the next steps by it, and a mode reads it at its next slow-motion moment.
+   */
+  setSlowMotion(on: boolean) {
+    if (on === this.slowMotionOn()) return;
+    const next: PhysicsConfig = { ...this._config };
+    if (on) delete next.slowMotion;
+    else next.slowMotion = false;
+    this._config = next;
+  }
+  /** Whether Slow motion is on (the default: no `slowMotion: false` in the config). */
+  slowMotionOn(): boolean {
+    return this._config.slowMotion !== false;
+  }
+  // --- end slow-motion ---
   // --- loop-foundation --- the loop contract (lib/loop/loopContract.ts): the mode's seamless cycle and its seams
   /** The current mode's seamless cycle length (s) when it reports one, else null (see `GameMode.cycleSeconds()`). */
   getCycleSeconds(): number | null {

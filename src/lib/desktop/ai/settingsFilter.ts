@@ -73,6 +73,7 @@ const CONCEPTS: readonly (readonly [RegExp, readonly string[]])[] = [
   [/pulse|breath|puls|oddych|respir/, ["pulse"]],
   [/thick|width|grub|szerok|grosor|ancho/, ["thickness"]],
   [/drama|cinemat|director|near miss|film/, ["drama", "director"]],
+  [/slow.?mo|bullet time|real.?time|zwolnion|spowolni|czas rzeczywist|cámara lenta|camara lenta|ralent|tiempo real/, ["slow motion"]], // --- slow-motion ---
 ];
 
 /** Request words too common to point at a setting. */

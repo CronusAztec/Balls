@@ -102,6 +102,7 @@ export function physicsConfigOfSettings(s: SimulatorSettings, world: BotWorld = 
     // --- unlimited --- the extreme-values runtime as the page's engine gets it (--- uncap-all --- engaged by any value past its
     // slider, whatever the switch: planned steps, the crowd, ARENA FULL); nothing at the sliders' values
     ...uncapConfigIfEngaged(s),
+    ...(s.slowMotion === false ? { slowMotion: false as const } : {}), // --- slow-motion --- (only while it is off: nothing in a default config)
   };
 }
 

@@ -476,6 +476,7 @@ export default function Simulator() {
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
       ...ringEscapeConfigOf(s), // --- ring-escape --- (the first run's rings already laid out as the settings say)
       ...uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), pastAnyMemoryCeiling(s)), // --- unlimited --- (before the first run: its crowd; --- uncap-all --- engaged by any value past its slider)
+      ...(s.slowMotion === false ? { slowMotion: false as const } : {}), // --- slow-motion --- (a link's smo=0 from the first run; nothing while it is on)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -549,6 +550,20 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setConfig(uncapConfigOf(uncapEngaged, s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), uncapMemoryFull));
   }, [uncapEngaged, uncapMemoryFull, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- slow-motion --- the Slow motion switch travels in the physics config (`slowMotion: false` only while it is off, so a
+  // default config is what it was): the fast export's engines, the batch, the render queue and the finder copy it with the rest.
+  // Turning it over drops a found seed, as any setting that can change a run does (Bullseye and the Fight League finale)
+  const slowMotionRef = useRef(s.slowMotion);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setSlowMotion(s.slowMotion);
+    if (slowMotionRef.current === s.slowMotion) return;
+    slowMotionRef.current = s.slowMotion;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.slowMotion]);
+  // --- end slow-motion ---
   useEffect(() => {
     engineRef.current?.setConfig({
       gravity: s.gravity,

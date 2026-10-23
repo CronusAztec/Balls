@@ -282,6 +282,15 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** The loop family's voices: a pluck per bounce pitched by the ring, a rising step per ring escaped, the chord at the way out. */
   ringSound?: boolean;
   // --- end ring-escape ---
+  // --- slow-motion ---
+  /**
+   * Slow motion is off (the settings' `slowMotion`, link `smo=0`): the run plays in real time. Only ever `false` – while it is
+   * on (the default) the key is absent, so a default config is byte for byte what it was (`physicsConfigOfSettings()`,
+   * `PhysicsEngine.setSlowMotion()`). Read it as `config.slowMotion !== false`. The page, the fast export and the finder pace
+   * the same steps by it; a mode whose own clock slows down for a moment reads it there.
+   */
+  slowMotion?: false;
+  // --- end slow-motion ---
 }
 
 export interface SoundEvent {
