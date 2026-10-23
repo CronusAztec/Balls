@@ -126,11 +126,22 @@ export function encodeBlueprint(bp: Blueprint): string {
   return BLUEPRINT_CODE_PREFIX + bytesToBase64Url(new TextEncoder().encode(blueprintJson(bp)));
 }
 
-export type BlueprintDecodeResult = { ok: true; raw: unknown } | { ok: false; error: string };
+/**
+ * --- review fix (blueprint) --- The format a code's prefix names: 1 for `b1.`, 2 for `b2.` (a later format, which a newer
+ * version writes), …; 0 when it names none (not a code, or cut inside its prefix).
+ */
+export function blueprintCodeFormat(code: string): number {
+  const m = /^b([1-9]\d{0,5})\./.exec(code);
+  return m ? Number(m[1]) : 0;
+}
+
+/** --- review fix (blueprint) --- `newer`: the code is a later format (`b2.` …) that a newer version writes, not a damaged one. */
+export type BlueprintDecodeResult = { ok: true; raw: unknown } | { ok: false; error: string; newer?: string };
 
 /**
  * The raw JSON a code carries – a bare code, or a link / query string with `bls=<code>` – for sanitizeBlueprint(). Refuses a
- * code longer than BLUEPRINT_CODE_MAX_CHARS, another format than `b1.`, bad base64url, bad UTF-8 and bad JSON.
+ * code longer than BLUEPRINT_CODE_MAX_CHARS, another format than `b1.`, bad base64url, bad UTF-8 and bad JSON. A later
+ * format (`b<n>.` with n > 1) is refused as `newer`: the page says the game needs a newer site, not that the link is cut.
  */
 export function decodeBlueprint(text: string): BlueprintDecodeResult {
   if (typeof text !== "string") return { ok: false, error: "not a text" };
@@ -144,6 +155,8 @@ export function decodeBlueprint(text: string): BlueprintDecodeResult {
     return { ok: false, error: "the code is not a valid link parameter" };
   }
   if (code.length > BLUEPRINT_CODE_MAX_CHARS) return { ok: false, error: `the code is longer than ${BLUEPRINT_CODE_MAX_CHARS} characters` };
+  const format = blueprintCodeFormat(code);
+  if (format > 1) return { ok: false, error: `a Blueprint code starts with "${BLUEPRINT_CODE_PREFIX}" here: this one is format ${format} ("b${format}."), which a newer version of JumpingBallsLive writes`, newer: `b${format}.` };
   if (!code.startsWith(BLUEPRINT_CODE_PREFIX)) return { ok: false, error: `a Blueprint code starts with "${BLUEPRINT_CODE_PREFIX}" (a newer version of JumpingBallsLive may read other formats)` };
   const bytes = base64UrlToBytes(code.slice(BLUEPRINT_CODE_PREFIX.length));
   if (!bytes) return { ok: false, error: "the code is not base64url" };

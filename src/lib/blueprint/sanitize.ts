@@ -902,6 +902,9 @@ function walk(raw: unknown, strict: boolean): { blueprint: Blueprint; issues: st
   unknownFields(rd, "$", root, TOP_FIELDS);
   const v = own(root, "v");
   if (v !== 1) issue(rd, "v", v === undefined ? "missing (1)" : typeof v === "number" && v > 1 ? `version ${v} needs a newer version of JumpingBallsLive` : `must be 1, got ${kindOf(v)}`);
+  // --- review fix (blueprint) --- a newer format of the spec is said like a feature it needs (one note each), so the page
+  // says the game needs a newer site instead of counting the version among the values fixed
+  const newerFormat = typeof v === "number" && v > 1 ? `v${plainText(String(v), 12)}` : "";
   const meta = readMeta(rd, own(root, "meta"));
   const arena = readArena(rd, own(root, "arena"));
   const bodies = readBodies(rd, own(root, "bodies"));
@@ -918,7 +921,7 @@ function walk(raw: unknown, strict: boolean): { blueprint: Blueprint; issues: st
   const blueprint: Blueprint = { v: 1, meta: metaOut, arena, bodies, tiles, obstacles, vars, spawners, rules, finish, hud, look, sound, params: [] };
   checkPaletteRefs(rd, blueprint);
   blueprint.params = readParams(rd, own(root, "params"), blueprint);
-  return { blueprint, issues: rd.issues, newer };
+  return { blueprint, issues: rd.issues, newer: newerFormat ? [newerFormat, ...newer] : newer };
 }
 
 /** Shrinks a spec whose canonical JSON is past the byte ceiling: the description, then rules, obstacles, HUD and spawners from the end. */
@@ -969,7 +972,10 @@ export interface SanitizeResult {
   blueprint: Blueprint;
   /** What was changed or dropped, as `path: sentence`. */
   notes: string[];
-  /** Features the spec needs that this version does not know (a newer version wrote it): play it only after saying so. */
+  /**
+   * Features the spec needs that this version does not know (a newer version wrote it): play it only after saying so. A newer
+   * format of the spec itself comes first, as `v<version>` ("v2").
+   */
   newer: string[];
 }
 

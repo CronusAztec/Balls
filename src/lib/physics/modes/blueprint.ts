@@ -1,5 +1,5 @@
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId } from "@/lib/blueprint/catalog";
-import { BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_CODE_PREFIX, BLUEPRINT_LINK_KEYS, decodeBlueprint } from "@/lib/blueprint/codec";
+import { BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_CODE_PREFIX, BLUEPRINT_LINK_KEYS, blueprintCodeFormat, decodeBlueprint } from "@/lib/blueprint/codec";
 import { BLUEPRINT_MAX_SUBSTEPS } from "@/lib/blueprint/limits";
 import { applyBlueprintParams, formatParamValues, parseParamValues } from "@/lib/blueprint/params";
 import { sanitizeBlueprint } from "@/lib/blueprint/sanitize";
@@ -62,11 +62,15 @@ export const BLUEPRINT_ENGINE_KEYS = ["blPreset", "blSpec", "blParams"] as const
 /** How long the result stays on screen under the end banner before the run counts as finished (s). */
 export const END_HOLD_SEC = 1.5;
 
-/** A `b1.` code that may be a Blueprint (the decoder has the last word), or "". */
+/**
+ * A `b1.` code that may be a Blueprint (the decoder has the last word), or "". --- review fix (blueprint) --- A code of a later
+ * format (`b2.` …) is kept too: the decoder refuses it as newer, the panel says the game needs a newer site, and a copied
+ * link still carries the friend's game.
+ */
 function cleanCode(value: unknown): string {
   if (typeof value !== "string") return "";
   const t = value.trim();
-  return t.startsWith(BLUEPRINT_CODE_PREFIX) && t.length <= BLUEPRINT_CODE_MAX_CHARS && /^[A-Za-z0-9._-]+$/.test(t) ? t : "";
+  return blueprintCodeFormat(t) >= 1 && t.length <= BLUEPRINT_CODE_MAX_CHARS && /^[A-Za-z0-9._-]+$/.test(t) ? t : "";
 }
 
 /** Fills in the defaults: a known catalog id, a plausible code, clean slider values. */
@@ -135,7 +139,10 @@ export interface ResolvedBlueprint {
   base: Blueprint;
   /** What the sanitizer repaired or dropped, and why a link's spec could not be read. */
   notes: string[];
-  /** Features a newer version wrote (the spec plays without them). */
+  /**
+   * Features a newer version wrote (the spec plays without them), the spec's own newer format first (`v2`); or, for a link of
+   * a later code format (`b2.`, unreadable here), that format.
+   */
   newer: string[];
   /** --- review fix (blueprint) --- A link's Blueprint was given but could not be read (cut short, damaged): the catalog entry plays. */
   unreadable: boolean;
@@ -157,6 +164,8 @@ export function resolveBlueprintSpec(settings: BlueprintSettings): ResolvedBluep
       newer = s.newer;
     } else {
       unreadable = true;
+      // --- review fix (blueprint) --- a later link format is a game for a newer site, not a link cut short
+      if (decoded.newer) newer = [decoded.newer];
       notes.push(`$: the link's Blueprint could not be read (${decoded.error}); playing the catalog entry instead`);
     }
   }

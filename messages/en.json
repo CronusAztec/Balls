@@ -1509,6 +1509,7 @@
     "blLinkNote": "This game came with a link. Pick one from the list to go back to the built-in games.",
     "blLinkUnreadable": "This game link could not be read. It may be cut short.",
     "blLinkNewer": "This game needs a newer version of the site. Parts of it may not play.",
+    "blLinkNewerFormat": "This game link needs a newer version of the site. A built-in game plays instead.",
     "blRepaired": "Values fixed on load: {count}",
     "blHow": "How it plays",
     "blCheck": "Check playability",

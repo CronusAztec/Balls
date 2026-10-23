@@ -1509,6 +1509,7 @@
     "blLinkNote": "Ta gra przyszła z linkiem. Wybierz grę z listy, żeby wrócić do wbudowanych.",
     "blLinkUnreadable": "Nie udało się odczytać linku do gry. Mógł zostać ucięty.",
     "blLinkNewer": "Ta gra wymaga nowszej wersji strony. Część z niej może nie działać.",
+    "blLinkNewerFormat": "Ten link do gry wymaga nowszej wersji strony. W zamian działa jedna z wbudowanych gier.",
     "blRepaired": "Wartości poprawione przy wczytaniu: {count}",
     "blHow": "Jak się gra",
     "blCheck": "Sprawdź, czy da się grać",

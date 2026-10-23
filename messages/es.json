@@ -1509,6 +1509,7 @@
     "blLinkNote": "Este juego llegó con un enlace. Elige uno de la lista para volver a los juegos incluidos.",
     "blLinkUnreadable": "No se pudo leer el enlace del juego. Puede que esté cortado.",
     "blLinkNewer": "Este juego necesita una versión más nueva del sitio. Puede que una parte no funcione.",
+    "blLinkNewerFormat": "Este enlace de juego necesita una versión más nueva del sitio. En su lugar se carga un juego incluido.",
     "blRepaired": "Valores corregidos al cargar: {count}",
     "blHow": "Cómo se juega",
     "blCheck": "Comprobar si se puede jugar",

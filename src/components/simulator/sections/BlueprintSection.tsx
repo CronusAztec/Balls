@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
-import { blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint";
+import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
 
 export interface BlueprintSectionProps {
   t: Translate;
@@ -31,12 +31,28 @@ export const BLUEPRINT_KEYS = ["blPreset"];
  * stepped until the slice's time is up, then the page yields), so a heavy link never blocks the tab; a new spec, a second
  * game or leaving Mode Lab cancels it. Its verdict is a live region in the visitor's language: the seconds formatted for the
  * locale, the first problem in plain words. A link whose game cannot be read (cut short) or that needs a newer site says
- * so, and no built-in game shows as picked. The sliders show their unit; Copy link says so when it worked and offers the
- * link to select by hand when the clipboard refuses.
+ * so (blueprintLinkNotice()), and no built-in game shows as picked. The sliders show their unit; Copy link says so when it
+ * worked and offers the link to select by hand when the clipboard refuses.
  */
 
 /** How long one slice of the check may run before the page yields (ms): well under a frame's budget at 60 fps. */
 export const CHECK_SLICE_MS = 12;
+
+/** What the panel says about a link's game: cut short, a newer site's link format, a game that needs a newer site, or nothing. */
+export type BlueprintLinkNotice = "unreadable" | "newerFormat" | "newer" | null;
+
+/**
+ * --- review fix (blueprint) --- The panel's line about the game a link brought, and how many values were fixed on load. A
+ * link that could not be read plays a built-in game: cut short ("unreadable") or of a later format that only a newer site
+ * reads ("newerFormat"). A game that reads but needs a newer site (a newer spec format, a feature this site does not know)
+ * plays without what it needs ("newer"). The link's own notes – the one that it could not be read, one for each newer need –
+ * are said in words, never counted among the values fixed.
+ */
+export function blueprintLinkNotice(r: Pick<ResolvedBlueprint, "notes" | "newer" | "unreadable">): { notice: BlueprintLinkNotice; fixed: number } {
+  const notice: BlueprintLinkNotice = r.unreadable ? (r.newer.length > 0 ? "newerFormat" : "unreadable") : r.newer.length > 0 ? "newer" : null;
+  const said = r.unreadable ? 1 : r.newer.length;
+  return { notice, fixed: Math.max(0, r.notes.length - said) };
+}
 export default function BlueprintSection({ t, search, matches, settings: s, update }: BlueprintSectionProps) {
   const b = useTranslations("Blueprints");
   const how = useTranslations("Blueprint.how");
@@ -48,7 +64,7 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   // (a link's game that could not be read plays the catalog's default: it is not the visitor's pick, and the notes about it
   // are said in words below, not counted as values fixed)
   const unreadable = resolved.unreadable;
-  const repaired = resolved.notes.length - (unreadable ? 1 : 0) - resolved.newer.length;
+  const link = blueprintLinkNotice(resolved);
   const base = resolved.base;
   const values = parseParamValues(s.blParams);
   const catalogKey = (id: string, key: string) => (b.has(`${id}.${key}`) ? b(`${id}.${key}`) : null);
@@ -189,17 +205,21 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
           <p className="text-sm font-semibold text-ink">{name}</p>
           {description && <p className="text-xs text-ink-2 leading-relaxed">{description}</p>}
           {fromLink && <p className="text-xs text-ink-3">{t("blLinkNote")}</p>}
-          {unreadable && (
+          {link.notice === "unreadable" && (
             <p className="text-xs text-warn" data-testid="blueprint-link-unreadable">
               {t("blLinkUnreadable")}
             </p>
           )}
-          {resolved.newer.length > 0 && (
-            <p className="text-xs text-warn" data-testid="blueprint-link-newer">
-              {t("blLinkNewer")}
+          {(link.notice === "newer" || link.notice === "newerFormat") && (
+            <p className="text-xs text-warn" data-testid="blueprint-link-newer" data-newer={link.notice}>
+              {link.notice === "newer" ? t("blLinkNewer") : t("blLinkNewerFormat")}
             </p>
           )}
-          {repaired > 0 && <p className="text-xs text-warn">{t("blRepaired", { count: repaired })}</p>}
+          {link.fixed > 0 && (
+            <p className="text-xs text-warn" data-testid="blueprint-repaired">
+              {t("blRepaired", { count: link.fixed })}
+            </p>
+          )}
         </div>
       )}
       {/* the spec's own sliders (named by the spec, so the settings search leaves them out) */}

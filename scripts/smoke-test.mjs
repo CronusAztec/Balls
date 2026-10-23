@@ -19413,6 +19413,26 @@ const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`
   const unreadable = await page.getByTestId("blueprint-link-unreadable").isVisible().catch(() => false);
   const picked = await page.getByTestId("blueprint-catalog").getAttribute("data-value").catch(() => null);
   check("mode lab: a cut game link says it could not be read, and no built-in game shows as picked", unreadable && picked === "", `(notice=${unreadable}, picked=${JSON.stringify(picked)})`);
+  // a game of a newer site: a spec of format 2 plays and says it needs a newer site; a later link format (b2.) plays a
+  // built-in game and says why; neither is a link cut short, nor counted among the values fixed
+  const linkNotice = async (code) => {
+    await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${code}`, { waitUntil: "networkidle" });
+    const shown = (id) => page.getByTestId(id).isVisible().catch(() => false);
+    return {
+      newer: await page.getByTestId("blueprint-link-newer").getAttribute("data-newer", { timeout: 3000 }).catch(() => null),
+      unreadable: await shown("blueprint-link-unreadable"),
+      fixed: await shown("blueprint-repaired"),
+      picked: await page.getByTestId("blueprint-catalog").getAttribute("data-value").catch(() => null),
+      link: await page.getByTestId("blueprint").getAttribute("data-blueprint-link").catch(() => null),
+    };
+  };
+  const v2 = await linkNotice(`b1.${Buffer.from(JSON.stringify({ ...crowd, v: 2 })).toString("base64url")}`);
+  const b2 = await linkNotice(`b2.${crowdCode.slice(3)}`);
+  check(
+    "mode lab: a game link of a newer site says it needs a newer version, never as a cut link or as values fixed",
+    v2.newer === "newer" && !v2.unreadable && !v2.fixed && v2.link === "1" && b2.newer === "newerFormat" && !b2.unreadable && !b2.fixed && b2.picked === "",
+    `(${JSON.stringify({ v2, b2 })})`,
+  );
   await page.goto(`${BASE}/en/simulator/?mode=blueprint&bls=${crowdCode}`, { waitUntil: "networkidle" });
   const watched = await page.evaluate(() => {
     // two witnesses: the long tasks Chromium reports, and the widest gap between ticks of a 20 ms timer

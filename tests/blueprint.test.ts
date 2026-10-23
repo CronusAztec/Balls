@@ -10,7 +10,8 @@ import { modeDetail } from "@/lib/agentKit/modeCatalog";
 import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
 import enMessages from "../messages/en.json";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
-import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, catalogBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
+import { blueprintLinkNotice } from "@/components/simulator/sections/BlueprintSection";
 import { resolveProjectSettings } from "@/lib/project";
 import { EMPTY_QUEUE, enqueue, journalOf, restoreQueue } from "@/lib/desktop/renderQueue";
 
@@ -246,6 +247,36 @@ describe("blueprint: a link's game through a project file and the render queue",
     expect(resolveBlueprintSpec(blueprintSettingsOf(huge)).unreadable).toBe(true);
     const fine = settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${code}`));
     expect(resolveBlueprintSpec(blueprintSettingsOf(fine))).toMatchObject({ unreadable: false, catalogId: "" });
+  });
+
+  // --- review fix (blueprint) --- a game of a newer site: its spec format, a feature it needs, or a later link format
+  it("says a link's game needs a newer site – a newer spec format, an unknown feature or a later link format – never as values fixed", () => {
+    const resolved = (bls: string) => resolveBlueprintSpec(blueprintSettingsOf(settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${bls}`))));
+    const codeOf = (raw: unknown) => `b1.${Buffer.from(JSON.stringify(raw)).toString("base64url")}`;
+    const raw = JSON.parse(blueprintJson(mine)) as Record<string, unknown>;
+    // a spec of format 2 in a b1. code: it plays as far as this site reads it, and the panel says it needs a newer one
+    const v2 = resolved(codeOf({ ...raw, v: 2 }));
+    expect([v2.unreadable, v2.catalogId, v2.newer, v2.blueprint.meta.name]).toEqual([false, "", ["v2"], "My Conquest"]);
+    expect(blueprintLinkNotice(v2)).toEqual({ notice: "newer", fixed: 0 });
+    // a feature this site does not know
+    const needs = resolved(codeOf({ ...raw, meta: { ...(raw.meta as object), needs: ["portals"] } }));
+    expect([needs.unreadable, needs.newer]).toEqual([false, ["portals"]]);
+    expect(blueprintLinkNotice(needs)).toEqual({ notice: "newer", fixed: 0 });
+    // a later link format: refused as newer, not as damaged; a built-in game plays and the panel says why
+    const b2Code = `b2.${code.slice(3)}`;
+    expect(decodeBlueprint(b2Code)).toMatchObject({ ok: false, newer: "b2." });
+    const b2 = resolved(b2Code);
+    expect([b2.unreadable, b2.catalogId, b2.newer]).toEqual([true, "hatchery", ["b2."]]);
+    expect(blueprintLinkNotice(b2)).toEqual({ notice: "newerFormat", fixed: 0 });
+    // (the link keeps the friend's code: a copied link still opens the game on a newer site)
+    expect(settingsToSearchParams(settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${b2Code}`))).get("bls")).toBe(b2Code);
+    // a link cut short says so, a damaged prefix is no newer format, and values really fixed are still counted
+    const cut = resolved(code.slice(0, Math.floor(code.length * 0.6)));
+    expect([cut.newer, blueprintLinkNotice(cut)]).toEqual([[], { notice: "unreadable", fixed: 0 }]);
+    for (const bad of [`b0.${code.slice(3)}`, `b1x${code.slice(3)}`, `x2.${code.slice(3)}`]) expect(decodeBlueprint(bad), bad).not.toHaveProperty("newer");
+    const both = resolved(codeOf({ ...raw, v: 2, arena: { ...(raw.arena as object), size: 1.4 } }));
+    expect(blueprintLinkNotice(both)).toEqual({ notice: "newer", fixed: 1 });
+    expect(blueprintLinkNotice(resolved(code))).toEqual({ notice: null, fixed: 0 });
   });
 });
 
