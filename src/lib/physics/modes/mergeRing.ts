@@ -615,7 +615,8 @@ export class MergeRingMode implements GameMode {
     // --- bounce-math --- the ball's own bounciness on top (after the restitution cap), lifting at most to the ball speed × it
     const ballBounce = ball.restitution ?? 1;
     const lift = ballBounce > 1 ? (ctx.config.ballSpeed || 400) * bounciness * ballBounce : Infinity;
-    const impact = rebound(ball, nx, ny, 0, 0, RIM_RESTITUTION * bounciness, RIM_FRICTION, ballBounce, lift);
+    const wallLift = bounciness > 1 ? (ctx.config.ballSpeed || 400) * bounciness : Infinity; // --- unlimited-sizes --- (a bouncier rim past the restitution cap)
+    const impact = rebound(ball, nx, ny, 0, 0, RIM_RESTITUTION * bounciness, RIM_FRICTION, ballBounce, lift, bounciness, wallLift);
     this.touching.add(ball.id);
     if (impact < THUD_SPEED) return;
     ctx.noteBounce?.(ball); // --- bounce-math --- a rim rebound is a bounce

@@ -739,10 +739,11 @@ export class RaceMode implements GameMode {
     const rows = track.rows;
     const bounciness = ctx.getPhysicsExtras().wallBounciness;
     const separation = RACE_SEPARATION_REL * track.field.size; // --- review fix (modes-rhythm) --- (scale-free, not a fixed 0.01 px)
+    const wallLift = bounciness > 1 ? this.motion.vmax * bounciness : Infinity; // --- unlimited-sizes --- (a bouncier wall past the restitution cap, at most the terminal speed × it)
     for (let k = firstRowFrom(rows, ball.y - reach); k < rows.length && rows[k].top <= ball.y + reach; k++) {
       const row = rows[k];
       for (const o of row.obstacles) {
-        const impact = resolveBallObstacle(ball, o.shape, dtSec, bounciness, separation);
+        const impact = resolveBallObstacle(ball, o.shape, dtSec, bounciness, separation, 1, Infinity, bounciness, wallLift);
         if (impact < 0) continue;
         if (o.role === "bumper" && impact > 0) this.kick(ball, o.shape.x, o.shape.y);
         if (impact < this.hitSpeed) continue;

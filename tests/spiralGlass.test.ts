@@ -496,6 +496,20 @@ describe("the mode in the engine", () => {
     expect(st.q).toBeCloseTo(channelEnd(L, L.ballRadius), 9);
   });
 
+  it("--- unlimited-sizes --- keeps any hit points a tile is given: 256 or 300 never wrap (a byte made them 0 and 44)", () => {
+    for (const glassHp of [255, 256, 300, 100_000]) {
+      const engine = spiralEngine({ glassHp, chipEvery: 0.05, maxBalls: 1 }, 5);
+      const v = engine.getSpiralGlassView();
+      expect([glassHp, [...new Set(v.hp)]]).toEqual([glassHp, [glassHp]]);
+      expect(v.hpTotal).toBe(v.tilesTotal * glassHp);
+      run(engine, 6);
+      // every chip grinds the first standing tile a hit point: none of these is through it yet
+      expect(v.chips).toBeGreaterThan(20);
+      expect(v.chips).toBeLessThan(glassHp);
+      expect([glassHp, Math.min(...v.hp), v.tilesLeft, v.hpLeft]).toEqual([glassHp, glassHp - v.chips, v.tilesTotal, v.hpTotal - v.chips]);
+    }
+  });
+
   it("the queue: balls behind wait a diameter back, never on one another, and every ball pressing behind the front grinds with it", () => {
     let worst = 0;
     const lone = spiralEngine({ maxBalls: 1 }, 8);

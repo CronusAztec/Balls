@@ -1013,10 +1013,11 @@ export class BullseyeMode implements GameMode {
       // --- bounce-math --- the ball's own bounciness on top (after the restitution cap), lifting at most to the ball speed × it
       const ballBounce = ball.restitution ?? 1;
       const lift = ballBounce > 1 ? (ctx.config.ballSpeed || 400) * bounciness * ballBounce * this.timeScale : Infinity;
+      const wallLift = bounciness > 1 ? (ctx.config.ballSpeed || 400) * bounciness * this.timeScale : Infinity; // --- unlimited-sizes --- (a bouncier wall past the restitution cap)
       for (let i = 0; i < this.stuck.length; i++) {
         const o = this.stuck[i];
         const approach = Math.hypot(ball.vx, ball.vy) / this.timeScale;
-        const impact = resolveBallCircle(ball, o, dtSec, bounciness, undefined, ballBounce, lift);
+        const impact = resolveBallCircle(ball, o, dtSec, bounciness, undefined, ballBounce, lift, bounciness, wallLift);
         if (impact < 0) continue;
         this.touchMs[k] = this.worldMs;
         // A slow drop onto a stuck ball sticks to it (a dart in a dart); a fast one is deflected.

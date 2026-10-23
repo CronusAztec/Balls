@@ -258,9 +258,10 @@ export class SplatField {
    * Resolves `ball` against the standing splats beside it (after `prepare()`): push-out and rebound (restitution ×
    * `restitutionScale`, the ball's own bounciness and lift as for every obstacle). A contact at `hitSpeed` or more counts
    * as a hit (the canvas squishes the splat). Returns the ring of a hit that should sound (at most
-   * `MAX_SPLAT_HIT_SOUNDS_PER_STEP` a step), or −1.
+   * `MAX_SPLAT_HIT_SOUNDS_PER_STEP` a step), or −1. --- unlimited-sizes --- `wallScale` / `wallLift`: the wall-bounciness
+   * extra inside `restitutionScale` and its lift (obstacles.ts `rebound()`).
    */
-  collide(ball: Ball, dtSec: number, cx: number, cy: number, restitutionScale: number, hitSpeed: number, nowMs: number, ballRestitution = 1, liftSpeed = Infinity): number {
+  collide(ball: Ball, dtSec: number, cx: number, cy: number, restitutionScale: number, hitSpeed: number, nowMs: number, ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity): number {
     const dx = ball.x - cx;
     const dy = ball.y - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -283,7 +284,7 @@ export class SplatField {
       for (let j = this.sectorStart[sector]; j < this.sectorStart[sector + 1]; j++) {
         const s = this.splats[this.order[j]];
         if (dist >= s.ringRadius) continue; // only the balls inside its ring
-        const impact = resolveBallCircle(ball, s, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed);
+        const impact = resolveBallCircle(ball, s, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed, wallScale, wallLift);
         if (impact < hitSpeed) continue; // no contact (−1) or a soft one
         this.hits++;
         s.hitMs = nowMs;

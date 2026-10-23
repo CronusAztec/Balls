@@ -1323,6 +1323,7 @@ export class ConveyorMode implements GameMode {
     const v = this.view;
     const bounciness = ctx.getPhysicsExtras().wallBounciness;
     const ballBounce = ball.restitution ?? 1; // --- bounce-math --- the ball's own bounciness on top of the obstacle's
+    const wallLift = bounciness > 1 ? (ctx.config.ballSpeed || 400) * bounciness : Infinity; // --- unlimited-sizes --- (a bouncier wall past the restitution cap)
     // The frozen balls are obstacles (resolved here, so a frozen ball never pushes itself).
     for (let i = 0; i < this.frozen.length; i++) {
       const o = this.frozen[i];
@@ -1330,7 +1331,7 @@ export class ConveyorMode implements GameMode {
       const dx = ball.x - o.x;
       const dy = ball.y - o.y;
       if (dx * dx + dy * dy > reach * reach) continue;
-      const impact = resolveBallCircle(ball, o, dtSec, bounciness, undefined, ballBounce);
+      const impact = resolveBallCircle(ball, o, dtSec, bounciness, undefined, ballBounce, Infinity, bounciness, wallLift);
       if (impact >= COLLIDE_SOUND_SPEED) {
         ctx.noteBounce?.(ball); // --- bounce-math ---
         this.note(ctx, conveyorFrozenPitch(v.settings.scale, v.settings.rootNote), 0.55, 2);
@@ -1344,7 +1345,7 @@ export class ConveyorMode implements GameMode {
         d.x = ctx.config.width / 2;
         d.y = ctx.config.height / 2;
         d.radius = walls[walls.length - 1].radius + 1;
-        resolveBallCircle(ball, d, dtSec, bounciness, undefined, ballBounce);
+        resolveBallCircle(ball, d, dtSec, bounciness, undefined, ballBounce, Infinity, bounciness, wallLift);
       }
     }
     // The belt's underside: nothing flies above it.

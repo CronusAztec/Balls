@@ -2,7 +2,7 @@ import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type Sc
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { ChainStepper, PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
-import { CHAIN_BOB_CEILING, atLeastMin, memoryCeiling, signedUncapped } from "@/lib/uncap"; // --- uncap-all ---
+import { CHAIN_BOB_CEILING, CHAIN_WORK_CEILING, atLeastMin, memoryCeiling, signedUncapped } from "@/lib/uncap"; // --- uncap-all ---
 // --- chaos-fan --- hundreds of double pendulums a hair apart, batched; the palindrome loop
 import type { LoopSeams } from "../types";
 import { CHAOS_FAN_RANGES, ChaosFanRun, DEFAULT_CHAOS_FAN_SETTINGS, FAN_BOB_PER_BALL_PX, FAN_REACH_SHARE, readChaosFanParams, resolveChaosFanInto, writeChaosFanParams, type ChaosFanView, type DpColourBy } from "../chaosFan";
@@ -181,7 +181,7 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
   return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
-/** Fills in the defaults and clamps every value to its range (counts and angles become whole numbers, segments 2 or 3; unknown layouts, scales and non-boolean flags fall back to the defaults). */
+/** Fills in the defaults and clamps every value to its range (counts and angles become whole numbers, at least 2 segments; unknown layouts, scales and non-boolean flags fall back to the defaults). */
 export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSettings> | null | undefined): DoublePendulumSettings {
   const out = { ...DEFAULT_DOUBLE_PENDULUM_SETTINGS };
   if (!config) return out;
@@ -189,8 +189,10 @@ export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSett
   // --- uncap-all --- no maximum; the chains and their links a run builds stop at their memory-safety ceilings
   if (config.count !== undefined) out.count = memoryCeiling("dpCount", Math.round(clampNumber(config.count, R.dpCount, out.count)));
   if (config.segments !== undefined) out.segments = memoryCeiling("dpSegments", Math.round(clampNumber(config.segments, R.dpSegments, out.segments)));
-  // (--- uncap-all --- the chains and their links together: at most CHAIN_BOB_CEILING bobs – memory-safety, ARENA FULL past it)
-  if (out.count * out.segments > CHAIN_BOB_CEILING) out.count = Math.max(1, Math.floor(CHAIN_BOB_CEILING / out.segments));
+  // (--- uncap-all --- the chains and their links together: at most CHAIN_BOB_CEILING bobs – memory-safety, ARENA FULL past it;
+  // --- unlimited-sizes --- and CHAIN_WORK_CEILING work, which only binds past 8 links: doublePendulumPastCeiling() reports it)
+  const chains = chainCountCeiling(out.segments);
+  if (out.count > chains) out.count = chains;
   if (config.length1 !== undefined) out.length1 = clampNumber(config.length1, R.dpLength1, out.length1);
   if (config.length2 !== undefined) out.length2 = clampNumber(config.length2, R.dpLength2, out.length2);
   if (config.length3 !== undefined) out.length3 = clampNumber(config.length3, R.dpLength3, out.length3);
@@ -215,6 +217,25 @@ export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSett
   if (config.rootNote !== undefined) out.rootNote = normalizeRootNote(config.rootNote);
   resolveChaosFanInto(config, out, memoryCeiling); // --- chaos-fan --- (numbers from their minimum up; the fan's pendulums at their memory-safety ceiling)
   return out;
+}
+
+/**
+ * --- unlimited-sizes --- The most pendulums of `segments` links a harp run builds: CHAIN_BOB_CEILING bobs and
+ * CHAIN_WORK_CEILING work (pendulums × links²) at most, and always one.
+ */
+export function chainCountCeiling(segments: number): number {
+  return Math.max(1, Math.floor(Math.min(CHAIN_BOB_CEILING / segments, CHAIN_WORK_CEILING / (segments * segments))));
+}
+
+/**
+ * --- unlimited-sizes --- True when a harp run builds fewer pendulums than the fields ask for, because the pendulums and
+ * their links pass `chainCountCeiling()` (ARENA FULL: the settings' `pastAnyMemoryCeiling()`). The fan builds its own
+ * batch and sparring always swings two, so neither is cut.
+ */
+export function doublePendulumPastCeiling(source: Pick<DoublePendulumSettingFields, "dpCount" | "dpSegments" | "dpSpar"> & { dpFan?: boolean }): boolean {
+  if (source.dpFan === true || source.dpSpar === true) return false;
+  const asked = memoryCeiling("dpCount", Math.round(clampNumber(source.dpCount, DOUBLE_PENDULUM_RANGES.dpCount, DEFAULT_DOUBLE_PENDULUM_SETTINGS.count)));
+  return resolveDoublePendulumSettings({ count: source.dpCount, segments: source.dpSegments }).count < asked;
 }
 
 /** What the settings object may carry besides the Double Pendulum fields: the clip length and the tuning of the Sound section. */

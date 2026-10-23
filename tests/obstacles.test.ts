@@ -253,6 +253,46 @@ describe("rebound and dispatch", () => {
     expect(onBar.vy).toBeCloseTo(-150, 9);
   });
 
+  it("--- unlimited-sizes --- lets a wall bounciness above 1 lift a rebound past the cap that swallowed it, bounded by its lift", () => {
+    const bounce = (scale: number, material = 0.7, wallLift = Infinity, vy = 100) => {
+      const b = ball(0, 0, 0, vy);
+      rebound(b, 0, -1, 0, 0, material * scale, 0, 1, Infinity, scale, wallLift);
+      return -b.vy;
+    };
+    // 0.7 × 1.4 and 0.7 × 1.5 were both held at 0.98: the bouncier wall changed nothing. Now 1.5 rebounds harder.
+    expect(bounce(1.4)).toBeCloseTo(100 * MAX_OBSTACLE_RESTITUTION, 10);
+    expect(bounce(1.5)).toBeCloseTo(105, 10);
+    expect(bounce(3)).toBeCloseTo(210, 10);
+    // the material alone is capped first: a 5 is 0.98, × 1.5
+    expect(bounce(1.5, 5)).toBeCloseTo(100 * MAX_OBSTACLE_RESTITUTION * 1.5, 10);
+    // through the resolvers (a peg and a bar)
+    const onPeg = ball(100, 100 - 12.5, 0, 200);
+    resolveBallCircle(onPeg, circleObstacle(100, 100, 5, { restitution: 0.7 }), DT, 2, undefined, 1, Infinity, 2);
+    expect(onPeg.vy).toBeCloseTo(-280, 9);
+    const onBar = ball(100, 200 - 7.5, 0, 100);
+    resolveBallObstacle(onBar, segmentBetween(70, 200, 130, 200, { restitution: 0.5, friction: 0 }), DT, 4, undefined, 1, Infinity, 4);
+    expect(onBar.vy).toBeCloseTo(-200, 9);
+    // bit for bit as before wherever the cap did not bind, at a bounciness of 1 or less, and for a factor that is not the wall's
+    for (const [restitution, scale] of [[0.7, 1], [0.7, 1.2], [0.98 / 1.3, 1.3], [0.9, 0.5], [5, 1], [5, 0.5], [1.8, 1]] as const) {
+      const plain = ball(3, 4, 30, 100);
+      const scaled = ball(3, 4, 30, 100);
+      rebound(plain, 0, -1, 4, 2, restitution, 0.02, 1, Infinity);
+      rebound(scaled, 0, -1, 4, 2, restitution, 0.02, 1, Infinity, scale, 50);
+      expect([restitution, scale, scaled.vx, scaled.vy]).toEqual([restitution, scale, plain.vx, plain.vy]);
+    }
+    // the gain past the plain rebound stops at the lift and never compounds, bounce after bounce on the same peg
+    expect(bounce(3, 0.7, 150)).toBeCloseTo(150, 9);
+    expect(bounce(3, 0.7, 150, 1000)).toBeCloseTo(980, 9); // (never below the plain, capped rebound)
+    let v = 100;
+    for (let i = 0; i < 50; i++) v = bounce(2, 0.7, 400, v);
+    expect(v).toBeLessThanOrEqual(400 + 1e-9);
+    expect(v).toBeGreaterThan(300);
+    // with the ball's own bounciness its lift bounds both
+    const both = ball(0, 0, 0, 100);
+    rebound(both, 0, -1, 0, 0, 0.7 * 2, 0, 2, 250, 2, 150);
+    expect(both.vy).toBeCloseTo(-250, 9);
+  });
+
   it("dispatches on the obstacle kind and is a pure function of its inputs", () => {
     const a = ball(100, 100 - 12.5, 30, 200);
     const b = ball(100, 100 - 12.5, 30, 200);

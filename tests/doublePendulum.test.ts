@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { ChainStepper, MAX_ANGLE_PER_SUBSTEP, MAX_SUBSTEPS, MIN_SUBSTEPS, PendulumChain, STEP_TOLERANCE, collideBobs, createContactScratch, solveSpd, wrapAngle } from "@/lib/physics/pendulumChain";
+import { ChainStepper, DENSE_CHAIN_LINKS, MAX_ANGLE_PER_SUBSTEP, MAX_CHAIN_LINKS, MAX_SUBSTEPS, MIN_SUBSTEPS, PendulumChain, STEP_TOLERANCE, collideBobs, createContactScratch, solveSpd, wrapAngle } from "@/lib/physics/pendulumChain";
 import {
   BUTTERFLY_OFFSET_DEG,
   DEFAULT_DOUBLE_PENDULUM_SETTINGS,
@@ -12,10 +12,12 @@ import {
   bobModelRadius,
   buildDpField,
   buildHarpGeometry,
+  chainCountCeiling,
   chainLengths,
   closingChordEvent,
   crossedIndices,
   dampingRate,
+  doublePendulumPastCeiling,
   finaleStartSec,
   doublePendulumSettingFields,
   doublePendulumSettingsOf,
@@ -34,7 +36,8 @@ import { drawDoublePendulumBodies, drawDoublePendulumStrings, drawDoublePendulum
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { midiToFrequency } from "@/lib/audio/scales";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { CHAIN_BOB_CEILING, CHAIN_LINK_CEILING, CHAIN_WORK_CEILING, MEMORY_CEILINGS } from "@/lib/uncap";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, type ModeSettings } from "@/lib/simulation/finder";
 
 /**
@@ -356,6 +359,180 @@ describe("chain integrator", () => {
       expect(Math.abs(wrapAngle(a.theta[i] - b.theta[i]))).toBeLessThan(1e-7);
       expect(Math.abs(a.omega[i] - b.omega[i])).toBeLessThan(1e-6);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ long chains (--- unlimited-sizes ---) */
+
+/** Bob k's velocity of a chain, from its rates (model units / s), and the chain's kinetic energy from the bobs. */
+function bobKinetic(chain: PendulumChain): number {
+  const out = { x: 0, y: 0 };
+  let e = 0;
+  for (let k = 0; k < chain.links; k++) {
+    chain.bobVelocity(k, out);
+    e += 0.5 * chain.masses[k] * (out.x * out.x + out.y * out.y);
+  }
+  return e;
+}
+
+/** The dense Lagrangian solve of a chain at (th, w) – M θ̈ = f – the way the double and triple pendulum do it. */
+function denseAccelerations(chain: PendulumChain, th: readonly number[], w: readonly number[]): number[] {
+  const n = chain.links;
+  const l = chain.lengths;
+  const mu: number[] = [];
+  for (let i = n - 1; i >= 0; i--) mu[i] = chain.masses[i] + (i + 1 < n ? mu[i + 1] : 0);
+  const a = chain.massMatrix(th, new Float64Array(n * n));
+  const b = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = -chain.gravity * mu[i] * l[i] * Math.sin(th[i]);
+    for (let j = 0; j < n; j++) if (j !== i) s -= mu[Math.max(i, j)] * l[i] * l[j] * Math.sin(th[i] - th[j]) * w[j] * w[j];
+    b[i] = s;
+  }
+  solveSpd(a, b, n);
+  return Array.from(b, (x, i) => x - chain.damping * w[i]);
+}
+
+describe("long chains (--- unlimited-sizes --- a 4-64 arm Double Pendulum swung a triple pendulum)", () => {
+  it("keeps the double and the triple pendulum bit for bit: these numbers were recorded before a chain could be longer", () => {
+    expect(DENSE_CHAIN_LINKS).toBe(3);
+    expect(MAX_CHAIN_LINKS).toBe(CHAIN_LINK_CEILING);
+    const pinned: Record<number, { theta: number[]; omega: number[]; subs: number }> = {
+      2: { theta: [2.179940544931483, 0.052984375318399925], omega: [0.12170206820216711, -9.800780635295615], subs: 2579 },
+      3: { theta: [-0.10942614567113301, 1.5991060759324156, -1.0375585482214456], omega: [-6.492943744301004, -3.69322672582062, 51.67600787911728], subs: 7934 },
+    };
+    for (const links of [2, 3]) {
+      const chain = new PendulumChain({ links, lengths: [0.4, 0.35, 0.25].slice(0, links), masses: [1, 2, 0.5].slice(0, links), gravity: 9.81 * 3, damping: 0.01 });
+      chain.setState([2.1, -1.3, 0.7].slice(0, links), [0.5, -2, 3].slice(0, links));
+      const stepper = new ChainStepper();
+      let subs = 0;
+      for (let i = 0; i < 180; i++) {
+        stepper.begin(1 / 60);
+        while (stepper.subStep([chain]) > 0) subs++;
+      }
+      expect({ theta: [...chain.theta], omega: [...chain.omega], subs }, `${links} links`).toEqual(pinned[links]);
+    }
+    const a = new PendulumChain({ links: 3, lengths: [0.4, 0.3, 0.3], masses: [1, 1, 0.5], gravity: 9.81, damping: 0 });
+    const b = new PendulumChain({ links: 2, lengths: [0.5, 0.5], masses: [1, 2], gravity: 9.81, damping: 0 });
+    a.setState([0.3, 1.2, -0.4], [1, -2, 0.5]);
+    b.setState([-0.6, 0.9], [-1.5, 2.5]);
+    collideBobs(a, 2, b, 1, 0.6, 0.8, 1, createContactScratch());
+    expect([[...a.omega], [...b.omega]]).toEqual([[1.0190702229167425, -0.22277935603318122, -8.707676257189592], [-0.4648724979732839, 2.019883294647022]]);
+    // and the mode's two triple pendulums, through the engine
+    const engine = dpEngine({ segments: 3, count: 2 }, 4242);
+    run(engine, 300);
+    expect(engine.getBalls().map((ball) => [ball.x, ball.y])).toEqual([[383.7651669356541, 383.8833940382292], [405.1286252685525, 466.6094252983985], [402.67575760619025, 381.2046418244564], [462.93556569794976, 242.21498316796084], [389.45693963641867, 285.81412435342094], [414.2465837683323, 204.04941837453862]]);
+    expect(engine.getDoublePendulumView().plucks).toBe(203);
+  });
+
+  it("solves a long chain through its rod tensions exactly as the dense mass matrix would: accelerations, friction and impulses", () => {
+    for (const n of [4, 5, 8, 13, 64]) {
+      const lengths = Array.from({ length: n }, (_, i) => 0.5 + 0.4 * Math.sin(1.3 * i + 0.2));
+      const masses = Array.from({ length: n }, (_, i) => 0.2 + 2 * (0.5 + 0.5 * Math.cos(2.1 * i)));
+      const chain = new PendulumChain({ links: n, lengths, masses, gravity: DP_GRAVITY * 1.5, damping: 0.3 });
+      expect(chain.links).toBe(n);
+      const th = Array.from({ length: n }, (_, i) => 3 * Math.sin(0.7 * i + 1));
+      const w = Array.from({ length: n }, (_, i) => 4 * Math.cos(1.9 * i));
+      chain.setState(th, w);
+      const dense = denseAccelerations(chain, th, w);
+      const got = chain.accelerations(th, w, new Float64Array(n));
+      const scale = Math.max(...dense.map(Math.abs));
+      for (let i = 0; i < n; i++) expect(Math.abs(got[i] - dense[i]) / scale, `${n} links, rod ${i}`).toBeLessThan(1e-9);
+      // the change of the rates an impulse at a bob causes: M⁻¹ Jₖᵀ P
+      for (const k of [0, Math.floor(n / 2), n - 1]) {
+        const a = chain.massMatrix(th, new Float64Array(n * n));
+        const b = new Float64Array(n);
+        for (let i = 0; i <= k; i++) b[i] = lengths[i] * (Math.cos(th[i]) * 0.8 - Math.sin(th[i]) * -0.6);
+        solveSpd(a, b, n);
+        const d = chain.impulseResponse(k, 0.8, -0.6, new Float64Array(n));
+        const big = Math.max(...Array.from(b, Math.abs));
+        for (let i = 0; i < n; i++) expect(Math.abs(d[i] - b[i]) / big, `${n} links, impulse at ${k}, rod ${i}`).toBeLessThan(1e-9);
+      }
+      // its kinetic energy (from the bobs) is ½ θ̇ᵀ M θ̇
+      const m = chain.massMatrix(th, new Float64Array(n * n));
+      let ke = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) ke += 0.5 * m[i * n + j] * w[i] * w[j];
+      expect(chain.kineticEnergy() / ke).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("keeps the energy of a chaotic six- and nine-link chain within 1e-5 of Σm·g·L without friction", () => {
+    for (const c of [
+      { links: 6, lengths: [1, 1, 1, 1, 1, 1].map((l) => l / 6), masses: [1, 1, 1, 1, 1, 1], start: [2.0, -0.5, 1.0, 2.5, -1.5, 0.3] },
+      { links: 9, lengths: [3, 1, 2, 1, 3, 1, 2, 1, 1].map((l) => l / 15), masses: [2, 0.5, 1, 1, 0.3, 2, 1, 0.5, 1], start: [2.6, 1.0, -2.0, 0.5, 1.5, -0.5, 2.0, -1.0, 0.0] },
+    ]) {
+      const chain = new PendulumChain({ links: c.links, lengths: c.lengths, masses: c.masses, gravity: DP_GRAVITY, damping: 0 });
+      chain.setState(c.start);
+      const scale = chain.totalMass() * DP_GRAVITY * chain.reach();
+      const e0 = chain.energy();
+      let worst = 0;
+      let flips = 0;
+      const prev = Array.from(chain.theta);
+      advance(chain, 1200, 1 / 60, () => {
+        worst = Math.max(worst, Math.abs(chain.energy() - e0) / scale);
+        for (let k = 0; k < c.links; k++) {
+          if (Math.abs(chain.theta[k] - prev[k]) > Math.PI) flips++;
+          prev[k] = chain.theta[k];
+        }
+      });
+      expect(worst, `${c.links} links`).toBeLessThan(1e-5);
+      expect(flips, `${c.links} links`).toBeGreaterThan(5);
+    }
+  }, 30_000);
+
+  it("resolves a contact between long chains elastically: kinetic energy kept, approach reversed", () => {
+    const scratch = createContactScratch();
+    const a = new PendulumChain({ links: 7, lengths: Array(7).fill(1 / 7), masses: [1, 2, 1, 0.5, 1, 1, 3], gravity: DP_GRAVITY, damping: 0 });
+    const b = new PendulumChain({ links: 5, lengths: Array(5).fill(0.2), masses: [1, 1, 2, 1, 0.5], gravity: DP_GRAVITY, damping: 0 });
+    a.setState([0.4, 0.9, -0.3, 1.2, 0.1, -0.8, 0.5], [1, -2, 0.5, 1.5, -1, 2, -0.5]);
+    b.setState([-0.6, 0.2, 1.1, -0.4, 0.7], [-1.5, 2.5, 0.3, -1, 1]);
+    const ke0 = bobKinetic(a) + bobKinetic(b);
+    const va = { x: 0, y: 0 };
+    const vb = { x: 0, y: 0 };
+    const along = () => {
+      a.bobVelocity(6, va);
+      b.bobVelocity(4, vb);
+      return (vb.x - va.x) * 0.6 + (vb.y - va.y) * 0.8;
+    };
+    const before = along();
+    expect(before).toBeLessThan(0);
+    expect(collideBobs(a, 6, b, 4, 0.6, 0.8, 1, scratch)).toBeCloseTo(-before, 12);
+    expect(along()).toBeCloseTo(-before, 9);
+    expect((bobKinetic(a) + bobKinetic(b)) / ke0).toBeCloseTo(1, 12);
+  });
+
+  it("builds every arm it is asked for: five arms are five rods and five bobs down a chain one unit long", () => {
+    for (const segments of [5, 12, 64]) {
+      const engine = dpEngine({ segments, count: 1, randomStart: false, angle1: 90, angle2: 90, angle3: 90 });
+      const v = engine.getDoublePendulumView();
+      const pen = v.pendulums[0];
+      expect([segments, pen.chain.links, v.segments, engine.getBalls().length]).toEqual([segments, segments, segments, segments]);
+      expect(pen.chain.reach()).toBeCloseTo(1, 12);
+      // laid out straight along the horizontal: every bob a rod further out (a triple pendulum stacked the rest on its third)
+      for (let k = 0; k < segments; k++) expect(pen.bobX[k], `bob ${k}`).toBeCloseTo((k + 1) / segments, 9);
+      run(engine, segments > 12 ? 10 : 60);
+      for (let k = 0; k < segments; k++) expect(Number.isFinite(pen.bobX[k]) && Number.isFinite(pen.bobY[k])).toBe(true);
+      expect(Math.abs(v.energy - v.energy0) / v.energyScale).toBeLessThan(1e-6);
+    }
+  });
+
+  it("stops the pendulums at the bobs' and the work's ceilings, and reports the cut as ARENA FULL", () => {
+    expect([CHAIN_BOB_CEILING, CHAIN_WORK_CEILING]).toEqual([2_048, 16_384]);
+    // up to 8 links only the bob ceiling binds, exactly as before the work ceiling existed
+    for (let s = 2; s <= 8; s++) expect([s, chainCountCeiling(s)]).toEqual([s, Math.floor(CHAIN_BOB_CEILING / s)]);
+    expect([9, 16, 32, 64].map(chainCountCeiling)).toEqual([202, 64, 16, 4]);
+    expect(resolveDoublePendulumSettings({ count: 32, segments: 64 })).toMatchObject({ count: 4, segments: 64 });
+    expect(resolveDoublePendulumSettings({ count: 1000, segments: 3 })).toMatchObject({ count: 682, segments: 3 });
+    expect(resolveDoublePendulumSettings({ count: 4, segments: 64 })).toMatchObject({ count: 4, segments: 64 });
+    expect(resolveDoublePendulumSettings({ count: 1, segments: 1e9 })).toMatchObject({ count: 1, segments: MEMORY_CEILINGS.dpSegments });
+    const base = defaultSettings("doublePendulum");
+    expect(pastAnyMemoryCeiling(base)).toBe(false);
+    expect(pastAnyMemoryCeiling({ ...base, dpCount: 4, dpSegments: 64 })).toBe(false);
+    expect(pastAnyMemoryCeiling({ ...base, dpCount: 5, dpSegments: 64 })).toBe(true);
+    expect(pastAnyMemoryCeiling({ ...base, dpCount: 683, dpSegments: 3 })).toBe(true);
+    expect(pastAnyMemoryCeiling({ ...base, dpCount: 682, dpSegments: 3 })).toBe(false);
+    // sparring swings two, and the fan builds its own batch: neither is cut
+    expect(doublePendulumPastCeiling({ ...base, dpCount: 50, dpSegments: 64, dpSpar: true })).toBe(false);
+    expect(pastAnyMemoryCeiling({ ...base, dpCount: 50, dpSegments: 64, dpFan: true })).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * A planar chain pendulum – two links (the double pendulum) or three (the triple pendulum) – integrated in
+ * A planar chain pendulum – two links (the double pendulum), three (the triple pendulum) or more – integrated in
  * error-controlled sub-steps of the embedded Dormand–Prince 5(4) Runge–Kutta pair (`tryStep()` / `acceptStep()`,
  * driven by `ChainStepper`), with the classic fourth-order Runge–Kutta step (`step()`) kept for fixed-step use. Pure
  * maths with no allocation after construction, so the Double Pendulum mode (modes/doublePendulum.ts) can step several
@@ -12,7 +12,8 @@
  *
  *   Σⱼ μᵢⱼ lᵢ lⱼ cos(θᵢ − θⱼ) θ̈ⱼ = −Σⱼ μᵢⱼ lᵢ lⱼ sin(θᵢ − θⱼ) θ̇ⱼ² − g μᵢᵢ lᵢ sin θᵢ,
  *
- * a symmetric positive definite 2×2 or 3×3 system solved by Gaussian elimination at every stage. Damping is the
+ * a symmetric positive definite 2×2 or 3×3 system solved by Gaussian elimination at every stage (a longer chain solves the
+ * same dynamics through its rod tensions in O(n): `tensionSolve()`). Damping is the
  * generalised force −k M θ̇ (θ̈ −= k θ̇ after the solve), which removes energy at the rate 2kT – never adds any.
  * Everything is deterministic: the same parameters and state always give the same numbers.
  *
@@ -23,8 +24,19 @@
  * that need it (hundreds in a whip, about ten a step for the default rig) and keeps the drift under 1e-6 of Σm·g·L.
  */
 
-/** Most rods a chain may have. */
-export const MAX_CHAIN_LINKS = 3;
+import { CHAIN_LINK_CEILING } from "@/lib/uncap"; // --- unlimited-sizes ---
+
+/**
+ * --- unlimited-sizes --- (bug fix) Most rods a chain may have: the arm count's memory-safety ceiling. It was 3, so a
+ * Double Pendulum of 4-64 arms (`dpSegments`, kept as typed) silently swung a triple pendulum.
+ */
+export const MAX_CHAIN_LINKS = CHAIN_LINK_CEILING;
+/**
+ * --- unlimited-sizes --- Chains of at most this many rods solve their dense mass matrix (`solveSpd()`, exactly as the
+ * double and triple pendulum always did, bit for bit); a longer chain solves for its rod tensions instead – a tridiagonal
+ * system, O(n) a stage where the dense solve is O(n³) (a 64-rod chain took over a second a step that way).
+ */
+export const DENSE_CHAIN_LINKS = 3;
 
 /** Sub-steps per 60 Hz step: at least this many (the mode samples the harp crossings and the trail once per sub-step)… */
 export const MIN_SUBSTEPS = 8;
@@ -53,7 +65,7 @@ const DP_E: readonly number[] = [71 / 57600, 0, -71 / 16695, 71 / 1920, -17253 /
 const DP_STAGES = 7;
 
 export interface ChainParams {
-  /** 2 (double pendulum) or 3 (triple pendulum). */
+  /** 2 (double pendulum), 3 (triple pendulum) or more, up to `MAX_CHAIN_LINKS`. */
   links: number;
   /** Rod lengths (model units). */
   lengths: readonly number[];
@@ -139,6 +151,14 @@ export class PendulumChain {
   /** The fifth-order result of the last `tryStep()` (angles not wrapped yet); `acceptStep()` moves the chain there. */
   readonly nextTheta: Float64Array;
   readonly nextOmega: Float64Array;
+  // --- unlimited-sizes --- the rod-tension solve of a chain longer than DENSE_CHAIN_LINKS (empty otherwise): the sines and
+  // cosines of the angles, 1 / mass, the tensions and the forward sweep of the tridiagonal solve.
+  private readonly sinT: Float64Array;
+  private readonly cosT: Float64Array;
+  private readonly invMass: Float64Array;
+  private readonly tension: Float64Array;
+  private readonly sweepC: Float64Array;
+  private readonly sweepD: Float64Array;
 
   constructor(params: ChainParams) {
     const n = Math.max(1, Math.min(MAX_CHAIN_LINKS, Math.round(params.links)));
@@ -176,6 +196,15 @@ export class PendulumChain {
     for (let i = n - 1; i >= 0; i--) this.mu[i] = this.masses[i] + (i + 1 < n ? this.mu[i + 1] : 0);
     this.gravity = params.gravity;
     this.damping = params.damping;
+    // --- unlimited-sizes ---
+    const long = n > DENSE_CHAIN_LINKS ? n : 0;
+    this.sinT = new Float64Array(long);
+    this.cosT = new Float64Array(long);
+    this.invMass = new Float64Array(long);
+    this.tension = new Float64Array(long);
+    this.sweepC = new Float64Array(long);
+    this.sweepD = new Float64Array(long);
+    for (let i = 0; i < long; i++) this.invMass[i] = 1 / this.masses[i];
   }
 
   /** Sets the angles (radians) and the angular velocities (rad/s, zero when left out). */
@@ -216,6 +245,7 @@ export class PendulumChain {
   /** Angular accelerations at state (th, w), written into `out`. */
   accelerations(th: ArrayLike<number>, w: ArrayLike<number>, out: Float64Array): Float64Array {
     const n = this.links;
+    if (n > DENSE_CHAIN_LINKS) return this.tensionSolve(th, w, -1, 0, 0, out); // --- unlimited-sizes ---
     const l = this.lengths;
     const mu = this.mu;
     const a = this.massMatrix(th, this.mat);
@@ -366,6 +396,7 @@ export class PendulumChain {
   /** Kinetic energy ½ θ̇ᵀ M θ̇. */
   kineticEnergy(): number {
     const n = this.links;
+    if (n > DENSE_CHAIN_LINKS) return this.bobKineticEnergy(); // --- unlimited-sizes ---
     const m = this.massMatrix(this.theta, this.mat);
     let e = 0;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) e += m[i * n + j] * this.omega[i] * this.omega[j];
@@ -416,6 +447,7 @@ export class PendulumChain {
    */
   impulseResponse(k: number, px: number, py: number, out: Float64Array): Float64Array {
     const n = this.links;
+    if (n > DENSE_CHAIN_LINKS) return this.tensionSolve(this.theta, null, k, px, py, out); // --- unlimited-sizes ---
     const a = this.massMatrix(this.theta, this.mat);
     const b = this.rhs;
     for (let i = 0; i < n; i++) b[i] = i <= k ? this.lengths[i] * (Math.cos(this.theta[i]) * px - Math.sin(this.theta[i]) * py) : 0;
@@ -439,6 +471,92 @@ export class PendulumChain {
   applyImpulse(k: number, px: number, py: number, scratch: Float64Array) {
     const d = this.impulseResponse(k, px, py, scratch);
     for (let i = 0; i < this.links; i++) this.omega[i] += d[i];
+  }
+
+  /*
+   * --- unlimited-sizes --- The dynamics of a chain longer than DENSE_CHAIN_LINKS through its rod tensions, O(n).
+   *
+   * Rod i runs from bob i − 1 (the pivot for i = 0) to bob i along uᵢ = (sin θᵢ, cos θᵢ); nᵢ = (cos θᵢ, −sin θᵢ) is the
+   * direction bob i moves when θᵢ grows. With Tᵢ the tension of rod i (Tₙ = 0) and Fₖ the outside force on bob k,
+   *
+   *   mₖ aₖ = −Tₖ uₖ + Tₖ₊₁ uₖ₊₁ + Fₖ,
+   *
+   * and a rod keeps its length: (aᵢ − aᵢ₋₁) · uᵢ = −lᵢ θ̇ᵢ² (a₋₁ = 0, the pivot). Put together, row i reads
+   *
+   *   cᵢ₋₁ Tᵢ₋₁ / mᵢ₋₁ − (1 / mᵢ + 1 / mᵢ₋₁) Tᵢ + cᵢ Tᵢ₊₁ / mᵢ = −lᵢ θ̇ᵢ² − bᵢ · uᵢ + bᵢ₋₁ · uᵢ   (cᵢ = uᵢ · uᵢ₊₁, bₖ = Fₖ / mₖ;
+   *                                                                                  row 0 without the i − 1 terms),
+   *
+   * a symmetric, diagonally dominant tridiagonal system (solved by one forward and one backward sweep), and then
+   *
+   *   lᵢ θ̈ᵢ = (aᵢ − aᵢ₋₁) · nᵢ = sᵢ Tᵢ₊₁ / mᵢ − sᵢ₋₁ Tᵢ₋₁ / mᵢ₋₁ + bᵢ · nᵢ − bᵢ₋₁ · nᵢ   (sᵢ = uᵢ₊₁ · nᵢ = sin(θᵢ₊₁ − θᵢ)).
+   *
+   * This is exactly M⁻¹ times the generalised force of the Lagrangian form (the same equations, other unknowns). With
+   * `w` the state's rates and gravity on every bob (bₖ = g ŷ) it gives the accelerations (damping subtracted after, as
+   * the dense solve does); with `w` null and an impulse (px, py) on bob `k` alone it gives the change of the rates the
+   * impulse causes (the rates do not enter: the rods' length constraint holds on the velocities, right side 0).
+   */
+  private tensionSolve(th: ArrayLike<number>, w: ArrayLike<number> | null, k: number, px: number, py: number, out: Float64Array): Float64Array {
+    const n = this.links;
+    const { sinT, cosT, invMass, tension, sweepC, sweepD, lengths } = this;
+    for (let i = 0; i < n; i++) {
+      sinT[i] = Math.sin(th[i]);
+      cosT[i] = Math.cos(th[i]);
+    }
+    const g = this.gravity;
+    // The forward sweep: row i's diagonal, its upper coefficient and right side, eliminating the lower one.
+    let prevC = 0;
+    let prevD = 0;
+    for (let i = 0; i < n; i++) {
+      let diag = -invMass[i];
+      let rhs: number;
+      if (w) rhs = -lengths[i] * w[i] * w[i] - (i === 0 ? g * cosT[0] : 0);
+      else rhs = i === k ? -(px * sinT[i] + py * cosT[i]) * invMass[k] : i === k + 1 ? (px * sinT[i] + py * cosT[i]) * invMass[k] : 0;
+      let lower = 0;
+      if (i > 0) {
+        diag -= invMass[i - 1];
+        lower = (sinT[i - 1] * sinT[i] + cosT[i - 1] * cosT[i]) * invMass[i - 1];
+      }
+      const upper = i + 1 < n ? (sinT[i] * sinT[i + 1] + cosT[i] * cosT[i + 1]) * invMass[i] : 0;
+      const den = diag - lower * prevC;
+      prevC = upper / den;
+      prevD = (rhs - lower * prevD) / den;
+      sweepC[i] = prevC;
+      sweepD[i] = prevD;
+    }
+    // The backward sweep: the tensions.
+    let next = 0;
+    for (let i = n - 1; i >= 0; i--) {
+      next = sweepD[i] - sweepC[i] * next;
+      tension[i] = next;
+    }
+    // The angular accelerations (or rate changes) from the tensions.
+    const damp = w ? this.damping : 0;
+    for (let i = 0; i < n; i++) {
+      let s = 0;
+      if (i + 1 < n) s += (sinT[i + 1] * cosT[i] - cosT[i + 1] * sinT[i]) * tension[i + 1] * invMass[i];
+      if (i > 0) s -= (sinT[i] * cosT[i - 1] - cosT[i] * sinT[i - 1]) * tension[i - 1] * invMass[i - 1];
+      if (w) {
+        if (i === 0) s -= g * sinT[0];
+      } else if (i === k) s += (px * cosT[i] - py * sinT[i]) * invMass[k];
+      else if (i === k + 1) s -= (px * cosT[i] - py * sinT[i]) * invMass[k];
+      const a = s / lengths[i];
+      out[i] = damp > 0 ? a - damp * (w as ArrayLike<number>)[i] : a;
+    }
+    return out;
+  }
+
+  /** --- unlimited-sizes --- Kinetic energy Σ ½ mₖ |vₖ|² from the bob velocities, O(n) (a long chain's ½ θ̇ᵀ M θ̇). */
+  private bobKineticEnergy(): number {
+    let vx = 0;
+    let vy = 0;
+    let e = 0;
+    for (let i = 0; i < this.links; i++) {
+      const s = this.lengths[i] * this.omega[i];
+      vx += s * Math.cos(this.theta[i]);
+      vy -= s * Math.sin(this.theta[i]);
+      e += this.masses[i] * (vx * vx + vy * vy);
+    }
+    return 0.5 * e;
   }
 }
 

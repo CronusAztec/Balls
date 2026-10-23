@@ -622,16 +622,17 @@ export class ObstacleField {
    * bounciness, applied after the restitution cap (see obstacles.ts `rebound()`). --- review fix (uncap-all) --- No speed
    * cap: a kick or a fling leaves the ball as fast as it makes it; one past what the obstacles ever gave before uncap-all
    * (`classicObstacleSpeed()`, from `baseSpeed` and the sub-step `dtSec`) sets `pastClassicLimit`, and the engine plans the
-   * run's steps from there on.
+   * run's steps from there on. --- unlimited-sizes --- `wallScale` / `wallLift`: the wall-bounciness extra inside
+   * `restitutionScale` and its lift, so a bouncier wall past the restitution cap still counts (obstacles.ts `rebound()`).
    */
-  collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[], ballRestitution = 1, liftSpeed = Infinity) {
+  collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[], ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity) {
     const items = this.items;
     const speedIn = Math.hypot(ball.vx, ball.vy);
     for (let i = 0; i < items.length; i++) {
       const o = items[i];
       const bumper = this.kinds[i] === "bumper";
       const before = bumper ? Math.hypot(ball.vx, ball.vy) : 0;
-      const impact = o.kind === "circle" ? resolveBallCircle(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed) : resolveBallSegment(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed);
+      const impact = o.kind === "circle" ? resolveBallCircle(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed, wallScale, wallLift) : resolveBallSegment(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed, wallScale, wallLift);
       if (impact < hitSpeed) continue; // no contact (−1) or a soft one
       this.lastHitMs[i] = nowMs;
       this.hitCount++;

@@ -887,6 +887,16 @@ describe("uncap-all: the guard", () => {
     for (const key of Object.keys(SIZES_NOTHING)) expect([key, ranges[key] !== undefined]).toEqual([key, true]);
   });
 
+  it("--- unlimited-sizes --- names only keys that have a memory-safety ceiling where a resolver applies one (an unknown key does nothing)", () => {
+    // memoryCeiling("bmReturn", …) looked like a ceiling and was none: the key had no entry (and the setting sizes nothing)
+    const hits: string[] = [];
+    for (const file of sources()) {
+      const rel = path.relative(path.join(__dirname, "..", "src"), file).split(path.sep).join("/");
+      for (const m of fs.readFileSync(file, "utf8").matchAll(/\b(?:memoryCeiling|pastMemoryCeiling)\(\s*"(\w+)"/g)) if (MEMORY_CEILINGS[m[1]] === undefined) hits.push(`${rel}: ${m[1]}`);
+    }
+    expect(hits).toEqual([]);
+  });
+
   it("keeps no ceiling on Territory's ball size: its tile tests' only ceilings bound the work of a sub-step (memory-safety)", () => {
     // --- review fix (uncap-all) --- the ball's radius stopped at 0.9 tiles whatever the Ball Size (TY_MAX_RADIUS); now a
     // typed size is the size, on any board, until the ball is wider than the board (the ate-the-arena finish). What a big

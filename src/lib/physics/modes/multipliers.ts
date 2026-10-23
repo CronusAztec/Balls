@@ -756,13 +756,14 @@ export class MultipliersMode implements GameMode {
     const b0 = Math.max(0, Math.floor((ball.y - r - 2 - board.bandTop) / board.rowGap));
     const b1 = Math.min(bands - 1, Math.floor((ball.y + r + 2 - board.bandTop) / board.rowGap));
     const scale = this.restitutionScale * effectiveBounce(ball);
+    const wallLift = this.restitutionScale > 1 ? this.ballSpeed * scale : Infinity; // --- unlimited-sizes --- (a bouncier wall past the restitution cap)
     const stamp = ++this.checkStamp;
     for (let b = b0; b <= b1; b++) {
       for (let k = board.bandStart[b]; k < board.bandStart[b + 1]; k++) {
         const i = board.bandItems[k];
         if (board.stamp[i] === stamp || board.enabled[i] === 0) continue;
         board.stamp[i] = stamp;
-        const impact = resolveBallObstacle(ball, board.obstacles[i], dtSec, scale);
+        const impact = resolveBallObstacle(ball, board.obstacles[i], dtSec, scale, undefined, 1, Infinity, this.restitutionScale, wallLift);
         if (impact < this.hitSpeed) continue;
         this.onHit(ctx, ball, i, impact);
       }

@@ -32,7 +32,7 @@ import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physic
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
-import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumPastCeiling, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 import { CHAOS_FAN_RANGES, type DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
@@ -2433,6 +2433,7 @@ export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (a harp run builds no fan, a fan run no harp chains)
   for (const key of engineSettingKeys(settings.mode)) if (!inactive.has(key) && pastMemoryCeiling(key, record[key])) return true;
   if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
+  if (settings.mode === "doublePendulum" && doublePendulumPastCeiling(settings)) return true; // --- unlimited-sizes --- (pendulums × links past the chains' ceilings)
   if (settings.mode === "colourSort" && colourSortPastCeiling(settings)) return true; // --- colour-sort --- (colours × balls past the balls a run holds)
   return false;
 }

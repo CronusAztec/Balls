@@ -479,6 +479,33 @@ describe("Ball Drop mode", () => {
     expect(classic.dropMode.ballsMayRest).toBe(true);
   });
 
+  it("--- unlimited-sizes --- bounces harder with every step of the wall bounciness past the restitution cap, without running away", () => {
+    // From about 2.2 every peg, bar, wall and floor of the board was held at the 0.98 cap: 2.2, 3 and 6 played the same run.
+    const speeds = (wallBounciness: number) => {
+      const engine = dropEngine({ ballCount: 12, spawnInterval: 0.1, loop: true }, 7, { wallBounciness });
+      let max = 0;
+      let sum = 0;
+      let n = 0;
+      for (let i = 0; i < 900; i++) {
+        engine.update(STEP, 0);
+        for (const b of engine.getBalls()) {
+          const v = Math.hypot(b.vx, b.vy);
+          expect(Number.isFinite(v) && Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
+          max = Math.max(max, v);
+          sum += v;
+          n++;
+        }
+      }
+      return { max, mean: sum / n, snap: snapshot(engine) };
+    };
+    const [low, mid, high] = [2.2, 3, 6].map(speeds);
+    expect(mid.snap).not.toEqual(low.snap);
+    expect(mid.mean).toBeGreaterThan(1.15 * low.mean);
+    expect(high.mean).toBeGreaterThan(1.5 * mid.mean);
+    // the lift: a rebound the wall bounciness speeds up past the cap stops at the cruising speed × it (gravity adds the rest)
+    for (const [k, run] of [[2.2, low], [3, mid], [6, high]] as const) expect(run.max).toBeLessThan(1.5 * config.ballSpeed * k);
+  }, 30_000);
+
   it("is deterministic for a seed and different for another, rain included", () => {
     for (const drop of [{}, { ballCount: 30, spawnInterval: 0.1, loop: true }] as const) {
       const a = dropEngine(drop, 2024);

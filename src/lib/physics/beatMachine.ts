@@ -214,7 +214,7 @@ export function resolveBeatMachineSettings(patch: Partial<BeatMachineSettings> |
   out.bars = memoryCeiling("bmBars", out.bars);
   out.perTube = memoryCeiling("bmPerTube", out.perTube);
   out.loopBeats = memoryCeiling("bmLoopBeats", out.loopBeats);
-  out.returnBeats = memoryCeiling("bmReturn", out.returnBeats);
+  // (--- unlimited-sizes --- the return trip's beats size nothing – SIZES_NOTHING of tests/uncap.test.ts – so they have no ceiling)
   return out;
 }
 

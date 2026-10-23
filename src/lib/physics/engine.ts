@@ -2263,6 +2263,7 @@ export class PhysicsEngine {
     const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- unlimited --- (no cap with No limits on)
     const bounciness = ball.restitution ?? 1; // --- bounce-math --- the ball's bounciness (see handleObstacleCollisions())
     const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
+    const wallLift = this.extras.wallBounciness > 1 ? this.obstacleLiftSpeed(ball, scale, 1) : Infinity; // --- unlimited-sizes --- (a bouncier wall past the restitution cap)
     const hitsBefore = this.editorObstacles.hitCount; // --- bounce-math ---
     const baseSpeed = this._config.ballSpeed || 400;
     // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
@@ -2270,7 +2271,7 @@ export class PhysicsEngine {
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     const before = Math.hypot(ball.x - cx, ball.y - cy);
-    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents, bounciness, lift);
+    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents, bounciness, lift, this.extras.wallBounciness, wallLift);
     if (this.bounceMath.on && this.editorObstacles.hitCount > hitsBefore) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
     if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
   }
@@ -2372,13 +2373,14 @@ export class PhysicsEngine {
     const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness;
     const bounciness = ball.restitution ?? 1;
     const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
+    const wallLift = this.extras.wallBounciness > 1 ? this.obstacleLiftSpeed(ball, scale, 1) : Infinity; // --- unlimited-sizes ---
     // A ball pressed onto a splat by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
     const resting = (3 * this._config.gravity * (this._config.ballSpeed || 400) * dtSec * (ball.gravityScale ?? 1)) / 300;
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     const before = Math.hypot(ball.x - cx, ball.y - cy);
     const hitsBefore = this.splats.hits;
-    const ring = this.splats.collide(ball, dtSec, cx, cy, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, this._elapsedMs, bounciness, lift);
+    const ring = this.splats.collide(ball, dtSec, cx, cy, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, this._elapsedMs, bounciness, lift, this.extras.wallBounciness, wallLift);
     if (ring >= 0) this.pendingSoundEvents.push(bounceHitEvent(ring, ball));
     if (this.bounceMath.on && this.splats.hits > hitsBefore) this.bounceMath.note(BM_BOUNCE, ball);
     if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
@@ -2746,7 +2748,8 @@ export class PhysicsEngine {
   /**
    * The most a bounciness above 1 may lift an obstacle rebound to (obstacles.ts `rebound()`): the ball's cruising speed ×
    * the restitution scale × the bounciness – what a ring rebound sets – so a ball bouncing between pegs settles there
-   * instead of gaining speed hit after hit (`reboundSpeedBound()` plans the sub-steps for it).
+   * instead of gaining speed hit after hit (`reboundSpeedBound()` plans the sub-steps for it). --- unlimited-sizes --- With a
+   * bounciness of 1 it is the lift of a wall bounciness above 1 past the restitution cap (`rebound()`'s `wallLift`).
    */
   private obstacleLiftSpeed(ball: Ball, scale: number, bounciness: number): number {
     return cruiseSpeed(ball, this._config.ballSpeed || 400) * scale * bounciness;
@@ -3122,11 +3125,13 @@ export class PhysicsEngine {
     // --- bounce-math --- the ball's bounciness multiplies the capped restitution (no upper limit), lifting at most to the cruising speed × it
     const bounciness = ball.restitution ?? 1;
     const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
+    // --- unlimited-sizes --- a wall bounciness above 1 lifts a rebound the restitution cap held, at most to the cruising speed × it
+    const wallLift = this.extras.wallBounciness > 1 ? this.obstacleLiftSpeed(ball, scale, 1) : Infinity;
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
     for (let i = 0; i < obstacles.length; i++) {
-      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale, undefined, bounciness, lift);
+      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale, undefined, bounciness, lift, this.extras.wallBounciness, wallLift);
       if (impact < hitSpeed) continue; // no contact (−1) or a soft, resting one
       if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
       const result = this.currentMode?.onObstacleHit?.(this.ctx, ball, obstacles[i], i, impact);

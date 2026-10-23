@@ -67,7 +67,11 @@ export interface SegmentEnds {
 export const DEFAULT_OBSTACLE_RESTITUTION = 0.7;
 /** 2% of the sliding speed per contact: a ball skidding along a floor stops within a second, a glancing peg hit is barely touched. */
 export const DEFAULT_OBSTACLE_FRICTION = 0.02;
-/** Highest restitution an obstacle may end up with (the wall-bounciness extra scales it), so a ball can never gain energy forever on a floor. */
+/**
+ * Highest restitution an obstacle may end up with (the wall-bounciness extra scales it), so a ball can never gain energy
+ * forever on a floor. --- unlimited-sizes --- A wall bounciness above 1 lifts a rebound past it, bounded by its lift
+ * (`rebound()`'s `wallScale` and `wallLift`).
+ */
 export const MAX_OBSTACLE_RESTITUTION = 0.98;
 /**
  * Gap left between a ball and an obstacle after a push-out, so the next sub-step does not re-detect the same contact (px).
@@ -138,16 +142,17 @@ export function advanceObstacles(obstacles: readonly Obstacle[], dtSec: number):
  * whether the contact counts as a "hit" worth a sound and a glow.
  *
  * `ballRestitution` and `liftSpeed` are the ball's own bounciness (bounce math; 1 and no lift without a rule) – see
- * `rebound()`: it is applied after the cap, so it has no upper limit.
+ * `rebound()`: it is applied after the cap, so it has no upper limit. --- unlimited-sizes --- `wallScale` and `wallLift` are
+ * the wall-bounciness extra inside `restitutionScale` and its lift (see `rebound()`): above 1 it is not lost to the cap.
  */
-export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
+export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity): number {
   return obstacle.kind === "circle"
-    ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed)
-    : resolveBallSegment(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed);
+    ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed, wallScale, wallLift)
+    : resolveBallSegment(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed, wallScale, wallLift);
 }
 
 /** Ball vs peg: swept circle-circle test, so the contact normal is taken where the ball first touched the peg. */
-export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
+export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity): number {
   const R = ball.radius + peg.radius;
   const dx = ball.x - peg.x;
   const dy = ball.y - peg.y;
@@ -193,7 +198,7 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
   }
   ball.x = peg.x + nx * (R + separation);
   ball.y = peg.y + ny * (R + separation);
-  return rebound(ball, nx, ny, 0, 0, peg.restitution * restitutionScale, peg.friction, ballRestitution, liftSpeed);
+  return rebound(ball, nx, ny, 0, 0, peg.restitution * restitutionScale, peg.friction, ballRestitution, liftSpeed, wallScale, wallLift);
 }
 
 /**
@@ -202,7 +207,7 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
  * from. A spinning bar's surface velocity at the contact point is taken into account, so it can
  * fling the ball.
  */
-export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
+export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity): number {
   const ux = Math.cos(bar.angle);
   const uy = Math.sin(bar.angle);
   const reach = ball.radius + bar.thickness / 2;
@@ -260,7 +265,7 @@ export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: numb
     sx = -bar.angularVelocity * cy;
     sy = bar.angularVelocity * cx;
   }
-  return rebound(ball, nx, ny, sx, sy, bar.restitution * restitutionScale, bar.friction, ballRestitution, liftSpeed);
+  return rebound(ball, nx, ny, sx, sy, bar.restitution * restitutionScale, bar.friction, ballRestitution, liftSpeed, wallScale, wallLift);
 }
 
 /**
@@ -275,10 +280,20 @@ export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: numb
  * compounds hit after hit: a rebound the bounciness made faster than the plain one leaves the ball at most at the larger of
  * the plain rebound's speed and `liftSpeed` (callers pass the cruising speed × the bounciness – like the ring rebounds, which
  * set the speed to the cruising speed × the bounciness). With the defaults (1, no lift) nothing changes, bit for bit.
+ *
+ * --- unlimited-sizes --- (bug fix) `wallScale` is the wall-bounciness extra that `restitution` already carries (material ×
+ * scale). The cap used to swallow it: past about 0.98 / material a bouncier wall changed nothing on pegs, bars and blockers.
+ * When the cap bound and the extra is above 1, the cap now holds the material alone and the extra multiplies after it, so
+ * the rebound is the capped material × the extra. What that adds past the plain (capped) rebound is bounded like the
+ * bounciness: by `liftSpeed`, or by `wallLift` (callers pass the cruising speed × the extra) when there is no bounciness
+ * lift. A restitution the cap did not bind, or an extra of 1 or less, leaves the rebound exactly as it was, bit for bit.
  */
-export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: number, restitution: number, friction: number, ballRestitution = 1, liftSpeed = Infinity): number {
+export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: number, restitution: number, friction: number, ballRestitution = 1, liftSpeed = Infinity, wallScale = 1, wallLift = Infinity): number {
   const plain = Math.max(0, Math.min(MAX_OBSTACLE_RESTITUTION, restitution));
-  const e = plain * (ballRestitution > 0 ? ballRestitution : 0);
+  // --- unlimited-sizes --- the extra the cap swallowed, after the cap
+  const wall = wallScale > 1 && restitution > MAX_OBSTACLE_RESTITUTION ? Math.max(plain, Math.min(MAX_OBSTACLE_RESTITUTION, restitution / wallScale) * wallScale) : plain;
+  const lift = wall > plain && !(liftSpeed < Infinity) ? wallLift : liftSpeed;
+  const e = wall * (ballRestitution > 0 ? ballRestitution : 0);
   let rvx = ball.vx - sx;
   let rvy = ball.vy - sy;
   const vn = rvx * nx + rvy * ny;
@@ -290,12 +305,13 @@ export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: numb
     impact = -vn;
     rvx += j * nx;
     rvy += j * ny;
-    if (e > plain && liftSpeed < Infinity) {
-      // What the bounciness added on top of the plain rebound is limited to the lift (never below the plain rebound).
+    if (e > plain && lift < Infinity) {
+      // What the bounciness (--- unlimited-sizes --- or the wall extra past the cap) added on top of the plain rebound is
+      // limited to the lift (never below the plain rebound).
       const extra = -(e - plain) * vn;
       const plainX = ball.vx - extra * nx;
       const plainY = ball.vy - extra * ny;
-      const bound = Math.max(Math.sqrt(plainX * plainX + plainY * plainY), liftSpeed);
+      const bound = Math.max(Math.sqrt(plainX * plainX + plainY * plainY), lift);
       const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
       if (speed > bound) {
         const k = bound / speed;

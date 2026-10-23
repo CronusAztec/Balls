@@ -46,6 +46,13 @@ export const CHAIN_LINK_CEILING = 64;
 /** Bobs of all the pendulum chains together (chains × links): each is integrated by an adaptive Dormand–Prince solver every sub-step. */
 export const CHAIN_BOB_CEILING = 2_048;
 /**
+ * --- unlimited-sizes --- The work of all the pendulum chains together (chains × links²): a stage of a chain costs its links
+ * (the rod-tension solve of lib/physics/pendulumChain.ts), and the error control takes about as many more sub-steps as the
+ * chain has links. 4 chains of 64 links, or 64 of 16, keep a step to a few hundred milliseconds at worst. Up to 8 links the
+ * bob ceiling is the tighter one, so this one only binds past them.
+ */
+export const CHAIN_WORK_CEILING = 16_384;
+/**
  * Bodies of the modes that test every pair of their bodies each sub-step (String Battle's balls against every string,
  * the arena games' squares against each other): n² work, so their bodies stop where a step still takes a fraction of a
  * second – far past the sliders (6 balls, 20 squares, 4 flag carriers a team).

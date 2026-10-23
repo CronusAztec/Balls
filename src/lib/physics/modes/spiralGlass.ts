@@ -439,8 +439,11 @@ export interface SpiralGlassView {
   chips: number;
   shatters: number;
   notes: number;
-  /** The tiles: hit points per tile (band × TILES_PER_TURN + tile), and when each was last hit (ms, −Infinity never). */
-  hp: Uint8Array;
+  /**
+   * The tiles: hit points per tile (band × TILES_PER_TURN + tile), and when each was last hit (ms, −Infinity never).
+   * --- unlimited-sizes --- (bug fix) doubles, whole numbers exactly up to 2⁵³: a byte wrapped 256 hit points to 0 and 300 to 44.
+   */
+  hp: Float64Array;
   hitMs: Float64Array;
   tilesTotal: number;
   tilesLeft: number;
@@ -484,7 +487,7 @@ function createView(): SpiralGlassView {
     chips: 0,
     shatters: 0,
     notes: 0,
-    hp: new Uint8Array(0),
+    hp: new Float64Array(0),
     hitMs: new Float64Array(0),
     tilesTotal: 0,
     tilesLeft: 0,
@@ -604,7 +607,7 @@ export class SpiralGlassMode implements GameMode {
     v.finished = false;
     v.finishedMs = -1;
     const tiles = this.settings.turns * TILES_PER_TURN;
-    v.hp = new Uint8Array(tiles).fill(this.settings.glassHp);
+    v.hp = new Float64Array(tiles).fill(this.settings.glassHp); // --- unlimited-sizes --- (any hit points, never wrapped)
     v.hitMs = new Float64Array(tiles).fill(-Infinity);
     v.tilesTotal = tiles;
     v.tilesLeft = tiles;
