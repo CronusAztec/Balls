@@ -313,7 +313,7 @@ export interface FightLeagueSettings {
   arenaStyle: FlArenaStyle;
   /** The screen shake's strength (URL `flSh`; 0 = none, uncapped). */
   shake: number;
-  /** The KO finale's slow motion after a KO verdict (URL `flSm`). */
+  /** The KO finale's slow motion after a KO verdict (URL `flSm`; --- slow-motion --- it plays only while the Slow motion switch is on). */
   slowMo: boolean;
   /** Impact frames: a big hit holds its fighters a moment (URL `flIf`). */
   impact: boolean;
@@ -7224,6 +7224,16 @@ export class FightLeagueMode implements GameMode {
   /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 3) the visual state */
 
   /**
+   * --- slow-motion --- The KO finale's slow motion is on: its own switch (`flSm`) and the Slow motion switch
+   * (`config.slowMotion`, link `smo=0`) both. With the master switch off the stored `flSm` is kept as it is, and the match
+   * ends exactly as with `flSm=0`: the card at once, no time warp, no pitched-down sound (`cue()`'s `flSlow` follows the
+   * finale). The fighters' "slowTime" power is a rule of the fight and stays.
+   */
+  private finaleSlowMo(): boolean {
+    return this.view.settings.slowMo && this.ctxRef?.config.slowMotion !== false;
+  }
+
+  /**
    * The verdict's banners – FINAL KO, DOUBLE KO, DRAW, TIME – and, after a KO verdict with the slow motion on, the KO finale
    * (FL_FINALE_MS from now, around the last KO). The winner's banner comes later (`stepVisuals()`): with the finale's banner.
    */
@@ -7239,7 +7249,7 @@ export class FightLeagueMode implements GameMode {
       let ko: FlFighter | null = null;
       for (const f of v.fighters) if (!f.alive && (!ko || f.koMs >= ko.koMs)) ko = f;
       this.pushBanner(FB_FINAL_KO, now, ko ? ko.slot : -1);
-      if (v.settings.slowMo && ko) {
+      if (this.finaleSlowMo() && ko) {
         v.finale.from = now;
         v.finale.until = now + (showOver ? FL_FINALE_MS : FL_INTERLUDE_FINALE_MS); // (--- fl-overhaul --- Stage 5: an interlude's finale is shorter)
         v.finale.x = ko.x;
@@ -7625,7 +7635,7 @@ export class FightLeagueMode implements GameMode {
       case FB_FINAL_KO:
         match("finalKo", f, { ...ko, ...chord() });
         call("finalKo");
-        if (v.settings.slowMo && f) match("timeWarp", null);
+        if (this.finaleSlowMo() && f) match("timeWarp", null);
         break;
       case FB_DOUBLE_KO:
         match("doubleKo", null, { ...ko, ...chord() });

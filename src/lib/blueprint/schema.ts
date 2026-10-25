@@ -108,7 +108,7 @@ export const ACTION_DOCS: Readonly<Record<ActionKind, string>> = {
   damage: "`amount` (f) HP off the event's tile (target tile) or off a ball with HP (a ball at 0 HP pops)",
   var: "variable `id` add|set|mul `value` (f)",
   impulse: "push `amount` px/s (f) towards dir (or away from the other ball)",
-  fx: "a visual effect: burst|flash|shake|confetti|slowmo",
+  fx: "a visual effect: burst|flash|shake|confetti|slowmo (the camera's near-miss slow motion; nothing while Slow motion is off)", // (--- slow-motion ---)
   sound: "a note: voice hit|gap|merge|split, `pitch` scale steps up",
 };
 

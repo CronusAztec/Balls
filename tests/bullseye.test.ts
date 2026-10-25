@@ -505,6 +505,48 @@ describe("a bullseye", () => {
     expect(v.simMs - v.timeMs).toBeLessThan(lost + 2 * STEP);
     expect(worldAtEnd).toBeGreaterThan(0);
   });
+
+  // --- slow-motion --- the Slow motion switch off (link smo=0): a bullseye opens no window, the world clock keeps time
+  it("opens no slow-motion window with the Slow motion switch off: the bull still scores, with its confetti and fanfare", () => {
+    const off: PhysicsConfig = { ...config, slowMotion: false };
+    for (const seed of [21, 22, 23]) {
+      const engine = bullseyeEngine({ shots: 3, interval: 0.5, chaos: 0, perfect: 1 }, seed, off);
+      expect(engine.slowMotionOn()).toBe(false);
+      const v = engine.getBullseyeView();
+      let minScale = 1;
+      const { events, finishedAt } = run(engine, 60, () => {
+        minScale = Math.min(minScale, v.timeScale);
+      });
+      expect(finishedAt, `seed ${seed}`).toBeGreaterThan(0);
+      expect(v.shotScore[0]).toBe(10);
+      expect(v.bullseyes).toBeGreaterThanOrEqual(1);
+      expect(events.filter((e) => e.ev.race === "fanfare").length).toBe(v.bullseyes);
+      expect(v.slowMos, `seed ${seed}`).toBe(0); // (it counts only the windows that opened)
+      expect(minScale).toBe(1);
+      expect(v.timeMs).toBe(v.simMs); // the world clock never fell behind the simulation clock
+      // The same seed with it on: the window opens, as it always did.
+      const on = bullseyeEngine({ shots: 3, interval: 0.5, chaos: 0, perfect: 1 }, seed);
+      run(on, 60);
+      expect(on.getBullseyeView().slowMos).toBeGreaterThanOrEqual(1);
+      expect(on.getBullseyeView().timeMs).toBeLessThan(on.getBullseyeView().simMs);
+    }
+  });
+
+  it("lets a window already open play out when the switch turns off, and opens none after it", () => {
+    const engine = bullseyeEngine({ shots: 2, interval: 4, chaos: 0, perfect: 1 }, 21);
+    const v = engine.getBullseyeView();
+    for (let i = 0; i < 60 * 20 && v.slowMos === 0; i++) engine.update(STEP, 0);
+    expect(v.slowMos).toBe(1);
+    engine.setSlowMotion(false);
+    let slowSteps = 0;
+    for (let i = 0; i < 60 * 30 && !engine.isSimulationFinished(); i++) {
+      engine.update(STEP, 0);
+      if (v.timeScale < 1) slowSteps++;
+    }
+    expect(slowSteps).toBeGreaterThan(0); // the open window ended on its own clock
+    expect(v.timeScale).toBe(1);
+    expect(v.slowMos).toBe(1);
+  });
 });
 
 /* ------------------------------------------------------------------ determinism, resizes, the end, the finder */

@@ -94,7 +94,7 @@ An event an action causes (a tile a `damage` breaks) waits for the next step, so
 | `damage` | `amount` (f) HP off the event's tile (target tile) or off a ball with HP (a ball at 0 HP pops) | target "tile", amount 1 |
 | `var` | variable `id` add\|set\|mul `value` (f) | id (required), op "add", value 1 |
 | `impulse` | push `amount` px/s (f) towards dir (or away from the other ball) | target "self", dir "out", amount 200 |
-| `fx` | a visual effect: burst\|flash\|shake\|confetti\|slowmo | kind "burst" |
+| `fx` | a visual effect: burst\|flash\|shake\|confetti\|slowmo (the camera's near-miss slow motion; nothing while Slow motion is off) | kind "burst" |
 | `sound` | a note: voice hit\|gap\|merge\|split, `pitch` scale steps up | voice "hit", pitch 0 |
 
 `target` is `self` (the event's ball), `other` (ballHit's second ball) or `all` (every ball of the rule's `of`). A rule with a trigger that has no ball (start, timer, beat, bar, countReached) acts on every ball.
@@ -195,12 +195,12 @@ Fixed work and memory ceilings (`BLUEPRINT_CEILINGS` in `src/lib/uncap.ts`, the 
 | `soundsPerStep` | 6 | sounds one step plays |
 | `ballRadius` | 225 | a ball's radius in px (a body, a grow, a merge or a split stops there) |
 | `ballSpeed` | 100000 | a ball's speed in px/s (a faster ball is taken out and counted) |
-| `subStepsPerStep` | 16 | sub-steps of one step (slow motion beyond) |
+| `subStepsPerStep` | 16 | sub-steps of one step (beyond it the step shortens: slow motion, or more steps a frame with Slow motion off) |
 | `pairTestsPerStep` | 64000 | ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted) |
 | `pairVisitsPerStep` | 160000 | pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted) |
 | `actionBallsPerStep` | 4096 | balls the rules' actions change in one step (further actions are dropped and counted) |
 
-The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the run plays in slow motion instead.
+The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the step shortens instead: the run plays in slow motion, or, with the Slow motion switch off (`smo=0`), the page runs more steps a frame to keep real time as far as the device can.
 
 ## The playability check
 

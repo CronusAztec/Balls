@@ -52,7 +52,7 @@ const CEILING_WHY: Record<keyof typeof BLUEPRINT_CEILINGS, string> = {
   soundsPerStep: "sounds one step plays",
   ballRadius: "a ball's radius in px (a body, a grow, a merge or a split stops there)",
   ballSpeed: "a ball's speed in px/s (a faster ball is taken out and counted)",
-  subStepsPerStep: "sub-steps of one step (slow motion beyond)",
+  subStepsPerStep: "sub-steps of one step (beyond it the step shortens: slow motion, or more steps a frame with Slow motion off)", // (--- slow-motion ---)
   pairTestsPerStep: "ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted)",
   pairVisitsPerStep: "pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted)",
   actionBallsPerStep: "balls the rules' actions change in one step (further actions are dropped and counted)",
@@ -156,7 +156,7 @@ export function renderBlueprintDocs(): string {
     "",
     table(["Ceiling", "Value", "What it bounds"], (Object.keys(BLUEPRINT_CEILINGS) as (keyof typeof BLUEPRINT_CEILINGS)[]).map((k) => [code(k), String(BLUEPRINT_CEILINGS[k]), CEILING_WHY[k]])),
     "",
-    `The shape of a spec (\`BLUEPRINT_LIMITS\` in \`src/lib/blueprint/limits.ts\`): ${L.bodies} bodies, ${L.exits} exits, ${L.obstaclePatterns} obstacle patterns, ${L.vars} variables, ${L.spawners} spawners, ${L.actionsPerRule} actions a rule, ${L.finishConditions} finish conditions, ${L.hud} HUD counters, ${L.palette} colours, ${L.teams} teams, ${L.rings} rings, ${L.perSpawn} balls a spawn, names of ${L.nameChars} and descriptions of ${L.descriptionChars} characters. A step has 4 to ${BLUEPRINT_MAX_SUBSTEPS} sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past ${BLUEPRINT_MAX_SUBSTEPS} the run plays in slow motion instead.`,
+    `The shape of a spec (\`BLUEPRINT_LIMITS\` in \`src/lib/blueprint/limits.ts\`): ${L.bodies} bodies, ${L.exits} exits, ${L.obstaclePatterns} obstacle patterns, ${L.vars} variables, ${L.spawners} spawners, ${L.actionsPerRule} actions a rule, ${L.finishConditions} finish conditions, ${L.hud} HUD counters, ${L.palette} colours, ${L.teams} teams, ${L.rings} rings, ${L.perSpawn} balls a spawn, names of ${L.nameChars} and descriptions of ${L.descriptionChars} characters. A step has 4 to ${BLUEPRINT_MAX_SUBSTEPS} sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past ${BLUEPRINT_MAX_SUBSTEPS} the step shortens instead: the run plays in slow motion, or, with the Slow motion switch off (\`smo=0\`), the page runs more steps a frame to keep real time as far as the device can.`, // (--- slow-motion ---)
   );
   p(
     "## The playability check",

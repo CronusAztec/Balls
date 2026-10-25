@@ -25,7 +25,9 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * Slow motion is part of the physics, so it is deterministic and every export gets it: the mode runs a world clock that
  * advances at `timeScale` × the simulation clock, and while the scale is below 1 every flying ball's velocity is scaled
  * by it and its gravity by its square (a ballistic path traversed at `timeScale` speed – the same path, slower). The
- * launch schedule, the moving target and every animation follow the world clock.
+ * launch schedule, the moving target and every animation follow the world clock. --- slow-motion --- With the Slow motion
+ * switch off (`config.slowMotion === false`, link `smo=0`) a bullseye opens no window and the world clock keeps time with the
+ * simulation clock: a deterministic variant of the run, the same for the page, the finder and every export.
  *
  * Rigging hook: `perfect` (1-based shot number, 0 = off) makes the director steer that shot into the bull: it is aimed
  * at a free spot of the bull, steered gently while it bounces through the deflectors (a lateral acceleration of at most
@@ -1111,11 +1113,15 @@ export class BullseyeMode implements GameMode {
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: fanfareRoot(s.rootNote), race: "fanfare" });
       ctx.spawnConfetti(x, y - 2 * r);
       // Slow motion: a new window, or – while one runs – held at its slowest a little longer.
-      const since = this.clockMs - v.slowStartMs;
-      if (since >= 0 && since < SLOW_MO_MS) v.slowStartMs = this.clockMs - SLOW_MO_RAMP_IN_MS;
-      else {
-        v.slowStartMs = this.clockMs;
-        v.slowMos++;
+      // --- slow-motion --- with the Slow motion switch off (`config.slowMotion === false`) no window opens: the world clock
+      // keeps its speed, and `slowMos` counts only the windows that opened. A window already running when it turned off plays out.
+      if (ctx.config.slowMotion !== false) {
+        const since = this.clockMs - v.slowStartMs;
+        if (since >= 0 && since < SLOW_MO_MS) v.slowStartMs = this.clockMs - SLOW_MO_RAMP_IN_MS;
+        else {
+          v.slowStartMs = this.clockMs;
+          v.slowMos++;
+        }
       }
       ctx.noteImpact?.();
     }
