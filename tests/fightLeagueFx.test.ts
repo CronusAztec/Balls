@@ -1635,6 +1635,72 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
     console.log(`hit stop page loop: ${summary.join("; ")}; sim fed inside the dips 60 fps ${insideSim[60][FL_HITSTOP_MS].toFixed(1)}/${insideSim[60][FL_HITSTOP_KO_MS].toFixed(1)} ms, 30 fps ${insideSim[30][FL_HITSTOP_MS].toFixed(1)}/${insideSim[30][FL_HITSTOP_KO_MS].toFixed(1)} ms`);
   });
 
+  // --- slow-motion --- the page's Slow motion switch off: the camera skips the hit stop, everything else of the heavy hit goes on
+  it("skips the hit stop with the Slow motion switch off: the same cues and counters, the camera's clock real time on every frame, and the ink flip still FL_KO_FLIP_MS real ms", { timeout: 60_000 }, () => {
+    // Canvas.tsx's draw() (the camera told the switch, cam.slowMotion = false) on the same duel as the test above: the cues come from
+    // the run's heavy hits, which the camera never changes, so the four of them (three heavy hits, the lethal blow) come as with it on
+    stubDocument();
+    const engine = probeEngine({ fighters: ["captainfalcon", "littlemac", "random", "random"], match: "1v1", stage: "noir" }, 1);
+    const view = engine.getFightLeagueView();
+    const cam = new CinematicCamera();
+    cam.slowMotion = false;
+    const layer = new FightLeagueLayer();
+    const { ctx } = mainContext();
+    const frameMs = 1000 / 60;
+    let acc = 0;
+    let koStopMs = Infinity;
+    let heavyStopMs = Infinity;
+    let flipFrames = 0;
+    const flips: number[] = [];
+    const cues: number[] = [];
+    let slowest = 1;
+    let frames = 0;
+    let steps = 0;
+    while (engine.getElapsedMs() < 22_000) {
+      const scale = cam.timeScale();
+      slowest = Math.min(slowest, scale);
+      acc += frameMs * scale;
+      if (acc > 250) acc = 250;
+      while (acc >= 16.666) {
+        engine.update(16.666, 0);
+        cam.afterStep(engine);
+        acc -= 16.666;
+        steps++;
+      }
+      cam.frame(engine, frameMs, true);
+      frames++;
+      koStopMs += frameMs;
+      heavyStopMs += frameMs;
+      const cue = layer.cameraCue(view, false);
+      if (cue) {
+        cam.dip(cue.dipMs, cue.factor, cue.rampInMs);
+        cues.push(cue.dipMs);
+        heavyStopMs = 0;
+        if (cue.lethal) koStopMs = 0;
+      }
+      engine.consumeSoundEvents();
+      ctx.calls.length = 0;
+      layer.drawStage(asCtx(ctx), view, { ...OPTS, koStopMs, heavyStopMs });
+      if (layer.flipOn) flipFrames++;
+      else if (flipFrames > 0) {
+        flips.push(flipFrames);
+        flipFrames = 0;
+      }
+    }
+    vi.unstubAllGlobals();
+    expect(cues).toEqual([FL_HITSTOP_MS, FL_HITSTOP_MS, FL_HITSTOP_MS, FL_HITSTOP_KO_MS]);
+    expect(layer.hitstops).toBe(4); // the renderer's counter advances…
+    expect([cam.dips, cam.dipsSkipped]).toEqual([0, 4]); // …and the camera counts the dips it skipped, never applying one
+    expect(slowest).toBe(1);
+    expect(cam.getSlowLagMs()).toBe(0);
+    // real time: every frame fed its 16.667 ms, one fixed step a frame (the 0.001 ms a frame over 16.666 adds up to one more now and then)
+    expect(steps).toBeGreaterThanOrEqual(frames - 1);
+    expect(steps).toBeLessThanOrEqual(frames + 1);
+    // the noir ink flip runs on the page's real clocks (the lethal cue still starts it): one flip, FL_KO_FLIP_MS long
+    expect(flips.map((f) => f * frameMs)).toEqual([expect.closeTo(FL_KO_FLIP_MS, 6)]);
+  });
+  // --- end slow-motion ---
+
   it("does the heavy maths: the zoom punch, the number's slam and size (noir matching the other stages), the share, the directional shake of a heavy hit", () => {
     expect(flHeavyZoom(0, false)).toBeCloseTo(1.07, 12);
     expect(flHeavyZoom(0, true)).toBeCloseTo(1.1, 12);

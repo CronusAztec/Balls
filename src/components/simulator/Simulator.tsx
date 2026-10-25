@@ -2652,8 +2652,9 @@ export default function Simulator() {
     // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
     // a run takes, so an unfinished run's clip is extended by the lag it added while recording (re-armed until it stops growing,
     // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
+    // (--- slow-motion --- with the Slow motion switch off the run plays in real time: no lag, no extension)
     const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
-    const maxExtraMs = maxSlowLagMs(1000 * settings.recordingDuration);
+    const maxExtraMs = settings.slowMotion ? maxSlowLagMs(1000 * settings.recordingDuration) : 0;
     let credited = 0;
     // --- loop-foundation --- the whole-loop cut (the sound loop feeds it every frame)
     loopRecordStartRef.current = performance.now();
@@ -2811,7 +2812,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
-        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag)
+        slowMoStretch: s.slowMoOnNearMiss && s.slowMotion ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag) --- slow-motion --- (none with the switch off: the stored setting AND the switch)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),

@@ -9,6 +9,9 @@
  *  - **The HUD**, in the bottom-right corner of the square the recorder crops to (so exports have it): the ball count,
  *    "x0.4 real time" while the frame budget makes the run play slower than asked, and ARENA FULL once spawning stopped.
  *  - `data-unlimited-*` attributes mirror the state for tools and the smoke test.
+ *  - --- slow-motion --- With the Slow motion switch off, the real-time badge shows whenever the run plays noticeably slower
+ *    than real time, No limits or not (`drawHud(…, forceRealTime)`), and `data-slow-motion` / `data-realtime-*` mirror the
+ *    real-time clock (`writeSlowMotionDataset()`).
  */
 import { LOD_PLAIN_FROM, LOD_POINTS_FROM, type UnlimitedView } from "@/lib/physics/limits";
 import type { Crowd } from "@/lib/physics/crowd";
@@ -212,13 +215,15 @@ export class UnlimitedLayer {
    * The badges, bottom right of the square (`x0`, `y0`, `side`) the recorder crops to: the ball count while there is a
    * crowd, "x0.4 real time" while the run plays slower than asked, and ARENA FULL (pulsing on `nowMs`). `bottomInset`
    * lifts them above the page's playback-speed buttons, which sit over a nearly square canvas live (never in exports).
+   * --- slow-motion --- `forceRealTime` (the Slow motion switch off): the real-time badge shows while No limits is off too,
+   * alone (the other two belong to No limits).
    */
-  drawHud(ctx: CanvasRenderingContext2D, view: UnlimitedView, time: RealTimeState, labels: UnlimitedLabels, x0: number, y0: number, side: number, nowMs: number, bottomInset = 0) {
-    if (!view.on) return;
+  drawHud(ctx: CanvasRenderingContext2D, view: UnlimitedView, time: RealTimeState, labels: UnlimitedLabels, x0: number, y0: number, side: number, nowMs: number, bottomInset = 0, forceRealTime = false) {
+    if (!view.on && !forceRealTime) return;
     const badges: { text: string; color: string; pulse: boolean }[] = [];
-    if (view.full) badges.push({ text: labels.arenaFull, color: "#f43f5e", pulse: true });
+    if (view.on && view.full) badges.push({ text: labels.arenaFull, color: "#f43f5e", pulse: true });
     if (time.slow) badges.push({ text: labels.realTime(formatRealTime(time.ratio)), color: "#fbbf24", pulse: false });
-    if (view.crowd > 0) badges.push({ text: labels.balls(formatHuge(view.crowd + view.objects)), color: "#93d119", pulse: false });
+    if (view.on && view.crowd > 0) badges.push({ text: labels.balls(formatHuge(view.crowd + view.objects)), color: "#93d119", pulse: false });
     if (badges.length === 0) return;
     ctx.save();
     const fs = Math.max(11, 0.032 * side);
@@ -273,3 +278,43 @@ export function writeUnlimitedDataset(view: UnlimitedView, time: RealTimeState, 
 }
 
 export const UNLIMITED_DATA_KEYS = ["unlimited", "unlimitedRealtime", "unlimitedSlow", "unlimitedFull", "unlimitedCrowd", "unlimitedBalls", "unlimitedBounces", "unlimitedAte", "unlimitedLod"];
+
+// --- slow-motion ---
+/** What the canvas mirrors of the live real-time clock (lib/simulation/realTime.ts `RealTimeClock`). */
+export interface RealTimeData {
+  /** Playback ms the run is owed right now. */
+  debtMs: number;
+  /** Playback ms lost past the debt cap: time the device could not simulate. */
+  lostMs: number;
+  /** Due frames skipped to catch up. */
+  framesSkipped: number;
+}
+
+/** Every key `writeSlowMotionDataset()` may write (all removed while Slow motion is on: a default page has none of them). */
+export const SLOW_MOTION_DATA_KEYS = ["slowMotion", "dipsSkipped", "realtimeRatio", "realtimeSlow", "realtimeDebtMs", "realtimeLostMs", "framesSkipped"];
+const REAL_TIME_CLOCK_KEYS = SLOW_MOTION_DATA_KEYS.slice(2);
+
+/**
+ * Mirrors the Slow motion switch for tools and the smoke test. On (the default): nothing (the keys are removed). Off:
+ * data-slow-motion="0", the mode dips the camera skipped (data-dips-skipped) and – live, where `clock` is the real-time
+ * clock – the playback rate measured against real time (data-realtime-ratio, data-realtime-slow: the badge shows), the debt,
+ * the time lost past its cap (ms) and the frames skipped to catch up (data-frames-skipped).
+ */
+export function writeSlowMotionDataset(slowMotion: boolean, clock: RealTimeData | null, time: RealTimeState, dipsSkipped: number, set: (key: string, value: string) => void, dataset: DOMStringMap) {
+  if (slowMotion) {
+    if (dataset.slowMotion !== undefined) for (const key of SLOW_MOTION_DATA_KEYS) if (dataset[key] !== undefined) delete dataset[key];
+    return;
+  }
+  set("slowMotion", "0");
+  set("dipsSkipped", String(dipsSkipped));
+  if (!clock) {
+    for (const key of REAL_TIME_CLOCK_KEYS) if (dataset[key] !== undefined) delete dataset[key];
+    return;
+  }
+  set("realtimeRatio", time.ratio.toFixed(3));
+  set("realtimeSlow", time.slow ? "1" : "0");
+  set("realtimeDebtMs", String(Math.round(clock.debtMs)));
+  set("realtimeLostMs", String(Math.round(clock.lostMs)));
+  set("framesSkipped", String(clock.framesSkipped));
+}
+// --- end slow-motion ---

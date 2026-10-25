@@ -95,8 +95,9 @@ import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-b
 // --- odd-territory --- Territory: the tile map (offscreen, repainted where tiles flip), pops, blasts, whirls, bodies, the HUD band and the banner
 import { DEFAULT_TERRITORY_LABELS, TERRITORY_DATA_KEYS, TerritoryLayer, writeTerritoryDataset, type TerritoryLabels, type TerritoryRenderOptions } from "./territoryRenderer";
 // --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
-import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
+import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeSlowMotionDataset, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
+import { RealTimeClock, STEP_MS as REAL_TIME_STEP_MS, realWallMs, type RealTimeInput, type RealTimeStepper } from "@/lib/simulation/realTime"; // --- slow-motion --- (the live loop with the switch off)
 import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
 // --- uncap-all --- the speed readout (the fastest ball, short numbers) and NUMBERS OVERFLOWED
 import { DEFAULT_UNCAP_LABELS, drawUncapHud, fastestSpeed, writeUncapDataset, type UncapInfo, type UncapLabels } from "./uncapRenderer";
@@ -1209,14 +1210,73 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     if (!offline) void primeLiveWatermark();
     // --- end watermark-everywhere ---
 
+    // --- slow-motion --- Slow motion off, live: the run plays in real time (lib/simulation/realTime.ts). The clock owes the run
+    // every wall-clock ms × playback speed and pays it with whole steps on every callback – a step the engine's time dilation
+    // shortened pays only its share, so a dilated run plays in real time on more steps – and the frame gate decides the draws
+    // only: under load the page drops drawn frames, never simulated time (it still draws at least 10 a second, each drawn frame's
+    // frameMs covering the callbacks it skipped, for the camera, the Fight League clocks and the elapsed time). What the device
+    // cannot simulate past the debt cap is lost and shown: the real-time badge, No limits or not. With Slow motion on (the
+    // default) and offline (the fast export, a race's arenas), draw() keeps the loop it always had.
+    const realTime = new RealTimeClock();
+    /** The last callback ran the real-time loop (one of the old loop, or a fast export, in between starts its clock over). */
+    let realTimeLive = false;
+    const realTimeInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false };
+    const realTimeStepper: RealTimeStepper = {
+      step: () => {
+        engine.update(16.666, audioRef.current);
+        cam.afterStep(engine); // --- camera: the escape replay's ring buffer
+        return engine.getStepTimeScale(); // what the step pays: its share of a fixed step after the engine's time dilation
+      },
+      now: () => performance.now(),
+    };
+    const drawRealTime = (now: number) => {
+      if (!realTimeLive) {
+        realTime.reset();
+        frameBudget.reset();
+        realTimeLive = true;
+      }
+      const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
+      cam.settings = cameraRef.current; // --- camera ---
+      cam.slowMotion = false; // every camera moment in real time: no near-miss window, no dip, no view between steps, the replay at 1×
+      const held = holdRunRef.current; // --- low-findings --- (a whole-loop recording waits for its first frame)
+      const running = !p.isPaused && !!p.isStarted && !held;
+      realTimeInput.running = running;
+      realTimeInput.simSpeed = p.simSpeed;
+      // (--- orb-rhythm --- a rhythm field that draws cheaply enough takes every refresh, as in the old loop)
+      realTimeInput.drawDue = frameGate.due(now) || (orbFrameCost.fast && engine.isOrbGridMode() && engine.getOrbGridView().model === "rhythm");
+      const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
+      frameBudget.enabled = false; // (the clock budgets its own steps)
+      const tick = realTime.tick(now, realTimeInput, realTimeStepper);
+      lastTimeRef.current = now;
+      // the honest badge: the playback time the steps paid against what the wall clock asked for (a finished run's clock stands still)
+      if (!running || engine.isSimulationFinished()) frameBudget.reset();
+      else frameBudget.note(tick.wallMs, tick.wantedMs, tick.paidMs);
+      if (!tick.draw) {
+        rafRef.current = requestAnimationFrame(draw); // a dropped frame: the steps ran, nothing is drawn
+        return;
+      }
+      framesDrawnRef.current++;
+      accumulator = REAL_TIME_STEP_MS * realTime.stepFraction; // the share of the next step already owed: where the views between steps stand
+      paintFrame(now, tick.frameMs, p, held, orbDrawStart);
+    };
+    // --- end slow-motion ---
+
     const draw = (ts?: number) => {
       const now = offline ? offline.now() : (ts ?? performance.now()); // --- fast-render --- (offline: the export's clock) --- review fix (performance) --- (the rAF timestamp: vsync-aligned)
       // --- fast-render --- the page's canvas keeps its last frame while a fast export renders (the run is paused meanwhile)
       if (!offline && fastRenderRef.current?.getJob()) {
         lastTimeRef.current = now;
+        realTimeLive = false; // --- slow-motion --- (the real-time clock starts over after the export)
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
+      // --- slow-motion --- Slow motion off, live: the real-time loop (drawRealTime() above) runs this callback's steps and draws
+      // through paintFrame() when its clock says so. On – the default – and offline: the loop below, as it always was
+      if (!offline && !engine.slowMotionOn()) {
+        drawRealTime(now);
+        return;
+      }
+      realTimeLive = false;
       // --- review fix (performance) --- a 60 fps budget phase-locked to the display (75 / 90 / 144 Hz draw 60 fps, not 37–55, and a
       // late 60 Hz callback is not dropped); the fast export draws every frame it asks for
       if (!offline) {
@@ -1228,10 +1288,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         framesDrawnRef.current++;
       }
       const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
+      const wallMs = realWallMs(now - lastTimeRef.current); // --- slow-motion --- (uncapped, for the real-time badge only: the steps keep the 100 ms cap)
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
       const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
       cam.settings = cameraRef.current; // --- camera ---
+      cam.slowMotion = engine.slowMotionOn(); // --- slow-motion --- (on here live; offline the export's engine says, and with it off every camera moment plays in real time)
 
       const held = holdRunRef.current && !offline; // --- low-findings --- (a whole-loop recording waits for its first frame)
       if (held) accumulator = 0;
@@ -1249,8 +1311,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           if (frameBudget.exceeded(performance.now())) accumulator = 0; // --- unlimited ---
         }
         if (engine.isSimulationFinished()) frameBudget.reset(); // --- unlimited --- (a finished run's clock stands still: not slow motion)
-        else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
+        else frameBudget.note(wallMs, wallMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited --- (--- slow-motion --- the uncapped wall time: a 300 ms frame no longer reads as real time)
       } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
+      paintFrame(now, frameMs, p, held, orbDrawStart); // --- slow-motion ---
+    };
+    // --- slow-motion --- the frame's picture once its steps ran, from the camera on: both loops draw through it
+    const paintFrame = (now: number, frameMs: number, p: typeof propsRef.current, held: boolean, orbDrawStart: number) => {
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted && !held); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       // --- string-battle-alive --- the duel: a slow-motion dip at every cut (the final one longer), its balls drawn between steps
       if (engine.isStringBattleMode()) {
@@ -2861,14 +2927,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multView.active) {
         const sq = Math.min(size.width, size.height);
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
-        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut);
+        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut, realTimeLive ? engine.getStepTimeScale() : 1); // --- slow-motion --- (the switch off: the dilation the page repays is no SLOW-MO)
         modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
       }
       // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
-      if (unlimitedView.on) {
+      // (--- slow-motion --- with Slow motion off the real-time badge shows whenever the device cannot keep up, No limits or not)
+      const realTimeBadge = realTimeLive && frameBudget.slow;
+      if (unlimitedView.on || realTimeBadge) {
         const sq = Math.min(size.width, size.height);
         const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
-        unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
+        unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset, realTimeBadge);
       }
       // --- uncap-all --- the fastest ball's speed (and NUMBERS OVERFLOWED) while the run is extreme: a value its engine reads
       // past its slider, a Bounciness that grew the rebounds past the old ×3, an obstacle kick past the old cap – the engine's
@@ -3763,6 +3831,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
       writeUnlimitedDataset(unlimitedView, frameBudget, lodOf(unlimitedView), setCanvasData, canvas.dataset); // --- unlimited --- (data-unlimited-*)
+      writeSlowMotionDataset(engine.slowMotionOn(), realTimeLive ? realTime : null, frameBudget, cam.dipsSkipped, setCanvasData, canvas.dataset); // --- slow-motion --- (data-slow-motion, data-realtime-*: none while it is on)
       writeUncapDataset(uncapInfo, setCanvasData); // --- uncap-all --- (data-uncap-*)
       // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
       if (plView) {
@@ -3895,6 +3964,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (sbView && duelLayer.bannerOn) hud.block(duelLayer.bannerBox.x, duelLayer.bannerBox.y, duelLayer.bannerBox.w, duelLayer.bannerBox.h); // --- string-battle-alive --- (the FINAL DUEL banner)
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
+        else if (realTimeBadge) noteCornerReadouts(hud, liveSquare, true, 1, recording ? 0 : 52); // --- slow-motion --- (the real-time badge alone)
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);
         if (journeyView) noteJourneyHud(hud, journeyView.field);
         if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);

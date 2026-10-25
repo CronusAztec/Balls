@@ -513,8 +513,12 @@ function overlaps(x: number, y: number, w: number, h: number, r: HudRect | null 
  * the screen y of the first badge row (−1 while no badge shows), which the canvas mirrors for the smoke test; `top.bottom`
  * gets the lowest bottom edge of the badges and SLOW-MO that reach into the captions' centred column (0: none), which the
  * top captions start below.
+ * --- slow-motion --- `repaid` is the share of the time dilation the page pays back with extra steps: with the Slow motion
+ * switch off the live page repays it all (`PhysicsEngine.getStepTimeScale()`), so SLOW-MO shows only what still runs slow – a
+ * bounce-math "timeScale" rule below 1 – and the device's own lag is the real-time badge's (unlimitedRenderer.ts). 1, the
+ * default: SLOW-MO shows the dilation as it always did.
  */
-export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null, top?: { bottom: number }): number {
+export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null, top?: { bottom: number }, repaid = 1): number {
   if (top) top.bottom = 0; // --- review fix (modes-gerald-odd) ---
   if (!mv.active) return -1;
   ctx.save();
@@ -575,8 +579,10 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
     x += w + gap;
   }
   // SLOW-MO while the clock is dilated (below the scoreboard when that takes the top right).
-  if (mv.dilation < 1) {
-    const text = labels.slowMo(formatDilation(mv.dilation));
+  // (--- slow-motion --- with the switch off, only the share the page does not repay, rounded off at 1e-9; 1 repaid: the old tag)
+  const shownDilation = repaid > 0 && repaid < 1 ? Math.round((mv.dilation / repaid) * 1e9) / 1e9 : mv.dilation;
+  if (shownDilation < 1) {
+    const text = labels.slowMo(formatDilation(shownDilation));
     ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
     const w = ctx.measureText(text).width + 1.2 * fs;
     const sx = x0 + side - pad - w;

@@ -766,6 +766,59 @@ describe("the duel's drama on the canvas", () => {
     expect(slowMoTimeScale(125, SB_DUEL_DIP_MS, 0.3)).toBeCloseTo(0.3, 6);
   });
 
+  // --- slow-motion --- the page's Slow motion switch off
+  it("counts the duel's dips with the Slow motion switch off and applies none: the cues go on, the clock stays real time, no view between steps", () => {
+    /** Canvas.tsx's order for a whole battle at 60 fps: timeScale, the fixed steps, cam.frame, the duel's cue, cam.dip, slowView. */
+    const play = (slowMotion: boolean) => {
+      const engine = battle({}, 4);
+      const cam = new CinematicCamera();
+      cam.slowMotion = slowMotion;
+      const layer = new StringDuelLayer();
+      let acc = 0;
+      let slowest = 1;
+      let views = 0;
+      let frames = 0;
+      while (!engine.isSimulationFinished() && frames < 60 * 600) {
+        const scale = cam.timeScale();
+        slowest = Math.min(slowest, scale);
+        acc += STEP * scale;
+        if (acc > 250) acc = 250;
+        while (acc >= 16.666) {
+          engine.update(16.666, 0);
+          cam.afterStep(engine);
+          acc -= 16.666;
+        }
+        cam.frame(engine, STEP, true);
+        const view = engine.getStringBattleView();
+        cam.modeSlowView = view.duel;
+        const cue = layer.frame(view);
+        if (cue) cam.dip(cue.dipMs, cue.factor);
+        if (cam.slowView(engine, acc / 16.666)) views++;
+        engine.consumeSoundEvents();
+        frames++;
+      }
+      return { engine, cam, layer, slowest, views, frames };
+    };
+    const off = play(false);
+    const on = play(true);
+    expect(off.engine.isSimulationFinished()).toBe(true);
+    expect(off.layer.dips).toBeGreaterThan(1); // the duel's cuts cued their dips…
+    expect([off.cam.dips, off.cam.dipsSkipped]).toEqual([0, off.layer.dips]); // …which the camera counted and skipped
+    expect(off.slowest).toBe(1);
+    expect(off.views).toBe(0);
+    expect(off.cam.getSlowLagMs()).toBe(0);
+    // the same battle with the switch on: the same cues, every one applied, the balls drawn between steps – and the same run
+    expect([on.cam.dips, on.cam.dipsSkipped]).toEqual([off.layer.dips, 0]);
+    expect(on.layer.dips).toBe(off.layer.dips);
+    expect(on.slowest).toBeLessThan(0.5);
+    expect(on.views).toBeGreaterThan(0);
+    expect(on.frames).toBeGreaterThan(off.frames);
+    expect(off.engine.getStringBattleView().duelCuts).toBe(on.engine.getStringBattleView().duelCuts);
+    expect(off.engine.getElapsedMs()).toBe(on.engine.getElapsedMs());
+    expect(off.engine.getBalls().map((b) => [b.x, b.y])).toEqual(on.engine.getBalls().map((b) => [b.x, b.y]));
+  });
+  // --- end slow-motion ---
+
   it("punches the camera 4 px away from the cutter for a moment – not under reduced motion", () => {
     const view = duelView();
     view.duelCuts = 1;

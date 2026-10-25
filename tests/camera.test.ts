@@ -1012,3 +1012,165 @@ describe("slow motion and the clip length (review fix modes-gerald-odd)", () => 
     expect(cam.getSlowLagMs()).toBe(0);
   });
 });
+
+/* ------------------------------------------------------------------ --- slow-motion --- the Slow motion switch off */
+
+describe("the camera with the Slow motion switch off (--- slow-motion ---)", () => {
+  /** A context that records the text the replay badge draws (and ignores every other call). */
+  function textCtx() {
+    const texts: string[] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (target, key) => {
+        if (key === "fillText") return (text: string) => texts.push(text);
+        if (key === "measureText") return (text: string) => ({ width: 8 * text.length });
+        if (key in target) return target[key as string];
+        return () => undefined;
+      },
+      set: (target, key, value) => {
+        target[key as string] = value;
+        return true;
+      },
+    }) as unknown as CanvasRenderingContext2D;
+    return { ctx, texts };
+  }
+
+  it("plays the near misses in real time: no window, no lag, no view between steps – the stored setting stays on", () => {
+    const engine = makeEngine("classic", 4242);
+    const cam = new CinematicCamera();
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true, slowMoFactor: 0.2, slowMoMs: 1500 };
+    cam.slowMotion = false;
+    let slowest = 1;
+    let views = 0;
+    const steps = driveWithCamera(engine, cam, 60 * 30, () => {
+      slowest = Math.min(slowest, cam.timeScale());
+      if (cam.slowView(engine, 0.5)) views++;
+    });
+    expect(engine.getNearMissSerial()).toBeGreaterThan(0); // the near misses came…
+    expect(cam.slowMo.started).toBe(0); // …and opened no window
+    expect(slowest).toBe(1);
+    expect(views).toBe(0);
+    expect(cam.getSlowLagMs()).toBe(0);
+    expect(cam.settings.slowMoOnNearMiss).toBe(true);
+    // every frame ran its step, as with the camera off
+    const plainCam = new CinematicCamera();
+    const plainSteps = driveWithCamera(makeEngine("classic", 4242), plainCam, 60 * 30);
+    expect(steps).toEqual(plainSteps);
+    const canvas = fakeCanvas();
+    cam.syncData(canvas);
+    expect(canvas.dataset.cameraTimeScale).toBe("1.00");
+    expect(canvas.dataset.cameraSlowMo).toBe("0");
+    expect(canvas.dataset.cameraSlowLag).toBe("0");
+    // the switch back on: the same camera slows the next near misses again
+    cam.slowMotion = true;
+    driveWithCamera(engine, cam, 60 * 30, () => {
+      slowest = Math.min(slowest, cam.timeScale());
+    });
+    expect(cam.slowMo.started).toBeGreaterThan(0);
+    expect(slowest).toBeLessThan(0.3);
+  });
+
+  it("never changes a seeded run either: slow motion, zoom, shake and the replay with the switch off", () => {
+    for (const mode of ["classic", "shatter", "portal"] as ModeId[]) {
+      const plain = drivePlain(makeEngine(mode, 99, { gapSize: 0.5 }), 60 * 20);
+      const engine = makeEngine(mode, 99, { gapSize: 0.5 });
+      const cam = new CinematicCamera();
+      cam.settings = ALL_ON;
+      cam.slowMotion = false;
+      const steps = driveWithCamera(engine, cam, 60 * 20);
+      const n = Math.min(plain.length, steps.length);
+      expect(n, mode).toBeGreaterThan(600);
+      expect(steps.slice(0, n), mode).toEqual(plain.slice(0, n));
+      expect(cam.slowMo.started, mode).toBe(0);
+      expect(cam.getSlowLagMs(), mode).toBe(0);
+      expect(Number.isFinite(cam.view.scale) && cam.view.scale > 1, mode).toBe(true); // the zoom is no slow motion: it stays
+    }
+  });
+
+  it("counts a mode's dip and never applies it, and closes a window or a dip already open when the switch turns off", () => {
+    const engine = makeEngine("classic", 4242);
+    const cam = new CinematicCamera();
+    cam.slowMotion = false;
+    cam.dip(250, 0.3);
+    cam.dip(150, 0.05, 0);
+    expect([cam.dips, cam.dipsSkipped]).toEqual([0, 2]);
+    for (let f = 0; f < 30; f++) {
+      expect(cam.timeScale()).toBe(1);
+      cam.frame(engine, STEP, true);
+    }
+    expect(cam.getSlowLagMs()).toBe(0);
+    // on: a dip slows the clock; turned off inside it, the clock is real time at once and stays so when it comes back on
+    cam.slowMotion = true;
+    cam.dip(700, 0.3);
+    expect(cam.dips).toBe(1);
+    cam.frame(engine, 100, true);
+    expect(cam.timeScale()).toBeLessThan(0.6);
+    cam.slowMotion = false;
+    expect(cam.timeScale()).toBe(1);
+    cam.frame(engine, STEP, true);
+    cam.slowMotion = true;
+    expect(cam.timeScale()).toBe(1);
+    // the same for a near-miss window
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true };
+    cam.slowMo.trigger(cam.settings.slowMoMs);
+    cam.slowMo.advance(200, cam.settings.slowMoMs);
+    expect(cam.timeScale()).toBeLessThan(1);
+    cam.slowMotion = false;
+    cam.frame(engine, STEP, true);
+    cam.slowMotion = true;
+    expect(cam.timeScale()).toBe(1);
+    // a restart forgets the count
+    engine.initMode("classic");
+    cam.frame(engine, STEP, true);
+    expect(cam.dipsSkipped).toBe(0);
+  });
+
+  it("takes a speed in the replay helpers: 1 plays the window in real time, a bad one falls back to half speed", () => {
+    expect(replayDurationMs(2000, 1)).toBe(2000);
+    expect(replayDurationMs(2000)).toBe(4000);
+    expect(replayDurationMs(2000, 0)).toBe(4000);
+    expect(replayDurationMs(2000, NaN)).toBe(4000);
+    expect(replayDurationMs(-5, 1)).toBe(0);
+    expect(replayTimeAt(1000, 100, 2100, 1)).toBe(1100);
+    expect(replayTimeAt(1000, 100, 2100)).toBe(600);
+    expect(replayTimeAt(99999, 100, 2100, 1)).toBe(2100);
+    expect(replayTimeAt(1000, 100, 2100, -1)).toBe(600);
+  });
+
+  it("still replays a classic escape, at 1× – the end screen waits for it, the badge says 1×", () => {
+    const engine = makeEngine("classic", 5, { gapSize: 1, wallCount: 2 });
+    const cam = new CinematicCamera();
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, replayOnEscape: true };
+    cam.slowMotion = false;
+    let playFrames = 0;
+    let holdFrames = 0;
+    let first = -1;
+    let last = -1;
+    const { ctx, texts } = textCtx();
+    driveWithCamera(engine, cam, 60 * 60, () => {
+      if (cam.holdsEndScreen()) holdFrames++;
+      const view = cam.replayView();
+      if (!view) return;
+      playFrames++;
+      if (first < 0) first = view.time;
+      last = view.time;
+      if (texts.length === 0) cam.drawOverlay(ctx, 800, 600, "REPLAY", false);
+    });
+    expect(cam.getPhase()).toBe("done");
+    expect(playFrames).toBeGreaterThan(0);
+    const span = last - first;
+    expect(span).toBeGreaterThan(REPLAY_WINDOW_MS - 2 * STEP);
+    // real time: the window takes as long in frames as it spans (half the frames of the half-speed replay)
+    expect(playFrames * 16.666).toBeGreaterThan(replayDurationMs(span, 1) - 60);
+    expect(playFrames * 16.666).toBeLessThan(replayDurationMs(span, 1) + 60);
+    expect(holdFrames).toBeGreaterThanOrEqual(playFrames);
+    expect(texts).toEqual(["REPLAY", "1×"]);
+    // on (the default), the same badge says ½×
+    const halfCam = new CinematicCamera();
+    halfCam.settings = cam.settings;
+    const half = textCtx();
+    driveWithCamera(makeEngine("classic", 5, { gapSize: 1, wallCount: 2 }), halfCam, 60 * 60, () => {
+      if (halfCam.replayView() && half.texts.length === 0) halfCam.drawOverlay(half.ctx, 800, 600, "REPLAY", false);
+    });
+    expect(half.texts).toEqual(["REPLAY", "½×"]);
+  });
+});

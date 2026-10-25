@@ -382,14 +382,22 @@ export function replayEligible(mode: ModeId | null | undefined): boolean {
   return !!mode && REPLAY_MODES.includes(mode);
 }
 
-/** Real-time length of a replay of `windowMs` of simulation time. */
-export function replayDurationMs(windowMs: number): number {
-  return Math.max(0, windowMs) / REPLAY_SPEED;
+/**
+ * --- slow-motion --- The speed a replay plays at: `speed` when it is a positive finite number (1 with the Slow motion switch
+ * off: the replay was asked for, only its slowness is slow motion), else `REPLAY_SPEED`.
+ */
+function replaySpeedOf(speed: number): number {
+  return Number.isFinite(speed) && speed > 0 ? speed : REPLAY_SPEED;
 }
 
-/** Simulation time shown `realMs` into a replay of the window [startMs, endMs]. */
-export function replayTimeAt(realMs: number, startMs: number, endMs: number): number {
-  return Math.max(startMs, Math.min(endMs, startMs + Math.max(0, realMs) * REPLAY_SPEED));
+/** Real-time length of a replay of `windowMs` of simulation time (at `speed`, half speed by default). */
+export function replayDurationMs(windowMs: number, speed: number = REPLAY_SPEED): number {
+  return Math.max(0, windowMs) / replaySpeedOf(speed);
+}
+
+/** Simulation time shown `realMs` into a replay of the window [startMs, endMs] (at `speed`, half speed by default). */
+export function replayTimeAt(realMs: number, startMs: number, endMs: number, speed: number = REPLAY_SPEED): number {
+  return Math.max(startMs, Math.min(endMs, startMs + Math.max(0, realMs) * replaySpeedOf(speed)));
 }
 
 /** True when every ball lies wholly outside the circle of radius `radius` around (cx, cy) – "escaped". */

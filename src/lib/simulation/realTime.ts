@@ -51,6 +51,15 @@ export function stepCostMs(timeScale: number): number {
   return Number.isFinite(timeScale) && timeScale > 0 ? STEP_MS * timeScale : STEP_MS;
 }
 
+/**
+ * The wall-clock ms between two callbacks as the real-time badge counts them (`FrameBudget.note()`, both switch states):
+ * uncapped – a frame that took 300 ms counts 300, not the 100 the old loop feeds its steps – but a pause (a gap over
+ * `PAUSE_GAP_MS`, a clock that went back) counts as one step, as the clock counts it, so a tab coming back shows no badge.
+ */
+export function realWallMs(gapMs: number): number {
+  return gapMs >= 0 && gapMs <= PAUSE_GAP_MS ? gapMs : STEP_MS;
+}
+
 /** The caller's side of a live callback: its steps and its clock. */
 export interface RealTimeStepper {
   /** Runs one whole step (`engine.update(STEP_MS)` and what follows it) and returns its time scale (`engine.getStepTimeScale()`). */
@@ -109,6 +118,15 @@ export class RealTimeClock {
   /** The run owes at least the next step. */
   get owesStep(): boolean {
     return this.debtMs >= this.nextCostMs - DEBT_EPSILON_MS;
+  }
+
+  /**
+   * The share of the next step the run is owed already, from 0 to just under 1: where a view drawn between steps stands
+   * (the page's leftover accumulator ÷ one step in the old loop; a dilated step's share is of its own cost).
+   */
+  get stepFraction(): number {
+    const f = this.debtMs / this.nextCostMs;
+    return f > 0 ? Math.min(f, 1 - 1e-9) : 0;
   }
 
   /** A new run, a new loop or the switch turned over: nothing owed, nothing counted, the next callback starts the clock. */

@@ -38,6 +38,8 @@ const TWO_PI = Math.PI * 2;
 const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShakes", "cameraSlowMo", "cameraReplays", "cameraSlowFrames", "cameraSlowStill", "cameraSlowLag"] as const;
 /** The replay speed next to the label ("½×" at half speed). */
 const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
+/** --- slow-motion --- The label of a replay played at real time (the Slow motion switch off). */
+const REAL_TIME_SPEED_LABEL = "1×";
 
 /**
  * The canvas side of the cinematic camera (the maths lives in lib/simulation/camera.ts and replay.ts).
@@ -63,6 +65,11 @@ const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
  * It only reads the engine – except that a wall breaking inside the replayed window spawns the wall-break
  * particles again (`spawnWallBreakByStyle`, visual only: particles use Math.random, never the seeded
  * generator, and the run is already over). Nothing here can change a run.
+ *
+ * --- slow-motion --- `slowMotion` is the page's Slow motion switch (Canvas.tsx sets it every frame from the engine's
+ * config). Off, every camera moment plays in real time while the stored settings stay as they are (the effective value is
+ * the stored one AND the switch): `timeScale()` is 1, a near miss opens no window, a mode's dip is a no-op (counted in
+ * `dipsSkipped`), no view is drawn between steps, the lag stays 0 and the escape replay plays at 1×.
  */
 export class CinematicCamera {
   settings: CameraSettings = DEFAULT_CAMERA_SETTINGS;
@@ -105,9 +112,25 @@ export class CinematicCamera {
   private drawnId = NaN;
   private drawnX = NaN;
   private drawnY = NaN;
+  // --- slow-motion ---
+  /**
+   * The Slow motion switch (`PhysicsConfig.slowMotion`, set by the canvas every frame): off, the near-miss slow motion, a
+   * mode's dips and the replay's half speed give way to real time. The stored camera settings are never rewritten.
+   */
+  slowMotion = true;
+  /** Dips a mode asked for while the switch was off (not applied; mirrored by the canvas as data-dips-skipped). */
+  dipsSkipped = 0;
+  /** The speed the running replay plays at, fixed when it starts (`REPLAY_SPEED`, or 1 with the switch off). */
+  private replaySpeed = REPLAY_SPEED;
+  // --- end slow-motion ---
 
   /** Real → simulation time factor for this frame: the slow-motion window, 1 otherwise (and around the replay). */
   timeScale(): number {
+    // --- slow-motion --- the switch off: real time, whatever window or dip is open
+    if (!this.slowMotion) {
+      this.scaleNow = 1;
+      return 1;
+    }
     const s = this.settings;
     this.scaleNow = s.slowMoOnNearMiss && this.phase === "idle" ? this.slowMo.timeScale(s.slowMoMs, s.slowMoFactor) : 1;
     // --- string-battle-alive --- a mode's own dip (the String Battle's duel cuts), whatever the switch: the slower of the two
@@ -139,6 +162,11 @@ export class CinematicCamera {
    */
   dip(ms: number, factor: number, rampInMs?: number) {
     if (this.phase !== "idle" || !(ms > 0)) return;
+    // --- slow-motion --- the switch off: the dip is counted, never applied (the mode's own counters and flashes go on)
+    if (!this.slowMotion) {
+      this.dipsSkipped++;
+      return;
+    }
     this.dipElapsed = 0;
     this.dipMs = ms;
     this.dipFactor = Number.isFinite(factor) ? factor : 1;
@@ -219,6 +247,7 @@ export class CinematicCamera {
       this.slowLagMs = 0;
       this.dipElapsed = Infinity; // --- string-battle-alive ---
       this.dips = 0;
+      this.dipsSkipped = 0; // --- slow-motion ---
       this.drawnId = NaN;
       this.lastBreaks = engine.getWallBreakSerial();
       this.lastMisses = engine.getNearMissSerial();
@@ -227,9 +256,9 @@ export class CinematicCamera {
     this.lastSeed = seed;
   }
 
-  /** The live view is drawn between steps: slow motion on, a ring mode, and no replay around. */
+  /** The live view is drawn between steps: slow motion on, a ring mode, and no replay around (--- slow-motion --- never with the switch off). */
   private interpolating(engine: PhysicsEngine) {
-    return (this.settings.slowMoOnNearMiss || this.modeSlowView) /* --- string-battle-alive --- */ && this.phase === "idle" && slowViewEligible(engine.getCurrentModeName());
+    return this.slowMotion && (this.settings.slowMoOnNearMiss || this.modeSlowView) /* --- string-battle-alive --- */ && this.phase === "idle" && slowViewEligible(engine.getCurrentModeName());
   }
 
   private recording(engine: PhysicsEngine) {
@@ -279,7 +308,13 @@ export class CinematicCamera {
     if (this.lastMisses < 0 || misses < this.lastMisses) this.lastMisses = misses;
     else if (misses > this.lastMisses) {
       this.lastMisses = misses;
-      if (s.slowMoOnNearMiss && live) this.slowMo.trigger(s.slowMoMs);
+      if (s.slowMoOnNearMiss && live && this.slowMotion) this.slowMo.trigger(s.slowMoMs); // --- slow-motion --- (no window with the switch off)
+    }
+    // --- slow-motion --- the switch off: no window or dip stays open (turning it back on never resumes one) and the time scale is 1
+    if (!this.slowMotion) {
+      this.slowMo.reset();
+      this.dipElapsed = Infinity;
+      this.scaleNow = 1;
     }
     if (!running) return;
     // --- review fix (modes-gerald-odd) --- the real time this frame's slow motion added (this frame's time scale, see timeScale())
@@ -301,7 +336,7 @@ export class CinematicCamera {
       else if (this.replay.isFrozen() || engine.getElapsedMs() - this.finishedAt >= REPLAY_POST_ROLL_MS) this.startReplay(engine);
     } else if (this.phase === "playing") {
       this.replayElapsed += frameMs;
-      if (!s.replayOnEscape || this.replayElapsed >= replayDurationMs(this.replayEnd - this.replayStart)) {
+      if (!s.replayOnEscape || this.replayElapsed >= replayDurationMs(this.replayEnd - this.replayStart, this.replaySpeed)) {
         this.phase = "done";
         this.current = null;
       }
@@ -322,6 +357,7 @@ export class CinematicCamera {
     this.replayStart = start;
     this.replayEnd = end;
     this.replayElapsed = 0;
+    this.replaySpeed = this.slowMotion ? REPLAY_SPEED : 1; // --- slow-motion --- (the switch off: the replay plays at real time)
     this.replays++;
     this.slowMo.reset();
     this.shakeAge = Infinity;
@@ -332,7 +368,7 @@ export class CinematicCamera {
 
   /** The replayed scene for this frame; a wall that breaks inside the window shakes the view and bursts again. */
   private sampleReplay(engine: PhysicsEngine) {
-    const view = this.replay.sample(replayTimeAt(this.replayElapsed, this.replayStart, this.replayEnd), engine.getCircularWalls());
+    const view = this.replay.sample(replayTimeAt(this.replayElapsed, this.replayStart, this.replayEnd, this.replaySpeed), engine.getCircularWalls());
     this.current = view;
     if (!view) return;
     if (view.breakSerial > this.replayBreak) {
@@ -445,7 +481,7 @@ export class CinematicCamera {
     if (this.phase !== "playing") return;
     const minDim = Math.min(width, height);
     const fs = Math.max(11, 0.034 * minDim);
-    const speed = SPEED_LABEL;
+    const speed = this.replaySpeed === REPLAY_SPEED ? SPEED_LABEL : REAL_TIME_SPEED_LABEL; // --- slow-motion --- ("1×" with the switch off)
     ctx.save();
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
@@ -491,7 +527,7 @@ export class CinematicCamera {
     ctx.font = `700 ${0.8 * fs}px sans-serif`;
     ctx.fillText(speed, tx + labelW + gapW, y + h / 2);
     // Progress bar under the pill
-    const duration = replayDurationMs(this.replayEnd - this.replayStart);
+    const duration = replayDurationMs(this.replayEnd - this.replayStart, this.replaySpeed);
     const progress = duration > 0 ? Math.min(1, this.replayElapsed / duration) : 1;
     const by = y + h + 0.35 * fs;
     ctx.globalAlpha = 0.35;

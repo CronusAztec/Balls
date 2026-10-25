@@ -8099,6 +8099,42 @@ await smokeBlock("unlimited", async () => {
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   const glassPanes = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.glassPanes, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
   check("no limits: a mode's own settings run past their sliders with the switch off (4,000 power layers, 40 panes a stage)", plLayers === "4000" && glassPanes === "80", `(layers ${plLayers}, panes ${glassPanes})`);
+
+  // --- slow-motion --- the extreme link again with Slow motion off (smo=0): the page owes the run the wall clock and pays it
+  // with whole steps (Canvas.tsx's real-time loop), so a run it cannot keep up with fills the debt to its cap and loses only the
+  // rest – shown by the real-time badge (data-realtime-*) – while it still draws and answers a click within 300 ms
+  await page.goto(`${BASE}/en/simulator/?mode=classic&inf=1&nb=50000&s=1000000&smo=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const realTimeOn = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.slowMotion === "0" && d.realtimeSlow === "1" && Number(d.realtimeLostMs) > 0 && Number(d.unlimitedCrowd) > 0;
+    }, null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.evaluate(() => {
+    window.__realTimeClicks = [];
+    document.addEventListener("pointerdown", () => window.__realTimeClicks.push(performance.now()), { capture: true });
+  });
+  const offBox = await page.getByRole("button", { name: /Ball & Physics/ }).boundingBox();
+  const offLatencies = [];
+  for (let i = 0; i < 3 && offBox; i++) {
+    const issued = await page.evaluate(() => performance.now());
+    await page.mouse.click(offBox.x + offBox.width / 2, offBox.y + offBox.height / 2);
+    await page.waitForFunction((n) => window.__realTimeClicks.length > n, i, { timeout: 5000 }).catch(() => {});
+    const at = await page.evaluate((n) => window.__realTimeClicks[n] ?? NaN, i);
+    offLatencies.push(at - issued);
+  }
+  const offData = await unlimitedData();
+  const offLink = await page.evaluate(() => new URLSearchParams(location.search).get("smo"));
+  const offDebt = Number(offData.realtimeDebtMs);
+  const offWorstClick = Math.max(...offLatencies);
+  check(
+    "slow motion off: the extreme link plays in real time – the debt carried up to its cap, the time past it lost and shown – and stays responsive",
+    realTimeOn && offLink === "0" && offDebt >= 0 && offDebt <= 500 && Number(offData.realtimeLostMs) > 0 && Number(offData.realtimeRatio) < 0.9 && Number(offData.framesSkipped) >= 0 && offLatencies.length === 3 && offWorstClick < 300,
+    `(real time ${realTimeOn}, link smo=${offLink}, x${offData.realtimeRatio} real time, debt ${offData.realtimeDebtMs} ms, lost ${offData.realtimeLostMs} ms, frames skipped ${offData.framesSkipped}, clicks ${offLatencies.map((l) => Math.round(l)).join("/")} ms${loadNote()})`,
+  );
+  // --- end slow-motion ---
 }
 // --- end unlimited ---
 });

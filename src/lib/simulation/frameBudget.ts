@@ -9,8 +9,14 @@
  *
  * Slicing happens **between** steps only – a step is never cut – so the physics result of a seed does not depend on the
  * budget, the machine or the frame rate: it only decides how many of the same steps a frame shows. The fast export and
- * the finder run without a budget (they render simulation time), so an extreme run exports correctly however slowly the
- * live preview crawls.
+ * the finder run without a budget, so an extreme run exports the same steps however slowly the live preview crawls –
+ * --- slow-motion --- (corrected) but they run about one fixed step per frame of video, so a step the engine's time
+ * dilation shortened plays slower than real time there too: they render steps, not simulation time.
+ *
+ * --- slow-motion --- With the Slow motion switch off the live page leaves this loop for the real-time scheduler
+ * (realTime.ts), which carries the time this one drops and repays the dilation with steps; it still notes every frame
+ * here, so the "x0.4 real time" badge reads the playback time its steps paid against the wall clock. Both loops pass
+ * the uncapped wall time (`realWallMs()`), so a frame over 100 ms no longer reads as real time.
  */
 
 /** Wall-clock milliseconds a frame may spend on physics before the rest of its steps is dropped. */
