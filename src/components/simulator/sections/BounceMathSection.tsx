@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, Toggle, onBtn, offBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, SliderTrack, Toggle, onBtn, offBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import type { SimulatorSettings } from "@/lib/settings";
 import { bounceParamApplies, bounceTriggerApplies, type BounceMathView } from "@/lib/physics/bounceMathRuntime";
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
@@ -93,7 +93,6 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
   const comfort = amountComfortRange(rule.param, rule.op);
   // --- review fix (uncap-all) --- min / max bound the parameter's own value: their arrow keys step on its "set" range
   const bounds = amountComfortRange(rule.param, "set");
-  const sliderValue = Math.max(comfort.min, Math.min(comfort.max, rule.amount));
   const applies = bounceParamApplies(rule.param, mode);
   const triggered = bounceTriggerApplies(rule.trigger, mode);
   return (
@@ -147,18 +146,8 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
       {rule.op === "formula" ? (
         <FormulaField value={rule.formula ?? ""} n={n} onCommit={(formula) => onChange({ formula })} b={b} />
       ) : (
-        <input
-          type="range"
-          min={comfort.min}
-          max={comfort.max}
-          step={comfort.step}
-          value={sliderValue}
-          onChange={(e) => onChange({ amount: Number(e.target.value) })}
-          aria-label={b("amountSliderOf", { n })}
-          data-testid="bm-amount-slider"
-          className="w-full h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-          style={sliderStyle(sliderValue, comfort.min, comfort.max)}
-        />
+        // --- unlimited-sizes --- the wide track with Wide sliders on (the plain track pins at its ends, as it did)
+        <SliderTrack settingKey="bmAmount" label={b("amountSliderOf", { n })} value={rule.amount} range={comfort} onChange={(v) => onChange({ amount: v })} testId="bm-amount-slider" className="w-full h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer" />
       )}
       <div className="flex items-center gap-1.5 text-xs text-ink-2">
         <span>{b("min")}</span>

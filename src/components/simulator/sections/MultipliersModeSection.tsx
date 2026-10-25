@@ -2,7 +2,7 @@
 
 import Tooltip from "../Tooltip";
 import NumberField from "../NumberField"; // --- review fix (uncap-all) ---
-import { Searchable, Slider, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, SliderTrack, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { MULTIPLIER_COLORS } from "@/lib/physics/multipliers";
 import { GATE_KINDS, GATE_WEIGHT_RANGE, DEFAULT_GATE_MIX, formatGateMix, gateMixWeights, sanitizeGateMix, type GateKind } from "@/lib/physics/modes/multipliers";
@@ -70,17 +70,8 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
                   <span className="w-20 shrink-0 truncate" title={beyond ? formatCompact(weight) : undefined}>
                     {label}
                   </span>
-                  <input
-                    type="range"
-                    min={GATE_WEIGHT_RANGE.min}
-                    max={GATE_WEIGHT_RANGE.max}
-                    step={GATE_WEIGHT_RANGE.step}
-                    value={weight /* (past 9 the track pins at its end, like every slider's; the field shows the weight) */}
-                    onChange={(e) => setWeight(i, Number(e.target.value))}
-                    aria-label={label}
-                    className={`flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer ${beyond ? "ring-1 ring-warn/40" : ""}`}
-                    style={sliderStyle(weight, GATE_WEIGHT_RANGE.min, GATE_WEIGHT_RANGE.max)}
-                  />
+                  {/* (past 9 the plain track pins at its end, like every slider's; --- unlimited-sizes --- the wide track goes on past it) */}
+                  <SliderTrack settingKey={`mpGateMix:${kind}`} label={label} value={weight} range={GATE_WEIGHT_RANGE} onChange={(v) => setWeight(i, v)} className={`flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer ${beyond ? "ring-1 ring-warn/40" : ""}`} />
                   <NumberField value={weight} onCommit={(v) => setWeight(i, v)} label={label} range={GATE_WEIGHT_RANGE} rules={{ min: 0 }} settingKey={`mpGateMix:${kind}`} className="w-16 font-normal" />
                 </div>
               );

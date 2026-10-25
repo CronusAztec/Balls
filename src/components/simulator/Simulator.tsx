@@ -11,7 +11,8 @@ import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
-import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
+import Controls, { sectionDefaults, type ControlSection } from "./Controls";
+import { SliderTrack } from "./ControlPrimitives"; // --- unlimited-sizes --- (the Find Simulation length's track widens with Wide sliders)
 import { ballControlsOf } from "./panelKeys"; // --- low-findings-2 --- (the page's ball colour where a mode's balls are its own)
 import type { MusicTrackInfo } from "./sections/MusicSection";
 import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
@@ -63,7 +64,7 @@ import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
 import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
 import NumberField from "./NumberField"; // --- uncap-all --- (the Find Simulation length has a number field too)
 import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
-import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
+import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs, slowMoStretchOf } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 import { exitSplatCarryOver, exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 import { ringEscapeActive, ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
@@ -209,6 +210,9 @@ import FreeWatermarkNote from "./sections/FreeWatermarkNote";
 const SPEEDS = [1, 2, 4, 8];
 /** --- review fix (site-redesign) --- the transport bar's speed choices (the kit's Segmented control). */
 const SPEED_OPTIONS = SPEEDS.map((speed) => ({ value: speed, label: `${speed}x` }));
+// --- unlimited-sizes --- the finder's tolerance (±s) and seed count: the arrow keys' steps (the fields take any value above 0 / from 1)
+const FIND_TOLERANCE_RANGE = { min: 0.1, max: 5, step: 0.1 } as const;
+const FIND_MAX_SEEDS_RANGE = { min: 100, max: 10_000, step: 100 } as const;
 /** --- gerald-multipliers --- who makes it home when the ball has no name. */
 const DEFAULT_GERALD_NAME = "Gerald";
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
@@ -364,8 +368,9 @@ export default function Simulator() {
   const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
-  const [findTolerance] = useState(0.5);
-  const [findMaxSeeds] = useState(1000);
+  // --- unlimited-sizes --- the search's tolerance and its seeds are the visitor's too (number fields in the finder strip)
+  const [findTolerance, setFindTolerance] = useState(0.5);
+  const [findMaxSeeds, setFindMaxSeeds] = useState(1000);
   const [isSearching, setIsSearching] = useState(false);
   const [searchProgress, setSearchProgress] = useState<ArenaFinderProgress | null>(null); // --- split-screen --- (the arena being searched in a race)
   const [searchResult, setSearchResult] = useState<FinderResult | null>(null);
@@ -2656,7 +2661,7 @@ export default function Simulator() {
     // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
     // (--- slow-motion --- with the Slow motion switch off the run plays in real time: no lag, no extension)
     const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
-    const maxExtraMs = settings.slowMotion ? maxSlowLagMs(1000 * settings.recordingDuration) : 0;
+    const maxExtraMs = settings.slowMotion ? maxSlowLagMs(1000 * settings.recordingDuration, settings.slowMoOnNearMiss ? settings.slowMoFactor : undefined) : 0; // --- unlimited-sizes --- (a factor below the slider's stretches it more, bounded)
     let credited = 0;
     // --- loop-foundation --- the whole-loop cut (the sound loop feeds it every frame)
     loopRecordStartRef.current = performance.now();
@@ -2814,7 +2819,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
-        slowMoStretch: s.slowMoOnNearMiss && s.slowMotion ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag) --- slow-motion --- (none with the switch off: the stored setting AND the switch)
+        slowMoStretch: s.slowMoOnNearMiss && s.slowMotion ? slowMoStretchOf(Math.max(0, s.slowMoFactor), 1000 * s.recordingDuration) : 1, // --- unlimited-sizes --- (1 / the factor from the slider's minimum up, as always; below it the bounded lag, so 0 stays finite) // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag) --- slow-motion --- (none with the switch off: the stored setting AND the switch)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
@@ -4398,19 +4403,20 @@ export default function Simulator() {
               <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
                 {t("Controls.duration")}
               </label>
-              <input
-                id="find-duration"
-                type="range"
-                min={RANGES.findDuration.min}
-                max={RANGES.findDuration.max}
-                step={RANGES.findDuration.step}
-                value={findDuration}
-                onChange={(e) => setFindDuration(Number(e.target.value))}
-                className="min-w-0 flex-1 cursor-pointer"
-                style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
-              />
-              {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) */}
-              <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration)} disabled={isSearching} settingKey="findDuration" />
+              <SliderTrack id="find-duration" settingKey="findDuration" label={t("Controls.duration")} value={findDuration} range={RANGES.findDuration} onChange={setFindDuration} className="min-w-0 flex-1 cursor-pointer" /* --- unlimited-sizes --- the wide track with Wide sliders on */ />
+              {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) (--- unlimited-sizes --- any length above 0) */}
+              <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration, "findDuration")} disabled={isSearching} settingKey="findDuration" />
+            </div>
+            {/* --- unlimited-sizes --- how close a found run must come (±s, any tolerance above 0) and how many seeds the search tries (any count) */}
+            <div className="flex items-center gap-2">
+              <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-tolerance">
+                {t("Controls.tolerance")}
+              </label>
+              <NumberField id="find-tolerance" value={findTolerance} onCommit={setFindTolerance} label={t("Controls.tolerance")} range={FIND_TOLERANCE_RANGE} rules={{ min: 0, above: true }} disabled={isSearching} settingKey="findTolerance" className="w-16" />
+              <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-max-seeds">
+                {t("Controls.maxSeeds")}
+              </label>
+              <NumberField id="find-max-seeds" value={findMaxSeeds} onCommit={setFindMaxSeeds} label={t("Controls.maxSeeds")} range={FIND_MAX_SEEDS_RANGE} rules={{ min: 1, integer: true }} disabled={isSearching} settingKey="findMaxSeeds" className="w-20" />
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}

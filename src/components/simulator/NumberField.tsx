@@ -73,6 +73,8 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
     ? null
     : error.reason === "belowMin"
       ? t("errBelowMin", { min: formatCompact(error.min ?? range.min) })
+      : error.reason === "notAbove" // --- unlimited-sizes --- (a "more than" floor: a gap or a clip of 0)
+        ? t("errNotAbove", { min: formatCompact(error.min ?? range.min) })
       : error.reason === "notFinite"
         ? t("errNotFinite")
         : error.reason === "empty"

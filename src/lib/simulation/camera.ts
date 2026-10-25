@@ -1,5 +1,5 @@
 import type { ModeId } from "@/lib/physics/types";
-import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
+import { EXPORT_FRAME_CEILING, atLeastFloor } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- the meaningful floors; the export's frame ceiling bounds the lag)
 
 /**
  * Cinematic camera: the settings and the pure maths behind the camera zoom, the screen shake on wall
@@ -21,9 +21,9 @@ export interface CameraSettings {
   screenShake: number;
   /** The simulation clock slows down for a moment when the ball squeezes past a gap edge (URL `slow`). */
   slowMoOnNearMiss: boolean;
-  /** Speed of the slow motion, 0.2–0.8 of real time (URL `slowf`). */
+  /** Speed of the slow motion, 0.2–0.8 of real time on the slider; --- unlimited-sizes --- any factor from 0 (a freeze) typed (URL `slowf`). */
   slowMoFactor: number;
-  /** Length of the slow-motion window in milliseconds of real time, 200–1500 (URL `slowms`). */
+  /** Length of the slow-motion window in milliseconds of real time, 200–1500 on the slider; --- unlimited-sizes --- any length above 0 typed (URL `slowms`). */
   slowMoMs: number;
   /** When a ball escapes the outer wall, the last 2 s play again at half speed before the end screen (URL `replay`). */
   replayOnEscape: boolean;
@@ -53,16 +53,34 @@ export const CAMERA_SETTING_KEYS = Object.keys(DEFAULT_CAMERA_SETTINGS) as (keyo
  * recording of `clipMs` is extended by the lag the slow motion adds while it records, at most this much – the whole clip played
  * at the slowest factor. A paused run adds no lag, so a recording never waits past it.
  */
-export function maxSlowLagMs(clipMs: number): number {
-  return Math.max(0, clipMs) * (1 / CAMERA_RANGES.slowMoFactor.min - 1);
+export function maxSlowLagMs(clipMs: number, factor: number = CAMERA_RANGES.slowMoFactor.min): number {
+  const clip = Math.max(0, clipMs);
+  const slider = clip * (1 / CAMERA_RANGES.slowMoFactor.min - 1);
+  // --- unlimited-sizes --- a factor below the slider's (down to 0, a freeze) stretches the clip more: by its own lag, bounded
+  // by an export's frame ceiling (an hour of frames) – a factor from the slider's minimum up is bounded as it always was
+  if (!(factor < CAMERA_RANGES.slowMoFactor.min)) return slider;
+  const lag = factor > 0 ? clip * (1 / factor - 1) : Infinity;
+  return Math.min(lag, Math.max(slider, SLOW_LAG_CEILING_MS));
+}
+
+/** --- unlimited-sizes --- The most lag a slow motion may add to a clip below the slider's factor: an export's frame ceiling (an hour at 60 fps). */
+export const SLOW_LAG_CEILING_MS = (EXPORT_FRAME_CEILING * 1000) / 60;
+
+/**
+ * --- unlimited-sizes --- How much the slow motion of `factor` may stretch a clip of `clipMs` (the fast export's `slowMoStretch`):
+ * 1 / factor from the slider's minimum up (as always), and below it the lag `maxSlowLagMs()` allows, so a factor of 0 is finite.
+ */
+export function slowMoStretchOf(factor: number, clipMs: number): number {
+  if (!(factor < CAMERA_RANGES.slowMoFactor.min)) return 1 / factor;
+  return 1 + maxSlowLagMs(clipMs, factor) / Math.max(1, clipMs);
 }
 
 /** Lag (ms) below which a recording is not extended any further (a few frames). */
 export const SLOW_LAG_MIN_MS = 30;
 
-function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
+function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number, key?: string) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
+  return Number.isFinite(n) ? atLeastFloor(n, key, range) /* --- uncap-all --- never a maximum (--- unlimited-sizes --- from the meaningful floor up) */ : fallback;
 }
 
 /** Fills in the defaults and clamps every number to its range; a non-number falls back to the default, a non-boolean flag to "off". */
@@ -71,8 +89,9 @@ export function resolveCameraSettings(source: Partial<CameraSettings> | null | u
   if (!source) return out;
   out.cameraZoom = clampNumber(source.cameraZoom, CAMERA_RANGES.cameraZoom, out.cameraZoom);
   out.screenShake = clampNumber(source.screenShake, CAMERA_RANGES.screenShake, out.screenShake);
-  out.slowMoFactor = clampNumber(source.slowMoFactor, CAMERA_RANGES.slowMoFactor, out.slowMoFactor);
-  out.slowMoMs = Math.round(clampNumber(source.slowMoMs, CAMERA_RANGES.slowMoMs, out.slowMoMs));
+  out.slowMoFactor = clampNumber(source.slowMoFactor, CAMERA_RANGES.slowMoFactor, out.slowMoFactor, "slowMoFactor"); // --- unlimited-sizes --- (from 0: a freeze)
+  // --- unlimited-sizes --- any length above 0 (a 1 ms window rounds to 1, never to 0)
+  out.slowMoMs = Math.max(1, Math.round(clampNumber(source.slowMoMs, CAMERA_RANGES.slowMoMs, out.slowMoMs, "slowMoMs")));
   out.slowMoOnNearMiss = source.slowMoOnNearMiss === true;
   out.replayOnEscape = source.replayOnEscape === true;
   return out;
@@ -268,6 +287,11 @@ export function shakeOffset(ageMs: number, amplitude: number, seed: number, out:
 export const SLOW_MO_RAMP_IN_MS = 60;
 /** …and back to real time over this long (or a third of a shorter window). */
 export const SLOW_MO_RAMP_OUT_MS = 250;
+/**
+ * --- unlimited-sizes --- The slowest a mode's dip plays (the String Battle's duel cuts, Fight League's hit stop): its own
+ * constant. The near-miss slow motion has none – its factor is the visitor's, down to 0 (`SlowMotion.timeScale()`).
+ */
+export const DIP_FACTOR_FLOOR = 0.05;
 /** Real time after a slow-motion window before the next near miss may start another one. */
 export const SLOW_MO_COOLDOWN_MS = 800;
 
@@ -286,9 +310,9 @@ function rampIn(windowMs: number) {
  * --- fl-heavy --- `inMs` overrides the ease-in (by default SLOW_MO_RAMP_IN_MS or a fifth of a shorter window): 0 starts
  * the window already at `factor` (a hit stop, whose first frame must not run at full speed).
  */
-export function slowMoTimeScale(elapsedMs: number, windowMs: number, factor: number, inMs: number = rampIn(windowMs)): number {
+export function slowMoTimeScale(elapsedMs: number, windowMs: number, factor: number, inMs: number = rampIn(windowMs), floor: number = DIP_FACTOR_FLOOR): number {
   if (!(elapsedMs >= 0) || !(windowMs > 0) || elapsedMs >= windowMs) return 1;
-  const f = Number.isFinite(factor) ? Math.max(0.05, factor) : 1;
+  const f = Number.isFinite(factor) ? Math.max(floor, factor) : 1;
   const outMs = Math.min(SLOW_MO_RAMP_OUT_MS, windowMs / 3);
   let env = 1;
   if (elapsedMs < inMs) env = elapsedMs / inMs;
@@ -342,7 +366,7 @@ export class SlowMotion {
   }
 
   timeScale(windowMs: number, factor: number): number {
-    return this.elapsed === Infinity ? 1 : slowMoTimeScale(this.elapsed, windowMs, factor);
+    return this.elapsed === Infinity ? 1 : slowMoTimeScale(this.elapsed, windowMs, factor, undefined, 0); // --- unlimited-sizes --- (the near miss's own factor, down to 0: a freeze)
   }
 }
 

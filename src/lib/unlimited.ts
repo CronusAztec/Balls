@@ -25,14 +25,17 @@
  * owner's call too.
  */
 
-import { CROWD_BALL_CEILING, INDEX_KEYS, MEMORY_CEILINGS, RING_CEILING, SIGNED_KEYS, formatCompact, formatExact } from "./uncap"; // --- uncap-all ---
+import { CROWD_BALL_CEILING, INDEX_KEYS, MEMORY_CEILINGS, RING_CEILING, SIGNED_KEYS, floorOf, formatCompact, formatExact } from "./uncap"; // --- uncap-all --- (--- unlimited-sizes --- floorOf: the meaningful floors)
 
 /** The URL key of the switch (`inf=1`). */
 export const UNLIMITED_URL_KEY = "inf";
 /** The URL parameter that carries unlimited values of settings without a URL key of their own (`infx=key:value,…`). */
 export const UNLIMITED_EXTRA_PARAM = "infx";
-/** Top of the logarithmic part of every unlimited slider (shown as "1B"); the number input goes beyond. */
-export const UNLIMITED_SLIDER_CEILING = 1e9;
+/**
+ * Top of the logarithmic part of a scalar's slider (a speed, a size, a force: "1T"); the number input goes beyond.
+ * --- unlimited-sizes --- (was 1e9) An allocating count's track ends at its memory-safety ceiling instead (`sliderCeiling()`).
+ */
+export const UNLIMITED_SLIDER_CEILING = 1e12;
 /** Slider positions: 0 … LINEAR_SPAN is the normal range (linear), LINEAR_SPAN … SLIDER_SPAN the logarithmic extension. */
 export const LINEAR_SPAN = 500;
 export const SLIDER_SPAN = 1000;
@@ -79,10 +82,16 @@ export function isUnlimitedKey(key: string, range: NumericRange | undefined): ra
   return !!range && Number.isFinite(range.min) && Number.isFinite(range.max) && !BOUNDED_KEYS.has(key);
 }
 
-/** The bounds a value of `key` must stay within with the switch on: its range's minimum (−∞ for signed settings) to ∞ (or its semantic end). */
-export function unlimitedBounds(key: string, range: NumericRange): { min: number; max: number } {
+/**
+ * The bounds a value of `key` must stay within with the switch on: its range's minimum (−∞ for signed settings) to ∞ (or its
+ * semantic end). --- unlimited-sizes --- The minimum is the setting's meaningful floor (`floorOf()`), and `above` says the
+ * floor itself is refused (a gap of 0).
+ */
+export function unlimitedBounds(key: string, range: NumericRange): { min: number; max: number; above?: boolean } {
   const max = SEMANTIC_MAX[key] ?? Infinity;
-  return { min: SYMMETRIC_KEYS.has(key) ? -Infinity : range.min, max };
+  if (SYMMETRIC_KEYS.has(key)) return { min: -Infinity, max };
+  const floor = floorOf(key, range);
+  return floor.above ? { min: floor.min, max, above: true } : { min: floor.min, max };
 }
 
 /** Whole numbers only: a setting stepping by one (counts, indices, notes, seconds) – --- uncap-all --- a speed stepping by ten keeps its decimals. */
@@ -101,7 +110,7 @@ export function parseUnlimitedValue(key: string, raw: unknown, range: NumericRan
   const value = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(value)) return null;
   const bounds = unlimitedBounds(key, range);
-  if (value < bounds.min || value > bounds.max) return null;
+  if (value < bounds.min || value > bounds.max || (bounds.above && value <= bounds.min)) return null;
   return isIntegerRange(range) ? Math.round(value) : value;
 }
 
@@ -114,6 +123,14 @@ export function keepsUnlimitedValue(key: string, value: number, range: { min: nu
 /** True when a valid unlimited `value` lies outside the normal range of `key` – the part the old parsing would have clamped. */
 export function beyondRange(key: string, value: number, range: NumericRange): boolean {
   return value > range.max || (SYMMETRIC_KEYS.has(key) && value < range.min);
+}
+
+/**
+ * --- unlimited-sizes --- True when a valid `value` of `key` lies past either end of its slider: beyond it (`beyondRange()`)
+ * or below its start but from its meaningful floor up (`MEANINGFUL_FLOORS`) – both travel and are restored exactly.
+ */
+function pastComfort(key: string, value: number, range: NumericRange): boolean {
+  return beyondRange(key, value, range) || (value < range.min && parseUnlimitedValue(key, value, range) !== null);
 }
 
 /**
@@ -154,20 +171,33 @@ function niceNumber(value: number, integer: boolean): number {
   return integer ? Math.round(nice) : Number(nice.toPrecision(2));
 }
 
-/** The top of the slider of `key`: the slider ceiling, or the semantic end of a setting with one. */
-export function sliderCeiling(key: string, range: NumericRange): number {
+/**
+ * The top of the slider of `key`: the slider ceiling, or the semantic end of a setting with one. --- unlimited-sizes --- A
+ * count that allocates ends at its memory-safety ceiling (`MEMORY_CEILINGS`: a drag never asks for more than a run builds;
+ * the number field still takes any value), and `top` overrides it for a count with its own (the clips of a batch).
+ */
+export function sliderCeiling(key: string, range: NumericRange, top?: number): number {
   const semantic = SEMANTIC_MAX[key];
-  return semantic !== undefined ? Math.max(range.max, semantic) : Math.max(range.max * 10, UNLIMITED_SLIDER_CEILING);
+  if (semantic !== undefined) return Math.max(range.max, semantic);
+  const ceiling = top ?? MEMORY_CEILINGS[key];
+  if (ceiling !== undefined) return Math.max(range.max, ceiling);
+  return Math.max(range.max * 10, UNLIMITED_SLIDER_CEILING);
+}
+
+/** --- unlimited-sizes --- True when the slider of `key` has room past its comfort range (a ceiling at the slider's end has none). */
+export function hasWideTrack(key: string, range: NumericRange, top?: number): boolean {
+  return Number.isFinite(range.min) && Number.isFinite(range.max) && range.max > range.min && sliderCeiling(key, range, top) > range.max;
 }
 
 /** Slider position (0 … SLIDER_SPAN) of `value`: linear across the normal range, logarithmic from its maximum to the ceiling. */
-export function sliderPosition(key: string, value: number, range: NumericRange): number {
+export function sliderPosition(key: string, value: number, range: NumericRange, ceiling?: number): number {
   if (!Number.isFinite(value)) return value > 0 ? SLIDER_SPAN : 0;
   if (value <= range.max) {
     const span = range.max - range.min;
     return span > 0 ? Math.max(0, (LINEAR_SPAN * (value - range.min)) / span) : 0;
   }
-  const top = sliderCeiling(key, range);
+  const top = sliderCeiling(key, range, ceiling);
+  if (!(top > range.max)) return SLIDER_SPAN; // --- unlimited-sizes --- (no room past the comfort range)
   const lo = Math.max(range.max, Number.MIN_VALUE);
   if (SEMANTIC_MAX[key] !== undefined || lo <= 0) {
     return Math.min(SLIDER_SPAN, LINEAR_SPAN + ((SLIDER_SPAN - LINEAR_SPAN) * (value - range.max)) / Math.max(1e-12, top - range.max));
@@ -177,21 +207,22 @@ export function sliderPosition(key: string, value: number, range: NumericRange):
 }
 
 /** The value at slider position `pos` (the inverse of `sliderPosition()`), snapped to the step in the normal range. */
-export function sliderValue(key: string, pos: number, range: NumericRange): number {
+export function sliderValue(key: string, pos: number, range: NumericRange, ceiling?: number): number {
   const integer = isIntegerRange(range);
   if (pos <= LINEAR_SPAN) {
     const raw = range.min + ((range.max - range.min) * Math.max(0, pos)) / LINEAR_SPAN;
     const snapped = Math.round((raw - range.min) / range.step) * range.step + range.min;
     return Math.min(range.max, Math.max(range.min, Number(snapped.toFixed(6))));
   }
-  const top = sliderCeiling(key, range);
+  const top = sliderCeiling(key, range, ceiling);
+  if (!(top > range.max)) return range.max; // --- unlimited-sizes --- (no room past the comfort range)
   const t = Math.min(1, (pos - LINEAR_SPAN) / (SLIDER_SPAN - LINEAR_SPAN));
   if (SEMANTIC_MAX[key] !== undefined || range.max <= 0) {
     const v = range.max + (top - range.max) * t;
     return integer ? Math.round(v) : Number(v.toPrecision(3));
   }
   const v = range.max * Math.pow(top / range.max, t);
-  return Math.max(range.max, niceNumber(v, integer));
+  return Math.min(top, Math.max(range.max, niceNumber(v, integer))); // --- unlimited-sizes --- (never past the track's top: 4,096 is not rounded to 4,100)
 }
 
 /* ------------------------------------------------------------------ parsing (URL, share codes, presets, project files) */
@@ -258,7 +289,7 @@ export function writeUnlimitedParams(settings: Numbers, params: URLSearchParams,
     const value = settings[key];
     if (!range || typeof value !== "number" || !Number.isFinite(value)) continue;
     const param = urlKeys.get(key);
-    if (!beyondRange(key, value, range)) {
+    if (!pastComfort(key, value, range)) { // --- unlimited-sizes --- (a value below the slider from its meaningful floor up travels too)
       // --- uncap-all --- a value the setting's own writer rounded (three decimals) goes back in exactly
       const written = param ? params.get(param) : null;
       if (param && written !== null && Number(written) !== value) params.set(param, formatUnlimitedNumber(value));
@@ -306,7 +337,7 @@ export function readUnlimitedParams(params: URLSearchParams, settings: Numbers, 
       // anything else invalid falls back to the default)
       if (value === null) {
         if (!Number.isFinite(Number(raw)) || String(raw).trim() === "") settings[key] = defaults[key];
-      } else if (beyondRange(key, value, range)) settings[key] = value; // (inside the range the feature readers keep their own normalisation)
+      } else if (pastComfort(key, value, range)) settings[key] = value; // (inside the range the feature readers keep their own normalisation; --- unlimited-sizes --- below it from the floor up too)
     }
     rejectInvalid(key, settings, defaults, range);
   }
@@ -325,7 +356,7 @@ function rejectInvalid(key: string, settings: Numbers, defaults: Numbers, range:
  * are kept as stored, invalid ones fall back to the default.
  */
 export function restoreUnlimitedValues(source: Numbers, merged: Numbers, defaults: Numbers, keys: readonly string[], ranges: Ranges) {
-  merged.unlimited = source.unlimited === true;
+  merged.unlimited = source.unlimited !== false; // --- unlimited-sizes --- (Wide sliders is on unless the preset turned it off)
   // --- uncap-all --- whatever the switch: stored values are kept exactly, invalid ones fall back to the default
   for (const key of keys) {
     const range = ranges[key];
@@ -335,7 +366,7 @@ export function restoreUnlimitedValues(source: Numbers, merged: Numbers, default
       // (--- uncap-all --- as in readUnlimitedParams(): a finite number below the minimum was lifted onto it by the resolver)
       if (value === null) {
         if (typeof source[key] !== "number" || !Number.isFinite(source[key] as number)) merged[key] = defaults[key];
-      } else if (beyondRange(key, value, range)) merged[key] = value; // (inside the range the resolvers keep their own normalisation)
+      } else if (pastComfort(key, value, range)) merged[key] = value; // (inside the range the resolvers keep their own normalisation; --- unlimited-sizes --- below it from the floor up too)
     }
     rejectInvalid(key, merged, defaults, range);
   }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, offBtn, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, SliderTrack, offBtn, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
+import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide track of a clip count ends at its ceiling)
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById, type BotFamily, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE } from "@/lib/bot/store";
@@ -135,19 +136,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             <span>{b("count")}</span>
             <span className="text-ink-3 tabular-nums">{o.count}</span>
           </label>
-          <input
-            id="bot-count"
-            type="range"
-            min={BOT_COUNT_RANGE.min}
-            max={BOT_COUNT_RANGE.max}
-            step={BOT_COUNT_RANGE.step}
-            value={o.count}
-            disabled={busy}
-            onChange={(e) => bot.setOptions({ count: Number(e.target.value) })}
-            className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-            style={sliderStyle(o.count, BOT_COUNT_RANGE.min, BOT_COUNT_RANGE.max)}
-            aria-label={b("count")}
-          />
+          <SliderTrack id="bot-count" settingKey="botCount" label={b("count")} value={o.count} range={BOT_COUNT_RANGE} onChange={(v) => bot.setOptions({ count: v })} disabled={busy} top={CLIP_CEILING} /* --- unlimited-sizes --- (a plan renders at most its clips' ceiling: the wide track ends there) */ />
           <NumberField value={o.count} onCommit={(v) => bot.setOptions({ count: v })} label={b("count")} range={BOT_COUNT_RANGE} rules={{ min: BOT_COUNT_RANGE.min, integer: true }} disabled={busy} settingKey="botCount" /* --- uncap-all --- */ />
         </div>
 

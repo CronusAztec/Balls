@@ -384,14 +384,54 @@ export const INDEX_KEYS: ReadonlySet<string> = new Set(["forcedWinner"]);
  */
 export const SIGNED_KEYS: ReadonlySet<string> = new Set(["windX", "windY", "dpAngle1", "dpAngle2", "dpAngle3", "arenaSeed", "ogRotation"]);
 
+// --- unlimited-sizes --- the meaningful floors
+/**
+ * The lowest value a setting still means something at, where that lies below its slider's comfort minimum: the start of a
+ * slider is a comfort bound like its end, so a Spin of 0 (still walls), one target, a factor-0 slow motion (a freeze) or a
+ * 3 s clip are kept as typed. `min` keeps the value itself (≥), `above` refuses it (> 0: a gap of 0 is no gap, a clip of
+ * 0 s no clip). A value below the floor is as invalid as ever (lifted onto the slider's minimum, as before). A setting
+ * not listed keeps its slider's minimum as its floor, and a signed one (`SIGNED_KEYS`) has none.
+ */
+export const MEANINGFUL_FLOORS: Readonly<Record<string, { readonly min: number; readonly above?: true }>> = {
+  rotationSpeed: { min: 0 },
+  gapSize: { min: 0, above: true },
+  recordingDuration: { min: 0, above: true },
+  findDuration: { min: 0, above: true },
+  targetCount: { min: 1 },
+  multiplySpawnCount: { min: 0 },
+  growRate: { min: 0, above: true },
+  slowMoFactor: { min: 0 },
+  slowMoMs: { min: 0, above: true },
+};
+
+/** The floor of `key` (its meaningful floor, else the slider's minimum; −∞ for a signed setting) and whether the floor itself is refused. */
+export function floorOf(key: string | undefined, range: { min: number }): { min: number; above: boolean } {
+  if (key !== undefined && SIGNED_KEYS.has(key)) return { min: -Infinity, above: false };
+  const floor = key !== undefined ? MEANINGFUL_FLOORS[key] : undefined;
+  return floor && floor.min < range.min ? { min: floor.min, above: floor.above === true } : { min: range.min, above: false };
+}
+
+/** True when a finite `value` of `key` meets its floor (`floorOf()`). */
+export function meetsFloor(key: string | undefined, value: number, range: { min: number }): boolean {
+  const floor = floorOf(key, range);
+  return floor.above ? value > floor.min : value >= floor.min;
+}
+
+/** A finite number for `key` kept from its floor up; below it lifted onto the slider's minimum (the old behaviour at the low end). */
+export function atLeastFloor(n: number, key: string | undefined, range: { min: number }): number {
+  return meetsFloor(key, n, range) ? n : n < range.min ? range.min : n;
+}
+// --- end unlimited-sizes ---
+
 /**
  * A number from a resolver's input, kept as it is: a finite number at or above the range's minimum (lifted onto it
  * when below – the old behaviour at the low end), anything else (NaN, ±Infinity, text) the fallback. Never a maximum.
+ * --- unlimited-sizes --- With its setting's `key`, from the setting's meaningful floor up (`MEANINGFUL_FLOORS`).
  */
-export function uncapped(value: unknown, range: { min: number }, fallback: number): number {
+export function uncapped(value: unknown, range: { min: number }, fallback: number, key?: string): number {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return n < range.min ? range.min : n;
+  return atLeastFloor(n, key, range);
 }
 
 /** A signed number from a resolver's input: any finite number, the fallback otherwise. */
@@ -400,10 +440,10 @@ export function signedUncapped(value: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Whether a stored value of `key` (range `range`) is valid: finite, and not below the minimum unless the setting is signed. */
+/** Whether a stored value of `key` (range `range`) is valid: finite, and not below the minimum unless the setting is signed (--- unlimited-sizes --- its meaningful floor). */
 export function isValidValue(key: string, value: unknown, range: { min: number }): value is number {
   if (typeof value !== "number" || !Number.isFinite(value)) return false;
-  return SIGNED_KEYS.has(key) || value >= range.min;
+  return meetsFloor(key, value, range);
 }
 
 /* ------------------------------------------------------------------ the number field */
@@ -412,6 +452,8 @@ export function isValidValue(key: string, value: unknown, range: { min: number }
 export interface NumberRules {
   /** The sensible minimum (the slider's own minimum by default); none for signed settings. */
   min?: number;
+  /** --- unlimited-sizes --- The minimum itself is refused (a meaningful floor of "more than 0": a gap, a clip length). */
+  above?: boolean;
   /** Whole numbers only (counts): a decimal is rounded. */
   integer?: boolean;
   /**
@@ -422,7 +464,7 @@ export interface NumberRules {
 }
 
 /** Why typed text was refused (the field keeps the old value and says why). */
-export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin";
+export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin" | "notAbove"; // --- unlimited-sizes --- (notAbove: at or below a "more than" floor)
 
 export type NumberCheck = { ok: true; value: number } | { ok: false; reason: NumberRefusal; min?: number };
 
@@ -458,7 +500,8 @@ export function checkNumber(value: number | null, rules: NumberRules = {}): Numb
   if (value === null) return { ok: false, reason: "notNumber" };
   if (!Number.isFinite(value)) return { ok: false, reason: "notFinite" };
   const v = rules.integer ? Math.round(value) : value;
-  if (rules.min !== undefined && v < rules.min) return { ok: false, reason: "belowMin", min: rules.min };
+  if (rules.min !== undefined && v < rules.min) return { ok: false, reason: rules.above ? "notAbove" : "belowMin", min: rules.min };
+  if (rules.min !== undefined && rules.above && v <= rules.min) return { ok: false, reason: "notAbove", min: rules.min }; // --- unlimited-sizes ---
   return { ok: true, value: v };
 }
 
@@ -486,6 +529,8 @@ export function stepNumber(value: number, direction: 1 | -1, range: NumericRange
   if (decimals > 0 && decimals < 16) next = Number(next.toFixed(decimals));
   if (rules.integer) next = Math.round(next);
   if (rules.min !== undefined && next < rules.min) next = rules.min;
+  // --- unlimited-sizes --- a "more than" floor: a step down onto it is not taken (the value stays; a smaller one can be typed)
+  if (rules.min !== undefined && rules.above && next <= rules.min) next = base;
   return next;
 }
 

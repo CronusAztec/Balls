@@ -8,6 +8,7 @@ import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimit
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
 import NumberField from "./NumberField";
 import { beyondSlider, formatCompact, memoryCeiling } from "@/lib/uncap";
+import { sliderCeiling } from "@/lib/unlimited"; // --- unlimited-sizes --- (a log track continues past its comfort range)
 import { logTrackEnd, logTrackPosition, logTrackValue, type LogTrackSpec } from "./logTrack"; // --- low-findings-2 ---
 
 /*
@@ -63,6 +64,7 @@ export function Slider({
   display,
   disabled,
   log,
+  settingKey: namedKey,
 }: {
   t: Translate;
   search: string;
@@ -76,14 +78,19 @@ export function Slider({
   disabled?: boolean;
   /** --- low-findings-2 --- a logarithmic track (logTrack.ts) from `low` to the range's maximum, `perDecade` positions a decade. */
   log?: { low: number; perDecade: number };
+  /**
+   * --- unlimited-sizes --- The setting this slider sets, for a range that is not its `RANGES` entry (an inline range: the
+   * Teams ball count); without it the setting is found by the range object.
+   */
+  settingKey?: string;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
   const shown = live ? live.value : value;
   // --- unlimited --- with Wide sliders on, an uncapped setting's slider goes logarithmic past its range
-  const wideKey = useUnlimitedKey(range);
+  const wideKey = useUnlimitedKey(range, namedKey);
   // --- uncap-all --- the number field (always), the track pinned at its end beyond the comfort range, the memory ceiling note
-  const settingKey = keyOfRange(range);
+  const settingKey = namedKey ?? keyOfRange(range);
   const beyond = !live && beyondSlider(value, range);
   const ceiling = settingKey ? memoryCeiling(settingKey, value) : value;
   const label = t(labelKey);
@@ -100,7 +107,8 @@ export function Slider({
         </label>
         <div className="flex items-center gap-3">
           {log ? (
-            <LogTrackInput log={{ ...log, high: range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond} />
+            // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
+            <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} />
           ) : wideKey && !live ? (
             <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} />
           ) : (
@@ -148,6 +156,43 @@ function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyon
         data-log-track={end}
       />
     </span>
+  );
+}
+
+/**
+ * --- unlimited-sizes --- The track of a hand-written slider (one with its own label row): the wide track while Wide sliders
+ * is on and the value has room past its comfort range (`useUnlimitedKey()`), the plain comfort track otherwise – the same
+ * input the panel always drew, pinned at its end for a value beyond it. `top` ends the wide track of a count that is not a
+ * setting (the clips of a batch).
+ */
+export function SliderTrack({ settingKey, label, value, range, onChange, disabled, top, className, id, testId }: { settingKey: string; label: string; value: number; range: { min: number; max: number; step: number }; onChange: (v: number) => void; disabled?: boolean; top?: number; className?: string; id?: string; testId?: string }) {
+  const wideKey = useUnlimitedKey(range, settingKey, top);
+  const look = className ?? "w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
+  if (wideKey) return <WideTrack id={id} settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} top={top} className={look} testId={testId} />;
+  return <input id={id} type="range" min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} className={look} style={sliderStyle(value, range.min, range.max)} aria-label={label} data-testid={testId} />;
+}
+
+/**
+ * --- unlimited-sizes --- The end labels under a hand-written track ("10s" … "120s"): with the wide track the comfort range's
+ * end is no end, so its label becomes a comfort mark over the middle of the track (where the wide part starts), with a tip.
+ */
+export function TrackEnds({ settingKey, range, min, max, tip, top }: { settingKey: string; range: { min: number; max: number; step: number }; min: string; max: string; tip: string; top?: number }) {
+  const wide = useUnlimitedKey(range, settingKey, top) !== null;
+  if (!wide)
+    return (
+      <div className="flex justify-between text-xs text-ink-3">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    );
+  return (
+    <div className="relative flex text-xs text-ink-3">
+      <span>{min}</span>
+      {/* (the track spans the row less its number field: w-20 and the gap) */}
+      <span className="absolute -translate-x-1/2 border-l border-ink-3/40 pl-1" style={{ left: "calc((100% - 5.5rem) / 2)" }} title={tip} data-comfort-mark={settingKey}>
+        {max}
+      </span>
+    </div>
   );
 }
 

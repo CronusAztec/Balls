@@ -161,7 +161,10 @@ describe("camera settings", () => {
 
   it("resolve: clamps numbers, falls back on bad values and only accepts real booleans", () => {
     expect(resolveCameraSettings(null)).toEqual(DEFAULT_CAMERA_SETTINGS);
-    expect(resolveCameraSettings({ cameraZoom: 5, screenShake: -2, slowMoFactor: 0.01, slowMoMs: 99999 })).toMatchObject({ cameraZoom: 5, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 99999 }); // --- uncap-all --- (no maximum)
+    // --- uncap-all --- (no maximum) --- unlimited-sizes --- and no comfort minimum: a factor of 0.01 is kept (the floor is 0, a freeze)
+    expect(resolveCameraSettings({ cameraZoom: 5, screenShake: -2, slowMoFactor: 0.01, slowMoMs: 99999 })).toMatchObject({ cameraZoom: 5, screenShake: 0, slowMoFactor: 0.01, slowMoMs: 99999 });
+    expect(resolveCameraSettings({ slowMoFactor: 0, slowMoMs: 0 })).toMatchObject({ slowMoFactor: 0, slowMoMs: CAMERA_RANGES.slowMoMs.min }); // (a factor of 0 freezes the window; a window of 0 ms is no window: lifted onto the slider's start)
+    expect(resolveCameraSettings({ slowMoFactor: -1, slowMoMs: 0.4 })).toMatchObject({ slowMoFactor: CAMERA_RANGES.slowMoFactor.min, slowMoMs: 1 }); // (below the floor: lifted as before; a sliver of a window rounds to 1 ms, never 0)
     expect(resolveCameraSettings({ cameraZoom: NaN, slowMoMs: 333.4, slowMoFactor: 0.95 })).toMatchObject({ cameraZoom: 0, slowMoMs: 333, slowMoFactor: 0.95 }); // --- uncap-all --- (no maximum)
     const junk = { cameraZoom: "x", slowMoOnNearMiss: "yes", replayOnEscape: 1 } as unknown as Partial<CameraSettings>;
     expect(resolveCameraSettings(junk)).toEqual(DEFAULT_CAMERA_SETTINGS);
@@ -185,9 +188,10 @@ describe("camera settings", () => {
 
   it("clamp hand-edited URLs and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=portal&cz=7&shake=-1&slowf=0.01&slowms=5&slow=2"));
-    expect(cameraSettingsOf(fromUrl)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 7, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 200 }); // --- uncap-all --- (cz=7 kept)
+    expect(cameraSettingsOf(fromUrl)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 7, screenShake: 0, slowMoFactor: 0.01, slowMoMs: 5 }); // --- uncap-all --- (cz=7 kept) --- unlimited-sizes --- (slowf=0.01 and slowms=5 kept: below the sliders, above their floors)
     const preset = presetToSettings({ mode: "classic", cameraZoom: 3, slowMoMs: 50, replayOnEscape: "1" as unknown as boolean });
-    expect(cameraSettingsOf(preset)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 3, slowMoMs: 200 }); // --- uncap-all --- (cameraZoom 3 kept)
+    expect(cameraSettingsOf(preset)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 3, slowMoMs: 50 }); // --- uncap-all --- (cameraZoom 3 kept) --- unlimited-sizes --- (and a 50 ms window)
+    expect(cameraSettingsOf(settingsFromSearchParams(new URLSearchParams("mode=classic&slowf=-1&slowms=0")))).toMatchObject({ slowMoFactor: CAMERA_RANGES.slowMoFactor.min, slowMoMs: CAMERA_RANGES.slowMoMs.min }); // (below the floors: lifted, as before)
     // A preset saved before the camera existed loads with the camera off.
     expect(cameraSettingsOf(presetToSettings({ mode: "shatter", gravity: 500 }))).toEqual(DEFAULT_CAMERA_SETTINGS);
   });

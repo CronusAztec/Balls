@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
-import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
+import { ColorPicker, Searchable, Slider, SliderTrack, Toggle, TrackEnds, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack, TrackEnds: the hand-written tracks widen too)
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
 import EscapeModeSection, { ESCAPE_MODE_KEYS_BY_MODE } from "./sections/EscapeModeSection"; // --- review fix (ui-i18n) ---
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
@@ -1054,17 +1054,7 @@ export default function Controls(props: ControlsProps) {
                   <span className="text-ink-3">{s.bpm}</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min={RANGES.bpm.min}
-                    max={RANGES.bpm.max}
-                    step={RANGES.bpm.step}
-                    value={s.bpm}
-                    onChange={(e) => update({ bpm: Number(e.target.value) })}
-                    className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-                    style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
-                    aria-label={t("bpm")}
-                  />
+                  <SliderTrack settingKey="bpm" label={t("bpm")} value={s.bpm} range={RANGES.bpm} onChange={(v) => update({ bpm: v })} /* --- unlimited-sizes --- */ />
                   <NumberField value={s.bpm} onCommit={(v) => update({ bpm: v })} label={t("bpm")} range={RANGES.bpm} rules={rulesForRange(RANGES.bpm)} settingKey="bpm" /* --- uncap-all --- */ />
                 </div>
               </>
@@ -1217,24 +1207,10 @@ export default function Controls(props: ControlsProps) {
               <span className="text-ink-3">{s.recordingDuration}s</span>
             </label>
             <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={RANGES.recordingDuration.min}
-                max={RANGES.recordingDuration.max}
-                step={RANGES.recordingDuration.step}
-                value={s.recordingDuration}
-                onChange={(e) => update({ recordingDuration: Number(e.target.value) })}
-                disabled={props.isRecording}
-                className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                style={sliderStyle(s.recordingDuration, RANGES.recordingDuration.min, RANGES.recordingDuration.max)}
-                aria-label={t("durationSpan")}
-              />
-              <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration)} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- */ />
+              <SliderTrack settingKey="recordingDuration" label={t("durationSpan")} value={s.recordingDuration} range={RANGES.recordingDuration} onChange={(v) => update({ recordingDuration: v })} disabled={props.isRecording} /* --- unlimited-sizes --- */ />
+              <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration, "recordingDuration")} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- (--- unlimited-sizes --- any length above 0) */ />
             </div>
-            <div className="flex justify-between text-xs text-ink-3">
-              <span>{t("minDuration")}</span>
-              <span>{t("maxDuration")}</span>
-            </div>
+            <TrackEnds settingKey="recordingDuration" range={RANGES.recordingDuration} min={t("minDuration")} max={t("maxDuration")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- (120s: a comfort mark on the wide track) */ />
           </div>
         </Searchable>
       )}
@@ -1299,23 +1275,10 @@ export default function Controls(props: ControlsProps) {
               <span className="text-ink-3">{s.textSize.toFixed(1)}×</span>
             </label>
             <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={RANGES.textSize.min}
-                max={RANGES.textSize.max}
-                step={RANGES.textSize.step}
-                value={s.textSize}
-                onChange={(e) => update({ textSize: Number(e.target.value) })}
-                className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-                style={sliderStyle(s.textSize, RANGES.textSize.min, RANGES.textSize.max)}
-                aria-label={t("textSize")}
-              />
+              <SliderTrack settingKey="textSize" label={t("textSize")} value={s.textSize} range={RANGES.textSize} onChange={(v) => update({ textSize: v })} /* --- unlimited-sizes --- */ />
               <NumberField value={s.textSize} onCommit={(v) => update({ textSize: v })} label={t("textSize")} range={RANGES.textSize} rules={rulesForRange(RANGES.textSize)} settingKey="textSize" /* --- uncap-all --- */ />
             </div>
-            <div className="flex justify-between text-xs text-ink-3">
-              <span>{t("minSize")}</span>
-              <span>{t("maxSize")}</span>
-            </div>
+            <TrackEnds settingKey="textSize" range={RANGES.textSize} min={t("minSize")} max={t("maxSize")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- */ />
           </div>
         </Searchable>
       )}

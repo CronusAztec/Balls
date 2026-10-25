@@ -174,8 +174,8 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
  * say in it: the slider range that follows in the prompt is a comfort range only.)
  */
 function describeUnlimited(key: string, range: { min: number; max: number; step: number }): string {
-  const { min, max } = unlimitedBounds(key, range);
-  const from = Number.isFinite(min) ? `from ${min}` : "any value";
+  const { min, max, above } = unlimitedBounds(key, range); // --- unlimited-sizes --- (from the setting's meaningful floor: "above 0" for a gap or a clip)
+  const from = Number.isFinite(min) ? (above ? `above ${min}` : `from ${min}`) : "any value";
   return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit`;
 }
 

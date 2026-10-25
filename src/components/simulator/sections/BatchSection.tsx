@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, Toggle, offBtn, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, SliderTrack, Toggle, offBtn, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
+import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide track of a clip count ends at its ceiling)
 import { BATCH_COUNT_RANGE, MAX_BATCH_JOBS, SWEEP_KEYS, SWEEP_STEPS_LIMIT, SWEEP_STEPS_RANGE, formatElapsed, isSweepKey, sweepDefaults, sweepRange, sweepValues, type BatchSource, type BatchVariantKind } from "@/lib/recording/batch";
 import { MODE_CARD_ORDER } from "@/lib/modes";
 import type { ModeId } from "@/lib/physics/types";
@@ -135,18 +136,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                   <span>{b("count")}</span>
                   <span className="text-ink-3 tabular-nums">{b("countValue", { count: d.count })}</span>
                 </label>
-                <input
-                  id="batch-count"
-                  type="range"
-                  min={BATCH_COUNT_RANGE.min}
-                  max={BATCH_COUNT_RANGE.max}
-                  step={BATCH_COUNT_RANGE.step}
-                  value={d.count}
-                  onChange={(e) => set({ count: Number(e.target.value) })}
-                  className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-                  style={sliderStyle(d.count, BATCH_COUNT_RANGE.min, BATCH_COUNT_RANGE.max)}
-                  aria-label={b("count")}
-                />
+                <SliderTrack id="batch-count" settingKey="batchCount" label={b("count")} value={d.count} range={BATCH_COUNT_RANGE} onChange={(v) => set({ count: v })} top={CLIP_CEILING} /* --- unlimited-sizes --- (a batch holds at most its clips' ceiling: the track ends there) */ />
                 <UncapNumberField value={d.count} onCommit={(v) => set({ count: v })} label={b("count")} range={BATCH_COUNT_RANGE} rules={{ min: BATCH_COUNT_RANGE.min, integer: true }} settingKey="batchCount" /* --- uncap-all --- */ />
               </div>
             ) : (

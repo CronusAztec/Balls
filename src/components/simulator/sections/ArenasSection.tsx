@@ -1,7 +1,7 @@
 "use client";
 
 import Tooltip from "../Tooltip";
-import { Searchable, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, SliderTrack, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack: the wide track)
 import type { ControlSection } from "../Controls";
 import type { SimulatorSettings } from "@/lib/settings";
 import { MODE_IDS, isModeId, type ModeId } from "@/lib/physics/types";
@@ -92,17 +92,7 @@ function OverrideSlider({
       </div>
       {value !== undefined && (
         <div className="flex items-center gap-2">
-          <input
-            type="range"
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={value}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-            style={sliderStyle(value, range.min, range.max)}
-            aria-label={t(labelKey)}
-          />
+          <SliderTrack settingKey={`arena:${labelKey}`} label={t(labelKey)} value={value} range={range} onChange={onChange} /* --- unlimited-sizes --- (the wide track with Wide sliders on) */ />
           <NumberField value={value} onCommit={onChange} label={t(labelKey)} range={range} rules={rulesForRange(range)} settingKey={`arena:${labelKey}`} /* --- uncap-all --- */ />
         </div>
       )}

@@ -80,7 +80,7 @@ import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, reso
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
 import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 // --- uncap-all --- Uncapped everything: the numeric Bounciness (the uncapped Bouncier) and the memory-safety ceilings
-import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastMin, bouncinessOf, pastMemoryCeiling } from "@/lib/uncap";
+import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastFloor, atLeastMin, bouncinessOf, meetsFloor, pastMemoryCeiling } from "@/lib/uncap";
 // --- odd-maze --- the Maze escape mode (oddplayground)
 import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
@@ -862,7 +862,8 @@ export interface SimulatorSettings {
   bounceMathHud: boolean;
   // --- end bounce-math ---
   // --- unlimited --- No limits (lib/unlimited.ts, lib/physics/limits.ts): every numeric setting past its slider range, extreme
-  // runs that melt but never crash; off by default (URL `inf`)
+  // runs that melt but never crash (URL `inf`); --- uncap-all --- now only "Wide sliders", the panel's tracks; --- unlimited-sizes
+  // --- on by default, so a link carries it only as `inf=0` (the comfort tracks back; an old link's `inf=1` still reads)
   unlimited: boolean;
   // --- end unlimited ---
   // --- slow-motion --- Slow motion, one switch over every automatic slow-motion moment (lib/simulation/realTime.ts): on (the
@@ -1557,7 +1558,7 @@ function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEs
     ...defaultTerritoryFields(),
     ...territoryModeDefaults(mode),
     ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
-    unlimited: false, // --- unlimited ---
+    unlimited: true, // --- unlimited --- (--- unlimited-sizes --- Wide sliders on by default: the panel only, no run reads it)
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
     ...defaultMazeFields(), // --- odd-maze ---
     ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
@@ -1844,7 +1845,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
   ne: "neverEscape", // --- rigged ---
-  [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1`
+  [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1` (--- unlimited-sizes --- written only as `inf=0`: on is the default)
   smo: "slowMotion", // --- slow-motion --- only ever written as `smo=0` (on is the default)
 };
 
@@ -1976,7 +1977,7 @@ export function coreNumber(field: string, value: number, fallback: number): numb
   const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
   if (!Number.isFinite(value)) return fallback;
   if (!range) return value;
-  const v = atLeastMin(value, range);
+  const v = atLeastFloor(value, field, range); // --- unlimited-sizes --- (from the field's meaningful floor: a Spin of 0, one target)
   return isIntegerRange(range) ? Math.round(v) : v;
 }
 // --- end review fix (recording-export) ---
@@ -2015,7 +2016,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const res = params.get("res");
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
-  if (Number.isFinite(dur) && dur >= RANGES.recordingDuration.min) settings.recordingDuration = dur; // --- uncap-all --- (no maximum)
+  if (params.get("dur") !== null && Number.isFinite(dur) && meetsFloor("recordingDuration", dur, RANGES.recordingDuration)) settings.recordingDuration = dur; // --- uncap-all --- (no maximum) --- unlimited-sizes --- (any length above 0: a 3 s clip)
   const hsm = params.get("hsm");
   if (isHitSoundMode(hsm)) settings.hitSoundMode = hsm;
   const hs = params.get("hs");

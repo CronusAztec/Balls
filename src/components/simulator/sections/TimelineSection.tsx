@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Tooltip from "../Tooltip";
-import { Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, SliderTrack, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import type { ControlSection } from "../Controls";
 import { TimelineSliderValue, timelineLive, useTimelineSlider, useTimelineTime, useTimelineValue } from "../timelineLive";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
@@ -90,19 +90,8 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
         <span className="text-ink-2 tabular-nums">{formatTimelineValue(settingKey, value)}</span>
       </label>
       <div className="flex items-center gap-2">
-        <input
-          id="timeline-value-slider"
-          type="range"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          data-testid="timeline-value-slider"
-          className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-          style={sliderStyle(value, range.min, range.max)}
-        />
-        <UncapNumberField value={value} onCommit={onChange} label={t("timelineValue")} range={range} rules={rulesForRange(range)} settingKey={`keyframe:${settingKey}`} /* --- uncap-all --- */ />
+        <SliderTrack id="timeline-value-slider" settingKey={settingKey} label={t("timelineValue")} value={value} range={range} onChange={onChange} testId="timeline-value-slider" /* --- unlimited-sizes --- (the keyframed setting's wide track) */ />
+        <UncapNumberField value={value} onCommit={onChange} label={t("timelineValue")} range={range} rules={rulesForRange(range, settingKey)} settingKey={`keyframe:${settingKey}`} /* --- uncap-all --- (--- unlimited-sizes --- from the setting's meaningful floor) */ />
       </div>
       {live !== null && (
         <p className="text-xs text-ink-3 text-right">
@@ -228,20 +217,9 @@ export function TimelineRangeInput({ labelKey, value, range, onChange, className
   const shown = live ? live.value : value;
   return (
     <span className="flex w-full items-center gap-2">
-      <input
-        type="range"
-        min={range.min}
-        max={range.max}
-        step={range.step}
-        value={shown}
-        disabled={!!live}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`}
-        style={sliderStyle(shown, range.min, range.max)}
-        aria-label={ariaLabel}
-      />
+      <SliderTrack settingKey={labelKey} label={ariaLabel} value={shown} range={range} onChange={onChange} disabled={!!live} className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`} /* --- unlimited-sizes --- (the wide track with Wide sliders on) */ />
       {/* --- uncap-all --- the number field (any value; the track pins at its end beyond it) */}
-      <UncapNumberField value={shown} onCommit={onChange} label={ariaLabel} range={range} rules={rulesForRange(range)} disabled={!!live} settingKey={labelKey} />
+      <UncapNumberField value={shown} onCommit={onChange} label={ariaLabel} range={range} rules={rulesForRange(range, labelKey)} disabled={!!live} settingKey={labelKey} />
     </span>
   );
 }

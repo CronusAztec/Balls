@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Tooltip from "../Tooltip";
-import { Searchable, Slider, Toggle, onBtn, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, SliderTrack, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import { PAINT_BEAT_SOURCES } from "@/lib/physics/picturePaint";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { IconClose, IconUpload } from "@/components/ui/icons"; // --- site-redesign ---
@@ -158,17 +158,7 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
                     <span className="text-ink-3">{s.bpm}</span>
                   </label>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="range"
-                      min={RANGES.bpm.min}
-                      max={RANGES.bpm.max}
-                      step={RANGES.bpm.step}
-                      value={s.bpm}
-                      onChange={(e) => update({ bpm: Number(e.target.value) })}
-                      className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-                      style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
-                      aria-label={t("paintManualBpm")}
-                    />
+                    <SliderTrack settingKey="bpm" label={t("paintManualBpm")} value={s.bpm} range={RANGES.bpm} onChange={(v) => update({ bpm: v })} /* --- unlimited-sizes --- */ />
                     <NumberField value={s.bpm} onCommit={(v) => update({ bpm: v })} label={t("paintManualBpm")} range={RANGES.bpm} rules={rulesForRange(RANGES.bpm)} settingKey="bpm" /* --- uncap-all --- */ />
                   </div>
                 </>

@@ -135,9 +135,13 @@ describe("No limits: parsing", () => {
 
   // --- review fix (unlimited) x uncap-all --- a big value in a link or preset without `inf=1` keeps the switch off (it is only
   // Wide sliders now): the extreme-values runtime engages by the value itself, so 100,000 rings never hang the tab
+  // (--- unlimited-sizes --- Wide sliders is on by default now: a link without `inf` has it on, `inf=0` turns it off, and the
+  // run is the same either way)
   it("runs a link or preset that carries a value past its range with the switch off, and the tab never hangs", () => {
     const link = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=100000"));
-    expect([link.unlimited, link.wallCount]).toEqual([false, 100000]);
+    expect([link.unlimited, link.wallCount]).toEqual([true, 100000]);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wc=100000&inf=0")).unlimited).toBe(false);
+    expect(physicsConfigOfSettings({ ...link, unlimited: false })).toEqual(physicsConfigOfSettings(link)); // (the switch is the panel's only)
     expect(settingsToSearchParams(link).get("inf")).toBeNull();
     expect(settingsToSearchParams(link).get("wc")).toBe("100000");
     const engine = createEngineForSettings(physicsConfigOfSettings(link), "classic", modeSettingsOfSettings(link), 3);
@@ -148,9 +152,10 @@ describe("No limits: parsing", () => {
     const preset = presetToSettings({ ...defaultSettings("classic"), unlimited: false, ballSpeed: 1e9 });
     expect([preset.unlimited, preset.ballSpeed]).toEqual([false, 1e9]);
     expect(physicsConfigOfSettings(preset).unlimited).toBe(true); // (engaged by the value, not by the switch)
-    expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 }); // (a project file keeps it too)
+    expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 })).toMatchObject({ unlimited: true, wallCount: 5000 }); // (a project file keeps it too; --- unlimited-sizes --- a file without the switch has it on)
+    expect(resolveProjectSettings({ mode: "classic", unlimited: false, wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 });
     // Values inside their ranges engage nothing, and a mode setting past its slider reaches its run with the switch off.
-    const plain = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800"));
+    const plain = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800&inf=0"));
     expect(plain.unlimited).toBe(false);
     expect(physicsConfigOfSettings(plain).unlimited).toBeUndefined();
     expect(presetToSettings({ ...defaultSettings("glass"), unlimited: false, glassHp: 1000 })).toMatchObject({ unlimited: false, glassHp: 1000 });
@@ -158,7 +163,7 @@ describe("No limits: parsing", () => {
 
   // --- uncap-all --- the switch no longer gates anything but the slider tracks (Wide sliders)
   it("takes big values whatever the switch (it only widens the sliders now)", () => {
-    const off = settingsFromSearchParams(new URLSearchParams("mode=collide&cpn=50000&nb=50000"));
+    const off = settingsFromSearchParams(new URLSearchParams("mode=collide&cpn=50000&nb=50000&inf=0")); // (--- unlimited-sizes --- off is `inf=0` now)
     expect(off.unlimited).toBe(false);
     expect(off.cpCount).toBe(50000);
     expect(off.ballCount).toBe(50000);
@@ -191,7 +196,7 @@ describe("No limits: parsing", () => {
       want[key] = v;
     }
     const params = settingsToSearchParams(s as unknown as SimulatorSettings);
-    expect(params.get("inf")).toBe("1");
+    expect(params.get("inf")).toBeNull(); // --- unlimited-sizes --- (Wide sliders on is the default: the link no longer says so)
     const back = settingsFromSearchParams(params) as unknown as Record<string, unknown>;
     for (const key of keys) expect([key, back[key]]).toEqual([key, want[key]]);
   });

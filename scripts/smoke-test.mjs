@@ -8085,9 +8085,11 @@ await smokeBlock("unlimited", async () => {
     return { inf: q.get("inf"), wc: q.get("wc") };
   });
   const ringsSwitch = await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null);
+  // (--- unlimited-sizes --- Wide sliders is on by default now: a link without `inf` leaves it at its default, on, and the link
+  // still carries no `inf`; the run is engaged by the value either way)
   check(
-    "no limits: a link with 100,000 rings and no inf=1 keeps the switch off, engages the runtime by the value and stays responsive (the rings' ceiling, the frame budget)",
-    ringsEngaged && frames >= 6 && ringsLink.inf === null && ringsLink.wc === "100000" && ringsSwitch !== "true",
+    "no limits: a link with 100,000 rings and no inf param keeps the switch at its default (on), engages the runtime by the value and stays responsive (the rings' ceiling, the frame budget)",
+    ringsEngaged && frames >= 6 && ringsLink.inf === null && ringsLink.wc === "100000" && ringsSwitch !== "false",
     `(engaged ${ringsEngaged}, ${frames} frames in 3 s, link inf=${ringsLink.inf} wc=${ringsLink.wc}, switch ${ringsSwitch}${loadNote()})`,
   );
   // A mode's own settings run past their sliders with the switch off: 4,000 Power Layers, 40 panes a stage of Glass Smash
@@ -8162,6 +8164,13 @@ await smokeBlock("uncap-all", async () => {
   // (A) 80,000 typed into the Ball Speed field: exact in the link, the field tinted "beyond the slider"; text is refused.
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
   await panelSection(/Ball & Physics/);
+  // --- unlimited-sizes --- Wide sliders is on by default: the Ball Speed slider is the wide track, and its input holds the
+  // setting's own value inside the comfort range (what the number field shows)
+  const wideTrack = page.locator('input[type="range"][data-unlimited-slider="ballSpeed"]').first();
+  const wideShown = await wideTrack.isVisible().catch(() => false);
+  const wideValue = wideShown ? await wideTrack.inputValue().catch(() => "") : "";
+  const fieldValue = await page.locator('input[data-number-field="ballSpeed"]').first().inputValue().catch(() => "?");
+  check("uncap: Wide sliders is on by default (the Ball Speed track is the wide one, holding the field's value)", wideShown && wideValue === fieldValue, `(wide track ${wideShown}, track "${wideValue}", field "${fieldValue}")`);
   const speedField = await typeInto('input[data-number-field="ballSpeed"]', "80000");
   const typedQuery = query();
   const beyond = await speedField.getAttribute("data-beyond").catch(() => null);

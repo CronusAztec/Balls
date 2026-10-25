@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Tooltip from "../Tooltip";
-import { Searchable, Slider, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, SliderTrack, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import type { ControlSection } from "../Controls";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
@@ -56,17 +56,7 @@ function RowSlider({ label, ariaLabel, value, range, display, onChange, signed =
   return (
     <label className="flex items-center gap-2 text-xs text-ink-2">
       <span className="w-14 shrink-0 truncate">{label}</span>
-      <input
-        type="range"
-        min={range.min}
-        max={range.max}
-        step={range.step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={ariaLabel ?? label}
-        className="flex-1 min-w-0 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-        style={sliderStyle(value, range.min, range.max)}
-      />
+      <SliderTrack settingKey={`obstacle:${label}`} label={ariaLabel ?? label} value={value} range={range} onChange={onChange} className="flex-1 min-w-0 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer" /* --- unlimited-sizes --- */ />
       <span className="w-14 shrink-0 text-right font-mono tabular-nums text-ink-3">{display}</span>
       <NumberField value={value} onCommit={onChange} label={label} range={range} rules={signed ? {} : { min: range.min }} settingKey={`obstacle:${label}`} className="w-16" /* --- uncap-all --- */ />
     </label>
