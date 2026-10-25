@@ -42,8 +42,13 @@ export interface PaddleSettings {
   width: number;
   /** 0–1: how much an off-centre hit kicks the ball sideways (and spins it). */
   spin: number;
-  /** 0–0.1: every catch runs the flight this much faster (up to 2×). */
+  /** 0–0.1: every catch runs the flight this much faster (up to 2×, or `maxTempo`). */
   speedUp: number;
+  /**
+   * --- unlimited-sizes --- The most tempo the speed-up reaches (`MAX_TEMPO` = 2 when absent; present only when the setting
+   * differs, so a default settings object is unchanged).
+   */
+  maxTempo?: number;
   /** The Sound section's scale and root: the notes of the catches climb its degrees. */
   scale: ScaleId;
   rootNote: number;
@@ -66,9 +71,10 @@ export const PADDLE_RANGES = {
   pdWidth: { min: 0.12, max: 0.5, step: 0.01 },
   pdSpin: { min: 0, max: 1, step: 0.05 },
   pdSpeedUp: { min: 0, max: 0.1, step: 0.005 },
+  pdMaxTempo: { min: 1, max: 4, step: 0.1 }, // --- unlimited-sizes --- (the old MAX_TEMPO 2 is the default; any tempo from 1 typed)
 } as const;
 
-/** The Paddle Keep-Up fields of the SimulatorSettings object (URL keys pda, pdsk, pdm, pdw, pdsp, pdu). */
+/** The Paddle Keep-Up fields of the SimulatorSettings object (URL keys pda, pdsk, pdm, pdw, pdsp, pdu; --- unlimited-sizes --- pdmt). */
 export interface PaddleFields {
   pdAuto: boolean;
   pdSkill: number;
@@ -76,6 +82,7 @@ export interface PaddleFields {
   pdWidth: number;
   pdSpin: number;
   pdSpeedUp: number;
+  pdMaxTempo: number; // --- unlimited-sizes ---
 }
 
 export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | undefined): PaddleSettings {
@@ -88,6 +95,11 @@ export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | u
   if (config.width !== undefined) out.width = toStep(clampNumber(config.width, R.pdWidth, out.width), R.pdWidth.step);
   if (config.spin !== undefined) out.spin = toStep(clampNumber(config.spin, R.pdSpin, out.spin), R.pdSpin.step);
   if (config.speedUp !== undefined) out.speedUp = toStep(clampNumber(config.speedUp, R.pdSpeedUp, out.speedUp), R.pdSpeedUp.step);
+  // --- unlimited-sizes --- the top tempo: from 1 (no maximum, three decimals), kept only when it is not the old 2
+  if (config.maxTempo !== undefined) {
+    const top = Math.round(1000 * clampNumber(config.maxTempo, R.pdMaxTempo, MAX_TEMPO)) / 1000;
+    if (top !== MAX_TEMPO) out.maxTempo = top;
+  }
   if (isScaleId(config.scale)) out.scale = config.scale;
   if (config.rootNote !== undefined) out.rootNote = normalizeRootNote(config.rootNote);
   return out;
@@ -101,13 +113,14 @@ export function paddleSettingsOf(source: PaddleFields & { scale?: ScaleId; rootN
     width: source.pdWidth,
     spin: source.pdSpin,
     speedUp: source.pdSpeedUp,
+    ...(source.pdMaxTempo !== undefined && source.pdMaxTempo !== MAX_TEMPO ? { maxTempo: source.pdMaxTempo } : {}), // --- unlimited-sizes --- (nothing at the default)
     scale: source.scale ?? DEFAULT_PADDLE_SETTINGS.scale,
     rootNote: source.rootNote ?? DEFAULT_PADDLE_SETTINGS.rootNote,
   };
 }
 
 export function paddleSettingFields(settings: PaddleSettings): PaddleFields {
-  return { pdAuto: settings.auto, pdSkill: settings.skill, pdMisses: settings.misses, pdWidth: settings.width, pdSpin: settings.spin, pdSpeedUp: settings.speedUp };
+  return { pdAuto: settings.auto, pdSkill: settings.skill, pdMisses: settings.misses, pdWidth: settings.width, pdSpin: settings.spin, pdSpeedUp: settings.speedUp, pdMaxTempo: settings.maxTempo ?? MAX_TEMPO /* --- unlimited-sizes --- */ };
 }
 
 export function defaultPaddleFields(): PaddleFields {
@@ -115,10 +128,10 @@ export function defaultPaddleFields(): PaddleFields {
 }
 
 export function resolvePaddleFields(source: Partial<PaddleFields>): PaddleFields {
-  return paddleSettingFields(resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp }));
+  return paddleSettingFields(resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp, maxTempo: source.pdMaxTempo /* --- unlimited-sizes --- */ }));
 }
 
-const PADDLE_NUMERIC_KEYS = { pdsk: "pdSkill", pdm: "pdMisses", pdw: "pdWidth", pdsp: "pdSpin", pdu: "pdSpeedUp" } as const;
+const PADDLE_NUMERIC_KEYS = { pdsk: "pdSkill", pdm: "pdMisses", pdw: "pdWidth", pdsp: "pdSpin", pdu: "pdSpeedUp", pdmt: "pdMaxTempo" /* --- unlimited-sizes --- */ } as const;
 
 export function writePaddleParams(settings: PaddleFields, base: PaddleFields, params: URLSearchParams) {
   if (settings.pdAuto !== base.pdAuto) params.set("pda", settings.pdAuto ? "1" : "0");
@@ -179,7 +192,7 @@ export const TIMING_ERROR_SEC = 0.35;
 export const REACTION_DELAY = 0.5;
 export const AIM_JITTER = 1;
 export const SLOW_PLATFORM = 0.45;
-/** Most tempo the speed-up reaches. */
+/** Most tempo the speed-up reaches (--- unlimited-sizes --- by default: the `pdMaxTempo` setting, URL pdmt, may raise or lower it). */
 export const MAX_TEMPO = 2;
 /** Seconds from a miss to the next ball, and from the game over to the end of the run. */
 export const RESPAWN_SEC = 1.1;
@@ -211,9 +224,9 @@ export function paddleGravityFactor(gravitySetting: number): number {
   return Number.isFinite(gravitySetting) ? Math.max(0.3, gravitySetting / 300) : 1;
 }
 
-/** Tempo after `hits` catches (1 at the start, `speedUp` more per catch, at most `MAX_TEMPO`). */
-export function paddleTempo(hits: number, speedUp: number): number {
-  return Math.min(MAX_TEMPO, 1 + Math.max(0, speedUp) * Math.max(0, hits));
+/** Tempo after `hits` catches (1 at the start, `speedUp` more per catch, at most `maxTempo`: --- unlimited-sizes --- the setting, `MAX_TEMPO` by default). */
+export function paddleTempo(hits: number, speedUp: number, maxTempo: number = MAX_TEMPO): number {
+  return Math.min(maxTempo, 1 + Math.max(0, speedUp) * Math.max(0, hits));
 }
 
 /** Folds a straight-line position into [lo, hi] as a ball bouncing elastically between two walls would be (a triangle wave). */
@@ -627,7 +640,7 @@ export class PaddleMode implements GameMode {
     const u3 = this.rng();
     const u4 = this.rng();
     const landing = predictLanding(v.bx, v.by, v.bvx, v.bvy, this.g, v.r);
-    const p = planCatch(landing, v.bx, v.bvx, v.r, now, v.settings.skill, v.halfWidth, u1, u2, u3, u4, v.settings.spin, paddleTempo(v.hits + 1, v.settings.speedUp));
+    const p = planCatch(landing, v.bx, v.bvx, v.r, now, v.settings.skill, v.halfWidth, u1, u2, u3, u4, v.settings.spin, paddleTempo(v.hits + 1, v.settings.speedUp, v.settings.maxTempo)); // --- unlimited-sizes --- (the setting's top tempo)
     v.targetX = p.targetX;
     v.timingError = p.timingError;
     this.moveAt = p.moveAt;
@@ -754,7 +767,7 @@ export class PaddleMode implements GameMode {
       v.hits++;
       v.streak++;
       v.bestStreak = Math.max(v.bestStreak, v.streak);
-      v.tempo = paddleTempo(v.hits, v.settings.speedUp);
+      v.tempo = paddleTempo(v.hits, v.settings.speedUp, v.settings.maxTempo); // --- unlimited-sizes ---
       this.g = this.baseG * v.tempo * v.tempo;
       const launch = launchOf(off, v.bvx, v.pvx, v.settings.spin, this.g, v.tempo, v.r);
       v.bvx = launch.vx;

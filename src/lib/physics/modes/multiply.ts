@@ -2,6 +2,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { arenaRadius, passableGap } from "../types";
 import { ringPassRadius } from "../ballStats";
 import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
+import { SWARM_LIMIT_DEFAULT, swarmLimitOf } from "../growthCaps"; // --- unlimited-sizes --- (the swarm's ceiling is a setting now)
 
 /**
  * Most balls a Multiply run grows to – a soft, memory-safe ceiling on the swarm, not a setting's limit (the spawn count
@@ -12,7 +13,7 @@ import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- gerald-mul
  * escape still counts (sound, confetti, scoreboard, the broken wall) but spawns nothing. Runs that never reach it replay
  * exactly as before.
  */
-export const MULTIPLY_MAX_BALLS = 200;
+export const MULTIPLY_MAX_BALLS = SWARM_LIMIT_DEFAULT; // --- unlimited-sizes --- (the default of the `swarmLimit` setting, URL swl)
 /** @deprecated The ceiling applies to every Multiply run now; see `MULTIPLY_MAX_BALLS`. */
 export const MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS = MULTIPLY_MAX_BALLS;
 
@@ -47,6 +48,7 @@ export class MultiplyMode implements GameMode {
     let spawned = false;
     // --- unlimited --- with No limits on the swarm has no MULTIPLY_MAX_BALLS: past the full-physics balls the new balls join the crowd
     const unlimited = (ctx.unlimitedRoom?.() ?? null) !== null;
+    const swarmLimit = swarmLimitOf(ctx.config); // --- unlimited-sizes --- (MULTIPLY_MAX_BALLS unless the setting says otherwise)
     for (const ball of balls) {
       if (this.escapedBalls.has(ball.id)) continue;
       if (Math.hypot(ball.x - cx, ball.y - cy) > wall.radius + ball.radius + 10) {
@@ -56,7 +58,7 @@ export class MultiplyMode implements GameMode {
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
-          if (!unlimited && balls.length >= MULTIPLY_MAX_BALLS) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS) (--- unlimited --- lifted with No limits on)
+          if (!unlimited && balls.length >= swarmLimit) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS) (--- unlimited --- lifted with No limits on) (--- unlimited-sizes --- the setting's)
           const a = ctx.random() * Math.PI * 2;
           // --- gerald-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);

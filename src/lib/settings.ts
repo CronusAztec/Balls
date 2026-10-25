@@ -86,6 +86,7 @@ import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writ
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConveyorFields, writeConveyorParams, type ConveyorArena } from "@/lib/physics/modes/conveyor";
 import { RESPAWN_RANGES } from "@/lib/physics/respawn";
+import { GROWTH_CAP_RANGES, defaultGrowthCapFields } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings as settings)
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
 import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGridPastCeiling, readOrbGridParams, resolveOrbGridFields, writeOrbGridParams, type OgArrangement, type OgDistribution, type OgFloor, type OgMaterial, type OgPalette, type OgProperty, type OgRelease, type OgSound } from "@/lib/physics/modes/orbGrid";
 import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
@@ -323,6 +324,8 @@ export interface SimulatorSettings {
   cpAntiCollisionAt: number;
   /** Lollipops on a ring: bodies constrained to a circular track (URL `cpr`). */
   cpRing: boolean;
+  /** --- unlimited-sizes --- The most bodies the ring holds, 36 by default (the rest of the count waits off the track; URL `cprc`). */
+  cpRingCount: number;
   // --- gerald-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
   /** Panes in the first stage, 3–30; later stages add more (URL `glr`). */
   glassRows: number;
@@ -695,6 +698,8 @@ export interface SimulatorSettings {
   pdSpin: number;
   /** Paddle: 0–0.1, every catch runs faster (URL `pdu`). */
   pdSpeedUp: number;
+  /** --- unlimited-sizes --- The most tempo the speed-up reaches, 2× by default (URL `pdmt`). */
+  pdMaxTempo: number;
   // --- end jdm-rhythm-runner ---
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, components/simulator/splitScreenCanvas.tsx)
   /** Arenas on the canvas: 1 (the single view), 2 or 4 (URL `ac`). */
@@ -919,6 +924,12 @@ export interface SimulatorSettings {
   /** Classic and Multiply: a new ball drops in every this many seconds, 0 = off (URL `rse`; `rs` is the Rotation Speed's). */
   respawnEvery: number;
   // --- end gerald-conveyor ---
+  // --- unlimited-sizes --- the growth caps as settings (lib/physics/growthCaps.ts), defaults equal to the old constants
+  /** The most full-physics balls a swarm grows to while nothing engages No limits: Multiply, respawns, bounce math's copies (URL `swl`, 200). */
+  swarmLimit: number;
+  /** The most full-physics balls a run with No limits engaged holds before spawns join the crowd (URL `fbl`, 2,000). */
+  fullBallLimit: number;
+  // --- end unlimited-sizes ---
   // --- orb-grid --- Bouncing Orbs (lib/physics/modes/orbGrid.ts): a field of orbs, each bouncing on its own spot
   /** Orbs across and along the field, 1–80 on the sliders, any whole number typed (a run builds at most 250,000) (URL `ogC`, `ogR`). */
   ogColumns: number;
@@ -1067,6 +1078,8 @@ export interface SimulatorSettings {
   flBossHeal: number;
   /** A show's interlude card (s, from 0) (URL `flCard`). */
   flCardSec: number;
+  /** --- unlimited-sizes --- A bracket's and a boss rush's bout cap (s, from 0; 0 = none: the time cap as typed; 45 by default) (URL `flBc`). */
+  flBoutCap: number;
   /** The VS card's win chance (simulated) (URL `flOd`). */
   flOdds: boolean;
   // --- end fl-overhaul ---
@@ -1562,6 +1575,7 @@ function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEs
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
     ...defaultMazeFields(), // --- odd-maze ---
     ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
+    ...defaultGrowthCapFields(), // --- unlimited-sizes --- (200 swarm balls, 2,000 full-physics balls: the old constants)
     ...defaultOrbGridFields(), // --- orb-grid ---
     // --- fight-league --- the feature's fields, and the mode's own gravity (0: the fighters drift) and clip (a minute) in Fight League only
     ...defaultFightLeagueFields(),
@@ -1664,6 +1678,7 @@ export const RANGES = {
   ...MAZE_RANGES, // --- odd-maze ---
   ...CONVEYOR_RANGES, // --- gerald-conveyor ---
   ...RESPAWN_RANGES, // --- gerald-conveyor --- (the respawn timer of Classic and Multiply)
+  ...GROWTH_CAP_RANGES, // --- unlimited-sizes --- (their comfort ranges end at the defaults: a value past them engages No limits)
   ...ORB_GRID_RANGES, // --- orb-grid ---
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
@@ -1770,6 +1785,10 @@ export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   cpg: "cpGravity",
   cpe: "cpRestitution",
   cpac: "cpAntiCollisionAt",
+  cprc: "cpRingCount", // --- unlimited-sizes ---
+  // --- unlimited-sizes --- the growth caps
+  swl: "swarmLimit",
+  fbl: "fullBallLimit",
   // --- camera --- Cinematic camera
   cz: "cameraZoom",
   shake: "screenShake",
@@ -1963,7 +1982,7 @@ const MAX_URL_TEXT = 60;
  * The core numbers of `NUMERIC_URL_KEYS`: no feature's own resolver checks them again (the music bed, the physics extras,
  * the modes' and features' numbers keep their own rules), so `coreNumber()` is their check.
  */
-const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"];
+const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs", "swarmLimit", "fullBallLimit" /* --- unlimited-sizes --- */];
 const CORE_NUMERIC_FIELD_SET: ReadonlySet<string> = new Set(CORE_NUMERIC_FIELDS);
 
 /**
@@ -2301,14 +2320,14 @@ function rangeKeys(group: object, ...prefixes: string[]): string[] {
  * --- review fix (uncap-all) --- The settings every run's engine reads, whatever the mode: the physics config – the core
  * values, the extras, the ball interaction, the Bounciness – and the split-screen arenas it builds.
  */
-const CORE_ENGINE_KEYS: readonly string[] = ["ballSpeed", "ballRadius", "gravity", "wallCount", "gapSize", "rotationSpeed", "ballCount", "bounciness", ...PHYSICS_EXTRA_KEYS, ...rangeKeys(BALL_INTERACTION_RANGES), "arenaCount"];
+const CORE_ENGINE_KEYS: readonly string[] = ["ballSpeed", "ballRadius", "gravity", "wallCount", "gapSize", "rotationSpeed", "ballCount", "bounciness", ...PHYSICS_EXTRA_KEYS, ...rangeKeys(BALL_INTERACTION_RANGES), "arenaCount", "fullBallLimit" /* --- unlimited-sizes --- (the limits runtime's, every mode's) */];
 /** What the ring modes' engines read on top: the obstacle editor (its layout and bumper boost), the multiplier pickups, On beat's flight range. */
-const RING_ENGINE_KEYS: readonly string[] = [...rangeKeys(OBSTACLE_EDITOR_RANGES), "obstacles", ...rangeKeys(MULTIPLIER_RANGES), "onBeatRange"];
+const RING_ENGINE_KEYS: readonly string[] = [...rangeKeys(OBSTACLE_EDITOR_RANGES), "obstacles", ...rangeKeys(MULTIPLIER_RANGES), "onBeatRange", "swarmLimit" /* --- unlimited-sizes --- (bounce math's ball copies) */];
 /** Each mode's own settings its engine reads (a key of another mode, or of the recording, the text, the sound or the picture, never). */
 const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
-  classic: ["respawnEvery"], // --- gerald-conveyor --- (the respawn timer)
+  classic: ["respawnEvery", "swarmLimit"], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- and its swarm ceiling)
   accumulation: ["accumulationTime", "spikeCount"],
-  multiply: ["multiplySpawnCount", "respawnEvery"], // --- gerald-conveyor --- (the respawn timer)
+  multiply: ["multiplySpawnCount", "respawnEvery", "swarmLimit"], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- the swarm's ceiling)
   lines: [],
   paint: rangeKeys(PICTURE_PAINT_RANGES),
   target: ["targetCount"],

@@ -256,6 +256,12 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** Seconds between two respawns in Classic and Multiply (lib/physics/respawn.ts): a new ball drops in from the top; 0 / absent = off. */
   respawnEvery?: number;
   // --- end gerald-conveyor ---
+  // --- unlimited-sizes --- the growth caps as settings (lib/physics/growthCaps.ts): present only when they differ from their defaults
+  /** The most full-physics balls a swarm grows to while the extreme-values runtime is off (Multiply, respawns, bounce math's copies); absent = 200. */
+  swarmLimit?: number;
+  /** The most full-physics balls a run with the extreme-values runtime engaged holds before spawns join the crowd; absent = 2,000. */
+  fullBallLimit?: number;
+  // --- end unlimited-sizes ---
   // --- gerald-exit-splat --- moving exits and splat barriers of the ring modes (exitSplat.ts, movingExits.ts, splats.ts); off by default
   /** How the rings' exits move: "rotate" (with their rings, as always), "jump", "flee" or "shrink" (the rings then hold still). */
   exitBehavior?: ExitBehavior;

@@ -6,6 +6,7 @@ import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
+import { growthCapLivePatch } from "@/lib/physics/growthCaps"; // --- unlimited-sizes ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
@@ -80,6 +81,7 @@ export function arenaPhysicsConfig(s: SimulatorSettings, withTimeline = true): O
     ...exitSplatConfigOf(s), // --- gerald-exit-splat ---
     ...respawnConfigOf(s), // --- gerald-conveyor --- the respawn timer of Classic and Multiply (arenas 2…n follow a new period, as the page does)
     ...ringEscapeConfigOf(s), // --- ring-escape --- Classic's gap layout, spin and ring sounds (every arena's rings like the page's)
+    ...growthCapLivePatch(s), // --- unlimited-sizes --- the swarm's and the run's ball ceilings (undefined at their defaults, so a value moved back reaches arenas 2…n)
     ...riggedConfigOf(s),
     ...(withTimeline ? { timeline: engineTimelineOf(s) } : {}),
   };

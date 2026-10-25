@@ -1,5 +1,6 @@
 import type { ModeContext, ModeId, PhysicsConfig } from "./types";
 import { startBallColor, startBallCount } from "./ballStats";
+import { SWARM_LIMIT_DEFAULT, swarmLimitOf } from "./growthCaps"; // --- unlimited-sizes --- (the swarm's ceiling is a setting now)
 
 /**
  * --- gerald-conveyor --- Timed respawns for Classic and Multiply (the character-ball account's "Gerald respawns every
@@ -30,7 +31,7 @@ export const RESPAWN_RANGES = {
 export const DEFAULT_RESPAWN_EVERY = 0;
 
 /** Most balls a respawning run holds (Multiply's own swarm ceiling): a respawn due past it is skipped. */
-export const RESPAWN_MAX_BALLS = 200;
+export const RESPAWN_MAX_BALLS = SWARM_LIMIT_DEFAULT; // --- unlimited-sizes --- (the default of the `swarmLimit` setting, URL swl)
 /** The new ball appears this share of the innermost standing ring's radius above the centre … */
 export const RESPAWN_DROP_AT = 0.55;
 /** … falling at this share of the Ball Speed … */
@@ -114,7 +115,7 @@ export class RespawnTimer {
     }
     if (inner < 0) return; // every ring broken: nothing left to escape
     const balls = ctx.getBalls();
-    if (balls.length >= RESPAWN_MAX_BALLS) return;
+    if (balls.length >= swarmLimitOf(ctx.config)) return; // --- unlimited-sizes --- (RESPAWN_MAX_BALLS unless the swarm's setting says otherwise)
     const radius = ctx.config.ballRadius || 8;
     const R = walls[inner].radius;
     const cx = ctx.config.width / 2;

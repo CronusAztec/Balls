@@ -58,6 +58,11 @@ export interface CollideSettings {
   antiCollisionAt: number;
   /** Lollipops on a ring: the bodies are constrained to a circular track (1-D collisions). */
   ring: boolean;
+  /**
+   * --- unlimited-sizes --- The most bodies the ring holds (`RING_MAX_BODIES` = 36 when absent; present only when the
+   * setting differs, so a default settings object is unchanged). The ring's fit shrinks the discs to make room.
+   */
+  ringCount?: number;
 }
 
 export const DEFAULT_COLLIDE_SETTINGS: CollideSettings = {
@@ -79,9 +84,10 @@ export const COLLIDE_RANGES = {
   cpGravity: { min: 0, max: 1, step: 0.05 },
   cpRestitution: { min: 0.7, max: 1, step: 0.01 },
   cpAntiCollisionAt: { min: 0, max: 120, step: 1 },
+  cpRingCount: { min: 2, max: 36, step: 1 }, // --- unlimited-sizes --- (the comfort range ends at the old RING_MAX_BODIES; any count from 2 typed)
 } as const;
 
-/** The Collision Playground fields of the SimulatorSettings object (URL keys cpn, cpsz, cpc, cpg, cpe, cpsq, cpsy, cpac, cpr). */
+/** The Collision Playground fields of the SimulatorSettings object (URL keys cpn, cpsz, cpc, cpg, cpe, cpsq, cpsy, cpac, cpr; --- unlimited-sizes --- cprc). */
 export interface CollideSettingFields {
   cpCount: number;
   cpSizeSpread: number;
@@ -92,6 +98,7 @@ export interface CollideSettingFields {
   cpSyncStart: boolean;
   cpAntiCollisionAt: number;
   cpRing: boolean;
+  cpRingCount: number; // --- unlimited-sizes ---
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -112,6 +119,11 @@ export function resolveCollideSettings(config: Partial<CollideSettings> | null |
   if (typeof config.syncStart === "boolean") out.syncStart = config.syncStart;
   if (config.antiCollisionAt !== undefined) out.antiCollisionAt = Math.round(clampNumber(config.antiCollisionAt, COLLIDE_RANGES.cpAntiCollisionAt, out.antiCollisionAt));
   if (typeof config.ring === "boolean") out.ring = config.ring;
+  // --- unlimited-sizes --- the ring's bodies: a whole number from 2 (at most its memory-safety ceiling), kept only when it is not the old 36
+  if (config.ringCount !== undefined) {
+    const n = memoryCeiling("cpRingCount", Math.round(clampNumber(config.ringCount, COLLIDE_RANGES.cpRingCount, RING_MAX_BODIES)));
+    if (n !== RING_MAX_BODIES) out.ringCount = n;
+  }
   return out;
 }
 
@@ -127,6 +139,7 @@ export function collideSettingsOf(source: CollideSettingFields): CollideSettings
     syncStart: source.cpSyncStart,
     antiCollisionAt: source.cpAntiCollisionAt,
     ring: source.cpRing,
+    ...(source.cpRingCount !== undefined && source.cpRingCount !== RING_MAX_BODIES ? { ringCount: source.cpRingCount } : {}), // --- unlimited-sizes --- (nothing at the default)
   };
 }
 
@@ -142,6 +155,7 @@ export function collideSettingFields(settings: CollideSettings): CollideSettingF
     cpSyncStart: settings.syncStart,
     cpAntiCollisionAt: settings.antiCollisionAt,
     cpRing: settings.ring,
+    cpRingCount: settings.ringCount ?? RING_MAX_BODIES, // --- unlimited-sizes ---
   };
 }
 
@@ -503,7 +517,7 @@ export class CollideMode implements GameMode {
     this.lastBallRadius = ctx.config.ballRadius || 8;
     const field = buildCollideField(ctx.config.width, ctx.config.height, s.container);
     v.field = field;
-    const n = s.ring ? Math.min(s.count, RING_MAX_BODIES) : s.count;
+    const n = s.ring ? Math.min(s.count, s.ringCount ?? RING_MAX_BODIES) : s.count; // --- unlimited-sizes --- (the ring's bodies: a setting, 36 by default)
     this.n = n;
     v.count = n;
     this.firstId = ctx.getNextId();

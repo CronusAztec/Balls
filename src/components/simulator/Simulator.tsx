@@ -157,6 +157,7 @@ import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
 import { orbGridNeverSettles, orbGridSettingsOf, type OrbGridFields } from "@/lib/physics/modes/orbGrid";
 import { RHYTHM_RATIOS, beatClock } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- (the metronome's clock moves the cycle)
 import { respawnConfigOf } from "@/lib/physics/respawn";
+import { growthCapConfigOf, growthCapLivePatch } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings)
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
@@ -480,6 +481,7 @@ export default function Simulator() {
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
       ...ringEscapeConfigOf(s), // --- ring-escape --- (the first run's rings already laid out as the settings say)
+      ...growthCapConfigOf(s), // --- unlimited-sizes --- (a link's swl / fbl from the first run; nothing at their defaults)
       ...uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), pastAnyMemoryCeiling(s)), // --- unlimited --- (before the first run: its crowd; --- uncap-all --- engaged by any value past its slider)
       ...(s.slowMotion === false ? { slowMotion: false as const } : {}), // --- slow-motion --- (a link's smo=0 from the first run; nothing while it is on)
     });
@@ -889,11 +891,11 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSquishy, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSquishy, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */]);
   // Any Collision Playground change invalidates a found seed too (the finder hides itself for this endless mode, but a seed may be pinned).
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */]);
   // --- gerald-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes, gates) restarts it.
   useEffect(() => {
     const engine = engineRef.current;
@@ -1659,6 +1661,17 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.respawnEvery]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end gerald-conveyor ---
+  // --- unlimited-sizes --- the swarm's and the run's ball ceilings travel in the physics config (the finder, the fast export, the
+  // arenas and the bot copy it): a change drops a found seed with its promise; at their defaults the config carries neither
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const patch = growthCapLivePatch(s);
+    if (engine.config.swarmLimit === patch.swarmLimit && engine.config.fullBallLimit === patch.fullBallLimit) return;
+    engine.setConfig(patch);
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.swarmLimit, s.fullBallLimit]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- orb-grid --- Bouncing Orbs: a change of the field or the variation – or of the gravity the orbs fall under – restarts the
   // run and drops a found seed; the look, the sound, the Sound section's scale and root, the Ball Colour and the clip follow live.
   useEffect(() => {
@@ -1862,7 +1875,7 @@ export default function Simulator() {
   rhythmBeatRef.current = rhythmBeat;
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp]);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */]);
   /** What the page engine's Beat Runner course was last planned from (null until the first settings pass). */
   const runnerPlanRef = useRef<RunnerPlan | null>(null);
   useEffect(() => {
@@ -1888,7 +1901,7 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.gravity, s.ballRadius]);
+  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */, s.gravity, s.ballRadius]);
   useEffect(() => {
     engineRef.current?.setRunnerSettings({ scale: s.scale, rootNote: s.rootNote });
     engineRef.current?.setPaddleSettings({ scale: s.scale, rootNote: s.rootNote });

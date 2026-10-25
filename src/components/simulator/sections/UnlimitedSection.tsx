@@ -2,8 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
-import type { SimulatorSettings } from "@/lib/settings";
+import { Searchable, Slider, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { RANGES, type SimulatorSettings } from "@/lib/settings";
 
 export interface UnlimitedSectionProps {
   t: Translate;
@@ -14,7 +14,7 @@ export interface UnlimitedSectionProps {
 }
 
 /** Search keys of the block (added to SECTION_KEYS.ball in Controls.tsx). */
-export const UNLIMITED_KEYS = ["unlimited"];
+export const UNLIMITED_KEYS = ["unlimited", "fullBallLimit" /* --- unlimited-sizes --- */];
 
 /**
  * --- unlimited --- The No limits switch of the Ball & Physics section, --- uncap-all --- now "Wide sliders": nothing is
@@ -47,5 +47,14 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
         <p className={`text-xs ${on ? "text-warn" : "text-ink-2"}`}>{u("warning")}</p>
       </div>
     </Searchable>
+  );
+}
+
+/** --- unlimited-sizes --- The full-physics balls a run with extreme values in play holds (the limits runtime's 2,000 by default; spawns past them join the crowd). */
+export function FullBallLimitControl({ t, search, matches, settings: s, update }: UnlimitedSectionProps) {
+  return (
+    <div data-testid="full-ball-limit">
+      <Slider t={t} search={search} matches={matches} labelKey="fullBallLimit" tipKey="fullBallLimitTip" value={s.fullBallLimit} range={RANGES.fullBallLimit} onChange={(v) => update({ fullBallLimit: v })} display={String(s.fullBallLimit)} />
+    </div>
   );
 }

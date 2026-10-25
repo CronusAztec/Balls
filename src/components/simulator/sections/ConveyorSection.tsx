@@ -17,8 +17,8 @@ export interface ConveyorSectionProps {
 
 /** Search keys of the Conveyor block (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const CONVEYOR_KEYS = ["cvInterval", "cvMaxBalls", "cvArena", "cvFreeze", "cvVariety"];
-/** Search key of the respawn timer of Classic and Multiply (in the Ball section). */
-export const RESPAWN_KEYS = ["respawnEvery"];
+/** Search key of the respawn timer of Classic and Multiply (in the Ball section; --- unlimited-sizes --- and the swarm's ceiling beside it). */
+export const RESPAWN_KEYS = ["respawnEvery", "swarmLimit"];
 
 /** Whether the Ball section shows the respawn timer in `mode`. */
 export function showsRespawn(mode: ModeId): boolean {
@@ -92,6 +92,8 @@ export function RespawnControl({ t, search, matches, settings: s, update }: Conv
   return (
     <div data-testid="respawn-every">
       <Slider t={t} search={search} matches={matches} labelKey="respawnEvery" tipKey="respawnEveryTip" value={s.respawnEvery} range={RANGES.respawnEvery} onChange={(v) => update({ respawnEvery: v })} display={s.respawnEvery > 0 ? t("respawnEveryValue", { seconds: s.respawnEvery.toFixed(1) }) : t("respawnEveryOff")} />
+      {/* --- unlimited-sizes --- the swarm's ceiling (Multiply's escapes, the respawns, bounce math's copies): 200 by default, past it the crowd */}
+      <Slider t={t} search={search} matches={matches} labelKey="swarmLimit" tipKey="swarmLimitTip" value={s.swarmLimit} range={RANGES.swarmLimit} onChange={(v) => update({ swarmLimit: v })} display={String(s.swarmLimit)} />
     </div>
   );
 }

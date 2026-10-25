@@ -41,6 +41,12 @@ export const RING_CEILING = 10_000;
 export const ENTITY_CEILING = 5_000;
 /** Full-physics balls one board holds (the multipliers board; `OBJECT_BALL_LIMIT` of lib/unlimited.ts): past it a clone is refused with ARENA FULL. */
 export const BOARD_BALL_CEILING = 2_000;
+/**
+ * --- unlimited-sizes --- The most full-physics balls the `fullBallLimit` setting lets a run hold: an entity each (its own
+ * state, drawing and sound, every mode rule, checked against every ring each sub-step), so the entities' ceiling – two and a
+ * half times the default 2,000, within the limits runtime's own work ceiling `RING_OBJECT_WORK` of lib/physics/limits.ts.
+ */
+export const FULL_BALL_CEILING = ENTITY_CEILING;
 /** Links of one pendulum chain: the integrator solves an n × n system a few times a sub-step (n² memory, n³ work). */
 export const CHAIN_LINK_CEILING = 64;
 /** Bobs of all the pendulum chains together (chains × links): each is integrated by an adaptive Dormand–Prince solver every sub-step. */
@@ -343,6 +349,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,
+  // --- unlimited-sizes --- the growth caps that became settings (lib/physics/growthCaps.ts): the swarm's balls (past its slider
+  // the swarm grows into the crowd: the crowd's ceiling), the full-physics balls a run holds, and Collision Playground's ring
+  // bodies (each an orb of the count, which has its own entity ceiling)
+  swarmLimit: CROWD_BALL_CEILING,
+  fullBallLimit: FULL_BALL_CEILING,
+  cpRingCount: ENTITY_CEILING,
 };
 
 /**

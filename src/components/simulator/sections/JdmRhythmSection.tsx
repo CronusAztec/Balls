@@ -25,7 +25,7 @@ export interface JdmRhythmSectionProps {
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const RUNNER_KEYS = ["rrAutoJump", "rrObstacles", "rrSpeed", "rrJump", "rrDensity", "rrMix", "rrBeatSource"];
-export const PADDLE_KEYS = ["pdAuto", "pdSkill", "pdMisses", "pdWidth", "pdSpin", "pdSpeedUp"];
+export const PADDLE_KEYS = ["pdAuto", "pdSkill", "pdMisses", "pdWidth", "pdSpin", "pdSpeedUp", "pdMaxTempo" /* --- unlimited-sizes --- */];
 export const JDM_RHYTHM_KEYS = [...RUNNER_KEYS, ...PADDLE_KEYS];
 
 const MIX_OPTIONS: Record<RunnerMix, { labelKey: string }> = {
@@ -137,6 +137,8 @@ export function PaddleSection({ t, search, matches, settings: s, update }: JdmRh
       <Slider t={t} search={search} matches={matches} labelKey="pdWidth" tipKey="pdWidthTip" value={s.pdWidth} range={RANGES.pdWidth} onChange={(v) => update({ pdWidth: v })} display={`${Math.round(100 * s.pdWidth)}%`} />
       <Slider t={t} search={search} matches={matches} labelKey="pdSpin" tipKey="pdSpinTip" value={s.pdSpin} range={RANGES.pdSpin} onChange={(v) => update({ pdSpin: v })} display={s.pdSpin.toFixed(2)} />
       <Slider t={t} search={search} matches={matches} labelKey="pdSpeedUp" tipKey="pdSpeedUpTip" value={s.pdSpeedUp} range={RANGES.pdSpeedUp} onChange={(v) => update({ pdSpeedUp: v })} display={`+${(100 * s.pdSpeedUp).toFixed(1)}%`} />
+      {/* --- unlimited-sizes --- the top tempo the speed-up reaches (2× by default, the old MAX_TEMPO) */}
+      <Slider t={t} search={search} matches={matches} labelKey="pdMaxTempo" tipKey="pdMaxTempoTip" value={s.pdMaxTempo} range={RANGES.pdMaxTempo} onChange={(v) => update({ pdMaxTempo: v })} display={`×${s.pdMaxTempo}`} />
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed" data-testid="paddle-info">
           {!s.pdAuto ? t("pdInfoManual") : s.pdSkill >= 1 ? t("pdInfoPerfect") : t("pdInfoAuto", { lives: s.pdMisses + 1 })}

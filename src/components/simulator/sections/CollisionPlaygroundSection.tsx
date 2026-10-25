@@ -14,7 +14,7 @@ export interface CollisionPlaygroundSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const COLLISION_PLAYGROUND_KEYS = ["cpCount", "cpSizeSpread", "cpContainer", "cpGravity", "cpRestitution", "cpSquishy", "cpSyncStart", "cpAntiCollisionAt", "cpRing"];
+export const COLLISION_PLAYGROUND_KEYS = ["cpCount", "cpSizeSpread", "cpContainer", "cpGravity", "cpRestitution", "cpSquishy", "cpSyncStart", "cpAntiCollisionAt", "cpRing", "cpRingCount" /* --- unlimited-sizes --- */];
 
 const CONTAINER_OPTIONS: Record<CollideContainer, { labelKey: string }> = {
   circle: { labelKey: "cpContainerCircle" },
@@ -92,6 +92,8 @@ export default function CollisionPlaygroundSection({ t, search, matches, setting
       <Searchable search={search} matches={matches} labelKey="cpRing">
         <Toggle t={t} labelKey="cpRing" tipKey="cpRingTip" value={s.cpRing} onChange={(v) => update({ cpRing: v })} />
       </Searchable>
+      {/* --- unlimited-sizes --- the ring's bodies (36 by default, the old RING_MAX_BODIES) */}
+      {(s.cpRing || search) && <Slider t={t} search={search} matches={matches} labelKey="cpRingCount" tipKey="cpRingCountTip" value={s.cpRingCount} range={RANGES.cpRingCount} onChange={(v) => update({ cpRingCount: v })} display={String(s.cpRingCount)} />}
     </div>
   );
 }

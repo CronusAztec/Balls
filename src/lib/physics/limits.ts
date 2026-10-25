@@ -39,6 +39,7 @@ import { PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "./extras";
 import { BALL_INTERACTION_RANGES } from "./interactions";
 import { TWO_PI, type Ball, type BallInteractionConfig, type CircularWall, type ModeContext, type PhysicsConfig, type PhysicsExtras, type SoundEvent } from "./types";
 import { CROWD_LIMIT, OBJECT_BALL_LIMIT, parseUnlimitedValue } from "@/lib/unlimited";
+import { fullBallLimitOf } from "./growthCaps"; // --- unlimited-sizes --- (the full-physics balls a run holds: a setting, 2,000 by default)
 import { memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /** The No limits fields of the physics config. */
@@ -242,9 +243,12 @@ export const RING_OBJECT_WORK = 20_000;
 /** Full-physics balls a run may always hold, however many rings it has. */
 export const OBJECT_MIN = 16;
 
-/** The most full-physics balls a run with `rings` rings holds with No limits on (`RING_OBJECT_WORK`, within `OBJECT_MIN` … `OBJECT_BALL_LIMIT`). */
-export function objectLimitFor(rings: number): number {
-  return Math.max(OBJECT_MIN, Math.min(OBJECT_BALL_LIMIT, Math.floor(RING_OBJECT_WORK / Math.max(1, rings))));
+/**
+ * The most full-physics balls a run with `rings` rings holds with No limits on (`RING_OBJECT_WORK`, within `OBJECT_MIN` …
+ * `OBJECT_BALL_LIMIT`; --- unlimited-sizes --- … `limit`, the `fullBallLimit` setting's value).
+ */
+export function objectLimitFor(rings: number, limit: number = OBJECT_BALL_LIMIT): number {
+  return Math.max(OBJECT_MIN, Math.min(limit, Math.floor(RING_OBJECT_WORK / Math.max(1, rings))));
 }
 
 /** Wall hits the engine keeps for the canvas' wall glow with No limits on (it drops the older half past it; visual only). */
@@ -273,6 +277,8 @@ export class UnlimitedRuntime {
   onePerPass = false;
   /** Full-physics balls the run may hold at the current ring count (`objectLimitFor()`, updated every step). */
   private objectLimit = OBJECT_BALL_LIMIT;
+  /** --- unlimited-sizes --- The `fullBallLimit` setting (the config's, `OBJECT_BALL_LIMIT` by default): the most full-physics balls at any ring count. */
+  private fullBallLimit = OBJECT_BALL_LIMIT;
   /** The engine's split settings and their ball limit as lifted (the ring count lowers it every step). */
   private interaction: BallInteractionConfig | null = null;
   private splitLimit = 0;
@@ -300,6 +306,8 @@ export class UnlimitedRuntime {
     // --- uncap-all --- engaged by the page (any setting past its slider) or by a core value past its comfort range
     this.on = config.unlimited === true || coreBeyondComfort(config);
     this.memoryFull = config.memoryFull === true;
+    this.fullBallLimit = fullBallLimitOf(config); // --- unlimited-sizes ---
+    if (this.objectLimit > this.fullBallLimit) this.objectLimit = this.fullBallLimit; // (a lower limit holds from now on; the next step sets it by the rings)
     const crowd = Math.floor(Number(config.crowdCount) || 0);
     const target = this.on && crowd > 0 ? (crowd > CROWD_LIMIT ? CROWD_LIMIT : crowd) : 0; // (the crowd's memory-safety ceiling)
     if (target !== this.crowdTarget) {
@@ -368,7 +376,7 @@ export class UnlimitedRuntime {
     if (split !== null) interaction.splitMinRadius = split;
     // The split limit counts full-physics balls: past `OBJECT_BALL_LIMIT` they would join the crowd, which never splits.
     const max = config.maxBalls !== undefined ? parseUnlimitedValue("maxBalls", config.maxBalls, BALL_INTERACTION_RANGES.maxBalls) : null;
-    if (max !== null) interaction.maxBalls = max > OBJECT_BALL_LIMIT ? OBJECT_BALL_LIMIT : max;
+    if (max !== null) interaction.maxBalls = max > this.fullBallLimit ? this.fullBallLimit : max; // --- unlimited-sizes --- (the full-ball limit: OBJECT_BALL_LIMIT by default)
     this.interaction = interaction;
     this.splitLimit = interaction.maxBalls;
     interaction.maxBalls = Math.min(this.splitLimit, this.objectLimit);
@@ -422,7 +430,7 @@ export class UnlimitedRuntime {
     if (!this.live) return;
     const config = ctx.config;
     this.burstsThisStep = 0;
-    this.objectLimit = objectLimitFor(ctx.getCircularWalls().length);
+    this.objectLimit = objectLimitFor(ctx.getCircularWalls().length, this.fullBallLimit); // --- unlimited-sizes --- (the setting's limit)
     this.onePerPass = ctx.getCircularWalls().length >= DENSE_RINGS_FROM;
     if (this.interaction) this.interaction.maxBalls = Math.min(this.splitLimit, this.objectLimit);
     if (this.crowdPoured < 0) {

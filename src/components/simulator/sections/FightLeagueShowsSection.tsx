@@ -28,7 +28,7 @@ import { flCurrentPreset, flPresetPatch } from "./fightLeaguePresetMatch";
  */
 
 /** Search keys of the shows' controls (FIGHT_LEAGUE_KEYS adds them). */
-export const FIGHT_LEAGUE_SHOW_KEYS = ["flPresetGallery", "flSurprise", "flShows", "flBestOf", "flEntrants", "flBracketSize", "flSeeding", "flBossWaves", "flBossHp", "flBossHeal", "flCardSec", "flOdds"];
+export const FIGHT_LEAGUE_SHOW_KEYS = ["flPresetGallery", "flSurprise", "flShows", "flBestOf", "flEntrants", "flBracketSize", "flSeeding", "flBossWaves", "flBossHp", "flBossHeal", "flCardSec", "flOdds", "flBoutCap" /* --- unlimited-sizes --- */];
 
 const SEEDING_LABELS: Record<FlSeeding, string> = { rating: "flSeedingRating", random: "flSeedingRandom", listed: "flSeedingListed" };
 
@@ -123,7 +123,7 @@ export default function FightLeagueShowsSection({ t, search, matches, settings: 
     setEntrants(clean);
     if (clean !== s.flEntrants) update({ flEntrants: clean });
   };
-  const num = (field: "flBestOf" | "flBracketSize" | "flBossWaves" | "flBossHp" | "flBossHeal" | "flCardSec") => (v: number) => update({ [field]: flPanelValue(field, v) } as Partial<SimulatorSettings>);
+  const num = (field: "flBestOf" | "flBracketSize" | "flBossWaves" | "flBossHp" | "flBossHeal" | "flCardSec" | "flBoutCap" /* --- unlimited-sizes --- */) => (v: number) => update({ [field]: flPanelValue(field, v) } as Partial<SimulatorSettings>);
   const estimate = kind === "single" ? 0 : flShowClipEstimateSec({ kind, bestOf: s.flBestOf, bracketSize: s.flBracketSize, bossWaves: s.flBossWaves, cardSec: s.flCardSec });
   return (
     <div className="space-y-3" data-testid="fl-shows" data-fl-show-kind={kind}>
@@ -186,6 +186,8 @@ export default function FightLeagueShowsSection({ t, search, matches, settings: 
         </>
       )}
       {kind !== "single" && <Slider t={t} search={search} matches={matches} labelKey="flCardSec" tipKey="flCardSecTip" value={s.flCardSec} range={RANGES.flCardSec} onChange={num("flCardSec")} display={`${s.flCardSec}s`} />}
+      {/* --- unlimited-sizes --- a bracket's and a boss rush's bout cap (45 s by default, the old FL_BOUT_CAP_SEC; 0 lifts it) */}
+      {(kind === "bracket" || kind === "boss") && <Slider t={t} search={search} matches={matches} labelKey="flBoutCap" tipKey="flBoutCapTip" value={s.flBoutCap} range={RANGES.flBoutCap} onChange={num("flBoutCap")} display={s.flBoutCap > 0 ? `${s.flBoutCap}s` : t("flTimeCapOff")} />}
       {kind !== "single" && (
         <p className="text-xs text-ink-3" data-testid="fl-clip-estimate" data-sec={Math.round(estimate)}>
           {t("flClipLength", { time: flClockText(estimate) })}

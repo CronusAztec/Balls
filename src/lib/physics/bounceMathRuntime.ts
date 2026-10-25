@@ -1,6 +1,6 @@
 import type { Ball, ModeContext, ModeId, SoundEvent } from "./types";
 import type { MultiplierRuntime } from "./multipliers";
-import { MULTIPLY_MAX_BALLS } from "./modes/multiply";
+import { swarmLimitOf } from "./growthCaps"; // --- unlimited-sizes --- (Multiply's swarm ceiling, MULTIPLY_MAX_BALLS by default, is a setting now)
 import { CROWD_LIMIT } from "@/lib/unlimited"; // --- unlimited ---
 import { OBSTACLE_EDITOR_MODES } from "./obstacleEditor";
 import { wallHitFrequency } from "@/lib/audio/sampler";
@@ -813,11 +813,12 @@ export class BounceMathRuntime {
     // --- unlimited --- with No limits on Multiply's ceiling is lifted here too: the copies fill the run's full-physics balls
     // and the rest join the crowd (ARENA FULL once it is full), like Multiply's clone storms; null while the switch is off
     const room = ctx.unlimitedRoom?.() ?? null;
-    if (!(copies >= 1) || (room === null && v >= MULTIPLY_MAX_BALLS)) return;
+    const swarm = swarmLimitOf(ctx.config); // --- unlimited-sizes ---
+    if (!(copies >= 1) || (room === null && v >= swarm)) return;
     const source = ball && !ball.frozen && balls.includes(ball) ? ball : this.focusBall();
     if (!source) return;
     // Multiply's swarm ceiling: never more than MULTIPLY_MAX_BALLS balls, however big the count gets (a soft, memory-safe limit).
-    if (room === null) this.host.multipliers().cloneBall(ctx, source, Math.min(copies, MULTIPLY_MAX_BALLS) + 1, MULTIPLY_MAX_BALLS);
+    if (room === null) this.host.multipliers().cloneBall(ctx, source, Math.min(copies, swarm) + 1, swarm);
     else this.host.multipliers().cloneBall(ctx, source, Math.min(copies, CROWD_LIMIT) + 1, v + room); // --- unlimited ---
   }
 

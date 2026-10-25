@@ -28,6 +28,13 @@ import { BLUEPRINT_PRESET_IDS, blueprintSettingsOf, resolveBlueprintSpec } from 
 type Settings = Record<string, unknown>;
 
 /** Settings the assistant may not touch: lists, uploads and the per-arena overrides. */
+/**
+ * --- unlimited-sizes --- The growth caps a mode's block holds (lib/physics/growthCaps.ts and the modes' own: the ring's bodies,
+ * the top tempo, the bout cap): expert ceilings the assistant's prompt leaves out, so a page's block stays inside the prompt
+ * budget (`MAX_RELEVANT_SETTINGS` of settingsFilter.ts) exactly as before. A patch that names one is still validated and taken.
+ */
+export const PROMPT_HIDDEN: ReadonlySet<string> = new Set(["cpRingCount", "pdMaxTempo", "flBoutCap"]);
+
 export const PATCH_EXCLUDED = new Set(["teams", "obstacles", "captions", "keyframes", "arenas", "wallBreakSound", "hitSampleId", "beatMarkers", "journeyStages", "bdKinds", "pickupTypes", "mpGateMix", "prCustom", "blSpec" /* --- blueprint --- a whole spec in a link code: written by the Blueprint tools, validated, never patched */]);
 /** At most this many settings in one patch. */
 export const MAX_PATCH_KEYS = 40;
@@ -238,7 +245,7 @@ export function assistantSettings(current: SimulatorSettings): [key: string, des
   const prefix = MODE_PREFIXES[current.mode];
   if (prefix) {
     for (const [key, value] of Object.entries(current as unknown as Settings)) {
-      if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || list.some(([k]) => k === key)) continue;
+      if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || PROMPT_HIDDEN.has(key) /* --- unlimited-sizes --- */ || list.some(([k]) => k === key)) continue;
       if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, MODE_SETTING_NOTES[key] ? `${current.mode} setting: ${MODE_SETTING_NOTES[key](current)}` : `${current.mode} setting`]);
     }
   }

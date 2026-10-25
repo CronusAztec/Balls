@@ -104,7 +104,7 @@ import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 // --- unlimited --- the No limits switch and the unlimited sliders of the whole panel
-import UnlimitedSection, { UNLIMITED_KEYS } from "./sections/UnlimitedSection";
+import UnlimitedSection, { FullBallLimitControl, UNLIMITED_KEYS } from "./sections/UnlimitedSection"; // --- unlimited-sizes --- (FullBallLimitControl)
 import { UnlimitedProvider } from "./unlimitedSlider";
 import { bouncinessPatch } from "@/lib/settings"; // --- uncap-all --- the numeric Bounciness
 import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
@@ -491,6 +491,7 @@ export default function Controls(props: ControlsProps) {
     <div className="space-y-4">
       {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
       <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
+      {showAdvanced && <FullBallLimitControl t={t} search={search} matches={matches} settings={s} update={update} /* --- unlimited-sizes --- (an advanced option) */ />}
       {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
       <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
       {/* --- low-findings-2 --- a mode whose balls are its own (Colour Sort) leaves out the page's speed, size and colour (panelKeys.ts ballControlsOf()) */}

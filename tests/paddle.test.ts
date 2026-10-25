@@ -428,7 +428,7 @@ describe("Paddle Keep-Up settings", () => {
   });
 
   it("default in every mode, stay out of the URL and are part of RANGES", () => {
-    expect(defaultPaddleFields()).toEqual({ pdAuto: true, pdSkill: 0.7, pdMisses: 2, pdWidth: 0.26, pdSpin: 0.6, pdSpeedUp: 0.02 });
+    expect(defaultPaddleFields()).toEqual({ pdAuto: true, pdSkill: 0.7, pdMisses: 2, pdWidth: 0.26, pdSpin: 0.6, pdSpeedUp: 0.02, pdMaxTempo: MAX_TEMPO }); // (--- unlimited-sizes --- the top tempo: a setting now, URL pdmt)
     for (const key of Object.keys(PADDLE_RANGES) as (keyof typeof PADDLE_RANGES)[]) expect(RANGES[key]).toEqual(PADDLE_RANGES[key]);
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);

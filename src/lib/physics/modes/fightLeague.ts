@@ -346,6 +346,11 @@ export interface FightLeagueSettings {
   bossHeal: number;
   /** A show's interlude card (s, URL `flCard`, from 0). */
   cardSec: number;
+  /**
+   * --- unlimited-sizes --- A bracket's and a boss rush's bout cap (s, URL `flBc`, from 0; 0 = none, the time cap as typed):
+   * `FL_BOUT_CAP_SEC` (45) when absent, present only when the setting differs, so a default settings object is unchanged.
+   */
+  boutCap?: number;
   /** The VS card's win chance (URL `flOd`; presentational). */
   odds: boolean;
   // --- end fl-overhaul ---
@@ -434,6 +439,7 @@ export const FIGHT_LEAGUE_RANGES = {
   flBossHp: { min: 0.05, max: 6, step: 0.05 },
   flBossHeal: { min: 0, max: 1, step: 0.05 },
   flCardSec: { min: 0, max: 5, step: 0.1 },
+  flBoutCap: { min: 0, max: 120, step: 5 }, // --- unlimited-sizes --- (the old FL_BOUT_CAP_SEC 45 is the default; uncapped from 0)
 } as const;
 /** --- fl-overhaul --- (Stage 3) The presentational number fields (the drawing reads them; the engine never does). */
 export const FIGHT_LEAGUE_VISUAL_KEYS: readonly string[] = ["flShake"];
@@ -505,6 +511,7 @@ export interface FightLeagueFields {
   flCardSec: number;
   flOdds: boolean;
   // --- end fl-overhaul ---
+  flBoutCap: number; // --- unlimited-sizes --- (URL `flBc`)
 }
 
 const SLOT_LETTERS = FL_SLOT_LETTERS; // (--- fl-overhaul --- Stage 5: A–F)
@@ -538,7 +545,10 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
   const bossHp = finite(c.bossHp);
   const bossHeal = finite(c.bossHeal);
   const cardSec = finite(c.cardSec);
+  const boutCap = finite(c.boutCap); // --- unlimited-sizes ---
   const R = FIGHT_LEAGUE_RANGES;
+  // --- unlimited-sizes --- the bout cap from 0 (a tenth of a second at most), kept only when it is not the old 45 s
+  const bout = Number.isFinite(boutCap) ? Math.round(10 * atLeastMin(boutCap, R.flBoutCap)) / 10 : FL_BOUT_CAP_SEC;
   const list = (src: readonly number[] | undefined, def: readonly number[]) => def.map((v, i) => multOf(src?.[i], v));
   return {
     fighters,
@@ -578,6 +588,7 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
     bossHeal: Number.isFinite(bossHeal) ? Math.round(1000 * atLeastMin(bossHeal, R.flBossHeal)) / 1000 : d.bossHeal,
     cardSec: Number.isFinite(cardSec) ? Math.round(1000 * atLeastMin(cardSec, R.flCardSec)) / 1000 : d.cardSec,
     odds: typeof c.odds === "boolean" ? c.odds : d.odds,
+    ...(bout !== FL_BOUT_CAP_SEC ? { boutCap: bout } : {}), // --- unlimited-sizes ---
   };
 }
 
@@ -621,6 +632,7 @@ export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSet
     bossHeal: source.flBossHeal,
     cardSec: source.flCardSec,
     odds: source.flOdds,
+    ...(source.flBoutCap !== undefined && source.flBoutCap !== FL_BOUT_CAP_SEC ? { boutCap: source.flBoutCap } : {}), // --- unlimited-sizes --- (nothing at the default)
   };
 }
 
@@ -664,6 +676,7 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flBossHeal: s.bossHeal,
     flCardSec: s.cardSec,
     flOdds: s.odds,
+    flBoutCap: s.boutCap ?? FL_BOUT_CAP_SEC, // --- unlimited-sizes ---
   } as FightLeagueFields;
   for (let i = 0; i < FL_SLOTS; i++) {
     out[multField("Speed", i)] = s.speed[i];
@@ -721,6 +734,7 @@ NUMERIC_KEYS.flBw = "flBossWaves";
 NUMERIC_KEYS.flBoss = "flBossHp";
 NUMERIC_KEYS.flBh = "flBossHeal";
 NUMERIC_KEYS.flCard = "flCardSec";
+NUMERIC_KEYS.flBc = "flBoutCap"; // --- unlimited-sizes --- (a bracket's and a boss rush's bout cap)
 /** --- fl-overhaul --- (Stage 3) The spectacle's switches (URL key → field; "1" / "0") and options (URL key → field). */
 const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates" | "flAnnouncer" | "flCustomSounds" | "flOdds">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates", flAnn: "flAnnouncer" /* --- fl-overhaul --- (Stage 4) */, flCS: "flCustomSounds", flOd: "flOdds" /* --- fl-overhaul --- (Stage 5) */ };
 /** The feature's URL keys (for tools and the tests). */
@@ -3153,7 +3167,9 @@ export class FightLeagueMode implements GameMode {
     sh.phaseUntil = Infinity;
     v.matchSerial++;
     const bout = sh.kind === "bracket" || sh.kind === "boss";
-    v.capSec = bout ? (s.timeCap > 0 ? Math.min(s.timeCap, FL_BOUT_CAP_SEC) : FL_BOUT_CAP_SEC) : s.timeCap;
+    // --- unlimited-sizes --- the bout cap is a setting (45 s by default, as it always was); 0 lifts it: the time cap as typed
+    const boutCap = s.boutCap ?? FL_BOUT_CAP_SEC;
+    v.capSec = bout ? (boutCap > 0 ? (s.timeCap > 0 ? Math.min(s.timeCap, boutCap) : boutCap) : s.timeCap) : s.timeCap;
     v.suddenOn = bout ? true : s.suddenDeath;
     this.rigChosen = this.matchRig();
     this.spawnFighters(ctx);

@@ -229,6 +229,7 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   if (MODE_BLOCK_KEY_SET.has(key) || SEARCH_ALIASES.has(key)) return false;
   if (key === "ballCount") return MULTI_BALL_MODES.includes(p.mode);
   if (key === "respawnEvery") return showsRespawn(p.mode); // --- gerald-conveyor --- the respawn timer of Classic and Multiply
+  if (key === "swarmLimit") return showsRespawn(p.mode); // --- unlimited-sizes --- (the swarm's ceiling, beside the respawn timer)
   if (BALL_INTERACTION_SET.has(key)) return TWO_BALL_MODES.includes(p.mode);
   if (key === "ballColor") return !p.ballPicture && ballControlsOf(p.mode).color; // --- low-findings-2 --- (and ballSpeed / ballSize below)
   if (key === "ballSpeed") return ballControlsOf(p.mode).speed;
