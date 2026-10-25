@@ -52,7 +52,7 @@ rules<=16:[{when,of,every,chance,cooldownSec,maxFires,do<=4:[{act,...}]}],
 finish:{any<=3:[{when,...,say}],timeoutSec 5-180,winner},hud<=2:[{show,label}],look,sound}
 when: start timer beat bar wallHit obstacleHit tileHit tileBroken ballHit escape ringPass countReached; ballHit with:body|any|same|sameTier|sameTeam|otherTeam; timer sec; countReached what,atLeast|atMost
 act (target self|other|all): spawn{body,count,at,speed,dir} split{into} merge remove grow{by} speed{scale} recolor{color} tier{by} team{to} damage{amount} var{id,op,value} impulse{dir,amount} fx{kind} sound{voice}
-finish when: escaped tilesCleared ringsCleared count tier teamsLeft; winner none|firstOut|lastOut|mostBalls|highestTier|lastBall; what: balls|tiles|rings|escaped|teams|tier|time|var
+finish when: escaped tilesCleared ringsCleared count tier teamsLeft; winner none|firstOut|lastOut|mostBalls|highestTier|lastBall; what: balls|tiles|rings|escaped|teams|tier|time|fit|var
 Formulas (text) in count,speed,by,scale,amount,value: n t b r balls tiles escaped tier size speed vars; + - * / ^ min max clamp sin
 say: {winner} {time} {balls} {var}
 ```
@@ -136,6 +136,7 @@ A condition ends the run only after it was once unmet. `timeoutSec` (5-180 s) is
 | `teams` | teams with a ball in the arena |
 | `tier` | the highest tier of a ball in the arena |
 | `time` | seconds of the run |
+| `fit` | balls in the arena small enough to pass between the edges of a rim exit (of `of`, when given; none without exits) |
 
 A variable's id (`vars`) is a count too.
 
@@ -368,7 +369,7 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
 
 Every ring a ball gets through shatters and doubles every ball. Break every ring.
 
-Link: `?mode=blueprint&blp=ringBreaker` · digest `b5dfc3d7` · check: playable, median end 7.85 s, outcomes "ALL RINGS DOWN".
+Link: `?mode=blueprint&blp=ringBreaker` · digest `ff9d47cc` · check: playable, median end 7.85 s, outcomes "ALL RINGS DOWN".
 
 ```text
 "Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break every ring."
@@ -377,7 +378,7 @@ Bodies: ball (7 px).
 Start: 1 ball at the center at (260 + 80 * r) px/s.
 Rule: at the start: push every ball right at (15 + 25 * r) px/s.
 Rule: when a ball passes a ring: split every ball into 2, then recolour it (next), then a burst.
-Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rings} RINGS LEFT".
+Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "RINGS LEFT: {rings}".
 ```
 
 ```json
@@ -406,7 +407,7 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
     "when": "ringsCleared"
    }
   ],
-  "timeoutSay": "{rings} RINGS LEFT",
+  "timeoutSay": "RINGS LEFT: {rings}",
   "timeoutSec": 60
  },
  "hud": [
@@ -440,8 +441,8 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
    "at": "arena.rings.gapDeg",
    "id": "gap",
    "label": "gap",
-   "max": 60,
-   "min": 15
+   "max": 30,
+   "min": 24
   },
   {
    "at": "arena.rings.spinDegPerSec",
@@ -674,7 +675,7 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
 
 Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.
 
-Link: `?mode=blueprint&blp=tierClimb` · digest `c7f720cc` · check: playable, median end 25.29 s, outcomes "TIER 8 REACHED".
+Link: `?mode=blueprint&blp=tierClimb` · digest `3f6147ec` · check: playable, median end 25.29 s, outcomes "TIER 8 REACHED".
 
 ```text
 "Tier Climb": "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it."
@@ -743,14 +744,14 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
    "at": "finish.any[0].atLeast",
    "id": "target",
    "label": "target tier",
-   "max": 10,
-   "min": 4
+   "max": 8,
+   "min": 6
   },
   {
    "at": "spawners[0].everySec",
    "id": "rain",
    "label": "seconds per orb",
-   "max": 0.5,
+   "max": 0.25,
    "min": 0.04,
    "step": 0.01
   },
@@ -759,7 +760,7 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
    "id": "gravity",
    "label": "gravity",
    "max": 1200,
-   "min": 100,
+   "min": 200,
    "step": 20
   }
  ],
@@ -805,7 +806,7 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
 
 Four balls fall through the pegs and chase a turning exit. First one out wins.
 
-Link: `?mode=blueprint&blp=plinkoRace` · digest `ad34af37` · check: playable, median end 8.87 s, outcomes "GREEN WINS THE RACE", "GOLD WINS THE RACE".
+Link: `?mode=blueprint&blp=plinkoRace` · digest `36c4fc5e` · check: playable, median end 8.87 s, outcomes "GREEN WINS THE RACE", "GOLD WINS THE RACE".
 
 ```text
 "Peg Race": "Four balls fall through the pegs and chase a turning exit. First one out wins."
@@ -915,8 +916,8 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
    "at": "arena.spinDegPerSec",
    "id": "spin",
    "label": "exit spin",
-   "max": 90,
-   "min": 0,
+   "max": 35,
+   "min": 15,
    "step": 5
   },
   {
@@ -960,16 +961,16 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
 
 Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?
 
-Link: `?mode=blueprint&blp=growEscape` · digest `55ffef0b` · check: playable, median end 19.63 s, outcomes "ESCAPED AFTER BOUNCE 10", "ESCAPED AFTER BOUNCE 4", "ESCAPED AFTER BOUNCE 26", "TOO BIG TO ESCAPE".
+Link: `?mode=blueprint&blp=growEscape` · digest `3fb460b9` · check: playable, median end 19.63 s, outcomes "ESCAPED AFTER BOUNCE 10", "ESCAPED AFTER BOUNCE 4", "ESCAPED AFTER BOUNCE 26", "TOO BIG TO ESCAPE".
 
 ```text
 "Grow or Go": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?"
 Arena: a circle with an exit that turns, no gravity, bounce 1.
 Bodies: ball (8 px).
 Start: 1 ball at the top at 110 px/s.
-Rule: when a ball hits a wall: grow it by 1 px, then speed it × 1.15, then bounces + 1.
+Rule: when a ball hits a wall: grow it by 1 px, then speed it × (min(1.15, 5000 / max(speed, 1))), then bounces + 1.
 Rule: on every beat: a gap note.
-Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reaches 28 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
+Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 0 or less "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
 ```
 
 ```json
@@ -999,9 +1000,9 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
     "when": "escaped"
    },
    {
-    "atLeast": 28,
+    "atMost": 0,
     "say": "TOO BIG TO ESCAPE",
-    "what": "bounces",
+    "what": "fit",
     "when": "count"
    }
   ],
@@ -1040,14 +1041,14 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
    "id": "exit",
    "label": "exit width",
    "max": 40,
-   "min": 8
+   "min": 14
   },
   {
-   "at": "finish.any[1].atLeast",
-   "id": "limit",
-   "label": "bounces to lose",
-   "max": 60,
-   "min": 10
+   "at": "bodies[0].radius",
+   "id": "size",
+   "label": "starting size",
+   "max": 20,
+   "min": 4
   }
  ],
  "rules": [
@@ -1059,7 +1060,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
     },
     {
      "act": "speed",
-     "scale": 1.15
+     "scale": "min(1.15, 5000 / max(speed, 1))"
     },
     {
      "act": "var",

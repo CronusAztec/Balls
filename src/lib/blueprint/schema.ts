@@ -79,7 +79,7 @@ export const WITH_RELATIONS = ["any", "same", "sameTier", "sameTeam", "otherTeam
 export type WithRelation = (typeof WITH_RELATIONS)[number];
 
 /** What a count reads (countReached, a count finish, the HUD): these, or a variable's id. */
-export const COUNT_REFS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time"] as const;
+export const COUNT_REFS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time", "fit"] as const;
 export type CountRef = (typeof COUNT_REFS)[number];
 export const COUNT_DOCS: Readonly<Record<CountRef, string>> = {
   balls: "balls in the arena (of `of`, when given)",
@@ -89,6 +89,8 @@ export const COUNT_DOCS: Readonly<Record<CountRef, string>> = {
   teams: "teams with a ball in the arena",
   tier: "the highest tier of a ball in the arena",
   time: "seconds of the run",
+  // --- review fix (blueprint) --- (a growing ball's escape ends when it no longer fits: `count fit atMost 0`)
+  fit: "balls in the arena small enough to pass between the edges of a rim exit (of `of`, when given; none without exits)",
 };
 
 export const ACTIONS = ["spawn", "split", "merge", "remove", "grow", "speed", "recolor", "tier", "team", "damage", "var", "impulse", "fx", "sound"] as const;

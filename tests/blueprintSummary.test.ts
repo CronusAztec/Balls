@@ -127,11 +127,21 @@ describe("blueprint summary: How it plays", () => {
     expect(conquer).toContain("Every 6 s: every ball speeds up");
     expect(conquer[conquer.length - 1]).toBe("End: when one team is left, or after 90 s, the team with the most balls wins");
     const grow = say("en", summarizeBlueprint(catalogBlueprint("growEscape")));
-    expect(grow[grow.length - 1]).toBe("End: when a ball escapes or “bounces” reaches 28, or after 60 s");
+    // --- review fix (blueprint) --- (Grow or Go loses when the ball no longer fits through the exit, said as the viewer sees it)
+    expect(grow[grow.length - 1]).toBe("End: when a ball escapes or no ball fits through an exit any more, or after 60 s");
+    expect(say("es", summarizeBlueprint(catalogBlueprint("growEscape"))).pop()).toBe("Final: cuando escapa una bola o ya no cabe ninguna bola por una salida, o a los 60 s");
     // a catalog game's variables by the HUD's own words (the panel passes them in the page's language)
-    const named = say("pl", summarizeBlueprint(catalogBlueprint("growEscape"), { varName: (id) => (id === "bounces" ? "odbicia" : id) }));
+    const varName = (id: string) => (id === "bounces" ? "odbicia" : id);
+    const named = say("pl", summarizeBlueprint(catalogBlueprint("growEscape"), { varName }));
+    expect(named).toContain("Gdy kulka uderza w ścianę: kulka rośnie, kulka przyspiesza, licznik „odbicia” rośnie o 1");
+    expect(named[named.length - 1]).toBe("Koniec: gdy kulka ucieknie lub żadna kulka nie zmieści się już w wyjściu, albo po 60 s");
     // (--- review fix (blueprint) --- a variable is "the counter" in Polish, so its verb agrees: "licznik „odbicia” dojdzie")
-    expect(named[named.length - 1]).toBe("Koniec: gdy kulka ucieknie lub licznik „odbicia” dojdzie do 28, albo po 60 s");
+    const counted = sanitizeBlueprint({ ...catalogBlueprint("growEscape"), finish: { timeoutSec: 60, any: [{ when: "escaped" }, { when: "count", what: "bounces", atLeast: 28 }] } }).blueprint;
+    const countedPl = say("pl", summarizeBlueprint(counted, { varName }));
+    expect(countedPl[countedPl.length - 1]).toBe("Koniec: gdy kulka ucieknie lub licznik „odbicia” dojdzie do 28, albo po 60 s");
+    // any other reading of the fitting balls is said as a count
+    const fitCount = sanitizeBlueprint({ ...catalogBlueprint("growEscape"), finish: { timeoutSec: 60, any: [{ when: "count", what: "fit", atLeast: 2 }] } }).blueprint;
+    expect(say("en", summarizeBlueprint(fitCount)).pop()).toBe("End: when the count of balls that fit through an exit reaches 2, or after 60 s");
     expect(say("en", summarizeBlueprint(catalogBlueprint("plinkoRace"))).pop()).toBe("End: when a ball escapes, or after 60 s, the first ball out wins");
   });
 

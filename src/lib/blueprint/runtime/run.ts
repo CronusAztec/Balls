@@ -817,6 +817,13 @@ export class BlueprintRun implements WorldEvents {
       }
       case "time":
         return this.timeSec;
+      // --- review fix (blueprint) --- balls that still fit through an exit (between its two edges)
+      case "fit": {
+        const fit = this.world.exitFitRadius();
+        let k = 0;
+        for (const b of this.world.balls) if (b.alive && (of < 0 || b.body === of) && b.r <= fit) k++;
+        return k;
+      }
       default: {
         const v = this.compiled.varIndex.get(what);
         return v === undefined ? 0 : this.vars[v];

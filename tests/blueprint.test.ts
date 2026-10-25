@@ -300,7 +300,7 @@ describe("blueprint: the app's AI and the modes tool know Mode Lab's settings", 
 
   it("names the playing game's sliders, in order with their ranges, for blParams", () => {
     const line = settingsCatalog(current).split("\n").find((l) => l.startsWith("blParams"))!;
-    expect(line).toContain("grow (0.2 to 3), exit (8 to 40), limit (10 to 60)");
+    expect(line).toContain("grow (0.2 to 3), exit (14 to 40), size (4 to 20)");
   });
 
   it("lists blPreset, blParams and the link-only blSpec with their link keys, each kept by a link", () => {

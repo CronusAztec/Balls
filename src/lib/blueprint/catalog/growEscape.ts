@@ -2,9 +2,12 @@
  * --- blueprint --- Catalog: Grow or Go (escape). One ball, one gap in a turning rim; every bounce makes the ball bigger and
  * faster. It has to find the gap before it no longer fits through: two endings, and the seed decides which (24 of seeds
  * 1-40 escape). --- review fix (blueprint) --- It starts slow at the top with the exit at the bottom, so it is never out in
- * its first 6 s (seeds 1-40: the earliest at 6.25 s, the longest run 23 s), and it loses on the bounce it stops fitting: a
- * 21° exit of the 207 px rim lets a ball of up to 35 px through, and an 8 px ball growing 1 px a bounce outgrows it on
- * bounce 28.
+ * its first 6 s (seeds 1-40: the earliest at 6.25 s, the longest run 23 s), and it loses on the bounce it stops fitting.
+ * --- review fix (blueprint) --- That bounce is the world's own (`count fit atMost 0`: no ball left fits between the exit's
+ * edges), so the loss is true at every slider value: a 21° exit of the 207 px rim lets a ball of up to 35.7 px through, and
+ * an 8 px ball growing 1 px a bounce outgrows it on bounce 28, a ball growing 0.2 px on bounce 139. The speed-up stops at
+ * 5000 px/s, so a slow grower keeps bouncing at a pace the engine follows. The narrowest exit (14°) still lets the
+ * biggest starting ball (20 px) through.
  */
 export const growEscape = {
   v: 1,
@@ -14,13 +17,13 @@ export const growEscape = {
   vars: [{ id: "bounces" }],
   spawners: [{ body: "ball", at: "top", count: 1, speed: 110, dir: "up" }],
   rules: [
-    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: 1.15 }, { act: "var", id: "bounces", op: "add", value: 1 }] },
+    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: "min(1.15, 5000 / max(speed, 1))" }, { act: "var", id: "bounces", op: "add", value: 1 }] },
     { when: "beat", do: [{ act: "sound", voice: "gap", pitch: -7 }] },
   ],
   finish: {
     any: [
       { when: "escaped", say: "ESCAPED AFTER BOUNCE {bounces}" },
-      { when: "count", what: "bounces", atLeast: 28, say: "TOO BIG TO ESCAPE" },
+      { when: "count", what: "fit", atMost: 0, say: "TOO BIG TO ESCAPE" },
     ],
     timeoutSec: 60,
   },
@@ -29,7 +32,7 @@ export const growEscape = {
   sound: { scale: "major", root: 0, bpm: 100 },
   params: [
     { id: "grow", label: "grow per bounce", at: "rules[0].do[0].by", min: 0.2, max: 3, step: 0.1 },
-    { id: "exit", label: "exit width", at: "arena.exits[0].widthDeg", min: 8, max: 40, step: 1 },
-    { id: "limit", label: "bounces to lose", at: "finish.any[1].atLeast", min: 10, max: 60, step: 1 },
+    { id: "exit", label: "exit width", at: "arena.exits[0].widthDeg", min: 14, max: 40, step: 1 },
+    { id: "size", label: "starting size", at: "bodies[0].radius", min: 4, max: 20, step: 1 },
   ],
 } as const;

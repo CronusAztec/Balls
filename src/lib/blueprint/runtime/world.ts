@@ -602,6 +602,17 @@ export class BlueprintWorld {
     return n;
   }
 
+  /**
+   * --- review fix (blueprint) --- The largest radius (px) a ball may have and still pass through one of the rim's exits:
+   * between the exit's two edges (round walls of WALL_HALF at the rim) its centre has R × sin(half width) of room each side;
+   * an exit of a half circle or more lets any ball out. −∞ without an exit (a box, rings, a closed rim).
+   */
+  exitFitRadius(): number {
+    let fit = -Infinity;
+    for (const half of this.exitHalf) fit = Math.max(fit, this.R * Math.sin(Math.min(half, Math.PI / 2)) - WALL_HALF);
+    return fit;
+  }
+
   /** Takes `amount` HP off a tile: true when this broke it. */
   damageTile(i: number, amount: number): boolean {
     return this.tiles.damage(i, amount);

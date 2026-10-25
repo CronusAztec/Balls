@@ -8,7 +8,7 @@
  * (an id the spec's author chose), or another phrase to say first. Pure data: no DOM, no messages, no engine.
  */
 import { BLUEPRINT_LIMITS as L } from "./limits";
-import { BALL_TRIGGERS, type Blueprint, type BlueprintAction, type BlueprintRule, type Num } from "./schema";
+import { BALL_TRIGGERS, COUNT_REFS, type Blueprint, type BlueprintAction, type BlueprintRule, type Num } from "./schema";
 
 /** One message (`Blueprint.how.<key>`) with its values; a phrase value is said first and put in its place. */
 export interface SummaryPhrase {
@@ -43,7 +43,7 @@ export const SUMMARY_BIG = 1e6;
 const shown = (n: number) => (Math.abs(n) >= SUMMARY_BIG ? n : Math.round(n * 100) / 100);
 /** --- review fix (blueprint) --- A count of balls one spawner, spawn or split makes at once, as the runtime takes it: whole, 0 to perSpawn. */
 const perSpawn = (n: number) => Math.min(L.perSpawn, Math.max(0, Math.round(n)));
-const KNOWN_COUNTS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time"];
+const KNOWN_COUNTS: readonly string[] = COUNT_REFS;
 
 /** What summarizing one spec needs: the spec and how its variables are called. */
 interface Ctx {
@@ -242,7 +242,9 @@ function endLine(c: Ctx): SummaryLine {
         conds.push(p(`end.${f.when}`));
         break;
       case "count":
-        conds.push(f.atMost !== null && f.atLeast === null ? p("end.countAtMost", { what: countName(c, f.what), n: shown(f.atMost) }) : p("end.countAtLeast", { what: countName(c, f.what), n: shown(f.atLeast ?? 0) }));
+        // --- review fix (blueprint) --- (a growing ball's loss, said as what the viewer sees: no ball fits through an exit any more)
+        if (f.what === "fit" && f.atLeast === null && f.atMost !== null && f.atMost >= 0 && f.atMost < 1) conds.push(p("end.noneFits"));
+        else conds.push(f.atMost !== null && f.atLeast === null ? p("end.countAtMost", { what: countName(c, f.what), n: shown(f.atMost) }) : p("end.countAtLeast", { what: countName(c, f.what), n: shown(f.atLeast ?? 0) }));
         break;
       case "tier":
         conds.push(p("end.tier", { n: shown(f.atLeast ?? 0) }));

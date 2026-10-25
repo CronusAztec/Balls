@@ -4,6 +4,10 @@
  * starts up through the first gap (the hook: a ring breaks at once) with a small sideways kick – a path straight out from
  * the centre would bounce back along itself forever – at a speed and a kick the seed picks. --- review fix (blueprint) ---
  * The rings sit inside a solid rim (rings.rim), so the swarm stays on screen under the end banner instead of flying off.
+ * --- review fix (blueprint) --- The gap slider stays where a ball gets through: the innermost ring (0.2 of the rim,
+ * 41 px) opens 2 × 41 × sin(gap / 2) px, and below 24° that leaves the 14 px ball no room between the gap's edges – a
+ * minute of one ball in the centre – while past 30° every ring falls in hardly more than 6 s. The timeout's line names
+ * the count after a colon ("RINGS LEFT: 1"), so it reads right for one ring as for eight.
  */
 export const ringBreaker = {
   v: 1,
@@ -15,13 +19,13 @@ export const ringBreaker = {
     { when: "start", do: [{ act: "impulse", target: "all", dir: "right", amount: "15 + 25 * r" }] },
     { when: "ringPass", do: [{ act: "split", target: "all", into: 2 }, { act: "recolor", color: "next" }, { act: "fx", kind: "burst" }] },
   ],
-  finish: { any: [{ when: "ringsCleared", say: "ALL RINGS DOWN" }], timeoutSec: 60, timeoutSay: "{rings} RINGS LEFT" },
+  finish: { any: [{ when: "ringsCleared", say: "ALL RINGS DOWN" }], timeoutSec: 60, timeoutSay: "RINGS LEFT: {rings}" },
   hud: [{ show: "rings", label: "rings" }, { show: "balls", label: "balls" }],
   look: { trail: true, rim: 5 },
   sound: { scale: "minor", root: 4 },
   params: [
     { id: "rings", label: "rings", at: "arena.rings.count", min: 3, max: 8, step: 1 },
-    { id: "gap", label: "gap", at: "arena.rings.gapDeg", min: 15, max: 60, step: 1 },
+    { id: "gap", label: "gap", at: "arena.rings.gapDeg", min: 24, max: 30, step: 1 },
     { id: "spin", label: "ring spin", at: "arena.rings.spinDegPerSec", min: 0, max: 120, step: 5 },
   ],
 } as const;

@@ -249,4 +249,42 @@ describe("blueprint runtime: its contracts", () => {
     expect(r.result()).toMatchObject({ finished: true, reason: "condition", condition: 0, winner: 0 });
     expect(r.result().result).toMatch(/^ORANGE OUT IN \d+\.\d s$/);
   });
+
+  // --- review fix (blueprint) --- a growing ball's loss is the world's: the balls that still fit between an exit's edges
+  it("counts the balls that fit through an exit (`fit`): a growing ball stops fitting on the bounce it outgrows the widest exit", () => {
+    const exits = [
+      { atDeg: 90, widthDeg: 10 },
+      { atDeg: 180, widthDeg: 21 },
+    ];
+    const bp = spec({
+      arena: { size: 0.92, exits },
+      bodies: [ball, { id: "big", radius: 40 }],
+      spawners: [{ body: "ball", at: "top", dir: "up", speed: 200 }, { body: "big", at: "center", speed: 0 }],
+      vars: [{ id: "fits" }],
+      rules: [{ when: "wallHit", of: "ball", do: [{ act: "grow", by: 1 }, { act: "var", id: "fits", op: "set", value: "size" }] }],
+      finish: { timeoutSec: 60, any: [{ when: "count", what: "fit", atMost: 0, say: "TOO BIG {fits}" }] },
+      hud: [{ show: "fit", label: "fit" }],
+    });
+    // the widest exit decides: 21° of the 207 px rim leaves 207 × sin(10.5°) px each side of the centre, less the edges' 2 px
+    const room = 207 * Math.sin((10.5 * Math.PI) / 180) - 2;
+    const h = new HeadlessBlueprint(bp, { seed: 1 });
+    expect(h.world.exitFitRadius()).toBeCloseTo(room, 9);
+    // the 40 px ball never fits; the 8 px one does, and `of` counts one body's
+    expect([h.run.count("fit"), h.run.count("fit", 0), h.run.count("fit", 1)]).toEqual([1, 1, 0]);
+    let fitted = 0;
+    for (let i = 0; i < 60 * 60 && !h.finished; i++) {
+      const before = h.world.balls[0].r;
+      h.step();
+      if (!h.finished) fitted = Math.max(fitted, before);
+    }
+    expect(h.result()).toMatchObject({ finished: true, reason: "condition", condition: 0 });
+    const r = h.world.balls[0].r;
+    // it ended on the bounce the ball outgrew the exit, and the result line says its size then
+    expect([r > room, r - 1 <= room, fitted <= room]).toEqual([true, true, true]);
+    expect(h.result().result).toBe(`TOO BIG ${Math.round(r)}`);
+    // without an exit no ball fits (and the condition never arms: it was never unmet)
+    const closed = new HeadlessBlueprint(spec({ ...one(), finish: { timeoutSec: 5, any: [{ when: "count", what: "fit", atMost: 0 }] } }), { seed: 1 });
+    expect([closed.world.exitFitRadius(), closed.run.count("fit")]).toEqual([-Infinity, 0]);
+    expect(closed.runToEnd()).toMatchObject({ reason: "timeout" });
+  });
 });

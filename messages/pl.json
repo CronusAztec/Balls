@@ -4183,6 +4183,7 @@
         "teams": "liczba drużyn",
         "tier": "najwyższy poziom",
         "time": "zegar",
+        "fit": "liczba kulek mieszczących się w wyjściu",
         "var": "licznik „{name}”"
       },
       "target": {
@@ -4226,6 +4227,7 @@
         "ringsCleared": "wszystkie pierścienie są rozbite",
         "countAtLeast": "{what} dojdzie do {n}",
         "countAtMost": "{what} spadnie do {n}",
+        "noneFits": "żadna kulka nie zmieści się już w wyjściu",
         "tier": "kulka osiągnie poziom {n}",
         "teamsLeft": "{n, plural, =0 {nie zostanie żadna drużyna} one {zostanie jedna drużyna} few {zostaną # drużyny} many {zostanie # drużyn} other {zostanie # drużyny}}"
       },
@@ -4349,7 +4351,7 @@
       "params": {
         "grow": "Wzrost na odbicie",
         "exit": "Szerokość wyjścia",
-        "limit": "Odbicia do porażki"
+        "size": "Rozmiar startowy"
       }
     }
   },
@@ -5247,7 +5249,7 @@
       "rhythm": "Rytm",
       "battle": "Bitwa",
       "journey": "Podróż",
-      "lab": "Laboratorium"
+      "lab": "Lab"
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",

@@ -4183,6 +4183,7 @@
         "teams": "the teams left",
         "tier": "the top tier",
         "time": "the clock",
+        "fit": "the count of balls that fit through an exit",
         "var": "“{name}”"
       },
       "target": {
@@ -4226,6 +4227,7 @@
         "ringsCleared": "every ring is broken",
         "countAtLeast": "{what} reaches {n}",
         "countAtMost": "{what} drops to {n}",
+        "noneFits": "no ball fits through an exit any more",
         "tier": "a ball reaches tier {n}",
         "teamsLeft": "{n, plural, =0 {no team is left} one {one team is left} other {# teams are left}}"
       },
@@ -4290,7 +4292,7 @@
       "hud0": "rings",
       "hud1": "balls",
       "say0": "ALL RINGS DOWN",
-      "timeoutSay": "[rings] RINGS LEFT",
+      "timeoutSay": "RINGS LEFT: [rings]",
       "params": {
         "rings": "Rings",
         "gap": "Gap",
@@ -4349,7 +4351,7 @@
       "params": {
         "grow": "Growth per bounce",
         "exit": "Exit width",
-        "limit": "Bounces to lose"
+        "size": "Starting size"
       }
     }
   },

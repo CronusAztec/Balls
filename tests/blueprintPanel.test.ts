@@ -53,7 +53,7 @@ describe("blueprint panel: a slider says its unit", () => {
       conquer: ["", "s"],
       tierClimb: ["", "s", "pxPerSec2"],
       plinkoRace: ["deg", "degPerSec", ""],
-      growEscape: ["px", "deg", ""],
+      growEscape: ["px", "deg", "px"],
     });
   });
 
