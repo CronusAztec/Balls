@@ -16074,7 +16074,7 @@ await smokeBlock("colour-sort", async () => {
   }
   check(
     "Find Simulation finds a colour sort within 40 s, records its whole cycle and plays it back to the found second",
-    labelled && !!at && Number(at[1]) <= 40 && Math.abs(Number(played.csFirstSort) - Number(at[1])) < 0.02 && Number(query.get("dur")) >= Math.ceil(Number(at[1]) + 3),
+    labelled && !!at && Number(at[1]) <= 40 && Math.abs(Number(played.csFirstSort) - Number(at[1])) < 0.02 && Number(query.get("dur") ?? 30) >= Math.ceil(Number(at[1]) + 3), // (the link leaves out the default 30 s)
     `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ completions: played.csCompletions, firstSort: played.csFirstSort })})`,
   );
 }
@@ -18080,7 +18080,7 @@ await smokeBlock("brick-rebuild", async () => {
   }
   check(
     "Find Simulation finds a brick smash cleared within 30 s, records its whole loop and plays it back to the found second",
-    labelled && !!at && Number(at[1]) <= 30 && played.brFirstEnd === "cleared" && Math.abs(Number(played.brCleared) - Number(at[1])) < 0.02 && Number(query.get("dur")) >= Math.ceil(Number(at[1]) + 4),
+    labelled && !!at && Number(at[1]) <= 30 && played.brFirstEnd === "cleared" && Math.abs(Number(played.brCleared) - Number(at[1])) < 0.02 && Number(query.get("dur") ?? 30) >= Math.ceil(Number(at[1]) + 4), // (the link leaves out the default 30 s: a loop of 29.x s)
     `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ end: played.brFirstEnd, cleared: played.brCleared })})`,
   );
 }
