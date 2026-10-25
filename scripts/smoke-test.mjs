@@ -8102,16 +8102,17 @@ await smokeBlock("unlimited", async () => {
 
   // --- slow-motion --- the extreme link again with Slow motion off (smo=0): the page owes the run the wall clock and pays it
   // with whole steps (Canvas.tsx's real-time loop), so a run it cannot keep up with fills the debt to its cap and loses only the
-  // rest – shown by the real-time badge (data-realtime-*) – while it still draws and answers a click within 300 ms
-  await page.goto(`${BASE}/en/simulator/?mode=classic&inf=1&nb=50000&s=1000000&smo=0`, { waitUntil: "networkidle" });
+  // rest – shown by the real-time badge (data-realtime-*, read the moment it shows: a finished run's badge stands down, so the
+  // rings have no gap and the run lasts a few seconds) – while it still draws and answers a click within 300 ms
+  await page.goto(`${BASE}/en/simulator/?mode=classic&inf=1&nb=50000&s=1000000&gap=0&smo=0`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
-  const realTimeOn = await page
+  const behind = await page
     .waitForFunction(() => {
       const d = document.querySelector("main canvas")?.dataset;
-      return d?.slowMotion === "0" && d.realtimeSlow === "1" && Number(d.realtimeLostMs) > 0 && Number(d.unlimitedCrowd) > 0;
+      return d?.slowMotion === "0" && d.realtimeSlow === "1" && Number(d.realtimeLostMs) > 0 && Number(d.unlimitedCrowd) > 0 ? { ...d } : null;
     }, null, { timeout: 30000 })
-    .then(() => true)
-    .catch(() => false);
+    .then((h) => h.jsonValue())
+    .catch(() => null);
   await page.evaluate(() => {
     window.__realTimeClicks = [];
     document.addEventListener("pointerdown", () => window.__realTimeClicks.push(performance.now()), { capture: true });
@@ -8127,12 +8128,12 @@ await smokeBlock("unlimited", async () => {
   }
   const offData = await unlimitedData();
   const offLink = await page.evaluate(() => new URLSearchParams(location.search).get("smo"));
-  const offDebt = Number(offData.realtimeDebtMs);
+  const debtOk = (d) => !!d && d.realtimeDebtMs !== undefined && Number(d.realtimeDebtMs) >= 0 && Number(d.realtimeDebtMs) <= 500;
   const offWorstClick = Math.max(...offLatencies);
   check(
     "slow motion off: the extreme link plays in real time – the debt carried up to its cap, the time past it lost and shown – and stays responsive",
-    realTimeOn && offLink === "0" && offDebt >= 0 && offDebt <= 500 && Number(offData.realtimeLostMs) > 0 && Number(offData.realtimeRatio) < 0.9 && Number(offData.framesSkipped) >= 0 && offLatencies.length === 3 && offWorstClick < 300,
-    `(real time ${realTimeOn}, link smo=${offLink}, x${offData.realtimeRatio} real time, debt ${offData.realtimeDebtMs} ms, lost ${offData.realtimeLostMs} ms, frames skipped ${offData.framesSkipped}, clicks ${offLatencies.map((l) => Math.round(l)).join("/")} ms${loadNote()})`,
+    !!behind && offLink === "0" && debtOk(behind) && Number(behind.realtimeRatio) < 0.9 && behind.framesSkipped !== undefined && debtOk(offData) && Number(offData.realtimeLostMs) >= Number(behind.realtimeLostMs) && offLatencies.length === 3 && offWorstClick < 300,
+    `(link smo=${offLink}, behind: x${behind?.realtimeRatio} real time, debt ${behind?.realtimeDebtMs} ms, lost ${behind?.realtimeLostMs} ms; later: debt ${offData.realtimeDebtMs} ms, lost ${offData.realtimeLostMs} ms, frames skipped ${offData.framesSkipped}, clicks ${offLatencies.map((l) => Math.round(l)).join("/")} ms${loadNote()})`,
   );
   // --- end slow-motion ---
 }
