@@ -99,8 +99,7 @@ The feature definitions are in `src/lib/videoAnalysis/features.ts`. Pictures are
 rate own clips are compared at. Cuts come from scdet, loudness from ebur128 (BS.1770, like the export's normaliser), and
 tempo from the app's own beat detector.
 
-Only analyse files you made or may use. The toolbox never downloads, scrapes or screen-captures other creators' videos from
-TikTok, Instagram or YouTube, and no agent may do that with it.
+Only analyse files you made or may use.
 
 ## guard and explain
 
