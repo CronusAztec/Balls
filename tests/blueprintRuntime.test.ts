@@ -287,4 +287,22 @@ describe("blueprint runtime: its contracts", () => {
     expect([closed.world.exitFitRadius(), closed.run.count("fit")]).toEqual([-Infinity, 0]);
     expect(closed.runToEnd()).toMatchObject({ reason: "timeout" });
   });
+
+  // --- review fix (blueprint) --- a ball a hair too wide met both edges side-on and squeezed out: TOO BIG TO ESCAPE, then gone
+  it("holds a ball too big for an exit, however straight and fast it comes, and lets one that fits out", () => {
+    const room = 207 * Math.sin((10.5 * Math.PI) / 180) - 2;
+    const shot = (radius: number, speed: number) =>
+      spec({
+        arena: { size: 0.92, exits: [{ atDeg: 0, widthDeg: 21 }] },
+        bodies: [{ id: "ball", radius }],
+        spawners: [{ body: "ball", at: "center", dir: "up", speed }],
+        ...count("escape"),
+      });
+    for (const speed of [300, 1500, 4000]) {
+      const big = run(shot(Math.ceil(room * 10) / 10, speed), 5);
+      expect([speed, big.world.exitFitRadius() < big.world.balls[0].r, big.stats.escaped, big.world.aliveCount()]).toEqual([speed, true, 0, 1]);
+      const small = run(shot(Math.floor(room) - 1, speed), 5);
+      expect([speed, small.stats.escaped]).toEqual([speed, 1]);
+    }
+  });
 });

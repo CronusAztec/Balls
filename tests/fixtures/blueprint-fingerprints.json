@@ -96,50 +96,34 @@
       "peakBalls": 128
     },
     "conquer": {
-      "digest": "31e468d1",
+      "digest": "258755ef",
       "samples": [
         [
-          350117,
-          444380
+          306967,
+          456588
         ],
         [
-          254728,
-          251969
+          280539,
+          325877
         ],
         [
-          100532,
-          266085
+          107763,
+          339760
         ],
         [
-          299765,
-          263346
-        ],
-        [
-          58271,
-          486840
-        ],
-        [
-          228051,
-          226061
-        ],
-        [
-          381354,
-          438504
-        ],
-        [
-          110405,
-          480766
+          345719,
+          473165
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 770,
-      "result": "RED WINS",
-      "winner": 0,
+      "steps": 389,
+      "result": "BLUE WINS",
+      "winner": 1,
       "spawned": 24,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 487,
+      "sounds": 262,
       "peakBalls": 24
     },
     "tierClimb": {
@@ -229,34 +213,34 @@
       "peakBalls": 4
     },
     "growEscape": {
-      "digest": "3fb460b9",
+      "digest": "fbbd4d4a",
       "samples": [
         [
           180179,
           452630
         ],
         [
-          258632,
-          399664
+          263610,
+          391961
         ],
         [
-          187937,
-          394884
+          150649,
+          426873
         ],
         [
-          324815,
-          386147
+          310042,
+          360764
         ]
       ],
       "reason": "condition",
-      "condition": 0,
-      "steps": 1081,
-      "result": "ESCAPED AFTER BOUNCE 10",
+      "condition": 1,
+      "steps": 955,
+      "result": "TOO BIG TO ESCAPE",
       "winner": -1,
       "spawned": 1,
-      "escaped": 1,
+      "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 41,
+      "sounds": 53,
       "peakBalls": 1
     }
   }

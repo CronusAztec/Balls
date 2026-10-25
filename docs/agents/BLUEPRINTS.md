@@ -500,15 +500,16 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "RING
 
 Four colours collide: the faster ball converts the slower one. The last colour standing wins.
 
-Link: `?mode=blueprint&blp=conquer` · digest `31e468d1` · check: playable, median end 12.83 s, outcomes "RED WINS", "BLUE WINS", "GREEN WINS".
+Link: `?mode=blueprint&blp=conquer` · digest `258755ef` · check: playable, median end 7.93 s, outcomes "BLUE WINS", "GREEN WINS".
 
 ```text
 "Colour Conquest": "Four colours collide: the faster ball converts the slower one. The last colour standing wins."
 Arena: a circle, no gravity, bounce 1.
 Bodies: red (9 px), blue (9 px, team 1), green (9 px, team 2), gold (9 px, team 3).
-Start: (per) reds at random places at 230 px/s; (per) blues at random places at 230 px/s; (per) greens at random places at 230 px/s; (per) golds at random places at 230 px/s.
+Start: (per) reds at random places at (200 + 20 * r) px/s; (per) blues at random places at (200 + 20 * r) px/s; (per) greens at random places at (200 + 20 * r) px/s; (per) golds at random places at (200 + 20 * r) px/s.
 Rule: when a ball touches a ball of another team: the other ball joins its team, then recolour the other ball (team), then a merge note.
 Rule: every 6 s: speed every ball × 1.12.
+Rule: at the start: speed every ball × (1 + 0.2 * r).
 Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{winner} LEADS"; the winner is mostBalls.
 ```
 
@@ -626,6 +627,16 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
    ],
    "sec": 6,
    "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "speed",
+     "scale": "1 + 0.2 * r",
+     "target": "all"
+    }
+   ],
+   "when": "start"
   }
  ],
  "sound": {
@@ -640,25 +651,25 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
    "at": "random",
    "body": "red",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "blue",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "green",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "gold",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   }
  ],
  "v": 1,
@@ -961,14 +972,14 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
 
 Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?
 
-Link: `?mode=blueprint&blp=growEscape` · digest `3fb460b9` · check: playable, median end 19.63 s, outcomes "ESCAPED AFTER BOUNCE 10", "ESCAPED AFTER BOUNCE 4", "ESCAPED AFTER BOUNCE 26", "TOO BIG TO ESCAPE".
+Link: `?mode=blueprint&blp=growEscape` · digest `fbbd4d4a` · check: playable, median end 13.72 s, outcomes "TOO BIG TO ESCAPE", "ESCAPED AFTER BOUNCE 8", "ESCAPED AFTER BOUNCE 4".
 
 ```text
 "Grow or Go": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?"
 Arena: a circle with an exit that turns, no gravity, bounce 1.
 Bodies: ball (8 px).
 Start: 1 ball at the top at 110 px/s.
-Rule: when a ball hits a wall: grow it by 1 px, then speed it × (min(1.15, 5000 / max(speed, 1))), then bounces + 1.
+Rule: when a ball hits a wall: grow it by 1 px, then speed it × (min(1.15 + 0.05 * min(3, bounces), 5000 / max(speed, 1))), then bounces + 1.
 Rule: on every beat: a gap note.
 Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 0 or less "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
 ```
@@ -1060,7 +1071,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 
     },
     {
      "act": "speed",
-     "scale": "min(1.15, 5000 / max(speed, 1))"
+     "scale": "min(1.15 + 0.05 * min(3, bounces), 5000 / max(speed, 1))"
     },
     {
      "act": "var",

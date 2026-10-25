@@ -1,13 +1,16 @@
 /*
  * --- blueprint --- Catalog: Grow or Go (escape). One ball, one gap in a turning rim; every bounce makes the ball bigger and
- * faster. It has to find the gap before it no longer fits through: two endings, and the seed decides which (24 of seeds
+ * faster. It has to find the gap before it no longer fits through: two endings, and the seed decides which (22 of seeds
  * 1-40 escape). --- review fix (blueprint) --- It starts slow at the top with the exit at the bottom, so it is never out in
- * its first 6 s (seeds 1-40: the earliest at 6.25 s, the longest run 23 s), and it loses on the bounce it stops fitting.
+ * its first 6 s (seeds 1-40: the earliest at 6.13 s, the longest run 15.5 s), and it loses on the bounce it stops fitting.
  * --- review fix (blueprint) --- That bounce is the world's own (`count fit atMost 0`: no ball left fits between the exit's
  * edges), so the loss is true at every slider value: a 21° exit of the 207 px rim lets a ball of up to 35.7 px through, and
  * an 8 px ball growing 1 px a bounce outgrows it on bounce 28, a ball growing 0.2 px on bounce 139. The speed-up stops at
  * 5000 px/s, so a slow grower keeps bouncing at a pace the engine follows. The narrowest exit (14°) still lets the
  * biggest starting ball (20 px) through.
+ * --- review fix (blueprint) --- The speed-up grows over the first bounces (× 1.15, 1.2, 1.25, then 1.3 a bounce), so the
+ * slow start stays and the middle no longer drags: at × 1.15 throughout, two bounces in 6 s and then one every 1.8 s or
+ * so took the longest run to 23 s, most of a clip with a small ball crossing an empty rim.
  */
 export const growEscape = {
   v: 1,
@@ -17,7 +20,7 @@ export const growEscape = {
   vars: [{ id: "bounces" }],
   spawners: [{ body: "ball", at: "top", count: 1, speed: 110, dir: "up" }],
   rules: [
-    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: "min(1.15, 5000 / max(speed, 1))" }, { act: "var", id: "bounces", op: "add", value: 1 }] },
+    { when: "wallHit", do: [{ act: "grow", by: 1 }, { act: "speed", scale: "min(1.15 + 0.05 * min(3, bounces), 5000 / max(speed, 1))" }, { act: "var", id: "bounces", op: "add", value: 1 }] },
     { when: "beat", do: [{ act: "sound", voice: "gap", pitch: -7 }] },
   ],
   finish: {

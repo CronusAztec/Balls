@@ -609,8 +609,13 @@ export class BlueprintWorld {
    */
   exitFitRadius(): number {
     let fit = -Infinity;
-    for (const half of this.exitHalf) fit = Math.max(fit, this.R * Math.sin(Math.min(half, Math.PI / 2)) - WALL_HALF);
+    for (let i = 0; i < this.exitHalf.length; i++) fit = Math.max(fit, this.exitFit(i));
     return fit;
+  }
+
+  /** The largest radius (px) a ball may have and still pass through exit `i` (exitFitRadius() is the largest of them). */
+  private exitFit(i: number): number {
+    return this.R * Math.sin(Math.min(this.exitHalf[i], Math.PI / 2)) - WALL_HALF;
   }
 
   /** Takes `amount` HP off a tile: true when this broke it. */
@@ -888,7 +893,7 @@ export class BlueprintWorld {
     }
     // circle
     if (d + b.r <= R - WALL_HALF) return;
-    const exit = this.exitAround(ang, b.r / Math.max(d, 1));
+    const exit = this.exitAround(ang, b.r / Math.max(d, 1), b.r);
     if (exit === "through") {
       if (d - b.r > R + WALL_HALF) this.escapeBall(b, events);
       return;
@@ -900,14 +905,41 @@ export class BlueprintWorld {
         this.hitPoint(b, this.cx + R * Math.cos(ea), this.cy + R * Math.sin(ea), events);
       }
       const nd = Math.hypot(b.x - this.cx, b.y - this.cy);
-      if (nd - b.r > R + WALL_HALF) {
+      const tooBig = b.r > this.exitFit(exit);
+      if (!tooBig && nd - b.r > R + WALL_HALF) {
         this.escapeBall(b, events);
         return;
       }
-      // the centre in the exit's span: only its edges; else the rim beside the exit holds it too
-      if (Math.abs(angleDiff(Math.atan2(b.y - this.cy, b.x - this.cx), a0)) <= this.exitHalf[exit] || nd + b.r <= R - WALL_HALF) return;
+      // the centre in the exit's span: only its edges (and, for a ball too big for the exit, the depth they wedge it at);
+      // else the rim beside the exit holds it too
+      if (Math.abs(angleDiff(Math.atan2(b.y - this.cy, b.x - this.cx), a0)) <= this.exitHalf[exit] || nd + b.r <= R - WALL_HALF) {
+        if (tooBig) this.plugExit(b, exit, events);
+        return;
+      }
     }
     this.holdInRim(b, events);
+  }
+
+  /**
+   * --- review fix (blueprint) --- A ball too big for exit `i`, its centre in the exit's span, goes no further out than the
+   * depth at which it touches both edges. A ball a hair wider than the room between the two round edges met them side-on,
+   * with contact normals across its way out, and squeezed through – Grow or Go said TOO BIG TO ESCAPE and the ball then
+   * left under the banner (seed 55 at its default sliders). The physics now agrees with the world's fit count.
+   */
+  private plugExit(b: WorldBall, i: number, events: WorldEvents) {
+    const R = this.R;
+    const half = Math.min(this.exitHalf[i], Math.PI / 2);
+    const reach = b.r + WALL_HALF;
+    const side = R * Math.sin(half);
+    const deepest = R * Math.cos(half) - Math.sqrt(Math.max(0, reach * reach - side * side));
+    const dx = b.x - this.cx;
+    const dy = b.y - this.cy;
+    const d = Math.hypot(dx, dy);
+    if (d <= deepest) return;
+    const ux = d > 0 ? dx / d : 1;
+    const uy = d > 0 ? dy / d : 0;
+    const impact = this.resolve(b, -ux, -uy, d - deepest, this.bounceOf(b));
+    this.reportWall(b, impact, events);
   }
 
   /** The rim holds a ball: pushed back inside and reflected (a ball bigger than the arena sits in its middle). */
@@ -928,11 +960,15 @@ export class BlueprintWorld {
     this.reportWall(b, impact, events);
   }
 
-  /** "through" when a ball at angle `ang` (angular half-size `angular`) fits through an exit, an exit's index at its edges, −1 at the rim. */
-  private exitAround(ang: number, angular: number): "through" | number {
+  /**
+   * "through" when a ball at angle `ang` (angular half-size `angular`, radius `r`) fits through an exit, an exit's index at
+   * its edges, −1 at the rim. --- review fix (blueprint) --- A ball too big for an exit (exitFit()) is never "through" it:
+   * at its centre as at its edges, the edges hold it (plugExit()).
+   */
+  private exitAround(ang: number, angular: number, r: number): "through" | number {
     for (let i = 0; i < this.exitAt.length; i++) {
       const off = Math.abs(angleDiff(ang, this.exitAt[i] + this.rimAngle));
-      if (off <= this.exitHalf[i] - angular) return "through";
+      if (off <= this.exitHalf[i] - angular && r <= this.exitFit(i)) return "through";
       if (off < this.exitHalf[i] + angular) return i;
     }
     return -1;
