@@ -11,7 +11,7 @@ import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/s
 import enMessages from "../messages/en.json";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
-import { blueprintLinkNotice, blueprintVerdictLine } from "@/components/simulator/sections/BlueprintSection";
+import { blueprintLinkNotice, blueprintProblemKey, blueprintVerdictLine } from "@/components/simulator/sections/BlueprintSection";
 import type { CheckProblem, PlayabilityReport } from "@/lib/blueprint";
 import { createTranslator } from "next-intl";
 import { readFileSync } from "node:fs";
@@ -357,5 +357,21 @@ describe("blueprint: the playability verdict in the visitor's words", () => {
         const line = say(locale)(report({ verdict: "broken", problems: [code] }));
         expect([locale, code, line.length > say(locale)(report({ verdict: "broken", problems: [] })).length + 10]).toEqual([locale, code, true]);
       }
+  });
+
+  // --- slow-motion --- with the Slow motion switch off the page repays shortened steps with more steps: too heavy, not slowed
+  it("says a game whose steps shorten is too heavy for real time while the Slow motion switch is off, in every language", () => {
+    expect(blueprintProblemKey("slow", true)).toBe("slow");
+    expect(blueprintProblemKey("slow", false)).toBe("slowRealTime");
+    expect(blueprintProblemKey("heavy", false)).toBe("heavy");
+    const off = (locale: keyof typeof MESSAGES) => {
+      const t = createTranslator({ locale, messages: MESSAGES[locale] as never, namespace: "Controls" as never }) as unknown as (key: string, values?: Record<string, string | number>) => string;
+      const problems = (MESSAGES[locale] as unknown as { Blueprint: { problem: Record<string, string> } }).Blueprint.problem;
+      return blueprintVerdictLine(report({ verdict: "broken", problems: ["slow"] }), 60, locale, t, (code) => problems[blueprintProblemKey(code, false)] ?? "");
+    };
+    expect(off("en")).toBe("Not playable yet. It is too heavy to play in real time. Slow the balls down or make them bigger.");
+    expect(off("pl")).toContain("w czasie rzeczywistym");
+    expect(off("es")).toContain("en tiempo real");
+    expect(say("en")(report({ verdict: "broken", problems: ["slow"] }))).toBe("Not playable yet. It plays in slow motion. Slow the balls down or make them bigger.");
   });
 });

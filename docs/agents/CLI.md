@@ -41,7 +41,9 @@ A run is named by `link` (a share link, a `?c=` short link or just its query str
 
 `simulate` and `fingerprint` are deterministic: the same call gives byte-identical JSON. `simulate` runs the finder's
 nominal 800 × 600 world unless `world` says otherwise. The page's canvas is usually another size, so a seed found on the
-page can play differently here. `preview` and `render` run in the page and use its world.
+page can play differently here. `preview` and `render` run in the page and use its world. A link with `smo=0` (the Slow
+motion switch off) plays as the page plays it then: Bullseye opens no slow-motion window, Fight League has no KO finale,
+and `finishSec` is the playback time with the engine's time dilation repaid. The result's `slowMotion` says which.
 
 ## The rules every tool keeps
 

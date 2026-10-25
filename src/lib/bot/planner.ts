@@ -3,7 +3,7 @@ import { startBallCount } from "@/lib/physics/ballStats";
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { polyrhythmCycleSeconds, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { createEngineForSettings, type FinderRequest } from "@/lib/simulation/finder";
+import { createEngineForSettings, stepPlaybackMs, type FinderRequest } from "@/lib/simulation/finder";
 import { outcomeMatches, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
 import { recordingTextLayout } from "@/lib/recording/recorder";
 import { seedParam } from "@/lib/recording/batch"; // --- low-findings --- (the `seed=` of a share link)
@@ -484,7 +484,7 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
   let atEscape: RunSummary | null = null;
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
-    elapsed += step;
+    elapsed += stepPlaybackMs(engine, step); // --- slow-motion --- (the playback time the export renders the run in, with the switch off too)
     const events = engine.consumeSoundEvents();
     const sec = elapsed / 1000;
     // (a race's 3-2-1 beeps come before anything moves: its first impact counts from the start)

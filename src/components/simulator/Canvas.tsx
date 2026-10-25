@@ -97,7 +97,7 @@ import { DEFAULT_TERRITORY_LABELS, TERRITORY_DATA_KEYS, TerritoryLayer, writeTer
 // --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
 import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeSlowMotionDataset, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
-import { RealTimeClock, STEP_MS as REAL_TIME_STEP_MS, realWallMs, type RealTimeInput, type RealTimeStepper } from "@/lib/simulation/realTime"; // --- slow-motion --- (the live loop with the switch off)
+import { OfflineRealTime, RealTimeClock, STEP_MS as REAL_TIME_STEP_MS, realWallMs, type RealTimeInput, type RealTimeStepper } from "@/lib/simulation/realTime"; // --- slow-motion --- (the live loop with the switch off; offline, the frames that pay their own time)
 import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
 // --- uncap-all --- the speed readout (the fastest ball, short numbers) and NUMBERS OVERFLOWED
 import { DEFAULT_UNCAP_LABELS, drawUncapHud, fastestSpeed, writeUncapDataset, type UncapInfo, type UncapLabels } from "./uncapRenderer";
@@ -1261,6 +1261,32 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     };
     // --- end slow-motion ---
 
+    // --- slow-motion --- Slow motion off, offline: the fast export (the batch and the render queue with it), a split-screen
+    // race's arenas and the stills. Every camera moment plays in real time, and the frame's steps pay its time, a step the engine's
+    // time dilation shortened its share – so a dilated run is drawn in real time on more steps. A driver that paces the steps
+    // itself (`OfflineCanvasDriver.pacesSteps`: the export's payExportFrame(), the race stage's round-robin clock) has run them
+    // through stepOnce() before this frame, which then only draws; any other driver's frame pays its own time here (at most
+    // EXPORT_CATCH_UP_STEPS steps). No wall clock: the same seed gives the same frames.
+    const offlineRealTime = new OfflineRealTime();
+    const drawOffline = (now: number) => {
+      const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
+      const frameMs = realWallMs(now - lastTimeRef.current);
+      lastTimeRef.current = now;
+      const p = bmLayer.props(propsRef.current, engine.getBounceMathView());
+      cam.settings = cameraRef.current;
+      cam.slowMotion = false;
+      frameBudget.enabled = false;
+      frameBudget.reset(); // (an export's lag is counted in its result, never drawn into its frames)
+      if (!p.isPaused && p.isStarted && !offline?.pacesSteps) {
+        offlineRealTime.beginFrame(frameMs * p.simSpeed);
+        offlineRealTime.advance(realTimeStepper.step);
+        offlineRealTime.endFrame();
+      }
+      accumulator = 0; // (no view between steps: nothing slows down)
+      paintFrame(now, frameMs, p, false, orbDrawStart);
+    };
+    // --- end slow-motion --- (offline)
+
     const draw = (ts?: number) => {
       const now = offline ? offline.now() : (ts ?? performance.now()); // --- fast-render --- (offline: the export's clock) --- review fix (performance) --- (the rAF timestamp: vsync-aligned)
       // --- fast-render --- the page's canvas keeps its last frame while a fast export renders (the run is paused meanwhile)
@@ -1277,6 +1303,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         return;
       }
       realTimeLive = false;
+      // --- slow-motion --- and offline with it off: drawOffline() (above), the frame's steps paid in real time or run by the driver
+      if (offline && !engine.slowMotionOn()) {
+        drawOffline(now);
+        return;
+      }
       // --- review fix (performance) --- a 60 fps budget phase-locked to the display (75 / 90 / 144 Hz draw 60 fps, not 37–55, and a
       // late 60 Hz callback is not dropped); the fast export draws every frame it asks for
       if (!offline) {
@@ -2927,7 +2958,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multView.active) {
         const sq = Math.min(size.width, size.height);
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
-        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut, realTimeLive ? engine.getStepTimeScale() : 1); // --- slow-motion --- (the switch off: the dilation the page repays is no SLOW-MO)
+        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut, realTimeLive || (offline && !engine.slowMotionOn()) ? engine.getStepTimeScale() : 1); // --- slow-motion --- (the switch off, live or exported: the dilation the steps repay is no SLOW-MO)
         modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
       }
       // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
@@ -4039,6 +4070,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
         slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         hud: () => liveHud, // --- low-findings --- (the HUD the last frame reported, in canvas px)
+        stepOnce: realTimeStepper.step, // --- slow-motion --- (a driver that paces the steps with the switch off: one whole step, its time scale)
         paintBackground: (c, width, height, crop) => {
           bgPainter().paintExport(c, width, height, crop, backgroundLook());
           if (engine.isFightLeagueMode()) flLayer.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates

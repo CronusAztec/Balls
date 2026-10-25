@@ -20,7 +20,9 @@
  *
  * `OfflineRealTime` is the fast export's side: no wall clock at all, each video frame owes its frame time and pays it with
  * at most `EXPORT_CATCH_UP_STEPS` steps (in chunks the caller may yield between), so an export with the switch off is as
- * deterministic as one with it on. Pure, no DOM: the clock and the steps are the caller's (tests/realTime.test.ts).
+ * deterministic as one with it on. `RealTimeLanes` is a split-screen race's: one wall clock, budget and draw decision for
+ * every arena, a debt per arena, whole steps round-robin. `playbackStepMs()` is what a step adds to a run's length as the
+ * page plays it, for the seed finder. Pure, no DOM: the clock and the steps are the caller's (tests/realTime.test.ts).
  */
 import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget";
 
@@ -40,6 +42,8 @@ export const MIN_DRAW_INTERVAL_MS = 100;
 export const MAX_STEPS_PER_CALLBACK = 4096;
 /** The most steps the fast export runs for one video frame; past it the frame plays slower than real time, and is counted. */
 export const EXPORT_CATCH_UP_STEPS = 256;
+/** Steps the fast export runs between two looks at the clock (it yields to the page there once its time slice is spent). */
+export const EXPORT_CATCH_UP_CHUNK = 8;
 /** Rounding slack (ms) of the debt: four quarter steps pay a whole step's debt. */
 const DEBT_EPSILON_MS = 1e-9;
 
@@ -263,5 +267,173 @@ export class OfflineRealTime {
     const lagged = this.frameSteps >= this.stepCap && this.debtMs >= this.nextCostMs - DEBT_EPSILON_MS;
     if (lagged) this.laggedFrames++;
     return lagged;
+  }
+}
+
+/**
+ * The playback time (ms) one step of `stepMs` adds to a run's length as the page plays it – what the seed finder, the bot and
+ * the CLI's simulate tool count a run's length in. With Slow motion on, a whole step: the page plays one step a frame, so a
+ * step the engine's time dilation shortened plays slowed and takes a whole frame. With it off, the step's share of a frame
+ * (`stepMs` × its time scale, `PhysicsEngine.getStepTimeScale()`), as the real-time loop pays it – but never less than one
+ * frame's share of the fast export's step cap (`stepMs / EXPORT_CATCH_UP_STEPS`): past the cap a frame plays slower than real
+ * time on every machine, and a search over a run dilated to 2^-20 still ends. A whole step (scale 1) adds `stepMs` exactly,
+ * so a default run measures the same either way, bit for bit.
+ */
+export function playbackStepMs(stepMs: number, slowMotionOn: boolean, timeScale: number): number {
+  if (slowMotionOn || !(Number.isFinite(timeScale) && timeScale > 0) || timeScale >= 1) return stepMs;
+  return stepMs * Math.max(timeScale, 1 / EXPORT_CATCH_UP_STEPS);
+}
+
+/** One arena of a split-screen race (`RealTimeLanes`): its own debt, paid by its own steps. */
+export interface RealTimeLane {
+  /** Playback ms this arena is owed. */
+  debtMs: number;
+  /** Playback ms dropped past the debt cap. */
+  lostMs: number;
+  /** Steps it ran. */
+  steps: number;
+  /** What its next step is expected to pay (its last step's cost). */
+  nextCostMs: number;
+}
+
+/**
+ * A split-screen race's scheduler with the switch off (splitScreenCanvas.tsx): one wall clock, one budget and one draw decision
+ * for all the arenas, as `RealTimeClock` has them for one canvas, and a debt per arena – each owes the same wall time × speed
+ * and pays it with its own steps at its own time scale, so a dilated arena runs more steps and every arena plays in real time.
+ * The steps go round-robin: every arena that owes a step runs one before any runs a second, and the turn carries over from one
+ * callback (and one budget) to the next, so under load the arenas' clocks stay level and none starves. At least one step runs
+ * a callback (whoever owes it).
+ */
+export class RealTimeLanes {
+  readonly lanes: RealTimeLane[] = [];
+  /** Due frames skipped to catch up since the last reset. */
+  framesSkipped = 0;
+  private lastNowMs: number | null = null;
+  private lastDrawMs: number | null = null;
+  private pendingFrameMs = 0;
+  private cursor = 0;
+  private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false };
+  private readonly paid: number[] = [];
+
+  /** Playback ms dropped past the debt cap, by the arena that lost the most. */
+  get lostMs(): number {
+    let lost = 0;
+    for (const lane of this.lanes) if (lane.lostMs > lost) lost = lane.lostMs;
+    return lost;
+  }
+
+  /** The most an arena is owed right now. */
+  get debtMs(): number {
+    let debt = 0;
+    for (const lane of this.lanes) if (lane.debtMs > debt) debt = lane.debtMs;
+    return debt;
+  }
+
+  /** Some arena owes at least its next step. */
+  get owesStep(): boolean {
+    for (const lane of this.lanes) if (lane.debtMs >= lane.nextCostMs - DEBT_EPSILON_MS) return true;
+    return false;
+  }
+
+  /** A new race, a new loop or the switch turned over: nothing owed, nothing counted. */
+  reset() {
+    this.lanes.length = 0;
+    this.framesSkipped = 0;
+    this.lastNowMs = null;
+    this.lastDrawMs = null;
+    this.pendingFrameMs = 0;
+    this.cursor = 0;
+  }
+
+  /**
+   * One rAF callback at `nowMs` for the arenas `steps` (each runs one whole step of its arena and returns its time scale),
+   * the budget measured on `now()`. The result's `paidMs` is the arena that paid the least (the real-time badge's slowest),
+   * its `steps` the steps of all the arenas. The result object is reused from call to call.
+   */
+  tick(nowMs: number, input: RealTimeInput, steps: readonly (() => number)[], now: () => number): RealTimeTick {
+    const out = this.result;
+    const n = steps.length;
+    while (this.lanes.length < n) this.lanes.push({ debtMs: 0, lostMs: 0, steps: 0, nextCostMs: STEP_MS });
+    if (this.lanes.length > n) this.lanes.length = n;
+    if (this.cursor >= n) this.cursor = 0;
+    out.wantedMs = 0;
+    out.paidMs = 0;
+    out.steps = 0;
+    out.draw = false;
+    out.frameMs = 0;
+    out.catchUp = false;
+    out.paused = false;
+    let wall = this.lastNowMs === null ? 0 : nowMs - this.lastNowMs;
+    this.lastNowMs = nowMs;
+    if (!(wall >= 0) || wall > PAUSE_GAP_MS) {
+      out.paused = true;
+      for (const lane of this.lanes) lane.debtMs = 0;
+      wall = STEP_MS;
+    }
+    out.wallMs = wall;
+    this.pendingFrameMs += wall;
+    if (input.running && n > 0) {
+      const speed = Number.isFinite(input.simSpeed) && input.simSpeed > 0 ? input.simSpeed : 1;
+      out.wantedMs = wall * speed;
+      const cap = DEBT_CAP_MS * speed;
+      this.paid.length = n;
+      for (let i = 0; i < n; i++) {
+        const lane = this.lanes[i];
+        lane.debtMs += out.wantedMs;
+        if (lane.debtMs > cap) {
+          lane.lostMs += lane.debtMs - cap;
+          lane.debtMs = cap;
+        }
+        this.paid[i] = 0;
+      }
+      const start = now();
+      const limit = MAX_STEPS_PER_CALLBACK * n;
+      this.runRounds(steps, now, start, DRAW_BUDGET_MS, limit, out);
+      if (this.owesStep && out.steps < limit && !(input.drawDue && this.drawOverdue(nowMs))) {
+        out.catchUp = true;
+        this.runRounds(steps, now, start, CATCH_UP_BUDGET_MS, limit, out);
+      }
+      let least = Infinity;
+      for (let i = 0; i < n; i++) if (this.paid[i] < least) least = this.paid[i];
+      out.paidMs = least;
+    } else for (const lane of this.lanes) lane.debtMs = 0;
+    out.draw = input.drawDue && (!input.running || !this.owesStep || this.drawOverdue(nowMs));
+    if (out.draw) {
+      out.frameMs = this.pendingFrameMs;
+      this.pendingFrameMs = 0;
+      this.lastDrawMs = nowMs;
+    } else if (input.drawDue) this.framesSkipped++;
+    return out;
+  }
+
+  private drawOverdue(nowMs: number): boolean {
+    return this.lastDrawMs === null || nowMs - this.lastDrawMs >= MIN_DRAW_INTERVAL_MS;
+  }
+
+  /**
+   * Whole steps, one arena after the other from the one whose turn it is (`cursor`, kept from step to step and callback to
+   * callback), skipping an arena that owes nothing, while some arena owes a step and the budget (or no step yet) allows.
+   */
+  private runRounds(steps: readonly (() => number)[], now: () => number, startMs: number, budgetMs: number, limit: number, out: RealTimeTick) {
+    const n = steps.length;
+    let idle = 0; // arenas passed in a row that owed nothing: once all of them, nobody owes a step
+    while (idle < n) {
+      const i = this.cursor;
+      const lane = this.lanes[i];
+      if (!(lane.debtMs >= lane.nextCostMs - DEBT_EPSILON_MS)) {
+        this.cursor = (i + 1) % n;
+        idle++;
+        continue;
+      }
+      if (out.steps >= limit || (out.steps > 0 && !(now() - startMs < budgetMs))) return;
+      const cost = stepCostMs(steps[i]());
+      lane.nextCostMs = cost;
+      lane.debtMs -= cost;
+      lane.steps++;
+      this.paid[i] += cost;
+      out.steps++;
+      this.cursor = (i + 1) % n;
+      idle = 0;
+    }
   }
 }

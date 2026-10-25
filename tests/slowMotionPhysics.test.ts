@@ -4,9 +4,12 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { MODE_IDS, type ModeId, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
-import type { PhysicsEngine } from "@/lib/physics/engine";
+import { PhysicsEngine } from "@/lib/physics/engine";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateSeed, stepPlaybackMs, type ModeSettings } from "@/lib/simulation/finder";
+import { simulate } from "@/lib/agentKit/simulate";
+import { resolveRun } from "@/lib/agentKit/runRequest";
+import { roundNumber } from "@/lib/agentKit/jsonView";
 import { BASELINE_FILE, FINGERPRINT_CONFIG, FINGERPRINT_MODE_SETTINGS, FINGERPRINT_SEED, fingerprintOf, parseBaselineLiteral } from "@/lib/agentKit/fingerprint";
 
 /*
@@ -220,6 +223,64 @@ describe("every other mode runs the same steps with the Slow motion switch off (
     const recipe = (config: PhysicsConfig) => stepDigests(createEngineForSettings(config, "bullseye", FINGERPRINT_MODE_SETTINGS as ModeSettings, FINGERPRINT_SEED), 600);
     expect(firstDifference(recipe(off(FINGERPRINT_CONFIG)), recipe(FINGERPRINT_CONFIG))).toBeGreaterThan(300);
   });
+});
+
+/* ------------------------------------------------------------------ the finder, the bot and the CLI */
+
+describe("the finder, the bot and the CLI with the Slow motion switch off (--- slow-motion ---)", () => {
+  it("measure every default run exactly as before: a whole step adds a whole step, bit for bit", () => {
+    for (const [mode, seed] of [["classic", 12345], ["shatter", 1], ["drop", 1], ["spiralGlass", 7], ["mergeRing", 3]] as const) {
+      const on = finderRequestOfSettings(defaultSettings(mode), undefined, 120);
+      const offRequest = finderRequestOfSettings({ ...defaultSettings(mode), slowMotion: false }, undefined, 120);
+      expect(offRequest.physicsConfig.slowMotion, mode).toBe(false);
+      expect(simulateSeed(seed, offRequest, 120_000), mode).toBe(simulateSeed(seed, on, 120_000));
+    }
+  }, 120_000);
+
+  it("count a dilated run's length in playback time with it off: the simulated time the page now plays in real time", () => {
+    const run = (slowMotion: boolean) => {
+      const engine = new PhysicsEngine({ ...FINGERPRINT_CONFIG, ...(slowMotion ? {} : { slowMotion: false as const }) });
+      engine.setCinematicEnabled(false);
+      engine.setSeed(1);
+      engine.initMode("classic");
+      engine.applyBallMultiplier(engine.getBalls()[0], "speed", 1000);
+      let playback = 0;
+      let dilated = 0;
+      let steps = 0;
+      for (let i = 0; i < 600 && !engine.isSimulationFinished(); i++) {
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        playback += stepPlaybackMs(engine, STEP);
+        steps++;
+        if (engine.getStepTimeScale() < 1) dilated++;
+      }
+      return { playback, elapsed: engine.getElapsedMs(), dilated, steps };
+    };
+    const on = run(true);
+    const offRun = run(false);
+    expect(offRun.dilated).toBeGreaterThan(0);
+    expect(offRun.steps).toBe(on.steps);
+    expect(on.playback).toBeCloseTo(on.steps * STEP, 6); // (one step a frame, however short the step: slow motion)
+    expect(offRun.playback).toBeCloseTo(offRun.elapsed, 6); // (each step its share: the run's own simulated time)
+    expect(offRun.playback).toBeLessThan(on.playback);
+    expect(offRun.elapsed).toBe(on.elapsed); // the same steps either way: only the measure changes
+  });
+
+  it("the CLI's simulate tool takes a link with smo=0, says so, and reports the finder's own finish time", async () => {
+    // (the rigged perfect shot, byp=2, makes sure the run has a bullseye)
+    const resolved = await resolveRun({ link: "https://jumpingballslive.com/en/simulator/?mode=bullseye&seed=4&byp=2&smo=0" });
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    expect(resolved.settings.slowMotion).toBe(false);
+    expect(resolved.query).toContain("smo=0");
+    const offResult = simulate({ settings: resolved.settings, seed: resolved.seed, seconds: 120 });
+    const onResult = simulate({ settings: { ...resolved.settings, slowMotion: true }, seed: resolved.seed, seconds: 120 });
+    expect([offResult.slowMotion, onResult.slowMotion]).toEqual([false, true]);
+    expect(offResult.finished && onResult.finished).toBe(true);
+    const finderMs = simulateSeed(resolved.seed, finderRequestOfSettings(resolved.settings, undefined, 120), 120_000);
+    expect(offResult.finishSec).toBe(roundNumber(finderMs / 1000, 9));
+    expect(offResult.finishSec).not.toBe(onResult.finishSec); // (no bullseye window: the world clock keeps time, the run ends sooner)
+  }, 120_000);
 });
 
 /* ------------------------------------------------------------------ who reads it */

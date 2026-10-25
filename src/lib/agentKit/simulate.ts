@@ -1,7 +1,7 @@
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { GameMode, ModeId, SoundEvent } from "@/lib/physics/types";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
-import { createEngineForSettings, simulateSeed } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateSeed, stepPlaybackMs } from "@/lib/simulation/finder";
 import type { SimulatorSettings } from "@/lib/settings";
 import { jsonView, roundNumber, type JsonValue } from "./jsonView";
 
@@ -30,6 +30,8 @@ export interface SimulateRequest {
 export interface SimulateResult {
   mode: ModeId;
   seed: number;
+  /** --- slow-motion --- The Slow motion switch the run played with (false for a link's `smo=0`: Bullseye's and Fight League's runs change, and every length is the playback time the page plays the run in). */
+  slowMotion: boolean;
   world: BotWorld;
   /** Simulated seconds actually stepped. */
   simulatedSec: number;
@@ -103,13 +105,14 @@ export function simulate(request: SimulateRequest): SimulateResult {
   let nanAtSec: number | null = null;
   let finishedAt: number | null = null;
   let steps = 0;
-  // The finder's clock: the same step and the same float sum as simulateSeed(), so the finish time is its own.
+  // The finder's clock: the same step and the same float sum as simulateSeed(), so the finish time is its own (--- slow-motion ---
+  // with the Slow motion switch off, a link's smo=0, the playback time the page plays the run in: stepPlaybackMs())
   const step = 1000 / 60;
   let elapsed = 0;
   let soundsThisSecond = 0;
   while (elapsed < maxMs) {
     engine.update(step, 0);
-    elapsed += step;
+    elapsed += stepPlaybackMs(engine, step);
     steps++;
     const events: SoundEvent[] = engine.consumeSoundEvents();
     for (const e of events) byType[e.type] = (byType[e.type] ?? 0) + 1;
@@ -145,6 +148,7 @@ export function simulate(request: SimulateRequest): SimulateResult {
   const result: SimulateResult = {
     mode: finder.mode,
     seed: request.seed,
+    slowMotion: engine.slowMotionOn(), // --- slow-motion ---
     world: { width: world.width, height: world.height },
     simulatedSec: roundNumber(elapsed / 1000),
     steps,

@@ -18,6 +18,7 @@ import {
   checkSeed,
   describeBlueprint,
   encodeBlueprint,
+  judgeSeeds,
   liteToBlueprint,
   playabilityCheck,
   sanitizeBlueprint,
@@ -312,6 +313,19 @@ describe("blueprint check: a seed a tab could not play stops early, and a slowed
     expect(r.reason).not.toBe("timeout");
     if (r.reason === "condition") expect(r.timeSec).toBeGreaterThanOrEqual(20);
     else expect(r.reason).toBe("slow");
+  });
+
+  // --- slow-motion --- the page's Slow motion switch off: the same verdict, worded as too heavy for real time
+  it("words a slowed seed as too heavy for real time with the Slow motion switch off, the verdict unchanged", () => {
+    const bp = spec({ bodies: [{ id: "ball", radius: 3 }], spawners: [{ body: "ball", speed: 30_000 }], finish: { timeoutSec: 30, any: [{ when: "count", what: "time", atLeast: 20 }] } });
+    const slowSeed = { ...checkSeed(bp, 1), reason: "slow" as const };
+    const on = judgeSeeds(bp, [slowSeed]);
+    const off = judgeSeeds(bp, [slowSeed], false);
+    expect(off.verdict).toBe(on.verdict);
+    expect(off.problems).toEqual(on.problems);
+    expect(on.feedback.join(" ")).toContain("It plays in slow motion on seed 1");
+    expect(off.feedback.join(" ")).toContain("It is too heavy to play in real time on seed 1");
+    expect(playabilityCheck(bp, { seeds: [1], slowMotion: false }).problems).toEqual(playabilityCheck(bp, { seeds: [1] }).problems);
   });
 
   it("stops a spec of 400 huge balls early as too heavy or too crowded, quickly, with feedback that says what to shrink", () => {

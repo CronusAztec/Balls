@@ -102,6 +102,11 @@ export interface CheckOptions {
   seeds?: readonly number[];
   /** Conformance tests only: firing rule i throws (fault containment). */
   faultOnRule?: number;
+  /**
+   * --- slow-motion --- The page's Slow motion switch (default on). Only the "slow" feedback's words follow it: with it off the
+   * page repays the shortened steps with more steps a frame, so such a game is too heavy for real time, not slow motion.
+   */
+  slowMotion?: boolean;
 }
 
 const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
@@ -223,11 +228,14 @@ export function checkSeed(bp: Blueprint, seed: number, faultOnRule?: number): Se
 /** The verdict on a resolved spec (sanitizeBlueprint's output) over a few seeds, with plain feedback. */
 export function playabilityCheck(bp: Blueprint, options: CheckOptions = {}): PlayabilityReport {
   const seeds = (options.seeds ?? DEFAULT_CHECK_SEEDS).slice(0, 16);
-  return judgeSeeds(bp, seeds.map((s) => checkSeed(bp, s, options.faultOnRule)));
+  return judgeSeeds(bp, seeds.map((s) => checkSeed(bp, s, options.faultOnRule)), options.slowMotion !== false);
 }
 
-/** The verdict on the seeds' reports (a page plays each seed's SeedCheck in slices, then judges them here). */
-export function judgeSeeds(bp: Blueprint, reports: SeedReport[]): PlayabilityReport {
+/**
+ * The verdict on the seeds' reports (a page plays each seed's SeedCheck in slices, then judges them here). --- slow-motion ---
+ * `slowMotion` false (the page's switch off) words the "slow" feedback as too heavy for real time; the verdict is the same.
+ */
+export function judgeSeeds(bp: Blueprint, reports: SeedReport[], slowMotion = true): PlayabilityReport {
   const n = reports.length;
   const byCondition = reports.filter((r) => r.reason === "condition");
   const med = round(median(reports.map((r) => (r.reason === "condition" ? r.timeSec : bp.finish.timeoutSec))), 2);
@@ -265,7 +273,12 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[]): PlayabilityRep
       `It is too heavy for a browser tab on seed ${seedList(heavy)}: a second of play costs more than ${CHECK_HEAVY_STEP_COST} work units a step (balls × sub-steps, contact and pair tests, rule work), so the check stopped it. Use fewer or smaller balls, fewer tiles, or rules that change fewer balls.`,
     );
   if (slow.length)
-    problem("slow", `It plays in slow motion on seed ${seedList(slow)}: balls move too fast for their size, so the engine slows time to follow them and the run's clock barely moves. Slow the balls down, make them bigger, or stop a speed-up sooner.`);
+    problem(
+      "slow",
+      slowMotion
+        ? `It plays in slow motion on seed ${seedList(slow)}: balls move too fast for their size, so the engine slows time to follow them and the run's clock barely moves. Slow the balls down, make them bigger, or stop a speed-up sooner.`
+        : `It is too heavy to play in real time on seed ${seedList(slow)}: balls move too fast for their size, so the engine shortens its steps to follow them and a frame would need more of them than it can run. Slow the balls down, make them bigger, or stop a speed-up sooner.`, // --- slow-motion --- (the switch off)
+    );
   if (fast.length)
     problem("fast", `A ball got faster than ${BLUEPRINT_SPEED_CEILING} px/s and was taken out on seed ${seedList(fast)}. Bound the speed-up: a scale closer to 1, a maxFires on the rule, or min() in its formula.`);
   const crowdedStopped = reports.filter((r) => r.reason === "crowded");
@@ -328,10 +341,14 @@ export class PlayabilityRun {
   private current: SeedCheck | null = null;
   private report: PlayabilityReport | null = null;
 
-  constructor(bp: Blueprint, seeds: readonly number[] = DEFAULT_CHECK_SEEDS, faultOnRule?: number) {
+  /** --- slow-motion --- The page's Slow motion switch: the "slow" feedback's words follow it (judgeSeeds()). */
+  private readonly slowMotion: boolean;
+
+  constructor(bp: Blueprint, seeds: readonly number[] = DEFAULT_CHECK_SEEDS, faultOnRule?: number, slowMotion = true) {
     this.bp = bp;
     this.seeds = seeds.slice(0, 16);
     this.faultOnRule = faultOnRule;
+    this.slowMotion = slowMotion;
   }
 
   /** Seeds whose report is in. */
@@ -350,7 +367,7 @@ export class PlayabilityRun {
     const start = now();
     do {
       if (this.reports.length >= this.seeds.length) {
-        this.report = judgeSeeds(this.bp, this.reports);
+        this.report = judgeSeeds(this.bp, this.reports, this.slowMotion);
         return this.report;
       }
       this.current ??= new SeedCheck(this.bp, this.seeds[this.reports.length], this.faultOnRule);
@@ -360,7 +377,7 @@ export class PlayabilityRun {
         this.current = null;
       }
     } while (now() - start < budgetMs);
-    if (this.reports.length >= this.seeds.length) this.report = judgeSeeds(this.bp, this.reports);
+    if (this.reports.length >= this.seeds.length) this.report = judgeSeeds(this.bp, this.reports, this.slowMotion);
     return this.report;
   }
 }

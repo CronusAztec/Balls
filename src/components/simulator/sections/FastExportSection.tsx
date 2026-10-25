@@ -22,7 +22,7 @@ export const FAST_EXPORT_KEYS = ["fastExportFps"];
 export type FastExportState =
   | { status: "idle" }
   | { status: "running"; phase: FastExportPhase; progress: number; frame: number; frames: number; clipSec: number; elapsedMs: number }
-  | { status: "done"; durationSec: number; wallMs: number; extension: string; bytes: number; digest: string; loopCycles?: number; loopCycleSec?: number; loudnessGainDb?: number /* --- loop-foundation --- (whole loops; the normaliser's gain) */ }
+  | { status: "done"; durationSec: number; wallMs: number; extension: string; bytes: number; digest: string; loopCycles?: number; loopCycleSec?: number; loudnessGainDb?: number /* --- loop-foundation --- (whole loops; the normaliser's gain) */; laggedFrames?: number /* --- slow-motion --- (Slow motion off: frames past the step cap) */ }
   /** WebCodecs is missing ("webcodecs") or has no encoder the export can write ("codecs"): the real-time recorder took over. */
   | { status: "fallback"; reason: "webcodecs" | "codecs" }
   | { status: "cancelled" }
@@ -68,6 +68,8 @@ function fastExportMessage(t: ReturnType<typeof useTranslations>, { state, suppo
     const parts = [t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) })];
     if (detail.loops) parts.push(t("doneLoops", { count: detail.loops.count, cycle: detail.loops.cycle }));
     if (detail.gain) parts.push(t("doneGain", { gain: detail.gain }));
+    // --- slow-motion --- with the Slow motion switch off: the frames too heavy to export in real time (they play slower)
+    if (state.laggedFrames !== undefined && state.laggedFrames > 0) parts.push(t("doneLagged", { count: state.laggedFrames }));
     return { message: parts.join(" "), tone: "text-accent" };
   }
   if (state.status === "fallback") return { message: t(state.reason === "webcodecs" ? "fallbackWebCodecs" : "fallbackCodecs"), tone: "text-warn" };
@@ -106,6 +108,7 @@ export function FastExportButton({ state, disabled, handPlay = false, onStart, o
       data-fast-loop-cycle={state.status === "done" && state.loopCycleSec !== undefined ? state.loopCycleSec.toFixed(4) : undefined}
       data-fast-gain={state.status === "done" && state.loudnessGainDb !== undefined && Number.isFinite(state.loudnessGainDb) ? state.loudnessGainDb.toFixed(2) : undefined /* --- loop-foundation --- (the loudness normaliser) */}
       data-fast-hand-play={handPlay ? "1" : undefined}
+      data-fast-lagged={state.status === "done" && state.laggedFrames !== undefined ? state.laggedFrames : undefined /* --- slow-motion --- (only with the switch off) */}
     >
       {running ? (
         <div className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-2 pl-2.5 pr-1" title={speed > 0 ? t("speed", { speed: one(speed) }) : undefined}>

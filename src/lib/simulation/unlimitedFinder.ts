@@ -13,7 +13,7 @@
  * and every run with the switch off – goes to `findSimulation()` unchanged.
  */
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { createEngineForSettings, findSimulation, runNeverFinishes, settleUnfound, type FinderProgress, type FinderRequest, type FinderResult } from "./finder";
+import { createEngineForSettings, findSimulation, runNeverFinishes, settleUnfound, stepPlaybackMs, type FinderProgress, type FinderRequest, type FinderResult } from "./finder";
 
 /** Wall-clock ms the search simulates per animation frame. */
 export const FINDER_FRAME_BUDGET_MS = 12;
@@ -116,7 +116,7 @@ export function findSimulationBudgeted(
         const t0 = now();
         engine.update(step, 0);
         engine.consumeSoundEvents();
-        elapsed += step;
+        elapsed += stepPlaybackMs(engine, step); // --- slow-motion --- (with the switch off, the length the page plays it in)
         stepsTimed++;
         timeSpent += now() - t0;
         // Once the cost of a step is known, a heavy run tests fewer seeds (and says so).

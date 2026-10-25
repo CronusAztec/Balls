@@ -168,7 +168,7 @@ export function renderBlueprintDocs(): string {
     "- **endless:** every seed runs into the timeout;",
     "- **broken:** anything else. The feedback says what to change, in plain sentences.",
     "",
-    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).`,
+    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size; with the Slow motion switch off the feedback calls it too heavy to play in real time), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).`,
   );
   p(
     "## The Lite form (small local models)",

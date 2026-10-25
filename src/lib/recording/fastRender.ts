@@ -2,6 +2,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
+import { EXPORT_CATCH_UP_CHUNK, OfflineRealTime } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
@@ -93,6 +94,12 @@ export interface OfflineFrameRenderer {
    * to its watermark: the export's badge keeps clear of it (a String Circle strip, Fight League's ability boxes, the captions…).
    */
   hud?(): LiveHud | null;
+  /**
+   * --- slow-motion --- Runs one whole step of the run (`engine.update()` and the camera's after-step, as the page's loop does)
+   * and returns its time scale (`PhysicsEngine.getStepTimeScale()`). With the Slow motion switch off a driver that paces the
+   * steps (`OfflineCanvasDriver.pacesSteps`) runs a frame's steps through it before `renderFrame()`, which then only draws.
+   */
+  stepOnce?(): number;
 }
 
 /** The export's side of the offline canvas: its size, its clock and the slot the canvas registers its renderer in. */
@@ -110,6 +117,13 @@ export interface OfflineCanvasDriver {
   /** The export clock (ms since the clip started), which the canvas reads instead of `performance.now()`. */
   now(): number;
   attach(renderer: OfflineFrameRenderer | null): void;
+  /**
+   * --- slow-motion --- With the Slow motion switch off the driver runs each frame's steps itself (`stepOnce()`) and
+   * `renderFrame()` only draws: the fast export repays the frame's time (`payExportFrame()`), a split-screen race steps its
+   * arenas round-robin on one real-time clock. Without it (the stills) a frame pays its own time in `renderFrame()`. With the
+   * switch on it changes nothing: `renderFrame()` steps as it always did.
+   */
+  readonly pacesSteps?: boolean;
 }
 
 /** One fast export in progress, as the page's canvas wrapper renders it (a hidden canvas instance on `engine`). */
@@ -213,10 +227,43 @@ export interface FastRenderResult {
   /** The mix's loudness before and the gain the normaliser applied (dB) – BS.1770, −14 LUFS, true peak ≤ −1 dBTP. */
   loudnessLufs?: number;
   loudnessGainDb?: number;
+  /**
+   * --- slow-motion --- With the Slow motion switch off: the 60 Hz frames whose steps passed `EXPORT_CATCH_UP_STEPS`, so they
+   * play slower than real time (0: the whole clip is real time). Absent with the switch on, where the export is today's.
+   */
+  laggedFrames?: number;
 }
 
 /** --- loop-foundation --- How much longer (s) than the clip a whole-loop export may run to end on its seam (its frames and its mix are sized for it). */
 export const LOOP_PAD_SEC = 0.1;
+
+// --- slow-motion ---
+/**
+ * The export's pacer: none with the Slow motion switch on (the default), where the canvas steps every frame as it always did and
+ * an export is byte for byte today's; with it off (and a canvas that can run one step) an `OfflineRealTime` that
+ * `payExportFrame()` pays each frame's time with.
+ */
+export function exportPacer(slowMotionOn: boolean, renderer: Pick<OfflineFrameRenderer, "stepOnce">): OfflineRealTime | null {
+  return !slowMotionOn && renderer.stepOnce ? new OfflineRealTime() : null;
+}
+
+/**
+ * One 60 Hz frame of an export with the Slow motion switch off: the frame owes `frameMs` of playback time, which its steps pay
+ * (`step` runs one and returns its time scale: a step the engine's time dilation shortened pays its share, so a dilated run is
+ * exported in real time on more steps), at most `pacer.stepCap` of them. They run in chunks of `EXPORT_CATCH_UP_CHUNK`, and
+ * `between` is awaited after each chunk while the frame still owes a step (the export yields to the page there once its time
+ * slice is spent), so no frame blocks the tab. No wall clock decides anything: the same steps give the same frames, however the
+ * chunks fall. Returns true when the step cap stopped the frame short of real time (counted in `pacer.laggedFrames`).
+ */
+export async function payExportFrame(pacer: OfflineRealTime, frameMs: number, step: () => number, between: () => Promise<void> | void): Promise<boolean> {
+  pacer.beginFrame(frameMs);
+  while (pacer.pending) {
+    pacer.advance(step, EXPORT_CATCH_UP_CHUNK);
+    if (pacer.pending) await between();
+  }
+  return pacer.endFrame();
+}
+// --- end slow-motion ---
 
 /** Thrown when the browser has WebCodecs but no codec pair the export can write. */
 export class FastRenderUnsupportedError extends Error {
@@ -486,6 +533,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       slot.renderer = r;
       if (r) slot.attached();
     },
+    pacesSteps: true, // --- slow-motion --- (with the switch off this loop runs each frame's steps: payExportFrame())
   };
 
   // The offline mix: a copy of the page's sound set-up scheduling into an OfflineAudioContext on the export clock.
@@ -551,6 +599,16 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     let exported = 0;
     let lastYield = performance.now();
     const yieldAfterMs = engine.getUnlimitedView().on ? FRAME_BUDGET_MS : 32; // --- unlimited --- (a heavy run yields every frame budget: the page stays responsive)
+    // --- slow-motion --- with the Slow motion switch off each frame's steps repay its time (payExportFrame()), in chunks with a
+    // yield between them once the time slice is spent; with it on (the default) the canvas steps the frame as it always did
+    const pacer = exportPacer(engine.slowMotionOn(), frameRenderer);
+    const stepOnce = () => sandbox(() => frameRenderer.stepOnce!());
+    const between = async () => {
+      if (performance.now() - lastYield <= yieldAfterMs) return;
+      await yieldTask();
+      lastYield = performance.now();
+      if (signal?.aborted) throw abortError();
+    };
     for (let simFrame = 0; simFrame < lastFrame; simFrame++) {
       const t = simFrameTimeMs(simFrame);
       if (simFrame > 0 && t >= tracker.endMs && !(loopCut && t < 1000 * loopCut.limitSec)) break; // --- loop-foundation --- (a whole-loop cut may run on to its seam)
@@ -558,6 +616,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       if (failure) throw failure;
       if (options.beforeFrame && exportFrameIndex(simFrame, fps) >= 0) await options.beforeFrame(t); // --- video-beats ---
       clock.ms = t;
+      if (pacer) await payExportFrame(pacer, simFrame > 0 ? t - simFrameTimeMs(simFrame - 1) : SIM_FRAME_MS, stepOnce, between); // --- slow-motion ---
       sandbox(() => {
         frameRenderer.renderFrame();
         for (const ev of engine.consumeSoundEvents()) playSoundEvent(mix, ev, () => frameRenderer.noteWallBreak());
@@ -648,6 +707,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       ...(loopCut ? { loopCycles: loopCut.cycles, loopCycleSec: loopCut.cycleSec } : {}), // --- loop-foundation ---
       loudnessLufs: loudness.inputLufs, // --- loop-foundation ---
       loudnessGainDb: loudness.gainDb,
+      ...(pacer ? { laggedFrames: pacer.laggedFrames } : {}), // --- slow-motion ---
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return null;

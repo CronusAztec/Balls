@@ -13,6 +13,7 @@ import { BackgroundPainter, type BackgroundLook } from "./themeRenderer";
 import { DEFAULT_BACKGROUND_COLORS } from "@/lib/themes";
 import { ACCENT } from "@/lib/site";
 import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
+import { RealTimeLanes, type RealTimeInput } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhere ---
 import { noteEdgeText } from "./liveMarkHud"; // --- watermark-everywhere ---
@@ -190,6 +191,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
           slot.renderer = renderer;
           slot.origin = NaN;
         },
+        pacesSteps: true, // --- slow-motion --- (with the switch off the stage steps every arena on one real-time clock)
       };
     });
   }, [viewports, size?.dpr, world?.scale]);
@@ -266,13 +268,47 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     const liveFrame: LiveFrame = { canvas, ctx, nowMs: 0, recording: null, hud: liveHud };
     void primeLiveWatermark();
     const gate = new FrameGate(); // --- review fix (performance) ---
+    // --- slow-motion --- With the Slow motion switch off the race plays in real time (lib/simulation/realTime.ts RealTimeLanes):
+    // one wall clock, one budget and one draw decision for every arena, a debt per arena paid by its own whole steps (a step the
+    // engine's time dilation shortened pays its share), round-robin so the arenas' clocks stay level and none starves; the frame
+    // gate decides only the draws, and each arena's renderFrame() then only draws (its driver paces the steps)
+    const lanes = new RealTimeLanes();
+    let lanesLive = false;
+    const laneInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false };
+    const laneSteps: (() => number)[] = [];
+    const noStep = () => 1; // (an arena whose canvas has not mounted yet: it owes nothing it could run)
     const frame = (ts?: number) => {
       raf = requestAnimationFrame(frame);
       // --- review fix (performance) --- a 60 fps budget on the rAF timestamps (not a 15 ms minimum gap: 37–55 fps at 75–165 Hz)
       const now = ts ?? performance.now();
-      if (!gate.due(now)) return;
+      // --- slow-motion --- (every arena off: a moment when the page's engine and an arena's disagree runs no step twice)
+      const realTime = splitRef.current.engines.length > 0 && splitRef.current.engines.every((e) => !e.slowMotionOn());
+      let dt: number;
+      if (realTime) {
+        // --- slow-motion --- every callback steps; only a frame the clock lets draw goes on
+        const sp = splitRef.current;
+        const p = propsRef.current;
+        const n = Math.min(viewports.length, sp.engines.length);
+        if (!lanesLive) {
+          lanes.reset();
+          lanesLive = true;
+        }
+        laneSteps.length = n;
+        for (let i = 0; i < n; i++) laneSteps[i] = slotsRef.current[i]?.renderer?.stepOnce ?? noStep;
+        laneInput.running = !p.isPaused && !!p.isStarted;
+        laneInput.simSpeed = p.simSpeed ?? 1;
+        laneInput.drawDue = gate.due(now);
+        sp.runner.beforeFrame();
+        const tick = lanes.tick(now, laneInput, laneSteps, () => performance.now());
+        sp.runner.afterFrame(now);
+        if (!tick.draw) return;
+        dt = tick.frameMs;
+      } else {
+        lanesLive = false;
+        if (!gate.due(now)) return;
+        dt = last > 0 ? Math.min(now - last, 100) : 16.7;
+      }
       framesDrawnRef.current++;
-      const dt = last > 0 ? Math.min(now - last, 100) : 16.7;
       last = now;
       const sp = splitRef.current;
       const p = propsRef.current;
@@ -280,7 +316,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       const slots = slotsRef.current;
       const n = Math.min(viewports.length, sp.engines.length);
       clockRef.current = now;
-      runner.beforeFrame();
+      if (!realTime) runner.beforeFrame(); // (--- slow-motion --- off, the clock above caught restarts before its steps)
       for (let i = 0; i < n; i++) {
         const slot = slots[i];
         if (!slot?.renderer) continue;
@@ -288,7 +324,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         if (i > 0 && runner.takeWallBreaks(i) > 0) slot.renderer.noteWallBreak(); // the faces' wide eyes (the page notes the first arena's)
         slot.renderer.renderFrame();
       }
-      runner.afterFrame(now);
+      if (!realTime) runner.afterFrame(now); // (--- slow-motion --- off, after the clock's steps above)
 
       // The frame: the background (the canvas' sides show it), the arenas, their borders and labels.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -513,6 +549,16 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         setData("splitKind", standings.kind ?? "");
         setData("splitBanner", bannerText ? "1" : "0");
         setData("splitFinished", runner.allFinished() ? "1" : "0");
+        // --- slow-motion --- with the switch off: the arenas' steps on the real-time clock and the time it could not simulate
+        if (realTime) {
+          setData("splitSlowMotion", "0");
+          setData("splitRealtimeSteps", lanes.lanes.map((l) => String(l.steps)).join(","));
+          setData("splitRealtimeLostMs", String(Math.round(lanes.lostMs)));
+        } else if (canvas.dataset.splitSlowMotion !== undefined) {
+          delete canvas.dataset.splitSlowMotion;
+          delete canvas.dataset.splitRealtimeSteps;
+          delete canvas.dataset.splitRealtimeLostMs;
+        }
       }
       fpsRef.current = 0.9 * fpsRef.current + 0.1 * (1000 / Math.max(1, dt));
     };

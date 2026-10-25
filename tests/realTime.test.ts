@@ -5,13 +5,16 @@ import {
   CATCH_UP_BUDGET_MS,
   DEBT_CAP_MS,
   DRAW_BUDGET_MS,
+  EXPORT_CATCH_UP_CHUNK,
   EXPORT_CATCH_UP_STEPS,
   MAX_STEPS_PER_CALLBACK,
   MIN_DRAW_INTERVAL_MS,
   OfflineRealTime,
   PAUSE_GAP_MS,
   RealTimeClock,
+  RealTimeLanes,
   STEP_MS,
+  playbackStepMs,
   stepCostMs,
   type RealTimeInput,
   type RealTimeStepper,
@@ -392,5 +395,106 @@ describe("the engine's step time scale (--- slow-motion ---)", () => {
     }
     expect(b.getBalls().map((x) => [x.x, x.y])).toEqual(a.getBalls().map((x) => [x.x, x.y]));
     expect(b.getElapsedMs()).toBe(a.getElapsedMs());
+  });
+});
+
+/* ------------------------------------------------------------------ a split-screen race */
+
+describe("a split-screen race's real-time scheduler (--- slow-motion ---)", () => {
+  /** One fake arena: its steps return `scale()` and cost `cpuMs` of the shared fake clock. */
+  function arenas(scales: (() => number)[], cpuMs: number[]) {
+    const clock = { cpu: 0 };
+    const steps = scales.map(() => 0);
+    const order: number[] = [];
+    const fns = scales.map((scale, i) => () => {
+      steps[i]++;
+      order.push(i);
+      clock.cpu += cpuMs[i] ?? 0;
+      return scale();
+    });
+    return { clock, steps, order, fns, now: () => clock.cpu };
+  }
+
+  it("plays every arena in real time: a whole-step arena one step a frame, a quarter-step arena four", () => {
+    const lanes = new RealTimeLanes();
+    const a = arenas([() => 1, () => 0.25], [0.05, 0.05]);
+    lanes.tick(0, run(), a.fns, a.now);
+    for (let i = 1; i <= 600; i++) {
+      const t = lanes.tick(i * STEP_MS, run(), a.fns, a.now);
+      expect(t.draw, `callback ${i}`).toBe(true);
+      expect(t.frameMs).toBeCloseTo(STEP_MS, 9);
+    }
+    expect(a.steps[0]).toBe(600);
+    expect(a.steps[1]).toBeGreaterThanOrEqual(4 * 599);
+    expect(a.steps[1]).toBeLessThanOrEqual(4 * 600);
+    expect(lanes.lostMs).toBe(0);
+    expect(lanes.lanes.map((l) => l.steps)).toEqual(a.steps);
+  });
+
+  it("steps round-robin under load: every arena that owes a step runs one before any runs a second, and none starves", () => {
+    // four arenas whose steps cost 6 ms each: a callback's 12 ms budget fits about two of them, the catch-up 28 about five
+    const lanes = new RealTimeLanes();
+    const a = arenas([() => 1, () => 1, () => 1, () => 1], [6, 6, 6, 6]);
+    let now = 0;
+    lanes.tick(now, run(), a.fns, a.now);
+    for (let i = 0; i < 300; i++) {
+      now = Math.max(now + STEP_MS, a.clock.cpu);
+      a.clock.cpu = now;
+      lanes.tick(now, run(), a.fns, a.now);
+    }
+    // the arenas' clocks stay level: at most one step apart, whatever the order the budget cut the rounds in
+    expect(Math.max(...a.steps) - Math.min(...a.steps)).toBeLessThanOrEqual(1);
+    expect(Math.min(...a.steps)).toBeGreaterThan(100);
+    // the device cannot keep up with four 6 ms arenas at 60 Hz: the time past the debt cap is lost, and counted
+    expect(lanes.lostMs).toBeGreaterThan(0);
+    for (const lane of lanes.lanes) expect(lane.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
+    // within a round no arena runs twice
+    for (let k = 0; k + 4 <= 40; k += 4) expect(new Set(a.order.slice(k, k + 4)).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("runs at least one step a callback, ends on a frozen arena and a dilation of 2^-20, and owes nothing paused", () => {
+    const lanes = new RealTimeLanes();
+    const a = arenas([() => 0, () => MIN_DILATION], [40, 0]);
+    lanes.tick(0, run(), a.fns, a.now);
+    const t = lanes.tick(STEP_MS, run(), a.fns, a.now);
+    expect(t.steps).toBeGreaterThanOrEqual(1);
+    expect(t.steps).toBeLessThanOrEqual(2 * MAX_STEPS_PER_CALLBACK);
+    const paused = new RealTimeLanes();
+    const b = arenas([() => 1, () => 1], [0, 0]);
+    paused.tick(0, { running: false, simSpeed: 1, drawDue: true }, b.fns, b.now);
+    for (let i = 1; i < 60; i++) expect(paused.tick(i * STEP_MS, { running: false, simSpeed: 1, drawDue: true }, b.fns, b.now).draw).toBe(true);
+    expect(b.steps).toEqual([0, 0]);
+    // a hidden tab is a pause: no burst when it comes back
+    const back = paused.tick(60 * STEP_MS + 30_000, run(), b.fns, b.now);
+    expect(back.paused).toBe(true);
+    expect(back.steps).toBeLessThanOrEqual(2);
+  });
+
+  it("follows the playback speed and starts over on reset", () => {
+    const lanes = new RealTimeLanes();
+    const a = arenas([() => 1, () => 1], [0, 0]);
+    lanes.tick(0, run(4), a.fns, a.now);
+    for (let i = 1; i <= 60; i++) lanes.tick(i * STEP_MS, run(4), a.fns, a.now);
+    expect(a.steps).toEqual([240, 240]);
+    lanes.reset();
+    expect([lanes.lanes.length, lanes.debtMs, lanes.lostMs, lanes.framesSkipped]).toEqual([0, 0, 0, 0]);
+    expect(lanes.tick(10_000, run(), a.fns, a.now).steps).toBe(0); // (a new clock: the first callback owes nothing)
+  });
+});
+
+/* ------------------------------------------------------------------ the finder's playback time */
+
+describe("a step's playback time, as the finder counts a run's length (--- slow-motion ---)", () => {
+  const step = 1000 / 60;
+  it("is a whole step with the switch on, and for a whole step either way, bit for bit", () => {
+    for (const scale of [1, 0.5, 0.25, MIN_DILATION, 0, NaN]) expect(playbackStepMs(step, true, scale), String(scale)).toBe(step);
+    expect(playbackStepMs(step, false, 1)).toBe(step);
+  });
+
+  it("is the step's share with the switch off, never less than a frame's share of the export's step cap", () => {
+    expect(playbackStepMs(step, false, 0.25)).toBe(step * 0.25);
+    expect(playbackStepMs(step, false, MIN_DILATION)).toBe(step / EXPORT_CATCH_UP_STEPS);
+    for (const frozen of [0, -1, NaN, Infinity]) expect(playbackStepMs(step, false, frozen), String(frozen)).toBe(step);
+    expect(EXPORT_CATCH_UP_CHUNK).toBe(8);
   });
 });

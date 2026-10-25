@@ -74,6 +74,15 @@ export function blueprintVerdictLine(r: PlayabilityReport, timeoutSec: number, l
 }
 
 /**
+ * --- slow-motion --- The message of a check problem (Blueprint.problem.<key>): its code, but "slowRealTime" for "slow" while
+ * the Slow motion switch is off – the page then repays the shortened steps with more steps a frame, so the game is too heavy
+ * to play in real time rather than slowed.
+ */
+export function blueprintProblemKey(code: CheckProblem, slowMotion: boolean): string {
+  return code === "slow" && !slowMotion ? "slowRealTime" : code;
+}
+
+/**
  * --- review fix (blueprint) --- A slider's value as the panel shows it: in the page's number format, with as many decimals
  * as its step has, and in its unit (paramUnit(): "6 s", "21°", "30°/s", "0,6 px", "300 px/s"); a count shows bare. `unitText`
  * says a unit's message (Blueprint.unit.<unit>) with the number filled in.
@@ -155,7 +164,7 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   };
   const runCheck = () => {
     const mine = ++token.current;
-    const run = new PlayabilityRun(resolved.blueprint);
+    const run = new PlayabilityRun(resolved.blueprint, undefined, undefined, s.slowMotion); // --- slow-motion --- (the feedback's words follow the switch)
     const total = run.seeds.length;
     let shown = 0;
     setReport(null);
@@ -195,7 +204,11 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   };
 
   // the verdict: the first problem in plain words, then how many more
-  const verdictLine = (r: PlayabilityReport) => blueprintVerdictLine(r, resolved.blueprint.finish.timeoutSec, locale, t, (code) => (problemT.has(code) ? problemT(code) : ""));
+  // (--- slow-motion --- with the Slow motion switch off a game whose steps shorten is too heavy for real time, not slow motion)
+  const verdictLine = (r: PlayabilityReport) => blueprintVerdictLine(r, resolved.blueprint.finish.timeoutSec, locale, t, (code) => {
+    const key = blueprintProblemKey(code, s.slowMotion);
+    return problemT.has(key) ? problemT(key) : "";
+  });
 
   const selected = fromLink || unreadable ? "" : resolved.catalogId;
   const gamesLabel = useId();

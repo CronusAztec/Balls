@@ -4,7 +4,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { FrameGate } from "@/components/simulator/renderBudget";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
-import { DEBT_CAP_MS, MIN_DRAW_INTERVAL_MS, RealTimeClock, STEP_MS, realWallMs } from "@/lib/simulation/realTime";
+import { DEBT_CAP_MS, EXPORT_CATCH_UP_STEPS, MIN_DRAW_INTERVAL_MS, OfflineRealTime, RealTimeClock, STEP_MS, realWallMs } from "@/lib/simulation/realTime";
 import { DEFAULT_MULTIPLIER_LABELS, drawMultiplierHud } from "@/components/simulator/multiplierRenderer";
 import { DEFAULT_UNLIMITED_LABELS, SLOW_MOTION_DATA_KEYS, UnlimitedLayer, writeSlowMotionDataset } from "@/components/simulator/unlimitedRenderer";
 import type { UnlimitedView } from "@/lib/physics/limits";
@@ -19,6 +19,8 @@ import type { MultiplierView } from "@/lib/physics/multipliers";
 //   input changed (the uncapped wall time), which the steps never read.
 // - With it off, live: the real-time loop (drawRealTime) steps on every callback, drops drawn frames and never simulated time,
 //   repays the engine's time dilation with steps, carries the skipped wall time into the next drawn frame, and shows the badge.
+// - With it off, offline (drawOffline: the fast export, a race's arenas, the stills): a frame pays its own time with steps, at
+//   most EXPORT_CATCH_UP_STEPS, or – for a driver that paces the steps itself – only draws.
 
 const ROOT = path.resolve(__dirname, "..");
 const CANVAS = fs.readFileSync(path.join(ROOT, "src/components/simulator/Canvas.tsx"), "utf8");
@@ -80,6 +82,8 @@ const DRAW_START = "    const draw = (ts?: number) => {\n";
 const PAINT_CALL = "      paintFrame(now, frameMs, p, held, orbDrawStart); // --- slow-motion ---\n";
 const REAL_TIME_START = "    const realTime = new RealTimeClock();\n";
 const REAL_TIME_END = "    // --- end slow-motion ---\n";
+const OFFLINE_START = "    const offlineRealTime = new OfflineRealTime();\n";
+const OFFLINE_END = "    // --- end slow-motion --- (offline)\n";
 
 /** The body of today's draw() up to the call that hands the frame to the picture. */
 function currentLoop(): string {
@@ -109,6 +113,7 @@ const FREE = [
   "realWallMs",
   "RealTimeClock",
   "REAL_TIME_STEP_MS",
+  "OfflineRealTime",
 ] as const;
 type Env = Record<(typeof FREE)[number], unknown>;
 interface Harness {
@@ -118,12 +123,16 @@ interface Harness {
   realTime: RealTimeClock | null;
 }
 
-/** Builds draw() from `drawBody` (and the real-time block before it when given) in a closure over `env`, like the canvas' effect. */
-function harness(drawBody: string, env: Env, realTimeBlock = ""): Harness {
+/**
+ * Builds draw() from `drawBody` (and the real-time block before it when given, the offline block after that when given) in a
+ * closure over `env`, like the canvas' effect.
+ */
+function harness(drawBody: string, env: Env, realTimeBlock = "", offlineBlock = ""): Harness {
   const source = `function harness(env) {
   const { ${FREE.join(", ")} } = env;
   let accumulator = 0;
 ${realTimeBlock || "  let realTimeLive = false;\n  const drawRealTime = env.drawRealTime;\n"}
+${offlineBlock || "  const drawOffline = env.drawOffline;\n"}
   const draw = (ts?: number) => {
 ${drawBody}
   };
@@ -197,7 +206,7 @@ function script(seed: number, n: number, longFrames = true): Callback[] {
  * Fakes of the loop's closure, recording every call the loop makes. `clock.cpu` is `performance.now()`: a step costs the
  * callback's `stepCpuMs` of it and the picture `paintCpuMs`. The paint record holds the accumulator and the CPU clock it saw.
  */
-function fakes(opts: { slowMotion: boolean; offline: boolean; dilation?: number; paintCpuMs?: number }) {
+function fakes(opts: { slowMotion: boolean; offline: boolean; dilation?: number; paintCpuMs?: number; pacesSteps?: boolean }) {
   const log: unknown[] = [];
   const clock = { cpu: 0, offlineNow: 0 };
   let cb: Callback = script(1, 1)[0];
@@ -229,8 +238,8 @@ function fakes(opts: { slowMotion: boolean; offline: boolean; dilation?: number;
     timeScale: () => cb.scale,
     afterStep: () => log.push(["afterStep"]),
   };
-  const env: Env & { drawRealTime: (now: number) => void } = {
-    offline: opts.offline ? { now: () => clock.offlineNow } : null,
+  const env: Env & { drawRealTime: (now: number) => void; drawOffline: (now: number) => void } = {
+    offline: opts.offline ? { now: () => clock.offlineNow, pacesSteps: opts.pacesSteps } : null,
     fastRenderRef: { current: { getJob: () => cb.exporting } },
     lastTimeRef: { current: 0 },
     rafRef: { current: 0 },
@@ -257,7 +266,9 @@ function fakes(opts: { slowMotion: boolean; offline: boolean; dilation?: number;
     realWallMs,
     RealTimeClock,
     REAL_TIME_STEP_MS: STEP_MS,
+    OfflineRealTime,
     drawRealTime: (now: number) => log.push(["drawRealTime", now]),
+    drawOffline: (now: number) => log.push(["drawOffline", now]),
   };
   return {
     env,
@@ -314,6 +325,7 @@ describe("the live loop with Slow motion on (--- slow-motion ---): exactly the o
     }
     // and what the switch added in between: the dispatcher, the flag, the badge's wall time and the camera's switch
     expect(body).toContain("if (!offline && !engine.slowMotionOn()) {\n        drawRealTime(now);\n        return;\n      }\n      realTimeLive = false;\n");
+    expect(body).toContain("if (offline && !engine.slowMotionOn()) {\n        drawOffline(now);\n        return;\n      }\n");
     expect(body).toContain("const wallMs = realWallMs(now - lastTimeRef.current);");
     expect(body).toContain("cam.slowMotion = engine.slowMotionOn();");
   });
@@ -337,14 +349,22 @@ describe("the live loop with Slow motion on (--- slow-motion ---): exactly the o
     });
   }
 
-  it("keeps the old loop offline (the fast export) with the switch off too: the same steps, the camera told the switch", () => {
+  it("keeps the old loop offline (the fast export) with the switch on: the same steps, the camera told the switch", () => {
     const callbacks = script(5, 4000);
     const old = play(OLD_DRAW, callbacks, { slowMotion: true, offline: true });
-    const now = play(currentLoop(), callbacks, { slowMotion: false, offline: true });
+    const now = play(currentLoop(), callbacks, { slowMotion: true, offline: true });
     expect(old.steps).toBeGreaterThan(1000);
     expect(now.log).toEqual(old.log);
-    expect(now.log.some((e) => (e as unknown[])[0] === "drawRealTime")).toBe(false);
-    expect(now.cam.slowMotion).toBe(false);
+    expect(now.log.some((e) => ["drawRealTime", "drawOffline"].includes((e as unknown[])[0] as string))).toBe(false);
+    expect(now.cam.slowMotion).toBe(true);
+  });
+
+  it("hands an offline frame with the switch off to drawOffline, and runs none of the old loop's steps then", () => {
+    const callbacks = script(5, 500);
+    const off = play(currentLoop(), callbacks, { slowMotion: false, offline: true });
+    expect(off.log.filter((e) => (e as unknown[])[0] === "drawOffline")).toHaveLength(500);
+    expect(off.log.some((e) => ["update", "afterStep", "paint", "drawRealTime"].includes((e as unknown[])[0] as string))).toBe(false);
+    expect(off.steps).toBe(0);
   });
 
   it("hands a live callback with the switch off to the real-time loop, and runs none of the old loop's steps then", () => {
@@ -601,5 +621,72 @@ describe("the badges with Slow motion off (--- slow-motion ---): the real-time b
     writeSlowMotionDataset(true, null, time, 0, set, dataset);
     expect(dataset).toEqual({});
     expect(SLOW_MOTION_DATA_KEYS).toEqual(["slowMotion", "dipsSkipped", "realtimeRatio", "realtimeSlow", "realtimeDebtMs", "realtimeLostMs", "framesSkipped"]);
+  });
+});
+
+/* ------------------------------------------------------------------ the switch off, offline */
+
+/** The real-time and offline blocks of Canvas.tsx and draw() after them, offline on fakes: an export's (or a still's) frames. */
+function offlineLoop(opts: { dilation?: number; pacesSteps?: boolean; paintCpuMs?: number } = {}) {
+  const f = fakes({ slowMotion: false, offline: true, ...opts });
+  f.bind(harness(currentLoop(), f.env, cut(REAL_TIME_START, REAL_TIME_END), cut(OFFLINE_START, OFFLINE_END)));
+  let now = 0;
+  /** Draws `n` frames on the export's clock (1000 / 60 apart), returning the steps each frame ran. */
+  const frames = (n: number, over: Partial<Callback> = {}) => {
+    const perFrame: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const before = f.steps();
+      now += 1000 / 60;
+      f.clock.offlineNow = now;
+      f.callback(steady(over), now);
+      perFrame.push(f.steps() - before);
+    }
+    return perFrame;
+  };
+  return { ...f, frames, paints: () => paintsOf(f.log) };
+}
+
+describe("the offline frames with Slow motion off (--- slow-motion ---): real time on steps, never on a wall clock", () => {
+  it("pays a frame's time with one step at real time and draws every frame, the camera told the switch", () => {
+    const loop = offlineLoop();
+    const perFrame = loop.frames(600);
+    expect(perFrame.every((n) => n === 1)).toBe(true);
+    expect(loop.paints()).toHaveLength(600);
+    expect(loop.paints().every((e) => Math.abs(e[2] - 1000 / 60) < 1e-6)).toBe(true); // each frame's frameMs is the export's frame
+    expect(loop.cam.slowMotion).toBe(false);
+    expect(loop.log.filter((e) => (e as unknown[])[0] === "afterStep")).toHaveLength(600); // (the replay's ring buffer, step by step)
+  });
+
+  it("repays the engine's time dilation with steps: a quarter-step run exports its simulated time in real time", () => {
+    const loop = offlineLoop({ dilation: 0.25 });
+    const perFrame = loop.frames(600);
+    expect(perFrame.slice(1).every((n) => n === 4)).toBe(true);
+    expect(loop.elapsed()).toBeGreaterThan(9_980);
+    expect(loop.elapsed()).toBeLessThan(10_010);
+  });
+
+  it("runs at most EXPORT_CATCH_UP_STEPS a frame: past it the frame plays slower than real time, and the frames still come", () => {
+    const loop = offlineLoop({ dilation: 2 ** -20 });
+    const perFrame = loop.frames(20);
+    expect(perFrame.every((n) => n === EXPORT_CATCH_UP_STEPS)).toBe(true);
+    expect(loop.paints()).toHaveLength(20);
+  });
+
+  it("only draws for a driver that paces the steps itself (the fast export's payExportFrame(), a race's stage)", () => {
+    const loop = offlineLoop({ pacesSteps: true, dilation: 0.25 });
+    expect(loop.frames(120).every((n) => n === 0)).toBe(true);
+    expect(loop.paints()).toHaveLength(120);
+  });
+
+  it("owes nothing while the run is paused or not started, and is the same frames twice (no wall clock)", () => {
+    const loop = offlineLoop({ dilation: 0.25 });
+    expect(loop.frames(60, { paused: true }).every((n) => n === 0)).toBe(true);
+    expect(loop.frames(60, { started: false }).every((n) => n === 0)).toBe(true);
+    const a = offlineLoop({ dilation: 1 / 3, paintCpuMs: 5 });
+    const b = offlineLoop({ dilation: 1 / 3, paintCpuMs: 0 });
+    const fa = a.frames(300, { stepCpuMs: 3 });
+    const fb = b.frames(300, { stepCpuMs: 0.01 });
+    expect(fb).toEqual(fa); // a slow machine and a fast one: the same steps in the same frames
+    expect(b.elapsed()).toBe(a.elapsed());
   });
 });

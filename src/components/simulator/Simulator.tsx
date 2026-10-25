@@ -2082,6 +2082,7 @@ export default function Simulator() {
         engine.setPaintBeat(splitBeatRef.current);
         engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- every arena's flights land on the same grid
         if (page.config.bounceMath) engine.setConfig({ bounceMath: page.config.bounceMath }); // --- bounce-math --- the page's rules and beat grid
+        engine.setSlowMotion(arena.slowMotion !== false); // --- slow-motion --- (every arena plays by the page's switch)
         // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
         initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
@@ -2090,6 +2091,7 @@ export default function Simulator() {
         initEngineForMode(page, splitSettingsRef.current);
       },
       live: (engine, arena) => {
+        engine.setSlowMotion(arena.slowMotion !== false); // --- slow-motion --- (the switch follows live, as on the page's engine)
         engine.setWallBreakStyle(arena.wallBreakStyle);
         engine.setBouncier(arena.bouncierEnabled);
         engine.setBounciness(arena.bounciness ?? (arena.bouncierEnabled ? 1.03 : 1)); // --- uncap-all ---
@@ -2836,7 +2838,7 @@ export default function Simulator() {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
         if (!batchJob) trackClipExport({ kind: "fast", mode: s.mode, res: s.recordingResolution, secs: result.durationSec, watermark: result.watermarked ? "free" : "pro" }); // --- analytics --- (a batch counts its ZIP instead)
         if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed, loopCaption: loopCaptionContext(s) /* --- low-findings --- */ }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
-        setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest, loopCycles: result.loopCycles, loopCycleSec: result.loopCycleSec, loudnessGainDb: result.loudnessGainDb /* --- loop-foundation --- */ });
+        setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest, loopCycles: result.loopCycles, loopCycleSec: result.loopCycleSec, loudnessGainDb: result.loudnessGainDb /* --- loop-foundation --- */, laggedFrames: result.laggedFrames /* --- slow-motion --- */ });
       }
     } catch (err) {
       batchJob?.settle({ error: err instanceof Error ? err.message : String(err) }); // --- batch-render ---

@@ -484,7 +484,7 @@ describe("the compositor of every output path draws it", () => {
   });
 
   /** A fast export of a few frames with stand-in WebCodecs: the frames handed to the encoder and what was drawn on them. */
-  async function fastExport(token: string | null) {
+  async function fastExport(token: string | null, slowMotion = true) {
     storeLicence(token);
     const doc = fakeDocument();
     vi.stubGlobal("document", doc);
@@ -592,9 +592,10 @@ describe("the compositor of every output path draws it", () => {
       slowLagMs: () => 0,
       paintBackground: () => undefined,
       ready: () => true,
+      stepOnce: () => 1, // --- slow-motion --- (the export runs a frame's steps through it while the switch is off)
     };
     host.subscribe(() => host.getJob()?.driver.attach(renderer));
-    const engine = { consumeSoundEvents: () => [], isSimulationFinished: () => false, getUnlimitedView: () => ({ on: false }) } as unknown as PhysicsEngine;
+    const engine = { consumeSoundEvents: () => [], isSimulationFinished: () => false, getUnlimitedView: () => ({ on: false }), slowMotionOn: () => slowMotion /* --- slow-motion --- */ } as unknown as PhysicsEngine;
     const result = await renderFast({ host, createEngine: () => engine, seed: 7, world: { width: 500, height: 500 }, resolution: { width: 500, height: 500 }, durationSec: 0.2, fps: 30, audio: null, textOverlay: {}, backgroundColor: "#000" });
     return { result, frames, world };
   }
@@ -615,6 +616,25 @@ describe("the compositor of every output path draws it", () => {
     // the same seed and settings give the same frames each time: the mark keeps the export reproducible
     const again = await fastExport(null);
     expect(again.result?.digest).toBe(free.result?.digest);
+  });
+
+  // --- slow-motion --- with the Slow motion switch off the export runs each frame's steps itself before drawing it: the mark stays
+  it("the fast export with the Slow motion switch off: its frames pay their time in steps, and every free frame still carries the mark", async () => {
+    const free = await fastExport(null, false);
+    expect(free.result?.watermarked).toBe(true);
+    expect(free.result?.laggedFrames).toBe(0);
+    expect(free.frames.length).toBeGreaterThanOrEqual(3);
+    for (const f of free.frames) {
+      expect(f.drawn[0]).toBe(free.world);
+      expect(f.drawn).toHaveLength(3);
+    }
+    const pro = await fastExport(signTestLicense({ days: 30 }), false);
+    expect(pro.result?.watermarked).toBe(false);
+    for (const f of pro.frames) expect(f.drawn).toEqual([pro.world]);
+    const again = await fastExport(null, false);
+    expect(again.result?.digest).toBe(free.result?.digest);
+    // with the switch on (the default) the result carries no lag count: the export is today's
+    expect((await fastExport(null)).result?.laggedFrames).toBeUndefined();
   });
 
   it("no other code makes a video: the batch, the bot and the desktop queue render through the fast export", () => {

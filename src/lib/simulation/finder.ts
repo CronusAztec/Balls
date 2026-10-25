@@ -20,6 +20,7 @@ import { rigNeverFinishes } from "@/lib/physics/rigged";
 import { FL_STORY_OUTCOMES, outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
 import { FILL_SLACK_MS } from "./outcomes"; // --- fl-overhaul --- (Stage 6) Make a clip's KO window
+import { playbackStepMs } from "./realTime"; // --- slow-motion --- (a run's length as the page plays it)
 import { fanOutcomeSettled } from "./outcomes"; // --- chaos-fan ---
 import { ringOutcomeSettled } from "./outcomes"; // --- ring-escape ---
 // --- jdm-double-pendulum ---
@@ -653,6 +654,18 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   return engine;
 }
 
+// --- slow-motion ---
+/**
+ * The playback time (ms) the step `engine` just ran adds to its run's length, as the page plays it: a whole `step` with the
+ * Slow motion switch on (one step a frame), its share of a frame with it off (the engine's time dilation repaid with steps,
+ * at most the fast export's step cap a frame) – `playbackStepMs()` in realTime.ts. A whole step adds `step` exactly, so every
+ * default search measures what it always did, bit for bit. Every duration loop below counts with it.
+ */
+export function stepPlaybackMs(engine: PhysicsEngine, step: number): number {
+  return playbackStepMs(step, engine.slowMotionOn(), engine.getStepTimeScale());
+}
+// --- end slow-motion ---
+
 /** Simulates one seed headlessly and returns how long it ran (ms) before finishing. */
 export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: number): number {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
@@ -668,7 +681,7 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   let elapsed = 0;
   while (elapsed < maxSimMs) {
     engine.update(step, 0);
-    elapsed += step;
+    elapsed += stepPlaybackMs(engine, step); // --- slow-motion ---
     if (engine.isSimulationFinished()) return elapsed;
   }
   return maxSimMs;
@@ -727,7 +740,7 @@ export function confirmRunEnds(
       while (now() - frameStart < frameBudgetMs) {
         engine.update(step, 0);
         engine.consumeSoundEvents();
-        elapsed += step;
+        elapsed += stepPlaybackMs(engine, step); // --- slow-motion ---
         if (engine.isSimulationFinished()) {
           resolve(elapsed);
           return;
@@ -779,9 +792,10 @@ export function beatCoverage(seed: number, request: FinderRequest, durationMs: n
   if (!request.modeSettings.onBeat?.enabled) return {};
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
-  for (let elapsed = 0; elapsed < durationMs - 1e-6; elapsed += step) {
+  for (let elapsed = 0; elapsed < durationMs - 1e-6; ) {
     engine.update(step, 0);
     engine.consumeSoundEvents();
+    elapsed += stepPlaybackMs(engine, step); // --- slow-motion ---
   }
   const stats = engine.getOnBeatStats();
   return stats.active ? { beatsCovered: stats.beatsCovered, beatHits: stats.hits } : {};
@@ -804,7 +818,7 @@ export function simulateMultipliersSeed(seed: number, request: FinderRequest, ma
   let elapsed = 0;
   while (elapsed < maxSimMs) {
     engine.update(step, 0);
-    elapsed += step;
+    elapsed += stepPlaybackMs(engine, step); // --- slow-motion ---
     engine.consumeSoundEvents();
     const home = engine.getMultipliersProgress().home;
     if (engine.isSimulationFinished() || home > stopAbove) return { durationMs: elapsed, count: home };
@@ -1088,7 +1102,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const csHorizonMs = csRun && outcome.kind !== "sorted-by" ? Math.max(horizonMs, 1000 * resolveColourSortSettings(request.modeSettings.colourSort).limit + FIXED_RUN_SLACK_MS) : horizonMs;
   while (elapsed < csHorizonMs - 1e-6) {
     engine.update(step, 0);
-    elapsed += step;
+    elapsed += stepPlaybackMs(engine, step); // --- slow-motion ---
     engine.consumeSoundEvents();
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
     if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---

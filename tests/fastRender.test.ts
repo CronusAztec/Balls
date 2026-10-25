@@ -34,7 +34,11 @@ import {
   vp9CodecString,
   type EndHolds,
 } from "@/lib/recording/fastRenderPlan";
-import { playSoundEvent } from "@/lib/recording/fastRender";
+import { exportPacer, payExportFrame, playSoundEvent } from "@/lib/recording/fastRender";
+import { EXPORT_CATCH_UP_CHUNK, EXPORT_CATCH_UP_STEPS, OfflineRealTime } from "@/lib/simulation/realTime"; // --- slow-motion ---
+import { PhysicsEngine } from "@/lib/physics/engine"; // --- slow-motion ---
+import { MIN_DILATION } from "@/lib/physics/multipliers"; // --- slow-motion ---
+import { FINGERPRINT_CONFIG } from "@/lib/agentKit/fingerprint"; // --- slow-motion ---
 import { clockedAudioContext } from "@/lib/audio/offlineContext";
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { HitSampler } from "@/lib/audio/sampler";
@@ -504,5 +508,82 @@ describe("fast export: sound", () => {
     // Nine voices that really overlap still steal the oldest one.
     for (let i = 0; i < 9; i++) sampler.play(1, 20 + i * 0.01);
     expect(cancelled.length).toBeGreaterThan(0);
+  });
+});
+
+// --- slow-motion ---
+describe("fast export with the Slow motion switch off (--- slow-motion ---)", () => {
+  /** A classic run whose ball is a thousand times faster: the engine dilates its steps (a quarter, an eighth…) to follow it. */
+  function dilatedRun(slowMotion: boolean) {
+    const engine = new PhysicsEngine({ ...FINGERPRINT_CONFIG, ...(slowMotion ? {} : { slowMotion: false as const }) });
+    engine.setCinematicEnabled(false);
+    engine.setSeed(1);
+    engine.initMode("classic");
+    engine.applyBallMultiplier(engine.getBalls()[0], "speed", 1000);
+    return engine;
+  }
+  /** Exports `frames` frames of `engine` as renderFast() paces them: each frame's steps, then the frame's state as its digest. */
+  async function exportFrames(engine: PhysicsEngine, frames: number, between: () => Promise<void> | void) {
+    const pacer = exportPacer(engine.slowMotionOn(), { stepOnce: () => 1 })!;
+    const step = () => {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      return engine.getStepTimeScale();
+    };
+    const states: string[] = [];
+    const steps: number[] = [];
+    let chunks = 0;
+    for (let f = 0; f < frames; f++) {
+      const before = pacer.steps;
+      await payExportFrame(pacer, f > 0 ? simFrameTimeMs(f) - simFrameTimeMs(f - 1) : SIM_FRAME_MS, step, () => {
+        chunks++;
+        return between();
+      });
+      steps.push(pacer.steps - before);
+      states.push(`${engine.getElapsedMs()}:${engine.getBalls().map((b) => `${b.x},${b.y}`).join(";")}`);
+    }
+    return { states, steps, chunks, pacer };
+  }
+
+  it("has no pacer with the switch on: the canvas steps every frame as it always did, so a default export is today's", () => {
+    expect(exportPacer(true, { stepOnce: () => 1 })).toBeNull();
+    expect(exportPacer(false, {})).toBeNull(); // (a canvas that cannot run one step: it paces itself)
+    expect(exportPacer(false, { stepOnce: () => 1 })).toBeInstanceOf(OfflineRealTime);
+  });
+
+  it("exports a dilated run in real time on more steps, the same frames twice however the chunks and yields fall", async () => {
+    const a = await exportFrames(dilatedRun(false), 240, () => {});
+    const b = await exportFrames(dilatedRun(false), 240, () => new Promise<void>((r) => setTimeout(r, 0)));
+    expect(b.states).toEqual(a.states);
+    expect(b.steps).toEqual(a.steps);
+    // the run was dilated: frames took several steps, in chunks of EXPORT_CATCH_UP_CHUNK, and the clip's time is real time
+    expect(Math.max(...a.steps)).toBeGreaterThan(1);
+    expect(a.chunks).toBeGreaterThan(0);
+    expect(a.steps.every((n) => n <= EXPORT_CATCH_UP_STEPS)).toBe(true);
+    // with the switch on the same run exports one step a frame: its simulated time falls behind the clip's
+    const on = dilatedRun(true);
+    for (let f = 0; f < 240; f++) on.update(1000 / 60, 0);
+    const offEngine = dilatedRun(false);
+    await exportFrames(offEngine, 240, () => {});
+    expect(offEngine.getElapsedMs()).toBeGreaterThan(on.getElapsedMs());
+  });
+
+  it("counts the frames its step cap stopped short of real time, and never runs more than the cap a frame", async () => {
+    const pacer = new OfflineRealTime();
+    let steps = 0;
+    let between = 0;
+    for (let f = 0; f < 12; f++) {
+      const before = steps;
+      const lagged = await payExportFrame(pacer, SIM_FRAME_MS, () => (steps++, MIN_DILATION), () => void between++);
+      expect(lagged).toBe(true);
+      expect(steps - before).toBe(EXPORT_CATCH_UP_STEPS);
+    }
+    expect(pacer.laggedFrames).toBe(12);
+    expect(between).toBe(12 * (EXPORT_CATCH_UP_STEPS / EXPORT_CATCH_UP_CHUNK - 1)); // (a yield point between every two chunks)
+    // a whole-step run: one step a frame, no yield point, nothing lagged
+    const whole = new OfflineRealTime();
+    let n = 0;
+    for (let f = 0; f < 60; f++) expect(await payExportFrame(whole, SIM_FRAME_MS, () => (n++, 1), () => void between++)).toBe(false);
+    expect([n, whole.laggedFrames]).toEqual([60, 0]);
   });
 });
