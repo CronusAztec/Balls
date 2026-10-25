@@ -79,9 +79,21 @@ export function createBlueprintView(): BlueprintView {
   };
 }
 
-/** A HUD number as text: whole numbers as they are, others with one decimal; the clock in whole seconds. */
-function hudText(show: string, v: number): string {
-  if (show === "time") return `${Math.floor(v)} s`;
+/**
+ * --- review fix (blueprint) --- A finished run's time as the end frame shows it: rounded once to the tenth. The banner's
+ * subline ("in 13.0 s") and a result line's {time} print it with one decimal, and the frozen HUD clock prints its whole
+ * seconds, so a run that ends at 12.97 s reads TIME 13 s over "in 13.0 s", never TIME 12 s.
+ */
+export function endTimeTenths(sec: number): number {
+  return Math.round(sec * 10) / 10;
+}
+
+/**
+ * A HUD number as text: whole numbers as they are, others with one decimal; the clock in whole seconds (a running clock
+ * counts the seconds gone, a finished one the whole seconds of the end time the banner shows: `endTimeTenths`).
+ */
+function hudText(show: string, v: number, finished: boolean): string {
+  if (show === "time") return `${Math.floor(finished ? endTimeTenths(v) : v)} s`;
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
@@ -115,7 +127,7 @@ export function refreshBlueprintView(view: BlueprintView, run: BlueprintRun) {
   if (view.frozen) return;
   view.frozen = run.done.finished;
   view.timeSec = run.done.finished ? run.done.timeSec : run.timeSec;
-  for (const h of view.hud) h.value = hudText(h.show, run.count(h.show));
+  for (const h of view.hud) h.value = hudText(h.show, h.show === "time" && view.frozen ? run.done.timeSec : run.count(h.show), view.frozen);
   view.balls = run.world.aliveCount();
   view.tiles = run.world.tilesAlive;
   view.rings = run.world.ringsAlive();

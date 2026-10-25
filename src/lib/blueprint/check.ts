@@ -162,6 +162,16 @@ export class SeedCheck {
     return this.report;
   }
 
+  /** --- review fix (blueprint) --- The steps played so far. */
+  get stepCount(): number {
+    return this.steps;
+  }
+
+  /** --- review fix (blueprint) --- The work units (RunStats.cost, STEP_COST's weights) its steps have cost so far. */
+  get work(): number {
+    return this.lastCost;
+  }
+
   /** Plays up to `maxSteps` more steps; the report once the seed is over. */
   advance(maxSteps = Infinity): SeedReport | null {
     if (this.report) return this.report;
@@ -403,6 +413,9 @@ export class PlayabilityRun {
   private readonly reports: SeedReport[] = [];
   private current: SeedCheck | null = null;
   private report: PlayabilityReport | null = null;
+  /** --- review fix (blueprint) --- The steps and the work units of the seeds already in. */
+  private stepsIn = 0;
+  private workIn = 0;
 
   constructor(bp: Blueprint, seeds: readonly number[] = DEFAULT_CHECK_SEEDS, faultOnRule?: number) {
     this.bp = bp;
@@ -418,6 +431,20 @@ export class PlayabilityRun {
   /** The verdict once every seed is in, else null. */
   get done(): PlayabilityReport | null {
     return this.report;
+  }
+
+  /** --- review fix (blueprint) --- The steps the check has played so far, over every seed. */
+  get steps(): number {
+    return this.stepsIn + (this.current?.stepCount ?? 0);
+  }
+
+  /**
+   * --- review fix (blueprint) --- The work units (RunStats.cost, STEP_COST's weights) the check has played so far, over every
+   * seed: a clock that runs on the check's own work, the same on every machine and under any load, for a caller (a test, a
+   * headless tool) that measures its slices in work rather than in time.
+   */
+  get work(): number {
+    return this.workIn + (this.current?.work ?? 0);
   }
 
   /**
@@ -446,6 +473,8 @@ export class PlayabilityRun {
       const r = this.current.advance(1);
       if (r) {
         this.reports.push(r);
+        this.stepsIn += this.current.stepCount;
+        this.workIn += this.current.work;
         this.current = null;
       }
     } while (now() - start < budgetMs);

@@ -3,9 +3,9 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import { BLUEPRINT_TOOLS, ENGINE_TOOLS } from "../scripts/agent/cli.mjs";
 import { BLUEPRINTKIT_ENTRY, TOOLCORE_ENTRY } from "../scripts/agent/bundle.mjs";
-import { AGENT_TOOLS, BLUEPRINT_INPUT_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { AGENT_TOOLS, BLUEPRINT_INPUT_TOOLS, LINK_MAX_CHARS, checkToolArgs } from "@/lib/agentKit/tools";
 import { blueprintInput } from "@/lib/agentKit/blueprintKit";
-import { BLUEPRINT_CATALOG_IDS, applyBlueprintParams, blueprintDigest, catalogBlueprint, decodeBlueprint, encodeBlueprint, parseParamValues, playabilityCheck, sanitizeBlueprint } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_JSON_MAX_BYTES, applyBlueprintParams, blueprintDigest, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, parseParamValues, playabilityCheck, sanitizeBlueprint, validateBlueprint } from "@/lib/blueprint";
 
 /*
  * --- blueprint --- The agent toolbox's Blueprint tools end to end (`npm run -s agent -- bp-… --json '{…}'`): one JSON result a
@@ -144,6 +144,30 @@ describe("blueprint tools: end to end", () => {
     const tuned = agent("bp-link", { catalog: "ringBreaker", params: "3,60" });
     expect(tuned.json.result.query).toBe("mode=blueprint&blp=ringBreaker&blv=3,60");
     expect(agent("bp-link", { code: link }).json.result.query).toBe(`mode=blueprint&bls=${code}&blv=3,60`);
+  }, 180_000);
+
+  // --- review fix (blueprint) --- the largest legal game: bp-link's link is a link simulate, preview and render take
+  it("plays a valid Blueprint near the 6 KB ceiling from the link bp-link gives it: simulate, preview and render take that link", () => {
+    const value = `1 + 0 * (t${" + t".repeat(44)})`;
+    const raw = { v: 1, meta: { name: "Near the ceiling", description: "A spec as big as a link may carry." }, bodies: [{ id: "ball", radius: 10 }], vars: [{ id: "hits" }], spawners: [{ body: "ball", speed: 400 }], rules: Array.from({ length: 12 }, () => ({ when: "wallHit", do: [{ act: "var", id: "hits", op: "add", value }, { act: "var", id: "hits", op: "add", value }] })), finish: { timeoutSec: 20, any: [{ when: "count", what: "hits", atLeast: 300 }] } };
+    expect(validateBlueprint(raw)).toEqual([]);
+    const { blueprint, notes } = sanitizeBlueprint(raw);
+    expect(notes).toEqual([]);
+    const bytes = new TextEncoder().encode(blueprintJson(blueprint)).length;
+    expect(bytes).toBeGreaterThan(BLUEPRINT_JSON_MAX_BYTES - 100);
+    expect(bytes).toBeLessThanOrEqual(BLUEPRINT_JSON_MAX_BYTES);
+    const linked = agent("bp-link", { spec: raw });
+    expect(linked.code).toBe(0);
+    expect(linked.json.result.codeChars).toBeGreaterThan(7900);
+    const link = `https://jumpingballs.live${linked.json.result.link}&seed=3`;
+    expect(link.length).toBeGreaterThan(8000);
+    // the longest legal code, in a full link with room for the other settings, fits the tools' link
+    expect(LINK_MAX_CHARS).toBeGreaterThanOrEqual(BLUEPRINT_CODE_MAX_CHARS + 4000);
+    for (const tool of ["simulate", "preview", "render"]) expect([tool, checkToolArgs(tool, { link }).ok]).toEqual([tool, true]);
+    for (const tool of ["simulate", "preview", "render"]) expect([tool, checkToolArgs(tool, { link: `?${linked.json.result.query}` }).ok]).toEqual([tool, true]);
+    const played = agent("simulate", { link, seconds: 20 });
+    expect(played.code, played.stdout).toBe(0);
+    expect(played.json.result).toMatchObject({ mode: "blueprint", seed: 3, finished: true });
   }, 180_000);
 
   it("refuses two Blueprints in one call as a usage error (exit 2), and an unknown catalog id as a failure (exit 1)", () => {

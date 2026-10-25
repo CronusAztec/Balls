@@ -65,7 +65,8 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
  * Lab's game (its ids) and its sliders (the playing game's, in order, each with its range).
  */
 const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) => string>> = {
-  blPreset: () => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}`,
+  // --- review fix (blueprint) --- (a new game plays in place of a link's, with its own sliders: validateSettingsPatch)
+  blPreset: (current) => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}${current.blSpec ? " (the page plays a game from a link now: a game named here takes its place)" : ""}; a new game starts with its own slider values unless blParams is set with it`,
   blParams: (current) => {
     const params = resolveBlueprintSpec(blueprintSettingsOf(current)).base.params;
     if (!params.length) return "Mode Lab's slider values (this game has none)";
@@ -311,6 +312,12 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
       continue;
     }
     if (PATCH_EXCLUDED.has(key)) {
+      // --- review fix (blueprint) --- a link's game may only be cleared: a checked patch that switched Mode Lab's game carries
+      // `blSpec: ""` (below), and a saved custom mode re-checks that very patch when it is applied
+      if (key === "blSpec" && value === "") {
+        patch[key] = "";
+        continue;
+      }
       errors.push(`"${key}" cannot be changed here`);
       continue;
     }
@@ -384,6 +391,14 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
   // Bounciness brings the switch along, and a model that still sends the old switch gets the matching Bounciness
   if (typeof patch.bouncierEnabled === "boolean" && typeof patch.bounciness !== "number") patch.bounciness = patch.bouncierEnabled ? (current.bounciness > BOUNCINESS_OFF ? current.bounciness : BOUNCIER_ON) : BOUNCINESS_OFF;
   if (typeof patch.bounciness === "number") Object.assign(patch, bouncinessPatch(patch.bounciness));
+  // --- review fix (blueprint) --- Mode Lab's game switches as its panel switches it: a catalog game named in place of the one
+  // playing (another catalog game, or a link's game, which blSpec holds and would keep playing) clears the link's game and
+  // the old game's slider values (they apply by position, so another game's would tune the new one), unless the patch gives
+  // the new game's own. blSpec stays out of a patch's reach: only the switch away from it is the patch's.
+  if (typeof patch.blPreset === "string" && (patch.blPreset !== current.blPreset || current.blSpec !== "")) {
+    patch.blSpec = "";
+    if (typeof patch.blParams !== "string") patch.blParams = "";
+  }
   // The settings loader has the last word: a value it does not keep is not a valid value.
   const resolved = presetToSettings({ ...current, ...patch } as Partial<SimulatorSettings>) as unknown as Settings;
   for (const [key, value] of Object.entries(patch)) {

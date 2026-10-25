@@ -33,7 +33,13 @@ export interface AgentToolSpec {
   timeoutMs: number;
 }
 
-const link: JsonSchema = { type: "string", minLength: 1, maxLength: 8000, description: "A share link of the simulator (https://…/simulator/?mode=…&seed=…, a ?c= short link, or just its query string). Never fetched: only its parameters are read." };
+/**
+ * --- review fix (blueprint) --- The longest link a tool takes: a Mode Lab link carries a whole Blueprint (a code of up to
+ * BLUEPRINT_CODE_MAX_CHARS, 8,019 characters, for a spec at the 6 KB ceiling) beside the site's address and the other
+ * settings, so a game bp-link writes is a game simulate, preview and render play. As long as bpCode, which takes such links too.
+ */
+export const LINK_MAX_CHARS = 20_000;
+const link: JsonSchema = { type: "string", minLength: 1, maxLength: LINK_MAX_CHARS, description: "A share link of the simulator (https://…/simulator/?mode=…&seed=…, a ?c= short link, or just its query string). Never fetched: only its parameters are read." };
 const mode: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A mode id (see the modes tool); its default settings. Give link or mode, not both." };
 const seed: JsonSchema = { type: "integer", minimum: -2147483648, maximum: 4294967295, description: "The run's seed (default: the link's seed=, else 1)." };
 const out: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A folder name under .agent-out/<tool>/ for the files (default: one named after the request)." };
@@ -51,7 +57,7 @@ const bpSpec: JsonSchema = { type: "object", description: "A Blueprint v1 spec (
 const bpCode: JsonSchema = {
   type: "string",
   minLength: 3,
-  maxLength: 20_000,
+  maxLength: LINK_MAX_CHARS,
   description: "A Blueprint link code (b1.…), or a Mode Lab link / query string holding bls=b1.… or blp=<catalog id> (never fetched); its slider values (blv) are applied, as the page plays them.",
 };
 const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape)." };

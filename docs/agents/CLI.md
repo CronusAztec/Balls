@@ -37,7 +37,9 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
 
 A run is named by `link` (a share link, a `?c=` short link or just its query string; it is read, never fetched) or by `mode`
-(its defaults). The seed is the call's `seed`, else the link's `seed=`, else 1.
+(its defaults). The seed is the call's `seed`, else the link's `seed=`, else 1. A link may be 20,000 characters long, so
+the link `bp-link` writes for a Blueprint at the 6 KB ceiling (a code of about 8,000 characters) plays in `simulate`,
+`preview` and `render` as it is.
 
 `simulate` and `fingerprint` are deterministic: the same call gives byte-identical JSON. `simulate` runs the finder's
 nominal 800 × 600 world unless `world` says otherwise. The page's canvas is usually another size, so a seed found on the

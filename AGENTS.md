@@ -90,7 +90,9 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 - **free**: new files, catalog data and docs that no core function owns. Tier 0 is enough.
 - **core**: a file one of the 13 core functions owns (`docs/agents/CORE.md`): its code, or a test that proves it. Tier 0,
-  plus that function's smoke blocks in `npm run guard:browser`: tier 0 alone exits 2 until they run.
+  plus that function's smoke blocks in `npm run guard:browser`: tier 0 alone exits 2 until they run. The Blueprint
+  interpreter (`src/lib/blueprint/**`: its language, runtime and catalog) is core: a change there also runs every
+  `tests/blueprint*.test.ts` and the `blueprint` smoke block.
 - **guarded**: a hub file (`hubFiles` in `core.json`, for example `src/lib/physics/engine.ts`, `src/lib/settings.ts`,
   `src/components/simulator/Canvas.tsx` and `messages/*.json`). Most of the suite imports these, so a change needs tier 2.
 - **protected**: a path or region in `scripts/agent/protected.json`. It needs owner review. The guard reports it as a

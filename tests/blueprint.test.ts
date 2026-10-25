@@ -5,7 +5,7 @@ import { END_HOLD_SEC, blueprintSettingsOf, defaultBlueprintFields, resolveBluep
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
-import { assistantSettings, changesSchema, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { assistantSettings, changesSchema, invertPatch, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { modeDetail } from "@/lib/agentKit/modeCatalog";
 import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
 import enMessages from "../messages/en.json";
@@ -19,6 +19,7 @@ import plMessages from "../messages/pl.json";
 import esMessages from "../messages/es.json";
 import { resolveProjectSettings } from "@/lib/project";
 import { EMPTY_QUEUE, enqueue, journalOf, restoreQueue } from "@/lib/desktop/renderQueue";
+import { customModeFrom } from "@/lib/desktop/ai/customMode";
 
 /*
  * --- blueprint --- Mode Lab, the blueprint mode (src/lib/physics/modes/blueprint.ts): its registration, its settings and
@@ -296,6 +297,47 @@ describe("blueprint: the app's AI and the modes tool know Mode Lab's settings", 
     expect(check.ok).toBe(false);
     if (!check.ok) expect(check.errors.join("\n")).toMatch(/ringBreaker/);
     expect(validateSettingsPatch(current, { blPreset: "ringBreaker" })).toMatchObject({ ok: true, patch: { blPreset: "ringBreaker" } });
+  });
+
+  // --- review fix (blueprint) --- a game named by the AI is the game that plays, with its own sliders, as the panel switches it
+  it("switches Mode Lab's game as the panel does: a link's game gives way, and the old game's slider values do not carry over", () => {
+    const applied = (cur: SimulatorSettings, patch: Record<string, unknown>) => {
+      const check = validateSettingsPatch(cur, patch);
+      expect(check.ok, JSON.stringify(check)).toBe(true);
+      if (!check.ok) throw new Error("refused");
+      return { patch: check.patch, settings: presetToSettings({ ...cur, ...check.patch }) };
+    };
+    const playing = (s: SimulatorSettings) => resolveBlueprintSpec(blueprintSettingsOf(s));
+    // (1) a shared game from a link: naming a catalog game plays it, and the undo brings the link's game back
+    const own = sanitizeBlueprint({ v: 1, meta: { name: "Smoke Box" }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], finish: { timeoutSec: 20 } }).blueprint;
+    const fromLink = settingsFromSearchParams(new URLSearchParams(`mode=blueprint&bls=${encodeBlueprint(own)}`));
+    expect([playing(fromLink).catalogId, playing(fromLink).blueprint.meta.name]).toEqual(["", "Smoke Box"]);
+    const switched = applied(fromLink, { blPreset: "tierClimb" });
+    expect(switched.patch).toMatchObject({ blPreset: "tierClimb", blSpec: "", blParams: "" });
+    expect([playing(switched.settings).catalogId, playing(switched.settings).blueprint]).toEqual(["tierClimb", catalogBlueprint("tierClimb")]);
+    expect(invertPatch(fromLink, switched.patch)).toMatchObject({ blSpec: fromLink.blSpec });
+    // the checked patch passes the check again (a saved custom mode re-checks its patch when it is applied), and a patch can
+    // still only clear a link's game, never write one
+    expect(validateSettingsPatch(fromLink, switched.patch)).toEqual({ ok: true, patch: switched.patch });
+    const custom = customModeFrom({ name: "Climb mode", description: "Tier Climb from the AI", changes: [{ setting: "mode", value: "blueprint" }, { setting: "blPreset", value: "tierClimb" }], summary: "" }, fromLink, new Set());
+    expect(custom?.patch).toMatchObject({ mode: "blueprint", blPreset: "tierClimb", blSpec: "", blParams: "" });
+    expect(validateSettingsPatch(fromLink, custom!.patch).ok).toBe(true);
+    expect(validateSettingsPatch(defaultSettings("blueprint"), { blSpec: fromLink.blSpec })).toEqual({ ok: false, errors: ['"blSpec" cannot be changed here'] });
+    // ...even when the link's game came with the same blPreset the patch names (the default one)
+    expect(applied(fromLink, { blPreset: fromLink.blPreset }).patch).toMatchObject({ blSpec: "", blParams: "" });
+    // the prompt says a game named there takes the link's game's place
+    expect(settingsCatalog(fromLink).split("\n").find((l) => l.startsWith("blPreset"))).toMatch(/game from a link now: a game named here takes its place/);
+    // (2) a tuned catalog game (Ring Breaker with 5 rings): Tier Climb starts from its own target tier, not from tier 5
+    const tuned = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=ringBreaker&blv=5"));
+    const climb = applied(tuned, { blPreset: "tierClimb" });
+    expect(climb.settings.blParams).toBe("");
+    expect(playing(climb.settings).blueprint).toEqual(catalogBlueprint("tierClimb"));
+    expect(playing(presetToSettings({ ...tuned, blPreset: "tierClimb" })).blueprint).not.toEqual(catalogBlueprint("tierClimb"));
+    // (3) the new game's own slider values given with it are kept
+    expect(applied(tuned, { blPreset: "tierClimb", blParams: "7" }).settings.blParams).toBe("7");
+    // (4) the game already playing named again, or only its sliders: nothing else changes
+    expect(applied(tuned, { blPreset: "ringBreaker" }).patch).toEqual({ blPreset: "ringBreaker" });
+    expect(applied(tuned, { blParams: "4" }).patch).toEqual({ blParams: "4" });
   });
 
   it("names the playing game's sliders, in order with their ranges, for blParams", () => {

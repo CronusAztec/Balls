@@ -3,7 +3,7 @@ import { noteTitleBlock, type HudSquare } from "./liveMarkHud";
 import { defaultCanvasFactory, fillStrokeGlow, plainTransform, rgbOfHex, type CanvasFactory } from "./mergeRingGlow";
 import type { LiveHud } from "@/lib/watermark/liveLayout";
 import type { Ball } from "@/lib/physics/types";
-import { ballLabel, bannerText, type BlueprintView } from "@/lib/blueprint/runtime/view";
+import { ballLabel, bannerText, endTimeTenths, type BlueprintView } from "@/lib/blueprint/runtime/view";
 import { WALL_HALF } from "@/lib/blueprint/runtime/world";
 
 /**
@@ -260,7 +260,7 @@ export function fillResultLine(template: string, view: BlueprintView, labels: Bl
       case "winner":
         return r.winner >= 0 ? (names[r.winner] ?? bp.look.teamNames[r.winner] ?? `${r.winner + 1}`) : labels.nobody;
       case "time":
-        return `${r.timeSec.toFixed(1)} s`;
+        return `${endTimeTenths(r.timeSec).toFixed(1)} s`; // --- review fix (blueprint) --- (the frozen HUD clock's rounding)
       case "balls":
         return String(view.balls);
       case "escaped":
@@ -295,9 +295,9 @@ export function endTitle(view: BlueprintView, labels: BlueprintLabels): string {
   return bannerText(view);
 }
 
-/** The banner's subline: when the run ended. */
+/** The banner's subline: when the run ended (--- review fix (blueprint) --- rounded as the frozen HUD clock is: `endTimeTenths`). */
 export function endSub(view: BlueprintView, labels: BlueprintLabels): string {
-  return labels.endedAt(view.result.timeSec.toFixed(1));
+  return labels.endedAt(endTimeTenths(view.result.timeSec).toFixed(1));
 }
 
 /** The banner's colour: the winner's palette colour, else white (a timeout: a soft red). */

@@ -3,7 +3,7 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider, createTranslator } from "next-intl";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, catalogBlueprint, encodeBlueprint, paramUnit, paramValue, sanitizeBlueprint, type BlueprintCatalogId, type ParamUnit } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, CHECK_HEAVY_STEP_COST, PlayabilityRun, catalogBlueprint, encodeBlueprint, paramUnit, paramValue, sanitizeBlueprint, type BlueprintCatalogId, type ParamUnit } from "@/lib/blueprint";
 import BlueprintSection, { CHECK_SLICE_MS, blueprintParamDisplay, copyGameLink } from "@/components/simulator/sections/BlueprintSection";
 import type { Translate } from "@/components/simulator/ControlPrimitives";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -154,16 +154,25 @@ describe("blueprint panel: the check of a stranger's heavy game never freezes th
     expect([slices, run.seedsDone, run.done]).toEqual([200, 0, null]);
   });
 
-  it("keeps every slice of the panel's check short on the real clock while the crowd fills the arena", () => {
-    for (const speed of [300, 3000]) {
+  // --- review fix (blueprint) --- on a clock that runs on the check's own work (RunStats.cost; CHECK_HEAVY_STEP_COST's measure,
+  // 60,000 units about 2 ms of a step), not on performance.now(): a slice's length is the same on every machine and under
+  // any load, and each speed is a test of its own that plays a fixed amount of work – until its crowd of 400 has been full
+  // for a second (after about 100 steps at 300 px/s, 360 at 3,000)
+  const FULL_AFTER: Record<number, number> = { 300: 100, 3000: 360 };
+  for (const speed of [300, 3000]) {
+    it(`keeps every slice of the panel's check short while the crowd fills the arena (${speed} px/s), on a clock of the check's own work`, () => {
       const run = new PlayabilityRun(heavy(speed));
+      const now = () => (run.work * 2) / CHECK_HEAVY_STEP_COST;
       let worst = 0;
-      for (let i = 0; i < 150 && !run.done; i++) {
-        const t0 = performance.now();
-        run.slice(CHECK_SLICE_MS, () => performance.now());
-        worst = Math.max(worst, performance.now() - t0);
+      for (let i = 0; i < 150 && !run.done && run.steps < FULL_AFTER[speed] + 60; i++) {
+        const t0 = now();
+        run.slice(CHECK_SLICE_MS, now);
+        worst = Math.max(worst, now() - t0);
       }
+      expect(run.steps).toBeGreaterThanOrEqual(FULL_AFTER[speed] + 60);
       expect([speed, worst < 100]).toEqual([speed, true]);
-    }
-  });
+      // a slice ends within one step of its budget, and no step of the full crowd costs a frame
+      expect([speed, worst < CHECK_SLICE_MS + 1000 / 60]).toEqual([speed, true]);
+    });
+  }
 });

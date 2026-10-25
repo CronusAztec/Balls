@@ -44,6 +44,12 @@ function spec(raw: Record<string, unknown>): Blueprint {
   return sanitizeBlueprint(full).blueprint;
 }
 
+/**
+ * --- review fix (blueprint) --- The milliseconds a work unit (RunStats.cost) stands for: CHECK_HEAVY_STEP_COST's measure,
+ * 60,000 units about 2 ms of a step in Node. A clock of the check's own work reads `run.work * WORK_UNIT_MS`.
+ */
+const WORK_UNIT_MS = 2 / CHECK_HEAVY_STEP_COST;
+
 /** Every engine ball and every ball of the world is a number the canvas can draw. */
 function allFinite(engine: PhysicsEngine): boolean {
   for (const b of engine.getBalls()) if (!(Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy) && Number.isFinite(b.radius) && b.radius > 0 && b.radius <= BLUEPRINT_RADIUS_CEILING)) return false;
@@ -342,28 +348,38 @@ describe("blueprint check: a seed a tab could not play stops early, and a slowed
     expect(report.feedback.join("\n")).not.toMatch(/timeout/);
   });
 
+  // --- review fix (blueprint) --- (a crowd of 120 over two 5 s seeds: the slices cross from seed to seed as before, at a
+  // seventh of the work, so a cold guard's busy machine no longer runs it into vitest's 5 s limit)
   it("plays the check in slices that each stop on the caller's clock, with the verdict playabilityCheck() gives", () => {
-    const bp = spec({ bodies: [{ id: "b", radius: 12 }], arena: { gravity: { x: 0, y: 300 } }, spawners: [{ body: "b", count: 8, everySec: 0.05, maxTotal: 400, at: "random" }], sound: { voices: { ballHit: "hit" } }, finish: { timeoutSec: 8 } });
+    const bp = spec({ bodies: [{ id: "b", radius: 12 }], arena: { gravity: { x: 0, y: 300 } }, spawners: [{ body: "b", count: 8, everySec: 0.05, maxTotal: 120, at: "random" }], sound: { voices: { ballHit: "hit" } }, finish: { timeoutSec: 5 } });
     let clock = 0;
     const now = () => (clock += 1); // every reading 1 ms later: a 4 ms slice is at most 4 steps
     const run = new PlayabilityRun(bp, [1, 2]);
     let slices = 0;
     let report = null;
     while (!(report = run.slice(4, now))) slices++;
-    expect(slices).toBeGreaterThan((2 * 8 * 60) / 5);
+    expect(slices).toBeGreaterThan((2 * 5 * 60) / 5);
+    expect(run.steps).toBe(2 * 5 * 60);
     expect(report).toEqual(playabilityCheck(bp, { seeds: [1, 2] }));
   });
 
-  it("keeps every slice of a maximum-size spec's check short on the real clock", () => {
+  // --- review fix (blueprint) --- on a clock that runs on the check's own work (RunStats.cost), not on performance.now(): a
+  // slice's length is then the same on every machine and under any load, and the test plays a fixed amount of work
+  it("keeps every slice of a maximum-size spec's check short, on a clock that runs on the check's own work", () => {
     const bp = spec({ bodies: [{ id: "b", radius: 12 }], arena: { gravity: { x: 0, y: 300 } }, tiles: { layout: "grid", rows: 12, cols: 24, hp: 20, area: { x: -0.8, y: -0.8, w: 1.6, h: 0.6 } }, spawners: [{ body: "b", count: 8, everySec: 0.05, maxTotal: 400, at: "random" }], rules: [{ when: "ballHit", do: [{ act: "sound", voice: "hit" }] }], finish: { timeoutSec: 180 } });
     const run = new PlayabilityRun(bp);
+    const now = () => run.work * WORK_UNIT_MS;
     let worst = 0;
-    for (let i = 0; i < 120 && !run.done; i++) {
-      const t0 = performance.now();
-      run.slice(12, () => performance.now());
-      worst = Math.max(worst, performance.now() - t0);
+    // the crowd of 400 is full after about 150 steps: play a second and more of it
+    for (let i = 0; i < 120 && !run.done && run.steps < 240; i++) {
+      const t0 = now();
+      run.slice(12, now);
+      worst = Math.max(worst, now() - t0);
     }
+    expect(run.steps).toBeGreaterThanOrEqual(240);
     expect(worst).toBeLessThan(100);
+    // a slice ends within one step of its budget, and no step of the full crowd costs a frame
+    expect(worst).toBeLessThan(12 + 1000 / 60);
   });
 
   it("resumes a seed exactly: a sliced seed's report is the one-go report", () => {

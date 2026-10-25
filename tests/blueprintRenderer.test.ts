@@ -4,7 +4,7 @@ import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, CLOCK_LAST_SEC, CORNER_MIN_SCALE, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endTitle, mixHex, overlayPlacement, recorderSquare } from "@/components/simulator/blueprintRenderer";
+import { BANNER_POP_SEC, BlueprintDataset, BlueprintLayer, CLOCK_LAST_SEC, CORNER_MIN_SCALE, DEFAULT_BLUEPRINT_LABELS, LayerCache, RING_BREAK_SEC, RING_SHARDS, bannerPop, endSub, endTitle, fillResultLine, mixHex, overlayPlacement, recorderSquare } from "@/components/simulator/blueprintRenderer";
 import { BLUEPRINT_CATALOG_IDS, encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
 import { WALL_HALF } from "@/lib/blueprint/runtime/world";
 import { TilesLayer, crackHash, traceCracks } from "@/components/simulator/tilesRenderer";
@@ -405,6 +405,33 @@ describe("blueprint renderer: cracks, trails, banner and dataset", () => {
     for (let i = 0; i < 80; i++) engine.update(1000 / 60, 0);
     expect({ hud: view.hud.map((h) => h.value), balls: view.balls, time: view.timeSec }).toEqual({ hud: at.hud, balls: at.balls, time: at.time });
     expect(view.clockSec).toBeGreaterThan(at.clock + 1);
+  });
+
+  // --- review fix (blueprint) --- one end time on the end frame: the frozen HUD clock and the banner round it the same way
+  it("shows one end time on the last frame: a finish at 12.98 s reads TIME 13 s over \"13.0 s\", never TIME 12 s", () => {
+    const spec = sanitizeBlueprint({ v: 1, meta: { name: "Clock" }, bodies: [{ id: "b" }], spawners: [{ body: "b", speed: 200 }], hud: [{ label: "TIME", show: "time" }], finish: { timeoutSec: 30, any: [{ when: "count", what: "time", atLeast: 12.97 }] } }).blueprint;
+    const engine = engineFor({ blSpec: encodeBlueprint(spec) });
+    const view = engine.getBlueprintView();
+    for (let i = 0; i < 60 * 20 && !view.result.finished; i++) engine.update(1000 / 60, 0);
+    expect(view.result.finished).toBe(true);
+    // (the run ends on the first step past 12.97 s: x.97 to x.99 s, the banner's tenth rounds up to the next second)
+    expect(view.result.timeSec % 1).toBeGreaterThan(0.95);
+    const whole = Math.ceil(view.result.timeSec);
+    expect(view.hud[0].value).toBe(`${whole} s`);
+    expect(endSub(view, DEFAULT_BLUEPRINT_LABELS)).toBe(`${whole}.0 s`);
+    expect(fillResultLine("DONE IN {time}", view, DEFAULT_BLUEPRINT_LABELS)).toBe(`DONE IN ${whole}.0 s`);
+    // the drawn frame says the same: the HUD's clock and the banner's subline
+    for (let i = 0; i < 30; i++) engine.update(1000 / 60, 0);
+    const { ctx, rec } = fakeContext();
+    new BlueprintLayer(fakeCanvases().factory).drawOverlay(ctx, view, DEFAULT_BLUEPRINT_LABELS, 0);
+    const texts = rec.calls.filter((c) => c.name === "fillText").map((c) => String(c.args[0]));
+    expect(texts.join("\n")).toContain(`${whole} s`);
+    expect(texts.join("\n")).not.toContain(`${whole - 1} s`);
+    expect(texts).toContain(`${whole}.0 s`);
+    // a running clock still counts the whole seconds gone
+    const running = engineFor({ blSpec: encodeBlueprint(spec) });
+    for (let i = 0; i < Math.round(5.98 * 60); i++) running.update(1000 / 60, 0);
+    expect(running.getBlueprintView().hud[0].value).toBe("5 s");
   });
 
   it("marks a game from a link under its title (its name is its author's), never a catalog game", () => {

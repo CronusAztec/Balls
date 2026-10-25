@@ -62,13 +62,15 @@ The simulator page opens, Start runs the engine at a fixed 60 Hz step, and the c
 ### 3. Every mode steps deterministically (`modes-deterministic`)
 
 All 48 modes boot, stay finite and replay exactly from a seed. The proofs are the `BASELINE` fingerprints of
-`tests/extras.test.ts`, no `Math.random` or clock in a mode, and an `init()` that resets every field.
+`tests/extras.test.ts`, no `Math.random` or clock in a mode, and an `init()` that resets every field. Mode Lab's Blueprint
+interpreter is part of the blueprint mode: it plays inside the engine on every Mode Lab page and in every export.
 
-- **Code:** `src/lib/physics/**`.
+- **Code:** `src/lib/physics/**`, `src/lib/blueprint/**` (the Blueprint language, its runtime and its catalog).
 - **Unit tests:** `tests/extras.test.ts`, `tests/engine.test.ts`, `tests/physicsPurity.test.ts`, `tests/modeThumbnails.test.ts`.
 - **Smoke blocks:** `core-every-mode` (always in tier 1): every mode starts, steps and draws.
 - **Also:** the fingerprint lock fails a changed or removed fingerprint without a `Fingerprint-Change: <mode> - <reason>`
-  trailer. A change to a mode's file also runs `tests/<id>*.test.ts` and that mode's smoke block (escalation).
+  trailer. A change to a mode's file also runs `tests/<id>*.test.ts` and that mode's smoke block (escalation), and a
+  change in `src/lib/blueprint/**` every `tests/blueprint*.test.ts` and the `blueprint` block (the `blueprint` row).
 
 ### 4. Find Simulation (`find-simulation`)
 
