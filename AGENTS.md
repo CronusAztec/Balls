@@ -138,7 +138,6 @@ Every changed file lands in one zone, listed in the guard report and defined in 
   Moving, renaming or splitting a test file is no finding, as long as its very `expect(` statements reappear.
 - Never use the TEST licence (`tests/fixtures/license-test-key.json`, `scripts/lib/test-license.mjs`) outside the unit tests
   and the smoke harness. No tool may produce an unwatermarked clip.
-- Never fetch, download, scrape or screen-capture other creators' videos from TikTok, Instagram or YouTube.
 - Never push, rebase, force or deploy unless the owner asks. Never change the deploy gates
   (`deploy/vps/jbl-deploy.sh`, `.github/workflows/`) on your own.
 
