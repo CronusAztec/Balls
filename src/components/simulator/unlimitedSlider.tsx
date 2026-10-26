@@ -89,6 +89,54 @@ export function wideTrackValue(key: string, input: number, range: NumericRange, 
   if (!(input > range.max)) return sliderValue(key, (LINEAR_SPAN * (input - range.min)) / span, range, top);
   return sliderValue(key, LINEAR_SPAN + ((SLIDER_SPAN - LINEAR_SPAN) * (input - range.max)) / span, range, top);
 }
+
+// --- unlimited-sizes --- the keyboard on the wide track. Its input has step="any" (the encoded span past the comfort range is
+// continuous), so a native arrow press moves 1/100 of the input – which wideTrackValue() snaps back to the step on every range
+// of fewer than ~25 steps: the value never moved. The track takes the keys itself.
+/** Log-track positions (of `SLIDER_SPAN`) an arrow press moves past the comfort range: 1/100 of its span. */
+export const WIDE_KEY_NOTCH = 5;
+/** Log-track positions a Page Up / Page Down press moves past the comfort range: 1/10 of its span. */
+export const WIDE_PAGE_NOTCH = 50;
+
+/**
+ * The value a key press on the wide track of `key` sets for `value`, or null for a key it leaves to the browser. Inside the
+ * comfort range an arrow moves one step of the range's grid and Page Up / Page Down a tenth of the range, as on the plain
+ * track; from the range's end on, a notch of the log track (a notch that rounds back to the same value moves on until the
+ * value changes), so a press up from the range's end always leaves it. Home and End go to the track's start and its top. A
+ * value below the slider's start (a meaningful floor) or above the track's top stays put on a press that would move it the
+ * wrong way.
+ */
+export function wideTrackKeyValue(key: string, value: number, range: NumericRange, keyName: string, top?: number): number | null {
+  const topValue = sliderValue(key, SLIDER_SPAN, range, top);
+  if (keyName === "Home") return range.min;
+  if (keyName === "End") return topValue;
+  const up = keyName === "ArrowRight" || keyName === "ArrowUp" || keyName === "PageUp";
+  const down = keyName === "ArrowLeft" || keyName === "ArrowDown" || keyName === "PageDown";
+  if (!up && !down) return null;
+  const page = keyName === "PageUp" || keyName === "PageDown";
+  const v = Number.isFinite(value) ? value : range.min;
+  if (down && v <= range.min) return v;
+  if (up && v >= topValue) return v;
+  if (up ? v < range.max : v <= range.max) {
+    // the comfort range: whole steps on its grid (a value off the grid goes to the next grid point that way)
+    const step = range.step > 0 ? range.step : (range.max - range.min) / 100;
+    const steps = page ? Math.max(1, Math.round((range.max - range.min) / 10 / step)) : 1;
+    const at = (v - range.min) / step;
+    const k = up ? Math.floor(at + 1e-9) + steps : Math.ceil(at - 1e-9) - steps;
+    return Math.min(range.max, Math.max(range.min, Number((range.min + k * step).toFixed(6))));
+  }
+  // past it: notches of the log track, until the value changes
+  const notch = page ? WIDE_PAGE_NOTCH : WIDE_KEY_NOTCH;
+  let pos = Math.min(SLIDER_SPAN, sliderPosition(key, v, range, top));
+  for (let i = 0; i <= SLIDER_SPAN / WIDE_KEY_NOTCH; i++) {
+    pos += up ? notch : -notch;
+    if (down && pos <= LINEAR_SPAN) return range.max;
+    if (up && pos >= SLIDER_SPAN) return topValue;
+    const next = sliderValue(key, pos, range, top);
+    if (up ? next > v : next < v) return next;
+  }
+  return v;
+}
 // --- end unlimited-sizes ---
 
 export interface WideTrackProps {
@@ -121,6 +169,14 @@ export function WideTrack({ settingKey, label, value, range, onChange, disabled,
       value={wideInputValue(settingKey, value, range, top)}
       disabled={disabled}
       onChange={(e) => onChange(wideTrackValue(settingKey, Number(e.target.value), range, top))}
+      onKeyDown={(e) => {
+        // --- unlimited-sizes --- (the arrows, Page Up / Down, Home and End: a step, a log notch, the ends – wideTrackKeyValue())
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        const next = wideTrackKeyValue(settingKey, value, range, e.key, top);
+        if (next === null) return;
+        e.preventDefault();
+        if (next !== value) onChange(next);
+      }}
       className={className ?? "w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"}
       style={trackStyle(pos)}
       aria-label={label}

@@ -6,12 +6,12 @@ import { NextIntlClientProvider } from "next-intl";
 import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
 import { Slider, SliderTrack, TrackEnds, type Translate } from "@/components/simulator/ControlPrimitives";
-import { UnlimitedProvider, rulesForRange, wideInputValue, wideTrackValue } from "@/components/simulator/unlimitedSlider";
+import { UnlimitedProvider, WIDE_KEY_NOTCH, WideTrack, rulesForRange, wideInputValue, wideTrackKeyValue, wideTrackValue } from "@/components/simulator/unlimitedSlider";
 import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSection";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys } from "@/lib/settings";
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
-import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, hasWideTrack, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue } from "@/lib/unlimited";
+import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
 
 /*
@@ -107,6 +107,95 @@ describe("Wide sliders: the track's ends and its input", () => {
     expect(LINEAR_SPAN + ((SLIDER_SPAN - LINEAR_SPAN) * (at - r.max)) / (r.max - r.min)).toBeCloseTo(sliderPosition("ballSpeed", 3e6, r), 9);
     expect(wideInputValue("rotationSpeed", 0, RANGES.rotationSpeed)).toBe(RANGES.rotationSpeed.min);
     expect(wideTrackValue("ballSpeed", Number.NaN, r)).toBe(r.min);
+  });
+});
+
+describe("Wide sliders: the keyboard on the wide track (--- unlimited-sizes ---)", () => {
+  const ranges = RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>;
+  const wideKeys = unlimitedSettingKeys().filter((key) => {
+    const r = ranges[key];
+    return !!r && !isBoundedKey(key) && hasWideTrack(key, r);
+  });
+  const defaults = { ...defaultSettings("classic"), ...defaultSettings("paddle"), ...defaultSettings("collide") } as unknown as Record<string, unknown>;
+
+  it("moves on every arrow press of every wide track: a step inside the comfort range, a log notch past it", () => {
+    // step="any" made a native press move 1/100 of the input, which snapped back to the step: 14 of Classic's 32 tracks never moved
+    expect(wideKeys.length).toBeGreaterThan(40);
+    for (const key of ["ballCount", "wallCount", "wallThickness", "gapSize", "wallBounciness", "respawnEvery", "spinStrength", "cameraZoom", "fullBallLimit", "pdSkill", "pdMisses", "cpSizeSpread", "cpGravity"]) {
+      expect(wideKeys, key).toContain(key);
+    }
+    for (const key of wideKeys) {
+      const r = ranges[key]!;
+      const top = sliderValue(key, SLIDER_SPAN, r);
+      const own = typeof defaults[key] === "number" && Number.isFinite(defaults[key]) ? (defaults[key] as number) : r.min;
+      for (const v of [own, r.min, r.max, (r.min + r.max) / 2]) {
+        const right = wideTrackKeyValue(key, v, r, "ArrowRight")!;
+        const left = wideTrackKeyValue(key, v, r, "ArrowLeft")!;
+        if (v < top) expect(right, `${key} ${v} →`).toBeGreaterThan(v);
+        if (v > r.min) expect(left, `${key} ${v} ←`).toBeLessThan(v);
+        expect(wideTrackKeyValue(key, v, r, "ArrowUp"), key).toBe(right);
+        expect(wideTrackKeyValue(key, v, r, "ArrowDown"), key).toBe(left);
+        expect(wideTrackKeyValue(key, v, r, "PageUp")!, key).toBeGreaterThanOrEqual(right);
+        expect(wideTrackKeyValue(key, v, r, "PageDown")!, key).toBeLessThanOrEqual(left);
+        // inside the comfort range a press is one step, as on the plain track
+        if (v >= r.min && v < r.max && Math.abs((v - r.min) / r.step - Math.round((v - r.min) / r.step)) < 1e-9) {
+          expect(right, `${key} ${v} → one step`).toBeCloseTo(Math.min(r.max, v + r.step), 6);
+        }
+      }
+      // from the range's end a press up always leaves it, and a press down from there comes back into the range
+      const past = wideTrackKeyValue(key, r.max, r, "ArrowRight")!;
+      expect(past, `${key} past ${r.max}`).toBeGreaterThan(r.max);
+      expect(wideTrackKeyValue(key, past, r, "ArrowLeft"), key).toBeLessThan(past);
+      expect(wideTrackKeyValue(key, wideTrackKeyValue(key, past, r, "ArrowLeft")!, r, "ArrowLeft")!, key).toBeLessThanOrEqual(r.max);
+      // the ends
+      expect(wideTrackKeyValue(key, r.max * 3, r, "Home"), key).toBe(r.min);
+      expect(wideTrackKeyValue(key, r.min, r, "End"), key).toBe(top);
+      expect(wideTrackKeyValue(key, top, r, "ArrowRight"), key).toBe(top);
+    }
+  });
+
+  it("walks the whole log track in notches, never rounds back, and leaves a value past either end of the track alone", () => {
+    const r = RANGES.ballCount;
+    let v: number = r.max;
+    let presses = 0;
+    while (v < sliderValue("ballCount", SLIDER_SPAN, r) && presses < 1000) {
+      const next = wideTrackKeyValue("ballCount", v, r, "ArrowRight")!;
+      expect(next).toBeGreaterThan(v);
+      v = next;
+      presses++;
+    }
+    expect(presses).toBeGreaterThan(10);
+    expect(presses).toBeLessThanOrEqual((SLIDER_SPAN - LINEAR_SPAN) / WIDE_KEY_NOTCH);
+    expect(v).toBe(MEMORY_CEILINGS.ballCount);
+    // a value typed past the track's top or below the slider's start (a meaningful floor) stays on a press the wrong way
+    expect(wideTrackKeyValue("ballSpeed", 5e12, RANGES.ballSpeed, "ArrowRight")).toBe(5e12);
+    expect(wideTrackKeyValue("ballSpeed", 5e12, RANGES.ballSpeed, "ArrowLeft")!).toBeLessThan(5e12);
+    expect(wideTrackKeyValue("rotationSpeed", 0, RANGES.rotationSpeed, "ArrowLeft")).toBe(0);
+    expect(wideTrackKeyValue("rotationSpeed", 0, RANGES.rotationSpeed, "ArrowRight")).toBe(RANGES.rotationSpeed.min);
+    // a value off the grid goes to the next grid point that way
+    expect(wideTrackKeyValue("ballSpeed", 403, { min: 100, max: 1000, step: 50 }, "ArrowRight")).toBe(450);
+    expect(wideTrackKeyValue("ballSpeed", 403, { min: 100, max: 1000, step: 50 }, "ArrowLeft")).toBe(400);
+    expect(wideTrackKeyValue("ballCount", 4, r, "Tab")).toBeNull();
+    // a track with its own top (the bots of a batch: 1–20, then up to 50)
+    const bots = { min: 1, max: 20, step: 1 };
+    expect(wideTrackKeyValue("botCount", 3, bots, "ArrowRight", 50)).toBe(4);
+    expect(wideTrackKeyValue("botCount", 20, bots, "ArrowRight", 50)!).toBeGreaterThan(20);
+    expect(wideTrackKeyValue("botCount", 50, bots, "ArrowRight", 50)).toBe(50);
+    expect(wideTrackKeyValue("botCount", 3, bots, "End", 50)).toBe(50);
+  });
+
+  it("takes the keys on the track itself: the press is the track's, not the browser's", () => {
+    const changes: number[] = [];
+    const track = WideTrack({ settingKey: "wallCount", value: 7, range: RANGES.wallCount, onChange: (v) => changes.push(v) }) as React.ReactElement<{ onKeyDown: (e: unknown) => void; step: string }>;
+    expect(track.props.step).toBe("any");
+    let prevented = 0;
+    const press = (key: string, mods: Record<string, boolean> = {}) => track.props.onKeyDown({ key, altKey: false, ctrlKey: false, metaKey: false, ...mods, preventDefault: () => prevented++ });
+    press("ArrowRight");
+    press("ArrowLeft");
+    press("ArrowRight", { ctrlKey: true }); // (a browser shortcut stays the browser's)
+    press("Tab");
+    expect(changes).toEqual([8, 6]);
+    expect(prevented).toBe(2);
   });
 });
 
