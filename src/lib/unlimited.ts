@@ -353,12 +353,29 @@ function rejectInvalid(key: string, settings: Numbers, defaults: Numbers, range:
 }
 
 /**
+ * --- review fix (unlimited-sizes) --- The setting every preset, project file and batch job saved since Wide sliders turned on
+ * by default (website 1.16.0) carries: the Slow motion switch, new in that release and written out with every settings
+ * object. Before it the switch was off by default, so every older save stored `unlimited: false` without the visitor ever
+ * turning it off: a stored off counts only beside this key (`wideSlidersOf()`).
+ */
+export const WIDE_SLIDERS_SAVED_SINCE_KEY = "slowMotion";
+
+/**
+ * --- review fix (unlimited-sizes) --- The Wide sliders switch of a stored preset, project file or batch job: on unless it was
+ * turned off in a save from 1.16.0 on (one that carries `WIDE_SLIDERS_SAVED_SINCE_KEY`); an older save's off was the old
+ * default, never the visitor's choice.
+ */
+export function wideSlidersOf(source: Record<string, unknown>): boolean {
+  return source.unlimited !== false || !Object.prototype.hasOwnProperty.call(source, WIDE_SLIDERS_SAVED_SINCE_KEY);
+}
+
+/**
  * Restores the unlimited values of a stored preset or project file (`source`, the stored object) into `merged` (its
  * settings after the normal validation clamped them), when the preset has the switch on: valid values beyond the range
  * are kept as stored, invalid ones fall back to the default.
  */
 export function restoreUnlimitedValues(source: Numbers, merged: Numbers, defaults: Numbers, keys: readonly string[], ranges: Ranges) {
-  merged.unlimited = source.unlimited !== false; // --- unlimited-sizes --- (Wide sliders is on unless the preset turned it off)
+  merged.unlimited = wideSlidersOf(source); // --- unlimited-sizes --- (Wide sliders is on unless the preset turned it off; --- review fix --- a save from before 1.16.0 stored off as the old default)
   // --- uncap-all --- whatever the switch: stored values are kept exactly, invalid ones fall back to the default
   for (const key of keys) {
     const range = ranges[key];

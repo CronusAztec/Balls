@@ -153,7 +153,7 @@ describe("No limits: parsing", () => {
     expect([preset.unlimited, preset.ballSpeed]).toEqual([false, 1e9]);
     expect(physicsConfigOfSettings(preset).unlimited).toBe(true); // (engaged by the value, not by the switch)
     expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 })).toMatchObject({ unlimited: true, wallCount: 5000 }); // (a project file keeps it too; --- unlimited-sizes --- a file without the switch has it on)
-    expect(resolveProjectSettings({ mode: "classic", unlimited: false, wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 });
+    expect(resolveProjectSettings({ mode: "classic", unlimited: false, slowMotion: true, wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 }); // (--- review fix --- a file since 1.16.0, which carries the Slow motion switch: an older one's off was the old default)
     // Values inside their ranges engage nothing, and a mode setting past its slider reaches its run with the switch off.
     const plain = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800&inf=0"));
     expect(plain.unlimited).toBe(false);

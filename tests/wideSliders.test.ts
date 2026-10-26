@@ -8,10 +8,11 @@ import en from "../messages/en.json";
 import { Slider, SliderTrack, TrackEnds, type Translate } from "@/components/simulator/ControlPrimitives";
 import { UnlimitedProvider, WIDE_KEY_NOTCH, WideTrack, rulesForRange, wideInputValue, wideTrackKeyValue, wideTrackValue } from "@/components/simulator/unlimitedSlider";
 import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSection";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToLiveSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { PROJECT_FORMAT, buildProject, parseProject, resolveProjectSettings, serializeProject } from "@/lib/project"; // --- review fix --- (a file saved before 1.16.0)
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
-import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue } from "@/lib/unlimited";
+import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_SINCE_KEY, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue, wideSlidersOf } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
 
 /*
@@ -43,7 +44,36 @@ describe("Wide sliders: on by default, the panel's only", () => {
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&inf=1")).unlimited).toBe(true);
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic")).unlimited).toBe(true);
     expect(presetToSettings({ mode: "classic" }).unlimited).toBe(true);
-    expect(presetToSettings({ mode: "classic", unlimited: false }).unlimited).toBe(false);
+    expect(presetToSettings({ mode: "classic", unlimited: false, slowMotion: true }).unlimited).toBe(false); // (--- review fix --- a save since 1.16.0: it carries the Slow motion switch)
+  });
+
+  it("stays on for a preset, project file or batch job saved before 1.16.0, whose off was the old default; a later save keeps its off", () => {
+    // (--- review fix --- every save stored `unlimited: false` while off was the default, without the visitor ever turning it
+    // off; every save since carries the Slow motion switch, new in 1.16.0)
+    expect(WIDE_SLIDERS_SAVED_SINCE_KEY).toBe("slowMotion");
+    expect(Object.prototype.hasOwnProperty.call(defaultSettings("classic"), WIDE_SLIDERS_SAVED_SINCE_KEY)).toBe(true);
+    const old: Record<string, unknown> = { ...defaultSettings("classic"), wallCount: 12, unlimited: false };
+    delete old[WIDE_SLIDERS_SAVED_SINCE_KEY];
+    const uploads = { hitSample: false, wallBreakSound: null };
+    expect(wideSlidersOf(old)).toBe(true);
+    expect(presetToSettings(old as Partial<SimulatorSettings>)).toMatchObject({ unlimited: true, slowMotion: true, wallCount: 12 }); // a saved preset
+    expect(presetToLiveSettings(old as Partial<SimulatorSettings>, uploads)).toMatchObject({ unlimited: true, wallCount: 12 }); // a batch job's settings
+    expect(resolveProjectSettings(old)).toMatchObject({ unlimited: true, wallCount: 12 });
+    const file = parseProject(JSON.stringify({ format: PROJECT_FORMAT, version: 1, name: "Old", settings: old }));
+    expect(file.ok && file.project.settings.unlimited).toBe(true); // an Open project of a 1.15 file
+    for (const slowMotion of [true, false]) {
+      const since = { ...old, slowMotion };
+      expect([slowMotion, wideSlidersOf(since)]).toEqual([slowMotion, false]);
+      expect(presetToSettings(since as Partial<SimulatorSettings>)).toMatchObject({ unlimited: false, slowMotion, wallCount: 12 });
+      expect(presetToLiveSettings(since as Partial<SimulatorSettings>, uploads)).toMatchObject({ unlimited: false, slowMotion });
+      expect(resolveProjectSettings(since)).toMatchObject({ unlimited: false, slowMotion });
+    }
+    // what the page saves today round-trips: a preset ({ ...settings }) and a project file turned off stay off
+    const saved = { ...defaultSettings("classic"), unlimited: false };
+    expect(presetToSettings(JSON.parse(JSON.stringify(saved))).unlimited).toBe(false);
+    const parsed = parseProject(serializeProject(buildProject({ name: "New", settings: saved })));
+    expect(parsed.ok && parsed.project.settings.unlimited).toBe(false);
+    expect(presetToSettings({ ...saved, unlimited: true }).unlimited).toBe(true);
   });
 
   it("draws every panel slider's wide track by default, named by its setting, and the comfort track with the switch off", () => {
