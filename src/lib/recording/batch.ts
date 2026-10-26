@@ -3,7 +3,7 @@ import { SITE_SLUG } from "@/lib/site";
 import { isModeId, type ModeId } from "@/lib/physics/types";
 import { RANGES, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SHARE_CODE_PARAM, decodeShareCode, mergeShareParams } from "@/lib/shareCode";
-import { SIGNED_KEYS, atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
+import { SIGNED_KEYS, atLeastFloor, meetsFloor } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- and the meaningful floors)
 
 /*
  * --- batch-render --- The pure side of the batch render (the "Batch" block of the Recording section): what a batch is
@@ -113,7 +113,7 @@ export function parseBatchDefinition(raw: unknown): BatchDefinition {
   const ends = sweepDefaults(sweepKey);
   const range = sweepRange(sweepKey);
   const signed = SIGNED_KEYS.has(sweepKey); // --- review fix (uncap-all) --- a signed setting (the wind) has no minimum either
-  const end = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? (signed ? value : atLeastMin(value, range)) : fallback); // --- uncap-all --- (no maximum)
+  const end = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? (signed ? value : atLeastFloor(value, sweepKey, range)) : fallback); // --- uncap-all --- (no maximum; --- unlimited-sizes --- from the setting's meaningful floor up)
   const modes = Array.isArray(r.modes) ? [...new Set(r.modes.filter(isModeId))] : d.modes;
   return {
     source: r.source === "list" ? "list" : "random",
@@ -250,12 +250,14 @@ const decimals = (step: number) => {
 /**
  * `value` on the setting's slider: snapped to its step (counted from the minimum, like a range input) – --- uncap-all ---
  * from the minimum up, with no maximum: a sweep past the slider's end runs as typed (--- review fix (uncap-all) --- and a
- * `signed` setting's below its start too).
+ * `signed` setting's below its start too). --- unlimited-sizes --- With the setting's `key`, a value below the slider's
+ * start that meets its meaningful floor (`MEANINGFUL_FLOORS`: a Spin of 0, a gap of 0.05, a 3 s clip) stays, on the step
+ * grid, or as typed where the grid point would fall below the floor; only one below the floor is lifted onto the start.
  */
-export function snapToRange(value: number, range: { min: number; max: number; step: number }, signed = false): number {
-  const floored = Number.isFinite(value) ? (signed ? value : atLeastMin(value, range)) : range.min;
-  const snapped = range.min + Math.round((floored - range.min) / range.step) * range.step;
-  return Number(snapped.toFixed(decimals(range.step)));
+export function snapToRange(value: number, range: { min: number; max: number; step: number }, signed = false, key?: string): number {
+  const floored = Number.isFinite(value) ? (signed ? value : atLeastFloor(value, key, range)) : range.min; // --- unlimited-sizes --- (from the meaningful floor up)
+  const snapped = Number((range.min + Math.round((floored - range.min) / range.step) * range.step).toFixed(decimals(range.step)));
+  return signed || floored >= range.min || meetsFloor(key, snapped, range) ? snapped : floored; // --- unlimited-sizes --- (never snapped below the floor: a gap of 0.02 stays 0.02, not 0)
 }
 
 /** The values of a sweep from `from` to `to` in `steps` steps (both ends included), on the setting's slider, without repeats. */
@@ -264,7 +266,7 @@ export function sweepValues(key: SweepKey, from: number, to: number, steps: numb
   const count = clampInt(steps, SWEEP_STEPS_LIMIT, SWEEP_STEPS_RANGE.min); // --- uncap-all --- (up to the batch's clip ceiling)
   const values: number[] = [];
   for (let i = 0; i < count; i++) {
-    const v = snapToRange(from + ((to - from) * i) / (count - 1), range, SIGNED_KEYS.has(key));
+    const v = snapToRange(from + ((to - from) * i) / (count - 1), range, SIGNED_KEYS.has(key), key); // --- unlimited-sizes --- (from the meaningful floor up)
     if (!values.includes(v)) values.push(v);
   }
   return values;

@@ -176,6 +176,22 @@ describe("variants", () => {
     expect(snapToRange(-3.14159, { min: -0.5, max: 0.5, step: 0.01 }, true)).toBe(-3.14);
   });
 
+  // --- unlimited-sizes --- a sweep keeps its values from the setting's meaningful floor up, as its From and To fields take them
+  it("sweeps from the setting's meaningful floor, below the slider's start", () => {
+    expect(sweepValues("rotationSpeed", 0, 2, 3)).toEqual([0, 1, 2]); // a Spin of 0: still walls
+    expect(sweepValues("rotationSpeed", 0, 0.3, 4)).toEqual([0, 0.1, 0.2, 0.3]); // on the step grid, without float noise
+    expect(sweepValues("gapSize", 0.05, 0.5, 3)).toEqual([0.05, 0.3, 0.5]);
+    expect(sweepValues("recordingDuration", 3, 20, 3)).toEqual([3, 12, 20]); // a 3 s clip
+    expect(sweepValues("gapSize", 0, 0.5, 3)).toEqual([RANGES.gapSize.min, 0.25, 0.5]); // a gap of 0 is no gap: lifted as before
+    expect(snapToRange(0, RANGES.rotationSpeed, false, "rotationSpeed")).toBe(0);
+    expect(snapToRange(0.02, RANGES.gapSize, false, "gapSize")).toBe(0.02); // never snapped below the floor
+    expect(snapToRange(0, RANGES.gapSize, false, "gapSize")).toBe(RANGES.gapSize.min);
+    expect(snapToRange(0, RANGES.rotationSpeed)).toBe(RANGES.rotationSpeed.min); // without a key, the slider's start as before
+    expect(parseBatchDefinition({ variant: "sweep", sweepKey: "rotationSpeed", sweepFrom: 0, sweepTo: 2 })).toMatchObject({ sweepFrom: 0, sweepTo: 2 });
+    expect(parseBatchDefinition({ variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 3, sweepTo: 20 })).toMatchObject({ sweepFrom: 3, sweepTo: 20 });
+    expect(batchLongestClipSec(def({ variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 3, sweepTo: 5, sweepSteps: 2 }), parseBatchList(""), 30)).toBe(5);
+  });
+
   it("only sweeps numeric settings that have a range", () => {
     const d = defaultSettings();
     for (const key of SWEEP_KEYS) {

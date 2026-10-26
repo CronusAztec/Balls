@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
+import pl from "../messages/pl.json"; // --- unlimited-sizes --- (the tooltips that state a slider's range, in every locale)
+import es from "../messages/es.json";
 import { Slider, SliderTrack, TrackEnds, type Translate } from "@/components/simulator/ControlPrimitives";
 import { UnlimitedProvider, WIDE_KEY_NOTCH, WideTrack, rulesForRange, wideInputValue, wideTrackKeyValue, wideTrackValue } from "@/components/simulator/unlimitedSlider";
 import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSection";
@@ -15,6 +17,7 @@ import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, formatCompact
 import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_SINCE_KEY, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue, wideSlidersOf } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
 import { MODE_IDS } from "@/lib/physics/types"; // --- review fix --- (every section rendered for every mode)
+import { planBeatDrop } from "@/lib/simulation/beatDropPlan"; // --- unlimited-sizes --- (the one tooltip range a planner still holds)
 import fs from "node:fs";
 import path from "node:path";
 
@@ -392,5 +395,84 @@ describe("Wide sliders in every section of the panel", () => {
       expect([lcLayout, far]).toEqual([lcLayout, expect.stringContaining(`Memory-safety ceiling: the run builds at most ${formatCompact(MEMORY_CEILINGS.lcTeams)}`)]);
     }
     expect(intl(createElement(LandClaimSection, props(defaultSettings("landClaim"))), false)).not.toContain('data-unlimited-slider="lcTeams"'); // (the comfort track with the switch off)
+  });
+
+  // --- unlimited-sizes --- the Double Pendulum's Arms: the Double and Triple picks, and a track and a number field for 4 arms or more
+  it("sets any number of Double Pendulum arms in the panel, keeps the Double and Triple picks, and says a chain past its memory-safety ceiling", async () => {
+    const { default: DoublePendulumSection } = await import("@/components/simulator/sections/DoublePendulumSection");
+    const props = (s: SimulatorSettings) => ({ t, search: "", matches: () => true, settings: s, update: () => {} });
+    const link = (dpsg: number) => settingsFromSearchParams(new URLSearchParams(`mode=doublePendulum&dpsg=${dpsg}`));
+    const arms = (html: string) => html.slice(html.indexOf('role="group" aria-label="Arms"'), html.indexOf("</div>", html.indexOf('role="group" aria-label="Arms"')));
+    const pressed = (html: string) => [...arms(html).matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)</g)].map((m) => `${m[2]}:${m[1]}`);
+    const field = (html: string) => /<input[^>]*data-number-field="dpSegments"[^>]*>/.exec(html)?.[0].match(/\svalue="([^"]*)"/)?.[1];
+    const eight = intl(createElement(DoublePendulumSection, props(link(8))));
+    expect(link(8).dpSegments).toBe(8);
+    expect(eight).toContain('data-unlimited-slider="dpSegments"');
+    expect(field(eight)).toBe("8");
+    expect(pressed(eight)).toEqual(["Double:false", "Triple:false"]);
+    expect(eight).toContain(`Type up to ${MEMORY_CEILINGS.dpSegments} arms in the field`);
+    expect(eight).not.toContain("Memory-safety ceiling");
+    expect(pressed(intl(createElement(DoublePendulumSection, props(link(3)))))).toEqual(["Double:false", "Triple:true"]);
+    expect(pressed(intl(createElement(DoublePendulumSection, props(defaultSettings("doublePendulum")))))).toEqual(["Double:true", "Triple:false"]);
+    const far = intl(createElement(DoublePendulumSection, props(link(100))));
+    expect(link(100).dpSegments).toBe(100); // (the link keeps the number)
+    expect(far).toContain(`Memory-safety ceiling: the run builds at most ${formatCompact(MEMORY_CEILINGS.dpSegments)}`);
+    const off = intl(createElement(DoublePendulumSection, props(link(8))), false);
+    expect(off).not.toContain('data-unlimited-slider="dpSegments"'); // (the comfort track with the switch off, pinned at its end)
+    expect(off).toMatch(/<input[^>]*type="range"[^>]*min="2"[^>]*max="3"[^>]*aria-label="Arms"/);
+    expect(field(off)).toBe("8");
+  });
+});
+
+// --- unlimited-sizes --- a tooltip that states its slider's range says it is the slider's usual range: past it the wide
+// track and the number field go on, so "from 20 to 800" read as a limit the setting no longer has
+describe("Tooltips: a slider's range is its usual range, not the setting's limit", () => {
+  const CATALOGS = { en, pl, es } as const;
+  type Locale = keyof typeof CATALOGS;
+  /** The slider, as each locale names it: a tip that states a range and names the slider says the range is the slider's. */
+  const SLIDER: Record<Locale, RegExp> = { en: /slider/i, pl: /suwak/i, es: /deslizador|el control/i };
+  const number = (n: number, locale: Locale) => (locale === "en" ? String(n) : String(n).replace(".", ","));
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  /** Settings whose code still holds the slider's range, so the tip may state it as a limit (each one proven below). */
+  const HELD_BY_CODE = new Set(["bdAnticipation"]);
+
+  it("names the slider wherever the tip of an uncapped setting states the slider's own range, in en, pl and es", () => {
+    const offenders: string[] = [];
+    for (const locale of Object.keys(CATALOGS) as Locale[]) {
+      const controls = CATALOGS[locale].Controls as Record<string, string>;
+      for (const [key, range] of Object.entries(RANGES as unknown as Record<string, { min: number; max: number; step: number }>)) {
+        const tip = controls[`${key}Tip`];
+        if (typeof tip !== "string" || HELD_BY_CODE.has(key) || isBoundedKey(key) || !hasWideTrack(key, range)) continue;
+        const ceiling = (MEMORY_CEILINGS as Record<string, number | undefined>)[key];
+        if (ceiling !== undefined && ceiling <= range.max) continue; // (a true ceiling: the run stops where the slider does)
+        const [lo, hi] = [escape(number(range.min, locale)), escape(number(range.max, locale))];
+        const span = new RegExp(`(?<![\\d,.])${lo}\\s*×?\\s*(–|-|to|do|a|and|i|y)\\s*${hi}(?![\\d,])`);
+        const upTo = new RegExp(`(up to|at most|do|najwyżej|hasta|como mucho)\\s+${hi}(?![\\d,])`, "i");
+        if ((span.test(tip) || upTo.test(tip)) && !SLIDER[locale].test(tip)) offenders.push(`${locale} ${key}Tip: ${tip.slice(0, 90)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("states a held range only while its code holds it: the beat drop planner flies an obstruction in at most a beat early", () => {
+    let seed = 7;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const plan = (anticipation: number) => {
+      seed = 7;
+      return [...planBeatDrop({ beats: Array.from({ length: 12 }, (_, i) => 1 + i * 0.5), period: 0.5, kinds: ["plank"], drift: 0.5, scroll: "endless", bounceHeight: 0.24, anticipation, random }).arriveStart];
+    };
+    expect(plan(3)).toEqual(plan(RANGES.bdAnticipation.max)); // (reword bdAnticipationTip when this cap goes)
+    expect(plan(0.6)).not.toEqual(plan(RANGES.bdAnticipation.max));
+  });
+
+  it("says the Ball Count past its full-physics balls, a battle of any size and a clip of any length in every locale", () => {
+    const tips = (key: string) => (Object.keys(CATALOGS) as Locale[]).map((locale) => (CATALOGS[locale].Controls as Record<string, string>)[key]);
+    // a Ball Count past the team balls adds light crowd balls (uncapConfigOf in lib/physics/limits.ts), not a cap at six
+    expect(tips("ballCountTip").map((tip) => /light crowd|lekkiego tłumu|multitud ligera/.test(tip))).toEqual([true, true, true]);
+    const battle = (Object.keys(CATALOGS) as Locale[]).map((locale) => CATALOGS[locale].Modes.battle.description);
+    expect(battle.filter((text) => /twenty|dwudziestu|veinte|\b20\b/i.test(text))).toEqual([]); // (btCount has no maximum)
+    // a clip's length: 10 to 120 s on the slider, shorter (its meaningful floor) or longer when typed
+    for (const text of (Object.keys(CATALOGS) as Locale[]).flatMap((locale) => [CATALOGS[locale].FAQ.q2.answer, CATALOGS[locale].Press.facts.exportValue])) expect([text, /(from|od|de) 10 (to|do|a) 120 (seconds|sekund|segundos)\./.test(text)]).toEqual([text, false]);
+    expect(MEANINGFUL_FLOORS.recordingDuration).toEqual({ min: 0, above: true });
   });
 });

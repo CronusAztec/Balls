@@ -2398,9 +2398,17 @@ await smokeBlock("teams", async () => {
   // Grow takes two balls at most (every ball grows to about the ring's size, so more would crush each other through
   // the sealed ring): a roster of four keeps its teams but plays its first two – the Ball Count stops at two, Add Team
   // is disabled and a note says so – and at 8× neither ball leaves the ring.
+  // (--- unlimited-sizes --- with Wide sliders on, the default, the Ball Count's track keeps Grow's team range of one to two and
+  // its wide part goes on past it into the crowd (tests/wideSliders.test.ts): the track's input holds an encoded position past
+  // two, so the stop at two is read on the comfort tracks, inf=0 – the panel only, the run is the same)
   {
     const roster4 = `${roster},Gold*eab308*⭐`;
     await page.goto(`${BASE}/en/simulator/?mode=grow&teams=${encodeURIComponent(roster4)}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Ball & Physics/ }).click();
+    const wide = await page.locator('input[aria-label="Ball Count"]').evaluate((el) => ({ key: el.dataset.unlimitedSlider ?? null, min: el.min, max: el.max }));
+    // (the wide track's input runs from the range's start to its end plus a span as long as the range: one to two, then to three)
+    check("with Wide sliders on (the default) Grow's Ball Count track keeps its team range of one to two, its wide part going on past it", wide.key === "ballCount" && wide.min === "1" && wide.max === "3", `(${JSON.stringify(wide)})`);
+    await page.goto(`${BASE}/en/simulator/?mode=grow&inf=0&teams=${encodeURIComponent(roster4)}`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /Ball & Physics/ }).click();
     const count = await sliderValue("Ball Count");
     const max = await page.locator('input[aria-label="Ball Count"]').getAttribute("max");
@@ -16608,12 +16616,15 @@ await smokeBlock("chaos-fan", async () => {
     const query = new URLSearchParams(page.url().split("?")[1] || "");
     check("the chaos fan mirrors into the URL (the palindrome back on, the forward run, the colours, a millionth of a degree)", query.get("dpf") === "1" && !query.has("dpfp") && query.get("dpff") === "8" && !query.has("dpfc") && query.get("dpfs") === "0.000001" && query.get("dpfn") === "350", `(${query.toString()})`);
   }
-  // --- low-findings-2 --- the spread's track is logarithmic: a thousandth of a degree sits mid-track, every decade the same length,
-  // and a drag to the middle gives exactly a thousandth (the number field shows it)
+  // --- low-findings-2 --- the spread's track is logarithmic: a thousandth of a degree sits mid-way between a millionth and a degree,
+  // every decade the same length, and a drag there gives exactly a thousandth (the number field shows it)
+  // (--- unlimited-sizes --- with Wide sliders on, the default, the track goes on past a degree to its top, every decade still the
+  // same length (tests/wideSliders.test.ts): the six decades from a millionth to a degree are the track's start, not all of it)
   {
     await section.locator('[data-dp-spread-pick="0.001"]').click();
     await page.waitForTimeout(200);
     const spread = page.locator('input[type="range"][aria-label="Start spread"]');
+    const field = page.locator('[data-number-field="dpSpreadDeg"]');
     const track = { end: Number(await spread.getAttribute("max").catch(() => "0")), at: Number(await spread.inputValue().catch(() => "-1")) };
     const picks = [];
     for (const deg of ["0.000001", "0.0001", "0.01", "0.1"]) {
@@ -16621,14 +16632,21 @@ await smokeBlock("chaos-fan", async () => {
       await page.waitForTimeout(100);
       picks.push(Number(await spread.inputValue().catch(() => "-1")));
     }
-    await spread.evaluate(setRangeValue, String(Math.round(track.end / 2)));
+    // the track's top (its last position) gives the decades it spans, so a decade's length: every decade the same length to the top
+    await spread.evaluate(setRangeValue, String(track.end));
     await page.waitForTimeout(200);
-    const middle = await page.locator('[data-number-field="dpSpreadDeg"]').inputValue().catch(() => "?");
-    const decade = track.end > 0 ? (track.end - 1) / 6 : 0;
+    const top = Number(await field.inputValue().catch(() => "0"));
+    const decade = track.end > 0 && top > 0.000001 ? (track.end - 1) / Math.log10(top / 0.000001) : 0;
+    await spread.evaluate(setRangeValue, String(Math.round(1 + 6 * decade)));
+    await page.waitForTimeout(200);
+    const degree = await field.inputValue().catch(() => "?");
+    await spread.evaluate(setRangeValue, String(Math.round(1 + 3 * decade)));
+    await page.waitForTimeout(200);
+    const middle = await field.inputValue().catch(() => "?");
     check(
-      "the start spread's slider is logarithmic: a thousandth of a degree mid-track, every decade the same length, the middle exactly a thousandth",
-      track.end > 100 && Math.abs(track.at - track.end / 2) <= 1 && Math.abs(picks[0] - 1) <= 0 && Math.abs(picks[1] - (1 + 2 * decade)) <= 1 && Math.abs(picks[2] - (1 + 4 * decade)) <= 1 && Math.abs(picks[3] - (1 + 5 * decade)) <= 1 && middle === "0.001",
-      `(${JSON.stringify({ track, picks, middle })})`,
+      "the start spread's slider is logarithmic: a thousandth of a degree mid-way from a millionth to a degree, every decade the same length (on past a degree to the track's top with Wide sliders), a drag there exactly a thousandth",
+      track.end > 100 && top > 1 && Math.abs(track.at - (1 + 3 * decade)) <= 1 && Math.abs(picks[0] - 1) <= 0 && Math.abs(picks[1] - (1 + 2 * decade)) <= 1 && Math.abs(picks[2] - (1 + 4 * decade)) <= 1 && Math.abs(picks[3] - (1 + 5 * decade)) <= 1 && degree === "1" && middle === "0.001",
+      `(${JSON.stringify({ track, picks, top, decade, degree, middle })})`,
     );
   }
   await page.getByPlaceholder("Search settings...").fill("start spread");
