@@ -182,12 +182,12 @@ export async function mapLimit(items, limit, fn) {
  * A run stopped at its timeout keeps the pages it printed before. A link whose host resolves to this machine or its
  * private network is not read (`hosts`: hostChecker), its error listed.
  */
-export async function readPages(tb, ytdlp, given, { timeoutMs = INFO_TIMEOUT_MS, hosts = hostChecker(tb) } = {}) {
+export async function readPages(tb, ytdlp, links, { timeoutMs = INFO_TIMEOUT_MS, hosts = hostChecker(tb) } = {}) {
   const pages = new Map();
   const lists = new Map();
   const errors = [];
-  if (!given.length) return { pages, errors, lists };
-  const { ok: urls, refused } = await hosts(given);
+  if (!links.length) return { pages, errors, lists };
+  const { ok: urls, refused } = await hosts(links);
   errors.push(...refused.map((r) => r.error));
   if (!urls.length) return { pages, errors, lists };
   const size = Math.ceil(urls.length / PAGE_RUNS);
