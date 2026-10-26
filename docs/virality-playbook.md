@@ -167,30 +167,45 @@ where that data lives, how the app's AI reads it and what the first runs found.
 
 ### What the October 2026 runs found
 
-Two runs on 26 October 2026, "ball simulation" and "satisfying physics simulation shorts" (read from #physicssimulation),
-gave 39 short-form videos on YouTube Shorts, 14.7 million views together. YouTube refused every download from the server,
-so 15 of them were seen through their stills and none was measured whole.
+Two searches on 26 October 2026, "ball simulation" (mostly 2D clips) and "satisfying physics simulation shorts" (read from
+#physicssimulation, mostly 3D renders), gave 39 short-form videos on YouTube Shorts, 14.5 million views together. YouTube
+refused every download from the server, so none was measured whole: the colours come from the public stills of all 39
+(the second pass of the day; the first read only the top 8 of each search, so its "most viewed" and "rest" were both in
+the top 40 %). The 3D search has five times the views of the 2D one, so each search is read on its own and the two are
+pooled by rank, never by views.
 
-- **Short clips.** The most viewed run about 11 s, and so do the rest: length does not separate them (ρ −0.06). Our
-  10–15 s clips fit **[observed]**.
-- **Calm colours on a light or mid background.** The most viewed are less saturated than the rest (saturation 0.30
-  against 0.58, ρ −0.71 over 15 videos: the one clear pattern) and none of them is dark. Our test renders measured a
-  brightness of 0.06 against 0.37–0.59 for the trending clips **[observed]**. Try a light theme or a gradient background
-  (`theme`, `bgt`) with fewer rainbow trails on a few renders before making it a default **[inferred]**.
-- **Themes that earn more than their share of the views.** A ball trapped or escaping rings (×5: classic, spiralGlass,
-  grow), loops (×4.9: pendulum, starChords, colourSort), mazes (×1.2: maze) and colours (×1.1: paint, territory). Battles
-  and "vs" crashes are a third of the videos with fewer views than their share (×0.8) **[observed]**.
-- **Title formats.** A versus in 28 % of the titles ("Glass Pipes vs Soft Body"), a question in 23 %, a scale stepped up
-  in 13 % ("0% vs 100% Softness", "Small to Big") and a numbered series in 10 % ("Day 56 → 1K Subscribers")
+- **Short clips.** In "ball simulation" the most viewed third runs 11 s against 24 s for the rest (ρ −0.55 over 20
+  videos: the one clear pattern of that search). In the 3D search length does not separate them (11 s against 9 s, ρ
+  +0.29), so the pooled numbers show no pattern. Our 10–15 s clips fit **[observed]**.
+- **Light pictures; the saturation depends on the search.** In both searches the most viewed are lighter than the rest:
+  "ball simulation" brightness 0.39 against 0.10 and dark share 0.04 against 0.64 (most of its lower ranks are
+  near-black clips), the 3D search 0.60 against 0.52 (ρ +0.34) with no video darker than a dark share of 0.15. But a
+  dark clip can top a list: the second most viewed of "ball simulation" (734,000 views) is almost black (dark share
+  0.97, brightness 0.03), and 3 of its 7 most viewed have a dark share of 0.4 or more. Saturation goes the other way
+  between the searches: the most viewed 2D clips are more saturated than the rest (0.57 against 0.24), the 3D renders
+  are not (0.31 against 0.29). The "calm colours" pattern of the first pass (saturation 0.30 against 0.58) was the 3D
+  renders' muted look against the 2D clips', not what separates the most viewed **[observed]**. Our test renders
+  measured a brightness of 0.06 and a dark share of 0.90, darker than nearly every trending clip: try a light theme or a
+  gradient background (`theme`, `bgt`) on a few renders, and saturated colours for 2D clips, before making either a
+  default **[inferred]**.
+- **Themes.** Only "drops and piles" ranks above the rest: its 4 videos have a median view percentile of 63 against 47
+  for the others (58 without the best of them). The "×5 escaping rings" and "×4.9 loops" of the first pass were both
+  carried by one video, "This Ball Is Trapped in a Perfect Loop" (3.6 million views, a quarter of the pool, 96 and 98 %
+  of the two themes' views), and the other "escape" was an apple bursting "out" of a grid; mazes rank high (86 against
+  47) but are two videos. Battles and "vs" crashes are a third of the videos and rank below the others (32 against 61)
   **[observed]**.
+- **Title formats.** A versus in 28 % of the titles ("Glass Pipes vs Soft Body", fewer among the most viewed: 15 against
+  35 %), a question in 18 %, a scale stepped up in 15 % ("0% vs 100% Softness", "Small to Big") and a numbered series in
+  13 %: 23 % of the most viewed against 8 % of the rest ("Day 56 → 1K Subscribers") **[observed]**.
 - **What the stills showed.** A big label on screen that names the variable and its level, stepped up through the clip
   (1 m FACE → 16k FACE, 0% SOFT → 100% SOFT, 9% POWER → 100% POWER), or a running counter (the rings left: 200 → 52);
   3D balls poured into a grid or a pile; escape rings and glass spirals with a counter on a black background; and often
   an empty stage in the opening frame, with the action by the first quarter **[observed]**.
 - **What to make of it.** An escalation clip: the same seed with one number stepped up, a `progress` or `text` caption
-  naming the level; a `wallCounter` or `progress` caption on every escape and spiral clip; 11–15 s; and the playbook's
-  motion in frame one still stands, as the trending openings that start empty are 3D renders we do not make
-  **[inferred]**.
+  naming the level; a numbered daily series; drops into a grid or a pile (`drop`, `conveyor`, `accumulation`); a
+  `wallCounter` or `progress` caption on every escape and spiral clip; 11–15 s; and the playbook's motion in frame one
+  still stands, as the trending openings that start empty are 3D renders we do not make **[inferred]**.
 
-Sources: the `inspire` reports of 26 October 2026 (`.agent-out/inspiration/2026-10-26-ball-simulation/`,
-`.agent-out/inspiration/2026-10-26-satisfying-physics-simulation-shorts/`; the links are in `src/content/trends.json`).
+Sources: the `inspire` reports of 26 October 2026: the second pass (`.agent-out/inspiration/2026-10-26-ball-simulation/`,
+`.agent-out/inspiration/2026-10-26-satisfying-physics-simulation-shorts/`), which `src/content/trends.json` sums up with
+the links, and the first (the same folders with `-run1`).

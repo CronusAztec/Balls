@@ -452,6 +452,7 @@ describe("the report's maths (--- inspiration ---)", () => {
     // each clause of the look advice from its own number: no saturation, no word on the colours; nothing, no advice
     const look = (keep: string[]) => recommendations(summaries.filter((x) => keep.includes(x.key)), [], [], titleSummary([], [])).find((r) => r.area === "look");
     expect(look(["darkShare"])?.advice).toBe("Use a light or mid background.");
+    expect(look(["darkShare"])?.levers.map((l) => l.name)).toEqual(["themeId", "backgroundType"]); // (no trails for a background)
     expect(look(["meanLuma"])).toBeUndefined();
     expect(look(["meanSat", "darkShare"])?.advice).toBe("Keep the colours calm (a muted theme) on a light or mid background."); // (a pooled median: trends.ts splits it)
   });

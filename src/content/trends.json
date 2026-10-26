@@ -4,28 +4,28 @@
   "metric": "views",
   "sources": [
     {
-      "query": "satisfying physics simulation shorts",
-      "at": "2026-10-26T01:37:22.440Z",
+      "query": "ball simulation",
+      "at": "2026-10-26T03:57:23.281Z",
       "videos": 20,
       "compared": 20,
       "measured": 0,
-      "stills": 8
+      "stills": 20
     },
     {
-      "query": "ball simulation",
-      "at": "2026-10-26T01:38:34.886Z",
+      "query": "satisfying physics simulation shorts",
+      "at": "2026-10-26T03:58:55.468Z",
       "videos": 20,
       "compared": 20,
       "measured": 0,
-      "stills": 8
+      "stills": 20
     }
   ],
   "sample": {
     "videos": 39,
     "compared": 39,
     "measured": 0,
-    "stills": 15,
-    "views": 14708290,
+    "stills": 39,
+    "views": 14507923,
     "platforms": {
       "youtube": 39
     }
@@ -35,10 +35,10 @@
       "trait": "durationSec",
       "label": "length",
       "unit": "s",
-      "top": 16,
-      "rest": 10,
-      "all": 11,
-      "rho": -0.071,
+      "top": 11,
+      "rest": 13,
+      "all": 12,
+      "rho": -0.039,
       "n": 39,
       "strength": null,
       "scope": "list",
@@ -48,7 +48,7 @@
       },
       "tops": [
         11,
-        16
+        11
       ],
       "split": false
     },
@@ -60,7 +60,7 @@
       "rest": 1,
       "all": 1,
       "rho": null,
-      "n": 8,
+      "n": 4,
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -68,8 +68,8 @@
         "opposite": 0
       },
       "tops": [
-        null,
-        1
+        1,
+        null
       ],
       "split": false
     },
@@ -77,11 +77,11 @@
       "trait": "meanLuma",
       "label": "brightness",
       "unit": "",
-      "top": 0.497,
-      "rest": 0.562,
-      "all": 0.556,
-      "rho": -0.228,
-      "n": 15,
+      "top": 0.556,
+      "rest": 0.456,
+      "all": 0.463,
+      "rho": 0.208,
+      "n": 39,
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -89,8 +89,8 @@
         "opposite": 0
       },
       "tops": [
-        0.556,
-        0.146
+        0.385,
+        0.604
       ],
       "split": true
     },
@@ -98,32 +98,32 @@
       "trait": "meanSat",
       "label": "saturation",
       "unit": "",
-      "top": 0.302,
-      "rest": 0.525,
-      "all": 0.465,
-      "rho": -0.576,
-      "n": 15,
-      "strength": "clear",
+      "top": 0.451,
+      "rest": 0.259,
+      "all": 0.302,
+      "rho": 0.104,
+      "n": 39,
+      "strength": null,
       "scope": "list",
       "agreement": {
-        "same": 2,
-        "opposite": 0
+        "same": 1,
+        "opposite": 1
       },
       "tops": [
-        0.302,
-        0.318
+        0.569,
+        0.306
       ],
-      "split": false
+      "split": true
     },
     {
       "trait": "darkShare",
       "label": "dark share",
       "unit": "",
       "top": 0,
-      "rest": 0,
-      "all": 0,
-      "rho": 0.227,
-      "n": 15,
+      "rest": 0.013,
+      "all": 0.003,
+      "rho": -0.283,
+      "n": 39,
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -131,24 +131,24 @@
         "opposite": 0
       },
       "tops": [
-        0,
-        0.532
+        0.038,
+        0
       ],
-      "split": true
+      "split": false
     }
   ],
   "themes": [
     {
       "id": "drop",
       "label": "drops and piles",
-      "videos": 7,
-      "viewShare": 0.065,
-      "videoShare": 0.179,
-      "lift": 0.36,
+      "videos": 4,
+      "viewShare": 0.057,
+      "videoShare": 0.103,
+      "lift": 0.56,
       "rank": 0.632,
-      "restRank": 0.447,
-      "rankWithoutTop": 0.553,
-      "topShare": 0.391,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.579,
+      "topShare": 0.452,
       "advised": true,
       "modes": [
         "drop",
@@ -162,14 +162,14 @@
     {
       "id": "satisfying",
       "label": "satisfying and calm",
-      "videos": 22,
-      "viewShare": 0.595,
-      "videoShare": 0.564,
-      "lift": 1.05,
-      "rank": 0.5,
-      "restRank": 0.421,
-      "rankWithoutTop": 0.474,
-      "topShare": 0.414,
+      "videos": 19,
+      "viewShare": 0.594,
+      "videoShare": 0.487,
+      "lift": 1.22,
+      "rank": 0.579,
+      "restRank": 0.395,
+      "rankWithoutTop": 0.579,
+      "topShare": 0.421,
       "advised": false,
       "modes": [
         "colourSort",
@@ -183,14 +183,14 @@
     {
       "id": "battle",
       "label": "battles",
-      "videos": 14,
-      "viewShare": 0.295,
-      "videoShare": 0.359,
-      "lift": 0.82,
+      "videos": 13,
+      "viewShare": 0.277,
+      "videoShare": 0.333,
+      "lift": 0.83,
       "rank": 0.316,
-      "restRank": 0.579,
-      "rankWithoutTop": 0.263,
-      "topShare": 0.666,
+      "restRank": 0.605,
+      "rankWithoutTop": 0.316,
+      "topShare": 0.72,
       "advised": false,
       "modes": [
         "battle",
@@ -204,34 +204,12 @@
       ]
     },
     {
-      "id": "loop",
-      "label": "loops",
-      "videos": 2,
-      "viewShare": 0.251,
-      "videoShare": 0.051,
-      "lift": 4.89,
-      "rank": 0.816,
-      "restRank": 0.474,
-      "rankWithoutTop": 0.632,
-      "topShare": 0.982,
-      "advised": false,
-      "modes": [
-        "starChords",
-        "ellipseFoci",
-        "pendulum",
-        "polyrhythm",
-        "colourSort",
-        "orbGrid"
-      ],
-      "blueprints": []
-    },
-    {
       "id": "escape",
       "label": "escaping rings",
       "videos": 1,
-      "viewShare": 0.246,
+      "viewShare": 0.25,
       "videoShare": 0.026,
-      "lift": 9.6,
+      "lift": 9.74,
       "rank": 1,
       "restRank": 0.474,
       "rankWithoutTop": null,
@@ -250,38 +228,41 @@
       ]
     },
     {
-      "id": "maze",
-      "label": "mazes",
-      "videos": 2,
-      "viewShare": 0.061,
-      "videoShare": 0.051,
-      "lift": 1.19,
-      "rank": 0.829,
+      "id": "loop",
+      "label": "loops",
+      "videos": 1,
+      "viewShare": 0.25,
+      "videoShare": 0.026,
+      "lift": 9.74,
+      "rank": 1,
       "restRank": 0.474,
-      "rankWithoutTop": 0.737,
-      "topShare": 0.898,
+      "rankWithoutTop": null,
+      "topShare": 1,
       "advised": false,
       "modes": [
-        "maze"
+        "starChords",
+        "ellipseFoci",
+        "pendulum",
+        "polyrhythm",
+        "colourSort",
+        "orbGrid"
       ],
       "blueprints": []
     },
     {
-      "id": "spiral",
-      "label": "spirals and spinning",
-      "videos": 5,
-      "viewShare": 0.059,
-      "videoShare": 0.128,
-      "lift": 0.46,
-      "rank": 0.316,
-      "restRank": 0.5,
-      "rankWithoutTop": 0.263,
-      "topShare": 0.839,
+      "id": "maze",
+      "label": "mazes",
+      "videos": 2,
+      "viewShare": 0.062,
+      "videoShare": 0.051,
+      "lift": 1.21,
+      "rank": 0.855,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.79,
+      "topShare": 0.898,
       "advised": false,
       "modes": [
-        "vortex",
-        "spiralGlass",
-        "hoops"
+        "maze"
       ],
       "blueprints": []
     },
@@ -291,10 +272,10 @@
       "videos": 2,
       "viewShare": 0.058,
       "videoShare": 0.051,
-      "lift": 1.13,
-      "rank": 0.724,
+      "lift": 1.14,
+      "rank": 0.618,
       "restRank": 0.474,
-      "rankWithoutTop": 0.526,
+      "rankWithoutTop": 0.316,
       "topShare": 0.95,
       "advised": false,
       "modes": [
@@ -309,16 +290,35 @@
       ]
     },
     {
+      "id": "spiral",
+      "label": "spirals and spinning",
+      "videos": 4,
+      "viewShare": 0.057,
+      "videoShare": 0.103,
+      "lift": 0.55,
+      "rank": 0.368,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.211,
+      "topShare": 0.889,
+      "advised": false,
+      "modes": [
+        "vortex",
+        "spiralGlass",
+        "hoops"
+      ],
+      "blueprints": []
+    },
+    {
       "id": "destroy",
       "label": "breaking and smashing",
-      "videos": 2,
-      "viewShare": 0.046,
-      "videoShare": 0.051,
-      "lift": 0.9,
-      "rank": 0.684,
+      "videos": 1,
+      "viewShare": 0.043,
+      "videoShare": 0.026,
+      "lift": 1.69,
+      "rank": 0.79,
       "restRank": 0.474,
-      "rankWithoutTop": 0.579,
-      "topShare": 0.927,
+      "rankWithoutTop": null,
+      "topShare": 1,
       "advised": false,
       "modes": [
         "glass",
@@ -334,14 +334,14 @@
     {
       "id": "marbleRun",
       "label": "marble runs and pegs",
-      "videos": 3,
-      "viewShare": 0.023,
-      "videoShare": 0.077,
-      "lift": 0.29,
-      "rank": 0.368,
-      "restRank": 0.5,
-      "rankWithoutTop": 0.263,
-      "topShare": 0.811,
+      "videos": 4,
+      "viewShare": 0.026,
+      "videoShare": 0.103,
+      "lift": 0.25,
+      "rank": 0.29,
+      "restRank": 0.526,
+      "rankWithoutTop": 0.158,
+      "topShare": 0.715,
       "advised": false,
       "modes": [
         "drop",
@@ -361,8 +361,8 @@
       "viewShare": 0.008,
       "videoShare": 0.077,
       "lift": 0.1,
-      "rank": 0.526,
-      "restRank": 0.474,
+      "rank": 0.368,
+      "restRank": 0.526,
       "rankWithoutTop": 0.342,
       "topShare": 0.382,
       "advised": false,
@@ -382,7 +382,7 @@
       "viewShare": 0.002,
       "videoShare": 0.026,
       "lift": 0.08,
-      "rank": 0.263,
+      "rank": 0.105,
       "restRank": 0.5,
       "rankWithoutTop": null,
       "topShare": 1,
@@ -400,8 +400,8 @@
       "id": "question",
       "label": "a question",
       "top": 0.08,
-      "rest": 0.31,
-      "all": 0.23
+      "rest": 0.23,
+      "all": 0.18
     },
     {
       "id": "bigNumber",
@@ -413,29 +413,29 @@
     {
       "id": "versus",
       "label": "a versus (A vs B)",
-      "top": 0.23,
-      "rest": 0.31,
+      "top": 0.15,
+      "rest": 0.35,
       "all": 0.28
     },
     {
       "id": "escalation",
       "label": "a scale stepped up (0% vs 100%, small to big)",
       "top": 0.08,
-      "rest": 0.15,
-      "all": 0.13
+      "rest": 0.19,
+      "all": 0.15
     },
     {
       "id": "series",
       "label": "a numbered series (Day 12, Part 3)",
-      "top": 0.15,
+      "top": 0.23,
       "rest": 0.08,
-      "all": 0.1
+      "all": 0.13
     }
   ],
   "words": [
     {
       "word": "satisfying",
-      "videos": 7
+      "videos": 8
     },
     {
       "word": "3d",
@@ -446,28 +446,32 @@
       "videos": 5
     },
     {
+      "word": "simulation",
+      "videos": 5
+    },
+    {
       "word": "ball",
       "videos": 4
     },
     {
-      "word": "simulation",
-      "videos": 4
+      "word": "1k",
+      "videos": 3
     },
     {
       "word": "balls",
       "videos": 3
     },
     {
-      "word": "youtubeshorts",
+      "word": "day",
       "videos": 3
     },
     {
-      "word": "1k",
-      "videos": 2
+      "word": "subscribers",
+      "videos": 3
     },
     {
-      "word": "day",
-      "videos": 2
+      "word": "youtubeshorts",
+      "videos": 3
     },
     {
       "word": "grid",
@@ -476,17 +480,26 @@
     {
       "word": "maze",
       "videos": 2
-    },
-    {
-      "word": "oddly",
-      "videos": 2
     }
   ],
   "recommendations": [
     {
+      "area": "length",
+      "advice": "Render 11 s clips.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "recordingDuration",
+          "link": "dur",
+          "value": 11
+        }
+      ]
+    },
+    {
       "area": "look",
-      "advice": "Keep the colours calm (a muted theme).",
-      "basis": "pattern",
+      "advice": "Use a light or mid background.",
+      "basis": "benchmark",
       "levers": [
         {
           "kind": "setting",
@@ -495,32 +508,8 @@
         },
         {
           "kind": "setting",
-          "name": "trailColors",
-          "link": "trc"
-        },
-        {
-          "kind": "setting",
-          "name": "showTrails",
-          "link": "trails",
-          "value": true
-        },
-        {
-          "kind": "setting",
           "name": "backgroundType",
           "link": "bgt"
-        }
-      ]
-    },
-    {
-      "area": "length",
-      "advice": "Render 16 s clips.",
-      "basis": "benchmark",
-      "levers": [
-        {
-          "kind": "setting",
-          "name": "recordingDuration",
-          "link": "dur",
-          "value": 16
         }
       ]
     },
@@ -539,7 +528,7 @@
     },
     {
       "area": "mode",
-      "advice": "\"drops and piles\" ranks above the rest: its 7 videos have a median view percentile of 63 against 45 for the others (55 without the best of them): play it with drop, conveyor, accumulation, perfectFit, multipliers.",
+      "advice": "\"drops and piles\" ranks above the rest: its 4 videos have a median view percentile of 63 against 47 for the others (58 without the best of them): play it with drop, conveyor, accumulation, perfectFit, multipliers.",
       "basis": "theme",
       "levers": [
         {
@@ -570,8 +559,8 @@
       "title": "This Ball Is Trapped in a Perfect Loop",
       "url": "https://www.youtube.com/shorts/NbZCb-rDF30",
       "platform": "youtube",
-      "views": 3621789,
-      "viewsPerDay": 76945,
+      "views": 3622862,
+      "viewsPerDay": 76804,
       "durationSec": 7,
       "query": "satisfying physics simulation shorts"
     },
@@ -579,8 +568,8 @@
       "title": "Metallic Cloth Takes Over a Red Ball 😍 | Satisfying 3D Simulation #satisfying #3danimation #3d",
       "url": "https://www.youtube.com/shorts/INLxnalVcsc",
       "platform": "youtube",
-      "views": 3319093,
-      "viewsPerDay": 469462,
+      "views": 3346940,
+      "viewsPerDay": 466798,
       "durationSec": 28,
       "query": "satisfying physics simulation shorts"
     },
@@ -589,7 +578,7 @@
       "url": "https://www.youtube.com/shorts/esiVQnqTXEI",
       "platform": "youtube",
       "views": 2893246,
-      "viewsPerDay": 28912,
+      "viewsPerDay": 28883,
       "durationSec": 16,
       "query": "satisfying physics simulation shorts"
     },
@@ -597,17 +586,17 @@
       "title": "Amazing Soccer Balls Bouncing in a Colorful 3D Maze! 🤩⚽ | #youtubeshorts #3danimation #3d",
       "url": "https://www.youtube.com/shorts/FFJ5THnzdDE",
       "platform": "youtube",
-      "views": 806359,
-      "viewsPerDay": 53508,
+      "views": 806387,
+      "viewsPerDay": 53157,
       "durationSec": 5,
-      "query": "ball simulation"
+      "query": "satisfying physics simulation shorts"
     },
     {
       "title": "Will the emojis have enough momentum to make it to the end? 😊 #spiral",
       "url": "https://www.youtube.com/shorts/bkNfVXhCHiY",
       "platform": "youtube",
       "views": 734075,
-      "viewsPerDay": 12427,
+      "viewsPerDay": 12408,
       "durationSec": 24,
       "query": "ball simulation"
     },
@@ -615,26 +604,17 @@
       "title": "Glass Pipes vs Soft Body Physics! 🤯",
       "url": "https://www.youtube.com/shorts/ZDvEvYc0UBk",
       "platform": "youtube",
-      "views": 628462,
-      "viewsPerDay": 62409,
+      "views": 629566,
+      "viewsPerDay": 61904,
       "durationSec": 22,
       "query": "satisfying physics simulation shorts"
-    },
-    {
-      "title": "🔴SHREDDER ☠️ VS 🔵SNIPER 👁️",
-      "url": "https://www.youtube.com/shorts/3iHvyDdwp7A",
-      "platform": "youtube",
-      "views": 470819,
-      "viewsPerDay": 2020,
-      "durationSec": 22,
-      "query": "ball simulation"
     },
     {
       "title": "Mesmerizing 3D Metal Balls Falling into a Blue Grid! 🤯✨ Satisfying #youtubeshorts #3danimation #3d",
       "url": "https://www.youtube.com/shorts/WO8bnbw3-Po",
       "platform": "youtube",
-      "views": 373354,
-      "viewsPerDay": 21872,
+      "views": 373360,
+      "viewsPerDay": 21745,
       "durationSec": 11,
       "query": "satisfying physics simulation shorts"
     },
@@ -642,8 +622,8 @@
       "title": "ASMR / Oddly Satisfying): Oddly Satisfying Marble Drop & Grid Physics 🌀🟦#3d#youtubeshorts#3danima",
       "url": "https://www.youtube.com/shorts/GisD3WQl2OA",
       "platform": "youtube",
-      "views": 270070,
-      "viewsPerDay": 9621,
+      "views": 270074,
+      "viewsPerDay": 9587,
       "durationSec": 6,
       "query": "satisfying physics simulation shorts"
     },
@@ -651,10 +631,19 @@
       "title": "Day 56 → 1K Subscribers 🎯 | Satisfying Simulation",
       "url": "https://www.youtube.com/shorts/yAWxckhcZtE",
       "platform": "youtube",
-      "views": 211447,
-      "viewsPerDay": 19101,
+      "views": 211903,
+      "viewsPerDay": 18988,
       "durationSec": 19,
       "query": "ball simulation"
+    },
+    {
+      "title": "Very dangerous soft simulation 0-100%",
+      "url": "https://www.youtube.com/shorts/EKImmH9sTN8",
+      "platform": "youtube",
+      "views": 205879,
+      "viewsPerDay": 7058,
+      "durationSec": 12,
+      "query": "satisfying physics simulation shorts"
     }
   ]
 }

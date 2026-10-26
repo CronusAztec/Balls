@@ -618,7 +618,7 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
       out.push({
         area: "look",
         advice,
-        levers: [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")],
+        levers: colours ? [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")] : [setting("theme"), setting("backgroundType")],
         evidence: [sat?.evidence, dark?.evidence, luma ? `brightness: ${luma.evidence}${luma.all !== null ? `, all ${round(luma.all, 2)}` : ""}` : null].filter(Boolean).join("; "),
         basis: tone || sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern || luma?.pattern ? "pattern" : "benchmark",
       });
