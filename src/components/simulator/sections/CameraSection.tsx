@@ -27,11 +27,16 @@ const pct = (v: number) => `${Math.round(100 * v)}%`;
  * and the replay are all rendering, so seeds and found simulations stay valid.
  * --- slow-motion --- While the Slow motion switch (Ball & Physics) is off, the near-miss slow motion and its sliders show as
  * overridden with a note, and the replay says it plays at normal speed; their values are kept for when it is back on.
+ * (review fix) The sliders name the near-miss note while it is on screen, and have their own (camera-slow-mo-sliders-off)
+ * whenever it is not: a search for "slow" with the near-miss slow motion off, or for "slow-mo speed".
  */
 export default function CameraSection({ t, search, matches, settings: s, update }: CameraSectionProps) {
-  const showSlowMoSliders = s.slowMoOnNearMiss || !!search;
+  // --- slow-motion --- (review fix) only while a slider is shown: a search for neither leaves no overridden block behind
+  const showSlowMoSliders = (s.slowMoOnNearMiss || !!search) && (!search || matches("slowMoFactor") || matches("slowMoMs"));
   const nearMissOverridden = s.slowMoOnNearMiss && !s.slowMotion; // --- slow-motion ---
-  // --- slow-motion --- (review fix) the near-miss note speaks for the speed and length sliders too (they name it), while it is shown
+  // --- slow-motion --- (review fix) the near-miss note speaks for the speed and length sliders too (they name it), while it is
+  // shown; when it is not (a search that leaves the toggle out, or the near-miss slow motion off itself), the sliders show
+  // their own note, so every dimmed control has a note on screen and names it
   const nearMissNote = useId();
   const nearMissNoteShown = nearMissOverridden && (!search || matches("slowMoOnNearMiss"));
   const body = (
@@ -73,7 +78,12 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         </Overridden>
       </Searchable>
       {showSlowMoSliders && (
-        <Overridden on={!s.slowMotion} noteId={nearMissNoteShown ? nearMissNote : undefined} spacing="space-y-4">
+        <Overridden
+          on={!s.slowMotion}
+          noteId={nearMissNoteShown ? nearMissNote : undefined}
+          note={nearMissNoteShown ? undefined : <SlowMotionOffNote settings={s} testId="camera-slow-mo-sliders-off" />}
+          spacing="space-y-4"
+        >
           <Slider
             t={t}
             search={search}

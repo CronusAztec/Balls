@@ -355,10 +355,11 @@ describe("overridden controls stay readable and say why (--- slow-motion --- rev
     expect(describedByNote(camera, 'aria-label="Slow-Mo Length"', "camera-slow-motion-off")).toBe(true);
     expect(describedByNote(camera, 'data-number-field="slowMoFactor"', "camera-slow-motion-off")).toBe(true);
     expect(describedByNote(fl, switchAttr(fl, "KO Slow Motion"), "fl-slow-motion-off")).toBe(true);
-    // the sliders shown by a search with the near-miss toggle hidden name no note that is not there
+    // the sliders shown by a search with the near-miss toggle hidden name no note that is not there: (--- review fix ---) they
+    // show their own, and name it
     const searched = section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false }), "slow-mo speed");
     expect(searched).not.toContain("camera-slow-motion-off");
-    expect(describedByOf(openingTag(searched, 'aria-label="Slow-Mo Speed"'))).toEqual([]);
+    expect(describedByNote(searched, 'aria-label="Slow-Mo Speed"', "camera-slow-mo-sliders-off")).toBe(true);
     // a default page: no description, no dimming
     for (const html of [section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true })), section(FightLeagueSection, settingsOf("fightLeague", { flSlowMo: true })), section(StringBattleSection, settingsOf("stringBattle", { sbDuel: true }))]) {
       expect(html).not.toContain("aria-describedby");
@@ -411,5 +412,70 @@ describe("a live control keeps its look, with a note only (--- slow-motion --- r
     };
     expect(run(true)).toEqual({ finished: true, duel: true, hunted: true });
     expect(run(false)).toEqual({ finished: true, duel: false, hunted: false });
+  });
+});
+
+describe("every dimmed control has its note on screen (--- slow-motion --- review fix)", () => {
+  /**
+   * The overridden blocks of `html` that break the rule: a block with no control in it, or a control (a switch, a range
+   * input, a number field) that names no note, or names an id whose element holds none. One line each.
+   */
+  const brokenBlocks = (html: string) => {
+    const out: string[] = [];
+    for (let at = html.indexOf("data-slow-motion-overridden"); at >= 0; at = html.indexOf("data-slow-motion-overridden", at + 1)) {
+      const block = elementAt(html, html.lastIndexOf("<", at));
+      const controls = [...block.matchAll(/<(?:button|input)[^>]*>/g)].map((m) => m[0]).filter((tag) => /role="switch"|<input/.test(tag));
+      if (controls.length === 0) out.push("a dimmed block with no control in it");
+      for (const tag of controls) {
+        const ids = describedByOf(tag);
+        const named = ids.length > 0 && ids.every((id) => elementWith(html, `id="${id}"`).includes("data-slow-motion-off-note"));
+        if (!named) out.push(`no note named by ${tag.slice(0, 80)}`);
+      }
+    }
+    return out;
+  };
+  /** The notes of `html` that speak for nothing on screen (the replay's, a live control's, stands on its own and is left out). */
+  const strayNotes = (html: string) => {
+    const named = new Set([...html.matchAll(/aria-describedby="([^"]*)"/g)].flatMap((m) => m[1].split(" ")));
+    const out: string[] = [];
+    for (let at = html.indexOf("data-slow-motion-off-note"); at >= 0; at = html.indexOf("data-slow-motion-off-note", at + 1)) {
+      const tag = html.slice(html.lastIndexOf("<", at), html.indexOf(">", at) + 1);
+      if (/data-testid="camera-replay-real-time"/.test(tag)) continue;
+      const before = html.slice(0, html.lastIndexOf("<", at));
+      const owner = /<div id="([^"]+)">$/.exec(before)?.[1];
+      if (!owner || !named.has(owner)) out.push(tag);
+    }
+    return out;
+  };
+
+  it("Camera, searched or not: every overridden block holds a note or names one, and no note stands alone (the near-miss slow motion on or off)", () => {
+    // (a search for "slow" with the near-miss slow motion off showed the speed and length sliders dimmed with no note at all)
+    for (const search of ["", "slow", "slow-mo", "slow-mo speed", "length", "near miss", "zoom", "replay"]) {
+      for (const slowMoOnNearMiss of [true, false]) {
+        const html = section(CameraSection, settingsOf("classic", { slowMoOnNearMiss, replayOnEscape: true, slowMotion: false }), search);
+        const label = `${JSON.stringify(search)} near miss ${slowMoOnNearMiss ? "on" : "off"}`;
+        expect([label, brokenBlocks(html)]).toEqual([label, []]);
+        expect([label, strayNotes(html)]).toEqual([label, []]);
+      }
+    }
+    // the finding's own search: "slow" with the near-miss slow motion off shows the sliders dimmed, with their note
+    const slow = section(CameraSection, settingsOf("classic", { slowMotion: false }), "slow");
+    expect(slow.match(/data-slow-motion-overridden/g)?.length).toBe(1);
+    expect(slow).toContain('data-testid="camera-slow-mo-sliders-off"');
+    expect(slow).toContain(en.Unlimited.slowMotionOffNote.replace(/&/g, "&amp;"));
+    // the near-miss note shown: the sliders name it and add none of their own
+    const nearMiss = section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false }), "slow");
+    expect([nearMiss.includes('data-testid="camera-slow-motion-off"'), nearMiss.includes("camera-slow-mo-sliders-off")]).toEqual([true, false]);
+    // a search for neither slider leaves no dimmed block behind
+    expect(section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false }), "zoom")).not.toContain("data-slow-motion-overridden");
+    // and with the switch on, nothing of it
+    for (const search of ["", "slow"]) expect(section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true }), search)).not.toContain("data-slow-motion-off-note");
+  });
+
+  it("the other overridden controls hold their notes too: Fight League's KO Slow Motion, searched or not", () => {
+    for (const search of ["", "slow", "ko"]) {
+      const html = section(FightLeagueSection, settingsOf("fightLeague", { flSlowMo: true, slowMotion: false }), search);
+      expect([search, brokenBlocks(html), strayNotes(html)]).toEqual([search, [], []]);
+    }
   });
 });
