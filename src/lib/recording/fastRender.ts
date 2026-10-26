@@ -250,10 +250,11 @@ export function exportPacer(slowMotionOn: boolean, renderer: Pick<OfflineFrameRe
 /**
  * One 60 Hz frame of an export with the Slow motion switch off: the frame owes `frameMs` of playback time, which its steps pay
  * (`step` runs one and returns its time scale: a step the engine's time dilation shortened pays its share, so a dilated run is
- * exported in real time on more steps), at most `pacer.stepCap` of them. They run in chunks of `EXPORT_CATCH_UP_CHUNK`, and
- * `between` is awaited after each chunk while the frame still owes a step (the export yields to the page there once its time
- * slice is spent), so no frame blocks the tab. No wall clock decides anything: the same steps give the same frames, however the
- * chunks fall. Returns true when the step cap stopped the frame short of real time (counted in `pacer.laggedFrames`).
+ * exported in real time on more steps), at most `pacer.stepCap` of them. They run in chunks of `EXPORT_CATCH_UP_CHUNK` (one
+ * step: --- review fix --- a heavy dilated step can cost tens of ms), and `between` is awaited after each chunk while the frame
+ * still owes a step (the export yields to the page there once its time slice is spent), so no frame blocks the tab for more
+ * than its slice and one step. No wall clock decides anything: the same steps give the same frames, however the chunks and the
+ * yields fall. Returns true when the step cap stopped the frame short of real time (counted in `pacer.laggedFrames`).
  */
 export async function payExportFrame(pacer: OfflineRealTime, frameMs: number, step: () => number, between: () => Promise<void> | void): Promise<boolean> {
   pacer.beginFrame(frameMs);

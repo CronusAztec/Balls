@@ -55,8 +55,12 @@ const FLOOR_MARGIN_MS = 2;
 export const MAX_STEPS_PER_CALLBACK = 4096;
 /** The most steps the fast export runs for one video frame; past it the frame plays slower than real time, and is counted. */
 export const EXPORT_CATCH_UP_STEPS = 256;
-/** Steps the fast export runs between two looks at the clock (it yields to the page there once its time slice is spent). */
-export const EXPORT_CATCH_UP_CHUNK = 8;
+/**
+ * Steps the fast export runs between two looks at the clock (it yields to the page there once its time slice is spent): one.
+ * --- slow-motion --- (review fix) A heavy dilated run's step can cost tens of ms, and a frame of it owes a hundred of them: 8
+ * steps before a look blocked the tab for half a second. A look is one `performance.now()`.
+ */
+export const EXPORT_CATCH_UP_CHUNK = 1;
 /** Rounding slack (ms) of the debt: four quarter steps pay a whole step's debt. */
 const DEBT_EPSILON_MS = 1e-9;
 

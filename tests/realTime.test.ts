@@ -705,6 +705,6 @@ describe("a step's playback time, as the finder counts a run's length (--- slow-
     expect(playbackStepMs(step, false, 0.25)).toBe(step * 0.25);
     expect(playbackStepMs(step, false, MIN_DILATION)).toBe(step / EXPORT_CATCH_UP_STEPS);
     for (const frozen of [0, -1, NaN, Infinity]) expect(playbackStepMs(step, false, frozen), String(frozen)).toBe(step);
-    expect(EXPORT_CATCH_UP_CHUNK).toBe(8);
+    expect(EXPORT_CATCH_UP_CHUNK).toBe(1); // (review fix: the export looks at its time slice after every step)
   });
 });

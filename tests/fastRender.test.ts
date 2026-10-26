@@ -586,4 +586,41 @@ describe("fast export with the Slow motion switch off (--- slow-motion ---)", ()
     for (let f = 0; f < 60; f++) expect(await payExportFrame(whole, SIM_FRAME_MS, () => (n++, 1), () => void between++)).toBe(false);
     expect([n, whole.laggedFrames]).toEqual([60, 0]);
   });
+
+  it("looks at its time slice after every step: a frame of heavy dilated steps yields step by step once the slice is spent", async () => {
+    // (review fix) a run dilated to 1/128 owes about 128 steps a frame; at 50 ms a step, 8 steps before a look blocked the tab
+    // 400 ms at a time. The export's own slice (renderFast(): 32 ms, the frame budget with No limits on) on a fake clock.
+    const sliceMs = 32;
+    const stepMs = 50;
+    let clock = 0;
+    let lastYield = 0;
+    let longest = 0;
+    let yields = 0;
+    let looks = 0;
+    let steps = 0;
+    const between = async () => {
+      looks++;
+      if (clock - lastYield <= sliceMs) return;
+      longest = Math.max(longest, clock - lastYield);
+      await new Promise<void>((r) => setTimeout(r, 0));
+      yields++;
+      lastYield = clock;
+    };
+    const pacer = new OfflineRealTime();
+    const frames = 3;
+    for (let f = 0; f < frames; f++) {
+      const before = steps;
+      await payExportFrame(pacer, SIM_FRAME_MS, () => {
+        steps++;
+        clock += stepMs;
+        return 1 / 128;
+      }, between);
+      expect(steps - before).toBeGreaterThanOrEqual(128);
+      longest = Math.max(longest, clock - lastYield); // (the frame's draw follows: what it held since the last yield)
+      lastYield = clock; // (renderFast() yields after a frame whose slice is spent)
+    }
+    expect(looks).toBe(steps - frames); // a look after every step the frame still owes
+    expect(yields).toBe(steps - frames); // and, each step costing more than the slice, a yield at every look
+    expect(longest).toBeLessThanOrEqual(sliceMs + stepMs);
+  });
 });
