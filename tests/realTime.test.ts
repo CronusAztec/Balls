@@ -53,6 +53,47 @@ function fakeStepper(scale: () => number = () => 1, stepCpuMs = 0) {
 
 const run = (simSpeed = 1, drawDue = true): RealTimeInput => ({ running: true, simSpeed, drawDue });
 
+/**
+ * A 60 Hz display the way a browser calls rAF, with vsync jitter (16.67 ms ± 0.4, never exact multiples): a callback starts
+ * at a vsync, its steps cost `stepCpuMs` each of the CPU clock and a drawn frame `paintCpuMs`, and the next callback comes at
+ * the first vsync after it ends. `tick(nowMs, now)` is one callback of the scheduler under test; it returns whether it drew.
+ * Returns the vsync times of the drawn frames and the steps of each callback.
+ */
+function playDisplay(seconds: number, paintCpuMs: number, tick: (nowMs: number, cpu: { ms: number }) => { draw: boolean; steps: number }) {
+  const period = 1000 / 60;
+  const cpu = { ms: 0 };
+  const vsyncAt = (k: number) => 1000 + k * period + (((k * 7919) % 17) / 17) * 0.8 - 0.4;
+  let k = 0;
+  const draws: number[] = [];
+  const steps: number[] = [];
+  let last = vsyncAt(0);
+  while (vsyncAt(k) < 1000 + seconds * 1000) {
+    const nowMs = vsyncAt(k);
+    last = nowMs;
+    if (cpu.ms < nowMs) cpu.ms = nowMs;
+    const t = tick(nowMs, cpu);
+    steps.push(t.steps);
+    if (t.draw) {
+      draws.push(nowMs);
+      cpu.ms += paintCpuMs;
+    }
+    while (vsyncAt(k) <= cpu.ms) k++;
+  }
+  const gaps = draws.slice(1).map((d, i) => d - draws[i]);
+  return { draws, steps, gaps, maxGap: Math.max(...gaps), firstMs: vsyncAt(0), lastMs: last };
+}
+
+/** A stepper on `playDisplay`'s CPU clock: every step returns `scale` and costs `stepCpuMs`. */
+function cpuStepper(cpu: { ms: number }, scale: number, stepCpuMs: number): RealTimeStepper {
+  return {
+    step: () => {
+      cpu.ms += stepCpuMs;
+      return scale;
+    },
+    now: () => cpu.ms,
+  };
+}
+
 describe("the real-time scheduler (--- slow-motion ---)", () => {
   it("names its bounds: the frame budget for a drawing callback, and finite caps everywhere", () => {
     expect(DRAW_BUDGET_MS).toBe(FRAME_BUDGET_MS);
@@ -200,6 +241,100 @@ describe("the real-time scheduler (--- slow-motion ---)", () => {
     }
     expect(clock.framesSkipped).toBeGreaterThan(0);
     expect(covered).toBeCloseTo(wall - (now - lastDraw), 9);
+  });
+
+  it("keeps its 10 fps floor on a jittered 60 Hz display while it catches up a debt it can repay, and loses nothing", () => {
+    // 1/16 steps that cost 0.7 ms and a 10 ms picture: a frame drawn every callback cannot keep real time beside its picture,
+    // so the clock skips frames to keep up – and never leaves the canvas without one for more than 100 ms (the floor used to
+    // draw on the 7th vsync: 117 ms gaps, 8.6 fps, for a run that played in real time).
+    const clock = new RealTimeClock();
+    let stepper: RealTimeStepper | null = null;
+    const played = playDisplay(10, 10, (nowMs, cpu) => {
+      stepper ??= cpuStepper(cpu, 1 / 16, 0.7);
+      return clock.tick(nowMs, run(), stepper);
+    });
+    expect(played.maxGap).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1); // (the display's jitter: ±0.4 ms a vsync)
+    expect(played.draws.length).toBeGreaterThanOrEqual(10 * 10);
+    expect(clock.framesSkipped).toBeGreaterThan(0);
+    expect(clock.lostMs).toBe(0);
+    // the 10 s were all played: what the steps paid plus what is still owed is the wall time since the first callback
+    expect((clock.steps * STEP_MS) / 16 + clock.debtMs).toBeCloseTo(played.lastMs - played.firstMs, 6);
+  });
+
+  it("skips no frame for a debt at its cap it cannot repay: every due frame drawn, its steps within the frame budget", () => {
+    // Steps that cost 3 ms and pay 1/64 of a step: the device simulates about 1 ms a frame, and skipping frames cannot repay
+    // a debt that grows by 16 ms a frame. Once it hits the cap the canvas draws 60 frames a second, not its 10 fps floor.
+    const clock = new RealTimeClock();
+    let stepper: RealTimeStepper | null = null;
+    let skippedAtCap = -1;
+    let most = 0;
+    const played = playDisplay(6, 2, (nowMs, cpu) => {
+      stepper ??= cpuStepper(cpu, 1 / 64, 3);
+      const before = cpu.ms;
+      const t = clock.tick(nowMs, run(), stepper);
+      if (skippedAtCap >= 0) most = Math.max(most, cpu.ms - before);
+      if (skippedAtCap < 0 && clock.lostMs > 0) skippedAtCap = clock.framesSkipped;
+      return t;
+    });
+    expect(skippedAtCap).toBeGreaterThanOrEqual(0);
+    expect(clock.framesSkipped).toBe(skippedAtCap); // not one frame skipped once the debt hit its cap
+    expect(most).toBeLessThanOrEqual(DRAW_BUDGET_MS + 3); // (the budget plus the step that crossed it: no catch-up)
+    expect(played.draws.filter((d) => d >= played.firstMs + 2000).length).toBeGreaterThanOrEqual(0.95 * 4 * 60);
+    expect(played.maxGap).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1);
+    expect(clock.lostMs).toBeGreaterThan(4000); // what the steps could not pay is lost, and shown
+    expect(clock.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
+  });
+
+  it("catches up again once the debt can be repaid: a stretch it cannot keep up with, then cheap steps", () => {
+    const clock = new RealTimeClock();
+    let cost = 3;
+    const cpu = { ms: 0 };
+    const stepper: RealTimeStepper = {
+      step: () => {
+        cpu.ms += cost;
+        return cost === 3 ? 1 / 64 : 1;
+      },
+      now: () => cpu.ms,
+    };
+    let now = 0;
+    const next = () => (now = Math.max(now + 1000 / 60 + 0.3, cpu.ms));
+    clock.tick(now, run(), stepper);
+    for (let i = 0; i < 120; i++) clock.tick(next(), run(), stepper);
+    expect(clock.lostMs).toBeGreaterThan(0);
+    expect(clock.debtMs).toBeGreaterThan(DEBT_CAP_MS / 2);
+    cost = 0.5; // the load is gone: 24 whole steps fit a drawing callback's budget
+    for (let i = 0; i < 3; i++) clock.tick(next(), run(), stepper);
+    const lost = clock.lostMs;
+    for (let i = 0; i < 120; i++) clock.tick(next(), run(), stepper);
+    expect(clock.lostMs).toBe(lost);
+    expect(clock.owesStep).toBe(false);
+  });
+
+  it("repays a debt one long frame pushed to its cap and keeps skipping frames for it, the floor held", () => {
+    // 1/16 steps of 0.5 ms and a 10 ms picture (frames must be skipped to keep real time), and one 900 ms frame after 2 s (a
+    // long garbage collection, not a pause): the debt hits its cap once, and catching up repays it
+    const clock = new RealTimeClock();
+    let stepper: RealTimeStepper | null = null;
+    let hitch = false;
+    let after = 0;
+    let lostAfter = -1;
+    const played = playDisplay(8, 10, (nowMs, cpu) => {
+      stepper ??= cpuStepper(cpu, 1 / 16, 0.5);
+      if (!hitch && nowMs > 3000) {
+        hitch = true;
+        cpu.ms += 900;
+        return { draw: false, steps: 0 };
+      }
+      const t = clock.tick(nowMs, run(), stepper);
+      if (hitch && ++after === 3) lostAfter = clock.lostMs; // (the callbacks right after it still meet a debt at its cap)
+      return t;
+    });
+    expect(lostAfter).toBeGreaterThan(0); // the long frame pushed the debt past its cap
+    expect(clock.lostMs).toBe(lostAfter); // and then nothing more was lost: the clock caught up, skipping frames
+    expect(clock.owesStep).toBe(false);
+    expect(clock.framesSkipped).toBeGreaterThan(0);
+    const gaps = played.gaps.filter((g) => g < 800);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1);
   });
 
   it("owes nothing while the run does not play, and draws every due frame then", () => {
@@ -499,6 +634,32 @@ describe("a split-screen race's real-time scheduler (--- slow-motion ---)", () =
     for (const lane of lanes.lanes) expect(lane.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
     // within a round no arena runs twice
     for (let k = 0; k + 4 <= 40; k += 4) expect(new Set(a.order.slice(k, k + 4)).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("shares the clock's draw decision: the 10 fps floor while it catches up, every due frame once the debt is beyond repair", () => {
+    // two arenas of 1/16 steps at 0.35 ms (0.7 ms a round) beside a 10 ms picture: frames skipped, never a gap over 100 ms
+    const lanes = new RealTimeLanes();
+    let fns: (() => number)[] = [];
+    const light = playDisplay(10, 10, (nowMs, cpu) => {
+      if (fns.length === 0) fns = [cpuStepper(cpu, 1 / 16, 0.35).step, cpuStepper(cpu, 1 / 16, 0.35).step];
+      return lanes.tick(nowMs, run(), fns, () => cpu.ms);
+    });
+    expect(light.maxGap).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1);
+    expect(lanes.framesSkipped).toBeGreaterThan(0);
+    expect(lanes.lostMs).toBe(0);
+    // an arena whose steps cost 3 ms and pay 1/64: once its debt hits the cap, no frame is skipped
+    const heavy = new RealTimeLanes();
+    fns = [];
+    let skippedAtCap = -1;
+    const played = playDisplay(6, 2, (nowMs, cpu) => {
+      if (fns.length === 0) fns = [cpuStepper(cpu, 1, 0.05).step, cpuStepper(cpu, 1 / 64, 3).step];
+      const t = heavy.tick(nowMs, run(), fns, () => cpu.ms);
+      if (skippedAtCap < 0 && heavy.lostMs > 0) skippedAtCap = heavy.framesSkipped;
+      return t;
+    });
+    expect(skippedAtCap).toBeGreaterThanOrEqual(0);
+    expect(heavy.framesSkipped).toBe(skippedAtCap);
+    expect(played.draws.filter((d) => d >= played.firstMs + 2000).length).toBeGreaterThanOrEqual(0.95 * 4 * 60);
   });
 
   it("runs at least one step a callback, ends on a frozen arena and a dilation of 2^-20, and owes nothing paused", () => {

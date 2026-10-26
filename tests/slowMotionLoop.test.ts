@@ -501,6 +501,14 @@ describe("the live loop with Slow motion off (--- slow-motion ---): real time, d
     expect(real.debtMs).toBeLessThanOrEqual(DEBT_CAP_MS);
     expect(real.lostMs).toBeGreaterThan(0);
     expect(real.framesSkipped).toBeGreaterThan(0);
+    // once the debt sits at its cap, skipping a frame would repay nothing: every due frame is drawn – 20 a second (a 40 ms
+    // step and its picture span three vsyncs), not the 10 fps floor – and the time is lost, and shown
+    const skipped = real.framesSkipped;
+    const drawn = paints.length;
+    playVsync(loop, 5, { stepCpuMs: 40 });
+    expect(real.framesSkipped).toBe(skipped);
+    expect(loop.paints().length - drawn).toBeGreaterThanOrEqual(95);
+    expect(loop.budget.slow).toBe(true);
   });
 
   it("owes nothing while the run is paused, not started or held, and draws every due frame then", () => {
