@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
@@ -24,27 +24,34 @@ export const UNLIMITED_KEYS = ["unlimited", "slowMotion" /* --- slow-motion --- 
  * stays as typed, the track pins at its end.
  * --- slow-motion --- The block's second row is the Slow motion switch (`slowMotion`, link `smo=0`): on, the default, every
  * automatic slow motion plays as always; off, the run plays in real time (see lib/simulation/realTime.ts). While searching,
- * each row stands on its own card like every other control.
+ * each row stands on its own card like every other control. Both are switches named by their labels, as the panel's Toggle
+ * is: a screen reader hears "Wide sliders, switch, on" and "Slow motion, switch, on", never two bare "ON"s in a row.
  */
 export default function UnlimitedSection({ search, matches, settings: s, update }: UnlimitedSectionProps) {
   const u = useTranslations("Unlimited");
+  // --- slow-motion --- (review fix) each switch is named by its label (aria-labelledby), the tooltip stays outside the name
+  // and the ON / OFF word is for the eye only (aria-hidden), as in the panel's Toggle
+  const wideLabelId = useId();
+  const slowLabelId = useId();
   const on = s.unlimited;
   const toggle = () => update({ unlimited: !on }); // --- uncap-all --- (the track only: no value is touched)
   const wide = (
     <>
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-ink">
-          {u("label")}
+        <span className="flex items-center text-sm font-semibold text-ink">
+          <span id={wideLabelId}>{u("label")}</span>
           <Tooltip text={u("tip")} />
-        </label>
+        </span>
         <button
           type="button"
+          role="switch"
           onClick={toggle}
-          aria-pressed={on}
+          aria-checked={on}
+          aria-labelledby={wideLabelId}
           data-testid="unlimited-toggle"
           className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${on ? "bg-warn text-accent-ink" : offBtn}`}
         >
-          {on ? u("on") : u("off")}
+          <span aria-hidden="true">{on ? u("on") : u("off")}</span>
         </button>
       </div>
       <p className={`text-xs ${on ? "text-warn" : "text-ink-2"}`}>{u("warning")}</p>
@@ -54,18 +61,20 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
   const slow = s.slowMotion;
   const slowRow = (
     <div className="flex items-center justify-between" data-testid="slow-motion-row">
-      <label className="text-sm font-semibold text-ink">
-        {u("slowMotion")}
+      <span className="flex items-center text-sm font-semibold text-ink">
+        <span id={slowLabelId}>{u("slowMotion")}</span>
         <Tooltip text={u("slowMotionTip")} />
-      </label>
+      </span>
       <button
         type="button"
+        role="switch"
         onClick={() => update({ slowMotion: !slow })}
-        aria-pressed={slow}
+        aria-checked={slow}
+        aria-labelledby={slowLabelId}
         data-testid="slow-motion-toggle"
         className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${slow ? "bg-accent text-accent-ink" : offBtn}`}
       >
-        {slow ? u("on") : u("off")}
+        <span aria-hidden="true">{slow ? u("on") : u("off")}</span>
       </button>
     </div>
   );

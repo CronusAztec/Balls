@@ -30,7 +30,23 @@ import type { ModeId } from "@/lib/physics/types";
 
 const controls = en.Controls as Record<string, string>;
 const t = ((key: string, values?: Record<string, unknown>) => String(new IntlMessageFormat(controls[key] ?? key, "en").format(values as Record<string, string>))) as unknown as Translate;
-const render = (child: React.ReactElement) => renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "en", messages: en, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, child));
+const render = (child: React.ReactElement, locale = "en", messages: unknown = en) => renderToStaticMarkup(createElement(NextIntlClientProvider, { locale, messages, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, child));
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The switch named `name` in rendered markup, found the way a screen reader finds it: a role="switch" button whose
+ * aria-labelledby points at an element with exactly that text. Its state (aria-checked), its test id, and its accessible
+ * content (what is left once the aria-hidden ON / OFF word is taken out: nothing). Null when no switch has that name.
+ */
+const switchNamed = (html: string, name: string) => {
+  const label = new RegExp(`<span id="([^"]+)">${escapeRe(name)}</span>`).exec(html);
+  if (!label) return null;
+  const button = new RegExp(`<button([^>]*)aria-labelledby="${escapeRe(label[1])}"([^>]*)>(.*?)</button>`).exec(html);
+  if (!button) return null;
+  const attrs = button[1] + button[2];
+  if (!/role="switch"/.test(attrs)) return null;
+  const shown = /<span aria-hidden="true">([^<]*)<\/span>/.exec(button[3])?.[1] ?? null;
+  return { checked: /aria-checked="([a-z]+)"/.exec(attrs)?.[1] ?? null, testId: /data-testid="([^"]+)"/.exec(attrs)?.[1] ?? null, shown, spoken: button[3].replace(/<span aria-hidden="true">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "") };
+};
 /** The panel's matcher (Controls.tsx): a key or its Controls label containing the query. */
 const matcherOf = (search: string) => (key: string) => !search || key.toLowerCase().includes(search.toLowerCase()) || (controls[key] ?? "").toLowerCase().includes(search.toLowerCase());
 const props = (s: SimulatorSettings, search = "") => ({ t, search, matches: matcherOf(search), settings: s, update: () => {} });
@@ -41,13 +57,32 @@ describe("the Slow motion switch in Ball & Physics (--- slow-motion ---)", () =>
   it("is the block's second row: ON by default, OFF with smo=0, next to Wide sliders", () => {
     const on = section(UnlimitedSection, settingsOf("classic"));
     expect(on).toContain('data-testid="unlimited-section"');
-    expect(on).toMatch(/aria-pressed="true" data-testid="slow-motion-toggle"[^>]*>ON</);
+    // --- slow-motion --- (review fix) found by its role and name, as a screen reader finds it
+    expect(switchNamed(on, "Slow motion")).toMatchObject({ checked: "true", testId: "slow-motion-toggle", shown: "ON" });
     expect(on).toContain("Slow motion");
     expect(on.indexOf('data-testid="unlimited-toggle"')).toBeLessThan(on.indexOf('data-testid="slow-motion-toggle"'));
     const off = section(UnlimitedSection, settingsOf("classic", { slowMotion: false }));
-    expect(off).toMatch(/aria-pressed="false" data-testid="slow-motion-toggle"[^>]*>OFF</);
+    expect(switchNamed(off, "Slow motion")).toMatchObject({ checked: "false", testId: "slow-motion-toggle", shown: "OFF" });
     // Wide sliders keeps its own state
-    expect(off).toMatch(/aria-pressed="true" data-testid="unlimited-toggle"/);
+    expect(switchNamed(off, "Wide sliders")).toMatchObject({ checked: "true", testId: "unlimited-toggle" });
+  });
+
+  it("names both switches by their labels in every locale: never by ON / OFF, the tooltip outside the name (--- slow-motion --- review fix)", () => {
+    for (const [locale, catalog] of [["en", en], ["pl", pl], ["es", es]] as const) {
+      const u = catalog.Unlimited as Record<string, string>;
+      for (const slowMotion of [true, false]) {
+        const html = render(createElement(UnlimitedSection as unknown as React.FC<ReturnType<typeof props>>, props(settingsOf("classic", { slowMotion }))), locale, catalog);
+        const slow = switchNamed(html, u.slowMotion);
+        const wide = switchNamed(html, u.label);
+        expect([locale, slow?.testId, slow?.checked, slow?.shown]).toEqual([locale, "slow-motion-toggle", String(slowMotion), slowMotion ? u.on : u.off]);
+        expect([locale, wide?.testId, wide?.checked, wide?.shown]).toEqual([locale, "unlimited-toggle", "true", u.on]);
+        // nothing of the button itself is read out but its name: the ON / OFF word is for the eye only
+        expect([slow?.spoken, wide?.spoken]).toEqual(["", ""]);
+        // the label is no <label> tied to nothing, and the ON / OFF words name no switch
+        expect(html).not.toContain("<label");
+        expect([switchNamed(html, u.on), switchNamed(html, u.off)]).toEqual([null, null]);
+      }
+    }
   });
 
   it("is found by the search box on its own card, and Wide sliders on its own", () => {

@@ -8101,7 +8101,7 @@ await smokeBlock("unlimited", async () => {
   }
   const worstClick = Math.max(...latencies);
   // The Ball & Physics section is open (odd number of clicks): the switch is on and the speed input holds the typed value.
-  const toggleOn = (await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null)) === "true";
+  const toggleOn = (await page.getByRole("switch", { name: "Wide sliders", exact: true }).getAttribute("aria-checked").catch(() => null)) === "true"; // --- slow-motion --- (review fix) the switch by its role and name
   const speedInput = await page.locator('input[data-number-field="ballSpeed"]').inputValue().catch(() => ""); // --- uncap-all --- the number field next to every slider
   check(
     "no limits: an extreme link (50,000 balls, huge speed) runs time-sliced with the real-time badge and stays responsive",
@@ -8155,7 +8155,7 @@ await smokeBlock("unlimited", async () => {
     const q = new URLSearchParams(location.search);
     return { inf: q.get("inf"), wc: q.get("wc") };
   });
-  const ringsSwitch = await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null);
+  const ringsSwitch = await page.getByRole("switch", { name: "Wide sliders", exact: true }).getAttribute("aria-checked").catch(() => null); // --- slow-motion --- (review fix) by its role and name
   // (--- unlimited-sizes --- Wide sliders is on by default now: a link without `inf` leaves it at its default, on, and the link
   // still carries no `inf`; the run is engaged by the value either way)
   check(
@@ -8210,10 +8210,11 @@ await smokeBlock("unlimited", async () => {
   );
   // The switch itself: the second row of the block at the top of Ball & Physics turns off and on again; the link carries smo=0
   // only while it is off, and a link with smo=0 opens with it off (the round trip); the search box finds it on its own card; the
-  // canvas follows (data-slow-motion 0 while it is off, nothing while it is on)
+  // canvas follows (data-slow-motion 0 while it is off, nothing while it is on). --- slow-motion --- (review fix) Both switches are
+  // found by their role and their names, as a screen reader finds them ("Slow motion", "Wide sliders": never a bare ON / OFF).
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
-  const slowToggle = page.getByTestId("slow-motion-toggle");
-  const switchState = async () => ({ pressed: await slowToggle.getAttribute("aria-pressed").catch(() => null), smo: await page.evaluate(() => new URLSearchParams(location.search).get("smo")) });
+  const slowToggle = page.getByRole("switch", { name: "Slow motion", exact: true });
+  const switchState = async () => ({ pressed: await slowToggle.getAttribute("aria-checked").catch(() => null), smo: await page.evaluate(() => new URLSearchParams(location.search).get("smo")) });
   await page.getByRole("button", { name: /Ball & Physics/ }).click();
   const atStart = await switchState();
   await slowToggle.click();
@@ -8225,8 +8226,8 @@ await smokeBlock("unlimited", async () => {
   await page.getByRole("button", { name: /Ball & Physics/ }).click();
   const reopened = await switchState();
   await page.getByPlaceholder("Search settings...").fill("slow motion");
-  const ownCard = await page.locator('[data-search-key="slowMotion"] [data-testid="slow-motion-toggle"]').isVisible().catch(() => false);
-  const wideHidden = !(await page.getByTestId("unlimited-toggle").isVisible().catch(() => false));
+  const ownCard = await page.locator('[data-search-key="slowMotion"]').getByRole("switch", { name: "Slow motion", exact: true }).isVisible().catch(() => false);
+  const wideHidden = !(await page.getByRole("switch", { name: "Wide sliders", exact: true }).isVisible().catch(() => false));
   await page.getByPlaceholder("Search settings...").fill("");
   await slowToggle.click();
   await page.waitForTimeout(300);
