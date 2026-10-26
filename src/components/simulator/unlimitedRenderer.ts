@@ -11,12 +11,14 @@
  *  - `data-unlimited-*` attributes mirror the state for tools and the smoke test.
  *  - --- slow-motion --- With the Slow motion switch off, the real-time badge shows whenever the run plays noticeably slower
  *    than real time, No limits or not (`drawHud(…, forceRealTime)`), and `data-slow-motion` / `data-realtime-*` mirror the
- *    real-time clock (`writeSlowMotionDataset()`).
+ *    real-time clock (`writeSlowMotionDataset()`). A split-screen race draws the same badge once on its composed frame
+ *    (`RaceRealTimeBadge`: its arenas draw offline, with no badge of their own).
  */
 import { LOD_PLAIN_FROM, LOD_POINTS_FROM, type UnlimitedView } from "@/lib/physics/limits";
 import type { Crowd } from "@/lib/physics/crowd";
 import type { Ball } from "@/lib/physics/types";
-import { formatRealTime } from "@/lib/simulation/frameBudget";
+import { FrameBudget, formatRealTime } from "@/lib/simulation/frameBudget";
+import type { RealTimeTick } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { formatHuge } from "@/lib/unlimited";
 
 export interface UnlimitedLabels {
@@ -316,5 +318,42 @@ export function writeSlowMotionDataset(slowMotion: boolean, clock: RealTimeData 
   set("realtimeDebtMs", String(Math.round(clock.debtMs)));
   set("realtimeLostMs", String(Math.round(clock.lostMs)));
   set("framesSkipped", String(clock.framesSkipped));
+}
+
+/** No limits off: `drawHud()` draws the real-time badge alone. */
+const NO_LIMITS_VIEW: UnlimitedView = { on: false, crowd: 0, objects: 0, full: false, bounces: 0, ate: false, ateRadius: 0, rescued: 0 };
+
+/**
+ * --- review fix --- A split-screen race's real-time badge with the Slow motion switch off (splitScreenCanvas.tsx). Its arenas
+ * draw offline, with no badge of their own (their frame budget starts over every frame), so the stage keeps the race's
+ * `FrameBudget`, fed by every `RealTimeLanes.tick()` – the wall time, what it owed, what the slowest arena paid – and draws the
+ * badge once on the composed frame, bottom right of the square the recorder crops to, as the page's canvas does.
+ */
+export class RaceRealTimeBadge {
+  readonly time = new FrameBudget();
+  private readonly layer = new UnlimitedLayer();
+
+  /** One callback of the race's clock; `playing`: started, not paused, an arena still running. Otherwise, or for a new race, it starts over. */
+  note(tick: Pick<RealTimeTick, "wallMs" | "wantedMs" | "paidMs" | "restarted">, playing: boolean) {
+    if (!playing || tick.restarted) this.time.reset();
+    else this.time.note(tick.wallMs, tick.wantedMs, tick.paidMs);
+  }
+
+  /** The switch is on (or the race went): nothing to show. */
+  reset() {
+    this.time.reset();
+  }
+
+  /** The badge shows: the race plays noticeably slower than real time. */
+  get slow(): boolean {
+    return this.time.slow;
+  }
+
+  /** Draws it while it shows, bottom right of the square (`x0`, `y0`, `side`), `bottomInset` above its edge; true when it did. */
+  draw(ctx: CanvasRenderingContext2D, labels: UnlimitedLabels, x0: number, y0: number, side: number, nowMs: number, bottomInset = 0): boolean {
+    if (!this.time.slow) return false;
+    this.layer.drawHud(ctx, NO_LIMITS_VIEW, this.time, labels, x0, y0, side, nowMs, bottomInset, true);
+    return true;
+  }
 }
 // --- end slow-motion ---

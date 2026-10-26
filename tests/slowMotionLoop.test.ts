@@ -3,10 +3,10 @@ import path from "path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { FrameGate } from "@/components/simulator/renderBudget";
-import { FrameBudget } from "@/lib/simulation/frameBudget";
-import { DEBT_CAP_MS, EXPORT_CATCH_UP_STEPS, MIN_DRAW_INTERVAL_MS, OfflineRealTime, RealTimeClock, STEP_MS, realWallMs } from "@/lib/simulation/realTime";
+import { FrameBudget, formatRealTime } from "@/lib/simulation/frameBudget";
+import { DEBT_CAP_MS, EXPORT_CATCH_UP_STEPS, MIN_DRAW_INTERVAL_MS, OfflineRealTime, RealTimeClock, RealTimeLanes, STEP_MS, realWallMs } from "@/lib/simulation/realTime";
 import { DEFAULT_MULTIPLIER_LABELS, drawMultiplierHud } from "@/components/simulator/multiplierRenderer";
-import { DEFAULT_UNLIMITED_LABELS, SLOW_MOTION_DATA_KEYS, UnlimitedLayer, writeSlowMotionDataset } from "@/components/simulator/unlimitedRenderer";
+import { DEFAULT_UNLIMITED_LABELS, RaceRealTimeBadge, SLOW_MOTION_DATA_KEYS, UnlimitedLayer, writeSlowMotionDataset } from "@/components/simulator/unlimitedRenderer";
 import type { UnlimitedView } from "@/lib/physics/limits";
 import type { MultiplierView } from "@/lib/physics/multipliers";
 
@@ -637,6 +637,42 @@ describe("the badges with Slow motion off (--- slow-motion ---): the real-time b
     // a full arena or a crowd belong to No limits: never with it off, all three with it on
     expect(draw({ ...OFF_VIEW, full: true, crowd: 50 }, slow, true)).toEqual(["x0.4 REAL TIME"]);
     expect(draw({ ...OFF_VIEW, on: true, full: true, crowd: 50 }, slow, false)).toEqual(["ARENA FULL", "x0.4 REAL TIME", "53 BALLS"]);
+  });
+
+  it("draws a split-screen race's real-time badge once, from the lanes' clock, while the race falls behind", () => {
+    // --- review fix --- the arenas draw offline (their frame budget starts over every frame): the stage had no badge at all,
+    // the lost time only in a data attribute. Two arenas of 30 ms steps on a 60 Hz clock: about half of real time.
+    const lanes = new RealTimeLanes();
+    const badge = new RaceRealTimeBadge();
+    const cpu = { ms: 0 };
+    const fns = [0, 1].map(() => () => ((cpu.ms += 30), 1));
+    let now = 0;
+    const frame = (running = true, runMs?: number) => {
+      now = Math.max(now + 1000 / 60, cpu.ms);
+      cpu.ms = now;
+      const t = lanes.tick(now, { running, simSpeed: 1, drawDue: true, frameBudget: false, runMs }, fns, () => cpu.ms);
+      badge.note(t, running);
+      const { ctx, texts } = textCtx();
+      return { drawn: badge.draw(ctx, DEFAULT_UNLIMITED_LABELS, 0, 0, 800, now, 52), texts };
+    };
+    for (let i = 0; i < 120; i++) frame(true, 1000 + i);
+    const behind = frame(true, 2000);
+    expect(badge.slow).toBe(true);
+    expect(badge.time.ratio).toBeLessThan(0.9);
+    expect(behind.drawn).toBe(true);
+    expect(behind.texts).toEqual([`x${formatRealTime(badge.time.ratio)} REAL TIME`]); // the badge alone: no crowd, no ARENA FULL
+    // paused: no badge; a new race (the page engine's clock back): it starts over too
+    expect(frame(false).drawn).toBe(false);
+    for (let i = 0; i < 120; i++) frame(true, 3000 + i);
+    expect(badge.slow).toBe(true);
+    expect(frame(true, 0).drawn).toBe(false);
+    // a race that keeps up never shows it
+    const light = new RealTimeLanes();
+    const quiet = new RaceRealTimeBadge();
+    const cheap = [0, 1].map(() => () => 1);
+    for (let i = 0; i < 120; i++) quiet.note(light.tick(i * (1000 / 60), { running: true, simSpeed: 1, drawDue: true, frameBudget: false }, cheap, () => 0), true);
+    expect(quiet.slow).toBe(false);
+    expect(quiet.draw(textCtx().ctx, DEFAULT_UNLIMITED_LABELS, 0, 0, 800, 0)).toBe(false);
   });
 
   it("tags SLOW-MO with the dilation the page does not repay: none for the engine's own, the bounce-math clock's share stays", () => {

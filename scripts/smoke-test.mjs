@@ -6437,6 +6437,29 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     `(one: split=${single.split}, ac=${singleUrl}; two: ${two.splitViewports}, ac=${twoUrl}, modes ${two.splitModes})`,
   );
 }
+{
+  // --- slow-motion --- (review fix) With the Slow motion switch off a race that falls behind real time shows the real-time
+  // badge, once on the composed frame, bottom right of the recorded square, as the page's canvas does (the arenas draw offline,
+  // with no badge of their own): data-split-realtime-slow / -ratio mirror it. A race that keeps up shows none.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2&smo=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(3000);
+  const light = await canvasData();
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ac=4&al=grid&gap=0&nb=20000&smo=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const behind = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.splitSlowMotion === "0" && d.splitRealtimeSlow === "1" ? { ...d } : null;
+    }, null, { timeout: 30000 })
+    .then((h) => h.jsonValue())
+    .catch(() => null);
+  check(
+    "split screen: a race with Slow motion off that falls behind real time shows the real-time badge on its composed frame; one that keeps up shows none",
+    light.splitSlowMotion === "0" && light.splitRealtimeSlow === "0" && !!behind && Number(behind.splitRealtimeRatio) < 0.9 && behind.split === "4",
+    `(light: slow ${light.splitRealtimeSlow}, x${light.splitRealtimeRatio}; behind: ${behind ? `slow ${behind.splitRealtimeSlow}, x${behind.splitRealtimeRatio}, lost ${behind.splitRealtimeLostMs} ms` : "never shown"})`,
+  );
+}
 // --- end split-screen ---
 });
 

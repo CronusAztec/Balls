@@ -16,7 +16,8 @@ import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
 import { RealTimeLanes, type RealTimeInput } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhere ---
-import { noteEdgeText } from "./liveMarkHud"; // --- watermark-everywhere ---
+import { noteCornerReadouts, noteEdgeText } from "./liveMarkHud"; // --- watermark-everywhere ---
+import { DEFAULT_UNLIMITED_LABELS, RaceRealTimeBadge } from "./unlimitedRenderer"; // --- slow-motion --- (review fix) the race's real-time badge
 
 /*
  * --- split-screen --- The page's canvas during a split-screen race (lib/splitScreen.ts, lib/simulation/multi.ts). Every
@@ -277,6 +278,10 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     const laneInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false, frameBudget: false }; // (--- review fix --- the arenas' old loop had no frame budget: a drawn frame runs at least its steps)
     const laneSteps: (() => number)[] = [];
     const noStep = () => 1; // (an arena whose canvas has not mounted yet: it owes nothing it could run)
+    // --- slow-motion --- (review fix) the race's real-time badge: the arenas draw offline with none of their own, so the stage
+    // keeps the race's frame budget on the lanes' clock and draws the badge once, bottom right of the recorded square
+    const raceBadge = new RaceRealTimeBadge();
+    const badgeSquare = { x0: ox, y0: oy, side };
     const frame = (ts?: number) => {
       raf = requestAnimationFrame(frame);
       // --- review fix (performance) --- a 60 fps budget on the rAF timestamps (not a 15 ms minimum gap: 37–55 fps at 75–165 Hz)
@@ -303,11 +308,13 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         sp.runner.beforeFrame();
         const tick = lanes.tick(now, laneInput, laneSteps, () => performance.now());
         sp.runner.afterFrame(now);
+        raceBadge.note(tick, laneInput.running && !sp.runner.allFinished()); // --- review fix --- (a finished race's clocks stand still: no badge)
         if (!tick.draw) return;
         dt = tick.frameMs;
         paintStart = performance.now(); // --- review fix --- (what the composed frame takes: lanes.drew() below)
       } else {
         lanesLive = false;
+        raceBadge.reset(); // --- review fix --- (the switch on: the arenas' own loops, no real-time badge)
         if (!gate.due(now)) return;
         dt = last > 0 ? Math.min(now - last, 100) : 16.7;
       }
@@ -501,6 +508,11 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         captionLayer.draw(ctx, sp.engines[0], captionOptions, captionView);
       } else captionLayer.clear();
 
+      // --- slow-motion --- (review fix) the real-time badge, once for the race, where the page's canvas draws it (live, above the
+      // playback-speed buttons; never in a recording, which crops them away)
+      const badgeInset = !recordingRef.current ? 52 : 0;
+      const realTimeBadge = realTime && raceBadge.draw(ctx, p.labels?.unlimited ?? DEFAULT_UNLIMITED_LABELS, ox, oy, side, now, badgeInset);
+
       // --- watermark-everywhere --- The composed frame's last pass: the watermark of a visitor without a Pro licence, once for
       // the whole race (lib/watermark/live.ts – the arenas' own canvases are offline and carry none), clear of the arena labels,
       // the Top / Bottom Text (the recorder's lines while it records) and the captions; the recorder copies it with the frame.
@@ -515,6 +527,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         }
         if (captionLayer.usesTop) liveHud.topBand(captionLayer.stackEdges.top);
         if (captionLayer.usesBottom) liveHud.bottomBand(captionLayer.stackEdges.bottom);
+        if (realTimeBadge) noteCornerReadouts(liveHud, badgeSquare, true, 1, badgeInset); // --- slow-motion --- (the race's real-time badge)
         liveFrame.nowMs = now;
         if (recExport) {
           liveRecording.startMs = clipStartRef.current;
@@ -557,10 +570,14 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
           setData("splitSlowMotion", "0");
           setData("splitRealtimeSteps", lanes.lanes.map((l) => String(l.steps)).join(","));
           setData("splitRealtimeLostMs", String(Math.round(lanes.lostMs)));
+          setData("splitRealtimeRatio", raceBadge.time.ratio.toFixed(3)); // --- review fix --- (the race's badge: its rate and whether it shows)
+          setData("splitRealtimeSlow", raceBadge.slow ? "1" : "0");
         } else if (canvas.dataset.splitSlowMotion !== undefined) {
           delete canvas.dataset.splitSlowMotion;
           delete canvas.dataset.splitRealtimeSteps;
           delete canvas.dataset.splitRealtimeLostMs;
+          delete canvas.dataset.splitRealtimeRatio;
+          delete canvas.dataset.splitRealtimeSlow;
         }
       }
       fpsRef.current = 0.9 * fpsRef.current + 0.1 * (1000 / Math.max(1, dt));
