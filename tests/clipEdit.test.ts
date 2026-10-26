@@ -17,6 +17,10 @@ import { FastRenderUnsupportedError, pickExportFormat } from "@/lib/recording/fa
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
 import ClipEditorDialog, { type ClipEditorSource } from "@/components/simulator/clipEditor/ClipEditorDialog";
+import { CLIP_CARD_TOP_SEC, CLIP_EDIT_FRAME_CEILING, clipEditTrack } from "@/lib/clipEdit/spec"; // --- review fix (unlimited-sizes) ---
+import { UnlimitedProvider } from "@/components/simulator/unlimitedSlider"; // --- review fix (unlimited-sizes) ---
+import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- review fix (unlimited-sizes) ---
+import { UNLIMITED_SLIDER_CEILING, hasWideTrack, sliderCeiling } from "@/lib/unlimited"; // --- review fix (unlimited-sizes) ---
 import { setDesktopExportCodec } from "@/lib/desktop/gpuEncode";
 import { renderClipEdit } from "@/lib/clipEdit/render";
 
@@ -1130,5 +1134,80 @@ describe("the editor's failures, progress and preview", () => {
     expect(dialog).toMatch(/if \(!canvas \|\| !opened \|\| durationSec === null \|\| rendering \|\| !seal\) return;/);
     expect(dialog).toMatch(/\}, \[scrub, [^\]]*\bseal\]\);/);
     expect(dialog).toMatch(/\{ seal, clipMs: tSec \* 1000, fanMade, cutFile, fanMadeBurned \}/);
+  });
+});
+
+// --- review fix (unlimited-sizes) --- (plan step 15) the editor's Start, Length, Zoom and Card are uncapped like the panel's:
+// a track that widens past its comfort range and a number field beside it (a cut could not pass 60 s, a crop-in 2× or a card 4 s)
+describe("Clip editor: every number past its slider", () => {
+  const KEYS = ["startSec", "lengthSec", "zoom", "cardSec"] as const;
+
+  it("gives each a track named clipEdit:<key> and a number field, the wide track by default and the comfort one with Wide sliders off", () => {
+    const source: ClipEditorSource = { blob: new Blob([]), name: "x.mp4" };
+    const html = renderEditor("en", source);
+    for (const key of KEYS) {
+      expect(tagOf(html, `clip-edit-${key}`), key).toMatch(/^<input type="range"/);
+      expect(attrOf(tagOf(html, `clip-edit-${key}-value`), "data-number-field"), key).toBe(`clipEdit:${key}`);
+    }
+    // before the source is open the start and the length keep their comfort ranges; the crop-in and the card widen
+    for (const key of ["zoom", "cardSec"] as const) expect(attrOf(tagOf(html, `clip-edit-${key}`), "data-unlimited-slider"), key).toBe(`clipEdit:${key}`);
+    for (const key of ["startSec", "lengthSec"] as const) expect(attrOf(tagOf(html, `clip-edit-${key}`), "max"), key).toBe(String(CLIP_EDIT_RANGES[key].max));
+    // a spec past the old ends shows as typed: 90 s of action, a 3× crop-in, a 10 s card
+    const far = renderEditor("en", source, { lengthSec: 90, zoom: 3, cardSec: 10 });
+    expect(attrOf(tagOf(far, "clip-edit-lengthSec-value"), "value")).toBe("90");
+    expect(attrOf(tagOf(far, "clip-edit-zoom-value"), "value")).toBe("3");
+    expect(attrOf(tagOf(far, "clip-edit-cardSec-value"), "value")).toBe("10");
+    expect(attrOf(tagOf(far, "clip-edit-zoom"), "aria-valuetext")).toBe("200 %");
+    expect(attrOf(tagOf(far, "clip-edit-cardSec"), "aria-valuetext")).toBe("10.0 s");
+    // Wide sliders off: the comfort tracks, the number fields still there
+    const off = renderToStaticMarkup(
+      createElement(
+        NextIntlClientProvider,
+        { locale: "en", messages: JSON.parse(read("messages/en.json")), timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>,
+        createElement(UnlimitedProvider as unknown as React.FC<{ on: boolean }>, { on: false }, createElement(ClipEditorDialog, { source, onClose: () => {} })),
+      ),
+    );
+    for (const key of KEYS) {
+      expect(tagOf(off, `clip-edit-${key}`), key).not.toContain("data-unlimited-slider");
+      expect(attrOf(tagOf(off, `clip-edit-${key}`), "max"), key).toBe(String(CLIP_EDIT_RANGES[key].max));
+      expect(tagOf(off, `clip-edit-${key}-value`), key).not.toBe("");
+    }
+  });
+
+  it("ends the start's and the length's track at the source's own end, the card's where a cut's file does, and the crop-in's at the scalar ceiling", () => {
+    // a 120 s source: the length's track goes on past 60 s to the room after the start (the old track stopped at 60 s)
+    const length = clipEditTrack("lengthSec", 117);
+    expect(length).toEqual({ range: CLIP_EDIT_RANGES.lengthSec, top: 117 });
+    expect(hasWideTrack("clipEdit:lengthSec", length.range, length.top)).toBe(true);
+    expect(sliderCeiling("clipEdit:lengthSec", length.range, length.top)).toBe(117);
+    // a 1,000 s source: the start's track goes on to its last second
+    expect(clipEditTrack("startSec", 999)).toEqual({ range: CLIP_EDIT_RANGES.startSec, top: 999 });
+    // a 20 s source: the tracks end at the source, no wide part
+    const short = clipEditTrack("lengthSec", 17);
+    expect(short).toEqual({ range: { ...CLIP_EDIT_RANGES.lengthSec, max: 17 }, top: 17 });
+    expect(hasWideTrack("clipEdit:lengthSec", short.range, short.top)).toBe(false);
+    expect(clipEditTrack("startSec", 19).range.max).toBe(19);
+    // no source yet: the comfort ranges only
+    for (const key of ["startSec", "lengthSec"] as const) expect(clipEditTrack(key)).toEqual({ range: CLIP_EDIT_RANGES[key], top: CLIP_EDIT_RANGES[key].max });
+    // the card: as long as a cut's file can be; the crop-in: the panel's scalar ceiling
+    expect(CLIP_CARD_TOP_SEC).toBe(EXPORT_FRAME_CEILING / CLIP_EDIT_OUTPUT.fps);
+    expect(clipEditTrack("cardSec")).toEqual({ range: CLIP_EDIT_RANGES.cardSec, top: CLIP_CARD_TOP_SEC });
+    expect(clipEditTrack("zoom")).toEqual({ range: CLIP_EDIT_RANGES.zoom });
+    expect(sliderCeiling("clipEdit:zoom", CLIP_EDIT_RANGES.zoom)).toBe(UNLIMITED_SLIDER_CEILING);
+    // a typed length past the source is cut at the file's end; inside it, kept past the old 60 s
+    const long = parseClipEdit({ ...DEFAULT_CLIP_EDIT, lengthSec: 200, zoom: 3, cardSec: 10 });
+    expect([long.lengthSec, long.zoom, long.cardSec]).toEqual([200, 3, 10]);
+    expect(fitClipEdit({ ...long, lengthSec: 90 }, 120).lengthSec).toBe(90);
+    expect(fitClipEdit(long, 120).lengthSec).toBe(117);
+  });
+
+  it("ends a cut at the file's memory ceiling, frames and sound together; every cut inside it is as before", () => {
+    expect(CLIP_EDIT_FRAME_CEILING).toBe(EXPORT_FRAME_CEILING);
+    const huge = clipTimeline({ ...DEFAULT_CLIP_EDIT, cardSec: 1e9 }, 30);
+    expect([huge.frames, huge.totalSec, huge.actionSec, huge.cardSec]).toEqual([EXPORT_FRAME_CEILING, EXPORT_FRAME_CEILING / 30, DEFAULT_CLIP_EDIT.lengthSec, 1e9]);
+    expect(audioGainAt(huge, DEFAULT_CLIP_EDIT.lengthSec + 1)).toBe(0);
+    const atCeiling = clipTimeline({ ...DEFAULT_CLIP_EDIT, lengthSec: 10, cardSec: EXPORT_FRAME_CEILING / 30 - 10 }, 30);
+    expect([atCeiling.frames, atCeiling.totalSec]).toEqual([EXPORT_FRAME_CEILING, EXPORT_FRAME_CEILING / 30]);
+    expect(clipTimeline(DEFAULT_CLIP_EDIT, 30)).toEqual({ actionSec: 11, cardSec: 1.5, fadeStartSec: 11 - CARD_FADE_SEC, totalSec: 12.5, frames: 375 });
   });
 });

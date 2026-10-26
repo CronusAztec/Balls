@@ -13,7 +13,9 @@ import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { composeCutSpec, cutFileTrim, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
-import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipEditTrack, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditNumberKey, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { SliderTrack } from "@/components/simulator/ControlPrimitives"; // --- review fix (unlimited-sizes) --- (the wide tracks)
+import NumberField from "@/components/simulator/NumberField"; // --- review fix (unlimited-sizes) --- (any start, length, crop-in or card)
 
 /*
  * --- clip-editor --- The Clip editor: a finished video (a fast export, a recording, a file, the Windows app's Library)
@@ -232,19 +234,23 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     }
   }, [source, fitted, card, fanMade, cutFile, fanMadeBurned, desktop, t]);
 
-  const number = (key: "startSec" | "lengthSec" | "zoom" | "cardSec", label: string, format: (v: number) => string, max?: number) => {
-    const range = CLIP_EDIT_RANGES[key];
-    // the slider's end (the source's length for the start and the length), never a cap on the value (uncap-all)
-    const top = max !== undefined && max < range.max ? max : range.max;
+  const number = (key: ClipEditNumberKey, label: string, format: (v: number) => string, sourceTop?: number) => {
+    // --- review fix (unlimited-sizes) --- the comfort range, then the wide track: to the source's own end for the start and the
+    // length (the track only: a typed length past the file is cut at its end), to a cut's longest file for the card, on for the
+    // crop-in; the number field takes any value from the spec's floor up (parseClipEdit())
+    const { range, top } = clipEditTrack(key, sourceTop);
     return (
-      <label className="block text-xs text-ink-2 space-y-1">
+      <div className="block text-xs text-ink-2 space-y-1">
         <span className="flex justify-between">
           <span>{label}</span>
           <span className="tabular-nums text-ink">{format(fitted[key])}</span>
         </span>
-        {/* --- clip-a11y --- the name is the label alone (it does not change on every step) and the value is said as it is shown */}
-        <input type="range" min={range.min} max={top} step={range.step} value={fitted[key]} disabled={busy} onChange={(e) => set(key, Number(e.target.value))} aria-label={label} aria-valuetext={format(fitted[key])} className="w-full accent-accent" data-testid={`clip-edit-${key}`} />
-      </label>
+        <div className="flex items-center gap-2">
+          {/* --- clip-a11y --- the name is the label alone (it does not change on every step) and the value is said as it is shown */}
+          <SliderTrack settingKey={`clipEdit:${key}`} label={label} value={fitted[key]} range={range} top={top} onChange={(v) => set(key, v)} disabled={busy} valueText={format(fitted[key])} className="flex-1 min-w-0 accent-accent" testId={`clip-edit-${key}`} />
+          <NumberField value={fitted[key]} onCommit={(v) => set(key, v)} label={label} range={range} rules={{ min: CLIP_EDIT_RANGES[key].min }} disabled={busy} settingKey={`clipEdit:${key}`} className="w-16" testId={`clip-edit-${key}-value`} />
+        </div>
+      </div>
     );
   };
 
@@ -286,6 +292,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
+            {/* (the source's own end is the start's and the length's track top, never a cap on the value) */}
             {number("startSec", t("start"), sec, durationSec ? Math.max(0, durationSec - 1) : undefined)}
             {number("lengthSec", t("length"), sec, durationSec ? Math.max(CLIP_EDIT_RANGES.lengthSec.min, durationSec - fitted.startSec) : undefined)}
             {/* --- cut-reedit --- a cut file shows its crop-in and card already: only its start and length are set here */}

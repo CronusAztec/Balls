@@ -190,12 +190,12 @@ function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyon
  * input the panel always drew, pinned at its end for a value beyond it. `top` ends the wide track of a count that is not a
  * setting (the clips of a batch).
  */
-export function SliderTrack({ settingKey, label, value, range, onChange, disabled, top, className, id, testId, namedByLabel }: { settingKey: string; label: string; value: number; range: { min: number; max: number; step: number }; onChange: (v: number) => void; disabled?: boolean; top?: number; className?: string; id?: string; testId?: string; /** A `<label htmlFor={id}>` names the track: no aria-label of its own (as the hand-written input had none). */ namedByLabel?: boolean }) {
+export function SliderTrack({ settingKey, label, value, range, onChange, disabled, top, className, id, testId, namedByLabel, valueText }: { settingKey: string; label: string; value: number; range: { min: number; max: number; step: number }; onChange: (v: number) => void; disabled?: boolean; top?: number; className?: string; id?: string; testId?: string; /** A `<label htmlFor={id}>` names the track: no aria-label of its own (as the hand-written input had none). */ namedByLabel?: boolean; /** --- review fix (unlimited-sizes) --- the value as shown beside the track ("25 %", "3.0 s"), said instead of the bare number */ valueText?: string }) {
   const wideKey = useUnlimitedKey(range, settingKey, top);
   const look = className ?? "w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
   const ariaLabel = namedByLabel ? undefined : label;
-  if (wideKey) return <WideTrack id={id} settingKey={wideKey} label={ariaLabel} value={value} range={range} onChange={onChange} disabled={disabled} top={top} className={look} testId={testId} />;
-  return <input id={id} type="range" min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} className={look} style={sliderStyle(value, range.min, range.max)} aria-label={ariaLabel} data-testid={testId} />;
+  if (wideKey) return <WideTrack id={id} settingKey={wideKey} label={ariaLabel} value={value} range={range} onChange={onChange} disabled={disabled} top={top} className={look} testId={testId} valueText={valueText} />;
+  return <input id={id} type="range" min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} className={look} style={sliderStyle(value, range.min, range.max)} aria-label={ariaLabel} aria-valuetext={valueText} data-testid={testId} />;
 }
 
 /**

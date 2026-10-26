@@ -7,6 +7,7 @@
  * render.ts encodes the file – in the browser on the website, and in the Windows app, which runs the same page.
  */
 import { SITE_DOMAIN, SITE_SLUG } from "@/lib/site";
+import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- review fix (unlimited-sizes) --- (the frames one cut's file holds)
 
 export interface ClipEditSpec {
   /** Seconds into the source where the cut begins. */
@@ -46,6 +47,35 @@ export function localClipEdit(hook: string): ClipEditSpec {
 
 /** The file the editor writes: vertical, 30 fps – what TikTok, Reels and Shorts take. */
 export const CLIP_EDIT_OUTPUT = { width: 1080, height: 1920, fps: 30 } as const;
+
+// --- review fix (unlimited-sizes) --- the editor's numbers past their sliders
+/**
+ * The most frames one cut's file holds: the export's memory ceiling (the muxer keeps the whole file), two hours at the
+ * editor's 30 fps. A longer cut – an end card typed in hours – ends there (`clipTimeline()`).
+ */
+export const CLIP_EDIT_FRAME_CEILING = EXPORT_FRAME_CEILING;
+/** Where the end card's wide track ends: as long as a cut's file can be (the number field takes any length). */
+export const CLIP_CARD_TOP_SEC = CLIP_EDIT_FRAME_CEILING / CLIP_EDIT_OUTPUT.fps;
+
+/** The numbers of a spec the editor sets with a track and a number field. */
+export type ClipEditNumberKey = "startSec" | "lengthSec" | "zoom" | "cardSec";
+
+/**
+ * The track of one of the editor's numbers: its comfort range (`CLIP_EDIT_RANGES`) and where its wide track ends (`top`;
+ * none: the panel's scalar ceiling). The start and the length end at the source's own (`sourceTop`: its last second, the
+ * room after the start) – the track only: a typed length past the file is cut at its end (`fitClipEdit()`) –, the end card
+ * where a cut's file ends, the crop-in at the scalar ceiling. Before the source is open the start and the length keep their
+ * comfort ranges (no `sourceTop`).
+ */
+export function clipEditTrack(key: ClipEditNumberKey, sourceTop?: number): { range: { min: number; max: number; step: number }; top?: number } {
+  const range = CLIP_EDIT_RANGES[key];
+  if (key === "zoom") return { range };
+  if (key === "cardSec") return { range, top: CLIP_CARD_TOP_SEC };
+  if (sourceTop === undefined || !Number.isFinite(sourceTop)) return { range, top: range.max };
+  const top = Math.max(range.min, sourceTop);
+  return { range: { ...range, max: Math.min(range.max, top) }, top };
+}
+// --- end review fix (unlimited-sizes) ---
 
 /** The fade from the last frame of action into the end card. */
 export const CARD_FADE_SEC = 0.4;
@@ -129,7 +159,10 @@ export function clipTimeline(spec: ClipEditSpec, fps: number = CLIP_EDIT_OUTPUT.
   const cardSec = spec.cardSec;
   const fadeStartSec = cardSec > 0 ? Math.max(0, actionSec - CARD_FADE_SEC) : actionSec;
   const totalSec = actionSec + cardSec;
-  return { actionSec, cardSec, fadeStartSec, totalSec, frames: Math.max(1, Math.round(totalSec * fps)) };
+  const frames = Math.max(1, Math.round(totalSec * fps));
+  // --- review fix (unlimited-sizes) --- a cut past the file's memory ceiling ends there (the frames, and the sound with them)
+  if (frames > CLIP_EDIT_FRAME_CEILING) return { actionSec, cardSec, fadeStartSec, totalSec: CLIP_EDIT_FRAME_CEILING / fps, frames: CLIP_EDIT_FRAME_CEILING };
+  return { actionSec, cardSec, fadeStartSec, totalSec, frames };
 }
 
 /** The source time shown at `tSec` of the output: the action plays, the card holds the last frame. */
