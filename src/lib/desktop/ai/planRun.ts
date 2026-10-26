@@ -59,7 +59,7 @@ export async function runPlanner(bridge: Pick<SocialBridge, "library" | "social"
     .filter((p) => p.channel && (p.state === "PUBLISHED" || p.state === "ERROR"))
     .map((p) => ({ channelId: p.channel!.id, platform: p.channel!.platform, state: p.state, at: p.publishDate, text: p.content }));
   // --- trends --- what is trending takes its share of the research budget, the playbook the rest
-  const trending = trendingContext(options.trends === undefined ? await committedTrends() : options.trends, TRENDING_CHARS.plan, "copy");
+  const trending = trendingContext(options.trends === undefined ? await committedTrends() : options.trends, TRENDING_CHARS.plan, "copy", now); // --- trends --- (its age read on the run's clock)
   const playbook = selectPlaybookContext(options.playbook, `best time to post schedule ${channels.map((c) => c.platform).join(" ")} ${clips.map((c) => c.title).join(" ")}`, PLAN_RESEARCH_CHARS - trending.length);
   const task = planTask({ locale: options.locale, language: settings.language, clips, channels, perDay: Math.min(settings.perDay, left), quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, playbook, outcomes, trending });
   const out = await runAgent(model, task, { onEvent: options.onEvent, signal: options.signal });

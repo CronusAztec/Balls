@@ -7,7 +7,8 @@
  * --- trends --- Beside it, what is trending (trendingContext): the committed trend summary of other creators' trending and
  * viral simulation videos (src/content/trends.json), in a few lines within a budget of its own. The playbook's own section
  * on that data (§6, for people: what the runs found on one day) is never picked: its numbers are frozen and would repeat or
- * contradict the summary, which the block reads fresh.
+ * contradict the summary, which the block reads fresh. The summary ships in the page build the app loads, so an app that is
+ * not updated keeps an old one: the block is marked old from TRENDS_OLD_DAYS and left out from TRENDS_DROP_DAYS.
  */
 
 import { productWord, type TrendAdvice, type TrendFormat, type TrendLever, type TrendNumber, type TrendSummary, type TrendTheme } from "@/lib/trends";
@@ -109,6 +110,24 @@ export function selectPlaybookContext(markdown: string, query: string, maxChars 
 export const TRENDING_CHARS = { plan: 600, ideas: 900, videos: 700 } as const;
 
 /**
+ * --- trends --- From this many days after its date the block's heading says the summary is old, with its age: Make videos and
+ * the idea generator have no clock of their own to compare the date with, and what goes viral moves within weeks.
+ */
+export const TRENDS_OLD_DAYS = 60;
+/**
+ * --- trends --- From this many days the block is left out: the summary ships in the page build the app loads, so an app that
+ * is not updated would lean toward trends of months ago (the refresh is monthly: docs/agents/CLI.md).
+ */
+export const TRENDS_DROP_DAYS = 120;
+
+/** --- trends --- A summary's age in whole days on the clock `now` (ms): 0 for a date ahead of the clock, null for no date. */
+export function trendsAgeDays(date: string, now: number): number | null {
+  const at = /^\d{4}-\d{2}-\d{2}$/.test(date) ? Date.parse(`${date}T00:00:00Z`) : NaN;
+  if (!Number.isFinite(at) || !Number.isFinite(now)) return null;
+  return Math.max(0, Math.floor((now - at) / 86_400_000));
+}
+
+/**
  * --- trends --- Who reads the block: "clips" the idea generator (every line, each advice tagged with what it rests on),
  * "videos" Make videos (told to lean toward it, so no benchmark-only advice: a number that does not separate the most
  * viewed is no reason to change a clip), "copy" the post planner (it writes text and times: the title formats and words).
@@ -157,9 +176,15 @@ function adviceTag(r: TrendAdvice, summary: TrendSummary): string {
  * the most viewed use more apart from those they use less), the benchmarks (tagged as such), the look of the most viewed
  * and the words of their titles; for Make videos the same without the benchmarks; for copy (the planner) the title
  * formats and words alone – each kept only while the block stays within `maxChars`. No title is quoted: other creators' text stays data. "" without a summary.
+ * --- trends --- `now` is the clock (ms) the summary's age is read on: every job passes it, so a summary TRENDS_OLD_DAYS old
+ * is marked old with its age and one TRENDS_DROP_DAYS old (or undated) gives "". Without it the summary is read as current.
  */
-export function trendingContext(summary: TrendSummary | null | undefined, maxChars: number, focus: TrendingFocus = "clips"): string {
+export function trendingContext(summary: TrendSummary | null | undefined, maxChars: number, focus: TrendingFocus = "clips", now?: number): string {
   if (!summary || maxChars <= 0) return "";
+  // --- trends --- how old the summary is: marked from TRENDS_OLD_DAYS, left out from TRENDS_DROP_DAYS
+  const age = now === undefined ? 0 : trendsAgeDays(summary.date, now);
+  if (age === null || age >= TRENDS_DROP_DAYS) return "";
+  const old = age >= TRENDS_OLD_DAYS ? `${age} days old, so it may have moved on: weigh it lightly; ` : "";
   const where = Object.entries(summary.sample.platforms)
     .sort((a, b) => b[1] - a[1])
     .map(([p]) => PLATFORM_NAMES[p] ?? p)
@@ -170,7 +195,7 @@ export function trendingContext(summary: TrendSummary | null | undefined, maxCha
   const { compared, measured, stills } = summary.sample;
   const pages = Math.max(0, compared - measured - stills);
   const basis = `${measured} measured whole, ${stills} seen only through their stills${pages ? `, ${pages} from their pages` : ""}`;
-  const head = `What is trending (${summary.date}, ${compared} short-form simulation videos${where ? ` on ${where}` : ""}, ${searches} search${searches === 1 ? "" : "es"}: ${basis}; tendencies to test, not rules):`;
+  const head = `What is trending (${summary.date}, ${old}${compared} short-form simulation videos${where ? ` on ${where}` : ""}, ${searches} search${searches === 1 ? "" : "es"}: ${basis}; tendencies to test, not rules):`;
   if (head.length > maxChars) return "";
   const adviceLine = (r: TrendAdvice) => {
     const levers = r.levers.filter(PROMPT_LEVER).map(leverText);

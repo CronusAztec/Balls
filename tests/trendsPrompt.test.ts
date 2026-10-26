@@ -3,7 +3,7 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import { TRENDS } from "@/content/trends";
 import type { TrendAdvice, TrendNumber, TrendSummary } from "@/lib/trends";
-import { TRENDING_CHARS, selectPlaybookContext, trendingContext } from "@/lib/desktop/ai/playbookContext";
+import { TRENDING_CHARS, TRENDS_DROP_DAYS, TRENDS_OLD_DAYS, selectPlaybookContext, trendingContext, trendsAgeDays } from "@/lib/desktop/ai/playbookContext";
 import { planTask, type PlanOptions } from "@/lib/desktop/ai/plan";
 import { PLAN_RESEARCH_CHARS, runPlanner } from "@/lib/desktop/ai/planRun";
 import { IDEAS_RESEARCH_CHARS, PlanStore, ideasTask, makeVideosTask, type StudioPorts } from "@/lib/desktop/ai/studio";
@@ -108,7 +108,7 @@ describe("what is trending in the app's AI prompts (--- trends ---)", () => {
     expect(ideasTask("x", { copy, locale: "en", playbook: context }).system).not.toContain("What is trending");
     // the page hands the committed summary to both, and the planner's research budget to the playbook's rest
     const hook = fs.readFileSync(path.join(ROOT, "src", "components", "simulator", "desktop", "useDesktopAi.ts"), "utf8");
-    expect(hook).toContain('trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos, "videos")'); // --- trends --- (Make videos: no benchmark-only advice)
+    expect(hook).toContain('trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos, "videos", Date.now())'); // --- trends --- (Make videos: no benchmark-only advice, its age on today's clock)
     expect(hook).not.toMatch(/from "@\/content\/trends"/); // the website's page never carries the summary: it loads on first use
     expect(hook).toContain("selectPlaybookContext(playbookRef.current, prompt, IDEAS_RESEARCH_CHARS - trending.length)");
   });
@@ -174,6 +174,70 @@ describe("what is trending in the app's AI prompts (--- trends ---)", () => {
     // none more common among the most viewed: said so
     const none = trendingContext({ ...synthetic, formats: [synthetic.formats[0]] }, 5000, "copy");
     expect(none).toContain("- Title formats: none more common among the most viewed third (13 of 39 titles) against the rest; less among them, so no trend to copy: a versus 15% against 35%.");
+  });
+
+  // --- trends --- the summary ships in the page build the app loads: an app that is not updated must not lean toward trends of
+  // months ago, and Make videos has no clock of its own to compare the heading's date with
+  it("marks a summary old from 60 days on with its age, and leaves it out from 120 days", async () => {
+    expect([TRENDS_OLD_DAYS, TRENDS_DROP_DAYS]).toEqual([60, 120]);
+    const day = (n: number) => Date.parse(`${t.date}T00:00:00Z`) + n * 86_400_000;
+    expect(trendsAgeDays(t.date, day(59) + 3_600_000)).toBe(59);
+    expect(trendsAgeDays(t.date, day(-30))).toBe(0); // a clock behind the summary: current
+    expect(trendsAgeDays("not a date", day(1))).toBeNull();
+    for (const [job, budget] of Object.entries(TRENDING_CHARS)) {
+      const focus = job === "plan" ? "copy" : job === "videos" ? "videos" : "clips";
+      // current: the block as without a clock
+      for (const n of [-30, 0, 59]) expect(trendingContext(t, budget, focus, day(n)), `${job} ${n}`).toBe(trendingContext(t, budget, focus));
+      // old: its age in the heading, still within the budget and with lines
+      for (const n of [60, 119]) {
+        const block = trendingContext(t, budget, focus, day(n));
+        expect(block.split("\n")[0], `${job} ${n}`).toMatch(new RegExp(`^What is trending \\(${t.date}, ${n} days old, so it may have moved on: weigh it lightly; ${t.sample.compared} short-form simulation videos`));
+        expect(block.length, `${job} ${n}`).toBeLessThanOrEqual(budget);
+        expect(block.split("\n").length, `${job} ${n}`).toBeGreaterThan(1);
+      }
+      // too old, or undated: none
+      for (const n of [120, 400]) expect(trendingContext(t, budget, focus, day(n)), `${job} ${n}`).toBe("");
+      expect(trendingContext({ ...t, date: "26 October" }, budget, focus, day(0)), job).toBe("");
+    }
+    // the planner reads it on the run's clock: old after 60 days, gone after 120
+    const library: LibraryItem[] = [{ id: "clip-1", path: "C:/glass.mp4", fileName: "glass.mp4", bytes: 1, durationSec: 12, width: 1080, height: 1920, createdAt: NOW - 1000, thumbnail: null, exists: true, encoder: null, meta: { title: "Glass smash", mode: "glass", seed: 1, link: "", platform: "tiktok", hook: null, caption: "Which floor breaks first?", hashtags: ["#glass"], queueJobId: null } }];
+    const postiz: PostizChannel[] = [{ id: "int-tt", name: "Gerald on TikTok", platform: "tiktok", picture: null, disabled: false, customer: null }];
+    const bridge = {
+      library: { list: async () => library },
+      ai: { playbook: async () => PLAYBOOK },
+      social: { autopilot: { get: async () => ({ ...DEFAULT_AUTOPILOT, enabled: true, channels: ["int-tt"] }) }, queue: { list: async () => [] }, audit: async () => [], channels: { list: async () => postiz }, posts: async () => [] },
+    } as unknown as Pick<SocialBridge, "library" | "social" | "ai">;
+    const seen: string[] = [];
+    const model: ChatModel = {
+      async complete(messages) {
+        seen.push(messages[0].content);
+        return JSON.stringify({ action: "final", result: { proposals: [{ clipId: "clip-1", channels: [{ integrationId: "int-tt", text: "Which floor breaks first?", hashtags: ["#glass"] }], when: "now", reason: "r" }] } });
+      },
+    };
+    for (const n of [70, 130]) await runPlanner(bridge, model, { locale: "en", playbook: PLAYBOOK, now: day(n) + 12 * 3_600_000, ignoreBudget: true, trends: t });
+    expect(seen[0]).toContain(`What is trending (${t.date}, 70 days old, so it may have moved on: weigh it lightly; `);
+    expect(seen[1]).not.toContain("What is trending (");
+    // every job passes its clock: each call of trendingContext in the app's code has four arguments
+    const callers = ["src/components/simulator/desktop/useDesktopAi.ts", "src/lib/desktop/ai/planRun.ts"];
+    let calls = 0;
+    for (const file of callers) {
+      const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+      for (const at of [...text.matchAll(/\btrendingContext\((?!\))/g)].map((m) => (m.index as number) + m[0].length)) {
+        let depth = 1;
+        let commas = 0;
+        for (let i = at; depth > 0 && i < text.length; i++) {
+          if ("([{".includes(text[i])) depth++;
+          else if (")]}".includes(text[i])) depth--;
+          else if (text[i] === "," && depth === 1) commas++;
+        }
+        expect(commas, `${file}: trendingContext call ${calls + 1}`).toBe(3);
+        calls++;
+      }
+    }
+    expect(calls).toBe(3); // Make videos, the ideas, the planner
+    const hook = fs.readFileSync(path.join(ROOT, callers[0]), "utf8");
+    expect(hook).toContain('trendingContext(await committedTrends(), TRENDING_CHARS.ideas, "clips", Date.now())');
+    expect(fs.readFileSync(path.join(ROOT, callers[1]), "utf8")).toMatch(/trendingContext\([^;]*, TRENDING_CHARS\.plan, "copy", now\)/);
   });
 
   it("never picks the playbook's own trend section: its numbers are frozen, the block reads them fresh", () => {

@@ -254,7 +254,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           if (task === "videos") {
             const store = new PlanStore();
             const ports = studioPorts({ copy: page.copy, locale: page.locale, getWorld: page.getWorld });
-            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */, trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos, "videos") /* --- trends --- (no benchmark-only advice: playbookContext.ts TrendingFocus) */ }), { onEvent, signal: controller.signal });
+            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */, trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos, "videos", Date.now()) /* --- trends --- (no benchmark-only advice: playbookContext.ts TrendingFocus; its age on today's clock) */ }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
             // --- ai-cut --- (one click: the queue starts when asked; the result keeps whether it did, for the clips card)
@@ -321,7 +321,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           } else {
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
             // --- trends --- what is trending takes its share of the 4,500-character research budget, the playbook the rest
-            const trending = trendingContext(await committedTrends(), TRENDING_CHARS.ideas);
+            const trending = trendingContext(await committedTrends(), TRENDING_CHARS.ideas, "clips", Date.now()); // (its age on today's clock)
             const context = selectPlaybookContext(playbookRef.current, prompt, IDEAS_RESEARCH_CHARS - trending.length);
             const out = await runAgent(model, ideasTask(prompt, { copy: page.copy, locale: page.locale, playbook: context, trending }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
