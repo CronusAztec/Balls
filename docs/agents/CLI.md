@@ -50,7 +50,8 @@ the link `bp-link` writes for a Blueprint at the 6 KB ceiling (a code of about 8
 nominal 800 × 600 world unless `world` says otherwise. The page's canvas is usually another size, so a seed found on the
 page can play differently here. `preview` and `render` run in the page and use its world. A link with `smo=0` (the Slow
 motion switch off) plays as the page plays it then: Bullseye opens no slow-motion window, Fight League has no KO finale,
-and `finishSec` is the playback time with the engine's time dilation repaid. The result's `slowMotion` says which.
+and `finishSec` is the playback time with the engine's time dilation repaid. Balls and sounds per second count seconds of
+that playback time too, so a dilated run plays more than 60 steps in one. The result's `slowMotion` says which.
 
 ## The rules every tool keeps
 

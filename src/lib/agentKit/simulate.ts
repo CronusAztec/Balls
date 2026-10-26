@@ -17,6 +17,13 @@ import { jsonView, roundNumber, type JsonValue } from "./jsonView";
 
 export const SIMULATE_MAX_SECONDS = 600;
 
+/**
+ * --- slow-motion --- How close the playback clock may come to a whole second and close it (ms): above the float drift of its
+ * summed 1/60 s steps (under 1e-6 ms over SIMULATE_MAX_SECONDS) and far below the shortest step it adds (a frame's share of the
+ * fast export's step cap, 1000 / 60 / 256 ms), so a run one step a frame closes a second on every 60th step, as it always did.
+ */
+const SECOND_SLACK_MS = 1e-3;
+
 export interface SimulateRequest {
   settings: SimulatorSettings;
   seed: number;
@@ -41,7 +48,9 @@ export interface SimulateResult {
   finishSec: number | null;
   /** The modes whose length is planned at init (Power Layers, Beat Runner, Paddle, Beat Drop): the finder's planned length (s). */
   plannedSec?: number;
+  /** `perSecond`: the balls at the end of each second of playback time (--- slow-motion --- the page's: with `smo=0` a dilated run plays more steps a second). */
   balls: { perSecond: number[]; max: number; final: number };
+  /** `perSecond`: the sound events in each second of playback time, the part second at the end included. */
   sounds: { total: number; byType: Record<string, number>; perSecond: number[] };
   /** A ball's position or speed went NaN or infinite, or the mode's state, view or progress holds a NaN. */
   nan: boolean;
@@ -110,10 +119,15 @@ export function simulate(request: SimulateRequest): SimulateResult {
   const step = 1000 / 60;
   let elapsed = 0;
   let soundsThisSecond = 0;
+  // --- slow-motion --- a second of the result is a second of that playback clock: 60 steps one step a frame (Slow motion on, or
+  // an undilated run), more with the switch off while the engine dilates time (each step adds its share of a frame)
+  let nextSecondMs = 1000;
+  let stepsThisSecond = 0;
   while (elapsed < maxMs) {
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step);
     steps++;
+    stepsThisSecond++;
     const events: SoundEvent[] = engine.consumeSoundEvents();
     for (const e of events) byType[e.type] = (byType[e.type] ?? 0) + 1;
     soundTotal += events.length;
@@ -129,17 +143,19 @@ export function simulate(request: SimulateRequest): SimulateResult {
         }
       }
     }
-    if (steps % 60 === 0) {
+    while (elapsed >= nextSecondMs - SECOND_SLACK_MS) {
       ballsPerSecond.push(balls.length);
       soundsPerSecond.push(soundsThisSecond);
       soundsThisSecond = 0;
+      stepsThisSecond = 0;
+      nextSecondMs += 1000;
     }
     if (finishedAt === null && engine.isSimulationFinished()) {
       finishedAt = elapsed;
       if (!request.continueAfterFinish) break;
     }
   }
-  if (steps % 60 !== 0) soundsPerSecond.push(soundsThisSecond); // the part second at the end
+  if (stepsThisSecond > 0) soundsPerSecond.push(soundsThisSecond); // the part second at the end
 
   const state = jsonView(currentModeOf(engine)?.getState());
   const view = jsonView(modeGetter(engine, finder.mode, "View"));

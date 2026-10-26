@@ -10,6 +10,7 @@ import { createEngineForSettings, simulateSeed, stepPlaybackMs, type ModeSetting
 import { simulate } from "@/lib/agentKit/simulate";
 import { resolveRun } from "@/lib/agentKit/runRequest";
 import { roundNumber } from "@/lib/agentKit/jsonView";
+import { encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
 import { BASELINE_FILE, FINGERPRINT_CONFIG, FINGERPRINT_MODE_SETTINGS, FINGERPRINT_SEED, fingerprintOf, parseBaselineLiteral } from "@/lib/agentKit/fingerprint";
 
 /*
@@ -280,6 +281,26 @@ describe("the finder, the bot and the CLI with the Slow motion switch off (--- s
     const finderMs = simulateSeed(resolved.seed, finderRequestOfSettings(resolved.settings, undefined, 120), 120_000);
     expect(offResult.finishSec).toBe(roundNumber(finderMs / 1000, 9));
     expect(offResult.finishSec).not.toBe(onResult.finishSec); // (no bullseye window: the world clock keeps time, the run ends sooner)
+  }, 120_000);
+
+  // a second of the result is a second of playback: with the switch off a dilated run plays more steps in it, never 60
+  it("the CLI's simulate tool counts balls and sounds per second of playback with smo=0, however much the engine dilates the run", async () => {
+    // (Mode Lab's radius-2 ball at 10,000 px/s: the engine shortens its steps from the start)
+    const code = encodeBlueprint(sanitizeBlueprint({ v: 1, meta: { name: "Slow" }, finish: { timeoutSec: 30 }, bodies: [{ id: "b", radius: 2 }], spawners: [{ body: "b", speed: 10_000 }] }).blueprint);
+    const resolved = await resolveRun({ link: `mode=blueprint&bls=${code}&seed=1&smo=0` });
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    const off = simulate({ settings: resolved.settings, seed: resolved.seed, seconds: 5 });
+    const on = simulate({ settings: { ...resolved.settings, slowMotion: true }, seed: resolved.seed, seconds: 5 });
+    expect([off.slowMotion, on.slowMotion, off.finished, on.finished]).toEqual([false, true, false, false]);
+    expect(on.steps).toBe(300);
+    expect(off.steps).toBeGreaterThan(2 * on.steps); // (dilated: more steps a second of playback)
+    for (const r of [off, on]) {
+      expect(r.simulatedSec).toBeCloseTo(5, 1);
+      expect(r.balls.perSecond).toHaveLength(5);
+      expect(r.sounds.perSecond).toHaveLength(5);
+      expect(r.sounds.perSecond.reduce((a, b) => a + b, 0)).toBe(r.sounds.total);
+    }
   }, 120_000);
 });
 
