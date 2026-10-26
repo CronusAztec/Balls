@@ -199,7 +199,9 @@ export function sliderPosition(key: string, value: number, range: NumericRange, 
   const top = sliderCeiling(key, range, ceiling);
   if (!(top > range.max)) return SLIDER_SPAN; // --- unlimited-sizes --- (no room past the comfort range)
   const lo = Math.max(range.max, Number.MIN_VALUE);
-  if (SEMANTIC_MAX[key] !== undefined || lo <= 0) {
+  // --- unlimited-sizes --- a range that ends at or below 0 (a clip's gain in dB, up to 0 dB) goes on linearly, as
+  // sliderValue() reads it back: `lo` is never 0 itself, so the log of value / lo overflowed into a NaN position
+  if (SEMANTIC_MAX[key] !== undefined || range.max <= 0) {
     return Math.min(SLIDER_SPAN, LINEAR_SPAN + ((SLIDER_SPAN - LINEAR_SPAN) * (value - range.max)) / Math.max(1e-12, top - range.max));
   }
   const t = Math.log(value / lo) / Math.log(top / lo);

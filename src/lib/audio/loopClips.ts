@@ -20,7 +20,7 @@ export interface LoopClipRule {
   maxSec: number;
   fadeIn: number;
   fadeOut: number;
-  /** Gain range and default, dB. */
+  /** Gain range and default, dB (--- unlimited-sizes --- the range is the slider's comfort range: any finite gain is kept). */
   gainMinDb: number;
   gainMaxDb: number;
   gainDefaultDb: number;
@@ -49,7 +49,7 @@ export const LOOP_CLIP_RULES: Readonly<Record<LoopClipSlotId, LoopClipRule>> = {
 
 /** What the owner sets per slot. */
 export interface LoopClipOptions {
-  /** Gain in dB (clamped to the slot's range). */
+  /** Gain in dB (--- unlimited-sizes --- any finite gain: the slot's range is its slider's comfort range only). */
   gainDb: number;
   /** Seconds trimmed off the clip's start, and the clip's end (s from its start; 0 = its end). */
   trimStart: number;
@@ -67,12 +67,32 @@ export function defaultClipOptions(slot: LoopClipSlotId): LoopClipOptions {
 
 const finite = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 
-/** Validated options of `slot`: the gain in its range, trims from 0, pitch-follow only where the slot allows it. */
+// --- unlimited-sizes --- a clip's gain is uncapped: the slot's range is its slider's comfort range
+/**
+ * The largest value a GainNode's gain takes: an AudioParam holds a float, and the browser refuses a value past it (a
+ * TypeError). It is about +770 dB, so it is no limit anyone hears: the master bus's limiter keeps the mix under full scale.
+ */
+export const CLIP_GAIN_PARAM_MAX = 3.4028234663852886e38;
+/** The gain (dB) whose level is `CLIP_GAIN_PARAM_MAX`: where the panel's wide track ends (the number field takes more). */
+export const CLIP_GAIN_TOP_DB = Math.floor(20 * Math.log10(CLIP_GAIN_PARAM_MAX));
+
+/**
+ * The linear level of a clip played at `gainDb` × `factor` (a duck, the drone's energy, the event's level), as a GainNode
+ * takes it: 10^(dB/20) × factor, held at the gain's float ceiling past it (`CLIP_GAIN_PARAM_MAX`), 0 for no level.
+ */
+export function clipLevel(gainDb: number, factor = 1): number {
+  if (!(factor > 0) || Number.isNaN(gainDb)) return 0;
+  const level = Math.pow(10, gainDb / 20) * factor;
+  return level < CLIP_GAIN_PARAM_MAX ? level : CLIP_GAIN_PARAM_MAX;
+}
+// --- end unlimited-sizes ---
+
+/** Validated options of `slot`: any finite gain (--- unlimited-sizes --- the slot's range is a comfort range), trims from 0, pitch-follow only where the slot allows it. */
 export function resolveClipOptions(slot: LoopClipSlotId, source: Partial<Record<keyof LoopClipOptions, unknown>> | null | undefined): LoopClipOptions {
   const rule = LOOP_CLIP_RULES[slot];
   const d = defaultClipOptions(slot);
   const s = source ?? {};
-  const gainDb = Math.max(rule.gainMinDb, Math.min(rule.gainMaxDb, finite(s.gainDb, d.gainDb)));
+  const gainDb = finite(s.gainDb, d.gainDb); // --- unlimited-sizes --- (was clamped to the slot's −24…+6 dB, −30…0 dB for the bed, the reset and the drone)
   const trimStart = Math.max(0, finite(s.trimStart, 0));
   const trimEnd = Math.max(0, finite(s.trimEnd, 0));
   const pitchFollow = rule.pitch === "off" ? false : typeof s.pitchFollow === "boolean" ? s.pitchFollow : d.pitchFollow;
@@ -181,7 +201,7 @@ export class LoopClipSlots {
     const rate = rule.pitch === "off" ? 1 : clipPlaybackRate(opts.frequency, CLIP_REFERENCE_HZ[slot], clip.options.pitchFollow);
     const win = clipWindow(slot, clip.buffer.duration, clip.options, opts.durationSec, rate);
     if (!win) return false;
-    const level = Math.pow(10, clip.options.gainDb / 20) * (typeof opts.level === "number" && Number.isFinite(opts.level) ? Math.max(0, opts.level) : 1);
+    const level = clipLevel(clip.options.gainDb, typeof opts.level === "number" && Number.isFinite(opts.level) ? Math.max(0, opts.level) : 1); // --- unlimited-sizes --- (held at the gain's float ceiling)
     const at = Math.max(0, time - win.startShift);
     const source = ctx.createBufferSource();
     source.buffer = clip.buffer;
@@ -227,7 +247,7 @@ export class LoopClipSlots {
     const live = this.loops.get(slot);
     const clip = this.clips.get(slot);
     if (!live || !clip) return;
-    live.gain.gain.setTargetAtTime(Math.pow(10, clip.options.gainDb / 20) * Math.max(0, factor), time, 0.05);
+    live.gain.gain.setTargetAtTime(clipLevel(clip.options.gainDb, factor), time, 0.05); // --- unlimited-sizes --- (held at the gain's float ceiling)
   }
 
   /** A copy for another context (the offline twin): the same decoded clips and options, nothing playing. */

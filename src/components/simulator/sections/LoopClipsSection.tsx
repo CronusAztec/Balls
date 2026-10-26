@@ -2,8 +2,9 @@
 
 import { useId } from "react";
 import Tooltip from "../Tooltip";
-import { Searchable, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
-import { LOOP_CLIP_RULES, LOOP_CLIP_SLOTS, type LoopClipSlotId } from "@/lib/audio/loopClips";
+import { Searchable, SliderTrack, offBtn, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
+import NumberField from "../NumberField"; // --- unlimited-sizes --- a number field next to the gain's track
+import { CLIP_GAIN_TOP_DB, LOOP_CLIP_RULES, LOOP_CLIP_SLOTS, type LoopClipSlotId } from "@/lib/audio/loopClips";
 
 /*
  * --- loop-foundation --- The Sound section's loop clip slots (lib/audio/loopClips.ts): for every loop family's voice – a
@@ -88,17 +89,32 @@ export default function LoopClipsSection({ t, search, matches, panel }: { t: Tra
                     </button>
                   )}
                 </div>
+                {/* --- unlimited-sizes --- the gain (dB): the slot's range is the track's comfort range, the wide track goes on to the
+                    gain's float ceiling (about +770 dB) and the number field takes any gain, quieter or louder (the master bus limits the mix) */}
                 {view?.name && (
-                  <input
-                    type="range"
-                    min={rule.gainMinDb}
-                    max={rule.gainMaxDb}
-                    step={0.5}
-                    value={view.gainDb}
-                    onChange={(e) => panel.onGain(slot, Number(e.target.value))}
-                    aria-label={t("loopClipGain", { slot: t(SLOT_LABELS[slot]) })}
-                    className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer"
-                  />
+                  <div className="flex items-center gap-2">
+                    <SliderTrack
+                      settingKey={`loopClipGain:${slot}`}
+                      label={t("loopClipGain", { slot: t(SLOT_LABELS[slot]) })}
+                      value={view.gainDb}
+                      range={{ min: rule.gainMinDb, max: rule.gainMaxDb, step: 0.5 }}
+                      onChange={(v) => panel.onGain(slot, v)}
+                      top={CLIP_GAIN_TOP_DB}
+                      className="flex-1 min-w-0 h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer"
+                      testId="loop-clip-gain"
+                    />
+                    <NumberField
+                      value={view.gainDb}
+                      onCommit={(v) => panel.onGain(slot, v)}
+                      label={t("loopClipGain", { slot: t(SLOT_LABELS[slot]) })}
+                      range={{ min: rule.gainMinDb, max: rule.gainMaxDb, step: 0.5 }}
+                      rules={{}}
+                      settingKey={`loopClipGain:${slot}`}
+                      className="w-16"
+                      testId="loop-clip-gain-value"
+                    />
+                    <span className="text-xs text-ink-3">dB</span>
+                  </div>
                 )}
                 {panel.failed === slot && <p className="text-xs text-danger">{t("loopClipFailed")}</p>}
               </li>

@@ -2632,7 +2632,9 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   (at most 6 new notes a tick, 18 oscillators, one thump and one noise voice, 24 sounding; notes of the same pitch within
   30 ms merge at 1/√n; the bed at most 10 nodes; the drone retuned at 30 Hz). The pure pitch rules are in
   `src/lib/audio/loopPitch.ts` (`degreeFromScalar()`), the clip slots in `src/lib/audio/loopClips.ts` (your own sounds for a
-  family's voice, kept in the page only).
+  family's voice, kept in the page only). A clip's level (dB) is uncapped: the slot's range (−24 to +6 dB, −30 to 0 dB for
+  the bed, the reset and the drone) is its slider's comfort range, the wide track goes on to the gain's float ceiling
+  (`CLIP_GAIN_TOP_DB`, about +770 dB, `clipLevel()`), the number field takes any gain and the master bus limits the mix.
 - **Loudness** (`src/lib/audio/loudness.ts`): the fast export's and the batch render's mix is measured with BS.1770-4
   (K-weighting, 400 ms gated blocks, a 4× true-peak estimate) and given one static gain to −14 LUFS, the true peak at most
   −1 dBTP (a silent mix is left alone); the live page keeps its limiter.

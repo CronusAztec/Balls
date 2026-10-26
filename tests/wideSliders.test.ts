@@ -108,6 +108,20 @@ describe("Wide sliders: the track's ends and its input", () => {
     expect(wideInputValue("rotationSpeed", 0, RANGES.rotationSpeed)).toBe(RANGES.rotationSpeed.min);
     expect(wideTrackValue("ballSpeed", Number.NaN, r)).toBe(r.min);
   });
+
+  it("goes on linearly past a comfort range that ends at or below 0 (a clip's gain up to 0 dB), both ways (--- unlimited-sizes ---)", () => {
+    const gain = { min: -30, max: 0, step: 0.5 };
+    const top = 770;
+    for (const v of [0.5, 3, 100, 700]) {
+      const pos = sliderPosition("loopClipGain:bed", v, gain, top);
+      expect([v, Number.isFinite(pos), pos > LINEAR_SPAN, pos <= SLIDER_SPAN]).toEqual([v, true, true, true]);
+      expect(pos).toBeCloseTo(LINEAR_SPAN + ((SLIDER_SPAN - LINEAR_SPAN) * v) / top, 9);
+      const input = wideInputValue("loopClipGain:bed", v, gain, top);
+      expect(Number.isFinite(input)).toBe(true);
+      expect(Math.abs(wideTrackValue("loopClipGain:bed", input, gain, top) - v)).toBeLessThan(Math.max(0.01, v * 0.01));
+    }
+    expect(sliderPosition("loopClipGain:bed", top, gain, top)).toBe(SLIDER_SPAN);
+  });
 });
 
 describe("Wide sliders: the keyboard on the wide track (--- unlimited-sizes ---)", () => {
