@@ -340,6 +340,23 @@ describe("blueprint check: a seed a tab could not play stops early, and a slowed
     expect(playabilityCheck(bp, { seeds: [1], slowMotion: false }).problems).toEqual(playabilityCheck(bp, { seeds: [1] }).problems);
   });
 
+  // --- slow-motion --- a page's slice that threw (abort()) words a slow seed already in by the run's own switch, as slice() does
+  it("words a slow seed already in as too heavy for real time when a run built with the switch off is aborted", () => {
+    const bp = spec({ bodies: [{ id: "ball", radius: 2 }], spawners: [{ body: "ball", speed: 10_000 }] });
+    let clock = 0;
+    const run = new PlayabilityRun(bp, [1, 2], undefined, false);
+    while (run.seedsDone < 1) run.slice(5, () => (clock += 1));
+    const aborted = run.abort();
+    expect(aborted.seeds[0].reason).toBe("slow");
+    expect(aborted.problems).toContain("slow");
+    expect(aborted.feedback.join(" ")).toContain("It is too heavy to play in real time on seed 1");
+    expect(aborted.feedback.join(" ")).not.toContain("It plays in slow motion");
+    // the switch on (the default): the same abort words it as slow motion
+    const on = new PlayabilityRun(bp, [1, 2]);
+    while (on.seedsDone < 1) on.slice(5, () => (clock += 1));
+    expect(on.abort().feedback.join(" ")).toContain("It plays in slow motion on seed 1");
+  });
+
   it("stops a spec of 400 huge balls early as too heavy or too crowded, quickly, with feedback that says what to shrink", () => {
     const bp = spec({ bodies: [{ id: "big", radius: 120 }], spawners: [{ body: "big", count: 8, everySec: 0.0001, maxTotal: 400 }], finish: { timeoutSec: 180 } });
     const report = playabilityCheck(bp, { seeds: [1] });

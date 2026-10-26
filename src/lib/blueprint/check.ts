@@ -473,7 +473,7 @@ export class PlayabilityRun {
     if (this.report) return this.report;
     this.current = null;
     while (this.reports.length < this.seeds.length) this.reports.push(thrownSeedReport(this.seeds[this.reports.length]));
-    this.report = judgeSeeds(this.bp, this.reports);
+    this.report = judgeSeeds(this.bp, this.reports, this.slowMotion); // --- slow-motion --- (the run's switch, as slice() words it)
     return this.report;
   }
 
