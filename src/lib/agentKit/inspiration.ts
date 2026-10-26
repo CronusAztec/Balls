@@ -940,6 +940,25 @@ export interface InspirationReport {
   notes: string[];
 }
 
+/**
+ * --- inspiration --- The note of a run with fewer than MIN_VIDEOS_FOR_ADVICE videos measured whole: how many were measured
+ * whole, how many seen through their stills (the colours alone) and how many read from their pages (the length and shape
+ * alone), so a colour pattern of stills beside it is not read as a picture measured whole. The motion, cuts, loop seam and
+ * sound need videos measured whole; the colours need as many videos with a picture, whole or stills.
+ */
+export function measuredNote(whole: number, stills: number, pages: number): string {
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  const counts = [
+    whole ? `Only ${whole} ${plural(whole, "video was", "videos were")} measured whole` : "No video was measured whole",
+    stills ? `${stills} ${plural(stills, "was", "were")} seen through ${plural(stills, "its", "their")} public stills (the colours alone)` : "",
+    pages ? `${pages} ${plural(pages, "was", "were")} read from ${plural(pages, "its page", "their pages")} (the length and shape alone)` : "",
+  ].filter(Boolean);
+  const listed = counts.length > 2 ? `${counts.slice(0, -1).join(", ")} and ${counts[counts.length - 1]}` : counts.join(" and ");
+  const known = whole ? `rest on ${whole === 1 ? "that one video" : `those ${whole}`}` : "are unknown";
+  const colours = whole + stills < MIN_VIDEOS_FOR_ADVICE ? `; the colours need ${MIN_VIDEOS_FOR_ADVICE} measured whole or seen through their stills` : "";
+  return `${listed}: the motion, cuts, loop seam and sound ${known} and need at least ${MIN_VIDEOS_FOR_ADVICE} videos measured whole for advice or a pattern${colours}.`;
+}
+
 const metricOf = (m: Pick<VideoMeta, "views" | "viewsPerDay">, by: SortBy) => (by === "viewsPerDay" ? m.viewsPerDay : m.views);
 
 /** The whole report (see the header). */
@@ -997,7 +1016,7 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
   const hunches = patterns.filter((p) => p.n < SMALL_SAMPLE);
   if (rows.length > 0 && rows.length < SMALL_SAMPLE) notes.push(`Small sample: ${rows.length} video${rows.length === 1 ? "" : "s"} compared, fewer than ${SMALL_SAMPLE}, so treat every pattern as a hunch until a larger run agrees (each pattern prints its n and p; "clear" needs p below ${CLEAR_P}, a "hint" below ${HINT_P}).`);
   else if (hunches.length) notes.push(`Small sample for ${hunches.map((p) => `${TRAITS.find((t) => t.key === p.key)?.label ?? p.key} (n ${p.n})`).join(", ")}: fewer than ${SMALL_SAMPLE} videos have ${hunches.length === 1 ? "it" : "them"}, so treat ${hunches.length === 1 ? "that pattern" : "those patterns"} as a hunch until a larger run agrees.`);
-  if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(`Only ${analysedCount} video${analysedCount === 1 ? " was" : "s were"} measured: the motion and sound traits need at least ${MIN_VIDEOS_FOR_ADVICE} for advice or a pattern (the length comes from the pages, the colours from the stills where a video has them).`);
+  if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(measuredNote(analysedCount, stillsOnly, videos.length - analysedCount - stillsOnly));
   // --- inspiration --- a short-form run compares short-form videos only
   const longForm = videos.length - compared.length;
   if (longForm) notes.push(compared.length ? `${longForm} long-form video${longForm === 1 ? " is" : "s are"} listed but left out of the numbers (landscape, longer than ${SHORT_FORM_LABEL} or not a Short): our clips are short-form.` : `No short-form video was found, so nothing is compared: try a shorter query with a hashtag feed (ball simulation, physics simulation) or give TikTok, Instagram or YouTube Shorts links.`);
@@ -1045,7 +1064,7 @@ export function inspirationMarkdown(r: InspirationReport): string {
   lines.push(`# Inspiration: ${mdText(r.query ?? "given links", 120)}`, "");
   const failedStills = r.videos.filter((v) => v.measured === "stills" && v.error).length;
   const listStills = r.videos.filter((v) => v.measured === "stills" && !v.error).length;
-  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched${failedStills ? ` (${failedStills} seen from stills)` : ""}${listStills ? ` · ${listStills} more seen from stills` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
+  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured whole · ${r.counts.failed} not fetched${failedStills ? ` (${failedStills} seen from stills)` : ""}${listStills ? ` · ${listStills} more seen from stills` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
   lines.push("## Recommendations", "");
   for (const rec of r.recommendations) {
     const levers = rec.levers.map((l) => (l.kind === "setting" ? `${l.name} (\`${l.link}\`${l.value !== undefined ? ` ${leverValueText(l.value)}` : ""})` : `${l.kind} ${l.name}`)).join(", ");

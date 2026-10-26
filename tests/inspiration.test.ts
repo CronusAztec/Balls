@@ -23,6 +23,7 @@ import {
   inTheme,
   inspirationMarkdown,
   mdText,
+  measuredNote,
   median,
   percentiles,
   ranks,
@@ -741,6 +742,34 @@ describe("the stills fallback and the report's lessons from the live runs (--- i
     expect(md).toContain(`1 not fetched (1 seen from stills) · ${shorts.length - 2} more seen from stills`);
     expect(md).toMatch(/\| saturation \| .* \| the list \|/);
     expect(md).toMatch(/\| motion \| .* \| the fetched top \|/);
+  });
+
+  // --- inspiration --- a run measured through stills alone says so: the colours are seen, the motion, cuts and sound unknown
+  // (the 26 October runs: no video measured whole, a saturation pattern of 8 stills beside a note that read as if the
+  // picture itself needed videos measured whole)
+  it("counts the videos measured whole, seen through their stills and read from their pages apart in its note", () => {
+    const base = meta(PAGES[0], "search", true);
+    const video = (i: number): VideoMeta => ({ ...base, key: `youtube:s${String(i).padStart(10, "0")}`, id: `s${String(i).padStart(10, "0")}`, url: `https://www.youtube.com/shorts/s${String(i).padStart(10, "0")}`, title: `clip ${i}`, views: (30 - i) * 1000, short: true });
+    const stills = (meanSat: number) => ({ dir: ".agent-out/frames/x", sheet: ".agent-out/frames/x/stills-sheet.png", files: [], colour: { meanLuma: 0.5, meanSat, darkShare: 0, stills: 4 } });
+    const candidates = Array.from({ length: 20 }, (_, i) => video(i));
+    // the first pass: the top 8 refused and seen through their stills (the more viewed, the more saturated), the rest pages
+    const failed = candidates.slice(0, 8).map((m, i) => ({ meta: m, error: "Sign in to confirm you're not a bot", stills: stills(0.8 - i * 0.05) }));
+    const first = buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates, analysed: failed, ours: [], modes: [...MODE_IDS], shortForm: true, top: 8 });
+    expect(first.patterns.find((p) => p.key === "meanSat")).toMatchObject({ strength: "clear", n: 8 });
+    expect(first.traits.find((t) => t.key === "meanSat")?.from).toEqual({ video: 0, stills: 8, page: 0 });
+    expect(first.notes).toContain("No video was measured whole, 8 were seen through their public stills (the colours alone) and 12 were read from their pages (the length and shape alone): the motion, cuts, loop seam and sound are unknown and need at least 3 videos measured whole for advice or a pattern.");
+    expect(first.notes.join(" ")).not.toMatch(/picture (and sound )?traits need/);
+    expect(inspirationMarkdown(first)).toContain("· 0 measured whole · 8 not fetched (8 seen from stills) ·");
+    // the second pass: the stills of the whole list
+    const listed = [...failed, ...candidates.slice(8).map((m) => ({ meta: m, error: null, stills: stills(0.4) }))];
+    const second = buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates, analysed: listed, ours: [], modes: [...MODE_IDS], shortForm: true, top: 8 });
+    expect(second.notes).toContain("No video was measured whole and 20 were seen through their public stills (the colours alone): the motion, cuts, loop seam and sound are unknown and need at least 3 videos measured whole for advice or a pattern.");
+    // one or two measured whole: what those traits rest on; too few pictures: the colours too
+    expect(measuredNote(1, 0, 7)).toBe("Only 1 video was measured whole and 7 were read from their pages (the length and shape alone): the motion, cuts, loop seam and sound rest on that one video and need at least 3 videos measured whole for advice or a pattern; the colours need 3 measured whole or seen through their stills.");
+    expect(measuredNote(2, 1, 1)).toBe("Only 2 videos were measured whole, 1 was seen through its public stills (the colours alone) and 1 was read from its page (the length and shape alone): the motion, cuts, loop seam and sound rest on those 2 and need at least 3 videos measured whole for advice or a pattern.");
+    // three measured whole: no such note
+    const whole = candidates.slice(0, 3).map((m) => ({ meta: m, features: features({ durationSec: 12 }) }));
+    expect(buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates, analysed: whole, ours: [], modes: [...MODE_IDS], shortForm: true, top: 3 }).notes.join(" ")).not.toMatch(/need at least 3 videos measured whole/);
   });
 
   it("compares only short-form videos in a short-form run, and says which were seen through their stills", () => {
