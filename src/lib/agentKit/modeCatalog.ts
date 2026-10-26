@@ -1,7 +1,7 @@
 import { MODE_IDS, isModeId, type ModeId } from "@/lib/physics/types";
 import { MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { SETTING_OPTIONS, assistantSettings } from "@/lib/desktop/ai/settingsPatch";
+import { SETTING_OPTIONS, modeBlockSettings } from "@/lib/desktop/ai/settingsPatch";
 import { jsonView, type JsonValue } from "./jsonView";
 import { encodeBlueprint } from "@/lib/blueprint/codec"; // --- review fix (blueprint) ---
 import { catalogBlueprint } from "@/lib/blueprint/catalog"; // --- review fix (blueprint) ---
@@ -11,8 +11,8 @@ import { catalogBlueprint } from "@/lib/blueprint/catalog"; // --- review fix (b
  * (MODE_CATEGORIES), its English name and card line (messages/en.json Modes.*), its settings prefix and, for one mode, every
  * field of its block with the default, the slider range (RANGES; the uncap rule lets links go past the maximum) and the
  * share-link key. Everything is read from the code the site runs, nothing is a second table:
- *  - the prefix: the app AI's mode block (settingsPatch.ts assistantSettings(), which follows MODE_PREFIXES) – the leading
- *    lower-case run its keys share;
+ *  - the prefix: the app AI's mode block (settingsPatch.ts modeBlockSettings(), which follows MODE_PREFIXES; --- unlimited-sizes
+ *    --- the whole block, the growth caps the prompt leaves out included) – the leading lower-case run its keys share;
  *  - the link key of a field: the parameter settingsToSearchParams() writes when only that field leaves the mode's default;
  *  - whether a link keeps the field (settingsFromSearchParams() reads back the value the writer wrote: MODES.md rows 17 and
  *    18) and whether presetToSettings() resolves it (a wrong-typed value comes back as a value of the field's type: row 20).
@@ -90,13 +90,13 @@ export function commonPrefix(keys: readonly string[]): string | null {
   return run ? run[0] : null;
 }
 
-/** The keys of the mode's own block (the app AI's mode settings), in the settings' order. */
+/**
+ * The keys of the mode's own block (the app AI's mode settings), in the settings' order. --- unlimited-sizes --- The whole
+ * block: the growth caps the assistant's prompt leaves out (PROMPT_HIDDEN: cpRingCount, pdMaxTempo, flBoutCap) are fields of
+ * the mode a slider and a link set, so they are listed and their links checked too.
+ */
 function modeBlockKeys(defaults: SimulatorSettings): string[] {
-  const own = `${defaults.mode} setting`;
-  // (--- review fix (blueprint) --- a mode's setting may carry a note after its "<mode> setting: ")
-  return assistantSettings(defaults)
-    .filter(([, description]) => description === own || description.startsWith(`${own}: `))
-    .map(([key]) => key);
+  return modeBlockSettings(defaults).map(([key]) => key);
 }
 
 let coreKeys: Set<string> | null = null;

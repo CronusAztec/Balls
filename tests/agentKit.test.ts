@@ -13,6 +13,7 @@ import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { simulateSeed } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { PROMPT_HIDDEN, assistantSettings } from "@/lib/desktop/ai/settingsPatch"; // --- unlimited-sizes ---
 import en from "../messages/en.json";
 
 // --- agent-cli --- The agent toolbox's pure helpers (src/lib/agentKit): what `npm run agent -- <tool>` computes. The CLI and
@@ -149,6 +150,23 @@ describe("mode catalog (--- agent-cli ---)", () => {
     expect(commonPrefix(["sgTurns", "sgTilt"])).toBe("sg");
     expect(commonPrefix(["growRate", "growLaw"])).toBe("grow");
     expect(commonPrefix([])).toBeNull();
+  });
+
+  it("--- unlimited-sizes --- lists the growth caps the app AI's prompt leaves out, with their link keys and link checks", () => {
+    // (PROMPT_HIDDEN keeps them out of the assistant's prompt only: they are fields of the mode's block, set by a slider and a link)
+    const hidden = [["collide", "cpRingCount", "cprc"], ["paddle", "pdMaxTempo", "pdmt"], ["fightLeague", "flBoutCap", "flBc"]] as const;
+    expect([...PROMPT_HIDDEN].sort()).toEqual(hidden.map(([, key]) => key).sort());
+    for (const [mode, key, url] of hidden) {
+      const detail = modeDetail(mode, en)!;
+      expect(detail.fieldList.find((f) => f.key === key), mode).toMatchObject({ key, url, roundTrip: true, resolved: true });
+      expect(detail.fieldList.filter((f) => f.key === key), mode).toHaveLength(1);
+      expect(detail.linkProblems, mode).toEqual([]);
+      expect(detail.fields, mode).toBe(detail.fieldList.length);
+      // the prompt still leaves it out, and the modes tool lists every other field of the prompt's mode block too
+      const prompt = assistantSettings(defaultSettings(mode)).filter(([, d]) => d === `${mode} setting`).map(([k]) => k);
+      expect(prompt, mode).not.toContain(key);
+      expect(detail.fieldList.map((f) => f.key), mode).toEqual(expect.arrayContaining(prompt));
+    }
   });
 });
 

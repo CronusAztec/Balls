@@ -257,16 +257,28 @@ export function isModeSettingKey(key: string, prefix: string): boolean {
   return (next >= 65 && next <= 90) || (next >= 48 && next <= 57);
 }
 
+/**
+ * --- unlimited-sizes --- The scalar settings of the page's mode's own block (MODE_PREFIXES), each with its "<mode> setting"
+ * description, in the settings' order: the whole block, the growth caps the prompt leaves out (PROMPT_HIDDEN) included, so
+ * the agent toolbox's modes tool lists and checks every field a slider and a link of the mode set. The catalog's settings
+ * and the ones out of a patch's reach (PATCH_EXCLUDED) are never in it.
+ */
+export function modeBlockSettings(current: SimulatorSettings): [key: string, description: string][] {
+  const list: [string, string][] = [];
+  const prefix = MODE_PREFIXES[current.mode];
+  if (!prefix) return list;
+  for (const [key, value] of Object.entries(current as unknown as Settings)) {
+    if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || CATALOG.some(([k]) => k === key)) continue;
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, MODE_SETTING_NOTES[key] ? `${current.mode} setting: ${MODE_SETTING_NOTES[key](current)}` : `${current.mode} setting`]);
+  }
+  return list;
+}
+
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */
 export function assistantSettings(current: SimulatorSettings): [key: string, description: string][] {
   const list: [string, string][] = CATALOG.filter(([key]) => key in current).map(([k, d]) => [k, d]);
-  const prefix = MODE_PREFIXES[current.mode];
-  if (prefix) {
-    for (const [key, value] of Object.entries(current as unknown as Settings)) {
-      if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || PROMPT_HIDDEN.has(key) /* --- unlimited-sizes --- */ || list.some(([k]) => k === key)) continue;
-      if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, MODE_SETTING_NOTES[key] ? `${current.mode} setting: ${MODE_SETTING_NOTES[key](current)}` : `${current.mode} setting`]);
-    }
-  }
+  // --- unlimited-sizes --- (the mode's block without the growth caps the prompt leaves out)
+  for (const entry of modeBlockSettings(current)) if (!PROMPT_HIDDEN.has(entry[0])) list.push(entry);
   return list;
 }
 
