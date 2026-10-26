@@ -13,7 +13,7 @@ import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
 import { extractFrames } from "../scripts/agent/frames.mjs";
 import * as videoSources from "@/lib/agentKit/videoSources";
-import { hostChecker, readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import { fetchVideo, hostChecker, readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
 import { PathError, outFolder } from "../scripts/agent/paths.mjs";
 
 // --- inspiration --- The inspiration tools of the agent toolbox (trending, fetch-video, frames, inspire; analyse with a
@@ -150,6 +150,8 @@ const touched = () => [
   path.join(ROOT, ".agent-out", "frames", `test-inspiration-${process.pid}`),
   path.join(ROOT, ".agent-out", "inspiration", runFolderName(new Date().toISOString(), QUERY)),
   path.join(ROOT, ".agent-out", "inspiration", `${DATASET}.jsonl`),
+  path.join(ROOT, ".agent-out", "inspiration", `${DATASET}-share.jsonl`),
+  path.join(ROOT, ".agent-out", "inspiration", runFolderName(new Date().toISOString(), null)),
 ];
 const moved: [string, string][] = [];
 
@@ -284,6 +286,43 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(r.json.result).toMatchObject({ count: 1, sources: { urls: 1 }, refused: [{ url: list, error: expect.stringMatching(/is a list of videos/) }] });
     expect(r.json.result.videos[0]).toMatchObject({ key: "tiktok:7508828818702978326", views: 4100000, detailed: true });
   });
+
+  // --- inspiration --- a TikTok share link (the app's Copy link) and the video's own link are one video
+  it("counts a share link and the video's own link as one video: ranked once, downloaded once, in the dataset once", async () => {
+    const share = "https://vm.tiktok.com/ZMabcdef/";
+    const own = "https://www.tiktok.com/@channel_7/video/7508828818702978326";
+    const r = agent("trending", { urls: [share, own] });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    expect(r.json.result).toMatchObject({ count: 1, dropped: { duplicates: 1 } });
+    expect(r.json.result.videos[0]).toMatchObject({ key: "tiktok:7508828818702978326", url: own, views: 4100000 });
+    if (!ffmpeg) return;
+    // two calls at once for one video: one download, the other waits and reuses the file
+    for (const ext of [".mp4", ".info.json"]) fs.rmSync(path.join(ROOT, ".agent-out", "inbox", `tiktok-7508828818702978326${ext}`), { force: true });
+    const saved = { FAKE_YTDLP_CLIP: process.env.FAKE_YTDLP_CLIP, FAKE_YTDLP_LOG: process.env.FAKE_YTDLP_LOG };
+    Object.assign(process.env, { FAKE_YTDLP_CLIP: CLIP, FAKE_YTDLP_LOG: LOG });
+    const before = calls().length;
+    try {
+      const ytdlp = { ...ytDlpCommand(FAKE), source: "JBL_YTDLP", version: "fake" };
+      const hosts = async (u: string[]) => ({ ok: u, refused: [] });
+      const both = await Promise.all([share, own].map((url) => fetchVideo(videoSources, { url, ytdlp, hosts })));
+      expect(both.map((b) => b.file)).toEqual([".agent-out/inbox/tiktok-7508828818702978326.mp4", ".agent-out/inbox/tiktok-7508828818702978326.mp4"]);
+      expect(both.map((b) => b.cached).sort()).toEqual([false, true]);
+      expect(calls().slice(before).filter((c) => c.includes("after_move:filepath"))).toHaveLength(1);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+    // inspire with the share link, then with the video's own link: the dataset holds the video once
+    const dataset = `${DATASET}-share`;
+    const first = agent("inspire", { urls: [share], top: 1, oursMax: 0, frames: false, stills: false, dataset });
+    expect(first.code, JSON.stringify(first.json)).toBe(0);
+    expect(first.json.result.dataset).toMatchObject({ added: 1, total: 1 });
+    expect(first.json.result.videos[0]).toMatchObject({ url: own, analysed: true });
+    const second = agent("inspire", { urls: [own], top: 1, oursMax: 0, frames: false, stills: false, dataset });
+    expect(second.json.result.dataset).toMatchObject({ added: 0, total: 1 });
+  }, 240_000);
 
   it("cuts frames and contact sheets for a vision-capable AI, and analyses a link exactly as a file", () => {
     if (!ffmpeg) {

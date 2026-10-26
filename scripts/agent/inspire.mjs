@@ -104,7 +104,9 @@ export async function inspireTool(tb, args) {
     try {
       const got = await fetchVideo(tb, { url: meta.url, maxHeight: args.maxHeight ?? 1080, ytdlp, hosts }, nowMs);
       const features = await measureFile(tb, ffmpeg, got.absolute, {});
-      featuresByKey.set(meta.key, features);
+      // --- inspiration --- keyed as the merged row is (the page's id names the video), and found again by the row's own key
+      const merged = tb.mergeMeta(meta, got.meta);
+      featuresByKey.set(merged.key, features);
       let frames = null;
       if (args.frames !== false) {
         try {
@@ -115,7 +117,7 @@ export async function inspireTool(tb, args) {
           note(`no frames of ${got.file}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-      return { meta: tb.mergeMeta(meta, got.meta), file: got.file, features, frames, error: null };
+      return { meta: merged, rowKey: meta.key, file: got.file, features, frames, error: null };
     } catch (e) {
       const error = (e instanceof Error ? e.message : String(e)).slice(0, 400);
       // --- inspiration --- the stills fallback: the video is still seen, and its colours measured
@@ -127,7 +129,7 @@ export async function inspireTool(tb, args) {
           note(`no stills of ${meta.url}: ${s instanceof Error ? s.message : String(s)}`);
         }
       }
-      return { meta, error, stills };
+      return { meta, rowKey: meta.key, error, stills };
     }
   });
   const ours = [];
@@ -140,8 +142,19 @@ export async function inspireTool(tb, args) {
       }
     }
   }
-  const candidates = found.videos.map((v) => analysed.find((a) => a.meta.key === v.key)?.meta ?? v);
-  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed, ours, modes: modeIds(), shortForm: (args.maxDurationSec ?? tb.SHORT_MAX_SEC) <= tb.SHORT_MAX_SEC });
+  // --- inspiration --- one entry per video: two rows that turn out to be the same video (their pages name one id) count
+  // once, the measured one kept, in the report's numbers and in the dataset
+  const byKey = new Map();
+  for (const a of analysed) {
+    const had = byKey.get(a.meta.key);
+    if (!had || (!had.features && a.features)) byKey.set(a.meta.key, a);
+  }
+  const unique = [...byKey.values()];
+  const seen = new Set();
+  const candidates = found.videos
+    .map((v) => analysed.find((a) => a.rowKey === v.key)?.meta ?? v)
+    .filter((m) => !seen.has(m.key) && seen.add(m.key));
+  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed: unique, ours, modes: modeIds(), shortForm: (args.maxDurationSec ?? tb.SHORT_MAX_SEC) <= tb.SHORT_MAX_SEC });
   const runDir = outFolder("inspiration", tb.runFolderName(at, found.query));
   const reportFile = writeFileSafe(path.join(runDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
   const markdownFile = writeFileSafe(path.join(runDir, "report.md"), tb.inspirationMarkdown(report));

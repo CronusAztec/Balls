@@ -196,6 +196,25 @@ describe("a video's numbers (--- inspiration ---)", () => {
     expect(hasNumbers(page)).toBe(true);
   });
 
+  // --- inspiration --- a share link names no id: its page does, and the two rows of one video meet under that key
+  it("gives a share link the key and the link its page names, so it meets the same video found by its own link", () => {
+    const shareLink = "https://vm.tiktok.com/ZMabcdef/";
+    const share = meta({ webpage_url: shareLink }, "url", false, shareLink);
+    expect(share.key).toBe("tiktok:vm.tiktok.com/ZMabcdef");
+    const page = meta(TIKTOK, "url", true, shareLink);
+    const merged = mergeMeta(share, page);
+    expect(merged).toMatchObject({ key: "tiktok:7508828818702978326", id: "7508828818702978326", url: TIKTOK.webpage_url, views: 4100000, detailed: true });
+    const own = mergeMeta(meta({ webpage_url: TIKTOK.webpage_url }, "url", false, TIKTOK.webpage_url as string), page);
+    const ranked = rankVideos([merged, own], { sortBy: "views", limit: 10 });
+    expect(ranked.videos.map((v) => v.key)).toEqual(["tiktok:7508828818702978326"]);
+    expect(ranked.dropped.duplicates).toBe(1);
+    // a link with an id of its own stays (a Short's /shorts/ link marks it short-form); another site keeps its link's key
+    const feed = meta(SHORTS[0], "shorts");
+    expect(mergeMeta(feed, meta(PAGES.find((p) => p.id === "FFJ5THnzdDE")!, "shorts", true, feed.url)).url).toBe(feed.url);
+    const other = meta({ webpage_url: "https://example.com/v/1" }, "url", false, "https://example.com/v/1");
+    expect(mergeMeta(other, meta({ id: "video", webpage_url: "https://example.com/v/1", view_count: 5 }, "url", true)).key).toBe("other:example.com/v/1");
+  });
+
   it("keeps other people's text as one clean line", () => {
     expect(cleanText("a\u0000b‮c\n\n  d")).toBe("a b c d");
     expect(cleanText("x".repeat(500))).toHaveLength(200);

@@ -457,14 +457,25 @@ export function videoMetaOf(info: Record<string, unknown>, { source, nowMs, link
   };
 }
 
-/** A row and the same video's page merged: the page's numbers where it has them, the row's link, short-form and source kept. */
+/**
+ * A row and the same video's page merged: the page's numbers where it has them, the row's link, short-form and source kept.
+ * --- inspiration --- The page names the video: on TikTok, Instagram or YouTube the key becomes the video's own
+ * (platform:id), so a share link without an id in its path (vm.tiktok.com/ZM…, the app's Copy link) meets the same video
+ * found another way, and such a link gives way to the page's own link.
+ */
 export function mergeMeta(row: VideoMeta, page: VideoMeta | null): VideoMeta {
   if (!page) return row;
   const pick = <K extends keyof VideoMeta>(k: K): VideoMeta[K] => (page[k] ?? row[k]) as VideoMeta[K];
   const durationSec = pick("durationSec");
+  const id = pick("id");
+  const platform = page.platform !== "other" ? page.platform : row.platform;
+  const named = platform !== "other" && id !== null && ID.test(id);
   return {
     ...row,
-    id: pick("id"),
+    key: named ? videoKey(platform, id, row.url) : row.key,
+    url: named && videoIdOfUrl(row.url) === null ? page.url : row.url,
+    platform,
+    id,
     title: pick("title"),
     channel: pick("channel"),
     views: pick("views"),

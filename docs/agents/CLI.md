@@ -134,7 +134,8 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   to the hashtag of its last two words, then its first two: `satisfying physics simulation shorts` reads
   `#physicssimulation`, and the result's `feed` says which). Links in `urls` (TikTok, Instagram, YouTube or any site) are added; yt-dlp
   cannot list TikTok's tags, so give TikTok videos as links. The best rows' own pages are then read for exact views, likes,
-  comments, length and upload date (`details: false` skips that). It returns each video's link, platform, title, channel,
+  comments, length and upload date (`details: false` skips that); a video found twice counts once, by the id its page names
+  (a TikTok share link, vm.tiktok.com/…, and the video's own link are one video). It returns each video's link, platform, title, channel,
   views, likes, comments, length, upload date, views per day and whether it is short-form, sorted by `sortBy` (`views` or
   `viewsPerDay`), short-form first when `maxDurationSec` is at most 180. `limit` has no maximum. It writes nothing.
 - **`fetch-video`** downloads one video into `.agent-out/inbox/<platform>-<id>.mp4` with `<platform>-<id>.info.json` beside

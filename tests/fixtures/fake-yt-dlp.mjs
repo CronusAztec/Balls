@@ -8,7 +8,8 @@
  *  - `--skip-download`: each link's page (pages.jsonl, tiktok-page.json; any other link: an ERROR line, as yt-dlp prints
  *    for a video it cannot read). A channel, its Shorts tab or a playlist (youtube.com/@name…, /playlist?list=) is a list:
  *    every YouTube page of pages.jsonl as its entries, shaped as yt-dlp prints a list's entries (playlist_index,
- *    playlist_webpage_url, the entry's own original_url), only those --playlist-items names when it is given (N, A:B, A,B);
+ *    playlist_webpage_url, the entry's own original_url), only those --playlist-items names when it is given (N, A:B, A,B).
+ *    A TikTok share link (vm.tiktok.com/ZM…) answers with tiktok-page.json, as yt-dlp follows it to the video;
  *  - a download (`--print after_move:filepath`): FAKE_YTDLP_CLIP copied to the --output template, the info JSON beside it.
  * It refuses a run without --ignore-config and --no-cache-dir (exit 3), and appends each argv as a JSON line to
  * FAKE_YTDLP_LOG when that is set.
@@ -33,7 +34,8 @@ const targets = sep >= 0 ? argv.slice(sep + 1) : [];
 const opt = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
 const lines = (file) => fs.readFileSync(path.join(DIR, file), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
 const pages = [...lines("pages.jsonl"), JSON.parse(fs.readFileSync(path.join(DIR, "tiktok-page.json"), "utf8"))];
-const pageOf = (url) => pages.find((p) => url.includes(p.id));
+// (--- inspiration --- a TikTok share link, vm.tiktok.com/ZM…, names no id: yt-dlp follows it to the video's page)
+const pageOf = (url) => pages.find((p) => url.includes(p.id)) ?? (/^https:\/\/vm\.tiktok\.com\/ZM\w+\/?$/.test(url) ? pages.find((p) => p.webpage_url?.includes("tiktok.com")) : undefined);
 let failed = false;
 // --- inspiration --- a list's link, and the entries --playlist-items keeps (1-based; none given: every entry)
 const isList = (url) => /^https:\/\/www\.youtube\.com\/(@[\w.-]+(\/(shorts|videos))?\/?$|playlist\?list=)/.test(url);

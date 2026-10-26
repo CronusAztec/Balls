@@ -366,10 +366,14 @@ const regularFile = (file) => {
   }
 };
 
+/** --- inspiration --- The downloads under way in this process, by file name: a second call for the same file waits for the first. */
+const fetching = new Map();
+
 /**
  * One video fetched into .agent-out/inbox/<platform>-<id>.<ext> with its info JSON: { url, absolute, file, infoFile,
  * bytes, cached, meta, ytdlp } (meta: videoSources.ts VideoMeta from the video's page; ytdlp: the one that ran, the
- * caller's when it passes one).
+ * caller's when it passes one). Two calls for one video at once (two links of it) download it once: the second waits,
+ * then reuses the file.
  */
 export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytdlp: given = null, hosts = hostChecker(tb) }, nowMs = Date.now()) {
   const link = tb.checkVideoUrl(url);
@@ -387,9 +391,21 @@ export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytd
   const meta = info ? tb.videoMetaOf(info, { source: "url", nowMs, link: link.url, detailed: true }) : null;
   if (!meta) throw new Error(`yt-dlp could not read ${link.url}: ${tb.ytErrorLines(page.stderr).join("; ") || `exit ${page.code}`}`);
   const name = tb.videoFileName(meta);
+  while (fetching.has(name)) await fetching.get(name).catch(() => {});
   const infoTarget = path.join(inbox, `${name}.info.json`);
   const had = inboxVideo(inbox, name);
   if (had && !force) return { url: link.url, absolute: had, file: repoRelative(had), infoFile: regularFile(infoTarget) ? repoRelative(infoTarget) : null, bytes: fs.statSync(had).size, cached: true, meta, ytdlp };
+  const job = download(tb, { link, inbox, name, infoTarget, maxHeight, meta, ytdlp });
+  fetching.set(name, job);
+  try {
+    return await job;
+  } finally {
+    if (fetching.get(name) === job) fetching.delete(name);
+  }
+}
+
+/** fetchVideo's download: into a fresh folder, then renamed into place. */
+async function download(tb, { link, inbox, name, infoTarget, maxHeight, meta, ytdlp }) {
   const ffmpeg = resolveFfmpeg();
   const tmp = fs.mkdtempSync(path.join(inbox, ".fetch-"));
   try {
