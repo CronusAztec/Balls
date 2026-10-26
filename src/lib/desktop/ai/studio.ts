@@ -5,7 +5,7 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import { copyString, type BotCopy } from "@/lib/bot/copy";
 import type { AgentTask, AgentTool, AgentTurn } from "./agent";
 import type { JsonSchema } from "./jsonSchema";
-import { CATALOG, changesSchema, describeSetting, patchFromChanges, validateSettingsPatch, type SettingChange } from "./settingsPatch";
+import { CLIP_SETTINGS, changesSchema, describeSetting, patchFromChanges, validateSettingsPatch, type SettingChange } from "./settingsPatch";
 // --- desktop-ai-fix --- reply normalisers, placeholder-free recipe hooks and the settings that matter for a request
 import { CLIP_NAME_MAX, HASHTAG_MAX_CHARS, clipCutOf, clipCutSpec, fitText, normaliseCopyResult, normaliseMakeVideosResult, withoutPlaceholders, type ClipCut, type PlanFacts } from "./normalise";
 import { relevantAssistantSettings } from "./settingsFilter";
@@ -356,12 +356,12 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
     description: "Changes settings of a planned clip (e.g. recordingDuration, colours, gravity) as a list of {setting, value}. Checked; invalid values are refused.",
     args: {
       type: "object",
-      properties: { planId: { type: "string" }, changes: changesSchema(defaultSettingsForTools, CATALOG) },
+      properties: { planId: { type: "string" }, changes: changesSchema(defaultSettingsForTools, CLIP_SETTINGS) }, // --- trends --- (the catalog and the trending look's levers)
       required: ["planId", "changes"],
       additionalProperties: false,
     },
     // --- desktop-ai-fix --- one line in the prompt instead of the changes' JSON schema (~2,000 tokens); the grammar keeps the schema
-    argsHint: `{"planId": "<a planId plan_clips returned>", "changes": [{"setting": "<name>", "value": <value>}]} – settings: ${CATALOG.map(([key]) => key).join(", ")}`,
+    argsHint: `{"planId": "<a planId plan_clips returned>", "changes": [{"setting": "<name>", "value": <value>}]} – settings: ${CLIP_SETTINGS.map(([key]) => key).join(", ")}`,
     check: (args) => {
       const plan = store.get(args.planId as string);
       if (!plan) return [`unknown planId "${String(args.planId)}"`];
