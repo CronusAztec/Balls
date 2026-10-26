@@ -95,6 +95,8 @@ interface Reader {
   shape: Blueprint["arena"]["shape"];
   hasTiles: boolean;
   paletteSize: number;
+  /** --- unlimited-sizes --- When set, the bound each number is read with, by its path (`blueprintNumberBounds()`). */
+  bounds?: Map<string, BlueprintNumberBound>;
 }
 
 function issue(rd: Reader, path: string, message: string) {
@@ -169,8 +171,40 @@ function describeRange(r: NumRule): string {
 /** --- review fix (blueprint) --- A spawn speed: either way up to the speed ceiling (a faster ball could not be followed). */
 const SPEED_RULE = { min: -BLUEPRINT_SPEED_CEILING, max: BLUEPRINT_SPEED_CEILING, ceiling: "ball speed ceiling, px/s" } as const;
 
+// --- unlimited-sizes --- the bound the language holds each number of a spec to, as the walker reads it
+/**
+ * The bound the language holds one number of a spec to: its floor (`above`: the floor itself is refused too), its top and
+ * whether it is a whole number – a design domain, a structural ceiling or a work ceiling. A number with none of them takes
+ * any finite value (a physics scalar: a gravity, a spin, a grow).
+ */
+export interface BlueprintNumberBound {
+  min?: number;
+  above?: boolean;
+  max?: number;
+  integer?: boolean;
+}
+
+/** Records the rule `num()` reads the number at `path` with (only while `blueprintNumberBounds()` walks). */
+function noteBound(rd: Reader, path: string, r: NumRule) {
+  if (!rd.bounds) return;
+  const b: BlueprintNumberBound = {};
+  if (r.min !== undefined) b.min = r.min;
+  if (r.above) b.above = true;
+  if (r.max !== undefined) b.max = r.max;
+  if (r.int) b.integer = true;
+  rd.bounds.set(path, b);
+}
+
+/** Lowers the recorded top at `path` to `max` where a later check of the walker cuts the number further (the tile ceiling, the palette). */
+function lowerTop(rd: Reader, path: string, max: number) {
+  const b = rd.bounds?.get(path);
+  if (b && !(b.max !== undefined && b.max <= max)) b.max = max;
+}
+// --- end unlimited-sizes ---
+
 /** A number in its domain; the default when missing or meaningless; snapped into a design domain (tolerant). */
 function num(rd: Reader, path: string, value: unknown, r: NumRule): number {
+  noteBound(rd, path, r); // --- unlimited-sizes ---
   if (value === undefined || value === null) {
     if (r.required) issue(rd, path, `missing (${describeRange(r)})`);
     return r.def;
@@ -437,6 +471,9 @@ function readTiles(rd: Reader, raw: unknown): BlueprintTiles | null {
   const D = DEFAULTS.tiles;
   let rows = num(rd, "tiles.rows", own(t, "rows"), { def: D.rows, min: 1, max: L.tileRows, int: true });
   const cols = num(rd, "tiles.cols", own(t, "cols"), { def: D.cols, min: 1, max: L.tileCols, int: true });
+  // --- unlimited-sizes --- (rows and columns stop where their product reaches the tile ceiling: past it the rows are cut below)
+  lowerTop(rd, "tiles.rows", Math.max(1, Math.floor(L.tiles / cols)));
+  lowerTop(rd, "tiles.cols", Math.max(1, Math.floor(L.tiles / rows)));
   if (rows * cols > L.tiles) {
     issue(rd, "tiles", `${rows} rows × ${cols} columns are ${rows * cols} tiles (at most ${L.tiles})`);
     rows = Math.max(1, Math.floor(L.tiles / cols));
@@ -492,7 +529,7 @@ const OBSTACLE_FIELDS: Readonly<Record<string, NumRule>> = {
 
 function readObstacles(rd: Reader, raw: unknown): BlueprintObstacle[] {
   let total = 0;
-  return readList(rd, "obstacles", raw, L.obstaclePatterns, (v, p) => {
+  const obstacles = readList(rd, "obstacles", raw, L.obstaclePatterns, (v, p) => {
     const o = readRecord(rd, p, v, true);
     if (!o) return null;
     const kind = oneOf(rd, join(p, "kind"), own(o, "kind"), OBSTACLE_KINDS, "peg", true);
@@ -514,6 +551,16 @@ function readObstacles(rd: Reader, raw: unknown): BlueprintObstacle[] {
     total += n;
     return obstacle;
   });
+  // --- unlimited-sizes --- (a pattern's own count stops where all the patterns together reach the obstacle ceiling: past it the
+  // pattern is dropped above)
+  obstacles.forEach((o, j) => {
+    const room = L.obstacles - (total - obstacleCount(o));
+    if (o.kind === "pegGrid") {
+      lowerTop(rd, `obstacles[${j}].rows`, Math.max(1, Math.floor(room / o.cols)));
+      lowerTop(rd, `obstacles[${j}].cols`, Math.max(1, Math.floor(room / o.rows)));
+    } else if (o.kind === "pegRing") lowerTop(rd, `obstacles[${j}].count`, Math.max(1, room));
+  });
+  return obstacles;
 }
 
 function readVars(rd: Reader, raw: unknown): BlueprintVar[] {
@@ -884,6 +931,7 @@ function readParams(rd: Reader, raw: unknown, bp: Omit<Blueprint, "params">): Bl
 function checkPaletteRefs(rd: Reader, bp: Blueprint) {
   const n = bp.look.palette.length;
   bp.bodies.forEach((b, i) => {
+    lowerTop(rd, `bodies[${i}].color`, n - 1); // --- unlimited-sizes --- (an index past the palette is folded onto it below)
     if (b.color >= n) {
       issue(rd, `bodies[${i}].color`, `palette index ${b.color} past the palette's ${n} colours`);
       b.color = b.color % n;
@@ -891,6 +939,7 @@ function checkPaletteRefs(rd: Reader, bp: Blueprint) {
   });
   bp.rules.forEach((r, i) =>
     r.do.forEach((a, j) => {
+      if (a.act === "recolor" && typeof a.color === "number") lowerTop(rd, `rules[${i}].do[${j}].color`, n - 1); // --- unlimited-sizes ---
       if (a.act === "recolor" && typeof a.color === "number" && a.color >= n) {
         issue(rd, `rules[${i}].do[${j}].color`, `palette index ${a.color} past the palette's ${n} colours`);
         a.color = a.color % n;
@@ -903,8 +952,8 @@ function checkPaletteRefs(rd: Reader, bp: Blueprint) {
 
 const TOP_FIELDS = ["v", "meta", "arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "hud", "look", "sound", "params"] as const;
 
-function walk(raw: unknown, strict: boolean): { blueprint: Blueprint; issues: string[]; newer: string[] } {
-  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length };
+function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumberBound>): { blueprint: Blueprint; issues: string[]; newer: string[] } {
+  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length, bounds };
   const root = isRecord(raw) ? raw : (issue(rd, "$", `a Blueprint is a JSON object, got ${kindOf(raw)}`), {});
   unknownFields(rd, "$", root, TOP_FIELDS);
   const v = own(root, "v");
@@ -984,6 +1033,24 @@ export interface SanitizeResult {
    * format of the spec itself comes first, as `v<version>` ("v2").
    */
   newer: string[];
+}
+
+// --- unlimited-sizes --- one source of truth for a number's bound: the rule the walker itself reads it with
+/**
+ * The bound of every number of a resolved spec (sanitizeBlueprint's output, so the paths are the spec's own), by its path
+ * (`arena.rings.gapDeg`, `bodies[0].radius`, `finish.any[0].atLeast`): the very rule this file's walker reads the number
+ * with, the tile ceiling and the palette's length included – so a value inside it is kept as written, and one past it is
+ * what sanitizing would change. Mode Lab's number fields take their floor and top from it (lib/blueprint/params.ts
+ * `paramBounds()`), never from a slider's ends. A path the walker reads no number at is not in the map: it has no bound.
+ */
+export function blueprintNumberBounds(spec: Blueprint): ReadonlyMap<string, BlueprintNumberBound> {
+  const bounds = new Map<string, BlueprintNumberBound>();
+  try {
+    walk(spec, false, bounds);
+  } catch {
+    bounds.clear(); // (a spec the walker cannot read has no bounds to give: sanitizeBlueprint replaces it whole)
+  }
+  return bounds;
 }
 
 /** The valid spec closest to `raw`, never throwing (see the file's header). */

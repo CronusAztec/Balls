@@ -4712,6 +4712,7 @@
     "errNotFinite": "Nieskończoność się nie uruchomi – wpisz skończoną liczbę (1e308 działa).",
     "errBelowMin": "Co najmniej {min} – zostaje poprzednia wartość.",
     "errNotAbove": "Więcej niż {min}. Zostaje poprzednia wartość.",
+    "errAboveMax": "Najwyżej {max}. Zostaje poprzednia wartość.",
     "beyondTip": "Poza suwakiem: {value} (suwak obejmuje {min}–{max}; wartość działa tak, jak ją wpisano)",
     "memoryCeiling": "Limit bezpieczeństwa pamięci: symulacja tworzy najwyżej {value} takich elementów (ARENA PEŁNA); link zachowuje twoją liczbę.",
     "canvasSpeed": "⚡ [speed] PX/S",

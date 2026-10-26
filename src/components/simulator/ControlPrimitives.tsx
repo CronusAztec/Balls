@@ -7,7 +7,7 @@ import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- 
 import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimitedSlider"; // --- unlimited --- (--- uncap-all --- the Wide sliders track)
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
 import NumberField from "./NumberField";
-import { beyondSlider, formatCompact, memoryCeiling } from "@/lib/uncap";
+import { beyondSlider, formatCompact, memoryCeiling, type NumberRules } from "@/lib/uncap";
 import { sliderCeiling } from "@/lib/unlimited"; // --- unlimited-sizes --- (a log track continues past its comfort range)
 import { logTrackEnd, logTrackPosition, logTrackValue, type LogTrackSpec } from "./logTrack"; // --- low-findings-2 ---
 
@@ -80,6 +80,7 @@ export function Slider({
   disabled,
   log,
   settingKey: namedKey,
+  rules,
 }: {
   t: Translate;
   search: string;
@@ -98,6 +99,11 @@ export function Slider({
    * Teams ball count); without it the setting is found by the range object.
    */
   settingKey?: string;
+  /**
+   * --- unlimited-sizes --- The number field's rules where they are not a setting's (`rulesForRange()`): a Mode Lab parameter's
+   * floor and top are the bounds its Blueprint's language holds that number to, never the slider's ends.
+   */
+  rules?: NumberRules;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
@@ -152,7 +158,7 @@ export function Slider({
           ) : (
             track
           )}
-          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} />
+          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rules ?? rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} />
         </div>
         {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
       </div>

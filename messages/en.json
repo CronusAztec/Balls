@@ -4712,6 +4712,7 @@
     "errNotFinite": "Infinity cannot run – type a finite number (1e308 works).",
     "errBelowMin": "At least {min} – the old value stays.",
     "errNotAbove": "More than {min}. The old value stays.",
+    "errAboveMax": "At most {max}. The old value stays.",
     "beyondTip": "Beyond the slider: {value} (the slider covers {min}–{max}; the value runs as typed)",
     "memoryCeiling": "Memory-safety ceiling: the run builds at most {value} of these (ARENA FULL); the link keeps your number.",
     "canvasSpeed": "⚡ [speed] PX/S",

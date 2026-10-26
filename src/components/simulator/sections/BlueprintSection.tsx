@@ -4,8 +4,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramBounds, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type BlueprintNumberBound, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
+import { isIntegerRange } from "@/lib/unlimited"; // --- unlimited-sizes ---
+import type { NumberRules, NumericRange } from "@/lib/uncap";
 
 export interface BlueprintSectionProps {
   t: Translate;
@@ -96,6 +98,23 @@ export function blueprintParamDisplay(bp: Blueprint, i: number, value: number, l
 }
 
 /**
+ * --- unlimited-sizes --- A slider's number field rules: the bound the Blueprint's language holds that number to
+ * (`paramBounds()`, the sanitizer's own rule at the parameter's path: a ring gap of at least 5° and at most 180°, a target
+ * tier from 1 to 99, a spin of any value), never the slider's start or end – those only shape the drag, which the catalog
+ * tunes so each game still makes a clip at both ends. A value inside the bound is kept as typed (a still exit, a 20° gap), an
+ * arrow press steps on from it, and one past it is refused with the bound named. Whole numbers where the language counts or
+ * the slider steps by whole numbers.
+ */
+export function blueprintParamRules(bound: BlueprintNumberBound, range: NumericRange): NumberRules {
+  return {
+    ...(bound.min !== undefined ? { min: bound.min } : {}),
+    ...(bound.above ? { above: true } : {}),
+    ...(bound.max !== undefined ? { max: bound.max } : {}),
+    integer: bound.integer === true || isIntegerRange(range),
+  };
+}
+
+/**
  * --- review fix (blueprint) --- Copy link's outcome: "copied" when the clipboard took the link, "failed" when there is no
  * clipboard (an insecure page, an old browser) or it refused (a blocked permission), so the panel offers the link to select
  * by hand instead of doing nothing.
@@ -124,6 +143,7 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   const link = blueprintLinkNotice(resolved);
   const base = resolved.base;
   const values = parseParamValues(s.blParams);
+  const bounds = useMemo(() => paramBounds(base), [base]); // --- unlimited-sizes --- (each number field's floor and top: the language's, at the slider's path)
   const catalogKey = (id: string, key: string) => (b.has(`${id}.${key}`) ? b(`${id}.${key}`) : null);
   const name = (!fromLink && catalogKey(resolved.catalogId, "name")) || base.meta.name;
   const description = (!fromLink && catalogKey(resolved.catalogId, "description")) || base.meta.description;
@@ -291,7 +311,9 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
           const paramT = Object.assign((key: string) => (key === `blParam${i}` ? label : t(key)), t) as Translate;
           // the value in the page's number format, with its unit (s, °, °/s, px, px/s, px/s²)
           const display = blueprintParamDisplay(base, i, value, locale, (unit, n) => unitT(unit, { n }));
-          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={{ min: p.min, max: p.max, step: p.step }} onChange={(v) => setParam(i, v)} display={display} />;
+          // --- unlimited-sizes --- the track is the spec's comfort range; the number field takes anything the language does
+          const range = { min: p.min, max: p.max, step: p.step };
+          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={range} rules={blueprintParamRules(bounds[i] ?? {}, range)} onChange={(v) => setParam(i, v)} display={display} />;
         })}
       {/* --- How it plays: the arena, the start, every rule and the ending, in plain words */}
       {!search && (

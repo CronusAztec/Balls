@@ -4712,6 +4712,7 @@
     "errNotFinite": "El infinito no se puede ejecutar: escribe un número finito (1e308 funciona).",
     "errBelowMin": "Como mínimo {min}; se mantiene el valor anterior.",
     "errNotAbove": "Más de {min}. Se mantiene el valor anterior.",
+    "errAboveMax": "Como máximo {max}. Se mantiene el valor anterior.",
     "beyondTip": "Más allá del deslizador: {value} (el deslizador cubre {min}–{max}; el valor se usa tal cual)",
     "memoryCeiling": "Techo de seguridad de memoria: la simulación crea como máximo {value} de estos (ARENA LLENA); el enlace conserva tu número.",
     "canvasSpeed": "⚡ [speed] PX/S",

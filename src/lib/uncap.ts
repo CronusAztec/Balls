@@ -487,6 +487,12 @@ export interface NumberRules {
   /** Whole numbers only (counts): a decimal is rounded. */
   integer?: boolean;
   /**
+   * --- unlimited-sizes --- A real top, never a slider's end: only a Mode Lab parameter has one, the bound its Blueprint's
+   * language holds that number to (lib/blueprint `paramBounds()`: a gap of at most 180°, a tier of at most 99). A value past
+   * it is refused (`aboveMax`) and an arrow press stops there.
+   */
+  max?: number;
+  /**
    * --- review fix (uncap-all) --- An optional value (bounce math's min / max: none means no bound): an empty field clears
    * it instead of being refused.
    */
@@ -494,9 +500,9 @@ export interface NumberRules {
 }
 
 /** Why typed text was refused (the field keeps the old value and says why). */
-export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin" | "notAbove"; // --- unlimited-sizes --- (notAbove: at or below a "more than" floor)
+export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin" | "notAbove" | "aboveMax"; // --- unlimited-sizes --- (notAbove: at or below a "more than" floor; aboveMax: past a Blueprint number's top)
 
-export type NumberCheck = { ok: true; value: number } | { ok: false; reason: NumberRefusal; min?: number };
+export type NumberCheck = { ok: true; value: number } | { ok: false; reason: NumberRefusal; min?: number; max?: number };
 
 const SUFFIX_FACTORS: Readonly<Record<string, number>> = { k: 1e3, m: 1e6, b: 1e9, t: 1e12, q: 1e15 };
 
@@ -532,6 +538,7 @@ export function checkNumber(value: number | null, rules: NumberRules = {}): Numb
   const v = rules.integer ? Math.round(value) : value;
   if (rules.min !== undefined && v < rules.min) return { ok: false, reason: rules.above ? "notAbove" : "belowMin", min: rules.min };
   if (rules.min !== undefined && rules.above && v <= rules.min) return { ok: false, reason: "notAbove", min: rules.min }; // --- unlimited-sizes ---
+  if (rules.max !== undefined && v > rules.max) return { ok: false, reason: "aboveMax", max: rules.max }; // --- unlimited-sizes --- (a Blueprint number's own top)
   return { ok: true, value: v };
 }
 
@@ -544,7 +551,8 @@ export function checkTypedNumber(text: string, rules: NumberRules = {}): NumberC
 /**
  * The next value for an arrow key: ±`step` inside the comfort range, and – beyond it, where one step would take forever –
  * a step of about a tenth of the value's own size (1,000,000 → 1,100,000). `coarse` (Shift) takes ten steps, `fine`
- * (Alt) a tenth of one. The result respects the rules (a value below the minimum stops at it).
+ * (Alt) a tenth of one. The result respects the rules (a value below the minimum stops at it; --- unlimited-sizes --- one past a
+ * real top, `max`, too).
  */
 export function stepNumber(value: number, direction: 1 | -1, range: NumericRange, rules: NumberRules = {}, modifier: "coarse" | "fine" | null = null): number {
   const base = Number.isFinite(value) ? value : range.min;
@@ -561,6 +569,7 @@ export function stepNumber(value: number, direction: 1 | -1, range: NumericRange
   if (rules.min !== undefined && next < rules.min) next = rules.min;
   // --- unlimited-sizes --- a "more than" floor: a step down onto it is not taken (the value stays; a smaller one can be typed)
   if (rules.min !== undefined && rules.above && next <= rules.min) next = base;
+  if (rules.max !== undefined && next > rules.max) next = rules.max; // --- unlimited-sizes --- (a Blueprint number's own top)
   return next;
 }
 
@@ -642,7 +651,7 @@ export function atLeastMin(n: number, range: { min: number }): number {
 /** What a number field holds between renders: the text being typed (null = showing the value) and the last refusal. */
 export interface NumberFieldState {
   draft: string | null;
-  error: { reason: NumberRefusal; min?: number; text?: string } | null;
+  error: { reason: NumberRefusal; min?: number; max?: number; text?: string } | null;
 }
 
 export const IDLE_FIELD: NumberFieldState = { draft: null, error: null };
@@ -674,7 +683,7 @@ export function numberFieldReduce(state: NumberFieldState, event: NumberFieldEve
       if (rules.optional && state.draft.trim() === "") return { state: IDLE_FIELD, clear: true }; // --- review fix (uncap-all) ---
       const check = checkTypedNumber(state.draft, rules);
       if (!check.ok) {
-        const error = { reason: check.reason, min: check.min, text: state.draft };
+        const error = { reason: check.reason, min: check.min, ...(check.max !== undefined ? { max: check.max } : {}), text: state.draft };
         return { state: event.type === "blur" ? { draft: null, error } : { draft: state.draft, error } };
       }
       return { state: IDLE_FIELD, commit: check.value };

@@ -4,7 +4,7 @@
  * spec's own value). A value is never clamped to its slider here: the patched spec is sanitized again, so a structural
  * ceiling (tiles, balls, rings…) or a design domain puts it back in range, exactly as it would in a spec written that way.
  */
-import { sanitizeBlueprint } from "./sanitize";
+import { blueprintNumberBounds, sanitizeBlueprint, type BlueprintNumberBound } from "./sanitize";
 import { numberAt, paramPathSteps, setNumberAt, type Blueprint } from "./schema";
 
 /** The value parameter `i` has in a spec (its path's number), or NaN. */
@@ -52,6 +52,18 @@ export function applyBlueprintParams(bp: Blueprint, values: readonly (number | n
   });
   const { blueprint, notes } = sanitizeBlueprint(copy);
   return { blueprint, notes };
+}
+
+// --- unlimited-sizes --- the bound a slider's number field holds to
+/**
+ * The bound the language holds each parameter's number to, in order: the sanitizer's own rule at its path
+ * (`blueprintNumberBounds()`: a gap of at least 5°, a tier from 1 to 99, a radius above 0 up to the radius ceiling), {} for a
+ * number it does not bound. A slider's `min` and `max` never enter it: they only shape the drag (Mode Lab's number field
+ * takes any value inside this bound, past the slider's ends too).
+ */
+export function paramBounds(bp: Blueprint): BlueprintNumberBound[] {
+  const bounds = blueprintNumberBounds(bp);
+  return bp.params.map((p) => ({ ...bounds.get(p.at) }));
 }
 
 // --- review fix (blueprint) --- the unit a slider shows its value in

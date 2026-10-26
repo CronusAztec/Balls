@@ -7,6 +7,8 @@
  * a tenth of the value); invalid text never reaches the settings: the old value stays and the field says why. A value
  * beyond the slider's comfort range is shown exactly, with a faint tint and a "beyond the slider" tooltip. The behaviour
  * itself is the pure `numberFieldReduce()` of lib/uncap.ts (tested there); this component only renders it.
+ * --- unlimited-sizes --- The one field with a top is a Mode Lab parameter's (`rules.max`, the bound its Blueprint's language
+ * holds that number to): a value past it is refused with that top named, as one below a floor is.
  */
 import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
@@ -77,6 +79,8 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
       ? t("errBelowMin", { min: formatCompact(error.min ?? range.min) })
       : error.reason === "notAbove" // --- unlimited-sizes --- (a "more than" floor: a gap or a clip of 0)
         ? t("errNotAbove", { min: formatCompact(error.min ?? range.min) })
+      : error.reason === "aboveMax" // --- unlimited-sizes --- (a Mode Lab number past its language's top)
+        ? t("errAboveMax", { max: formatCompact(error.max ?? range.max) })
       : error.reason === "notFinite"
         ? t("errNotFinite")
         : error.reason === "empty"
