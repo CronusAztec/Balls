@@ -9,7 +9,8 @@ import { integratedLoudness } from "@/lib/audio/loudness";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
 
 // --- agent-cli --- (video analysis) The analyser's pure halves (src/lib/videoAnalysis) and the CLI's `analyse` end to end on
-// a clip with known cuts, tempo and loudness that ffmpeg makes here: local files only, every field within tolerance.
+// a clip with known cuts, tempo and loudness that ffmpeg makes here, every field within tolerance. A video from a site (another
+// creator's trending clip included) is downloaded into .agent-out/inbox/ first, and a URL is answered with that, not refused.
 
 const ROOT = path.resolve(__dirname, "..");
 const CLI = path.join(ROOT, "scripts", "agent", "cli.mjs");
@@ -138,12 +139,17 @@ describe("analyse end to end (--- agent-cli ---)", () => {
     return { code: r.status, out: JSON.parse(r.stdout.trim().split("\n").pop() ?? "{}") };
   };
 
-  it("refuses URLs, data: URIs and files outside the repository – nothing is fetched or opened", () => {
+  it("takes a file inside the repository: a URL is answered with a download into .agent-out/inbox/, never refused as one the tools never fetch", () => {
     for (const p of ["https://example.com/clip.mp4", "http://localhost/clip.mp4", "data:video/mp4;base64,AAAA", "file:///etc/hosts", "/etc/hosts", "../outside.mp4"]) {
       const r = cli({ path: p });
       expect(r.code, p).toBe(1);
       expect(r.out.ok, p).toBe(false);
       expect(r.out.error, p).toMatch(/URL or a data: URI|outside the repository/);
+      expect(r.out.error, p).not.toMatch(/never fetch/);
+    }
+    // other creators' videos on TikTok, Instagram and YouTube: the answer says how to analyse them
+    for (const p of ["https://www.tiktok.com/@someone/video/7400000000000000000", "https://www.instagram.com/reel/C0abc/", "https://www.youtube.com/shorts/abc123"]) {
+      expect(cli({ path: p }).out.error, p).toMatch(/download the video into \.agent-out\/inbox\/ first/);
     }
   });
 

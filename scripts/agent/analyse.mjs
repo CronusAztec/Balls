@@ -1,11 +1,12 @@
 /**
- * --- agent-cli --- `npm run agent -- analyse --json '{"path":"…"}'`: the numeric features of a local video file
+ * --- agent-cli --- `npm run agent -- analyse --json '{"path":"…"}'`: the numeric features of a video file
  * (src/lib/videoAnalysis: the ffmpeg arguments, their parsers and the VideoFeatures record), measured with ffmpeg:
  *  1. FFMPEG_PATH when set; 2. the Windows app's bundled ffmpeg (desktop/node_modules/ffmpeg-static, after `npm ci` in
  *  desktop/); 3. `ffmpeg` on the PATH. None: a clear message, nothing measured.
- * Local files only: the path must resolve inside the repository (paths.mjs refuses http(s):, data: and every other URL, and
- * links that lead out); ffmpeg opens it as `file:` with only the file protocol and video demuxers allowed, so nothing it
- * reads can reach the network. The file is read, never copied, uploaded or kept; ffmpeg's scratch output (scdet's metadata)
+ * Any video: the owner's own clips, or other creators' trending and viral videos from TikTok, Instagram, YouTube or any site,
+ * downloaded into .agent-out/inbox/ first (paths.mjs answers a URL with that, and refuses links that lead out of the
+ * repository); ffmpeg opens the file as `file:` with only the file protocol and video demuxers allowed, so a file cannot make
+ * it reach the network. The file is read, never copied, uploaded or kept; ffmpeg's scratch output (scdet's metadata)
  * goes to a temp folder in the agent cache that is removed when the analysis ends. ffmpeg runs with argument arrays (no
  * shell) and a timeout per pass.
  */

@@ -1,7 +1,8 @@
 /**
  * --- agent-cli --- Where the agent toolbox may read and write (scripts/agent/*.mjs):
  *  - ROOT: the repository (this checkout). Every path a caller names is resolved – symbolic links included – and must stay
- *    inside it; URLs (http:, https:, data:, file: …) are refused, never opened.
+ *    inside it. A URL (http:, https:, data:, file: …) is not a path: a video on TikTok, Instagram, YouTube or any site is
+ *    downloaded into .agent-out/inbox/ first (yt-dlp), and its path is what a tool takes.
  *  - OUT_DIR: <repo>/.agent-out/, the only place a tool writes files (PNG, MP4, JSON reports). It ignores itself (it holds a
  *    .gitignore of "*"), so nothing a tool writes ever shows in `git status`.
  *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else jbl-agent/<hash of ROOT> in this user's own
@@ -149,7 +150,7 @@ export function resolveInputFile(input) {
   const text = String(input ?? "").trim();
   if (!text) throw new PathError("No file given");
   if (/[\0\r\n]/.test(text)) throw new PathError("The path has a control character");
-  if (hasScheme(text)) throw new PathError(`Only local files inside the repository are read: "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}" is a URL or a data: URI, and the tools never fetch one`);
+  if (hasScheme(text)) throw new PathError(`"${text.slice(0, 40)}${text.length > 40 ? "…" : ""}" is a URL or a data: URI, not a file: download the video into .agent-out/inbox/ first (yt-dlp -o ".agent-out/inbox/%(id)s.%(ext)s" <link> takes TikTok, Instagram, YouTube and most sites) and pass that path`);
   const resolved = path.resolve(ROOT, text);
   if (!isInside(ROOT, resolved)) throw new PathError(`${text} is outside the repository: copy the file into .agent-out/inbox/ first`);
   if (!fs.existsSync(resolved)) throw new PathError(`${path.relative(ROOT, resolved) || text} does not exist`);

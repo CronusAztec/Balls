@@ -185,8 +185,8 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   },
   {
     name: "analyse",
-    title: "Analyse a local video file",
-    description: "Numeric features of a local video file inside the repository (duration, fps, size, scene cuts, motion, colour, loudness, tempo) with ffmpeg (the Windows app's bundled one, else the system's). Local files only: URLs and data: are refused, nothing is uploaded, the file is not kept or copied.",
+    title: "Analyse a video file",
+    description: "Numeric features of a video file inside the repository (duration, fps, size, scene cuts, motion, colour, loudness, tempo) with ffmpeg (the Windows app's bundled one, else the system's): your own clips, or other creators' trending and viral videos from TikTok, Instagram, YouTube or any site, downloaded into .agent-out/inbox/ first (e.g. yt-dlp -o \".agent-out/inbox/%(id)s.%(ext)s\" <link>). Nothing is uploaded, the file is not kept or copied.",
     input: {
       type: "object",
       additionalProperties: false,

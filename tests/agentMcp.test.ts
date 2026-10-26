@@ -82,7 +82,9 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
     expect(byId.get(5)?.error?.code).toBe(ERR.methodNotFound);
     expect(byId.get(null)?.error?.code).toBe(ERR.parse);
     expect(byId.get(6)?.error).toMatchObject({ code: ERR.invalidParams, message: expect.stringMatching(/Unknown tool "site-stats"/) });
-    expect(byId.get(7)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/never fetch/) }] });
+    // a video link is answered with where to download it for analysis, not refused as one the tools never fetch
+    expect(byId.get(7)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/download the video into \.agent-out\/inbox\/ first/) }] });
+    expect((byId.get(7)?.result?.content as { text: string }[] | undefined)?.[0]?.text).not.toMatch(/never fetch/);
     // stdout carries only protocol messages
     expect(replies.every((r) => r.jsonrpc === "2.0")).toBe(true);
     expect(stderr).toMatch(/14 tools on stdio/);

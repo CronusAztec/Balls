@@ -16,7 +16,7 @@
  *   preview      a watermarked PNG contact sheet of a link from a local export             (Chromium)
  *   render       a watermarked clip of a link through the page's own fast export           (Chromium)
  *   site-shot    PNG screenshots of site pages from the local export                       (Chromium)
- *   analyse      numeric features of a local video file (ffmpeg)
+ *   analyse      numeric features of a video file: own clips or downloaded trending ones   (ffmpeg)
  *   guard        the core guard (npm run guard; {"plan":true} for the static checks alone)
  *   explain      which fix a failure allows (source pin, behaviour, fingerprint…)
  *   bp-schema    the Blueprint language: its JSON Schema (full or Lite), the vocabulary for prompts, the ceilings
