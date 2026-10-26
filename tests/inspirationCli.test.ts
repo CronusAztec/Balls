@@ -243,11 +243,6 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
         stillsServer!.once("exit", (code) => reject(new Error(`the stills stand-in exited (${code})`)));
       });
       stillsOrigin = `http://127.0.0.1:${port}`;
-    } else {
-      // --- inspiration --- no ffmpeg (the CI build job installs none): a stand-in file, so the tests that expect "No ffmpeg
-      // found" reach the ffmpeg check instead of stopping at a missing clip
-      fs.mkdirSync(path.dirname(CLIP), { recursive: true });
-      fs.writeFileSync(CLIP, "not a video: there is no ffmpeg to make one");
     }
   });
   afterAll(() => {
@@ -416,7 +411,15 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
 
   it("cuts frames and contact sheets for a vision-capable AI, and analyses a link exactly as a file", () => {
     if (!ffmpeg) {
-      expect(agent("frames", { path: path.relative(ROOT, CLIP) }).json.error).toMatch(/No ffmpeg found/);
+      // --- inspiration --- no ffmpeg (the CI build job installs none) means no clip was made: a stand-in file for this
+      // check alone, so the frames tool reaches its ffmpeg lookup instead of stopping at a missing path
+      fs.mkdirSync(path.dirname(CLIP), { recursive: true });
+      fs.writeFileSync(CLIP, "not a video: there is no ffmpeg to make one");
+      try {
+        expect(agent("frames", { path: path.relative(ROOT, CLIP) }).json.error).toMatch(/No ffmpeg found/);
+      } finally {
+        fs.rmSync(CLIP, { force: true });
+      }
       return;
     }
     const out = `test-inspiration-${process.pid}`;
