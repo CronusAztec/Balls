@@ -40,7 +40,7 @@ export class WobbleLayer {
       this.stamp.fill(-1);
     }
     this.nowMs = nowMs;
-    this.amount = amount > 0 ? Math.min(1, amount) : 0;
+    this.amount = amount > 0 ? amount : 0; // --- review fix (uncap-all) --- as set, past 1 too (it stopped at 1, the slider's end)
     this.wobbling = 0;
     this.maxPx = 0;
     this.counted.fill(0);

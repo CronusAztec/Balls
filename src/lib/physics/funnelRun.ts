@@ -66,6 +66,24 @@ const SLOT_WAITING = 0;
 const SLOT_FLYING = 1;
 const SLOT_SWALLOWED = 2;
 
+/* --- review fix (uncap-all) --- The Sound Vortex's depth cue, here so both releases read one formula (vortex.ts re-exports it). */
+
+/** At a depth cue of 1 (the slider's end) a ball shrinks to 1 − `DEPTH_SHRINK` of its size by the hole. */
+export const DEPTH_SHRINK = 0.6;
+/**
+ * The smallest share of its size the depth cue shrinks a ball to. The cue itself has no maximum (it stopped at 1, the slider's
+ * end, so 1.5 played like 1); past 1 / DEPTH_SHRINK a ball by the hole would reach radius 0 or below, so the size stops here.
+ */
+export const MIN_DEPTH_RADIUS = 0.05;
+
+/** A ball's size factor at depth `depth` (0–1) with the depth cue `depthScale` (0 and up): 1 − DEPTH_SHRINK · cue · depth, at least MIN_DEPTH_RADIUS. */
+export function depthRadiusScale(depth: number, depthScale: number): number {
+  const shrink = DEPTH_SHRINK * (depthScale > 0 ? depthScale : 0) * Math.max(0, Math.min(1, depth));
+  if (!(shrink > 0)) return 1;
+  const scale = 1 - shrink;
+  return scale > MIN_DEPTH_RADIUS ? scale : MIN_DEPTH_RADIUS;
+}
+
 /** What the canvas, the HUD and the tests read of the ring release and the perspective view (the same object every call). */
 export interface FunnelView {
   /** The live view options. */
@@ -636,10 +654,10 @@ export class FunnelRingRun {
   }
 }
 
-/** A marble's size factor in the top view at radius `r` (px) with the depth cue (the Sound Vortex's: 1 − 0.6 · cue · depth). */
+/** A marble's size factor in the top view at radius `r` (px) with the depth cue (the Sound Vortex's: `depthRadiusScale()`). */
 function depthScaleOf(f: VortexField, r: number, depthScale: number): number {
   if (!(depthScale > 0)) return 1;
   const d = r > 0 ? Math.log(f.entry / r) / Math.log(f.entry / f.hole) : 1;
   const depth = d < 0 ? 0 : d > 1 ? 1 : d;
-  return 1 - 0.6 * Math.min(1, depthScale) * depth;
+  return depthRadiusScale(depth, depthScale); // --- review fix (uncap-all) --- (it repeated the formula, clamping the cue at 1)
 }

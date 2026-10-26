@@ -1,4 +1,5 @@
 import type { ModeId } from "./types";
+import { visualValue } from "@/lib/unlimited"; // --- review fix (uncap-all) --- a wobble past any canvas stays a finite width
 
 /**
  * Wobbly walls – the project.jdm "Bouncy Circle" look (feature jdm-illusions). Render-only: nothing here moves a
@@ -85,12 +86,15 @@ export const WOBBLE_RANGES = {
 /** Off by default: the walls stay perfect circles. */
 export const DEFAULT_WALL_WOBBLE = 0;
 
-/** Clamps a Wobbly Walls value (URL parameter or preset) into 0–1; anything that is not a finite number is "off". */
+/**
+ * Reads a Wobbly Walls value (URL parameter or preset): 0 and up, with no maximum (--- review fix (uncap-all) --- it was
+ * clamped into 0–1, the slider's range); anything that is not a finite number is "off".
+ */
 export function resolveWallWobble(value: unknown): number {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
   if (!Number.isFinite(n)) return DEFAULT_WALL_WOBBLE;
-  const { min, max } = WOBBLE_RANGES.wallWobble;
-  return Math.max(min, Math.min(max, n));
+  const { min } = WOBBLE_RANGES.wallWobble;
+  return n < min ? min : n;
 }
 
 /* ------------------------------------------------------------------ the wave */
@@ -150,10 +154,14 @@ export function saturateWobble(d: number): number {
   return d < 0 ? -out : out;
 }
 
-/** Full amplitude (px) of a wall of `radius` at Wobbly Walls `amount`: `WOBBLE_FRACTION` of the radius, at most `WOBBLE_MAX_PX`. */
+/**
+ * Full amplitude (px) of a wall of `radius` at Wobbly Walls `amount`: at 1, `WOBBLE_FRACTION` of the radius, at most
+ * `WOBBLE_MAX_PX`; times the amount, with no top (--- review fix (uncap-all) --- it stopped at 1, the slider's end: 300 %
+ * drew the walls exactly as 100 %). Render-only, and no wider than any canvas (`visualValue()`), so it stays a finite number.
+ */
 export function wobbleAmplitudePx(amount: number, radius: number): number {
   if (!(amount > 0) || !(radius > 0)) return 0;
-  return Math.min(WOBBLE_MAX_PX, WOBBLE_FRACTION * radius) * Math.min(1, amount);
+  return visualValue(Math.min(WOBBLE_MAX_PX, WOBBLE_FRACTION * radius) * amount);
 }
 
 /* ------------------------------------------------------------------ the engine's contact log */

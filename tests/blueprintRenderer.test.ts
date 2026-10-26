@@ -175,6 +175,52 @@ describe("blueprint renderer: still layers in bitmaps", () => {
   });
 });
 
+/** --- review fix (uncap-all) --- A 2D context that records each arc's radius with the line width in effect when it was added. */
+function arcContext() {
+  const state: Record<string, unknown> = { globalAlpha: 1, shadowBlur: 0, fillStyle: "", strokeStyle: "", lineWidth: 1, font: "10px sans-serif" };
+  const arcs: { r: number; lw: number }[] = [];
+  const ctx = new Proxy(state, {
+    get: (_t, prop: string) => {
+      if (prop in state) return state[prop];
+      if (prop === "getTransform") return () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+      if (prop === "createRadialGradient" || prop === "createLinearGradient") return () => ({ addColorStop: () => {} });
+      if (prop === "measureText") return (text: string) => ({ width: 10 * String(text).length });
+      if (prop === "arc") return (_x: number, _y: number, r: number) => void arcs.push({ r, lw: Number(state.lineWidth) });
+      return () => {};
+    },
+    set: (_t, prop: string, value) => {
+      state[prop] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, arcs };
+}
+
+describe("blueprint renderer: the Wall Thickness", () => {
+  it("--- review fix (uncap-all) --- draws the rim and the rings at the Wall Thickness, past the slider's end too: a floor of 2 px, no ceiling", () => {
+    // Mode Lab drew every value from 6 up at 6 px: 7–10 on the slider's own track, and anything typed or linked, did nothing
+    let rings = 0;
+    for (const blp of ["hatchery", "ringBreaker"]) {
+      const engine = engineFor({ blPreset: blp });
+      for (let i = 0; i < 30; i++) engine.update(1000 / 60, 0);
+      const view = engine.getBlueprintView();
+      const w = view.world!;
+      for (const [thickness, drawn] of [[1, 2], [3, 3], [6, 6], [8, 8], [10, 10], [20, 20], [120, 120]]) {
+        const { ctx, arcs } = arcContext();
+        new BlueprintLayer(() => null).drawWorld(ctx, view, { ...render, wallThickness: thickness, showWallGlow: false });
+        const widths = (r: number) => [...new Set(arcs.filter((a) => Math.abs(a.r - r) < 1e-6).map((a) => a.lw))];
+        expect([blp, thickness, widths(w.R + WALL_HALF)]).toEqual([blp, thickness, [drawn]]);
+        w.ringR.forEach((r, i) => {
+          if (!w.ringAlive[i]) return;
+          rings++;
+          expect([blp, thickness, r, widths(r)]).toEqual([blp, thickness, r, [drawn]]);
+        });
+      }
+    }
+    expect(rings).toBeGreaterThan(0);
+  });
+});
+
 describe("blueprint renderer: effects on the run's clock", () => {
   it("shatters a broken ring into pieces for RING_BREAK_SEC, and never leaves it frozen on screen after the finish", () => {
     const engine = engineFor({ blPreset: "ringBreaker", blParams: "3" });

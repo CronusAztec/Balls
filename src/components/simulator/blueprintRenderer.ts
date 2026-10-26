@@ -458,7 +458,9 @@ export class BlueprintLayer {
     if (!bp || !w) return;
     const palette = bp.look.palette;
     const rim = palette[bp.look.rim] ?? palette[0] ?? "#ffffff";
-    const lw = Math.max(2, Math.min(6, opts.wallThickness));
+    // --- review fix (uncap-all) --- the Wall Thickness as set, from a floor of 2 px (it stopped at 6: 7 and up did nothing); a
+    // still layer too wide for a bitmap draws live, and the page passes a width no wider than any canvas (`visualValue()`)
+    const lw = Math.max(2, opts.wallThickness);
     this.rimLw = lw;
     // a rim that turns (exits on a spinning rim) and the rings are drawn every frame; everything else is still
     const rimTurns = w.shape === "circle" && w.exitAt.length > 0 && bp.arena.spinDegPerSec !== 0;

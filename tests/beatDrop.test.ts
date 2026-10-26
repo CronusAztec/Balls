@@ -316,6 +316,26 @@ describe("the planner lands every beat", () => {
     }
   });
 
+  it("--- review fix (uncap-all) --- drifts wider past the slider's end, still inside the safe area and on every beat", () => {
+    // the planner clamped the drift into 0–1: a link with bdd=2 planned exactly the hops of Drift 1
+    const beats = manualBeats(120, 40);
+    const widest = (p: BeatDropPlan) => {
+      let most = 0;
+      for (let k = 0; k + 1 < p.count; k++) most = Math.max(most, Math.abs(p.x[k + 1] - p.x[k]));
+      return most;
+    };
+    const kinds: BeatDropPadKind[] = ["plank", "block", "spring", "drum"];
+    for (const scroll of ["endless", "arena"] as const) {
+      const one = plan(beats, { scroll, drift: 1, kinds }, 9);
+      const two = plan(beats, { scroll, drift: 2, kinds }, 9);
+      expect([scroll, widest(two) > widest(one)]).toEqual([scroll, true]);
+      for (const p of [two, plan(beats, { scroll, drift: 1e6, kinds }, 9)]) {
+        for (let k = 0; k < p.count; k++) expect(Math.abs(p.x[k])).toBeLessThanOrEqual(X_SAFE + 1e-9);
+        expect(Math.max(...landingErrorsMs(p))).toBeLessThan(1);
+      }
+    }
+  });
+
   it("uses the mix (rarely the same kind twice in a row) and draws a fixed count of random numbers per landing", () => {
     const p = plan(manualBeats(120, 60), {}, 11);
     const used = new Set<number>();

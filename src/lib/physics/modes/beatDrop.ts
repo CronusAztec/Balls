@@ -59,7 +59,7 @@ export function isBeatDropColorMode(value: unknown): value is BeatDropColorMode 
 export interface BeatDropSettings {
   /** The obstructions in the mix (at least one). */
   kinds: BeatDropPadKind[];
-  /** 0–1: how far the ball drifts sideways from landing to landing. */
+  /** 0 and up (--- uncap-all --- no maximum): how far the ball drifts sideways from landing to landing. */
   drift: number;
   /** "endless": every landing a little lower, the camera follows down; "arena": the ball bounces around inside the view. */
   scroll: BeatDropScroll;

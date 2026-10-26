@@ -1,4 +1,4 @@
-import { clamp01, easeInCubic, easeInQuad, easeOutBack, easeOutCubic, progress, smoothstep, springDecay } from "@/lib/anim/easing";
+import { easeInCubic, easeInQuad, easeOutBack, easeOutCubic, progress, smoothstep, springDecay } from "@/lib/anim/easing";
 
 /**
  * The Beat Drop planner (feature beat-drop; the mode is src/lib/physics/modes/beatDrop.ts, the drawing
@@ -188,7 +188,7 @@ export interface BeatDropPlanInput {
   period: number;
   /** The mix of obstructions (at least one; unknown kinds are ignored, none left = planks). */
   kinds: readonly BeatDropPadKind[];
-  /** 0–1: how far the ball drifts sideways between landings. */
+  /** 0 and up: how far the ball drifts sideways between landings (1: the slider's end; more makes wider hops, inside X_SAFE). */
   drift: number;
   scroll: BeatDropScroll;
   /** 0.1–0.5 of the view: how high a flight of one beat rises. */
@@ -344,7 +344,9 @@ export function planBeatDrop(input: BeatDropPlanInput, out?: BeatDropPlan): Beat
   plan.count = n;
   const period = Number.isFinite(input.period) && input.period > 0 ? input.period : 0.5;
   plan.period = period;
-  const drift = clamp01(input.drift);
+  // --- review fix (uncap-all) --- 0 and up, past the slider's end too (it was clamped into 0–1): a bigger drift makes wider
+  // hops, still capped at DX_SPEED_MAX·F and reflected into |x| ≤ X_SAFE below (NaN or below 0: straight down)
+  const drift = input.drift > 0 ? input.drift : 0;
   const g0 = baseGravity(input.bounceHeight, period);
   plan.gravity = g0;
   const anticipation = Math.max(0.05, Math.min(1, input.anticipation));

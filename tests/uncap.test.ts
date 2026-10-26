@@ -787,6 +787,32 @@ describe("uncap-all: the guard", () => {
     expect(hits).toEqual([]);
   });
 
+  it("--- review fix (uncap-all) --- finds no clamp against a range's maximum read into a local first (`const { min, max } = X_RANGES.key`)", () => {
+    // resolveWallWobble() clamped Wobbly Walls into 0–1 through a destructured `max`, out of the patterns' sight
+    const range = String.raw`(?:range|r|R|RANGES\.\w+|\w+_RANGES(?:\.\w+)?|\w+_RANGE|R\.\w+)`;
+    const destructured = new RegExp(String.raw`\{([^{}]*\bmax\b[^{}]*)\}\s*=\s*${range}\b(?!\.)`, "g");
+    const aliased = new RegExp(String.raw`(?:const|let)\s+(\w+)\s*=\s*${range}\.max\s*[;,)\n]`, "g");
+    const hits: string[] = [];
+    for (const file of sources()) {
+      const text = fs.readFileSync(file, "utf8");
+      const names = new Set<string>();
+      for (const m of text.matchAll(destructured)) {
+        const bound = /\bmax\s*:\s*(\w+)/.exec(m[1]);
+        names.add(bound ? bound[1] : "max");
+      }
+      for (const m of text.matchAll(aliased)) names.add(m[1]);
+      if (names.size === 0) continue;
+      const rel = path.relative(path.join(__dirname, "..", "src"), file).split(path.sep).join("/");
+      text.split("\n").forEach((line, i) => {
+        for (const name of names) {
+          const clamp = new RegExp(String.raw`Math\.min\(\s*${name}\s*,|Math\.min\([^;]*,\s*${name}\s*\)`);
+          if (clamp.test(line)) hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 160)}`);
+        }
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
   it("finds no settings helper that applies a range's maximum", () => {
     const hits: string[] = [];
     const helper = /(?:function\s+(clamp\w*|clampTo)\s*\(|const\s+(clamp\w*)\s*=\s*\()[^)]*range[^)]*\)[^{]*\{([\s\S]*?)\n\s*\};?\n/g;

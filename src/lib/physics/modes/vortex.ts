@@ -3,7 +3,7 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 // --- funnel-spin --- the ring release and the perspective view (lib/physics/funnelSpin.ts, lib/physics/funnelRun.ts)
 import { DEFAULT_FUNNEL_SPIN_SETTINGS, funnelSpinSettingsOf, funnelTiming, resolveFunnelSpinFields, resolveFunnelSpinSettings, type FunnelSpinFields, type FunnelSpinSettings } from "../funnelSpin";
-import { FunnelRingRun, createFunnelView, placeFunnelPerspective, updateFunnelFrame, type FunnelView } from "../funnelRun";
+import { FunnelRingRun, createFunnelView, depthRadiusScale, placeFunnelPerspective, updateFunnelFrame, type FunnelView } from "../funnelRun";
 import type { LoopSeams } from "../types";
 
 /**
@@ -53,7 +53,7 @@ export interface VortexSettings extends FunnelSpinSettings /* --- funnel-spin --
   gravity: number;
   /** A swallowed ball comes back at the rim: the vortex never ends. */
   loop: boolean;
-  /** 0–1: the 3-D depth cue – balls shrink toward the centre and the throat darkens (live). */
+  /** 0 and up (--- uncap-all --- no maximum): the 3-D depth cue – balls shrink toward the centre and the throat darkens (live). */
   depthScale: number;
   /** The Sound section's scale and root: ring i plays degree i of it (live). */
   scale: ScaleId;
@@ -275,13 +275,12 @@ export function vortexDepth(field: Pick<VortexField, "entry" | "hole">, r: numbe
   return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
-/** At full depth scale a ball shrinks to 1 − `DEPTH_SHRINK` of its size by the hole. */
-export const DEPTH_SHRINK = 0.6;
-
-/** A ball's size factor at depth `depth` (0–1) with the depth cue `depthScale` (0–1). */
-export function depthRadiusScale(depth: number, depthScale: number): number {
-  return 1 - DEPTH_SHRINK * Math.max(0, Math.min(1, depthScale)) * Math.max(0, Math.min(1, depth));
-}
+/**
+ * A ball's size factor at depth `depth` (0–1) with the depth cue `depthScale`: 1 − DEPTH_SHRINK · cue · depth, at least
+ * MIN_DEPTH_RADIUS (--- review fix (uncap-all) --- the cue has no maximum: it was clamped at 1, the slider's end). It lives in
+ * funnelRun.ts, whose ring release draws its top view with it too.
+ */
+export { DEPTH_SHRINK, MIN_DEPTH_RADIUS, depthRadiusScale } from "../funnelRun";
 
 /* ------------------------------------------------------------------ physics */
 

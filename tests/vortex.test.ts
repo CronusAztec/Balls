@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_VORTEX_SETTINGS,
+  DEPTH_SHRINK,
   ENTRY_AT,
   HOLE_AT,
   MAX_RING_NOTES_PER_STEP,
   MAX_VORTEX_RINGS,
+  MIN_DEPTH_RADIUS,
   RIM_AT,
   SWALLOW_HOLD_SEC,
   VORTEX_RANGES,
@@ -431,6 +433,32 @@ describe("ring crossings and notes", () => {
         expect(sizes.at(-1)!).toBeLessThan(3.6);
         for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeLessThanOrEqual(sizes[i - 1] + 0.2);
       }
+    }
+  });
+
+  it("--- review fix (uncap-all) --- a depth cue past 1 shrinks the balls further, to MIN_DEPTH_RADIUS of their size at most: never 0, in both releases", () => {
+    // the cue was clamped at 1, the slider's end: 1.5 played exactly like 1
+    expect(depthRadiusScale(1, 1.5)).toBeCloseTo(0.1, 12);
+    expect(depthRadiusScale(0.5, 1.5)).toBeCloseTo(0.55, 12);
+    expect(depthRadiusScale(1, 1 / DEPTH_SHRINK)).toBe(MIN_DEPTH_RADIUS);
+    expect(depthRadiusScale(1, 7)).toBe(MIN_DEPTH_RADIUS);
+    expect(depthRadiusScale(0, 7)).toBe(1);
+    expect(depthRadiusScale(0, Infinity)).toBe(1);
+    expect(depthRadiusScale(1, -2)).toBe(1);
+    const smallest = (engine: PhysicsEngine) => {
+      let least = Infinity;
+      run(engine, 15, (e) => {
+        for (const b of e.getBalls()) least = Math.min(least, b.radius);
+      });
+      return least;
+    };
+    for (const [release, make] of [
+      ["stagger", (depthScale: number) => vortexEngine({ balls: 3, depthScale }, 7)],
+      ["rings", (depthScale: number) => vortexEngine({ release: "rings", depthScale }, 7)],
+    ] as [string, (depthScale: number) => PhysicsEngine][]) {
+      const atOne = smallest(make(1));
+      expect([release, smallest(make(1.5)) < atOne - 0.5]).toEqual([release, true]);
+      expect([release, smallest(make(7)) >= 8 * MIN_DEPTH_RADIUS - 1e-9]).toEqual([release, true]);
     }
   });
 

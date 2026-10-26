@@ -33,6 +33,7 @@ import {
 } from "@/lib/physics/wobble";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
+import { WobbleLayer } from "@/components/simulator/wobbleRenderer";
 
 /**
  * Wobbly walls (lib/physics/wobble.ts, feature jdm-illusions): the displacement wave of a hit – it starts as a bulge of
@@ -147,6 +148,27 @@ describe("wobble wave", () => {
     expect(wobbleAmplitudePx(1, 100)).toBeCloseTo(WOBBLE_FRACTION * 100, 12);
     expect(wobbleAmplitudePx(1, 5000)).toBe(WOBBLE_MAX_PX);
     expect(wobbleAmplitudePx(0.5, 100)).toBeCloseTo(0.5 * WOBBLE_FRACTION * 100, 12);
+  });
+
+  it("--- review fix (uncap-all) --- scales a wall's amplitude by Wobbly Walls with no top: 300 % bends it three times as far as 100 %", () => {
+    // the amplitude and the canvas both stopped at 1: a link with wob=3 kept 3 and drew the walls exactly as at 1
+    expect(wobbleAmplitudePx(3, 300)).toBeCloseTo(3 * wobbleAmplitudePx(1, 300), 12);
+    expect(wobbleAmplitudePx(3, 5000)).toBe(3 * WOBBLE_MAX_PX);
+    expect(wobbleAmplitudePx(-2, 300)).toBe(0);
+    expect(Number.isFinite(wobbleAmplitudePx(1e308, 300))).toBe(true);
+    // the canvas side: a wall hit once is drawn at the amount the page passes
+    const log = new WallContactLog();
+    log.record(0, 0, 1, 0);
+    const path = { moveTo: () => {}, lineTo: () => {} } as unknown as CanvasRenderingContext2D;
+    const drawnPx = (amount: number) => {
+      const layer = new WobbleLayer();
+      layer.beginFrame(log, 50, amount);
+      expect(layer.traceArc(path, 0, 0, 0, 300, 0, 2 * Math.PI)).toBe(true);
+      return layer.maxPx;
+    };
+    expect(drawnPx(1)).toBeGreaterThan(0);
+    expect(drawnPx(3)).toBeCloseTo(3 * drawnPx(1), 9);
+    expect(drawnPx(10)).toBeCloseTo(10 * drawnPx(1), 9);
   });
 });
 
@@ -356,11 +378,11 @@ describe("wobbly walls in the engine", () => {
     }
   });
 
-  it("the setting: off by default, clamped, offered in the circular modes", () => {
+  it("the setting: off by default, floored at 0 with no maximum (--- review fix (uncap-all) ---), offered in the circular modes", () => {
     expect(DEFAULT_WALL_WOBBLE).toBe(0);
     expect(resolveWallWobble(0.4)).toBe(0.4);
     expect(resolveWallWobble("0.25")).toBe(0.25);
-    expect(resolveWallWobble(3)).toBe(1);
+    expect(resolveWallWobble(3)).toBe(3);
     expect(resolveWallWobble(-1)).toBe(0);
     expect(resolveWallWobble("x")).toBe(0);
     expect(resolveWallWobble(undefined)).toBe(0);
