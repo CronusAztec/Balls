@@ -90,7 +90,7 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
         <span className="text-ink-2 tabular-nums">{formatTimelineValue(settingKey, value)}</span>
       </label>
       <div className="flex items-center gap-2">
-        <SliderTrack id="timeline-value-slider" settingKey={settingKey} label={t("timelineValue")} value={value} range={range} onChange={onChange} testId="timeline-value-slider" /* --- unlimited-sizes --- (the keyframed setting's wide track) */ />
+        <SliderTrack id="timeline-value-slider" settingKey={settingKey} label={t("timelineValue")} value={value} range={range} onChange={onChange} testId="timeline-value-slider" namedByLabel /* --- unlimited-sizes --- (the keyframed setting's wide track; its <label> names it, as before) */ />
         <UncapNumberField value={value} onCommit={onChange} label={t("timelineValue")} range={range} rules={rulesForRange(range, settingKey)} settingKey={`keyframe:${settingKey}`} /* --- uncap-all --- (--- unlimited-sizes --- from the setting's meaningful floor) */ />
       </div>
       {live !== null && (

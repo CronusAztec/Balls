@@ -4416,7 +4416,7 @@ export default function Simulator() {
               <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
                 {t("Controls.duration")}
               </label>
-              <SliderTrack id="find-duration" settingKey="findDuration" label={t("Controls.duration")} value={findDuration} range={RANGES.findDuration} onChange={setFindDuration} className="min-w-0 flex-1 cursor-pointer" /* --- unlimited-sizes --- the wide track with Wide sliders on */ />
+              <SliderTrack id="find-duration" settingKey="findDuration" label={t("Controls.duration")} value={findDuration} range={RANGES.findDuration} onChange={setFindDuration} className="min-w-0 flex-1 cursor-pointer" namedByLabel /* --- unlimited-sizes --- the wide track with Wide sliders on (its <label> names it, as before) */ />
               {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) (--- unlimited-sizes --- any length above 0) */}
               <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration, "findDuration")} disabled={isSearching} settingKey="findDuration" />
             </div>

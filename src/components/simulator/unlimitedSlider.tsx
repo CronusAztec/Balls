@@ -93,7 +93,8 @@ export function wideTrackValue(key: string, input: number, range: NumericRange, 
 
 export interface WideTrackProps {
   settingKey: string;
-  label: string;
+  /** The track's aria-label (--- unlimited-sizes --- none when a `<label htmlFor>` names it). */
+  label?: string;
   value: number;
   range: NumericRange;
   onChange: (v: number) => void;
