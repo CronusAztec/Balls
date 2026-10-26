@@ -1177,4 +1177,42 @@ describe("the camera with the Slow motion switch off (--- slow-motion ---)", () 
     });
     expect(half.texts).toEqual(["REPLAY", "½×"]);
   });
+
+  it("replays the last 2 s of real time of a time-dilated run, however many steps the page ran for them", () => {
+    // ten rings and a ball at 20,000 px/s: the engine dilates its steps to a quarter, and the page with the switch off repays
+    // that with four steps a frame (as Canvas.tsx's real-time loop does). The replay buffer used to take one entry a step, so
+    // it held 2 s × the dilation: a 2 s replay shrank to 0.67 s.
+    const engine = makeEngine("classic", 5, { wallCount: 10, ballSpeed: 20_000, slowMotion: false });
+    const cam = new CinematicCamera();
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, replayOnEscape: true };
+    cam.slowMotion = false;
+    let debt = 0;
+    let dilated = 0;
+    let first = -1;
+    let last = -1;
+    let playFrames = 0;
+    for (let f = 0; f < 60 * 40 && cam.getPhase() !== "done"; f++) {
+      debt += 16.666;
+      for (let n = 0; debt > 1e-9 && n < 4096; n++) {
+        engine.update(16.666, 0);
+        cam.afterStep(engine);
+        const scale = engine.getStepTimeScale();
+        if (scale < 1) dilated++;
+        debt -= 16.666 * scale;
+      }
+      engine.consumeSoundEvents();
+      cam.frame(engine, 16.666, true);
+      const view = cam.replayView();
+      if (!view) continue;
+      playFrames++;
+      if (first < 0) first = view.time;
+      last = view.time;
+    }
+    expect(dilated).toBeGreaterThan(100);
+    expect(cam.getPhase()).toBe("done");
+    // the window spans REPLAY_WINDOW_MS of simulated time – what the viewer saw in the last 2 s – and plays at 1×
+    expect(last - first).toBeGreaterThan(REPLAY_WINDOW_MS - 2 * STEP);
+    expect(last - first).toBeLessThanOrEqual(REPLAY_WINDOW_MS);
+    expect(playFrames * 16.666).toBeGreaterThan(replayDurationMs(last - first, 1) - 60);
+  });
 });

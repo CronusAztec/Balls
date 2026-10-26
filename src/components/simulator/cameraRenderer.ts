@@ -40,6 +40,12 @@ const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShak
 const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
 /** --- slow-motion --- The label of a replay played at real time (the Slow motion switch off). */
 const REAL_TIME_SPEED_LABEL = "1×";
+/**
+ * --- slow-motion --- The simulated time (ms) between two escape-replay entries with the Slow motion switch off: one 60 Hz frame
+ * (a hair under, for the rounding of the engine's clock). The page then runs a dilated run's steps many to a frame, so one entry a
+ * step would hold only 2 s × the dilation; one a frame of simulated time holds the last 2 s of what the viewer saw.
+ */
+const REPLAY_REAL_TIME_ENTRY_MS = 1000 / 60 - 1e-6;
 
 /**
  * The canvas side of the cinematic camera (the maths lives in lib/simulation/camera.ts and replay.ts).
@@ -276,7 +282,10 @@ export class CinematicCamera {
     const balls = engine.getBalls();
     if (this.interpolating(engine)) this.steps.capture(t, balls, walls, engine.getWallRotations());
     if (!this.recording(engine)) return;
-    this.replay.record(t, balls, walls, engine.getWallRotations(), engine.getBrokenWalls(), engine.getWallBreakSerial());
+    // --- slow-motion --- (the switch off: an entry a frame of simulated time, so a dilated run's buffer spans 2 s of real time;
+    // a whole step is a frame, so an undilated run records every step as with it on – a time before the newest is a restart)
+    const newest = this.replay.endTime();
+    if (this.slowMotion || !(t >= newest && t - newest < REPLAY_REAL_TIME_ENTRY_MS)) this.replay.record(t, balls, walls, engine.getWallRotations(), engine.getBrokenWalls(), engine.getWallBreakSerial());
     let outer = 0;
     for (let i = 0; i < walls.length; i++) if (walls[i].radius > outer) outer = walls[i].radius;
     this.replay.noteEscape(t, allBallsOutside(balls, engine.config.width / 2, engine.config.height / 2, outer));
