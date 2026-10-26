@@ -14,6 +14,15 @@
 export const TRENDS_VERSION = 1;
 /** The most of each list the summary keeps (the prompt block reads a few of each). */
 export const TRENDS_LIMITS = { sources: 20, numbers: 20, themes: 12, formats: 10, words: 16, recommendations: 16, examples: 10, levers: 8, modes: 8 } as const;
+/**
+ * --- trends --- The committed file's ceiling in characters, as `npm run trends` writes it (2-space JSON and a newline): the
+ * prompt blocks read it whole, so however many reports a summary pools, the builder sheds its least telling rows to stay under.
+ */
+export const TRENDS_MAX_CHARS = 24_000;
+/** --- trends --- The summary's size as the committed file holds it. */
+export function trendsChars(summary: unknown): number {
+  return JSON.stringify(summary, null, 2).length + 1;
+}
 /** The longest text of a title, an advice and a word. */
 export const TRENDS_TEXT_MAX = { title: 120, advice: 400, word: 40, label: 80, query: 200 } as const;
 

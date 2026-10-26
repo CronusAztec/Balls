@@ -4,8 +4,8 @@ import path from "path";
 import { afterAll, describe, expect, it } from "vitest";
 import data from "../src/content/trends.json";
 import { TRENDS } from "@/content/trends";
-import { OFF_PRODUCT_WORDS, TRENDS_LIMITS, TRENDS_TEXT_MAX, parseTrends, productWord, validateTrends, type TrendSummary } from "@/lib/trends";
-import { buildTrendSummary, cleanTitle } from "@/lib/agentKit/trends";
+import { OFF_PRODUCT_WORDS, TRENDS_LIMITS, TRENDS_MAX_CHARS, TRENDS_TEXT_MAX, parseTrends, productWord, trendsChars, validateTrends, type TrendSummary } from "@/lib/trends";
+import { buildTrendSummary, cleanTitle, fitTrends } from "@/lib/agentKit/trends";
 import { LEVERS, LOOKS, MIN_THEME_VIDEOS, buildInspirationReport, clipTraits, recommendations, themeAdvised, titleSummary, traitSummaries, type AnalysedVideo, type Lever } from "@/lib/agentKit/inspiration";
 import { CLIP_SETTINGS, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { THEME_IDS, themeById } from "@/lib/themes";
@@ -179,6 +179,27 @@ describe("the committed src/content/trends.json (--- trends ---)", () => {
 
 // --- trends --- every lever an advice names is one Make videos can set: set_clip_settings' grammar is a oneOf over
 // CLIP_SETTINGS, and validateSettingsPatch has the last word (captions are a list no patch sets: a clip's hook carries them)
+describe("the summary's size ceiling (--- trends ---)", () => {
+  it("sheds the least telling rows until a summary pooled from many reports fits, and keeps what the advice rests on", () => {
+    const big = JSON.parse(JSON.stringify(data)) as TrendSummary;
+    const long = (i: number) => `${"A long trending ball simulation title ".repeat(3)}#${i}`.slice(0, TRENDS_TEXT_MAX.title);
+    while (big.examples.length < TRENDS_LIMITS.examples) big.examples.push({ ...big.examples[0], title: long(big.examples.length) });
+    big.examples = big.examples.map((e, i) => ({ ...e, title: long(i) }));
+    while (big.words.length < TRENDS_LIMITS.words) big.words.push({ ...big.words[0], word: `word${big.words.length}` });
+    big.recommendations = big.recommendations.map((r) => ({ ...r, advice: `${r.advice} ${"More detail on this advice. ".repeat(20)}`.slice(0, TRENDS_TEXT_MAX.advice) }));
+    expect(trendsChars(big)).toBeGreaterThanOrEqual(TRENDS_MAX_CHARS);
+    const advised = big.themes.filter((t) => t.advised).map((t) => t.id);
+    const patterns = big.numbers.filter((n) => n.strength !== null).map((n) => n.trait);
+    fitTrends(big);
+    expect(trendsChars(big)).toBeLessThan(TRENDS_MAX_CHARS);
+    expect(validateTrends(big)).toEqual([]);
+    expect(big.themes.filter((t) => t.advised).map((t) => t.id)).toEqual(advised);
+    expect(big.numbers.filter((n) => n.strength !== null).map((n) => n.trait)).toEqual(patterns);
+    expect(big.recommendations.length).toBeGreaterThanOrEqual(Math.min(6, data.recommendations.length));
+    expect(big.examples.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe("the advice's levers (--- trends ---)", () => {
   const clipKeys = new Set(CLIP_SETTINGS.map(([k]) => k));
   const settable = (levers: readonly Lever[], where: string) => {

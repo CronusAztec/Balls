@@ -1,5 +1,5 @@
 import { MIN_VIDEOS_FOR_ADVICE, TRAITS, clipTraits, percentiles, recommendations, themeShares, titleSummary, traitScope, traitSummaries, type ClipTraits, type InspirationReport, type MetricRow, type Pattern } from "./inspiration";
-import { TRENDS_LIMITS, TRENDS_TEXT_MAX, TRENDS_VERSION, productWord, validateTrends, type TrendAdvice, type TrendExample, type TrendNumber, type TrendSummary } from "@/lib/trends";
+import { TRENDS_LIMITS, TRENDS_MAX_CHARS, TRENDS_TEXT_MAX, TRENDS_VERSION, productWord, trendsChars, validateTrends, type TrendAdvice, type TrendExample, type TrendNumber, type TrendSummary } from "@/lib/trends";
 
 export { validateTrends }; // (npm run trends --check: scripts/trends.mjs loads this file alone, scripts/agent/bundle.mjs loadTrendsKit)
 
@@ -89,6 +89,29 @@ export interface TrendOptions {
 }
 
 /** The trend summary of `reports` (see the header); throws when there is none or the result fails lib/trends.ts's check. */
+/**
+ * --- trends --- Keeps a summary under TRENDS_MAX_CHARS, however many reports it pools: sheds the least telling rows first
+ * (examples past the top three, themes that are no advice, title words past six, numbers that are no pattern, then the
+ * last recommendations past six), one row at a time, and fails rather than cut what the advice rests on.
+ */
+export function fitTrends(summary: TrendSummary): void {
+  const steps: (() => boolean)[] = [
+    () => summary.examples.length > 3 && summary.examples.pop() !== undefined,
+    () => {
+      const i = summary.themes.map((t) => t.advised).lastIndexOf(false);
+      return i >= 0 && summary.themes.splice(i, 1).length > 0;
+    },
+    () => summary.words.length > 6 && summary.words.pop() !== undefined,
+    () => {
+      const i = summary.numbers.map((n) => n.strength === null).lastIndexOf(true);
+      return i >= 0 && summary.numbers.splice(i, 1).length > 0;
+    },
+    () => summary.recommendations.length > 6 && summary.recommendations.pop() !== undefined,
+  ];
+  for (const shed of steps) while (trendsChars(summary) >= TRENDS_MAX_CHARS && shed());
+  if (trendsChars(summary) >= TRENDS_MAX_CHARS) throw new Error(`The trend summary is ${trendsChars(summary)} characters even trimmed, over its ceiling of ${TRENDS_MAX_CHARS}`);
+}
+
 export function buildTrendSummary(reports: readonly InspirationReport[], options: TrendOptions): TrendSummary {
   if (!reports.length) throw new Error("No inspire report given");
   const ordered = [...reports].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
@@ -229,6 +252,7 @@ export function buildTrendSummary(reports: readonly InspirationReport[], options
     recommendations: advice,
     examples,
   };
+  fitTrends(summary);
   const problems = validateTrends(summary);
   if (problems.length) throw new Error(`The trend summary fails its check: ${problems.slice(0, 5).join("; ")}`);
   return summary;
