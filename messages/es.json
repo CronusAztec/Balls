@@ -1652,7 +1652,7 @@
     "respawnEvery": "Reaparecer cada",
     "respawnEveryTip": "Cada tantos segundos cae una pelota nueva desde arriba (0 = desactivado). En Clásico se detiene cuando todos los anillos están rotos.",
     "swarmLimit": "Límite del enjambre",
-    "swarmLimitTip": "El máximo de bolas al que crece un enjambre: bolas nuevas de fugas, reapariciones y copias de las reglas de rebote. Por encima de 200 la partida pasa a bolas ligeras de multitud y el enjambre sigue creciendo.",
+    "swarmLimitTip": "El máximo de bolas al que crece un enjambre: bolas nuevas de fugas, reapariciones y copias de las reglas de rebote, multitud ligera incluida. Por encima de 200 la partida pasa a valores extremos, y las bolas nuevas que superan a las que siguen todas las reglas se suman a la multitud. Si se deja en 200, un enjambre con valores extremos en juego sigue creciendo.",
     "respawnEveryValue": "{seconds} s",
     "respawnEveryOff": "No",
     "exitBehavior": "Comportamiento de la salida",

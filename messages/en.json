@@ -1652,7 +1652,7 @@
     "respawnEvery": "Respawn Every",
     "respawnEveryTip": "A new ball drops in from the top every this many seconds (0 = off). In Classic it stops once every ring is broken.",
     "swarmLimit": "Swarm Limit",
-    "swarmLimitTip": "The most balls a swarm grows to: new balls from escapes, respawns and bounce math copies. Past 200 the run switches to light crowd balls and the swarm keeps growing.",
+    "swarmLimitTip": "The most balls a swarm grows to: new balls from escapes, respawns and bounce math copies, light crowd balls included. Past 200 the run uses extreme values, and new balls beyond those that follow every rule join the crowd. Left at 200, a swarm with extreme values in play keeps growing.",
     "respawnEveryValue": "{seconds}s",
     "respawnEveryOff": "Off",
     "exitBehavior": "Exit Behaviour",

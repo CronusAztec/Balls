@@ -5,8 +5,10 @@
  *
  *  - `swarmLimit` (URL `swl`, default 200): the most full-physics balls a swarm grows to while nothing engages the
  *    extreme-values runtime – Multiply's escapes, the respawn timer and bounce math's ball copies (`MULTIPLY_MAX_BALLS`,
- *    `RESPAWN_MAX_BALLS`). A value past its slider engages the runtime like any other, and the swarm then grows on past 200:
- *    full-physics balls up to the run's full-ball limit, the rest into the crowd (lib/physics/limits.ts).
+ *    `RESPAWN_MAX_BALLS`). A value past its slider engages the runtime like any other, and the swarm then grows on past 200
+ *    up to that value: full-physics balls up to the run's full-ball limit, the rest into the crowd (lib/physics/limits.ts),
+ *    full and crowd balls counted together (`engagedSwarmCeiling()`). At the default a run the runtime engages otherwise
+ *    grows on without a ceiling, as it always did.
  *  - `fullBallLimit` (URL `fbl`, default 2,000): the most full-physics balls a run with the runtime engaged holds before new
  *    ones join the crowd (`OBJECT_BALL_LIMIT`; fewer the more rings each is checked against, `objectLimitFor()`), up to its
  *    memory-safety ceiling `MEMORY_CEILINGS.fullBallLimit`.
@@ -47,6 +49,17 @@ function wholeFrom(value: unknown, min: number): number | null {
 /** The swarm's ceiling a run plays with: the config's own (a whole number from 1), else the default 200. */
 export function swarmLimitOf(config: Partial<Pick<PhysicsConfig, "swarmLimit">>): number {
   return wholeFrom(config.swarmLimit, GROWTH_CAP_RANGES.swarmLimit.min) ?? SWARM_LIMIT_DEFAULT;
+}
+
+/**
+ * --- review fix (unlimited-sizes) --- The swarm's ceiling while the limits runtime is engaged, counted over the full-physics
+ * and the crowd balls together (full ones up to the run's full-ball limit, the rest in the crowd): the config's own value,
+ * so a Swarm Limit of 300 stops the swarm at 300 and one of 1,000 at 1,000. Null at the default 200: once the runtime is
+ * engaged the swarm grows on past it into the crowd, as it always did, so every link from before plays as it did.
+ */
+export function engagedSwarmCeiling(config: Partial<Pick<PhysicsConfig, "swarmLimit">>): number | null {
+  const n = wholeFrom(config.swarmLimit, GROWTH_CAP_RANGES.swarmLimit.min);
+  return n === null || n === SWARM_LIMIT_DEFAULT ? null : n;
 }
 
 /** The full-physics balls a run with the runtime engaged may hold: the config's own (from 16, at most its memory-safety ceiling), else 2,000. */

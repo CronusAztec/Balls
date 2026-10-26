@@ -1652,7 +1652,7 @@
     "respawnEvery": "Odradzanie co",
     "respawnEveryTip": "Co tyle sekund od góry wpada nowa piłka (0 = wyłączone). W trybie Klasycznym przestaje, gdy wszystkie pierścienie są rozbite.",
     "swarmLimit": "Limit roju",
-    "swarmLimitTip": "Najwięcej piłek, do ilu rośnie rój: nowe piłki z ucieczek, odrodzeń i kopii z matematyki odbić. Powyżej 200 przebieg przechodzi na lekki tłum piłek, a rój dalej rośnie.",
+    "swarmLimitTip": "Najwięcej piłek, do ilu rośnie rój: nowe piłki z ucieczek, odrodzeń i kopii z matematyki odbić, razem z lekkim tłumem. Powyżej 200 przebieg przechodzi na skrajne wartości, a nowe piłki ponad te, które podlegają każdej regule, dołączają do tłumu. Przy 200 rój ze skrajnymi wartościami w grze rośnie dalej.",
     "respawnEveryValue": "{seconds} s",
     "respawnEveryOff": "Wył.",
     "exitBehavior": "Zachowanie wyjścia",

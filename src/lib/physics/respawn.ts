@@ -1,6 +1,6 @@
 import type { ModeContext, ModeId, PhysicsConfig } from "./types";
 import { startBallColor, startBallCount } from "./ballStats";
-import { SWARM_LIMIT_DEFAULT, swarmLimitOf } from "./growthCaps"; // --- unlimited-sizes --- (the swarm's ceiling is a setting now)
+import { SWARM_LIMIT_DEFAULT, engagedSwarmCeiling, swarmLimitOf } from "./growthCaps"; // --- unlimited-sizes --- (the swarm's ceiling is a setting now)
 
 /**
  * --- gerald-conveyor --- Timed respawns for Classic and Multiply (the character-ball account's "Gerald respawns every
@@ -115,7 +115,11 @@ export class RespawnTimer {
     }
     if (inner < 0) return; // every ring broken: nothing left to escape
     const balls = ctx.getBalls();
-    if (balls.length >= swarmLimitOf(ctx.config)) return; // --- unlimited-sizes --- (RESPAWN_MAX_BALLS unless the swarm's setting says otherwise)
+    // --- review fix (unlimited-sizes) --- engaged, a Swarm Limit other than its default counts the crowd balls too, and a
+    // respawn past the run's full-physics balls joins the crowd (as Multiply's and bounce math's copies do)
+    const room = ctx.unlimitedRoom?.() ?? null;
+    const ceiling = room === null ? null : engagedSwarmCeiling(ctx.config);
+    if (ceiling !== null ? balls.length + (ctx.crowdBalls?.() ?? 0) >= ceiling : balls.length >= swarmLimitOf(ctx.config)) return; // --- unlimited-sizes --- (RESPAWN_MAX_BALLS unless the swarm's setting says otherwise)
     const radius = ctx.config.ballRadius || 8;
     const R = walls[inner].radius;
     const cx = ctx.config.width / 2;
@@ -127,6 +131,10 @@ export class RespawnTimer {
     // The team slots take turns (the first respawn plays for the second team with two balls); one ball: Gerald again.
     const teams = mode ? startBallCount(ctx.config, mode) : 1;
     const slot = teams > 1 ? due % teams : 0;
+    if (ceiling !== null && room !== null && room <= 0) {
+      if (ctx.spawnCrowd?.(1, cx, cy - lift, speed, radius, a, slot)) this.made++; // --- review fix (unlimited-sizes) ---
+      return;
+    }
     ctx.addBall({
       x: cx,
       y: cy - lift,

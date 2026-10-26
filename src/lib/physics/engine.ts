@@ -485,6 +485,7 @@ export class PhysicsEngine {
       // --- unlimited --- spawns past the full-physics balls join the crowd
       unlimitedRoom: () => (this.limits.on ? this.limits.objectRoom(this.balls.length) : null),
       spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
+      crowdBalls: () => (this.limits.on ? this.limits.crowd.count : 0), // --- unlimited-sizes --- (the swarm's ceiling counts them)
       noteArenaFull: () => this.limits.noteFull(),
     };
     // --- bounce-math --- a mode's own bounces (String Battle's credits, the `noteBounce()` of the modes that resolve their own

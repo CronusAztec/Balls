@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
-import { FULL_BALL_LIMIT_DEFAULT, GROWTH_CAP_RANGES, SWARM_LIMIT_DEFAULT, fullBallLimitOf, growthCapConfigOf, growthCapLivePatch, swarmLimitOf } from "@/lib/physics/growthCaps";
+import { FULL_BALL_LIMIT_DEFAULT, GROWTH_CAP_RANGES, SWARM_LIMIT_DEFAULT, engagedSwarmCeiling, fullBallLimitOf, growthCapConfigOf, growthCapLivePatch, swarmLimitOf } from "@/lib/physics/growthCaps";
 import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
 import { RESPAWN_MAX_BALLS } from "@/lib/physics/respawn";
 import { OBJECT_BALL_LIMIT } from "@/lib/unlimited";
@@ -91,16 +91,43 @@ describe("growth caps: the defaults are the old constants, and a default run car
 });
 
 describe("growth caps: raised past the old numbers", () => {
-  it("swl: a swarm limit of 1,000 grows the swarm past 200 into the crowd; 50 stops it at 50", { timeout: 120_000 }, () => {
+  it("swl: a swarm limit of 1,000 grows the swarm past 200 and stops it at 1,000; 3,000 into the crowd; 50 stops it at 50", { timeout: 120_000 }, () => {
     const rule = { param: "balls", trigger: "bounce", every: 1, op: "multiply", amount: 2, scope: "ball" };
     const big = presetToSettings({ ...defaultSettings("classic"), swarmLimit: 1000, bounceMath: [rule] } as unknown as SimulatorSettings);
     expect(big.swarmLimit).toBe(1000);
     expect(settingsFromSearchParams(settingsToSearchParams(big)).swarmLimit).toBe(1000);
     expect(uncappedEngaged(big)).toBe(true); // (a value past its slider engages the runtime: the crowd takes the overflow)
+    // --- review fix (unlimited-sizes) --- engaged, the typed number is still the swarm's ceiling: full and crowd balls together
+    // (300 and 1,000 both used to reach 2,000 full balls plus the 1,000,000-ball crowd)
+    const swarmOf = (engine: PhysicsEngine) => engine.getBalls().length + engine.getCrowd().count;
+    const grow = (engine: PhysicsEngine, frames: number) => {
+      let most = 0;
+      for (let i = 0; i < frames; i++) {
+        run(engine, 1);
+        most = Math.max(most, swarmOf(engine));
+      }
+      return most;
+    };
     const engine = engineOf(big);
-    for (let i = 0; i < 600 && engine.getCrowd().spawned === 0; i++) run(engine, 1);
+    expect(grow(engine, 600)).toBe(1000);
     expect(engine.getBalls().length).toBeGreaterThan(SWARM_LIMIT_DEFAULT);
-    expect(engine.getCrowd().spawned).toBeGreaterThan(0);
+    expect(engine.getCrowd().spawned).toBe(0); // (1,000 full-physics balls fit the run's 2,000)
+    for (const limit of [300, 3000]) {
+      const s = presetToSettings({ ...defaultSettings("classic"), swarmLimit: limit, bounceMath: [rule] } as unknown as SimulatorSettings);
+      const e = engineOf(s);
+      expect(grow(e, 900), String(limit)).toBe(limit);
+      if (limit > FULL_BALL_LIMIT_DEFAULT) {
+        expect(e.getBalls().length).toBe(FULL_BALL_LIMIT_DEFAULT); // full-physics balls up to the run's limit, the rest in the crowd
+        expect(e.getCrowd().spawned).toBeGreaterThan(0);
+      }
+    }
+    // At its default the swarm keeps growing past 200 into the crowd once something else engages the runtime, as it always did.
+    const engaged = presetToSettings({ ...defaultSettings("classic"), ballSpeed: 1e6, bounceMath: [rule] } as unknown as SimulatorSettings);
+    expect([uncappedEngaged(engaged), engaged.swarmLimit]).toEqual([true, SWARM_LIMIT_DEFAULT]);
+    const open = engineOf(engaged);
+    for (let i = 0; i < 600 && open.getCrowd().spawned === 0; i++) run(open, 1);
+    expect(open.getCrowd().spawned).toBeGreaterThan(0);
+    expect([engagedSwarmCeiling({}), engagedSwarmCeiling({ swarmLimit: SWARM_LIMIT_DEFAULT }), engagedSwarmCeiling({ swarmLimit: 300.6 })]).toEqual([null, null, 300]);
     const small = presetToSettings({ ...defaultSettings("classic"), swarmLimit: 50, bounceMath: [rule] } as unknown as SimulatorSettings);
     expect(uncappedEngaged(small)).toBe(false);
     const capped = engineOf(small);
@@ -116,6 +143,30 @@ describe("growth caps: raised past the old numbers", () => {
     run(engine, 600);
     expect(engine.getBalls().length).toBeLessThanOrEqual(3 + 3 * 3); // (an escape's copies are Multiply's own: they stop at the limit as well)
     expect(engine.getRespawnCount()).toBeGreaterThan(0);
+  });
+
+  it("swl: past its slider, Multiply's escapes and the respawn timer stop at the typed limit as well, crowd balls counted", { timeout: 60_000 }, () => {
+    const swarmOf = (engine: PhysicsEngine) => engine.getBalls().length + engine.getCrowd().count;
+    // ten new balls an escape through a wide gap: the swarm passes 300 within seconds, and used to grow on into the crowd
+    const multiply = presetToSettings({ ...defaultSettings("multiply"), swarmLimit: 300, multiplySpawnCount: 10, gapSize: 0.8 } as unknown as SimulatorSettings);
+    expect(uncappedEngaged(multiply)).toBe(true);
+    const m = engineOf(multiply);
+    let most = 0;
+    for (let i = 0; i < 60 * 30; i++) {
+      run(m, 1);
+      most = Math.max(most, swarmOf(m));
+    }
+    expect(most).toBe(300);
+    // the respawn timer, engaged by the same limit: at most 300 balls in play
+    const respawn = presetToSettings({ ...defaultSettings("multiply"), respawnEvery: 0.1, swarmLimit: 300, gapSize: 0.1 } as unknown as SimulatorSettings);
+    const r = engineOf(respawn);
+    most = 0;
+    for (let i = 0; i < 60 * 40; i++) {
+      run(r, 1);
+      most = Math.max(most, swarmOf(r));
+    }
+    expect(most).toBeLessThanOrEqual(300);
+    expect(r.getRespawnCount()).toBeGreaterThan(200);
   });
 
   it("fbl: a full-ball limit of 5,000 keeps 5,000 full-physics balls (one ring), its memory-safety ceiling", () => {
