@@ -320,6 +320,7 @@
         "tests/blueprintHostile.test.ts",
         "tests/blueprintLite.test.ts",
         "tests/blueprintPanel.test.ts",
+        "tests/blueprintParamFields.test.ts",
         "tests/blueprintRenderer.test.ts",
         "tests/blueprintRuntime.test.ts",
         "tests/blueprintSchema.test.ts",
