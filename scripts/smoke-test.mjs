@@ -6462,9 +6462,11 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     }, null, { timeout: 30000 })
     .then((h) => h.jsonValue())
     .catch(() => null);
+  // (the badge shows below SLOW_BADGE_BELOW, 0.9 of real time, and the element holds the ratio to three decimals: a race
+  // caught the frame its badge first shows can read "0.900", a rate from 0.8995 up to just under 0.9, as on CI's runners)
   check(
     "split screen: a race with Slow motion off that falls behind real time shows the real-time badge on its composed frame; one that keeps up shows none",
-    light.splitSlowMotion === "0" && light.splitRealtimeSlow === "0" && !!behind && Number(behind.splitRealtimeRatio) < 0.9 && behind.split === "4",
+    light.splitSlowMotion === "0" && light.splitRealtimeSlow === "0" && !!behind && Number(behind.splitRealtimeRatio) <= 0.9 && behind.split === "4",
     `(light: slow ${light.splitRealtimeSlow}, x${light.splitRealtimeRatio}; behind: ${behind ? `slow ${behind.splitRealtimeSlow}, x${behind.splitRealtimeRatio}, lost ${behind.splitRealtimeLostMs} ms` : "never shown"})`,
   );
 }
