@@ -13,7 +13,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { NO_FFMPEG, resolveFfmpeg, runFfmpeg } from "./analyse.mjs";
+import { NO_FFMPEG, pictureEnd, resolveFfmpeg, runFfmpeg } from "./analyse.mjs";
 import { OUT_DIR, defaultOutName, isInside, outFolder, repoRelative, resolveInputFile } from "./paths.mjs";
 
 const OUR_FILES = /^(frame-\d+\.png|hook-\d+\.png|sheet\.png|hook-sheet\.png)$/;
@@ -53,9 +53,12 @@ async function eachLimit(items, limit, fn) {
  * width, height, frames: [{ file, sec }], hook: [{ file, sec }], sheet, hookSheet } with repository-relative paths.
  */
 export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSec = tb.HOOK_SEC, hookStepSec = tb.HOOK_STEP_SEC, width = tb.FRAME_WIDTH, sheet = true }) {
-  const info = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: OUT_DIR })).stderr);
-  if (!info.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read`);
-  if (!info.durationSec) throw new Error(`${repoRelative(file)} has no duration ffmpeg can read`);
+  const banner = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: OUT_DIR })).stderr);
+  if (!banner.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read`);
+  if (!banner.durationSec) throw new Error(`${repoRelative(file)} has no duration ffmpeg can read`);
+  // --- inspiration --- a sound that runs on past the picture: the frames are spread over the picture, not the sound
+  const end = await pictureEnd(tb, ffmpeg, file, banner, OUT_DIR);
+  const info = end === null ? banner : { ...banner, durationSec: end };
   const dir = outFolder("frames", name);
   for (const f of fs.readdirSync(dir)) if (OUR_FILES.test(f)) fs.rmSync(path.join(dir, f), { force: true });
   const pad = (i, n) => String(i + 1).padStart(Math.max(2, String(n).length), "0");

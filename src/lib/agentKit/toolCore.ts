@@ -11,6 +11,9 @@ export { PINNED_HUB_FILES, explainFailure, testFilesIn, textReadsOf } from "./ex
 // --- agent-cli --- (video analysis) the analyser's pure halves (the app's reference shelf reuses them)
 export { PCM_RATE, SAMPLE_BYTES, audioStatsArgs, cutsArgs, infoArgs, lastFramesArgs, pcmArgs, sampleFramesArgs } from "@/lib/videoAnalysis/ffmpegArgs";
 export { parseCuts, parseIntegratedLufs, parseMediaInfo, parseSilences, pcmSamples, splitFrames } from "@/lib/videoAnalysis/ffmpegParse";
+// --- inspiration --- where the picture ends when a longer sound runs on past it (a TikTok clip's whole "original sound")
+export { pictureEndArgs } from "@/lib/videoAnalysis/ffmpegArgs";
+export { parseProgressSec, pictureEndSec } from "@/lib/videoAnalysis/ffmpegParse";
 export { buildVideoFeatures, soundFeatures, type VideoFeatures } from "@/lib/videoAnalysis/features";
 // --- inspiration --- trending, fetch-video, frames and inspire: the video sources (yt-dlp), the frames and the report
 export { DEFAULT_QUERY, SHORT_MAX_SEC, checkQuery, checkVideoUrl, hasNumbers, isListEntry, isPrivateAddress, listLinkError, listLinkOf, mergeMeta, parseJsonLines, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, videoFileName, videoIdOfUrl, videoMetaOf, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "./videoSources";

@@ -113,7 +113,10 @@ and video demuxers allowed, so a playlist dressed as `.mp4` is refused, never fo
 
 The feature definitions are in `src/lib/videoAnalysis/features.ts`. Pictures are sampled as 16 × 16 RGB twice a second, the
 rate own clips are compared at. Cuts come from scdet, loudness from ebur128 (BS.1770, like the export's normaliser), and
-tempo from the app's own beat detector.
+tempo from the app's own beat detector. A video is as long as its picture: a sound track that runs on more than a second
+past it (a TikTok clip of a minute can carry the whole song of its "original sound") is cut there, so the length, the
+cuts, the loop seam and the sound are measured up to the picture's end, as a viewer sees it, and `frames` spreads its
+frames over the picture too (one quick pass that copies the video's packets finds where it ends).
 
 ## Learning from trending videos
 

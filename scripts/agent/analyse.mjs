@@ -81,22 +81,39 @@ const lastLine = (text) => text.trim().split("\n").pop()?.trim() ?? "";
 export const NO_FFMPEG = "No ffmpeg found: install the Windows app's (cd desktop && npm ci – ffmpeg-static), install ffmpeg on the PATH, or set JBL_FFMPEG (or FFMPEG_PATH). Nothing was measured.";
 
 /**
+ * --- inspiration --- The picture's end (seconds) when a longer sound track runs on past it (tb.pictureEndSec: a TikTok clip
+ * of a minute can carry the whole song of its "original sound"), else null. One quick pass copies the video's packets to
+ * nothing, decoding none; a pass that fails leaves the banner's duration as it is.
+ */
+export async function pictureEnd(tb, ffmpeg, file, info, cwd) {
+  try {
+    const r = await runFfmpeg(ffmpeg.path, tb.pictureEndArgs(file), { cwd });
+    return r.code === 0 ? tb.pictureEndSec(info, tb.parseProgressSec(Buffer.from(r.stdout).toString("utf8"))) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * --- inspiration --- The VideoFeatures of one file (a real path inside the repository), measured with `ffmpeg`
- * (resolveFfmpeg's answer): analyse's own measurement, which inspire reuses for every fetched video and our renders.
+ * (resolveFfmpeg's answer): analyse's own measurement, which inspire reuses for every fetched video and our renders. A sound
+ * that runs on past the picture is cut at the picture's end: the length and every pass are the picture's, as a viewer sees it.
  */
 export async function measureFile(tb, ffmpeg, file, { sampleHz = 2, maxSec = 300 } = {}) {
-  const window = { maxSec };
   const tmp = fs.mkdtempSync(path.join(cacheDir("analyse"), "run-"));
   try {
-    const info = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: tmp })).stderr);
-    if (!info.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read (an MP4, MOV, WebM, MKV, AVI or GIF file is needed)`);
+    const banner = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: tmp })).stderr);
+    if (!banner.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read (an MP4, MOV, WebM, MKV, AVI or GIF file is needed)`);
+    const end = await pictureEnd(tb, ffmpeg, file, banner, tmp);
+    const info = end === null ? banner : { ...banner, durationSec: end };
+    const window = { maxSec: end === null ? maxSec : Math.min(maxSec, end) };
     const check = (pass, r) => {
       if (r.code !== 0) throw new Error(`ffmpeg could not read ${repoRelative(file)} (${pass}: ${lastLine(r.stderr) || `exit ${r.code}`})`);
       return r;
     };
     const [frames, last, cuts, audioStats, pcm] = await Promise.all([
       runFfmpeg(ffmpeg.path, tb.sampleFramesArgs(file, sampleHz, window), { cwd: tmp }).then((r) => check("pictures", r)),
-      runFfmpeg(ffmpeg.path, tb.lastFramesArgs(file), { cwd: tmp }),
+      runFfmpeg(ffmpeg.path, end === null ? tb.lastFramesArgs(file) : tb.lastFramesArgs(file, end), { cwd: tmp }),
       runFfmpeg(ffmpeg.path, tb.cutsArgs(file, "cuts.txt", window), { cwd: tmp }).then((r) => check("cuts", r)),
       info.hasAudio ? runFfmpeg(ffmpeg.path, tb.audioStatsArgs(file, window), { cwd: tmp }) : null,
       info.hasAudio ? runFfmpeg(ffmpeg.path, tb.pcmArgs(file, window), { cwd: tmp }) : null,

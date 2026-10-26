@@ -2,8 +2,8 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { afterAll, describe, expect, it } from "vitest";
-import { CUT_THRESHOLD, PCM_RATE, SAMPLE_BYTES, VIDEO_DEMUXERS, audioStatsArgs, cutsArgs, infoArgs, inputArgs, lastFramesArgs, pcmArgs, sampleFramesArgs } from "@/lib/videoAnalysis/ffmpegArgs";
-import { parseCuts, parseDurationSec, parseIntegratedLufs, parseMediaInfo, parseSilences, pcmSamples, splitFrames } from "@/lib/videoAnalysis/ffmpegParse";
+import { CUT_THRESHOLD, PCM_RATE, SAMPLE_BYTES, VIDEO_DEMUXERS, audioStatsArgs, cutsArgs, infoArgs, inputArgs, lastFramesArgs, pcmArgs, pictureEndArgs, sampleFramesArgs } from "@/lib/videoAnalysis/ffmpegArgs";
+import { SOUND_PAST_PICTURE_SEC, parseCuts, parseDurationSec, parseIntegratedLufs, parseMediaInfo, parseProgressSec, parseSilences, pcmSamples, pictureEndSec, splitFrames } from "@/lib/videoAnalysis/ffmpegParse";
 import { MOTION_MIN, buildVideoFeatures, loopSeamDiff, lumaOf, meanSaturation, pictureFeatures, soundFeatures } from "@/lib/videoAnalysis/features";
 import { integratedLoudness } from "@/lib/audio/loudness";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
@@ -222,5 +222,63 @@ describe("analyse end to end (--- agent-cli ---)", () => {
     expect(f.silenceSec).toBeLessThan(6);
     // the file is read where it is: nothing copied next to it, the analyser's scratch folder gone
     expect(fs.readdirSync(dir).sort()).toEqual(["clicks.wav", "clip.mp4"]);
+  }, 120_000);
+});
+
+// --- inspiration --- A sound track that runs on past the picture (a TikTok clip of a minute can carry the whole song of its
+// "original sound": the first live inspire run on TikTok measured a 64.7 s clip as 236 s). The video's length is its
+// picture's, and every pass reads up to it, as a viewer sees it.
+describe("a sound that runs on past the picture (--- inspiration ---)", () => {
+  const file = "/repo/.agent-out/inbox/tiktok-1.mp4";
+  const progress = (us: string) => `frame=0\nout_time_us=${us}\nout_time_ms=${us}\nout_time=00:00:00\nprogress=continue\n`;
+
+  it("copies the video's packets to nothing with the progress on stdout, and seeks the last frames from the picture's end", () => {
+    const args = pictureEndArgs(file);
+    expect(args[args.indexOf("-i") + 1]).toBe(`file:${file}`);
+    expect(args.slice(0, args.indexOf("-i"))).toEqual(expect.arrayContaining(["-protocol_whitelist", "file", "-format_whitelist", VIDEO_DEMUXERS]));
+    expect(args.slice(args.indexOf("-i") + 2)).toEqual(["-map", "0:v:0", "-c", "copy", "-f", "null", "-progress", "pipe:1", "-"]);
+    const last = lastFramesArgs(file, 64.6333);
+    expect(last.slice(last.indexOf("-ss"), last.indexOf("-ss") + 2)).toEqual(["-ss", "64.133"]);
+    expect(last).not.toContain("-sseof");
+    expect(last.indexOf("-ss")).toBeLessThan(last.indexOf("-i"));
+    expect(lastFramesArgs(file, 0.2)).toEqual(expect.arrayContaining(["-ss", "0"]));
+  });
+
+  it("reads the last out_time, and ends the video at the picture only when the sound runs on past it", () => {
+    expect(parseProgressSec(`${progress("1000000")}${progress("64633333")}progress=end\n`)).toBeCloseTo(64.633333, 6);
+    expect(parseProgressSec("out_time_us=N/A\nprogress=end\n")).toBeNull();
+    expect(parseProgressSec("")).toBeNull();
+    const banner = { durationSec: 236.41 };
+    expect(pictureEndSec(banner, 64.633333)).toBe(64.6333); // (the TikTok clip: a picture of 64.7 s under 236 s of song)
+    expect(pictureEndSec({ durationSec: 6 }, 2)).toBe(2);
+    expect(pictureEndSec({ durationSec: 10.05 }, 9.95)).toBeNull(); // (the usual few hundredths between the two)
+    expect(pictureEndSec({ durationSec: 10 }, 10 - SOUND_PAST_PICTURE_SEC)).toBeNull();
+    expect(pictureEndSec({ durationSec: null }, 2)).toBeNull();
+    expect(pictureEndSec(banner, null)).toBeNull();
+  });
+
+  it("measures a 2 s picture under 6 s of sound as a 2 s video, end to end", () => {
+    const ffmpeg = resolveFfmpeg();
+    if (!ffmpeg) return;
+    const dir = path.join(ROOT, ".agent-out", `test-videoAnalysis-long-sound-${process.pid}`);
+    fs.mkdirSync(dir, { recursive: true });
+    try {
+      const clip = path.join(dir, "clip.mp4");
+      const make = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=180x320:r=30:d=2", "-f", "lavfi", "-i", "sine=frequency=440:d=6", "-c:v", "mpeg4", "-q:v", "4", "-c:a", "aac", clip], { encoding: "utf8", timeout: 60_000 });
+      expect(make.status, make.stderr).toBe(0);
+      expect(parseDurationSec(spawnSync(ffmpeg.path, ["-hide_banner", "-i", clip], { encoding: "utf8" }).stderr)).toBeGreaterThan(5.5); // (the banner: the sound's)
+      const r = spawnSync(process.execPath, [CLI, "analyse", "--json", JSON.stringify({ path: path.relative(ROOT, clip) })], { cwd: ROOT, encoding: "utf8", timeout: 120_000 });
+      const out = JSON.parse(r.stdout.trim().split("\n").pop() ?? "{}");
+      expect(r.status, JSON.stringify(out)).toBe(0);
+      const f = out.result.features;
+      expect(Math.abs(f.durationSec - 2)).toBeLessThanOrEqual(0.1);
+      expect(f.analysedSec).toBeLessThanOrEqual(2.1);
+      expect(Math.abs(f.motion.length - 4)).toBeLessThanOrEqual(1);
+      expect(f.loopSeamDiff).not.toBeNull(); // (the last frame is the picture's, not a seek past it)
+      expect(f.lufs).not.toBeNull();
+      expect(f.silenceSec).toBeLessThan(0.5);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }, 120_000);
 });

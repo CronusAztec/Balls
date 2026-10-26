@@ -59,9 +59,24 @@ export function sampleFramesArgs(absolutePath: string, sampleHz: number, window:
   return [...QUIET, ...inputArgs(absolutePath, window), "-an", "-sn", "-dn", "-vf", `fps=${num(sampleHz)},scale=${SAMPLE_SIDE}:${SAMPLE_SIDE}:flags=area,format=rgb24`, "-f", "rawvideo", "pipe:1"];
 }
 
-/** The frames of the last half second as RGB 16 × 16 samples on stdout (the last one is the clip's last frame: the loop seam). */
-export function lastFramesArgs(absolutePath: string): string[] {
-  return [...QUIET, ...inputArgs(absolutePath, undefined, 0.5), "-an", "-sn", "-dn", "-vf", `scale=${SAMPLE_SIDE}:${SAMPLE_SIDE}:flags=area,format=rgb24`, "-f", "rawvideo", "pipe:1"];
+/**
+ * The frames of the last half second as RGB 16 × 16 samples on stdout (the last one is the clip's last frame: the loop seam).
+ * With `pictureEndSec` (--- inspiration --- a sound that runs on past the picture: ffmpegParse.ts pictureEndSec) the seek is
+ * from the start to half a second before the picture's end, as -sseof seeks from the file's end, which is then the sound's.
+ */
+export function lastFramesArgs(absolutePath: string, pictureEndSec?: number): string[] {
+  const input = pictureEndSec !== undefined ? ["-ss", num(Math.max(0, pictureEndSec - 0.5)), ...inputArgs(absolutePath)] : inputArgs(absolutePath, undefined, 0.5);
+  return [...QUIET, ...input, "-an", "-sn", "-dn", "-vf", `scale=${SAMPLE_SIDE}:${SAMPLE_SIDE}:flags=area,format=rgb24`, "-f", "rawvideo", "pipe:1"];
+}
+
+/**
+ * --- inspiration --- Where the picture ends: the first video stream's packets copied to nothing (nothing is decoded), with
+ * ffmpeg's progress on stdout, whose last out_time is where the picture ends (ffmpegParse.ts parseProgressSec). A sound
+ * track may run on past the picture – a TikTok clip of a minute carries the whole song of its "original sound" – and the
+ * container's duration in the banner is then the sound's.
+ */
+export function pictureEndArgs(absolutePath: string): string[] {
+  return [...QUIET, ...inputArgs(absolutePath), "-map", "0:v:0", "-c", "copy", "-f", "null", "-progress", "pipe:1", "-"];
 }
 
 /**

@@ -7,7 +7,7 @@ import { DEFAULT_QUERY, parseJsonLines, type VideoMeta } from "@/lib/agentKit/vi
 import { runFolderName } from "@/lib/agentKit/inspiration";
 import * as ffmpegArgs from "@/lib/videoAnalysis/ffmpegArgs";
 import { hookTimes } from "@/lib/videoAnalysis/ffmpegArgs";
-import { parseMediaInfo } from "@/lib/videoAnalysis/ffmpegParse";
+import { parseMediaInfo, parseProgressSec, pictureEndSec } from "@/lib/videoAnalysis/ffmpegParse";
 import { AGENT_TOOLS, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
@@ -451,12 +451,25 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(r.json.result.limited).toEqual({ count: { asked: 1_000_000_000, made: 20 } });
     expect(fs.readFileSync(path.join(ROOT, r.json.result.sheet)).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     // a sheet whose ffmpeg run fails to start (as E2BIG did) leaves the frames as they are, with no sheet
-    const failing = { ...ffmpegArgs, parseMediaInfo, sheetArgs: () => { throw new Error("spawn E2BIG"); } };
+    const failing = { ...ffmpegArgs, parseMediaInfo, parseProgressSec, pictureEndSec, sheetArgs: () => { throw new Error("spawn E2BIG"); } };
     const res = await extractFrames(failing, ffmpeg, small, { name: out, count: 4, hookSec: 0 });
     expect(res.frames).toHaveLength(4);
     expect(res.sheet).toBeNull();
     expect(fs.readdirSync(path.join(ROOT, res.dir)).sort()).toEqual(["frame-01.png", "frame-02.png", "frame-03.png", "frame-04.png"]);
   }, 240_000);
+
+  // --- inspiration --- a sound that runs on past the picture (a TikTok clip's whole "original sound"): the frames spread over the picture
+  it("spreads the frames over the picture when the sound runs on past it", () => {
+    if (!ffmpeg) return;
+    const clip = path.join(TEST_DIR, "long-sound.mp4");
+    const make = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=64x112:r=10:d=2", "-f", "lavfi", "-i", "sine=frequency=440:d=6", "-c:v", "mpeg4", "-q:v", "4", "-c:a", "aac", clip], { encoding: "utf8", timeout: 60_000 });
+    expect(make.status, make.stderr).toBe(0);
+    const r = agent("frames", { path: path.relative(ROOT, clip), out: `test-inspiration-${process.pid}`, count: 8, hookSec: 0, sheet: false });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    expect(Math.abs(r.json.result.durationSec - 2)).toBeLessThanOrEqual(0.1);
+    expect(r.json.result.frames).toHaveLength(8); // (spread over the 6 s of sound, the last five would find no picture)
+    for (const f of r.json.result.frames as { sec: number }[]) expect(f.sec).toBeLessThan(2);
+  }, 120_000);
 
   it("runs the whole inspiration pipeline: a report in our levers, a failed video kept with its error, the dataset grown once per video", () => {
     const ours = path.join(TEST_DIR, "ours");
