@@ -1863,6 +1863,11 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         ...multiplierConfigOf(d), // --- gerald-multipliers --- pickups, cap, smash threshold
         ...defaultBounceMathFields(), // --- bounce-math --- no rules, Show values on
         respawnEvery: d.respawnEvery, // --- gerald-conveyor --- the respawn timer of Classic and Multiply (off)
+        // --- slow-motion --- (review fix) the block at the top of the section (UNLIMITED_KEYS): Wide sliders and Slow motion back on,
+        // Full-Physics Balls back to the limits runtime's default, as the Camera group's Reset brings the camera back
+        unlimited: d.unlimited,
+        slowMotion: d.slowMotion,
+        fullBallLimit: d.fullBallLimit,
       };
     case "wall":
       return {

@@ -15,9 +15,9 @@ import CameraSection from "@/components/simulator/sections/CameraSection";
 import BullseyeSection from "@/components/simulator/sections/BullseyeSection";
 import FightLeagueSection from "@/components/simulator/sections/FightLeagueSection";
 import StringBattleSection from "@/components/simulator/sections/StringBattleSection";
-import { paletteKeyGroups } from "@/components/simulator/Controls";
+import { paletteKeyGroups, sectionDefaults } from "@/components/simulator/Controls";
 import type { PanelShown } from "@/components/simulator/panelKeys";
-import { defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder"; // --- review fix --- (the tooltip's exceptions, in the code)
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { RealTimeClock, STEP_MS, type RealTimeStepper } from "@/lib/simulation/realTime";
@@ -477,5 +477,30 @@ describe("every dimmed control has its note on screen (--- slow-motion --- revie
       const html = section(FightLeagueSection, settingsOf("fightLeague", { flSlowMo: true, slowMotion: false }), search);
       expect([search, brokenBlocks(html), strayNotes(html)]).toEqual([search, [], []]);
     }
+  });
+});
+
+describe("Reset Category in Ball & Physics brings back the block at its top (--- slow-motion --- review fix)", () => {
+  it("restores Wide sliders, Slow motion and Full-Physics Balls with the rest of the section: the link loses inf, smo and fbl", () => {
+    // (it reset Ball Speed but left Slow motion off and Full-Physics Balls as typed: ?mode=classic&fbl=500&smo=0 stayed)
+    const before = settingsFromSearchParams(new URLSearchParams("mode=classic&smo=0&inf=0&fbl=500&s=250"));
+    expect([before.slowMotion, before.unlimited, before.fullBallLimit, before.ballSpeed]).toEqual([false, false, 500, 250]);
+    const after: SimulatorSettings = { ...before, ...sectionDefaults("ball", "classic") };
+    const link = settingsToSearchParams(after);
+    expect([link.get("smo"), link.get("inf"), link.get("fbl"), link.get("s")]).toEqual([null, null, null, null]);
+    expect(link.toString()).toBe(settingsToSearchParams(defaultSettings("classic")).toString());
+    // both switches read ON again, as a screen reader hears them
+    const html = section(UnlimitedSection, after);
+    expect([switchNamed(html, "Slow motion")?.checked, switchNamed(html, "Wide sliders")?.checked]).toEqual(["true", "true"]);
+  });
+
+  it("covers every key of the block, at its default, in every mode (UNLIMITED_KEYS)", () => {
+    for (const mode of ["classic", "bullseye", "fightLeague", "stringBattle", "multipliers", "blueprint"] as ModeId[]) {
+      const reset = sectionDefaults("ball", mode) as Record<string, unknown>;
+      const d = defaultSettings(mode) as unknown as Record<string, unknown>;
+      for (const key of UNLIMITED_KEYS) expect([mode, key, key in reset, reset[key]]).toEqual([mode, key, true, d[key]]);
+    }
+    // (on is today's behaviour: the reset brings back what a link without smo plays)
+    expect([defaultSettings("classic").slowMotion, defaultSettings("classic").unlimited]).toEqual([true, true]);
   });
 });
