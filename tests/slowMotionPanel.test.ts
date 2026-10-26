@@ -17,7 +17,10 @@ import FightLeagueSection from "@/components/simulator/sections/FightLeagueSecti
 import StringBattleSection from "@/components/simulator/sections/StringBattleSection";
 import { paletteKeyGroups } from "@/components/simulator/Controls";
 import type { PanelShown } from "@/components/simulator/panelKeys";
-import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
+import { createEngineForSettings } from "@/lib/simulation/finder"; // --- review fix --- (the tooltip's exceptions, in the code)
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { RealTimeClock, STEP_MS, type RealTimeStepper } from "@/lib/simulation/realTime";
 import type { ModeId } from "@/lib/physics/types";
 
 /*
@@ -215,6 +218,49 @@ describe("the Slow motion tooltip and the KO note say what the switch does (--- 
     }
     // (the old claim: "On: near misses, bullseyes and knockouts slow time down for a moment.")
     expect(en.Unlimited.slowMotionTip).not.toMatch(/^On: near misses/);
+  });
+
+  it("the tooltip promises only what holds with it off: the moments and the replay at normal speed, a heavy run slowed only by a device that cannot keep up, a Time scale rule still on (--- review fix ---)", () => {
+    // (it said every run plays in real time and a heavy run skips frames instead of slowing down: 50,000 balls played at 1 to
+    // 4 % of real time with the switch off, and a Bounce math Time scale rule still scales the run's clock)
+    const FALSE_CLAIMS: Record<"en" | "pl" | "es", RegExp[]> = {
+      en: [/every run plays in real time/i, /instead of slowing/i],
+      pl: [/każdy przebieg gra w czasie rzeczywistym/i, /zamiast zwalniać/i],
+      es: [/cada partida va en tiempo real/i, /en vez de frenar/i],
+    };
+    for (const [locale, catalog, budget] of [["en", en, 300], ["pl", pl, 380], ["es", es, 380]] as const) {
+      const tip = (catalog.Unlimited as Record<string, string>).slowMotionTip;
+      const c = catalog.Controls as Record<string, string>;
+      const timeScale = (catalog.BounceMath as unknown as { param: Record<string, string> }).param.timeScale;
+      // the documented exception names the controls as the panel names them, within the tooltip budgets
+      expect([locale, tip.includes(c.bounceMath), tip.includes(timeScale), tip.includes(c.cameraGroup), tip.length <= budget]).toEqual([locale, true, true, true, true]);
+      for (const claim of FALSE_CLAIMS[locale]) expect([locale, String(claim), claim.test(tip)]).toEqual([locale, String(claim), false]);
+      // docs/COPY-STYLE.md: no parentheses, dashes or semicolons in a string this long
+      expect([locale, /[();—]|\s–\s/.test(tip)]).toEqual([locale, false]);
+    }
+    // what the exceptions are in the code: with the switch off a Time scale rule of 0.3 still plays a second of steps as 0.3 s,
+    // and the step pays the page's real-time clock in full (its time scale is not slow motion's), so the run plays at 0.3x
+    const rule = { param: "timeScale", trigger: "start", every: 1, op: "set", amount: 0.3, scope: "ball" };
+    const s = presetToSettings({ ...defaultSettings("classic"), slowMotion: false, bounceMath: [rule] } as unknown as SimulatorSettings);
+    expect([s.slowMotion, s.bounceMath.length]).toEqual([false, 1]);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "classic", modeSettingsOfSettings(s), 7);
+    for (let i = 0; i < 60; i++) engine.update(1000 / 60, 0);
+    expect(engine.getElapsedMs()).toBeCloseTo(300, 3);
+    expect(engine.getStepTimeScale()).toBe(1);
+    // and a device that cannot keep up: a run that keeps up loses nothing, one whose steps cost 40 ms each falls behind, and
+    // the clock counts what it lost (the real-time badge shows it)
+    const lostOver = (stepCpuMs: number) => {
+      let now = 0;
+      const stepper: RealTimeStepper = { step: () => ((now += stepCpuMs), 1), now: () => now };
+      const clock = new RealTimeClock();
+      for (let i = 0; i <= 60; i++) {
+        now = Math.max(now, i * STEP_MS);
+        clock.tick(now, { running: true, simSpeed: 1, drawDue: true }, stepper);
+      }
+      return clock.lostMs;
+    };
+    expect(lostOver(0.5)).toBe(0);
+    expect(lostOver(40)).toBeGreaterThan(0);
   });
 
   it("KO Slow Motion's note says the winner's card comes at once, in the words of the control's own tip, in every locale", () => {

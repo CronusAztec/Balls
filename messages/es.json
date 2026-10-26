@@ -4682,7 +4682,7 @@
     "off": "NO",
     "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga o derretir la imagen: de eso se trata. Puede derretirse, nunca colgarse.",
     "slowMotion": "Cámara lenta",
-    "slowMotionTip": "Activada: funcionan los momentos de cámara lenta, como una diana, un KO o un casi-escape activado en el grupo Cámara. Desactivada: cada partida va en tiempo real, también la repetición de la fuga. Una partida pesada se salta fotogramas para no quedarse atrás en vez de frenar.",
+    "slowMotionTip": "Activada: funcionan los momentos de cámara lenta, como una diana, un KO o un casi-escape activado en el grupo Cámara. Desactivada: esos momentos y la repetición de la fuga van a velocidad normal. Una partida pesada se salta fotogramas para no quedarse atrás. Solo frena si el dispositivo no da más de sí. La regla Escala de tiempo de Matemáticas del rebote sigue activa.",
     "slowMotionOffNote": "La cámara lenta está desactivada en Pelota y física, así que aquí todo va en tiempo real.",
     "replayRealTime": "La cámara lenta está desactivada en Pelota y física, así que la repetición va a velocidad normal.",
     "koOffNote": "La cámara lenta está desactivada en Pelota y física, así que la tarjeta del ganador aparece al instante.",
