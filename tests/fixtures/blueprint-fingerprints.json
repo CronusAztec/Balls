@@ -49,7 +49,7 @@
       "peakBalls": 121
     },
     "ringBreaker": {
-      "digest": "b5dfc3d7",
+      "digest": "ff9d47cc",
       "samples": [
         [
           263914,
@@ -92,105 +92,89 @@
       "spawned": 128,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 396,
+      "sounds": 392,
       "peakBalls": 128
     },
     "conquer": {
-      "digest": "77f29a49",
+      "digest": "258755ef",
       "samples": [
         [
-          197574,
-          427398
+          306967,
+          456588
         ],
         [
-          190329,
-          449791
+          280539,
+          325877
         ],
         [
-          52184,
-          402015
+          107763,
+          339760
         ],
         [
-          97686,
-          395535
-        ],
-        [
-          84871,
-          523476
-        ],
-        [
-          134702,
-          335222
-        ],
-        [
-          318677,
-          522190
-        ],
-        [
-          240271,
-          493792
+          345719,
+          473165
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 2504,
-      "result": "GOLD WINS",
-      "winner": 3,
+      "steps": 389,
+      "result": "BLUE WINS",
+      "winner": 1,
       "spawned": 24,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 2579,
+      "sounds": 262,
       "peakBalls": 24
     },
     "tierClimb": {
-      "digest": "c7f720cc",
+      "digest": "3f6147ec",
       "samples": [
         [
-          211954,
-          581604
+          208027,
+          585758
         ],
         [
-          251924,
-          587345
+          181334,
+          588748
         ],
         [
-          186275,
-          578271
+          344449,
+          549247
         ],
         [
-          300132,
-          568513
+          142751,
+          568837
         ],
         [
-          168092,
-          568249
+          177114,
+          577266
         ],
         [
-          360647,
-          534694
+          146960,
+          579846
         ],
         [
-          151196,
-          562334
+          178626,
+          572395
         ],
         [
-          209242,
-          595492
+          143579,
+          578288
         ]
       ],
       "reason": "condition",
       "condition": 0,
-      "steps": 1154,
+      "steps": 1620,
       "result": "TIER 8 REACHED",
       "winner": -1,
-      "spawned": 241,
+      "spawned": 338,
       "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 215,
-      "peakBalls": 34
+      "sounds": 306,
+      "peakBalls": 40
     },
     "plinkoRace": {
-      "digest": "ad34af37",
+      "digest": "36c4fc5e",
       "samples": [
         [
           121569,
@@ -225,38 +209,38 @@
       "spawned": 4,
       "escaped": 1,
       "tilesBroken": 0,
-      "sounds": 124,
+      "sounds": 121,
       "peakBalls": 4
     },
     "growEscape": {
-      "digest": "55ffef0b",
+      "digest": "fbbd4d4a",
       "samples": [
         [
           180179,
           452630
         ],
         [
-          258632,
-          399664
+          263610,
+          391961
         ],
         [
-          187937,
-          394884
+          150649,
+          426873
         ],
         [
-          324815,
-          386147
+          310042,
+          360764
         ]
       ],
       "reason": "condition",
-      "condition": 0,
-      "steps": 1081,
-      "result": "ESCAPED AFTER BOUNCE 10",
+      "condition": 1,
+      "steps": 955,
+      "result": "TOO BIG TO ESCAPE",
       "winner": -1,
       "spawned": 1,
-      "escaped": 1,
+      "escaped": 0,
       "tilesBroken": 0,
-      "sounds": 41,
+      "sounds": 53,
       "peakBalls": 1
     }
   }

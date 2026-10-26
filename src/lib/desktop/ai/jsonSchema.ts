@@ -2,7 +2,8 @@
  * --- desktop-exe --- A small JSON-schema subset for the AI studio: what the model is asked to produce (the local model is
  * constrained to it by a grammar in the app, a cloud model is asked for it in the prompt) and what every reply is checked
  * against before anything is applied. Supports type (one or several), properties / required / additionalProperties,
- * items / minItems / maxItems, enum / const, minimum / maximum, minLength / maxLength / pattern and oneOf.
+ * items / minItems / maxItems, enum / const, minimum / maximum, minLength / maxLength / pattern and oneOf. --- blueprint ---
+ * And exclusiveMinimum (a number, as JSON Schema writes it since draft 6): a Blueprint's radius or timer must be above 0.
  */
 
 export type JsonType = "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";
@@ -19,6 +20,8 @@ export interface JsonSchema {
   enum?: readonly (string | number | boolean | null)[];
   const?: string | number | boolean | null;
   minimum?: number;
+  /** --- blueprint --- The value must be above it. */
+  exclusiveMinimum?: number;
   maximum?: number;
   minLength?: number;
   maxLength?: number;
@@ -64,6 +67,7 @@ export function validateJson(schema: JsonSchema, value: unknown, path = "$", lim
   if (typeof value === "number") {
     if (!Number.isFinite(value)) add("must be a finite number");
     if (schema.minimum !== undefined && value < schema.minimum) add(`must be ≥ ${schema.minimum}`);
+    if (schema.exclusiveMinimum !== undefined && !(value > schema.exclusiveMinimum)) add(`must be > ${schema.exclusiveMinimum}`);
     if (schema.maximum !== undefined && value > schema.maximum) add(`must be ≤ ${schema.maximum}`);
   }
   if (typeof value === "string") {

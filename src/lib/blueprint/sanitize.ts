@@ -103,6 +103,12 @@ function issue(rd: Reader, path: string, message: string) {
 }
 
 const join = (path: string, key: string | number) => (typeof key === "number" ? `${path}[${key}]` : path ? `${path}.${key}` : key);
+/**
+ * --- review fix (blueprint) --- A field name of a stranger's spec as a path step: a plain name as it is (`arena.wobble`),
+ * anything else quoted as data – cut to 24 characters, its control characters gone, JSON-escaped (`meta."SYSTEM: …"`) – so a
+ * key never puts a newline or a sentence of its own into the text an AI author reads as the validator's.
+ */
+const fieldStep = (key: string) => (/^[A-Za-z_$][A-Za-z0-9_$]{0,23}$/.test(key) ? key : JSON.stringify(plainText(key, 24) + (Array.from(key).length > 24 ? "…" : "")));
 const list = (values: readonly (string | number)[]) => values.map((v) => (typeof v === "string" ? v : String(v))).join(", ");
 
 /** Reports the fields of `record` the spec does not know. */
@@ -110,7 +116,7 @@ function unknownFields(rd: Reader, path: string, record: Record<string, unknown>
   let n = 0;
   for (const key in record) {
     if (!Object.hasOwn(record, key) || known.includes(key)) continue;
-    issue(rd, join(path, key), `unknown field (the fields here: ${known.join(", ")})`);
+    issue(rd, join(path, fieldStep(key)), `unknown field (the fields here: ${known.join(", ")})`);
     if (++n >= 8) break;
   }
 }
@@ -132,7 +138,7 @@ function kindOf(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "a list";
   if (typeof value === "number") return Number.isFinite(value) ? `the number ${value}` : String(value);
-  if (typeof value === "string") return value.length > 24 ? "a text" : `"${plainText(value, 24)}"`;
+  if (typeof value === "string") return value.length > 24 ? "a text" : JSON.stringify(plainText(value, 24)); // --- review fix (blueprint) --- (quoted as data)
   return typeof value;
 }
 
@@ -154,7 +160,8 @@ interface NumRule {
 
 function describeRange(r: NumRule): string {
   const whole = r.int ? "a whole number" : "a number";
-  if (r.min !== undefined && r.max !== undefined) return `${whole} from ${r.min} to ${r.max}`;
+  // --- review fix (blueprint) --- (a domain open at its lower end says so: an obstacle's radius 0 is refused)
+  if (r.min !== undefined && r.max !== undefined) return r.above ? `${whole} above ${r.min}, up to ${r.max}` : `${whole} from ${r.min} to ${r.max}`;
   if (r.min !== undefined) return r.above ? `${whole} above ${r.min}` : `${whole} from ${r.min} up`;
   return `${r.int ? "a whole" : "a finite"} number`;
 }
@@ -337,7 +344,7 @@ function readMeta(rd: Reader, raw: unknown): BlueprintMeta & { newer: string[] }
     }
     if (!BLUEPRINT_FEATURES.includes(v)) {
       newer.push(plainText(v, 40));
-      issue(rd, p, `needs a newer version of JumpingBallsLive (it does not know the feature "${plainText(v, 40)}")`);
+      issue(rd, p, `needs a newer version of JumpingBallsLive (it does not know the feature ${JSON.stringify(plainText(v, 40))})`);
       return null;
     }
     return v;

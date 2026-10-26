@@ -60,6 +60,14 @@ describe("json schema subset", () => {
     expect(validateJson(schema, {})).toEqual(['$: missing "n"']);
     expect(validateJson({ oneOf: [{ type: "string" }, { type: "number" }] }, true)[0]).toMatch(/must be/);
   });
+  // --- blueprint --- a bound the value must be above (a Blueprint's radius, timer or slider step)
+  it("refuses a value at or below an exclusiveMinimum, and takes one above it", () => {
+    const above: JsonSchema = { type: "number", exclusiveMinimum: 0, maximum: 2 };
+    expect(validateJson(above, 0)).toEqual(["$: must be > 0"]);
+    expect(validateJson(above, -1)).toEqual(["$: must be > 0"]);
+    expect(validateJson(above, 0.001)).toEqual([]);
+    expect(validateJson(above, 2)).toEqual([]);
+  });
   it("refuses keys named after Object.prototype's members, and never takes an inherited one for present", () => {
     // (JSON.parse makes "__proto__" an own key; a plain lookup would find Object.prototype's members and wave them through)
     for (const key of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
@@ -324,6 +332,38 @@ describe("make videos", () => {
     expect(out.ok).toBe(false);
     expect(p.finds).toEqual([]);
     expect(model.calls[1].at(-1)?.content).toMatch(/unknown planId "made-up"/);
+  });
+
+  // --- trends --- the trending look's levers are settings a planned clip takes: a theme by its palette, the background by its
+  // colours (no theme's is light), the rainbow trail as no trail colours
+  it("sets the trending look on a planned clip: a theme brings its palette, the patch's own background and trail win", async () => {
+    const store = new PlanStore();
+    const p = ports();
+    const tools = makeVideosTools(store, p);
+    await tools.find((t) => t.name === "plan_clips")!.run({ count: 1, platform: "tiktok" }, { signal: new AbortController().signal, progress: () => {} } as never);
+    const setTool = tools.find((t) => t.name === "set_clip_settings")!;
+    const planId = `${plan.id}-1`;
+    const changes = [
+      { setting: "themeId", value: "pastel" },
+      { setting: "backgroundType", value: "gradient" },
+      { setting: "backgroundColors", value: ["#a7b0c0", "#6b7486"] },
+      { setting: "showTrails", value: false },
+      { setting: "trailColors", value: [] },
+    ];
+    expect(validateJson(setTool.args, { planId, changes })).toEqual([]);
+    expect(validateJson(setTool.args, { planId, changes: [{ setting: "backgroundColors", value: ["#a7b0c0"] }] }).length).toBeGreaterThan(0); // (two colours)
+    expect(setTool.argsHint).toMatch(/backgroundColors/);
+    expect(setTool.check?.({ planId, changes })).toEqual([]);
+    const out = (await setTool.run({ planId, changes }, {} as never)) as { applied: Record<string, unknown> };
+    expect(out.applied).toMatchObject({ themeId: "pastel", circleColor: "#ffc8dd", ballColor: "#bde0fe", rainbowWalls: false, backgroundType: "gradient", backgroundColors: ["#a7b0c0", "#6b7486"], trailColors: [], showTrails: false });
+    expect(store.get(planId)!.settings).toMatchObject({ themeId: "pastel", backgroundColors: ["#a7b0c0", "#6b7486"], circleColor: "#ffc8dd" });
+    // a theme alone brings its own background; the same theme again changes nothing more
+    const current = defaultSettings("classic");
+    expect(validateSettingsPatch(current, { themeId: "neon" })).toMatchObject({ ok: true, patch: { themeId: "neon", backgroundType: "gradient", backgroundColors: ["#0b0014", "#1f0040"], trailColors: ["#00f0ff", "#ff00e6"] } });
+    expect(validateSettingsPatch({ ...current, themeId: "neon" }, { themeId: "neon" })).toEqual({ ok: true, patch: { themeId: "neon" } });
+    expect(validateSettingsPatch(current, { themeId: "" })).toEqual({ ok: true, patch: { themeId: "" } });
+    // the settings assistant's own catalog is unchanged by the clip's levers (its request filter would match "rounds" in them)
+    expect(assistantSettings(current).map(([k]) => k)).not.toContain("backgroundColors");
   });
 
   it("builds the copy and idea tasks", () => {

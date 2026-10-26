@@ -16,7 +16,11 @@
  *   preview      a watermarked PNG contact sheet of a link from a local export             (Chromium)
  *   render       a watermarked clip of a link through the page's own fast export           (Chromium)
  *   site-shot    PNG screenshots of site pages from the local export                       (Chromium)
- *   analyse      numeric features of a local video file (ffmpeg)
+ *   analyse      numeric features of a video: own clips, or other creators' (a file or a link) (ffmpeg)
+ *   frames       still frames and contact sheets of a video for a vision-capable AI          (ffmpeg)
+ *   trending     trending and viral videos: a YouTube search, the Shorts feed, given links  (yt-dlp)
+ *   fetch-video  one video (TikTok, Instagram, YouTube, any site) into .agent-out/inbox/     (yt-dlp)
+ *   inspire      trending → fetch → analyse + frames → a report and our levers, the dataset (yt-dlp, ffmpeg)
  *   guard        the core guard (npm run guard; {"plan":true} for the static checks alone)
  *   explain      which fix a failure allows (source pin, behaviour, fingerprint…)
  *   bp-schema    the Blueprint language: its JSON Schema (full or Lite), the vocabulary for prompts, the ceilings
@@ -31,8 +35,10 @@
  * agent cache in this user's cache folder, and for the guard its own, see tools.ts alsoWrites); every path argument must resolve
  * inside the repository; it never starts a shell (child processes get
  * argument arrays); it uses no network except the CLI's own localhost server for the browser tools – the browser is
- * fenced to it – and, for the two owner-run commands, the owner's own host they document. Pictures and clips carry the
- * watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
+ * fenced to it –, for the two owner-run commands the owner's own host they document, and (--- inspiration ---) for the
+ * video tools the video sites yt-dlp reads (a checked http or https link, never one that names this machine or its
+ * private network or whose host resolves there when it is checked).
+ * Pictures and clips carry the watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
  */
 import { spawn } from "child_process";
 import crypto from "crypto";
@@ -139,13 +145,29 @@ async function explainTool(tb, args) {
 
 // --- blueprint --- the five bp-* tools: the Blueprint library alone (bundle.mjs loadBlueprintKit), no engine, no browser
 
-/** A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). */
+/**
+ * A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). ---
+ * review fix (blueprint) --- `blueprint` is the game as it plays: the slider values of the link (`blv`) or of the call
+ * (`params`) applied, as Mode Lab applies them; `base` is the spec before them, and `params` says what was applied.
+ */
 function blueprintOf(bk, args) {
   const input = bk.blueprintInput(args);
   if (!input.ok) throw new ToolError(input.error);
   const errors = bk.validateBlueprint(input.raw);
-  const { blueprint, notes, newer } = bk.sanitizeBlueprint(input.raw);
-  return { source: input.source, blueprint, errors, notes, newer };
+  const { blueprint: base, notes, newer } = bk.sanitizeBlueprint(input.raw);
+  if (!input.params.length) return { source: input.source, catalogId: input.catalogId, base, blueprint: base, errors, notes, newer, params: null };
+  const applied = bk.applyBlueprintParams(base, input.params);
+  const values = bk.formatParamValues(input.params);
+  const params = {
+    from: input.paramsFrom === "link" ? "the link's blv" : "params",
+    blv: values,
+    sliders: base.params.map((p, i) => ({ id: p.id, value: bk.paramValue(applied.blueprint, i), own: bk.paramValue(base, i) })),
+    ...(applied.notes.length ? { notes: applied.notes } : {}),
+    note: base.params.length
+      ? `Slider values applied (${input.paramsFrom === "link" ? "from the link's blv" : "from params"}): this is the game the link plays, not the spec's own defaults.`
+      : "The spec has no sliders: the slider values change nothing.",
+  };
+  return { source: input.source, catalogId: input.catalogId, base, blueprint: applied.blueprint, errors, notes, newer, params };
 }
 
 async function bpSchemaTool(bk, args) {
@@ -162,10 +184,11 @@ async function bpSchemaTool(bk, args) {
 }
 
 async function bpValidateTool(bk, args) {
-  const { source, blueprint, errors, notes, newer } = blueprintOf(bk, args);
+  const { source, blueprint, errors, notes, newer, params } = blueprintOf(bk, args);
   return {
     valid: errors.length === 0,
     source,
+    ...(params ? { params } : {}),
     errors,
     sanitizerNotes: notes,
     newer,
@@ -182,7 +205,7 @@ async function bpValidateTool(bk, args) {
 export const BP_CHECK_SLOW_MS = 20_000;
 
 async function bpCheckTool(bk, args) {
-  const { source, blueprint, errors, notes } = blueprintOf(bk, args);
+  const { source, blueprint, errors, notes, params } = blueprintOf(bk, args);
   const started = Date.now();
   const report = bk.playabilityCheck(blueprint, args.seeds ? { seeds: args.seeds } : {});
   const wallMs = Date.now() - started;
@@ -191,6 +214,7 @@ async function bpCheckTool(bk, args) {
     feedback: report.feedback,
     problems: report.problems,
     source,
+    ...(params ? { params } : {}),
     ...(errors.length ? { validationErrors: errors, checked: "the sanitized spec (validation errors above)", sanitizerNotes: notes } : {}),
     digest: bk.blueprintDigest(blueprint),
     medianFinishSec: report.medianFinishSec,
@@ -201,13 +225,16 @@ async function bpCheckTool(bk, args) {
 }
 
 async function bpLinkTool(bk, args) {
-  const { source, blueprint, errors } = blueprintOf(bk, args);
-  const code = bk.encodeBlueprint(blueprint);
-  const query = args.catalog !== undefined ? bk.catalogQuery(args.catalog) : bk.blueprintQuery(blueprint);
+  const { source, catalogId, base, blueprint, errors, params } = blueprintOf(bk, args);
+  // (a link carries the spec as written and its slider values beside it, as Mode Lab's Copy link writes them)
+  const code = bk.encodeBlueprint(base);
+  const game = catalogId ? bk.catalogQuery(catalogId) : bk.blueprintQuery(base);
+  const query = params && params.blv && base.params.length ? `${game}&blv=${params.blv}` : game;
   const link = bk.simulatorLink(query, args.locale ?? "en");
   const shareCode = await bk.encodeShareCode(new URLSearchParams(query));
   return {
     source,
+    ...(params ? { params } : {}),
     ...(errors.length ? { validationErrors: errors } : {}),
     code,
     codeChars: code.length,
@@ -345,6 +372,11 @@ const TOOLS = {
   render: async (tb, args) => (await import("./browser.mjs")).renderTool(tb, args),
   "site-shot": async (tb, args) => (await import("./browser.mjs")).siteShotTool(tb, args),
   analyse: async (tb, args) => (await import("./analyse.mjs")).analyseTool(tb, args),
+  // --- inspiration --- other creators' trending and viral videos (the owner's decision)
+  frames: async (tb, args) => (await import("./frames.mjs")).framesTool(tb, args),
+  trending: async (tb, args) => (await import("./videoSources.mjs")).trendingTool(tb, args),
+  "fetch-video": async (tb, args) => (await import("./videoSources.mjs")).fetchVideoTool(tb, args),
+  inspire: async (tb, args) => (await import("./inspire.mjs")).inspireTool(tb, args),
   "site-stats": async (tb, args) => (await import("./site-stats.mjs")).siteStatsTool(tb, args),
   "postiz-probe": async (tb, args) => (await import("./postiz-probe.mjs")).postizProbeTool(tb, args),
   "bp-schema": bpSchemaTool,

@@ -6,12 +6,14 @@
  * `countReached` rules check their counts after the events: each fires when its count crosses its bound, and again only
  * after the count went back.
  *
- * --- review fix (blueprint) --- An event is judged once, as it is taken from the queue: one about a ball that is gone by
- * then (removed, merged or popped by an earlier event's rule this step) is skipped – an escaped ball still counts, the
- * event happened while it was in play. Then EVERY rule of its trigger runs, in list order, matched against the balls as
- * they were when the event was taken: a rule that merges or removes the ball never hides the rules after it (a counter
- * after a merge counts every merge); their actions on a ball that is gone are refused, as always. A countReached rule's
- * first look at its count is its baseline: a bound met from the start fires only after the count went back and crossed it.
+ * --- review fix (blueprint) --- An event is judged once, as it is taken from the queue, and EVERY rule of its trigger
+ * runs, in list order, matched against the balls as they were when the event was taken: a rule that merges or removes the
+ * ball never hides the rules after it (a counter after a merge counts every merge); their actions on a ball that is gone
+ * are refused, as always. An event about one ball is a fact about the world – a wall was hit, a tile hit or broken, a gap
+ * passed, a ball escaped – so its rules run even when an earlier event's rule removed, merged or popped that ball this
+ * step (`tileHit → remove` then `tileBroken → spawn at tile` still spawns at the tile). Only a ballHit is skipped when one
+ * of its two balls is gone by then: the pair it is about no longer exists. A countReached rule's first look at its count
+ * is its baseline: a bound met from the start fires only after the count went back and crossed it.
  */
 import { BLUEPRINT_STEP_BUDGETS as BUDGET } from "../limits";
 import { act } from "./actions";
@@ -36,9 +38,6 @@ function noteFacts(out: BallFacts, b: WorldBall): BallFacts {
   return out;
 }
 
-/** Whether the event's ball is still in play (an escaped one counts: it was when the event happened). */
-const inPlay = (b: WorldBall) => b.alive || b.escaped;
-
 /** Runs this step's queue through the rules. */
 export function dispatch(run: BlueprintRun) {
   const rules = run.compiled.rules;
@@ -60,8 +59,8 @@ export function dispatch(run: BlueprintRun) {
       }
       continue;
     }
+    // (its ball may be gone by now: the event still happened – its rules run, their actions on that ball are refused)
     const self = ev.self;
-    if (self && !inPlay(self)) continue;
     const selfBody = self ? self.body : -1;
     for (let k = 0; k < n; k++) {
       const rule = rules[ids ? ids[k] : ev.rule];

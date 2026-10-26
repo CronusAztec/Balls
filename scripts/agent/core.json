@@ -300,6 +300,34 @@
         "desktop-current",
         "desktop-ai-fix"
       ]
+    },
+    {
+      "id": "blueprint",
+      "when": [
+        "src/lib/blueprint/**"
+      ],
+      "reason": "the Blueprint language, its interpreter or its catalog changed (Mode Lab plays it on every page and in every export): every tests/blueprint*.test.ts and Mode Lab's smoke block",
+      "tests": [
+        "tests/blueprint.test.ts",
+        "tests/blueprintCatalog.test.ts",
+        "tests/blueprintCatalogSliders.test.ts",
+        "tests/blueprintCheck.test.ts",
+        "tests/blueprintCli.test.ts",
+        "tests/blueprintConformance.test.ts",
+        "tests/blueprintDocs.test.ts",
+        "tests/blueprintFormula.test.ts",
+        "tests/blueprintFuzz.test.ts",
+        "tests/blueprintHostile.test.ts",
+        "tests/blueprintLite.test.ts",
+        "tests/blueprintPanel.test.ts",
+        "tests/blueprintRenderer.test.ts",
+        "tests/blueprintRuntime.test.ts",
+        "tests/blueprintSchema.test.ts",
+        "tests/blueprintSummary.test.ts"
+      ],
+      "smoke": [
+        "blueprint"
+      ]
     }
   ],
   "modeFileGlobs": [
@@ -479,9 +507,10 @@
     {
       "id": "modes-deterministic",
       "title": "Every mode steps deterministically",
-      "what": "All 47 modes boot, stay finite and replay exactly from a seed: the extras.test BASELINE fingerprints, no Math.random or clock in a mode, init() resets every field.",
+      "what": "All 48 modes boot, stay finite and replay exactly from a seed: the extras.test BASELINE fingerprints, no Math.random or clock in a mode, init() resets every field. Mode Lab's Blueprint interpreter (src/lib/blueprint/**) is part of the blueprint mode.",
       "code": [
-        "src/lib/physics/**"
+        "src/lib/physics/**",
+        "src/lib/blueprint/**"
       ],
       "tests": [
         "tests/extras.test.ts",

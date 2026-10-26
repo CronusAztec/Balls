@@ -150,6 +150,32 @@ describe("the escalation table", () => {
     expect(kebabCase("doublePendulum")).toBe("double-pendulum");
   });
 
+  // --- review fix (blueprint) --- the Blueprint interpreter plays inside the engine on every Mode Lab page and in every export
+  it("treats the Blueprint language, interpreter and catalog as core: every Blueprint test, uncapped, and the blueprint and core-every-mode blocks", () => {
+    const vitest = planVitest({ config: CORE, related: [], escalated: [] });
+    const passed: StepResult = { id: "x", title: "x", lane: "C", status: "passed", seconds: 1, signatures: [] };
+    const quiet = { fingerprintViolations: 0, weakeningViolations: 0, protectedFindings: 0 };
+    const blueprintTests = TEST_FILES.filter((f) => /^tests\/blueprint[^/]*\.test\.ts$/.test(f));
+    expect(blueprintTests.length).toBeGreaterThan(10);
+    // (the row lists every tests/blueprint*.test.ts: a new one belongs in it)
+    expect([...(CORE.escalation.find((r) => r.id === "blueprint")?.tests ?? [])].sort()).toEqual(blueprintTests);
+    for (const file of ["src/lib/blueprint/runtime/actions.ts", "src/lib/blueprint/runtime/world.ts", "src/lib/blueprint/catalog/tierClimb.ts", "src/lib/blueprint/schema.ts"]) {
+      const e = escalate([file]);
+      expect(e.items.map((i) => i.id), file).toEqual(["blueprint", "core:modes-deterministic"]);
+      expect(e.tests, file).toEqual(blueprintTests);
+      expect(e.smoke, file).toEqual(["blueprint"]);
+      expect(e.requiredTier, file).toBe(1);
+      expect(tier1SmokeBlocks(CORE, e, BLOCKS), file).toEqual(expect.arrayContaining(["blueprint", "core-every-mode"]));
+      expect(exitCode({ steps: [passed], statics: quiet, escalation: e, tier: 0, vitest }), file).toBe(2);
+      expect(requiredCommands({ escalation: e, vitest, tier: 0, config: CORE }), file).toEqual(["npm run guard:browser   # adds SMOKE_ONLY=blueprint"]);
+      expect(editZones({ changed: [file], config: CORE, protectedFiles: [] }).files, file).toMatchObject({ core: [file], free: [] });
+      // the cap of related tests never drops one of them
+      const plan = planVitest({ config: CORE, related: [...TEST_FILES].reverse(), escalated: e.tests });
+      expect(plan.related, file).toEqual(expect.arrayContaining(blueprintTests));
+      expect(plan.capped.filter((f) => blueprintTests.includes(f)), file).toEqual([]);
+    }
+  });
+
   it("asks for nothing beyond tier 0 for docs, a test or a plain library file", () => {
     // (a test outside the core functions: a core function's own proof test is in the core zone, below)
     for (const f of ["README.md", "tests/daily.test.ts", "src/lib/recordingHelpers/none.ts", "docs/RELEASING.md"]) expect(escalate([f]).requiredTier, f).toBe(0);

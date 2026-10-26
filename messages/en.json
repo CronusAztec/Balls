@@ -4137,6 +4137,7 @@
       "tileLayers": "in {rows, plural, one {# layer} other {# layers}}",
       "tileRows": "in {rows, plural, one {# row} other {# rows}}",
       "tileHits": "{hp, plural, one {one hit breaks a tile} other {# hits break a tile}}",
+      "tileHitsBig": "{hp} hits break a tile",
       "tileHitsRange": "{from} to {to} hits break a tile",
       "pegs": "{count, plural, one {# peg} other {# pegs}}",
       "bumpers": "{count, plural, one {# bumper} other {# bumpers}}",
@@ -4182,9 +4183,11 @@
         "countAtMost": "When {what} drops to {n}"
       },
       "every": "{n, selectordinal, one {every #st time} two {every #nd time} few {every #rd time} other {every #th time}}",
+      "everyBig": "once every {n} times",
       "chance": "{pct}% of the time",
       "cooldown": "at most every {sec} s",
       "maxFires": "{n, plural, one {only once} other {up to # times}}",
+      "maxFiresBig": "up to {n} times",
       "withFilter": "{a}, {b}",
       "count": {
         "balls": "the ball count",
@@ -4194,6 +4197,7 @@
         "teams": "the teams left",
         "tier": "the top tier",
         "time": "the clock",
+        "fit": "the count of balls that fit through an exit",
         "var": "“{name}”"
       },
       "target": {
@@ -4232,10 +4236,12 @@
       },
       "end": {
         "escaped": "{count, plural, one {a ball escapes} other {# balls escape}}",
+        "escapedBig": "{count} balls escape",
         "tilesCleared": "every tile is broken",
         "ringsCleared": "every ring is broken",
         "countAtLeast": "{what} reaches {n}",
         "countAtMost": "{what} drops to {n}",
+        "noneFits": "no ball fits through an exit any more",
         "tier": "a ball reaches tier {n}",
         "teamsLeft": "{n, plural, =0 {no team is left} one {one team is left} other {# teams are left}}"
       },
@@ -4252,6 +4258,7 @@
     },
     "problem": {
       "fault": "A rule failed while it ran. Simplify the rule that fires last.",
+      "crash": "The game stopped on an error. Use smaller speeds, bounce or gravity.",
       "nan": "Balls flew out of range. Use smaller speeds or gravity.",
       "droppedEvents": "Too much happens at once. Use fewer balls touching each other.",
       "droppedFirings": "Rules fire too often. Give the busiest rule a pause.",
@@ -4300,7 +4307,7 @@
       "hud0": "rings",
       "hud1": "balls",
       "say0": "ALL RINGS DOWN",
-      "timeoutSay": "[rings] RINGS LEFT",
+      "timeoutSay": "RINGS LEFT: [rings]",
       "params": {
         "rings": "Rings",
         "gap": "Gap",
@@ -4359,7 +4366,7 @@
       "params": {
         "grow": "Growth per bounce",
         "exit": "Exit width",
-        "limit": "Bounces to lose"
+        "size": "Starting size"
       }
     }
   },

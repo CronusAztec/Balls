@@ -19,12 +19,16 @@
  * run's clock by less than half that (the engine slows time to follow balls too fast for their size). Neither is ever
  * reported as a timeout. "crowded" – half the steps of a second skipped ball pairs past the step's pair budgets – stops a
  * seed whose balls overlap so much that the sandbox only bounds it (a link of 400 balls the size of the arena): the verdict
- * is broken from there on, so the check says so at once instead of playing it to its end.
+ * is broken from there on, so the check says so at once instead of playing it to its end; so does a second where half the
+ * steps skipped tile sweeps past the step's tile budget (balls that cover most of the tiles).
+ *
+ * --- review fix (blueprint) --- A step that throws (the runtime contains its own faults; this is the last line) ends the
+ * seed with reason "fault" and a crash counted, so the check never hangs and never throws.
  */
 import { BLUEPRINT_ACTION_BALLS_PER_STEP, BLUEPRINT_BALL_CEILING, BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_STEP_BUDGETS } from "./limits";
 import { DEFAULT_SAY, type Blueprint } from "./schema";
 import { HeadlessBlueprint, blueprintStepBound } from "./headless";
-import type { FinishReason } from "./runtime/run";
+import type { FinishReason, RunStats } from "./runtime/run";
 
 export const PLAYABLE_MIN_SEC = 6;
 export const PLAYABLE_MIN_SOUNDS = 5;
@@ -66,6 +70,10 @@ export interface SeedReport {
   fastBalls: number;
   /** Sub-steps whose pair tests ran past their share (the rest skipped). */
   droppedPairs: number;
+  /** --- review fix (blueprint) --- Ball sub-steps that skipped their tile sweep past the step's tile budget. */
+  droppedTiles: number;
+  /** --- review fix (blueprint) --- Faults outside the rules (counted in faults too): the physics or the step's bookkeeping threw. */
+  crashes: number;
   /** Actions dropped past the step's ball budget. */
   droppedActions: number;
   sounds: number;
@@ -84,7 +92,7 @@ export interface SeedReport {
 }
 
 /** What a problem sentence is about (a page shows the first in its own language). */
-export type CheckProblem = "fault" | "nan" | "droppedEvents" | "droppedFirings" | "arenaFull" | "heavy" | "slow" | "fast" | "crowded" | "busy" | "quiet" | "still" | "endless" | "fewEnd" | "short" | "long";
+export type CheckProblem = "fault" | "crash" | "nan" | "droppedEvents" | "droppedFirings" | "arenaFull" | "heavy" | "slow" | "fast" | "crowded" | "busy" | "quiet" | "still" | "endless" | "fewEnd" | "short" | "long";
 
 export interface PlayabilityReport {
   verdict: PlayabilityVerdict;
@@ -123,8 +131,11 @@ function median(values: number[]): number {
  */
 export class SeedCheck {
   readonly seed: number;
-  private readonly h: HeadlessBlueprint;
+  /** The seed's run (null: building it threw – the seed ends at once as a fault). */
+  private readonly h: HeadlessBlueprint | null;
   private readonly bound: number;
+  /** --- review fix (blueprint) --- A step (or the run's set-up) threw out of the runtime: the seed ended as a fault. */
+  private thrown = false;
   /** Each step's cost and clock, over the last CHECK_SLOW_WINDOW_STEPS steps (rings). */
   private readonly costs = new Float64Array(60);
   private readonly clocks = new Float64Array(CHECK_SLOW_WINDOW_STEPS);
@@ -132,6 +143,7 @@ export class SeedCheck {
   private readonly crowdedSteps = new Uint8Array(60);
   private windowCrowded = 0;
   private lastDroppedPairs = 0;
+  private lastDroppedTiles = 0;
   private windowCost = 0;
   private peakWindowCost = 0;
   private lastCost = 0;
@@ -140,8 +152,14 @@ export class SeedCheck {
 
   constructor(bp: Blueprint, seed: number, faultOnRule?: number) {
     this.seed = seed;
-    this.h = new HeadlessBlueprint(bp, { seed, faultOnRule });
     this.bound = blueprintStepBound(bp);
+    let h: HeadlessBlueprint | null = null;
+    try {
+      h = new HeadlessBlueprint(bp, { seed, faultOnRule });
+    } catch {
+      this.thrown = true;
+    }
+    this.h = h;
   }
 
   /** The report once the seed is over, else null. */
@@ -149,23 +167,42 @@ export class SeedCheck {
     return this.report;
   }
 
+  /** --- review fix (blueprint) --- The steps played so far. */
+  get stepCount(): number {
+    return this.steps;
+  }
+
+  /** --- review fix (blueprint) --- The work units (RunStats.cost, STEP_COST's weights) its steps have cost so far. */
+  get work(): number {
+    return this.lastCost;
+  }
+
   /** Plays up to `maxSteps` more steps; the report once the seed is over. */
   advance(maxSteps = Infinity): SeedReport | null {
     if (this.report) return this.report;
     const h = this.h;
+    if (!h) return this.end(null);
     for (let i = 0; i < maxSteps; i++) {
       if (h.finished) return this.end(null);
       if (this.steps >= this.bound) return this.end("slow");
       const clockWas = this.clocks[this.steps % CHECK_SLOW_WINDOW_STEPS];
-      h.step();
+      try {
+        h.step();
+      } catch {
+        // --- review fix (blueprint) --- (the last line: the runtime contains its own faults)
+        this.thrown = true;
+        this.steps++;
+        return this.end(null);
+      }
       const k = this.steps++;
       const cost = h.stats.cost - this.lastCost;
       this.lastCost = h.stats.cost;
       this.windowCost += cost - this.costs[k % 60];
       this.costs[k % 60] = cost;
       this.clocks[k % CHECK_SLOW_WINDOW_STEPS] = h.run.timeSec;
-      const crowded = h.stats.droppedPairs > this.lastDroppedPairs ? 1 : 0;
+      const crowded = h.stats.droppedPairs > this.lastDroppedPairs || h.stats.droppedTiles > this.lastDroppedTiles ? 1 : 0;
       this.lastDroppedPairs = h.stats.droppedPairs;
+      this.lastDroppedTiles = h.stats.droppedTiles;
       this.windowCrowded += crowded - this.crowdedSteps[k % 60];
       this.crowdedSteps[k % 60] = crowded;
       if (h.finished) return this.end(null);
@@ -182,12 +219,16 @@ export class SeedCheck {
 
   private end(stopped: "heavy" | "slow" | "crowded" | null): SeedReport {
     const h = this.h;
-    const result = h.result();
-    const stats = h.stats;
-    // (a decided run's own reason; never "timeout" for a run the check stopped)
-    const reason: SeedEnd = stopped ?? result.reason ?? "slow";
-    const time = result.finished ? result.timeSec : h.run.timeSec;
-    const work = stats.events + stats.firings;
+    const thrown = this.thrown ? 1 : 0;
+    const result = h ? h.result() : { finished: false, reason: null, condition: -1, timeSec: 0, winner: -1, result: "" };
+    const stats = h ? h.stats : null;
+    // (a decided run's own reason; never "timeout" for a run the check stopped; a step that threw: a fault)
+    const reason: SeedEnd = thrown ? "fault" : (stopped ?? result.reason ?? "slow");
+    const time = result.finished ? result.timeSec : h ? h.run.timeSec : 0;
+    const count = (k: keyof RunStats) => (stats ? (stats[k] as number) : 0);
+    const work = count("events") + count("firings");
+    const firstMotion = stats ? stats.firstMotionSec : null;
+    const payoff = stats ? stats.payoffSec : null;
     this.report = {
       seed: this.seed,
       reason,
@@ -195,29 +236,65 @@ export class SeedCheck {
       timeSec: round(time, 3),
       result: result.result,
       winner: result.winner,
-      peakBalls: stats.peakBalls,
-      arenaFull: stats.arenaFull,
-      droppedEvents: stats.droppedEvents,
-      droppedFirings: stats.droppedFirings,
-      refusedActions: stats.refusedActions,
-      faults: stats.faults,
-      nanBalls: stats.nanBalls,
-      fastBalls: stats.fastBalls,
-      droppedPairs: stats.droppedPairs,
-      droppedActions: stats.droppedActions,
-      sounds: stats.sounds,
-      firstMotionSec: stats.firstMotionSec === null ? null : round(stats.firstMotionSec, 3),
-      payoffSec: stats.payoffSec === null ? null : round(stats.payoffSec, 3),
-      escaped: stats.escaped,
-      tilesBroken: stats.tilesBroken,
+      peakBalls: count("peakBalls"),
+      arenaFull: count("arenaFull"),
+      droppedEvents: count("droppedEvents"),
+      droppedFirings: count("droppedFirings"),
+      refusedActions: count("refusedActions"),
+      faults: count("faults") + thrown,
+      nanBalls: count("nanBalls"),
+      fastBalls: count("fastBalls"),
+      droppedPairs: count("droppedPairs"),
+      droppedTiles: count("droppedTiles"),
+      crashes: count("crashes") + thrown,
+      droppedActions: count("droppedActions"),
+      sounds: count("sounds"),
+      firstMotionSec: firstMotion === null ? null : round(firstMotion, 3),
+      payoffSec: payoff === null ? null : round(payoff, 3),
+      escaped: count("escaped"),
+      tilesBroken: count("tilesBroken"),
       workUnits: work,
       workPerSec: round(work / Math.max(time, 1e-9), 1),
       steps: this.steps,
-      costPerStep: Math.round(stats.cost / Math.max(1, this.steps)),
+      costPerStep: Math.round(count("cost") / Math.max(1, this.steps)),
       peakCostPerStep: Math.round(Math.max(this.peakWindowCost, this.windowCost) / Math.min(60, Math.max(1, this.steps))),
     };
     return this.report;
   }
+}
+
+/** --- review fix (blueprint) --- The report of a seed whose check threw before it could count anything: a fault (a crash). */
+function thrownSeedReport(seed: number): SeedReport {
+  return {
+    seed,
+    reason: "fault",
+    condition: -1,
+    timeSec: 0,
+    result: "",
+    winner: -1,
+    peakBalls: 0,
+    arenaFull: 0,
+    droppedEvents: 0,
+    droppedFirings: 0,
+    refusedActions: 0,
+    faults: 1,
+    nanBalls: 0,
+    fastBalls: 0,
+    droppedPairs: 0,
+    droppedTiles: 0,
+    crashes: 1,
+    droppedActions: 0,
+    sounds: 0,
+    firstMotionSec: null,
+    payoffSec: null,
+    escaped: 0,
+    tilesBroken: 0,
+    workUnits: 0,
+    workPerSec: 0,
+    steps: 0,
+    costPerStep: 0,
+    peakCostPerStep: 0,
+  };
 }
 
 /** Runs one seed of a spec to its end (or until the check stops it: too heavy, or slow motion). */
@@ -248,7 +325,9 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[], slowMotion = tr
   };
   const seedList = (rs: SeedReport[]) => rs.map((r) => r.seed).join(", ");
 
-  const faults = reports.filter((r) => r.faults > 0);
+  // (a rule's fault, and apart from it a crash: the physics or the step's bookkeeping threw)
+  const faults = reports.filter((r) => r.faults > r.crashes);
+  const crashes = reports.filter((r) => r.crashes > 0);
   const nan = reports.filter((r) => r.nanBalls > 0);
   const droppedEvents = reports.filter((r) => r.droppedEvents > 0);
   const droppedFirings = reports.filter((r) => r.droppedFirings > 0);
@@ -256,12 +335,14 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[], slowMotion = tr
   const heavy = reports.filter((r) => r.reason === "heavy");
   const slow = reports.filter((r) => r.reason === "slow");
   const fast = reports.filter((r) => r.fastBalls > 0);
-  const crowded = reports.filter((r) => r.droppedPairs > 0);
+  const crowded = reports.filter((r) => r.droppedPairs > 0 || r.droppedTiles > 0);
   const busy = reports.filter((r) => r.droppedActions > 0);
   const quiet = median(reports.map((r) => r.sounds)) < PLAYABLE_MIN_SOUNDS ? reports.filter((r) => r.sounds < PLAYABLE_MIN_SOUNDS) : [];
   const still = reports.filter((r) => r.firstMotionSec === null || r.firstMotionSec > PLAYABLE_FIRST_MOTION_SEC);
 
   if (faults.length) problem("fault", `A rule failed while running on seed ${seedList(faults)}: the rules stopped and the run ended 1 s later. Simplify the rule that fired last.`);
+  if (crashes.length)
+    problem("crash", `The game stopped on an error on seed ${seedList(crashes)}: the physics or the step failed and the sandbox ended the run. Use smaller values for the bounciness, speeds, gravity, sizes and hit points.`);
   if (nan.length) problem("nan", `Balls went out of range (NaN or infinity) on seed ${seedList(nan)}: a speed, a gravity or a formula gave numbers too big to move. Use smaller values or bound the formula with min() or clamp().`);
   if (droppedEvents.length)
     problem("droppedEvents", `Too much happens at once on seed ${seedList(droppedEvents)}: events past the ${BLUEPRINT_STEP_BUDGETS.events} a step were dropped. Use fewer balls touching each other, or fewer and smaller balls.`);
@@ -282,17 +363,21 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[], slowMotion = tr
   if (fast.length)
     problem("fast", `A ball got faster than ${BLUEPRINT_SPEED_CEILING} px/s and was taken out on seed ${seedList(fast)}. Bound the speed-up: a scale closer to 1, a maxFires on the rule, or min() in its formula.`);
   const crowdedStopped = reports.filter((r) => r.reason === "crowded");
-  if (crowded.length)
+  if (crowded.length) {
+    const pairs = crowded.some((r) => r.droppedPairs > 0);
+    const tiles = crowded.some((r) => r.droppedTiles > 0);
+    const skipped = [pairs ? `ball pairs past the ${BLUEPRINT_PAIR_TESTS_PER_STEP} tests (or the ${BLUEPRINT_PAIR_VISITS_PER_STEP} grid entries walked)` : "", tiles ? `tile sweeps past the ${BLUEPRINT_STEP_BUDGETS.tileTests} tile tests` : ""].filter(Boolean).join(" and ");
     problem(
       "crowded",
-      `Too many balls touch at once on seed ${seedList(crowded)}: ball pairs past the ${BLUEPRINT_PAIR_TESTS_PER_STEP} tests (or the ${BLUEPRINT_PAIR_VISITS_PER_STEP} grid entries walked) a step were skipped${crowdedStopped.length ? ` (on seed ${seedList(crowdedStopped)} in half the steps of a second, so the check stopped it)` : ""}. Use fewer or smaller balls.`,
+      `Too many balls touch at once on seed ${seedList(crowded)}: ${skipped} a step were skipped${crowdedStopped.length ? ` (on seed ${seedList(crowdedStopped)} in half the steps of a second, so the check stopped it)` : ""}. Use fewer or smaller balls${tiles ? ", or fewer tiles" : ""}.`,
     );
+  }
   if (busy.length)
     problem("busy", `Rules change too many balls at once on seed ${seedList(busy)}: actions past the ${BLUEPRINT_ACTION_BALLS_PER_STEP} balls a step were dropped. Give the busiest rule a cooldownSec or an every, or target self instead of all.`);
   if (quiet.length) problem("quiet", `It is too quiet: the median seed plays fewer than ${PLAYABLE_MIN_SOUNDS} sounds (seed ${seedList(quiet)}). Give the hits a voice (sound.voices) or add sound actions.`);
   if (still.length) problem("still", `Nothing moves within the first ${PLAYABLE_FIRST_MOTION_SEC} s on seed ${seedList(still)}: give a spawner a speed and a startSec of 0, or the arena gravity.`);
 
-  const broken = faults.length + nan.length + droppedEvents.length + droppedFirings.length + full.length + heavy.length + slow.length + fast.length + crowded.length + busy.length + quiet.length + still.length > 0;
+  const broken = faults.length + crashes.length + nan.length + droppedEvents.length + droppedFirings.length + full.length + heavy.length + slow.length + fast.length + crowded.length + busy.length + quiet.length + still.length > 0;
   let verdict: PlayabilityVerdict;
   if (!broken && byCondition.length === 0) {
     verdict = "endless";
@@ -321,7 +406,8 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[], slowMotion = tr
     verdict = broken || fewEnd || short || long ? "broken" : "playable";
   }
   if (verdict === "playable") {
-    const ends = [...new Set(byCondition.map((r) => r.condition))].map((i) => `"${bp.finish.any[i].say || DEFAULT_SAY[bp.finish.any[i].when]}" (${bp.finish.any[i].when})`);
+    // --- review fix (blueprint) --- (a spec's line quoted as data: JSON-escaped, so it can never close its quotes)
+    const ends = [...new Set(byCondition.map((r) => r.condition))].map((i) => `${JSON.stringify(bp.finish.any[i].say || DEFAULT_SAY[bp.finish.any[i].when])} (${bp.finish.any[i].when})`);
     feedback.unshift(`Playable: it ends by ${ends.join(" or ")} after a median ${med} s, on ${byCondition.length} of ${n} seeds.`);
   }
   return { verdict, feedback, problems, seeds: reports, finishedByCondition: byCondition.length, medianFinishSec: med };
@@ -340,6 +426,9 @@ export class PlayabilityRun {
   private readonly reports: SeedReport[] = [];
   private current: SeedCheck | null = null;
   private report: PlayabilityReport | null = null;
+  /** --- review fix (blueprint) --- The steps and the work units of the seeds already in. */
+  private stepsIn = 0;
+  private workIn = 0;
 
   /** --- slow-motion --- The page's Slow motion switch: the "slow" feedback's words follow it (judgeSeeds()). */
   private readonly slowMotion: boolean;
@@ -361,6 +450,33 @@ export class PlayabilityRun {
     return this.report;
   }
 
+  /** --- review fix (blueprint) --- The steps the check has played so far, over every seed. */
+  get steps(): number {
+    return this.stepsIn + (this.current?.stepCount ?? 0);
+  }
+
+  /**
+   * --- review fix (blueprint) --- The work units (RunStats.cost, STEP_COST's weights) the check has played so far, over every
+   * seed: a clock that runs on the check's own work, the same on every machine and under any load, for a caller (a test, a
+   * headless tool) that measures its slices in work rather than in time.
+   */
+  get work(): number {
+    return this.workIn + (this.current?.work ?? 0);
+  }
+
+  /**
+   * --- review fix (blueprint) --- The verdict when a caller's slice threw after all (the last line: every SeedCheck contains
+   * its own steps): the seed being played and the ones not in yet are reported as faults, so a panel never hangs on
+   * "Checking run n of 4".
+   */
+  abort(): PlayabilityReport {
+    if (this.report) return this.report;
+    this.current = null;
+    while (this.reports.length < this.seeds.length) this.reports.push(thrownSeedReport(this.seeds[this.reports.length]));
+    this.report = judgeSeeds(this.bp, this.reports);
+    return this.report;
+  }
+
   /** Plays until `budgetMs` of `now()` has passed (at least one step); the verdict once every seed is in. */
   slice(budgetMs: number, now: () => number): PlayabilityReport | null {
     if (this.report) return this.report;
@@ -374,6 +490,8 @@ export class PlayabilityRun {
       const r = this.current.advance(1);
       if (r) {
         this.reports.push(r);
+        this.stepsIn += this.current.stepCount;
+        this.workIn += this.current.work;
         this.current = null;
       }
     } while (now() - start < budgetMs);

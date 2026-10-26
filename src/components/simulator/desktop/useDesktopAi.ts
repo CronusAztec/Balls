@@ -6,7 +6,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import type { BotPlatform } from "@/lib/bot/playbook";
 import { runAgent, type AgentEvent, type AgentTask } from "@/lib/desktop/ai/agent";
 import { bridgeChatModel } from "@/lib/desktop/ai/bridgeModel";
-import { selectPlaybookContext } from "@/lib/desktop/ai/playbookContext";
+import { TRENDING_CHARS, selectPlaybookContext, trendingContext } from "@/lib/desktop/ai/playbookContext";
 import { changedKeys, patchFromChanges, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { customFighterTask, fighterFromAnswer } from "@/lib/desktop/ai/customFighter";
 import { customModeFrom, customModeTask, type CustomModeResult, type CustomModeSpec } from "@/lib/desktop/ai/customMode";
@@ -14,13 +14,13 @@ import { MAX_CUSTOM_FIGHTERS, buildCustomFighter } from "@/lib/physics/modes/fig
 import { balanceCustomFighter } from "@/lib/simulation/flBalance";
 import { FL_BY_ID, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
 import type { CustomContentApi } from "./useCustomContent";
-import { PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type CopyResult, type IdeasResult, type MakeVideosResult, type SettingsResult } from "@/lib/desktop/ai/studio";
+import { IDEAS_RESEARCH_CHARS, PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type CopyResult, type IdeasResult, type MakeVideosResult, type SettingsResult } from "@/lib/desktop/ai/studio";
 import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "./pageHooks";
 import { studioPorts } from "./studioPorts";
 import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix --- the IPC prefix gone wherever it sits
 // --- social-autopilot --- the "plan" job: proposals for the Posts tab's queue (never a post)
-import { runPlanner } from "@/lib/desktop/ai/planRun";
+import { committedTrends, runPlanner } from "@/lib/desktop/ai/planRun"; // --- trends --- (the committed summary, loaded on first use)
 import type { PlanResult } from "@/lib/desktop/ai/plan";
 import type { PostizChannel, SocialProposalInput } from "@/lib/desktop/contract";
 import { desktopCapabilities, hasCustom, hasSocial, type DesktopCapabilities } from "@/lib/desktop/capabilities"; // --- old-bridge ---
@@ -254,7 +254,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           if (task === "videos") {
             const store = new PlanStore();
             const ports = studioPorts({ copy: page.copy, locale: page.locale, getWorld: page.getWorld });
-            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */ }), { onEvent, signal: controller.signal });
+            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */, trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos, "videos", Date.now()) /* --- trends --- (no benchmark-only advice: playbookContext.ts TrendingFocus; its age on today's clock) */ }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
             // --- ai-cut --- (one click: the queue starts when asked; the result keeps whether it did, for the clips card)
@@ -320,8 +320,10 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             setResult({ kind: "plan", result: out.result, proposals: out.proposals, channels: out.channels, sent: false });
           } else {
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
-            const context = selectPlaybookContext(playbookRef.current, prompt, 4500);
-            const out = await runAgent(model, ideasTask(prompt, { copy: page.copy, locale: page.locale, playbook: context }), { onEvent, signal: controller.signal });
+            // --- trends --- what is trending takes its share of the 4,500-character research budget, the playbook the rest
+            const trending = trendingContext(await committedTrends(), TRENDING_CHARS.ideas, "clips", Date.now()); // (its age on today's clock)
+            const context = selectPlaybookContext(playbookRef.current, prompt, IDEAS_RESEARCH_CHARS - trending.length);
+            const out = await runAgent(model, ideasTask(prompt, { copy: page.copy, locale: page.locale, playbook: context, trending }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             setResult({ kind: "ideas", result: out.result });
           }

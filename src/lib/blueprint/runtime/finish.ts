@@ -83,6 +83,11 @@ export function winnerTeam(run: BlueprintRun): number {
   }
 }
 
+/** --- review fix (blueprint) --- Ends the run at once with reason "fault" (the step's own bookkeeping threw: run.ts crash()). */
+export function endWithFault(run: BlueprintRun) {
+  finish(run, "fault", -1);
+}
+
 function finish(run: BlueprintRun, reason: FinishReason, condition: number) {
   const winner = winnerTeam(run);
   const template = reason === "condition" ? run.bp.finish.any[condition].say || DEFAULT_SAY[run.bp.finish.any[condition].when] : reason === "timeout" ? run.bp.finish.timeoutSay : "STOPPED";

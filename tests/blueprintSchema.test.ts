@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { validateJson } from "@/lib/desktop/ai/jsonSchema";
+import { validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { SHARE_CODE_MAX_LENGTH, encodeShareCode } from "@/lib/shareCode";
 import * as uncap from "@/lib/uncap";
 import {
@@ -240,12 +240,14 @@ describe("blueprint: the compact form, the code and the digest", () => {
 
 describe("blueprint: the sandbox ceilings (lib/uncap.ts)", () => {
   it("are the owner's fixed work and memory ceilings, re-exported unchanged by the library", () => {
-    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6, ballRadius: 225, ballSpeed: 100_000, subStepsPerStep: 16, pairTestsPerStep: 64_000, pairVisitsPerStep: 160_000, actionBallsPerStep: 4_096 });
+    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6, ballRadius: 225, ballSpeed: 100_000, subStepsPerStep: 16, pairTestsPerStep: 64_000, pairVisitsPerStep: 160_000, tileTestsPerStep: 40_000, actionBallsPerStep: 4_096 });
     // --- review fix (blueprint) --- the work ceilings on one ball and one step, re-exported as the runtime reads them
     expect([uncap.BLUEPRINT_RADIUS_CEILING, uncap.BLUEPRINT_SPEED_CEILING, uncap.BLUEPRINT_SUBSTEP_CEILING, uncap.BLUEPRINT_PAIR_TESTS_PER_STEP, uncap.BLUEPRINT_ACTION_BALLS_PER_STEP]).toEqual([225, 100_000, 16, 64_000, 4_096]);
     expect([BLUEPRINT_MAX_SUBSTEPS, BLUEPRINT_STEP_BUDGETS.pairTests, BLUEPRINT_STEP_BUDGETS.actionBalls]).toEqual([16, 64_000, 4_096]);
     // (the pair-grid entries a step walks have a ceiling of their own, apart from the pairs it tests)
     expect([uncap.BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_STEP_BUDGETS.pairVisits]).toEqual([160_000, 160_000]);
+    // (--- review fix (blueprint) --- and so has the tile work a step's sweeps do)
+    expect([uncap.BLUEPRINT_TILE_TESTS_PER_STEP, BLUEPRINT_STEP_BUDGETS.tileTests]).toEqual([40_000, 40_000]);
     expect(BLUEPRINT_CEILINGS).toBe(uncap.BLUEPRINT_CEILINGS);
     expect([uncap.BLUEPRINT_BALL_CEILING, uncap.BLUEPRINT_TILE_CEILING, uncap.BLUEPRINT_OBSTACLE_CEILING, uncap.BLUEPRINT_RULE_CEILING, uncap.BLUEPRINT_TIMEOUT_CEILING_SEC, uncap.BLUEPRINT_JSON_MAX_BYTES]).toEqual([400, 600, 48, 16, 180, 6000]);
     expect([BLUEPRINT_LIMITS.balls, BLUEPRINT_LIMITS.tiles, BLUEPRINT_LIMITS.obstacles, BLUEPRINT_LIMITS.rules, BLUEPRINT_LIMITS.maxTimeoutSec, BLUEPRINT_LIMITS.specBytes]).toEqual([400, 600, 48, 16, 180, 6000]);
@@ -270,6 +272,103 @@ describe("blueprint: the JSON Schema and the prompt vocabulary", () => {
     }
     expect(validateJson(schema, base({ arena: { shape: "hexagon" } })).length).toBeGreaterThan(0);
     expect(validateJson(schema, base({ rules: [{ when: "wallHit", do: [{ act: "explode" }] }] })).length).toBeGreaterThan(0);
+  });
+
+  // --- review fix (blueprint) --- a model shown the schema (bp-schema) never writes a value the validator then refuses
+  it("the schema and the validator agree at every number's bounds, and on how a colour is written", () => {
+    const schema = blueprintJsonSchema();
+    const palette = ["#ff4d6d", "#22d3ee", "#ffd43b", "#51cf66", "#b197fc", "#ff922b"];
+    /** A spec with every part the schema describes: each obstacle kind, each action, tiles, sliders, look and sound. */
+    const rich = (arena: Record<string, unknown>, tiles: Record<string, unknown>) => ({
+      v: 1,
+      meta: { name: "Bounds", description: "every part", family: "escape", author: "ai" },
+      arena,
+      bodies: [{ id: "ball", radius: 8, color: 0, gravityScale: 1, hp: 3, tier: 1, team: 0, collide: "bounce" }],
+      tiles,
+      obstacles: [
+        { kind: "peg", x: 0, y: 0.5, r: 0.05 },
+        { kind: "bumper", x: 0.3, y: 0.5, r: 0.05, kick: 100 },
+        { kind: "pegGrid", x: 0, y: 0.2, w: 0.6, h: 0.2, rows: 2, cols: 3, r: 0.02, stagger: true },
+        { kind: "pegRing", x: 0, y: 0, radius: 0.3, count: 6, r: 0.02 },
+        { kind: "bar", x: -0.3, y: 0.6, len: 0.3, angleDeg: 10, thick: 0.03 },
+        { kind: "spinner", x: 0.3, y: -0.2, len: 0.3, angleDeg: 0, spinDegPerSec: 90, thick: 0.03 },
+      ],
+      vars: [{ id: "hits", start: 0 }],
+      spawners: [{ body: "ball", at: "center", count: 1, speed: 300, dir: "up", startSec: 0, everySec: 1, onBeat: false, maxTotal: 10 }],
+      rules: [
+        { when: "timer", sec: 1, every: 1, chance: 1, cooldownSec: 0, maxFires: 0, do: [{ act: "spawn", body: "ball", count: 1, at: "center", speed: 200, dir: "up" }, { act: "split", target: "self", into: 2, scale: 0.8 }, { act: "grow", target: "self", by: 1 }, { act: "speed", target: "self", scale: 1.1 }] },
+        { when: "ballHit", with: "any", do: [{ act: "merge", scale: 1.2 }, { act: "recolor", target: "self", color: 1 }, { act: "tier", target: "self", by: 1 }, { act: "team", target: "self", to: 1 }] },
+        { when: "tileHit", do: [{ act: "damage", target: "tile", amount: 1 }, { act: "var", id: "hits", op: "add", value: 1 }, { act: "impulse", target: "self", dir: "out", amount: 100 }, { act: "fx", kind: "burst" }] },
+        { when: "countReached", what: "hits", atLeast: 3, do: [{ act: "sound", voice: "hit", pitch: 2 }, { act: "remove", target: "self" }] },
+      ],
+      finish: { any: [{ when: "count", what: "hits", atLeast: 5, say: "DONE" }], timeoutSec: 30, winner: "none", timeoutSay: "TIME" },
+      hud: [{ show: "hits", label: "hits" }],
+      look: { palette, background: "#101018", trail: true, rim: 0, teamNames: ["A", "B"] },
+      sound: { scale: "major", root: 0, bpm: 120, voices: { wallHit: "hit" } },
+      params: [{ id: "p", label: "p", at: "arena.size", min: 0.5, max: 0.9, step: 0.1 }],
+    });
+    const specs = [
+      rich({ shape: "circle", size: 0.9, restitution: 1, gravity: { x: 0, y: 300 }, spinDegPerSec: 10, exits: [{ atDeg: 0, widthDeg: 40 }] }, { layout: "grid", rows: 2, cols: 4, hp: 2, hpStep: 1, pierce: false, style: "glass", pitchBy: "row", area: { x: -0.5, y: -0.6, w: 1, h: 0.3 } }),
+      rich({ shape: "rings", size: 0.9, restitution: 1, gravity: { x: 0, y: 0 }, spinDegPerSec: 0, rings: { count: 3, gapDeg: 40, spinDegPerSec: 30, alternate: true, breakOnPass: true, inner: 0.3, rim: true } }, { layout: "ring", rows: 2, cols: 8, hp: 2, inner: 0.4, outer: 0.7 }),
+    ];
+    type Leaf = { steps: (string | number)[]; s: JsonSchema };
+    const typesOf = (s: JsonSchema) => (Array.isArray(s.type) ? s.type : [s.type]);
+    /** Every number of a spec with the schema node that describes it (a oneOf: the branch the value takes). */
+    function numbers(s: JsonSchema, v: unknown, steps: (string | number)[], out: Leaf[]) {
+      if (s.oneOf) {
+        const branch = s.oneOf.find((b) => validateJson(b, v).length === 0);
+        if (branch) numbers(branch, v, steps, out);
+        return;
+      }
+      if (v === null || v === undefined) return;
+      if (typesOf(s).includes("number") || typesOf(s).includes("integer")) {
+        if (typeof v === "number") out.push({ steps, s });
+        return;
+      }
+      if (Array.isArray(v) && s.items) v.forEach((x, i) => numbers(s.items!, x, [...steps, i], out));
+      else if (typeof v === "object" && s.properties) for (const [k, x] of Object.entries(v as Record<string, unknown>)) if (s.properties[k]) numbers(s.properties[k], x, [...steps, k], out);
+    }
+    const pathOf = (steps: (string | number)[]) => steps.map((k, i) => (typeof k === "number" ? `[${k}]` : i ? `.${k}` : k)).join("");
+    const withValue = (spec: unknown, steps: (string | number)[], value: unknown) => {
+      const copy = JSON.parse(JSON.stringify(spec));
+      let at = copy;
+      for (const k of steps.slice(0, -1)) at = at[k];
+      at[steps[steps.length - 1]] = value;
+      return copy;
+    };
+    // (a relation between two fields is the validator's alone: a schema cannot say "outer above inner" or "a colour the palette has")
+    const relation = /must be above tiles\.inner|past the palette's/;
+    const disagreements: string[] = [];
+    let checked = 0;
+    for (const spec of specs) {
+      expect(validateBlueprint(spec)).toEqual([]);
+      expect(validateJson(schema, spec)).toEqual([]);
+      const leaves: Leaf[] = [];
+      numbers(schema, spec, [], leaves);
+      for (const { steps, s } of leaves) {
+        const p = pathOf(steps);
+        const bounds: number[] = [];
+        if (s.minimum !== undefined) bounds.push(s.minimum);
+        if (s.exclusiveMinimum !== undefined) bounds.push(s.exclusiveMinimum, s.exclusiveMinimum + (typesOf(s).includes("integer") ? 1 : 0.001));
+        if (s.maximum !== undefined) bounds.push(s.maximum);
+        for (const value of bounds) {
+          const c = withValue(spec, steps, value);
+          const schemaOk = validateJson(schema, c).length === 0;
+          const own = validateBlueprint(c).filter((e) => (e.startsWith(`${p}:`) || e.startsWith(`${p}.`)) && !relation.test(e));
+          checked++;
+          if (schemaOk !== (own.length === 0)) disagreements.push(`${p} = ${value}: the schema ${schemaOk ? "allows it" : "refuses it"}, the validator ${own.length ? own.join(" | ") : "allows it"}`);
+        }
+      }
+    }
+    expect(disagreements).toEqual([]);
+    expect(checked).toBeGreaterThan(100);
+    // the exact cases a model was led into: a radius, a split's scale, a timer, a beat and a slider step of 0, an upper-case colour
+    for (const [steps, value] of [[["bodies", 0, "radius"], 0], [["rules", 0, "do", 1, "scale"], 0], [["rules", 0, "sec"], 0], [["sound", "bpm"], 0], [["params", 0, "step"], 0], [["obstacles", 0, "r"], 0], [["tiles", "area", "w"], 0], [["look", "palette", 0], "#FF4D6D"], [["look", "background"], "#FF4D6D"]] as [(string | number)[], unknown][]) {
+      const c = withValue(specs[0], steps, value);
+      expect(validateJson(schema, c).length, pathOf(steps)).toBeGreaterThan(0);
+      expect(validateBlueprint(c).some((e) => e.startsWith(`${pathOf(steps)}:`)), pathOf(steps)).toBe(true);
+    }
+    expect(validateBlueprint(withValue(specs[0], ["obstacles", 0, "r"], 0))).toContain("obstacles[0].r: must be a number above 0, up to 1, got 0");
   });
 
   it("the vocabulary names every trigger, action and finish in at most 500 tokens", () => {

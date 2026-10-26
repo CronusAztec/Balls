@@ -24,7 +24,9 @@ import { SCALE_INTERVALS, midiToFrequency, type ScaleId } from "@/lib/audio/scal
  * up to `TILE_MAX_CONTACTS` contacts. A ball that starts inside a tile (a spawn, a push) is pushed out first. It returns
  * the first tile touched, or −1; every contact of the call is listed in `contactTile` / `contactImpact` (the approach
  * speed, 0 for a resting contact) / `contactNx`, `contactNy`. Damage is the caller's: `damage(i, amount)` says whether the
- * tile broke. The field never damages anything by itself, so a "hit" chip and a "contact" chip are both one line.
+ * tile broke. The field never damages anything by itself, so a "hit" chip and a "contact" chip are both one line. It never
+ * writes a position that is not a finite number (a rebound past any speed leaves the ball where it was: the caller sees its
+ * velocity). The work of every call is counted in `stats`, so a caller can bound it (the Blueprint world's tile budget).
  *
  * Broadphase: a uniform grid over the tiles, built once by `build()` (the layouts call it) in compressed rows of typed
  * arrays; a query visits the cells the ball's sweep covers and tests each alive tile once (a stamp per tile). The answer
@@ -735,8 +737,13 @@ export class TileField implements TileView {
       if (!(left > 0)) break;
     }
     if (this.contactCount === 0) return -1;
-    ball.x = x;
-    ball.y = y;
+    // --- review fix (tiles) --- a rebound that sent the ball out of range (a bounciness of 1e300 makes its velocity
+    // infinite) never writes ±Infinity or NaN into its position: it stays where the engine moved it, and the caller, who
+    // sees the velocity, takes it out
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      ball.x = x;
+      ball.y = y;
+    }
     return this.contactTile[0];
   }
 

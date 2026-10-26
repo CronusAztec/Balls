@@ -1509,8 +1509,8 @@
     "sgRainbow": "Línea arcoíris",
     "sgRainbowTip": "La línea de la espiral recorre despacio los tonos y el cristal toma un leve tinte. Apagada se dibuja en el color de la pared.",
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
-    "modeBlueprint": "Laboratorio de modos",
-    "blTitle": "Laboratorio de modos",
+    "modeBlueprint": "Lab de modos",
+    "blTitle": "Lab de modos",
     "blDesc": "Cada juego de aquí nace de reglas que hacen que las bolas se rompan, se fusionen o se multipliquen. Elige un juego y ajusta sus controles. Un enlace compartido de un juego también se abre aquí.",
     "blPreset": "Juego",
     "blFromLink": "De un enlace",
@@ -2576,7 +2576,7 @@
       "description": "Las bolas giran por una espiral de cristal y la rompen de fuera hacia dentro. Cada vuelta añade una bola. ¿Se multiplicará la bola?"
     },
     "blueprint": {
-      "name": "Laboratorio de modos",
+      "name": "Lab de modos",
       "description": "Juegos nuevos hechos de reglas, como cristal que hace nacer bolas o anillos que las duplican. Elige uno y juega."
     },
     "beatDrop": {
@@ -2923,7 +2923,7 @@
       "item3": "Guardar presets de simulación en el almacenamiento local de tu navegador.",
       "footer": "Conservas la propiedad de todo lo que crees con el Servicio y puedes usar los vídeos exportados para cualquier fin, incluido el comercial, sin atribución. Esto no te da derechos sobre nombres u obras que pertenecen a otros, como los nombres de los personajes de Fight League. Una mención a {siteDomain} siempre se agradece.",
       "licence": "Conservas tus derechos sobre lo que subes. Cuando publicas a través del relay, nos das permiso para guardar el clip hasta 24 horas y enviarlo a las plataformas que elegiste, y nada más. Confirmas que tienes los derechos sobre todo lo que contiene el clip y que no infringe ninguna ley ni ninguna norma de las plataformas.",
-      "games": "Los juegos del Laboratorio de modos pueden llegar en un enlace que alguien compartió. Su nombre y sus textos son palabras de su autor, no nuestras. Comparte solo juegos que hayas creado o que puedas compartir. Un juego no puede fingir que viene de {siteName}, anunciar nada ni engañar."
+      "games": "Los juegos del Lab de modos pueden llegar en un enlace que alguien compartió. Su nombre y sus textos son palabras de su autor, no nuestras. Comparte solo juegos que hayas creado o que puedas compartir. Un juego no puede fingir que viene de {siteName}, anunciar nada ni engañar."
     },
     "acceptable": {
       "title": "Uso aceptable",
@@ -4137,6 +4137,7 @@
       "tileLayers": "en {rows, plural, one {# capa} other {# capas}}",
       "tileRows": "en {rows, plural, one {# fila} other {# filas}}",
       "tileHits": "{hp, plural, one {un golpe rompe una loseta} other {# golpes rompen una loseta}}",
+      "tileHitsBig": "{hp} golpes rompen una loseta",
       "tileHitsRange": "de {from} a {to} golpes rompen una loseta",
       "pegs": "{count, plural, one {# clavo} other {# clavos}}",
       "bumpers": "{count, plural, one {# rebotador} other {# rebotadores}}",
@@ -4182,9 +4183,11 @@
         "countAtMost": "Cuando {what} baja a {n}"
       },
       "every": "una de cada {n} veces",
+      "everyBig": "una de cada {n} veces",
       "chance": "el {pct}% de las veces",
       "cooldown": "como mucho cada {sec} s",
       "maxFires": "{n, plural, one {solo una vez} other {hasta # veces}}",
+      "maxFiresBig": "hasta {n} veces",
       "withFilter": "{a}, {b}",
       "count": {
         "balls": "el número de bolas",
@@ -4194,6 +4197,7 @@
         "teams": "los equipos que quedan",
         "tier": "el nivel más alto",
         "time": "el reloj",
+        "fit": "el número de bolas que caben por una salida",
         "var": "el contador «{name}»"
       },
       "target": {
@@ -4232,10 +4236,12 @@
       },
       "end": {
         "escaped": "{count, plural, one {escapa una bola} other {escapan # bolas}}",
+        "escapedBig": "escapan {count} bolas",
         "tilesCleared": "todas las losetas están rotas",
         "ringsCleared": "todos los anillos están rotos",
         "countAtLeast": "{what} llega a {n}",
         "countAtMost": "{what} baja a {n}",
+        "noneFits": "ya no cabe ninguna bola por una salida",
         "tier": "una bola llega al nivel {n}",
         "teamsLeft": "{n, plural, =0 {no queda ningún equipo} one {queda un equipo} other {quedan # equipos}}"
       },
@@ -4252,6 +4258,7 @@
     },
     "problem": {
       "fault": "Una regla falló durante la partida. Simplifica la regla que actúa al final.",
+      "crash": "El juego se detuvo por un error. Usa velocidades, rebote o gravedad más bajos.",
       "nan": "Las bolas se salieron de rango. Usa velocidades o gravedad más bajas.",
       "droppedEvents": "Pasan demasiadas cosas a la vez. Haz que se toquen menos bolas.",
       "droppedFirings": "Las reglas actúan demasiado a menudo. Dale una pausa a la regla más activa.",
@@ -4300,7 +4307,7 @@
       "hud0": "anillos",
       "hud1": "bolas",
       "say0": "TODOS LOS ANILLOS ROTOS",
-      "timeoutSay": "QUEDAN [rings] ANILLOS",
+      "timeoutSay": "ANILLOS EN PIE: [rings]",
       "params": {
         "rings": "Anillos",
         "gap": "Hueco",
@@ -4359,7 +4366,7 @@
       "params": {
         "grow": "Crecimiento por rebote",
         "exit": "Ancho de la salida",
-        "limit": "Rebotes para perder"
+        "size": "Tamaño inicial"
       }
     }
   },
@@ -5266,7 +5273,7 @@
       "rhythm": "Ritmo",
       "battle": "Batalla",
       "journey": "Viaje",
-      "lab": "Laboratorio"
+      "lab": "Lab"
     },
     "hero": {
       "eyebrow": "Estudio de física de pelotas",

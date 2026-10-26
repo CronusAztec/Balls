@@ -51,6 +51,27 @@ export function parseMediaInfo(stderr: string): MediaInfo {
   return { durationSec: parseDurationSec(stderr), fps, width, height, videoCodec, hasVideo: !!video, hasAudio: audio };
 }
 
+/** --- inspiration --- The last out_time of ffmpeg's -progress output (`out_time_us=…`, microseconds) in seconds, null for none. */
+export function parseProgressSec(stdout: string): number | null {
+  let last: number | null = null;
+  for (const m of stdout.matchAll(/^out_time_us=(\d+)\s*$/gm)) last = Number(m[1]) / 1e6;
+  return last !== null && Number.isFinite(last) && last > 0 ? last : null;
+}
+
+/** --- inspiration --- A sound track that runs on past the picture by more than this (seconds) ends the video at the picture. */
+export const SOUND_PAST_PICTURE_SEC = 1;
+
+/**
+ * --- inspiration --- The picture's end (seconds) when a longer sound track runs on past it – the banner's duration is the
+ * longer of the two, and a viewer sees the picture's: the out_time of copying the video's packets (ffmpegArgs.ts
+ * pictureEndArgs), the last packet's time and its length (a frame or two short of the end when frames are reordered, never
+ * past it). Null when the picture runs about as long as the file (within SOUND_PAST_PICTURE_SEC), or either is unknown.
+ */
+export function pictureEndSec(info: Pick<MediaInfo, "durationSec">, pictureOutSec: number | null): number | null {
+  if (info.durationSec === null || pictureOutSec === null) return null;
+  return pictureOutSec < info.durationSec - SOUND_PAST_PICTURE_SEC ? Math.round(pictureOutSec * 10000) / 10000 : null;
+}
+
 /** The scene cuts in scdet's metadata file (one `lavfi.scd.time=` per frame that starts a scene), in seconds, ascending. */
 export function parseCuts(metadata: string): number[] {
   const out: number[] = [];

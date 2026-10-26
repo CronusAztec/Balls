@@ -65,7 +65,7 @@ export const TRIGGER_DOCS: Readonly<Record<Trigger, string>> = {
   obstacleHit: "a ball (self) hits a peg, bumper, bar or spinner",
   tileHit: "a ball (self) hits a tile (every hit chips 1 HP off it)",
   tileBroken: "a ball (self) breaks a tile (the `tile` spawn point is where it was)",
-  ballHit: "two balls touch: self is the faster one (or the one `of` names), other the second",
+  ballHit: "two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names), other the second",
   escape: "a ball (self) leaves the arena through an exit or past the last ring",
   ringPass: "a ball (self) passes outward through a ring's gap",
   countReached: "a count (`what`) crosses `atLeast` or `atMost` (fires again only after it goes back)",
@@ -79,7 +79,7 @@ export const WITH_RELATIONS = ["any", "same", "sameTier", "sameTeam", "otherTeam
 export type WithRelation = (typeof WITH_RELATIONS)[number];
 
 /** What a count reads (countReached, a count finish, the HUD): these, or a variable's id. */
-export const COUNT_REFS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time"] as const;
+export const COUNT_REFS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time", "fit"] as const;
 export type CountRef = (typeof COUNT_REFS)[number];
 export const COUNT_DOCS: Readonly<Record<CountRef, string>> = {
   balls: "balls in the arena (of `of`, when given)",
@@ -89,6 +89,8 @@ export const COUNT_DOCS: Readonly<Record<CountRef, string>> = {
   teams: "teams with a ball in the arena",
   tier: "the highest tier of a ball in the arena",
   time: "seconds of the run",
+  // --- review fix (blueprint) --- (a growing ball's escape ends when it no longer fits: `count fit atMost 0`)
+  fit: "balls in the arena small enough to pass between the edges of a rim exit (of `of`, when given; none without exits)",
 };
 
 export const ACTIONS = ["spawn", "split", "merge", "remove", "grow", "speed", "recolor", "tier", "team", "damage", "var", "impulse", "fx", "sound"] as const;

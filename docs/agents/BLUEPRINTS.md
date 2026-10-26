@@ -52,7 +52,7 @@ rules<=16:[{when,of,every,chance,cooldownSec,maxFires,do<=4:[{act,...}]}],
 finish:{any<=3:[{when,...,say}],timeoutSec 5-180,winner},hud<=2:[{show,label}],look,sound}
 when: start timer beat bar wallHit obstacleHit tileHit tileBroken ballHit escape ringPass countReached; ballHit with:body|any|same|sameTier|sameTeam|otherTeam; timer sec; countReached what,atLeast|atMost
 act (target self|other|all): spawn{body,count,at,speed,dir} split{into} merge remove grow{by} speed{scale} recolor{color} tier{by} team{to} damage{amount} var{id,op,value} impulse{dir,amount} fx{kind} sound{voice}
-finish when: escaped tilesCleared ringsCleared count tier teamsLeft; winner none|firstOut|lastOut|mostBalls|highestTier|lastBall; what: balls|tiles|rings|escaped|teams|tier|time|var
+finish when: escaped tilesCleared ringsCleared count tier teamsLeft; winner none|firstOut|lastOut|mostBalls|highestTier|lastBall; what: balls|tiles|rings|escaped|teams|tier|time|fit|var
 Formulas (text) in count,speed,by,scale,amount,value: n t b r balls tiles escaped tier size speed vars; + - * / ^ min max clamp sin
 say: {winner} {time} {balls} {var}
 ```
@@ -69,14 +69,17 @@ say: {winner} {time} {balls} {var}
 | `obstacleHit` | a ball (self) hits a peg, bumper, bar or spinner |
 | `tileHit` | a ball (self) hits a tile (every hit chips 1 HP off it) |
 | `tileBroken` | a ball (self) breaks a tile (the `tile` spawn point is where it was) |
-| `ballHit` | two balls touch: self is the faster one (or the one `of` names), other the second |
+| `ballHit` | two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names), other the second |
 | `escape` | a ball (self) leaves the arena through an exit or past the last ring |
 | `ringPass` | a ball (self) passes outward through a ring's gap |
 | `countReached` | a count (`what`) crosses `atLeast` or `atMost` (fires again only after it goes back) |
 
 A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),
 `every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.
-An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse.
+An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its
+rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands
+at the tile); only a ballHit whose ball is gone by then is skipped. A contact raises one ballHit, as it starts: balls resting
+on each other or passing through each other raise no more, until they part or a rule changes either one's tier or team.
 
 ## Actions (`do`, up to 4 a rule)
 
@@ -133,6 +136,7 @@ A condition ends the run only after it was once unmet. `timeoutSec` (5-180 s) is
 | `teams` | teams with a ball in the arena |
 | `tier` | the highest tier of a ball in the arena |
 | `time` | seconds of the run |
+| `fit` | balls in the arena small enough to pass between the edges of a rim exit (of `of`, when given; none without exits) |
 
 A variable's id (`vars`) is a count too.
 
@@ -198,6 +202,7 @@ Fixed work and memory ceilings (`BLUEPRINT_CEILINGS` in `src/lib/uncap.ts`, the 
 | `subStepsPerStep` | 16 | sub-steps of one step (beyond it the step shortens: slow motion, or more steps a frame with Slow motion off) |
 | `pairTestsPerStep` | 64000 | ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted) |
 | `pairVisitsPerStep` | 160000 | pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted) |
+| `tileTestsPerStep` | 40000 | tiles one step's sweeps look at and test, and tile-grid cells they visit (past it a ball's tile sweep is skipped and counted) |
 | `actionBallsPerStep` | 4096 | balls the rules' actions change in one step (further actions are dropped and counted) |
 
 The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the step shortens instead: the run plays in slow motion, or, with the Slow motion switch off (`smo=0`), the page runs more steps a frame to keep real time as far as the device can.
@@ -207,11 +212,11 @@ The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bod
 `bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts
 only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:
 
-- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
+- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault (a rule's or a crash the sandbox caught), a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests, tile sweeps or actions, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
 - **endless:** every seed runs into the timeout;
 - **broken:** anything else. The feedback says what to change, in plain sentences.
 
-A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size; with the Slow motion switch off the feedback calls it too heavy to play in real time), **crowded** when 30 of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).
+A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, tile work, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size; with the Slow motion switch off the feedback calls it too heavy to play in real time), **crowded** when 30 of a second's 60 steps skip ball pairs past the pair budgets or tile sweeps past the tile budget (balls that overlap so much, or cover so many tiles, that the sandbox only bounds them).
 
 ## The Lite form (small local models)
 
@@ -364,7 +369,7 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
 
 Every ring a ball gets through shatters and doubles every ball. Break every ring.
 
-Link: `?mode=blueprint&blp=ringBreaker` · digest `b5dfc3d7` · check: playable, median end 7.85 s, outcomes "ALL RINGS DOWN".
+Link: `?mode=blueprint&blp=ringBreaker` · digest `ff9d47cc` · check: playable, median end 7.85 s, outcomes "ALL RINGS DOWN".
 
 ```text
 "Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break every ring."
@@ -373,7 +378,7 @@ Bodies: ball (7 px).
 Start: 1 ball at the center at (260 + 80 * r) px/s.
 Rule: at the start: push every ball right at (15 + 25 * r) px/s.
 Rule: when a ball passes a ring: split every ball into 2, then recolour it (next), then a burst.
-Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rings} RINGS LEFT".
+Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "RINGS LEFT: {rings}".
 ```
 
 ```json
@@ -402,7 +407,7 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
     "when": "ringsCleared"
    }
   ],
-  "timeoutSay": "{rings} RINGS LEFT",
+  "timeoutSay": "RINGS LEFT: {rings}",
   "timeoutSec": 60
  },
  "hud": [
@@ -436,8 +441,8 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
    "at": "arena.rings.gapDeg",
    "id": "gap",
    "label": "gap",
-   "max": 60,
-   "min": 15
+   "max": 30,
+   "min": 24
   },
   {
    "at": "arena.rings.spinDegPerSec",
@@ -495,15 +500,16 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
 
 Four colours collide: the faster ball converts the slower one. The last colour standing wins.
 
-Link: `?mode=blueprint&blp=conquer` · digest `77f29a49` · check: playable, median end 12.21 s, outcomes "GOLD WINS", "RED WINS", "GREEN WINS".
+Link: `?mode=blueprint&blp=conquer` · digest `258755ef` · check: playable, median end 7.93 s, outcomes "BLUE WINS", "GREEN WINS".
 
 ```text
 "Colour Conquest": "Four colours collide: the faster ball converts the slower one. The last colour standing wins."
 Arena: a circle, no gravity, bounce 1.
-Bodies: red (11 px), blue (11 px, team 1), green (11 px, team 2), gold (11 px, team 3).
-Start: (per) reds at random places at 230 px/s; (per) blues at random places at 230 px/s; (per) greens at random places at 230 px/s; (per) golds at random places at 230 px/s.
+Bodies: red (9 px), blue (9 px, team 1), green (9 px, team 2), gold (9 px, team 3).
+Start: (per) reds at random places at (200 + 20 * r) px/s; (per) blues at random places at (200 + 20 * r) px/s; (per) greens at random places at (200 + 20 * r) px/s; (per) golds at random places at (200 + 20 * r) px/s.
 Rule: when a ball touches a ball of another team: the other ball joins its team, then recolour the other ball (team), then a merge note.
 Rule: every 6 s: speed every ball × 1.12.
+Rule: at the start: speed every ball × (1 + 0.2 * r).
 Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{winner} LEADS"; the winner is mostBalls.
 ```
 
@@ -515,24 +521,24 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
  "bodies": [
   {
    "id": "red",
-   "radius": 11
+   "radius": 9
   },
   {
    "color": 1,
    "id": "blue",
-   "radius": 11,
+   "radius": 9,
    "team": 1
   },
   {
    "color": 2,
    "id": "green",
-   "radius": 11,
+   "radius": 9,
    "team": 2
   },
   {
    "color": 3,
    "id": "gold",
-   "radius": 11,
+   "radius": 9,
    "team": 3
   }
  ],
@@ -621,6 +627,16 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
    ],
    "sec": 6,
    "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "speed",
+     "scale": "1 + 0.2 * r",
+     "target": "all"
+    }
+   ],
+   "when": "start"
   }
  ],
  "sound": {
@@ -635,25 +651,25 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
    "at": "random",
    "body": "red",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "blue",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "green",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   },
   {
    "at": "random",
    "body": "gold",
    "count": "per",
-   "speed": 230
+   "speed": "200 + 20 * r"
   }
  ],
  "v": 1,
@@ -670,7 +686,7 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
 
 Orbs rain down and two of a tier merge into the next. The first to the target tier ends it.
 
-Link: `?mode=blueprint&blp=tierClimb` · digest `c7f720cc` · check: playable, median end 23.18 s, outcomes "TIER 8 REACHED".
+Link: `?mode=blueprint&blp=tierClimb` · digest `3f6147ec` · check: playable, median end 25.29 s, outcomes "TIER 8 REACHED".
 
 ```text
 "Tier Climb": "Orbs rain down and two of a tier merge into the next. The first to the target tier ends it."
@@ -739,14 +755,14 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
    "at": "finish.any[0].atLeast",
    "id": "target",
    "label": "target tier",
-   "max": 10,
-   "min": 4
+   "max": 8,
+   "min": 6
   },
   {
    "at": "spawners[0].everySec",
    "id": "rain",
    "label": "seconds per orb",
-   "max": 0.5,
+   "max": 0.25,
    "min": 0.04,
    "step": 0.01
   },
@@ -755,7 +771,7 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
    "id": "gravity",
    "label": "gravity",
    "max": 1200,
-   "min": 100,
+   "min": 200,
    "step": 20
   }
  ],
@@ -801,7 +817,7 @@ Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the lates
 
 Four balls fall through the pegs and chase a turning exit. First one out wins.
 
-Link: `?mode=blueprint&blp=plinkoRace` · digest `ad34af37` · check: playable, median end 8.87 s, outcomes "GREEN WINS THE RACE", "GOLD WINS THE RACE".
+Link: `?mode=blueprint&blp=plinkoRace` · digest `36c4fc5e` · check: playable, median end 8.87 s, outcomes "GREEN WINS THE RACE", "GOLD WINS THE RACE".
 
 ```text
 "Peg Race": "Four balls fall through the pegs and chase a turning exit. First one out wins."
@@ -911,8 +927,8 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
    "at": "arena.spinDegPerSec",
    "id": "spin",
    "label": "exit spin",
-   "max": 90,
-   "min": 0,
+   "max": 35,
+   "min": 15,
    "step": 5
   },
   {
@@ -956,16 +972,16 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
 
 Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?
 
-Link: `?mode=blueprint&blp=growEscape` · digest `55ffef0b` · check: playable, median end 19.63 s, outcomes "ESCAPED AFTER BOUNCE 10", "ESCAPED AFTER BOUNCE 4", "ESCAPED AFTER BOUNCE 26", "TOO BIG TO ESCAPE".
+Link: `?mode=blueprint&blp=growEscape` · digest `fbbd4d4a` · check: playable, median end 13.72 s, outcomes "TOO BIG TO ESCAPE", "ESCAPED AFTER BOUNCE 8", "ESCAPED AFTER BOUNCE 4".
 
 ```text
 "Grow or Go": "Every bounce makes the ball bigger and faster. Can it find the gap before it no longer fits?"
 Arena: a circle with an exit that turns, no gravity, bounce 1.
 Bodies: ball (8 px).
 Start: 1 ball at the top at 110 px/s.
-Rule: when a ball hits a wall: grow it by 1 px, then speed it × 1.15, then bounces + 1.
+Rule: when a ball hits a wall: grow it by 1 px, then speed it × (min(1.15 + 0.05 * min(3, bounces), 5000 / max(speed, 1))), then bounces + 1.
 Rule: on every beat: a gap note.
-Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reaches 28 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
+Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 0 or less "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
 ```
 
 ```json
@@ -995,9 +1011,9 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
     "when": "escaped"
    },
    {
-    "atLeast": 28,
+    "atMost": 0,
     "say": "TOO BIG TO ESCAPE",
-    "what": "bounces",
+    "what": "fit",
     "when": "count"
    }
   ],
@@ -1036,14 +1052,14 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
    "id": "exit",
    "label": "exit width",
    "max": 40,
-   "min": 8
+   "min": 14
   },
   {
-   "at": "finish.any[1].atLeast",
-   "id": "limit",
-   "label": "bounces to lose",
-   "max": 60,
-   "min": 10
+   "at": "bodies[0].radius",
+   "id": "size",
+   "label": "starting size",
+   "max": 20,
+   "min": 4
   }
  ],
  "rules": [
@@ -1055,7 +1071,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when bounces reac
     },
     {
      "act": "speed",
-     "scale": 1.15
+     "scale": "min(1.15 + 0.05 * min(3, bounces), 5000 / max(speed, 1))"
     },
     {
      "act": "var",

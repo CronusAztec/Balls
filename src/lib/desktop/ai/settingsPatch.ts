@@ -3,7 +3,7 @@ import { BOUNCIER_ON, BOUNCINESS_OFF } from "@/lib/uncap"; // --- uncap-all --- 
 import { parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
 import { BALL_INTERACTIONS, MODE_IDS, WALL_BREAK_STYLES, isModeId } from "@/lib/physics/types";
 import { PARTICLE_STYLES } from "@/lib/physics/particleStyles";
-import { THEME_IDS } from "@/lib/themes";
+import { THEME_IDS, themeById, themePatch } from "@/lib/themes";
 import { INSTRUMENT_IDS } from "@/lib/audio/instruments";
 import { QUANTIZE_GRIDS, SCALE_IDS } from "@/lib/audio/scales";
 import { HIT_SOUND_MODES } from "@/lib/audio/sampler";
@@ -72,7 +72,8 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
  * Lab's game (its ids) and its sliders (the playing game's, in order, each with its range).
  */
 const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) => string>> = {
-  blPreset: () => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}`,
+  // --- review fix (blueprint) --- (a new game plays in place of a link's, with its own sliders: validateSettingsPatch)
+  blPreset: (current) => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}${current.blSpec ? " (the page plays a game from a link now: a game named here takes its place)" : ""}; a new game starts with its own slider values unless blParams is set with it`,
   blParams: (current) => {
     const params = resolveBlueprintSpec(blueprintSettingsOf(current)).base.params;
     if (!params.length) return "Mode Lab's slider values (this game has none)";
@@ -116,7 +117,7 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["showWallGlow", "ring glow"],
   ["wallBreakStyle", "effect when a ring breaks"],
   ["particleStyle", "burst particles"],
-  ["themeId", "one-click look (\"\" = none)"],
+  ["themeId", "one-click look, its colours included (\"\" = none)"], // --- trends --- (a patch applies the theme's look: validateSettingsPatch)
   ["cameraFollow", "camera follows the ball"],
   ["cinematicEnabled", "drama director (near misses)"],
   ["screenShake", "screen shake on hits"],
@@ -140,6 +141,22 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["topText", "text at the top of the video"],
   ["bottomText", "text at the bottom of the video"],
   ["textSize", "size of the top / bottom text"],
+];
+
+/**
+ * --- trends --- The settings Make videos may set on a planned clip (set_clip_settings): the catalog, and the levers the
+ * trend summary's advice names beside it (lib/agentKit/inspiration.ts LEVERS, LOOKS) – the background by its colours (every
+ * theme's own is dark), the trail's colours, slow motion on a near miss, the music's start. Kept out of the settings
+ * assistant's catalog, whose request filter matches words inside names ("rounds" in "background").
+ */
+export const CLIP_SETTINGS: readonly [key: string, description: string][] = [
+  ...CATALOG,
+  ["trailColors", "two #rrggbb colours the colourful trail cycles between; [] = the rainbow"],
+  ["backgroundType", "background: solid (the first colour) or gradient (top → bottom)"],
+  ["backgroundColors", "background colours: two #rrggbb"],
+  ["reactiveBackground", "background pulses and shifts colour on each bounce"],
+  ["slowMoOnNearMiss", "slow motion on a near miss"],
+  ["musicStartOffset", "seconds into the music track where the clip starts"],
 ];
 
 const ranges = RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>;
@@ -169,6 +186,7 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
   const options = SETTING_OPTIONS[key];
   let type: string = Array.isArray(value) ? "list" : typeof value;
   if (options) type = `one of ${options.map((o) => JSON.stringify(o)).join("|")}`;
+  else if (COLOUR_LISTS[key]) type = COLOUR_LISTS[key].min === COLOUR_LISTS[key].max ? `list of ${COLOUR_LISTS[key].max} colours #rrggbb` : `list of ${COLOUR_LISTS[key].min}–${COLOUR_LISTS[key].max} colours #rrggbb`; // --- trends ---
   else if (range && liftedKey(key)) type = `number ${describeUnlimited(key, range)}, slider ${range.min}–${range.max}, step ${range.step}`; // --- unlimited --- (--- review fix (uncap-all) --- whatever the switch)
   else if (range) type = `number ${range.min}–${range.max}, step ${range.step}`;
   else if (typeof value === "string" && isColorKey(key)) type = "colour #rrggbb";
@@ -257,16 +275,22 @@ export function settingsCatalog(current: SimulatorSettings): string {
   return assistantSettings(current).map(([key, d]) => describeSetting(key, current, d)).join("\n");
 }
 
-/** One change the model proposes: a setting and its new value. */
+/** One change the model proposes: a setting and its new value (--- trends --- a colour list as its #rrggbb colours). */
 export interface SettingChange {
   setting: string;
-  value: number | boolean | string;
+  value: number | boolean | string | string[];
 }
+
+/** --- trends --- The colour lists a patch may set, with how many colours each takes (validateSettingsPatch checks the same). */
+const COLOUR_LISTS: Readonly<Record<string, { min: number; max: number }>> = { backgroundColors: { min: 2, max: 2 }, trailColors: { min: 0, max: 2 } };
 
 function valueSchema(key: string, value: unknown): JsonSchema | null {
   const options = SETTING_OPTIONS[key];
   const range = ranges[key];
   if (options) return { enum: options };
+  // --- trends --- (a colour list: its colours as #rrggbb, so the grammar can hold a light background or the rainbow trail)
+  const list = COLOUR_LISTS[key];
+  if (list && Array.isArray(value)) return { type: "array", items: { type: "string", pattern: HEX.source, minLength: 7, maxLength: 7 }, minItems: list.min, maxItems: list.max };
   // --- unlimited --- an uncapped setting: its minimum (none for a signed one) and its semantic end, if it has one (--- review
   // fix (uncap-all) --- whatever the switch)
   if (typeof value === "number" && range && liftedKey(key)) {
@@ -319,6 +343,12 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
       continue;
     }
     if (PATCH_EXCLUDED.has(key)) {
+      // --- review fix (blueprint) --- a link's game may only be cleared: a checked patch that switched Mode Lab's game carries
+      // `blSpec: ""` (below), and a saved custom mode re-checks that very patch when it is applied
+      if (key === "blSpec" && value === "") {
+        patch[key] = "";
+        continue;
+      }
       errors.push(`"${key}" cannot be changed here`);
       continue;
     }
@@ -388,10 +418,26 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
     errors.push(`"${key}" cannot be changed here`);
   }
   if (errors.length) return { ok: false, errors };
+  // --- trends --- a theme named in a patch is applied as its card applies it (lib/themes.ts themePatch: its colours, its
+  // background and its trail), so "themeId: one-click look" changes the look; the patch's own look settings win over it
+  // (a light background, the rainbow trail), and only a theme that changes brings its look
+  const theme = typeof patch.themeId === "string" && patch.themeId !== current.themeId ? themeById(patch.themeId) : undefined;
+  if (theme) {
+    const look = themePatch(theme, { backgroundType: (patch.backgroundType as SimulatorSettings["backgroundType"] | undefined) ?? current.backgroundType }) as unknown as Settings;
+    for (const [key, value] of Object.entries(look)) if (!(key in patch) && key in defaults) patch[key] = value;
+  }
   // --- desktop-exe x uncap-all --- the Bouncier switch follows the numeric Bounciness (`bouncinessPatch()`): a change of the
   // Bounciness brings the switch along, and a model that still sends the old switch gets the matching Bounciness
   if (typeof patch.bouncierEnabled === "boolean" && typeof patch.bounciness !== "number") patch.bounciness = patch.bouncierEnabled ? (current.bounciness > BOUNCINESS_OFF ? current.bounciness : BOUNCIER_ON) : BOUNCINESS_OFF;
   if (typeof patch.bounciness === "number") Object.assign(patch, bouncinessPatch(patch.bounciness));
+  // --- review fix (blueprint) --- Mode Lab's game switches as its panel switches it: a catalog game named in place of the one
+  // playing (another catalog game, or a link's game, which blSpec holds and would keep playing) clears the link's game and
+  // the old game's slider values (they apply by position, so another game's would tune the new one), unless the patch gives
+  // the new game's own. blSpec stays out of a patch's reach: only the switch away from it is the patch's.
+  if (typeof patch.blPreset === "string" && (patch.blPreset !== current.blPreset || current.blSpec !== "")) {
+    patch.blSpec = "";
+    if (typeof patch.blParams !== "string") patch.blParams = "";
+  }
   // The settings loader has the last word: a value it does not keep is not a valid value.
   const resolved = presetToSettings({ ...current, ...patch } as Partial<SimulatorSettings>) as unknown as Settings;
   for (const [key, value] of Object.entries(patch)) {

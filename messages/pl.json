@@ -4137,6 +4137,7 @@
       "tileLayers": "w {rows, plural, one {# warstwie} few {# warstwach} many {# warstwach} other {# warstwach}}",
       "tileRows": "w {rows, plural, one {# rzędzie} few {# rzędach} many {# rzędach} other {# rzędach}}",
       "tileHits": "{hp, plural, one {płytka pęka po jednym uderzeniu} few {płytka pęka po # uderzeniach} many {płytka pęka po # uderzeniach} other {płytka pęka po # uderzeniach}}",
+      "tileHitsBig": "płytka pęka po {hp} uderzeń",
       "tileHitsRange": "płytka pęka po {from}–{to} uderzeniach",
       "pegs": "{count, plural, one {# kołek} few {# kołki} many {# kołków} other {# kołka}}",
       "bumpers": "{count, plural, one {# odbijacz} few {# odbijacze} many {# odbijaczy} other {# odbijacza}}",
@@ -4182,9 +4183,11 @@
         "countAtMost": "Gdy {what} spadnie do {n}"
       },
       "every": "co {n}. raz",
+      "everyBig": "raz na {n} razy",
       "chance": "w {pct}% przypadków",
       "cooldown": "najwyżej co {sec} s",
       "maxFires": "{n, plural, one {tylko raz} few {najwyżej # razy} many {najwyżej # razy} other {najwyżej # razy}}",
+      "maxFiresBig": "najwyżej {n} razy",
       "withFilter": "{a}, {b}",
       "count": {
         "balls": "liczba kulek",
@@ -4194,6 +4197,7 @@
         "teams": "liczba drużyn",
         "tier": "najwyższy poziom",
         "time": "zegar",
+        "fit": "liczba kulek mieszczących się w wyjściu",
         "var": "licznik „{name}”"
       },
       "target": {
@@ -4232,10 +4236,12 @@
       },
       "end": {
         "escaped": "{count, plural, one {kulka ucieknie} few {# kulki uciekną} many {# kulek ucieknie} other {# kulki ucieknie}}",
+        "escapedBig": "{count} kulek ucieknie",
         "tilesCleared": "wszystkie płytki są rozbite",
         "ringsCleared": "wszystkie pierścienie są rozbite",
         "countAtLeast": "{what} dojdzie do {n}",
         "countAtMost": "{what} spadnie do {n}",
+        "noneFits": "żadna kulka nie zmieści się już w wyjściu",
         "tier": "kulka osiągnie poziom {n}",
         "teamsLeft": "{n, plural, =0 {nie zostanie żadna drużyna} one {zostanie jedna drużyna} few {zostaną # drużyny} many {zostanie # drużyn} other {zostanie # drużyny}}"
       },
@@ -4252,6 +4258,7 @@
     },
     "problem": {
       "fault": "Reguła zawiodła w trakcie gry. Uprość regułę, która działa ostatnia.",
+      "crash": "Gra stanęła z powodu błędu. Użyj mniejszych prędkości, słabszego odbicia albo słabszej grawitacji.",
       "nan": "Kulki wyleciały poza zakres. Użyj mniejszych prędkości albo słabszej grawitacji.",
       "droppedEvents": "Za dużo dzieje się naraz. Niech mniej kulek się ze sobą styka.",
       "droppedFirings": "Reguły działają za często. Daj najczęstszej regule przerwę.",
@@ -4359,7 +4366,7 @@
       "params": {
         "grow": "Wzrost na odbicie",
         "exit": "Szerokość wyjścia",
-        "limit": "Odbicia do porażki"
+        "size": "Rozmiar startowy"
       }
     }
   },
@@ -5266,7 +5273,7 @@
       "rhythm": "Rytm",
       "battle": "Bitwa",
       "journey": "Podróż",
-      "lab": "Laboratorium"
+      "lab": "Lab"
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",

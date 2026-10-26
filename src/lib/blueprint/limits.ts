@@ -24,6 +24,7 @@ import {
   BLUEPRINT_SPEED_CEILING,
   BLUEPRINT_SUBSTEP_CEILING,
   BLUEPRINT_TILE_CEILING,
+  BLUEPRINT_TILE_TESTS_PER_STEP,
   BLUEPRINT_TIMEOUT_CEILING_SEC,
 } from "@/lib/uncap";
 
@@ -44,6 +45,7 @@ export {
   BLUEPRINT_SPEED_CEILING,
   BLUEPRINT_SUBSTEP_CEILING,
   BLUEPRINT_TILE_CEILING,
+  BLUEPRINT_TILE_TESTS_PER_STEP,
   BLUEPRINT_TIMEOUT_CEILING_SEC,
 };
 
@@ -107,6 +109,8 @@ export const BLUEPRINT_STEP_BUDGETS = {
   pairTests: BLUEPRINT_PAIR_TESTS_PER_STEP,
   /** --- review fix (blueprint) --- Pair-grid entries a step walks to find them, shared out the same way (past it the same). */
   pairVisits: BLUEPRINT_PAIR_VISITS_PER_STEP,
+  /** --- review fix (blueprint) --- Tiles a step's sweeps look at and test, and tile-grid cells they visit, shared out the same way (past it a ball's sub-step skips its tile sweep, counted). */
+  tileTests: BLUEPRINT_TILE_TESTS_PER_STEP,
   /** Balls the actions of a step change (past it the step's further actions are dropped and counted). */
   actionBalls: BLUEPRINT_ACTION_BALLS_PER_STEP,
 } as const;

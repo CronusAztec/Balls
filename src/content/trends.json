@@ -1,0 +1,1180 @@
+{
+  "v": 1,
+  "date": "2026-10-26",
+  "metric": "views",
+  "sources": [
+    {
+      "query": "satisfying physics simulation shorts",
+      "at": "2026-10-26T01:37:22.440Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 8
+    },
+    {
+      "query": "ball simulation",
+      "at": "2026-10-26T01:38:34.886Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 8
+    },
+    {
+      "query": "ball simulation",
+      "at": "2026-10-26T03:57:23.281Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 20
+    },
+    {
+      "query": "satisfying physics simulation shorts",
+      "at": "2026-10-26T03:58:55.468Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 20
+    },
+    {
+      "query": null,
+      "at": "2026-10-26T05:44:42.928Z",
+      "videos": 24,
+      "compared": 24,
+      "measured": 22,
+      "stills": 0
+    }
+  ],
+  "sample": {
+    "videos": 71,
+    "compared": 71,
+    "measured": 22,
+    "stills": 41,
+    "views": 218189267,
+    "platforms": {
+      "tiktok": 24,
+      "youtube": 47
+    }
+  },
+  "numbers": [
+    {
+      "trait": "durationSec",
+      "label": "length",
+      "unit": "s",
+      "top": 22,
+      "rest": 23.5,
+      "all": 22,
+      "rho": 0.051,
+      "p": 0.6772,
+      "n": 69,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 47
+      },
+      "strength": null,
+      "scope": "list",
+      "agreement": {
+        "same": 3,
+        "opposite": 2
+      },
+      "tops": [
+        11,
+        16,
+        11,
+        11,
+        51.27
+      ],
+      "split": true
+    },
+    {
+      "trait": "portrait",
+      "label": "portrait share",
+      "unit": "",
+      "top": 1,
+      "rest": 1,
+      "all": 1,
+      "rho": null,
+      "p": null,
+      "n": 28,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 6
+      },
+      "strength": null,
+      "scope": "list",
+      "agreement": {
+        "same": 0,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        1,
+        null,
+        1
+      ],
+      "split": false
+    },
+    {
+      "trait": "cutsPerMin",
+      "label": "cuts a minute",
+      "unit": "",
+      "top": 0,
+      "rest": 0,
+      "all": 0,
+      "rho": -0.079,
+      "p": 0.7284,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0
+      ],
+      "split": false
+    },
+    {
+      "trait": "motion",
+      "label": "motion",
+      "unit": "",
+      "top": 0.0084,
+      "rest": 0.0173,
+      "all": 0.0165,
+      "rho": -0.142,
+      "p": 0.5293,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.0084
+      ],
+      "split": false
+    },
+    {
+      "trait": "hookMotion",
+      "label": "first-second motion",
+      "unit": "",
+      "top": 0.0061,
+      "rest": 0.0068,
+      "all": 0.0066,
+      "rho": -0.212,
+      "p": 0.344,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.0061
+      ],
+      "split": false
+    },
+    {
+      "trait": "hookLift",
+      "label": "hook lift (first second ÷ the rest)",
+      "unit": "×",
+      "top": 0.754,
+      "rest": 0.592,
+      "all": 0.595,
+      "rho": -0.032,
+      "p": 0.8869,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.754
+      ],
+      "split": false
+    },
+    {
+      "trait": "firstMotionSec",
+      "label": "first motion",
+      "unit": "s",
+      "top": 1.75,
+      "rest": 2,
+      "all": 2,
+      "rho": -0.283,
+      "p": 0.2706,
+      "n": 17,
+      "from": {
+        "video": 17,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        1.75
+      ],
+      "split": false
+    },
+    {
+      "trait": "peakMotionPos",
+      "label": "peak motion position (0 start, 1 end)",
+      "unit": "",
+      "top": 0.66,
+      "rest": 0.978,
+      "all": 0.89,
+      "rho": -0.395,
+      "p": 0.0687,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": "hint",
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.66
+      ],
+      "split": false
+    },
+    {
+      "trait": "meanLuma",
+      "label": "brightness",
+      "unit": "",
+      "top": 0.249,
+      "rest": 0.409,
+      "all": 0.361,
+      "rho": 0.082,
+      "p": 0.5225,
+      "n": 63,
+      "from": {
+        "video": 22,
+        "stills": 41,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "list",
+      "agreement": {
+        "same": 4,
+        "opposite": 1
+      },
+      "tops": [
+        0.579,
+        0.373,
+        0.385,
+        0.604,
+        0.074
+      ],
+      "split": true
+    },
+    {
+      "trait": "meanSat",
+      "label": "saturation",
+      "unit": "",
+      "top": 0.327,
+      "rest": 0.268,
+      "all": 0.302,
+      "rho": 0.143,
+      "p": 0.2628,
+      "n": 63,
+      "from": {
+        "video": 22,
+        "stills": 41,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "list",
+      "agreement": {
+        "same": 3,
+        "opposite": 2
+      },
+      "tops": [
+        0.302,
+        0.536,
+        0.569,
+        0.306,
+        0.302
+      ],
+      "split": true
+    },
+    {
+      "trait": "darkShare",
+      "label": "dark share",
+      "unit": "",
+      "top": 0.212,
+      "rest": 0.152,
+      "all": 0.157,
+      "rho": -0.147,
+      "p": 0.2509,
+      "n": 63,
+      "from": {
+        "video": 22,
+        "stills": 41,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "list",
+      "agreement": {
+        "same": 3,
+        "opposite": 2
+      },
+      "tops": [
+        0,
+        0.211,
+        0.038,
+        0,
+        0.758
+      ],
+      "split": true
+    },
+    {
+      "trait": "loopSeamDiff",
+      "label": "loop seam (0 seamless)",
+      "unit": "",
+      "top": 0.1046,
+      "rest": 0.1291,
+      "all": 0.1103,
+      "rho": -0.135,
+      "p": 0.5493,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.1046
+      ],
+      "split": false
+    },
+    {
+      "trait": "lufs",
+      "label": "loudness",
+      "unit": "LUFS",
+      "top": -18.9,
+      "rest": -19.4,
+      "all": -19.15,
+      "rho": 0.217,
+      "p": 0.3323,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        -18.9
+      ],
+      "split": false
+    },
+    {
+      "trait": "bpm",
+      "label": "tempo",
+      "unit": "bpm",
+      "top": 191.2,
+      "rest": 156.7,
+      "all": 164.5,
+      "rho": 0.059,
+      "p": 0.8286,
+      "n": 16,
+      "from": {
+        "video": 16,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        191.2
+      ],
+      "split": false
+    },
+    {
+      "trait": "onsetsPerSec",
+      "label": "sound events a second",
+      "unit": "/s",
+      "top": 2.94,
+      "rest": 2.79,
+      "all": 2.82,
+      "rho": 0.03,
+      "p": 0.8948,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        2.94
+      ],
+      "split": false
+    },
+    {
+      "trait": "firstSoundSec",
+      "label": "first sound",
+      "unit": "s",
+      "top": 0.591,
+      "rest": 0.271,
+      "all": 0.381,
+      "rho": 0.159,
+      "p": 0.4805,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": null,
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.591
+      ],
+      "split": false
+    },
+    {
+      "trait": "silenceShare",
+      "label": "silent share",
+      "unit": "",
+      "top": 0.125,
+      "rest": 0.012,
+      "all": 0.035,
+      "rho": 0.418,
+      "p": 0.0529,
+      "n": 22,
+      "from": {
+        "video": 22,
+        "stills": 0,
+        "page": 0
+      },
+      "strength": "hint",
+      "scope": "fetched",
+      "agreement": {
+        "same": 1,
+        "opposite": 0
+      },
+      "tops": [
+        null,
+        null,
+        null,
+        null,
+        0.125
+      ],
+      "split": false
+    }
+  ],
+  "themes": [
+    {
+      "id": "escape",
+      "label": "escaping rings",
+      "videos": 7,
+      "viewShare": 0.627,
+      "videoShare": 0.099,
+      "lift": 6.36,
+      "rank": 0.857,
+      "restRank": 0.425,
+      "rankWithoutTop": 0.738,
+      "topShare": 0.586,
+      "advised": true,
+      "modes": [
+        "classic",
+        "accumulation",
+        "shatter",
+        "spiralGlass",
+        "grow"
+      ],
+      "blueprints": [
+        "ringBreaker",
+        "growEscape"
+      ]
+    },
+    {
+      "id": "drop",
+      "label": "drops and piles",
+      "videos": 7,
+      "viewShare": 0.004,
+      "videoShare": 0.099,
+      "lift": 0.04,
+      "rank": 0.605,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.487,
+      "topShare": 0.391,
+      "advised": true,
+      "modes": [
+        "drop",
+        "conveyor",
+        "accumulation",
+        "perfectFit",
+        "multipliers"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "satisfying",
+      "label": "satisfying and calm",
+      "videos": 41,
+      "viewShare": 0.572,
+      "videoShare": 0.577,
+      "lift": 0.99,
+      "rank": 0.474,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.451,
+      "topShare": 0.642,
+      "advised": false,
+      "modes": [
+        "colourSort",
+        "perfectFit",
+        "orbGrid",
+        "pendulum",
+        "collide"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "spiral",
+      "label": "spirals and spinning",
+      "videos": 6,
+      "viewShare": 0.173,
+      "videoShare": 0.085,
+      "lift": 2.05,
+      "rank": 0.5,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.421,
+      "topShare": 0.977,
+      "advised": false,
+      "modes": [
+        "vortex",
+        "spiralGlass",
+        "hoops"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "battle",
+      "label": "battles",
+      "videos": 17,
+      "viewShare": 0.035,
+      "videoShare": 0.239,
+      "lift": 0.14,
+      "rank": 0.316,
+      "restRank": 0.525,
+      "rankWithoutTop": 0.29,
+      "topShare": 0.398,
+      "advised": false,
+      "modes": [
+        "battle",
+        "fightLeague",
+        "stringBattle",
+        "territory",
+        "landClaim"
+      ],
+      "blueprints": [
+        "conquer"
+      ]
+    },
+    {
+      "id": "loop",
+      "label": "loops",
+      "videos": 2,
+      "viewShare": 0.017,
+      "videoShare": 0.028,
+      "lift": 0.6,
+      "rank": 0.816,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.632,
+      "topShare": 0.982,
+      "advised": false,
+      "modes": [
+        "starChords",
+        "ellipseFoci",
+        "pendulum",
+        "polyrhythm",
+        "colourSort",
+        "orbGrid"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "marbleRun",
+      "label": "marble runs and pegs",
+      "videos": 6,
+      "viewShare": 0.016,
+      "videoShare": 0.085,
+      "lift": 0.19,
+      "rank": 0.342,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.263,
+      "topShare": 0.874,
+      "advised": false,
+      "modes": [
+        "drop",
+        "bullseye",
+        "beatMachine",
+        "conveyor",
+        "race"
+      ],
+      "blueprints": [
+        "plinkoRace"
+      ]
+    },
+    {
+      "id": "race",
+      "label": "races",
+      "videos": 2,
+      "viewShare": 0.014,
+      "videoShare": 0.028,
+      "lift": 0.5,
+      "rank": 0.333,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.095,
+      "topShare": 0.982,
+      "advised": false,
+      "modes": [
+        "race",
+        "maze",
+        "bullseye"
+      ],
+      "blueprints": [
+        "plinkoRace"
+      ]
+    },
+    {
+      "id": "colour",
+      "label": "colours and painting",
+      "videos": 2,
+      "viewShare": 0.004,
+      "videoShare": 0.028,
+      "lift": 0.14,
+      "rank": 0.671,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.421,
+      "topShare": 0.95,
+      "advised": false,
+      "modes": [
+        "paint",
+        "territory",
+        "colourSort",
+        "landClaim",
+        "colorMatch"
+      ],
+      "blueprints": [
+        "conquer"
+      ]
+    },
+    {
+      "id": "maze",
+      "label": "mazes",
+      "videos": 2,
+      "viewShare": 0.004,
+      "videoShare": 0.028,
+      "lift": 0.15,
+      "rank": 0.842,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.763,
+      "topShare": 0.898,
+      "advised": false,
+      "modes": [
+        "maze"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "destroy",
+      "label": "breaking and smashing",
+      "videos": 2,
+      "viewShare": 0.003,
+      "videoShare": 0.028,
+      "lift": 0.11,
+      "rank": 0.684,
+      "restRank": 0.474,
+      "rankWithoutTop": 0.579,
+      "topShare": 0.927,
+      "advised": false,
+      "modes": [
+        "glass",
+        "shatter",
+        "powerLayers",
+        "brickRebuild",
+        "spiralGlass"
+      ],
+      "blueprints": [
+        "hatchery"
+      ]
+    },
+    {
+      "id": "grow",
+      "label": "growing balls",
+      "videos": 3,
+      "viewShare": 0.001,
+      "videoShare": 0.042,
+      "lift": 0.01,
+      "rank": 0.421,
+      "restRank": 0.475,
+      "rankWithoutTop": 0.342,
+      "topShare": 0.382,
+      "advised": false,
+      "modes": [
+        "grow",
+        "mergeRing"
+      ],
+      "blueprints": [
+        "growEscape",
+        "tierClimb"
+      ]
+    }
+  ],
+  "formats": [
+    {
+      "id": "question",
+      "label": "a question",
+      "top": 0.17,
+      "rest": 0.26,
+      "all": 0.23
+    },
+    {
+      "id": "bigNumber",
+      "label": "a count of 100 or more",
+      "top": 0.04,
+      "rest": 0.04,
+      "all": 0.04
+    },
+    {
+      "id": "versus",
+      "label": "a versus (A vs B)",
+      "top": 0.13,
+      "rest": 0.24,
+      "all": 0.2
+    },
+    {
+      "id": "escalation",
+      "label": "a scale stepped up (0% vs 100%, small to big)",
+      "top": 0.04,
+      "rest": 0.13,
+      "all": 0.1
+    },
+    {
+      "id": "series",
+      "label": "a numbered series (Day 12, Part 3)",
+      "top": 0.09,
+      "rest": 0.07,
+      "all": 0.07
+    }
+  ],
+  "titles": {
+    "n": 69,
+    "top": 23
+  },
+  "words": [
+    {
+      "word": "satisfying",
+      "videos": 11
+    },
+    {
+      "word": "simulation",
+      "videos": 10
+    },
+    {
+      "word": "ball",
+      "videos": 8
+    },
+    {
+      "word": "bouncingball",
+      "videos": 5
+    },
+    {
+      "word": "physics",
+      "videos": 5
+    },
+    {
+      "word": "asmr",
+      "videos": 3
+    },
+    {
+      "word": "balls",
+      "videos": 3
+    },
+    {
+      "word": "end",
+      "videos": 3
+    },
+    {
+      "word": "grid",
+      "videos": 3
+    }
+  ],
+  "recommendations": [
+    {
+      "area": "pace",
+      "advice": "Put the busiest moment late (about 66% in): choose the seed and the clip length so the finish lands there, and slow it down on a near miss.",
+      "basis": "pattern",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "recordingDuration",
+          "link": "dur"
+        },
+        {
+          "kind": "setting",
+          "name": "slowMoOnNearMiss",
+          "link": "slow",
+          "value": true
+        }
+      ],
+      "traits": [
+        "peakMotionPos"
+      ]
+    },
+    {
+      "area": "hook",
+      "advice": "Move from the first frame (the most viewed are moving by 1.75 s): pick a seed whose first second already moves (simulate a few seeds and keep the one with the earliest action), and open on a question caption at 0 s.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "tool",
+          "name": "simulate"
+        },
+        {
+          "kind": "setting",
+          "name": "captions",
+          "link": "cap",
+          "value": "question at 0 s"
+        },
+        {
+          "kind": "setting",
+          "name": "screenShake",
+          "link": "shake"
+        }
+      ],
+      "traits": [
+        "hookMotion",
+        "firstMotionSec"
+      ]
+    },
+    {
+      "area": "pace",
+      "advice": "One continuous take works: the most viewed hardly cut, so let the run play out.",
+      "basis": "benchmark",
+      "levers": [],
+      "traits": [
+        "cutsPerMin"
+      ]
+    },
+    {
+      "area": "sound",
+      "advice": "Set the music to about 191 bpm (Beat Drop, Beat Machines and Beat Runner land on it) and start it on the first bounce.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "bpm",
+          "link": "bpm",
+          "value": 191
+        },
+        {
+          "kind": "setting",
+          "name": "musicStartOffset",
+          "link": "mso"
+        },
+        {
+          "kind": "mode",
+          "name": "beatDrop"
+        },
+        {
+          "kind": "mode",
+          "name": "beatMachine"
+        }
+      ],
+      "traits": [
+        "bpm"
+      ]
+    },
+    {
+      "area": "sound",
+      "advice": "A sound on every hit: the most viewed carry about 2.9 sound events a second, so pick a mode where many balls collide and each hit plays a note.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "collide"
+        },
+        {
+          "kind": "mode",
+          "name": "drop"
+        }
+      ],
+      "traits": [
+        "onsetsPerSec"
+      ]
+    },
+    {
+      "area": "sound",
+      "advice": "The most viewed are mixed at about -18.9 LUFS, against the -14 LUFS our export normalises to: ours is already louder.",
+      "basis": "benchmark",
+      "levers": [],
+      "traits": [
+        "lufs"
+      ]
+    },
+    {
+      "area": "format",
+      "advice": "Portrait 1080 × 1920, as the most viewed are.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "recordingResolution",
+          "link": "res",
+          "value": "1080x1920"
+        }
+      ],
+      "traits": [
+        "portrait"
+      ]
+    },
+    {
+      "area": "mode",
+      "advice": "\"escaping rings\" ranks above the rest: its 7 videos have a median view percentile of 86 against 43 for the others (74 without the best of them): play it with classic, accumulation, shatter, spiralGlass, grow.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "classic"
+        },
+        {
+          "kind": "mode",
+          "name": "accumulation"
+        },
+        {
+          "kind": "mode",
+          "name": "shatter"
+        },
+        {
+          "kind": "mode",
+          "name": "spiralGlass"
+        },
+        {
+          "kind": "mode",
+          "name": "grow"
+        }
+      ],
+      "traits": []
+    },
+    {
+      "area": "blueprint",
+      "advice": "As a Blueprint: rings with a gap that break on a pass: arena.shape rings with rings.breakOnPass. Check it with bp-check until it is playable.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "blueprint",
+          "name": "ringBreaker"
+        },
+        {
+          "kind": "blueprint",
+          "name": "growEscape"
+        },
+        {
+          "kind": "tool",
+          "name": "bp-check"
+        }
+      ],
+      "traits": []
+    },
+    {
+      "area": "mode",
+      "advice": "\"drops and piles\" ranks above the rest: its 7 videos have a median view percentile of 61 against 47 for the others (49 without the best of them): play it with drop, conveyor, accumulation, perfectFit, multipliers.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "drop"
+        },
+        {
+          "kind": "mode",
+          "name": "conveyor"
+        },
+        {
+          "kind": "mode",
+          "name": "accumulation"
+        },
+        {
+          "kind": "mode",
+          "name": "perfectFit"
+        },
+        {
+          "kind": "mode",
+          "name": "multipliers"
+        }
+      ],
+      "traits": []
+    }
+  ],
+  "examples": [
+    {
+      "title": "Will the ball escape? #asmr #simulation #satisfying",
+      "url": "https://www.tiktok.com/@funcflow/video/7347255506760682772",
+      "platform": "tiktok",
+      "views": 80100000,
+      "viewsPerDay": 84029,
+      "durationSec": 51,
+      "query": null
+    },
+    {
+      "title": "I think he can't sing to the end anymore because I made the hole in t...",
+      "url": "https://www.tiktok.com/@satisfying.daddy/video/7502825659597720850",
+      "platform": "tiktok",
+      "views": 36900000,
+      "viewsPerDay": 69070,
+      "durationSec": 79,
+      "query": null
+    },
+    {
+      "title": "Can the ball escape within 50 seconds?✨ #bouncingball #escape #python...",
+      "url": "https://www.tiktok.com/@bbounce3000/video/7436898949878893857",
+      "platform": "tiktok",
+      "views": 32000000,
+      "viewsPerDay": 44929,
+      "durationSec": 47,
+      "query": null
+    },
+    {
+      "title": "can my computer handle 100,000 rings? #bouncingball #simulation #cod...",
+      "url": "https://www.tiktok.com/@visualizing_magic/video/7473433595575831831",
+      "platform": "tiktok",
+      "views": 14500000,
+      "viewsPerDay": 23645,
+      "durationSec": 76,
+      "query": null
+    },
+    {
+      "title": "Bouncing ball edging (RTX ON 😎) #satisfying #asmr #simulation #physics",
+      "url": "https://www.tiktok.com/@funcflow/video/7359842890673114376",
+      "platform": "tiktok",
+      "views": 7100000,
+      "viewsPerDay": 7724,
+      "durationSec": 47,
+      "query": null
+    },
+    {
+      "title": "#bouncingball #satisfyingvideos #relaxing #physics",
+      "url": "https://www.tiktok.com/@music.bouncing.ba/video/7611528480647286038",
+      "platform": "tiktok",
+      "views": 7000000,
+      "viewsPerDay": 29017,
+      "durationSec": 44,
+      "query": null
+    },
+    {
+      "title": "#simulation #satisfyingvideos #relaxing #physics #bouncingball",
+      "url": "https://www.tiktok.com/@eggsimulation/video/7677167919528201505",
+      "platform": "tiktok",
+      "views": 5900000,
+      "viewsPerDay": 91843,
+      "durationSec": 63,
+      "query": null
+    }
+  ]
+}

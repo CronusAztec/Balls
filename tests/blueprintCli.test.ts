@@ -3,9 +3,9 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import { BLUEPRINT_TOOLS, ENGINE_TOOLS } from "../scripts/agent/cli.mjs";
 import { BLUEPRINTKIT_ENTRY, TOOLCORE_ENTRY } from "../scripts/agent/bundle.mjs";
-import { AGENT_TOOLS, BLUEPRINT_INPUT_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { AGENT_TOOLS, BLUEPRINT_INPUT_TOOLS, LINK_MAX_CHARS, checkToolArgs } from "@/lib/agentKit/tools";
 import { blueprintInput } from "@/lib/agentKit/blueprintKit";
-import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_JSON_MAX_BYTES, applyBlueprintParams, blueprintDigest, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, parseParamValues, playabilityCheck, sanitizeBlueprint, validateBlueprint } from "@/lib/blueprint";
 
 /*
  * --- blueprint --- The agent toolbox's Blueprint tools end to end (`npm run -s agent -- bp-… --json '{…}'`): one JSON result a
@@ -108,6 +108,67 @@ describe("blueprint tools: end to end", () => {
     expect(docs.json.result).toMatchObject({ file: "docs/agents/BLUEPRINTS.md", current: true });
     expect(docs.json.result.markdown).toBeUndefined();
   }, 120_000);
+
+  // --- review fix (blueprint) --- a tuned Mode Lab link is judged as the page plays it, never as the spec's defaults
+  it("reads a link's slider values (blv) and a catalog game's link (blp), and a call's params take the place of the link's", () => {
+    const code = encodeBlueprint(catalogBlueprint("ringBreaker"));
+    expect(blueprintInput({ code: `/en/simulator/?mode=blueprint&bls=${code}&blv=3,60` })).toMatchObject({ ok: true, source: "code", catalogId: "", params: [3, 60], paramsFrom: "link" });
+    expect(blueprintInput({ code: `mode=blueprint&bls=${code}&blv=,45` })).toMatchObject({ ok: true, params: [null, 45], paramsFrom: "link" });
+    expect(blueprintInput({ code })).toMatchObject({ ok: true, params: [], paramsFrom: null });
+    const preset = blueprintInput({ code: "https://example.org/pl/simulator/?mode=blueprint&blp=conquer&blv=4" });
+    expect(preset).toMatchObject({ ok: true, source: "catalog", catalogId: "conquer", params: [4], paramsFrom: "link" });
+    expect(preset.ok && sanitizeBlueprint(preset.raw).blueprint).toEqual(catalogBlueprint("conquer"));
+    expect(blueprintInput({ code: `?mode=blueprint&bls=${code}&blv=3,60`, params: "5" })).toMatchObject({ ok: true, params: [5], paramsFrom: "params" });
+    expect(blueprintInput({ catalog: "ringBreaker", params: "3" })).toMatchObject({ ok: true, source: "catalog", catalogId: "ringBreaker", params: [3], paramsFrom: "params" });
+    expect(blueprintInput({ code: "?mode=blueprint&blp=nope" })).toMatchObject({ ok: false, error: expect.stringMatching(/Unknown catalog id "nope"/) });
+    expect(blueprintInput({ code: "?mode=blueprint&blv=3" })).toMatchObject({ ok: false, error: expect.stringMatching(/holds no Blueprint/) });
+    // (a link whose game cannot be read is refused: the page would play a catalog game in its place)
+    expect(blueprintInput({ code: "?mode=blueprint&blp=conquer&bls=b1.AAAA" })).toMatchObject({ ok: false, error: expect.stringMatching(/could not be read/) });
+    for (const tool of BLUEPRINT_INPUT_TOOLS) expect(checkToolArgs(tool, { catalog: "ringBreaker", params: "3,60" }).ok, tool).toBe(true);
+  });
+
+  it("bp-check, bp-validate and bp-link play a tuned link's game: Ring Breaker with 3 rings and 60° gaps, not its 8 rings", () => {
+    const code = encodeBlueprint(catalogBlueprint("ringBreaker"));
+    const link = `/en/simulator/?mode=blueprint&bls=${code}&blv=3,60`;
+    const played = applyBlueprintParams(catalogBlueprint("ringBreaker"), parseParamValues("3,60")).blueprint;
+    expect(played.arena.rings).toMatchObject({ count: 3, gapDeg: 60 });
+    const expected = playabilityCheck(played);
+    const check = agent("bp-check", { code: link });
+    expect(check.code).toBe(0);
+    expect(check.json.result).toMatchObject({ verdict: expected.verdict, medianFinishSec: expected.medianFinishSec, digest: blueprintDigest(played) });
+    expect(check.json.result.params).toMatchObject({ from: "the link's blv", blv: "3,60", sliders: [{ id: "rings", value: 3, own: 8 }, { id: "gap", value: 60, own: 28 }, { id: "spin", value: 30, own: 30 }] });
+    expect(check.json.result.params.note).toMatch(/the game the link plays/);
+    const validate = agent("bp-validate", { code: link });
+    expect(validate.json.result).toMatchObject({ valid: true, digest: blueprintDigest(played) });
+    expect(validate.json.result.summary).toContain("3 spinning rings with 60° gaps");
+    const tuned = agent("bp-link", { catalog: "ringBreaker", params: "3,60" });
+    expect(tuned.json.result.query).toBe("mode=blueprint&blp=ringBreaker&blv=3,60");
+    expect(agent("bp-link", { code: link }).json.result.query).toBe(`mode=blueprint&bls=${code}&blv=3,60`);
+  }, 180_000);
+
+  // --- review fix (blueprint) --- the largest legal game: bp-link's link is a link simulate, preview and render take
+  it("plays a valid Blueprint near the 6 KB ceiling from the link bp-link gives it: simulate, preview and render take that link", () => {
+    const value = `1 + 0 * (t${" + t".repeat(44)})`;
+    const raw = { v: 1, meta: { name: "Near the ceiling", description: "A spec as big as a link may carry." }, bodies: [{ id: "ball", radius: 10 }], vars: [{ id: "hits" }], spawners: [{ body: "ball", speed: 400 }], rules: Array.from({ length: 12 }, () => ({ when: "wallHit", do: [{ act: "var", id: "hits", op: "add", value }, { act: "var", id: "hits", op: "add", value }] })), finish: { timeoutSec: 20, any: [{ when: "count", what: "hits", atLeast: 300 }] } };
+    expect(validateBlueprint(raw)).toEqual([]);
+    const { blueprint, notes } = sanitizeBlueprint(raw);
+    expect(notes).toEqual([]);
+    const bytes = new TextEncoder().encode(blueprintJson(blueprint)).length;
+    expect(bytes).toBeGreaterThan(BLUEPRINT_JSON_MAX_BYTES - 100);
+    expect(bytes).toBeLessThanOrEqual(BLUEPRINT_JSON_MAX_BYTES);
+    const linked = agent("bp-link", { spec: raw });
+    expect(linked.code).toBe(0);
+    expect(linked.json.result.codeChars).toBeGreaterThan(7900);
+    const link = `https://jumpingballs.live${linked.json.result.link}&seed=3`;
+    expect(link.length).toBeGreaterThan(8000);
+    // the longest legal code, in a full link with room for the other settings, fits the tools' link
+    expect(LINK_MAX_CHARS).toBeGreaterThanOrEqual(BLUEPRINT_CODE_MAX_CHARS + 4000);
+    for (const tool of ["simulate", "preview", "render"]) expect([tool, checkToolArgs(tool, { link }).ok]).toEqual([tool, true]);
+    for (const tool of ["simulate", "preview", "render"]) expect([tool, checkToolArgs(tool, { link: `?${linked.json.result.query}` }).ok]).toEqual([tool, true]);
+    const played = agent("simulate", { link, seconds: 20 });
+    expect(played.code, played.stdout).toBe(0);
+    expect(played.json.result).toMatchObject({ mode: "blueprint", seed: 3, finished: true });
+  }, 180_000);
 
   it("refuses two Blueprints in one call as a usage error (exit 2), and an unknown catalog id as a failure (exit 1)", () => {
     const two = agent("bp-check", { spec: SPEC, catalog: "hatchery" });

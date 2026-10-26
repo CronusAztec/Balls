@@ -31,6 +31,7 @@ trust it over the source.
 | `npx vitest run tests/<file>.test.ts` | One test file. On a small machine add `--maxWorkers=1 --minWorkers=1` |
 | `npm run test:ci` | The whole vitest suite (tier 2, with the four smoke shards; CI runs it with `JBL_REQUIRE_BROWSER=1`) |
 | `npm run changelog:check` | The changelog data, `CHANGELOG.md` and the version agree |
+| `npm run trends -- <run> …` | The only way an `inspire` run reaches the app: writes `src/content/trends.json` (committed; the app's AI reads it) from the runs given, and only those, so pass the earlier runs again to keep them. `npm run trends -- --check` checks the committed file |
 | `npm run smoke` | The browser smoke suite against a served build. `SMOKE_ONLY=core-every-mode` runs one block |
 | `npm run -s agent -- <tool> --json '{…}'` | The agent toolbox: one JSON result per call (see below) |
 
@@ -90,7 +91,9 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 - **free**: new files, catalog data and docs that no core function owns. Tier 0 is enough.
 - **core**: a file one of the 13 core functions owns (`docs/agents/CORE.md`): its code, or a test that proves it. Tier 0,
-  plus that function's smoke blocks in `npm run guard:browser`: tier 0 alone exits 2 until they run.
+  plus that function's smoke blocks in `npm run guard:browser`: tier 0 alone exits 2 until they run. The Blueprint
+  interpreter (`src/lib/blueprint/**`: its language, runtime and catalog) is core: a change there also runs every
+  `tests/blueprint*.test.ts` and the `blueprint` smoke block.
 - **guarded**: a hub file (`hubFiles` in `core.json`, for example `src/lib/physics/engine.ts`, `src/lib/settings.ts`,
   `src/components/simulator/Canvas.tsx` and `messages/*.json`). Most of the suite imports these, so a change needs tier 2.
 - **protected**: a path or region in `scripts/agent/protected.json`. It needs owner review. The guard reports it as a
@@ -110,14 +113,15 @@ Every changed file lands in one zone, listed in the guard report and defined in 
   the budgets of `docs/COPY-STYLE.md` (`tests/copyStyle.test.ts`). Follow `docs/COPY-STYLE.md` for any copy a visitor reads.
 - **One release commit.** The changelog entry (`src/content/changelog.json`), the version bump and `CHANGELOG.md`
   (`npm run changelog`) go in one commit (`docs/RELEASING.md`).
-- **Privacy.** No cookies, ad tags, telemetry-named modules or scraping. No new network host without privacy copy for it
+- **Privacy.** No cookies, ad tags or telemetry-named modules. No new network host without privacy copy for it
   (`tests/legalCopy.test.ts`, `tests/analytics.test.ts`).
 
 ## A new mechanic: the decision tree
 
 1. **Data first.** Try the data-driven blocks a mode already reads: bounce math, obstacles, timeline keyframes, captions
    and teams, set through settings, links and presets. The app's AI makes a "custom mode" the same way: a base mode plus a
-   settings patch (`src/lib/desktop/ai/customMode.ts`).
+   settings patch (`src/lib/desktop/ai/customMode.ts`). `inspire` says which of these levers the most viewed simulation
+   videos pull, measured on the videos themselves.
 2. **A Blueprint.** A mechanic as data run by one sandboxed interpreter: write a spec in the vocabulary of
    `docs/agents/BLUEPRINTS.md` and check it with `bp-validate` and `bp-check` until it is `playable`. The language lives in
    `src/lib/blueprint/`; the site plays any spec in the `blueprint` mode (Mode Lab, `?mode=blueprint&bls=<code>`), with no
@@ -139,7 +143,6 @@ Every changed file lands in one zone, listed in the guard report and defined in 
   Moving, renaming or splitting a test file is no finding, as long as its very `expect(` statements reappear.
 - Never use the TEST licence (`tests/fixtures/license-test-key.json`, `scripts/lib/test-license.mjs`) outside the unit tests
   and the smoke harness. No tool may produce an unwatermarked clip.
-- Never fetch, download, scrape or screen-capture other creators' videos from TikTok, Instagram or YouTube.
 - Never push, rebase, force or deploy unless the owner asks. Never change the deploy gates
   (`deploy/vps/jbl-deploy.sh`, `.github/workflows/`) on your own.
 
@@ -157,7 +160,11 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `preview` | Get a watermarked PNG contact sheet of a link from a local export of your working tree |
 | `render` | Render a watermarked clip through the page's own fast export |
 | `site-shot` | Take PNG screenshots of site pages at phone and desktop widths |
-| `analyse` | Measure a local video file inside the repository (cuts, motion, colour, loudness, tempo) |
+| `analyse` | Measure a video (cuts, motion, colour, loudness, tempo): your own clips, or trending videos from any site (a file or a link) |
+| `frames` | Get a video's frames and contact sheets (its first 3 s in finer steps) to look at with a vision-capable model |
+| `trending` | Find trending and viral videos: a YouTube search, its Shorts feed and any TikTok, Instagram or YouTube links |
+| `fetch-video` | Download one video (TikTok, Instagram, YouTube or any site) into `.agent-out/inbox/` with its numbers |
+| `inspire` | Learn from trending videos: fetch, measure and frame the top ones, and get a report in our own levers |
 | `guard` | Run the core guard and return its report (`{"plan":true}` for the static checks alone) |
 | `explain` | Sort a failure into a source pin, a behaviour change, a fingerprint and so on, with the legitimate fix |
 | `bp-schema` | Get the Blueprint language: its JSON Schema (full or Lite), the prompt vocabulary and the ceilings |
@@ -168,14 +175,18 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
-Every tool writes its results only under `.agent-out/`, refuses paths outside the repository and URLs, starts no shell, and
-uses no network except its own 127.0.0.1 server. The two owner-run tools call only the owner's own host, with the owner's
+Every tool writes its results only under `.agent-out/`, reads files inside the repository, starts no shell, and uses no
+network except its own 127.0.0.1 server and, for the video tools (`analyse` and `frames` with a link, `trending`,
+`fetch-video`, `inspire`), the video sites yt-dlp reads (`yt-dlp` on the PATH or `JBL_YTDLP`; a link that names this machine
+or its private network, or whose host resolves there when it is checked, is refused: a check of the link, not a firewall, as
+yt-dlp follows redirects). Downloads land in `.agent-out/inbox/`. The two owner-run tools call only the owner's own host, with the owner's
 key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of your own cache folder
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
 
-**MCP.** The MCP server exposes 14 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
-`guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and `bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
+**MCP.** The MCP server exposes 18 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
+`frames`, `trending`, `fetch-video`, `inspire`, `guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and
+`bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
 hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
 result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
 200 KB. The guard's `baseline` and `base` are CLI-only (a baseline excuses failures, a later base hides committed ones), and
@@ -213,6 +224,10 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 - The guard's static checks run in CI as annotations only (`continue-on-error`): they block no build and no deploy. Making
   them a gate is the owner's call. The VPS deployer's gating and the deploy job are unchanged.
 - That batch changed nothing visitors see and bumped no version.
+- Agents and tools may search, download and analyse other creators' trending and viral videos (TikTok, Instagram,
+  YouTube or any site) to learn from them and make the clips better. Downloads go to `.agent-out/`, which git ignores.
+  The toolbox does it: `trending`, `fetch-video`, `frames` and `inspire`, whose dataset grows across runs, and
+  `npm run trends` turns the reports into the summary the app reads (`docs/agents/CLI.md`, "How to refresh the summary").
 
 ## Read next
 

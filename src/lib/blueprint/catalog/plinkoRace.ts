@@ -1,6 +1,9 @@
 /*
  * --- blueprint --- Catalog: Peg Race (race). Four coloured balls drop through a field of pegs into a bowl whose only exit
  * keeps turning; the first ball out wins. Every peg a ball hits plays a note, higher up the board higher the note.
+ * --- review fix (blueprint) --- The exit starts at the left and turns over the top towards the floor, where the balls
+ * come to rest, so it always turns: below 15°/s the race is a long wait for it (a still exit was a minute of balls on the
+ * floor), and above 35°/s it sweeps past them too fast to drop through – at its narrowest (8°) as at its widest.
  */
 export const plinkoRace = {
   v: 1,
@@ -25,7 +28,7 @@ export const plinkoRace = {
   sound: { scale: "major", root: 7 },
   params: [
     { id: "exit", label: "exit width", at: "arena.exits[0].widthDeg", min: 8, max: 40, step: 1 },
-    { id: "spin", label: "exit spin", at: "arena.spinDegPerSec", min: 0, max: 90, step: 5 },
+    { id: "spin", label: "exit spin", at: "arena.spinDegPerSec", min: 15, max: 35, step: 5 },
     { id: "rows", label: "peg rows", at: "obstacles[0].rows", min: 2, max: 6, step: 1 },
   ],
 } as const;

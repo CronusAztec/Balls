@@ -13,8 +13,10 @@
  *     step, never past BLUEPRINT_BALL_CEILING: ARENA FULL, counted), the finish is checked (runtime/finish.ts), and the
  *     step's sounds and effects go to the engine.
  *
- * Fault containment: only the rule dispatch is wrapped – should it ever throw, the rules stop and the run ends 1 s later with
- * reason "fault"; nothing is ever thrown out of the engine. Randomness: only the run's own seeded generator (the mode seeds
+ * Fault containment: the rule dispatch is wrapped – should it ever throw, the rules stop and the run ends 1 s later with
+ * reason "fault". --- review fix (blueprint) --- So is every other hook: should the physics callbacks (a ball's contacts,
+ * the pair pass) or the step's own bookkeeping ever throw, the fault is counted (`crashes`, and `faults`), the ball or the
+ * pair pass it came from stops, and the run ends the same way; nothing is ever thrown out of the engine. Randomness: only the run's own seeded generator (the mode seeds
  * it from ctx.random() once, so the engine's other draws – the cinematic director's – never shift it), drawn only where the
  * spec asks for it. No clock: a seed replays exactly. A finished run keeps its world turning (the balls still bounce under
  * the end banner) but records, plays and fires nothing more.
@@ -24,7 +26,7 @@ import { evaluateBlueprintFormula, SLOT } from "../formula";
 import type { Blueprint, FxKind, Trigger, Voice, VoiceTrigger } from "../schema";
 import { compileBlueprint, type CompiledBlueprint, type CompiledNum } from "./compile";
 import { EventQueue, type WorldEvents } from "./events";
-import { checkFinish } from "./finish";
+import { checkFinish, endWithFault } from "./finish";
 import { countRules, dispatch } from "./rules";
 import { placeBalls } from "./actions";
 import { BlueprintWorld, MIN_HIT_SPEED, type NewWorldBall, type WorldBall } from "./world";
@@ -45,12 +47,23 @@ export interface RunStats {
   /** Actions that had nothing to act on or a meaningless result (a formula giving NaN, a merge without another ball…). */
   refusedActions: number;
   faults: number;
+  /**
+   * --- review fix (blueprint) --- Faults outside the rules (counted in `faults` too): a physics callback or the step's
+   * bookkeeping threw. The sandbox contains them; the check says the game stopped on an error.
+   */
+  crashes: number;
   /** Balls that went non-finite and were taken out. */
   nanBalls: number;
   /** --- review fix (blueprint) --- Balls past the speed ceiling (BLUEPRINT_SPEED_CEILING) that were taken out. */
   fastBalls: number;
   /** --- review fix (blueprint) --- Sub-steps whose ball-pair tests ran past their share of the step's (the rest skipped). */
   droppedPairs: number;
+  /** --- review fix (blueprint) --- Ball sub-steps that skipped their tile sweep, past the step's tile budget (BLUEPRINT_TILE_TESTS_PER_STEP). */
+  droppedTiles: number;
+  /** --- review fix (blueprint) --- The run's tile work: tiles looked at and tested, tile-grid cells visited (TileField.stats). */
+  tileTests: number;
+  /** --- review fix (blueprint) --- The run's tile sweeps (TileField.stats.queries: up to four a ball's sub-step among tiles). */
+  tileSweeps: number;
   /** --- review fix (blueprint) --- Actions dropped because the step's actions had already changed BLUEPRINT_ACTION_BALLS_PER_STEP balls. */
   droppedActions: number;
   /** --- review fix (blueprint) --- Ball sub-steps of the run (each ball's move and contacts in one sub-step: a work count). */
@@ -59,8 +72,9 @@ export interface RunStats {
   actionBalls: number;
   /**
    * --- review fix (blueprint) --- The run's work so far, in units a tab pays for (deterministic, about 30 ns each in Node):
-   * ball sub-steps, events, rule firings, the balls their actions changed, contact tests and pair-grid items walked, and the
-   * pairs found overlapping, each weighted by what it costs (STEP_COST). The check judges a step by it.
+   * ball sub-steps, events, rule firings, the balls their actions changed, contact tests and pair-grid items walked, the
+   * pairs found overlapping, and the tile work and sweeps, each weighted by what it costs (STEP_COST). The check judges a
+   * step by it.
    */
   cost: number;
   sounds: number;
@@ -132,9 +146,11 @@ export interface StepEffect {
  * the catalog and the review's hostile specs): a ball's sub-step (its move, tiles, obstacles, arena) and an event dominate,
  * a pair test or a grid item walked is cheap, and a pair found overlapping – resolved and looked up in the step's reported
  * pairs – costs about a ball's sub-step's tenth (400 balls the size of the arena that pass through each other overlap in
- * every pair test: 60,000 a step, the most of any spec measured).
+ * every pair test: 60,000 a step, the most of any spec measured). --- review fix (blueprint) --- Tile work weighs a unit an
+ * item (a tile looked at or tested, a tile-grid cell visited: 20-35 ns measured, sectors the dearest) and a sweep five (its
+ * set-up and its rebound): 60 balls the size of the arena over 600 tiles did 630,000 items a step, 14 ms.
  */
-export const STEP_COST = { ballStep: 10, event: 20, firing: 20, actionBall: 5, pairTest: 0.1, overlap: 1.2 } as const;
+export const STEP_COST = { ballStep: 10, event: 20, firing: 20, actionBall: 5, pairTest: 0.1, overlap: 1.2, tileTest: 1, tileSweep: 5 } as const;
 
 /** A count from a slot's value: whole, from 0 to `max`; −1 for a value that means nothing. */
 function wholeCount(v: number, max: number): number {
@@ -165,9 +181,13 @@ export class BlueprintRun implements WorldEvents {
     droppedFirings: 0,
     refusedActions: 0,
     faults: 0,
+    crashes: 0,
     nanBalls: 0,
     fastBalls: 0,
     droppedPairs: 0,
+    droppedTiles: 0,
+    tileTests: 0,
+    tileSweeps: 0,
     droppedActions: 0,
     ballSteps: 0,
     actionBalls: 0,
@@ -205,6 +225,8 @@ export class BlueprintRun implements WorldEvents {
   firstOutTeam = -1;
   lastOutTeam = -1;
   rulesOff = false;
+  /** --- review fix (blueprint) --- The pair pass threw once: it stays off for the run (the balls pass through each other). */
+  pairsOff = false;
   faultAt = -1;
   faultStep = -1;
   teamsSeen = 0;
@@ -245,9 +267,13 @@ export class BlueprintRun implements WorldEvents {
     this.spawnerMade = new Array(bp.spawners.length).fill(0);
     this.escapedByBody = new Array(bp.bodies.length).fill(0);
     // the first balls: every spawner due at 0 s places its balls at once (so the engine adds no default ball of its own)
-    this.runSpawners(true);
-    this.drainSpawns(Infinity);
-    this.noteBalls();
+    try {
+      this.runSpawners(true);
+      this.drainSpawns(Infinity);
+      this.noteBalls();
+    } catch {
+      this.crash(); // --- review fix (blueprint) --- (never thrown out of the engine's initMode)
+    }
   }
 
   get finished(): boolean {
@@ -260,8 +286,16 @@ export class BlueprintRun implements WorldEvents {
 
   /* ------------------------------------------------------------------ the engine's hooks */
 
-  /** onPreUpdate: the clock, the spawners, the turning parts. */
+  /** onPreUpdate: the clock, the spawners, the turning parts (under fault containment). */
   preStep(dtMs: number): void {
+    try {
+      this.beginStep(dtMs);
+    } catch {
+      this.crash();
+    }
+  }
+
+  private beginStep(dtMs: number): void {
     const dt = dtMs / 1000;
     this.timeSec += dt;
     this.world.advance(dt);
@@ -292,21 +326,65 @@ export class BlueprintRun implements WorldEvents {
     this.runSpawners(false);
   }
 
-  /** onBallStep: one engine ball's contacts in this sub-step (a ball the world does not know – a ghost – is left alone). */
+  /**
+   * onBallStep: one engine ball's contacts in this sub-step (a ball the world does not know – a ghost – is left alone). ---
+   * review fix (blueprint) --- Should they ever throw, the ball is taken out and the fault counted (crash()).
+   */
   ballStep(ball: Ball, dtSec: number): void {
     const wb = this.world.byId.get(ball.id);
     if (!wb) return;
     this.stats.ballSteps++;
-    this.world.ballStep(wb, dtSec, this);
+    try {
+      this.world.ballStep(wb, dtSec, this);
+    } catch {
+      wb.alive = false;
+      this.crash();
+    }
   }
 
-  /** onPostSubStep: the balls against each other. */
+  /** onPostSubStep: the balls against each other (--- review fix (blueprint) --- a pass that throws is stopped for the run, counted). */
   subStep(): void {
-    this.world.collidePairs(this);
+    this.world.endSubStep();
+    if (this.pairsOff) return;
+    try {
+      this.world.collidePairs(this);
+    } catch {
+      this.pairsOff = true;
+      this.crash();
+    }
   }
 
-  /** onPostUpdate: the rules, the sweep, the new balls, the finish, the sounds. */
+  /**
+   * --- review fix (blueprint) --- A fault outside the rules: counted (crashes, faults), the rules stop, and the run ends 1 s
+   * later with reason "fault" – at once when it is the step's bookkeeping that threw, as the step that would end it may
+   * never come.
+   */
+  private crash(bookkeeping = false): void {
+    this.stats.crashes++;
+    this.stats.faults++;
+    this.rulesOff = true;
+    if (this.faultAt < 0) {
+      this.faultAt = this.timeSec;
+      this.faultStep = this.stats.steps;
+    }
+    if (!bookkeeping || this.done.finished) return;
+    try {
+      endWithFault(this);
+    } catch {
+      this.done = { finished: true, reason: "fault", condition: -1, timeSec: this.timeSec, winner: -1, result: "STOPPED" };
+    }
+  }
+
+  /** onPostUpdate: the rules, the sweep, the new balls, the finish, the sounds (under fault containment). */
   postStep(): void {
+    try {
+      this.endStep();
+    } catch {
+      this.crash(true);
+    }
+  }
+
+  private endStep(): void {
     if (this.done.finished) {
       this.world.cull();
       this.world.sweep(this.ctx);
@@ -331,9 +409,20 @@ export class BlueprintRun implements WorldEvents {
     this.stats.nanBalls = this.world.nanBalls;
     this.stats.fastBalls = this.world.fastBalls;
     this.stats.droppedPairs = this.world.droppedPairs;
+    this.stats.droppedTiles = this.world.droppedTiles;
+    this.stats.tileTests = this.world.tileTests();
+    this.stats.tileSweeps = this.world.tiles.stats.queries;
     this.stats.contacts = this.world.work;
     const st = this.stats;
-    st.cost = STEP_COST.ballStep * st.ballSteps + STEP_COST.event * st.events + STEP_COST.firing * st.firings + STEP_COST.actionBall * st.actionBalls + STEP_COST.pairTest * (this.world.work + this.world.pairVisits) + STEP_COST.overlap * this.world.overlaps;
+    st.cost =
+      STEP_COST.ballStep * st.ballSteps +
+      STEP_COST.event * st.events +
+      STEP_COST.firing * st.firings +
+      STEP_COST.actionBall * st.actionBalls +
+      STEP_COST.pairTest * (this.world.work + this.world.pairVisits) +
+      STEP_COST.overlap * this.world.overlaps +
+      STEP_COST.tileTest * st.tileTests +
+      STEP_COST.tileSweep * st.tileSweeps;
     checkFinish(this);
     this.flush();
   }
@@ -366,7 +455,13 @@ export class BlueprintRun implements WorldEvents {
 
   /* ------------------------------------------------------------------ the clock and the spawners */
 
+  /**
+   * Queues an event for the rules. --- review fix (blueprint) --- An event no rule listens to is not queued: it never uses
+   * the step's event budget (a crowd's contacts would crowd out the tile a rule waits for). Its count, sound and payoff
+   * are the caller's, already done.
+   */
   private push(trigger: Trigger, self: WorldBall | null, other: WorldBall | null, tile: number, rule: number) {
+    if (rule < 0 && this.compiled.byTrigger[trigger].length === 0) return;
     if (!this.queue.push(trigger, self, other, tile, rule)) {
       this.stats.droppedEvents++;
       return;
@@ -557,17 +652,17 @@ export class BlueprintRun implements WorldEvents {
     if (broke) this.push("tileBroken", ball, null, tile, -1);
   }
 
+  /**
+   * A contact that starts: `a` is self, the ball that was faster before it (the world measured both before the bounce –
+   * --- review fix (blueprint) --- after it, a head-on hit of equal balls has swapped their speeds).
+   */
   ballHit(a: WorldBall, b: WorldBall, impact: number): void {
     if (this.done.finished) return;
     if (impact >= MIN_HIT_SPEED) {
       this.ctx.noteCollide?.(a.ball, b.ball); // --- bounce-math --- a ball-to-ball hit
       this.voice("ballHit", Math.max(a.tier, b.tier) - 1, impact);
     }
-    // the faster ball is self (ties: the older one)
-    const sa = a.vx * a.vx + a.vy * a.vy;
-    const sb = b.vx * b.vx + b.vy * b.vy;
-    const aFirst = sa > sb || (sa === sb && a.id < b.id);
-    this.push("ballHit", aFirst ? a : b, aFirst ? b : a, -1, -1);
+    this.push("ballHit", a, b, -1, -1);
   }
 
   ringPass(ball: WorldBall, ring: number): void {
@@ -722,6 +817,13 @@ export class BlueprintRun implements WorldEvents {
       }
       case "time":
         return this.timeSec;
+      // --- review fix (blueprint) --- balls that still fit through an exit (between its two edges)
+      case "fit": {
+        const fit = this.world.exitFitRadius();
+        let k = 0;
+        for (const b of this.world.balls) if (b.alive && (of < 0 || b.body === of) && b.r <= fit) k++;
+        return k;
+      }
       default: {
         const v = this.compiled.varIndex.get(what);
         return v === undefined ? 0 : this.vars[v];

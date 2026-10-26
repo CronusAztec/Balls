@@ -105,26 +105,64 @@ describe("blueprint catalog: the sliders", () => {
 describe("blueprint catalog: endings a clip can use", () => {
   it("Grow or Go has both endings, is never out in its first 6 s and loses on the bounce the ball stops fitting", () => {
     const bp = catalogBlueprint("growEscape");
-    let escapes = 0;
-    let early = 0;
-    for (let seed = 1; seed <= 20; seed++) {
-      const r = new HeadlessBlueprint(bp, { seed }).runToEnd();
-      expect(r.reason, `seed ${seed}`).toBe("condition");
-      if (r.condition === 0) {
-        escapes++;
-        if (r.timeSec < 6) early++;
-        expect(r.result, `seed ${seed}`).toMatch(/^ESCAPED AFTER BOUNCE \d+$/);
-      } else expect(r.result, `seed ${seed}`).toBe("TOO BIG TO ESCAPE");
-    }
-    expect(escapes).toBeGreaterThanOrEqual(6);
-    expect(20 - escapes).toBeGreaterThanOrEqual(6);
-    expect(early).toBe(0);
-    // the loss line is the first bounce at which the ball no longer fits through the exit (between its two posts)
+    // the most a ball's radius may be to pass between the exit's two edges (round walls of 2 px at the 207 px rim)
     const R = 225 * bp.arena.size;
     const fit = R * Math.sin(((bp.arena.exits[0].widthDeg / 2) * Math.PI) / 180) - 2;
     const grow = bp.rules[0].do[0];
     const by = grow.act === "grow" && typeof grow.by === "number" ? grow.by : NaN;
-    expect(bp.finish.any[1].atLeast).toBe(Math.floor((fit - bp.bodies[0].radius) / by) + 1);
+    let escapes = 0;
+    let early = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const h = new HeadlessBlueprint(bp, { seed });
+      const r = h.runToEnd();
+      expect(r.reason, `seed ${seed}`).toBe("condition");
+      const ball = h.world.balls[0];
+      if (r.condition === 0) {
+        escapes++;
+        if (r.timeSec < 6) early++;
+        expect(r.result, `seed ${seed}`).toMatch(/^ESCAPED AFTER BOUNCE \d+$/);
+      } else {
+        expect(r.result, `seed ${seed}`).toBe("TOO BIG TO ESCAPE");
+        // --- review fix (blueprint) --- (the bounce it stops fitting: one bounce smaller it still fitted)
+        expect([seed, ball.r > fit, ball.r - by <= fit]).toEqual([seed, true, true]);
+      }
+    }
+    expect(escapes).toBeGreaterThanOrEqual(6);
+    expect(20 - escapes).toBeGreaterThanOrEqual(6);
+    expect(early).toBe(0);
+    // the loss is the world's own count of balls that still fit (count fit atMost 0), not a number of bounces
+    expect(new HeadlessBlueprint(bp, { seed: 1 }).world.exitFitRadius()).toBeCloseTo(fit, 9);
+    expect(bp.finish.any[1]).toMatchObject({ when: "count", what: "fit", atMost: 0, atLeast: null });
+    // a 21° exit and an 8 px ball growing 1 px a bounce: it outgrows the exit on bounce 28
+    expect(Math.floor((fit - bp.bodies[0].radius) / by) + 1).toBe(28);
+  });
+
+  // --- review fix (blueprint) --- TOO BIG TO ESCAPE at 23 s over a 13.6 px ball that then left through a 35 px exit (growth 0.2)
+  it("Grow or Go says TOO BIG TO ESCAPE only once the ball no longer fits, and it never gets out under the banner, at every slider end", () => {
+    const bp = catalogBlueprint("growEscape");
+    const ids = bp.params.map((p) => p.id);
+    expect(ids).toEqual(["grow", "exit", "size"]);
+    const cases: (number | null)[][] = [[null, null, null], [0.2, null, null], [3, null, null], [null, 14, null], [null, 40, null], [null, null, 4], [null, null, 20], [0.2, 14, 20], [0.2, 40, 4]];
+    let losses = 0;
+    for (const values of cases) {
+      const played = applyBlueprintParams(bp, values).blueprint;
+      const fit = 225 * played.arena.size * Math.sin(((played.arena.exits[0].widthDeg / 2) * Math.PI) / 180) - 2;
+      // (every starting size fits through every exit width: the loss can always happen)
+      expect([values, played.bodies[0].radius <= fit]).toEqual([values, true]);
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const h = new HeadlessBlueprint(played, { seed });
+        const r = h.runToEnd();
+        const tag = `${values.join(",")} seed ${seed}`;
+        expect([tag, r.reason]).toEqual([tag, "condition"]);
+        if (r.result !== "TOO BIG TO ESCAPE") continue;
+        losses++;
+        expect([tag, h.world.balls[0].r > fit]).toEqual([tag, true]);
+        // the clip goes on under the banner: 15 s of it, and the ball is still in the arena
+        for (let i = 0; i < 15 * 60; i++) h.step();
+        expect([tag, h.stats.escaped, h.world.aliveCount()]).toEqual([tag, 0, 1]);
+      }
+    }
+    expect(losses).toBeGreaterThanOrEqual(10);
   });
 
   it("Ring Breaker keeps its whole swarm on screen under the end banner: the rings sit inside a solid rim", () => {
@@ -232,5 +270,34 @@ describe("blueprint catalog: the visitor's words", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  // --- review fix (blueprint) --- "1 RINGS LEFT", "QUEDAN 1 ANILLOS": a count filled into a line before the noun it counts
+  it("never writes a count right before the noun it counts, so a result line reads right for one as for many", () => {
+    /** The first letters of a word, so a plural, a genitive or a case ending still matches (PIERŚCIENI ~ pierścienie). */
+    const stem = (word: string) => word.toLocaleLowerCase("pl").slice(0, 5);
+    const offenders: string[] = [];
+    const checkLine = (where: string, line: string, nouns: Set<string>) => {
+      // a count placeholder ([rings] in a message, {rings} in a spec) and the word right after it (a full stop ends it: "PO 4. ODBICIU")
+      for (const m of line.matchAll(/[[{]([a-z][a-z0-9]*)[\]}] +(\p{L}+)/gu)) {
+        if (m[1] === "winner" || m[1] === "time") continue;
+        if (nouns.has(stem(m[2]))) offenders.push(`${where}: ${line}`);
+      }
+    };
+    for (const id of BLUEPRINT_CATALOG_IDS) {
+      const bp = catalogBlueprint(id);
+      // the counted things are what the HUD calls them (its labels), in each language
+      const nounsOf = (labels: string[]) => new Set(labels.flatMap((l) => l.split(/\s+/)).map(stem));
+      const own = nounsOf(bp.hud.map((h) => h.label));
+      [...bp.finish.any.map((c) => c.say), bp.finish.timeoutSay].forEach((line) => checkLine(`${id} (spec)`, line, own));
+      for (const [locale, messages] of LOCALES) {
+        const m = messages.Blueprints[id];
+        const nouns = nounsOf(bp.hud.map((_, i) => String(m[`hud${i}`])));
+        for (const key of ["say0", "say1", "say2", "timeoutSay"]) if (typeof m[key] === "string") checkLine(`${locale} ${id}.${key}`, m[key] as string, nouns);
+      }
+    }
+    expect(offenders).toEqual([]);
+    // the line that broke it, now a label with its count after it
+    expect([en.Blueprints.ringBreaker.timeoutSay, pl.Blueprints.ringBreaker.timeoutSay, es.Blueprints.ringBreaker.timeoutSay, catalogBlueprint("ringBreaker").finish.timeoutSay]).toEqual(["RINGS LEFT: [rings]", "ZOSTAŁO PIERŚCIENI: [rings]", "ANILLOS EN PIE: [rings]", "RINGS LEFT: {rings}"]);
   });
 });

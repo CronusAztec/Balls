@@ -69,7 +69,7 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
     expect(byId.get(1)?.result).toEqual({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: SERVER_NAME, version: expect.any(String) }, instructions: expect.stringMatching(/AGENTS\.md/) });
     const tools = (byId.get(2)?.result?.tools ?? []) as { name: string; inputSchema: { type: string }; description: string }[];
     expect(tools.map((t) => t.name)).toEqual(AGENT_TOOLS.filter((t) => t.mcp).map((t) => t.name));
-    expect(tools.map((t) => t.name)).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs"]);
+    expect(tools.map((t) => t.name)).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs"]);
     for (const t of tools) expect(t.inputSchema.type, t.name).toBe("object");
     // the call is the CLI: the same JSON, as text and as structured content
     const cli = spawnSync(process.execPath, [CLI, "simulate", "--json", JSON.stringify(simulateArgs)], { cwd: ROOT, encoding: "utf8" });
@@ -82,10 +82,12 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
     expect(byId.get(5)?.error?.code).toBe(ERR.methodNotFound);
     expect(byId.get(null)?.error?.code).toBe(ERR.parse);
     expect(byId.get(6)?.error).toMatchObject({ code: ERR.invalidParams, message: expect.stringMatching(/Unknown tool "site-stats"/) });
-    expect(byId.get(7)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/never fetch/) }] });
+    // a video link is answered with where to download it for analysis, not refused as one the tools never fetch
+    expect(byId.get(7)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/download the video into \.agent-out\/inbox\/ first/) }] });
+    expect((byId.get(7)?.result?.content as { text: string }[] | undefined)?.[0]?.text).not.toMatch(/never fetch/);
     // stdout carries only protocol messages
     expect(replies.every((r) => r.jsonrpc === "2.0")).toBe(true);
-    expect(stderr).toMatch(/14 tools on stdio/);
+    expect(stderr).toMatch(/18 tools on stdio/);
   }, 120_000);
 });
 
@@ -143,7 +145,7 @@ describe("the MCP wrapper's limits and its children (--- agent-cli ---)", () => 
     expect(REGISTERED.command).toBe("node");
     const { replies, stderr } = await talk([JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } })], 1, 60_000, { args: REGISTERED.args, cwd: path.join(ROOT, "desktop") });
     expect(replies[0]?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
-    expect(stderr).toMatch(/14 tools on stdio/);
+    expect(stderr).toMatch(/18 tools on stdio/);
   }, 60_000);
 });
 
@@ -284,7 +286,7 @@ describe("the MCP wrapper's transport (--- agent-cli ---)", () => {
       const first = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
       const byId = new Map(first.map((r) => [r.id, r]));
       expect(byId.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
-      expect(((byId.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(14);
+      expect(((byId.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(18);
       expect(byId.get(3)?.result).toMatchObject({ isError: false, structuredContent: { kind: "behaviour" } });
       expect(byId.get(4)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/did not build/) }] });
       // the tool core itself broken: initialize and tools/list (the last table that built) still answer, a call says why
@@ -292,7 +294,7 @@ describe("the MCP wrapper's transport (--- agent-cli ---)", () => {
       const second = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
       const again = new Map(second.map((r) => [r.id, r]));
       expect(again.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME }, instructions: expect.stringMatching(/tool core did not build/) });
-      expect(((again.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(14);
+      expect(((again.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(18);
       expect(again.get(3)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/tools\.ts:\d+:\d+/) }] });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

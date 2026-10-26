@@ -1,11 +1,13 @@
 /**
- * --- agent-cli --- `npm run agent -- analyse --json '{"path":"…"}'`: the numeric features of a local video file
+ * --- agent-cli --- `npm run agent -- analyse --json '{"path":"…"}'` (or `{"url":"…"}`): the numeric features of a video
  * (src/lib/videoAnalysis: the ffmpeg arguments, their parsers and the VideoFeatures record), measured with ffmpeg:
- *  1. FFMPEG_PATH when set; 2. the Windows app's bundled ffmpeg (desktop/node_modules/ffmpeg-static, after `npm ci` in
- *  desktop/); 3. `ffmpeg` on the PATH. None: a clear message, nothing measured.
- * Local files only: the path must resolve inside the repository (paths.mjs refuses http(s):, data: and every other URL, and
- * links that lead out); ffmpeg opens it as `file:` with only the file protocol and video demuxers allowed, so nothing it
- * reads can reach the network. The file is read, never copied, uploaded or kept; ffmpeg's scratch output (scdet's metadata)
+ *  1. JBL_FFMPEG, else FFMPEG_PATH, when set; 2. the Windows app's bundled ffmpeg (desktop/node_modules/ffmpeg-static,
+ *  after `npm ci` in desktop/); 3. `ffmpeg` on the PATH. None: a clear message, nothing measured.
+ * Any video: the owner's own clips, or other creators' trending and viral videos from TikTok, Instagram, YouTube or any site.
+ * --- inspiration --- A link (url) is fetched into .agent-out/inbox/ first (videoSources.mjs, as the fetch-video tool does)
+ * and the file is then measured exactly as a path is; a path must be a file inside the repository (paths.mjs refuses links
+ * that lead out of it). ffmpeg opens the file as `file:` with only the file protocol and video demuxers allowed, so a file
+ * cannot make it reach the network. The file is read, never copied, uploaded or kept; ffmpeg's scratch output (scdet's metadata)
  * goes to a temp folder in the agent cache that is removed when the analysis ends. ffmpeg runs with argument arrays (no
  * shell) and a timeout per pass.
  */
@@ -18,7 +20,7 @@ export const PASS_TIMEOUT_MS = 120_000;
 const MAX_STDOUT = 40 * 1024 * 1024;
 const MAX_STDERR = 4 * 1024 * 1024;
 
-/** The ffmpeg to use: { path, source: "FFMPEG_PATH" | "bundled" | "system", version } or null. */
+/** The ffmpeg to use: { path, source: "JBL_FFMPEG" | "FFMPEG_PATH" | "bundled" | "system", version } or null. */
 export function resolveFfmpeg(env = process.env) {
   const probe = (file) => {
     const r = spawnSync(file, ["-hide_banner", "-version"], { encoding: "utf8", timeout: 15_000, windowsHide: true });
@@ -26,6 +28,7 @@ export function resolveFfmpeg(env = process.env) {
     return (/ffmpeg version (\S+)/.exec(r.stdout) ?? [])[1] ?? "unknown";
   };
   const candidates = [];
+  if (env.JBL_FFMPEG) candidates.push({ path: env.JBL_FFMPEG, source: "JBL_FFMPEG" }); // --- inspiration --- the toolbox's own override
   if (env.FFMPEG_PATH) candidates.push({ path: env.FFMPEG_PATH, source: "FFMPEG_PATH" });
   const bundled = path.join(ROOT, "desktop", "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
   if (fs.existsSync(bundled)) candidates.push({ path: bundled, source: "bundled" });
@@ -74,30 +77,50 @@ export function runFfmpeg(ffmpeg, args, { cwd, timeoutMs = PASS_TIMEOUT_MS } = {
 
 const lastLine = (text) => text.trim().split("\n").pop()?.trim() ?? "";
 
-export async function analyseTool(tb, args) {
-  const file = resolveInputFile(args.path);
-  const ffmpeg = resolveFfmpeg();
-  if (!ffmpeg) throw new Error("No ffmpeg found: install the Windows app's (cd desktop && npm ci – ffmpeg-static), install ffmpeg on the PATH, or set FFMPEG_PATH. Nothing was measured.");
-  const sampleHz = args.sampleHz ?? 2;
-  const window = { maxSec: args.maxSec ?? 300 };
+/** --- inspiration --- What analyse and inspire say when there is no ffmpeg. */
+export const NO_FFMPEG = "No ffmpeg found: install the Windows app's (cd desktop && npm ci – ffmpeg-static), install ffmpeg on the PATH, or set JBL_FFMPEG (or FFMPEG_PATH). Nothing was measured.";
+
+/**
+ * --- inspiration --- The picture's end (seconds) when a longer sound track runs on past it (tb.pictureEndSec: a TikTok clip
+ * of a minute can carry the whole song of its "original sound"), else null. One quick pass copies the video's packets to
+ * nothing, decoding none; a pass that fails leaves the banner's duration as it is.
+ */
+export async function pictureEnd(tb, ffmpeg, file, info, cwd) {
+  try {
+    const r = await runFfmpeg(ffmpeg.path, tb.pictureEndArgs(file), { cwd });
+    return r.code === 0 ? tb.pictureEndSec(info, tb.parseProgressSec(Buffer.from(r.stdout).toString("utf8"))) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * --- inspiration --- The VideoFeatures of one file (a real path inside the repository), measured with `ffmpeg`
+ * (resolveFfmpeg's answer): analyse's own measurement, which inspire reuses for every fetched video and our renders. A sound
+ * that runs on past the picture is cut at the picture's end: the length and every pass are the picture's, as a viewer sees it.
+ */
+export async function measureFile(tb, ffmpeg, file, { sampleHz = 2, maxSec = 300 } = {}) {
   const tmp = fs.mkdtempSync(path.join(cacheDir("analyse"), "run-"));
   try {
-    const info = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: tmp })).stderr);
-    if (!info.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read (an MP4, MOV, WebM, MKV, AVI or GIF file is needed)`);
+    const banner = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: tmp })).stderr);
+    if (!banner.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read (an MP4, MOV, WebM, MKV, AVI or GIF file is needed)`);
+    const end = await pictureEnd(tb, ffmpeg, file, banner, tmp);
+    const info = end === null ? banner : { ...banner, durationSec: end };
+    const window = { maxSec: end === null ? maxSec : Math.min(maxSec, end) };
     const check = (pass, r) => {
       if (r.code !== 0) throw new Error(`ffmpeg could not read ${repoRelative(file)} (${pass}: ${lastLine(r.stderr) || `exit ${r.code}`})`);
       return r;
     };
     const [frames, last, cuts, audioStats, pcm] = await Promise.all([
       runFfmpeg(ffmpeg.path, tb.sampleFramesArgs(file, sampleHz, window), { cwd: tmp }).then((r) => check("pictures", r)),
-      runFfmpeg(ffmpeg.path, tb.lastFramesArgs(file), { cwd: tmp }),
+      runFfmpeg(ffmpeg.path, end === null ? tb.lastFramesArgs(file) : tb.lastFramesArgs(file, end), { cwd: tmp }),
       runFfmpeg(ffmpeg.path, tb.cutsArgs(file, "cuts.txt", window), { cwd: tmp }).then((r) => check("cuts", r)),
       info.hasAudio ? runFfmpeg(ffmpeg.path, tb.audioStatsArgs(file, window), { cwd: tmp }) : null,
       info.hasAudio ? runFfmpeg(ffmpeg.path, tb.pcmArgs(file, window), { cwd: tmp }) : null,
     ]);
     const cutsFile = path.join(tmp, "cuts.txt");
     const lastFrames = last.code === 0 ? tb.splitFrames(last.stdout, tb.SAMPLE_BYTES) : [];
-    const features = tb.buildVideoFeatures({
+    return tb.buildVideoFeatures({
       info,
       sampleHz,
       maxSec: window.maxSec,
@@ -108,8 +131,31 @@ export async function analyseTool(tb, args) {
       silences: audioStats && audioStats.code === 0 ? tb.parseSilences(audioStats.stderr, info.durationSec) : [],
       sound: pcm && pcm.code === 0 ? tb.soundFeatures(tb.pcmSamples(pcm.stdout), tb.PCM_RATE) : null,
     });
-    return { file: repoRelative(file), bytes: fs.statSync(file).size, ffmpeg: { source: ffmpeg.source, version: ffmpeg.version }, features };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+export async function analyseTool(tb, args) {
+  const ffmpeg = resolveFfmpeg();
+  // --- inspiration --- a link is fetched first (a file already in .agent-out/inbox/ is reused), then measured as a file
+  let fetched = null;
+  let file;
+  if (args.url !== undefined) {
+    if (!ffmpeg) throw new Error(NO_FFMPEG);
+    const { fetchVideo } = await import("./videoSources.mjs");
+    fetched = await fetchVideo(tb, { url: args.url, maxHeight: args.maxHeight });
+    file = fetched.absolute;
+  } else {
+    file = resolveInputFile(args.path);
+    if (!ffmpeg) throw new Error(NO_FFMPEG);
+  }
+  const features = await measureFile(tb, ffmpeg, file, { sampleHz: args.sampleHz ?? 2, maxSec: args.maxSec ?? 300 });
+  return {
+    file: repoRelative(file),
+    bytes: fs.statSync(file).size,
+    ffmpeg: { source: ffmpeg.source, version: ffmpeg.version },
+    ...(fetched ? { fetched: { url: fetched.url, cached: fetched.cached, meta: fetched.meta } } : {}),
+    features,
+  };
 }

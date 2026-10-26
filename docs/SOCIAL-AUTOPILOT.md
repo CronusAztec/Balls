@@ -229,5 +229,5 @@ Each phase: vitest with stand-in servers, the desktop tests, a read-only review 
 ## 5. Out of scope, on purpose
 
 Posting or replying without a person approving each action; anything that needs the account password or a browser session;
-buying or trading engagement; cross-posting other people's content; TikTok comments and analytics, Instagram caption edits
-(the APIs do not offer them); Facebook, X, Threads, Bluesky (later, same framework).
+buying or trading engagement; TikTok comments and analytics, Instagram caption edits (the APIs do not offer them); Facebook,
+X, Threads, Bluesky (later, same framework).

@@ -7,7 +7,7 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
-## Website 1.15.0 · 2026-10-22
+## Website 1.15.0 · 2026-10-25
 
 Mode Lab and six new games built from rules
 

@@ -55,6 +55,7 @@ const CEILING_WHY: Record<keyof typeof BLUEPRINT_CEILINGS, string> = {
   subStepsPerStep: "sub-steps of one step (beyond it the step shortens: slow motion, or more steps a frame with Slow motion off)", // (--- slow-motion ---)
   pairTestsPerStep: "ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted)",
   pairVisitsPerStep: "pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted)",
+  tileTestsPerStep: "tiles one step's sweeps look at and test, and tile-grid cells they visit (past it a ball's tile sweep is skipped and counted)",
   actionBallsPerStep: "balls the rules' actions change in one step (further actions are dropped and counted)",
 };
 
@@ -108,7 +109,10 @@ export function renderBlueprintDocs(): string {
   p(
     "A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),",
     "`every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.",
-    "An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse.",
+    "An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its",
+    "rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands",
+    "at the tile); only a ballHit whose ball is gone by then is skipped. A contact raises one ballHit, as it starts: balls resting",
+    "on each other or passing through each other raise no more, until they part or a rule changes either one's tier or team.",
   );
   p("## Actions (`do`, up to 4 a rule)", "", table(["Action", "What it does", "Fields and defaults"], ACTIONS.map((a) => [code(a), ACTION_DOCS[a], fields(ACTION_DEFAULTS[a] as Record<string, unknown>)])));
   p("`target` is `self` (the event's ball), `other` (ballHit's second ball) or `all` (every ball of the rule's `of`). A rule with a trigger that has no ball (start, timer, beat, bar, countReached) acts on every ball.");
@@ -164,11 +168,11 @@ export function renderBlueprintDocs(): string {
     "`bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts",
     "only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:",
     "",
-    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
+    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault (a rule's or a crash the sandbox caught), a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests, tile sweeps or actions, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
     "- **endless:** every seed runs into the timeout;",
     "- **broken:** anything else. The feedback says what to change, in plain sentences.",
     "",
-    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size; with the Slow motion switch off the feedback calls it too heavy to play in real time), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).`,
+    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, tile work, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size; with the Slow motion switch off the feedback calls it too heavy to play in real time), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets or tile sweeps past the tile budget (balls that overlap so much, or cover so many tiles, that the sandbox only bounds them).`,
   );
   p(
     "## The Lite form (small local models)",

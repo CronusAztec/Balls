@@ -241,7 +241,9 @@ export function act(run: BlueprintRun, rule: CompiledRule, action: CompiledActio
       self.vx = vx;
       self.vy = vy;
       self.r = r;
-      self.tier = Math.min(L.maxTier, Math.max(self.tier, other.tier) + 1);
+      const tier = Math.min(L.maxTier, Math.max(self.tier, other.tier) + 1);
+      if (tier !== self.tier) self.factsStep = run.world.step; // (its contacts start afresh: --- review fix (blueprint) ---)
+      self.tier = tier;
       other.alive = false;
       run.payoff();
       run.effect("merge", self.x, self.y, self.color, self.r);
@@ -318,7 +320,9 @@ export function act(run: BlueprintRun, rule: CompiledRule, action: CompiledActio
           refuse();
           continue;
         }
-        b.tier = Math.max(1, Math.min(L.maxTier, b.tier + Math.round(by)));
+        const tier = Math.max(1, Math.min(L.maxTier, b.tier + Math.round(by)));
+        if (tier !== b.tier) b.factsStep = run.world.step;
+        b.tier = tier;
       }
       return;
     }
@@ -326,10 +330,12 @@ export function act(run: BlueprintRun, rule: CompiledRule, action: CompiledActio
       const all = targets(run, rule, a.target, self, other);
       if (!all.length) return refuse();
       for (const b of changing(all)) {
+        const was = b.team;
         if (typeof a.to === "number") b.team = a.to;
         else if (a.to === "self") b.team = self ? self.team : b.team;
         else if (a.to === "other") b.team = other ? other.team : b.team;
         else b.team = (b.team + 1) % L.teams;
+        if (b.team !== was) b.factsStep = run.world.step;
       }
       run.payoff();
       return;
@@ -342,7 +348,8 @@ export function act(run: BlueprintRun, rule: CompiledRule, action: CompiledActio
         if (run.world.damageTile(tile, amount)) {
           run.stats.tilesBroken++;
           run.payoff();
-          if (!run.pending.push("tileBroken", self, null, tile, -1)) run.stats.droppedEvents++;
+          // (queued only when a rule listens: --- review fix (blueprint) --- an event no rule reads never uses the budget)
+          if (run.compiled.byTrigger.tileBroken.length > 0 && !run.pending.push("tileBroken", self, null, tile, -1)) run.stats.droppedEvents++;
         }
         return;
       }
