@@ -536,4 +536,94 @@ describe("Tooltips: a slider's range is its usual range, not the setting's limit
     }
     expect(fs.readFileSync(path.join(__dirname, "..", "docs", "COPY-STYLE.md"), "utf8")).toContain(`| Modes.battle.description: ${en.Modes.battle.description} |`);
   });
+
+  // --- unlimited-sizes --- (review fix) one way of saying it: every slider's tip that lets a typed number past the slider says
+  // so in the usual-range sentence, and names the most a run builds wherever a memory-safety ceiling lies past the slider
+  const LOCALES = Object.keys(CATALOGS) as Locale[];
+  const flatten = (node: unknown, prefix = "", out: Record<string, string> = {}): Record<string, string> => {
+    if (typeof node === "string") out[prefix] = node;
+    else if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) flatten(v, prefix ? `${prefix}.${k}` : k, out);
+    return out;
+  };
+  const FLAT: Record<Locale, Record<string, string>> = { en: flatten(en), pl: flatten(pl), es: flatten(es) };
+  /** Every panel slider's tip (its dotted message key) with the setting the slider sets: its settingKey, else RANGES.<key>. */
+  const sliderTips = (): { tip: string; key: string | undefined }[] => {
+    const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : d.name.endsWith(".tsx") ? [path.join(dir, d.name)] : []));
+    const out = new Map<string, { tip: string; key: string | undefined }>();
+    for (const file of files(path.join(__dirname, "..", "src", "components", "simulator"))) {
+      const text = fs.readFileSync(file, "utf8");
+      for (let at = text.indexOf("<Slider"); at >= 0; at = text.indexOf("<Slider", at + 7)) {
+        if (!/\s/.test(text[at + 7] ?? "")) continue; // (<SliderTrack, <Sliders…)
+        let end = at + 7;
+        for (let depth = 0; end < text.length && !(depth === 0 && text.startsWith("/>", end)); end++) depth += text[end] === "{" ? 1 : text[end] === "}" ? -1 : 0;
+        const element = text.slice(at, end);
+        const tipAttr = /\btipKey=(?:"(\w+)"|\{([^}]*)\})/.exec(element);
+        if (!tipAttr) continue;
+        const key = /\bsettingKey="(\w+)"/.exec(element)?.[1] ?? /\brange=\{RANGES\.(\w+)\}/.exec(element)?.[1];
+        const tips = tipAttr[1] ? [tipAttr[1]] : [...(tipAttr[2] ?? "").matchAll(/"(\w+)"/g)].map((m) => m[1]);
+        for (const tip of tips) for (const dotted of Object.keys(FLAT.en).filter((k) => k.endsWith(`.${tip}`))) out.set(`${dotted} ${key}`, { tip: dotted, key });
+      }
+    }
+    return [...out.values()];
+  };
+  /** The usual-range sentence in each locale (a range from an off value: "…ends at 12…"). */
+  const ONE_WAY: Record<Locale, RegExp> = {
+    en: /The slider's usual range (is \S+ to \S+|ends at \S+), and a typed number goes past it\./,
+    pl: /Zwykły zakres suwaka (to \S+|kończy się na \S+), a wpisana liczba może go przekroczyć\./,
+    es: /El rango habitual del deslizador (es de \S+ a \S+|termina en \S+), y un número escrito puede superarlo\./,
+  };
+  /** The other ways the panel said it: "(1–10 on the slider; type any longer time)", "(no maximum; …)", "normal range"… */
+  const OTHER_WAYS: Record<Locale, RegExp> = {
+    en: /on the slider|the slider goes to|slider covers|normal range|no upper limit|no maximum|can be typed|type any|any number typed|any (whole )?number from|any width from|from \d+ up\b/i,
+    pl: /na suwaku|suwak sięga|suwak obejmuje|bez górnej granicy|można wpisać|wpisz dowoln|wpisana dowolna|dowolna liczba wpisana|dowoln\S* (liczb\S* )?(całkowit\S* )?od \d/i,
+    es: /en el control|el deslizador llega|deslizador cubre|control deslizante cubre|rango normal|sin máximo|sin límite superior|se puede escribir|escribe cualquier|cualquier número (entero )?(desde|escrito)|cualquiera desde/i,
+  };
+
+  it("says a typed number past the slider one way in every slider's tip, and calls the slider's range its usual range, in en, pl and es", () => {
+    const tips = sliderTips();
+    expect(tips.length).toBeGreaterThan(300);
+    const offenders: string[] = [];
+    for (const { tip } of tips) {
+      for (const locale of LOCALES) {
+        const text = FLAT[locale][tip];
+        if (OTHER_WAYS[locale].test(text)) offenders.push(`${locale} ${tip}: ${text.slice(0, 100)}`);
+        else if (ONE_WAY.en.test(FLAT.en[tip]) !== ONE_WAY[locale].test(text)) offenders.push(`${locale} ${tip} (not the usual-range sentence): ${text.slice(0, 100)}`);
+      }
+    }
+    // the gate weights' tip, the Wide sliders switch and a value past the slider name the same range the same way
+    const USUAL: Record<Locale, RegExp> = { en: /usual range/, pl: /zwykł\S* zakres/i, es: /rango habitual/ };
+    for (const key of ["Controls.mpGateMixTip", "Controls.comfortMarkTip", "Unlimited.tip", "Uncap.beyondTip"]) for (const locale of LOCALES) if (!USUAL[locale].test(FLAT[locale][key]) || OTHER_WAYS[locale].test(FLAT[locale][key])) offenders.push(`${locale} ${key}: ${FLAT[locale][key]}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("names the most a run builds in every slider's tip that lets a typed number past the slider, wherever a memory-safety ceiling lies past it", () => {
+    const AT_MOST: Record<Locale, string> = { en: "at most", pl: "najwyżej", es: "como mucho" };
+    const offenders: string[] = [];
+    let named = 0;
+    for (const { tip, key } of sliderTips()) {
+      const ceiling = key === undefined ? undefined : (MEMORY_CEILINGS as Record<string, number | undefined>)[key];
+      const range = key === undefined ? undefined : (RANGES as unknown as Record<string, { max: number } | undefined>)[key];
+      if (ceiling === undefined || !range || ceiling <= range.max || !ONE_WAY.en.test(FLAT.en[tip])) continue;
+      named++;
+      const digits = String(ceiling).replace(/\B(?=(\d{3})+(?!\d))/g, "[,.\\s\\u00a0\\u202f]?"); // (5,000 · 5000 · 10 000 · 10.000)
+      for (const locale of LOCALES) if (!new RegExp(`${AT_MOST[locale]} ${digits}(?!\\d)`).test(FLAT[locale][tip])) offenders.push(`${locale} ${tip} (${key} stops at ${ceiling}): ${FLAT[locale][tip].slice(0, 100)}`);
+    }
+    expect(offenders).toEqual([]);
+    expect(named).toBeGreaterThanOrEqual(45);
+  });
+
+  it("names the Ball Size control by the panel's own label in every tip that names it, in pl and es too", () => {
+    const named = Object.keys(FLAT.en).filter((key) => key !== "Controls.ballSize" && FLAT.en[key].includes(en.Controls.ballSize));
+    expect(named.length).toBeGreaterThanOrEqual(4);
+    // (Polish declines the label's first word: "przy wybranym Rozmiarze piłki")
+    const label: Record<Exclude<Locale, "en">, RegExp> = { pl: new RegExp(pl.Controls.ballSize.replace(/^(\p{L}+)/u, "$1\\p{L}*"), "iu"), es: new RegExp(es.Controls.ballSize, "i") };
+    for (const key of named) expect([key, label.pl.test(FLAT.pl[key]), label.es.test(FLAT.es[key])]).toEqual([key, true, true]);
+  });
+
+  it("says a typed length, not a typed clip, in the FAQ and the press facts, in every locale", () => {
+    const faq: Record<Locale, string> = { en: "you can type a shorter or longer length", pl: "można wpisać krótszy lub dłuższy czas", es: "se puede escribir una duración más corta o más larga" };
+    for (const locale of LOCALES) expect([locale, CATALOGS[locale].FAQ.q2.answer.includes(faq[locale])]).toEqual([locale, true]);
+    expect(es.Press.facts.exportValue).toContain("o una duración más corta o más larga si se escribe");
+    for (const text of LOCALES.flatMap((locale) => [CATALOGS[locale].FAQ.q2.answer, CATALOGS[locale].Press.facts.exportValue])) expect([text, /longer clip|dłuższy klip|un clip más|más cortos o más largos/.test(text)]).toEqual([text, false]);
+  });
 });

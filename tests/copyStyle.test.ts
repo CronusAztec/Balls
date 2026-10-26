@@ -38,10 +38,15 @@ function covered(key: string): boolean {
   if (SITE_NAMESPACES.includes(key.split(".")[0])) return true;
   if (/^(Privacy|Terms|Disclaimer|Account|Press)\.meta(Title|Description)$/.test(key)) return true; // --- seo --- the search snippets of the pages whose body text is legal copy
   if (DOWNLOAD_PREFIXES.some((p) => key === p || key.startsWith(p))) return true;
-  return SECTION_INTRO.test(key) || TIPS.includes(key) || key === COLOUR_SORT_INTRO;
+  return SECTION_INTRO.test(key) || TIPS.includes(key) || RANGE_TIPS.has(key) || key === COLOUR_SORT_INTRO;
 }
 
 const FLAT: Record<Locale, Record<string, string>> = { en: flatten(en), pl: flatten(pl), es: flatten(es) };
+/**
+ * --- unlimited-sizes --- (review fix) The tips that say a typed number goes past the slider's usual range (the usual-range
+ * sentence of tests/wideSliders.test.ts), and the Wide sliders switch's and a value past the slider's notes on that range.
+ */
+const RANGE_TIPS: ReadonlySet<string> = new Set([...Object.keys(FLAT.en).filter((key) => FLAT.en[key].includes("a typed number goes past it")), "Unlimited.tip", "Uncap.beyondTip"]);
 
 /** The covered strings of a locale, the gallery's names and descriptions included (as `Gallery:<id>.name` / `.description`). */
 function coveredStrings(locale: Locale): [string, string][] {
@@ -97,6 +102,7 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
       const keys = coveredStrings(locale).map(([key]) => key);
       expect(keys.length, locale).toBeGreaterThan(600);
       for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc", "Desktop.update.available", "Desktop.update.ready" /* --- low-findings-2 --- */, "Changelog.title", "WhatsNew.body", `Changelog:${CHANGELOG[0].id}.headline`, `Changelog:${CHANGELOG[0].id}.0` /* --- changelog --- */]) expect(keys, `${locale} ${key}`).toContain(key);
+      for (const key of RANGE_TIPS) expect(keys, `${locale} ${key}`).toContain(key); // --- unlimited-sizes --- (review fix)
     }
   });
 
@@ -155,6 +161,7 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
       for (const [key, text] of intros) expect(length(text), `${locale} ${key}`).toBeLessThanOrEqual(max(220, 280));
       for (const key of TIPS) expect(length(FLAT[locale][key] ?? ""), `${locale} ${key}`).toBeLessThanOrEqual(max(300, 380));
       for (const key of TIPS) expect(length(FLAT[locale][key] ?? ""), `${locale} ${key}`).toBeGreaterThan(40);
+      for (const key of RANGE_TIPS) expect(length(FLAT[locale][key] ?? ""), `${locale} ${key}`).toBeLessThanOrEqual(max(300, 380)); // --- unlimited-sizes --- (review fix)
     }
   });
 
