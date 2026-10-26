@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import { createEngineForSettings } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateOutcomeRun } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
 import { FULL_BALL_LIMIT_DEFAULT, GROWTH_CAP_RANGES, SWARM_LIMIT_DEFAULT, engagedSwarmCeiling, fullBallLimitOf, growthCapConfigOf, growthCapLivePatch, swarmLimitOf } from "@/lib/physics/growthCaps";
 import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
@@ -10,10 +10,10 @@ import { RING_OBJECT_WORK, objectLimitFor } from "@/lib/physics/limits";
 import { FULL_BALL_CEILING, MEMORY_CEILINGS } from "@/lib/uncap";
 import { MAX_TEMPO, paddleSettingsOf, paddleTempo, resolvePaddleFields } from "@/lib/physics/modes/paddle";
 import { RING_MAX_BODIES, collideSettingsOf } from "@/lib/physics/modes/collide";
-import { DEFAULT_FIGHT_LEAGUE_SETTINGS, fightLeagueSettingsOf, resolveFightLeagueFields } from "@/lib/physics/modes/fightLeague";
-import { FL_BOUT_CAP_SEC } from "@/lib/physics/modes/fightLeagueShow";
+import { DEFAULT_FIGHT_LEAGUE_SETTINGS, fightLeagueSettingsOf, flShowHorizonMs, resolveFightLeagueFields } from "@/lib/physics/modes/fightLeague";
+import { FL_BOUT_CAP_SEC, FL_SHOW_BOUT_SEC, FL_SHOW_UNCAPPED_BOUT_SEC } from "@/lib/physics/modes/fightLeagueShow";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
-import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { finderRequestOfSettings, modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { arenaPhysicsConfig } from "@/lib/simulation/multi";
 import { probeEngine, probeRun } from "./flProbes";
 
@@ -218,6 +218,31 @@ describe("growth caps: raised past the old numbers", () => {
     expect(s.flBoutCap).toBe(0);
     expect(settingsToSearchParams(s).get("flBc")).toBe("0");
     expect(fightLeagueSettingsOf(s).boutCap).toBe(0);
+  });
+
+  it("flBc: the finder follows a show as long as its bouts may last, so a raised bout cap's champion is still found", { timeout: 120_000 }, () => {
+    // (review fix) the show horizon was FL_SHOW_BOUT_SEC (90 s) a bout, sized for the old fixed 45 s cap: a 120 s bout cap
+    // and a high HP outlasted it, and the champion search stopped before the bracket ended
+    const link = (extra: string, flT = 300) => settingsFromSearchParams(new URLSearchParams(`mode=fightLeague&flM=bracket&flBr=4&flHp=3000&flT=${flT}${extra}`));
+    const fl = (s: SimulatorSettings) => fightLeagueSettingsOf(s);
+    expect(flShowHorizonMs(fl(link("")))).toBe(1000 * FL_SHOW_BOUT_SEC * 3); // the defaults' horizon: a 45 s cap, 90 s a bout
+    expect(flShowHorizonMs(fl(defaultSettings("fightLeague")))).toBe(1000 * FL_SHOW_BOUT_SEC);
+    expect(flShowHorizonMs(fl(link("&flBc=120")))).toBe(1000 * (FL_SHOW_BOUT_SEC + 120 - FL_BOUT_CAP_SEC) * 3);
+    expect(flShowHorizonMs(fl(link("&flBc=0")))).toBe(1000 * (FL_SHOW_BOUT_SEC + 300 - FL_BOUT_CAP_SEC) * 3); // (0: the Time Cap as typed)
+    expect(flShowHorizonMs(fl(link("&flBc=0", 0)))).toBe(1000 * FL_SHOW_UNCAPPED_BOUT_SEC * 3); // (no cap at all: the long ceiling)
+    expect(flShowHorizonMs(fl(link("&flBc=30")))).toBe(1000 * FL_SHOW_BOUT_SEC * 3); // (a lower cap keeps the 90 s)
+    // a series' games are capped by the Time Cap: the 90 s a game assumed its default
+    const series = (t: number) => fl(presetToSettings({ ...defaultSettings("fightLeague"), flBestOf: 3, flTimeCap: t }));
+    expect(flShowHorizonMs(series(DEFAULT_FIGHT_LEAGUE_SETTINGS.timeCap))).toBe(1000 * FL_SHOW_BOUT_SEC * 5);
+    expect(flShowHorizonMs(series(300))).toBe(1000 * (FL_SHOW_BOUT_SEC + 300 - DEFAULT_FIGHT_LEAGUE_SETTINGS.timeCap) * 5);
+    // the bracket of the report: seed 11 with a 120 s bout cap really ends past 270 s; its champion search follows it there
+    const s = link("&flBc=120");
+    const request = finderRequestOfSettings(s);
+    expect(request.maxSimTimeSec).toBeGreaterThanOrEqual(flShowHorizonMs(fl(s)) / 1000);
+    const run = simulateOutcomeRun(11, request, { kind: "champion", team: 0, clipSec: 60 });
+    expect(run.finished).toBe(true);
+    expect(run.durationMs).toBeGreaterThan(1000 * FL_SHOW_BOUT_SEC * 3);
+    expect(run.fl?.championSide).toBeGreaterThanOrEqual(0);
   });
 
   it("cprc: a ring of 100 holds 100 bodies (the discs shrink to fit)", () => {

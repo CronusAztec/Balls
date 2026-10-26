@@ -1065,7 +1065,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const fixedSec = winnerNeedsEnd(outcome, request.mode) ? fixedRunDurationSec(request.mode, request.modeSettings) : null;
   // --- land-claim --- a battle judged at its end (the winner, a close battle) is followed to its duration at the latest
   const lcEndSec = request.mode === "landClaim" && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "close" || outcome.kind === "summit-last" /* --- land-claim-pyramid --- */) ? resolveLandClaimSettings(request.modeSettings.landClaim).duration : null;
-  // --- fl-overhaul --- (Stage 5) a Fight League show is followed FL_SHOW_BOUT_SEC a match at least, when its verdict is the outcome
+  // --- fl-overhaul --- (Stage 5) a Fight League show is followed FL_SHOW_BOUT_SEC a match at least (--- unlimited-sizes --- more for a raised cap: `flBoutHorizonSec()`), when its verdict is the outcome
   const flSettings = request.mode === "fightLeague" ? resolveFightLeagueSettings(request.modeSettings.fightLeague) : null;
   const flShowMs = flSettings && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "double-ko" || outcome.kind === "close" || (FL_STORY_OUTCOMES.includes(outcome.kind) && outcome.kind !== "both-low-at")) ? flShowHorizonMs(flSettings) : 0;
   const horizonMs = Math.max(outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode), fixedSec !== null ? 1000 * fixedSec + FIXED_RUN_SLACK_MS : 0, lcEndSec !== null ? 1000 * lcEndSec + FIXED_RUN_SLACK_MS : 0, flShowMs);

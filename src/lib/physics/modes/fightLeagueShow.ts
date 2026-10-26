@@ -39,8 +39,14 @@ export const FL_CARD_SEC = 2.5;
 export const FL_BOUT_CAP_SEC = 45;
 /** A draw or a double KO inside a bracket or a boss rush replays the pairing (REMATCH!) at most this many times. */
 export const FL_REMATCHES = 2;
-/** The finder follows a show this long a bout (s) at least: `maxSimTimeSec` scaled by the bouts (Stage 5). */
+/**
+ * The finder follows a show this long a bout (s) at least: `maxSimTimeSec` scaled by the bouts (Stage 5). --- unlimited-sizes ---
+ * (review fix) sized for a bout capped at its default (`FL_BOUT_CAP_SEC`; a series' game at the default Time Cap): a raised cap
+ * adds what it adds to the bout (`flBoutHorizonSec()`).
+ */
 export const FL_SHOW_BOUT_SEC = 90;
+/** --- unlimited-sizes --- (review fix) The finder follows a bout with no cap at all (bout cap 0 and Time Cap 0) this long (s): a KO alone ends it. */
+export const FL_SHOW_UNCAPPED_BOUT_SEC = 600;
 /** The default bracket size and boss waves (`flBracketSize`, `flBossWaves`). */
 export const FL_BRACKET_SIZE = 8;
 export const FL_BOSS_WAVES = 6;

@@ -47,6 +47,7 @@ import {
   FL_INTERLUDE_FINALE_MS,
   FL_REMATCHES,
   FL_SHOW_BOUT_SEC,
+  FL_SHOW_UNCAPPED_BOUT_SEC,
   FL_UNDERDOG,
   drawFlEntrants,
   flAdvanceBracket,
@@ -2762,9 +2763,33 @@ export function flShowBouts(s: Pick<FightLeagueSettings, "match" | "bestOf" | "b
   return 1;
 }
 
-/** --- fl-overhaul --- (Stage 5) How long the finder follows a run of these settings at least (ms): FL_SHOW_BOUT_SEC a match. */
-export function flShowHorizonMs(s: Pick<FightLeagueSettings, "match" | "bestOf" | "bracketSize" | "bossWaves">): number {
-  return 1000 * FL_SHOW_BOUT_SEC * flShowBouts(s);
+/**
+ * --- unlimited-sizes --- A match's time cap (s; 0 = none): a bracket's and a boss rush's bout (`bout`) `min(flT, flBc)` – the
+ * bout cap alone with flT 0, the Time Cap as typed with flBc 0 – and any other match the Time Cap. The run's (`v.capSec`) and
+ * the finder's horizon (`flBoutHorizonSec()`) read it here.
+ */
+export function flMatchCapSec(s: Pick<FightLeagueSettings, "timeCap" | "boutCap">, bout: boolean): number {
+  if (!bout) return s.timeCap;
+  const boutCap = s.boutCap ?? FL_BOUT_CAP_SEC;
+  return boutCap > 0 ? (s.timeCap > 0 ? Math.min(s.timeCap, boutCap) : boutCap) : s.timeCap;
+}
+
+/**
+ * --- unlimited-sizes --- (review fix) How long the finder follows one of the show's matches at least (s): FL_SHOW_BOUT_SEC for a
+ * match capped at its default – a bout's `FL_BOUT_CAP_SEC`, a series' game the default Time Cap – plus what a raised cap adds to
+ * it, and `FL_SHOW_UNCAPPED_BOUT_SEC` for a match with no cap at all. The defaults' horizon is unchanged.
+ */
+export function flBoutHorizonSec(s: Pick<FightLeagueSettings, "match" | "bestOf"> & Partial<Pick<FightLeagueSettings, "timeCap" | "boutCap">>): number {
+  const kind = flShowKind(s);
+  const bout = kind === "bracket" || kind === "boss";
+  const cap = flMatchCapSec({ timeCap: s.timeCap ?? DEFAULT_FIGHT_LEAGUE_SETTINGS.timeCap, boutCap: s.boutCap }, bout);
+  if (!(cap > 0)) return FL_SHOW_UNCAPPED_BOUT_SEC;
+  return FL_SHOW_BOUT_SEC + Math.max(0, cap - (bout ? FL_BOUT_CAP_SEC : DEFAULT_FIGHT_LEAGUE_SETTINGS.timeCap));
+}
+
+/** --- fl-overhaul --- (Stage 5) How long the finder follows a run of these settings at least (ms): `flBoutHorizonSec()` a match (--- unlimited-sizes --- FL_SHOW_BOUT_SEC at the default caps). */
+export function flShowHorizonMs(s: Pick<FightLeagueSettings, "match" | "bestOf" | "bracketSize" | "bossWaves"> & Partial<Pick<FightLeagueSettings, "timeCap" | "boutCap">>): number {
+  return 1000 * flBoutHorizonSec(s) * flShowBouts(s);
 }
 
 /** --- fl-overhaul --- (Stage 5) The finder's seeds a frame (the duration search): 4 single matches, 2 series, 1 bracket or boss rush. */
@@ -3170,8 +3195,7 @@ export class FightLeagueMode implements GameMode {
     v.matchSerial++;
     const bout = sh.kind === "bracket" || sh.kind === "boss";
     // --- unlimited-sizes --- the bout cap is a setting (45 s by default, as it always was); 0 lifts it: the time cap as typed
-    const boutCap = s.boutCap ?? FL_BOUT_CAP_SEC;
-    v.capSec = bout ? (boutCap > 0 ? (s.timeCap > 0 ? Math.min(s.timeCap, boutCap) : boutCap) : s.timeCap) : s.timeCap;
+    v.capSec = flMatchCapSec(s, bout);
     v.suddenOn = bout ? true : s.suddenDeath;
     this.rigChosen = this.matchRig();
     this.spawnFighters(ctx);

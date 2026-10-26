@@ -188,7 +188,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
 /**
  * A finder request for these settings (the target is the caller's). --- fl-overhaul --- (Stage 6) It carries the caller's outcome
  * when given (the bot's fight recipes: upset, both-low-at; Make a clip's stories) and follows a Fight League show at least
- * FL_SHOW_BOUT_SEC a bout (`flShowHorizonMs()`), as the page's find request does.
+ * FL_SHOW_BOUT_SEC a bout (`flShowHorizonMs()`; --- unlimited-sizes --- more for a raised bout cap), as the page's find request does.
  */
 export function finderRequestOfSettings(s: SimulatorSettings, world: BotWorld = DEFAULT_BOT_WORLD, maxSimTimeSec = 120, outcome?: FinderOutcome): FinderRequest {
   const fl = s.mode === "fightLeague" ? fightLeagueSettingsOf(s) : null; // --- fl-overhaul --- (Stage 6)
