@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { createContext, useContext, useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
@@ -40,17 +40,31 @@ export const rainbowBtn = "bg-surface-3 text-ink bg-[linear-gradient(90deg,var(-
 /** Styling of the <select> pickers in the panel. */
 export { selectClass } from "@/components/ui/Field";
 
+/** The neutral card a control stands on of its own (a search result; --- slow-motion --- the Slow motion row). */
+export const controlCard = "rounded-lg border border-line bg-surface-2/60 p-3";
+
 /** Wraps a control so the search box can show it on its own (or hide it) by its label key. */
 export function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {
   if (!search) return <>{children}</>;
   if (!matches(labelKey)) return null;
   // --- review fix (site-redesign) --- the card names its key: the command palette finds the control it jumped to by it
   return (
-    <div className="rounded-lg border border-line bg-surface-2/60 p-3" data-search-key={labelKey}>
+    <div className={controlCard} data-search-key={labelKey}>
       {children}
     </div>
   );
 }
+
+/*
+ * --- slow-motion --- (review fix) A control another switch overrides (the Slow motion switch off: the near-miss slow
+ * motion, KO Slow Motion, the duel): the Toggles and Sliders inside an Overridden (sections/UnlimitedSection.tsx) read this.
+ * They dim their label to ink-3 (5:1 or more on every panel surface, where opacity 0.6 left 3.6:1) and their track or switch
+ * graphic, never an ancestor of the tooltip (whose bubble would turn see-through), and they name the note that says why
+ * through aria-describedby. Null outside an Overridden: the controls render as they always did.
+ */
+export const ControlOverride = createContext<{ describedBy?: string } | null>(null);
+/** The classes of an overridden control's track or switch graphic (decorative or a range input: no text, no tooltip in it). */
+export const overriddenTrack = "opacity-60";
 
 export function Slider({
   t,
@@ -95,10 +109,34 @@ export function Slider({
   const ceiling = settingKey ? memoryCeiling(settingKey, value) : value;
   const label = t(labelKey);
   const u = useTranslations("Uncap");
+  const overridden = useContext(ControlOverride); // --- slow-motion --- (review fix) dimmed label and track, the note named
+  const describedBy = overridden?.describedBy;
+  const track = log ? (
+    // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
+    <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} describedBy={describedBy} />
+  ) : wideKey && !live ? (
+    <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} describedBy={describedBy} />
+  ) : (
+    <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
+      <input
+        type="range"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={shown}
+        disabled={disabled || !!live}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+        style={sliderStyle(shown, range.min, range.max)}
+        aria-label={label}
+        aria-describedby={describedBy}
+      />
+    </span>
+  );
   return (
     <Searchable search={search} matches={matches} labelKey={labelKey}>
       <div className="space-y-2" data-uncap-slider={settingKey ?? labelKey}>
-        <label className="flex items-center justify-between gap-3 text-sm font-medium text-ink-2">
+        <label className={`flex items-center justify-between gap-3 text-sm font-medium ${overridden ? "text-ink-3" : "text-ink-2"}`}>
           <span className="flex min-w-0 items-center">
             {label}
             {tipKey && <Tooltip text={t(tipKey)} />}
@@ -106,28 +144,14 @@ export function Slider({
           <span className={`num shrink-0 text-xs ${beyond ? "font-medium text-warn" : "text-ink-3"}`}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
         </label>
         <div className="flex items-center gap-3">
-          {log ? (
-            // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
-            <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} />
-          ) : wideKey && !live ? (
-            <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} />
-          ) : (
-            <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
-              <input
-                type="range"
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                value={shown}
-                disabled={disabled || !!live}
-                onChange={(e) => onChange(Number(e.target.value))}
-                className="w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                style={sliderStyle(shown, range.min, range.max)}
-                aria-label={label}
-              />
+          {overridden ? (
+            <span className={`flex w-full items-center ${overriddenTrack}`} data-overridden-track="">
+              {track}
             </span>
+          ) : (
+            track
           )}
-          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} />
+          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} />
         </div>
         {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
       </div>
@@ -136,7 +160,7 @@ export function Slider({
 }
 
 /** --- low-findings-2 --- The range input of a logarithmic Slider (`log`): positions on the track, the setting's value in and out. */
-function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyond }: { log: LogTrackSpec; label: string; value: number; valueText: string; onChange: (v: number) => void; disabled?: boolean; beyond: boolean }) {
+function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyond, describedBy }: { log: LogTrackSpec; label: string; value: number; valueText: string; onChange: (v: number) => void; disabled?: boolean; beyond: boolean; describedBy?: string }) {
   const end = logTrackEnd(log);
   const pos = logTrackPosition(value, log);
   return (
@@ -153,6 +177,7 @@ function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyon
         style={sliderStyle(pos, 0, end)}
         aria-label={label}
         aria-valuetext={valueText}
+        aria-describedby={describedBy}
         data-log-track={end}
       />
     </span>
@@ -216,9 +241,10 @@ export function Toggle({
 }) {
   // --- review fix (ui-i18n) --- a switch named by its label (not "ON"/"OFF"); the tooltip stays outside the name
   const labelId = useId();
+  const overridden = useContext(ControlOverride); // --- slow-motion --- (review fix) dimmed label and graphic, the note named
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="flex min-w-0 items-center text-sm font-medium text-ink-2">
+      <span className={`flex min-w-0 items-center text-sm font-medium ${overridden ? "text-ink-3" : "text-ink-2"}`}>
         <span id={labelId}>{t(labelKey)}</span>
         {tipKey && <Tooltip text={t(tipKey)} />}
       </span>
@@ -229,13 +255,14 @@ export function Toggle({
         onClick={() => onChange(!value)}
         aria-checked={value}
         aria-labelledby={labelId}
+        aria-describedby={overridden?.describedBy}
         data-on={value ? "" : undefined}
         className="group/sw inline-flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-0.5 cursor-pointer [@media(pointer:coarse)]:min-h-11"
       >
-        <span className={`num text-xs tracking-[0.08em] ${value ? "text-ink" : "text-ink-3"}`}>
+        <span className={`num text-xs tracking-[0.08em] ${value && !overridden ? "text-ink" : "text-ink-3"}`}>
           <span aria-hidden="true">{value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}</span>
         </span>
-        <span aria-hidden="true" className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 ${value ? onClass : "bg-surface-3 group-hover/sw:bg-[rgb(242_242_237/0.16)]"}`}>
+        <span aria-hidden="true" className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 ${value ? onClass : "bg-surface-3 group-hover/sw:bg-[rgb(242_242_237/0.16)]"}${overridden ? ` ${overriddenTrack}` : ""}`} data-overridden-track={overridden ? "" : undefined}>
           <span className={`absolute left-0.5 h-4 w-4 rounded-full shadow-sm transition-transform duration-150 ${value ? "translate-x-4 bg-accent-ink" : "bg-ink-2"}`} />
         </span>
       </button>

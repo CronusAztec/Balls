@@ -3,7 +3,7 @@
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, Slider, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { ControlOverride, Searchable, Slider, controlCard, offBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 
 export interface UnlimitedSectionProps {
@@ -22,10 +22,11 @@ export const UNLIMITED_KEYS = ["unlimited", "slowMotion" /* --- slow-motion --- 
  * capped whether it is on or off (every slider has a number field for any value, lib/uncap.ts); on, the sliders of the
  * uncapped settings get a logarithmic extension up to 1B. Turning it off changes no value – a value beyond a slider
  * stays as typed, the track pins at its end.
- * --- slow-motion --- The block's second row is the Slow motion switch (`slowMotion`, link `smo=0`): on, the default, every
- * automatic slow motion plays as always; off, the run plays in real time (see lib/simulation/realTime.ts). While searching,
- * each row stands on its own card like every other control. Both are switches named by their labels, as the panel's Toggle
- * is: a screen reader hears "Wide sliders, switch, on" and "Slow motion, switch, on", never two bare "ON"s in a row.
+ * --- slow-motion --- The next item is the Slow motion switch (`slowMotion`, link `smo=0`): on, the default, every
+ * automatic slow motion plays as always; off, the run plays in real time (see lib/simulation/realTime.ts). (review fix) It
+ * stands on its own neutral card under the Wide sliders box, searching or not: the box's warning and its warn colours are
+ * Wide sliders' alone. Both are switches named by their labels, as the panel's Toggle is: a screen reader hears
+ * "Wide sliders, switch, on" and "Slow motion, switch, on", never two bare "ON"s in a row.
  */
 export default function UnlimitedSection({ search, matches, settings: s, update }: UnlimitedSectionProps) {
   const u = useTranslations("Unlimited");
@@ -92,25 +93,34 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
         </Searchable>
       </>
     );
+  // --- slow-motion --- (review fix) the next item of Ball & Physics, on the card a search result stands on
   return (
-    <div className={`space-y-2 rounded-xl border p-3 ${box}`} data-testid="unlimited-section">
-      {wide}
-      <div className="border-t border-line pt-2">{slowRow}</div>
-    </div>
+    <>
+      <div className={`space-y-2 rounded-xl border p-3 ${box}`} data-testid="unlimited-section">
+        {wide}
+      </div>
+      <div className={controlCard} data-testid="slow-motion-card">
+        {slowRow}
+      </div>
+    </>
   );
 }
+
+/** --- slow-motion --- What a SlowMotionOffNote says: the generic note, the replay's, the KO finale's (its card comes at once). */
+export type SlowMotionNoteKey = "slowMotionOffNote" | "replayRealTime" | "koOffNote";
 
 /**
  * --- slow-motion --- The note a section shows under a control the Slow motion switch overrides while it is off (the
  * near-miss slow motion, the escape replay's half speed, the KO finale, a bullseye, the duel's cuts): the stored value
- * is kept and plays again once the switch is back on. Nothing while the switch is on.
+ * is kept and plays again once the switch is back on. Nothing while the switch is on. (review fix) `messageKey` says what
+ * happens instead: "plays in real time" by default, the replay's normal speed, or the KO finale skipped (the card at once).
  */
-export function SlowMotionOffNote({ settings: s, testId, replay }: { settings: SimulatorSettings; testId: string; replay?: boolean }) {
+export function SlowMotionOffNote({ settings: s, testId, messageKey = "slowMotionOffNote" }: { settings: SimulatorSettings; testId: string; messageKey?: SlowMotionNoteKey }) {
   const u = useTranslations("Unlimited");
   if (s.slowMotion) return null;
   return (
     <p className="text-xs text-warn/90" data-testid={testId} data-slow-motion-off-note="">
-      {u(replay ? "replayRealTime" : "slowMotionOffNote")}
+      {u(messageKey)}
     </p>
   );
 }
@@ -118,13 +128,18 @@ export function SlowMotionOffNote({ settings: s, testId, replay }: { settings: S
 /**
  * --- slow-motion --- Shows controls the Slow motion switch overrides as such while `on`: dimmed (still usable, the value
  * waits for the switch), with the note under them. Off, the children render as they are, so a default page is unchanged.
+ * (review fix) The dimming is the controls' own (ControlOverride in ControlPrimitives.tsx): their label in ink-3, which keeps
+ * AA contrast, and their track or switch graphic at 60 %, never the row, so the ⓘ bubble stays opaque. Each names the note
+ * through aria-describedby (the note's id, or `noteId`: the note of another Overridden that speaks for these controls too).
  */
-export function Overridden({ on, note, spacing = "space-y-1", children }: { on: boolean; note?: ReactNode; spacing?: string; children: ReactNode }) {
+export function Overridden({ on, note, noteId, spacing = "space-y-1", children }: { on: boolean; note?: ReactNode; noteId?: string; spacing?: string; children: ReactNode }) {
+  const ownId = useId();
   if (!on) return <>{children}</>;
+  const id = noteId ?? ownId;
   return (
     <div className={spacing} data-slow-motion-overridden="">
-      <div className={`${spacing} opacity-60`}>{children}</div>
-      {note}
+      <ControlOverride.Provider value={{ describedBy: note || noteId ? id : undefined }}>{children}</ControlOverride.Provider>
+      {note && <div id={id}>{note}</div>}
     </div>
   );
 }

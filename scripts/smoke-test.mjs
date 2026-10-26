@@ -2512,6 +2512,70 @@ await smokeBlock("camera", async () => {
       `(on: slowed=${slowedOn}; off: note=${note}, toggle kept on=${nearMissKept}, slowest time scale ${seen.minScale}, windows ${data.cameraSlowMo}, shakes ${data.cameraShakes}, zoom up to ${seen.maxZoom}, data-slow-motion ${data.slowMotion})`,
     );
   }
+  {
+    // --- slow-motion --- (review fixes) the overridden controls stay readable and say why: hovered, the ⓘ bubble of Slow-Mo on
+    // Near Miss is fully opaque (no dimmed ancestor: it once showed the sliders above through its text at 60 %), the label keeps
+    // 4.5:1 or more on the panel (it was 3.6:1), and the switch, the Slow-Mo Speed track and its number field name the
+    // "Slow motion is off" note through aria-describedby
+    await page.goto(`${BASE}/en/simulator/?mode=classic&slow=1&smo=0`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const nearMiss = cameraToggle("Slow-Mo on Near Miss");
+    // (scrolled into view first: a hover that scrolls the page loses the pointer and the bubble stays hidden)
+    const info = page.getByTestId("camera-section").locator("[data-slow-motion-overridden] .group\\/tip").first();
+    await info.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    const infoBox = await info.boundingBox();
+    if (infoBox) await page.mouse.move(infoBox.x + infoBox.width / 2, infoBox.y + infoBox.height / 2);
+    await page.waitForTimeout(400);
+    const readable = await nearMiss.evaluate((button) => {
+      const parse = (c) => (c.match(/[\d.]+/g) || []).map(Number);
+      const lum = (rgb) => {
+        const [r, g, b] = rgb.map((v) => (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const ratio = (a, b) => {
+        const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+      };
+      const opacityUp = (el) => {
+        let o = 1;
+        for (let n = el; n; n = n.parentElement) o *= Number(getComputedStyle(n).opacity);
+        return o;
+      };
+      // the label's backdrop: the backgrounds from it up to the first opaque one, blended
+      const backdrop = (el) => {
+        const layers = [];
+        for (let n = el; n; n = n.parentElement) {
+          const c = parse(getComputedStyle(n).backgroundColor);
+          if (c.length >= 3 && (c[3] ?? 1) > 0) {
+            layers.push(c);
+            if ((c[3] ?? 1) >= 1) break;
+          }
+        }
+        return layers.reverse().reduce((rgb, c) => rgb.map((v, i) => (c[3] ?? 1) * c[i] + (1 - (c[3] ?? 1)) * v), [0, 0, 0]);
+      };
+      const label = document.getElementById(button.getAttribute("aria-labelledby") ?? "");
+      const bubble = label?.parentElement?.querySelector(".group\\/tip > span") ?? null;
+      const ink = parse(getComputedStyle(label).color);
+      const alpha = (ink[3] ?? 1) * opacityUp(label);
+      const bg = backdrop(label);
+      const shown = ink.slice(0, 3).map((v, i) => alpha * v + (1 - alpha) * bg[i]);
+      const notes = (el) => (el?.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? "");
+      const track = [...document.querySelectorAll('input[type="range"]')].find((i) => i.getAttribute("aria-label") === "Slow-Mo Speed");
+      return {
+        contrast: Math.round(100 * ratio(shown, bg)) / 100,
+        bubble: bubble ? Number(getComputedStyle(bubble).opacity) : -1,
+        bubbleAncestors: bubble ? opacityUp(bubble.parentElement) : -1,
+        notes: [notes(button), notes(track), notes(document.querySelector('input[data-number-field="slowMoFactor"]'))],
+      };
+    });
+    const said = (list) => list.length > 0 && list.every((n) => n.includes("Slow motion is off in Ball & Physics"));
+    check(
+      "slow motion off: an overridden control's tooltip is fully opaque on hover, its label keeps 4.5:1 or more, and its switch, track and number field name the note",
+      readable.bubble === 1 && readable.bubbleAncestors === 1 && readable.contrast >= 4.5 && readable.notes.every(said),
+      `(${JSON.stringify(readable)})`,
+    );
+  }
 
   await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&replay=1&shake=0.6&res=500x500&dur=60`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
@@ -8240,6 +8304,27 @@ await smokeBlock("unlimited", async () => {
     atStart.pressed === "true" && atStart.smo === null && turnedOff.pressed === "false" && turnedOff.smo === "0" && canvasOff && reopened.pressed === "false" && reopened.smo === "0" && ownCard && wideHidden && turnedOn.pressed === "true" && turnedOn.smo === null && canvasOn === null,
     `(start ${JSON.stringify(atStart)}, off ${JSON.stringify(turnedOff)}, canvas off=${canvasOff}, after reload ${JSON.stringify(reopened)}, own search card=${ownCard}, Wide sliders hidden=${wideHidden}, on again ${JSON.stringify(turnedOn)}, data-slow-motion ${canvasOn})`,
   );
+  // --- slow-motion --- (review fix) the row stands on its own neutral card right under the Wide sliders box, never inside it
+  // (the box's warning and its warn colours are Wide sliders' alone), and the card keeps its colours when Wide sliders turns off
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const placement = () =>
+    page.evaluate(() => {
+      const box = document.querySelector('[data-testid="unlimited-section"]');
+      const card = document.querySelector('[data-testid="slow-motion-card"]');
+      const toggle = document.querySelector('[data-testid="slow-motion-toggle"]');
+      const look = card ? getComputedStyle(card) : null;
+      return { inBox: !!box?.contains(toggle), inCard: !!card?.contains(toggle), next: !!box && box.nextElementSibling === card, look: look ? `${look.backgroundColor} ${look.borderTopColor}` : null };
+    });
+  const wideOn = await placement();
+  await page.getByRole("switch", { name: "Wide sliders", exact: true }).click();
+  await page.waitForTimeout(300);
+  const wideOff = await placement();
+  check(
+    "slow motion: the switch stands on its own card right under the Wide sliders box, not inside it, and the card keeps its colours when Wide sliders turns off",
+    !wideOn.inBox && wideOn.inCard && wideOn.next && !wideOff.inBox && wideOff.inCard && !!wideOn.look && wideOn.look === wideOff.look,
+    `(Wide sliders on ${JSON.stringify(wideOn)}, off ${JSON.stringify(wideOff)})`,
+  );
   // --- end slow-motion ---
 }
 // --- end unlimited ---
@@ -12246,6 +12331,9 @@ await smokeBlock("fight-league", async () => {
   // overridden, and the match ends as with flSm=0 – the same winner, and no finale (data-fl-finale never 1, polled every frame)
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flHp=40&seed=2&fw=0&smo=0`, { waitUntil: "networkidle" });
   const note = await page.getByTestId("fl-slow-motion-off").isVisible().catch(() => false);
+  // --- slow-motion --- (review fix) none of the finale plays with the switch off: the note says the card comes at once
+  const koNote = await page.getByTestId("fl-slow-motion-off").innerText().catch(() => "");
+  check("fight league with slow motion off: KO Slow Motion's note says the winner's card comes at once, not that the finale plays in real time", koNote === "Slow motion is off in Ball & Physics, so the winner's card comes at once.", `("${koNote}")`);
   await page.evaluate(() => {
     window.__flFinaleOff = 0;
     const poll = () => {

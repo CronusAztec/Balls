@@ -335,8 +335,9 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="flShake" tipKey="flShakeTip" value={s.flShake} range={RANGES.flShake} onChange={(v) => update({ flShake: flPanelValue("flShake", v) })} display={s.flShake.toFixed(2)} />
       <Searchable search={search} matches={matches} labelKey="flSlowMo">
-        {/* --- slow-motion --- (the finale plays only while the master switch is on too: off, the card comes at once) */}
-        <Overridden on={s.flSlowMo && !s.slowMotion} note={<SlowMotionOffNote settings={s} testId="fl-slow-motion-off" />}>
+        {/* --- slow-motion --- (the finale plays only while the master switch is on too: off, the card comes at once, and the
+            note says so: --- review fix --- not "plays in real time", since none of the finale plays) */}
+        <Overridden on={s.flSlowMo && !s.slowMotion} note={<SlowMotionOffNote settings={s} testId="fl-slow-motion-off" messageKey="koOffNote" />}>
           <Toggle t={t} labelKey="flSlowMo" tipKey="flSlowMoTip" value={s.flSlowMo} onChange={(v) => update({ flSlowMo: v })} caseStyle="title" />
         </Overridden>
       </Searchable>

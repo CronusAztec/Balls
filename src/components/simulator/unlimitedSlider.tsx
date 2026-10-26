@@ -157,10 +157,12 @@ export interface WideTrackProps {
   id?: string;
   /** --- unlimited-sizes --- data-testid of the input (a hand-written track's own, for the smoke test). */
   testId?: string;
+  /** --- slow-motion --- (review fix) The id of a note that describes the track (an overridden slider's "Slow motion is off" note). */
+  describedBy?: string;
 }
 
 /** The Wide sliders track: the comfort range linear, a logarithmic extension up to its top (the number field takes anything else). */
-export function WideTrack({ settingKey, label, value, range, onChange, disabled, top, className, id, testId }: WideTrackProps) {
+export function WideTrack({ settingKey, label, value, range, onChange, disabled, top, className, id, testId, describedBy }: WideTrackProps) {
   const pos = sliderPosition(settingKey, value, range, top);
   return (
     <input
@@ -184,6 +186,7 @@ export function WideTrack({ settingKey, label, value, range, onChange, disabled,
       style={trackStyle(pos)}
       aria-label={label}
       aria-valuetext={formatCompact(value)}
+      aria-describedby={describedBy}
       data-unlimited-slider={settingKey}
       data-testid={testId}
     />

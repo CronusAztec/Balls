@@ -39,9 +39,11 @@ export interface NumberFieldProps {
   id?: string;
   /** data-testid of the input (the rows of the Timeline and Bounce math lists). */
   testId?: string;
+  /** --- slow-motion --- (review fix) The id of a note that describes the control (an overridden slider's "Slow motion is off" note). */
+  describedBy?: string;
 }
 
-export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId }: NumberFieldProps) {
+export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy }: NumberFieldProps) {
   const t = useTranslations("Uncap");
   const [state, setState] = useState<NumberFieldState>(IDLE_FIELD);
   const errorId = useId();
@@ -98,7 +100,7 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
         onBlur={() => dispatch({ type: "blur" })}
         aria-label={t("fieldLabel", { label })}
         aria-invalid={error !== null}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={[error ? errorId : "", describedBy ?? ""].filter(Boolean).join(" ") || undefined}
         title={error ? (message ?? undefined) : beyondTip}
         data-number-field={settingKey ?? ""}
         data-testid={testId}

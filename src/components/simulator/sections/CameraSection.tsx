@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { replayEligible } from "@/lib/simulation/camera";
@@ -30,6 +31,9 @@ const pct = (v: number) => `${Math.round(100 * v)}%`;
 export default function CameraSection({ t, search, matches, settings: s, update }: CameraSectionProps) {
   const showSlowMoSliders = s.slowMoOnNearMiss || !!search;
   const nearMissOverridden = s.slowMoOnNearMiss && !s.slowMotion; // --- slow-motion ---
+  // --- slow-motion --- (review fix) the near-miss note speaks for the speed and length sliders too (they name it), while it is shown
+  const nearMissNote = useId();
+  const nearMissNoteShown = nearMissOverridden && (!search || matches("slowMoOnNearMiss"));
   const body = (
     <>
       {!search && (
@@ -64,12 +68,12 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         display={s.screenShake > 0 ? pct(s.screenShake) : t("cameraOff")}
       />
       <Searchable search={search} matches={matches} labelKey="slowMoOnNearMiss">
-        <Overridden on={nearMissOverridden} note={<SlowMotionOffNote settings={s} testId="camera-slow-motion-off" />}>
+        <Overridden on={nearMissOverridden} noteId={nearMissNote} note={<SlowMotionOffNote settings={s} testId="camera-slow-motion-off" />}>
           <Toggle t={t} labelKey="slowMoOnNearMiss" tipKey="slowMoOnNearMissTip" value={s.slowMoOnNearMiss} onChange={(v) => update({ slowMoOnNearMiss: v })} caseStyle="title" />
         </Overridden>
       </Searchable>
       {showSlowMoSliders && (
-        <Overridden on={!s.slowMotion} spacing="space-y-4">
+        <Overridden on={!s.slowMotion} noteId={nearMissNoteShown ? nearMissNote : undefined} spacing="space-y-4">
           <Slider
             t={t}
             search={search}
@@ -98,7 +102,7 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         <div className="space-y-1">
           <Toggle t={t} labelKey="replayOnEscape" tipKey="replayOnEscapeTip" value={s.replayOnEscape} onChange={(v) => update({ replayOnEscape: v })} caseStyle="title" />
           {s.replayOnEscape && !replayEligible(s.mode) && <p className="text-xs text-warn/90">{t("replayOnEscapeModes")}</p>}
-          {s.replayOnEscape && <SlowMotionOffNote settings={s} testId="camera-replay-real-time" replay /> /* --- slow-motion --- (the replay plays at 1x) */}
+          {s.replayOnEscape && <SlowMotionOffNote settings={s} testId="camera-replay-real-time" messageKey="replayRealTime" /> /* --- slow-motion --- (the replay plays at 1x) */}
         </div>
       </Searchable>
     </>
