@@ -243,6 +243,11 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
         stillsServer!.once("exit", (code) => reject(new Error(`the stills stand-in exited (${code})`)));
       });
       stillsOrigin = `http://127.0.0.1:${port}`;
+    } else {
+      // --- inspiration --- no ffmpeg (the CI build job installs none): a stand-in file, so the tests that expect "No ffmpeg
+      // found" reach the ffmpeg check instead of stopping at a missing clip
+      fs.mkdirSync(path.dirname(CLIP), { recursive: true });
+      fs.writeFileSync(CLIP, "not a video: there is no ffmpeg to make one");
     }
   });
   afterAll(() => {
