@@ -19,11 +19,13 @@ import {
   inspirationMarkdown,
   mdText,
   median,
+  percentiles,
   ranks,
   recommendations,
   runFolderName,
   spearman,
   stillsColour,
+  themeAdvised,
   themeShares,
   titleNumber,
   titleSummary,
@@ -434,6 +436,26 @@ describe("the report's maths (--- inspiration ---)", () => {
     expect(recommendations(few.summaries, few.patterns, [], titleSummary([], [])).filter((r) => r.area !== "title")).toEqual([]);
   });
 
+  // --- inspiration --- two searches pooled by their ranks: a ρ that says "more" with medians that say "less" is no pattern
+  it("makes no pattern of a ρ and a difference of medians that point opposite ways, and no look advice from a number it lacks", () => {
+    const sat = (meanSat: number) => clipTraits(null, { durationSec: 10, width: null, height: null }, { meanLuma: 0.5, meanSat, darkShare: 0, stills: 4 });
+    // two lists ranked 1, 0.75 … 0 each: in both the more viewed are the more saturated, one far less saturated than the other
+    const rows = [1, 0.75, 0.5, 0.25, 0].flatMap((p, i) => [
+      { metric: p, traits: sat(0.3 - i * 0.05) },
+      { metric: p, traits: sat(0.9 - i * 0.05) },
+    ]);
+    const { summaries, patterns } = traitSummaries(rows);
+    const s = summaries.find((x) => x.key === "meanSat")!;
+    expect(s.rho).toBeGreaterThan(0.4);
+    expect(s.effect).toBeLessThan(-1); // (the top third mixes both lists' best: its median is the pale list's)
+    expect(patterns.find((p) => p.key === "meanSat")).toBeUndefined();
+    // each clause of the look advice from its own number: no saturation, no word on the colours; nothing, no advice
+    const look = (keep: string[]) => recommendations(summaries.filter((x) => keep.includes(x.key)), [], [], titleSummary([], [])).find((r) => r.area === "look");
+    expect(look(["darkShare"])?.advice).toBe("Use a light or mid background.");
+    expect(look(["meanLuma"])).toBeUndefined();
+    expect(look(["meanSat", "darkShare"])?.advice).toBe("Keep the colours calm (a muted theme) on a light or mid background."); // (a pooled median: trends.ts splits it)
+  });
+
   it("builds the same report from the same input, keeps a failed video with its error, and writes Markdown that links nothing it should not", () => {
     const candidates = [meta(TIKTOK, "url", true), ...PAGES.map((p) => meta(p, "search", true))];
     const analysed = [
@@ -529,25 +551,56 @@ describe("the stills fallback and the report's lessons from the live runs (--- i
     expect(shortsFeedUrls("shorts")).toEqual([]);
   });
 
-  it("weighs a theme by its lift: a word in nearly every title is no advice, nor is one video", () => {
+  // --- inspiration --- a theme by its videos' ranks, never by summed views: in the October runs one video of 3.6M views was
+  // both "escaping rings ×5" (by the word "trapped") and "loops ×4.9", and an apple bursting "out" of a grid the second ring escape
+  it("weighs a theme by its videos' ranks: one hit, two videos, a filler word or the genre's word is no advice", () => {
     const v = (title: string, views: number) => ({ title, views });
-    const videos = [v("Satisfying maze run", 900), v("Satisfying maze escape", 800), v("Satisfying drop", 10), v("Satisfying drop two", 10), v("Satisfying grid", 10), v("Satisfying pile", 10), v("Glass smash", 5)];
+    const videos = [
+      v("Satisfying loop forever", 100_000), // the one hit
+      v("Satisfying maze run", 900),
+      v("Satisfying maze escape", 800),
+      v("Maze of glass", 700),
+      v("Satisfying drop", 300),
+      v("Satisfying drop two", 200),
+      v("Satisfying grid", 100),
+      v("Satisfying pile", 50),
+      v("Loop two", 20),
+      v("Endless loop three", 10),
+      v("Glass smash", 5),
+    ];
     const shares = themeShares(videos, MODE_IDS);
     const by = (id: string) => shares.find((t) => t.id === id)!;
-    expect(by("satisfying")).toMatchObject({ videos: 6, videoShare: 0.857 });
-    expect(by("satisfying").lift).toBeGreaterThan(1); // the genre's word: listed, never advice
+    // the loops hold 97% of the views with 27% of the videos – all of it one video's: summed views would make them advice
+    expect(by("loop")).toMatchObject({ videos: 3, viewShare: 0.97, videoShare: 0.273, rank: 0.2, restRank: 0.55, topShare: 1, advised: false });
+    expect(by("loop").lift).toBeGreaterThan(3);
+    // the mazes hold 2% of the views, and their three videos rank 7th to 9th of 11, with or without the best of them
+    expect(by("maze")).toMatchObject({ videos: 3, rank: 0.8, restRank: 0.35, rankWithoutTop: 0.75, topShare: 0.375, advised: true });
+    expect(by("maze").lift).toBeLessThan(1);
+    expect(by("drop")).toMatchObject({ videos: 4, advised: false }); // four videos below the middle
+    expect(by("satisfying")).toMatchObject({ videos: 7, advised: false }); // the genre's word: listed, never advice
+    expect(by("satisfying").rank).toBeGreaterThan(by("satisfying").restRank!);
     expect(GENERIC_THEMES).toEqual(["satisfying"]);
-    expect(by("maze")).toMatchObject({ videos: 2, videoShare: 0.286 });
-    expect(by("maze").lift).toBeGreaterThan(3);
-    expect(by("drop").lift).toBeLessThan(1); // four videos of few views
     const recs = recommendations([], [], shares, titleSummary([], []));
-    const modes = recs.filter((r) => r.area === "mode").map((r) => r.levers.map((l) => l.name));
-    expect(modes[0]).toEqual(["maze"]);
-    expect(modes.flat()).not.toContain("drop");
-    expect(recs.find((r) => r.area === "mode")?.advice).toMatch(/holds 97% of the views with 29% of the videos \(2 videos\)/);
-    // one video's views are its own: no theme advice from it
-    expect(recommendations([], [], themeShares([v("Glass smash", 1000), v("calm", 1)], MODE_IDS), titleSummary([], [])).filter((r) => r.area === "mode")).toEqual([]);
-    expect(MIN_THEME_VIDEOS).toBe(2);
+    expect(recs.filter((r) => r.area === "mode").map((r) => r.levers.map((l) => l.name))).toEqual([["maze"]]);
+    const maze = recs.find((r) => r.area === "mode")!;
+    expect(maze.advice).toMatch(/^"mazes" ranks above the rest: its 3 videos have a median view percentile of 80 against 35 for the others \(75 without the best of them\): play it with maze\.$/);
+    expect(maze.evidence).toMatch(/the most viewed carries 38% of their views/);
+    // two videos, however high they rank, are no theme yet; nor is one high and two low
+    const two = themeShares([v("Glass smash", 1000), v("Glass break", 900), v("calm", 1), v("calm two", 2)], MODE_IDS).find((t) => t.id === "destroy")!;
+    expect(two).toMatchObject({ videos: 2, advised: false });
+    expect(two.rank).toBeGreaterThan(two.restRank!);
+    expect(MIN_THEME_VIDEOS).toBe(3);
+    expect(themeAdvised({ id: "maze", videos: 3, rank: 0.6, restRank: 0.5, rankWithoutTop: 0.4 })).toBe(false); // (its best carries it)
+    expect(themeAdvised({ id: "maze", videos: 3, rank: 0.6, restRank: 0.5, rankWithoutTop: 0.55 })).toBe(true);
+    expect(themeAdvised({ id: "maze", videos: 3, rank: null, restRank: 0.5, rankWithoutTop: null })).toBe(false);
+    // a list's percentiles: 0 the least viewed, 1 the most, ties shared, a video without views left out
+    expect(percentiles([10, null, 30, 20, 20])).toEqual([0, null, 1, 0.5, 0.5]);
+    expect(percentiles([5])).toEqual([0.5]);
+    expect(percentiles([])).toEqual([]);
+    // a theme's words name its mechanic: no filler that any title carries
+    for (const filler of ["out", "who", "first", "last"]) expect(THEMES.flatMap((t) => t.words), filler).not.toContain(filler);
+    expect(inTheme(THEMES.find((t) => t.id === "escape")!, "Apple bursts out of grid")).toBe(false);
+    expect(inTheme(THEMES.find((t) => t.id === "escape")!, "This Ball Is Trapped in a Perfect Loop")).toBe(true);
   });
 
   it("tells our renders to lighten up when they are far darker than every trending clip, and reads the title formats", () => {

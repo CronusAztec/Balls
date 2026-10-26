@@ -139,9 +139,12 @@ where that data lives, how the app's AI reads it and what the first runs found.
 
 - **The data.** `src/content/trends.json` is a compact, dated summary of the agent toolbox's `inspire` reports: the
   queries, the sample, the numbers that separate the most viewed third from the rest (median length, brightness,
-  saturation, Spearman's ρ), the themes with their lift (their share of the views over their share of the videos), the
-  title formats, recommendations in our own levers (settings with their link keys, modes, Blueprints) and the links and
-  titles of the most viewed videos. It holds no video file and no frame. `src/lib/trends.ts` is its shape and its check.
+  saturation, Spearman's ρ), the themes with how their videos rank (their median view percentile against the other
+  videos'), the title formats, recommendations in our own levers (settings with their link keys, modes, Blueprints) and
+  the links and titles of the most viewed videos. Each search stays its own list: a video is ranked within its search
+  first, and the searches are pooled by those ranks, never by absolute views (a search of 3D renders with millions of
+  views would otherwise be "the most viewed" of every pool). It holds no video file and no frame. `src/lib/trends.ts` is
+  its shape and its check.
 - **How the app reads it.** The app's AI puts a short "What is trending" block from it next to this playbook
   (`trendingContext` in `src/lib/desktop/ai/playbookContext.ts`): Make videos gets about 700 characters (about 200 tokens,
   told to lean toward it when the user names no recipe, length or look), the idea generator about 900 and the post
@@ -154,8 +157,11 @@ where that data lives, how the app's AI reads it and what the first runs found.
   `npm run trends -- .agent-out/inspiration/<run> …` with the runs to keep, run `npx vitest run tests/trends.test.ts` and
   commit the new `trends.json`. Once a month is a good pace, or when the feed changes.
 - **How to read it.** A run is a few dozen videos on one day: tendencies, not laws. A pattern is "clear" from 5 videos,
-  |ρ| of 0.4 and a step's difference, a "hint" from 3. A theme is advice only from two videos, with a lift of 1 or more,
-  and never for "satisfying", which most titles of the genre carry. When a site refuses a download, `inspire` sees a
+  |ρ| of 0.4 and a step's difference, a "hint" from 3, and is dropped when one search on its own says the opposite. A
+  trait whose searches' most viewed differ by more than two steps (one search's top is dark, another's light) is "split":
+  no advice comes from it, and the prompt gives its range by search. A theme is advice only from three videos, when they
+  rank above the other videos with and without the best of them, and never for "satisfying", which most titles of the
+  genre carry: summed views never decide it, since one hit would. When a site refuses a download, `inspire` sees a
   YouTube video through its public stills (the opening frame, 25, 50 and 75 % and the cover): its colours then come from
   four moments, and its motion and sound are unknown.
 

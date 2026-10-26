@@ -37,11 +37,22 @@ export interface TrendNumber {
   top: number | null;
   rest: number | null;
   all: number | null;
-  /** Spearman's ρ with the metric. */
+  /** Spearman's ρ with the metric (the videos' ranks in their own reports). */
   rho: number | null;
   n: number;
-  /** Whether it separates the most viewed: clearly, as a hint, or not. */
+  /** Whether it separates the most viewed: clearly, as a hint, or not (never when a report on its own says the opposite). */
   strength: "clear" | "hint" | null;
+  /**
+   * --- trends --- What it is compared over: "list" every compared video (its page, or its stills' colours), "fetched" only
+   * the videos inspire fetched whole, the top of each list – their most viewed and their rest are both within that top.
+   */
+  scope: "list" | "fetched";
+  /** --- trends --- The reports whose own ρ (3 videos or more) points the pooled way, and those that point the other way. */
+  agreement: { same: number; opposite: number };
+  /** --- trends --- Each listed report's own most viewed (its top third's median; null below 3 videos), in `sources` order. */
+  tops: (number | null)[];
+  /** --- trends --- Whether those are more than two steps apart: the pooled median describes no search, and gives no advice. */
+  split: boolean;
 }
 
 export interface TrendTheme {
@@ -50,9 +61,20 @@ export interface TrendTheme {
   videos: number;
   viewShare: number;
   videoShare: number;
-  /** viewShare ÷ videoShare: above 1 its videos do better than the average. */
+  /** viewShare ÷ videoShare: summed views, so one hit decides it – it describes the sample, it never makes advice. */
   lift: number;
-  /** Whether it is advice: from two videos, a lift of 1 or more, and a mechanic rather than the genre's own word ("satisfying"). */
+  /**
+   * --- trends --- How its videos rank: the median of their view percentiles in their own reports (0–1), the other videos'
+   * median, its own without its best-ranked video, and the share of its views its most viewed video carries.
+   */
+  rank: number | null;
+  restRank: number | null;
+  rankWithoutTop: number | null;
+  topShare: number | null;
+  /**
+   * Whether it is advice (lib/agentKit/inspiration.ts themeAdvised): from three videos, ranked above the others with and
+   * without its best one, and a mechanic rather than the genre's own word ("satisfying").
+   */
   advised: boolean;
   /** Our modes that play it (MODE_IDS) and built-in Blueprints. */
   modes: string[];
@@ -165,6 +187,10 @@ export function validateTrends(value: unknown): string[] {
     need(n.rho === null || (isNum(n.rho) && Math.abs(n.rho as number) <= 1), `${p}.rho`, "must be -1–1 or null");
     need(isCount(n.n), `${p}.n`, "must be a count");
     need(n.strength === null || n.strength === "clear" || n.strength === "hint", `${p}.strength`, "must be clear, hint or null");
+    need(n.scope === "list" || n.scope === "fetched", `${p}.scope`, "must be list or fetched");
+    need(isObj(n.agreement) && isCount(n.agreement.same) && isCount(n.agreement.opposite), `${p}.agreement`, "must count the reports that agree and those that do not");
+    need(Array.isArray(n.tops) && n.tops.length <= TRENDS_LIMITS.sources && n.tops.every(isNumOrNull), `${p}.tops`, "must list a number or null per report");
+    need(typeof n.split === "boolean", `${p}.split`, "must be true or false");
   });
   list("themes", TRENDS_LIMITS.themes, (th, p) => {
     if (!isObj(th)) return need(false, p, "must be an object");
@@ -174,6 +200,7 @@ export function validateTrends(value: unknown): string[] {
     need(isShare(th.viewShare), `${p}.viewShare`, "must be 0–1");
     need(isShare(th.videoShare), `${p}.videoShare`, "must be 0–1");
     need(isNum(th.lift) && (th.lift as number) >= 0, `${p}.lift`, "must be 0 or more");
+    for (const k of ["rank", "restRank", "rankWithoutTop", "topShare"]) need(isShareOrNull(th[k]), `${p}.${k}`, "must be 0–1 or null");
     need(typeof th.advised === "boolean", `${p}.advised`, "must be true or false");
     need(Array.isArray(th.modes) && th.modes.length <= TRENDS_LIMITS.modes && th.modes.every(isId), `${p}.modes`, "must be mode ids");
     need(Array.isArray(th.blueprints) && th.blueprints.length <= TRENDS_LIMITS.modes && th.blueprints.every(isId), `${p}.blueprints`, "must be Blueprint ids");

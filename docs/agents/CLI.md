@@ -167,16 +167,26 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   about 25, 50 and 75% of it and its cover. They are saved in `.agent-out/frames/youtube-<id>/`, cropped to the video's
   shape, laid out on stills-sheet.png and their brightness, saturation and dark share measured (the report marks such a
   video `measured: "stills"`; `stills: false` turns this off). A short-form run (the default) compares only short-form
-  videos: a long compilation is listed, marked long-form, and left out of the numbers. A theme is advice only from two
-  videos up and when its videos hold more of the views than their share of the list (its `lift`); "satisfying" names the
-  genre, not a mechanic, and is never advice. The look advice also compares our renders with all the trending clips, so a
+  videos: a long compilation is listed, marked long-form, and left out of the numbers. A theme is weighed by its videos'
+  ranks, never by summed views, which one hit decides (in October one video of 3.6 million views made two themes "×5"):
+  it is advice from three videos up, when their median view percentile in their list is above the other videos' with and
+  without its best video; its `lift` (its share of the views over its share of the videos) only describes the list, beside
+  `topShare`, the part of the theme's views its most viewed video carries. "satisfying" names the genre, not a mechanic,
+  and is never advice; a theme's words leave out fillers such as "out" and "first". A pattern needs its ρ and the
+  difference of the medians to point the same way. The look advice also compares our renders with all the trending clips, so a
   picture far darker than every one of them is said, and the titles' formats are counted (a question, a count of 100 or
   more, a versus, a scale stepped up such as "0% vs 100%", a numbered series).
 - **`npm run trends`** sums inspire reports up for the app's AI. It is a script, not a toolbox tool, because it writes
   `src/content/trends.json`, which is committed: `npm run trends -- .agent-out/inspiration/<run> …` (a run folder or its
   report.json; `npm run trends -- --stdout <run> …` prints instead, `npm run trends -- --check` checks the committed file). The summary is dated and holds the queries,
-  the sample, the numbers and patterns, the themes with their lift, the title formats, recommendations in our levers and
-  the links and titles of the most viewed videos, never a video file. The planner, Make videos and the idea generator read a
+  the sample, the numbers and patterns, the themes with their ranks, the title formats, recommendations in our levers and
+  the links and titles of the most viewed videos, never a video file. Each report stays its own list: a video is ranked
+  within its report first (its view percentile there), and the pool compares those ranks, never absolute views, so a query
+  of 3D renders with millions of views is not "the most viewed" of a pool with a query of 2D clips. A pattern that one
+  report on its own contradicts is dropped (a number's `agreement`), and a trait whose reports' own most viewed are more
+  than two steps apart is `split` (each report's in `tops`): it gives no advice, and the prompt shows the range by search.
+  A video in several reports keeps its newest numbers and title, and the traits of its best measurement in any of them
+  (the video, then its stills, then its page). The planner, Make videos and the idea generator read a
   short "What is trending" block from it next to the virality playbook; `docs/virality-playbook.md` section 6 says how, and
   what the first runs found.
 

@@ -8,7 +8,7 @@
  * viral simulation videos (src/content/trends.json), in a few lines within a budget of its own.
  */
 
-import type { TrendLever, TrendNumber, TrendSummary } from "@/lib/trends";
+import type { TrendLever, TrendNumber, TrendSummary, TrendTheme } from "@/lib/trends";
 
 export interface PlaybookChunk {
   /** "3. The recipe the bot follows" – the section it belongs to. */
@@ -106,7 +106,7 @@ const leverText = (l: TrendLever) => (l.kind === "setting" ? (l.value !== undefi
 /**
  * The "What is trending" block for a prompt, from the committed trend summary (src/content/trends.json, lib/trends.ts):
  * a heading with its date and sample, then lines by priority – for clips (Make videos, ideas) the advice in our levers, the
- * themes whose videos earn more than their share of the views with our modes for them, the title formats, the look of the
+ * themes whose videos rank above the others' (with their count, and our modes for them), the title formats, the look of the
  * most viewed and the words of their titles; for copy (the planner's captions and titles) the title formats and words
  * first – each kept only while the block stays within `maxChars`. No title is quoted: other creators' text stays data.
  * "" without a summary.
@@ -126,13 +126,23 @@ export function trendingContext(summary: TrendSummary | null | undefined, maxCha
       const levers = r.levers.filter((l) => l.kind !== "tool").map(leverText);
       return `- ${r.advice}${levers.length ? ` (${levers.join(", ")})` : ""}`;
     });
-  const themes = summary.themes.filter((t) => t.advised).slice(0, 4);
-  const themeLine = themes.length ? [`- Themes whose videos earn more than their share of the views: ${themes.map((t) => `${t.label} ×${Math.round(t.lift * 10) / 10}${t.modes.length ? ` (${t.modes.slice(0, 3).join(", ")})` : ""}`).join("; ")}.`] : [];
+  // --- trends --- a theme by how its videos rank (their median view percentile against the others'), with how many videos
+  // and how much of their views the best one carries: never one hit's summed views shown as the theme's
+  const margin = (t: TrendTheme) => (t.rank ?? 0) - (t.restRank ?? 0);
+  const themes = summary.themes.filter((t) => t.advised && t.rank !== null && t.restRank !== null).sort((a, b) => margin(b) - margin(a)).slice(0, 4);
+  const rankText = (p: number | null) => String(Math.round((p ?? 0) * 100));
+  const themeLine = themes.length ? [`- Themes whose videos rank above the rest (median view percentile against the others'): ${themes.map((t) => `${t.label} ${rankText(t.rank)} against ${rankText(t.restRank)} (${t.videos} videos${t.topShare !== null ? `, the best ${pct(t.topShare)} of their views` : ""}${t.modes.length ? `; ${t.modes.slice(0, 3).join(", ")}` : ""})`).join("; ")}.`] : [];
   const formats = summary.formats.filter((f) => f.all !== null && f.all >= 0.1).sort((a, b) => (b.all as number) - (a.all as number));
   const formatLine = formats.length ? [`- Title formats: ${formats.map((f) => `${f.label} in ${pct(f.all as number)}${f.top !== null && f.rest !== null && f.top > f.rest ? " (more among the most viewed)" : ""}`).join(", ")}.`] : [];
   const num = (trait: string) => summary.numbers.find((n) => n.trait === trait);
   const look = ["meanLuma", "meanSat", "darkShare"].map(num).filter((n): n is TrendNumber => !!n && n.top !== null);
-  const lookLine = look.length ? [`- The most viewed look (0–1): ${look.map((n) => `${n.label} ${n.top}${n.rest !== null ? ` (the rest ${n.rest})` : ""}`).join(", ")}.`] : [];
+  // --- trends --- a trait the searches disagree on (split) is a range by search, never one pooled median
+  const lookText = (n: TrendNumber) => {
+    const tops = n.split ? n.tops.filter((t): t is number => t !== null) : [];
+    if (tops.length >= 2) return `${n.label} ${Math.min(...tops)}–${Math.max(...tops)} by search`;
+    return `${n.label} ${n.top}${n.rest !== null ? ` (the rest ${n.rest})` : ""}`;
+  };
+  const lookLine = look.length ? [`- The most viewed look (0–1): ${look.map(lookText).join(", ")}.`] : [];
   const words = summary.words.map((w) => w.word).filter((w) => !/shorts|tiktok|reels?$|fyp|viral|youtube/i.test(w)).slice(0, 10);
   const wordLine = words.length ? [`- Words of the most viewed titles: ${words.join(", ")}.`] : [];
   const lines = focus === "copy" ? [...formatLine, ...wordLine, ...themeLine, ...advice, ...lookLine] : [...advice, ...themeLine, ...formatLine, ...lookLine, ...wordLine];

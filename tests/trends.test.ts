@@ -6,7 +6,7 @@ import data from "../src/content/trends.json";
 import { TRENDS } from "@/content/trends";
 import { TRENDS_LIMITS, TRENDS_TEXT_MAX, parseTrends, validateTrends, type TrendSummary } from "@/lib/trends";
 import { buildTrendSummary, cleanTitle } from "@/lib/agentKit/trends";
-import { LEVERS, buildInspirationReport, type AnalysedVideo } from "@/lib/agentKit/inspiration";
+import { LEVERS, MIN_THEME_VIDEOS, buildInspirationReport, themeAdvised, type AnalysedVideo } from "@/lib/agentKit/inspiration";
 import { parseJsonLines, videoMetaOf, type VideoMeta } from "@/lib/agentKit/videoSources";
 import type { VideoFeatures } from "@/lib/videoAnalysis/features";
 import { MODE_IDS } from "@/lib/physics/types";
@@ -60,9 +60,57 @@ describe("the trend summary of inspire reports (--- trends ---)", () => {
     // the length comes from every compared video's page; the look from the one measured and the one seen through its stills
     expect(summary.numbers.find((n) => n.trait === "durationSec")?.n).toBe(shortKeys.size);
     expect(summary.numbers.find((n) => n.trait === "meanSat")).toBeUndefined(); // two videos are an anecdote
-    // themes say whether they are advice: a mechanic, from two videos, above their share of the views
-    for (const t of summary.themes) expect(t.advised).toBe(t.videos >= 2 && t.lift >= 1 && t.id !== "satisfying");
+    // themes say whether they are advice, as the report does: by their videos' ranks, from three videos, never the genre's word
+    for (const t of summary.themes) expect(t.advised, t.id).toBe(themeAdvised(t) && t.videos >= MIN_THEME_VIDEOS && t.id !== "satisfying");
     expect(() => buildTrendSummary([], { modes: [...MODE_IDS] })).toThrow(/No inspire report/);
+  });
+
+  // --- trends --- a later run that could only list a video keeps what an earlier run measured of it
+  it("pools a video field by field: its newest numbers and title, the traits of its best measurement in any report", () => {
+    const [first] = reports();
+    const later = buildInspirationReport({ query: "ball simulation", at: "2026-10-27T10:00:00.000Z", sortBy: "views", candidates: PAGES.map((p) => ({ ...p, views: (p.views ?? 0) + 1000, title: `${p.title} (new title)` })), analysed: [], ours: [], modes: [...MODE_IDS], shortForm: true });
+    expect(later.videos.every((v) => v.measured === "page")).toBe(true);
+    const summary = buildTrendSummary([later, first], { modes: [...MODE_IDS] });
+    expect(summary.sample).toMatchObject({ measured: 1, stills: 1 }); // (the page-only rows of the later run did not wipe them)
+    const sat = summary.numbers.find((n) => n.trait === "durationSec")!;
+    expect(sat.n).toBe(PAGES.filter((p) => p.short).length);
+    expect(summary.sample.views).toBe(PAGES.filter((p) => p.short).reduce((s, p) => s + (p.views ?? 0) + 1000, 0)); // the newest views
+    for (const e of summary.examples) expect(e.title, e.url).toMatch(/\(new title\)$/);
+    // the measured one's length is its video's (5 s), not its page's
+    const measured = PAGES[0];
+    const alone = buildTrendSummary([first, later], { modes: [...MODE_IDS] });
+    expect(JSON.stringify(alone)).toBe(JSON.stringify(summary));
+    expect(first.videos.find((v) => v.key === measured.key)?.traits.durationSec).toBe(5);
+  });
+
+  // --- trends --- each search is its own list: a pool of a 3D query with millions of views and a 2D one with thousands
+  it("ranks each video within its own report, so a query with more views is no 'most viewed', and drops a pattern a report contradicts", () => {
+    const base = PAGES.find((p) => p.short)!;
+    const video = (id: string, views: number): VideoMeta => ({ ...base, key: `youtube:${id}`, id, url: `https://www.youtube.com/shorts/${id}`, title: `clip ${id}`, views, viewsPerDay: views / 10 });
+    const seen = (meta: VideoMeta, meanSat: number, darkShare = 0): AnalysedVideo => ({ meta, error: "blocked", stills: { dir: ".agent-out/frames/x", sheet: null, files: [], colour: { meanLuma: 0.5, meanSat, darkShare, stills: 4 } } });
+    const report = (query: string, at: string, rows: [string, number, number, number?][]) => {
+      const metas = rows.map(([id, views]) => video(id, views));
+      return buildInspirationReport({ query, at, sortBy: "views", candidates: metas, analysed: metas.map((m, i) => seen(m, rows[i][2], rows[i][3])), ours: [], modes: [...MODE_IDS], shortForm: true });
+    };
+    // in both searches the more viewed are the more saturated; the 3D one is far less saturated, and has 100 times the views
+    const threeD = report("3d", "2026-10-25T10:00:00.000Z", [["a1aaaaaaaaa", 5e6, 0.3], ["a2aaaaaaaaa", 4e6, 0.25], ["a3aaaaaaaaa", 3e6, 0.2], ["a4aaaaaaaaa", 2e6, 0.15], ["a5aaaaaaaaa", 1e6, 0.1]]);
+    const twoD = report("2d", "2026-10-26T10:00:00.000Z", [["b1bbbbbbbbb", 5e4, 0.9, 0.9], ["b2bbbbbbbbb", 4e4, 0.85, 0.9], ["b3bbbbbbbbb", 3e4, 0.8, 0.9], ["b4bbbbbbbbb", 2e4, 0.75, 0.9], ["b5bbbbbbbbb", 1e4, 0.7, 0.9]]);
+    const pooled = buildTrendSummary([threeD, twoD], { modes: [...MODE_IDS] });
+    const sat = pooled.numbers.find((n) => n.trait === "meanSat")!;
+    expect(sat.rho).toBeGreaterThan(0); // by absolute views it would be strongly negative: every 3D clip outranks every 2D one
+    expect(sat.agreement).toEqual({ same: 2, opposite: 0 });
+    expect(sat.tops).toEqual([0.275, 0.875]); // (each search's top two: 0.3 and 0.25, 0.9 and 0.85)
+    expect(sat).toMatchObject({ split: true, strength: null }); // (its pooled medians mix the two looks: no pattern, no advice)
+    expect(pooled.numbers.find((n) => n.trait === "darkShare")).toMatchObject({ tops: [0, 0.9], split: true });
+    expect(pooled.recommendations.find((r) => r.area === "look")).toBeUndefined();
+    // a search that says the opposite: the pattern is dropped, the number says so
+    const reversed = report("2d", "2026-10-26T10:00:00.000Z", [["c1ccccccccc", 5e4, 0.4], ["c2ccccccccc", 4e4, 0.5], ["c3ccccccccc", 3e4, 0.6]]);
+    const strong = report("3d", "2026-10-25T10:00:00.000Z", [["a1aaaaaaaaa", 6e6, 0.9], ["a2aaaaaaaaa", 5e6, 0.8], ["a3aaaaaaaaa", 4e6, 0.7], ["a4aaaaaaaaa", 3e6, 0.6], ["a5aaaaaaaaa", 2e6, 0.5], ["a6aaaaaaaaa", 1e6, 0.4]]);
+    const alone = buildTrendSummary([strong], { modes: [...MODE_IDS] }).numbers.find((n) => n.trait === "meanSat")!;
+    expect(alone).toMatchObject({ strength: "clear", agreement: { same: 1, opposite: 0 }, split: false });
+    const contradicted = buildTrendSummary([strong, reversed], { modes: [...MODE_IDS] }).numbers.find((n) => n.trait === "meanSat")!;
+    expect(contradicted.agreement).toEqual({ same: 1, opposite: 1 });
+    expect(contradicted.strength).toBeNull();
   });
 
   it("keeps other creators' titles as one clean, short line of data", () => {

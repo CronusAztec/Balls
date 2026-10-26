@@ -14,7 +14,10 @@ import type { SortBy, VideoMeta } from "./videoSources";
  *  - every trait is compared over the videos that have it: the top third by the run's metric (views, or views per day)
  *    against the rest, by their medians, and by Spearman's rank correlation with the metric over all of them;
  *  - a difference counts once it is at least one trait `step` (a change a viewer would notice); a pattern is "clear" with
- *    at least 5 videos, |ρ| ≥ 0.4 and a difference of a step or more, a "hint" with 3 or more, |ρ| ≥ 0.3 and half a step;
+ *    at least 5 videos, |ρ| ≥ 0.4 and a difference of a step or more, a "hint" with 3 or more, |ρ| ≥ 0.3 and half a step,
+ *    and either needs ρ and the difference to point the same way;
+ *  - a theme (the title words of a mechanic) is weighed by ranks, never by summed views, which one hit decides: its videos'
+ *    median view percentile against the others', with and without its best video, from three videos up (themeAdvised);
  *  - the recommendations take the most viewed videos' medians as the benchmark, say where our own renders (when given)
  *    are a step or more away, and name the lever that moves each number. Titles and channels are other people's text:
  *    only counted, never followed.
@@ -33,8 +36,11 @@ export const OUR_SHORTEST_CLIP_SEC = 10;
 export const MIN_VIDEOS_FOR_ADVICE = 3;
 /** --- inspiration --- How a short-form run names the longest short-form video (videoSources.ts SHORT_MAX_SEC). */
 const SHORT_FORM_LABEL = "3 minutes";
-/** --- inspiration --- A theme turns into advice only from this many videos (one video's views are its own, not its theme's). */
-export const MIN_THEME_VIDEOS = 2;
+/**
+ * --- inspiration --- A theme turns into advice only from this many videos: one video's views are its own, not its theme's,
+ * and with two a single hit decides their median (the October runs' "×5 escaping rings" was one video of 3.6M views).
+ */
+export const MIN_THEME_VIDEOS = 3;
 /** --- inspiration --- Themes that name the genre, not a mechanic: listed with the others, never advice. */
 export const GENERIC_THEMES: readonly string[] = ["satisfying"];
 
@@ -70,13 +76,17 @@ export interface Theme {
   mechanic: string | null;
 }
 
-/** What trending simulation videos are about, and which of our modes and Blueprint mechanics play the same idea. */
+/**
+ * What trending simulation videos are about, and which of our modes and Blueprint mechanics play the same idea. A theme's
+ * words name its mechanic: no stop word or filler that any title carries ("out", "who", "first", "last" were, and put an
+ * apple bursting out of a grid among the ring escapes).
+ */
 export const THEMES: readonly Theme[] = [
   { id: "multiply", label: "multiplying balls", words: ["multiply", "multiplying", "multiplies", "clone", "clones", "double", "doubling", "duplicate", "swarm", "spawn", "spawns", "hatch"], modes: ["multiply", "multipliers", "spiralGlass", "brickRebuild"], blueprints: ["hatchery", "ringBreaker"], mechanic: "a hit that adds balls: tileBroken → spawn (Glass Hatchery), or ringPass → split (Ring Breaker)" },
-  { id: "escape", label: "escaping rings", words: ["escape", "escapes", "escaping", "ring", "rings", "gap", "gaps", "circle", "circles", "trapped", "prison", "out"], modes: ["classic", "accumulation", "shatter", "spiralGlass", "grow"], blueprints: ["ringBreaker", "growEscape"], mechanic: "rings with a gap that break on a pass: arena.shape rings with rings.breakOnPass" },
+  { id: "escape", label: "escaping rings", words: ["escape", "escapes", "escaping", "ring", "rings", "gap", "gaps", "circle", "circles", "trapped", "prison"], modes: ["classic", "accumulation", "shatter", "spiralGlass", "grow"], blueprints: ["ringBreaker", "growEscape"], mechanic: "rings with a gap that break on a pass: arena.shape rings with rings.breakOnPass" },
   { id: "marbleRun", label: "marble runs and pegs", words: ["marble", "marbles", "run", "escalator", "stairs", "staircase", "plinko", "peg", "pegs", "galton", "funnel", "track", "slide", "tower"], modes: ["drop", "bullseye", "beatMachine", "conveyor", "race"], blueprints: ["plinkoRace"], mechanic: "a peg field over a finish: obstacles pegGrid and an exit (Peg Race)" },
-  { id: "race", label: "races", words: ["race", "racing", "races", "winner", "wins", "win", "first", "fastest", "who"], modes: ["race", "maze", "bullseye"], blueprints: ["plinkoRace"], mechanic: "first one out wins: finish escaped with winner firstOut" },
-  { id: "battle", label: "battles", words: ["battle", "fight", "fights", "fighting", "war", "vs", "versus", "survive", "survival", "royale", "duel", "weapon", "weapons", "last", "kill"], modes: ["battle", "fightLeague", "stringBattle", "territory", "landClaim"], blueprints: ["conquer"], mechanic: "teams that convert on contact: ballHit with otherTeam → team (Colour Conquest)" },
+  { id: "race", label: "races", words: ["race", "racing", "races", "winner", "wins", "win", "fastest"], modes: ["race", "maze", "bullseye"], blueprints: ["plinkoRace"], mechanic: "first one out wins: finish escaped with winner firstOut" },
+  { id: "battle", label: "battles", words: ["battle", "fight", "fights", "fighting", "war", "vs", "versus", "survive", "survival", "royale", "duel", "weapon", "weapons", "kill"], modes: ["battle", "fightLeague", "stringBattle", "territory", "landClaim"], blueprints: ["conquer"], mechanic: "teams that convert on contact: ballHit with otherTeam → team (Colour Conquest)" },
   { id: "satisfying", label: "satisfying and calm", words: ["satisfying", "asmr", "relaxing", "relax", "sleep", "calm", "calming", "oddly", "perfect", "perfectly", "fit"], modes: ["colourSort", "perfectFit", "orbGrid", "pendulum", "collide"], blueprints: [], mechanic: null },
   { id: "music", label: "music and notes", words: ["music", "song", "songs", "beat", "beats", "piano", "melody", "note", "notes", "rhythm", "sound", "sounds", "bass", "musical", "harp", "xylophone"], modes: ["beatDrop", "beatMachine", "runner", "vortex", "polyrhythm", "drop", "hoops"], blueprints: [], mechanic: "a note on the beat: sound.bpm with when beat → sound" },
   { id: "wave", label: "pendulums and waves", words: ["pendulum", "pendulums", "wave", "waves", "harmonic", "sync", "synchronized", "metronome", "metronomes"], modes: ["pendulum", "doublePendulum", "waveTank", "orbGrid", "polyrhythm"], blueprints: [], mechanic: null },
@@ -146,6 +156,16 @@ export const TRAITS: readonly TraitSpec[] = [
   { key: "firstSoundSec", label: "first sound", unit: "s", digits: 2, step: 0.3 },
   { key: "silenceShare", label: "silent share", unit: "", digits: 2, step: 0.1 },
 ];
+
+/**
+ * --- inspiration --- The traits a video has without being fetched whole: its page's length and shape, and its stills'
+ * colours (inspire reads the stills of every video it does not fetch). The others – motion, cuts, the first second, the
+ * loop seam, the sound – exist only for the videos inspire fetched, the top `top` of each list, so their "most viewed" and
+ * "rest" are both within that top.
+ */
+export const LIST_TRAITS: readonly TraitKey[] = ["durationSec", "portrait", "meanLuma", "meanSat", "darkShare"];
+/** --- inspiration --- Whether a trait spans the whole list ("list") or only the fetched top of it ("fetched"). */
+export const traitScope = (key: TraitKey): "list" | "fetched" => (LIST_TRAITS.includes(key) ? "list" : "fetched");
 
 const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round = (n: number, digits: number) => {
@@ -303,7 +323,9 @@ export function traitSummaries(rows: readonly MetricRow[], ours: readonly ClipTr
     const effect = top !== null && rest !== null ? round((top - rest) / spec.step, 2) : null;
     const ourValues = ours.map((t) => t[spec.key]).filter((v): v is number => v !== null);
     summaries.push({ key: spec.key, label: spec.label, unit: spec.unit, n: have.length, top: top === null ? null : round(top, spec.digits + 1), rest: rest === null ? null : round(rest, spec.digits + 1), all: median(values) === null ? null : round(median(values) as number, spec.digits + 1), ours: ourValues.length ? round(median(ourValues) as number, spec.digits + 1) : null, rho, effect });
-    if (rho === null || effect === null) continue;
+    // --- inspiration --- (a ρ and a difference of the medians that point opposite ways are no pattern: the most viewed third
+    // differs from the rest by something else than the ranking, as when lists of two genres are pooled)
+    if (rho === null || effect === null || Math.sign(rho) !== Math.sign(effect)) continue;
     const clear = have.length >= 5 && Math.abs(rho) >= 0.4 && Math.abs(effect) >= 1;
     const hint = have.length >= 3 && Math.abs(rho) >= 0.3 && Math.abs(effect) >= 0.5;
     if (!clear && !hint) continue;
@@ -358,24 +380,98 @@ export interface ThemeShare {
   videos: number;
   /** The theme's share of all the views in the list (0–1). */
   viewShare: number;
-  /** --- inspiration --- Its share of the videos (0–1), and of the views per share of the videos: above 1 its videos do better than the list's average. */
+  /**
+   * --- inspiration --- Its share of the videos (0–1), and of the views per share of the videos (`lift`: above 1 its views
+   * beat its count). Both sum views, so one hit decides them: they describe the list, they never make a theme advice.
+   */
   videoShare: number;
   lift: number;
+  /**
+   * --- inspiration --- How its videos rank: the median view percentile of its videos in their own lists (0 the least
+   * viewed, 1 the most), the same for the other videos, and its own median again without its best-ranked video – so one
+   * outlier neither makes nor carries a theme. null without a video with views.
+   */
+  rank: number | null;
+  restRank: number | null;
+  rankWithoutTop: number | null;
+  /** The share of the theme's views its most viewed video carries (0–1; null without views). */
+  topShare: number | null;
+  /** --- inspiration --- Whether it is advice: see themeAdvised. */
+  advised: boolean;
   modes: string[];
   blueprints: string[];
   mechanic: string | null;
 }
 
-/** The themes of a list of videos by their share of the views (most first; only themes with a video). */
-export function themeShares(videos: readonly Pick<VideoMeta, "title" | "views">[], knownModes: readonly string[]): ThemeShare[] {
+/** --- inspiration --- A video as the themes read it: its title, its views and, when the caller ranked it, its percentile. */
+export interface ThemeVideo {
+  title: string | null;
+  views: number | null;
+  /** Its view percentile in its own list (0–1); left out: ranked by views within this list. */
+  pct?: number | null;
+}
+
+/**
+ * --- inspiration --- Each value's percentile within its list: 0 the least, 1 the most, ties sharing theirs, 0.5 alone; null
+ * for a missing one. Ranks, not sizes: a video of 3.6 million views is the top of its list as one of 80,000 is of another.
+ */
+export function percentiles(values: readonly (number | null)[]): (number | null)[] {
+  const at = values.flatMap((v, i) => (v !== null && Number.isFinite(v) ? [i] : []));
+  const out: (number | null)[] = values.map(() => null);
+  const r = ranks(at.map((i) => values[i] as number));
+  at.forEach((i, k) => {
+    out[i] = at.length > 1 ? round((r[k] - 1) / (at.length - 1), 4) : 0.5;
+  });
+  return out;
+}
+
+/**
+ * --- inspiration --- A theme is advice when its videos rank above the others': from MIN_THEME_VIDEOS videos, its median
+ * view percentile above the others' with and without its best-ranked video, and it names a mechanic rather than the genre
+ * ("satisfying" is in most titles of it). Summed views never decide it.
+ */
+export function themeAdvised(t: Pick<ThemeShare, "id" | "videos" | "rank" | "restRank" | "rankWithoutTop">): boolean {
+  if (t.videos < MIN_THEME_VIDEOS || GENERIC_THEMES.includes(t.id)) return false;
+  if (t.rank === null || t.restRank === null || t.rankWithoutTop === null) return false;
+  return t.rank > t.restRank && t.rankWithoutTop > t.restRank;
+}
+
+/**
+ * The themes of a list of videos (only themes with a video), the most viewed share first: their share of the views and of
+ * the videos, how their videos rank against the others' (by each video's `pct`, else its view percentile in this list),
+ * and whether that makes them advice (themeAdvised).
+ */
+export function themeShares(videos: readonly ThemeVideo[], knownModes: readonly string[]): ThemeShare[] {
   const total = videos.reduce((s, v) => s + (v.views ?? 0), 0);
   const known = new Set(knownModes);
+  const own = percentiles(videos.map((v) => v.views));
+  const pct = videos.map((v, i) => (v.pct !== undefined ? v.pct : own[i]));
+  const at = (list: number[]) => (list.length ? round(median(list) as number, 3) : null);
   return THEMES.map((t) => {
-    const hits = videos.filter((v) => inTheme(t, v.title));
+    const inside = videos.map((v) => inTheme(t, v.title));
+    const hits = videos.filter((_, i) => inside[i]);
     const views = hits.reduce((s, v) => s + (v.views ?? 0), 0);
     const viewShare = total > 0 ? views / total : 0;
     const videoShare = videos.length ? hits.length / videos.length : 0;
-    return { id: t.id, label: t.label, videos: hits.length, viewShare: round(viewShare, 3), videoShare: round(videoShare, 3), lift: videoShare > 0 ? round(viewShare / videoShare, 2) : 0, modes: t.modes.filter((m) => known.has(m)), blueprints: [...t.blueprints], mechanic: t.mechanic };
+    const ranked = pct.filter((p, i): p is number => inside[i] && p !== null).sort((a, b) => b - a);
+    const others = pct.filter((p, i): p is number => !inside[i] && p !== null);
+    const top = hits.reduce((m, v) => Math.max(m, v.views ?? 0), 0);
+    const share: Omit<ThemeShare, "advised"> = {
+      id: t.id,
+      label: t.label,
+      videos: hits.length,
+      viewShare: round(viewShare, 3),
+      videoShare: round(videoShare, 3),
+      lift: videoShare > 0 ? round(viewShare / videoShare, 2) : 0,
+      rank: at(ranked),
+      restRank: at(others),
+      rankWithoutTop: at(ranked.slice(1)),
+      topShare: views > 0 ? round(top / views, 3) : null,
+      modes: t.modes.filter((m) => known.has(m)),
+      blueprints: [...t.blueprints],
+      mechanic: t.mechanic,
+    };
+    return { ...share, advised: themeAdvised(share) };
   })
     .filter((t) => t.videos > 0)
     .sort((a, b) => b.viewShare - a.viewShare || b.videos - a.videos || (a.id < b.id ? -1 : 1));
@@ -445,6 +541,12 @@ export interface Recommendation {
   basis: "pattern" | "benchmark" | "gap" | "theme";
 }
 
+/** --- inspiration --- A percentile (0–1) as a whole number, and a share as a percentage ("–" for none). */
+const percent = (p: number | null) => (p === null ? "–" : String(Math.round(p * 100)));
+const shareText = (share: number | null) => (share === null ? "–" : `${Math.round(share * 100)}%`);
+/** --- inspiration --- How far a theme's videos rank above the others' (its median percentile less theirs). */
+const themeMargin = (t: ThemeShare) => (t.rank ?? 0) - (t.restRank ?? 0);
+
 const setting = (id: LeverId, value?: string | number | boolean): Lever => ({ kind: "setting", name: LEVERS[id].field, link: LEVERS[id].link, ...(value !== undefined ? { value } : {}) });
 
 /** One trait's benchmark, its pattern (when it has one) and our gap, as evidence and a basis. */
@@ -504,14 +606,20 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
     // a picture far darker (or brighter) than all of them is a gap worth a test (two steps of brightness: 0.1 on 0–1)
     const step = spec("meanLuma")?.step ?? 0.05;
     const tone = luma && luma.ours !== null && luma.all !== null ? (luma.ours < luma.all - 2 * step ? "darker" : luma.ours > luma.all + 2 * step ? "brighter" : null) : null;
-    const toneAdvice = tone && luma ? `, and ${tone === "darker" ? "lighten" : "darken"} the picture: ours are ${tone} than the trending clips (brightness ${round(luma.ours as number, 2)} against ${round(luma.all as number, 2)}), so try ${tone === "darker" ? "a light theme or a gradient background" : "a dark theme"} on a few renders` : "";
-    out.push({
-      area: "look",
-      advice: `${vivid ? "Use saturated colours (rainbow trails, a vivid theme)" : "Keep the colours calm (a muted theme)"}${toneAdvice || (darkBg ? " on a dark background" : dark ? " on a light or mid background" : "")}.`,
-      levers: [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")],
-      evidence: [sat?.evidence, dark?.evidence, luma ? `brightness: ${luma.evidence}${luma.all !== null ? `, all ${round(luma.all, 2)}` : ""}` : null].filter(Boolean).join("; "),
-      basis: tone || sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern || luma?.pattern ? "pattern" : "benchmark",
-    });
+    const toneText = tone && luma ? `${tone === "darker" ? "lighten" : "darken"} the picture: ours are ${tone} than the trending clips (brightness ${round(luma.ours as number, 2)} against ${round(luma.all as number, 2)}), so try ${tone === "darker" ? "a light theme or a gradient background" : "a dark theme"} on a few renders` : "";
+    // --- inspiration --- each clause from its own number only: no saturation, no word on the colours (a trend summary drops
+    // a number its searches disagree on), and no clause at all, no look advice
+    const colours = sat ? (vivid ? "Use saturated colours (rainbow trails, a vivid theme)" : "Keep the colours calm (a muted theme)") : null;
+    const ground = darkBg ? "a dark background" : dark ? "a light or mid background" : null;
+    const advice = colours ? `${colours}${toneText ? `, and ${toneText}` : ground ? ` on ${ground}` : ""}.` : toneText ? `${toneText[0].toUpperCase()}${toneText.slice(1)}.` : ground ? `Use ${ground}.` : null;
+    if (advice)
+      out.push({
+        area: "look",
+        advice,
+        levers: [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")],
+        evidence: [sat?.evidence, dark?.evidence, luma ? `brightness: ${luma.evidence}${luma.all !== null ? `, all ${round(luma.all, 2)}` : ""}` : null].filter(Boolean).join("; "),
+        basis: tone || sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern || luma?.pattern ? "pattern" : "benchmark",
+      });
   }
 
   const bpm = w("bpm");
@@ -536,12 +644,11 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
   if (titles.question.top !== null && titles.question.top >= 0.34 && (titles.question.rest === null || titles.question.top > titles.question.rest))
     out.push({ area: "title", advice: 'Ask what the viewer waits to see, in the title and in a question caption at 0 s ("Will the last ball get out?").', levers: [setting("captions", "question at 0 s")], evidence: `titles asking a question: most viewed ${titles.question.top}, rest ${titles.question.rest ?? "–"}`, basis: "pattern" });
 
-  // --- inspiration --- a theme is advice only when its videos do better than the list's average (lift 1 or more), it is more
-  // than one video and it names a mechanic: "satisfying" is in most titles of the genre and says nothing about what earns
-  // the views
-  for (const t of themes.filter((x) => x.videos >= MIN_THEME_VIDEOS && x.lift >= 1 && !GENERIC_THEMES.includes(x.id)).slice(0, 3)) {
+  // --- inspiration --- a theme is advice only when its videos rank above the others' (themeAdvised: three videos or more,
+  // with and without its best one, a mechanic and not the genre's own word), the furthest above first
+  for (const t of [...themes].filter((x) => x.advised).sort((a, b) => themeMargin(b) - themeMargin(a) || (a.id < b.id ? -1 : 1)).slice(0, 3)) {
     const videos = `${t.videos} video${t.videos === 1 ? "" : "s"}`;
-    out.push({ area: "mode", advice: `"${t.label}" holds ${Math.round(t.viewShare * 100)}% of the views with ${Math.round(t.videoShare * 100)}% of the videos (${videos}): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}`, basis: "theme" });
+    out.push({ area: "mode", advice: `"${t.label}" ranks above the rest: its ${videos} have a median view percentile of ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without the best of them): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}; the most viewed carries ${shareText(t.topShare)} of their views`, basis: "theme" });
     if (t.mechanic) out.push({ area: "blueprint", advice: `As a Blueprint: ${t.mechanic}. Check it with bp-check until it is playable.`, levers: [...t.blueprints.map((b) => ({ kind: "blueprint" as const, name: b })), { kind: "tool", name: "bp-check" }], evidence: `theme "${t.label}"`, basis: "theme" });
   }
   const order: Record<Recommendation["basis"], number> = { gap: 0, pattern: 1, benchmark: 2, theme: 3 };
@@ -739,7 +846,7 @@ export function inspirationMarkdown(r: InspirationReport): string {
   lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | n |", "| --- | --- | --- | --- | --- | --- | --- |");
   for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.n} |`);
   lines.push("", "## Themes", "");
-  for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}: ${Math.round(t.viewShare * 100)}% of the views, ${t.videos} video${t.videos === 1 ? "" : "s"} (${Math.round(t.videoShare * 100)}% of them, lift ${t.lift}). Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
+  for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}${t.advised ? " (ranks above the rest)" : ""}: ${t.videos} video${t.videos === 1 ? "" : "s"} (${Math.round(t.videoShare * 100)}% of them) with ${Math.round(t.viewShare * 100)}% of the views, the most viewed carrying ${shareText(t.topShare)} of theirs; median view percentile ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without its best). Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
   if (r.titles.topWords.length) lines.push("", `Words of the most viewed titles: ${r.titles.topWords.map((w) => `${mdText(w.word, 30)} (${w.videos})`).join(", ")}.`);
   lines.push("", "## Videos", "", "| # | Views | Views/day | Length | Cuts/min | Hook motion | Tempo | Title | Link | Sheet |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const v of r.videos) {
