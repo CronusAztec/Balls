@@ -18,8 +18,10 @@ import {
   bouncierIncrementOf,
   checkTypedNumber,
   fieldDisplay,
+  formatBound,
   formatCompact,
   memoryCeiling,
+  numberFieldMessage,
   numberFieldReduce,
   parseTypedNumber,
   stepNumber,
@@ -168,6 +170,41 @@ describe("uncap-all: the number field", () => {
     expect(formatCompact(1e21)).toBe("1e21");
     expect(formatCompact(0.00005)).toBe("5e-5");
     expect(formatCompact(Infinity)).toBe("∞");
+  });
+
+  // --- unlimited-sizes --- (review fix) a refusal's floor or top, and what a value plays, named exactly
+  it("names a bound exactly in the page's number format: never rounded onto a value the field would then refuse", () => {
+    expect(["en", "pl", "es"].map((locale) => formatBound(0.6875, locale))).toEqual(["0.6875", "0,6875", "0,6875"]);
+    expect(formatBound(0.3333, "en")).toBe("0.3333");
+    expect(formatBound(0.30000000000000004, "en")).toBe("0.30000000000000004");
+    expect([formatBound(5, "en"), formatBound(180, "pl"), formatBound(-0.5, "es"), formatBound(0, "en")]).toEqual(["5", "180", "-0,5", "0"]);
+    // a big one keeps the panel's short form only where it is exact and has no decimal point
+    expect([formatBound(1000, "en"), formatBound(5000, "pl"), formatBound(1e6, "en"), formatBound(1e20, "en")]).toEqual(["1K", "5K", "1M", "1e20"]);
+    expect([formatBound(1024, "en"), formatBound(2500, "en"), formatBound(1_234_567, "en")]).toEqual(["1,024", "2,500", "1,234,567"]);
+    expect(formatBound(1_234_567.5, "pl")).toMatch(/^1\s234\s567,5$/);
+    // exponent form where String() writes one, every digit of the mantissa kept
+    expect([formatBound(1.5e-7, "en"), formatBound(1.5e-7, "pl"), formatBound(1.2345e21, "en")]).toEqual(["1.5E-7", "1,5E-7", "1.2345E21"]);
+    expect(formatBound(Infinity, "en")).toBe("∞");
+    // (every finite bound reads back as itself)
+    for (const n of [0.6875, 0.1 + 0.2, 1 / 3, 1024, 123_456_789.25, 2 ** 53, 7e-7, 9.87654321e-12]) expect([n, parseTypedNumber(formatBound(n, "en"))]).toEqual([n, n]);
+  });
+
+  it("says each refusal with its bound so (Uncap.err*): 'Less than 0.6875', never 'Less than 0.688'", () => {
+    const words: Record<string, string> = { errBelowMin: "at least {min}", errNotAbove: "more than {min}", errAboveMax: "at most {max}", errNotBelow: "less than {max}", errNotFinite: "not finite", errEmpty: "empty", errNotNumber: "not a number: {text}" };
+    const t = (key: string, values: Record<string, string> = {}) => words[key].replace(/\{(\w+)\}/g, (_, name: string) => values[name]);
+    const range = { min: 1, max: 5, step: 1 };
+    expect(numberFieldMessage(null, range, "en", t)).toBeNull();
+    expect(numberFieldMessage({ reason: "notBelow", max: 0.6875 }, range, "en", t)).toBe("less than 0.6875");
+    expect(numberFieldMessage({ reason: "notBelow", max: 0.6875 }, range, "pl", t)).toBe("less than 0,6875");
+    expect(numberFieldMessage({ reason: "notAbove", min: 0.3333 }, range, "en", t)).toBe("more than 0.3333");
+    expect(numberFieldMessage({ reason: "aboveMax", max: 1_234_567 }, range, "en", t)).toBe("at most 1,234,567");
+    expect(numberFieldMessage({ reason: "belowMin" }, range, "en", t)).toBe("at least 1"); // (no bound of its own: the range's start)
+    expect(numberFieldMessage({ reason: "notFinite" }, range, "en", t)).toBe("not finite");
+    expect(numberFieldMessage({ reason: "empty" }, range, "en", t)).toBe("empty");
+    expect(numberFieldMessage({ reason: "notNumber", text: "abc" }, range, "en", t)).toBe("not a number: abc");
+    // the field refuses exactly the values the words say: 0.6876 is not less than 0.6875
+    const refused = numberFieldReduce({ draft: "0.6876", error: null }, { type: "commit" }, 0.5, range, { min: 0.05, max: 0.6875, below: true });
+    expect(numberFieldMessage(refused.state.error, range, "en", t)).toBe("less than 0.6875");
   });
 });
 

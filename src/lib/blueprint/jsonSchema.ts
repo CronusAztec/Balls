@@ -166,7 +166,7 @@ export function blueprintJsonSchema(): JsonSchema {
         obj({ id, label: text(L.labelChars), at: { type: "string", pattern: PARAM_PATH.source, description: "the path of a number of this spec: tiles.rows, spawners[0].count, finish.any[0].atLeast…" }, min: num(), max: num(), step: over(undefined, 0) }, ["id", "at", "min", "max"]),
         L.params,
         0,
-        "sliders Mode Lab offers: each sets one number of the spec (sanitized again after)",
+        "sliders Mode Lab offers: each sets one number of the spec, min and max inside that number's own domain (sanitized again after)",
       ),
     },
     ["v", "meta", "bodies", "spawners", "finish"],

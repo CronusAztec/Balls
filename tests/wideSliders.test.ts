@@ -10,7 +10,7 @@ import es from "../messages/es.json";
 import { Slider, SliderTrack, TrackEnds, type Translate } from "@/components/simulator/ControlPrimitives";
 import { UnlimitedProvider, WIDE_KEY_NOTCH, WideTrack, rulesForRange, wideInputValue, wideTrackKeyValue, wideTrackValue } from "@/components/simulator/unlimitedSlider";
 import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSection";
-import { RANGES, defaultSettings, presetToLiveSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToLiveSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
 import { PROJECT_FORMAT, buildProject, parseProject, resolveProjectSettings, serializeProject } from "@/lib/project"; // --- review fix --- (a file saved before 1.16.0)
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, formatCompact, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
@@ -18,6 +18,9 @@ import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
 import { MODE_IDS } from "@/lib/physics/types"; // --- review fix --- (every section rendered for every mode)
 import { planBeatDrop } from "@/lib/simulation/beatDropPlan"; // --- unlimited-sizes --- (the one tooltip range a planner still holds)
+import { MAX_PANE_HP, stageHp } from "@/lib/physics/modes/glass"; // --- unlimited-sizes --- (review fix) (the Hits per Pane tip)
+import { resolveBattleSettings } from "@/lib/physics/modes/arenaGames"; // --- unlimited-sizes --- (review fix) (the Battle card)
+import { chainCountCeiling, resolveDoublePendulumSettings } from "@/lib/physics/modes/doublePendulum"; // --- unlimited-sizes --- (review fix)
 import fs from "node:fs";
 import path from "node:path";
 
@@ -422,6 +425,36 @@ describe("Wide sliders in every section of the panel", () => {
     expect(off).toMatch(/<input[^>]*type="range"[^>]*min="2"[^>]*max="3"[^>]*aria-label="Arms"/);
     expect(field(off)).toBe("8");
   });
+
+  // --- unlimited-sizes --- (review fix) the pendulums and their arms together stop at the chains' ceilings (chainCountCeiling():
+  // 4 pendulums of 64 arms, 10 of 40): the panel says how many a run builds, as ARENA FULL does on the canvas
+  it("says the Double Pendulum's pendulums a run builds when they and their arms pass the chains' ceilings, and nothing while all swing", async () => {
+    const { default: DoublePendulumSection } = await import("@/components/simulator/sections/DoublePendulumSection");
+    const props = (s: SimulatorSettings) => ({ t, search: "", matches: () => true, settings: s, update: () => {} });
+    const link = (query: string) => settingsFromSearchParams(new URLSearchParams(`mode=doublePendulum&${query}`));
+    /** The panel's warn lines (the arms' and the pendulums' notes), in order. */
+    const notes = (s: SimulatorSettings) => [...intl(createElement(DoublePendulumSection, props(s))).matchAll(/<p class="text-xs text-warn">([^<]*)<\/p>/g)].map((m) => m[1]);
+    const builds = (n: string) => `Memory-safety ceiling: the run builds at most ${n} of these (ARENA FULL); the link keeps your number.`;
+    expect([chainCountCeiling(64), chainCountCeiling(40), chainCountCeiling(2)]).toEqual([4, 10, 1024]);
+    for (const [query, want] of [
+      ["dpsg=64&dpn=5", [builds("4")]],
+      ["dpsg=40&dpn=11", [builds("10")]],
+      ["dpsg=2&dpn=1025", [builds("1,024")]],
+      ["dpsg=2&dpn=6000", [builds("1,024")]], // (one note, the chains' 1,024: never the pendulums' own 5,000 as well)
+      ["dpsg=100&dpn=5", [builds(formatCompact(MEMORY_CEILINGS.dpSegments)), builds("4")]],
+      ["dpsg=64&dpn=4", []],
+      ["dpsg=40&dpn=10", []],
+      ["dpsg=2&dpn=4", []],
+    ] as const) {
+      const s = link(query);
+      expect([query, notes(s)]).toEqual([query, want]);
+      // (the note and the canvas's ARENA FULL agree, and the number is the one the run builds)
+      expect([query, pastAnyMemoryCeiling(s)]).toEqual([query, want.length > 0]);
+      if (want.length) expect(want.at(-1)).toBe(builds(new Intl.NumberFormat("en").format(resolveDoublePendulumSettings({ count: s.dpCount, segments: s.dpSegments }).count)));
+    }
+    // sparring always swings two: nothing is cut, nothing said
+    expect(notes({ ...link("dpsg=64&dpn=5"), dpSpar: true })).toEqual([]);
+  });
 });
 
 // --- unlimited-sizes --- a tooltip that states its slider's range says it is the slider's usual range: past it the wide
@@ -474,5 +507,33 @@ describe("Tooltips: a slider's range is its usual range, not the setting's limit
     // a clip's length: 10 to 120 s on the slider, shorter (its meaningful floor) or longer when typed
     for (const text of (Object.keys(CATALOGS) as Locale[]).flatMap((locale) => [CATALOGS[locale].FAQ.q2.answer, CATALOGS[locale].Press.facts.exportValue])) expect([text, /(from|od|de) 10 (to|do|a) 120 (seconds|sekund|segundos)\./.test(text)]).toEqual([text, false]);
     expect(MEANINGFUL_FLOORS.recordingDuration).toEqual({ min: 0, above: true });
+  });
+
+  // --- unlimited-sizes --- (review fix) a typed Hits per Pane of 7 or more never thickens: stageHp() stops at 7 or the setting
+  it("says the glass thickens every other stage only up to 7 or a higher typed number, as each stage's panes do", () => {
+    expect([5, 6, 7, 10].map((hp) => [0, 2, 4, 8].map((stage) => stageHp(hp, stage)))).toEqual([
+      [5, 6, 7, 7],
+      [6, 7, 7, 7],
+      [7, 7, 7, 7],
+      [10, 10, 10, 10],
+    ]);
+    const qualifier: Record<Locale, string> = { en: `up to ${MAX_PANE_HP} or a higher typed number`, pl: `aż do ${MAX_PANE_HP} albo wyższej wpisanej liczby`, es: `hasta ${MAX_PANE_HP} o hasta un número escrito mayor` };
+    for (const locale of Object.keys(CATALOGS) as Locale[]) {
+      const tip = (CATALOGS[locale].Controls as Record<string, string>).glassHpTip;
+      expect([locale, tip.includes(qualifier[locale])]).toEqual([locale, true]);
+    }
+  });
+
+  // --- unlimited-sizes --- (review fix) the Battle card names the squares a run builds (256: ARENA FULL past it), on the squares
+  it("names a true count of squares on the Battle card, the count on the squares in every locale, as the style guide shows it", () => {
+    const n = MEMORY_CEILINGS.btCount;
+    expect(resolveBattleSettings({ count: 1000 }).count).toBe(n);
+    const cards = { en: `${n} squares`, pl: `${n} kwadratów`, es: `${n} cuadrados` } as const;
+    for (const locale of Object.keys(CATALOGS) as Locale[]) {
+      const card = CATALOGS[locale].Modes.battle.description;
+      expect([locale, card.includes(cards[locale]), card.match(/\d+/g)?.map(Number)]).toEqual([locale, true, [n]]);
+      expect([locale, /as many as you like|ile tylko zechcesz|tantos como quieras/i.test(card)]).toEqual([locale, false]);
+    }
+    expect(fs.readFileSync(path.join(__dirname, "..", "docs", "COPY-STYLE.md"), "utf8")).toContain(`| Modes.battle.description: ${en.Modes.battle.description} |`);
   });
 });

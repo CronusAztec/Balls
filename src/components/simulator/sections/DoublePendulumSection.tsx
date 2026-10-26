@@ -7,7 +7,7 @@ import { Searchable, Slider, SliderTrack, Toggle, onBtn, type Matcher, type Tran
 import { rulesForRange } from "../unlimitedSlider"; // --- unlimited-sizes ---
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { CHAIN_LINK_CEILING, formatCompact, memoryCeiling } from "@/lib/uncap"; // --- unlimited-sizes ---
-import { DP_STRING_LAYOUTS, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+import { DP_STRING_LAYOUTS, doublePendulumPastCeiling, resolveDoublePendulumSettings, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 import ChaosFanSection, { CHAOS_FAN_KEYS } from "./ChaosFanSection"; // --- chaos-fan ---
 
 export interface DoublePendulumSectionProps {
@@ -77,6 +77,9 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
   const damping = s.dpDamping > 0 ? `${Math.max(1, Math.round(100 * dampingPerSecond(s.dpDamping)))}%/s` : t("dpOff");
   const u = useTranslations("Uncap"); // --- unlimited-sizes ---
   const armsBuilt = memoryCeiling("dpSegments", s.dpSegments); // --- unlimited-sizes --- (the arms a chain swings: CHAIN_LINK_CEILING at most)
+  // --- unlimited-sizes --- (review fix) the pendulums a harp run builds when they and their arms pass the chains' ceilings
+  // (chainCountCeiling(): 4 of 64 arms, 10 of 40): the Pendulums slider's note says that number, as ARENA FULL does on the canvas
+  const pendulumsBuilt = doublePendulumPastCeiling(s) ? resolveDoublePendulumSettings({ count: s.dpCount, segments: s.dpSegments }).count : undefined;
   return (
     <div className="space-y-3 pt-2" data-testid="double-pendulum">
       {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("dpDesc")}</p>}
@@ -106,7 +109,7 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
           </div>
         </Searchable>
       )}
-      {!fan && <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} disabled={s.dpSpar} />}
+      {!fan && <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} disabled={s.dpSpar} built={pendulumsBuilt} />}
       {!fan && (
         <Searchable search={search} matches={matches} labelKey="dpSpar">
           <Toggle t={t} labelKey="dpSpar" tipKey="dpSparTip" value={s.dpSpar} onChange={(v) => update({ dpSpar: v })} />

@@ -367,7 +367,8 @@ export interface BlueprintSound {
 /**
  * A slider the spec offers (Mode Lab's panel, the `blv` link key): it sets one number of the resolved spec – `at` is its path,
  * such as `tiles.rows`, `spawners[0].count` or `finish.any[0].atLeast` – and the result is sanitized again, so a value past
- * a ceiling or a design domain is put back in range there (the slider's `min` and `max` only shape the slider).
+ * a ceiling or a design domain is put back in range there (the slider's `min` and `max` only shape the slider; --- unlimited-sizes ---
+ * (review fix) they lie inside that number's own domain, so the drag never gives a value the language changes).
  */
 export interface BlueprintParam {
   id: string;

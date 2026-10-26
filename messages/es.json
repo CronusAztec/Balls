@@ -795,7 +795,7 @@
     "glassRows": "Paneles por etapa",
     "glassRowsTip": "Cuántos paneles de cristal tiene la primera etapa. El rango habitual del deslizador es de 3 a 30, y un número escrito puede superarlo. Cada etapa siguiente añade un tercio más, hasta 30 o hasta un número escrito mayor. Van más juntos, así que los golpes se aceleran a medida que la pelota baja.",
     "glassHp": "Golpes por panel",
-    "glassHpTip": "Cuántos aterrizajes aguanta un panel de la primera etapa antes de romperse. El rango habitual del deslizador es de 1 a 5, y un número escrito puede superarlo. Cada golpe hace crecer otra grieta desde el punto de impacto. Cada dos etapas el cristal aguanta un golpe más, como mucho dos más.",
+    "glassHpTip": "Cuántos aterrizajes aguanta un panel de la primera etapa antes de romperse. El rango habitual del deslizador es de 1 a 5, y un número escrito puede superarlo. Cada golpe hace crecer otra grieta desde el punto de impacto. Cada dos etapas el cristal aguanta un golpe más, como mucho dos más, hasta 7 o hasta un número escrito mayor.",
     "glassStages": "Etapas",
     "glassStagesTip": "Cuántas etapas atraviesa la pelota antes de llegar a CASA. El rango habitual del deslizador es de 1 a 10, y un número escrito puede superarlo. La cámara baja a cada etapa nueva y un cartel la anuncia.",
     "glassMoving": "Paneles deslizantes",
@@ -2541,7 +2541,7 @@
     },
     "battle": {
       "name": "Battle Royale de cuadrados",
-      "description": "Cuadrados con barras de vida chocan entre sí, tantos como quieras. Gana el último que quede en pie."
+      "description": "Hasta 256 cuadrados con barras de vida chocan entre sí. Gana el último que quede en pie."
     },
     "ctf": {
       "name": "Captura la bandera",

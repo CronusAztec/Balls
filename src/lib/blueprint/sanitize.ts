@@ -98,6 +98,8 @@ interface Reader {
   paletteSize: number;
   /** --- unlimited-sizes --- When set, the bound each number is read with, by its path (`blueprintNumberBounds()`). */
   bounds?: Map<string, BlueprintNumberBound>;
+  /** --- unlimited-sizes --- (review fix) With `bounds`: each number's own rule, before any check across numbers cuts it. */
+  domains?: Map<string, BlueprintNumberBound>;
   /** --- unlimited-sizes --- The path of each variable's start as written, by its id (a count that reads the variable bounds it). */
   varStart: Map<string, string>;
   /** --- unlimited-sizes --- The numbers the runtime takes as a whole count, by their path as written (`readBlueprintNumbers()`). */
@@ -202,6 +204,7 @@ function noteBound(rd: Reader, path: string, r: NumRule) {
   if (r.max !== undefined) b.max = r.max;
   if (r.int) b.integer = true;
   rd.bounds.set(path, b);
+  rd.domains?.set(path, { ...b }); // --- unlimited-sizes --- (review fix) (a copy: lowerTop() and raiseFloor() change `b`)
 }
 
 /**
@@ -959,10 +962,17 @@ function readSound(rd: Reader, raw: unknown): BlueprintSound {
 /**
  * The sliders a spec offers: each names a number of the resolved spec (`at`), read after every other section so the path
  * is checked against what the spec really holds; a path that reaches no number is refused (tolerant: the slider is dropped).
+ * --- unlimited-sizes --- (review fix) A slider's ends lie inside the domain the language holds its number to (its own rule:
+ * a ring gap's 5° to 180°, a radius above 0, a whole number of rows from 1 to 24), so the drag never commits a value its
+ * number field refuses and the game plays otherwise: an end past it is refused (tolerant: put back onto the domain, a step
+ * inside a floor the number may not take itself; a slider with no room left inside it is dropped). A bound across numbers
+ * (the tile ceiling over rows × columns, the tiles' inner edge below their outer one) moves with the other sliders, so a
+ * slider's ends are not held to it: past it the panel says what the game plays.
  */
 function readParams(rd: Reader, raw: unknown, bp: Omit<Blueprint, "params">): BlueprintParam[] {
   const ids: string[] = [];
   const paths: string[] = [];
+  let domains: ReadonlyMap<string, BlueprintNumberBound> | undefined; // --- unlimited-sizes --- (read once, for the first slider)
   return readList(rd, "params", raw, L.params, (v, p) => {
     const r = readRecord(rd, p, v, true);
     if (!r) return null;
@@ -993,11 +1003,43 @@ function readParams(rd: Reader, raw: unknown, bp: Omit<Blueprint, "params">): Bl
       [min, max] = max < min ? [max, min] : [min, min + 1];
     }
     const step = num(rd, join(p, "step"), own(r, "step"), { def: 1, min: 0, above: true });
+    // --- unlimited-sizes --- (review fix) the slider's ends inside its number's own domain (a domain is never a "less than" top)
+    const bound = (domains ??= readBlueprintNumbers({ ...bp, params: [] }).domains).get(at);
+    if (bound) {
+      const inside = (v: number) => (bound.min === undefined || (bound.above ? v > bound.min : v >= bound.min)) && (bound.max === undefined || v <= bound.max);
+      const ends = [min, max].map((v, end) => {
+        if (inside(v)) return v;
+        issue(rd, join(p, end === 0 ? "min" : "max"), `must lie inside the domain of ${at} (${describeBound(bound)}), got ${v}`);
+        return bound.min !== undefined && v <= bound.min ? stepInside(bound.min, bound.above ? step : 0, inside) : (bound.max ?? v);
+      });
+      if (rd.strict && (ends[0] !== min || ends[1] !== max)) return null;
+      [min, max] = ends;
+      if (!(max > min)) {
+        issue(rd, join(p, "max"), `the slider has no room inside the domain of ${at} (${describeBound(bound)}): dropped`);
+        return null;
+      }
+    }
     ids.push(id);
     paths.push(at);
     return { id, label: text(rd, join(p, "label"), own(r, "label"), L.labelChars, id) || id, at, min, max, step };
   });
 }
+
+// --- unlimited-sizes --- (review fix) a slider's end put back inside its number's domain
+/** A number's domain in words, for a slider's end past it: "at least 5, at most 180", "above 0, at most 225". */
+function describeBound(b: BlueprintNumberBound): string {
+  const floor = b.min === undefined ? "" : `${b.above ? "above" : "at least"} ${b.min}`;
+  const top = b.max === undefined ? "" : `at most ${b.max}`;
+  return (b.integer ? "a whole number " : "") + [floor, top].filter(Boolean).join(", ");
+}
+
+/** The end a slider's end below a floor takes: the floor, or – a floor the number may not take – `by` (a step) above it, kept short where that stays inside. */
+function stepInside(bound: number, by: number, inside: (v: number) => boolean): number {
+  const v = bound + by;
+  const tidy = Number(v.toPrecision(12));
+  return inside(tidy) ? tidy : v;
+}
+// --- end unlimited-sizes ---
 
 /** Palette indexes past the palette (a body's colour, a recolor): reported, and folded onto it. */
 function checkPaletteRefs(rd: Reader, bp: Blueprint) {
@@ -1024,8 +1066,8 @@ function checkPaletteRefs(rd: Reader, bp: Blueprint) {
 
 const TOP_FIELDS = ["v", "meta", "arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "hud", "look", "sound", "params"] as const;
 
-function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumberBound>): { blueprint: Blueprint; issues: string[]; newer: string[]; rd: Reader } {
-  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length, bounds, varStart: new Map(), counted: new Set(), obstacleAt: [] };
+function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumberBound>, domains?: Map<string, BlueprintNumberBound>): { blueprint: Blueprint; issues: string[]; newer: string[]; rd: Reader } {
+  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length, bounds, domains, varStart: new Map(), counted: new Set(), obstacleAt: [] };
   const root = isRecord(raw) ? raw : (issue(rd, "$", `a Blueprint is a JSON object, got ${kindOf(raw)}`), {});
   unknownFields(rd, "$", root, TOP_FIELDS);
   const v = own(root, "v");
@@ -1135,6 +1177,11 @@ export interface BlueprintNumberReading {
   counted: ReadonlySet<string>;
   /** Where each obstacle pattern as written lands in the spec sanitizing makes: its index there, or null (dropped). */
   obstacleAt: readonly (number | null)[];
+  /**
+   * --- unlimited-sizes --- (review fix) Each number's own domain, by its path as written: the rule it is read with before any
+   * check across numbers cuts it (a slider's ends lie inside it, `readParams()`).
+   */
+  domains: ReadonlyMap<string, BlueprintNumberBound>;
 }
 
 /**
@@ -1146,12 +1193,13 @@ export interface BlueprintNumberReading {
  */
 export function readBlueprintNumbers(spec: unknown): BlueprintNumberReading {
   const bounds = new Map<string, BlueprintNumberBound>();
+  const domains = new Map<string, BlueprintNumberBound>();
   try {
-    const { rd } = walk(spec, false, bounds);
-    return { bounds, counted: rd.counted, obstacleAt: rd.obstacleAt };
+    const { rd } = walk(spec, false, bounds, domains);
+    return { bounds, counted: rd.counted, obstacleAt: rd.obstacleAt, domains };
   } catch {
     // (a spec the walker cannot read has no bounds to give: sanitizeBlueprint replaces it whole)
-    return { bounds: new Map(), counted: new Set(), obstacleAt: [] };
+    return { bounds: new Map(), counted: new Set(), obstacleAt: [], domains: new Map() };
   }
 }
 

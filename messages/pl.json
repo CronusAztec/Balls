@@ -795,7 +795,7 @@
     "glassRows": "Tafle na etap",
     "glassRowsTip": "Ile szklanych tafli ma pierwszy etap. Zwykły zakres suwaka to 3–30, a wpisana liczba może go przekroczyć. Każdy następny etap dokłada jedną trzecią więcej, najwyżej 30 albo wyższą wpisaną liczbę. Tafle leżą coraz gęściej, więc im głębiej, tym szybciej padają uderzenia.",
     "glassHp": "Uderzenia na taflę",
-    "glassHpTip": "Ile lądowań wytrzymuje tafla pierwszego etapu, zanim się roztrzaska. Zwykły zakres suwaka to 1–5, a wpisana liczba może go przekroczyć. Każde uderzenie wypuszcza z miejsca trafienia kolejne pęknięcie. Co drugi etap szkło wytrzymuje o jedno uderzenie więcej, najwyżej o dwa.",
+    "glassHpTip": "Ile lądowań wytrzymuje tafla pierwszego etapu, zanim się roztrzaska. Zwykły zakres suwaka to 1–5, a wpisana liczba może go przekroczyć. Każde uderzenie wypuszcza z miejsca trafienia kolejne pęknięcie. Co drugi etap szkło wytrzymuje o jedno uderzenie więcej, najwyżej o dwa, aż do 7 albo wyższej wpisanej liczby.",
     "glassStages": "Etapy",
     "glassStagesTip": "Przez ile etapów piłka musi się przebić, zanim dotrze do DOMU. Zwykły zakres suwaka to 1–10, a wpisana liczba może go przekroczyć. Kamera zjeżdża do każdego nowego etapu, a baner go zapowiada.",
     "glassMoving": "Jeżdżące tafle",
@@ -2541,7 +2541,7 @@
     },
     "battle": {
       "name": "Battle Royale kwadratów",
-      "description": "Kwadraty z paskami życia zderzają się ze sobą, ile tylko zechcesz. Wygrywa ostatni, który przetrwa."
+      "description": "Do 256 kwadratów z paskami życia zderza się ze sobą. Wygrywa ostatni, który przetrwa."
     },
     "ctf": {
       "name": "Zdobądź flagę",

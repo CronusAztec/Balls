@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useContext, useId, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
 import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimitedSlider"; // --- unlimited --- (--- uncap-all --- the Wide sliders track)
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
 import NumberField from "./NumberField";
-import { beyondSlider, formatCompact, memoryCeiling, type NumberRules } from "@/lib/uncap";
+import { beyondSlider, formatBound, formatCompact, memoryCeiling, type NumberRules } from "@/lib/uncap";
 import { sliderCeiling } from "@/lib/unlimited"; // --- unlimited-sizes --- (a log track continues past its comfort range)
 import { logTrackEnd, logTrackPosition, logTrackValue, type LogTrackSpec } from "./logTrack"; // --- low-findings-2 ---
 
@@ -83,6 +83,7 @@ export function Slider({
   rules,
   plays,
   displayBeyond,
+  built,
 }: {
   t: Translate;
   search: string;
@@ -119,6 +120,11 @@ export function Slider({
    * number (formatCompact()) a slider whose display only knows its comfort range shows.
    */
   displayBeyond?: boolean;
+  /**
+   * --- unlimited-sizes --- (review fix) The most of this value the run builds, where a ceiling across settings cuts it below its
+   * own memory-safety ceiling (the Double Pendulum's pendulums by their arms, `chainCountCeiling()`): the note says that number.
+   */
+  built?: number;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
@@ -128,13 +134,14 @@ export function Slider({
   // --- uncap-all --- the number field (always), the track pinned at its end beyond the comfort range, the memory ceiling note
   const settingKey = namedKey ?? keyOfRange(range);
   const beyond = !live && beyondSlider(value, range);
-  const ceiling = settingKey ? memoryCeiling(settingKey, value) : value;
+  const ceiling = Math.min(built ?? value, settingKey ? memoryCeiling(settingKey, value) : value);
   const label = t(labelKey);
   const u = useTranslations("Uncap");
+  const locale = useLocale(); // --- unlimited-sizes --- (review fix) (what a value plays, exactly and in the page's number format)
   const overridden = useContext(ControlOverride); // --- slow-motion --- (review fix) dimmed label and track, the note named
   const describedBy = overridden?.describedBy;
   // --- unlimited-sizes --- a value the run plays otherwise (a Mode Lab link's past its game's bounds): what it plays instead
-  const changed = plays !== undefined && !live && plays !== value ? (plays === null ? u("playsNone") : u("playsAs", { value: formatCompact(plays) })) : undefined;
+  const changed = plays !== undefined && !live && plays !== value ? (plays === null ? u("playsNone") : u("playsAs", { value: formatBound(plays, locale) })) : undefined;
   const track = log ? (
     // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
     <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} describedBy={describedBy} />
@@ -177,7 +184,7 @@ export function Slider({
           )}
           <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rules ?? rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} changedTip={changed} />
         </div>
-        {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
+        {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatBound(ceiling, locale) /* --- unlimited-sizes --- (review fix) (1,024, never 1.02K) */ })}</p>}
         {changed && (
           <p className="text-xs text-warn" data-uncap-plays={settingKey ?? labelKey}>
             {changed}

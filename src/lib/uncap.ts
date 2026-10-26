@@ -631,6 +631,28 @@ export function formatCompact(n: number): string {
   return `${sign}${Number(a.toPrecision(3))}`;
 }
 
+/**
+ * --- unlimited-sizes --- (review fix) A bound a message names (a number field's floor or top in its refusal) or a value it
+ * says the game plays: exactly, never rounded, in the page's number format (0,6875 in Polish and Spanish). A bound across
+ * numbers is the other field's value as the visitor typed it, with any number of decimals: "Less than 0.688" for a top of
+ * 0.6875 would refuse a typed 0.6876 with a bound the value meets. A big number keeps the short form the panel always gave
+ * it only where that form is exact and has no decimal point (5K, 1M, 1e20; never 1.02K for 1,024 or 1.23M for 1,234,567), and
+ * one String() writes in exponent form keeps it (1E-7).
+ */
+export function formatBound(n: number, locale: string): string {
+  if (!Number.isFinite(n)) return formatCompact(n);
+  if (Math.abs(n) >= 1e3) {
+    const short = formatCompact(n);
+    if (!short.includes(".") && parseTypedNumber(short) === n) return short;
+  }
+  const plain = String(Math.abs(n));
+  const decimals = (plain.split(".")[1] ?? "").length;
+  // (at most 20 decimals: the most every browser's Intl.NumberFormat takes; a number with more is written in exponent form)
+  if (!plain.includes("e") && decimals <= 20) return new Intl.NumberFormat(locale, { maximumFractionDigits: decimals }).format(n);
+  const mantissa = Math.abs(n).toExponential().split("e")[0];
+  return new Intl.NumberFormat(locale, { notation: "scientific", maximumFractionDigits: (mantissa.split(".")[1] ?? "").length }).format(n);
+}
+
 /* ------------------------------------------------------------------ Bounciness (the uncapped Bouncier) */
 
 /** The Bounciness the old Bouncier switch meant: each bounce adds 3 % of the Ball Speed (`bounce=1` in old links). */
@@ -711,6 +733,33 @@ export function numberFieldReduce(state: NumberFieldState, event: NumberFieldEve
       const from = typed && typed.ok ? typed.value : value;
       return { state: IDLE_FIELD, commit: stepNumber(from, event.direction, range, rules, event.modifier ?? null) };
     }
+  }
+}
+
+/**
+ * --- unlimited-sizes --- (review fix) The words of a field's refusal (`t`: the Uncap messages), null with none: the floor or
+ * top it names is the one the value was checked against, written exactly in the page's number format (`formatBound()`), so
+ * a value the message says is fine is never the one refused ("Less than 0.6875", never "Less than 0.688" for a typed 0.6876).
+ */
+export function numberFieldMessage(error: NumberFieldState["error"], range: NumericRange, locale: string, t: (key: string, values?: Record<string, string>) => string): string | null {
+  if (!error) return null;
+  const min = () => formatBound(error.min ?? range.min, locale);
+  const max = () => formatBound(error.max ?? range.max, locale);
+  switch (error.reason) {
+    case "belowMin":
+      return t("errBelowMin", { min: min() });
+    case "notAbove": // --- unlimited-sizes --- (a "more than" floor: a gap or a clip of 0)
+      return t("errNotAbove", { min: min() });
+    case "aboveMax": // --- unlimited-sizes --- (a Mode Lab number past its language's top)
+      return t("errAboveMax", { max: max() });
+    case "notBelow": // --- unlimited-sizes --- (a "less than" top: a Blueprint's tiles' inner edge at their outer one)
+      return t("errNotBelow", { max: max() });
+    case "notFinite":
+      return t("errNotFinite");
+    case "empty":
+      return t("errEmpty");
+    default:
+      return t("errNotNumber", { text: (error.text ?? "").slice(0, 24) });
   }
 }
 

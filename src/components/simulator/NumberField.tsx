@@ -12,8 +12,8 @@
  * it (a link's) is shown as it is, and `changedTip` says what the game plays instead of "the value runs as typed".
  */
 import { useId, useState, type KeyboardEvent } from "react";
-import { useTranslations } from "next-intl";
-import { IDLE_FIELD, fieldDisplay, formatCompact, numberFieldReduce, type NumberFieldEvent, type NumberFieldState, type NumberRules, type NumericRange } from "@/lib/uncap";
+import { useLocale, useTranslations } from "next-intl";
+import { IDLE_FIELD, fieldDisplay, formatCompact, numberFieldMessage, numberFieldReduce, type NumberFieldEvent, type NumberFieldState, type NumberRules, type NumericRange } from "@/lib/uncap";
 
 export interface NumberFieldProps {
   /** The current value (what the settings hold); undefined only for an optional value (`onClear`) that has none. */
@@ -53,6 +53,7 @@ export interface NumberFieldProps {
 
 export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy, changedTip }: NumberFieldProps) {
   const t = useTranslations("Uncap");
+  const locale = useLocale(); // --- unlimited-sizes --- (review fix) (a refusal's bound in the page's number format)
   const [state, setState] = useState<NumberFieldState>(IDLE_FIELD);
   const errorId = useId();
   const optional = !!onClear;
@@ -79,21 +80,8 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
     }
   };
   const error = state.error;
-  const message = !error
-    ? null
-    : error.reason === "belowMin"
-      ? t("errBelowMin", { min: formatCompact(error.min ?? range.min) })
-      : error.reason === "notAbove" // --- unlimited-sizes --- (a "more than" floor: a gap or a clip of 0)
-        ? t("errNotAbove", { min: formatCompact(error.min ?? range.min) })
-      : error.reason === "aboveMax" // --- unlimited-sizes --- (a Mode Lab number past its language's top)
-        ? t("errAboveMax", { max: formatCompact(error.max ?? range.max) })
-      : error.reason === "notBelow" // --- unlimited-sizes --- (a "less than" top: a Blueprint's tiles' inner edge at their outer one)
-        ? t("errNotBelow", { max: formatCompact(error.max ?? range.max) })
-      : error.reason === "notFinite"
-        ? t("errNotFinite")
-        : error.reason === "empty"
-          ? t("errEmpty")
-          : t("errNotNumber", { text: (error.text ?? "").slice(0, 24) });
+  // --- unlimited-sizes --- (review fix) the floor or top a refusal names, exactly and in the page's number format
+  const message = numberFieldMessage(error, range, locale, t);
   // (--- unlimited-sizes --- a value the game plays otherwise says what it plays: it does not run as typed)
   const beyondTip = changedTip ?? (display.beyond ? t("beyondTip", { value: display.compact, min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined);
   const warn = display.beyond || changedTip !== undefined;

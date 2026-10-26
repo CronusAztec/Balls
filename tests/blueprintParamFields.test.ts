@@ -9,7 +9,7 @@ import { resolveBlueprintSpec } from "@/lib/physics/modes/blueprint";
 import { settingsCatalog } from "@/lib/desktop/ai/settingsPatch";
 import type { NumberFieldProps } from "@/components/simulator/NumberField";
 import type { Translate } from "@/components/simulator/ControlPrimitives";
-import { IDLE_FIELD, checkTypedNumber, numberFieldReduce, stepNumber, type NumberRules } from "@/lib/uncap";
+import { IDLE_FIELD, checkTypedNumber, numberFieldMessage, numberFieldReduce, stepNumber, type NumberRules } from "@/lib/uncap";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -734,5 +734,113 @@ describe("Mode Lab: a slider's value past its range keeps its unit and the page'
     expect(shown("tierClimb", "gravity", "1e300")).toEqual({ text: "1E300 px/s²", warn: true });
     expect(shown("tierClimb", "rain", "1e-7")).toEqual({ text: "1E-7 s", warn: true });
     expect(shown("tierClimb", "rain", "1e-7", "es")).toEqual({ text: "1E-7 s", warn: true });
+  });
+});
+
+// --- unlimited-sizes --- (review round 4) a refusal and a played value name their number exactly, in the page's number
+// format, and a link spec's slider stays inside its number's own domain
+
+describe("Mode Lab: a refusal names the bound it checks against exactly, never rounded", () => {
+  // Glass Hatchery's tiles on a 3 × 8 grid with a slider on each of rows, columns, the inner and the outer edge
+  const hatchery = catalogBlueprint("hatchery");
+  const { code } = linkSpec({
+    ...hatchery,
+    tiles: { ...hatchery.tiles, layout: "grid", rows: 3, cols: 8 },
+    params: [
+      { id: "rows", at: "tiles.rows", min: 1, max: 10, step: 1 },
+      { id: "cols", at: "tiles.cols", min: 1, max: 48, step: 1 },
+      { id: "inner", at: "tiles.inner", min: 0.1, max: 0.6, step: 0.05 },
+      { id: "outer", at: "tiles.outer", min: 0.5, max: 0.95, step: 0.05 },
+    ],
+  });
+  /** The words the field shows for typed `text` in `locale` (NumberField's own: numberFieldMessage()), or null when it commits. */
+  const said = (f: NumberFieldProps, text: string, locale: Locale = "en") => {
+    const typing = numberFieldReduce(IDLE_FIELD, { type: "type", text }, f.value ?? Number.NaN, f.range, f.rules);
+    const done = numberFieldReduce(typing.state, { type: "commit" }, f.value ?? Number.NaN, f.range, f.rules);
+    const u = createTranslator({ locale, messages: LOCALES[locale] as never, namespace: "Uncap" as never }) as unknown as (key: string, values?: Record<string, string>) => string;
+    return numberFieldMessage(done.state.error, f.range, locale, u);
+  };
+
+  it("refuses an inner edge of 0.6876 under an outer edge of 0.6875 with 'Less than 0.6875', which the value does not meet", () => {
+    const inner = fieldAt(render({ blSpec: code, blParams: ",,,0.6875" }).fields, 2);
+    expect(inner.rules).toMatchObject({ max: 0.6875, below: true });
+    expect(said(inner, "0.6876")).toBe("Less than 0.6875. The old value stays.");
+    expect(said(inner, "0.6875")).toBe("Less than 0.6875. The old value stays.");
+    expect(said(inner, "0.6876", "pl")).toBe("Mniej niż 0,6875. Zostaje poprzednia wartość.");
+    expect(said(inner, "0.6876", "es")).toBe("Menos de 0,6875. Se mantiene el valor anterior.");
+    expect(said(inner, "0.6874")).toBeNull();
+    expect(typed(inner, "0.6874")).toEqual({ commit: 0.6874 });
+  });
+
+  it("refuses an outer edge of 0.3333 over an inner edge of 0.3333 with 'More than 0.3333'", () => {
+    const outer = fieldAt(render({ blSpec: code, blParams: ",,0.3333" }).fields, 3);
+    expect(outer.rules).toMatchObject({ min: 0.3333, above: true });
+    expect(said(outer, "0.3333")).toBe("More than 0.3333. The old value stays.");
+    expect(said(outer, "0.3332", "pl")).toBe("Więcej niż 0,3333. Zostaje poprzednia wartość.");
+    expect(said(outer, "0.3334")).toBeNull();
+  });
+
+  it("says a language's own bound as before: at least 5° and at most 180° for a ring gap", () => {
+    const gap = slider("ringBreaker", "gap");
+    const f = fieldAt(render({ blPreset: "ringBreaker" }).fields, gap);
+    expect(said(f, "4")).toBe("At least 5 – the old value stays.");
+    expect(said(f, "181")).toBe("At most 180. The old value stays.");
+  });
+
+  it("says what a link's value plays in the page's number format", () => {
+    // a bar's thickness past the language's 0.5 plays 0.5: "0,5" in Polish and Spanish
+    const bar = linkSpec({
+      ...catalogBlueprint("growEscape"),
+      obstacles: [{ kind: "bar", x: 0, y: 0.5, len: 0.4, angleDeg: 0, thick: 0.03 }],
+      params: [{ id: "thick", label: "thick", at: "obstacles[0].thick", min: 0.01, max: 0.2, step: 0.01 }],
+    });
+    expect(paramBounds(bar.bp)[0]).toEqual({ min: 0, above: true, max: 0.5 });
+    expect(fieldAt(render({ blSpec: bar.code, blParams: "0.7" }).fields, 0).changedTip).toBe("Past this game's own bounds, so it plays 0.5. The link keeps your number.");
+    expect(fieldAt(render({ blSpec: bar.code, blParams: "0.7" }, "pl").fields, 0).changedTip).toBe(pl.Uncap.playsAs.replace("{value}", "0,5"));
+    expect(fieldAt(render({ blSpec: bar.code, blParams: "0.7" }, "es").fields, 0).changedTip).toBe(es.Uncap.playsAs.replace("{value}", "0,5"));
+  });
+});
+
+describe("Mode Lab: a link spec's slider stays inside its number's own domain", () => {
+  /** Ring Breaker with one slider on its ring gap, from `min` to `max`. */
+  const gapSpec = (min: number, max: number, step = 1) => ({ ...catalogBlueprint("ringBreaker"), params: [{ id: "gap", label: "gap", at: "arena.rings.gapDeg", min, max, step }] });
+
+  it("refuses a gap slider from 0° to 360° in the strict validator, and puts its ends onto the gap's 5° and 180° when sanitized", () => {
+    expect(validateBlueprint(gapSpec(0, 360))).toEqual([
+      "params[0].min: must lie inside the domain of arena.rings.gapDeg (at least 5, at most 180), got 0",
+      "params[0].max: must lie inside the domain of arena.rings.gapDeg (at least 5, at most 180), got 360",
+    ]);
+    const { blueprint: bp, notes } = sanitizeBlueprint(gapSpec(0, 360));
+    expect(bp.params.map((p) => [p.min, p.max, p.step])).toEqual([[5, 180, 1]]);
+    expect(notes).toHaveLength(2);
+    // every value of the drag now plays as dragged, and the number field next to it takes it
+    const f = fieldAt(render({ blSpec: encodeBlueprint(bp) }).fields, 0);
+    expect(f.range).toEqual({ min: 5, max: 180, step: 1 });
+    for (const v of [f.range.min, 6, 90, 179, f.range.max]) {
+      expect([v, plays(bp, 0, v)]).toEqual([v, true]);
+      expect([v, typed(f, String(v))]).toEqual([v, { commit: v }]);
+    }
+    // (sanitized once more, it stays as it is: the output validates)
+    expect(validateBlueprint(bp)).toEqual([]);
+  });
+
+  it("keeps a slider inside the domain as written, starts a 'more than' floor's slider a step above it, and drops one with no room", () => {
+    expect(validateBlueprint(gapSpec(5, 180))).toEqual([]);
+    expect(sanitizeBlueprint(gapSpec(10, 40)).notes).toEqual([]);
+    // a ball's radius is more than 0: a slider from 0 starts one step up, so its drag never plays a ball of radius 0
+    const size = { ...catalogBlueprint("growEscape"), params: [{ id: "size", label: "size", at: "bodies[0].radius", min: 0, max: 20, step: 2 }] };
+    expect(validateBlueprint(size)).toEqual(["params[0].min: must lie inside the domain of bodies[0].radius (above 0, at most 225), got 0"]);
+    expect(sanitizeBlueprint(size).blueprint.params.map((p) => [p.min, p.max])).toEqual([[2, 20]]);
+    // a slider wholly past the domain has no drag left inside it
+    const past = sanitizeBlueprint(gapSpec(200, 360));
+    expect(past.blueprint.params).toEqual([]);
+    expect(past.notes.at(-1)).toBe("params[0].max: the slider has no room inside the domain of arena.rings.gapDeg (at least 5, at most 180): dropped");
+  });
+
+  it("leaves the bounds across numbers to the panel: a row slider past the tile ceiling over the columns now is kept", () => {
+    // (rows × columns stop at the tile ceiling, a bound that moves with the columns slider: past it the panel says what plays)
+    const spec = { ...catalogBlueprint("hatchery"), tiles: { ...catalogBlueprint("hatchery").tiles, layout: "grid", rows: 3, cols: 48 }, params: [{ id: "rows", label: "rows", at: "tiles.rows", min: 1, max: 20, step: 1 }] };
+    expect(validateBlueprint(spec)).toEqual([]);
+    expect(sanitizeBlueprint(spec).blueprint.params.map((p) => [p.min, p.max])).toEqual([[1, 20]]);
   });
 });

@@ -795,7 +795,7 @@
     "glassRows": "Panes per Stage",
     "glassRowsTip": "How many glass panes the first stage holds. The slider's usual range is 3 to 30, and a typed number goes past it. Every later stage adds a third more, up to 30 or a higher typed number. They are packed closer together, so the hits speed up as the ball gets deeper.",
     "glassHp": "Hits per Pane",
-    "glassHpTip": "How many landings a pane of the first stage takes before it shatters. The slider's usual range is 1 to 5, and a typed number goes past it. Every hit grows another crack from the impact point. Every other stage the glass gets one hit thicker, two at most.",
+    "glassHpTip": "How many landings a pane of the first stage takes before it shatters. The slider's usual range is 1 to 5, and a typed number goes past it. Every hit grows another crack from the impact point. Every other stage adds one hit, two at most, up to 7 or a higher typed number.",
     "glassStages": "Stages",
     "glassStagesTip": "How many stages the ball smashes through before it reaches HOME. The slider's usual range is 1 to 10, and a typed number goes past it. The camera scrolls down to each new stage and a banner announces it.",
     "glassMoving": "Sliding Panes",
@@ -2541,7 +2541,7 @@
     },
     "battle": {
       "name": "Square Battle Royale",
-      "description": "Squares with health bars crash into each other, as many as you like. Last square standing wins."
+      "description": "Up to 256 squares with health bars crash into each other. Last square standing wins."
     },
     "ctf": {
       "name": "Capture the Flag",
