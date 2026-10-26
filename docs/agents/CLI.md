@@ -161,7 +161,8 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   shape and the colours span the whole list, since every video not measured whole is seen through its stills; motion,
   cuts, the hook, the loop seam and the sound exist only for the `top` videos fetched, so for those "the most viewed" and
   "the rest" are both within that top, and the report's notes say so. It lists the patterns that separate them (medians and Spearman's rank
-  correlation with views) and recommendations in our own levers: settings with their link keys (`recordingDuration` as
+  correlation with views, each with its n and the two-sided p-value of its ρ: "clear" needs p below 0.05, a "hint" p below
+  0.2, so the bar rises as the sample shrinks, and a pattern of fewer than 20 videos is called a hunch) and recommendations in our own levers: settings with their link keys (`recordingDuration` as
   `dur`, `bpm`, `captions` as `cap`…), modes, Blueprint mechanics and the tools to check them. A video that cannot be
   fetched stays in the report with its error. Every measured video is added to `.agent-out/inspiration/dataset.jsonl` (or
   `dataset`'s name) once, by its platform and id, so the dataset grows from run to run.
@@ -190,9 +191,28 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   report on its own contradicts is dropped (a number's `agreement`), and a trait whose reports' own most viewed are more
   than two steps apart is `split` (each report's in `tops`): it gives no advice, and the prompt shows the range by search.
   A video in several reports keeps its newest numbers and title, and the traits of its best measurement in any of them
-  (the video, then its stills, then its page). The planner, Make videos and the idea generator read a
-  short "What is trending" block from it next to the virality playbook; `docs/virality-playbook.md` section 6 says how, and
-  what the first runs found.
+  (the video, then its stills, then its page). Every number carries its p-value and where its videos were measured from
+  (`from`: the video, its stills, its page), and the title words leave out platform tags and other genres' tags that do
+  not describe our clips (`OFF_PRODUCT_WORDS` in `src/lib/trends.ts`: 3d, blender, beamng, roblox…).
+- **How the app reads the summary.** The app's AI puts a short "What is trending" block from it beside the virality
+  playbook (`trendingContext` in `src/lib/desktop/ai/playbookContext.ts`). The heading says how many videos were measured
+  whole and how many seen only through their stills, and every advice is tagged with what it rests on (a pattern's ρ, n, p
+  and source, or "benchmark: does not separate the most viewed"). The idea generator gets about 900 characters (every
+  line, the benchmarks after the themes and the title formats), Make videos about 700 (about 200 tokens, told to lean
+  toward it when the user names no recipe, length or look, so it gets no benchmark-only advice), and the post planner
+  about 600, the title formats and words alone (the formats the most viewed use less are marked as no trend to copy).
+  The idea generator and the planner take the block out of the research budget they already had (4,500 and 3,000
+  characters). The advice's setting levers are ones Make videos can set (`CLIP_SETTINGS` in
+  `src/lib/desktop/ai/settingsPatch.ts`: a theme applies its palette, a light background is named by its colours, as no
+  theme has one), and the block never quotes a title. The app never reads the playbook's own section 6
+  (`selectPlaybookContext` skips it): its findings are one day's, and the block reads the summary fresh.
+- **How to refresh the summary.** Run `npm run agent -- inspire --json '{"query":"ball simulation","top":8}'` and one or
+  two more queries (a query with a hashtag Shorts feed works best: `physics simulation`, `satisfying simulation`), look at
+  each video's sheet.png and hook-sheet.png (or stills-sheet.png), check the report, then run
+  `npm run trends -- .agent-out/inspiration/<run> …` with the runs to keep, run
+  `npx vitest run tests/trends.test.ts tests/trendsPrompt.test.ts`, update the findings in `docs/virality-playbook.md` section 6 ("What the October 2026 runs
+  found", with the new date) from the new reports, and commit the new `src/content/trends.json` with them. Once a month is a good
+  pace, or when the feed changes.
 
 A video link is checked before yt-dlp sees it: http or https, a host name, no user name or password, and never this machine
 or its private network (localhost, a loopback, private, link-local or shared address in any IPv4 or IPv6 spelling, a name
