@@ -4420,16 +4420,22 @@ export default function Simulator() {
               {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) (--- unlimited-sizes --- any length above 0) */}
               <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration, "findDuration")} disabled={isSearching} settingKey="findDuration" />
             </div>
-            {/* --- unlimited-sizes --- how close a found run must come (±s, any tolerance above 0) and how many seeds the search tries (any count) */}
-            <div className="flex items-center gap-2">
-              <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-tolerance">
-                {t("Controls.tolerance")}
-              </label>
-              <NumberField id="find-tolerance" value={findTolerance} onCommit={setFindTolerance} label={t("Controls.tolerance")} range={FIND_TOLERANCE_RANGE} rules={{ min: 0, above: true }} disabled={isSearching} settingKey="findTolerance" className="w-16" />
-              <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-max-seeds">
-                {t("Controls.maxSeeds")}
-              </label>
-              <NumberField id="find-max-seeds" value={findMaxSeeds} onCommit={setFindMaxSeeds} label={t("Controls.maxSeeds")} range={FIND_MAX_SEEDS_RANGE} rules={{ min: 1, integer: true }} disabled={isSearching} settingKey="findMaxSeeds" className="w-20" />
+            {/* --- unlimited-sizes --- how close a found run must come (±s, any tolerance above 0) and how many seeds the search tries (any count)
+                (review fix) each label stays with its field, and the pairs wrap: on a phone (360-390 px, the Polish and Spanish
+                labels the longest) Max seeds goes onto its own line instead of widening the page */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="finder-limits">
+              <span className="flex items-center gap-2">
+                <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-tolerance">
+                  {t("Controls.tolerance")}
+                </label>
+                <NumberField id="find-tolerance" value={findTolerance} onCommit={setFindTolerance} label={t("Controls.tolerance")} range={FIND_TOLERANCE_RANGE} rules={{ min: 0, above: true }} disabled={isSearching} settingKey="findTolerance" className="w-16" />
+              </span>
+              <span className="flex items-center gap-2">
+                <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-max-seeds">
+                  {t("Controls.maxSeeds")}
+                </label>
+                <NumberField id="find-max-seeds" value={findMaxSeeds} onCommit={setFindMaxSeeds} label={t("Controls.maxSeeds")} range={FIND_MAX_SEEDS_RANGE} rules={{ min: 1, integer: true }} disabled={isSearching} settingKey="findMaxSeeds" className="w-20" />
+              </span>
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}

@@ -8464,6 +8464,31 @@ await smokeBlock("uncap-all", async () => {
     quiet.uncapShow === "0" && quiet.unlimitedFull !== "1" && glassFull && nestedFull && nestedAnswers >= 1,
     `(classic: shown=${quiet.uncapShow}, full=${quiet.unlimitedFull}; glass full=${glassFull}; nested full=${nestedFull}, page answers=${nestedAnswers !== -1}${loadNote()})`,
   );
+
+  // --- unlimited-sizes --- (review fix) (I) the Find Simulation strip's Tolerance and Max seeds fields wrap on a phone instead
+  // of widening the page (the Polish and Spanish labels made it 400 and 409 px wide at 390, English 368 at 360): at 360 and 390
+  // px in every language the simulator page does not scroll sideways and the Max seeds field ends inside the screen
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    try {
+      const pp = await phone.newPage();
+      const wide = {};
+      const seen = {};
+      for (const locale of ["en", "pl", "es"]) {
+        await pp.goto(`${BASE}/${locale}/simulator/`, { waitUntil: "networkidle" });
+        for (const width of [360, 390]) {
+          await pp.setViewportSize({ width, height: 844 });
+          await pp.waitForTimeout(250);
+          const w = await pp.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth, seedsRight: Math.round(document.getElementById("find-max-seeds")?.getBoundingClientRect().right ?? -1) }));
+          seen[`${locale}@${width}`] = w.seedsRight;
+          if (w.scroll > w.inner || w.seedsRight <= 0 || w.seedsRight > w.inner) wide[`${locale}@${width}`] = w;
+        }
+      }
+      check("uncap: the Find Simulation strip's Tolerance and Max seeds fields fit a 360 and 390 px phone in English, Polish and Spanish (no sideways scroll)", Object.keys(wide).length === 0, `(${JSON.stringify(Object.keys(wide).length ? wide : seen)})`);
+    } finally {
+      await phone.close();
+    }
+  }
 }
 // --- end uncap-all ---
 });
