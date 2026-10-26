@@ -7716,7 +7716,8 @@ await smokeBlock("review-fix-modes-gerald-odd", async () => {
 // (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
 // the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
 {
-  // (a 10 s clip – the shortest Clip Length – at the slowest slow motion, whose windows last 1.5 s)
+  // (a 10 s clip – the Clip Length slider's start, not the shortest clip: since 1.16.0 any length above 0 records,
+  // MEANINGFUL_FLOORS.recordingDuration – at the slowest slow motion, whose windows last 1.5 s)
   const CLIP_MS = 10000;
   await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=10`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
@@ -17839,7 +17840,8 @@ const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=tog
   );
 }
 {
-  // ⚡ A fast export of the timer's run (500×500, 30 fps, 10 s – the shortest clip a link sets): the line in its frames, the
+  // ⚡ A fast export of the timer's run (500×500, 30 fps, 10 s – a short clip at the Clip Length slider's start; since 1.16.0 a
+  // link sets any length above 0, MEANINGFUL_FLOORS.recordingDuration): the line in its frames, the
   // plucks and the steps through its own audio, and no whole-loop cut (Classic reports no cycle: the clip keeps its length)
   await page.goto(`${BASE}/en/simulator/?${RE_PRESET}&retm=1&seed=21&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
