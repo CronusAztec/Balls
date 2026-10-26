@@ -106,14 +106,18 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
   );
 }
 
-/** --- slow-motion --- What a SlowMotionOffNote says: the generic note, the replay's, the KO finale's (its card comes at once). */
-export type SlowMotionNoteKey = "slowMotionOffNote" | "replayRealTime" | "koOffNote";
+/**
+ * --- slow-motion --- What a SlowMotionOffNote says: the generic note, the replay's, the KO finale's (its card comes at once),
+ * (review fix) the duel's (its cuts at normal speed: the duel itself stays).
+ */
+export type SlowMotionNoteKey = "slowMotionOffNote" | "replayRealTime" | "koOffNote" | "duelOffNote";
 
 /**
  * --- slow-motion --- The note a section shows under a control the Slow motion switch overrides while it is off (the
  * near-miss slow motion, the escape replay's half speed, the KO finale, a bullseye, the duel's cuts): the stored value
  * is kept and plays again once the switch is back on. Nothing while the switch is on. (review fix) `messageKey` says what
- * happens instead: "plays in real time" by default, the replay's normal speed, or the KO finale skipped (the card at once).
+ * happens instead: "plays in real time" by default, the replay's normal speed, the KO finale skipped (the card at once) or
+ * the duel's cuts at normal speed. A control that stays live (the duel, the replay) has the note alone, never Overridden.
  */
 export function SlowMotionOffNote({ settings: s, testId, messageKey = "slowMotionOffNote" }: { settings: SimulatorSettings; testId: string; messageKey?: SlowMotionNoteKey }) {
   const u = useTranslations("Unlimited");

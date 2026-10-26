@@ -29,7 +29,8 @@ import type { ModeId } from "@/lib/physics/types";
  * palette on its own card, and the notes of the controls it overrides while it is off (the Camera's near-miss slow motion and
  * its sliders, the replay's speed, Fight League's KO Slow Motion, Bullseye, the String Battle duel). With it on, the default,
  * none of them shows anything new. (review fixes) The overridden controls dim their own label (ink-3, AA contrast) and their
- * track or switch graphic, never the tooltip's ancestors, and name their note through aria-describedby.
+ * track or switch graphic, never the tooltip's ancestors, and name their note through aria-describedby. A control that stays
+ * live (the String Battle duel: its hunt and heartbeat stay) is never dimmed: it has its note alone.
  */
 
 // The components are compiled with the classic JSX transform here (tsconfig keeps JSX for Next): React must be global.
@@ -275,19 +276,19 @@ describe("the Slow motion tooltip and the KO note say what the switch does (--- 
       const lastWords = (text: string) => text.split(" ").slice(-3).join(" ");
       expect([locale, lastWords(u.koOffNote)]).toEqual([locale, lastWords(c.flSlowMoTip)]);
     }
-    // the camera and the duel keep the generic note
+    // the camera keeps the generic note (--- review fix --- the duel has its own: its cuts, see below)
     const camera = section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false }));
     expect(elementWith(camera, 'data-testid="camera-slow-motion-off"')).toContain(en.Unlimited.slowMotionOffNote.replace(/&/g, "&amp;"));
     const duel = section(StringBattleSection, settingsOf("stringBattle", { sbDuel: true, slowMotion: false }));
-    expect(elementWith(duel, 'data-testid="sb-slow-motion-off"')).toContain(en.Unlimited.slowMotionOffNote.replace(/&/g, "&amp;"));
+    expect(elementWith(duel, 'data-testid="sb-slow-motion-off"')).toContain(en.Unlimited.duelOffNote.replace(/&/g, "&amp;").replace(/'/g, "&#x27;"));
   });
 });
 
 describe("overridden controls stay readable and say why (--- slow-motion --- review fixes)", () => {
+  // (--- review fix --- the String Battle duel is no overridden control: it stays live, see "a live control keeps its look")
   const overridden = () => ({
     camera: section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false })),
     fl: section(FightLeagueSection, settingsOf("fightLeague", { flSlowMo: true, slowMotion: false })),
-    duel: section(StringBattleSection, settingsOf("stringBattle", { sbDuel: true, slowMotion: false })),
   });
 
   it("dims no ancestor of a tooltip: only the track or the switch graphic, which hold no tooltip", () => {
@@ -309,8 +310,8 @@ describe("overridden controls stay readable and say why (--- slow-motion --- rev
   });
 
   it("dims the labels to ink-3, which keeps 4.5:1 or more on every panel surface (the tokens of globals.css)", () => {
-    const { camera, fl, duel } = overridden();
-    for (const [name, html, label] of [["camera", camera, "Slow-Mo on Near Miss"], ["fl", fl, "KO Slow Motion"], ["duel", duel, "Final Duel"]] as const) {
+    const { camera, fl } = overridden();
+    for (const [name, html, label] of [["camera", camera, "Slow-Mo on Near Miss"], ["fl", fl, "KO Slow Motion"]] as const) {
       const labelSpan = new RegExp(`<span class="([^"]*)"><span id="[^"]+">${escapeRe(label)}</span>`).exec(html);
       expect([name, labelSpan?.[1]]).toEqual([name, "flex min-w-0 items-center text-sm font-medium text-ink-3"]);
     }
@@ -340,7 +341,7 @@ describe("overridden controls stay readable and say why (--- slow-motion --- rev
   });
 
   it("names the note through aria-describedby on the switch, the slider's track and its number field; nothing with the switch on", () => {
-    const { camera, fl, duel } = overridden();
+    const { camera, fl } = overridden();
     const describedByNote = (html: string, controlAttr: string, noteTestId: string) => {
       const ids = describedByOf(openingTag(html, controlAttr));
       return ids.length > 0 && ids.every((id) => elementWith(html, `id="${id}"`).includes(`data-testid="${noteTestId}"`));
@@ -354,7 +355,6 @@ describe("overridden controls stay readable and say why (--- slow-motion --- rev
     expect(describedByNote(camera, 'aria-label="Slow-Mo Length"', "camera-slow-motion-off")).toBe(true);
     expect(describedByNote(camera, 'data-number-field="slowMoFactor"', "camera-slow-motion-off")).toBe(true);
     expect(describedByNote(fl, switchAttr(fl, "KO Slow Motion"), "fl-slow-motion-off")).toBe(true);
-    expect(describedByNote(duel, switchAttr(duel, "Final Duel"), "sb-slow-motion-off")).toBe(true);
     // the sliders shown by a search with the near-miss toggle hidden name no note that is not there
     const searched = section(CameraSection, settingsOf("classic", { slowMoOnNearMiss: true, slowMotion: false }), "slow-mo speed");
     expect(searched).not.toContain("camera-slow-motion-off");
@@ -364,5 +364,52 @@ describe("overridden controls stay readable and say why (--- slow-motion --- rev
       expect(html).not.toContain("aria-describedby");
       expect(html).not.toContain("data-overridden-track");
     }
+  });
+});
+
+describe("a live control keeps its look, with a note only (--- slow-motion --- review fix)", () => {
+  /** The markup without the slow-motion notes (the element of each `data-slow-motion-off-note`). */
+  const withoutNotes = (html: string) => {
+    let out = html;
+    for (let at = out.indexOf("data-slow-motion-off-note"); at >= 0; at = out.indexOf("data-slow-motion-off-note")) out = out.replace(elementAt(out, out.lastIndexOf("<", at)), "");
+    return out;
+  };
+
+  it("String Battle's Final Duel: drawn as with the switch on, not dimmed and described by nothing, the duel's own note under it, in every locale", () => {
+    // (it was dimmed as overridden, which says the control does nothing now: the duel's hunt and heartbeat stay, only its cuts' slow motion goes)
+    for (const [locale, catalog] of [["en", en], ["pl", pl], ["es", es]] as const) {
+      const u = catalog.Unlimited as Record<string, string>;
+      const html = (s: SimulatorSettings) => render(createElement(StringBattleSection as unknown as React.FC<ReturnType<typeof props>>, props(s)), locale, catalog);
+      const off = html(settingsOf("stringBattle", { sbDuel: true, slowMotion: false }));
+      const on = html(settingsOf("stringBattle", { sbDuel: true }));
+      expect([locale, off.includes("data-slow-motion-overridden"), off.includes("data-overridden-track"), off.includes("aria-describedby")]).toEqual([locale, false, false, false]);
+      expect([locale, withoutNotes(off) === on]).toEqual([locale, true]);
+      const note = elementWith(off, 'data-testid="sb-slow-motion-off"');
+      expect([locale, note.includes(u.duelOffNote.replace(/&/g, "&amp;").replace(/'/g, "&#x27;")), note.includes(u.slowMotionOffNote.replace(/&/g, "&amp;"))]).toEqual([locale, true, false]);
+      // right under the switch, which stays a live switch (on, not disabled)
+      const duelSwitch = switchNamed(off, "Final Duel");
+      expect([locale, duelSwitch?.checked]).toEqual([locale, "true"]);
+      expect(off.indexOf('data-testid="sb-slow-motion-off"')).toBeGreaterThan(off.indexOf("Final Duel"));
+      expect(openingTag(off, 'aria-checked="true"')).not.toContain("disabled");
+      // the duel off: nothing to say
+      expect([locale, html(settingsOf("stringBattle", { sbDuel: false, slowMotion: false })).includes("sb-slow-motion-off")]).toEqual([locale, false]);
+      // the note names the duel's cuts, not the duel: the control is not "this plays in real time"
+      expect([locale, u.duelOffNote.length <= 160, u.duelOffNote !== u.slowMotionOffNote]).toEqual([locale, true, true]);
+    }
+  });
+
+  it("the duel switch takes effect with Slow motion off: on, the last two balls hunt each other; off, they never do", () => {
+    const run = (sbDuel: boolean) => {
+      const s = settingsOf("stringBattle", { sbDuel, slowMotion: false });
+      const engine = createEngineForSettings(physicsConfigOfSettings(s), "stringBattle", modeSettingsOfSettings(s), 3);
+      for (let ms = 0; ms < 240_000 && !engine.isSimulationFinished(); ms += STEP_MS) {
+        engine.update(STEP_MS, 0);
+        engine.consumeSoundEvents();
+      }
+      const v = engine.getStringBattleView();
+      return { finished: engine.isSimulationFinished(), duel: v.duel, hunted: v.homings > 0 };
+    };
+    expect(run(true)).toEqual({ finished: true, duel: true, hunted: true });
+    expect(run(false)).toEqual({ finished: true, duel: false, hunted: false });
   });
 });

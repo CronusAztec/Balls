@@ -6,7 +6,7 @@ import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { SB_PALETTE, SB_RULES, SB_STYLES, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
 import StringCircleSection, { STRING_CIRCLE_KEYS } from "./StringCircleSection"; // --- string-circle ---
 import { SB_LIFE_RULES, type SbLife } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
-import { Overridden, SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
+import { SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface StringBattleSectionProps {
   t: Translate;
@@ -128,10 +128,12 @@ export default function StringBattleSection({ t, search, matches, settings: s, u
       <Slider t={t} search={search} matches={matches} labelKey="sbFinaleSpeed" tipKey="sbFinaleSpeedTip" value={s.sbFinaleSpeed} range={RANGES.sbFinaleSpeed} onChange={(v) => update({ sbFinaleSpeed: v })} display={`${s.sbFinaleSpeed.toFixed(1)}×`} />
       {/* --- string-battle-alive --- the final duel's extras */}
       <Searchable search={search} matches={matches} labelKey="sbDuel">
-        {/* --- slow-motion --- (the duel's cuts open no slow motion while the switch is off: the hunt and the heartbeat stay) */}
-        <Overridden on={s.sbDuel && !s.slowMotion} note={<SlowMotionOffNote settings={s} testId="sb-slow-motion-off" />}>
+        {/* --- slow-motion --- (review fix) the duel's cuts open no slow motion while the switch is off, but the hunt and the
+            heartbeat stay: the toggle is live, so it is not shown as overridden (no dimming), only with a note under it */}
+        <div className="space-y-1">
           <Toggle t={t} labelKey="sbDuel" tipKey="sbDuelTip" value={s.sbDuel} onChange={(v) => update({ sbDuel: v })} />
-        </Overridden>
+          {s.sbDuel && <SlowMotionOffNote settings={s} testId="sb-slow-motion-off" messageKey="duelOffNote" />}
+        </div>
       </Searchable>
       {(s.sbStyle === "neon" || all) && (
         <Slider t={t} search={search} matches={matches} labelKey="sbWobble" tipKey="sbWobbleTip" value={s.sbWobble} range={RANGES.sbWobble} onChange={(v) => update({ sbWobble: v })} display={s.sbWobble === 0 ? t("sbWobbleOff") : `${Math.round(100 * s.sbWobble)}%`} />

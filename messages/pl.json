@@ -4686,6 +4686,7 @@
     "slowMotionOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc tu wszystko dzieje się w czasie rzeczywistym.",
     "replayRealTime": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc powtórka leci z normalną prędkością.",
     "koOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc karta zwycięzcy pojawia się od razu.",
+    "duelOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc cięcia w pojedynku lecą z normalną prędkością.",
     "typeValue": "Wpisz wartość: {label}",
     "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
     "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",

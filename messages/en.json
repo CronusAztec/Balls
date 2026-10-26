@@ -4686,6 +4686,7 @@
     "slowMotionOffNote": "Slow motion is off in Ball & Physics, so this plays in real time.",
     "replayRealTime": "Slow motion is off in Ball & Physics, so the replay plays at normal speed.",
     "koOffNote": "Slow motion is off in Ball & Physics, so the winner's card comes at once.",
+    "duelOffNote": "Slow motion is off in Ball & Physics, so the duel's cuts play at normal speed.",
     "typeValue": "Type a value for {label}",
     "invalidValue": "Not a valid value: a finite number of at least {min}.",
     "softCeiling": "The engine runs at most {value} of this; the link keeps your number.",

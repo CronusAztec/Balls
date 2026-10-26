@@ -57,7 +57,8 @@ export function Searchable({ search, matches, labelKey, children }: { search: st
 
 /*
  * --- slow-motion --- (review fix) A control another switch overrides (the Slow motion switch off: the near-miss slow
- * motion, KO Slow Motion, the duel): the Toggles and Sliders inside an Overridden (sections/UnlimitedSection.tsx) read this.
+ * motion and its sliders, KO Slow Motion; never a control that stays live, like the String Battle duel, which has a note
+ * alone): the Toggles and Sliders inside an Overridden (sections/UnlimitedSection.tsx) read this.
  * They dim their label to ink-3 (5:1 or more on every panel surface, where opacity 0.6 left 3.6:1) and their track or switch
  * graphic, never an ancestor of the tooltip (whose bubble would turn see-through), and they name the note that says why
  * through aria-describedby. Null outside an Overridden: the controls render as they always did.

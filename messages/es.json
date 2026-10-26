@@ -4686,6 +4686,7 @@
     "slowMotionOffNote": "La cámara lenta está desactivada en Pelota y física, así que aquí todo va en tiempo real.",
     "replayRealTime": "La cámara lenta está desactivada en Pelota y física, así que la repetición va a velocidad normal.",
     "koOffNote": "La cámara lenta está desactivada en Pelota y física, así que la tarjeta del ganador aparece al instante.",
+    "duelOffNote": "La cámara lenta está desactivada en Pelota y física, así que los cortes del duelo van a velocidad normal.",
     "typeValue": "Escribe un valor para {label}",
     "invalidValue": "Valor no válido: un número finito de al menos {min}.",
     "softCeiling": "El motor ejecuta como máximo {value}; el enlace conserva tu número.",
