@@ -1,8 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
-import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import NumberField from "../NumberField"; // --- unlimited-sizes ---
+import { Searchable, Slider, SliderTrack, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { rulesForRange } from "../unlimitedSlider"; // --- unlimited-sizes ---
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { CHAIN_LINK_CEILING, formatCompact, memoryCeiling } from "@/lib/uncap"; // --- unlimited-sizes ---
 import { DP_STRING_LAYOUTS, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 import ChaosFanSection, { CHAOS_FAN_KEYS } from "./ChaosFanSection"; // --- chaos-fan ---
 
@@ -71,6 +75,8 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
   const pct = (v: number) => `${Math.round(100 * v)}%`;
   const deg = (v: number) => `${v}°`;
   const damping = s.dpDamping > 0 ? `${Math.max(1, Math.round(100 * dampingPerSecond(s.dpDamping)))}%/s` : t("dpOff");
+  const u = useTranslations("Uncap"); // --- unlimited-sizes ---
+  const armsBuilt = memoryCeiling("dpSegments", s.dpSegments); // --- unlimited-sizes --- (the arms a chain swings: CHAIN_LINK_CEILING at most)
   return (
     <div className="space-y-3 pt-2" data-testid="double-pendulum">
       {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("dpDesc")}</p>}
@@ -82,7 +88,7 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
           <div className="space-y-2">
             <label className="text-sm font-medium text-ink-2">
               {t("dpSegments")}
-              <Tooltip text={t("dpSegmentsTip")} />
+              <Tooltip text={t("dpSegmentsTip", { max: CHAIN_LINK_CEILING })} />
             </label>
             <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("dpSegments")}>
               {[2, 3].map((n) => (
@@ -91,6 +97,12 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
                 </button>
               ))}
             </div>
+            {/* --- unlimited-sizes --- any number of arms: from 4 up to CHAIN_LINK_CEILING they swing as one chain (ARENA FULL past it) */}
+            <div className="flex items-center gap-2">
+              <SliderTrack settingKey="dpSegments" label={t("dpSegments")} value={s.dpSegments} range={RANGES.dpSegments} onChange={(v) => update({ dpSegments: v })} />
+              <NumberField value={s.dpSegments} onCommit={(v) => update({ dpSegments: v })} label={t("dpSegments")} range={RANGES.dpSegments} rules={rulesForRange(RANGES.dpSegments, "dpSegments")} settingKey="dpSegments" />
+            </div>
+            {armsBuilt < s.dpSegments && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(armsBuilt) })}</p>}
           </div>
         </Searchable>
       )}

@@ -984,7 +984,7 @@
     "dpGroupHarp": "Ślad i harfa",
     "dpGroupRun": "Przebieg",
     "dpSegments": "Ramiona",
-    "dpSegmentsTip": "Dwa ramiona to klasyczne wahadło podwójne; trzecie ramię tworzy wahadło potrójne – jeszcze dziksze, z biczem na końcu.",
+    "dpSegmentsTip": "Dwa ramiona to klasyczne wahadło podwójne. Trzecie ramię daje wahadło potrójne, jeszcze dziksze, z biczem na końcu. Wpisz w pole do {max} ramion, a rozkołysze się długi łańcuch. Każde kolejne ramię ma długość, masę i kąt startowy trzeciego.",
     "dpSegmentsDouble": "Podwójne",
     "dpSegmentsTriple": "Potrójne",
     "dpCount": "Wahadła",

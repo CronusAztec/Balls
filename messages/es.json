@@ -984,7 +984,7 @@
     "dpGroupHarp": "Estela y arpa",
     "dpGroupRun": "Simulación",
     "dpSegments": "Brazos",
-    "dpSegmentsTip": "Dos brazos forman el clásico doble péndulo; un tercer brazo lo convierte en un péndulo triple, aún más salvaje, con un latigazo en la punta.",
+    "dpSegmentsTip": "Dos brazos forman el clásico doble péndulo. Un tercer brazo lo convierte en un péndulo triple, aún más salvaje, con un latigazo en la punta. Escribe hasta {max} brazos en el campo y oscilará una larga cadena. Cada brazo después del tercero toma la longitud, la masa y el ángulo inicial del tercero.",
     "dpSegmentsDouble": "Doble",
     "dpSegmentsTriple": "Triple",
     "dpCount": "Péndulos",

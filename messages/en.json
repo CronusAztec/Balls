@@ -984,7 +984,7 @@
     "dpGroupHarp": "Trail & harp",
     "dpGroupRun": "Run",
     "dpSegments": "Arms",
-    "dpSegmentsTip": "Two arms make the classic double pendulum; a third arm makes a triple pendulum – even wilder, with a whip at the end.",
+    "dpSegmentsTip": "Two arms make the classic double pendulum. A third arm makes a triple pendulum, even wilder, with a whip at the end. Type up to {max} arms in the field for a long swinging chain. Every arm after the third takes the third arm's length, mass and start angle.",
     "dpSegmentsDouble": "Double",
     "dpSegmentsTriple": "Triple",
     "dpCount": "Pendulums",

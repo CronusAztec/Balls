@@ -393,4 +393,30 @@ describe("Wide sliders in every section of the panel", () => {
     }
     expect(intl(createElement(LandClaimSection, props(defaultSettings("landClaim"))), false)).not.toContain('data-unlimited-slider="lcTeams"'); // (the comfort track with the switch off)
   });
+
+  // --- unlimited-sizes --- the Double Pendulum's Arms: the Double and Triple picks, and a track and a number field for 4 arms or more
+  it("sets any number of Double Pendulum arms in the panel, keeps the Double and Triple picks, and says a chain past its memory-safety ceiling", async () => {
+    const { default: DoublePendulumSection } = await import("@/components/simulator/sections/DoublePendulumSection");
+    const props = (s: SimulatorSettings) => ({ t, search: "", matches: () => true, settings: s, update: () => {} });
+    const link = (dpsg: number) => settingsFromSearchParams(new URLSearchParams(`mode=doublePendulum&dpsg=${dpsg}`));
+    const arms = (html: string) => html.slice(html.indexOf('role="group" aria-label="Arms"'), html.indexOf("</div>", html.indexOf('role="group" aria-label="Arms"')));
+    const pressed = (html: string) => [...arms(html).matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)</g)].map((m) => `${m[2]}:${m[1]}`);
+    const field = (html: string) => /<input[^>]*data-number-field="dpSegments"[^>]*>/.exec(html)?.[0].match(/\svalue="([^"]*)"/)?.[1];
+    const eight = intl(createElement(DoublePendulumSection, props(link(8))));
+    expect(link(8).dpSegments).toBe(8);
+    expect(eight).toContain('data-unlimited-slider="dpSegments"');
+    expect(field(eight)).toBe("8");
+    expect(pressed(eight)).toEqual(["Double:false", "Triple:false"]);
+    expect(eight).toContain(`Type up to ${MEMORY_CEILINGS.dpSegments} arms in the field`);
+    expect(eight).not.toContain("Memory-safety ceiling");
+    expect(pressed(intl(createElement(DoublePendulumSection, props(link(3)))))).toEqual(["Double:false", "Triple:true"]);
+    expect(pressed(intl(createElement(DoublePendulumSection, props(defaultSettings("doublePendulum")))))).toEqual(["Double:true", "Triple:false"]);
+    const far = intl(createElement(DoublePendulumSection, props(link(100))));
+    expect(link(100).dpSegments).toBe(100); // (the link keeps the number)
+    expect(far).toContain(`Memory-safety ceiling: the run builds at most ${formatCompact(MEMORY_CEILINGS.dpSegments)}`);
+    const off = intl(createElement(DoublePendulumSection, props(link(8))), false);
+    expect(off).not.toContain('data-unlimited-slider="dpSegments"'); // (the comfort track with the switch off, pinned at its end)
+    expect(off).toMatch(/<input[^>]*type="range"[^>]*min="2"[^>]*max="3"[^>]*aria-label="Arms"/);
+    expect(field(off)).toBe("8");
+  });
 });
