@@ -2254,6 +2254,7 @@ export default function Simulator() {
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
       Object.assign(fresh, bounceMathCarryOver(themeLookRef.current)); // --- bounce-math --- the rules script the clip in every mode: they carry over
       fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
+      fresh.slowMotion = themeLookRef.current.slowMotion; // --- slow-motion --- (review fix) the switch carries over like Wide sliders above it: a new mode never turns it back on
       setSettings(fresh);
       if (engine) {
         engine.setConfig({

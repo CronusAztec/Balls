@@ -82,6 +82,21 @@ describe("the Slow motion setting (--- slow-motion ---)", () => {
     expect(restoreQueue(journal, 100).state.jobs.map((j) => j.settings.slowMotion)).toEqual([true, true]);
   });
 
+  it("carries over a mode change like Wide sliders: picking another mode never turns it back on", () => {
+    // (review fix) changeMode() builds the new mode's settings from its defaults, which have the switch on, then carries over
+    // what belongs to the page rather than the mode: the switch is one, next to Wide sliders in the same block
+    const page = fs.readFileSync(path.join(ROOT, "src/components/simulator/Simulator.tsx"), "utf8");
+    const start = page.indexOf("  const changeMode = useCallback(");
+    expect(start).toBeGreaterThan(0);
+    const body = page.slice(start, page.indexOf("setSettings(fresh);", start));
+    expect(body).toContain("...defaultSettings(mode),");
+    expect(body).toContain("fresh.unlimited = themeLookRef.current.unlimited;");
+    expect(body).toContain("fresh.slowMotion = themeLookRef.current.slowMotion;");
+    // the carried value is what the next mode's link says: smo=0 stays in it
+    const carried = { ...defaultSettings("portal"), unlimited: off("classic").unlimited, slowMotion: off("classic").slowMotion };
+    expect(settingsToSearchParams(carried).get("smo")).toBe("0");
+  });
+
   it("is a setting the app's AI may change, offered when a request is about slow motion (en, pl, es)", () => {
     const current = defaultSettings("classic");
     expect(assistantSettings(current).map(([k]) => k)).toContain("slowMotion");

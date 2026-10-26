@@ -8293,6 +8293,18 @@ await smokeBlock("unlimited", async () => {
   const ownCard = await page.locator('[data-search-key="slowMotion"]').getByRole("switch", { name: "Slow motion", exact: true }).isVisible().catch(() => false);
   const wideHidden = !(await page.getByRole("switch", { name: "Wide sliders", exact: true }).isVisible().catch(() => false));
   await page.getByPlaceholder("Search settings...").fill("");
+  // --- slow-motion --- (review fix) another mode keeps the switch off, as Wide sliders keeps its state: the link, the switch
+  // and the canvas of the new mode (data-slow-motion is written on every drawn frame, from the engine's own switch)
+  await pickModeCard("Portal");
+  await page.waitForTimeout(800);
+  if (!(await slowToggle.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const newMode = { ...(await switchState()), mode: await page.evaluate(() => new URLSearchParams(location.search).get("mode")) };
+  const newModeCanvasOff = (await page.evaluate(() => document.querySelector("main canvas")?.dataset.slowMotion ?? null)) === "0";
+  check(
+    "slow motion: picking another mode keeps the switch off – the link keeps smo=0 and the new mode's run plays with it off",
+    newMode.mode === "portal" && newMode.pressed === "false" && newMode.smo === "0" && newModeCanvasOff,
+    `(after the mode change ${JSON.stringify(newMode)}, canvas off=${newModeCanvasOff})`,
+  );
   await slowToggle.click();
   await page.waitForTimeout(300);
   const turnedOn = await switchState();
