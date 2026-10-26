@@ -5,6 +5,7 @@ import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from 
 import type { PaintBeatInfo } from "./PicturePaintSection";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { RUNNER_BEAT_SOURCES, RUNNER_MIXES, buildRunnerCourse, runnerSettingsOf, type RunnerBeatSource, type RunnerMix } from "@/lib/physics/modes/runner";
+import { PERFECT_SKILL, playedSkill } from "@/lib/physics/modes/paddle"; // --- uncap-all --- (review fix) (the Skill's top)
 
 /**
  * The Mode-row blocks of feature jdm-rhythm-runner: "Beat runner" (auto jump, obstacles, speed, jump height, density,
@@ -119,6 +120,7 @@ export function RunnerSection({ t, search, matches, settings: s, update, beat }:
 }
 
 export function PaddleSection({ t, search, matches, settings: s, update }: JdmRhythmSectionProps) {
+  const skill = playedSkill(s.pdSkill); // --- uncap-all --- (review fix) (a perfect controller at most: a higher Skill says it plays 100%)
   return (
     <div className="space-y-3 pt-2" data-testid="paddle-section">
       {!search && (
@@ -131,7 +133,7 @@ export function PaddleSection({ t, search, matches, settings: s, update }: JdmRh
         <Toggle t={t} labelKey="pdAuto" tipKey="pdAutoTip" value={s.pdAuto} onChange={(v) => update({ pdAuto: v })} />
       </Searchable>
       {(s.pdAuto || !!search) && (
-        <Slider t={t} search={search} matches={matches} labelKey="pdSkill" tipKey="pdSkillTip" value={s.pdSkill} range={RANGES.pdSkill} onChange={(v) => update({ pdSkill: v })} display={`${Math.round(100 * s.pdSkill)}%`} />
+        <Slider t={t} search={search} matches={matches} labelKey="pdSkill" tipKey="pdSkillTip" value={s.pdSkill} range={RANGES.pdSkill} onChange={(v) => update({ pdSkill: v })} display={`${Math.round(100 * s.pdSkill)}%`} plays={skill} playsDisplay={`${Math.round(100 * skill)}%`} />
       )}
       <Slider t={t} search={search} matches={matches} labelKey="pdMisses" tipKey="pdMissesTip" value={s.pdMisses} range={RANGES.pdMisses} onChange={(v) => update({ pdMisses: v })} display={String(s.pdMisses)} />
       <Slider t={t} search={search} matches={matches} labelKey="pdWidth" tipKey="pdWidthTip" value={s.pdWidth} range={RANGES.pdWidth} onChange={(v) => update({ pdWidth: v })} display={`${Math.round(100 * s.pdWidth)}%`} />
@@ -141,7 +143,7 @@ export function PaddleSection({ t, search, matches, settings: s, update }: JdmRh
       <Slider t={t} search={search} matches={matches} labelKey="pdMaxTempo" tipKey="pdMaxTempoTip" value={s.pdMaxTempo} range={RANGES.pdMaxTempo} onChange={(v) => update({ pdMaxTempo: v })} display={`×${s.pdMaxTempo}`} />
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed" data-testid="paddle-info">
-          {!s.pdAuto ? t("pdInfoManual") : s.pdSkill >= 1 ? t("pdInfoPerfect") : t("pdInfoAuto", { lives: s.pdMisses + 1 })}
+          {!s.pdAuto ? t("pdInfoManual") : s.pdSkill >= PERFECT_SKILL ? t("pdInfoPerfect") : t("pdInfoAuto", { lives: s.pdMisses + 1 })}
         </p>
       )}
     </div>

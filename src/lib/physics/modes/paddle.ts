@@ -34,7 +34,7 @@ import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep
 export interface PaddleSettings {
   /** A deterministic controller drives the platform; off = the pointer / arrow keys. */
   auto: boolean;
-  /** 0–1: how well the controller plays (1 never misses). */
+  /** 0–1: how well the controller plays (1 never misses; --- uncap-all --- (review fix) more plays as 1, `PERFECT_SKILL`). */
   skill: number;
   /** Misses allowed before the next one is game over, 0–9. */
   misses: number;
@@ -73,6 +73,18 @@ export const PADDLE_RANGES = {
   pdSpeedUp: { min: 0, max: 0.1, step: 0.005 },
   pdMaxTempo: { min: 1, max: 4, step: 0.1 }, // --- unlimited-sizes --- (the old MAX_TEMPO 2 is the default; any tempo from 1 typed)
 } as const;
+
+/**
+ * --- uncap-all --- (review fix) The Skill of a perfect controller: it heads exactly for every landing and never misses. The
+ * Skill scales the controller's errors and its slower platform by (1 − skill), so it cannot play better than this: a higher
+ * Skill plays as this, and the panel says so (PaddleSection: the slider's `plays`) instead of letting the value read as
+ * running as typed. The link keeps the typed number.
+ */
+export const PERFECT_SKILL = 1;
+/** The Skill the controller plays with: the setting, from 0 up to `PERFECT_SKILL`. */
+export function playedSkill(skill: number): number {
+  return Math.max(0, Math.min(PERFECT_SKILL, skill));
+}
 
 /** The Paddle Keep-Up fields of the SimulatorSettings object (URL keys pda, pdsk, pdm, pdw, pdsp, pdu; --- unlimited-sizes --- pdmt). */
 export interface PaddleFields {
@@ -159,7 +171,7 @@ export function readPaddleParams(params: URLSearchParams, settings: PaddleFields
 /** True when a run can never end: the platform is played by hand, or a perfect controller never misses. */
 export function paddleNeverFinishes(settings: Partial<PaddleSettings> | null | undefined): boolean {
   const s = resolvePaddleSettings(settings);
-  return !s.auto || s.skill >= 1;
+  return !s.auto || s.skill >= PERFECT_SKILL;
 }
 
 /* ------------------------------------------------------------------ the field (units: field heights) */
@@ -327,7 +339,7 @@ export function planCatch(
   spin: number = DEFAULT_PADDLE_SETTINGS.spin,
   tempo = 1,
 ): CatchPlan {
-  const miss = 1 - Math.max(0, Math.min(1, skill));
+  const miss = 1 - playedSkill(skill); // --- uncap-all --- (review fix) (a perfect controller at most)
   const e = miss > 0 ? miss * (2 * u1 - 1) * TIMING_ERROR_SEC : 0;
   const lo = r;
   const hi = PD_ASPECT - r;
@@ -347,7 +359,7 @@ export function planCatch(
 
 /** The auto controller's top speed at a skill: slower the worse it plays (so a late start can arrive late). */
 export function controllerTopSpeed(skill: number): number {
-  const s = Math.max(0, Math.min(1, skill));
+  const s = playedSkill(skill); // --- uncap-all --- (review fix)
   return PLATFORM_VMAX * (SLOW_PLATFORM + (1 - SLOW_PLATFORM) * s);
 }
 

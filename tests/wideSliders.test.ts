@@ -12,7 +12,9 @@ import { UnlimitedProvider, WIDE_KEY_NOTCH, WideTrack, rulesForRange, wideInputV
 import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSection";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToLiveSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
 import { PROJECT_FORMAT, buildProject, parseProject, resolveProjectSettings, serializeProject } from "@/lib/project"; // --- review fix --- (a file saved before 1.16.0)
-import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest"; // (--- uncap-all --- (review fix) modeSettingsOfSettings: a Paddle Keep-Up run)
+import { createEngineForSettings } from "@/lib/simulation/finder"; // --- uncap-all --- (review fix) (a Paddle Keep-Up run)
+import { PERFECT_SKILL, controllerTopSpeed, planCatch, playedSkill } from "@/lib/physics/modes/paddle"; // --- uncap-all --- (review fix) (the Skill's top)
 import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, formatCompact, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
 import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_SINCE_KEY, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue, wideSlidersOf } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
@@ -496,6 +498,58 @@ describe("Wide sliders in every section of the panel", () => {
     expect([fieldChaos(3), FULL_FIELD_CHAOS]).toEqual([1, 1]);
     expect(layout(3)).toBe(layout(fieldChaos(3)));
     expect(layout(0.95)).not.toBe(layout(fieldChaos(3)));
+  });
+
+  // --- uncap-all --- (review fix) Paddle Keep-Up's Skill stops at a perfect controller (100%: it never misses), so a higher
+  // Skill plays as 100%: the link keeps the typed number, and the note and the number field's tip say so, in en, pl and es. At
+  // pdsk=3 they read "runs as typed" while the controller played 100%.
+  it("says Paddle Keep-Up's Skill past 100% plays 100%, in en, pl and es, and the run plays it as 100%", async () => {
+    const { PaddleSection } = await import("@/components/simulator/sections/JdmRhythmSection");
+    const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    const note = (html: string, key: string) => new RegExp(`data-uncap-plays="${key}">([^<]*)<`).exec(text(html))?.[1] ?? null;
+    const fieldTip = (html: string, key: string) => new RegExp(`<input[^>]*data-number-field="${key}"[^>]*>`).exec(text(html))?.[0].match(/\stitle="([^"]*)"/)?.[1] ?? null;
+    const s = settingsFromSearchParams(new URLSearchParams("mode=paddle&pdsk=3"));
+    expect([s.pdAuto, s.pdSkill]).toEqual([true, 3]); // (the link keeps the number)
+    for (const [locale, messages] of [["en", en], ["pl", pl], ["es", es]] as const) {
+      const words = messages.Controls as Record<string, string>;
+      const lt = ((key: string, values?: Record<string, unknown>) => String(new IntlMessageFormat(words[key] ?? key, locale).format(values as Record<string, string>))) as unknown as Translate;
+      const render = (settings: SimulatorSettings, wide: boolean) =>
+        renderToStaticMarkup(
+          createElement(
+            NextIntlClientProvider,
+            { locale, messages, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>,
+            createElement(UnlimitedProvider as unknown as React.FC<{ on: boolean }>, { on: wide }, createElement(PaddleSection, { t: lt, search: "", matches: () => true, settings, update: () => {} })),
+          ),
+        );
+      const top = messages.Uncap.playsAs.replace("{value}", "100%");
+      const typed = messages.Uncap.beyondTip.split("{value}")[1].split(",")[0]; // ("runs as typed" in the locale's words)
+      for (const wide of [true, false]) {
+        const html = render(s, wide);
+        expect([locale, wide, note(html, "pdSkill"), fieldTip(html, "pdSkill")]).toEqual([locale, wide, top, top]);
+        expect([locale, wide, text(html).includes(typed)]).toEqual([locale, wide, false]);
+      }
+      expect([locale, note(render({ ...s, pdSkill: 0.85 }, true), "pdSkill"), note(render({ ...s, pdSkill: 1 }, true), "pdSkill")]).toEqual([locale, null, null]); // (a Skill the run plays as it is: nothing said)
+    }
+    // ...and 100% is what the controller plays: a Skill of 3 plans every catch, moves the platform and plays the game as 1 does
+    expect([playedSkill(3), PERFECT_SKILL, controllerTopSpeed(3)]).toEqual([1, 1, controllerTopSpeed(1)]);
+    const landing = { t: 0.8, x: 0.3, vx: 0.1, ceiling: false };
+    expect(planCatch(landing, 0.2, 0.1, 0.02, 4, 3, 0.08, 0.9, 0.1, 0.7, 0.3)).toEqual(planCatch(landing, 0.2, 0.1, 0.02, 4, 1, 0.08, 0.9, 0.1, 0.7, 0.3));
+    const run = (skill: number) => {
+      const settings = { ...s, pdSkill: skill };
+      const engine = createEngineForSettings(physicsConfigOfSettings(settings), "paddle", modeSettingsOfSettings(settings), 42);
+      const view = engine.getPaddleView();
+      const frames: number[][] = [];
+      for (let i = 0; i < 60 * 40; i++) {
+        engine.update(1000 / 60, 0);
+        frames.push([view.bx, view.by, view.px, view.hits, view.misses]);
+      }
+      return frames;
+    };
+    const perfect = run(1);
+    expect(perfect[perfect.length - 1][3]).toBeGreaterThan(10); // (a real game: catches, no misses)
+    expect(perfect[perfect.length - 1][4]).toBe(0);
+    expect(run(3)).toEqual(perfect);
+    expect(run(0.5)).not.toEqual(perfect);
   });
 });
 
