@@ -7,6 +7,26 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.16.0 · 2026-10-26
+
+A Slow motion switch and sliders that go further
+
+### New
+
+- Ball & Physics has a new Slow motion switch, on by default. Turn it off and a near miss, a bullseye or a knockout plays at normal speed. Exported videos follow the switch too.
+- Numbers below a slider's start now work where they still make sense. Type 1 for a single target, or make a clip of 3 seconds. Links, project files and batch renders keep them.
+- Double Pendulum Harp now swings a chain of up to 64 arms. Five fixed limits became settings, like the Swarm Limit and Paddle Keep-Up's Top Tempo. Each starts where it was.
+
+### Improved
+
+- The Wide sliders switch is now on by default. The sliders stretch far past their usual range, the clip length and the BPM included. Find Simulation and the Clip editor get number fields too.
+- Mode Lab's number fields go below the slider too, as far as each game allows. Type a number the game does not allow and the field names the limit. When a link holds one, the field says what the game plays instead.
+
+### Fixed
+
+- Spiral Glass takes a Glass Strength past 255. Before, 256 played as 0 and 300 as 44. A Wall Bounciness above 100% now adds its kick on pegs and bumpers too.
+- Short links and project files keep big setups whole, like a thousand obstacles or long note lists. Before, the end was cut off. When a setup is too big for a short link, the full link is copied.
+
 ## Website 1.15.0 · 2026-10-25
 
 Mode Lab and six new games built from rules

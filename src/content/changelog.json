@@ -1,6 +1,75 @@
 {
   "releases": [
     {
+      "id": "site-1-16-0",
+      "product": "site",
+      "version": "1.16.0",
+      "date": "2026-10-26",
+      "headline": {
+        "en": "A Slow motion switch and sliders that go further",
+        "pl": "Przełącznik zwolnionego tempa i suwaki sięgające dalej",
+        "es": "Interruptor de cámara lenta y deslizadores que van más allá"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Ball & Physics has a new Slow motion switch, on by default. Turn it off and a near miss, a bullseye or a knockout plays at normal speed. Exported videos follow the switch too.",
+            "pl": "W sekcji Piłka i fizyka jest nowy przełącznik Zwolnione tempo, domyślnie włączony. Po wyłączeniu otarcie, dziesiątka czy nokaut lecą z normalną prędkością. Eksportowane filmy też go uwzględniają.",
+            "es": "En Pelota y física hay un nuevo interruptor, Cámara lenta, activado por defecto. Si lo desactivas, un casi-escape, una diana o un KO van a velocidad normal. Los vídeos exportados también lo respetan."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The Wide sliders switch is now on by default. The sliders stretch far past their usual range, the clip length and the BPM included. Find Simulation and the Clip editor get number fields too.",
+            "pl": "Przełącznik Szerokie suwaki jest teraz domyślnie włączony. Suwaki, także długości klipu i BPM, sięgają daleko poza zwykły zakres. Znajdź symulację i Edytor klipów też dostały pola liczbowe.",
+            "es": "El interruptor Deslizadores amplios ahora viene activado. Los deslizadores, también los de duración del clip y BPM, van mucho más allá de su rango habitual. Buscar simulación y el Editor de clips suman campos numéricos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Numbers below a slider's start now work where they still make sense. Type 1 for a single target, or make a clip of 3 seconds. Links, project files and batch renders keep them.",
+            "pl": "Liczby poniżej początku suwaka działają teraz tam, gdzie wciąż mają sens. Wpisz 1, by mieć jeden cel, albo zrób klip na 3 sekundy. Linki, pliki projektu i renderowanie seryjne je zachowują.",
+            "es": "Los números por debajo del inicio de un deslizador ya funcionan donde aún tienen sentido. Escribe 1 para un solo objetivo o haz un clip de 3 segundos. Enlaces, archivos de proyecto y lotes los conservan."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Double Pendulum Harp now swings a chain of up to 64 arms. Five fixed limits became settings, like the Swarm Limit and Paddle Keep-Up's Top Tempo. Each starts where it was.",
+            "pl": "Harfa z podwójnym wahadłem kołysze teraz łańcuchem do 64 ramion. Pięć stałych limitów stało się ustawieniami, na przykład Limit roju i Najwyższe tempo w Piłce na platformie. Każde zaczyna od dawnej wartości.",
+            "es": "Arpa de doble péndulo ahora balancea una cadena de hasta 64 brazos. Cinco límites fijos ahora son ajustes, como el Límite del enjambre y el Tempo máximo de Pelota en la plataforma. Cada uno empieza donde estaba."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Mode Lab's number fields go below the slider too, as far as each game allows. Type a number the game does not allow and the field names the limit. When a link holds one, the field says what the game plays instead.",
+            "pl": "Pola liczbowe w Laboratorium trybów sięgają też poniżej suwaka, tak daleko, jak pozwala gra. Gdy wpiszesz liczbę spoza tych granic, pole je podaje. Gdy taka przyjdzie z linku, pole mówi, co gra przyjmuje w zamian.",
+            "es": "Los campos numéricos del Lab de modos también aceptan valores por debajo del deslizador, hasta donde llega el juego. Si escribes uno que no admite, el campo indica el límite. Si viene de un enlace, dice qué usa el juego."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Spiral Glass takes a Glass Strength past 255. Before, 256 played as 0 and 300 as 44. A Wall Bounciness above 100% now adds its kick on pegs and bumpers too.",
+            "pl": "Szklana spirala przyjmuje Wytrzymałość szkła powyżej 255. Wcześniej 256 działało jak 0, a 300 jak 44. Sprężystość ścian powyżej 100% dodaje teraz kopa także na kołkach i odbijaczach.",
+            "es": "Espiral de cristal acepta una Resistencia del cristal mayor que 255. Antes, 256 contaba como 0 y 300 como 44. Un Rebote de las paredes de más del 100% ahora también da impulso en clavos y rebotadores."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Short links and project files keep big setups whole, like a thousand obstacles or long note lists. Before, the end was cut off. When a setup is too big for a short link, the full link is copied.",
+            "pl": "Krótkie linki i pliki projektu zachowują duże układy w całości, na przykład tysiąc przeszkód albo długie listy nut. Wcześniej koniec był ucinany. Gdy układ nie mieści się w krótkim linku, kopiuje się pełny link.",
+            "es": "Los enlaces cortos y los archivos de proyecto guardan enteros los ajustes grandes, como mil obstáculos o largas listas de notas. Antes se cortaba el final. Si no caben en un enlace corto, se copia el enlace completo."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-15-0",
       "product": "site",
       "version": "1.15.0",
