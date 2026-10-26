@@ -82,6 +82,7 @@ export function Slider({
   settingKey: namedKey,
   rules,
   plays,
+  playsDisplay,
   displayBeyond,
   built,
 }: {
@@ -115,6 +116,12 @@ export function Slider({
    */
   plays?: number | null;
   /**
+   * --- uncap-all --- (review fix) `plays` written the way `display` writes a value, in its unit ("100%", "1.00 beats"): a
+   * mode's own top (Beat Drop's Fly-in Time, Bullseye's Chaos) says what it plays in the unit its label shows. Without it the
+   * note says the bare number in the page's number format.
+   */
+  playsDisplay?: string;
+  /**
    * --- unlimited-sizes --- `display` is written for a value past the comfort range too (Mode Lab's: its unit and the page's
    * number format, a huge or tiny value kept short): the label shows it there, in the warning tint, instead of the bare short
    * number (formatCompact()) a slider whose display only knows its comfort range shows.
@@ -141,7 +148,7 @@ export function Slider({
   const overridden = useContext(ControlOverride); // --- slow-motion --- (review fix) dimmed label and track, the note named
   const describedBy = overridden?.describedBy;
   // --- unlimited-sizes --- a value the run plays otherwise (a Mode Lab link's past its game's bounds): what it plays instead
-  const changed = plays !== undefined && !live && plays !== value ? (plays === null ? u("playsNone") : u("playsAs", { value: formatBound(plays, locale) })) : undefined;
+  const changed = plays !== undefined && !live && plays !== value ? (plays === null ? u("playsNone") : u("playsAs", { value: playsDisplay ?? formatBound(plays, locale) })) : undefined;
   const track = log ? (
     // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
     <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} describedBy={describedBy} />

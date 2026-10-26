@@ -286,6 +286,27 @@ describe("queue sources", async () => {
     expect(presetForPlatform(null)).toBe("native");
   });
 
+  // --- uncap-all --- (review fix) a typed export frame rate rides through the queue as the page's own export takes it: a
+  // Library re-render, the batch, the journal and the render (it became 30 or 60, so 45 rendered at 30 and 120 at 60)
+  it("keeps a typed frame rate from 30 up through a re-render, the batch, the journal and the render", async () => {
+    const { rerenderOptions } = await import("@/lib/desktop/queueSources");
+    const { renderFormatFor } = await import("@/lib/desktop/presets");
+    const clip = seedSource(defaultSettings("classic"), 5);
+    for (const typed of [45, 90, 120, 59.94]) {
+      const options = rerenderOptions({ recordingResolution: "1080x1920", fastExportFps: typed }, "h264", "native");
+      expect(options).toEqual({ resolutions: ["1080x1920"], fps: [typed], codecs: ["h264"], presets: ["native"] });
+      const [job] = enqueue(EMPTY_QUEUE, expandBatch([clip], options), 1, ids()).jobs;
+      expect([typed, job.fps]).toEqual([typed, typed]);
+      expect([typed, restoreQueue(journalOf({ jobs: [job], running: false }, 2), 3).state.jobs[0].fps]).toEqual([typed, typed]);
+      expect(renderFormatFor(job.preset, job.resolution, job.fps)).toEqual({ resolution: "1080x1920", fps: typed });
+    }
+    // below the fast export's 30 a re-render renders at 30, as the page's export does; a platform preset keeps its own rate
+    expect(rerenderOptions({ recordingResolution: "1080x1920", fastExportFps: 12 }, "h264", "native").fps).toEqual([30]);
+    expect(renderFormatFor("reels", "1080x1920", 120)).toEqual({ resolution: "1080x1920", fps: 30 });
+    // a rate that is no rate makes no job
+    expect(expandBatch([clip], { resolutions: ["1080x1920"], fps: [24, Number.NaN, Infinity], codecs: ["h264"], presets: ["native"] })).toEqual([]);
+  });
+
   // --- ai-cut --- the cut the AI answered for a clip travels with it: source → every job of the batch → the queue
   it("carries an AI clip's TikTok cut into its jobs", () => {
     const cut: ClipEditSpec = { startSec: 3, lengthSec: 11.5, zoom: 1.25, hook: "Will Pip make it?", url: "jumpingballs.live", cardSec: 1.5 };

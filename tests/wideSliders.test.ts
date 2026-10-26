@@ -17,7 +17,8 @@ import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, formatCompact
 import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_SINCE_KEY, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue, wideSlidersOf } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
 import { MODE_IDS } from "@/lib/physics/types"; // --- review fix --- (every section rendered for every mode)
-import { planBeatDrop } from "@/lib/simulation/beatDropPlan"; // --- unlimited-sizes --- (the one tooltip range a planner still holds)
+import { MAX_ANTICIPATION_BEATS, planBeatDrop, plannedAnticipation } from "@/lib/simulation/beatDropPlan"; // --- unlimited-sizes --- (the one tooltip range a planner still holds; --- uncap-all --- (review fix) its top)
+import { FULL_FIELD_CHAOS, buildBullseyeLayout, fieldChaos } from "@/lib/physics/modes/bullseye"; // --- uncap-all --- (review fix) (Bullseye's full field)
 import { MAX_PANE_HP, stageHp } from "@/lib/physics/modes/glass"; // --- unlimited-sizes --- (review fix) (the Hits per Pane tip)
 import { resolveBattleSettings } from "@/lib/physics/modes/arenaGames"; // --- unlimited-sizes --- (review fix) (the Battle card)
 import { chainCountCeiling, resolveDoublePendulumSettings } from "@/lib/physics/modes/doublePendulum"; // --- unlimited-sizes --- (review fix)
@@ -454,6 +455,47 @@ describe("Wide sliders in every section of the panel", () => {
     }
     // sparring always swings two: nothing is cut, nothing said
     expect(notes({ ...link("dpsg=64&dpn=5"), dpSpar: true })).toEqual([]);
+  });
+
+  // --- uncap-all --- (review fix) a number its mode's own code holds at a top (Beat Drop flies an obstruction in one beat early at
+  // most, Bullseye's Chaos stops at the full field): the link keeps the typed number, and the panel says what the run plays, in
+  // the slider's unit, in the note and the number field's tip. They read "runs as typed" while the run played the top.
+  it("says Beat Drop's Fly-in Time past one beat and Bullseye's Chaos past the full field play their top, in the slider's unit", async () => {
+    const { default: BeatDropSection } = await import("@/components/simulator/sections/BeatDropSection");
+    const { default: BullseyeSection } = await import("@/components/simulator/sections/BullseyeSection");
+    const props = (s: SimulatorSettings) => ({ t, search: "", matches: () => true, settings: s, update: () => {} });
+    const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    const note = (html: string, key: string) => new RegExp(`data-uncap-plays="${key}">([^<]*)<`).exec(text(html))?.[1] ?? null;
+    const fieldTip = (html: string, key: string) => new RegExp(`<input[^>]*data-number-field="${key}"[^>]*>`).exec(text(html))?.[0].match(/\stitle="([^"]*)"/)?.[1] ?? null;
+    const plays = (value: string) => en.Uncap.playsAs.replace("{value}", value);
+    const cases = [
+      { mode: "beatDrop", key: "bdAnticipation", url: "bda", section: BeatDropSection, past: 3, top: plays("1.00 beats"), inside: 0.85 },
+      { mode: "bullseye", key: "byChaos", url: "byc", section: BullseyeSection, past: 3, top: plays("100%"), inside: 0.85 },
+    ] as const;
+    for (const c of cases) {
+      const s = settingsFromSearchParams(new URLSearchParams(`mode=${c.mode}&${c.url}=${c.past}`));
+      expect([c.key, s[c.key]]).toEqual([c.key, c.past]); // (the link keeps the number)
+      for (const wide of [true, false]) {
+        const html = intl(createElement(c.section as unknown as React.FC<ReturnType<typeof props>>, props(s)), wide);
+        expect([c.key, wide, note(html, c.key), fieldTip(html, c.key)]).toEqual([c.key, wide, c.top, c.top]);
+        expect([c.key, wide, text(html).includes("runs as typed")]).toEqual([c.key, wide, false]);
+      }
+      const inside = intl(createElement(c.section as unknown as React.FC<ReturnType<typeof props>>, props({ ...s, [c.key]: c.inside })));
+      expect([c.key, note(inside, c.key)]).toEqual([c.key, null]); // (a value the run plays as it is: nothing said)
+    }
+    // ...and the tops are what the code plays: a Fly-in Time of 3 beats plans as 1, a Chaos of 3 lays out the full field
+    let seed = 7;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const plan = (anticipation: number) => {
+      seed = 7;
+      return [...planBeatDrop({ beats: Array.from({ length: 12 }, (_, i) => 1 + i * 0.5), period: 0.5, kinds: ["plank"], drift: 0.5, scroll: "endless", bounceHeight: 0.24, anticipation, random }).arriveStart];
+    };
+    expect([plannedAnticipation(3), MAX_ANTICIPATION_BEATS]).toEqual([1, 1]);
+    expect(plan(3)).toEqual(plan(plannedAnticipation(3)));
+    const layout = (chaos: number) => JSON.stringify(buildBullseyeLayout(1080, 1920, 12, chaos, 7));
+    expect([fieldChaos(3), FULL_FIELD_CHAOS]).toEqual([1, 1]);
+    expect(layout(3)).toBe(layout(fieldChaos(3)));
+    expect(layout(0.95)).not.toBe(layout(fieldChaos(3)));
   });
 });
 

@@ -264,7 +264,7 @@
     "rotatingGravity": "Rotating Gravity",
     "rotatingGravityTip": "Turns the direction of gravity by this many degrees per second, so \"down\" slowly circles around the arena.",
     "wallBounciness": "Wall Bounciness",
-    "wallBouncinessTip": "How much speed the ball keeps when it rebounds off a wall. Below 100% every hit slows it down; above 100% every hit adds a kick.",
+    "wallBouncinessTip": "How much speed the ball keeps when it rebounds off a wall. Below 100% every hit slows it down. Above 100% every hit adds a kick. In Square Battle Royale and Capture the Flag, two squares never bounce apart faster than they collide.",
     "breathingWalls": "Breathing Walls",
     "breathingWallsTip": "Walls grow and shrink around their normal size by this much; the gaps move with them.",
     "breathingSpeed": "Breathing Speed",

@@ -2,7 +2,7 @@
 
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { bullseyeNominalRunSec, bullseyeSettingsOf, perfectShotIndex } from "@/lib/physics/modes/bullseye";
+import { bullseyeNominalRunSec, bullseyeSettingsOf, fieldChaos, perfectShotIndex } from "@/lib/physics/modes/bullseye";
 import { SlowMotionOffNote, SlowMotionPointer } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface BullseyeSectionProps {
@@ -28,6 +28,7 @@ export const BULLSEYE_KEYS = ["byShots", "byInterval", "byChaos", "byRings", "by
 export default function BullseyeSection({ t, search, matches, settings: s, update }: BullseyeSectionProps) {
   const by = bullseyeSettingsOf(s);
   const perfect = perfectShotIndex(by);
+  const chaos = fieldChaos(s.byChaos); // --- uncap-all --- (review fix) (the full field at most: a higher Chaos says it plays 100%)
   return (
     <div className="space-y-3 pt-2" data-testid="bullseye">
       {!search && (
@@ -41,7 +42,7 @@ export default function BullseyeSection({ t, search, matches, settings: s, updat
       )}
       <Slider t={t} search={search} matches={matches} labelKey="byShots" tipKey="byShotsTip" value={s.byShots} range={RANGES.byShots} onChange={(v) => update({ byShots: v })} display={String(s.byShots)} />
       <Slider t={t} search={search} matches={matches} labelKey="byInterval" tipKey="byIntervalTip" value={s.byInterval} range={RANGES.byInterval} onChange={(v) => update({ byInterval: v })} display={`${s.byInterval.toFixed(1)}s`} />
-      <Slider t={t} search={search} matches={matches} labelKey="byChaos" tipKey="byChaosTip" value={s.byChaos} range={RANGES.byChaos} onChange={(v) => update({ byChaos: v })} display={`${Math.round(100 * s.byChaos)}%`} />
+      <Slider t={t} search={search} matches={matches} labelKey="byChaos" tipKey="byChaosTip" value={s.byChaos} range={RANGES.byChaos} onChange={(v) => update({ byChaos: v })} display={`${Math.round(100 * s.byChaos)}%`} plays={chaos} playsDisplay={`${Math.round(100 * chaos)}%`} />
       <Slider t={t} search={search} matches={matches} labelKey="byRings" tipKey="byRingsTip" value={s.byRings} range={RANGES.byRings} onChange={(v) => update({ byRings: v })} display={String(s.byRings)} />
       <Searchable search={search} matches={matches} labelKey="byTargetMoving">
         <Toggle t={t} labelKey="byTargetMoving" tipKey="byTargetMovingTip" value={s.byTargetMoving} onChange={(v) => update({ byTargetMoving: v })} />

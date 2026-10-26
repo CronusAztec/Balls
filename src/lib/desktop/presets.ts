@@ -1,4 +1,5 @@
 import type { TranscodeSpec, VideoCodec } from "./contract";
+import { DEFAULT_FAST_EXPORT_FPS, FAST_EXPORT_RANGES } from "@/lib/recording/fastRenderPlan"; // --- uncap-all --- (review fix) (a job's frame rate)
 
 /*
  * --- desktop-exe --- Output presets of the desktop render queue: what a clip becomes after the fast export. Pure; the page
@@ -30,9 +31,19 @@ export const PLATFORM_PRESETS: Record<Exclude<OutputPreset, "native">, PlatformP
   uhd60: { width: 2160, height: 3840, fps: 60, videoKbps: 45_000, maxKbps: 60_000, audioKbps: 384, sampleRate: 48_000 },
 };
 
-/** The fast export's own resolutions the queue can render at (settings.ts RESOLUTIONS) and the frame rates. */
+/** The fast export's own resolutions the queue can render at (settings.ts RESOLUTIONS) and the frame rates its chips offer. */
 export const QUEUE_RESOLUTIONS = ["1080x1920", "1920x1080", "1280x720", "500x500"] as const;
 export const QUEUE_FPS = [30, 60] as const;
+
+/**
+ * --- uncap-all --- (review fix) The frame rate a queue job renders at, or null for none: any finite rate from the fast
+ * export's 30 up, as the page's own export takes it (`resolveFastExportFps()`: past 60 a simulation frame is held for several
+ * export frames, between 30 and 60 some are dropped). The chips offer 30 and 60; a Library re-render keeps the page's typed
+ * rate, which the queue used to turn into 30 or 60 (45 rendered at 30, 120 at 60).
+ */
+export function queueFps(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= FAST_EXPORT_RANGES.fastExportFps.min ? value : null;
+}
 
 /** Bitrate (kbit/s) of a custom transcode: ~0.08 bit per pixel and frame, 2–80 Mbit/s; HEVC and AV1 need ~35 % less. */
 export function customVideoKbps(width: number, height: number, fps: number, codec: VideoCodec): number {
@@ -59,7 +70,7 @@ export function transcodeSpecFor(preset: OutputPreset, codec: VideoCodec, render
 }
 
 /** The render size and frame rate a preset renders at before ffmpeg: a platform preset renders vertical at its frame rate (4K upscales a 1080×1920 render). */
-export function renderFormatFor(preset: OutputPreset, resolution: string, fps: number): { resolution: string; fps: 30 | 60 } {
-  if (preset === "native") return { resolution, fps: fps === 30 ? 30 : 60 };
-  return { resolution: "1080x1920", fps: PLATFORM_PRESETS[preset].fps === 30 ? 30 : 60 };
+export function renderFormatFor(preset: OutputPreset, resolution: string, fps: number): { resolution: string; fps: number } {
+  if (preset === "native") return { resolution, fps: queueFps(fps) ?? DEFAULT_FAST_EXPORT_FPS }; // --- uncap-all --- (review fix) (the job's own rate)
+  return { resolution: "1080x1920", fps: PLATFORM_PRESETS[preset].fps };
 }

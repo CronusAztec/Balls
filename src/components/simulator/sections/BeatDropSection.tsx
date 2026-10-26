@@ -5,7 +5,7 @@ import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from 
 import type { PaintBeatInfo } from "./PicturePaintSection";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { BEAT_DROP_COLOR_MODES, BEAT_DROP_SOUNDS, beatDropRunInfo, beatDropSettingsOf, parseBeatDropKinds, toggleBeatDropKind, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
-import { BEAT_DROP_KINDS, BEAT_DROP_SCROLLS, type BeatDropPadKind, type BeatDropScroll } from "@/lib/simulation/beatDropPlan";
+import { BEAT_DROP_KINDS, BEAT_DROP_SCROLLS, plannedAnticipation, type BeatDropPadKind, type BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource"; // --- video-beats ---
 
 export interface BeatDropSectionProps {
@@ -67,6 +67,7 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
   const gridKey = beatSource === "media" ? "bdBeatMedia" : beatSource === "manual" ? "bdBeatMarkers" : "bdBeatSong"; // --- video-beats ---
   // (a song still being analysed is only waited for when the picked source is not the BPM)
   const beatLine = followsSong ? t(gridKey, { bpm: Math.round(beat!.bpm!) }) : beat?.analyzing && s.beatSource !== "bpm" ? t("bdBeatAnalyzing") : t("bdBeatBpm", { bpm: s.bpm });
+  const anticipation = plannedAnticipation(s.bdAnticipation); // --- uncap-all --- (review fix) (one beat at most: a longer Fly-in Time says what it plays)
   return (
     <div className="space-y-3 pt-2" data-testid="beat-drop">
       {!search && (
@@ -110,7 +111,7 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
         </div>
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="bdBounceHeight" tipKey="bdBounceHeightTip" value={s.bdBounceHeight} range={RANGES.bdBounceHeight} onChange={(v) => update({ bdBounceHeight: v })} display={`${Math.round(100 * s.bdBounceHeight)}%`} />
-      <Slider t={t} search={search} matches={matches} labelKey="bdAnticipation" tipKey="bdAnticipationTip" value={s.bdAnticipation} range={RANGES.bdAnticipation} onChange={(v) => update({ bdAnticipation: v })} display={t("bdBeats", { value: s.bdAnticipation.toFixed(2) })} />
+      <Slider t={t} search={search} matches={matches} labelKey="bdAnticipation" tipKey="bdAnticipationTip" value={s.bdAnticipation} range={RANGES.bdAnticipation} onChange={(v) => update({ bdAnticipation: v })} display={t("bdBeats", { value: s.bdAnticipation.toFixed(2) })} plays={anticipation} playsDisplay={t("bdBeats", { value: anticipation.toFixed(2) })} />
       <Searchable search={search} matches={matches} labelKey="bdSound">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">

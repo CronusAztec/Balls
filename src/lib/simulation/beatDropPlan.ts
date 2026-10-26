@@ -130,6 +130,17 @@ export const CONTACT_FRACTION = 0.1;
 export const DRAWS_PER_LANDING = 9;
 /** A kind drawn twice in a row is redrawn (as another kind of the mix) with this probability. */
 export const REPEAT_REDRAW = 0.7;
+/**
+ * --- uncap-all --- (review fix) The most beats before its beat an obstruction starts flying in. It flies in during the flight
+ * that leads to it: its entry side and the "landing higher" wait are worked out for that flight, and the planner holds every
+ * pad after the first to it again (`start ≥ times[k]`). So a longer Fly-in Time plays as this, and the panel says so
+ * (BeatDropSection: the slider's `plays`) instead of letting the value read as running as typed.
+ */
+export const MAX_ANTICIPATION_BEATS = 1;
+/** The Fly-in Time (beats) the planner flies an obstruction in with: the setting, at most `MAX_ANTICIPATION_BEATS`, at least 0.05. */
+export function plannedAnticipation(beats: number): number {
+  return Math.max(0.05, Math.min(MAX_ANTICIPATION_BEATS, beats));
+}
 
 /* ------------------------------------------------------------------ entries and drums */
 
@@ -193,7 +204,7 @@ export interface BeatDropPlanInput {
   scroll: BeatDropScroll;
   /** 0.1–0.5 of the view: how high a flight of one beat rises. */
   bounceHeight: number;
-  /** 0.3–1 beats: how long before its beat an obstruction starts flying in. */
+  /** How long before its beat an obstruction starts flying in (beats; the slider's 0.3–1, past `MAX_ANTICIPATION_BEATS` it plays as that). */
   anticipation: number;
   /** The seeded stream (the engine's `random()`). */
   random: () => number;
@@ -349,7 +360,7 @@ export function planBeatDrop(input: BeatDropPlanInput, out?: BeatDropPlan): Beat
   const drift = input.drift > 0 ? input.drift : 0;
   const g0 = baseGravity(input.bounceHeight, period);
   plan.gravity = g0;
-  const anticipation = Math.max(0.05, Math.min(1, input.anticipation));
+  const anticipation = plannedAnticipation(input.anticipation);
   const endless = input.scroll !== "arena";
 
   // The drop-in: a fixed number of draws before the landings.

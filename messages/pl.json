@@ -264,7 +264,7 @@
     "rotatingGravity": "Obracająca się grawitacja",
     "rotatingGravityTip": "Obraca kierunek grawitacji o tyle stopni na sekundę, więc „dół” powoli krąży wokół areny.",
     "wallBounciness": "Sprężystość ścian",
-    "wallBouncinessTip": "Ile prędkości piłka zachowuje po odbiciu od ściany. Poniżej 100% każde uderzenie ją spowalnia, powyżej 100% każde dodaje jej kopa.",
+    "wallBouncinessTip": "Ile prędkości piłka zachowuje po odbiciu od ściany. Poniżej 100% każde uderzenie ją spowalnia, powyżej 100% każde dodaje jej kopa. W „Battle Royale kwadratów” i „Zdobądź flagę” dwa kwadraty nigdy nie odbijają się od siebie szybciej, niż się zderzyły.",
     "breathingWalls": "Oddychające ściany",
     "breathingWallsTip": "Ściany rosną i kurczą się wokół swojego normalnego rozmiaru o tę wartość; szczeliny przesuwają się razem z nimi.",
     "breathingSpeed": "Tempo oddychania",

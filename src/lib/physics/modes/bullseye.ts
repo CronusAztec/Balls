@@ -253,6 +253,16 @@ export const BAND_TOP_AT = 0.22;
 export const BAND_BOTTOM_AT = 0.58;
 /** Rows of candidate deflectors (every other one staggered); in the staggered rows every other candidate is a bumper. */
 export const DEFLECTOR_ROWS = 5;
+/**
+ * --- uncap-all --- (review fix) The Chaos of a full field: every candidate peg and bumper stands. Chaos is the share of a fixed
+ * grid of candidates, spaced so the ball fits between them, so more than all of them cannot stand: a higher Chaos plays as
+ * this, and the panel says so (BullseyeSection: the slider's `plays`) instead of letting the value read as running as typed.
+ */
+export const FULL_FIELD_CHAOS = 1;
+/** The share of the candidate deflectors a Chaos keeps: the setting, from 0 up to `FULL_FIELD_CHAOS`. */
+export function fieldChaos(chaos: number): number {
+  return Math.max(0, Math.min(FULL_FIELD_CHAOS, chaos));
+}
 export const PEG_RESTITUTION = 0.5;
 export const BUMPER_RESTITUTION = 0.75;
 export const WALL_RESTITUTION = 0.55;
@@ -367,7 +377,7 @@ export function buildBullseyeLayout(width: number, height: number, ballRadius: n
       candidates.push({ key: hash01(salt, row, j), x, y, kind, slot });
     }
   }
-  const keep = Math.round(Math.max(0, Math.min(1, chaos)) * candidates.length);
+  const keep = Math.round(fieldChaos(chaos) * candidates.length);
   const chosen = candidates
     .map((c, i) => ({ c, i }))
     .sort((a, b) => a.c.key - b.c.key || a.i - b.i)

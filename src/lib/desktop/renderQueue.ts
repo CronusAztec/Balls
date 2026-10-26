@@ -3,7 +3,8 @@ import { RESOLUTIONS, type SimulatorSettings } from "@/lib/settings";
 import { isLinkSeed } from "@/lib/recording/batch"; // --- low-findings --- (was MAX_SEED: a negative found seed was lost)
 import { parseClipEdit, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { VIDEO_CODECS, type LibraryMeta, type VideoCodec } from "./contract";
-import { OUTPUT_PRESETS, type OutputPreset } from "./presets";
+import { OUTPUT_PRESETS, queueFps, type OutputPreset } from "./presets"; // --- uncap-all --- (review fix) (queueFps: any rate from 30 up)
+import { DEFAULT_FAST_EXPORT_FPS } from "@/lib/recording/fastRenderPlan";
 import { safeFileBase } from "./fileNames";
 
 export { safeFileBase };
@@ -40,9 +41,9 @@ export interface QueueJobSpec {
   source: QueueSource;
   settings: SimulatorSettings;
   seed: number;
-  /** Fast export size ("1080x1920"…) and frame rate. */
+  /** Fast export size ("1080x1920"…) and frame rate (--- uncap-all --- (review fix) any rate from 30 up: `queueFps()`). */
   resolution: string;
-  fps: 30 | 60;
+  fps: number;
   codec: VideoCodec;
   preset: OutputPreset;
   meta: Omit<LibraryMeta, "queueJobId" | "seed" | "mode" | "link"> & { link?: string };
@@ -264,7 +265,7 @@ export interface BatchClipSource {
 
 export interface QueueBatchOptions {
   resolutions: readonly string[];
-  fps: readonly (30 | 60)[];
+  fps: readonly number[];
   codecs: readonly VideoCodec[];
   presets: readonly OutputPreset[];
 }
@@ -278,7 +279,7 @@ const EMPTY_META: QueueJobSpec["meta"] = { title: "", platform: null, hook: null
  */
 export function expandBatch(clips: readonly BatchClipSource[], options: QueueBatchOptions): QueueJobSpec[] {
   const resolutions = options.resolutions.filter((r) => (RESOLUTIONS as readonly string[]).includes(r));
-  const fpsList = options.fps.filter((f) => f === 30 || f === 60);
+  const fpsList = options.fps.filter((f) => queueFps(f) !== null); // --- uncap-all --- (review fix) (was 30 and 60 only)
   const codecs = options.codecs.filter((c) => (VIDEO_CODECS as readonly string[]).includes(c));
   const presets = options.presets.filter((p) => (OUTPUT_PRESETS as readonly string[]).includes(p));
   if (!resolutions.length || !fpsList.length || !codecs.length || !presets.length) return [];
@@ -375,7 +376,7 @@ function restoreJob(raw: unknown, now: number): QueueJob | null {
     settings: resolveProjectSettings(raw.settings),
     seed: isLinkSeed(seed) ? seed : 1,
     resolution: (RESOLUTIONS as readonly string[]).includes(raw.resolution as string) ? (raw.resolution as string) : "1080x1920",
-    fps: raw.fps === 30 ? 30 : 60,
+    fps: queueFps(raw.fps) ?? DEFAULT_FAST_EXPORT_FPS, // --- uncap-all --- (review fix) (a typed rate is kept; junk is the default)
     codec: (VIDEO_CODECS as readonly string[]).includes(raw.codec as string) ? (raw.codec as VideoCodec) : "h264",
     preset: (OUTPUT_PRESETS as readonly string[]).includes(raw.preset as string) ? (raw.preset as OutputPreset) : "native",
     meta: restoreMeta(raw.meta, name),

@@ -380,7 +380,12 @@ export class CtfMode implements GameMode {
     const n = v.count;
     const f = v.field;
     if (!f) return;
-    const e = Math.min(1, ctx.getPhysicsExtras().wallBounciness);
+    // --- review fix (uncap-all) --- Two squares clash at most elastically (a Wall Bounciness below 100 % softens them, as in
+    // Battle): squares in steady contact clash again every sub-step, and a restitution above 1 would multiply their speed
+    // faster than onPreUpdate's relaxation pulls it back. The walls take the Wall Bounciness as typed, the pass after a
+    // clash too (it was the clash's, capped at 1, so a square bounced off the same wall at 3 or at 1).
+    const bounciness = ctx.getPhysicsExtras().wallBounciness;
+    const e = Math.min(1, bounciness);
     let touched = false;
     for (let i = 0; i < n; i++) {
       const a = this.byIndex[i];
@@ -392,7 +397,7 @@ export class CtfMode implements GameMode {
         if (this.contact.approach > 0) this.clash(ctx, i, j, a, b);
       }
     }
-    if (touched) for (let i = 0; i < n; i++) if (this.byIndex[i]) boxWallPass(this.byIndex[i]!, f.cx, f.cy, f.halfW, f.halfH, e, this.wall);
+    if (touched) for (let i = 0; i < n; i++) if (this.byIndex[i]) boxWallPass(this.byIndex[i]!, f.cx, f.cy, f.halfW, f.halfH, bounciness, this.wall);
     if (v.finished) return;
     this.flagContacts(ctx);
   }

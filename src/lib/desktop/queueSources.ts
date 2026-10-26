@@ -3,7 +3,9 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import type { BotPlatform } from "@/lib/bot/playbook";
 import { clipCutSpec, type MadeClip } from "./ai/studio"; // --- ai-cut --- (clipCutSpec: the model's five fields plus the site's address)
 import type { OutputPreset } from "./presets";
-import type { BatchClipSource } from "./renderQueue";
+import type { BatchClipSource, QueueBatchOptions } from "./renderQueue";
+import type { VideoCodec } from "./contract";
+import { resolveFastExportFps } from "@/lib/recording/fastRenderPlan"; // --- uncap-all --- (review fix)
 import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 
 /*
@@ -14,6 +16,14 @@ import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // -
 /** The platform preset a planned clip renders with. */
 export function presetForPlatform(platform: string | null | undefined): OutputPreset {
   return platform === "tiktok" || platform === "reels" || platform === "shorts" ? platform : "native";
+}
+
+/**
+ * --- uncap-all --- (review fix) The batch of a Library item's re-render: one job at the settings' render size and frame rate,
+ * the rate as typed (any from 30 up, `resolveFastExportFps()`; the re-render turned it into 30 or 60), with the codec and preset.
+ */
+export function rerenderOptions(settings: Pick<SimulatorSettings, "recordingResolution" | "fastExportFps">, codec: VideoCodec, preset: OutputPreset): QueueBatchOptions {
+  return { resolutions: [settings.recordingResolution], fps: [resolveFastExportFps(settings.fastExportFps)], codecs: [codec], presets: [preset] };
 }
 
 /** A clip of the page's setup (or a link's settings) with one seed. */

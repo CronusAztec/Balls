@@ -7,10 +7,9 @@ import { getDesktop, pickedToFile } from "@/lib/desktop/bridge";
 import { hasSocial } from "@/lib/desktop/capabilities"; // --- old-bridge --- what the app the page runs in can do
 import { setHardwarePreferred } from "@/lib/desktop/gpuEncode";
 import { mediaKindOfName } from "@/lib/desktop/mediaKinds";
-import { aiClipSource, presetForPlatform, seedSource } from "@/lib/desktop/queueSources";
+import { aiClipSource, presetForPlatform, rerenderOptions, seedSource } from "@/lib/desktop/queueSources";
 import { expandBatch } from "@/lib/desktop/renderQueue";
 import { linkJobSettings, linkSeed, resolveLinkSettings } from "@/lib/recording/batch";
-import { resolveFastExportFps } from "@/lib/recording/fastRenderPlan";
 import type { MakeVideosResult } from "@/lib/desktop/ai/studio";
 import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "../desktop/pageHooks";
@@ -331,7 +330,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         const settings = linkJobSettings(r.settings, pageRef.current.settings);
         const clip = { ...seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link }), name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link }, cut: item.meta.queueJobId?.endsWith("-cut") ? null : (item.meta.cut ?? null) /* --- ai-cut --- a master's re-render makes its cut again; a cut file's re-render is the master alone */ };
         const codec = item.encoder?.startsWith("hevc") || item.encoder === "libx265" ? "hevc" : item.encoder?.startsWith("av1") || item.encoder?.includes("av1") ? "av1" : "h264";
-        queue.add(expandBatch([clip], { resolutions: [settings.recordingResolution], fps: [resolveFastExportFps(settings.fastExportFps) >= 60 ? 60 : 30] /* the render queue renders 30 or 60 fps; uncap-all lets the page export any rate */, codecs: [codec], presets: [presetForPlatform(item.meta.platform)] }));
+        queue.add(expandBatch([clip], rerenderOptions(settings, codec, presetForPlatform(item.meta.platform)))); // --- uncap-all --- (review fix) (the page's frame rate as typed, not 30 or 60)
         show("queue");
       } catch (err) {
         setNotice(errorText(err));

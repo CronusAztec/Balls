@@ -497,6 +497,8 @@ export class BattleMode implements GameMode {
       for (let j = i + 1; j < n; j++) {
         const b = byIndex[j];
         if (!b || !this.fighters[j].alive || !this.fighters[i].alive) continue;
+        // (--- review fix (uncap-all) --- a clash at most elastic: squares the zone holds together clash again every sub-step, and
+        // a restitution above 1 would outrun onPreUpdate's speed relaxation; the walls, and the pass below, take `e` as typed)
         if (!resolveSquarePair(a, b, Math.min(1, e), this.contact)) continue;
         touched = true;
         if (this.contact.approach > 0) this.clash(ctx, i, j, a, b);

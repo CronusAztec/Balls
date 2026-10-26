@@ -264,7 +264,7 @@
     "rotatingGravity": "Gravedad giratoria",
     "rotatingGravityTip": "Gira la dirección de la gravedad estos grados por segundo, de modo que \"abajo\" da vueltas lentamente alrededor de la arena.",
     "wallBounciness": "Rebote de las paredes",
-    "wallBouncinessTip": "Cuánta velocidad conserva la pelota al rebotar en una pared. Por debajo del 100% cada golpe la frena; por encima del 100% cada golpe le da impulso.",
+    "wallBouncinessTip": "Cuánta velocidad conserva la pelota al rebotar en una pared. Por debajo del 100% cada golpe la frena. Por encima del 100% cada golpe le da impulso. En «Battle Royale de cuadrados» y «Captura la bandera», dos cuadrados nunca rebotan más rápido de lo que chocan.",
     "breathingWalls": "Paredes que respiran",
     "breathingWallsTip": "Las paredes crecen y encogen alrededor de su tamaño normal en esta proporción; los huecos se mueven con ellas.",
     "breathingSpeed": "Ritmo de respiración",
