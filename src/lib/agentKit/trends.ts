@@ -1,5 +1,5 @@
 import { MIN_VIDEOS_FOR_ADVICE, TRAITS, clipTraits, percentiles, recommendations, themeShares, titleSummary, traitScope, traitSummaries, type ClipTraits, type InspirationReport, type MetricRow, type Pattern } from "./inspiration";
-import { TRENDS_LIMITS, TRENDS_TEXT_MAX, TRENDS_VERSION, validateTrends, type TrendAdvice, type TrendExample, type TrendNumber, type TrendSummary } from "@/lib/trends";
+import { TRENDS_LIMITS, TRENDS_TEXT_MAX, TRENDS_VERSION, productWord, validateTrends, type TrendAdvice, type TrendExample, type TrendNumber, type TrendSummary } from "@/lib/trends";
 
 export { validateTrends }; // (npm run trends --check: scripts/trends.mjs loads this file alone, scripts/agent/bundle.mjs loadTrendsKit)
 
@@ -122,7 +122,7 @@ export function buildTrendSummary(reports: readonly InspirationReport[], options
   const compared = videos.filter((v) => v.compared);
   // the pool compares the videos' ranks in their own reports
   const ranked = compared.filter((v) => v.pct !== null);
-  const rows: MetricRow[] = ranked.map((v) => ({ metric: v.pct as number, traits: v.traits }));
+  const rows: MetricRow[] = ranked.map((v) => ({ metric: v.pct as number, traits: v.traits, measured: v.measured }));
   const pooled = traitSummaries(rows);
   // and every report on its own: a pattern one of them contradicts is dropped
   const bySource = ordered.map((_, ri) => traitSummaries(compared.flatMap((v) => (v.ranks.has(ri) ? [{ metric: v.ranks.get(ri) as number, traits: v.traits }] : []))).summaries);
@@ -164,12 +164,13 @@ export function buildTrendSummary(reports: readonly InspirationReport[], options
   const numbers: TrendNumber[] = summaries
     .filter((s) => s.n >= 3 && (s.top !== null || s.all !== null))
     .slice(0, TRENDS_LIMITS.numbers)
-    .map((s) => ({ trait: s.key, label: s.label, unit: s.unit, top: s.top, rest: s.rest, all: s.all, rho: s.rho, n: s.n, strength: patterns.find((p) => p.key === s.key)?.strength ?? null, scope: traitScope(s.key), agreement: agreement(s.key, s.rho), tops: topsOf(s.key), split: splitOf(s.key) }));
+    .map((s) => ({ trait: s.key, label: s.label, unit: s.unit, top: s.top, rest: s.rest, all: s.all, rho: s.rho, p: s.p, n: s.n, from: { ...s.from }, strength: patterns.find((p) => p.key === s.key)?.strength ?? null, scope: traitScope(s.key), agreement: agreement(s.key, s.rho), tops: topsOf(s.key), split: splitOf(s.key) }));
   const advice: TrendAdvice[] = recs.slice(0, TRENDS_LIMITS.recommendations).map((r) => ({
     area: r.area,
     advice: r.advice.length > TRENDS_TEXT_MAX.advice ? `${r.advice.slice(0, TRENDS_TEXT_MAX.advice - 1)}…` : r.advice,
     basis: r.basis,
-    levers: r.levers.slice(0, TRENDS_LIMITS.levers).map((l) => ({ kind: l.kind, name: l.name, ...(l.link !== undefined ? { link: l.link } : {}), ...(l.value !== undefined ? { value: l.value } : {}) })),
+    levers: r.levers.slice(0, TRENDS_LIMITS.levers).map((l) => ({ kind: l.kind, name: l.name, ...(l.link !== undefined ? { link: l.link } : {}), ...(l.value !== undefined ? { value: Array.isArray(l.value) ? [...l.value] : l.value } : {}) })),
+    traits: r.traits.slice(0, TRENDS_LIMITS.levers),
   }));
   const examples: TrendExample[] = compared
     .filter((v) => metricOf(v) !== null)
@@ -220,8 +221,10 @@ export function buildTrendSummary(reports: readonly InspirationReport[], options
       blueprints: t.blueprints.slice(0, TRENDS_LIMITS.modes),
     })),
     formats: titles.formats.slice(0, TRENDS_LIMITS.formats),
+    titles: { n: titles.n, top: titles.top },
+    // --- trends --- the words that may describe clips like ours: no platform tag, no 3D-render or game-engine genre
     words: titles.topWords
-      .filter((w) => w.word.length <= TRENDS_TEXT_MAX.word && !/[<>`]/.test(w.word))
+      .filter((w) => w.word.length <= TRENDS_TEXT_MAX.word && !/[<>`]/.test(w.word) && productWord(w.word))
       .slice(0, TRENDS_LIMITS.words),
     recommendations: advice,
     examples,

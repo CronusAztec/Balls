@@ -17,6 +17,19 @@ export const TRENDS_LIMITS = { sources: 20, numbers: 20, themes: 12, formats: 10
 /** The longest text of a title, an advice and a word. */
 export const TRENDS_TEXT_MAX = { title: 120, advice: 400, word: 40, label: 80, query: 200 } as const;
 
+/**
+ * --- trends --- Title words that say nothing about clips like ours, so neither the summary's words nor a prompt carry them:
+ * the platforms' own tags and channel talk, and the genres and engines of other kinds of simulation video (3D renders,
+ * game physics) – our clips are 2D, and a planner nudged to #3danimation or #beamng would misdescribe them.
+ */
+export const PLATFORM_WORDS: readonly string[] = ["shorts", "short", "youtubeshorts", "shortsfeed", "shortvideo", "ytshorts", "youtube", "tiktok", "reels", "reel", "instagram", "fyp", "foryou", "foryoupage", "viral", "trending", "subscribe", "subscribers"];
+export const OFF_PRODUCT_WORDS: readonly string[] = ["3d", "3danimation", "3dart", "3drender", "3drendering", "3dmodeling", "3dmodel", "cgi", "vfx", "blender", "blender3d", "b3d", "cinema4d", "c4d", "houdini", "maya", "octane", "redshift", "unreal", "unrealengine", "ue5", "unity", "unity3d", "beamng", "beamngdrive", "roblox", "minecraft", "gmod", "teardown"];
+/** --- trends --- Whether a title word may describe our clips: none of those, nor a tag built on one (#youtubeshorts, #3dsim). */
+export function productWord(word: string): boolean {
+  const w = word.toLowerCase();
+  return !PLATFORM_WORDS.includes(w) && !OFF_PRODUCT_WORDS.includes(w) && !/shorts|tiktok|youtube|reels?$|fyp|viral|^3d/.test(w);
+}
+
 export interface TrendSource {
   query: string | null;
   /** ISO time of the inspire run. */
@@ -39,7 +52,11 @@ export interface TrendNumber {
   all: number | null;
   /** Spearman's ρ with the metric (the videos' ranks in their own reports). */
   rho: number | null;
+  /** --- trends --- The two-sided p-value of that ρ (lib/agentKit/inspiration.ts spearmanP): "clear" needs it below 0.05. */
+  p: number | null;
   n: number;
+  /** --- trends --- How many of the n it was measured from: the video itself, its public stills (colours), its page alone. */
+  from: { video: number; stills: number; page: number };
   /** Whether it separates the most viewed: clearly, as a hint, or not (never when a report on its own says the opposite). */
   strength: "clear" | "hint" | null;
   /**
@@ -93,7 +110,8 @@ export interface TrendLever {
   kind: "setting" | "mode" | "blueprint" | "tool";
   name: string;
   link?: string;
-  value?: string | number | boolean;
+  /** --- trends --- (a colour list – backgroundColors, trailColors – as at most two #rrggbb colours; [] the rainbow trail) */
+  value?: string | number | boolean | readonly string[];
 }
 
 export interface TrendAdvice {
@@ -101,6 +119,8 @@ export interface TrendAdvice {
   advice: string;
   basis: "pattern" | "benchmark" | "gap" | "theme";
   levers: TrendLever[];
+  /** --- trends --- The traits it rests on (ids of `numbers`, the pattern's first): their n, ρ and p tag it in a prompt. */
+  traits: string[];
 }
 
 export interface TrendExample {
@@ -123,7 +143,9 @@ export interface TrendSummary {
   numbers: TrendNumber[];
   themes: TrendTheme[];
   formats: TrendFormat[];
-  /** The words most used in the most viewed titles. */
+  /** --- trends --- The titles the formats and words count, and how many of them are the most viewed third. */
+  titles: { n: number; top: number };
+  /** The words most used in the most viewed titles (never a platform tag or another genre's: productWord). */
   words: { word: string; videos: number }[];
   recommendations: TrendAdvice[];
   /** The most viewed short-form videos: their links and titles, for a person or an agent to look at. */
@@ -186,6 +208,8 @@ export function validateTrends(value: unknown): string[] {
     for (const k of ["top", "rest", "all"]) need(isNumOrNull(n[k]), `${p}.${k}`, "must be a number or null");
     need(n.rho === null || (isNum(n.rho) && Math.abs(n.rho as number) <= 1), `${p}.rho`, "must be -1–1 or null");
     need(isCount(n.n), `${p}.n`, "must be a count");
+    need(n.p === null || isShare(n.p), `${p}.p`, "must be 0–1 or null");
+    need(isObj(n.from) && isCount(n.from.video) && isCount(n.from.stills) && isCount(n.from.page) && (n.from.video as number) + (n.from.stills as number) + (n.from.page as number) <= (isCount(n.n) ? (n.n as number) : 0), `${p}.from`, "must count its videos by source, at most n");
     need(n.strength === null || n.strength === "clear" || n.strength === "hint", `${p}.strength`, "must be clear, hint or null");
     need(n.scope === "list" || n.scope === "fetched", `${p}.scope`, "must be list or fetched");
     need(isObj(n.agreement) && isCount(n.agreement.same) && isCount(n.agreement.opposite), `${p}.agreement`, "must count the reports that agree and those that do not");
@@ -211,9 +235,11 @@ export function validateTrends(value: unknown): string[] {
     need(isText(f.label, TRENDS_TEXT_MAX.label), `${p}.label`, "must be a short line");
     for (const k of ["top", "rest", "all"]) need(isShareOrNull(f[k]), `${p}.${k}`, "must be 0–1 or null");
   });
+  need(isObj(t.titles) && isCount(t.titles.n) && isCount(t.titles.top) && (t.titles.top as number) <= (t.titles.n as number), "titles", "must count the titles and their most viewed third");
   list("words", TRENDS_LIMITS.words, (w, p) => {
     if (!isObj(w)) return need(false, p, "must be an object");
     need(isText(w.word, TRENDS_TEXT_MAX.word) && !/[<>`]/.test(w.word as string), `${p}.word`, "must be one short word");
+    need(typeof w.word !== "string" || productWord(w.word), `${p}.word`, "must describe clips like ours (no platform tag, no other genre's)");
     need(isCount(w.videos), `${p}.videos`, "must be a count");
   });
   list("recommendations", TRENDS_LIMITS.recommendations, (r, p) => {
@@ -221,6 +247,7 @@ export function validateTrends(value: unknown): string[] {
     need(isId(r.area), `${p}.area`, "must be an area id");
     need(isText(r.advice, TRENDS_TEXT_MAX.advice), `${p}.advice`, "must be one line of advice");
     need(typeof r.basis === "string" && BASES.includes(r.basis), `${p}.basis`, `must be one of ${BASES.join(", ")}`);
+    need(Array.isArray(r.traits) && r.traits.length <= TRENDS_LIMITS.levers && r.traits.every(isId), `${p}.traits`, "must be trait ids");
     if (!Array.isArray(r.levers) || r.levers.length > TRENDS_LIMITS.levers) return need(false, `${p}.levers`, `must be a list of at most ${TRENDS_LIMITS.levers}`);
     r.levers.forEach((l, i) => {
       const lp = `${p}.levers[${i}]`;
@@ -228,7 +255,7 @@ export function validateTrends(value: unknown): string[] {
       need(typeof l.kind === "string" && LEVER_KINDS.includes(l.kind), `${lp}.kind`, `must be one of ${LEVER_KINDS.join(", ")}`);
       need(typeof l.name === "string" && /^[A-Za-z][A-Za-z0-9-]{0,59}$/.test(l.name), `${lp}.name`, "must be a setting, mode, Blueprint or tool name");
       need(l.link === undefined || (typeof l.link === "string" && /^[A-Za-z0-9]{1,12}$/.test(l.link)), `${lp}.link`, "must be a link key");
-      need(l.value === undefined || typeof l.value === "boolean" || isNum(l.value) || isText(l.value, 60), `${lp}.value`, "must be a short value");
+      need(l.value === undefined || typeof l.value === "boolean" || isNum(l.value) || isText(l.value, 60) || (Array.isArray(l.value) && l.value.length <= 2 && l.value.every((c) => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c))), `${lp}.value`, "must be a short value or at most two #rrggbb colours");
     });
   });
   list("examples", TRENDS_LIMITS.examples, (e, p) => {

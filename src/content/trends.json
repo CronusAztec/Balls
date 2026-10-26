@@ -39,7 +39,13 @@
       "rest": 13,
       "all": 12,
       "rho": -0.039,
+      "p": 0.8155,
       "n": 39,
+      "from": {
+        "video": 0,
+        "stills": 0,
+        "page": 39
+      },
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -60,7 +66,13 @@
       "rest": 1,
       "all": 1,
       "rho": null,
+      "p": null,
       "n": 4,
+      "from": {
+        "video": 0,
+        "stills": 0,
+        "page": 4
+      },
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -81,7 +93,13 @@
       "rest": 0.456,
       "all": 0.463,
       "rho": 0.208,
+      "p": 0.203,
       "n": 39,
+      "from": {
+        "video": 0,
+        "stills": 39,
+        "page": 0
+      },
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -102,7 +120,13 @@
       "rest": 0.259,
       "all": 0.302,
       "rho": 0.104,
+      "p": 0.5289,
       "n": 39,
+      "from": {
+        "video": 0,
+        "stills": 39,
+        "page": 0
+      },
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -123,7 +147,13 @@
       "rest": 0.013,
       "all": 0.003,
       "rho": -0.283,
+      "p": 0.0808,
       "n": 39,
+      "from": {
+        "video": 0,
+        "stills": 39,
+        "page": 0
+      },
       "strength": null,
       "scope": "list",
       "agreement": {
@@ -432,18 +462,14 @@
       "all": 0.13
     }
   ],
+  "titles": {
+    "n": 39,
+    "top": 13
+  },
   "words": [
     {
       "word": "satisfying",
       "videos": 8
-    },
-    {
-      "word": "3d",
-      "videos": 5
-    },
-    {
-      "word": "3danimation",
-      "videos": 5
     },
     {
       "word": "simulation",
@@ -463,14 +489,6 @@
     },
     {
       "word": "day",
-      "videos": 3
-    },
-    {
-      "word": "subscribers",
-      "videos": 3
-    },
-    {
-      "word": "youtubeshorts",
       "videos": 3
     },
     {
@@ -494,6 +512,9 @@
           "link": "dur",
           "value": 11
         }
+      ],
+      "traits": [
+        "durationSec"
       ]
     },
     {
@@ -503,14 +524,22 @@
       "levers": [
         {
           "kind": "setting",
-          "name": "themeId",
-          "link": "theme"
+          "name": "backgroundType",
+          "link": "bgt",
+          "value": "gradient"
         },
         {
           "kind": "setting",
-          "name": "backgroundType",
-          "link": "bgt"
+          "name": "backgroundColors",
+          "link": "bg1",
+          "value": [
+            "#a7b0c0",
+            "#6b7486"
+          ]
         }
+      ],
+      "traits": [
+        "darkShare"
       ]
     },
     {
@@ -524,6 +553,9 @@
           "link": "res",
           "value": "1080x1920"
         }
+      ],
+      "traits": [
+        "portrait"
       ]
     },
     {
@@ -551,7 +583,8 @@
           "kind": "mode",
           "name": "multipliers"
         }
-      ]
+      ],
+      "traits": []
     }
   ],
   "examples": [

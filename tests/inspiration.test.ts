@@ -3,8 +3,13 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isListEntry, isPrivateAddress, isPrivateHost, listLinkError, listLinkOf, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
 import {
+  CLEAR_P,
+  EXACT_P_MAX,
+  HINT_P,
   LEVERS,
+  LOOKS,
   LOOP_MODES,
+  SMALL_SAMPLE,
   MIN_VIDEOS_FOR_ADVICE,
   OUR_LOUDNESS_LUFS,
   OUR_SHORTEST_CLIP_SEC,
@@ -24,7 +29,9 @@ import {
   recommendations,
   runFolderName,
   spearman,
+  spearmanP,
   stillsColour,
+  traitSource,
   themeAdvised,
   themeShares,
   titleNumber,
@@ -359,12 +366,66 @@ describe("the report's maths (--- inspiration ---)", () => {
     const length = summaries.find((s) => s.key === "durationSec")!;
     expect(length).toMatchObject({ n: 9, top: 15, rest: 37.5, rho: -1, effect: -4.5 });
     expect(patterns.map((p) => p.key)).toEqual(expect.arrayContaining(["durationSec", "hookMotion"]));
-    expect(patterns.find((p) => p.key === "durationSec")).toMatchObject({ strength: "clear", sentence: expect.stringMatching(/^The most viewed have less length: 15 s against 37\.5 s for the rest \(ρ -1 over 9 videos\)\.$/) });
+    expect(patterns.find((p) => p.key === "durationSec")).toMatchObject({ strength: "clear", n: 9, sentence: expect.stringMatching(/^The most viewed have less length: 15 s against 37\.5 s for the rest \(ρ -1, n 9, p < 0\.001\)\.$/) });
     // a trait that does not vary is no pattern
     expect(patterns.find((p) => p.key === "meanSat")).toBeUndefined();
     // our renders are compared with the same medians
     const withOurs = traitSummaries(rows, [clipTraits(features({ durationSec: 30 }))]).summaries.find((s) => s.key === "durationSec")!;
     expect(withOurs.ours).toBe(30);
+  });
+
+  // --- inspiration --- the bar depends on n: the first October run called saturation "clear" over 8 videos (ρ -0.524) and
+  // length "clear" over 20 (ρ -0.417, 16 s against 24 s), which turned into "Render 16 s clips: ours run 10 s"
+  it("makes the bar depend on n: a p-value beside every pattern, 'clear' below 0.05, a hunch below 20 videos", () => {
+    // every ordering counted up to EXACT_P_MAX pairs: a perfect order of 3 is one in three, of 4 one in 12, of 5 one in 60
+    expect(EXACT_P_MAX).toBe(9);
+    expect(spearmanP([1, 2, 3], [1, 2, 3])).toBeCloseTo(1 / 3, 12);
+    expect(spearmanP([1, 2, 3, 4], [4, 3, 2, 1])).toBeCloseTo(1 / 12, 12);
+    expect(spearmanP([1, 2, 3, 4, 5], [5, 4, 3, 2, 1])).toBeCloseTo(2 / 120, 12);
+    expect(spearmanP([1, 1, 2, 2, 3, 3], [1, 2, 3, 4, 5, 6])).toBeCloseTo(16 / 720, 12); // (ties keep their mean ranks)
+    expect(spearmanP([1, 1, 1], [1, 2, 3])).toBeNull();
+    expect(spearmanP([1, 2], [1, 2])).toBeNull();
+    // ρ -0.524 over 8 videos (Σd² 128): 7,928 of the 40,320 orderings are as far from 0, p 0.197
+    const x8 = [1, 2, 3, 4, 5, 6, 7, 8];
+    const y8 = [3, 6, 7, 8, 4, 5, 2, 1];
+    expect(spearman(x8, y8)).toBe(-0.524);
+    expect(spearmanP(x8, y8)).toBeCloseTo(7928 / 40320, 12);
+    // beyond 9 pairs, Student's t with n - 2 degrees of freedom: the table's ρ of 0.447 at 20 pairs sits at p 0.05
+    const x20 = Array.from({ length: 20 }, (_, i) => i + 1);
+    const y20 = [2, 1, 13, 20, 19, 18, 17, 16, 15, 14, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3];
+    expect(spearman(x20, y20)).toBe(-0.417);
+    expect(spearmanP(x20, y20)).toBeCloseTo(0.0677, 3);
+    const strong20 = [1, 6, 17, 20, 19, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 5, 4, 3, 2];
+    expect(spearmanP(x20, strong20)).toBeCloseTo(0.0125, 3);
+    expect(spearmanP(x20, [19, 20, 4, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])).toBeCloseTo(0.0467, 3); // ρ 0.45
+    expect(spearmanP(x20, [20, 19, 18, 6, 3, 1, 2, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])).toBeCloseTo(0.398, 3); // ρ 0.2
+    expect(spearmanP(x20, x20)).toBe(0);
+    expect([CLEAR_P, HINT_P, SMALL_SAMPLE]).toEqual([0.05, 0.2, 20]);
+    // the October run's saturation: 8 videos seen through their stills, ρ -0.524 and four steps apart – a hint now
+    const seen = (meanSat: number) => clipTraits(null, { durationSec: 12, width: null, height: null }, { meanLuma: 0.5, meanSat, darkShare: 0, stills: 4 });
+    const sat8 = traitSummaries(y8.map((y, i) => ({ metric: x8[i], traits: seen(y * 0.08), measured: "stills" as const })));
+    const satSummary = sat8.summaries.find((t) => t.key === "meanSat")!;
+    expect(satSummary).toMatchObject({ n: 8, rho: -0.524, p: 0.1966, from: { video: 0, stills: 8, page: 0 } });
+    expect(sat8.summaries.find((t) => t.key === "durationSec")?.from).toEqual({ video: 0, stills: 0, page: 8 }); // (a still has no length: its page does)
+    const sat = sat8.patterns.find((p) => p.key === "meanSat")!;
+    expect(sat).toMatchObject({ strength: "hint", n: 8, p: 0.1966 });
+    expect(sat.sentence).toMatch(/\(ρ -0\.524, n 8, p 0\.2\)\.$/);
+    // the October run's length: 20 videos, 16 s against 24 s, ρ -0.417 – a hint (p 0.068), so no "clear" advice
+    const length20 = traitSummaries(y20.map((y, i) => ({ metric: x20[i], traits: clipTraits(null, { durationSec: 10 + y, width: null, height: null }), measured: "page" as const })));
+    const length = length20.patterns.find((p) => p.key === "durationSec")!;
+    expect(length).toMatchObject({ strength: "hint", n: 20 });
+    expect(length.sentence).toBe("The most viewed have less length: 16 s against 24 s for the rest (ρ -0.417, n 20, p 0.068).");
+    // ρ -0.55 over 20 (p 0.012) clears the bar
+    const clear20 = traitSummaries(strong20.map((y, i) => ({ metric: x20[i], traits: clipTraits(null, { durationSec: 10 + y, width: null, height: null }) })));
+    expect(clear20.patterns.find((p) => p.key === "durationSec")).toMatchObject({ strength: "clear", n: 20 });
+    // a perfect order of 3 is no hint (p 1/3), of 4 is one (p 1/12)
+    const tiny = (n: number) => traitSummaries(Array.from({ length: n }, (_, i) => ({ metric: n - i, traits: clipTraits(null, { durationSec: 10 + i * 10, width: null, height: null }) }))).patterns;
+    expect(tiny(3)).toEqual([]);
+    expect(tiny(4).map((p) => p.strength)).toEqual(["hint"]);
+    // where a trait comes from: the video measured whole, else its stills for the colours, else its page
+    expect(traitSource("meanSat", "stills")).toBe("stills");
+    expect(traitSource("durationSec", "stills")).toBe("page");
+    expect(traitSource("motion", "video")).toBe("video");
   });
 
   it("reads titles: their words, the big numbers they state, their themes", () => {
@@ -397,10 +458,12 @@ describe("the report's maths (--- inspiration ---)", () => {
       slowMo: { slowMoOnNearMiss: !base.slowMoOnNearMiss },
       shake: { screenShake: base.screenShake + 1 },
       trails: { showTrails: !base.showTrails },
+      colorTrail: { colorTrail: !base.colorTrail },
       trailColors: { trailColors: ["#ff0000", "#00ff00"] },
       reactiveBackground: { reactiveBackground: !base.reactiveBackground },
       theme: { themeId: base.themeId === "neon" ? "pastel" : "neon" },
       backgroundType: { backgroundType: base.backgroundType === "gradient" ? "solid" : "gradient" },
+      backgroundColors: { backgroundColors: ["#a7b0c0", "#6b7486"] },
     };
     for (const [id, lever] of Object.entries(LEVERS)) {
       const patch = changed[id as keyof typeof LEVERS];
@@ -452,9 +515,33 @@ describe("the report's maths (--- inspiration ---)", () => {
     // each clause of the look advice from its own number: no saturation, no word on the colours; nothing, no advice
     const look = (keep: string[]) => recommendations(summaries.filter((x) => keep.includes(x.key)), [], [], titleSummary([], [])).find((r) => r.area === "look");
     expect(look(["darkShare"])?.advice).toBe("Use a light or mid background.");
-    expect(look(["darkShare"])?.levers.map((l) => l.name)).toEqual(["themeId", "backgroundType"]); // (no trails for a background)
+    expect(look(["darkShare"])?.levers.map((l) => [l.name, l.value])).toEqual([["backgroundType", "gradient"], ["backgroundColors", LOOKS.lightGround]]); // (no theme and no trails for a background: no theme's is light)
     expect(look(["meanLuma"])).toBeUndefined();
-    expect(look(["meanSat", "darkShare"])?.advice).toBe("Keep the colours calm (a muted theme) on a light or mid background."); // (a pooled median: trends.ts splits it)
+    expect(look(["meanSat", "darkShare"])?.advice).toBe("Keep the colours calm (a muted theme such as pastel, no trails) on a light or mid background."); // (a pooled median: trends.ts splits it)
+  });
+
+  // --- inspiration --- a pattern prints its n and p, and one of fewer than SMALL_SAMPLE videos is called a hunch
+  it("calls a pattern of fewer than 20 videos a hunch in the report's notes and Markdown, and prints each trait's p", () => {
+    const base = meta(PAGES[0], "search", true);
+    const video = (i: number): VideoMeta => ({ ...base, key: `youtube:v${String(i).padStart(10, "0")}`, id: `v${String(i).padStart(10, "0")}`, url: `https://www.youtube.com/shorts/v${String(i).padStart(10, "0")}`, title: `clip ${i}`, views: (30 - i) * 1000, short: true });
+    const stills = (meanSat: number) => ({ dir: ".agent-out/frames/x", sheet: null, files: [], colour: { meanLuma: 0.5, meanSat, darkShare: 0, stills: 4 } });
+    // 24 videos: the top 6 measured whole (the busier the opening, the more viewed), the rest seen through their stills
+    const candidates = Array.from({ length: 24 }, (_, i) => video(i));
+    const analysed = candidates.map((m, i) => (i < 6 ? { meta: m, features: features({ durationSec: 12, motion: [0, 0.2 - i * 0.03, 0.2 - i * 0.03, 0.02, 0.02] }) } : { meta: m, error: null, stills: stills(0.3) }));
+    const report = buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates, analysed, ours: [], modes: [...MODE_IDS], shortForm: true, top: 6 });
+    const hook = report.patterns.find((p) => p.key === "hookMotion")!;
+    expect(hook).toMatchObject({ strength: "clear", n: 6 });
+    expect(hook.sentence).toMatch(/, n 6, p 0\.003\)\.$/); // (2 of the 720 orderings)
+    expect(report.notes.join(" ")).toMatch(/Small sample for first-second motion \(n 6\)[^.]*: fewer than 20 videos have /);
+    expect(report.notes.join(" ")).not.toMatch(/Small sample: \d+ videos compared/); // (24 were)
+    const md = inspirationMarkdown(report);
+    expect(md).toContain(`- clear (small sample: treat it as a hunch): ${hook.sentence}`);
+    expect(md).toContain("| Trait | Most viewed | Rest | All | Ours | ρ | p | n | Over |");
+    expect(md).toMatch(/\| first-second motion \| [^|]+ \| [^|]+ \| [^|]+ \| – \| 1 \| 0\.003 \| 6 \| the fetched top \|/);
+    expect(report.traits.find((t) => t.key === "meanSat")).toMatchObject({ n: 24, from: { video: 6, stills: 18, page: 0 } });
+    // a run of fewer than 20 compared videos: every pattern is a hunch
+    const small = buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates: candidates.slice(0, 8), analysed: analysed.slice(0, 8), ours: [], modes: [...MODE_IDS], shortForm: true, top: 6 });
+    expect(small.notes.join(" ")).toMatch(/Small sample: 8 videos compared, fewer than 20, so treat every pattern as a hunch/);
   });
 
   it("builds the same report from the same input, keeps a failed video with its error, and writes Markdown that links nothing it should not", () => {
@@ -612,7 +699,7 @@ describe("the stills fallback and the report's lessons from the live runs (--- i
     const look = recommendations(summaries, patterns, [], titleSummary([], [])).find((r) => r.area === "look")!;
     expect(look.basis).toBe("gap");
     expect(look.advice).toMatch(/lighten the picture: ours are darker than the trending clips \(brightness 0\.06 against 0\.45\)/);
-    expect(look.levers.map((l) => l.name)).toEqual(["themeId", "trailColors", "showTrails", "backgroundType"]);
+    expect(look.levers.map((l) => [l.name, l.value])).toEqual([["themeId", "pastel"], ["showTrails", false], ["backgroundType", "gradient"], ["backgroundColors", LOOKS.lightGround]]);
     // a picture as bright as theirs: no such clause
     const even = traitSummaries(rows, [clipTraits(bright(0.45))]);
     expect(recommendations(even.summaries, even.patterns, [], titleSummary([], [])).find((r) => r.area === "look")?.advice).not.toMatch(/lighten|darken/);

@@ -11,7 +11,7 @@ import type { PostizChannel, SocialPostOutcome } from "../contract";
  * --- social-autopilot --- The "plan" job of the AI studio (phase 4 of docs/SOCIAL-AUTOPILOT.md): the Library's finished
  * clips that are not yet posted or proposed, the autopilot's channels, the day's budget and quiet hours, the local time, an
  * excerpt of the virality playbook (--- trends --- and what is trending: src/content/trends.json, its title formats and
- * words first) and what recently went out (PUBLISHED / ERROR) → proposals: which clip, per channel the
+ * words only) and what recently went out (PUBLISHED / ERROR) → proposals: which clip, per channel the
  * text (with a title for YouTube and hashtags), when within the next 48 hours and outside the quiet hours, and one sentence
  * why. Pure, like copyTask: the model is injected and the answer is held to a schema (clip and channel ids are enums, texts
  * bounded, at most `perDay` proposals) and to `checkFinal` (unknown ids, a text over the platform's limit, a time in the

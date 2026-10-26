@@ -25,7 +25,8 @@ export { clipCutSpec, type ClipCut } from "./normalise"; // --- ai-cut --- (the 
  *  - SETTINGS – "make the ball twice as fast and rainbow, no gravity" → a settings patch, checked by `validateSettingsPatch()`.
  *  - IDEAS – clip ideas grounded in the virality playbook (the chunks `selectPlaybookContext()` picked).
  * --- trends --- Make videos and ideas also read what is trending (`trendingContext()`: src/content/trends.json, the summary
- * of other creators' trending simulation videos), so the local and the cloud models propose clips shaped like them.
+ * of other creators' trending simulation videos), so the local and the cloud models propose clips shaped like them: each
+ * advice tagged with what it rests on, and Make videos, told to lean toward it, without the benchmark-only advice.
  *
  * The planner and the finder run in the page (they need its world and messages); `StudioPorts` hands them in, so the tools
  * are tested with stand-ins. The plans a run makes live in a `PlanStore` for the run; the final answer may only name those.

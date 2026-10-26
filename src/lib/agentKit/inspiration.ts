@@ -14,8 +14,11 @@ import type { SortBy, VideoMeta } from "./videoSources";
  *  - every trait is compared over the videos that have it: the top third by the run's metric (views, or views per day)
  *    against the rest, by their medians, and by Spearman's rank correlation with the metric over all of them;
  *  - a difference counts once it is at least one trait `step` (a change a viewer would notice); a pattern is "clear" with
- *    at least 5 videos, |ρ| ≥ 0.4 and a difference of a step or more, a "hint" with 3 or more, |ρ| ≥ 0.3 and half a step,
- *    and either needs ρ and the difference to point the same way;
+ *    at least 5 videos, |ρ| ≥ 0.4, a two-sided p-value of ρ below CLEAR_P (0.05) and a difference of a step or more, a
+ *    "hint" with 3 or more, |ρ| ≥ 0.3, p below HINT_P (0.2) and half a step, and either needs ρ and the difference to
+ *    point the same way. --- inspiration --- The p-value makes the bar depend on n (ρ must reach 1.0 at 5 videos, 0.74 at
+ *    8, 0.45 at 20): it counts every ordering of up to EXACT_P_MAX videos (spearmanP), Student's t beyond. Every pattern
+ *    prints its n and p, and one of fewer than SMALL_SAMPLE videos is called a hunch;
  *  - a theme (the title words of a mechanic) is weighed by ranks, never by summed views, which one hit decides: its videos'
  *    median view percentile against the others', with and without its best video, from three videos up (themeAdvised);
  *  - the recommendations take the most viewed videos' medians as the benchmark, say where our own renders (when given)
@@ -43,6 +46,14 @@ const SHORT_FORM_LABEL = "3 minutes";
 export const MIN_THEME_VIDEOS = 3;
 /** --- inspiration --- Themes that name the genre, not a mechanic: listed with the others, never advice. */
 export const GENERIC_THEMES: readonly string[] = ["satisfying"];
+/** --- inspiration --- A pattern is "clear" only below this two-sided p-value of its ρ (and from 5 videos, |ρ| ≥ 0.4). */
+export const CLEAR_P = 0.05;
+/** --- inspiration --- A pattern is a "hint" only below this p-value (and from 3 videos, |ρ| ≥ 0.3). */
+export const HINT_P = 0.2;
+/** --- inspiration --- Below this many videos a pattern is a hunch: the report says so beside it and in its notes. */
+export const SMALL_SAMPLE = 20;
+/** --- inspiration --- Up to this many pairs spearmanP counts every ordering (9! = 362,880); beyond, Student's t. */
+export const EXACT_P_MAX = 9;
 
 /** The settings an advice names, with their link keys (tests/inspiration.test.ts checks each against lib/settings.ts). */
 export const LEVERS = {
@@ -54,12 +65,27 @@ export const LEVERS = {
   slowMo: { field: "slowMoOnNearMiss", link: "slow" },
   shake: { field: "screenShake", link: "shake" },
   trails: { field: "showTrails", link: "trails" },
+  colorTrail: { field: "colorTrail", link: "ctrail" }, // --- inspiration --- (the colourful trail: rainbow without trailColors)
   trailColors: { field: "trailColors", link: "trc" },
   reactiveBackground: { field: "reactiveBackground", link: "bg" },
   theme: { field: "themeId", link: "theme" },
   backgroundType: { field: "backgroundType", link: "bgt" },
+  backgroundColors: { field: "backgroundColors", link: "bg1" }, // --- inspiration --- (two colours: bg1 and bg2 in a link)
 } as const;
 export type LeverId = keyof typeof LEVERS;
+
+/**
+ * --- inspiration --- The looks the look advice names, as values a patch sets: a muted and a vivid theme of lib/themes.ts
+ * (tests/inspiration.test.ts checks they exist), and two backgrounds by their colours – every theme's own background is
+ * dark (pastel's #2b2d42 → #4a4e69, mono's black), so "a light or mid background" is a gradient of its own, kept mid
+ * enough that a theme's light balls still show on it. The dark one is the simulator's plain background.
+ */
+export const LOOKS = {
+  calmTheme: "pastel",
+  vividTheme: "neon",
+  lightGround: ["#a7b0c0", "#6b7486"],
+  darkGround: ["#0a0a0a", "#1e293b"],
+} as const;
 
 /** The modes made to loop (they end where they began). */
 export const LOOP_MODES: readonly string[] = ["starChords", "ellipseFoci", "pendulum", "polyrhythm", "colourSort", "orbGrid"];
@@ -167,6 +193,19 @@ export const LIST_TRAITS: readonly TraitKey[] = ["durationSec", "portrait", "mea
 /** --- inspiration --- Whether a trait spans the whole list ("list") or only the fetched top of it ("fetched"). */
 export const traitScope = (key: TraitKey): "list" | "fetched" => (LIST_TRAITS.includes(key) ? "list" : "fetched");
 
+/** --- inspiration --- What a video's numbers come from: the video measured whole, its public stills, or its page alone. */
+export type Measured = "video" | "stills" | "page";
+/** --- inspiration --- The traits a video's stills give (its colours); its length and shape then come from its page. */
+export const STILLS_TRAITS: readonly TraitKey[] = ["meanLuma", "meanSat", "darkShare"];
+/** --- inspiration --- Where one trait of a video comes from, given what the video was measured from. */
+export const traitSource = (key: TraitKey, measured: Measured): Measured => (measured === "video" ? "video" : measured === "stills" && STILLS_TRAITS.includes(key) ? "stills" : "page");
+/** --- inspiration --- How many of a trait's videos it was measured from, by source. */
+export interface TraitSources {
+  video: number;
+  stills: number;
+  page: number;
+}
+
 const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round = (n: number, digits: number) => {
   const f = Math.pow(10, digits);
@@ -213,6 +252,116 @@ export function spearman(xs: readonly number[], ys: readonly number[]): number |
   }
   if (sxx === 0 || syy === 0) return null;
   return round(sxy / Math.sqrt(sxx * syy), 3);
+}
+
+/* ------------------------------------------------------------------ --- inspiration --- how sure a ρ is */
+
+/** ln Γ(x) for x > 0 (Lanczos, g = 7: about 15 digits). */
+function lnGamma(x: number): number {
+  const c = [0.9999999999998099, 676.5203681218851, -1259.1392167224028, 771.3234287776531, -176.6150291621406, 12.507343278686905, -0.13857109526572012, 9.984369578019572e-6, 1.5056327351493116e-7];
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGamma(1 - x);
+  const z = x - 1;
+  let a = c[0];
+  for (let i = 1; i < c.length; i++) a += c[i] / (z + i);
+  const t = z + 7.5;
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+/** The continued fraction of the incomplete beta function (modified Lentz). */
+function betaFraction(a: number, b: number, x: number): number {
+  const tiny = 1e-300;
+  const guard = (v: number) => (Math.abs(v) < tiny ? tiny : v);
+  let c = 1;
+  let d = 1 / guard(1 - ((a + b) * x) / (a + 1));
+  let h = d;
+  for (let m = 1; m <= 300; m++) {
+    const m2 = 2 * m;
+    const even = (m * (b - m) * x) / ((a + m2 - 1) * (a + m2));
+    d = 1 / guard(1 + even * d);
+    c = guard(1 + even / c);
+    h *= d * c;
+    const odd = (-(a + m) * (a + b + m) * x) / ((a + m2) * (a + m2 + 1));
+    d = 1 / guard(1 + odd * d);
+    c = guard(1 + odd / c);
+    const step = d * c;
+    h *= step;
+    if (Math.abs(step - 1) < 1e-15) break;
+  }
+  return h;
+}
+
+/** The regularised incomplete beta function I_x(a, b). */
+function betaIncomplete(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const front = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+  return x < (a + 1) / (a + b + 2) ? (front * betaFraction(a, b, x)) / a : 1 - (front * betaFraction(b, a, 1 - x)) / b;
+}
+
+/**
+ * --- inspiration --- The two-sided p-value of Spearman's ρ of two equally long lists: the share of the orderings of the
+ * second list whose |ρ| is at least the one seen. Up to EXACT_P_MAX pairs it counts every ordering (ties kept as their mean
+ * ranks), beyond that it takes Student's t with n − 2 degrees of freedom, as the usual tables do. null where spearman is
+ * null (below 3 pairs, or a list that does not vary). Pure and exact for the same input.
+ */
+export function spearmanP(xs: readonly number[], ys: readonly number[]): number | null {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return null;
+  const rx = ranks(xs.slice(0, n));
+  const ry = ranks(ys.slice(0, n));
+  const mx = mean(rx) as number;
+  const my = mean(ry) as number;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (rx[i] - mx) * (ry[i] - my);
+    sxx += (rx[i] - mx) ** 2;
+    syy += (ry[i] - my) ** 2;
+  }
+  if (sxx === 0 || syy === 0) return null;
+  const rho = sxy / Math.sqrt(sxx * syy);
+  if (n <= EXACT_P_MAX) {
+    // every ordering of ry against rx (Heap's algorithm, one swap a step): Σ rx·ry moves by the two swapped terms, and ranks
+    // are halves, so the sums are exact and the comparison needs no tolerance beyond rounding of the centre
+    const centre = n * mx * my;
+    const seen = Math.abs(sxy) - 1e-9;
+    const a = [...ry];
+    let dot = rx.reduce((s, r, i) => s + r * a[i], 0);
+    let hits = 0;
+    let total = 0;
+    const count = () => {
+      total++;
+      if (Math.abs(dot - centre) >= seen) hits++;
+    };
+    count();
+    const c = new Array<number>(n).fill(0);
+    for (let i = 1; i < n; ) {
+      if (c[i] < i) {
+        const j = i % 2 === 0 ? 0 : c[i];
+        dot += rx[j] * (a[i] - a[j]) + rx[i] * (a[j] - a[i]);
+        [a[i], a[j]] = [a[j], a[i]];
+        count();
+        c[i]++;
+        i = 1;
+      } else {
+        c[i] = 0;
+        i++;
+      }
+    }
+    return hits / total;
+  }
+  if (Math.abs(rho) >= 1) return 0;
+  const df = n - 2;
+  const t2 = (rho * rho * df) / (1 - rho * rho);
+  return Math.min(1, Math.max(0, betaIncomplete(df / (df + t2), df / 2, 0.5)));
+}
+
+/** --- inspiration --- A p-value as the report prints it: "p < 0.001", "p 0.012", "p 0.18". */
+export function pText(p: number | null): string {
+  if (p === null) return "p –";
+  if (p < 0.001) return "p < 0.001";
+  return `p ${p < 0.1 ? round(p, 3) : round(p, 2)}`;
 }
 
 /** --- inspiration --- A video's colours measured on its public stills (the stills fallback: scripts/agent/stills.mjs). */
@@ -284,10 +433,14 @@ export interface TraitSummary {
   ours: number | null;
   /** Spearman's ρ of the trait against the metric. */
   rho: number | null;
+  /** --- inspiration --- The two-sided p-value of that ρ (spearmanP; 4 decimals). */
+  p: number | null;
   /** (top − rest) in steps. */
   effect: number | null;
   /** --- inspiration --- Over the whole list ("list": its page, its stills) or the fetched top of it only ("fetched"). */
   scope: "list" | "fetched";
+  /** --- inspiration --- How many of the n it was measured from, by source (rows that say how they were measured). */
+  from: TraitSources;
 }
 
 export interface Pattern {
@@ -295,12 +448,17 @@ export interface Pattern {
   strength: "clear" | "hint";
   /** |ρ| × min(2, |effect|): how the patterns are ordered. */
   score: number;
+  /** --- inspiration --- The videos it rests on and the p-value of its ρ: below SMALL_SAMPLE videos it is a hunch. */
+  n: number;
+  p: number;
   sentence: string;
 }
 
 export interface MetricRow {
   metric: number;
   traits: ClipTraits;
+  /** --- inspiration --- What the video's numbers come from (counted in a trait's `from`). */
+  measured?: Measured;
 }
 
 /** The top third by metric (at least one, and at least one left for the rest when there are two or more). */
@@ -322,21 +480,28 @@ export function traitSummaries(rows: readonly MetricRow[], ours: readonly ClipTr
     const top = median(values.slice(0, k));
     const rest = median(values.slice(k));
     const rho = spearman(values, have.map((r) => r.metric));
+    const pRaw = spearmanP(values, have.map((r) => r.metric));
+    const p = pRaw === null ? null : round(pRaw, 4);
     const effect = top !== null && rest !== null ? round((top - rest) / spec.step, 2) : null;
     const ourValues = ours.map((t) => t[spec.key]).filter((v): v is number => v !== null);
-    summaries.push({ key: spec.key, label: spec.label, unit: spec.unit, n: have.length, top: top === null ? null : round(top, spec.digits + 1), rest: rest === null ? null : round(rest, spec.digits + 1), all: median(values) === null ? null : round(median(values) as number, spec.digits + 1), ours: ourValues.length ? round(median(ourValues) as number, spec.digits + 1) : null, rho, effect, scope: traitScope(spec.key) });
+    const from: TraitSources = { video: 0, stills: 0, page: 0 };
+    for (const r of have) if (r.measured) from[traitSource(spec.key, r.measured)]++;
+    summaries.push({ key: spec.key, label: spec.label, unit: spec.unit, n: have.length, top: top === null ? null : round(top, spec.digits + 1), rest: rest === null ? null : round(rest, spec.digits + 1), all: median(values) === null ? null : round(median(values) as number, spec.digits + 1), ours: ourValues.length ? round(median(ourValues) as number, spec.digits + 1) : null, rho, p, effect, scope: traitScope(spec.key), from });
     // --- inspiration --- (a ρ and a difference of the medians that point opposite ways are no pattern: the most viewed third
     // differs from the rest by something else than the ranking, as when lists of two genres are pooled)
-    if (rho === null || effect === null || Math.sign(rho) !== Math.sign(effect)) continue;
-    const clear = have.length >= 5 && Math.abs(rho) >= 0.4 && Math.abs(effect) >= 1;
-    const hint = have.length >= 3 && Math.abs(rho) >= 0.3 && Math.abs(effect) >= 0.5;
+    if (rho === null || pRaw === null || effect === null || Math.sign(rho) !== Math.sign(effect)) continue;
+    // --- inspiration --- the bar depends on n through p: |ρ| 0.52 over 8 videos (p 0.18) is a hint, not "clear"
+    const clear = have.length >= 5 && Math.abs(rho) >= 0.4 && pRaw < CLEAR_P && Math.abs(effect) >= 1;
+    const hint = have.length >= 3 && Math.abs(rho) >= 0.3 && pRaw < HINT_P && Math.abs(effect) >= 0.5;
     if (!clear && !hint) continue;
     const more = effect > 0;
     patterns.push({
       key: spec.key,
       strength: clear ? "clear" : "hint",
       score: round(Math.abs(rho) * Math.min(2, Math.abs(effect)), 3),
-      sentence: `The most viewed have ${more ? "more" : "less"} ${spec.label}: ${fmt(spec, top)} against ${fmt(spec, rest)} for the rest (ρ ${rho > 0 ? "+" : ""}${rho} over ${have.length} videos).`,
+      n: have.length,
+      p: p as number,
+      sentence: `The most viewed have ${more ? "more" : "less"} ${spec.label}: ${fmt(spec, top)} against ${fmt(spec, rest)} for the rest (ρ ${rho > 0 ? "+" : ""}${rho}, n ${have.length}, ${pText(pRaw)}).`,
     });
   }
   patterns.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : 1));
@@ -480,6 +645,9 @@ export function themeShares(videos: readonly ThemeVideo[], knownModes: readonly 
 }
 
 export interface TitleSummary {
+  /** --- inspiration --- The titles counted, and how many of them are the top third (the most viewed). */
+  n: number;
+  top: number;
   /** The words most used in the top third's titles. */
   topWords: { word: string; videos: number }[];
   /** Share of titles stating a number of 100 or more ("20,000 balls"): the top third and the rest. */
@@ -511,6 +679,8 @@ export function titleSummary(videos: readonly Pick<VideoMeta, "title">[], metric
   const big = (t: string | null) => (titleNumber(t) ?? 0) >= 100;
   const asks = (t: string | null) => !!t && t.includes("?");
   return {
+    n: order.length,
+    top: k,
     topWords: [...counts.entries()]
       .filter(([, n]) => n >= Math.min(2, top.length))
       .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
@@ -531,7 +701,8 @@ export interface Lever {
   name: string;
   /** The share-link key of a setting. */
   link?: string;
-  value?: string | number | boolean;
+  /** --- inspiration --- (a colour list – backgroundColors, trailColors – as its #rrggbb colours; [] for the rainbow trail) */
+  value?: string | number | boolean | readonly string[];
 }
 
 export interface Recommendation {
@@ -541,6 +712,8 @@ export interface Recommendation {
   evidence: string;
   /** pattern: it separates the most viewed; benchmark: what the most viewed do; gap: our renders are a step away; theme: what they are about. */
   basis: "pattern" | "benchmark" | "gap" | "theme";
+  /** --- inspiration --- The traits it rests on, the pattern's first (their n, ρ and p tag it in a prompt); [] for titles and themes. */
+  traits: TraitKey[];
 }
 
 /** --- inspiration --- A percentile (0–1) as a whole number, and a share as a percentage ("–" for none). */
@@ -549,7 +722,15 @@ const shareText = (share: number | null) => (share === null ? "–" : `${Math.ro
 /** --- inspiration --- How far a theme's videos rank above the others' (its median percentile less theirs). */
 const themeMargin = (t: ThemeShare) => (t.rank ?? 0) - (t.restRank ?? 0);
 
-const setting = (id: LeverId, value?: string | number | boolean): Lever => ({ kind: "setting", name: LEVERS[id].field, link: LEVERS[id].link, ...(value !== undefined ? { value } : {}) });
+const setting = (id: LeverId, value?: Lever["value"]): Lever => ({ kind: "setting", name: LEVERS[id].field, link: LEVERS[id].link, ...(value !== undefined ? { value } : {}) });
+
+/** --- inspiration --- The traits an advice rests on (those weighed), the ones with a pattern first. */
+function restsOn(...pairs: [TraitKey, { pattern?: Pattern } | null | undefined][]): TraitKey[] {
+  return pairs
+    .filter(([, x]) => !!x)
+    .sort((a, b) => (b[1]?.pattern ? 1 : 0) - (a[1]?.pattern ? 1 : 0))
+    .map(([k]) => k);
+}
 
 /** One trait's benchmark, its pattern (when it has one) and our gap, as evidence and a basis. */
 function weigh(s: TraitSummary | undefined, patterns: readonly Pattern[], spec: TraitSpec | undefined) {
@@ -570,7 +751,7 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
   const length = w("durationSec");
   if (length) {
     const sec = Math.max(OUR_SHORTEST_CLIP_SEC, Math.round(length.top));
-    out.push({ area: "length", advice: `Render ${sec} s clips${length.top < OUR_SHORTEST_CLIP_SEC ? ` (the shortest the export makes; the most viewed run ${round(length.top, 1)} s)` : ""}${length.gap ? `: ours run ${round(length.ours as number, 1)} s` : ""}.`, levers: [setting("clipLength", sec)], evidence: length.evidence, basis: length.basis });
+    out.push({ area: "length", advice: `Render ${sec} s clips${length.top < OUR_SHORTEST_CLIP_SEC ? ` (the shortest the export makes; the most viewed run ${round(length.top, 1)} s)` : ""}${length.gap ? `: ours run ${round(length.ours as number, 1)} s` : ""}.`, levers: [setting("clipLength", sec)], evidence: length.evidence, basis: length.basis, traits: ["durationSec"] });
   }
 
   const hook = w("hookMotion");
@@ -583,19 +764,20 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
       levers: [{ kind: "tool", name: "simulate" }, setting("captions", "question at 0 s"), setting("shake")],
       evidence: [hook?.evidence, first?.evidence].filter(Boolean).join("; "),
       basis: hook?.basis === "gap" || first?.basis === "gap" ? "gap" : hook?.pattern || first?.pattern ? "pattern" : "benchmark",
+      traits: restsOn(["hookMotion", hook], ["firstMotionSec", first]),
     });
   }
 
   const lift = w("hookLift");
-  if (lift && lift.top < 1 && lift.basis !== "benchmark") out.push({ area: "hook", advice: "The most viewed build up rather than open on their busiest moment: save the climax (slow motion on a near miss) for the second half.", levers: [setting("slowMo", true)], evidence: lift.evidence, basis: lift.basis });
+  if (lift && lift.top < 1 && lift.basis !== "benchmark") out.push({ area: "hook", advice: "The most viewed build up rather than open on their busiest moment: save the climax (slow motion on a near miss) for the second half.", levers: [setting("slowMo", true)], evidence: lift.evidence, basis: lift.basis, traits: ["hookLift"] });
 
   const peak = w("peakMotionPos");
-  if (peak && (peak.pattern || peak.gap)) out.push({ area: "pace", advice: `Put the busiest moment ${peak.top >= 0.5 ? "late" : "early"} (about ${Math.round(peak.top * 100)}% in): choose the seed and the clip length so the finish lands there, and slow it down on a near miss.`, levers: [setting("clipLength"), setting("slowMo", true)], evidence: peak.evidence, basis: peak.basis });
+  if (peak && (peak.pattern || peak.gap)) out.push({ area: "pace", advice: `Put the busiest moment ${peak.top >= 0.5 ? "late" : "early"} (about ${Math.round(peak.top * 100)}% in): choose the seed and the clip length so the finish lands there, and slow it down on a near miss.`, levers: [setting("clipLength"), setting("slowMo", true)], evidence: peak.evidence, basis: peak.basis, traits: ["peakMotionPos"] });
 
   const cuts = w("cutsPerMin");
   if (cuts) {
     const many = cuts.top >= 6;
-    out.push({ area: "pace", advice: many ? `The most viewed cut about ${Math.round(cuts.top)} times a minute: render several seeds of one link and cut between them, or show two at once in split screen.` : "One continuous take works: the most viewed hardly cut, so let the run play out.", levers: many ? [{ kind: "tool", name: "render" }] : [], evidence: cuts.evidence, basis: cuts.basis });
+    out.push({ area: "pace", advice: many ? `The most viewed cut about ${Math.round(cuts.top)} times a minute: render several seeds of one link and cut between them, or show two at once in split screen.` : "One continuous take works: the most viewed hardly cut, so let the run play out.", levers: many ? [{ kind: "tool", name: "render" }] : [], evidence: cuts.evidence, basis: cuts.basis, traits: ["cutsPerMin"] });
   }
 
   const sat = w("meanSat");
@@ -608,50 +790,56 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
     // a picture far darker (or brighter) than all of them is a gap worth a test (two steps of brightness: 0.1 on 0–1)
     const step = spec("meanLuma")?.step ?? 0.05;
     const tone = luma && luma.ours !== null && luma.all !== null ? (luma.ours < luma.all - 2 * step ? "darker" : luma.ours > luma.all + 2 * step ? "brighter" : null) : null;
-    const toneText = tone && luma ? `${tone === "darker" ? "lighten" : "darken"} the picture: ours are ${tone} than the trending clips (brightness ${round(luma.ours as number, 2)} against ${round(luma.all as number, 2)}), so try ${tone === "darker" ? "a light theme or a gradient background" : "a dark theme"} on a few renders` : "";
+    const toneText = tone && luma ? `${tone === "darker" ? "lighten" : "darken"} the picture: ours are ${tone} than the trending clips (brightness ${round(luma.ours as number, 2)} against ${round(luma.all as number, 2)}), so try ${tone === "darker" ? "a light or mid background" : "a dark background"} on a few renders` : "";
     // --- inspiration --- each clause from its own number only: no saturation, no word on the colours (a trend summary drops
     // a number its searches disagree on), and no clause at all, no look advice
-    const colours = sat ? (vivid ? "Use saturated colours (rainbow trails, a vivid theme)" : "Keep the colours calm (a muted theme)") : null;
+    const colours = sat ? (vivid ? `Use saturated colours (a vivid theme such as ${LOOKS.vividTheme}, rainbow trails)` : `Keep the colours calm (a muted theme such as ${LOOKS.calmTheme}, no trails)`) : null;
     const ground = darkBg ? "a dark background" : dark ? "a light or mid background" : null;
     const advice = colours ? `${colours}${toneText ? `, and ${toneText}` : ground ? ` on ${ground}` : ""}.` : toneText ? `${toneText[0].toUpperCase()}${toneText.slice(1)}.` : ground ? `Use ${ground}.` : null;
+    // --- inspiration --- levers that make the look, each with its value: the theme (its palette), the trails (rainbow: the
+    // colourful trail with no trail colours) and the background by its colours, the light one being no theme's
+    const groundTone = tone === "darker" ? "light" : tone === "brighter" ? "dark" : darkBg ? "dark" : dark ? "light" : null;
+    const colourLevers = !colours ? [] : vivid ? [setting("theme", LOOKS.vividTheme), setting("trails", true), setting("colorTrail", true), setting("trailColors", [])] : [setting("theme", LOOKS.calmTheme), setting("trails", false)];
+    const groundLevers = groundTone === "light" ? [setting("backgroundType", "gradient"), setting("backgroundColors", LOOKS.lightGround)] : groundTone === "dark" ? [setting("backgroundType", "solid"), setting("backgroundColors", LOOKS.darkGround)] : [];
     if (advice)
       out.push({
         area: "look",
         advice,
-        levers: colours ? [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")] : [setting("theme"), setting("backgroundType")],
+        levers: [...colourLevers, ...groundLevers],
         evidence: [sat?.evidence, dark?.evidence, luma ? `brightness: ${luma.evidence}${luma.all !== null ? `, all ${round(luma.all, 2)}` : ""}` : null].filter(Boolean).join("; "),
         basis: tone || sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern || luma?.pattern ? "pattern" : "benchmark",
+        traits: restsOn(["meanSat", colours ? sat : null], ["darkShare", ground ? dark : null], ["meanLuma", tone ? luma : null]),
       });
   }
 
   const bpm = w("bpm");
-  if (bpm) out.push({ area: "sound", advice: `Set the music to about ${Math.round(bpm.top)} bpm (Beat Drop, Beat Machines and Beat Runner land on it) and start it on the first bounce.`, levers: [setting("bpm", Math.round(bpm.top)), setting("musicStart"), { kind: "mode", name: "beatDrop" }, { kind: "mode", name: "beatMachine" }], evidence: bpm.evidence, basis: bpm.basis });
+  if (bpm) out.push({ area: "sound", advice: `Set the music to about ${Math.round(bpm.top)} bpm (Beat Drop, Beat Machines and Beat Runner land on it) and start it on the first bounce.`, levers: [setting("bpm", Math.round(bpm.top)), setting("musicStart"), { kind: "mode", name: "beatDrop" }, { kind: "mode", name: "beatMachine" }], evidence: bpm.evidence, basis: bpm.basis, traits: ["bpm"] });
 
   const onsets = w("onsetsPerSec");
-  if (onsets && onsets.top >= 2) out.push({ area: "sound", advice: `A sound on every hit: the most viewed carry about ${round(onsets.top, 1)} sound events a second, so pick a mode where many balls collide and each hit plays a note.`, levers: [{ kind: "mode", name: "collide" }, { kind: "mode", name: "drop" }], evidence: onsets.evidence, basis: onsets.basis });
+  if (onsets && onsets.top >= 2) out.push({ area: "sound", advice: `A sound on every hit: the most viewed carry about ${round(onsets.top, 1)} sound events a second, so pick a mode where many balls collide and each hit plays a note.`, levers: [{ kind: "mode", name: "collide" }, { kind: "mode", name: "drop" }], evidence: onsets.evidence, basis: onsets.basis, traits: ["onsetsPerSec"] });
 
   const lufs = w("lufs");
-  if (lufs && Math.abs(lufs.top - OUR_LOUDNESS_LUFS) >= 2) out.push({ area: "sound", advice: `The most viewed are mixed at about ${round(lufs.top, 1)} LUFS, against the ${OUR_LOUDNESS_LUFS} LUFS our export normalises to: ${lufs.top > OUR_LOUDNESS_LUFS ? "a louder master is common, ours stays at the streaming target" : "ours is already louder"}.`, levers: [], evidence: lufs.evidence, basis: "benchmark" });
+  if (lufs && Math.abs(lufs.top - OUR_LOUDNESS_LUFS) >= 2) out.push({ area: "sound", advice: `The most viewed are mixed at about ${round(lufs.top, 1)} LUFS, against the ${OUR_LOUDNESS_LUFS} LUFS our export normalises to: ${lufs.top > OUR_LOUDNESS_LUFS ? "a louder master is common, ours stays at the streaming target" : "ours is already louder"}.`, levers: [], evidence: lufs.evidence, basis: "benchmark", traits: ["lufs"] });
 
   const loop = w("loopSeamDiff");
-  if (loop && loop.top <= LOOP_SEAMLESS_DIFF) out.push({ area: "loop", advice: "The most viewed loop: their last frame meets their first. Use a mode made to loop, or end the clip where the run looks like its start.", levers: LOOP_MODES.map((m) => ({ kind: "mode" as const, name: m })), evidence: loop.evidence, basis: loop.basis });
+  if (loop && loop.top <= LOOP_SEAMLESS_DIFF) out.push({ area: "loop", advice: "The most viewed loop: their last frame meets their first. Use a mode made to loop, or end the clip where the run looks like its start.", levers: LOOP_MODES.map((m) => ({ kind: "mode" as const, name: m })), evidence: loop.evidence, basis: loop.basis, traits: ["loopSeamDiff"] });
 
   const portrait = w("portrait");
-  if (portrait && portrait.top >= 0.5) out.push({ area: "format", advice: "Portrait 1080 × 1920, as the most viewed are.", levers: [setting("resolution", "1080x1920")], evidence: portrait.evidence, basis: portrait.basis });
+  if (portrait && portrait.top >= 0.5) out.push({ area: "format", advice: "Portrait 1080 × 1920, as the most viewed are.", levers: [setting("resolution", "1080x1920")], evidence: portrait.evidence, basis: portrait.basis, traits: ["portrait"] });
 
   if (titles.bigNumber.top !== null && titles.bigNumber.top >= 0.5 && (titles.bigNumber.rest === null || titles.bigNumber.top > titles.bigNumber.rest))
-    out.push({ area: "title", advice: "Count something big in the title and on screen (\"20,000 balls\"): a ball counter caption and a mode where the count climbs.", levers: [setting("captions", "wallCounter"), { kind: "mode", name: "multiply" }, { kind: "mode", name: "multipliers" }], evidence: `titles with a number of 100 or more: most viewed ${titles.bigNumber.top}, rest ${titles.bigNumber.rest ?? "–"}`, basis: "pattern" });
+    out.push({ area: "title", advice: "Count something big in the title and on screen (\"20,000 balls\"): a ball counter caption and a mode where the count climbs.", levers: [setting("captions", "wallCounter"), { kind: "mode", name: "multiply" }, { kind: "mode", name: "multipliers" }], evidence: `titles with a number of 100 or more: most viewed ${titles.bigNumber.top}, rest ${titles.bigNumber.rest ?? "–"}`, basis: "pattern", traits: [] });
 
   // --- inspiration --- a question in the title: the comment bait the playbook's cliffhangers are made of
   if (titles.question.top !== null && titles.question.top >= 0.34 && (titles.question.rest === null || titles.question.top > titles.question.rest))
-    out.push({ area: "title", advice: 'Ask what the viewer waits to see, in the title and in a question caption at 0 s ("Will the last ball get out?").', levers: [setting("captions", "question at 0 s")], evidence: `titles asking a question: most viewed ${titles.question.top}, rest ${titles.question.rest ?? "–"}`, basis: "pattern" });
+    out.push({ area: "title", advice: 'Ask what the viewer waits to see, in the title and in a question caption at 0 s ("Will the last ball get out?").', levers: [setting("captions", "question at 0 s")], evidence: `titles asking a question: most viewed ${titles.question.top}, rest ${titles.question.rest ?? "–"}`, basis: "pattern", traits: [] });
 
   // --- inspiration --- a theme is advice only when its videos rank above the others' (themeAdvised: three videos or more,
   // with and without its best one, a mechanic and not the genre's own word), the furthest above first
   for (const t of [...themes].filter((x) => x.advised).sort((a, b) => themeMargin(b) - themeMargin(a) || (a.id < b.id ? -1 : 1)).slice(0, 3)) {
     const videos = `${t.videos} video${t.videos === 1 ? "" : "s"}`;
-    out.push({ area: "mode", advice: `"${t.label}" ranks above the rest: its ${videos} have a median view percentile of ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without the best of them): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}; the most viewed carries ${shareText(t.topShare)} of their views`, basis: "theme" });
-    if (t.mechanic) out.push({ area: "blueprint", advice: `As a Blueprint: ${t.mechanic}. Check it with bp-check until it is playable.`, levers: [...t.blueprints.map((b) => ({ kind: "blueprint" as const, name: b })), { kind: "tool", name: "bp-check" }], evidence: `theme "${t.label}"`, basis: "theme" });
+    out.push({ area: "mode", advice: `"${t.label}" ranks above the rest: its ${videos} have a median view percentile of ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without the best of them): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}; the most viewed carries ${shareText(t.topShare)} of their views`, basis: "theme", traits: [] });
+    if (t.mechanic) out.push({ area: "blueprint", advice: `As a Blueprint: ${t.mechanic}. Check it with bp-check until it is playable.`, levers: [...t.blueprints.map((b) => ({ kind: "blueprint" as const, name: b })), { kind: "tool", name: "bp-check" }], evidence: `theme "${t.label}"`, basis: "theme", traits: [] });
   }
   const order: Record<Recommendation["basis"], number> = { gap: 0, pattern: 1, benchmark: 2, theme: 3 };
   return out.map((r, i) => ({ r, i })).sort((a, b) => order[a.r.basis] - order[b.r.basis] || a.i - b.i).map((x) => x.r);
@@ -791,7 +979,7 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
   const compared = videos.filter((v) => v.compared);
   const rows: MetricRow[] = compared.flatMap((v) => {
     const m = metricOf(v, input.sortBy);
-    return m === null ? [] : [{ metric: m, traits: v.traits }];
+    return m === null ? [] : [{ metric: m, traits: v.traits, measured: v.measured }];
   });
   const oursTraits = input.ours.map((o) => clipTraits(o.features));
   const { summaries, patterns } = traitSummaries(rows, oursTraits);
@@ -805,6 +993,10 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
     "A handful of videos shows tendencies, not laws: test a recommendation on a few renders before making it a default.",
     "Titles and channel names are other creators' text, counted here as data.",
   ];
+  // --- inspiration --- a pattern of fewer than SMALL_SAMPLE videos is a hunch: |ρ| has to be large to mean anything
+  const hunches = patterns.filter((p) => p.n < SMALL_SAMPLE);
+  if (rows.length > 0 && rows.length < SMALL_SAMPLE) notes.push(`Small sample: ${rows.length} video${rows.length === 1 ? "" : "s"} compared, fewer than ${SMALL_SAMPLE}, so treat every pattern as a hunch until a larger run agrees (each pattern prints its n and p; "clear" needs p below ${CLEAR_P}, a "hint" below ${HINT_P}).`);
+  else if (hunches.length) notes.push(`Small sample for ${hunches.map((p) => `${TRAITS.find((t) => t.key === p.key)?.label ?? p.key} (n ${p.n})`).join(", ")}: fewer than ${SMALL_SAMPLE} videos have ${hunches.length === 1 ? "it" : "them"}, so treat ${hunches.length === 1 ? "that pattern" : "those patterns"} as a hunch until a larger run agrees.`);
   if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(`Only ${analysedCount} video${analysedCount === 1 ? " was" : "s were"} measured: the motion and sound traits need at least ${MIN_VIDEOS_FOR_ADVICE} for advice or a pattern (the length comes from the pages, the colours from the stills where a video has them).`);
   // --- inspiration --- a short-form run compares short-form videos only
   const longForm = videos.length - compared.length;
@@ -842,6 +1034,9 @@ export function mdText(text: string | null, max = 80): string {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t || "–";
 }
 
+/** --- inspiration --- A lever's value as text: a colour list as [#a, #b] ([] the rainbow trail). */
+export const leverValueText = (value: NonNullable<Lever["value"]>): string => (Array.isArray(value) ? `[${value.join(", ")}]` : String(value));
+
 const n = (v: number | null, digits = 0) => (v === null ? "–" : round(v, digits).toLocaleString("en-US"));
 
 /** The report as Markdown (report.md beside report.json). */
@@ -853,14 +1048,14 @@ export function inspirationMarkdown(r: InspirationReport): string {
   lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched${failedStills ? ` (${failedStills} seen from stills)` : ""}${listStills ? ` · ${listStills} more seen from stills` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
   lines.push("## Recommendations", "");
   for (const rec of r.recommendations) {
-    const levers = rec.levers.map((l) => (l.kind === "setting" ? `${l.name} (\`${l.link}\`${l.value !== undefined ? ` ${l.value}` : ""})` : `${l.kind} ${l.name}`)).join(", ");
+    const levers = rec.levers.map((l) => (l.kind === "setting" ? `${l.name} (\`${l.link}\`${l.value !== undefined ? ` ${leverValueText(l.value)}` : ""})` : `${l.kind} ${l.name}`)).join(", ");
     lines.push(`- **${rec.area}** (${rec.basis}): ${rec.advice}${levers ? ` Levers: ${levers}.` : ""} _${rec.evidence}_`);
   }
   lines.push("", "## Patterns that separate the most viewed", "");
   if (!r.patterns.length) lines.push("- None clear in this run (too few videos, or the traits do not separate them).");
-  for (const p of r.patterns) lines.push(`- ${p.strength}: ${p.sentence}`);
-  lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | n | Over |", "| --- | --- | --- | --- | --- | --- | --- | --- |");
-  for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.n} | ${t.scope === "fetched" ? "the fetched top" : "the list"} |`);
+  for (const p of r.patterns) lines.push(`- ${p.strength}${p.n < SMALL_SAMPLE ? " (small sample: treat it as a hunch)" : ""}: ${p.sentence}`);
+  lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | p | n | Over |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.p === null ? "–" : pText(t.p).replace(/^p /, "")} | ${t.n} | ${t.scope === "fetched" ? "the fetched top" : "the list"} |`);
   lines.push("", "## Themes", "");
   for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}${t.advised ? " (ranks above the rest)" : ""}: ${t.videos} video${t.videos === 1 ? "" : "s"} (${Math.round(t.videoShare * 100)}% of them) with ${Math.round(t.viewShare * 100)}% of the views, the most viewed carrying ${shareText(t.topShare)} of theirs; median view percentile ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without its best). Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
   if (r.titles.topWords.length) lines.push("", `Words of the most viewed titles: ${r.titles.topWords.map((w) => `${mdText(w.word, 30)} (${w.videos})`).join(", ")}.`);
