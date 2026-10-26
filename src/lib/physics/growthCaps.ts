@@ -54,12 +54,13 @@ export function swarmLimitOf(config: Partial<Pick<PhysicsConfig, "swarmLimit">>)
 /**
  * --- review fix (unlimited-sizes) --- The swarm's ceiling while the limits runtime is engaged, counted over the full-physics
  * and the crowd balls together (full ones up to the run's full-ball limit, the rest in the crowd): the config's own value,
- * so a Swarm Limit of 300 stops the swarm at 300 and one of 1,000 at 1,000. Null at the default 200: once the runtime is
+ * so a Swarm Limit of 300 stops the swarm at 300 and one of 1,000 at 1,000 (one past its memory-safety ceiling, the crowd's
+ * million, at the ceiling: a limit, never an ARENA FULL by itself – `LIMIT_CEILING_KEYS` of lib/uncap.ts). Null at the default 200: once the runtime is
  * engaged the swarm grows on past it into the crowd, as it always did, so every link from before plays as it did.
  */
 export function engagedSwarmCeiling(config: Partial<Pick<PhysicsConfig, "swarmLimit">>): number | null {
   const n = wholeFrom(config.swarmLimit, GROWTH_CAP_RANGES.swarmLimit.min);
-  return n === null || n === SWARM_LIMIT_DEFAULT ? null : n;
+  return n === null || n === SWARM_LIMIT_DEFAULT ? null : memoryCeiling("swarmLimit", n); // (--- review fix (unlimited-sizes) --- past the crowd's ceiling: a swarm at it)
 }
 
 /** The full-physics balls a run with the runtime engaged may hold: the config's own (from 16, at most its memory-safety ceiling), else 2,000. */

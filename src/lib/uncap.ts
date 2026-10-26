@@ -364,6 +364,15 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
  */
 export const LIST_CEILING_KEYS: ReadonlySet<string> = new Set(["obstacles", "captions"]);
 
+/**
+ * --- review fix (unlimited-sizes) --- The settings of `MEMORY_CEILINGS` that are limits, not allocations: the Swarm Limit,
+ * the Full-Physics Balls and the Bodies on the Ring cap what a run grows to or puts on the ring. One past its ceiling is cut
+ * there silently (`memoryCeiling()`: lib/physics/growthCaps.ts, collide.ts) and builds exactly what one at the ceiling
+ * builds, so by itself it says no ARENA FULL; nor does one past its slider engage anything where nothing grows to it.
+ * settings.ts looks at what the limit lets the run reach instead (`uncappedEngaged()`, `pastAnyMemoryCeiling()`).
+ */
+export const LIMIT_CEILING_KEYS: ReadonlySet<string> = new Set(["swarmLimit", "fullBallLimit", "cpRingCount"]);
+
 /** The most a run builds of an allocating setting `key` (its memory-safety ceiling), the value itself otherwise (a list: its length). */
 export function memoryCeiling(key: string, value: number): number {
   const ceiling = MEMORY_CEILINGS[key];

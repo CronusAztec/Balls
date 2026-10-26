@@ -7,12 +7,12 @@ import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
 import { RESPAWN_MAX_BALLS } from "@/lib/physics/respawn";
 import { OBJECT_BALL_LIMIT } from "@/lib/unlimited";
 import { RING_OBJECT_WORK, objectLimitFor } from "@/lib/physics/limits";
-import { FULL_BALL_CEILING, MEMORY_CEILINGS } from "@/lib/uncap";
+import { FULL_BALL_CEILING, LIMIT_CEILING_KEYS, MEMORY_CEILINGS } from "@/lib/uncap";
 import { MAX_TEMPO, paddleSettingsOf, paddleTempo, resolvePaddleFields } from "@/lib/physics/modes/paddle";
 import { RING_MAX_BODIES, collideSettingsOf } from "@/lib/physics/modes/collide";
 import { DEFAULT_FIGHT_LEAGUE_SETTINGS, fightLeagueSettingsOf, flShowHorizonMs, resolveFightLeagueFields } from "@/lib/physics/modes/fightLeague";
 import { FL_BOUT_CAP_SEC, FL_SHOW_BOUT_SEC, FL_SHOW_UNCAPPED_BOUT_SEC } from "@/lib/physics/modes/fightLeagueShow";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, inactiveEngineKeys, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
 import { finderRequestOfSettings, modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { arenaPhysicsConfig } from "@/lib/simulation/multi";
 import { probeEngine, probeRun } from "./flProbes";
@@ -175,7 +175,7 @@ describe("growth caps: raised past the old numbers", () => {
     expect(fullBallLimitOf({ fullBallLimit: 1e9 })).toBe(FULL_BALL_CEILING);
     expect(fullBallLimitOf({})).toBe(OBJECT_BALL_LIMIT);
     const s = presetToSettings({ ...defaultSettings("classic"), wallCount: 1, fullBallLimit: 5000 });
-    expect([s.fullBallLimit, uncappedEngaged(s)]).toEqual([5000, true]);
+    expect([s.fullBallLimit, uncappedEngaged(s)]).toEqual([5000, false]); // (--- review fix --- a limit engages nothing by itself: it applies once something else does)
     const engine = engineOf(s);
     run(engine, 1);
     const ball = engine.getBalls()[0];
@@ -257,5 +257,99 @@ describe("growth caps: raised past the old numbers", () => {
     expect(defaults.getBalls()).toHaveLength(RING_MAX_BODIES);
     run(engine, 60);
     for (const b of engine.getBalls()) expect(Number.isFinite(b.x + b.y + b.radius)).toBe(true);
+  });
+});
+
+// --- review fix (unlimited-sizes) --- the limits: a value past the slider engages nothing where nothing grows to it, and one
+// past its memory-safety ceiling says no ARENA FULL in a run that builds nothing less
+describe("growth caps: a limit engages nothing and fills nothing by itself", () => {
+  /** Every ball's position, every frame, hashed (FNV-1a over the doubles' bits), the balls at the end and whether the extreme-values runtime ran. */
+  const runPrint = (s: SimulatorSettings, frames = 600) => {
+    const engine = engineOf(s, 7);
+    const bits = new Float64Array(1);
+    const words = new Uint32Array(bits.buffer);
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < frames; i++) {
+      run(engine, 1);
+      for (const b of engine.getBalls()) {
+        for (const v of [b.x, b.y]) {
+          bits[0] = v;
+          hash = Math.imul(hash ^ words[0], 0x01000193);
+          hash = Math.imul(hash ^ words[1], 0x01000193);
+        }
+      }
+    }
+    const view = engine.getUnlimitedView();
+    return { hash: hash >>> 0, balls: engine.getBalls().length, runtime: view.on, full: view.full };
+  };
+  const BALLS_RULE = { param: "balls", trigger: "bounce", every: 1, op: "multiply", amount: 2, scope: "ball" };
+
+  it("plays every mode's default run unchanged with fbl=3000, and with cprc=100 and the Ring off", { timeout: 240_000 }, () => {
+    // (fbl=2001 ran Glass Smash's one ball, Drop, Race, Maze and Colour Sort with the extreme-values runtime, its speed badge
+    // in the clip; cprc=100 the free orbs of Collision Playground)
+    for (const mode of MODE_IDS) {
+      const d = defaultSettings(mode);
+      const base = runPrint(d);
+      expect([mode, base.runtime]).toEqual([mode, false]);
+      for (const patch of [{ fullBallLimit: 3000 }, { cpRingCount: 100, cpRing: false }] as Partial<SimulatorSettings>[]) {
+        const s = presetToSettings({ ...d, ...patch });
+        expect([mode, patch, uncappedEngaged(s), pastAnyMemoryCeiling(s)]).toEqual([mode, patch, false, false]);
+        expect([mode, patch, runPrint(s)]).toEqual([mode, patch, base]);
+      }
+    }
+    expect([...inactiveEngineKeys({ ...defaultSettings("collide"), cpRing: false })]).toEqual(["cpRingCount"]);
+    expect(inactiveEngineKeys({ ...defaultSettings("collide"), cpRing: true }).size).toBe(0);
+  });
+
+  it("fbl: applies once something else engages the runtime", () => {
+    const engaged = presetToSettings({ ...defaultSettings("classic"), ballSpeed: 1e6, fullBallLimit: 3000 });
+    expect(uncappedEngaged(engaged)).toBe(true);
+    expect(physicsConfigOfSettings(engaged)).toMatchObject({ unlimited: true, fullBallLimit: 3000 });
+  });
+
+  it("swl: counts only where a swarm grows – Multiply, a respawn timer that is on, a bounce math balls rule", () => {
+    const classic = presetToSettings({ ...defaultSettings("classic"), swarmLimit: 300 });
+    expect([uncappedEngaged(classic), pastAnyMemoryCeiling(classic)]).toEqual([false, false]);
+    expect(runPrint(classic)).toEqual(runPrint(defaultSettings("classic")));
+    expect(uncappedEngaged({ ...classic, bounceMath: [{ ...BALLS_RULE, param: "speed" }] } as unknown as SimulatorSettings)).toBe(false); // (a rule on another number grows no swarm)
+    expect(uncappedEngaged({ ...classic, respawnEvery: 1 })).toBe(true);
+    expect(uncappedEngaged({ ...classic, bounceMath: [BALLS_RULE] } as unknown as SimulatorSettings)).toBe(true);
+    expect(uncappedEngaged(presetToSettings({ ...defaultSettings("multiply"), swarmLimit: 300 }))).toBe(true);
+    // a respawn timer on in a mode without one (Shatter), and a balls rule where it copies nothing (Glass Smash): no swarm
+    expect(uncappedEngaged(presetToSettings({ ...defaultSettings("shatter"), swarmLimit: 300, respawnEvery: 1 }))).toBe(false);
+    expect(uncappedEngaged(presetToSettings({ ...defaultSettings("glass"), swarmLimit: 300, bounceMath: [BALLS_RULE] } as unknown as SimulatorSettings))).toBe(false);
+  });
+
+  it("cprc: on the Ring, only as far as there are orbs to put there", () => {
+    const ring = presetToSettings({ ...defaultSettings("collide"), cpRing: true, cpCount: 20, cpRingCount: 100 });
+    expect(uncappedEngaged(ring)).toBe(false); // (20 orbs: the ring holds 20 at 36 and at 100)
+    expect(runPrint(ring, 300)).toEqual(runPrint(presetToSettings({ ...ring, cpRingCount: RING_MAX_BODIES }), 300));
+    expect(uncappedEngaged({ ...ring, cpCount: 300 })).toBe(true); // (300 orbs: the ring holds 100)
+    expect(uncappedEngaged({ ...ring, cpCount: 50 })).toBe(true); // (50 orbs: 50 on the ring, 36 at the default)
+  });
+
+  it("past their memory-safety ceilings the limits say no ARENA FULL in runs that build nothing less", () => {
+    expect([...LIMIT_CEILING_KEYS].sort()).toEqual(["cpRingCount", "fullBallLimit", "swarmLimit"]);
+    for (const key of LIMIT_CEILING_KEYS) expect(MEMORY_CEILINGS[key]).toBeGreaterThan(0); // (each keeps its ceiling: a value past it builds what one at it builds)
+    const cases: Partial<SimulatorSettings>[] = [
+      { mode: "classic", fullBallLimit: 10_000 },
+      { mode: "classic", fullBallLimit: 10_000, ballSpeed: 1e6 },
+      { mode: "multiply", swarmLimit: 2_000_000 },
+      { mode: "collide", cpRing: false, cpRingCount: 6000 },
+      { mode: "collide", cpRing: true, cpRingCount: 6000 },
+    ];
+    for (const patch of cases) {
+      const s = presetToSettings({ ...defaultSettings(patch.mode!), ...patch });
+      expect([patch, pastAnyMemoryCeiling(s)]).toEqual([patch, false]);
+      expect([patch, runPrint(s, 60).full]).toEqual([patch, false]);
+    }
+    // a limit past its ceiling says exactly what one at the ceiling says: ARENA FULL only where the orbs themselves pass theirs
+    for (const cpCount of [300, MEMORY_CEILINGS.cpCount, MEMORY_CEILINGS.cpCount + 1]) {
+      const at = presetToSettings({ ...defaultSettings("collide"), cpRing: true, cpCount, cpRingCount: MEMORY_CEILINGS.cpRingCount });
+      expect([cpCount, pastAnyMemoryCeiling({ ...at, cpRingCount: MEMORY_CEILINGS.cpRingCount + 1000 })]).toEqual([cpCount, pastAnyMemoryCeiling(at)]);
+    }
+    expect(pastAnyMemoryCeiling(presetToSettings({ ...defaultSettings("collide"), cpRing: true, cpCount: MEMORY_CEILINGS.cpCount + 1 }))).toBe(true);
+    // engaged, the swarm past the crowd's ceiling stops where one at the ceiling does
+    expect(engagedSwarmCeiling({ swarmLimit: 2_000_000 })).toBe(MEMORY_CEILINGS.swarmLimit);
   });
 });

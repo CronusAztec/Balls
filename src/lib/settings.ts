@@ -80,12 +80,13 @@ import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, reso
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
 import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 // --- uncap-all --- Uncapped everything: the numeric Bounciness (the uncapped Bouncier) and the memory-safety ceilings
-import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastFloor, atLeastMin, bouncinessOf, meetsFloor, pastMemoryCeiling } from "@/lib/uncap";
+import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, LIMIT_CEILING_KEYS, atLeastFloor, atLeastMin, bouncinessOf, meetsFloor, pastMemoryCeiling } from "@/lib/uncap"; // (--- review fix (unlimited-sizes) --- LIMIT_CEILING_KEYS: the limits among the ceilings)
 // --- odd-maze --- the Maze escape mode (oddplayground)
 import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConveyorFields, writeConveyorParams, type ConveyorArena } from "@/lib/physics/modes/conveyor";
-import { RESPAWN_RANGES } from "@/lib/physics/respawn";
+import { RESPAWN_RANGES, respawnApplies } from "@/lib/physics/respawn"; // (--- review fix (unlimited-sizes) --- respawnApplies: where the Swarm Limit can bind)
+import { BOUNCE_MATH_SPAWN_MODES } from "@/lib/physics/bounceMathRuntime"; // --- review fix (unlimited-sizes) --- (the modes a "balls" rule grows a swarm in)
 import { GROWTH_CAP_RANGES, defaultGrowthCapFields, type GrowthCapFields } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings as settings)
 import { MAX_TEMPO } from "@/lib/physics/modes/paddle"; // --- unlimited-sizes --- (Paddle's top tempo: the default of pdMaxTempo)
 import { FL_BOUT_CAP_SEC } from "@/lib/physics/modes/fightLeagueShow"; // --- unlimited-sizes --- (the default of flBoutCap)
@@ -2423,15 +2424,41 @@ const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
 const LC_PYRAMID_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(LC_PYRAMID_RANGES));
 const LC_WALL_ONLY_KEYS: ReadonlySet<string> = new Set(["lcCols", "lcRows"]);
 // --- end land-claim-pyramid ---
+// --- review fix (unlimited-sizes) --- Collision Playground with the Ring off builds free orbs only: it reads none of the ring's
+// bodies (a Bodies on the Ring past its slider there engages no extreme-values machinery and no ARENA FULL)
+const CP_RING_ONLY_KEYS: ReadonlySet<string> = new Set(["cpRingCount"]);
 
 /**
  * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
  * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
  */
-export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan"> & Partial<Pick<SimulatorSettings, "lcLayout">> /* --- land-claim-pyramid --- */): ReadonlySet<string> {
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan"> & Partial<Pick<SimulatorSettings, "lcLayout" | "cpRing">> /* --- land-claim-pyramid --- (--- review fix (unlimited-sizes) --- and the Ring) */): ReadonlySet<string> {
   if (settings.mode === "landClaim") return settings.lcLayout === "pyramid" ? LC_WALL_ONLY_KEYS : LC_PYRAMID_ONLY_KEYS; // --- land-claim-pyramid ---
+  if (settings.mode === "collide") return settings.cpRing === true ? NO_INACTIVE_KEYS : CP_RING_ONLY_KEYS; // --- review fix (unlimited-sizes) ---
   if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
   return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
+}
+
+/**
+ * --- review fix (unlimited-sizes) --- What a limit (`LIMIT_CEILING_KEYS` of lib/uncap.ts: the Swarm Limit, the Full-Physics
+ * Balls, the Bodies on the Ring) lets the run reach, for `uncappedEngaged()` and `pastAnyMemoryCeiling()` – null where it
+ * binds nothing on its own. A limit caps what a run grows to, so a value past its slider says nothing where nothing grows to
+ * it (it ran Glass Smash's one ball, Classic and Drop with the extreme-values runtime and its speed badge):
+ *  - the Full-Physics Balls only ever apply once something else engages the runtime: never by themselves;
+ *  - the Swarm Limit only where a swarm grows – Multiply's escapes, a respawn timer that is on, a bounce math "balls" rule;
+ *  - the Bodies on the Ring only with the Ring on (`inactiveEngineKeys()`), and only as far as there are orbs to put on it.
+ */
+function limitReach(settings: SimulatorSettings, key: string): number | null {
+  switch (key) {
+    case "swarmLimit": {
+      const grows = settings.mode === "multiply" || respawnApplies(settings.mode, settings.respawnEvery) || (BOUNCE_MATH_SPAWN_MODES.includes(settings.mode) && Array.isArray(settings.bounceMath) && settings.bounceMath.some((rule) => rule.param === "balls"));
+      return grows ? settings.swarmLimit : null;
+    }
+    case "cpRingCount":
+      return settings.mode === "collide" && settings.cpRing === true ? Math.min(settings.cpCount, settings.cpRingCount) : null;
+    default:
+      return null; // (fullBallLimit)
+  }
 }
 
 /**
@@ -2446,7 +2473,7 @@ export function uncappedEngaged(settings: SimulatorSettings): boolean {
   for (const key of engineSettingKeys(settings.mode)) {
     if (inactive.has(key)) continue;
     const range = UNLIMITED_RANGES[key];
-    const value = record[key];
+    const value = LIMIT_CEILING_KEYS.has(key) ? limitReach(settings, key) : record[key]; // --- review fix (unlimited-sizes) --- (a limit: what it lets the run reach)
     if (range && typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
   }
   // An obstacle of the editor's layout past its row's sliders (a 1,000 rpm spinner) is a value past its slider too.
@@ -2459,6 +2486,16 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
 }
 
 /**
+ * --- review fix (unlimited-sizes) --- What a limit makes the run build, for `pastAnyMemoryCeiling()`: a limit past its
+ * ceiling builds what one at the ceiling builds, so only the ring's bodies count – past the ceiling with as many orbs to put
+ * there. The swarm and the full-physics balls build nothing up front: what grows past their ceilings goes on into the crowd,
+ * which says ARENA FULL itself once it is full (null).
+ */
+function limitBuilt(settings: SimulatorSettings, key: string): number | null {
+  return key === "cpRingCount" ? limitReach(settings, key) : null;
+}
+
+/**
  * True when a setting the mode's engine reads (`engineSettingKeys()`) and that sizes an allocation is past its
  * memory-safety ceiling – or a list setting of it is full (`pastMemoryCeiling()`) – so the run builds less: ARENA FULL.
  * (--- review fix (uncap-all) --- another mode's count, a Glass Smash row count in a Classic run, says nothing.)
@@ -2466,7 +2503,7 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
 export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const record = settings as unknown as Record<string, unknown>;
   const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (a harp run builds no fan, a fan run no harp chains)
-  for (const key of engineSettingKeys(settings.mode)) if (!inactive.has(key) && pastMemoryCeiling(key, record[key])) return true;
+  for (const key of engineSettingKeys(settings.mode)) if (!inactive.has(key) && pastMemoryCeiling(key, LIMIT_CEILING_KEYS.has(key) ? limitBuilt(settings, key) : record[key])) return true;
   if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
   if (settings.mode === "doublePendulum" && doublePendulumPastCeiling(settings)) return true; // --- unlimited-sizes --- (pendulums × links past the chains' ceilings)
   if (settings.mode === "colourSort" && colourSortPastCeiling(settings)) return true; // --- colour-sort --- (colours × balls past the balls a run holds)
