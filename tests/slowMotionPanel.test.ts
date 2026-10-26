@@ -31,7 +31,8 @@ import type { ModeId } from "@/lib/physics/types";
  * its sliders, the replay's speed, Fight League's KO Slow Motion, Bullseye, the String Battle duel). With it on, the default,
  * none of them shows anything new. (review fixes) The overridden controls dim their own label (ink-3, AA contrast) and their
  * track or switch graphic, never the tooltip's ancestors, and name their note through aria-describedby. A control that stays
- * live (the String Battle duel: its hunt and heartbeat stay) is never dimmed: it has its note alone.
+ * live (the String Battle duel: its hunt and heartbeat stay) is never dimmed: it has its note alone. Bullseye, whose slow
+ * motion has no toggle of its own, points to the switch while it is on.
  */
 
 // The components are compiled with the classic JSX transform here (tsconfig keeps JSX for Next): React must be global.
@@ -530,5 +531,32 @@ describe("Reset Category in Ball & Physics brings back the block at its top (---
     }
     // (on is today's behaviour: the reset brings back what a link without smo plays)
     expect([defaultSettings("classic").slowMotion, defaultSettings("classic").unlimited]).toEqual([true, true]);
+  });
+});
+
+describe("Bullseye points to the switch while it is on (--- slow-motion --- review fix)", () => {
+  it("shows a line under the intro naming Slow motion and Ball & Physics with it on, the off note instead with it off, in every locale", () => {
+    // (the intro promises slow motion on a centre hit, and the block had no control of it and no pointer until it was off)
+    for (const [locale, catalog] of [["en", en], ["pl", pl], ["es", es]] as const) {
+      const u = catalog.Unlimited as Record<string, string>;
+      const c = catalog.Controls as Record<string, string>;
+      const html = (s: SimulatorSettings, search = "") => render(createElement(BullseyeSection as unknown as React.FC<ReturnType<typeof props>>, props(s, search)), locale, catalog);
+      const escaped = (text: string) => text.replace(/&/g, "&amp;").replace(/'/g, "&#x27;");
+      const on = html(settingsOf("bullseye"));
+      const pointer = elementWith(on, 'data-testid="bullseye-slow-motion-on"');
+      // the pointer names the switch and the section it is in, as the panel names them
+      expect([locale, pointer.includes(escaped(u.bullseyePointer)), u.bullseyePointer.includes(u.slowMotion), u.bullseyePointer.includes(c.ballPhysicsTab)]).toEqual([locale, true, true, true]);
+      expect([locale, on.includes("bullseye-slow-motion-off"), on.includes("data-slow-motion-off-note")]).toEqual([locale, false, false]);
+      // under the intro (the English one here: the section's t), before the first control
+      expect(on.indexOf('data-testid="bullseye-slow-motion-on"')).toBeGreaterThan(on.indexOf(escaped(controls.byDesc)));
+      expect(on.indexOf('data-testid="bullseye-slow-motion-on"')).toBeLessThan(on.indexOf('aria-label="Shots"'));
+      // off: the note alone, the pointer gone
+      const off = html(settingsOf("bullseye", { slowMotion: false }));
+      expect([locale, off.includes('data-testid="bullseye-slow-motion-off"'), off.includes("bullseye-slow-motion-on")]).toEqual([locale, true, false]);
+      // a search shows the matching controls only, as before: neither line
+      for (const slowMotion of [true, false]) expect([locale, slowMotion, html(settingsOf("bullseye", { slowMotion }), "shots").includes("data-slow-motion-")]).toEqual([locale, slowMotion, false]);
+      // one short line, within a note's length
+      expect([locale, u.bullseyePointer.length <= 110, /[();—]|\s–\s/.test(u.bullseyePointer)]).toEqual([locale, true, false]);
+    }
   });
 });

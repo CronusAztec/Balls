@@ -3,7 +3,7 @@
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { bullseyeNominalRunSec, bullseyeSettingsOf, perfectShotIndex } from "@/lib/physics/modes/bullseye";
-import { SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
+import { SlowMotionOffNote, SlowMotionPointer } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface BullseyeSectionProps {
   t: Translate;
@@ -22,6 +22,8 @@ export const BULLSEYE_KEYS = ["byShots", "byInterval", "byChaos", "byRings", "by
  * rings, the moving target, the rigged perfect shot and a line that sums the run up for Find Simulation. The values live
  * in SimulatorSettings; Simulator.tsx forwards them to the engine (see lib/physics/modes/bullseye.ts) and restarts the run
  * when one changes (the Sound section's scale and root follow live).
+ * --- slow-motion --- (review fix) A centre hit's slow motion has no toggle here: while the Slow motion switch is on, a line
+ * under the intro points to it in Ball & Physics; while it is off, the note says the shots play in real time.
  */
 export default function BullseyeSection({ t, search, matches, settings: s, update }: BullseyeSectionProps) {
   const by = bullseyeSettingsOf(s);
@@ -32,6 +34,8 @@ export default function BullseyeSection({ t, search, matches, settings: s, updat
         <div className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("byTitle")}</p>
           <p className="text-xs text-ink-3 leading-relaxed">{t("byDesc")}</p>
+          {/* --- slow-motion --- (review fix) the block's slow motion has no toggle of its own: on, where to turn it off */}
+          <SlowMotionPointer settings={s} testId="bullseye-slow-motion-on" messageKey="bullseyePointer" />
           <SlowMotionOffNote settings={s} testId="bullseye-slow-motion-off" /* --- slow-motion --- (a bullseye opens no slow motion while the switch is off) */ />
         </div>
       )}

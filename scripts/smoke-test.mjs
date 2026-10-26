@@ -7269,6 +7269,9 @@ await smokeBlock("gerald-bullseye", async () => {
       values.bys === "6" && values.byi === "0.6" && values.byc === "0.25" && values.byr === "6" && values.byp === "2" && moving === "false" && /\b6 shots\b/.test(runText) && /Shot 2 is rigged/.test(runText) && finderShown && noRingControls,
       `(${JSON.stringify(values)}, moving=${moving}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
     );
+    // --- slow-motion --- (review fix) a centre hit's slow motion has no toggle in the block: with the switch on, a line points to it
+    const pointer = await page.getByTestId("bullseye-slow-motion-on").innerText().catch(() => "");
+    check("bullseye: with Slow motion on, the block points to the switch in Ball & Physics", /Slow motion/.test(pointer) && /Ball & Physics/.test(pointer), `("${pointer}")`);
   }
   await bySlider("Shots").evaluate(setRangeValue, "9");
   await bySlider("Target Rings").evaluate(setRangeValue, "8");

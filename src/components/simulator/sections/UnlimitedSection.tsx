@@ -131,6 +131,21 @@ export function SlowMotionOffNote({ settings: s, testId, messageKey = "slowMotio
 }
 
 /**
+ * --- slow-motion --- (review fix) The pointer a block shows while the Slow motion switch is on when its slow motion has no
+ * toggle of its own (Bullseye: a centre hit's slow-motion window): where to turn it off, a section away. Nothing while the
+ * switch is off, where the block's SlowMotionOffNote says the rest.
+ */
+export function SlowMotionPointer({ settings: s, testId, messageKey }: { settings: SimulatorSettings; testId: string; messageKey: "bullseyePointer" }) {
+  const u = useTranslations("Unlimited");
+  if (!s.slowMotion) return null;
+  return (
+    <p className="text-xs text-ink-3 leading-relaxed" data-testid={testId} data-slow-motion-pointer="">
+      {u(messageKey)}
+    </p>
+  );
+}
+
+/**
  * --- slow-motion --- Shows controls the Slow motion switch overrides as such while `on`: dimmed (still usable, the value
  * waits for the switch), with the note under them. Off, the children render as they are, so a default page is unchanged.
  * (review fix) The dimming is the controls' own (ControlOverride in ControlPrimitives.tsx): their label in ink-3, which keeps

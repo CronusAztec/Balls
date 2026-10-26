@@ -4688,6 +4688,7 @@
     "koOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc karta zwycięzcy pojawia się od razu.",
     "duelOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc cięcia w pojedynku lecą z normalną prędkością.",
     "mpOffNote": "Zwolnione tempo jest wyłączone w sekcji Piłka i fizyka, więc przy mnożnikach nie pojawia się SPOWOLNIENIE, a symulacja leci z normalną prędkością.",
+    "bullseyePointer": "Wyłącz Zwolnione tempo w sekcji Piłka i fizyka, a każdy strzał poleci z normalną prędkością.",
     "typeValue": "Wpisz wartość: {label}",
     "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
     "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
