@@ -147,6 +147,7 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
   const rows = [];
   const sources = { search: 0, shorts: 0, urls: 0 };
   let query = null;
+  let feed = null;
   const queryText = args.query ?? (urls.length ? null : tb.DEFAULT_QUERY);
   if (queryText !== null) {
     const q = tb.checkQuery(queryText);
@@ -155,20 +156,28 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
     const filtered = args.minViews !== undefined || args.maxDurationSec !== undefined;
     const searchCount = Math.ceil(limit * (filtered ? 3 : 1.5));
     const lists = [{ source: "search", target: tb.searchTarget(query, searchCount), count: searchCount }];
-    const feed = args.maxDurationSec !== undefined && args.maxDurationSec <= tb.SHORT_MAX_SEC ? tb.shortsFeedUrl(query) : null;
-    if (feed) lists.push({ source: "shorts", target: feed, count: Math.ceil(limit * 1.5) });
-    const listed = await Promise.all(
-      lists.map(async (l) => {
-        try {
-          return { l, r: await runYtDlp(ytdlp, tb.ytListArgs(l.target, l.count), { timeoutMs: LIST_TIMEOUT_MS }) };
-        } catch (e) {
-          return { l, r: { code: null, stdout: "", stderr: `ERROR: ${e instanceof Error ? e.message : String(e)}` } };
-        }
-      }),
-    );
+    // --- inspiration --- the Shorts feeds in turn (the query's hashtag, then shorter ones) until one has videos
+    const feeds = args.maxDurationSec !== undefined && args.maxDurationSec <= tb.SHORT_MAX_SEC ? tb.shortsFeedUrls(query) : [];
+    const list = async (l) => {
+      try {
+        return { l, r: await runYtDlp(ytdlp, tb.ytListArgs(l.target, l.count), { timeoutMs: LIST_TIMEOUT_MS }) };
+      } catch (e) {
+        return { l, r: { code: null, stdout: "", stderr: `ERROR: ${e instanceof Error ? e.message : String(e)}` } };
+      }
+    };
+    const feedList = async () => {
+      let last = null;
+      for (const target of feeds) {
+        last = await list({ source: "shorts", target, count: Math.ceil(limit * 1.5) });
+        if (tb.parseJsonLines(last.r.stdout).length) break;
+      }
+      return last;
+    };
+    const listed = (await Promise.all([...lists.map(list), feeds.length ? feedList() : null])).filter(Boolean);
     for (const { l, r } of listed) {
       const found = tb.parseJsonLines(r.stdout).map((info) => tb.videoMetaOf(info, { source: l.source, nowMs })).filter(Boolean);
       sources[l.source] = found.length;
+      if (l.source === "shorts") feed = l.target;
       rows.push(...found);
       if (!found.length) {
         const lines = tb.ytErrorLines(r.stderr);
@@ -224,6 +233,7 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
     videos: ranked.videos,
     dropped: ranked.dropped,
     sources,
+    ...(feed ? { feed } : {}),
     pages: { read, unread },
     ...(refused.length ? { refused } : {}),
     ...(errors.length ? { errors: errors.slice(0, 20) } : {}),

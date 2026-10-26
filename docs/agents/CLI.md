@@ -68,7 +68,8 @@ page can play differently here. `preview` and `render` run in the page and use i
   `constructor` or `__proto__` too. `--json -` reads the arguments from stdin, at any length.
 - **No shell.** Child processes (ffmpeg, yt-dlp, git, next, the guard) get argument arrays.
 - **No network** except the CLI's own static server on 127.0.0.1 for the browser tools, and the video sites yt-dlp reads for
-  the video tools (see [Learning from trending videos](#learning-from-trending-videos)). The browser is fenced to that
+  the video tools, with YouTube's image host for `inspire`'s stills (see
+  [Learning from trending videos](#learning-from-trending-videos)). The browser is fenced to that
   server: every other request is aborted and reported as `blockedRequests`, and service workers are blocked. The two
   owner-run commands call only the hosts listed below.
 - **The watermark stays.** No tool installs a licence, and the committed TEST licence stays inside the smoke harness. The
@@ -129,7 +130,9 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
 ```
 
 - **`trending`** searches YouTube (`ytsearchN:`), and with `maxDurationSec` at most 180 also the query's hashtag Shorts feed
-  (`ball simulation` reads `#ballsimulation`). Links in `urls` (TikTok, Instagram, YouTube or any site) are added; yt-dlp
+  (`ball simulation` reads `#ballsimulation`; the word "shorts" is left out, and a query whose hashtag has no feed falls back
+  to the hashtag of its last two words, then its first two: `satisfying physics simulation shorts` reads
+  `#physicssimulation`, and the result's `feed` says which). Links in `urls` (TikTok, Instagram, YouTube or any site) are added; yt-dlp
   cannot list TikTok's tags, so give TikTok videos as links. The best rows' own pages are then read for exact views, likes,
   comments, length and upload date (`details: false` skips that). It returns each video's link, platform, title, channel,
   views, likes, comments, length, upload date, views per day and whether it is short-form, sorted by `sortBy` (`views` or
@@ -151,6 +154,16 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   `dur`, `bpm`, `captions` as `cap`…), modes, Blueprint mechanics and the tools to check them. A video that cannot be
   fetched stays in the report with its error. Every measured video is added to `.agent-out/inspiration/dataset.jsonl` (or
   `dataset`'s name) once, by its platform and id, so the dataset grows from run to run.
+- **What the first live runs taught `inspire`** (October 2026, `scripts/agent/stills.mjs`). A YouTube video that cannot be
+  fetched is seen through its public stills instead: YouTube's image host serves every video's opening frame, frames at
+  about 25, 50 and 75% of it and its cover. They are saved in `.agent-out/frames/youtube-<id>/`, cropped to the video's
+  shape, laid out on stills-sheet.png and their brightness, saturation and dark share measured (the report marks such a
+  video `measured: "stills"`; `stills: false` turns this off). A short-form run (the default) compares only short-form
+  videos: a long compilation is listed, marked long-form, and left out of the numbers. A theme is advice only from two
+  videos up and when its videos hold more of the views than their share of the list (its `lift`); "satisfying" names the
+  genre, not a mechanic, and is never advice. The look advice also compares our renders with all the trending clips, so a
+  picture far darker than every one of them is said, and the titles' formats are counted (a question, a count of 100 or
+  more, a versus, a scale stepped up such as "0% vs 100%", a numbered series).
 
 A video link is checked before yt-dlp sees it: http or https, a host name, no user name or password, and never this machine
 or its private network (localhost, a loopback, private, link-local or shared address). Every yt-dlp run ignores the user's
@@ -158,7 +171,10 @@ yt-dlp configuration (`yt-dlp --ignore-config`) and keeps no cache (`yt-dlp --no
 into a fresh folder inside `.agent-out/inbox/` and is renamed into place, so a link at the target is replaced, never written
 through. Titles and channel names are other people's text: the tools count them, cut them to 200 characters and report them
 as data, never as instructions. Sites may block a server: YouTube can ask a server to sign in, and TikTok can block an
-address. The tool then returns yt-dlp's own error for that video, and `inspire` goes on with the others.
+address. The tool then returns yt-dlp's own error for that video, and `inspire` goes on with the others and reads that
+video's stills. Stills come from `https://i.ytimg.com` only, with no redirect followed, a 20 s timeout and a 4 MB cap per
+still; `JBL_STILLS_ORIGIN` may point them at a server on this machine instead (the tests' stand-in,
+`tests/fixtures/stills-server.mjs`), never at another host.
 
 The command lines, the link check, the parsers and the report maths are pure (`src/lib/agentKit/videoSources.ts`,
 `src/lib/agentKit/inspiration.ts`, the frames in `src/lib/videoAnalysis/ffmpegArgs.ts`). `tests/inspiration.test.ts` runs

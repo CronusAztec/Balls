@@ -299,6 +299,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         sortBy: sortByArg,
         maxHeight: maxHeightArg,
         frames: { type: "boolean", description: "Also write each video's frames and contact sheets (default true)." },
+        stills: { type: "boolean", description: "When a YouTube video cannot be fetched, read its public stills instead (the opening frame, 25, 50 and 75%, the cover): a stills-sheet.png and their colours (default true)." },
         ours: { type: "string", minLength: 1, maxLength: 1000, description: "A folder inside the repository with our own renders to compare (default .agent-out/render)." },
         oursMax: { type: "integer", minimum: 0, description: "Our renders measured, newest first (default 8; 0: none)." },
         dataset: { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$", description: "The dataset the measured videos are added to: .agent-out/inspiration/<dataset>.jsonl (default dataset), one per topic if you like." },

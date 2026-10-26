@@ -9,13 +9,16 @@
  *     recommendations in our levers) written to .agent-out/inspiration/<date>-<slug>/report.json and report.md;
  *  5. every measured video appended to .agent-out/inspiration/dataset.jsonl (or <dataset>.jsonl), once per video (its key),
  *     so the dataset grows across runs.
- * A video that cannot be fetched or measured stays in the report with its error; the run goes on. Every file is written
- * through paths.mjs (fresh name, then renamed into place) and stays under .agent-out/.
+ * A video that cannot be fetched or measured stays in the report with its error; the run goes on. Unless stills is false, a
+ * YouTube video that cannot be fetched is seen through its public stills instead (stills.mjs: the opening frame, 25, 50 and
+ * 75%, the cover, on stills-sheet.png, and their colours measured). Every file is written through paths.mjs (fresh name,
+ * then renamed into place) and stays under .agent-out/.
  */
 import fs from "fs";
 import path from "path";
 import { NO_FFMPEG, measureFile, resolveFfmpeg } from "./analyse.mjs";
 import { extractFrames, framesName } from "./frames.mjs";
+import { fetchStills, stillsOrigin } from "./stills.mjs";
 import { NO_YTDLP, fetchVideo, mapLimit, resolveYtDlp, trending } from "./videoSources.mjs";
 import { OUT_DIR, PathError, ROOT, isInside, outFolder, repoRelative, writeFileSafe } from "./paths.mjs";
 
@@ -87,6 +90,7 @@ export async function inspireTool(tb, args) {
   const ytdlp = resolveYtDlp();
   if (!ytdlp) throw new Error(NO_YTDLP);
   const oursDir = oursFolder(args.ours);
+  const origin = args.stills === false ? null : stillsOrigin(tb);
   const nowMs = Date.now();
   const at = new Date(nowMs).toISOString();
   const sortBy = args.sortBy ?? "views";
@@ -112,7 +116,17 @@ export async function inspireTool(tb, args) {
       }
       return { meta: tb.mergeMeta(meta, got.meta), file: got.file, features, frames, error: null };
     } catch (e) {
-      return { meta, error: (e instanceof Error ? e.message : String(e)).slice(0, 400) };
+      const error = (e instanceof Error ? e.message : String(e)).slice(0, 400);
+      // --- inspiration --- the stills fallback: the video is still seen, and its colours measured
+      let stills = null;
+      if (origin) {
+        try {
+          stills = await fetchStills(tb, ffmpeg, meta, { name: tb.videoFileName(meta), origin });
+        } catch (s) {
+          note(`no stills of ${meta.url}: ${s instanceof Error ? s.message : String(s)}`);
+        }
+      }
+      return { meta, error, stills };
     }
   });
   const ours = [];
@@ -126,7 +140,7 @@ export async function inspireTool(tb, args) {
     }
   }
   const candidates = found.videos.map((v) => analysed.find((a) => a.meta.key === v.key)?.meta ?? v);
-  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed, ours, modes: modeIds() });
+  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed, ours, modes: modeIds(), shortForm: (args.maxDurationSec ?? tb.SHORT_MAX_SEC) <= tb.SHORT_MAX_SEC });
   const runDir = outFolder("inspiration", tb.runFolderName(at, found.query));
   const reportFile = writeFileSafe(path.join(runDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
   const markdownFile = writeFileSafe(path.join(runDir, "report.md"), tb.inspirationMarkdown(report));
@@ -148,11 +162,12 @@ export async function inspireTool(tb, args) {
     markdown: repoRelative(markdownFile),
     dataset: { file: repoRelative(datasetFile), added: appended.added, total: appended.total },
     counts: report.counts,
+    stillsOnly: report.stillsOnly,
     recommendations: report.recommendations.slice(0, 12).map((r) => ({ area: r.area, basis: r.basis, advice: r.advice, levers: r.levers })),
     patterns: report.patterns.slice(0, 8),
     themes: report.themes.slice(0, 4).map((t) => ({ label: t.label, viewShare: t.viewShare, videos: t.videos, modes: t.modes, blueprints: t.blueprints })),
-    videos: report.videos.map((v) => ({ rank: v.rank, url: v.url, title: v.title, views: v.views, viewsPerDay: v.viewsPerDay, durationSec: v.durationSec, analysed: v.analysed, sheet: v.frames?.sheet ?? null, hookSheet: v.frames?.hookSheet ?? null, ...(v.error ? { error: v.error } : {}) })),
+    videos: report.videos.map((v) => ({ rank: v.rank, url: v.url, title: v.title, views: v.views, viewsPerDay: v.viewsPerDay, durationSec: v.durationSec, analysed: v.analysed, sheet: v.frames?.sheet ?? null, hookSheet: v.frames?.hookSheet ?? null, ...(v.stills ? { stillsSheet: v.stills.sheet } : {}), ...(v.compared ? {} : { longForm: true }), ...(v.error ? { error: v.error } : {}) })),
     ...(found.errors ? { errors: found.errors } : {}),
-    note: "report.md is the readable report; look at each video's sheet.png and hook-sheet.png to see what the numbers describe.",
+    note: "report.md is the readable report; look at each video's sheet.png and hook-sheet.png (or stills-sheet.png for a video seen only through its stills) to see what the numbers describe.",
   };
 }

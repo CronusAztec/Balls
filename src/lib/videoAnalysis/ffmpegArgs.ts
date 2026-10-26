@@ -147,3 +147,29 @@ export function sheetArgs(inputNames: readonly string[], outName: string, grid: 
   const joined = `${inputNames.map((_, i) => `[c${i}]`).join("")}concat=n=${inputNames.length}:v=1:a=0,tile=${grid.cols}x${grid.rows}:padding=6:margin=6:color=0x101014[sheet]`;
   return [...QUIET, ...inputs, "-filter_complex", [...cells, joined].join(";"), "-map", "[sheet]", "-frames:v", "1", "-f", "image2", "-c:v", "png", "-n", `file:${outName}`];
 }
+
+// --- inspiration --- a video's public stills (inspire's fallback when a download is refused: lib/agentKit/videoSources.ts
+// videoStills), opened like the frames above: a bare name in the working folder, the file protocol only, image demuxers only.
+
+/** The demuxers a saved still may be opened with (the JPEG files read from the image host, the PNG files written from them). */
+export const STILL_DEMUXERS = "image2,jpeg_pipe,png_pipe";
+/** The width of a still once cropped (px). */
+export const STILL_WIDTH = 270;
+
+/**
+ * A saved still cropped, centred, to the video's shape (`aspect`: width ÷ height; the 4:3 stills letterbox a Short between
+ * black bars, which would read as a dark picture) and scaled `width` px wide, written as a PNG.
+ */
+export function stillArgs(inName: string, outName: string, aspect: number, width = STILL_WIDTH): string[] {
+  bareName(inName, "The still's file");
+  bareName(outName, "The frame's file");
+  const a = (Number.isFinite(aspect) && aspect > 0 ? Math.min(10, Math.max(0.1, aspect)) : 9 / 16).toFixed(4);
+  const crop = `crop='min(iw,ih*${a})':'min(ih,iw/${a})'`;
+  return [...QUIET, "-protocol_whitelist", "file", "-format_whitelist", STILL_DEMUXERS, "-i", `file:${inName}`, "-frames:v", "1", "-vf", `${crop},scale=${Math.max(16, Math.round(width / 2) * 2)}:-2:flags=lanczos`, "-f", "image2", "-c:v", "png", "-n", `file:${outName}`];
+}
+
+/** A cropped still (a bare PNG name) as one SAMPLE_SIDE × SAMPLE_SIDE RGB sample on stdout: its colours, measured as a video's are. */
+export function stillSampleArgs(inName: string): string[] {
+  bareName(inName, "The still's file");
+  return [...QUIET, "-protocol_whitelist", "file", "-format_whitelist", STILL_DEMUXERS, "-i", `file:${inName}`, "-frames:v", "1", "-vf", `scale=${SAMPLE_SIDE}:${SAMPLE_SIDE}:flags=area,format=rgb24`, "-f", "rawvideo", "pipe:1"];
+}

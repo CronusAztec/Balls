@@ -1,14 +1,17 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUERY, SHORT_MAX_SEC, checkQuery, checkVideoUrl, cleanText, hasNumbers, isPrivateHost, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
+import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isPrivateHost, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
 import {
   LEVERS,
   LOOP_MODES,
   MIN_VIDEOS_FOR_ADVICE,
   OUR_LOUDNESS_LUFS,
   OUR_SHORTEST_CLIP_SEC,
+  GENERIC_THEMES,
+  MIN_THEME_VIDEOS,
   THEMES,
+  TITLE_FORMATS,
   buildInspirationReport,
   clipTraits,
   datasetAppend,
@@ -20,6 +23,7 @@ import {
   recommendations,
   runFolderName,
   spearman,
+  stillsColour,
   themeShares,
   titleNumber,
   titleSummary,
@@ -27,7 +31,7 @@ import {
   topCount,
   traitSummaries,
 } from "@/lib/agentKit/inspiration";
-import { IMAGE_DEMUXERS, VIDEO_DEMUXERS, frameArgs, frameTimes, hookTimes, sheetArgs, sheetGrid } from "@/lib/videoAnalysis/ffmpegArgs";
+import { IMAGE_DEMUXERS, SAMPLE_BYTES, STILL_DEMUXERS, VIDEO_DEMUXERS, frameArgs, frameTimes, hookTimes, sheetArgs, sheetGrid, stillArgs, stillSampleArgs } from "@/lib/videoAnalysis/ffmpegArgs";
 import type { VideoFeatures } from "@/lib/videoAnalysis/features";
 import { LOUDNESS_TARGET_LUFS } from "@/lib/audio/loudness";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -351,5 +355,148 @@ describe("the report's maths (--- inspiration ---)", () => {
     const out = datasetAppend(existing, [{ key: "youtube:a" }, { key: "tiktok:b" }, { key: "tiktok:b" }, { url: "no key" }]);
     expect(out).toEqual({ lines: [JSON.stringify({ key: "tiktok:b" })], added: 1, skipped: 3, total: 3 });
     expect(datasetAppend("", [{ key: "x" }]).total).toBe(1);
+  });
+});
+
+// --- inspiration --- what the first live runs taught the tools (26 October 2026): downloads refused from a server's address
+// (stills instead), long compilations among the Shorts (compared apart), a long query without a hashtag feed (shorter tags),
+// "satisfying" in nearly every title (a theme by its lift), our renders far darker than every trending clip (the look advice)
+
+describe("the stills fallback and the report's lessons from the live runs (--- inspiration ---)", () => {
+  it("reads a YouTube video's public stills from one host only, and crops them to the video's shape", () => {
+    const short = meta(SHORTS[0], "shorts");
+    const stills = videoStills(short);
+    expect(stills.map((s) => [s.name, s.at, s.label])).toEqual([
+      ["still-0.jpg", 0, "start"],
+      ["still-1.jpg", 0.25, "25%"],
+      ["still-2.jpg", 0.5, "50%"],
+      ["still-3.jpg", 0.75, "75%"],
+      ["cover.jpg", null, "cover"],
+    ]);
+    for (const s of stills) expect(new URL(s.url).host, s.url).toBe(STILLS_HOST);
+    expect(stills[0].url).toBe(`https://i.ytimg.com/vi/${short.id}/frame0.jpg`);
+    expect(videoStills(short, "http://127.0.0.1:9/")[1].url).toBe(`http://127.0.0.1:9/vi/${short.id}/hq1.jpg`);
+    expect(videoStills(meta(TIKTOK, "url", true))).toEqual([]); // TikTok has no such host
+    expect(videoStills({ platform: "youtube", id: "../../x" })).toEqual([]);
+    expect(videoStills({ platform: "youtube", id: null })).toEqual([]);
+    expect(stillsAspect({ width: 1080, height: 1920, short: true })).toBeCloseTo(0.5625);
+    expect(stillsAspect({ width: null, height: null, short: true })).toBeCloseTo(9 / 16);
+    expect(stillsAspect({ width: null, height: null, short: false })).toBeCloseTo(16 / 9);
+    // ffmpeg opens a still as a bare local file, with image demuxers only, and crops the letterbox away
+    const crop = stillArgs("still-1.jpg", ".still-1.png.tmp.png", 9 / 16);
+    expect(crop).toEqual(expect.arrayContaining(["-protocol_whitelist", "file", "-format_whitelist", STILL_DEMUXERS, "file:still-1.jpg", "file:.still-1.png.tmp.png", "-n"]));
+    expect(crop.join(" ")).toContain("crop='min(iw,ih*0.5625)':'min(ih,iw/0.5625)'");
+    expect(STILL_DEMUXERS.split(",")).not.toContain("mov");
+    for (const bad of ["../x.jpg", "/etc/passwd", "http://x.test/a.jpg", "a/b.jpg"]) {
+      expect(() => stillArgs(bad, "out.png", 1), bad).toThrow(/bare file name/);
+      expect(() => stillSampleArgs(bad), bad).toThrow(/bare file name/);
+    }
+    expect(stillSampleArgs("still-0.png").slice(-3)).toEqual(["-f", "rawvideo", "pipe:1"]);
+  });
+
+  it("measures the stills' colours as a video's are measured, and never from the cover alone", () => {
+    const grey = new Uint8Array(SAMPLE_BYTES).fill(128);
+    const black = new Uint8Array(SAMPLE_BYTES);
+    const red = new Uint8Array(SAMPLE_BYTES).map((_, i) => (i % 3 === 0 ? 255 : 0));
+    expect(stillsColour([])).toBeNull();
+    expect(stillsColour([black, black])).toEqual({ meanLuma: 0, meanSat: 0, darkShare: 1, stills: 2 });
+    const mixed = stillsColour([grey, red])!;
+    expect(mixed.stills).toBe(2);
+    expect(mixed.meanSat).toBeCloseTo(0.5);
+    expect(mixed.darkShare).toBe(0);
+    // a video seen through its stills: its colours count, its motion and sound do not
+    const t = clipTraits(null, { durationSec: 9, width: null, height: null }, { meanLuma: 0.4, meanSat: 0.3, darkShare: 0.1, stills: 4 });
+    expect(t).toMatchObject({ durationSec: 9, meanLuma: 0.4, meanSat: 0.3, darkShare: 0.1, motion: null, hookMotion: null, bpm: null });
+    // measured features win over stills
+    expect(clipTraits(features({ durationSec: 10 }), null, { meanLuma: 0.9, meanSat: 0.9, darkShare: 0.9, stills: 4 }).meanLuma).not.toBe(0.9);
+  });
+
+  it("tries the Shorts feed of a long query's shorter hashtags, never the word shorts", () => {
+    expect(shortsFeedUrls("ball simulation")).toEqual(["https://www.youtube.com/hashtag/ballsimulation/shorts"]);
+    expect(shortsFeedUrls("satisfying physics simulation shorts")).toEqual([
+      "https://www.youtube.com/hashtag/satisfyingphysicssimulation/shorts",
+      "https://www.youtube.com/hashtag/physicssimulation/shorts",
+      "https://www.youtube.com/hashtag/satisfyingphysics/shorts",
+    ]);
+    expect(shortsFeedUrl("ball simulation #shorts")).toBe("https://www.youtube.com/hashtag/ballsimulation/shorts");
+    expect(shortsFeedUrls("shorts")).toEqual([]);
+  });
+
+  it("weighs a theme by its lift: a word in nearly every title is no advice, nor is one video", () => {
+    const v = (title: string, views: number) => ({ title, views });
+    const videos = [v("Satisfying maze run", 900), v("Satisfying maze escape", 800), v("Satisfying drop", 10), v("Satisfying drop two", 10), v("Satisfying grid", 10), v("Satisfying pile", 10), v("Glass smash", 5)];
+    const shares = themeShares(videos, MODE_IDS);
+    const by = (id: string) => shares.find((t) => t.id === id)!;
+    expect(by("satisfying")).toMatchObject({ videos: 6, videoShare: 0.857 });
+    expect(by("satisfying").lift).toBeGreaterThan(1); // the genre's word: listed, never advice
+    expect(GENERIC_THEMES).toEqual(["satisfying"]);
+    expect(by("maze")).toMatchObject({ videos: 2, videoShare: 0.286 });
+    expect(by("maze").lift).toBeGreaterThan(3);
+    expect(by("drop").lift).toBeLessThan(1); // four videos of few views
+    const recs = recommendations([], [], shares, titleSummary([], []));
+    const modes = recs.filter((r) => r.area === "mode").map((r) => r.levers.map((l) => l.name));
+    expect(modes[0]).toEqual(["maze"]);
+    expect(modes.flat()).not.toContain("drop");
+    expect(recs.find((r) => r.area === "mode")?.advice).toMatch(/holds 97% of the views with 29% of the videos \(2 videos\)/);
+    // one video's views are its own: no theme advice from it
+    expect(recommendations([], [], themeShares([v("Glass smash", 1000), v("calm", 1)], MODE_IDS), titleSummary([], [])).filter((r) => r.area === "mode")).toEqual([]);
+    expect(MIN_THEME_VIDEOS).toBe(2);
+  });
+
+  it("tells our renders to lighten up when they are far darker than every trending clip, and reads the title formats", () => {
+    const bright = (luma: number) => ({ ...features({ durationSec: 12 }), meanLuma: luma, meanSat: 0.3, darkShare: 0.05 });
+    const rows = Array.from({ length: 6 }, (_, i) => ({ metric: (6 - i) * 1000, traits: clipTraits(bright(0.4 + (i % 2) * 0.1)) }));
+    const ours = [clipTraits({ ...features({ durationSec: 12 }), meanLuma: 0.06, meanSat: 0.2, darkShare: 0.9 })];
+    const { summaries, patterns } = traitSummaries(rows, ours);
+    const look = recommendations(summaries, patterns, [], titleSummary([], [])).find((r) => r.area === "look")!;
+    expect(look.basis).toBe("gap");
+    expect(look.advice).toMatch(/lighten the picture: ours are darker than the trending clips \(brightness 0\.06 against 0\.45\)/);
+    expect(look.levers.map((l) => l.name)).toEqual(["themeId", "trailColors", "showTrails", "backgroundType"]);
+    // a picture as bright as theirs: no such clause
+    const even = traitSummaries(rows, [clipTraits(bright(0.45))]);
+    expect(recommendations(even.summaries, even.patterns, [], titleSummary([], [])).find((r) => r.area === "look")?.advice).not.toMatch(/lighten|darken/);
+    // the title formats: a question, a count, a versus, a scale stepped up, a numbered series
+    const titles = ["Will the emojis make it to the end?", "0% vs 100% Softness", "Small to Big Balls vs Lava", "Day 56 → 1K Subscribers", "20,000 balls", "Glass Pipes vs Soft Body"];
+    const summary = titleSummary(titles.map((title) => ({ title })), [6, 5, 4, 3, 2, 1]);
+    const f = (id: string) => summary.formats.find((x) => x.id === id)!;
+    expect(summary.formats.map((x) => x.id)).toEqual(TITLE_FORMATS.map((x) => x.id));
+    expect(f("question")).toMatchObject({ top: 0.5, rest: 0, all: 0.17 });
+    expect(f("versus").all).toBe(0.5);
+    expect(f("escalation").all).toBe(0.33);
+    expect(f("series").all).toBe(0.17);
+    expect(f("bigNumber").all).toBe(0.17); // "20,000 balls"; a share ("100%") is no count
+    expect(titleNumber("0% vs 100% Softness")).toBeNull();
+    const asks = recommendations([], [], [], summary).find((r) => r.area === "title" && /question/.test(r.advice));
+    expect(asks?.levers).toEqual([{ kind: "setting", name: "captions", link: "cap", value: "question at 0 s" }]);
+  });
+
+  it("compares only short-form videos in a short-form run, and says which were seen through their stills", () => {
+    const shorts = PAGES.map((p) => meta(p, "search", true)).filter((v) => v.short);
+    expect(shorts.length).toBeGreaterThanOrEqual(3);
+    const long = { ...shorts[1], key: "youtube:longcompilation", id: "longcompilat", url: "https://www.youtube.com/watch?v=longcompilat", title: "Pendulum Wave Compilation", views: 99_000_000, durationSec: 170, short: false };
+    const candidates = [long, ...shorts];
+    const analysed = [{ meta: shorts[0], error: "Sign in to confirm you're not a bot", stills: { dir: ".agent-out/frames/x", sheet: ".agent-out/frames/x/stills-sheet.png", files: [{ file: ".agent-out/frames/x/still-0.png", label: "start", at: 0 }], colour: { meanLuma: 0.5, meanSat: 0.4, darkShare: 0, stills: 4 } } }];
+    const input = { query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views" as const, candidates, analysed, ours: [], modes: [...MODE_IDS] };
+    const report = buildInspirationReport({ ...input, shortForm: true });
+    expect(report.videos[0]).toMatchObject({ key: "youtube:longcompilation", compared: false });
+    expect(report.videos.filter((v) => v.compared).map((v) => v.key)).toEqual(shorts.map((v) => v.key));
+    expect(report.themes.some((t) => t.id === "wave")).toBe(false); // the long one's theme does not count
+    expect(buildInspirationReport(input).themes.some((t) => t.id === "wave")).toBe(true);
+    expect(report.traits.find((t) => t.key === "durationSec")?.n).toBe(shorts.length);
+    expect(report.notes.join(" ")).toMatch(/1 long-form video is listed but left out of the numbers/);
+    const seen = report.videos.find((v) => v.key === shorts[0].key)!;
+    expect(seen).toMatchObject({ measured: "stills", analysed: false, traits: { meanLuma: 0.5, meanSat: 0.4 } });
+    expect(report.stillsOnly).toBe(1);
+    expect(report.notes.join(" ")).toMatch(/1 video could not be fetched and was seen through YouTube's public stills/);
+    const md = inspirationMarkdown(report);
+    expect(md).toContain("stills: `.agent-out/frames/x/stills-sheet.png`");
+    expect(md).toContain("(1 seen from stills)");
+    expect(md).toMatch(/\| 1 \(long-form\) \|/);
+    // without shortForm (a long-form run) every video counts, as before
+    expect(buildInspirationReport(input).videos.every((v) => v.compared)).toBe(true);
+    // a run with no short-form video at all compares nothing and says how to find some
+    const none = buildInspirationReport({ ...input, candidates: [long], analysed: [], shortForm: true });
+    expect(none.traits.every((t) => t.n === 0)).toBe(true);
+    expect(none.notes.join(" ")).toMatch(/No short-form video was found/);
   });
 });

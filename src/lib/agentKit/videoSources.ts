@@ -154,10 +154,33 @@ export function searchTarget(query: string, count: number): string {
   return `ytsearch${Math.max(1, Math.floor(count))}:${query}`;
 }
 
+/** --- inspiration --- The words of a query a hashtag is made of: without "shorts" (the feed is the Shorts one already). */
+const tagWords = (query: string) =>
+  query
+    .normalize("NFKC")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w && w !== "shorts" && w !== "short");
+
+const feedOf = (words: readonly string[]) => {
+  const tag = words.join("").slice(0, 100);
+  return tag ? `https://www.youtube.com/hashtag/${encodeURIComponent(tag)}/shorts` : null;
+};
+
 /** The YouTube Shorts feed of the query as a hashtag (ball simulation → #ballsimulation), null when no letter is left. */
 export function shortsFeedUrl(query: string): string | null {
-  const tag = query.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 100);
-  return tag ? `https://www.youtube.com/hashtag/${encodeURIComponent(tag)}/shorts` : null;
+  return feedOf(tagWords(query));
+}
+
+/**
+ * --- inspiration --- The Shorts feeds to try in turn, until one has videos: the whole query's hashtag, then the hashtags of
+ * its last two and its first two words (a long query is seldom a tag: "satisfying physics simulation shorts" has no feed,
+ * #physicssimulation has), at most three, none twice.
+ */
+export function shortsFeedUrls(query: string): string[] {
+  const words = tagWords(query);
+  const tries = [words, words.length > 2 ? words.slice(-2) : [], words.length > 2 ? words.slice(0, 2) : []];
+  return [...new Set(tries.map(feedOf).filter((u): u is string => u !== null))];
 }
 
 /** What every yt-dlp run starts with (see the header). */
@@ -441,4 +464,48 @@ export function rankVideos(videos: readonly VideoMeta[], opt: RankOptions): Rank
   });
   const limit = Math.max(1, Math.floor(opt.limit));
   return { videos: kept.slice(0, limit), dropped: { duplicates, belowMinViews, overMaxDuration, pastLimit: Math.max(0, kept.length - limit) } };
+}
+
+/*
+ * --- inspiration --- A YouTube video's public stills, for when its download is refused (YouTube asks a server's address to
+ * sign in, TikTok blocks it): YouTube's image host serves every video's opening frame, three frames at about a quarter, half
+ * and three quarters of it, and its cover, to anyone without the player. inspire saves them (scripts/agent/stills.mjs), so a
+ * video that cannot be fetched is still seen on a contact sheet and its colours are measured. Only that one host is read.
+ */
+
+/** The only host stills are read from. */
+export const STILLS_HOST = "i.ytimg.com";
+
+export interface VideoStill {
+  /** The bare file name it is saved as. */
+  name: string;
+  /** Where in the video it was taken (0–1); null for the cover, which the creator chose and need not be a moment of it. */
+  at: number | null;
+  label: string;
+  url: string;
+}
+
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * The stills of a video: a YouTube video's opening frame (frame0), its frames at about 25, 50 and 75% (hq1–hq3, letterboxed
+ * into 4:3) and its cover (oardefault, the portrait one of a Short); none for another platform or an id that is not
+ * YouTube's 11 characters. `origin` stands for https://i.ytimg.com (the tests' local server).
+ */
+export function videoStills(meta: Pick<VideoMeta, "platform" | "id">, origin = `https://${STILLS_HOST}`): VideoStill[] {
+  if (meta.platform !== "youtube" || !meta.id || !YOUTUBE_ID.test(meta.id)) return [];
+  const base = `${origin.replace(/\/+$/, "")}/vi/${meta.id}`;
+  return [
+    { name: "still-0.jpg", at: 0, label: "start", url: `${base}/frame0.jpg` },
+    { name: "still-1.jpg", at: 0.25, label: "25%", url: `${base}/hq1.jpg` },
+    { name: "still-2.jpg", at: 0.5, label: "50%", url: `${base}/hq2.jpg` },
+    { name: "still-3.jpg", at: 0.75, label: "75%", url: `${base}/hq3.jpg` },
+    { name: "cover.jpg", at: null, label: "cover", url: `${base}/oardefault.jpg` },
+  ];
+}
+
+/** The shape (width ÷ height) a video's stills are cropped to: the video's own, else 9:16 for short-form and 16:9 for the rest. */
+export function stillsAspect(meta: Pick<VideoMeta, "width" | "height" | "short">): number {
+  if (meta.width && meta.height && meta.width > 0 && meta.height > 0) return meta.width / meta.height;
+  return meta.short ? 9 / 16 : 16 / 9;
 }

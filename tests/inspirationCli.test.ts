@@ -1,4 +1,4 @@
-import { spawnSync } from "child_process";
+import { spawn, spawnSync, type ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -94,6 +94,14 @@ const LOG = path.join(TEST_DIR, "ytdlp.log");
 const CLIP = path.join(TEST_DIR, "clip.mp4");
 const QUERY = `ball simulation test ${process.pid}`;
 const DATASET = `test-${process.pid}`;
+// --- inspiration --- the stills fallback reads a stand-in for YouTube's image host (tests/fixtures/stills-server.mjs)
+const STILLS_SERVER = path.join(ROOT, "tests", "fixtures", "stills-server.mjs");
+const STILLS_DIR = path.join(TEST_DIR, "stills");
+const STILLS_LOG = path.join(TEST_DIR, "stills.log");
+/** Where stills are read from: the stand-in once it runs, else a port nothing listens on (never the network). */
+let stillsOrigin = "http://127.0.0.1:9";
+let stillsServer: ChildProcess | null = null;
+const stillRequests = () => (fs.existsSync(STILLS_LOG) ? fs.readFileSync(STILLS_LOG, "utf8").trim().split("\n").filter(Boolean) : []);
 /** What these tests write outside their own folder: moved aside first, put back after. */
 const FIXTURE_NAMES = [...[...SEARCH, ...SHORTS, ...PAGES].map((r) => `youtube-${r.id}`), `tiktok-${TIKTOK.id}`];
 const touched = () => [
@@ -106,7 +114,7 @@ const touched = () => [
 const moved: [string, string][] = [];
 
 function agent(tool: string, args: unknown, env: Record<string, string> = {}) {
-  const base: NodeJS.ProcessEnv = { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_YTDLP_LOG: LOG, FAKE_YTDLP_CLIP: CLIP, ...env };
+  const base: NodeJS.ProcessEnv = { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_YTDLP_LOG: LOG, FAKE_YTDLP_CLIP: CLIP, JBL_STILLS_ORIGIN: stillsOrigin, ...env };
   if (!("JBL_YTDLP" in env)) delete base.JBL_YTDLP;
   const r = spawnSync(process.execPath, [CLI, tool, "--json", JSON.stringify(args)], { cwd: ROOT, env: base, encoding: "utf8", timeout: 240_000 });
   const last = r.stdout.trim().split("\n").pop() ?? "";
@@ -116,7 +124,7 @@ const calls = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").trim().sp
 
 describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)", () => {
   const ffmpeg = resolveFfmpeg();
-  beforeAll(() => {
+  beforeAll(async () => {
     fs.mkdirSync(BIN, { recursive: true });
     fs.mkdirSync(path.join(TEST_DIR, "backup"), { recursive: true });
     fs.writeFileSync(path.join(BIN, "yt-dlp"), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE)} "$@"\n`, { mode: 0o755 });
@@ -130,9 +138,22 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     if (ffmpeg) {
       const make = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=180x320:r=30:d=6", "-f", "lavfi", "-i", "sine=frequency=880:beep_factor=4:d=6", "-c:v", "mpeg4", "-q:v", "4", "-c:a", "aac", "-shortest", CLIP], { encoding: "utf8", timeout: 60_000 });
       if (make.status !== 0) throw new Error(make.stderr);
+      // --- inspiration --- the stills the stand-in serves: the opening frame in the Short's shape, three letterboxed 4:3 ones, no cover
+      fs.mkdirSync(STILLS_DIR, { recursive: true });
+      for (const [name, size] of [["frame0", "270x480"], ["hq1", "480x360"], ["hq2", "480x360"], ["hq3", "480x360"]]) {
+        const still = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `testsrc2=s=${size}:d=1`, "-frames:v", "1", path.join(STILLS_DIR, `${name}.jpg`)], { encoding: "utf8", timeout: 60_000 });
+        if (still.status !== 0) throw new Error(still.stderr);
+      }
+      stillsServer = spawn(process.execPath, [STILLS_SERVER, STILLS_DIR, STILLS_LOG], { stdio: ["ignore", "pipe", "inherit"] });
+      const port = await new Promise<string>((resolve, reject) => {
+        stillsServer!.stdout!.once("data", (c: Buffer) => resolve(c.toString().trim()));
+        stillsServer!.once("exit", (code) => reject(new Error(`the stills stand-in exited (${code})`)));
+      });
+      stillsOrigin = `http://127.0.0.1:${port}`;
     }
   });
   afterAll(() => {
+    stillsServer?.kill();
     for (const p of touched()) fs.rmSync(p, { recursive: true, force: true });
     for (const [p, aside] of moved) fs.renameSync(aside, p);
     fs.rmSync(TEST_DIR, { recursive: true, force: true });
@@ -249,5 +270,34 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(line.features.motion).toBeUndefined();
     // a second run adds nothing it already holds
     expect(agent("inspire", { ...args, frames: false }).json.result.dataset).toEqual({ file: `.agent-out/inspiration/${DATASET}.jsonl`, added: 0, total: 1 });
+  }, 240_000);
+
+  // --- inspiration --- the stills fallback, read from the stand-in for YouTube's image host
+  it("sees a video it cannot fetch through its public stills: a stills sheet, their colours, only that host and only that video's paths", () => {
+    if (!resolveFfmpeg()) return;
+    const before = stillRequests().length;
+    const args = { query: QUERY, limit: 6, top: 2, oursMax: 0, dataset: DATASET, frames: false };
+    const r = agent("inspire", args);
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    const res = r.json.result;
+    expect(res.stillsOnly).toBe(1);
+    expect(res.videos[1]).toMatchObject({ url: "https://www.youtube.com/shorts/o-DtHwlRIqU", analysed: false, stillsSheet: ".agent-out/frames/youtube-o-DtHwlRIqU/stills-sheet.png", error: expect.stringMatching(/Video unavailable/) });
+    const sheet = path.join(ROOT, res.videos[1].stillsSheet);
+    expect(fs.readFileSync(sheet).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    const report = JSON.parse(fs.readFileSync(path.join(ROOT, res.report), "utf8"));
+    const seen = report.videos.find((v: { key: string }) => v.key === "youtube:o-DtHwlRIqU");
+    expect(seen).toMatchObject({ measured: "stills", stills: { colour: { stills: 4 } } });
+    expect(seen.stills.files.map((f: { label: string }) => f.label)).toEqual(["start", "25%", "50%", "75%"]); // no cover: the host has none
+    expect(seen.traits.meanLuma).toBeGreaterThan(0);
+    expect(fs.readFileSync(path.join(ROOT, res.markdown), "utf8")).toContain("(1 seen from stills)");
+    const asked = stillRequests().slice(before);
+    expect([...asked].sort()).toEqual(["frame0", "hq1", "hq2", "hq3", "oardefault"].map((n) => `/vi/o-DtHwlRIqU/${n}.jpg`));
+    // stills false: none read; a stills host that is not this machine: refused before anything runs
+    const quiet = agent("inspire", { ...args, stills: false });
+    expect(quiet.json.result.stillsOnly).toBe(0);
+    expect(stillRequests().length).toBe(before + asked.length);
+    const elsewhere = agent("inspire", args, { JBL_STILLS_ORIGIN: "https://example.com" });
+    expect(elsewhere.code).toBe(1);
+    expect(elsewhere.json.error).toMatch(/JBL_STILLS_ORIGIN may only name a server on this machine/);
   }, 240_000);
 });

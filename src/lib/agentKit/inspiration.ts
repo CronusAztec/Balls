@@ -1,4 +1,4 @@
-import type { VideoFeatures } from "@/lib/videoAnalysis/features";
+import { pictureFeatures, type VideoFeatures } from "@/lib/videoAnalysis/features";
 import type { SortBy, VideoMeta } from "./videoSources";
 
 /*
@@ -31,6 +31,12 @@ export const OUR_LOUDNESS_LUFS = -14;
 export const OUR_SHORTEST_CLIP_SEC = 10;
 /** A trait turns into advice only when at least this many videos have it (one or two videos are an anecdote). */
 export const MIN_VIDEOS_FOR_ADVICE = 3;
+/** --- inspiration --- How a short-form run names the longest short-form video (videoSources.ts SHORT_MAX_SEC). */
+const SHORT_FORM_LABEL = "3 minutes";
+/** --- inspiration --- A theme turns into advice only from this many videos (one video's views are its own, not its theme's). */
+export const MIN_THEME_VIDEOS = 2;
+/** --- inspiration --- Themes that name the genre, not a mechanic: listed with the others, never advice. */
+export const GENERIC_THEMES: readonly string[] = ["satisfying"];
 
 /** The settings an advice names, with their link keys (tests/inspiration.test.ts checks each against lib/settings.ts). */
 export const LEVERS = {
@@ -79,6 +85,8 @@ export const THEMES: readonly Theme[] = [
   { id: "colour", label: "colours and painting", words: ["color", "colors", "colour", "colours", "colorful", "colourful", "rainbow", "paint", "painting", "fill", "fills"], modes: ["paint", "territory", "colourSort", "landClaim", "colorMatch"], blueprints: ["conquer"], mechanic: "a colour change on every hit: wallHit → recolor next" },
   { id: "merge", label: "merging", words: ["merge", "merges", "merging", "fuse", "fusion", "combine", "2048", "suika", "watermelon"], modes: ["mergeRing"], blueprints: ["tierClimb"], mechanic: "two of a tier merge: ballHit with sameTier → merge (Tier Climb)" },
   { id: "maze", label: "mazes", words: ["maze", "mazes", "labyrinth"], modes: ["maze"], blueprints: [], mechanic: null },
+  // --- inspiration --- balls poured into a grid or a pile (the 3D "ball drop into grid" Shorts of October 2026)
+  { id: "drop", label: "drops and piles", words: ["drop", "drops", "dropping", "fall", "falls", "falling", "pour", "pouring", "pile", "grid", "grids", "stack", "stacking"], modes: ["drop", "conveyor", "accumulation", "perfectFit", "multipliers"], blueprints: [], mechanic: null },
   { id: "string", label: "strings and drawings", words: ["string", "strings", "lines", "line", "art", "drawing", "draw", "draws", "spirograph", "geometry", "star", "stars"], modes: ["lines", "stringBattle", "starChords", "drawingMachine", "illusion"], blueprints: [], mechanic: null },
   { id: "spiral", label: "spirals and spinning", words: ["spiral", "vortex", "hole", "whirlpool", "spin", "spinning", "rotating", "hoop", "hoops"], modes: ["vortex", "spiralGlass", "hoops"], blueprints: [], mechanic: null },
   { id: "loop", label: "loops", words: ["loop", "looping", "loops", "infinite", "forever", "endless"], modes: LOOP_MODES, blueprints: [], mechanic: null },
@@ -187,9 +195,31 @@ export function spearman(xs: readonly number[], ys: readonly number[]): number |
   return round(sxy / Math.sqrt(sxx * syy), 3);
 }
 
-/** A video's traits: its measured features where there are some, else what its page says (length, picture shape). */
-export function clipTraits(features: VideoFeatures | null, meta?: Pick<VideoMeta, "durationSec" | "width" | "height"> | null): ClipTraits {
+/** --- inspiration --- A video's colours measured on its public stills (the stills fallback: scripts/agent/stills.mjs). */
+export interface StillsColour {
+  meanLuma: number;
+  meanSat: number;
+  darkShare: number;
+  /** The stills measured (the moments of the video, never the cover). */
+  stills: number;
+}
+
+/** The colours of a video's stills (16 × 16 RGB samples, as the analyser measures a video's): null without one. */
+export function stillsColour(samples: readonly Uint8Array[]): StillsColour | null {
+  const frames = samples.filter((s) => s.length > 0);
+  if (!frames.length) return null;
+  const p = pictureFeatures(frames, 1);
+  if (p.meanLuma === null || p.meanSat === null || p.darkShare === null) return null;
+  return { meanLuma: p.meanLuma, meanSat: p.meanSat, darkShare: p.darkShare, stills: frames.length };
+}
+
+/**
+ * A video's traits: its measured features where there are some, else what its page says (length, picture shape) and, for a
+ * video seen only through its stills, their colours.
+ */
+export function clipTraits(features: VideoFeatures | null, meta?: Pick<VideoMeta, "durationSec" | "width" | "height"> | null, colour?: StillsColour | null): ClipTraits {
   const f = features;
+  const c = f ? null : (colour ?? null);
   const width = f?.width ?? meta?.width ?? null;
   const height = f?.height ?? meta?.height ?? null;
   let motion: number | null = null;
@@ -209,9 +239,9 @@ export function clipTraits(features: VideoFeatures | null, meta?: Pick<VideoMeta
     hookLift: motion !== null && hookMotion !== null && motion > 0 ? round(hookMotion / motion, 3) : null,
     firstMotionSec: f?.firstMotionSec ?? null,
     peakMotionPos: f?.peakMotionPos ?? null,
-    meanLuma: f?.meanLuma ?? null,
-    meanSat: f?.meanSat ?? null,
-    darkShare: f?.darkShare ?? null,
+    meanLuma: f?.meanLuma ?? c?.meanLuma ?? null,
+    meanSat: f?.meanSat ?? c?.meanSat ?? null,
+    darkShare: f?.darkShare ?? c?.darkShare ?? null,
     loopSeamDiff: f?.loopSeamDiff ?? null,
     lufs: f?.lufs ?? null,
     bpm: bpmSure ? (f?.bpm ?? null) : null,
@@ -309,6 +339,7 @@ export function titleNumber(title: string | null): number | null {
   let best: number | null = null;
   for (const m of title.matchAll(/\d{1,3}(?:[,.\s]\d{3})+|\d+/g)) {
     if (/^(19|20)\d\d$/.test(m[0])) continue;
+    if (/^\s*%/.test(title.slice((m.index ?? 0) + m[0].length))) continue; // --- inspiration --- a share ("0% vs 100%") is no count
     const n = Number(m[0].replace(/[,.\s]/g, ""));
     if (Number.isFinite(n) && (best === null || n > best)) best = n;
   }
@@ -327,6 +358,9 @@ export interface ThemeShare {
   videos: number;
   /** The theme's share of all the views in the list (0–1). */
   viewShare: number;
+  /** --- inspiration --- Its share of the videos (0–1), and of the views per share of the videos: above 1 its videos do better than the list's average. */
+  videoShare: number;
+  lift: number;
   modes: string[];
   blueprints: string[];
   mechanic: string | null;
@@ -339,7 +373,9 @@ export function themeShares(videos: readonly Pick<VideoMeta, "title" | "views">[
   return THEMES.map((t) => {
     const hits = videos.filter((v) => inTheme(t, v.title));
     const views = hits.reduce((s, v) => s + (v.views ?? 0), 0);
-    return { id: t.id, label: t.label, videos: hits.length, viewShare: total > 0 ? round(views / total, 3) : 0, modes: t.modes.filter((m) => known.has(m)), blueprints: [...t.blueprints], mechanic: t.mechanic };
+    const viewShare = total > 0 ? views / total : 0;
+    const videoShare = videos.length ? hits.length / videos.length : 0;
+    return { id: t.id, label: t.label, videos: hits.length, viewShare: round(viewShare, 3), videoShare: round(videoShare, 3), lift: videoShare > 0 ? round(viewShare / videoShare, 2) : 0, modes: t.modes.filter((m) => known.has(m)), blueprints: [...t.blueprints], mechanic: t.mechanic };
   })
     .filter((t) => t.videos > 0)
     .sort((a, b) => b.viewShare - a.viewShare || b.videos - a.videos || (a.id < b.id ? -1 : 1));
@@ -352,7 +388,18 @@ export interface TitleSummary {
   bigNumber: { top: number | null; rest: number | null };
   /** Share of titles asking a question. */
   question: { top: number | null; rest: number | null };
+  /** --- inspiration --- Every title format (TITLE_FORMATS): its share of the top third's titles, the rest's and all of them. */
+  formats: { id: string; label: string; top: number | null; rest: number | null; all: number | null }[];
 }
+
+/** --- inspiration --- The title formats trending videos use, each a test on the title. */
+export const TITLE_FORMATS: readonly { id: string; label: string; test: (title: string) => boolean }[] = [
+  { id: "question", label: "a question", test: (t) => t.includes("?") },
+  { id: "bigNumber", label: "a count of 100 or more", test: (t) => (titleNumber(t) ?? 0) >= 100 },
+  { id: "versus", label: "a versus (A vs B)", test: (t) => /(^|[^\p{L}])(vs\.?|versus)([^\p{L}]|$)/iu.test(t) },
+  { id: "escalation", label: "a scale stepped up (0% vs 100%, small to big)", test: (t) => /\d+\s*%\s*(vs\.?|to|→|->)\s*\d+\s*%|\b(small|low|slow|weak|tiny)\s+(to|vs\.?|&)\s+(big|high|fast|strong|giant|huge)\b|\bbig\s*&\s*small\b|\blevel\s*\d+/iu.test(t) },
+  { id: "series", label: "a numbered series (Day 12, Part 3)", test: (t) => /\b(day|part|ep|episode)\s*\d+/iu.test(t) },
+];
 
 /** What the titles of the most viewed say, against the rest (the list sorted by `metric`, most first). */
 export function titleSummary(videos: readonly Pick<VideoMeta, "title">[], metric: readonly number[]): TitleSummary {
@@ -373,6 +420,10 @@ export function titleSummary(videos: readonly Pick<VideoMeta, "title">[], metric
       .map(([word, videos]) => ({ word, videos })),
     bigNumber: { top: share(top, big), rest: share(rest, big) },
     question: { top: share(top, asks), rest: share(rest, asks) },
+    formats: TITLE_FORMATS.map((f) => {
+      const test = (t: string | null) => !!t && f.test(t);
+      return { id: f.id, label: f.label, top: share(top, test), rest: share(rest, test), all: share([...top, ...rest], test) };
+    }),
   };
 }
 
@@ -402,7 +453,7 @@ function weigh(s: TraitSummary | undefined, patterns: readonly Pattern[], spec: 
   const pattern = patterns.find((p) => p.key === s.key);
   const gap = s.ours !== null && Math.abs(s.ours - s.top) >= spec.step;
   const parts = [`most viewed ${fmt(spec, s.top)}`, s.rest !== null ? `rest ${fmt(spec, s.rest)}` : null, s.rho !== null ? `ρ ${s.rho > 0 ? "+" : ""}${s.rho} (n ${s.n})` : `n ${s.n}`, s.ours !== null ? `ours ${fmt(spec, s.ours)}` : null];
-  return { top: s.top, ours: s.ours, gap, evidence: parts.filter(Boolean).join(", "), basis: (gap ? "gap" : pattern ? "pattern" : "benchmark") as Recommendation["basis"], pattern };
+  return { top: s.top, all: s.all, ours: s.ours, gap, evidence: parts.filter(Boolean).join(", "), basis: (gap ? "gap" : pattern ? "pattern" : "benchmark") as Recommendation["basis"], pattern };
 }
 
 /** The recommendations: each measured trait's benchmark turned into our levers, then the themes' modes and mechanics. */
@@ -445,15 +496,21 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
 
   const sat = w("meanSat");
   const dark = w("darkShare");
-  if (sat || dark) {
+  const luma = w("meanLuma");
+  if (sat || dark || luma) {
     const vivid = sat !== null && sat.top >= 0.45;
     const darkBg = dark !== null && dark.top >= 0.4;
+    // --- inspiration --- our renders against the trending clips as a whole: brightness seldom separates the most viewed, but
+    // a picture far darker (or brighter) than all of them is a gap worth a test (two steps of brightness: 0.1 on 0–1)
+    const step = spec("meanLuma")?.step ?? 0.05;
+    const tone = luma && luma.ours !== null && luma.all !== null ? (luma.ours < luma.all - 2 * step ? "darker" : luma.ours > luma.all + 2 * step ? "brighter" : null) : null;
+    const toneAdvice = tone && luma ? `, and ${tone === "darker" ? "lighten" : "darken"} the picture: ours are ${tone} than the trending clips (brightness ${round(luma.ours as number, 2)} against ${round(luma.all as number, 2)}), so try ${tone === "darker" ? "a light theme or a gradient background" : "a dark theme"} on a few renders` : "";
     out.push({
       area: "look",
-      advice: `${vivid ? "Use saturated colours (rainbow trails, a vivid theme)" : "Keep the colours calm (a muted theme)"}${darkBg ? " on a dark background" : dark ? " on a light or mid background" : ""}.`,
+      advice: `${vivid ? "Use saturated colours (rainbow trails, a vivid theme)" : "Keep the colours calm (a muted theme)"}${toneAdvice || (darkBg ? " on a dark background" : dark ? " on a light or mid background" : "")}.`,
       levers: [setting("theme"), setting("trailColors"), setting("trails", true), setting("backgroundType")],
-      evidence: [sat?.evidence, dark?.evidence].filter(Boolean).join("; "),
-      basis: sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern ? "pattern" : "benchmark",
+      evidence: [sat?.evidence, dark?.evidence, luma ? `brightness: ${luma.evidence}${luma.all !== null ? `, all ${round(luma.all, 2)}` : ""}` : null].filter(Boolean).join("; "),
+      basis: tone || sat?.basis === "gap" || dark?.basis === "gap" ? "gap" : sat?.pattern || dark?.pattern || luma?.pattern ? "pattern" : "benchmark",
     });
   }
 
@@ -475,9 +532,16 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
   if (titles.bigNumber.top !== null && titles.bigNumber.top >= 0.5 && (titles.bigNumber.rest === null || titles.bigNumber.top > titles.bigNumber.rest))
     out.push({ area: "title", advice: "Count something big in the title and on screen (\"20,000 balls\"): a ball counter caption and a mode where the count climbs.", levers: [setting("captions", "wallCounter"), { kind: "mode", name: "multiply" }, { kind: "mode", name: "multipliers" }], evidence: `titles with a number of 100 or more: most viewed ${titles.bigNumber.top}, rest ${titles.bigNumber.rest ?? "–"}`, basis: "pattern" });
 
-  for (const t of themes.slice(0, 3)) {
+  // --- inspiration --- a question in the title: the comment bait the playbook's cliffhangers are made of
+  if (titles.question.top !== null && titles.question.top >= 0.34 && (titles.question.rest === null || titles.question.top > titles.question.rest))
+    out.push({ area: "title", advice: 'Ask what the viewer waits to see, in the title and in a question caption at 0 s ("Will the last ball get out?").', levers: [setting("captions", "question at 0 s")], evidence: `titles asking a question: most viewed ${titles.question.top}, rest ${titles.question.rest ?? "–"}`, basis: "pattern" });
+
+  // --- inspiration --- a theme is advice only when its videos do better than the list's average (lift 1 or more), it is more
+  // than one video and it names a mechanic: "satisfying" is in most titles of the genre and says nothing about what earns
+  // the views
+  for (const t of themes.filter((x) => x.videos >= MIN_THEME_VIDEOS && x.lift >= 1 && !GENERIC_THEMES.includes(x.id)).slice(0, 3)) {
     const videos = `${t.videos} video${t.videos === 1 ? "" : "s"}`;
-    out.push({ area: "mode", advice: `"${t.label}" holds ${Math.round(t.viewShare * 100)}% of the views (${videos}): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}`, basis: "theme" });
+    out.push({ area: "mode", advice: `"${t.label}" holds ${Math.round(t.viewShare * 100)}% of the views with ${Math.round(t.videoShare * 100)}% of the videos (${videos}): play it with ${t.modes.length ? t.modes.join(", ") : "a Blueprint"}.`, levers: t.modes.map((m) => ({ kind: "mode" as const, name: m })), evidence: `theme words in the titles of ${videos}`, basis: "theme" });
     if (t.mechanic) out.push({ area: "blueprint", advice: `As a Blueprint: ${t.mechanic}. Check it with bp-check until it is playable.`, levers: [...t.blueprints.map((b) => ({ kind: "blueprint" as const, name: b })), { kind: "tool", name: "bp-check" }], evidence: `theme "${t.label}"`, basis: "theme" });
   }
   const order: Record<Recommendation["basis"], number> = { gap: 0, pattern: 1, benchmark: 2, theme: 3 };
@@ -492,6 +556,16 @@ export interface AnalysedVideo {
   /** Repository-relative paths of the frames tool's contact sheets. */
   frames?: { dir: string; sheet: string | null; hookSheet: string | null } | null;
   error?: string | null;
+  /** --- inspiration --- Its public stills, when the video itself could not be fetched (scripts/agent/stills.mjs). */
+  stills?: VideoStills | null;
+}
+
+/** --- inspiration --- A video's stills as saved: their folder, their contact sheet, each still and their colours. */
+export interface VideoStills {
+  dir: string;
+  sheet: string | null;
+  files: { file: string; label: string; at: number | null }[];
+  colour: StillsColour | null;
 }
 
 export interface OwnClip {
@@ -511,6 +585,11 @@ export interface InspirationInput {
   ours: readonly OwnClip[];
   /** The site's mode ids (a theme names only modes that exist). */
   modes: readonly string[];
+  /**
+   * --- inspiration --- A short-form run (inspire's maxDurationSec at most SHORT_MAX_SEC): only the short-form videos are
+   * compared, as our clips are short-form; a long compilation is another format, listed but left out of the numbers.
+   */
+  shortForm?: boolean;
 }
 
 export interface ReportVideo {
@@ -532,6 +611,11 @@ export interface ReportVideo {
   file: string | null;
   frames: AnalysedVideo["frames"];
   error: string | null;
+  /** --- inspiration --- What its picture traits come from: the video, its public stills (colours only), or its page alone. */
+  measured: "video" | "stills" | "page";
+  stills: VideoStills | null;
+  /** --- inspiration --- Whether it counts in the traits, patterns, titles and themes (a short-form run leaves long-form videos out). */
+  compared: boolean;
   traits: ClipTraits;
 }
 
@@ -541,6 +625,8 @@ export interface InspirationReport {
   at: string;
   metric: SortBy;
   counts: { candidates: number; analysed: number; failed: number; ours: number };
+  /** --- inspiration --- Videos seen only through their public stills (fetching them failed). */
+  stillsOnly: number;
   videos: ReportVideo[];
   traits: TraitSummary[];
   patterns: Pattern[];
@@ -561,6 +647,7 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
   const videos: ReportVideo[] = all.map((meta, i) => {
     const a = analysedByKey.get(meta.key);
     const features = a?.features ?? null;
+    const stills = features ? null : (a?.stills ?? null);
     return {
       rank: i + 1,
       key: meta.key,
@@ -580,31 +667,42 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
       file: a?.file ?? null,
       frames: a?.frames ?? null,
       error: a?.error ?? null,
-      traits: clipTraits(features, meta),
+      measured: features ? "video" : stills ? "stills" : "page",
+      stills,
+      compared: !input.shortForm || meta.short,
+      traits: clipTraits(features, meta, stills?.colour),
     };
   });
-  const rows: MetricRow[] = videos.flatMap((v) => {
+  const compared = videos.filter((v) => v.compared);
+  const rows: MetricRow[] = compared.flatMap((v) => {
     const m = metricOf(v, input.sortBy);
     return m === null ? [] : [{ metric: m, traits: v.traits }];
   });
   const oursTraits = input.ours.map((o) => clipTraits(o.features));
   const { summaries, patterns } = traitSummaries(rows, oursTraits);
-  const titled = videos.filter((v) => metricOf(v, input.sortBy) !== null);
+  const titled = compared.filter((v) => metricOf(v, input.sortBy) !== null);
   const titles = titleSummary(titled, titled.map((v) => metricOf(v, input.sortBy) as number));
-  const themes = themeShares(videos, input.modes);
+  const themes = themeShares(compared, input.modes);
   const analysedCount = videos.filter((v) => v.analysed).length;
+  const stillsOnly = videos.filter((v) => v.measured === "stills").length;
   const notes = [
     `Groups: the top third by ${input.sortBy === "viewsPerDay" ? "views per day" : "views"} against the rest, per trait over the videos that have it; ρ is Spearman's rank correlation with the same metric.`,
     "A handful of videos shows tendencies, not laws: test a recommendation on a few renders before making it a default.",
     "Titles and channel names are other creators' text, counted here as data.",
   ];
   if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(`Only ${analysedCount} video${analysedCount === 1 ? " was" : "s were"} measured: the picture and sound traits need at least ${MIN_VIDEOS_FOR_ADVICE} for advice or a pattern (the length comes from the pages).`);
+  // --- inspiration --- a short-form run compares short-form videos only
+  const longForm = videos.length - compared.length;
+  if (longForm) notes.push(compared.length ? `${longForm} long-form video${longForm === 1 ? " is" : "s are"} listed but left out of the numbers (landscape, longer than ${SHORT_FORM_LABEL} or not a Short): our clips are short-form.` : `No short-form video was found, so nothing is compared: try a shorter query with a hashtag feed (ball simulation, physics simulation) or give TikTok, Instagram or YouTube Shorts links.`);
+  // --- inspiration --- the stills fallback
+  if (stillsOnly) notes.push(`${stillsOnly} video${stillsOnly === 1 ? "" : "s"} could not be fetched and ${stillsOnly === 1 ? "was" : "were"} seen through YouTube's public stills (the opening frame, 25%, 50%, 75% and the cover): their brightness, saturation and dark share come from those four moments, not the whole video, and their stills-sheet.png shows them.`);
   return {
     v: INSPIRATION_VERSION,
     query: input.query,
     at: input.at,
     metric: input.sortBy,
     counts: { candidates: all.length, analysed: analysedCount, failed: input.analysed.filter((a) => !a.features).length, ours: input.ours.length },
+    stillsOnly,
     videos,
     traits: summaries,
     patterns,
@@ -629,7 +727,7 @@ const n = (v: number | null, digits = 0) => (v === null ? "–" : round(v, digit
 export function inspirationMarkdown(r: InspirationReport): string {
   const lines: string[] = [];
   lines.push(`# Inspiration: ${mdText(r.query ?? "given links", 120)}`, "");
-  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
+  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched${r.stillsOnly ? ` (${r.stillsOnly} seen from stills)` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
   lines.push("## Recommendations", "");
   for (const rec of r.recommendations) {
     const levers = rec.levers.map((l) => (l.kind === "setting" ? `${l.name} (\`${l.link}\`${l.value !== undefined ? ` ${l.value}` : ""})` : `${l.kind} ${l.name}`)).join(", ");
@@ -641,12 +739,12 @@ export function inspirationMarkdown(r: InspirationReport): string {
   lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | n |", "| --- | --- | --- | --- | --- | --- | --- |");
   for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.n} |`);
   lines.push("", "## Themes", "");
-  for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}: ${Math.round(t.viewShare * 100)}% of the views, ${t.videos} video${t.videos === 1 ? "" : "s"}. Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
+  for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}: ${Math.round(t.viewShare * 100)}% of the views, ${t.videos} video${t.videos === 1 ? "" : "s"} (${Math.round(t.videoShare * 100)}% of them, lift ${t.lift}). Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
   if (r.titles.topWords.length) lines.push("", `Words of the most viewed titles: ${r.titles.topWords.map((w) => `${mdText(w.word, 30)} (${w.videos})`).join(", ")}.`);
   lines.push("", "## Videos", "", "| # | Views | Views/day | Length | Cuts/min | Hook motion | Tempo | Title | Link | Sheet |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const v of r.videos) {
-    const sheet = v.frames?.sheet ? `\`${v.frames.sheet}\`` : v.error ? `not fetched: ${mdText(v.error, 60)}` : "–";
-    lines.push(`| ${v.rank} | ${n(v.views)} | ${n(v.viewsPerDay)} | ${v.durationSec === null ? "–" : `${round(v.durationSec, 1)} s`} | ${n(v.traits.cutsPerMin, 1)} | ${n(v.traits.hookMotion, 3)} | ${n(v.traits.bpm)} | ${mdText(v.title, 60)} | <${v.url}> | ${sheet} |`);
+    const sheet = v.frames?.sheet ? `\`${v.frames.sheet}\`` : v.stills?.sheet ? `stills: \`${v.stills.sheet}\`` : v.error ? `not fetched: ${mdText(v.error, 60)}` : "–";
+    lines.push(`| ${v.rank}${v.compared ? "" : " (long-form)"} | ${n(v.views)} | ${n(v.viewsPerDay)} | ${v.durationSec === null ? "–" : `${round(v.durationSec, 1)} s`} | ${n(v.traits.cutsPerMin, 1)} | ${n(v.traits.hookMotion, 3)} | ${n(v.traits.bpm)} | ${mdText(v.title, 60)} | <${v.url}> | ${sheet} |`);
   }
   if (r.ours) lines.push("", "## Our renders", "", ...r.ours.files.map((f) => `- \`${f}\``));
   lines.push("", "## Notes", "", ...r.notes.map((x) => `- ${x}`), "");

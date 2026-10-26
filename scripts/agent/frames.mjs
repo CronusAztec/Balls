@@ -20,7 +20,7 @@ const PASSES = 4;
 const fresh = (name) => `.${name}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.png`;
 
 /** One PNG written by ffmpeg (args built for `tmpName`) and renamed to `name` in `dir`; false when ffmpeg wrote nothing. */
-async function writePng(ffmpeg, dir, name, makeArgs) {
+export async function writePng(ffmpeg, dir, name, makeArgs) {
   const tmpName = fresh(name);
   const tmp = path.join(dir, tmpName);
   try {
