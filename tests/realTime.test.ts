@@ -83,6 +83,37 @@ function playDisplay(seconds: number, paintCpuMs: number, tick: (nowMs: number, 
   return { draws, steps, gaps, maxGap: Math.max(...gaps), firstMs: vsyncAt(0), lastMs: last };
 }
 
+/**
+ * --- review fix --- The old loop (Slow motion on: Canvas.tsx draw(), and a race's arenas) on `playDisplay`: every callback a
+ * drawn frame (a 160 ms frame is always due), fed the wall time since the last one, at most 100 ms × `speed`, into an
+ * accumulator of at most 250 ms that runs a step each 16.666 ms – with the frame budget of No limits (`budget`) a frame stops
+ * after the step that spent 12 ms. `arenas` steps each arena in turn. Returns each arena's steps.
+ */
+function oldLoop(stepCpuMs: number, opts: { budget?: boolean; speed?: number; arenas?: number } = {}) {
+  const arenas = opts.arenas ?? 1;
+  const acc = new Array<number>(arenas).fill(0);
+  const steps = new Array<number>(arenas).fill(0);
+  let last = -1;
+  const tick = (nowMs: number, cpu: { ms: number }) => {
+    const frameMs = last < 0 ? 0 : Math.min(nowMs - last, 100);
+    last = nowMs;
+    let n = 0;
+    for (let a = 0; a < arenas; a++) {
+      acc[a] = Math.min(acc[a] + frameMs * (opts.speed ?? 1), 250);
+      const start = cpu.ms;
+      while (acc[a] >= 16.666) {
+        cpu.ms += stepCpuMs;
+        acc[a] -= 16.666;
+        steps[a]++;
+        n++;
+        if (opts.budget && cpu.ms - start > FRAME_BUDGET_MS) acc[a] = 0;
+      }
+    }
+    return { draw: true, steps: n };
+  };
+  return { tick, steps };
+}
+
 /** A stepper on `playDisplay`'s CPU clock: every step returns `scale` and costs `stepCpuMs`. */
 function cpuStepper(cpu: { ms: number }, scale: number, stepCpuMs: number): RealTimeStepper {
   return {
@@ -335,6 +366,63 @@ describe("the real-time scheduler (--- slow-motion ---)", () => {
     expect(clock.framesSkipped).toBeGreaterThan(0);
     const gaps = played.gaps.filter((g) => g < 800);
     expect(Math.max(...gaps)).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1);
+  });
+
+  it("never runs fewer steps than the old loop: a 15 ms step and a 70 ms picture, with and without its frame budget", () => {
+    // --- review fix --- Colour Sort at 6x CPU throttle: each callback drew after one step in its 12 ms budget (overdue, then
+    // beyond repair: the picture alone took most of the floor's 100 ms), 0.41 of real time against the old loop's 0.6
+    for (const speed of [1, 2, 8]) {
+      const old = oldLoop(15, { speed });
+      const oldPlayed = playDisplay(10, 70, old.tick);
+      const clock = new RealTimeClock();
+      let stepper: RealTimeStepper | null = null;
+      const played = playDisplay(10, 70, (nowMs, cpu) => {
+        stepper ??= cpuStepper(cpu, 1, 15);
+        const t = clock.tick(nowMs, { ...run(speed), frameBudget: false }, stepper);
+        if (t.draw) clock.drew(70);
+        return t;
+      });
+      const rate = (n: number, p: ReturnType<typeof playDisplay>) => n / (p.lastMs - p.firstMs);
+      expect(rate(clock.steps, played), `${speed}x: ${clock.steps} steps, the old loop ${old.steps[0]}`).toBeGreaterThanOrEqual(rate(old.steps[0], oldPlayed));
+      expect(played.draws.length).toBeGreaterThanOrEqual(0.9 * oldPlayed.draws.length);
+    }
+    // With No limits on the old loop's frames stop at its 12 ms budget, and so do the clock's – but a frame drawn while the
+    // debt is beyond repair steps as long as its picture takes, within what the 10 fps floor leaves (here 30 ms): never fewer
+    const old = oldLoop(15, { budget: true });
+    const oldPlayed = playDisplay(10, 70, old.tick);
+    const clock = new RealTimeClock();
+    let stepper: RealTimeStepper | null = null;
+    let most = 0;
+    const played = playDisplay(10, 70, (nowMs, cpu) => {
+      stepper ??= cpuStepper(cpu, 1, 15);
+      const before = cpu.ms;
+      const t = clock.tick(nowMs, run(), stepper);
+      most = Math.max(most, cpu.ms - before);
+      if (t.draw) clock.drew(70);
+      return t;
+    });
+    expect(clock.steps / (played.lastMs - played.firstMs)).toBeGreaterThan(1.5 * (old.steps[0] / (oldPlayed.lastMs - oldPlayed.firstMs)));
+    expect(most).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS - 70 + 15); // (its steps within the floor's room: 30 ms and the step that crossed it)
+    expect(played.maxGap).toBeLessThanOrEqual(MIN_DRAW_INTERVAL_MS + 1000 / 60 + 1);
+  });
+
+  it("keeps the frame budget for a cheap picture beyond repair, and counts no picture it was never told of", () => {
+    // --- review fix --- a 2 ms picture: every due frame drawn with its steps in the frame budget, as before (round 1)
+    const clock = new RealTimeClock();
+    let stepper: RealTimeStepper | null = null;
+    let most = 0;
+    let atCap = false;
+    playDisplay(6, 2, (nowMs, cpu) => {
+      stepper ??= cpuStepper(cpu, 1 / 64, 3);
+      const before = cpu.ms;
+      const t = clock.tick(nowMs, run(), stepper);
+      if (atCap) most = Math.max(most, cpu.ms - before);
+      atCap ||= clock.lostMs > 0;
+      if (t.draw) clock.drew(2);
+      return t;
+    });
+    expect(atCap).toBe(true);
+    expect(most).toBeLessThanOrEqual(DRAW_BUDGET_MS + 3);
   });
 
   it("owes nothing while the run does not play, and draws every due frame then", () => {
@@ -660,6 +748,24 @@ describe("a split-screen race's real-time scheduler (--- slow-motion ---)", () =
     expect(skippedAtCap).toBeGreaterThanOrEqual(0);
     expect(heavy.framesSkipped).toBe(skippedAtCap);
     expect(played.draws.filter((d) => d >= played.firstMs + 2000).length).toBeGreaterThanOrEqual(0.95 * 4 * 60);
+  });
+
+  it("never runs an arena fewer steps than the race's old loop: two arenas of 15 ms steps beside a 70 ms picture", () => {
+    // --- review fix --- the arenas' old loop (Canvas.tsx offline) had no frame budget: a drawn frame runs at least its steps
+    const old = oldLoop(15, { arenas: 2 });
+    const oldPlayed = playDisplay(10, 70, old.tick);
+    const lanes = new RealTimeLanes();
+    let fns: (() => number)[] = [];
+    const played = playDisplay(10, 70, (nowMs, cpu) => {
+      if (fns.length === 0) fns = [cpuStepper(cpu, 1, 15).step, cpuStepper(cpu, 1, 15).step];
+      const t = lanes.tick(nowMs, { ...run(), frameBudget: false }, fns, () => cpu.ms);
+      if (t.draw) lanes.drew(70);
+      return t;
+    });
+    for (let i = 0; i < 2; i++) {
+      expect(lanes.lanes[i].steps / (played.lastMs - played.firstMs), `arena ${i}: ${lanes.lanes[i].steps}, the old loop ${old.steps[i]}`).toBeGreaterThanOrEqual(old.steps[i] / (oldPlayed.lastMs - oldPlayed.firstMs));
+    }
+    expect(Math.abs(lanes.lanes[0].steps - lanes.lanes[1].steps)).toBeLessThanOrEqual(1);
   });
 
   it("runs at least one step a callback, ends on a frozen arena and a dilation of 2^-20, and owes nothing paused", () => {

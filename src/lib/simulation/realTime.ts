@@ -19,6 +19,12 @@
  *   frames repays only a debt that can be repaid: once the debt hit its cap (within `SATURATED_MS`) while the steps cannot
  *   keep up with real time even on catch-up callbacks, the clock skips none – every due frame is drawn, its steps within
  *   `DRAW_BUDGET_MS`, and what they cannot pay is lost and shown.
+ * - --- review fix --- The picture has its cost too (`drew()`: the caller reports what the drawn frame took): the catch-up
+ *   schedule leaves it its share of the floor's window, and a frame drawn while the debt is beyond repair steps as long as its
+ *   picture takes (within what the floor leaves), so a dear picture never takes most of every frame. And a frame drawn while
+ *   the run still owes never runs fewer steps than the old loop would have run for it (`RealTimeInput.frameBudget` off: its
+ *   100 ms frame cap and 250 ms ceiling, `OLD_LOOP_FRAME_MS`, `OLD_LOOP_CEILING_MS`), so the switch off never plays a run
+ *   slower than on: a dear picture beside dear steps then draws as rarely as the old loop did, under the 10 fps floor.
  * - A gap of more than `PAUSE_GAP_MS` between two callbacks (a hidden tab, a debugger) is a pause: the debt starts over and
  *   the callback counts as one frame.
  *
@@ -63,6 +69,13 @@ export const EXPORT_CATCH_UP_STEPS = 256;
 export const EXPORT_CATCH_UP_CHUNK = 1;
 /** Rounding slack (ms) of the debt: four quarter steps pay a whole step's debt. */
 const DEBT_EPSILON_MS = 1e-9;
+/**
+ * --- review fix --- The old loop's (Slow motion on, Canvas.tsx draw()) frame cap – a drawn frame feeds its steps the wall time
+ * since the last one, at most this (ms, × playback speed) – and the ceiling of its accumulator (ms): the steps it ran a frame,
+ * which a frame drawn while the run still owes never runs fewer of (`RealTimeInput.frameBudget` off).
+ */
+export const OLD_LOOP_FRAME_MS = 100;
+export const OLD_LOOP_CEILING_MS = 250;
 
 /**
  * What a step pays of the debt (ms): `STEP_MS` × its time scale, and a whole step for a scale that is no positive finite
@@ -97,6 +110,14 @@ export interface RealTimeInput {
   simSpeed: number;
   /** The frame gate lets this callback draw (renderBudget.ts `FrameGate.due()`). */
   drawDue: boolean;
+  /**
+   * --- review fix --- The old loop's frame budget holds for this run (`frameBudget.ts`: No limits on, live): a frame drawn
+   * while the run still owes stops its steps at `DRAW_BUDGET_MS`, as that loop's frames do. False (a run the old loop played
+   * without one; a race's arenas): such a frame runs at least the whole steps the old loop would have run for it – the wall time
+   * since the last drawn frame, at most `OLD_LOOP_FRAME_MS`, × the speed, its accumulator at most `OLD_LOOP_CEILING_MS` – so
+   * the switch off never plays a run slower than on. Left out: true.
+   */
+  frameBudget?: boolean;
 }
 
 /** What one live callback did. */
@@ -138,6 +159,8 @@ class DrawPacer {
   private cappedAtMs: number | null = null;
   /** Playback ms the steps pay per wall-clock ms they cost (smoothed; null while unknown or free). */
   private stepRate: number | null = null;
+  /** --- review fix --- Wall-clock ms a drawn frame's picture takes (smoothed; null until the caller reports one). */
+  private drawCost: number | null = null;
 
   reset() {
     this.framesSkipped = 0;
@@ -148,6 +171,18 @@ class DrawPacer {
     this.dueGapAt = 0;
     this.cappedAtMs = null;
     this.stepRate = null;
+    this.drawCost = null;
+  }
+
+  /** --- review fix --- The drawn frame's picture took `costMs` of wall time: the draw cost, smoothed. */
+  noteDraw(costMs: number) {
+    if (!(costMs >= 0) || !Number.isFinite(costMs)) return;
+    this.drawCost = this.drawCost === null ? costMs : this.drawCost + 0.25 * (costMs - this.drawCost);
+  }
+
+  /** --- review fix --- What a drawn frame's picture takes (ms; 0 until reported). */
+  drawCostMs(): number {
+    return this.drawCost ?? 0;
   }
 
   /** A callback at `nowMs` began (`paused`: after a pause gap); `drawDue` says whether the frame gate lets it draw. */
@@ -192,14 +227,26 @@ class DrawPacer {
    * Skipping frames cannot repay the debt: it hit its cap within the last `SATURATED_MS`, and at the measured step rate the
    * catch-up schedule – a drawn frame every `MIN_DRAW_INTERVAL_MS`, its steps within `DRAW_BUDGET_MS`, and catch-up callbacks
    * of `CATCH_UP_BUDGET_MS` in between – pays less playback time than the wall time it takes × `speed`. A debt it can repay
-   * (the load eased, or the debt hit its cap only once) is caught up again, frames skipped.
+   * (the load eased, or the debt hit its cap only once) is caught up again, frames skipped. --- review fix --- The drawn frame's
+   * picture takes its share of the window (`drew()`): the catch-up callbacks fit in what it leaves.
    */
   saturated(nowMs: number, speed: number): boolean {
     if (this.cappedAtMs === null || nowMs - this.cappedAtMs >= SATURATED_MS || this.stepRate === null) return false;
     const frame = this.frameIntervalMs();
     const catchUpCallbackMs = Math.ceil(CATCH_UP_BUDGET_MS / frame) * frame; // (its steps, then the next frame)
-    const catchUps = Math.max(0, Math.floor(MIN_DRAW_INTERVAL_MS / catchUpCallbackMs + 1e-6) - 1);
+    const catchUps = Math.max(0, Math.floor((MIN_DRAW_INTERVAL_MS - this.drawCostMs()) / catchUpCallbackMs + 1e-6) - 1);
     return this.stepRate * (DRAW_BUDGET_MS + catchUps * CATCH_UP_BUDGET_MS) < speed * MIN_DRAW_INTERVAL_MS;
+  }
+
+  /**
+   * --- review fix --- The wall-clock ms (from the callback's first step) a frame drawn while the debt is beyond repair may spend
+   * on steps: `DRAW_BUDGET_MS`, or as long as its picture takes when that is more – within what the 10 fps floor leaves after the
+   * picture. Every due frame is drawn then (skipping cannot repay the debt), so a picture dearer than the frame budget would
+   * otherwise take most of every frame; a cheap one keeps the frame budget, and the frames come as often as they did.
+   */
+  drawnBudget(): number {
+    const paint = this.drawCostMs();
+    return Math.max(DRAW_BUDGET_MS, Math.min(paint, MIN_DRAW_INTERVAL_MS - paint));
   }
 
   /** Wall-clock ms until the 10 fps floor: the latest a frame may be drawn after the last one (none yet: 0). */
@@ -248,6 +295,10 @@ export class RealTimeClock {
   private readonly pacer = new DrawPacer();
   /** What the next step is expected to pay: the last step's cost (a whole step before the first). */
   private nextCostMs = STEP_MS;
+  /** --- review fix --- Steps run since the last drawn frame. */
+  private frameSteps = 0;
+  /** --- review fix --- The old loop's accumulator, mirrored (ms): what it would still have owed after the last drawn frame. */
+  private oldLoopMs = 0;
   private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false };
 
   /** Due frames skipped to catch up since the last reset. */
@@ -258,6 +309,11 @@ export class RealTimeClock {
   /** The run owes at least the next step. */
   get owesStep(): boolean {
     return this.debtMs >= this.nextCostMs - DEBT_EPSILON_MS;
+  }
+
+  /** --- review fix --- The frame the last callback drew took `costMs` of wall time to paint (the picture after `tick()`). */
+  drew(costMs: number) {
+    this.pacer.noteDraw(costMs);
   }
 
   /**
@@ -277,6 +333,8 @@ export class RealTimeClock {
     this.lastNowMs = null;
     this.pacer.reset();
     this.nextCostMs = STEP_MS;
+    this.frameSteps = 0;
+    this.oldLoopMs = 0;
   }
 
   /**
@@ -298,6 +356,7 @@ export class RealTimeClock {
     if (!(wall >= 0) || wall > PAUSE_GAP_MS) {
       out.paused = true;
       this.debtMs = 0;
+      this.oldLoopMs = 0;
       wall = STEP_MS;
     }
     out.wallMs = wall;
@@ -305,6 +364,7 @@ export class RealTimeClock {
     pacer.begin(nowMs, input.drawDue, out.paused);
     pacer.pendingFrameMs += wall;
     let skipNone = true; // (draw every due frame: nothing owed, or a debt that skipping cannot repay)
+    let paidOldLoop = false;
     if (input.running) {
       const speed = Number.isFinite(input.simSpeed) && input.simSpeed > 0 ? input.simSpeed : 1;
       out.wantedMs = wall * speed;
@@ -317,16 +377,29 @@ export class RealTimeClock {
       }
       const start = stepper.now();
       this.runSteps(stepper, start, DRAW_BUDGET_MS, out);
-      skipNone = !this.owesStep || pacer.saturated(nowMs, speed) || (input.drawDue && pacer.overdue(nowMs));
+      const beyondRepair = pacer.saturated(nowMs, speed);
+      skipNone = !this.owesStep || beyondRepair || (input.drawDue && pacer.overdue(nowMs));
       // Still owing after a drawing callback's budget, a debt it can repay and no frame overdue: skip the draw and catch up
       // a little longer – never so long that the next due frame would break the 10 fps floor.
       if (!skipNone && out.steps < MAX_STEPS_PER_CALLBACK) {
         out.catchUp = true;
         this.runSteps(stepper, start, pacer.catchUpBudget(nowMs), out);
+      } else if (input.drawDue && this.owesStep) {
+        // --- review fix --- drawn while the run still owes: beyond repair, its steps go on as long as its picture takes, and
+        // without the old loop's frame budget it runs at least the steps that loop would have run for this frame
+        if (beyondRepair) this.runSteps(stepper, start, pacer.drawnBudget(), out);
+        if (input.frameBudget === false) {
+          this.payOldLoop(stepper, speed, out);
+          paidOldLoop = true;
+        }
       }
       pacer.measure(out.paidMs, stepper.now() - start);
     } else this.debtMs = 0; // (paused, not started or held: nothing is owed)
     out.draw = input.drawDue && (skipNone || !this.owesStep);
+    if (out.draw || !input.running) {
+      if (!paidOldLoop) this.oldLoopMs = 0; // (the debt is paid, the frame budget holds or the run does not play)
+      this.frameSteps = 0;
+    }
     out.frameMs = pacer.end(nowMs, input.drawDue, out.draw);
     return out;
   }
@@ -335,13 +408,34 @@ export class RealTimeClock {
   private runSteps(stepper: RealTimeStepper, startMs: number, budgetMs: number, out: RealTimeTick) {
     while (this.owesStep && out.steps < MAX_STEPS_PER_CALLBACK) {
       if (out.steps > 0 && !(stepper.now() - startMs < budgetMs)) break;
-      const cost = stepCostMs(stepper.step());
-      this.nextCostMs = cost;
-      this.debtMs -= cost;
-      out.paidMs += cost;
-      out.steps++;
-      this.steps++;
+      this.runStep(stepper, out);
     }
+  }
+
+  /**
+   * --- review fix --- A frame drawn while the run still owes: whole steps until it ran, since the last drawn frame, the steps the
+   * old loop would have run for this frame (its accumulator mirrored: the wall time since the last drawn frame, at most
+   * `OLD_LOOP_FRAME_MS`, × `speed`, the sum at most `OLD_LOOP_CEILING_MS`, a step each `STEP_MS` – a dilated step counts whole,
+   * as that loop counts it), while the run owes a step and the step guard allows. No time budget: the old loop had none.
+   */
+  private payOldLoop(stepper: RealTimeStepper, speed: number, out: RealTimeTick) {
+    let owed = Math.min(this.oldLoopMs + Math.min(this.pacer.pendingFrameMs, OLD_LOOP_FRAME_MS) * speed, OLD_LOOP_CEILING_MS) - this.frameSteps * STEP_MS;
+    while (owed >= STEP_MS - DEBT_EPSILON_MS && this.owesStep && out.steps < MAX_STEPS_PER_CALLBACK) {
+      this.runStep(stepper, out);
+      owed -= STEP_MS;
+    }
+    this.oldLoopMs = this.owesStep ? Math.max(0, owed) : 0; // (what the old loop's accumulator would keep; nothing once the debt is paid)
+  }
+
+  /** One whole step: it pays its cost of the debt. */
+  private runStep(stepper: RealTimeStepper, out: RealTimeTick) {
+    const cost = stepCostMs(stepper.step());
+    this.nextCostMs = cost;
+    this.debtMs -= cost;
+    out.paidMs += cost;
+    out.steps++;
+    this.steps++;
+    this.frameSteps++;
   }
 }
 
@@ -426,6 +520,10 @@ export interface RealTimeLane {
   steps: number;
   /** What its next step is expected to pay (its last step's cost). */
   nextCostMs: number;
+  /** --- review fix --- Steps it ran since the last drawn frame. */
+  frameSteps: number;
+  /** --- review fix --- Its old loop's accumulator, mirrored (`RealTimeInput.frameBudget` off; ms): what it kept after the last drawn frame. */
+  oldLoopMs: number;
 }
 
 /**
@@ -477,6 +575,11 @@ export class RealTimeLanes {
     this.cursor = 0;
   }
 
+  /** --- review fix --- The composed frame the last callback drew took `costMs` of wall time to paint (the arenas and the stage). */
+  drew(costMs: number) {
+    this.pacer.noteDraw(costMs);
+  }
+
   /**
    * One rAF callback at `nowMs` for the arenas `steps` (each runs one whole step of its arena and returns its time scale),
    * the budget measured on `now()`. The result's `paidMs` is the arena that paid the least (the real-time badge's slowest),
@@ -485,7 +588,7 @@ export class RealTimeLanes {
   tick(nowMs: number, input: RealTimeInput, steps: readonly (() => number)[], now: () => number): RealTimeTick {
     const out = this.result;
     const n = steps.length;
-    while (this.lanes.length < n) this.lanes.push({ debtMs: 0, lostMs: 0, steps: 0, nextCostMs: STEP_MS });
+    while (this.lanes.length < n) this.lanes.push({ debtMs: 0, lostMs: 0, steps: 0, nextCostMs: STEP_MS, frameSteps: 0, oldLoopMs: 0 });
     if (this.lanes.length > n) this.lanes.length = n;
     if (this.cursor >= n) this.cursor = 0;
     out.wantedMs = 0;
@@ -499,7 +602,10 @@ export class RealTimeLanes {
     this.lastNowMs = nowMs;
     if (!(wall >= 0) || wall > PAUSE_GAP_MS) {
       out.paused = true;
-      for (const lane of this.lanes) lane.debtMs = 0;
+      for (const lane of this.lanes) {
+        lane.debtMs = 0;
+        lane.oldLoopMs = 0;
+      }
       wall = STEP_MS;
     }
     out.wallMs = wall;
@@ -507,6 +613,7 @@ export class RealTimeLanes {
     pacer.begin(nowMs, input.drawDue, out.paused);
     pacer.pendingFrameMs += wall;
     let skipNone = true; // (as RealTimeClock: draw every due frame unless a debt that skipping can repay is owed)
+    let paidOldLoop = false;
     if (input.running && n > 0) {
       const speed = Number.isFinite(input.simSpeed) && input.simSpeed > 0 ? input.simSpeed : 1;
       out.wantedMs = wall * speed;
@@ -525,10 +632,22 @@ export class RealTimeLanes {
       const start = now();
       const limit = MAX_STEPS_PER_CALLBACK * n;
       this.runRounds(steps, now, start, DRAW_BUDGET_MS, limit, out);
-      skipNone = !this.owesStep || pacer.saturated(nowMs, speed) || (input.drawDue && pacer.overdue(nowMs));
+      const beyondRepair = pacer.saturated(nowMs, speed);
+      skipNone = !this.owesStep || beyondRepair || (input.drawDue && pacer.overdue(nowMs));
       if (!skipNone && out.steps < limit) {
         out.catchUp = true;
         this.runRounds(steps, now, start, pacer.catchUpBudget(nowMs), limit, out);
+      } else if (input.drawDue && this.owesStep) {
+        // --- review fix --- drawn while an arena still owes: as RealTimeClock, the picture's share beyond repair, and each arena
+        // at least the steps its old loop would have run for this frame (a race's arenas never had a frame budget)
+        if (beyondRepair) this.runRounds(steps, now, start, pacer.drawnBudget(), limit, out);
+        if (input.frameBudget === false) {
+          const add = Math.min(pacer.pendingFrameMs, OLD_LOOP_FRAME_MS) * speed;
+          for (const lane of this.lanes) lane.oldLoopMs = Math.min(lane.oldLoopMs + add, OLD_LOOP_CEILING_MS) - lane.frameSteps * STEP_MS;
+          this.runRounds(steps, now, start, Infinity, limit, out, true);
+          for (const lane of this.lanes) lane.oldLoopMs = lane.debtMs >= lane.nextCostMs - DEBT_EPSILON_MS ? Math.max(0, lane.oldLoopMs) : 0;
+          paidOldLoop = true;
+        }
       }
       let least = Infinity;
       for (let i = 0; i < n; i++) if (this.paid[i] < least) least = this.paid[i];
@@ -536,6 +655,12 @@ export class RealTimeLanes {
       pacer.measure(least, now() - start); // (the arena that paid the least: the one that must keep up)
     } else for (const lane of this.lanes) lane.debtMs = 0;
     out.draw = input.drawDue && (skipNone || !this.owesStep);
+    if (out.draw || !input.running) {
+      for (const lane of this.lanes) {
+        if (!paidOldLoop) lane.oldLoopMs = 0;
+        lane.frameSteps = 0;
+      }
+    }
     out.frameMs = pacer.end(nowMs, input.drawDue, out.draw);
     return out;
   }
@@ -543,23 +668,27 @@ export class RealTimeLanes {
   /**
    * Whole steps, one arena after the other from the one whose turn it is (`cursor`, kept from step to step and callback to
    * callback), skipping an arena that owes nothing, while some arena owes a step and the budget (or no step yet) allows.
+   * --- review fix --- `oldLoop`: only an arena its old loop's steps are still owed to (`oldLoopMs`, a step each `STEP_MS`)
+   * takes a turn, and no budget applies.
    */
-  private runRounds(steps: readonly (() => number)[], now: () => number, startMs: number, budgetMs: number, limit: number, out: RealTimeTick) {
+  private runRounds(steps: readonly (() => number)[], now: () => number, startMs: number, budgetMs: number, limit: number, out: RealTimeTick, oldLoop = false) {
     const n = steps.length;
     let idle = 0; // arenas passed in a row that owed nothing: once all of them, nobody owes a step
     while (idle < n) {
       const i = this.cursor;
       const lane = this.lanes[i];
-      if (!(lane.debtMs >= lane.nextCostMs - DEBT_EPSILON_MS)) {
+      if (!(lane.debtMs >= lane.nextCostMs - DEBT_EPSILON_MS) || (oldLoop && !(lane.oldLoopMs >= STEP_MS - DEBT_EPSILON_MS))) {
         this.cursor = (i + 1) % n;
         idle++;
         continue;
       }
-      if (out.steps >= limit || (out.steps > 0 && !(now() - startMs < budgetMs))) return;
+      if (out.steps >= limit || (!oldLoop && out.steps > 0 && !(now() - startMs < budgetMs))) return;
       const cost = stepCostMs(steps[i]());
       lane.nextCostMs = cost;
       lane.debtMs -= cost;
       lane.steps++;
+      lane.frameSteps++;
+      if (oldLoop) lane.oldLoopMs -= STEP_MS;
       this.paid[i] += cost;
       out.steps++;
       this.cursor = (i + 1) % n;

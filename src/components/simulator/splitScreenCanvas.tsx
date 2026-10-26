@@ -274,7 +274,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     // gate decides only the draws, and each arena's renderFrame() then only draws (its driver paces the steps)
     const lanes = new RealTimeLanes();
     let lanesLive = false;
-    const laneInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false };
+    const laneInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false, frameBudget: false }; // (--- review fix --- the arenas' old loop had no frame budget: a drawn frame runs at least its steps)
     const laneSteps: (() => number)[] = [];
     const noStep = () => 1; // (an arena whose canvas has not mounted yet: it owes nothing it could run)
     const frame = (ts?: number) => {
@@ -284,6 +284,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       // --- slow-motion --- (every arena off: a moment when the page's engine and an arena's disagree runs no step twice)
       const realTime = splitRef.current.engines.length > 0 && splitRef.current.engines.every((e) => !e.slowMotionOn());
       let dt: number;
+      let paintStart = 0;
       if (realTime) {
         // --- slow-motion --- every callback steps; only a frame the clock lets draw goes on
         const sp = splitRef.current;
@@ -303,6 +304,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         sp.runner.afterFrame(now);
         if (!tick.draw) return;
         dt = tick.frameMs;
+        paintStart = performance.now(); // --- review fix --- (what the composed frame takes: lanes.drew() below)
       } else {
         lanesLive = false;
         if (!gate.due(now)) return;
@@ -561,6 +563,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         }
       }
       fpsRef.current = 0.9 * fpsRef.current + 0.1 * (1000 / Math.max(1, dt));
+      if (realTime) lanes.drew(performance.now() - paintStart); // --- review fix --- (the arenas' pictures and the stage's)
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);

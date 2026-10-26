@@ -487,9 +487,10 @@ describe("the live loop with Slow motion off (--- slow-motion ---): real time, d
   });
 
   it("past what the device can simulate, loses only the time over the debt cap and shows it, and still draws every 100 ms", () => {
-    // a step costs 40 ms: the device simulates well under half of real time
+    // a step costs 40 ms: the device simulates well under half of real time. --- review fix --- With No limits on, where the old
+    // loop's frame budget holds too (a run without it: the test after this one)
     const loop = realTimeLoop({ paintCpuMs: 2 });
-    const { physics, maxGap } = playVsync(loop, 10, { stepCpuMs: 40 });
+    const { physics, maxGap } = playVsync(loop, 10, { stepCpuMs: 40, unlimited: true });
     expect(Math.max(...physics)).toBeLessThanOrEqual(28 + 40 + 0.5);
     expect(loop.budget.slow).toBe(true);
     expect(loop.budget.fraction).toBeLessThan(0.9);
@@ -505,10 +506,30 @@ describe("the live loop with Slow motion off (--- slow-motion ---): real time, d
     // step and its picture span three vsyncs), not the 10 fps floor – and the time is lost, and shown
     const skipped = real.framesSkipped;
     const drawn = paints.length;
-    playVsync(loop, 5, { stepCpuMs: 40 });
+    playVsync(loop, 5, { stepCpuMs: 40, unlimited: true });
     expect(real.framesSkipped).toBe(skipped);
     expect(loop.paints().length - drawn).toBeGreaterThanOrEqual(95);
     expect(loop.budget.slow).toBe(true);
+  });
+
+  it("never plays a run slower than the switch on: a frame drawn while it still owes runs at least the old loop's steps", () => {
+    // --- review fix --- A draw-heavy default run (Colour Sort at 6x CPU throttle: 15 ms a step, 70 ms a picture): the clock
+    // drew every callback with one step in its frame budget and played at 0.41 of real time, the old loop at 0.6. Without
+    // No limits the old loop had no frame budget: a drawn frame now runs at least the steps it ran.
+    for (const [stepCpuMs, paintCpuMs] of [[15, 70], [10, 47], [40, 2]] as const) {
+      const on = fakes({ slowMotion: true, offline: false, paintCpuMs });
+      on.bind(harness(currentLoop(), on.env, cut(REAL_TIME_START, REAL_TIME_END)));
+      const old = { ...on, clock: on.clock, realTime: () => on.harness().realTime!, paints: () => paintsOf(on.log) };
+      const off = realTimeLoop({ paintCpuMs });
+      for (const loop of [old, off]) playVsync(loop, 1, { stepCpuMs }); // (the first second: the old loop's first frame counts from 0)
+      const [oldFrom, offFrom, oldPaints, offPaints] = [old.steps(), off.steps(), old.paints().length, off.paints().length];
+      for (const loop of [old, off]) playVsync(loop, 10, { stepCpuMs });
+      const label = `${stepCpuMs} ms steps, ${paintCpuMs} ms pictures: off ${off.steps() - offFrom}, on ${old.steps() - oldFrom}`;
+      expect(off.steps() - offFrom, label).toBeGreaterThanOrEqual(old.steps() - oldFrom);
+      expect(off.elapsed(), label).toBeCloseTo(off.steps() * STEP_MS, 6);
+      expect(off.paints().length - offPaints, label).toBeGreaterThanOrEqual(0.9 * (old.paints().length - oldPaints)); // (the frames come about as often)
+      expect(off.budget.slow, label).toBe(true); // what it still cannot keep up with is shown
+    }
   });
 
   it("owes nothing while the run is paused, not started or held, and draws every due frame then", () => {

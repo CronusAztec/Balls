@@ -1215,12 +1215,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // shortened pays only its share, so a dilated run plays in real time on more steps – and the frame gate decides the draws
     // only: under load the page drops drawn frames, never simulated time (it still draws at least 10 a second, each drawn frame's
     // frameMs covering the callbacks it skipped, for the camera, the Fight League clocks and the elapsed time). What the device
-    // cannot simulate past the debt cap is lost and shown: the real-time badge, No limits or not. With Slow motion on (the
-    // default) and offline (the fast export, a race's arenas), draw() keeps the loop it always had.
+    // cannot simulate past the debt cap is lost and shown: the real-time badge, No limits or not. --- review fix --- A frame
+    // drawn while the run still owes never runs fewer steps than the old loop would have (its frame budget only with No limits
+    // on), so the switch off never plays a run slower than on – a dear picture beside dear steps draws as rarely as that loop
+    // did – and the clock is told what each picture took. With Slow motion on (the default) and offline (the fast export, a
+    // race's arenas), draw() keeps the loop it always had.
     const realTime = new RealTimeClock();
     /** The last callback ran the real-time loop (one of the old loop, or a fast export, in between starts its clock over). */
     let realTimeLive = false;
-    const realTimeInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false };
+    const realTimeInput: RealTimeInput = { running: false, simSpeed: 1, drawDue: false, frameBudget: true };
     const realTimeStepper: RealTimeStepper = {
       step: () => {
         engine.update(16.666, audioRef.current);
@@ -1242,6 +1245,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const running = !p.isPaused && !!p.isStarted && !held;
       realTimeInput.running = running;
       realTimeInput.simSpeed = p.simSpeed;
+      realTimeInput.frameBudget = engine.getUnlimitedView().on; // --- review fix --- (the old loop's frame budget: No limits on; off, a drawn frame runs at least that loop's steps)
       // (--- orb-rhythm --- a rhythm field that draws cheaply enough takes every refresh, as in the old loop)
       realTimeInput.drawDue = frameGate.due(now) || (orbFrameCost.fast && engine.isOrbGridMode() && engine.getOrbGridView().model === "rhythm");
       const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
@@ -1257,7 +1261,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       framesDrawnRef.current++;
       accumulator = REAL_TIME_STEP_MS * realTime.stepFraction; // the share of the next step already owed: where the views between steps stand
+      const paintStart = performance.now();
       paintFrame(now, tick.frameMs, p, held, orbDrawStart);
+      realTime.drew(performance.now() - paintStart); // --- review fix --- (what the picture takes: a skipped frame would free it for steps)
     };
     // --- end slow-motion ---
 
