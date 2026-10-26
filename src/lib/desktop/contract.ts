@@ -8,6 +8,7 @@
  * tests (desktop/tests/ipc.test.ts) check that the preload and the main process implement exactly these channels.
  */
 import type { ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut --- (a type only: the main process never loads the page's modules)
+import type { ClipGenes } from "@/lib/insights/genes"; // --- insights --- (a type only; the main process runs its sanitiser)
 
 /**
  * Bumped when a channel changes shape; the page ignores a bridge of another major version (`getDesktop()`). A new channel does not
@@ -289,6 +290,11 @@ export interface LibraryMeta {
    * made since the badge is burned in. Absent (an older clip, any other mode), a cut of it draws the badge on every frame.
    */
   fanMadeBurned?: boolean;
+  /**
+   * --- insights --- What the clip was made from (lib/insights/genes.ts): set by the render queue from its source and by the
+   * Clip editor for a cut, sanitised by the main process on every write and load. Absent on a clip saved before 1.6.0.
+   */
+  genes?: ClipGenes;
 }
 
 export interface SavedRender {
@@ -593,6 +599,11 @@ export interface SocialAuditEntry {
   when: string | null;
   /** --- ai-cut --- The video the post showed (lib/desktop/autopilot.ts clipVideoKey: a master and its cut are one), when it had a job. */
   video?: string;
+  /**
+   * --- insights --- The genes of the clip a created post showed, with the TikTok audience the card chose (`tiktokPrivacy`),
+   * copied at approval: the post ids keep them after the Library file or the queue item is deleted (the attribution ledger).
+   */
+  genes?: ClipGenes;
 }
 
 /** Postiz's next free slot for a channel. */
@@ -682,6 +693,8 @@ export interface SocialQueueItem {
   log: { at: string; text: string }[];
   /** --- ai-cut --- The clip's video key (SocialProposalInput.video), kept when the Library forgets the clip. */
   video?: string;
+  /** --- insights --- The clip's genes (its Library item's, read by the main process when proposed), kept when the Library forgets the clip. */
+  genes?: ClipGenes;
 }
 
 /** What `queue.propose` takes (from the planner or the AI panel's "Send to Posts tab"). */

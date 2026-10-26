@@ -11,12 +11,18 @@
  *  - at most 200 items (finished ones go first when the cap bites), proposals older than 14 days are dropped, and a new
  *    proposal for a clip and channel that is already proposed is merged into that item instead of doubling it;
  *  - the `social:queue` event carries the whole list on every change.
+ *
+ * --- insights --- A proposal copies its clip's genes from the Library item (lib/insights/genes.ts), so the item keeps them
+ * when the Library forgets the clip; approve hands them to the poster, which writes them into the post's audit line with the
+ * TikTok audience the card chose. Sanitised on every write and every load; an item without genes loads as it was stored.
  */
 
 import { randomUUID } from "crypto";
 import { SOCIAL_QUEUE_MAX, SOCIAL_VIDEO_KEY_MAX, type SocialPostRequest, type SocialPostResult, type SocialProposalInput, type SocialQueueBy, type SocialQueueEdit, type SocialQueueItem, type SocialQueueStatus, tiktokUserOnlyKeysIn } from "@/lib/desktop/contract";
 import { proposalExpired } from "@/lib/desktop/autopilot";
+import { sanitizeGenes } from "@/lib/insights/genes"; // --- insights ---
 import type { JsonFileStore } from "../journal";
+import type { Library } from "../library";
 import type { ClipPoster } from "./posting";
 
 /** The queue keeps this many log lines per item. */
@@ -30,6 +36,8 @@ export interface SocialQueueDeps {
   log?: (level: "info" | "warn" | "error", message: string) => void;
   now?: () => number;
   id?: () => string;
+  /** --- insights --- The Library the clips are in: a proposal copies its clip's genes from it (without it, none are kept). */
+  library?: Pick<Library, "get">;
 }
 
 const STATUSES: readonly SocialQueueStatus[] = ["proposed", "approved", "skipped", "posted", "failed"];
@@ -66,8 +74,17 @@ export function sanitizeQueueItem(raw: unknown): SocialQueueItem | null {
     error: typeof r.error === "string" ? r.error : null,
     log: Array.isArray(r.log) ? r.log.filter((l): l is { at: string; text: string } => !!l && typeof l === "object" && typeof (l as { at?: unknown }).at === "string" && typeof (l as { text?: unknown }).text === "string").slice(-QUEUE_LOG_MAX) : [],
     ...(typeof r.video === "string" && r.video ? { video: r.video.slice(0, SOCIAL_VIDEO_KEY_MAX) } : {}), // --- ai-cut ---
+    ...genesField(r.genes), // --- insights ---
   };
 }
+
+// --- insights ---
+/** The `genes` key of an item: the sanitised record, or no key at all (nothing stored, or nothing that is a record). */
+function genesField(raw: unknown): Pick<SocialQueueItem, "genes"> {
+  const genes = raw === undefined ? null : sanitizeGenes(raw);
+  return genes ? { genes } : {};
+}
+// --- end insights ---
 
 /** The list within its cap: expired proposals gone, then (oldest first) finished items, then the rest. */
 export function trimQueue(items: readonly SocialQueueItem[], now: number, max = SOCIAL_QUEUE_MAX): SocialQueueItem[] {
@@ -159,8 +176,13 @@ export class SocialQueue {
    * and the reason are replaced, when the user has edited it they stay.
    */
   async propose(proposals: readonly SocialProposalInput[], by: SocialQueueBy): Promise<SocialQueueItem[]> {
+    // --- insights --- each clip's genes, from its Library item (never from the caller), read before the list: from the list's
+    // read to the commit nothing awaits, so a call that arrives meanwhile cannot be overwritten by this one
+    const genesOf = new Map<string, Pick<SocialQueueItem, "genes">>();
+    for (const p of proposals) if (!genesOf.has(p.clipId)) genesOf.set(p.clipId, genesField(await this.deps.library?.get(p.clipId).then((clip) => clip?.meta?.genes).catch(() => undefined)));
     const items = [...(await this.all())];
     for (const p of proposals) {
+      const genes = genesOf.get(p.clipId) ?? {};
       const channels = p.channels.map((c) => {
         const settings = { __type: c.platform, ...(c.settings ?? {}) } as Record<string, unknown>;
         for (const key of tiktokUserOnlyKeysIn(settings)) delete settings[key]; // never proposed, whatever the caller sent
@@ -175,7 +197,7 @@ export class SocialQueue {
           return next && replace ? { ...c, text: next.text, settings: { ...c.settings, ...next.settings } } : c;
         });
         for (const n of channels) if (!merged.some((c) => c.integrationId === n.integrationId)) merged.push(n);
-        items[existingIndex] = this.withLog({ ...existing, channels: merged, when: replace ? p.when : existing.when, reason: replace ? p.reason : existing.reason, ...(!existing.video && p.video ? { video: p.video } : {}) }, `merged a new proposal (${channels.map((c) => c.platform).join(", ")})`);
+        items[existingIndex] = this.withLog({ ...existing, channels: merged, when: replace ? p.when : existing.when, reason: replace ? p.reason : existing.reason, ...(!existing.video && p.video ? { video: p.video } : {}), ...(!existing.genes ? genes : {}) /* --- insights --- */ }, `merged a new proposal (${channels.map((c) => c.platform).join(", ")})`);
         this.deps.log?.("info", `queue: merged a proposal for clip ${p.clipId} into ${existing.id}`);
         continue;
       }
@@ -193,6 +215,7 @@ export class SocialQueue {
         error: null,
         log: [{ at: this.stamp(), text: `proposed by ${by}` }],
         ...(p.video ? { video: p.video } : {}), // --- ai-cut --- the clip's video key: the autopilot still knows it once the Library forgets the clip
+        ...genes, // --- insights --- the clip's genes, kept the same way
       };
       items.unshift(item);
       this.deps.log?.("info", `queue: proposed clip ${p.clipId} for ${channels.length} channel(s) by ${by}`);
@@ -217,7 +240,8 @@ export class SocialQueue {
     items[index] = this.withLog({ ...item, status: "approved", error: null, channels: item.channels.map((c) => ({ ...c, text: request.channels.find((r) => r.id === c.integrationId)?.text ?? c.text })), when: request.when }, `approved by the user for ${request.channels.length} channel(s), ${request.when}`);
     await this.commit(items);
     try {
-      const result = await this.deps.poster.postClip(request);
+      // --- insights --- the item's genes go with the request (the request itself goes as the card produced it)
+      const result = await (item.genes ? this.deps.poster.postClip(request, { genes: item.genes }) : this.deps.poster.postClip(request));
       await this.update(id, (i) => this.withLog({ ...i, status: "posted", postIds: result.postIds, error: null, by: "user" }, `posted: ${result.postIds.map((p) => p.postId).join(", ") || "no post ids"}`));
       return result;
     } catch (err) {

@@ -12,6 +12,9 @@
  * Guards: one clip on its way at a time (a second Approve while one runs is refused with a clear message); at most one created
  * post per channel every 20 minutes and under 60 create calls an hour, both read from the audit log (so they hold across a
  * restart); a 429 waits Postiz's Retry-After once, then the error surfaces. Every create is written to social-audit.json.
+ *
+ * --- insights --- The audit line of a create keeps the clip's genes (lib/insights/genes.ts) with the TikTok audience the card
+ * chose: the queue item's copy when the post comes from the queue, else the Library item's, sanitised either way.
  */
 
 import fs from "fs/promises";
@@ -19,6 +22,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import type { EncoderProbe, SocialPostRequest, SocialPostResult, SocialPreparedClip, SocialProgressEvent, TranscodeSpec } from "@/lib/desktop/contract";
 import { clipVideoKey } from "@/lib/desktop/autopilot"; // --- ai-cut --- the video key a post keeps
+import { genesAtApproval } from "@/lib/insights/genes"; // --- insights --- the genes a post keeps
 import { buildInfoArgs, buildTranscodeArgs, parseDuration, parseVideoSize } from "../ffmpeg/args";
 import type { runFfmpeg } from "../ffmpeg/run";
 import type { Library } from "../library";
@@ -204,8 +208,11 @@ export class ClipPoster {
     return null;
   }
 
-  /** Approve: one upload, one create call with every channel; the post ids per channel. */
-  async postClip(request: SocialPostRequest): Promise<SocialPostResult> {
+  /**
+   * Approve: one upload, one create call with every channel; the post ids per channel. --- insights --- `from.genes`: the
+   * queue item's copy of the clip's genes (the Library item's are read when it brings none).
+   */
+  async postClip(request: SocialPostRequest, from: { genes?: unknown } = {}): Promise<SocialPostResult> {
     // --- review fix (social-postiz) --- the slot is taken before the first await: two Approves in the same tick cannot both
     // pass the audit reads and both post (the second would also skip the 20-minute cooldown the first is about to write)
     if (this.active !== null) throw new Error("A clip is already on its way to Postiz. Wait for it to finish, then approve this one.");
@@ -219,10 +226,12 @@ export class ClipPoster {
       prepared = await this.prepareClip(request.clipId);
       // --- ai-cut --- the video the post shows (a master and its cut are one), kept with the post: the autopilot still knows it
       // once the Library forgets the clip
-      const video = await this.deps.library
+      const { video, libraryGenes } = await this.deps.library
         .get(request.clipId)
-        .then((item) => (item ? clipVideoKey(item) : null))
-        .catch(() => null);
+        .then((item) => ({ video: item ? clipVideoKey(item) : null, libraryGenes: item?.meta?.genes as unknown }))
+        .catch(() => ({ video: null, libraryGenes: undefined }));
+      // --- insights --- the clip's genes with the audience the card chose, kept with the post ids (the attribution ledger)
+      const genes = genesAtApproval(from.genes ?? libraryGenes, request.channels);
       this.deps.emit({ clipId: request.clipId, phase: "uploading", percent: 0 });
       const bytes = await this.files.readFile(prepared.path);
       const upload = await client.upload({ name: path.basename(prepared.path).replace(/^\./, ""), type: "video/mp4", bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) });
@@ -241,7 +250,7 @@ export class ClipPoster {
         created = await client.createPosts(body);
       }
       const postIds = created.filter((c) => c.postId).map((c) => ({ channelId: c.integration, postId: c.postId }));
-      await this.deps.audit.record({ action: "createPosts", channels: request.channels.map((c) => c.id), postIds: postIds.map((p) => p.postId), clipId: request.clipId, when: request.when, ...(video ? { video } : {}) });
+      await this.deps.audit.record({ action: "createPosts", channels: request.channels.map((c) => c.id), postIds: postIds.map((p) => p.postId), clipId: request.clipId, when: request.when, ...(video ? { video } : {}), ...(genes ? { genes } : {}) /* --- insights --- */ });
       this.deps.log("info", `postiz: created ${postIds.length} post(s) for ${request.channels.length} channel(s), type ${body.type}, date ${body.date}`);
       this.deps.emit({ clipId: request.clipId, phase: "done", percent: 100 });
       return { postIds, group: created.find((c) => c.group)?.group ?? null };

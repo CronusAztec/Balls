@@ -13,6 +13,7 @@ import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { composeCutSpec, cutFileTrim, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
+import { editorGenes, genesOfCut } from "@/lib/insights/genes"; // --- insights ---
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipEditTrack, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditNumberKey, type ClipEditSpec } from "@/lib/clipEdit/spec";
 import { SliderTrack } from "@/components/simulator/ControlPrimitives"; // --- review fix (unlimited-sizes) --- (the wide tracks)
 import NumberField from "@/components/simulator/NumberField"; // --- review fix (unlimited-sizes) --- (any start, length, crop-in or card)
@@ -217,7 +218,12 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         // spec moved by the trim, its look kept), or with no spec when that is not known, so the Library opens the master's own
         const parentCut = cutFile ? desktop.meta?.cut : undefined;
         const cut = !cutFile ? result.spec : parentCut ? composeCutSpec(parentCut, result.spec) : undefined;
-        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: cut ? cut.hook : fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: editCutJobId(desktop.meta?.queueJobId), ...(cut ? { cut } : {}), ...(fanMade ? { fanMadeBurned: true } : {}) /* --- badge-safe --- a Fight League cut carries the badge, drawn or kept */ };
+        const hook = cut ? cut.hook : fitted.hook;
+        const caption = desktop.meta?.caption ?? null;
+        const hashtags = desktop.meta?.hashtags ?? [];
+        // --- insights --- a cut of a clip with genes keeps them as a cut (its length, its hook); any other cut is the editor's
+        const genes = desktop.meta?.genes ? genesOfCut(desktop.meta.genes, { durationSec: result.durationSec, hook, sameHook: hook.trim() === (desktop.meta.hook ?? "").trim() }) : editorGenes({ mode: desktop.meta?.mode ?? source.mode ?? null, durationSec: result.durationSec, copy: { hook, caption, hashtags } });
+        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook, caption, hashtags, queueJobId: editCutJobId(desktop.meta?.queueJobId), ...(cut ? { cut } : {}), ...(fanMade ? { fanMadeBurned: true } : {}) /* --- badge-safe --- a Fight League cut carries the badge, drawn or kept */, genes };
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";

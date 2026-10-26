@@ -2,6 +2,7 @@ import { resolveProjectSettings } from "@/lib/project";
 import { RESOLUTIONS, type SimulatorSettings } from "@/lib/settings";
 import { isLinkSeed } from "@/lib/recording/batch"; // --- low-findings --- (was MAX_SEED: a negative found seed was lost)
 import { parseClipEdit, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
+import { sanitizeGenes } from "@/lib/insights/genes"; // --- insights ---
 import { VIDEO_CODECS, type LibraryMeta, type VideoCodec } from "./contract";
 import { OUTPUT_PRESETS, queueFps, type OutputPreset } from "./presets"; // --- uncap-all --- (review fix) (queueFps: any rate from 30 up)
 import { DEFAULT_FAST_EXPORT_FPS } from "@/lib/recording/fastRenderPlan";
@@ -21,6 +22,9 @@ export { safeFileBase };
  * After a restart `restoreQueue()` reads the journal back: a job that was rendering or encoding when the app stopped goes
  * back to the queue (a render cannot resume half-way – it starts over) unless it already had `MAX_ATTEMPTS` tries, and a
  * queue that was running offers to resume.
+ *
+ * --- insights --- A job's meta carries the clip's genes (lib/insights/genes.ts) from its source (lib/desktop/queueSources.ts);
+ * the journal keeps them (sanitised on restore) and the page completes them when it saves the file.
  */
 
 export const QUEUE_JOURNAL_FORMAT = "jumpingballslive-render-journal";
@@ -345,8 +349,17 @@ function restoreMeta(raw: unknown, name: string): QueueJobSpec["meta"] {
     caption: typeof m.caption === "string" ? m.caption.slice(0, 5000) : null,
     hashtags,
     ...(typeof m.link === "string" ? { link: m.link.slice(0, 20_000) } : {}),
+    ...restoredGenes(m.genes), // --- insights ---
   };
 }
+
+// --- insights ---
+/** A journal job's genes: the sanitised record, or no key (none stored, or nothing that is a record). */
+function restoredGenes(raw: unknown): Pick<QueueJobSpec["meta"], "genes"> {
+  const genes = raw === undefined ? null : sanitizeGenes(raw);
+  return genes ? { genes } : {};
+}
+// --- end insights ---
 
 function restoreJob(raw: unknown, now: number): QueueJob | null {
   if (!isObject(raw) || typeof raw.id !== "string" || !raw.id) return null;

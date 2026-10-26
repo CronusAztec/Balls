@@ -44,6 +44,9 @@ import { renderClipEdit } from "@/lib/clipEdit/render";
 import { editFileName } from "@/lib/clipEdit/spec";
 import { refitClipEdit } from "@/lib/clipEdit/propose";
 import { offerPublishClip } from "@/lib/publish/clips";
+// --- insights --- the clip's genes as saved: its source's, the file's length, master or cut
+import { genesOfCut, genesOfSavedFile } from "@/lib/insights/genes";
+import { settingsGenes } from "@/lib/desktop/queueSources";
 // --- free-watermark --- (was paywall-gate) the render queue renders for everyone: its jobs are fast exports, watermarked without a Pro licence
 
 /*
@@ -60,6 +63,10 @@ import { offerPublishClip } from "@/lib/publish/clips";
  * `onFailed`, a cancelled one is dropped, and a restart mid-cut re-renders nothing. The cut's progress travels as
  * `cutting` next to the state (a done job has no bar of its own); the loop waits for it like for a render. --- cut-cancel ---
  * Once the cut's file is made it is being saved (`cutting.saving`): a Cancel no longer stops it, so the row says "Saving…".
+ *
+ * --- insights --- The saved file's meta carries the clip's genes (lib/insights/genes.ts): the job's, from its source (a job
+ * of an older journal gets its settings'), with the file's length and "master"; its cut gets them as a cut of its own length
+ * and hook. The app's main process sanitises them when it writes the Library.
  */
 
 const PROGRESS_SAVE_MS = 2000;
@@ -227,6 +234,8 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const rendered = { extension: file.extension, codec: file.extension === "mp4" ? codecOfString(lastVideoAcceleration()?.codec) ?? "h264" : null };
         const transcode = transcodeSpecFor(job.preset, job.codec, { width: size.width, height: size.height, fps: render.fps }, rendered);
         if (transcode) apply((s) => markEncoding(s, job.id, Date.now()));
+        // --- insights ---
+        const genes = genesOfSavedFile(job.meta.genes ?? settingsGenes(job.settings, { hook: job.meta.hook, caption: job.meta.caption, hashtags: job.meta.hashtags }, job.source.kind), { durationSec: file.durationSec, cut: "master" });
         const meta: LibraryMeta = {
           title: job.meta.title || job.name,
           mode: job.settings.mode,
@@ -239,6 +248,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
           queueJobId: job.id,
           ...(job.cut ? { cut: job.cut } : {}), // --- ai-cut --- the master carries the proposal: "Edit for TikTok" opens pre-filled
           ...(fanMadeMode(job.settings.mode) ? { fanMadeBurned: true } : {}), // --- badge-safe --- this build burns the badge in (its cut and a later cut of it trust it)
+          genes, // --- insights ---
         };
         const saved = await bridge.render.save({ jobId: job.id, folder, name: job.name, extension: file.extension, data: await blobBytes(file.blob), durationSec: file.durationSec, transcode, meta });
         if (cancelled.current.has(job.id)) return;
@@ -261,7 +271,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
               run.saving = true;
               setCutting({ jobId: job.id, progress: 1, saving: true });
               const fileName = editFileName(job.name, result.format.extension);
-              const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec };
+              const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec, genes: genesOfCut(genes, { durationSec: result.durationSec, hook: result.spec.hook, sameHook: result.spec.hook.trim() === (meta.hook ?? "").trim() }) /* --- insights --- */ };
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
               // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`,
               // and the spec it was cut with goes along, so the trim is saved as a cut of the master (composeCutSpec)

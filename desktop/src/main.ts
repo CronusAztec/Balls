@@ -227,6 +227,7 @@ function start() {
     poster,
     emit: (items) => send(DESKTOP_EVENTS.socialQueue, items),
     log: (level, message) => logger.write(level, message),
+    library, // --- insights --- a proposal copies its clip's genes from the Library
   });
   const autopilot = new AutopilotStore({
     settings: () => store.get("autopilot"),
