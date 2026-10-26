@@ -404,6 +404,9 @@ const fetching = new Map();
  * bytes, cached, meta, ytdlp } (meta: videoSources.ts VideoMeta from the video's page; ytdlp: the one that ran, the
  * caller's when it passes one). Two calls for one video at once (two links of it) download it once: the second waits,
  * then reuses the file.
+ * @param {any} tb the tool core
+ * @param {{ url: unknown, maxHeight?: number, force?: boolean, ytdlp?: { file: string, prefix: string[], source: string, version: string } | null, hosts?: (urls: string[]) => Promise<{ ok: string[], refused: { url: string, error: string }[] }> }} options
+ * @param {number} [nowMs]
  */
 export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytdlp: given = null, hosts = hostChecker(tb) }, nowMs = Date.now()) {
   const link = tb.checkVideoUrl(url);
