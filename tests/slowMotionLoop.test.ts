@@ -532,6 +532,33 @@ describe("the live loop with Slow motion off (--- slow-motion ---): real time, d
     }
   });
 
+  it("starts its clock and its badge over with a new run (R, Restart): no debt, lost time or badge of the run before", () => {
+    // --- review fix --- R keeps the run playing, so the clock never started over: the new run's first frame owed 450 ms, its
+    // lost time counted on from the old run's and the badge stayed on into it
+    const f = fakes({ slowMotion: false, offline: false, paintCpuMs: 2 });
+    const engine = f.env.engine as { getElapsedMs: () => number };
+    let origin = 0;
+    f.env.engine = { ...(f.env.engine as object), getElapsedMs: () => engine.getElapsedMs() - origin };
+    f.bind(harness(currentLoop(), f.env, cut(REAL_TIME_START, REAL_TIME_END)));
+    const loop = { ...f, clock: f.clock, realTime: () => f.harness().realTime!, paints: () => paintsOf(f.log) };
+    playVsync(loop, 4, { stepCpuMs: 40, unlimited: true });
+    const clock = loop.realTime();
+    expect(clock.lostMs).toBeGreaterThan(0);
+    expect(clock.debtMs).toBeGreaterThan(DEBT_CAP_MS / 2);
+    expect(loop.budget.slow).toBe(true);
+    origin = engine.getElapsedMs(); // the engine starts the new run at 0 s
+    const steps = loop.steps();
+    let now = Math.ceil(loop.clock.cpu / (1000 / 60)) * (1000 / 60);
+    loop.callback(steady({ stepCpuMs: 0.05 }), now);
+    expect([clock.debtMs, clock.lostMs, clock.framesSkipped, loop.steps() - steps]).toEqual([0, 0, 0, 0]);
+    expect(loop.budget.slow).toBe(false);
+    for (let i = 0; i < 30; i++) loop.callback(steady({ stepCpuMs: 0.05 }), (now += 1000 / 60));
+    expect(loop.steps() - steps).toBeGreaterThanOrEqual(29); // a step a frame of the new run: none of the old debt
+    expect(loop.steps() - steps).toBeLessThanOrEqual(30);
+    expect(clock.lostMs).toBe(0);
+    expect(loop.budget.slow).toBe(false);
+  });
+
   it("owes nothing while the run is paused, not started or held, and draws every due frame then", () => {
     const loop = realTimeLoop();
     playVsync(loop, 2, { paused: true });

@@ -459,6 +459,35 @@ describe("the real-time scheduler (--- slow-motion ---)", () => {
     }
   });
 
+  it("starts over with a new run: a run clock below the last callback's carries no debt, lost time or skipped frame", () => {
+    // --- review fix --- R / Restart keep the run playing: nothing paused, so the clock never started over for the new run
+    const clock = new RealTimeClock();
+    const stepper = fakeStepper(() => 1, 40);
+    let runMs = 0;
+    const at = (nowMs: number) => {
+      const t = clock.tick(nowMs, { ...run(), runMs }, stepper);
+      runMs += t.paidMs;
+      return t;
+    };
+    for (let i = 0; i <= 60; i++) at(i * 50);
+    expect(clock.lostMs).toBeGreaterThan(0);
+    expect(clock.debtMs).toBeGreaterThan(DEBT_CAP_MS / 2);
+    expect(clock.framesSkipped + clock.steps).toBeGreaterThan(0);
+    runMs = 0; // the engine starts a new run at 0 s
+    const first = at(61 * 50);
+    expect([first.restarted, first.steps, first.wantedMs, clock.debtMs, clock.lostMs, clock.framesSkipped, clock.steps]).toEqual([true, 0, 0, 0, 0, 0, 0]);
+    const next = at(61 * 50 + STEP_MS);
+    expect(next.restarted).toBe(false);
+    expect(next.wantedMs).toBeCloseTo(STEP_MS, 9); // it owes only its own wall time
+    expect(next.steps).toBe(1);
+    expect(clock.lostMs).toBe(0);
+    // a run clock that only goes forward never restarts it, nor does an input without one
+    const steady = new RealTimeClock();
+    const free = fakeStepper();
+    for (let i = 0; i < 30; i++) expect(steady.tick(i * STEP_MS, { ...run(), runMs: i * STEP_MS }, free).restarted).toBe(false);
+    expect(steady.tick(30 * STEP_MS, run(), free).restarted).toBe(false);
+  });
+
   it("starts over on reset", () => {
     const clock = new RealTimeClock();
     const stepper = fakeStepper(() => 0.5, 40);
@@ -784,6 +813,22 @@ describe("a split-screen race's real-time scheduler (--- slow-motion ---)", () =
     const back = paused.tick(60 * STEP_MS + 30_000, run(), b.fns, b.now);
     expect(back.paused).toBe(true);
     expect(back.steps).toBeLessThanOrEqual(2);
+  });
+
+  it("starts over with a new race: the page engine's clock back carries no arena's debt or lost time", () => {
+    // --- review fix --- (splitScreenCanvas.tsx passes the page engine's clock: a restart starts the arenas over with it)
+    const lanes = new RealTimeLanes();
+    const a = arenas([() => 1, () => 1], [30, 30]);
+    for (let i = 0; i <= 40; i++) lanes.tick(i * 50, { ...run(), runMs: a.steps[0] * STEP_MS }, a.fns, a.now); // (the first arena is the page's engine)
+    expect(lanes.lostMs).toBeGreaterThan(0);
+    expect(lanes.debtMs).toBeGreaterThan(0);
+    const first = lanes.tick(41 * 50, { ...run(), runMs: 0 }, a.fns, a.now);
+    expect([first.restarted, first.steps, lanes.lostMs, lanes.debtMs, lanes.framesSkipped]).toEqual([true, 0, 0, 0, 0]);
+    const next = lanes.tick(41 * 50 + STEP_MS, { ...run(), runMs: 0 }, a.fns, a.now);
+    expect(next.restarted).toBe(false);
+    expect(next.wantedMs).toBeCloseTo(STEP_MS, 9);
+    expect(lanes.debtMs).toBeLessThanOrEqual(STEP_MS + 1e-9); // (no arena owes more than the new race's own wall time)
+    expect(lanes.lostMs).toBe(0);
   });
 
   it("follows the playback speed and starts over on reset", () => {

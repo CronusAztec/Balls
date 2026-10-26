@@ -118,6 +118,12 @@ export interface RealTimeInput {
    * the switch off never plays a run slower than on. Left out: true.
    */
   frameBudget?: boolean;
+  /**
+   * --- review fix --- The run's own clock before this callback's steps (`engine.getElapsedMs()`; a race's: the page engine's):
+   * one below the last callback's is a new run – the R key, Restart, another mode or seed – and the clock starts over first
+   * (`reset()`), so the new run carries no debt, lost time or skipped frames of the one before. Left out: no check.
+   */
+  runMs?: number;
 }
 
 /** What one live callback did. */
@@ -138,6 +144,13 @@ export interface RealTimeTick {
   catchUp: boolean;
   /** The gap before it was a pause: the debt started over. */
   paused: boolean;
+  /** --- review fix --- A new run began at this callback (`RealTimeInput.runMs`): the clock started over, and so does the caller's badge. */
+  restarted: boolean;
+}
+
+/** --- review fix --- A run's clock `runMs` below the last callback's (`lastMs`): a new run began (the clock only goes forward within one). */
+function newRun(lastMs: number | null, runMs: number | undefined): boolean {
+  return runMs !== undefined && lastMs !== null && runMs < lastMs;
 }
 
 /**
@@ -299,7 +312,9 @@ export class RealTimeClock {
   private frameSteps = 0;
   /** --- review fix --- The old loop's accumulator, mirrored (ms): what it would still have owed after the last drawn frame. */
   private oldLoopMs = 0;
-  private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false };
+  /** --- review fix --- The run's clock at the last callback (`RealTimeInput.runMs`; null: none given yet). */
+  private lastRunMs: number | null = null;
+  private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false, restarted: false };
 
   /** Due frames skipped to catch up since the last reset. */
   get framesSkipped(): number {
@@ -335,6 +350,7 @@ export class RealTimeClock {
     this.nextCostMs = STEP_MS;
     this.frameSteps = 0;
     this.oldLoopMs = 0;
+    this.lastRunMs = null;
   }
 
   /**
@@ -343,6 +359,9 @@ export class RealTimeClock {
    */
   tick(nowMs: number, input: RealTimeInput, stepper: RealTimeStepper): RealTimeTick {
     const out = this.result;
+    out.restarted = newRun(this.lastRunMs, input.runMs);
+    if (out.restarted) this.reset();
+    if (input.runMs !== undefined) this.lastRunMs = input.runMs;
     out.wantedMs = 0;
     out.paidMs = 0;
     out.steps = 0;
@@ -539,7 +558,9 @@ export class RealTimeLanes {
   private lastNowMs: number | null = null;
   private readonly pacer = new DrawPacer();
   private cursor = 0;
-  private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false };
+  /** --- review fix --- The race's clock at the last callback (`RealTimeInput.runMs`; null: none given yet). */
+  private lastRunMs: number | null = null;
+  private readonly result: RealTimeTick = { wallMs: 0, wantedMs: 0, paidMs: 0, steps: 0, draw: false, frameMs: 0, catchUp: false, paused: false, restarted: false };
   private readonly paid: number[] = [];
 
   /** Due frames skipped to catch up since the last reset. */
@@ -573,6 +594,7 @@ export class RealTimeLanes {
     this.lastNowMs = null;
     this.pacer.reset();
     this.cursor = 0;
+    this.lastRunMs = null;
   }
 
   /** --- review fix --- The composed frame the last callback drew took `costMs` of wall time to paint (the arenas and the stage). */
@@ -587,6 +609,9 @@ export class RealTimeLanes {
    */
   tick(nowMs: number, input: RealTimeInput, steps: readonly (() => number)[], now: () => number): RealTimeTick {
     const out = this.result;
+    out.restarted = newRun(this.lastRunMs, input.runMs);
+    if (out.restarted) this.reset();
+    if (input.runMs !== undefined) this.lastRunMs = input.runMs;
     const n = steps.length;
     while (this.lanes.length < n) this.lanes.push({ debtMs: 0, lostMs: 0, steps: 0, nextCostMs: STEP_MS, frameSteps: 0, oldLoopMs: 0 });
     if (this.lanes.length > n) this.lanes.length = n;

@@ -299,6 +299,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         laneInput.running = !p.isPaused && !!p.isStarted;
         laneInput.simSpeed = p.simSpeed ?? 1;
         laneInput.drawDue = gate.due(now);
+        laneInput.runMs = sp.engines[0]?.getElapsedMs(); // --- review fix --- (a restarted race – its page engine's clock back – starts the clock over)
         sp.runner.beforeFrame();
         const tick = lanes.tick(now, laneInput, laneSteps, () => performance.now());
         sp.runner.afterFrame(now);

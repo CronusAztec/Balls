@@ -1246,14 +1246,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       realTimeInput.running = running;
       realTimeInput.simSpeed = p.simSpeed;
       realTimeInput.frameBudget = engine.getUnlimitedView().on; // --- review fix --- (the old loop's frame budget: No limits on; off, a drawn frame runs at least that loop's steps)
+      realTimeInput.runMs = engine.getElapsedMs(); // --- review fix --- (a new run – R, Restart, a new mode or seed – takes the clock back: it starts over)
       // (--- orb-rhythm --- a rhythm field that draws cheaply enough takes every refresh, as in the old loop)
       realTimeInput.drawDue = frameGate.due(now) || (orbFrameCost.fast && engine.isOrbGridMode() && engine.getOrbGridView().model === "rhythm");
       const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
       frameBudget.enabled = false; // (the clock budgets its own steps)
       const tick = realTime.tick(now, realTimeInput, realTimeStepper);
       lastTimeRef.current = now;
-      // the honest badge: the playback time the steps paid against what the wall clock asked for (a finished run's clock stands still)
-      if (!running || engine.isSimulationFinished()) frameBudget.reset();
+      // the honest badge: the playback time the steps paid against what the wall clock asked for (a finished run's clock stands
+      // still; --- review fix --- a new run's badge starts over with its clock)
+      if (!running || engine.isSimulationFinished() || tick.restarted) frameBudget.reset();
       else frameBudget.note(tick.wallMs, tick.wantedMs, tick.paidMs);
       if (!tick.draw) {
         rafRef.current = requestAnimationFrame(draw); // a dropped frame: the steps ran, nothing is drawn
