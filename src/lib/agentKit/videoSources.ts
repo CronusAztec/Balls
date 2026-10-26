@@ -12,6 +12,9 @@
  *  - Every yt-dlp run ignores the user's and the system's yt-dlp configuration (--ignore-config: a config could name another
  *    output folder or an --exec command) and keeps no cache (--no-cache-dir: it writes nothing outside .agent-out/).
  *  - A link always follows `--`, so a link that looks like an option is never read as one.
+ *  - One video per link: every page read and every download takes the first entry of a list at most (--playlist-items 1),
+ *    so a playlist, channel, profile, hashtag or search page never runs through all of its videos, and a link that turns
+ *    out to be such a list is refused with a clear error (listLinkError).
  * Titles and channel names are other people's text: they are cut to TEXT_MAX_CHARS, stripped of control characters and only
  * ever reported as data.
  */
@@ -193,6 +196,13 @@ export function ytListArgs(target: string, count: number): string[] {
 }
 
 /**
+ * --- inspiration --- One video per link (see the header): --no-playlist reads the video of a link that names a video and a
+ * playlist, and --playlist-items 1 reads only the first entry of a link that names a list alone (a playlist, a channel or
+ * its Shorts tab, a TikTok profile, a hashtag or a search page), never every entry.
+ */
+export const ONE_VIDEO: readonly string[] = ["--no-playlist", "--playlist-items", "1"];
+
+/**
  * Each video's own page, one JSON line per link, nothing downloaded: likes, comments, upload date, length. A link that fails
  * is skipped (--ignore-errors) and its error printed; a page without playable formats still gives its numbers
  * (--ignore-no-formats-error), and YouTube's mobile web client is asked too, which answers where the default clients meet a
@@ -200,7 +210,39 @@ export function ytListArgs(target: string, count: number): string[] {
  */
 export function ytInfoArgs(urls: readonly string[]): string[] {
   for (const u of urls) if (!checkVideoUrl(u).ok) throw new Error(`Not a video link yt-dlp may fetch: ${u.slice(0, 80)}`);
-  return [...YTDLP_BASE, "--dump-json", "--skip-download", "--no-playlist", "--ignore-no-formats-error", "--ignore-errors", "--extractor-args", "youtube:player_client=default,mweb", "--", ...urls];
+  return [...YTDLP_BASE, "--dump-json", "--skip-download", ...ONE_VIDEO, "--ignore-no-formats-error", "--ignore-errors", "--extractor-args", "youtube:player_client=default,mweb", "--", ...urls];
+}
+
+/**
+ * --- inspiration --- Whether a page yt-dlp printed is an entry of a list (a playlist, a channel, a profile, a hashtag or a
+ * search page, or a post of several clips) rather than a lone video: a lone video's page has no playlist_index.
+ */
+export function isListEntry(info: Record<string, unknown>): boolean {
+  return info._type === "playlist" || info._type === "multi_video" || typeof info.playlist_index === "number" || (typeof info.playlist_id === "string" && info.playlist_id !== "");
+}
+
+/**
+ * --- inspiration --- Why a link is refused when its page is a list's entry, null when it is not, or when the link names one
+ * video by its own id (an Instagram post of several clips gives its first clip): a list is never fetched as a video.
+ */
+export function listLinkError(link: string, info: Record<string, unknown>): string | null {
+  if (!isListEntry(info) || videoIdOfUrl(link) !== null) return null;
+  const name = cleanText(info.playlist_title) ?? cleanText(info.playlist);
+  return `${link.slice(0, 200)} is a list of videos${name ? ` ("${name}")` : ""} – a playlist, channel, profile, hashtag or search page – not one video: give the link of one video (trending finds a search's and a hashtag feed's videos)`;
+}
+
+/**
+ * --- inspiration --- Which of the links yt-dlp was given a list entry's page came from: the one its playlist_webpage_url
+ * names (a channel link may come back as one of its tabs: /@name as /@name/videos), else null. An entry's original_url is
+ * the entry's own link, never the list's.
+ */
+export function listLinkOf(links: readonly string[], info: Record<string, unknown>): string | null {
+  const page = typeof info.playlist_webpage_url === "string" ? checkVideoUrl(info.playlist_webpage_url) : null;
+  if (!page?.ok) return null;
+  const trim = (u: string) => u.replace(/\/+$/, "");
+  const exact = links.find((l) => trim(l) === trim(page.url));
+  if (exact) return exact;
+  return links.find((l) => !/[?#]/.test(l) && trim(page.url).startsWith(`${trim(l)}/`)) ?? null;
 }
 
 export interface DownloadPlan {
@@ -230,7 +272,7 @@ export function ytDownloadArgs(p: DownloadPlan): string[] {
   const dir = p.dir.replace(/[\\/]+$/, "").replace(/%/g, "%%");
   return [
     ...YTDLP_BASE,
-    "--no-playlist",
+    ...ONE_VIDEO,
     "--no-progress",
     "--no-mtime",
     "--format",

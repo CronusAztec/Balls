@@ -9,7 +9,8 @@ import { hookTimes } from "@/lib/videoAnalysis/ffmpegArgs";
 import { AGENT_TOOLS, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
-import { ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import * as videoSources from "@/lib/agentKit/videoSources";
+import { readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
 import { PathError, outFolder } from "../scripts/agent/paths.mjs";
 
 // --- inspiration --- The inspiration tools of the agent toolbox (trending, fetch-video, frames, inspire; analyse with a
@@ -52,6 +53,22 @@ describe("yt-dlp itself and where its files go (--- inspiration ---)", () => {
     }
     expect(outFolder("inbox")).toBe(path.join(ROOT, ".agent-out", "inbox"));
   });
+
+  // --- inspiration --- a run stopped at its timeout: the pages it printed before are kept, not lost with the run
+  it("keeps the pages a run printed before it was stopped at its timeout", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-slow-ytdlp-"));
+    const slow = path.join(dir, "slow-yt-dlp.mjs");
+    // (prints the page of the first link it is given, then never ends)
+    fs.writeFileSync(slow, 'const a = process.argv.slice(2); const t = a.slice(a.indexOf("--") + 1);\nprocess.stdout.write(JSON.stringify({ id: "x", original_url: t[0], webpage_url: t[0], view_count: 1 }) + "\\n");\nsetInterval(() => {}, 1000);\n');
+    try {
+      const urls = ["a", "b", "c", "d", "e"].map((c) => `https://www.youtube.com/shorts/${c.repeat(11)}`);
+      const { pages, errors } = await readPages(videoSources, { ...ytDlpCommand(slow), source: "JBL_YTDLP", version: "slow" }, urls, { timeoutMs: 1500 });
+      expect([...pages.keys()].sort()).toEqual([urls[0], urls[2], urls[4]]); // (five links in three runs: the first of each)
+      expect(errors.filter((e: string) => /took longer than/.test(e))).toHaveLength(3);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
 
 describe("the tool table (--- inspiration ---)", () => {
@@ -214,6 +231,24 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(refused.code).toBe(1);
     expect(refused.json.error).toMatch(/private network/);
     expect(calls().length).toBe(before);
+  });
+
+  // --- inspiration --- one video per link
+  it("reads one entry of a playlist, channel or profile link at most and refuses it as a list, keeping the other links' pages", () => {
+    const list = "https://www.youtube.com/@channel_1/shorts";
+    const before = calls().length;
+    const fetched = agent("fetch-video", { url: list });
+    expect(fetched.code).toBe(1);
+    expect(fetched.json.error).toMatch(/is a list of videos .*not one video/);
+    const runs = calls().slice(before).filter((c) => !c.includes("--version"));
+    expect(runs).toHaveLength(1); // the page, nothing downloaded
+    expect(runs[0]).toContain("--skip-download");
+    expect(runs[0][runs[0].indexOf("--playlist-items") + 1]).toBe("1");
+    const tiktok = "https://www.tiktok.com/@channel_7/video/7508828818702978326";
+    const r = agent("trending", { urls: [list, tiktok] });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    expect(r.json.result).toMatchObject({ count: 1, sources: { urls: 1 }, refused: [{ url: list, error: expect.stringMatching(/is a list of videos/) }] });
+    expect(r.json.result.videos[0]).toMatchObject({ key: "tiktok:7508828818702978326", views: 4100000, detailed: true });
   });
 
   it("cuts frames and contact sheets for a vision-capable AI, and analyses a link exactly as a file", () => {

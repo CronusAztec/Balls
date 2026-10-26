@@ -6,7 +6,9 @@
  *  - `--version`;
  *  - `--flat-playlist`: a `ytsearchN:` search (search.jsonl) or a hashtag Shorts feed (shorts.jsonl), --playlist-end rows;
  *  - `--skip-download`: each link's page (pages.jsonl, tiktok-page.json; any other link: an ERROR line, as yt-dlp prints
- *    for a video it cannot read);
+ *    for a video it cannot read). A channel, its Shorts tab or a playlist (youtube.com/@name…, /playlist?list=) is a list:
+ *    every YouTube page of pages.jsonl as its entries, shaped as yt-dlp prints a list's entries (playlist_index,
+ *    playlist_webpage_url, the entry's own original_url), only those --playlist-items names when it is given (N, A:B, A,B);
  *  - a download (`--print after_move:filepath`): FAKE_YTDLP_CLIP copied to the --output template, the info JSON beside it.
  * It refuses a run without --ignore-config and --no-cache-dir (exit 3), and appends each argv as a JSON line to
  * FAKE_YTDLP_LOG when that is set.
@@ -33,6 +35,20 @@ const lines = (file) => fs.readFileSync(path.join(DIR, file), "utf8").split("\n"
 const pages = [...lines("pages.jsonl"), JSON.parse(fs.readFileSync(path.join(DIR, "tiktok-page.json"), "utf8"))];
 const pageOf = (url) => pages.find((p) => url.includes(p.id));
 let failed = false;
+// --- inspiration --- a list's link, and the entries --playlist-items keeps (1-based; none given: every entry)
+const isList = (url) => /^https:\/\/www\.youtube\.com\/(@[\w.-]+(\/(shorts|videos))?\/?$|playlist\?list=)/.test(url);
+const pickItems = (n) => {
+  const spec = opt("--playlist-items");
+  if (spec === undefined) return Array.from({ length: n }, (_, i) => i + 1);
+  return [...new Set(spec.split(",").flatMap((part) => {
+    const [a, b] = part.split(/[:-]/).map(Number);
+    return b === undefined ? [a] : Array.from({ length: Math.max(0, Math.min(b, n) - a + 1) }, (_, i) => a + i);
+  }))].filter((i) => i >= 1 && i <= n);
+};
+const listEntries = (url) => {
+  const entries = pages.filter((p) => typeof p.webpage_url === "string" && p.webpage_url.includes("youtube.com"));
+  return pickItems(entries.length).map((i) => ({ ...entries[i - 1], playlist: "Channel 1 - Shorts", playlist_title: "Channel 1 - Shorts", playlist_id: "UCfakechannel0000000001", playlist_index: i, n_entries: entries.length, playlist_webpage_url: url }));
+};
 
 if (argv.includes("--flat-playlist")) {
   const end = Number(opt("--playlist-end") ?? 1000);
@@ -43,6 +59,10 @@ if (argv.includes("--flat-playlist")) {
   }
 } else if (argv.includes("--skip-download")) {
   for (const url of targets) {
+    if (isList(url)) {
+      for (const e of listEntries(url)) process.stdout.write(`${JSON.stringify(e)}\n`);
+      continue;
+    }
     const p = pageOf(url);
     if (p) process.stdout.write(`${JSON.stringify({ ...p, original_url: url })}\n`);
     else {

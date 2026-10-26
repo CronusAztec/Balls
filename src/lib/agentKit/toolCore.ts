@@ -13,7 +13,7 @@ export { PCM_RATE, SAMPLE_BYTES, audioStatsArgs, cutsArgs, infoArgs, lastFramesA
 export { parseCuts, parseIntegratedLufs, parseMediaInfo, parseSilences, pcmSamples, splitFrames } from "@/lib/videoAnalysis/ffmpegParse";
 export { buildVideoFeatures, soundFeatures, type VideoFeatures } from "@/lib/videoAnalysis/features";
 // --- inspiration --- trending, fetch-video, frames and inspire: the video sources (yt-dlp), the frames and the report
-export { DEFAULT_QUERY, SHORT_MAX_SEC, checkQuery, checkVideoUrl, hasNumbers, mergeMeta, parseJsonLines, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, videoFileName, videoMetaOf, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "./videoSources";
+export { DEFAULT_QUERY, SHORT_MAX_SEC, checkQuery, checkVideoUrl, hasNumbers, isListEntry, listLinkError, listLinkOf, mergeMeta, parseJsonLines, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, videoFileName, videoMetaOf, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "./videoSources";
 export { FRAME_WIDTH, HOOK_SEC, HOOK_STEP_SEC, SHEET_TILE_WIDTH, frameArgs, frameTimes, hookTimes, sheetArgs, sheetGrid } from "@/lib/videoAnalysis/ffmpegArgs";
 export { buildInspirationReport, datasetAppend, datasetRecord, inspirationMarkdown, runFolderName, stillsColour } from "./inspiration";
 // --- inspiration --- the stills fallback: a video's public stills when its download is refused

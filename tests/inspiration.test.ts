@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isPrivateHost, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
+import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isListEntry, isPrivateHost, listLinkError, listLinkOf, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
 import {
   LEVERS,
   LOOP_MODES,
@@ -133,6 +133,34 @@ describe("yt-dlp's command lines (--- inspiration ---)", () => {
   it("read its JSON lines and its errors", () => {
     expect(parseJsonLines('{"a":1}\nnot json\n[1,2]\n{"b":\n\n  {"c":3}  ')).toEqual([{ a: 1 }, { c: 3 }]);
     expect(ytErrorLines("WARNING: x\nERROR: [youtube] abc: Sign in to confirm\nERROR: [TikTok] 1: blocked\n")).toEqual(["[youtube] abc: Sign in to confirm", "[TikTok] 1: blocked"]);
+  });
+
+  // --- inspiration --- one video per link: a channel's Shorts tab read whole took 239 s and drew YouTube's rate limit
+  it("read one video per link: a playlist, channel or profile link gives one entry at most and is refused as a list", () => {
+    const info = ytInfoArgs(["https://www.youtube.com/@channel_1/shorts"]);
+    const dl = ytDownloadArgs({ url: "https://www.youtube.com/shorts/FFJ5THnzdDE", dir: "/r/.agent-out/inbox/.fetch-x", name: "youtube-FFJ5THnzdDE", maxHeight: 1080, ffmpeg: null });
+    for (const args of [info, dl]) {
+      expect(args[args.indexOf("--playlist-items") + 1]).toBe("1");
+      expect(args).toContain("--no-playlist");
+    }
+    const page = PAGES.find((p) => p.id === "FFJ5THnzdDE")!;
+    // a lone video's page as yt-dlp prints it, and the first entry of a channel's Shorts tab (shaped as the live answer)
+    const lone = { ...page, playlist: null, playlist_index: null };
+    const entry = { ...page, original_url: "https://www.youtube.com/shorts/FFJ5THnzdDE", playlist: "Channel 1 - Shorts", playlist_id: "UCQCfVMcX5gMmJ1NUme3IqEQ", playlist_index: 1, n_entries: 1, playlist_webpage_url: "https://www.youtube.com/@channel_1/shorts" };
+    expect(isListEntry(lone)).toBe(false);
+    expect(isListEntry(entry)).toBe(true);
+    expect(isListEntry({ _type: "playlist", id: "x" })).toBe(true);
+    expect(listLinkError("https://www.youtube.com/shorts/FFJ5THnzdDE", lone)).toBeNull();
+    expect(listLinkError("https://www.youtube.com/@channel_1/shorts", entry)).toMatch(/is a list of videos \("Channel 1 - Shorts"\).*not one video/);
+    expect(listLinkError("https://www.tiktok.com/@channel_7", { ...entry, playlist: null, playlist_title: null })).toMatch(/is a list of videos – /);
+    // a link that names one video by its id is never a list (an Instagram post of several clips gives its first)
+    expect(listLinkError("https://www.instagram.com/p/C0abc12/", { ...entry, playlist_webpage_url: "https://www.instagram.com/p/C0abc12/" })).toBeNull();
+    const links = ["https://www.tiktok.com/@a/video/1", "https://www.youtube.com/@channel_1", "https://www.youtube.com/@channel_1/shorts"];
+    expect(listLinkOf(links, entry)).toBe("https://www.youtube.com/@channel_1/shorts");
+    expect(listLinkOf(links.slice(0, 2), entry)).toBe("https://www.youtube.com/@channel_1"); // (a channel comes back as one of its tabs)
+    expect(listLinkOf(["https://www.youtube.com/@channel_10"], entry)).toBeNull();
+    expect(listLinkOf(["https://www.youtube.com/playlist?list=A"], { ...entry, playlist_webpage_url: "https://www.youtube.com/playlist?list=B" })).toBeNull();
+    expect(listLinkOf(links, lone)).toBeNull();
   });
 });
 

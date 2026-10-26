@@ -167,6 +167,7 @@ export async function inspireTool(tb, args) {
     patterns: report.patterns.slice(0, 8),
     themes: report.themes.slice(0, 4).map((t) => ({ label: t.label, viewShare: t.viewShare, videos: t.videos, modes: t.modes, blueprints: t.blueprints })),
     videos: report.videos.map((v) => ({ rank: v.rank, url: v.url, title: v.title, views: v.views, viewsPerDay: v.viewsPerDay, durationSec: v.durationSec, analysed: v.analysed, sheet: v.frames?.sheet ?? null, hookSheet: v.frames?.hookSheet ?? null, ...(v.stills ? { stillsSheet: v.stills.sheet } : {}), ...(v.compared ? {} : { longForm: true }), ...(v.error ? { error: v.error } : {}) })),
+    ...(found.refused ? { refused: found.refused } : {}),
     ...(found.errors ? { errors: found.errors } : {}),
     note: "report.md is the readable report; look at each video's sheet.png and hook-sheet.png (or stills-sheet.png for a video seen only through its stills) to see what the numbers describe.",
   };

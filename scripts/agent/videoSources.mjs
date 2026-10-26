@@ -4,8 +4,8 @@
  * fetchVideo() does the same for analyse, frames and inspire. yt-dlp does the fetching:
  *  1. JBL_YTDLP when set (an executable, or a .js / .mjs / .cjs script run with this Node: the tests' fake one);
  *  2. `yt-dlp` on the PATH. None: a clear message, nothing fetched.
- * Its command lines, the link check (http or https, never this machine or its private network) and the parsers of what it
- * prints are pure (src/lib/agentKit/videoSources.ts, tested in tests/inspiration.test.ts). yt-dlp runs with an argument array
+ * Its command lines, the link check (http or https, never this machine or its private network), one video per link (a
+ * playlist, channel or profile link reads one entry at most and is refused) and the parsers of what it prints are pure (src/lib/agentKit/videoSources.ts, tested in tests/inspiration.test.ts). yt-dlp runs with an argument array
  * (no shell) and a timeout, without the user's config (--ignore-config) or cache (--no-cache-dir). A download goes into a
  * fresh folder inside .agent-out/inbox/ and is renamed into place – a link at the target is replaced, never written through
  * – with its info JSON beside it; a video already there is reused unless the call says force.
@@ -47,7 +47,10 @@ export function resolveYtDlp(env = process.env) {
   return null;
 }
 
-/** One yt-dlp run: { code, stdout, stderr } (text); rejects when it cannot start or runs past its timeout. */
+/**
+ * One yt-dlp run: { code, stdout, stderr } (text); rejects when it cannot start or runs past its timeout – then the error
+ * carries what it printed until it was stopped (stdout, stderr), so the pages it read already are not lost.
+ */
 export function runYtDlp(ytdlp, args, { timeoutMs = LIST_TIMEOUT_MS, cwd = ROOT } = {}) {
   return new Promise((resolve, reject) => {
     let child;
@@ -64,7 +67,7 @@ export function runYtDlp(ytdlp, args, { timeoutMs = LIST_TIMEOUT_MS, cwd = ROOT 
       if (done) return;
       done = true;
       child.kill("SIGKILL");
-      reject(new Error(`yt-dlp took longer than ${Math.round(timeoutMs / 1000)} s and was stopped`));
+      reject(Object.assign(new Error(`yt-dlp took longer than ${Math.round(timeoutMs / 1000)} s and was stopped`), { stdout: out, stderr: err }));
     }, timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -105,32 +108,45 @@ export async function mapLimit(items, limit, fn) {
 
 /**
  * The pages of `urls` read with yt-dlp -j, split over PAGE_RUNS runs: a Map from each link to its JSON object (matched by
- * the link yt-dlp was given, original_url), and the error lines of the links it could not read.
+ * the link yt-dlp was given, original_url), the error lines of the links it could not read, and (--- inspiration ---) the
+ * links that are lists of videos, not one (`lists`: link → why it is refused; ytInfoArgs reads one entry of each at most).
+ * A run stopped at its timeout keeps the pages it printed before.
  */
-export async function readPages(tb, ytdlp, urls) {
+export async function readPages(tb, ytdlp, urls, { timeoutMs = INFO_TIMEOUT_MS } = {}) {
   const pages = new Map();
+  const lists = new Map();
   const errors = [];
-  if (!urls.length) return { pages, errors };
+  if (!urls.length) return { pages, errors, lists };
   const size = Math.ceil(urls.length / PAGE_RUNS);
   const chunks = [];
   for (let i = 0; i < urls.length; i += size) chunks.push(urls.slice(i, i + size));
   await mapLimit(chunks, PAGE_RUNS, async (chunk) => {
     let r;
     try {
-      r = await runYtDlp(ytdlp, tb.ytInfoArgs(chunk), { timeoutMs: INFO_TIMEOUT_MS });
+      r = await runYtDlp(ytdlp, tb.ytInfoArgs(chunk), { timeoutMs });
     } catch (e) {
       errors.push(e instanceof Error ? e.message : String(e));
-      return;
+      if (!e || typeof e.stdout !== "string") return;
+      r = { code: null, stdout: e.stdout, stderr: typeof e.stderr === "string" ? e.stderr : "" }; // (the pages read before the stop)
     }
     const infos = tb.parseJsonLines(r.stdout);
     for (const info of infos) {
+      // --- inspiration --- a list's entry belongs to the list's link: refused, unless that link names one video by its id
+      if (tb.isListEntry(info)) {
+        const list = tb.listLinkOf(chunk, info);
+        if (!list || pages.has(list) || lists.has(list)) continue;
+        const why = tb.listLinkError(list, info);
+        if (why) lists.set(list, why);
+        else pages.set(list, info);
+        continue;
+      }
       const given = typeof info.original_url === "string" ? tb.checkVideoUrl(info.original_url) : null;
       const url = given?.ok && chunk.includes(given.url) ? given.url : chunk.find((u) => !pages.has(u) && typeof info.id === "string" && u.includes(info.id));
       if (url && !pages.has(url)) pages.set(url, info);
     }
     errors.push(...tb.ytErrorLines(r.stderr, 20));
   });
-  return { pages, errors };
+  return { pages, errors, lists };
 }
 
 /**
@@ -208,8 +224,13 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
       { sortBy: "views", limit: Math.max(1, Math.ceil(limit * 1.5)), maxDurationSec: args.maxDurationSec },
     ).videos;
     const toRead = [...given, ...pre];
-    const { pages, errors: pageErrors } = await readPages(tb, ytdlp, [...new Set(toRead.map((r) => r.url))]);
-    const readRows = toRead.map((row) => {
+    const { pages, errors: pageErrors, lists } = await readPages(tb, ytdlp, [...new Set(toRead.map((r) => r.url))]);
+    // --- inspiration --- a link that is a list of videos (a playlist, channel, profile…) is refused, not ranked
+    for (const [url, error] of lists) {
+      refused.push({ url: url.slice(0, 200), error });
+      sources.urls = Math.max(0, sources.urls - 1);
+    }
+    const readRows = toRead.filter((row) => !lists.has(row.url)).map((row) => {
       const info = pages.get(row.url);
       const page = info ? tb.videoMetaOf(info, { source: row.source, nowMs, link: row.url, detailed: true }) : null;
       if (tb.hasNumbers(page)) {
@@ -283,6 +304,8 @@ export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytd
   // the page first: its id names the file, and its numbers come back with it
   const page = await runYtDlp(ytdlp, tb.ytInfoArgs([link.url]), { timeoutMs: INFO_TIMEOUT_MS });
   const info = tb.parseJsonLines(page.stdout)[0];
+  const listError = info ? tb.listLinkError(link.url, info) : null; // (--- inspiration --- one video per link)
+  if (listError) throw new Error(listError);
   const meta = info ? tb.videoMetaOf(info, { source: "url", nowMs, link: link.url, detailed: true }) : null;
   if (!meta) throw new Error(`yt-dlp could not read ${link.url}: ${tb.ytErrorLines(page.stderr).join("; ") || `exit ${page.code}`}`);
   const name = tb.videoFileName(meta);

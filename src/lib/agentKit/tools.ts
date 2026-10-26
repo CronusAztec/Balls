@@ -75,7 +75,7 @@ const bpParams: JsonSchema = {
 };
 const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite, params: bpParams };
 // --- inspiration --- a video link (fetched with yt-dlp, never opened by the browser), a search, the ranking, the fetch size
-const videoUrl: JsonSchema = { type: "string", minLength: 8, maxLength: URL_MAX_CHARS, pattern: "^[Hh][Tt][Tt][Pp][Ss]?://", description: "A video link: TikTok, Instagram, YouTube (a Short too) or any site yt-dlp reads; http or https, never this machine or its private network. Fetched into .agent-out/inbox/." };
+const videoUrl: JsonSchema = { type: "string", minLength: 8, maxLength: URL_MAX_CHARS, pattern: "^[Hh][Tt][Tt][Pp][Ss]?://", description: "A video link: TikTok, Instagram, YouTube (a Short too) or any site yt-dlp reads; http or https, never this machine or its private network. One video: a playlist, channel, profile or hashtag link is refused. Fetched into .agent-out/inbox/." };
 const videoUrls: JsonSchema = { type: "array", minItems: 1, items: videoUrl, description: "Video links to add (TikTok, Instagram, YouTube or any site), each read with yt-dlp for its numbers." };
 const queryArg: JsonSchema = { type: "string", minLength: 1, maxLength: 200, description: `What to search for (default "${DEFAULT_QUERY}" when no urls are given).` };
 const sortByArg: JsonSchema = { type: "string", enum: ["views", "viewsPerDay"], description: "The order, most first (default views)." };
