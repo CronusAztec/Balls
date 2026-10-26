@@ -3,7 +3,9 @@ import type { SocialBridge } from "../capabilities"; // --- old-bridge --- (an a
 import { plannerChannels, proposalsLeftToday, toQueueProposals, unpostedClips } from "../autopilot";
 import { runAgent, type AgentEvent, type ChatModel } from "./agent";
 import { planTask, type PlanOutcome, type PlanResult } from "./plan";
-import { selectPlaybookContext } from "./playbookContext";
+import { TRENDING_CHARS, selectPlaybookContext, trendingContext } from "./playbookContext";
+import { TRENDS } from "@/content/trends"; // --- trends ---
+import type { TrendSummary } from "@/lib/trends";
 
 /*
  * --- social-autopilot --- One planning run from the page: the inputs gathered over the bridge (the Library, the queue, the
@@ -29,7 +31,12 @@ export interface PlanRunOptions {
   ignoreBudget?: boolean;
   /** --- ai-cut --- The render queue's jobs whose TikTok cut is still being made (renderQueue.ts cutsPending): their video waits. */
   pendingCuts?: readonly string[];
+  /** --- trends --- The trend summary (default: the committed src/content/trends.json; null: none). */
+  trends?: TrendSummary | null;
 }
+
+/** The planner's research budget (characters): the playbook excerpt and what is trending together. */
+export const PLAN_RESEARCH_CHARS = 3000;
 
 export async function runPlanner(bridge: Pick<SocialBridge, "library" | "social" | "ai">, model: ChatModel, options: PlanRunOptions): Promise<PlanRunOutcome> {
   const now = options.now ?? Date.now();
@@ -44,8 +51,10 @@ export async function runPlanner(bridge: Pick<SocialBridge, "library" | "social"
   const outcomes: PlanOutcome[] = posts
     .filter((p) => p.channel && (p.state === "PUBLISHED" || p.state === "ERROR"))
     .map((p) => ({ channelId: p.channel!.id, platform: p.channel!.platform, state: p.state, at: p.publishDate, text: p.content }));
-  const playbook = selectPlaybookContext(options.playbook, `best time to post schedule ${channels.map((c) => c.platform).join(" ")} ${clips.map((c) => c.title).join(" ")}`, 3000);
-  const task = planTask({ locale: options.locale, language: settings.language, clips, channels, perDay: Math.min(settings.perDay, left), quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, playbook, outcomes });
+  // --- trends --- what is trending takes its share of the research budget, the playbook the rest
+  const trending = trendingContext(options.trends === undefined ? TRENDS : options.trends, TRENDING_CHARS.plan, "copy");
+  const playbook = selectPlaybookContext(options.playbook, `best time to post schedule ${channels.map((c) => c.platform).join(" ")} ${clips.map((c) => c.title).join(" ")}`, PLAN_RESEARCH_CHARS - trending.length);
+  const task = planTask({ locale: options.locale, language: settings.language, clips, channels, perDay: Math.min(settings.perDay, left), quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, playbook, outcomes, trending });
   const out = await runAgent(model, task, { onEvent: options.onEvent, signal: options.signal });
   if (!out.ok) return { ok: false, reason: "model", error: out.error };
   return { ok: true, result: out.result, proposals: toQueueProposals(out.result.proposals, channels, library), channels };

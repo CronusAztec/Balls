@@ -130,3 +130,61 @@ pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Vi
 Bouncing Ball Videos Go Viral"; creatorflow.so, "Instagram Algorithm 2026: What Changed"; clixie.ai, "Instagram
 algorithm 2026: the 4 ranking signals that matter"; reddit.com/r/learnprogramming, "how to make bouncing balls tiktok
 videos" (implementation notes only).
+
+## 6. What is trending: the trend data and how to use it
+
+The playbook above is research from September 2026. What goes viral moves faster, so the owner decided (October 2026) that
+agents study other creators' trending and viral simulation videos and feed what they learn into the app. This section says
+where that data lives, how the app's AI reads it and what the first runs found.
+
+- **The data.** `src/content/trends.json` is a compact, dated summary of the agent toolbox's `inspire` reports: the
+  queries, the sample, the numbers that separate the most viewed third from the rest (median length, brightness,
+  saturation, Spearman's ρ), the themes with their lift (their share of the views over their share of the videos), the
+  title formats, recommendations in our own levers (settings with their link keys, modes, Blueprints) and the links and
+  titles of the most viewed videos. It holds no video file and no frame. `src/lib/trends.ts` is its shape and its check.
+- **How the app reads it.** The app's AI puts a short "What is trending" block from it next to this playbook
+  (`trendingContext` in `src/lib/desktop/ai/playbookContext.ts`): Make videos gets about 700 characters (about 200 tokens,
+  told to lean toward it when the user names no recipe, length or look), the idea generator about 900 and the post
+  planner about 600, the planner's with the title formats and words first. The idea generator and the planner take the
+  block out of the research budget they already had (4,500 and 3,000 characters), so their prompts do not grow. The block
+  never quotes a title: other creators' text stays data.
+- **How to refresh it.** Run `npm run agent -- inspire --json '{"query":"ball simulation","top":8}'` and one or two more
+  queries (a query with a hashtag Shorts feed works best: `physics simulation`, `satisfying simulation`), look at each
+  video's `sheet.png` and `hook-sheet.png` (or `stills-sheet.png`), check the report, then run
+  `npm run trends -- .agent-out/inspiration/<run> …` with the runs to keep, run `npx vitest run tests/trends.test.ts` and
+  commit the new `trends.json`. Once a month is a good pace, or when the feed changes.
+- **How to read it.** A run is a few dozen videos on one day: tendencies, not laws. A pattern is "clear" from 5 videos,
+  |ρ| of 0.4 and a step's difference, a "hint" from 3. A theme is advice only from two videos, with a lift of 1 or more,
+  and never for "satisfying", which most titles of the genre carry. When a site refuses a download, `inspire` sees a
+  YouTube video through its public stills (the opening frame, 25, 50 and 75 % and the cover): its colours then come from
+  four moments, and its motion and sound are unknown.
+
+### What the October 2026 runs found
+
+Two runs on 26 October 2026, "ball simulation" and "satisfying physics simulation shorts" (read from #physicssimulation),
+gave 39 short-form videos on YouTube Shorts, 14.7 million views together. YouTube refused every download from the server,
+so 15 of them were seen through their stills and none was measured whole.
+
+- **Short clips.** The most viewed run about 11 s, and so do the rest: length does not separate them (ρ −0.06). Our
+  10–15 s clips fit **[observed]**.
+- **Calm colours on a light or mid background.** The most viewed are less saturated than the rest (saturation 0.30
+  against 0.58, ρ −0.71 over 15 videos: the one clear pattern) and none of them is dark. Our test renders measured a
+  brightness of 0.06 against 0.37–0.59 for the trending clips **[observed]**. Try a light theme or a gradient background
+  (`theme`, `bgt`) with fewer rainbow trails on a few renders before making it a default **[inferred]**.
+- **Themes that earn more than their share of the views.** A ball trapped or escaping rings (×5: classic, spiralGlass,
+  grow), loops (×4.9: pendulum, starChords, colourSort), mazes (×1.2: maze) and colours (×1.1: paint, territory). Battles
+  and "vs" crashes are a third of the videos with fewer views than their share (×0.8) **[observed]**.
+- **Title formats.** A versus in 28 % of the titles ("Glass Pipes vs Soft Body"), a question in 23 %, a scale stepped up
+  in 13 % ("0% vs 100% Softness", "Small to Big") and a numbered series in 10 % ("Day 56 → 1K Subscribers")
+  **[observed]**.
+- **What the stills showed.** A big label on screen that names the variable and its level, stepped up through the clip
+  (1 m FACE → 16k FACE, 0% SOFT → 100% SOFT, 9% POWER → 100% POWER), or a running counter (the rings left: 200 → 52);
+  3D balls poured into a grid or a pile; escape rings and glass spirals with a counter on a black background; and often
+  an empty stage in the opening frame, with the action by the first quarter **[observed]**.
+- **What to make of it.** An escalation clip: the same seed with one number stepped up, a `progress` or `text` caption
+  naming the level; a `wallCounter` or `progress` caption on every escape and spiral clip; 11–15 s; and the playbook's
+  motion in frame one still stands, as the trending openings that start empty are 3D renders we do not make
+  **[inferred]**.
+
+Sources: the `inspire` reports of 26 October 2026 (`.agent-out/inspiration/2026-10-26-ball-simulation/`,
+`.agent-out/inspiration/2026-10-26-satisfying-physics-simulation-shorts/`; the links are in `src/content/trends.json`).

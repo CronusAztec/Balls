@@ -3,7 +3,12 @@
  * sections and bullet points, and the ones closest to the user's request picked within a character budget – a small local
  * model's context holds a few thousand tokens, not the whole research. The recipe (§3) always goes in; the rest is ranked
  * by shared words with the request (a plain term-frequency score, no embeddings, so it runs offline and instantly).
+ *
+ * --- trends --- Beside it, what is trending (trendingContext): the committed trend summary of other creators' trending and
+ * viral simulation videos (src/content/trends.json), in a few lines within a budget of its own.
  */
+
+import type { TrendLever, TrendNumber, TrendSummary } from "@/lib/trends";
 
 export interface PlaybookChunk {
   /** "3. The recipe the bot follows" – the section it belongs to. */
@@ -83,4 +88,60 @@ export function selectPlaybookContext(markdown: string, query: string, maxChars 
     out.push(chunk.text);
   }
   return out.join("\n");
+}
+
+/* ------------------------------------------------------------------ --- trends --- what is trending */
+
+/**
+ * --- trends --- The longest "What is trending" block each job takes (characters). The planner and the idea generator take
+ * it out of their playbook budget (3,000 and 4,500 characters: the research they read stays as long as it was), Make
+ * videos, which reads no playbook, adds it: about 200 tokens.
+ */
+export const TRENDING_CHARS = { plan: 600, ideas: 900, videos: 700 } as const;
+
+const PLATFORM_NAMES: Record<string, string> = { youtube: "YouTube Shorts", tiktok: "TikTok", instagram: "Instagram Reels" };
+const pct = (share: number) => `${Math.round(share * 100)}%`;
+const leverText = (l: TrendLever) => (l.kind === "setting" ? (l.value !== undefined ? `${l.name} ${String(l.value)}` : l.name) : `${l.kind} ${l.name}`);
+
+/**
+ * The "What is trending" block for a prompt, from the committed trend summary (src/content/trends.json, lib/trends.ts):
+ * a heading with its date and sample, then lines by priority – for clips (Make videos, ideas) the advice in our levers, the
+ * themes whose videos earn more than their share of the views with our modes for them, the title formats, the look of the
+ * most viewed and the words of their titles; for copy (the planner's captions and titles) the title formats and words
+ * first – each kept only while the block stays within `maxChars`. No title is quoted: other creators' text stays data.
+ * "" without a summary.
+ */
+export function trendingContext(summary: TrendSummary | null | undefined, maxChars: number, focus: "clips" | "copy" = "clips"): string {
+  if (!summary || maxChars <= 0) return "";
+  const where = Object.entries(summary.sample.platforms)
+    .sort((a, b) => b[1] - a[1])
+    .map(([p]) => PLATFORM_NAMES[p] ?? p)
+    .join(", ");
+  const searches = summary.sources.length;
+  const head = `What is trending (${summary.date}, ${summary.sample.compared} short-form simulation videos${where ? ` on ${where}` : ""}, ${searches} search${searches === 1 ? "" : "es"}; tendencies to test, not rules):`;
+  if (head.length > maxChars) return "";
+  const advice = summary.recommendations
+    .filter((x) => x.area !== "mode" && x.area !== "blueprint")
+    .map((r) => {
+      const levers = r.levers.filter((l) => l.kind !== "tool").map(leverText);
+      return `- ${r.advice}${levers.length ? ` (${levers.join(", ")})` : ""}`;
+    });
+  const themes = summary.themes.filter((t) => t.advised).slice(0, 4);
+  const themeLine = themes.length ? [`- Themes whose videos earn more than their share of the views: ${themes.map((t) => `${t.label} ×${Math.round(t.lift * 10) / 10}${t.modes.length ? ` (${t.modes.slice(0, 3).join(", ")})` : ""}`).join("; ")}.`] : [];
+  const formats = summary.formats.filter((f) => f.all !== null && f.all >= 0.1).sort((a, b) => (b.all as number) - (a.all as number));
+  const formatLine = formats.length ? [`- Title formats: ${formats.map((f) => `${f.label} in ${pct(f.all as number)}${f.top !== null && f.rest !== null && f.top > f.rest ? " (more among the most viewed)" : ""}`).join(", ")}.`] : [];
+  const num = (trait: string) => summary.numbers.find((n) => n.trait === trait);
+  const look = ["meanLuma", "meanSat", "darkShare"].map(num).filter((n): n is TrendNumber => !!n && n.top !== null);
+  const lookLine = look.length ? [`- The most viewed look (0–1): ${look.map((n) => `${n.label} ${n.top}${n.rest !== null ? ` (the rest ${n.rest})` : ""}`).join(", ")}.`] : [];
+  const words = summary.words.map((w) => w.word).filter((w) => !/shorts|tiktok|reels?$|fyp|viral|youtube/i.test(w)).slice(0, 10);
+  const wordLine = words.length ? [`- Words of the most viewed titles: ${words.join(", ")}.`] : [];
+  const lines = focus === "copy" ? [...formatLine, ...wordLine, ...themeLine, ...advice, ...lookLine] : [...advice, ...themeLine, ...formatLine, ...lookLine, ...wordLine];
+  const out = [head];
+  let used = head.length;
+  for (const line of lines) {
+    if (used + 1 + line.length > maxChars) continue;
+    out.push(line);
+    used += 1 + line.length;
+  }
+  return out.length > 1 ? out.join("\n") : "";
 }
