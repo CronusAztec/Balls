@@ -83,3 +83,67 @@ export function audioStatsArgs(absolutePath: string, window: AnalyseWindow): str
 export function pcmArgs(absolutePath: string, window: AnalyseWindow): string[] {
   return [...QUIET, ...inputArgs(absolutePath, window), "-vn", "-sn", "-dn", "-ac", "1", "-ar", String(PCM_RATE), "-f", "f32le", "pipe:1"];
 }
+
+// --- inspiration --- still frames of a video for a vision-capable AI (the frames tool): evenly spaced frames, the opening
+// (the hook) in finer steps, and a contact sheet of each. Every output is a bare file name in the runner's working folder
+// (the frames folder under .agent-out/), written with -n (never over a file that is there); every input is opened as above.
+
+/** The width of an extracted frame (px; the height keeps the picture's shape). */
+export const FRAME_WIDTH = 540;
+/** The opening seconds a hook sheet covers, and its step. */
+export const HOOK_SEC = 3;
+export const HOOK_STEP_SEC = 0.25;
+/** The width of one picture on a contact sheet (px). */
+export const SHEET_TILE_WIDTH = 240;
+/** The demuxers a contact sheet may open its frames with (the PNG files the frames pass wrote). */
+export const IMAGE_DEMUXERS = "image2,png_pipe";
+
+/** A bare file name (a fresh one may start with a dot), never a path or a protocol. */
+const bareName = (name: string, what: string) => {
+  if (!/^\.?[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes("..")) throw new Error(`${what} must be a bare file name`);
+  return name;
+};
+
+/** `count` moments spread evenly over the video: the middle of each of `count` equal parts (seconds, to the millisecond). */
+export function frameTimes(durationSec: number, count: number): number[] {
+  const n = Math.max(0, Math.floor(count));
+  if (!(durationSec > 0) || n === 0) return [];
+  return Array.from({ length: n }, (_, i) => Math.round(((i + 0.5) * durationSec * 1000) / n) / 1000);
+}
+
+/** The opening `hookSec` seconds every `stepSec` from 0 (the hook a viewer decides on), never past the video's end. */
+export function hookTimes(durationSec: number, hookSec = HOOK_SEC, stepSec = HOOK_STEP_SEC): number[] {
+  if (!(durationSec > 0) || !(hookSec > 0) || !(stepSec > 0)) return [];
+  const end = Math.min(hookSec, durationSec - 0.05);
+  const out: number[] = [];
+  for (let i = 0; i * stepSec < end - 1e-9; i++) out.push(Math.round(i * stepSec * 1000) / 1000);
+  return out;
+}
+
+/** A contact sheet's grid: up to 6 columns for a portrait video, 4 for a landscape one. */
+export function sheetGrid(count: number, portrait: boolean): { cols: number; rows: number } {
+  const n = Math.max(1, Math.floor(count));
+  const cols = Math.min(n, portrait ? 6 : 4);
+  return { cols, rows: Math.ceil(n / cols) };
+}
+
+/** One frame at `atSec` as a PNG `width` px wide (an accurate seek: -ss before the input decodes up to that moment). */
+export function frameArgs(absolutePath: string, atSec: number, outName: string, width = FRAME_WIDTH): string[] {
+  bareName(outName, "The frame's file");
+  return [...QUIET, "-ss", num(Math.max(0, atSec)), ...inputArgs(absolutePath), "-an", "-sn", "-dn", "-frames:v", "1", "-vf", `scale=${Math.max(16, Math.round(width))}:-2:flags=lanczos`, "-f", "image2", "-c:v", "png", "-n", `file:${outName}`];
+}
+
+/**
+ * A contact sheet of frames already written (bare PNG names in the working folder): each scaled into a tileWidth ×
+ * tileHeight cell (letterboxed), laid out `cols` × `rows`, a partly filled last row padded with the background.
+ */
+export function sheetArgs(inputNames: readonly string[], outName: string, grid: { cols: number; rows: number }, tileWidth: number, tileHeight: number): string[] {
+  if (inputNames.length === 0) throw new Error("A contact sheet needs at least one frame");
+  bareName(outName, "The sheet's file");
+  const w = Math.max(16, Math.round(tileWidth / 2) * 2);
+  const h = Math.max(16, Math.round(tileHeight / 2) * 2);
+  const inputs = inputNames.flatMap((name) => ["-protocol_whitelist", "file", "-format_whitelist", IMAGE_DEMUXERS, "-i", `file:${bareName(name, "A frame's file")}`]);
+  const cells = inputNames.map((_, i) => `[${i}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x101014,setsar=1[c${i}]`);
+  const joined = `${inputNames.map((_, i) => `[c${i}]`).join("")}concat=n=${inputNames.length}:v=1:a=0,tile=${grid.cols}x${grid.rows}:padding=6:margin=6:color=0x101014[sheet]`;
+  return [...QUIET, ...inputs, "-filter_complex", [...cells, joined].join(";"), "-map", "[sheet]", "-frames:v", "1", "-f", "image2", "-c:v", "png", "-n", `file:${outName}`];
+}
