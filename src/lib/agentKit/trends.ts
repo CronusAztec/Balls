@@ -1,6 +1,8 @@
 import { GENERIC_THEMES, MIN_THEME_VIDEOS, clipTraits, recommendations, themeShares, titleSummary, traitSummaries, type ClipTraits, type InspirationReport, type MetricRow } from "./inspiration";
 import { TRENDS_LIMITS, TRENDS_TEXT_MAX, TRENDS_VERSION, validateTrends, type TrendAdvice, type TrendExample, type TrendNumber, type TrendSummary } from "@/lib/trends";
 
+export { validateTrends }; // (npm run trends --check: scripts/trends.mjs loads this file alone, scripts/agent/bundle.mjs loadTrendsKit)
+
 /*
  * --- trends --- The trend summary of the inspire reports (`npm run trends -- <report.json …>`, scripts/trends.mjs): every
  * report's videos pooled – one per video, its newest numbers –, the short-form ones compared as one list by the reports'

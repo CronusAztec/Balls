@@ -22,6 +22,9 @@ const ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolbox.ts");
 const CORE_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolCore.ts");
 // --- blueprint --- the Blueprint library and its catalog, for the five bp-* tools only
 const BLUEPRINT_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "blueprintKit.ts");
+// --- trends --- the trend summary of inspire reports, for `npm run trends` only (scripts/trends.mjs): kept out of the tool
+// core, which stays small enough to build while the rest of the site does not
+const TRENDS_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "trends.ts");
 const WATCHED_DIRS = [path.join(ROOT, "src", "lib", "agentKit"), path.join(ROOT, "src", "lib", "videoAnalysis"), path.join(ROOT, "src", "lib", "blueprint"), path.join(ROOT, "src", "lib", "blueprint", "catalog")];
 
 function stamp(file) {
@@ -129,6 +132,7 @@ async function load(entry, name) {
 let core = null;
 let full = null;
 let blueprint = null;
+let trends = null;
 
 /** The tool core (tool table, argument checks, explain, video analysis): every call loads it. */
 export async function loadToolCore() {
@@ -146,4 +150,10 @@ export async function loadToolbox() {
 export async function loadBlueprintKit() {
   blueprint ??= await load(BLUEPRINT_ENTRY, "blueprintkit");
   return blueprint;
+}
+
+/** --- trends --- The trend summary's builder and check (src/lib/agentKit/trends.ts): only `npm run trends` loads it. */
+export async function loadTrendsKit() {
+  trends ??= await load(TRENDS_ENTRY, "trendskit");
+  return trends;
 }

@@ -5,14 +5,15 @@
 //   npm run trends -- <report.json or inspire run folder> …   write src/content/trends.json from these reports
 //   npm run trends -- --stdout <report.json or folder> …       print the summary instead of writing it
 //   npm run trends -- --check                                   exit 1 when src/content/trends.json fails its check
-// The maths are the inspire report's own (src/lib/agentKit/trends.ts, on the toolbox's tool core bundle) and the shape and
-// check are src/lib/trends.ts: dated, the queries, the sample, the numbers and patterns, the themes, the title formats and
-// recommendations in our levers, and the links and titles of the most viewed videos. It reads only report.json files inside
-// the repository, never a video, and writes only src/content/trends.json. Exit 0 done, 1 failed, 2 a usage error.
+// The maths are the inspire report's own (src/lib/agentKit/trends.ts, bundled on its own: agent/bundle.mjs loadTrendsKit)
+// and the shape and check are src/lib/trends.ts: dated, the queries, the sample, the numbers and patterns, the themes, the
+// title formats and recommendations in our levers, and the links and titles of the most viewed videos. It reads only
+// report.json files inside the repository, never a video, and writes only src/content/trends.json. Exit 0 done, 1 failed,
+// 2 a usage error.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadToolCore } from "./agent/bundle.mjs";
+import { loadTrendsKit } from "./agent/bundle.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const TRENDS_FILE = path.join(ROOT, "src", "content", "trends.json");
@@ -45,7 +46,7 @@ async function main(argv) {
     process.stderr.write("usage: npm run trends -- <report.json or inspire run folder> … [--stdout] | --check\n");
     return 2;
   }
-  const tb = await loadToolCore();
+  const tb = await loadTrendsKit();
   if (check) {
     const problems = tb.validateTrends(JSON.parse(fs.readFileSync(TRENDS_FILE, "utf8")));
     if (problems.length) {
