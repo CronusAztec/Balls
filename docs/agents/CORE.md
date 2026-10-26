@@ -176,7 +176,9 @@ value keeps the page responsive through the soft ceilings and the frame budgets.
 - **Unit tests:** `tests/uncap.test.ts`, `tests/softCeilings.test.ts`, `tests/renderBudget.test.ts`.
 - **Smoke blocks:** `uncap-all` (tier 1 when touched).
 - **Also:** the uncap `ALLOWED` list and `MEMORY_CEILINGS` are protected. The slow `tests/unlimited.test.ts` runs with
-  `npm run guard -- --with-slow` and in tier 2.
+  `npm run guard -- --with-slow` and in tier 2. With the Slow motion switch off (`smo=0`) the live page budgets its steps
+  with the real-time clock of `src/lib/simulation/realTime.ts` instead of the frame budget: `tests/realTime.test.ts` proves
+  its debt cap, pause gap and step budget, and the `unlimited` smoke block's `smo=0` variant answers a click within 300 ms.
 
 ### 13. Release integrity (`release-integrity`)
 

@@ -37,6 +37,11 @@ has to be added here by hand: the test proves the list true, not complete.
 | 10 | `tests/uncap.test.ts` | `SIZES_NOTHING` | Each whole-number setting (a step-1 range) that sizes nothing, with what it counts, such as `mrSpawnTiers` or `sgGlassHp`. Never a count that sizes an allocation (a ball or tier count): it would lose its memory ceiling. Protected: owner review. | **tested**: `tests/uncap.test.ts` (missed in both recent modes, fixed later in 916a3bb) |
 | 11 | `src/lib/audio/songs.ts` | `MODE_WALL_BREAK_SOUNDS` | Optional: the wall-break clip of a mode that shatters something. | **none** |
 
+The Slow motion switch (`smo=0`) needs nothing from a mode whose slow motion is the camera's: `ctx.noteNearMiss?.()` and a
+dip are ignored while it is off. A mode that slows its own clock (a slow-motion window, a finale) reads it the way Bullseye
+and Fight League do, `ctx.config.slowMotion !== false`, and keeps time with the simulation when it is off. The parser scan
+in `tests/slowMotionPhysics.test.ts` lists the files that read it: add the new one there, with its switch-off run pinned.
+
 ## Settings and links (`src/lib/settings.ts`)
 
 | # | File | Look for | Add | Caught by |

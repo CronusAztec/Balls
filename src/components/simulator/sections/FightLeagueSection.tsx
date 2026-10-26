@@ -22,6 +22,7 @@ import FightLeagueShowsSection, { FIGHT_LEAGUE_SHOW_KEYS, FightLeaguePresetGalle
 import { flCurrentPreset, flPanelSlots, flPresetPatch } from "./fightLeaguePresetMatch";
 // --- fl-overhaul --- (Stage 6) the creator tools: Make a clip and the tier list card
 import FightLeagueCreatorSection, { FIGHT_LEAGUE_CREATOR_KEYS } from "./FightLeagueCreatorSection";
+import { Overridden, SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
 
 /** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
 const LIST_VIEW_KEY = "fl-picker-list";
@@ -334,7 +335,10 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="flShake" tipKey="flShakeTip" value={s.flShake} range={RANGES.flShake} onChange={(v) => update({ flShake: flPanelValue("flShake", v) })} display={s.flShake.toFixed(2)} />
       <Searchable search={search} matches={matches} labelKey="flSlowMo">
-        <Toggle t={t} labelKey="flSlowMo" tipKey="flSlowMoTip" value={s.flSlowMo} onChange={(v) => update({ flSlowMo: v })} caseStyle="title" />
+        {/* --- slow-motion --- (the finale plays only while the master switch is on too: off, the card comes at once) */}
+        <Overridden on={s.flSlowMo && !s.slowMotion} note={<SlowMotionOffNote settings={s} testId="fl-slow-motion-off" />}>
+          <Toggle t={t} labelKey="flSlowMo" tipKey="flSlowMoTip" value={s.flSlowMo} onChange={(v) => update({ flSlowMo: v })} caseStyle="title" />
+        </Overridden>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="flImpact">
         <Toggle t={t} labelKey="flImpact" tipKey="flImpactTip" value={s.flImpact} onChange={(v) => update({ flImpact: v })} caseStyle="title" />

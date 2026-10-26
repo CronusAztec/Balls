@@ -2478,6 +2478,40 @@ await smokeBlock("camera", async () => {
     const still = Number(data.cameraSlowStill);
     check("live slow motion glides: the ball moves in every slowed frame", counted && still <= Math.max(1, 0.05 * frames), `(${frames} slow-motion frames, ${still} with the ball standing still)`);
   }
+  {
+    // --- slow-motion --- the Slow motion switch off (smo=0): the Camera group shows the near-miss slow motion as overridden,
+    // and a seed whose near misses slow the run with the switch on (seed 2: within a second or two at 2×) plays at time
+    // scale 1 for 6 s with it off – no window opens, while the zoom and the shake work as before
+    const link = "mode=classic&cz=1&shake=1&slow=1&slowf=0.2&slowms=1200&seed=2";
+    await page.goto(`${BASE}/en/simulator/?${link}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "2x", exact: true }).click();
+    const slowedOn = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.cameraTimeScale) < 0.5, null, { timeout: 20000, polling: "raf" }).then(() => true).catch(() => false);
+    await page.goto(`${BASE}/en/simulator/?${link}&smo=0`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const note = await page.getByTestId("camera-slow-motion-off").isVisible().catch(() => false);
+    const nearMissKept = (await cameraToggle("Slow-Mo on Near Miss").getAttribute("aria-checked").catch(() => null)) === "true";
+    await page.evaluate(() => {
+      const seen = (window.__camOff = { minScale: Infinity, maxZoom: 0 });
+      const poll = () => {
+        const d = document.querySelector("main canvas")?.dataset;
+        if (d?.cameraTimeScale) seen.minScale = Math.min(seen.minScale, Number(d.cameraTimeScale));
+        if (d?.cameraScale) seen.maxZoom = Math.max(seen.maxZoom, Number(d.cameraScale));
+        requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "2x", exact: true }).click();
+    await page.waitForTimeout(6000);
+    const seen = await page.evaluate(() => window.__camOff);
+    const data = await canvasData();
+    check(
+      "slow motion off: the near-miss slow motion shows as overridden and a run that slows with it on plays at time scale 1 (no window, zoom and shake as before)",
+      slowedOn && note && nearMissKept && seen.minScale === 1 && data.cameraSlowMo === "0" && data.slowMotion === "0" && Number(data.cameraShakes) > 0 && seen.maxZoom > 1.2,
+      `(on: slowed=${slowedOn}; off: note=${note}, toggle kept on=${nearMissKept}, slowest time scale ${seen.minScale}, windows ${data.cameraSlowMo}, shakes ${data.cameraShakes}, zoom up to ${seen.maxZoom}, data-slow-motion ${data.slowMotion})`,
+    );
+  }
 
   await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&replay=1&shake=0.6&res=500x500&dur=60`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
@@ -4593,6 +4627,18 @@ await smokeBlock("fast-render", async () => {
       "fast export is reproducible: the same seed renders the same frames",
       second.state.status === "done" && !!first.state.digest && first.state.digest === second.state.digest && !!second.file && Math.abs(second.file.duration - (f?.duration ?? -1)) < 1e-6,
       `(digests ${first.state.digest} / ${second.state.digest}, lengths ${f?.duration} / ${second.file?.duration} s)`,
+    );
+    // --- slow-motion --- the same clip with the Slow motion switch off (smo=0): every frame pays its time with whole steps
+    // (the export's real-time pacer), so it still renders the 10 s clip with video and audio, and the panel counts the frames
+    // that played slower than real time (data-fast-lagged, written only with the switch off): none for a light Classic run
+    await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30&smo=0`, { waitUntil: "networkidle" });
+    const off = await exportOnce("off");
+    const lagged = await fastPanel.getAttribute("data-fast-lagged").catch(() => null);
+    const offFile = off.file;
+    check(
+      "fast export with slow motion off renders the 10 s clip in real time, with video and audio, and no frame slower than real time",
+      off.state.status === "done" && !!offFile && offFile.video && offFile.audio && Math.abs(offFile.duration - (f?.duration ?? -1)) < 0.05 && lagged === "0" && !!off.state.digest,
+      `(${offFile ? `${offFile.name}, ${offFile.duration.toFixed(2)} s, ${offFile.bytes} bytes, video=${offFile.video}, audio=${offFile.audio}` : "no download"}, lagged frames ${lagged}, digest ${off.state.digest} (on: ${first.state.digest}), ${off.ms} ms)`,
     );
     // Cancel: a long 1080×1920 export stops on Cancel, reports it and downloads nothing; the page's run can start afterwards.
     await page.goto(`${BASE}/en/simulator/?mode=classic&dur=60&res=1080x1920`, { waitUntil: "networkidle" });
@@ -7202,6 +7248,31 @@ await smokeBlock("gerald-bullseye", async () => {
   );
 }
 {
+  // --- slow-motion --- the same rigged run with the Slow motion switch off (smo=0): the block says so, and the rigged shot
+  // still scores 10 (a bullseye), but no slow-motion window opens – the world clock never leaves 1 (data-bullseye-time-scale)
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=3&byi=0.6&byp=2&smo=0`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("bullseye-slow-motion-off").isVisible().catch(() => false);
+  await page.evaluate(() => {
+    window.__byMinScaleOff = Infinity;
+    const poll = () => {
+      const d = document.querySelector("main canvas")?.dataset;
+      if (d?.bullseyeTimeScale) window.__byMinScaleOff = Math.min(window.__byMinScaleOff, Number(d.bullseyeTimeScale));
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.bullseyeFinished === "1", null, { timeout: 45000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const minScale = await page.evaluate(() => window.__byMinScaleOff);
+  const scores = (data.bullseyeScores || "").split(",").map(Number);
+  check(
+    "bullseye with slow motion off: the block says so, the rigged shot still scores 10 and the world clock never slows (no slow-motion window)",
+    note && finished && data.bullseyeLanded === "3" && scores[1] === 10 && Number(data.bullseyeBullseyes) >= 1 && data.bullseyeSlowMos === "0" && minScale === 1 && data.slowMotion === "0",
+    `(note=${note}, finished=${finished}, scores ${data.bullseyeScores}, bullseyes ${data.bullseyeBullseyes}, slow-motion windows ${data.bullseyeSlowMos}, slowest ${minScale}, data-slow-motion ${data.slowMotion})`,
+  );
+}
+{
   // The moving target slides; Space freezes it; R restarts the run.
   await page.goto(`${BASE}/en/simulator/?mode=bullseye&bym=1&bys=5&byi=0.5`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
@@ -8136,6 +8207,37 @@ await smokeBlock("unlimited", async () => {
     "slow motion off: the extreme link plays in real time – the debt carried up to its cap, the time past it lost and shown – and stays responsive",
     !!behind && offLink === "0" && debtOk(behind) && Number(behind.realtimeRatio) < 0.9 && behind.framesSkipped !== undefined && debtOk(offData) && Number(offData.realtimeLostMs) >= Number(behind.realtimeLostMs) && offLatencies.length === 3 && offWorstClick < 300,
     `(link smo=${offLink}, behind: x${behind?.realtimeRatio} real time, debt ${behind?.realtimeDebtMs} ms, lost ${behind?.realtimeLostMs} ms; later: debt ${offData.realtimeDebtMs} ms, lost ${offData.realtimeLostMs} ms, frames skipped ${offData.framesSkipped}, clicks ${offLatencies.map((l) => Math.round(l)).join("/")} ms${loadNote()})`,
+  );
+  // The switch itself: the second row of the block at the top of Ball & Physics turns off and on again; the link carries smo=0
+  // only while it is off, and a link with smo=0 opens with it off (the round trip); the search box finds it on its own card; the
+  // canvas follows (data-slow-motion 0 while it is off, nothing while it is on)
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const slowToggle = page.getByTestId("slow-motion-toggle");
+  const switchState = async () => ({ pressed: await slowToggle.getAttribute("aria-pressed").catch(() => null), smo: await page.evaluate(() => new URLSearchParams(location.search).get("smo")) });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const atStart = await switchState();
+  await slowToggle.click();
+  await page.waitForTimeout(300);
+  const turnedOff = await switchState();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const canvasOff = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.slowMotion === "0", null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const reopened = await switchState();
+  await page.getByPlaceholder("Search settings...").fill("slow motion");
+  const ownCard = await page.locator('[data-search-key="slowMotion"] [data-testid="slow-motion-toggle"]').isVisible().catch(() => false);
+  const wideHidden = !(await page.getByTestId("unlimited-toggle").isVisible().catch(() => false));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await slowToggle.click();
+  await page.waitForTimeout(300);
+  const turnedOn = await switchState();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  const canvasOn = await page.evaluate(() => document.querySelector("main canvas")?.dataset.slowMotion ?? null);
+  check(
+    "slow motion: the switch in Ball & Physics turns off and on, travels in the link only as smo=0 (and opens from it), is found by the search box and the canvas follows",
+    atStart.pressed === "true" && atStart.smo === null && turnedOff.pressed === "false" && turnedOff.smo === "0" && canvasOff && reopened.pressed === "false" && reopened.smo === "0" && ownCard && wideHidden && turnedOn.pressed === "true" && turnedOn.smo === null && canvasOn === null,
+    `(start ${JSON.stringify(atStart)}, off ${JSON.stringify(turnedOff)}, canvas off=${canvasOff}, after reload ${JSON.stringify(reopened)}, own search card=${ownCard}, Wide sliders hidden=${wideHidden}, on again ${JSON.stringify(turnedOn)}, data-slow-motion ${canvasOn})`,
   );
   // --- end slow-motion ---
 }
@@ -12111,6 +12213,30 @@ await smokeBlock("fight-league", async () => {
     "fight league: a KO verdict plays the finale (data-fl-finale 1, then 0) and the winner's card holds ≥ 3 s before the end screen",
     finale && over && d.flFinished === "1" && d.flWinnerTeam === "0" && heldSec >= 3,
     `(finale ${finale} → over ${over}; ${d.flNames}: winner ${d.flWinner} at ${d.flFinishSec} s, banners "${d.flBanners}"; the card held ${heldSec.toFixed(2)} s)`,
+  );
+}
+{
+  // --- slow-motion --- the same KO duel with the Slow motion switch off (smo=0): KO Slow Motion (on by default) shows as
+  // overridden, and the match ends as with flSm=0 – the same winner, and no finale (data-fl-finale never 1, polled every frame)
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flHp=40&seed=2&fw=0&smo=0`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("fl-slow-motion-off").isVisible().catch(() => false);
+  await page.evaluate(() => {
+    window.__flFinaleOff = 0;
+    const poll = () => {
+      if (document.querySelector("main canvas")?.dataset.flFinale === "1") window.__flFinaleOff++;
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500); // (past where the finale would have played)
+  const finaleFrames = await page.evaluate(() => window.__flFinaleOff);
+  const d = await canvasData();
+  check(
+    "fight league with slow motion off: KO Slow Motion shows as overridden, and the KO verdict ends without the finale (data-fl-finale stays 0), the same winner",
+    note && ended && finaleFrames === 0 && d.flFinale === "0" && d.flFinished === "1" && d.flWinnerTeam === "0" && d.slowMotion === "0",
+    `(note=${note}, ended=${ended}, finale frames ${finaleFrames}; ${d.flNames}: winner ${d.flWinner} at ${d.flFinishSec} s, data-slow-motion ${d.slowMotion})`,
   );
 }
 // --- end fl-overhaul ---

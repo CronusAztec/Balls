@@ -4,6 +4,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { replayEligible } from "@/lib/simulation/camera";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { Overridden, SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface CameraSectionProps {
   t: Translate;
@@ -23,9 +24,12 @@ const pct = (v: number) => `${Math.round(100 * v)}%`;
  * near misses (speed and length) and the escape replay. The values live in SimulatorSettings (see
  * lib/simulation/camera.ts) and only the canvas reads them – the view, the clock it feeds the fixed-step engine
  * and the replay are all rendering, so seeds and found simulations stay valid.
+ * --- slow-motion --- While the Slow motion switch (Ball & Physics) is off, the near-miss slow motion and its sliders show as
+ * overridden with a note, and the replay says it plays at normal speed; their values are kept for when it is back on.
  */
 export default function CameraSection({ t, search, matches, settings: s, update }: CameraSectionProps) {
   const showSlowMoSliders = s.slowMoOnNearMiss || !!search;
+  const nearMissOverridden = s.slowMoOnNearMiss && !s.slowMotion; // --- slow-motion ---
   const body = (
     <>
       {!search && (
@@ -60,10 +64,12 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         display={s.screenShake > 0 ? pct(s.screenShake) : t("cameraOff")}
       />
       <Searchable search={search} matches={matches} labelKey="slowMoOnNearMiss">
-        <Toggle t={t} labelKey="slowMoOnNearMiss" tipKey="slowMoOnNearMissTip" value={s.slowMoOnNearMiss} onChange={(v) => update({ slowMoOnNearMiss: v })} caseStyle="title" />
+        <Overridden on={nearMissOverridden} note={<SlowMotionOffNote settings={s} testId="camera-slow-motion-off" />}>
+          <Toggle t={t} labelKey="slowMoOnNearMiss" tipKey="slowMoOnNearMissTip" value={s.slowMoOnNearMiss} onChange={(v) => update({ slowMoOnNearMiss: v })} caseStyle="title" />
+        </Overridden>
       </Searchable>
       {showSlowMoSliders && (
-        <>
+        <Overridden on={!s.slowMotion} spacing="space-y-4">
           <Slider
             t={t}
             search={search}
@@ -86,12 +92,13 @@ export default function CameraSection({ t, search, matches, settings: s, update 
             onChange={(v) => update({ slowMoMs: v })}
             display={`${s.slowMoMs} ms`}
           />
-        </>
+        </Overridden>
       )}
       <Searchable search={search} matches={matches} labelKey="replayOnEscape">
         <div className="space-y-1">
           <Toggle t={t} labelKey="replayOnEscape" tipKey="replayOnEscapeTip" value={s.replayOnEscape} onChange={(v) => update({ replayOnEscape: v })} caseStyle="title" />
           {s.replayOnEscape && !replayEligible(s.mode) && <p className="text-xs text-warn/90">{t("replayOnEscapeModes")}</p>}
+          {s.replayOnEscape && <SlowMotionOffNote settings={s} testId="camera-replay-real-time" replay /> /* --- slow-motion --- (the replay plays at 1x) */}
         </div>
       </Searchable>
     </>

@@ -3,6 +3,7 @@
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { bullseyeNominalRunSec, bullseyeSettingsOf, perfectShotIndex } from "@/lib/physics/modes/bullseye";
+import { SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface BullseyeSectionProps {
   t: Translate;
@@ -31,6 +32,7 @@ export default function BullseyeSection({ t, search, matches, settings: s, updat
         <div className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("byTitle")}</p>
           <p className="text-xs text-ink-3 leading-relaxed">{t("byDesc")}</p>
+          <SlowMotionOffNote settings={s} testId="bullseye-slow-motion-off" /* --- slow-motion --- (a bullseye opens no slow motion while the switch is off) */ />
         </div>
       )}
       <Slider t={t} search={search} matches={matches} labelKey="byShots" tipKey="byShotsTip" value={s.byShots} range={RANGES.byShots} onChange={(v) => update({ byShots: v })} display={String(s.byShots)} />
