@@ -13,7 +13,8 @@ import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
 import { extractFrames } from "../scripts/agent/frames.mjs";
 import * as videoSources from "@/lib/agentKit/videoSources";
-import { fetchVideo, hostChecker, readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import { DOWNLOAD_TIMEOUT_MS, FETCH_MAX_MS, INFO_TIMEOUT_MS, LIST_TIMEOUT_MS, PAGE_TIMEOUT_MS, STALE_FETCH_MS, fetchVideo, hostChecker, readPages, sweepFetchFolders, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import { PASS_TIMEOUT_MS } from "../scripts/agent/analyse.mjs";
 import { PathError, outFolder } from "../scripts/agent/paths.mjs";
 
 // --- inspiration --- The inspiration tools of the agent toolbox (trending, fetch-video, frames, inspire; analyse with a
@@ -92,6 +93,55 @@ describe("yt-dlp itself and where its files go (--- inspiration ---)", () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }, 30_000);
+});
+
+// --- inspiration --- a fetch stopped from outside: its own timeouts fire first, and its folder goes with the next fetch
+describe("a fetch's timeouts and the folders of a stopped one (--- inspiration ---)", () => {
+  it("gives every tool that fetches a longer MCP timeout than the fetch's own, so yt-dlp's timeout reports first", () => {
+    const timeout = (name: string) => AGENT_TOOLS.find((t) => t.name === name)!.timeoutMs;
+    expect(FETCH_MAX_MS).toBeGreaterThan(PAGE_TIMEOUT_MS + DOWNLOAD_TIMEOUT_MS);
+    expect(PAGE_TIMEOUT_MS).toBeLessThan(INFO_TIMEOUT_MS); // (one video's page, not a batch of them)
+    const margin = 5 * 60_000;
+    expect(timeout("fetch-video")).toBeGreaterThanOrEqual(FETCH_MAX_MS + margin);
+    expect(timeout("frames")).toBeGreaterThanOrEqual(FETCH_MAX_MS + margin);
+    expect(timeout("analyse")).toBeGreaterThanOrEqual(FETCH_MAX_MS + 2 * PASS_TIMEOUT_MS + margin); // (the info pass, then the others at once)
+    expect(timeout("inspire")).toBeGreaterThanOrEqual(3 * LIST_TIMEOUT_MS + INFO_TIMEOUT_MS + FETCH_MAX_MS + margin); // (the lists, the pages, one fetch at least)
+    expect(STALE_FETCH_MS).toBeGreaterThan(DOWNLOAD_TIMEOUT_MS);
+  });
+
+  it("removes the download folders a stopped run left in the inbox, only those older than any live download, never a link", () => {
+    const inbox = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-inbox-"));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-outside-"));
+    try {
+      const now = Date.now();
+      const old = (now - STALE_FETCH_MS - 60_000) / 1000;
+      const make = (name: string, age: number | null) => {
+        const dir = path.join(inbox, name);
+        fs.mkdirSync(dir);
+        fs.writeFileSync(path.join(dir, "youtube-x.f137.mp4.part"), "partial");
+        if (age !== null) fs.utimesSync(dir, age, age);
+        return dir;
+      };
+      make(".fetch-killed", old);
+      const live = make(".fetch-live", null);
+      fs.writeFileSync(path.join(outside, "keep.txt"), "kept");
+      fs.symlinkSync(outside, path.join(inbox, ".fetch-link"));
+      fs.lutimesSync(path.join(inbox, ".fetch-link"), old, old);
+      fs.writeFileSync(path.join(inbox, ".fetch-file"), "a file of that name");
+      fs.utimesSync(path.join(inbox, ".fetch-file"), old, old);
+      const kept = path.join(inbox, "youtube-x.mp4");
+      fs.writeFileSync(kept, "a finished download");
+      fs.utimesSync(kept, old, old);
+      expect(sweepFetchFolders(inbox, now)).toEqual([".fetch-killed"]);
+      expect(fs.readdirSync(inbox).sort()).toEqual([".fetch-file", ".fetch-link", ".fetch-live", "youtube-x.mp4"]);
+      expect(fs.readdirSync(live)).toEqual(["youtube-x.f137.mp4.part"]); // (a live download keeps its folder)
+      expect(fs.readFileSync(path.join(outside, "keep.txt"), "utf8")).toBe("kept");
+      expect(sweepFetchFolders(path.join(inbox, "no-such-folder"), now)).toEqual([]);
+    } finally {
+      fs.rmSync(inbox, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("the tool table (--- inspiration ---)", () => {
@@ -250,7 +300,14 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(first.json.result).toMatchObject({ file: ".agent-out/inbox/tiktok-7508828818702978326.mp4", infoFile: ".agent-out/inbox/tiktok-7508828818702978326.info.json", cached: false, meta: { platform: "tiktok", views: 4100000 } });
     expect(fs.statSync(path.join(ROOT, first.json.result.file)).size).toBe(fs.statSync(CLIP).size);
     expect(fs.readdirSync(path.join(ROOT, ".agent-out", "inbox")).filter((f) => f.startsWith(".fetch-"))).toEqual([]); // the fresh folder is gone
+    // --- inspiration --- and the folder a stopped run left behind goes with the next fetch, a cached one too
+    const stale = path.join(ROOT, ".agent-out", "inbox", `.fetch-stopped-${process.pid}`);
+    fs.mkdirSync(stale);
+    fs.writeFileSync(path.join(stale, "tiktok-7508828818702978326.mp4.part"), "partial");
+    const old = (Date.now() - STALE_FETCH_MS - 60_000) / 1000;
+    fs.utimesSync(stale, old, old);
     expect(agent("fetch-video", { url }).json.result.cached).toBe(true);
+    expect(fs.existsSync(stale)).toBe(false);
     expect(agent("fetch-video", { url, force: true }).json.result.cached).toBe(false);
     const before = calls().length;
     const refused = agent("fetch-video", { url: "http://192.168.0.1/v.mp4" });

@@ -13,6 +13,8 @@
  * download goes into a fresh folder inside .agent-out/inbox/ and is renamed into place – a link at the target is replaced,
  * never written through – with its info JSON beside it; a video already there is reused unless the call says force – before
  * its site is asked when the link names the video's id, so a blocked address or a rate limit does not stop a second run.
+ * Every fetch's own timeouts end before the MCP wrapper's (FETCH_MAX_MS), and the folder of a run stopped from outside all
+ * the same is removed by the next fetch (sweepFetchFolders).
  */
 import { spawn, spawnSync } from "child_process";
 import dns from "dns";
@@ -22,8 +24,13 @@ import { resolveFfmpeg } from "./analyse.mjs";
 import { ROOT, isInside, outFolder, repoRelative } from "./paths.mjs";
 
 export const LIST_TIMEOUT_MS = 180_000;
+/** A batch of pages read at once (readPages: up to a quarter of a run's links in one yt-dlp). */
 export const INFO_TIMEOUT_MS = 600_000;
+/** --- inspiration --- One video's page (fetchVideo: one link, so far less than a batch). */
+export const PAGE_TIMEOUT_MS = 180_000;
 export const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
+/** How long yt-dlp --version may take (resolveYtDlp asks two at most: JBL_YTDLP, then the PATH's). */
+const VERSION_TIMEOUT_MS = 30_000;
 /** The most of yt-dlp's stdout kept (a page's JSON line can be half a megabyte). */
 const MAX_STDOUT_CHARS = 128 * 1024 * 1024;
 const MAX_STDERR_CHARS = 256 * 1024;
@@ -46,7 +53,7 @@ export function resolveYtDlp(env = process.env) {
   candidates.push({ path: process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp", source: "PATH" });
   for (const c of candidates) {
     const cmd = ytDlpCommand(c.path);
-    const r = spawnSync(cmd.file, [...cmd.prefix, "--version"], { encoding: "utf8", timeout: 30_000, windowsHide: true, env });
+    const r = spawnSync(cmd.file, [...cmd.prefix, "--version"], { encoding: "utf8", timeout: VERSION_TIMEOUT_MS, windowsHide: true, env });
     if (!r.error && r.status === 0) return { ...c, ...cmd, version: r.stdout.trim().split("\n")[0] || "unknown" };
   }
   return null;
@@ -101,6 +108,14 @@ export function runYtDlp(ytdlp, args, { timeoutMs = LIST_TIMEOUT_MS, cwd = ROOT 
 
 /** How long one host's lookup may take; past it the host counts as not resolving here. */
 const LOOKUP_TIMEOUT_MS = 15_000;
+
+/**
+ * --- inspiration --- The longest one fetchVideo may run before its own timeouts stop it and its error path reports (and
+ * removes its download folder): the host lookup, yt-dlp's version probes and ffmpeg's (two minutes for both), the video's
+ * page, its download. A tool that fetches (fetch-video, frames, analyse, inspire) gives the MCP wrapper a longer timeout
+ * than this (tools.ts timeoutMs; tests/inspirationCli.test.ts holds them to it), so the wrapper never kills a fetch first.
+ */
+export const FETCH_MAX_MS = LOOKUP_TIMEOUT_MS + 2 * 60_000 + PAGE_TIMEOUT_MS + DOWNLOAD_TIMEOUT_MS;
 
 /**
  * The resolver the host check asks: the system's (every address of the name), or – when JBL_AGENT_DNS is set – a JSON object
@@ -396,6 +411,41 @@ function inboxHit(tb, inbox, link, nowMs) {
   return { url: link.url, absolute: file, file: repoRelative(file), infoFile: repoRelative(infoFile), bytes: fs.statSync(file).size, cached: true, meta };
 }
 
+/** --- inspiration --- A download folder last changed this long ago belongs to no live download (DOWNLOAD_TIMEOUT_MS stops each). */
+export const STALE_FETCH_MS = DOWNLOAD_TIMEOUT_MS + 5 * 60_000;
+
+/**
+ * --- inspiration --- Removes the download folders (.fetch-* in the inbox) that a run stopped from outside left behind: an
+ * MCP timeout or cancel and a shell's timeout kill the whole process group, so download()'s `finally` never runs and the
+ * folder stays with its partial download. A folder last changed more than `maxAgeMs` ago is one no live download still
+ * uses (its own timeout stopped it by then, and a stopped one removes its folder). Only real folders of that name are
+ * removed, never a link; the names removed are returned.
+ * @param {string} inbox
+ * @param {number} [now]
+ * @param {number} [maxAgeMs]
+ */
+export function sweepFetchFolders(inbox, now = Date.now(), maxAgeMs = STALE_FETCH_MS) {
+  const removed = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(inbox, { withFileTypes: true });
+  } catch {
+    return removed;
+  }
+  for (const e of entries) {
+    if (!e.name.startsWith(".fetch-") || !e.isDirectory()) continue; // (a link is no directory entry here: never followed)
+    const dir = path.join(inbox, e.name);
+    try {
+      if (now - fs.lstatSync(dir).mtimeMs <= maxAgeMs) continue;
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(e.name);
+    } catch {
+      /* gone already */
+    }
+  }
+  return removed;
+}
+
 /** --- inspiration --- The downloads under way in this process, by file name: a second call for the same file waits for the first. */
 const fetching = new Map();
 
@@ -412,6 +462,7 @@ export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytd
   const link = tb.checkVideoUrl(url);
   if (!link.ok) throw new Error(link.error); // (before anything runs: a refused link never reaches yt-dlp)
   const inbox = outFolder("inbox");
+  sweepFetchFolders(inbox); // (--- inspiration --- the download folders of a run stopped from outside)
   // --- inspiration --- a video already in the inbox, found by the id its link names, before anything asks its site
   const kept = force ? null : inboxHit(tb, inbox, link, nowMs);
   if (kept) return { ...kept, ytdlp: given };
@@ -420,7 +471,7 @@ export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytd
   const ytdlp = given ?? resolveYtDlp();
   if (!ytdlp) throw new Error(NO_YTDLP);
   // the page first: its id names the file, and its numbers come back with it
-  const page = await runYtDlp(ytdlp, tb.ytInfoArgs([link.url]), { timeoutMs: INFO_TIMEOUT_MS });
+  const page = await runYtDlp(ytdlp, tb.ytInfoArgs([link.url]), { timeoutMs: PAGE_TIMEOUT_MS });
   const info = tb.parseJsonLines(page.stdout)[0];
   const listError = info ? tb.listLinkError(link.url, info) : null; // (--- inspiration --- one video per link)
   if (listError) throw new Error(listError);

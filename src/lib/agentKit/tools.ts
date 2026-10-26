@@ -83,6 +83,12 @@ const queryArg: JsonSchema = { type: "string", minLength: 1, maxLength: 200, des
 const sortByArg: JsonSchema = { type: "string", enum: ["views", "viewsPerDay"], description: "The order, most first (default views)." };
 const maxHeightArg: JsonSchema = { type: "integer", minimum: 1, description: "A fetched video's shorter side at most, in px (default 1080: a 1080 × 1920 short stays whole)." };
 /** --- inspiration --- What the analyser writes besides its result: ffmpeg's scratch folder, removed when it ends. */
+/**
+ * --- inspiration --- How long a tool that fetches one video may run before the MCP wrapper stops it: longer than the fetch's
+ * own timeouts (scripts/agent/videoSources.mjs FETCH_MAX_MS, 35¼ minutes: the page, the download, the probes), so yt-dlp's
+ * timeout fires first and the call reports it and removes its download folder (tests/inspirationCli.test.ts).
+ */
+const FETCH_TOOL_MS = 45 * 60_000;
 const ANALYSE_SCRATCH = "the agent cache in this user's cache folder (~/.cache/jbl-agent): ffmpeg's scratch folder, removed when the analysis ends (JBL_AGENT_CACHE)";
 /** --- inspiration --- The tools that take a video as a file (path) or a link (url): exactly one of them. */
 export const PATH_OR_URL_TOOLS: ReadonlySet<string> = new Set(["analyse", "frames"]);
@@ -219,7 +225,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     network: "web",
     alsoWrites: [ANALYSE_SCRATCH],
     mcp: true,
-    timeoutMs: 40 * 60_000,
+    timeoutMs: FETCH_TOOL_MS + 5 * 60_000, // (--- inspiration --- the fetch, then ffmpeg's passes)
   },
   // --- inspiration --- other creators' trending and viral videos: find them, fetch them, look at them, learn from them
   {
@@ -244,7 +250,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     writes: ".agent-out",
     network: "web",
     mcp: true,
-    timeoutMs: 30 * 60_000,
+    timeoutMs: FETCH_TOOL_MS + 5 * 60_000, // (the fetch, then the frames)
   },
   {
     name: "trending",
@@ -282,7 +288,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     writes: ".agent-out",
     network: "web",
     mcp: true,
-    timeoutMs: 30 * 60_000,
+    timeoutMs: FETCH_TOOL_MS,
   },
   {
     name: "inspire",

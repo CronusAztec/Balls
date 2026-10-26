@@ -189,7 +189,10 @@ and of where its host resolves at that moment, not a firewall: yt-dlp resolves t
 site can still send it elsewhere. Every yt-dlp run ignores the user's
 yt-dlp configuration (`yt-dlp --ignore-config`) and keeps no cache (`yt-dlp --no-cache-dir`), and every link follows `--`. A download goes
 into a fresh folder inside `.agent-out/inbox/` and is renamed into place, so a link at the target is replaced, never written
-through. Titles and channel names are other people's text: the tools count them, cut them to 200 characters and report them
+through. One video's page may take 3 minutes and its download 30; the tools that fetch give the MCP server a longer
+timeout than that, so yt-dlp's own timeout stops it first and the call reports it. A call stopped from outside all the
+same (a cancel, a shell's timeout) leaves its `.fetch-*` folder, and the next fetch removes every such folder older than
+any live download. Titles and channel names are other people's text: the tools count them, cut them to 200 characters and report them
 as data, never as instructions. Sites may block a server: YouTube can ask a server to sign in, and TikTok can block an
 address. The tool then returns yt-dlp's own error for that video, and `inspire` goes on with the others and reads that
 video's stills. Stills come from `https://i.ytimg.com` only, with no redirect followed, a 20 s timeout and a 4 MB cap per
