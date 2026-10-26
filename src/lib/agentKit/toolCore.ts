@@ -19,3 +19,6 @@ export { buildInspirationReport, datasetAppend, datasetRecord, inspirationMarkdo
 // --- inspiration --- the stills fallback: a video's public stills when its download is refused
 export { STILLS_HOST, stillsAspect, videoStills } from "./videoSources";
 export { STILL_WIDTH, stillArgs, stillSampleArgs } from "@/lib/videoAnalysis/ffmpegArgs";
+// --- trends --- the trend summary of inspire reports (npm run trends, scripts/trends.mjs)
+export { buildTrendSummary } from "./trends";
+export { validateTrends } from "@/lib/trends";

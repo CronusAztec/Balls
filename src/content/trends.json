@@ -1,0 +1,623 @@
+{
+  "v": 1,
+  "date": "2026-10-26",
+  "metric": "views",
+  "sources": [
+    {
+      "query": "satisfying physics simulation shorts",
+      "at": "2026-10-26T01:37:22.440Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 8
+    },
+    {
+      "query": "ball simulation",
+      "at": "2026-10-26T01:38:34.886Z",
+      "videos": 20,
+      "compared": 20,
+      "measured": 0,
+      "stills": 8
+    }
+  ],
+  "sample": {
+    "videos": 39,
+    "compared": 39,
+    "measured": 0,
+    "stills": 15,
+    "views": 14708290,
+    "platforms": {
+      "youtube": 39
+    }
+  },
+  "numbers": [
+    {
+      "trait": "durationSec",
+      "label": "length",
+      "unit": "s",
+      "top": 11,
+      "rest": 10.5,
+      "all": 11,
+      "rho": -0.062,
+      "n": 39,
+      "strength": null
+    },
+    {
+      "trait": "portrait",
+      "label": "portrait share",
+      "unit": "",
+      "top": 1,
+      "rest": 1,
+      "all": 1,
+      "rho": null,
+      "n": 8,
+      "strength": null
+    },
+    {
+      "trait": "meanLuma",
+      "label": "brightness",
+      "unit": "",
+      "top": 0.556,
+      "rest": 0.503,
+      "all": 0.556,
+      "rho": 0.029,
+      "n": 15,
+      "strength": null
+    },
+    {
+      "trait": "meanSat",
+      "label": "saturation",
+      "unit": "",
+      "top": 0.302,
+      "rest": 0.58,
+      "all": 0.465,
+      "rho": -0.714,
+      "n": 15,
+      "strength": "clear"
+    },
+    {
+      "trait": "darkShare",
+      "label": "dark share",
+      "unit": "",
+      "top": 0,
+      "rest": 0,
+      "all": 0,
+      "rho": -0.002,
+      "n": 15,
+      "strength": null
+    }
+  ],
+  "themes": [
+    {
+      "id": "satisfying",
+      "label": "satisfying and calm",
+      "videos": 22,
+      "viewShare": 0.595,
+      "videoShare": 0.564,
+      "lift": 1.05,
+      "advised": false,
+      "modes": [
+        "colourSort",
+        "perfectFit",
+        "orbGrid",
+        "pendulum",
+        "collide"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "battle",
+      "label": "battles",
+      "videos": 14,
+      "viewShare": 0.295,
+      "videoShare": 0.359,
+      "lift": 0.82,
+      "advised": false,
+      "modes": [
+        "battle",
+        "fightLeague",
+        "stringBattle",
+        "territory",
+        "landClaim"
+      ],
+      "blueprints": [
+        "conquer"
+      ]
+    },
+    {
+      "id": "escape",
+      "label": "escaping rings",
+      "videos": 2,
+      "viewShare": 0.256,
+      "videoShare": 0.051,
+      "lift": 4.99,
+      "advised": true,
+      "modes": [
+        "classic",
+        "accumulation",
+        "shatter",
+        "spiralGlass",
+        "grow"
+      ],
+      "blueprints": [
+        "ringBreaker",
+        "growEscape"
+      ]
+    },
+    {
+      "id": "loop",
+      "label": "loops",
+      "videos": 2,
+      "viewShare": 0.251,
+      "videoShare": 0.051,
+      "lift": 4.89,
+      "advised": true,
+      "modes": [
+        "starChords",
+        "ellipseFoci",
+        "pendulum",
+        "polyrhythm",
+        "colourSort",
+        "orbGrid"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "drop",
+      "label": "drops and piles",
+      "videos": 7,
+      "viewShare": 0.065,
+      "videoShare": 0.179,
+      "lift": 0.36,
+      "advised": false,
+      "modes": [
+        "drop",
+        "conveyor",
+        "accumulation",
+        "perfectFit",
+        "multipliers"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "maze",
+      "label": "mazes",
+      "videos": 2,
+      "viewShare": 0.061,
+      "videoShare": 0.051,
+      "lift": 1.19,
+      "advised": true,
+      "modes": [
+        "maze"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "spiral",
+      "label": "spirals and spinning",
+      "videos": 5,
+      "viewShare": 0.059,
+      "videoShare": 0.128,
+      "lift": 0.46,
+      "advised": false,
+      "modes": [
+        "vortex",
+        "spiralGlass",
+        "hoops"
+      ],
+      "blueprints": []
+    },
+    {
+      "id": "colour",
+      "label": "colours and painting",
+      "videos": 2,
+      "viewShare": 0.058,
+      "videoShare": 0.051,
+      "lift": 1.13,
+      "advised": true,
+      "modes": [
+        "paint",
+        "territory",
+        "colourSort",
+        "landClaim",
+        "colorMatch"
+      ],
+      "blueprints": [
+        "conquer"
+      ]
+    },
+    {
+      "id": "destroy",
+      "label": "breaking and smashing",
+      "videos": 2,
+      "viewShare": 0.046,
+      "videoShare": 0.051,
+      "lift": 0.9,
+      "advised": false,
+      "modes": [
+        "glass",
+        "shatter",
+        "powerLayers",
+        "brickRebuild",
+        "spiralGlass"
+      ],
+      "blueprints": [
+        "hatchery"
+      ]
+    },
+    {
+      "id": "marbleRun",
+      "label": "marble runs and pegs",
+      "videos": 3,
+      "viewShare": 0.023,
+      "videoShare": 0.077,
+      "lift": 0.29,
+      "advised": false,
+      "modes": [
+        "drop",
+        "bullseye",
+        "beatMachine",
+        "conveyor",
+        "race"
+      ],
+      "blueprints": [
+        "plinkoRace"
+      ]
+    },
+    {
+      "id": "grow",
+      "label": "growing balls",
+      "videos": 3,
+      "viewShare": 0.008,
+      "videoShare": 0.077,
+      "lift": 0.1,
+      "advised": false,
+      "modes": [
+        "grow",
+        "mergeRing"
+      ],
+      "blueprints": [
+        "growEscape",
+        "tierClimb"
+      ]
+    },
+    {
+      "id": "merge",
+      "label": "merging",
+      "videos": 1,
+      "viewShare": 0.002,
+      "videoShare": 0.026,
+      "lift": 0.08,
+      "advised": false,
+      "modes": [
+        "mergeRing"
+      ],
+      "blueprints": [
+        "tierClimb"
+      ]
+    }
+  ],
+  "formats": [
+    {
+      "id": "question",
+      "label": "a question",
+      "top": 0.08,
+      "rest": 0.31,
+      "all": 0.23
+    },
+    {
+      "id": "bigNumber",
+      "label": "a count of 100 or more",
+      "top": 0,
+      "rest": 0.04,
+      "all": 0.03
+    },
+    {
+      "id": "versus",
+      "label": "a versus (A vs B)",
+      "top": 0.23,
+      "rest": 0.31,
+      "all": 0.28
+    },
+    {
+      "id": "escalation",
+      "label": "a scale stepped up (0% vs 100%, small to big)",
+      "top": 0.08,
+      "rest": 0.15,
+      "all": 0.13
+    },
+    {
+      "id": "series",
+      "label": "a numbered series (Day 12, Part 3)",
+      "top": 0.08,
+      "rest": 0.12,
+      "all": 0.1
+    }
+  ],
+  "words": [
+    {
+      "word": "satisfying",
+      "videos": 7
+    },
+    {
+      "word": "3danimation",
+      "videos": 6
+    },
+    {
+      "word": "3d",
+      "videos": 5
+    },
+    {
+      "word": "ball",
+      "videos": 4
+    },
+    {
+      "word": "balls",
+      "videos": 3
+    },
+    {
+      "word": "grid",
+      "videos": 3
+    },
+    {
+      "word": "simulation",
+      "videos": 3
+    },
+    {
+      "word": "youtubeshorts",
+      "videos": 3
+    },
+    {
+      "word": "asmr",
+      "videos": 2
+    },
+    {
+      "word": "maze",
+      "videos": 2
+    },
+    {
+      "word": "oddly",
+      "videos": 2
+    },
+    {
+      "word": "physics",
+      "videos": 2
+    }
+  ],
+  "recommendations": [
+    {
+      "area": "look",
+      "advice": "Keep the colours calm (a muted theme) on a light or mid background.",
+      "basis": "pattern",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "themeId",
+          "link": "theme"
+        },
+        {
+          "kind": "setting",
+          "name": "trailColors",
+          "link": "trc"
+        },
+        {
+          "kind": "setting",
+          "name": "showTrails",
+          "link": "trails",
+          "value": true
+        },
+        {
+          "kind": "setting",
+          "name": "backgroundType",
+          "link": "bgt"
+        }
+      ]
+    },
+    {
+      "area": "length",
+      "advice": "Render 11 s clips.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "recordingDuration",
+          "link": "dur",
+          "value": 11
+        }
+      ]
+    },
+    {
+      "area": "format",
+      "advice": "Portrait 1080 × 1920, as the most viewed are.",
+      "basis": "benchmark",
+      "levers": [
+        {
+          "kind": "setting",
+          "name": "recordingResolution",
+          "link": "res",
+          "value": "1080x1920"
+        }
+      ]
+    },
+    {
+      "area": "mode",
+      "advice": "\"escaping rings\" holds 26% of the views with 5% of the videos (2 videos): play it with classic, accumulation, shatter, spiralGlass, grow.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "classic"
+        },
+        {
+          "kind": "mode",
+          "name": "accumulation"
+        },
+        {
+          "kind": "mode",
+          "name": "shatter"
+        },
+        {
+          "kind": "mode",
+          "name": "spiralGlass"
+        },
+        {
+          "kind": "mode",
+          "name": "grow"
+        }
+      ]
+    },
+    {
+      "area": "blueprint",
+      "advice": "As a Blueprint: rings with a gap that break on a pass: arena.shape rings with rings.breakOnPass. Check it with bp-check until it is playable.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "blueprint",
+          "name": "ringBreaker"
+        },
+        {
+          "kind": "blueprint",
+          "name": "growEscape"
+        },
+        {
+          "kind": "tool",
+          "name": "bp-check"
+        }
+      ]
+    },
+    {
+      "area": "mode",
+      "advice": "\"loops\" holds 25% of the views with 5% of the videos (2 videos): play it with starChords, ellipseFoci, pendulum, polyrhythm, colourSort, orbGrid.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "starChords"
+        },
+        {
+          "kind": "mode",
+          "name": "ellipseFoci"
+        },
+        {
+          "kind": "mode",
+          "name": "pendulum"
+        },
+        {
+          "kind": "mode",
+          "name": "polyrhythm"
+        },
+        {
+          "kind": "mode",
+          "name": "colourSort"
+        },
+        {
+          "kind": "mode",
+          "name": "orbGrid"
+        }
+      ]
+    },
+    {
+      "area": "mode",
+      "advice": "\"mazes\" holds 6% of the views with 5% of the videos (2 videos): play it with maze.",
+      "basis": "theme",
+      "levers": [
+        {
+          "kind": "mode",
+          "name": "maze"
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "title": "This Ball Is Trapped in a Perfect Loop",
+      "url": "https://www.youtube.com/shorts/NbZCb-rDF30",
+      "platform": "youtube",
+      "views": 3621789,
+      "viewsPerDay": 76945,
+      "durationSec": 7,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "Metallic Cloth Takes Over a Red Ball 😍 | Satisfying 3D Simulation #satisfying #3danimation #3d",
+      "url": "https://www.youtube.com/shorts/INLxnalVcsc",
+      "platform": "youtube",
+      "views": 3319093,
+      "viewsPerDay": 469462,
+      "durationSec": 28,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "Rumi Hammer vs Big & Small Lava & Astronaut Moon Mecha! | BeamNG.drive #funny #3danimation",
+      "url": "https://www.youtube.com/shorts/esiVQnqTXEI",
+      "platform": "youtube",
+      "views": 2893246,
+      "viewsPerDay": 28912,
+      "durationSec": 16,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "Amazing Soccer Balls Bouncing in a Colorful 3D Maze! 🤩⚽ | #youtubeshorts #3danimation #3d",
+      "url": "https://www.youtube.com/shorts/FFJ5THnzdDE",
+      "platform": "youtube",
+      "views": 806359,
+      "viewsPerDay": 53508,
+      "durationSec": 5,
+      "query": "ball simulation"
+    },
+    {
+      "title": "Will the emojis have enough momentum to make it to the end? 😊 #spiral",
+      "url": "https://www.youtube.com/shorts/bkNfVXhCHiY",
+      "platform": "youtube",
+      "views": 734075,
+      "viewsPerDay": 12427,
+      "durationSec": 24,
+      "query": "ball simulation"
+    },
+    {
+      "title": "Glass Pipes vs Soft Body Physics! 🤯",
+      "url": "https://www.youtube.com/shorts/ZDvEvYc0UBk",
+      "platform": "youtube",
+      "views": 628462,
+      "viewsPerDay": 62409,
+      "durationSec": 22,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "🔴SHREDDER ☠️ VS 🔵SNIPER 👁️",
+      "url": "https://www.youtube.com/shorts/3iHvyDdwp7A",
+      "platform": "youtube",
+      "views": 470819,
+      "viewsPerDay": 2020,
+      "durationSec": 22,
+      "query": "ball simulation"
+    },
+    {
+      "title": "Mesmerizing 3D Metal Balls Falling into a Blue Grid! 🤯✨ Satisfying #youtubeshorts #3danimation #3d",
+      "url": "https://www.youtube.com/shorts/WO8bnbw3-Po",
+      "platform": "youtube",
+      "views": 373354,
+      "viewsPerDay": 21872,
+      "durationSec": 11,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "ASMR / Oddly Satisfying): Oddly Satisfying Marble Drop & Grid Physics 🌀🟦#3d#youtubeshorts#3danima",
+      "url": "https://www.youtube.com/shorts/GisD3WQl2OA",
+      "platform": "youtube",
+      "views": 270070,
+      "viewsPerDay": 9621,
+      "durationSec": 6,
+      "query": "satisfying physics simulation shorts"
+    },
+    {
+      "title": "Day 56 → 1K Subscribers 🎯 | Satisfying Simulation",
+      "url": "https://www.youtube.com/shorts/yAWxckhcZtE",
+      "platform": "youtube",
+      "views": 211447,
+      "viewsPerDay": 19101,
+      "durationSec": 19,
+      "query": "ball simulation"
+    }
+  ]
+}
