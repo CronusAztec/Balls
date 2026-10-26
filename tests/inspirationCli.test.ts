@@ -324,6 +324,34 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(second.json.result.dataset).toMatchObject({ added: 0, total: 1 });
   }, 240_000);
 
+  // --- inspiration --- a video in the inbox is reused before its site is asked: a blocked address or a rate limit
+  // stopped a second run over the same videos
+  it("reuses a video already in the inbox without asking its site, even with no yt-dlp at all", () => {
+    if (!ffmpeg) return;
+    const url = "https://www.tiktok.com/@channel_7/video/7508828818702978326";
+    expect(agent("fetch-video", { url }).code).toBe(0);
+    const before = calls().length;
+    const empty = path.join(TEST_DIR, "empty");
+    fs.mkdirSync(empty, { recursive: true });
+    const again = agent("fetch-video", { url: `${url}?lang=en` }, { PATH: empty });
+    expect(again.code, JSON.stringify(again.json)).toBe(0);
+    expect(again.json.result).toMatchObject({ cached: true, file: ".agent-out/inbox/tiktok-7508828818702978326.mp4", infoFile: ".agent-out/inbox/tiktok-7508828818702978326.info.json", meta: { key: "tiktok:7508828818702978326", views: 4100000, detailed: true }, ytdlp: null });
+    expect(calls().length).toBe(before); // (not even yt-dlp --version)
+    // a link without the id in it (a share link) asks the site for the id first, then finds the file
+    const share = agent("fetch-video", { url: "https://vm.tiktok.com/ZMabcdef/" });
+    expect(share.json.result).toMatchObject({ cached: true, file: again.json.result.file });
+    expect(calls().slice(before).some((c) => c.includes("--skip-download"))).toBe(true);
+    // an info JSON that names another video is no hit: the site is asked
+    const info = path.join(ROOT, again.json.result.infoFile);
+    const kept = fs.readFileSync(info, "utf8");
+    fs.writeFileSync(info, JSON.stringify({ ...JSON.parse(kept), id: "1" }));
+    try {
+      expect(agent("fetch-video", { url }, { PATH: empty }).json.error).toMatch(/No yt-dlp found/);
+    } finally {
+      fs.writeFileSync(info, kept);
+    }
+  });
+
   it("cuts frames and contact sheets for a vision-capable AI, and analyses a link exactly as a file", () => {
     if (!ffmpeg) {
       expect(agent("frames", { path: path.relative(ROOT, CLIP) }).json.error).toMatch(/No ffmpeg found/);

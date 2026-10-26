@@ -272,7 +272,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "fetch-video",
     title: "Fetch a video",
-    description: "Downloads one video (TikTok, Instagram, YouTube or any site yt-dlp reads) into .agent-out/inbox/<platform>-<id>.mp4 with its info JSON beside it, and returns the path and its numbers (views, likes, comments, length, upload date). A video already there is reused unless force. yt-dlp from the PATH or JBL_YTDLP; ffmpeg merges the picture and the sound into MP4.",
+    description: "Downloads one video (TikTok, Instagram, YouTube or any site yt-dlp reads) into .agent-out/inbox/<platform>-<id>.mp4 with its info JSON beside it, and returns the path and its numbers (views, likes, comments, length, upload date). A video already there is reused unless force (found by the id its link names, before the site is asked). yt-dlp from the PATH or JBL_YTDLP; ffmpeg merges the picture and the sound into MP4.",
     input: {
       type: "object",
       additionalProperties: false,

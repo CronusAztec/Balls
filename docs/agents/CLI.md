@@ -140,7 +140,9 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   `viewsPerDay`), short-form first when `maxDurationSec` is at most 180. `limit` has no maximum. It writes nothing.
 - **`fetch-video`** downloads one video into `.agent-out/inbox/<platform>-<id>.mp4` with `<platform>-<id>.info.json` beside
   it: the best picture up to `maxHeight` (the shorter side, default 1080, so a 1080 × 1920 short stays whole), merged into
-  MP4 with ffmpeg. A video already there is reused unless `force`. One video per link: yt-dlp reads the first entry of a
+  MP4 with ffmpeg. A video already there is reused unless `force`: when the link names the video's id, before its site is
+  asked, so a blocked address or a rate limit does not stop a second run (the numbers are then its info JSON's, as they
+  were when it was fetched). One video per link: yt-dlp reads the first entry of a
   playlist, channel, profile, hashtag or search page link at most (`yt-dlp --playlist-items 1`), and such a link is refused with
   an error that says so (in `trending`'s and `inspire`'s `urls` too, listed under `refused`).
 - **`frames`** writes `count` frames spread over a video (default 12), its first `hookSec` seconds every `hookStepSec`

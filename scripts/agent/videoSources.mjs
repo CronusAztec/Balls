@@ -11,7 +11,8 @@
  * the host resolves when it is checked, not a firewall (yt-dlp resolves it again and follows redirects). yt-dlp runs with
  * an argument array (no shell) and a timeout, without the user's config (--ignore-config) or cache (--no-cache-dir). A
  * download goes into a fresh folder inside .agent-out/inbox/ and is renamed into place – a link at the target is replaced,
- * never written through – with its info JSON beside it; a video already there is reused unless the call says force.
+ * never written through – with its info JSON beside it; a video already there is reused unless the call says force – before
+ * its site is asked when the link names the video's id, so a blocked address or a rate limit does not stop a second run.
  */
 import { spawn, spawnSync } from "child_process";
 import dns from "dns";
@@ -366,6 +367,35 @@ const regularFile = (file) => {
   }
 };
 
+/** The largest info JSON read back from the inbox (a page's JSON with every format listed runs to a few MB). */
+const MAX_INFO_BYTES = 32 * 1024 * 1024;
+
+/**
+ * --- inspiration --- The video a link names, from the inbox alone, null when it is not there: a link with the video's id in
+ * it (videoIdOfUrl) finds <platform>-<id>.<ext> and its info JSON, and the numbers come from that JSON (as they were when it
+ * was fetched). Nothing is asked of the site, so a video fetched once is reused when the site blocks this address or rate
+ * limits it.
+ */
+function inboxHit(tb, inbox, link, nowMs) {
+  const id = tb.videoIdOfUrl(link.url);
+  if (!id) return null;
+  const name = tb.videoFileName({ platform: link.platform, id, url: link.url });
+  const file = inboxVideo(inbox, name);
+  const infoFile = path.join(inbox, `${name}.info.json`);
+  if (!file || !regularFile(infoFile)) return null;
+  let info;
+  try {
+    if (fs.statSync(infoFile).size > MAX_INFO_BYTES) return null;
+    info = JSON.parse(fs.readFileSync(infoFile, "utf8"));
+  } catch {
+    return null;
+  }
+  if (!info || typeof info !== "object" || Array.isArray(info) || info.id !== id) return null;
+  const meta = tb.videoMetaOf(info, { source: "url", nowMs, link: link.url, detailed: true });
+  if (!meta || tb.videoFileName(meta) !== name) return null;
+  return { url: link.url, absolute: file, file: repoRelative(file), infoFile: repoRelative(infoFile), bytes: fs.statSync(file).size, cached: true, meta };
+}
+
 /** --- inspiration --- The downloads under way in this process, by file name: a second call for the same file waits for the first. */
 const fetching = new Map();
 
@@ -378,11 +408,14 @@ const fetching = new Map();
 export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytdlp: given = null, hosts = hostChecker(tb) }, nowMs = Date.now()) {
   const link = tb.checkVideoUrl(url);
   if (!link.ok) throw new Error(link.error); // (before anything runs: a refused link never reaches yt-dlp)
+  const inbox = outFolder("inbox");
+  // --- inspiration --- a video already in the inbox, found by the id its link names, before anything asks its site
+  const kept = force ? null : inboxHit(tb, inbox, link, nowMs);
+  if (kept) return { ...kept, ytdlp: given };
   const resolved = await hosts([link.url]); // (--- inspiration --- nor one whose host resolves to this machine)
   if (resolved.refused.length) throw new Error(resolved.refused[0].error);
   const ytdlp = given ?? resolveYtDlp();
   if (!ytdlp) throw new Error(NO_YTDLP);
-  const inbox = outFolder("inbox");
   // the page first: its id names the file, and its numbers come back with it
   const page = await runYtDlp(ytdlp, tb.ytInfoArgs([link.url]), { timeoutMs: INFO_TIMEOUT_MS });
   const info = tb.parseJsonLines(page.stdout)[0];
