@@ -5,12 +5,16 @@
  *  1. JBL_YTDLP when set (an executable, or a .js / .mjs / .cjs script run with this Node: the tests' fake one);
  *  2. `yt-dlp` on the PATH. None: a clear message, nothing fetched.
  * Its command lines, the link check (http or https, never this machine or its private network), one video per link (a
- * playlist, channel or profile link reads one entry at most and is refused) and the parsers of what it prints are pure (src/lib/agentKit/videoSources.ts, tested in tests/inspiration.test.ts). yt-dlp runs with an argument array
- * (no shell) and a timeout, without the user's config (--ignore-config) or cache (--no-cache-dir). A download goes into a
- * fresh folder inside .agent-out/inbox/ and is renamed into place – a link at the target is replaced, never written through
- * – with its info JSON beside it; a video already there is reused unless the call says force.
+ * playlist, channel or profile link reads one entry at most and is refused) and the parsers of what it prints are pure
+ * (src/lib/agentKit/videoSources.ts, tested in tests/inspiration.test.ts). Before yt-dlp runs, each link's host is looked
+ * up too (hostChecker) and a link whose host resolves to this machine or its private network is refused: a check of where
+ * the host resolves when it is checked, not a firewall (yt-dlp resolves it again and follows redirects). yt-dlp runs with
+ * an argument array (no shell) and a timeout, without the user's config (--ignore-config) or cache (--no-cache-dir). A
+ * download goes into a fresh folder inside .agent-out/inbox/ and is renamed into place – a link at the target is replaced,
+ * never written through – with its info JSON beside it; a video already there is reused unless the call says force.
  */
 import { spawn, spawnSync } from "child_process";
+import dns from "dns";
 import fs from "fs";
 import path from "path";
 import { resolveFfmpeg } from "./analyse.mjs";
@@ -92,6 +96,70 @@ export function runYtDlp(ytdlp, args, { timeoutMs = LIST_TIMEOUT_MS, cwd = ROOT 
   });
 }
 
+// --- inspiration --- where a link's host resolves: never this machine or its private network
+
+/** How long one host's lookup may take; past it the host counts as not resolving here. */
+const LOOKUP_TIMEOUT_MS = 15_000;
+
+/**
+ * The resolver the host check asks: the system's (every address of the name), or – when JBL_AGENT_DNS is set – a JSON object
+ * of host names and their addresses, the tests' stand-in, so no test asks the network (a name it does not hold: not found).
+ */
+export function hostLookup(env = process.env) {
+  if (env.JBL_AGENT_DNS === undefined) return (host) => dns.promises.lookup(host, { all: true, verbatim: true });
+  let table;
+  try {
+    table = JSON.parse(env.JBL_AGENT_DNS);
+  } catch {
+    table = null;
+  }
+  if (!table || typeof table !== "object" || Array.isArray(table)) throw new Error("JBL_AGENT_DNS must be a JSON object of host names and their addresses");
+  return async (host) => {
+    const list = Object.hasOwn(table, host) && Array.isArray(table[host]) ? table[host] : null;
+    if (!list) throw Object.assign(new Error(`${host}: not found`), { code: "ENOTFOUND" });
+    return list.map((address) => ({ address: String(address), family: String(address).includes(":") ? 6 : 4 }));
+  };
+}
+
+/**
+ * A host check for one call: (links) => { ok, refused: [{ url, error }] }, each host looked up once. A link whose host
+ * resolves to this machine or its private network (127.0.0.1.nip.io, localtest.me, a name only the local network knows)
+ * is refused; a host that does not resolve here goes on (yt-dlp reports that itself, or a proxy resolves it), and a literal
+ * address was checked with the link already.
+ */
+export function hostChecker(tb, lookup = hostLookup()) {
+  const verdicts = new Map();
+  const verdict = (host) => {
+    if (!verdicts.has(host)) {
+      verdicts.set(
+        host,
+        (async () => {
+          let timer;
+          const late = new Promise((resolve) => {
+            timer = setTimeout(() => resolve(null), LOOKUP_TIMEOUT_MS);
+          });
+          try {
+            const answers = await Promise.race([Promise.resolve(lookup(host)), late]);
+            const bad = (Array.isArray(answers) ? answers : []).map((a) => String(a?.address ?? "")).find((a) => tb.isPrivateAddress(a));
+            return bad ? `${host} resolves to ${bad}, this machine or its private network: only public video sites are fetched` : null;
+          } catch {
+            return null;
+          } finally {
+            clearTimeout(timer);
+          }
+        })(),
+      );
+    }
+    return verdicts.get(host);
+  };
+  return async (urls) => {
+    const hostOf = (u) => new URL(u).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const literal = (h) => h.includes(":") || /^\d+\.\d+\.\d+\.\d+$/.test(h);
+    const errors = await Promise.all(urls.map((u) => (literal(hostOf(u)) ? null : verdict(hostOf(u)))));
+    return { ok: urls.filter((_, i) => !errors[i]), refused: urls.flatMap((u, i) => (errors[i] ? [{ url: u, error: errors[i] }] : [])) };
+  };
+}
+
 /** Runs `fn` over `items`, at most `limit` at a time, results in the items' order. */
 export async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
@@ -110,12 +178,16 @@ export async function mapLimit(items, limit, fn) {
  * The pages of `urls` read with yt-dlp -j, split over PAGE_RUNS runs: a Map from each link to its JSON object (matched by
  * the link yt-dlp was given, original_url), the error lines of the links it could not read, and (--- inspiration ---) the
  * links that are lists of videos, not one (`lists`: link → why it is refused; ytInfoArgs reads one entry of each at most).
- * A run stopped at its timeout keeps the pages it printed before.
+ * A run stopped at its timeout keeps the pages it printed before. A link whose host resolves to this machine or its
+ * private network is not read (`hosts`: hostChecker), its error listed.
  */
-export async function readPages(tb, ytdlp, urls, { timeoutMs = INFO_TIMEOUT_MS } = {}) {
+export async function readPages(tb, ytdlp, given, { timeoutMs = INFO_TIMEOUT_MS, hosts = hostChecker(tb) } = {}) {
   const pages = new Map();
   const lists = new Map();
   const errors = [];
+  if (!given.length) return { pages, errors, lists };
+  const { ok: urls, refused } = await hosts(given);
+  errors.push(...refused.map((r) => r.error));
   if (!urls.length) return { pages, errors, lists };
   const size = Math.ceil(urls.length / PAGE_RUNS);
   const chunks = [];
@@ -154,7 +226,7 @@ export async function readPages(tb, ytdlp, urls, { timeoutMs = INFO_TIMEOUT_MS }
  * links added, the best rows' pages read for exact numbers (unless details is false), then ranked (videoSources.ts
  * rankVideos). `nowMs` is the clock the ages are measured on.
  */
-export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
+export async function trending(tb, ytdlp, args, nowMs = Date.now(), hosts = hostChecker(tb)) {
   const limit = args.limit ?? 20;
   const sortBy = args.sortBy ?? "views";
   const urls = args.urls ?? [];
@@ -201,13 +273,17 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
       }
     }
   }
+  const checked = [];
   for (const u of urls) {
     const c = tb.checkVideoUrl(u);
-    if (!c.ok) {
-      refused.push({ url: String(u).slice(0, 200), error: c.error });
-      continue;
-    }
-    const row = tb.videoMetaOf({ webpage_url: c.url }, { source: "url", nowMs, link: c.url });
+    if (!c.ok) refused.push({ url: String(u).slice(0, 200), error: c.error });
+    else checked.push(c.url);
+  }
+  // --- inspiration --- and where each link's host resolves, before yt-dlp sees it
+  const resolved = await hosts(checked);
+  for (const r of resolved.refused) refused.push({ url: r.url.slice(0, 200), error: r.error });
+  for (const url of resolved.ok) {
+    const row = tb.videoMetaOf({ webpage_url: url }, { source: "url", nowMs, link: url });
     if (row) {
       rows.push(row);
       sources.urls++;
@@ -224,7 +300,7 @@ export async function trending(tb, ytdlp, args, nowMs = Date.now()) {
       { sortBy: "views", limit: Math.max(1, Math.ceil(limit * 1.5)), maxDurationSec: args.maxDurationSec },
     ).videos;
     const toRead = [...given, ...pre];
-    const { pages, errors: pageErrors, lists } = await readPages(tb, ytdlp, [...new Set(toRead.map((r) => r.url))]);
+    const { pages, errors: pageErrors, lists } = await readPages(tb, ytdlp, [...new Set(toRead.map((r) => r.url))], { hosts });
     // --- inspiration --- a link that is a list of videos (a playlist, channel, profile…) is refused, not ranked
     for (const [url, error] of lists) {
       refused.push({ url: url.slice(0, 200), error });
@@ -295,9 +371,11 @@ const regularFile = (file) => {
  * bytes, cached, meta, ytdlp } (meta: videoSources.ts VideoMeta from the video's page; ytdlp: the one that ran, the
  * caller's when it passes one).
  */
-export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytdlp: given = null }, nowMs = Date.now()) {
+export async function fetchVideo(tb, { url, maxHeight = 1080, force = false, ytdlp: given = null, hosts = hostChecker(tb) }, nowMs = Date.now()) {
   const link = tb.checkVideoUrl(url);
   if (!link.ok) throw new Error(link.error); // (before anything runs: a refused link never reaches yt-dlp)
+  const resolved = await hosts([link.url]); // (--- inspiration --- nor one whose host resolves to this machine)
+  if (resolved.refused.length) throw new Error(resolved.refused[0].error);
   const ytdlp = given ?? resolveYtDlp();
   if (!ytdlp) throw new Error(NO_YTDLP);
   const inbox = outFolder("inbox");

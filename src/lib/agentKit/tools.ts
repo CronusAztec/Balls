@@ -15,7 +15,8 @@ import { FRAMES_CEILING, SHEET_TILES_CEILING } from "@/lib/videoAnalysis/ffmpegA
  *    "owner" (the owner's own Plausible / Umami / Postiz host from the environment – owner-run commands only, never MCP), or
  *    --- inspiration --- "web" (video sites through yt-dlp: a search, a Shorts feed, a video's page and its file – the
  *    inspiration tools, which learn from other creators' trending and viral videos, the owner's decision of October 2026;
- *    a link is checked first: http or https, never this machine or its private network).
+ *    a link is checked first: http or https, never one that names this machine or its private network or whose host
+ *    resolves there when it is checked – a check of the link, not a firewall).
  */
 
 export type ToolWrites = "none" | ".agent-out";
@@ -76,7 +77,7 @@ const bpParams: JsonSchema = {
 };
 const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite, params: bpParams };
 // --- inspiration --- a video link (fetched with yt-dlp, never opened by the browser), a search, the ranking, the fetch size
-const videoUrl: JsonSchema = { type: "string", minLength: 8, maxLength: URL_MAX_CHARS, pattern: "^[Hh][Tt][Tt][Pp][Ss]?://", description: "A video link: TikTok, Instagram, YouTube (a Short too) or any site yt-dlp reads; http or https, never this machine or its private network. One video: a playlist, channel, profile or hashtag link is refused. Fetched into .agent-out/inbox/." };
+const videoUrl: JsonSchema = { type: "string", minLength: 8, maxLength: URL_MAX_CHARS, pattern: "^[Hh][Tt][Tt][Pp][Ss]?://", description: "A video link: TikTok, Instagram, YouTube (a Short too) or any site yt-dlp reads; http or https, never this machine or its private network (the link and where its host resolves are checked). One video: a playlist, channel, profile or hashtag link is refused. Fetched into .agent-out/inbox/." };
 const videoUrls: JsonSchema = { type: "array", minItems: 1, items: videoUrl, description: "Video links to add (TikTok, Instagram, YouTube or any site), each read with yt-dlp for its numbers." };
 const queryArg: JsonSchema = { type: "string", minLength: 1, maxLength: 200, description: `What to search for (default "${DEFAULT_QUERY}" when no urls are given).` };
 const sortByArg: JsonSchema = { type: "string", enum: ["views", "viewsPerDay"], description: "The order, most first (default views)." };

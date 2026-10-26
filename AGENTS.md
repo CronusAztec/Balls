@@ -176,8 +176,9 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 
 Every tool writes its results only under `.agent-out/`, reads files inside the repository, starts no shell, and uses no
 network except its own 127.0.0.1 server and, for the video tools (`analyse` and `frames` with a link, `trending`,
-`fetch-video`, `inspire`), the video sites yt-dlp reads (`yt-dlp` on the PATH or `JBL_YTDLP`; a link to this machine or its
-private network is refused). Downloads land in `.agent-out/inbox/`. The two owner-run tools call only the owner's own host, with the owner's
+`fetch-video`, `inspire`), the video sites yt-dlp reads (`yt-dlp` on the PATH or `JBL_YTDLP`; a link that names this machine
+or its private network, or whose host resolves there when it is checked, is refused: a check of the link, not a firewall, as
+yt-dlp follows redirects). Downloads land in `.agent-out/inbox/`. The two owner-run tools call only the owner's own host, with the owner's
 key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of your own cache folder
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.

@@ -13,7 +13,7 @@ import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
 import { extractFrames } from "../scripts/agent/frames.mjs";
 import * as videoSources from "@/lib/agentKit/videoSources";
-import { readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import { hostChecker, readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
 import { PathError, outFolder } from "../scripts/agent/paths.mjs";
 
 // --- inspiration --- The inspiration tools of the agent toolbox (trending, fetch-video, frames, inspire; analyse with a
@@ -57,6 +57,25 @@ describe("yt-dlp itself and where its files go (--- inspiration ---)", () => {
     expect(outFolder("inbox")).toBe(path.join(ROOT, ".agent-out", "inbox"));
   });
 
+  // --- inspiration --- where a link's host resolves, before yt-dlp sees it
+  it("refuses a link whose host resolves to this machine or its private network, asking for each host once", async () => {
+    const asked: string[] = [];
+    const answers: Record<string, string[]> = { "clips.example.com": ["203.0.113.7"], "sneaky.example.com": ["203.0.113.8", "::ffff:127.0.0.1"], "lan.example.com": ["fe80::1%eth0"] };
+    const lookup = async (host: string) => {
+      asked.push(host);
+      if (!answers[host]) throw Object.assign(new Error("not found"), { code: "ENOTFOUND" });
+      return answers[host].map((address) => ({ address, family: address.includes(":") ? 6 : 4 }));
+    };
+    const check = hostChecker(videoSources, lookup);
+    const links = ["https://clips.example.com/a.mp4", "https://sneaky.example.com/v/1", "https://sneaky.example.com/v/2", "https://lan.example.com/x", "https://gone.example.com/x", "https://8.8.8.8/v"];
+    const r = await check(links);
+    expect(r.ok).toEqual(["https://clips.example.com/a.mp4", "https://gone.example.com/x", "https://8.8.8.8/v"]); // (a name that does not resolve here goes on; a literal address was checked with the link)
+    expect(r.refused.map((x: { url: string }) => x.url)).toEqual(["https://sneaky.example.com/v/1", "https://sneaky.example.com/v/2", "https://lan.example.com/x"]);
+    expect(r.refused[0].error).toMatch(/sneaky\.example\.com resolves to ::ffff:127\.0\.0\.1, this machine or its private network/);
+    await check(["https://clips.example.com/b.mp4"]);
+    expect([...asked].sort()).toEqual(["clips.example.com", "gone.example.com", "lan.example.com", "sneaky.example.com"]);
+  });
+
   // --- inspiration --- a run stopped at its timeout: the pages it printed before are kept, not lost with the run
   it("keeps the pages a run printed before it was stopped at its timeout", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-slow-ytdlp-"));
@@ -65,7 +84,8 @@ describe("yt-dlp itself and where its files go (--- inspiration ---)", () => {
     fs.writeFileSync(slow, 'const a = process.argv.slice(2); const t = a.slice(a.indexOf("--") + 1);\nprocess.stdout.write(JSON.stringify({ id: "x", original_url: t[0], webpage_url: t[0], view_count: 1 }) + "\\n");\nsetInterval(() => {}, 1000);\n');
     try {
       const urls = ["a", "b", "c", "d", "e"].map((c) => `https://www.youtube.com/shorts/${c.repeat(11)}`);
-      const { pages, errors } = await readPages(videoSources, { ...ytDlpCommand(slow), source: "JBL_YTDLP", version: "slow" }, urls, { timeoutMs: 1500 });
+      const hosts = async (u: string[]) => ({ ok: u, refused: [] });
+      const { pages, errors } = await readPages(videoSources, { ...ytDlpCommand(slow), source: "JBL_YTDLP", version: "slow" }, urls, { timeoutMs: 1500, hosts });
       expect([...pages.keys()].sort()).toEqual([urls[0], urls[2], urls[4]]); // (five links in three runs: the first of each)
       expect(errors.filter((e: string) => /took longer than/.test(e))).toHaveLength(3);
     } finally {
@@ -134,7 +154,8 @@ const touched = () => [
 const moved: [string, string][] = [];
 
 function agent(tool: string, args: unknown, env: Record<string, string> = {}) {
-  const base: NodeJS.ProcessEnv = { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_YTDLP_LOG: LOG, FAKE_YTDLP_CLIP: CLIP, JBL_STILLS_ORIGIN: stillsOrigin, ...env };
+  // (JBL_AGENT_DNS: the host check's stand-in resolver, so no lookup reaches the network; a name it does not hold goes on)
+  const base: NodeJS.ProcessEnv = { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_YTDLP_LOG: LOG, FAKE_YTDLP_CLIP: CLIP, JBL_STILLS_ORIGIN: stillsOrigin, JBL_AGENT_DNS: "{}", ...env };
   if (!("JBL_YTDLP" in env)) delete base.JBL_YTDLP;
   const r = spawnSync(process.execPath, [CLI, tool, "--json", JSON.stringify(args)], { cwd: ROOT, env: base, encoding: "utf8", timeout: 240_000 });
   const last = r.stdout.trim().split("\n").pop() ?? "";
@@ -234,6 +255,16 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(refused.code).toBe(1);
     expect(refused.json.error).toMatch(/private network/);
     expect(calls().length).toBe(before);
+    // --- inspiration --- nor a link whose host resolves to this machine, in fetch-video or in trending's urls
+    const dns = { JBL_AGENT_DNS: JSON.stringify({ "clips.example.com": ["127.0.0.1"], "www.tiktok.com": ["203.0.113.7"] }) };
+    const resolved = agent("fetch-video", { url: "http://clips.example.com/v.mp4" }, dns);
+    expect(resolved.code).toBe(1);
+    expect(resolved.json.error).toMatch(/clips\.example\.com resolves to 127\.0\.0\.1, this machine or its private network/);
+    expect(calls().length).toBe(before);
+    const listed = agent("trending", { urls: ["http://clips.example.com/v.mp4", url], details: false }, dns);
+    expect(listed.json.result).toMatchObject({ count: 1, refused: [{ url: "http://clips.example.com/v.mp4", error: expect.stringMatching(/resolves to 127\.0\.0\.1/) }] });
+    expect(calls().length).toBe(before + 1); // (the --version probe alone: details false reads no page)
+    expect(agent("trending", { urls: [url] }, { JBL_AGENT_DNS: "[1]" }).json.error).toMatch(/JBL_AGENT_DNS must be a JSON object/);
   });
 
   // --- inspiration --- one video per link

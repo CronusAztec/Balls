@@ -8,7 +8,11 @@
  *
  *  - A link is http: or https: with a host name, no user name or password, no space or control character, at most
  *    URL_MAX_CHARS, and never this machine or its private network (localhost, a literal loopback, private, link-local or
- *    shared address): yt-dlp fetches whatever it is given, so a link must not reach a service on the machine it runs on.
+ *    shared address in any IPv4 or IPv6 spelling, a name without a dot or under a private suffix such as .local or
+ *    .internal, a name that spells a private address first such as 127.0.0.1.nip.io): yt-dlp fetches whatever it is given,
+ *    so a link must not reach a service on the machine it runs on. Before yt-dlp runs, scripts/agent/videoSources.mjs also
+ *    refuses a host that resolves to such an address (isPrivateAddress). That is a check of the link and of where its host
+ *    resolves when it is checked, not a firewall: yt-dlp resolves the name again and follows redirects.
  *  - Every yt-dlp run ignores the user's and the system's yt-dlp configuration (--ignore-config: a config could name another
  *    output folder or an --exec command) and keeps no cache (--no-cache-dir: it writes nothing outside .agent-out/).
  *  - A link always follows `--`, so a link that looks like an option is never read as one.
@@ -39,14 +43,33 @@ function privateIpv4(a: number, b: number): boolean {
   return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
 }
 
+/** --- inspiration --- Names only a private network answers: special-use or never delegated (printer.local, metadata.google.internal). */
+const PRIVATE_SUFFIXES = ["local", "localdomain", "internal", "intranet", "lan", "home", "corp", "private", "home.arpa"];
+
 /** Whether a URL's host name (as URL.hostname writes it) is this machine or its private network. */
 export function isPrivateHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (host === "localhost" || host.endsWith(".localhost")) return true;
   const v4 = IPV4.exec(host);
   if (v4) return privateIpv4(Number(v4[1]), Number(v4[2]));
-  if (!host.includes(":")) return false;
-  if (host === "::" || host === "::1" || /^f[cd][0-9a-f]{0,2}:/.test(host) || /^fe[89ab][0-9a-f]?:/.test(host)) return true;
+  if (!host.includes(":")) {
+    // --- inspiration --- a name without a dot (intranet), under a private suffix, or spelling a private address first
+    // (127.0.0.1.nip.io, 10-0-0-1.sslip.io: wildcard names that answer with the address they spell)
+    if (!host.includes(".")) return true;
+    if (PRIVATE_SUFFIXES.some((x) => host === x || host.endsWith(`.${x}`))) return true;
+    const spelled = /^(\d{1,3})[.-](\d{1,3})[.-](\d{1,3})[.-](\d{1,3})[.-]/.exec(host);
+    return !!spelled && spelled.slice(1).every((p) => Number(p) <= 255) && privateIpv4(Number(spelled[1]), Number(spelled[2]));
+  }
+  if (host === "::" || host === "::1" || /^f[cd][0-9a-f]{0,2}:/.test(host) || /^fe[89a-f][0-9a-f]?:/.test(host)) return true;
+  // --- inspiration --- multicast; IPv4-compatible (::/96: URL writes [::127.0.0.1] as ::7f00:1); IPv4-translated
+  // (::ffff:0:0/96); NAT64 (64:ff9b::/96 and the local-use 64:ff9b:1::/48): never a public video site's address
+  if (/^ff[0-9a-f]{2}:/.test(host) || /^::([0-9a-f]{1,4}(:[0-9a-f]{1,4})?)?$/.test(host) || /^::ffff:0:/.test(host) || /^64:ff9b:/.test(host)) return true;
+  // 6to4 (2002::/16) of a private IPv4 address
+  const sixToFour = /^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4})(:|$)/.exec(host);
+  if (sixToFour) {
+    const hi = parseInt(sixToFour[1], 16);
+    if (privateIpv4(hi >> 8, hi & 0xff)) return true;
+  }
   // an IPv4 address in IPv6 clothing (URL writes ::ffff:127.0.0.1 as ::ffff:7f00:1)
   const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
   if (mapped) {
@@ -55,6 +78,20 @@ export function isPrivateHost(hostname: string): boolean {
   }
   const dotted = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(host);
   return dotted ? isPrivateHost(dotted[1]) : false;
+}
+
+/**
+ * --- inspiration --- Whether an address a host name resolves to (dns.lookup's answer: dotted IPv4, or IPv6 in any spelling,
+ * with or without a zone) is this machine or its private network; anything that is not an address counts as private.
+ */
+export function isPrivateAddress(address: string): boolean {
+  const a = String(address).trim().toLowerCase().replace(/%.*$/, "");
+  if (!a.includes(":")) return IPV4.test(a) ? isPrivateHost(a) : true;
+  try {
+    return isPrivateHost(new URL(`http://[${a}]/`).hostname);
+  } catch {
+    return true;
+  }
 }
 
 /** The platform a host name belongs to. */

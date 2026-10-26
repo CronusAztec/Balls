@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isListEntry, isPrivateHost, listLinkError, listLinkOf, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
+import { DEFAULT_QUERY, SHORT_MAX_SEC, STILLS_HOST, checkQuery, checkVideoUrl, cleanText, hasNumbers, isListEntry, isPrivateAddress, isPrivateHost, listLinkError, listLinkOf, mergeMeta, parseJsonLines, platformOfHost, rankVideos, searchTarget, shortsFeedUrl, shortsFeedUrls, stillsAspect, videoFileName, videoIdOfUrl, videoKey, videoMetaOf, videoStills, ytDownloadArgs, ytErrorLines, ytInfoArgs, ytListArgs, type VideoMeta } from "@/lib/agentKit/videoSources";
 import {
   LEVERS,
   LOOP_MODES,
@@ -65,6 +65,19 @@ describe("video links (--- inspiration ---)", () => {
     expect(checkVideoUrl(" https://www.youtube.com/watch?v=vyLcAYfbJ_k#t=3 ")).toEqual({ ok: true, url: "https://www.youtube.com/watch?v=vyLcAYfbJ_k", platform: "youtube" });
     expect(isPrivateHost("example.com")).toBe(false);
     expect(isPrivateHost("172.32.0.1")).toBe(false);
+  });
+
+  // --- inspiration --- the link check let these through to yt-dlp: names, IPv4 in other IPv6 clothing, wildcard names
+  it("refuses a private address in every spelling, a name only a private network knows, and a name that spells one", () => {
+    for (const bad of ["http://127.0.0.1.nip.io/", "http://10.0.0.1.xip.io/", "http://10-0-0-1.sslip.io/", "http://metadata.google.internal/latest/", "http://intranet/", "http://printer.local/", "http://nas.home.arpa/", "http://[::127.0.0.1]/", "http://[::7f00:1]/", "http://[64:ff9b::7f00:1]/", "http://[64:ff9b:1::a00:1]/", "http://[::ffff:0:7f00:1]/", "http://[2002:7f00:1::]/", "http://[2002:c0a8:101::1]/", "http://[ff02::1]/", "http://[fec0::1]/"]) {
+      expect(checkVideoUrl(bad).ok, bad).toBe(false);
+    }
+    for (const ok of ["https://www.youtube.com/shorts/FFJ5THnzdDE", "http://1.2.3.4.example.com/v", "http://[2001:4860:4860::8888]/", "http://[::ffff:8.8.8.8]/", "http://[2002:808:808::1]/", "https://vm.tiktok.com/ZMabcdef/"]) {
+      expect(checkVideoUrl(ok).ok, ok).toBe(true);
+    }
+    // what a name resolves to (dns.lookup's answers, any spelling, a zone too); anything that is no address counts as private
+    for (const a of ["127.0.0.1", "10.1.2.3", "::1", "0:0:0:0:0:0:0:1", "::ffff:127.0.0.1", "::ffff:7f00:1", "fe80::1%eth0", "fd12::1", "64:ff9b::a00:1", "not an address", ""]) expect(isPrivateAddress(a), a).toBe(true);
+    for (const a of ["142.251.156.4", "23.61.255.166", "2a00:1450:4001:82a::200e", "::ffff:142.251.156.4"]) expect(isPrivateAddress(a), a).toBe(false);
   });
 
   it("knows the platform and the video's own id of every link form, and names the downloaded file after them", () => {

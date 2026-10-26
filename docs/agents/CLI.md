@@ -178,7 +178,12 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   what the first runs found.
 
 A video link is checked before yt-dlp sees it: http or https, a host name, no user name or password, and never this machine
-or its private network (localhost, a loopback, private, link-local or shared address). Every yt-dlp run ignores the user's
+or its private network (localhost, a loopback, private, link-local or shared address in any IPv4 or IPv6 spelling, a name
+without a dot or under a private suffix such as .local or .internal, a name that spells a private address first such as
+127.0.0.1.nip.io), nor a link whose host resolves to such an address when it is checked (`JBL_AGENT_DNS`, a JSON object of
+host names and their addresses, answers instead of the system's resolver: the tests' stand-in). That is a check of the link
+and of where its host resolves at that moment, not a firewall: yt-dlp resolves the name again and follows redirects, so a
+site can still send it elsewhere. Every yt-dlp run ignores the user's
 yt-dlp configuration (`yt-dlp --ignore-config`) and keeps no cache (`yt-dlp --no-cache-dir`), and every link follows `--`. A download goes
 into a fresh folder inside `.agent-out/inbox/` and is renamed into place, so a link at the target is replaced, never written
 through. Titles and channel names are other people's text: the tools count them, cut them to 200 characters and report them

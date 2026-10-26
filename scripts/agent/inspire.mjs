@@ -19,7 +19,7 @@ import path from "path";
 import { NO_FFMPEG, measureFile, resolveFfmpeg } from "./analyse.mjs";
 import { extractFrames, framesName } from "./frames.mjs";
 import { fetchStills, stillsOrigin } from "./stills.mjs";
-import { NO_YTDLP, fetchVideo, mapLimit, resolveYtDlp, trending } from "./videoSources.mjs";
+import { NO_YTDLP, fetchVideo, hostChecker, mapLimit, resolveYtDlp, trending } from "./videoSources.mjs";
 import { OUT_DIR, PathError, ROOT, isInside, outFolder, repoRelative, writeFileSafe } from "./paths.mjs";
 
 /** Videos fetched and measured at once. */
@@ -95,13 +95,14 @@ export async function inspireTool(tb, args) {
   const at = new Date(nowMs).toISOString();
   const sortBy = args.sortBy ?? "views";
   note(`finding trending videos${args.query ? ` for "${args.query}"` : ""}`);
-  const found = await trending(tb, ytdlp, { query: args.query, limit: args.limit ?? 20, urls: args.urls, minViews: args.minViews, maxDurationSec: args.maxDurationSec ?? tb.SHORT_MAX_SEC, sortBy, details: true }, nowMs);
+  const hosts = hostChecker(tb); // (--- inspiration --- each host looked up once a run)
+  const found = await trending(tb, ytdlp, { query: args.query, limit: args.limit ?? 20, urls: args.urls, minViews: args.minViews, maxDurationSec: args.maxDurationSec ?? tb.SHORT_MAX_SEC, sortBy, details: true }, nowMs, hosts);
   const picked = found.videos.slice(0, Math.max(0, args.top ?? 8));
   const featuresByKey = new Map();
   const analysed = await mapLimit(picked, FETCHES, async (meta, i) => {
     note(`${i + 1}/${picked.length} ${meta.url}`);
     try {
-      const got = await fetchVideo(tb, { url: meta.url, maxHeight: args.maxHeight ?? 1080, ytdlp }, nowMs);
+      const got = await fetchVideo(tb, { url: meta.url, maxHeight: args.maxHeight ?? 1080, ytdlp, hosts }, nowMs);
       const features = await measureFile(tb, ffmpeg, got.absolute, {});
       featuresByKey.set(meta.key, features);
       let frames = null;

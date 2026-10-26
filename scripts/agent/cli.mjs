@@ -36,7 +36,8 @@
  * inside the repository; it never starts a shell (child processes get
  * argument arrays); it uses no network except the CLI's own localhost server for the browser tools – the browser is
  * fenced to it –, for the two owner-run commands the owner's own host they document, and (--- inspiration ---) for the
- * video tools the video sites yt-dlp reads (a checked http or https link, never this machine or its private network).
+ * video tools the video sites yt-dlp reads (a checked http or https link, never one that names this machine or its
+ * private network or whose host resolves there when it is checked).
  * Pictures and clips carry the watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
  */
 import { spawn } from "child_process";
