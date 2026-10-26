@@ -11,9 +11,12 @@ import { SPREAD_LOG_TRACK } from "@/components/simulator/sections/ChaosFanSectio
 import { RANGES, defaultSettings, presetToLiveSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
 import { PROJECT_FORMAT, buildProject, parseProject, resolveProjectSettings, serializeProject } from "@/lib/project"; // --- review fix --- (a file saved before 1.16.0)
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
-import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
+import { MEMORY_CEILINGS, MEANINGFUL_FLOORS, checkNumber, floorOf, formatCompact, meetsFloor, stepNumber, uncapped } from "@/lib/uncap";
 import { LINEAR_SPAN, SLIDER_SPAN, UNLIMITED_SLIDER_CEILING, WIDE_SLIDERS_SAVED_SINCE_KEY, hasWideTrack, isBoundedKey, parseUnlimitedValue, sliderCeiling, sliderPosition, sliderValue, wideSlidersOf } from "@/lib/unlimited";
 import { CAMERA_RANGES, DIP_FACTOR_FLOOR, SLOW_LAG_CEILING_MS, SlowMotion, maxSlowLagMs, resolveCameraSettings, slowMoStretchOf, slowMoTimeScale } from "@/lib/simulation/camera";
+import { MODE_IDS } from "@/lib/physics/types"; // --- review fix --- (every section rendered for every mode)
+import fs from "node:fs";
+import path from "node:path";
 
 /*
  * --- unlimited-sizes --- (plan step 15) Sliders, fields and meaningful floors: Wide sliders is on by default (`inf=0` gives the
@@ -309,5 +312,85 @@ describe("Camera floors: the near miss's factor down to 0, its lag bounded", () 
       expect(slowMoStretchOf(0.1, clip)).toBeCloseTo(10, 9);
     }
     expect(SLOW_LAG_CEILING_MS).toBe(3_600_000);
+  });
+});
+
+// --- review fix (unlimited-sizes) --- every section's sliders, rendered: a Slider handed an inline range without its setting's
+// name drew the comfort track and no memory-safety note (Land Claim's Teams stopped at 12, a typed 5,000 said nothing)
+describe("Wide sliders in every section of the panel", () => {
+  const SECTIONS_DIR = path.join(__dirname, "..", "src", "components", "simulator", "sections");
+  const loaders: Record<string, () => Promise<{ default?: unknown }>> = Object.fromEntries(
+    fs
+      .readdirSync(SECTIONS_DIR)
+      .filter((file) => file.endsWith(".tsx"))
+      .sort()
+      .map((file) => [file, () => import(/* @vite-ignore */ path.join(SECTIONS_DIR, file)) as Promise<{ default?: unknown }>]),
+  );
+  /** The sections that take more than the panel's settings: each one's own panel props, built here as the page has them at rest. */
+  const EXTRA: Record<string, Record<string, unknown>> = {
+    "PicturePaintSection.tsx": { showAdvanced: true, picture: null, onUpload: () => {}, onRemove: () => {}, beat: { bpm: null, analyzing: false, hasSong: false, source: null } },
+  };
+  /** Every rendered Slider (`data-uncap-slider`) of a setting with room past its comfort range draws the wide track or its log track. */
+  const narrowSliders = (html: string): string[] => {
+    const keys = new Set(unlimitedSettingKeys());
+    const out: string[] = [];
+    for (const block of html.split('data-uncap-slider="').slice(1)) {
+      const key = block.slice(0, block.indexOf('"'));
+      const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[key];
+      if (!keys.has(key) || !range || isBoundedKey(key) || !hasWideTrack(key, range)) continue; // (not a setting – a Blueprint slider –, or no room past its end)
+      const own = block.slice(0, block.indexOf("data-uncap-slider=") >= 0 ? block.indexOf("data-uncap-slider=") : undefined);
+      if (!own.includes(`data-unlimited-slider="${key}"`) && !own.includes("data-log-track=")) out.push(key);
+    }
+    return out;
+  };
+
+  it("draws the wide track on every slider of every section, for every mode's defaults and the other layouts", { timeout: 180_000 }, async () => {
+    const render = (component: unknown, file: string, s: SimulatorSettings, search = "") => intl(createElement(component as React.FC<Record<string, unknown>>, { t, search, matches: () => true, settings: s, update: () => {}, ...(EXTRA[file] ?? {}) }));
+    const unrendered = new Set<string>();
+    const misses = new Set<string>();
+    let rendered = 0;
+    for (const [rel, load] of Object.entries(loaders)) {
+      const file = path.basename(rel);
+      let mod: { default?: unknown };
+      try {
+        mod = await load();
+      } catch {
+        unrendered.add(file); // (a section that imports the page's navigation: next/navigation is not there in Node)
+        continue;
+      }
+      if (typeof mod.default !== "function") continue;
+      const variants: SimulatorSettings[] = [...MODE_IDS.map((mode) => defaultSettings(mode)), { ...defaultSettings("landClaim"), lcLayout: "pyramid" }, { ...defaultSettings("collide"), cpRing: true }, { ...defaultSettings("doublePendulum"), dpFan: true }];
+      for (const [i, s] of variants.entries()) {
+        let html: string;
+        try {
+          html = render(mod.default, file, s, i >= MODE_IDS.length ? "a" : ""); // (the layouts with a search too: it shows what a setting hides)
+        } catch {
+          unrendered.add(file);
+          break;
+        }
+        rendered++;
+        for (const key of narrowSliders(html)) misses.add(`${file} ${key} (${s.mode})`);
+      }
+    }
+    expect([...misses]).toEqual([]);
+    expect(rendered).toBeGreaterThan(60 * MODE_IDS.length);
+    // the sections left out need the page's own panel (a batch, the bot, a project, the loop clips, a video) or its navigation:
+    // their sliders are the setting's own range, which names it (RANGES.<key>), and their hand-written tracks name it (SliderTrack)
+    for (const file of unrendered) {
+      const text = fs.readFileSync(path.join(SECTIONS_DIR, file), "utf8");
+      for (const m of text.matchAll(/<Slider\b[^>]*?\brange=\{([^}]*)\}/g)) expect([file, /^RANGES\.\w+$/.test(m[1].trim()) || /settingKey=/.test(m[0])]).toEqual([file, true]);
+    }
+  });
+
+  it("widens Land Claim's Teams by name in both layouts, and says a count past its memory-safety ceiling", async () => {
+    const { default: LandClaimSection } = await import("@/components/simulator/sections/LandClaimSection");
+    const props = (s: SimulatorSettings) => ({ t, search: "", matches: () => true, settings: s, update: () => {} });
+    for (const lcLayout of ["wall", "pyramid"] as const) {
+      const s = { ...defaultSettings("landClaim"), lcLayout };
+      expect([lcLayout, intl(createElement(LandClaimSection, props(s)))]).toEqual([lcLayout, expect.stringContaining('data-unlimited-slider="lcTeams"')]);
+      const far = intl(createElement(LandClaimSection, props({ ...s, lcTeams: 5000 })));
+      expect([lcLayout, far]).toEqual([lcLayout, expect.stringContaining(`Memory-safety ceiling: the run builds at most ${formatCompact(MEMORY_CEILINGS.lcTeams)}`)]);
+    }
+    expect(intl(createElement(LandClaimSection, props(defaultSettings("landClaim"))), false)).not.toContain('data-unlimited-slider="lcTeams"'); // (the comfort track with the switch off)
   });
 });
