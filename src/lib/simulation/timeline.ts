@@ -1,7 +1,7 @@
 import type { CircularWall, ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { passableGap } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
-import { KEYFRAME_CEILING, SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
+import { KEYFRAME_CEILING, SIGNED_KEYS, meetsFloor } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- and the meaningful floors)
 
 /**
  * Timeline keyframes – numeric settings automated over the clip. A keyframe says "at `time` seconds of simulation time,
@@ -174,10 +174,13 @@ function decimalsOf(step: number): number {
 /**
  * Snaps `value` to the range's step (without float noise: 0.35, not 0.35000000000000003) – --- uncap-all --- inside the
  * slider's comfort range; beyond its end a keyframe keeps its exact value (never a maximum), below the minimum it is
- * lifted onto it (a signed setting keeps any value).
+ * lifted onto it (a signed setting keeps any value). --- unlimited-sizes --- With the setting's `key`, a value below the
+ * slider's start that meets the setting's meaningful floor (`MEANINGFUL_FLOORS`: a Spin of 0, a gap of 0.05) is kept as
+ * typed, exactly as the keyframe's number field and the setting itself keep it; only one below the floor is lifted.
  */
-export function snapToRange(value: number, range: NumericRange, signed = false): number {
+export function snapToRange(value: number, range: NumericRange, signed = false, key?: string): number {
   if (value > range.max || (signed && value < range.min)) return value;
+  if (value < range.min && key !== undefined && meetsFloor(key, value, range)) return value; // --- unlimited-sizes ---
   const floored = value < range.min ? range.min : value;
   const snapped = Number((Math.round(floored / range.step) * range.step).toFixed(decimalsOf(range.step)));
   return snapped < range.min ? range.min : snapped > range.max ? range.max : snapped;
@@ -242,7 +245,7 @@ export function sanitizeKeyframe(value: unknown, ranges: TimelineRanges): Keyfra
   const time = toNumber(source.time);
   const v = toNumber(source.value);
   if (!Number.isFinite(time) || !Number.isFinite(v)) return null;
-  return { time: snapKeyframeTime(time), key, value: snapToRange(v, ranges[key], SIGNED_KEYS.has(key)) }; // --- uncap-all --- (no maximum)
+  return { time: snapKeyframeTime(time), key, value: snapToRange(v, ranges[key], SIGNED_KEYS.has(key), key) }; // --- uncap-all --- (no maximum; --- unlimited-sizes --- from the setting's meaningful floor up)
 }
 
 /** The canonical order of a keyframe list: by time, then by the setting's place in `TIMELINE_KEYS`. */

@@ -4,6 +4,8 @@ import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { TimelineLiveStore } from "@/components/simulator/timelineLive";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { checkNumber } from "@/lib/uncap"; // --- unlimited-sizes ---
+import { rulesForRange } from "@/components/simulator/unlimitedSlider"; // --- unlimited-sizes --- (the keyframe value field's rules)
 import {
   MAX_KEYFRAMES,
   TIMELINE_KEYS,
@@ -183,6 +185,31 @@ describe("validation", () => {
     expect(sanitizeKeyframe({ key: "airDrag", time: 1, value: 0.0123 }, RANGES)).toEqual({ key: "airDrag", time: 1, value: 0.012 });
     expect(snapKeyframeTime(12.3456)).toBe(12.3);
     expect(snapKeyframeTime(NaN)).toBe(0);
+  });
+
+  it("keeps a value below the slider's start from the setting's meaningful floor up, as the keyframe's number field takes it (--- unlimited-sizes ---)", () => {
+    // "stop the rings at 2 s", "narrow the gaps to 0.05 at 3 s": kept as typed, like the plain settings keep them
+    expect(sanitizeKeyframe({ key: "rotationSpeed", time: 2, value: 0 }, RANGES)).toEqual(kf("rotationSpeed", 2, 0));
+    expect(sanitizeKeyframe({ key: "gapSize", time: 3, value: 0.05 }, RANGES)).toEqual(kf("gapSize", 3, 0.05));
+    const loaded = presetToSettings({ mode: "classic", keyframes: [kf("rotationSpeed", 2, 0), kf("gapSize", 3, 0.05)] });
+    expect(loaded.keyframes).toEqual([kf("rotationSpeed", 2, 0), kf("gapSize", 3, 0.05)]);
+    expect(settingsFromSearchParams(settingsToSearchParams(loaded)).keyframes).toEqual(loaded.keyframes);
+    expect(presetToSettings({ mode: "classic", rotationSpeed: 0, gapSize: 0.05 })).toMatchObject({ rotationSpeed: 0, gapSize: 0.05 });
+    // Below the floor a value is as invalid as ever: lifted onto the slider's start (a gap of 0 is no gap)
+    expect(sanitizeKeyframe({ key: "gapSize", time: 1, value: 0 }, RANGES)?.value).toBe(RANGES.gapSize.min);
+    expect(sanitizeKeyframe({ key: "rotationSpeed", time: 1, value: -1 }, RANGES)?.value).toBe(RANGES.rotationSpeed.min);
+    // A setting without a meaningful floor keeps its slider's start, and the comfort range keeps its step
+    expect(sanitizeKeyframe({ key: "ballRadius", time: 1, value: RANGES.ballRadius.min / 2 }, RANGES)?.value).toBe(RANGES.ballRadius.min);
+    expect(sanitizeKeyframe({ key: "rotationSpeed", time: 1, value: 1.234 }, RANGES)?.value).toBe(1.2);
+    // Every value the keyframe's number field accepts below a slider's start is the value stored
+    for (const key of TIMELINE_KEYS) {
+      const range = RANGES[key];
+      const rules = rulesForRange(range, key);
+      if (rules.min === undefined || !(rules.min < range.min)) continue;
+      const value = rules.above ? (rules.min + range.min) / 2 : rules.min;
+      expect([key, checkNumber(value, rules).ok]).toEqual([key, true]);
+      expect([key, sanitizeKeyframe({ key, time: 1, value }, RANGES)?.value]).toEqual([key, value]);
+    }
   });
 
   it("drops unknown settings and missing numbers, and understands the other names of a setting", () => {
