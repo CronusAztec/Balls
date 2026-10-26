@@ -98,11 +98,12 @@ describe("the agent CLI (--- agent-cli ---)", () => {
 });
 
 describe("paths (--- agent-cli ---)", () => {
-  it("reads only existing files inside the repository and refuses every URL", () => {
+  it("reads only existing files inside the repository: a URL is no file, and its answer says where to download the video", () => {
     expect(resolveInputFile("package.json")).toBe(fs.realpathSync(path.join(ROOT, "package.json")));
     for (const bad of ["https://x.test/a.mp4", "data:video/mp4;base64,AA", "file:///etc/hosts", "blob:abc", "/etc/hosts", "../x.mp4", "src", "missing.mp4", "a\nb", ""]) {
       expect(() => resolveInputFile(bad), bad).toThrow(PathError);
     }
+    expect(() => resolveInputFile("https://www.tiktok.com/@someone/video/1")).toThrow(/download the video into \.agent-out\/inbox\/ first/);
     expect(hasScheme("C:\\videos\\a.mp4")).toBe(false);
     expect(hasScheme("ftp://a")).toBe(true);
     expect(isInside("/a/b", "/a/b/c")).toBe(true);
