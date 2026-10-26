@@ -155,7 +155,10 @@ how to read the numbers, and what the first runs found.
 ### What the October 2026 runs found
 
 These are the numbers of 26 October 2026, frozen: `npm run trends` refreshes `trends.json`, not this list, so whoever
-refreshes the data rewrites it from the new reports (or marks it as the older runs').
+refreshes the data rewrites it from the new reports (or marks it as the older runs'). A refresh replaces the summary with
+the reports it is given and only those, and the reports live in the git-ignored `.agent-out/`: keep the earlier runs'
+report.json files and pass them again to merge them, or the summary forgets them. The app marks a summary old 60 days
+after its date and stops reading it after 120, so refresh it about once a month.
 
 Two searches on 26 October 2026, "ball simulation" (mostly 2D clips) and "satisfying physics simulation shorts" (read from
 #physicssimulation, mostly 3D renders), gave 39 short-form videos on YouTube Shorts, 14.5 million views together. YouTube

@@ -183,7 +183,10 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   more, a versus, a scale stepped up such as "0% vs 100%", a numbered series).
 - **`npm run trends`** sums inspire reports up for the app's AI. It is a script, not a toolbox tool, because it writes
   `src/content/trends.json`, which is committed: `npm run trends -- .agent-out/inspiration/<run> …` (a run folder or its
-  report.json; `npm run trends -- --stdout <run> …` prints instead, `npm run trends -- --check` checks the committed file). The summary is dated and holds the queries,
+  report.json; `npm run trends -- --stdout <run> …` prints instead, `npm run trends -- --check` checks the committed file).
+  It rewrites the summary from the reports given and only those: a run left out is gone from it. `.agent-out/` is
+  git-ignored, so keep the earlier runs' report.json files (a fresh checkout has none of them, the October runs included)
+  and pass them again to merge them with the new ones. The summary is dated and holds the queries,
   the sample, the numbers and patterns, the themes with their ranks, the title formats, recommendations in our levers and
   the links and titles of the most viewed videos, never a video file. Each report stays its own list: a video is ranked
   within its report first (its view percentile there), and the pool compares those ranks, never absolute views, so a query
@@ -205,11 +208,15 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   characters). The advice's setting levers are ones Make videos can set (`CLIP_SETTINGS` in
   `src/lib/desktop/ai/settingsPatch.ts`: a theme applies its palette, a light background is named by its colours, as no
   theme has one), and the block never quotes a title. The app never reads the playbook's own section 6
-  (`selectPlaybookContext` skips it): its findings are one day's, and the block reads the summary fresh.
-- **How to refresh the summary.** Run `npm run agent -- inspire --json '{"query":"ball simulation","top":8}'` and one or
+  (`selectPlaybookContext` skips it): its findings are one day's, and the block reads the summary fresh. Each job passes
+  its clock: from 60 days after the summary's date the heading says how old it is and to weigh it lightly
+  (`TRENDS_OLD_DAYS`), and from 120 days the block is left out (`TRENDS_DROP_DAYS`), since the summary ships in the page
+  build the app loads and an app that is not updated would otherwise lean toward trends of months ago.
+- **How to refresh the summary.** Run `npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'` and one or
   two more queries (a query with a hashtag Shorts feed works best: `physics simulation`, `satisfying simulation`), look at
   each video's sheet.png and hook-sheet.png (or stills-sheet.png), check the report, then run
-  `npm run trends -- .agent-out/inspiration/<run> …` with the runs to keep, run
+  `npm run trends -- .agent-out/inspiration/<run> …` with every run to keep, the earlier ones too (the summary then holds
+  only the runs given: without their report.json files the older runs drop out of it), run
   `npx vitest run tests/trends.test.ts tests/trendsPrompt.test.ts`, update the findings in `docs/virality-playbook.md` section 6 ("What the October 2026 runs
   found", with the new date) from the new reports, and commit the new `src/content/trends.json` with them. Once a month is a good
   pace, or when the feed changes.

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// --- trends --- What is trending, for the app's AI: the inspire reports of the agent toolbox (`npm run agent -- inspire`)
+// --- trends --- What is trending, for the app's AI: the inspire reports of the agent toolbox (`npm run -s agent -- inspire`)
 // summed up in src/content/trends.json, which is committed and read next to the virality playbook by the planner, Make
 // videos and the idea generator (src/lib/desktop/ai/playbookContext.ts trendingContext).
-//   npm run trends -- <report.json or inspire run folder> …   write src/content/trends.json from these reports
+//   npm run trends -- <report.json or inspire run folder> …   write src/content/trends.json from these reports, and only
+//                                                              these (an earlier run left out is gone from the summary)
 //   npm run trends -- --stdout <report.json or folder> …       print the summary instead of writing it
 //   npm run trends -- --check                                   exit 1 when src/content/trends.json fails its check
 // The maths are the inspire report's own (src/lib/agentKit/trends.ts, bundled on its own: agent/bundle.mjs loadTrendsKit)

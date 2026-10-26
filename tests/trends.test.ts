@@ -269,6 +269,23 @@ describe("npm run trends (--- trends ---)", () => {
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
   const run = (...args: string[]) => spawnSync(process.execPath, [path.join(ROOT, "scripts", "trends.mjs"), ...args], { cwd: ROOT, encoding: "utf8", timeout: 240_000 });
 
+  // --- trends --- the only way an inspire run reaches the app is `npm run trends`, which keeps no run it is not given: the
+  // guides an agent reads first say so, and run the toolbox with -s (without it npm's banner lands on stdout before the JSON)
+  it("holds only the reports it is given, and the guides say so and how a run reaches the app", () => {
+    const [first, second] = reports();
+    expect(buildTrendSummary([first, second], { modes: [...MODE_IDS] }).sources.map((x) => x.query)).toEqual(["ball simulation", "marble run"]);
+    expect(buildTrendSummary([second], { modes: [...MODE_IDS] }).sources.map((x) => x.query)).toEqual(["marble run"]); // the earlier run is gone
+    const read = (file: string) => fs.readFileSync(path.join(ROOT, file), "utf8").replace(/\s+/g, " ");
+    const agents = read("AGENTS.md");
+    const commands = agents.slice(agents.indexOf("## Commands"), agents.indexOf("## The verification protocol"));
+    for (const span of ["`npm run trends -- <run> …`", "`npm run trends -- --check`", "`src/content/trends.json`", "only those, so pass the earlier runs again"]) expect(commands, span).toContain(span);
+    expect(read("docs/agents/CLI.md")).toMatch(/It rewrites the summary from the reports given and only those: a run left out is gone from it\. `\.agent-out\/` is git-ignored, so keep the earlier runs' report\.json files/);
+    expect(read("docs/agents/CLI.md")).toMatch(/with every run to keep, the earlier ones too/);
+    expect(read("docs/virality-playbook.md")).toMatch(/A refresh replaces the summary with the reports it is given and only those/);
+    for (const file of ["AGENTS.md", "CLAUDE.md", "docs/agents/CLI.md", "docs/agents/CORE.md", "docs/agents/MODES.md", "docs/virality-playbook.md"]) expect(read(file), file).not.toMatch(/npm run agent -- /);
+    expect(read("docs/agents/CLI.md")).toContain("`npm run -s agent -- inspire --json '{\"query\":\"ball simulation\",\"top\":8}'`");
+  });
+
   it("prints the summary of report files and run folders, checks the committed one, and refuses anything else", () => {
     const [first, second] = reports();
     fs.mkdirSync(path.join(dir, "run-a"), { recursive: true });

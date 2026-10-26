@@ -31,6 +31,7 @@ trust it over the source.
 | `npx vitest run tests/<file>.test.ts` | One test file. On a small machine add `--maxWorkers=1 --minWorkers=1` |
 | `npm run test:ci` | The whole vitest suite (tier 2, with the four smoke shards; CI runs it with `JBL_REQUIRE_BROWSER=1`) |
 | `npm run changelog:check` | The changelog data, `CHANGELOG.md` and the version agree |
+| `npm run trends -- <run> …` | The only way an `inspire` run reaches the app: writes `src/content/trends.json` (committed; the app's AI reads it) from the runs given, and only those, so pass the earlier runs again to keep them. `npm run trends -- --check` checks the committed file |
 | `npm run smoke` | The browser smoke suite against a served build. `SMOKE_ONLY=core-every-mode` runs one block |
 | `npm run -s agent -- <tool> --json '{…}'` | The agent toolbox: one JSON result per call (see below) |
 
@@ -225,7 +226,8 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 - That batch changed nothing visitors see and bumped no version.
 - Agents and tools may search, download and analyse other creators' trending and viral videos (TikTok, Instagram,
   YouTube or any site) to learn from them and make the clips better. Downloads go to `.agent-out/`, which git ignores.
-  The toolbox does it: `trending`, `fetch-video`, `frames` and `inspire`, whose dataset grows across runs.
+  The toolbox does it: `trending`, `fetch-video`, `frames` and `inspire`, whose dataset grows across runs, and
+  `npm run trends` turns the reports into the summary the app reads (`docs/agents/CLI.md`, "How to refresh the summary").
 
 ## Read next
 
