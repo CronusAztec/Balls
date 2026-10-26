@@ -62,6 +62,15 @@ export interface FindRequest {
   atSec: number | null;
 }
 
+/**
+ * --- unlimited-sizes --- How long the desktop's seed search follows a run for a find_simulation target (s): as the page's Find
+ * Simulation follows it (the target + 30 s, + 90 s in Color Match), so a 3-minute clip can be found; never less than the 120 s
+ * it always followed, so a target that fits searches as it always did.
+ */
+export function findHorizonSec(targetSec: number, mode: SimulatorSettings["mode"]): number {
+  return Math.max(120, targetSec + (mode === "colorMatch" ? 90 : 30));
+}
+
 export interface FindAnswer {
   found: boolean;
   seed: number;
@@ -321,9 +330,10 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       type: "object",
       properties: {
         planId: { type: "string" },
-        targetSec: { type: "number", minimum: 8, maximum: 120 },
+        // --- unlimited-sizes --- any clip length above 0, no slider's end (the page's Find Simulation takes any too)
+        targetSec: { type: "number", exclusiveMinimum: 0 },
         outcome: { enum: ["duration", "never-escapes", "escapes-at"] },
-        atSec: { type: "number", minimum: 1, maximum: 120 },
+        atSec: { type: "number", minimum: 1 },
       },
       required: ["planId", "targetSec", "outcome"],
       additionalProperties: false,
@@ -337,11 +347,14 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
     },
     run: async (args, ctx) => {
       const plan = store.get(args.planId as string) as ClipPlan;
-      const targetSec = Math.round(args.targetSec as number);
+      // --- unlimited-sizes --- the length asked for, in whole seconds as ever, never rounded onto 0 s (no clip) nor lifted onto the
+      // slider's start or cut at its end: any length above 0 is a clip (MEANINGFUL_FLOORS), and no clip length has a ceiling
+      const asked = args.targetSec as number;
+      const targetSec = Math.round(asked) > 0 ? Math.round(asked) : asked;
       const request: FindRequest = { targetSec, outcome: args.outcome as FindRequest["outcome"], atSec: args.outcome === "escapes-at" && typeof args.atSec === "number" ? args.atSec : null };
-      const answer = await ports.findSimulation({ ...plan.settings, recordingDuration: Math.max(10, Math.min(120, targetSec)) }, request, ctx.signal, ctx.progress);
+      const answer = await ports.findSimulation({ ...plan.settings, recordingDuration: targetSec }, request, ctx.signal, ctx.progress);
       if (answer.found) {
-        const recordingDuration = Math.max(10, Math.min(120, Math.ceil(Math.max(targetSec, answer.durationSec || 0))));
+        const recordingDuration = Math.ceil(Math.max(targetSec, answer.durationSec || 0));
         // --- ai-cut --- the new seed's beats: its escape second when the finder measured one (else the one asked for; none
         // for a run searched by length or for never escaping), no cut before the result, an unmeasured first impact – so a
         // cut is suggested and checked against this run, not the plan's old seed

@@ -6,7 +6,7 @@ import { hashString, localIsoDate, planClipSteps, planDaySteps, type ClipPlan } 
 import { recipeById } from "@/lib/bot/playbook";
 import { FINDER_DEPTH_BUDGET_MS, findSimulation, type FinderProgress } from "@/lib/simulation/finder";
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
-import type { FindAnswer, FindRequest, PlanClipsRequest, StudioPorts } from "@/lib/desktop/ai/studio";
+import { findHorizonSec, type FindAnswer, type FindRequest, type PlanClipsRequest, type StudioPorts } from "@/lib/desktop/ai/studio";
 
 /*
  * --- desktop-exe --- The AI studio's tools in the page: the viral bot's planner (in slices, so the page stays responsive,
@@ -61,7 +61,7 @@ export function studioPorts(options: StudioPortOptions): StudioPorts {
     },
     async findSimulation(settings: SimulatorSettings, request: FindRequest, signal, progress): Promise<FindAnswer> {
       const world = options.getWorld() ?? undefined;
-      const base = finderRequestOfSettings(settings, world);
+      const base = finderRequestOfSettings(settings, world, findHorizonSec(request.targetSec, settings.mode)); // --- unlimited-sizes --- (a run as long as the target needs)
       const outcome = request.outcome === "duration" ? undefined : { kind: request.outcome, clipSec: request.targetSec, ...(request.atSec !== null ? { atSec: request.atSec } : {}) };
       // --- unlimited --- the page's search for a run past the sliders: time-sliced by whole steps, fewer seeds when heavy
       // (--- uncap-all --- engaged by the values, as the page's Find Simulation)

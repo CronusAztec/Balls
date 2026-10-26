@@ -16,7 +16,7 @@ import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jso
 import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel, type AgentTool } from "@/lib/desktop/ai/agent";
 import { assistantSettings, changedKeys, changesSchema, invertPatch, isModeSettingKey, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { MODE_IDS } from "@/lib/physics/types"; // --- low-findings-2 ---
-import { CLIP_CUT, MAKE_VIDEOS_MAX_CLIPS, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosMaxTokens, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
+import { CLIP_CUT, MAKE_VIDEOS_MAX_CLIPS, PlanStore, clipCutSpec, clipEditTask, copyTask, findHorizonSec, ideasTask, makeVideosMaxTokens, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { selectPlaybookContext, splitPlaybook } from "@/lib/desktop/ai/playbookContext";
 // --- ai-cut --- the cut task and Make videos' per-clip cut
 import { CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
@@ -317,6 +317,30 @@ describe("make videos", () => {
     expect(planned.seed).toBe(777);
     expect(planned.settings.recordingDuration).toBe(20);
     expect(model.calls[1].at(-1)?.content).toMatch(/^Result of plan_clips: \{"clips":\[\{"planId":/);
+  });
+
+  // --- unlimited-sizes --- a clip of any length above 0 (a link's dur and set_clip_settings keep it): find_simulation searches
+  // the length asked for, never lifted onto the slider's 10 s nor cut at its 120 s, and the desktop's search follows the run
+  it("finds a seed for any clip length above 0: a 3-minute clip stays 180 s and an 8 s one 8 s", async () => {
+    const ctx = { signal: new AbortController().signal, progress: () => {} } as unknown as Parameters<AgentTool["run"]>[1];
+    const store = new PlanStore();
+    store.add({ ...plan, id: "long" });
+    store.add({ ...plan, id: "short" });
+    const p = ports();
+    const asked: number[] = [];
+    const find = makeVideosTools(store, { ...p, findSimulation: async (settings, request) => (asked.push(settings.recordingDuration), p.findSimulation(settings, request, undefined, () => {})) }).find((t) => t.name === "find_simulation")!;
+    for (const targetSec of [180, 8, 6, 0.4]) expect(validateJson(find.args, { planId: "long", targetSec, outcome: "duration" }), String(targetSec)).toEqual([]);
+    expect(validateJson(find.args, { planId: "long", targetSec: 0, outcome: "duration" })).not.toEqual([]);
+    expect(validateJson(find.args, { planId: "long", targetSec: 200, outcome: "escapes-at", atSec: 150 })).toEqual([]);
+    await find.run({ planId: "long", targetSec: 180, outcome: "duration" }, ctx);
+    await find.run({ planId: "short", targetSec: 8, outcome: "duration" }, ctx);
+    expect([store.get("long")!.settings.recordingDuration, store.get("short")!.settings.recordingDuration]).toEqual([180, 8]);
+    expect([p.finds, asked]).toEqual([[180, 8], [180, 8]]);
+    // the search follows a run as long as the target needs, as the page's Find Simulation does; 120 s for a target that fits
+    expect(findHorizonSec(180, "classic")).toBe(210);
+    expect(findHorizonSec(100, "colorMatch")).toBe(190);
+    expect([findHorizonSec(8, "classic"), findHorizonSec(90, "classic"), findHorizonSec(30, "colorMatch")]).toEqual([120, 120, 120]);
+    expect(finderRequestOfSettings({ ...plan.settings, recordingDuration: 180 }, undefined, findHorizonSec(180, plan.settings.mode)).maxSimTimeSec).toBeGreaterThanOrEqual(210);
   });
 
   it("refuses clips with a planId that was never planned, and a finder call on one", async () => {
