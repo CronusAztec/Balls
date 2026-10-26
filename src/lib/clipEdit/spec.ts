@@ -73,7 +73,10 @@ export function clipEditTrack(key: ClipEditNumberKey, sourceTop?: number): { ran
   if (key === "cardSec") return { range, top: CLIP_CARD_TOP_SEC };
   if (sourceTop === undefined || !Number.isFinite(sourceTop)) return { range, top: range.max };
   const top = Math.max(range.min, sourceTop);
-  return { range: { ...range, max: Math.min(range.max, top) }, top };
+  // a source that ends inside the comfort range: the track ends at the source, with no wide part (the track's own end,
+  // not a value: the spec keeps what was typed and fitClipEdit() cuts it at the file's end)
+  if (top < range.max) return { range: { ...range, max: top }, top };
+  return { range, top };
 }
 // --- end review fix (unlimited-sizes) ---
 
