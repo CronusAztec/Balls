@@ -239,6 +239,9 @@ describe("the tool table (--- agent-cli ---)", () => {
     expect(checkToolArgs("site-shot", { pages: ["https://example.com/"] }).ok).toBe(false);
     expect(checkToolArgs("nope", {}).ok).toBe(false);
     expect(toolSpec("render")?.writes).toBe(".agent-out");
+    // --- unlimited-sizes --- a clip of any length above 0 renders (the site keeps a 3 s clip), at most the tool's 60 s
+    expect([3, 0.5, 60].map((seconds) => checkToolArgs("render", { mode: "classic", seconds }).ok)).toEqual([true, true, true]);
+    expect([0, -1, 61].map((seconds) => checkToolArgs("render", { mode: "classic", seconds }).ok)).toEqual([false, false, false]);
   });
 });
 

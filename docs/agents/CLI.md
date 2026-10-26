@@ -92,8 +92,9 @@ on 4 CPUs.
   repository's `next.config.ts` is not touched. Types are `npm run typecheck`'s and the guard's job.
 - `build: "auto"` (the default) rebuilds when HEAD or any changed site file differs from the last build. `reuse` takes the
   last build as it is, and `force` always rebuilds.
-- `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so. The
-  site's shortest clip is 10 s, and the tool renders at most 60 s.
+- `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so.
+  `seconds` takes any length above 0, as the site keeps a clip of any length (10 s is only where the Clip Length slider
+  starts), and the tool renders at most 60 s.
 
 Chromium comes from Playwright's browsers (`PLAYWRIGHT_BROWSERS_PATH`) or `CHROME_PATH`. The CLI never downloads one.
 

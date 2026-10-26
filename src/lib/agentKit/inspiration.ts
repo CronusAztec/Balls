@@ -33,8 +33,12 @@ export const LOOP_SEAMLESS_DIFF = 0.04;
 export const BPM_MIN_CONFIDENCE = 0.3;
 /** The loudness our export normalises to (lib/audio/loudness.ts LOUDNESS_TARGET_LUFS). */
 export const OUR_LOUDNESS_LUFS = -14;
-/** The shortest clip the export renders (seconds; settings RANGES.recordingDuration.min). */
-export const OUR_SHORTEST_CLIP_SEC = 10;
+/**
+ * --- unlimited-sizes --- The export's floor for a clip's length (seconds): any length above it is a clip, a 3 s one too – the
+ * meaningful floor of recordingDuration (lib/uncap.ts MEANINGFUL_FLOORS, tests/inspiration.test.ts checks it). The Clip Length
+ * slider's start (10 s) is only a comfort mark, never the shortest clip.
+ */
+export const OUR_CLIP_FLOOR_SEC = 0;
 /** A trait turns into advice only when at least this many videos have it (one or two videos are an anecdote). */
 export const MIN_VIDEOS_FOR_ADVICE = 3;
 /** --- inspiration --- How a short-form run names the longest short-form video (videoSources.ts SHORT_MAX_SEC). */
@@ -724,6 +728,15 @@ const themeMargin = (t: ThemeShare) => (t.rank ?? 0) - (t.restRank ?? 0);
 
 const setting = (id: LeverId, value?: Lever["value"]): Lever => ({ kind: "setting", name: LEVERS[id].field, link: LEVERS[id].link, ...(value !== undefined ? { value } : {}) });
 
+/**
+ * --- unlimited-sizes --- The clip length a length advice names (s): the most viewed's own length in whole seconds, never lifted
+ * onto a slider's start; one under a second is kept to a tenth, and never 0 s (no clip: OUR_CLIP_FLOOR_SEC is refused).
+ */
+export function adviceClipSec(top: number): number {
+  const whole = Math.round(top);
+  return whole > OUR_CLIP_FLOOR_SEC ? whole : Math.max(round(top, 1), 0.1);
+}
+
 /** --- inspiration --- The traits an advice rests on (those weighed), the ones with a pattern first. */
 function restsOn(...pairs: [TraitKey, { pattern?: Pattern } | null | undefined][]): TraitKey[] {
   return pairs
@@ -750,8 +763,8 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
 
   const length = w("durationSec");
   if (length) {
-    const sec = Math.max(OUR_SHORTEST_CLIP_SEC, Math.round(length.top));
-    out.push({ area: "length", advice: `Render ${sec} s clips${length.top < OUR_SHORTEST_CLIP_SEC ? ` (the shortest the export makes; the most viewed run ${round(length.top, 1)} s)` : ""}${length.gap ? `: ours run ${round(length.ours as number, 1)} s` : ""}.`, levers: [setting("clipLength", sec)], evidence: length.evidence, basis: length.basis, traits: ["durationSec"] });
+    const sec = adviceClipSec(length.top);
+    out.push({ area: "length", advice: `Render ${sec} s clips${length.gap ? `: ours run ${round(length.ours as number, 1)} s` : ""}.`, levers: [setting("clipLength", sec)], evidence: length.evidence, basis: length.basis, traits: ["durationSec"] });
   }
 
   const hook = w("hookMotion");

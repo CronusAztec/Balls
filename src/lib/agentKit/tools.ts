@@ -178,7 +178,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         link,
         mode,
         seed,
-        seconds: { type: "number", minimum: 10, maximum: 60, description: "Clip length in seconds (default 10: the site's shortest clip; at most 60 here)." },
+        seconds: { type: "number", exclusiveMinimum: 0, maximum: 60, description: "Clip length in seconds: any length above 0, as the site keeps it (default 10; at most 60 here)." }, // --- unlimited-sizes --- (no 10 s floor: a 3 s clip is a clip)
         mp4: { type: "boolean", description: "Convert a WebM clip to MP4 with ffmpeg when present (default true)." },
         out,
         build,

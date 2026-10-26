@@ -12,7 +12,8 @@ import {
   SMALL_SAMPLE,
   MIN_VIDEOS_FOR_ADVICE,
   OUR_LOUDNESS_LUFS,
-  OUR_SHORTEST_CLIP_SEC,
+  OUR_CLIP_FLOOR_SEC,
+  adviceClipSec,
   GENERIC_THEMES,
   MIN_THEME_VIDEOS,
   THEMES,
@@ -44,7 +45,8 @@ import {
 import { FRAMES_CEILING, IMAGE_DEMUXERS, SAMPLE_BYTES, SHEET_TILES_CEILING, STILL_DEMUXERS, VIDEO_DEMUXERS, frameArgs, framePlan, frameTimes, hookTimes, sheetArgs, sheetGrid, sheetPick, stillArgs, stillSampleArgs } from "@/lib/videoAnalysis/ffmpegArgs";
 import type { VideoFeatures } from "@/lib/videoAnalysis/features";
 import { LOUDNESS_TARGET_LUFS } from "@/lib/audio/loudness";
-import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { floorOf } from "@/lib/uncap";
 import { MODE_IDS } from "@/lib/physics/types";
 import { BLUEPRINT_CATALOG_IDS } from "@/lib/blueprint/catalog";
 import { defaultCaption } from "@/lib/captions";
@@ -477,7 +479,23 @@ describe("the report's maths (--- inspiration ---)", () => {
     }
     for (const m of LOOP_MODES) expect(MODE_IDS).toContain(m);
     expect(OUR_LOUDNESS_LUFS).toBe(LOUDNESS_TARGET_LUFS);
-    expect(OUR_SHORTEST_CLIP_SEC).toBe(RANGES.recordingDuration.min);
+    // --- unlimited-sizes --- the export's floor is the setting's meaningful floor (any length above 0), not the slider's start
+    expect(floorOf("recordingDuration", RANGES.recordingDuration)).toEqual({ min: OUR_CLIP_FLOOR_SEC, above: true });
+  });
+
+  // --- unlimited-sizes --- a clip of any length above 0 is kept (a link's dur, a preset): the advice names the measured length
+  it("advises the most viewed's own clip length under the Clip Length slider's start, as a link and a preset keep it", () => {
+    const rows = Array.from({ length: 6 }, (_, i) => ({ metric: (6 - i) * 1000, traits: clipTraits(features({ durationSec: 6 + i * 4 })) }));
+    const ours = [clipTraits(features({ durationSec: 30 }))];
+    const { summaries, patterns } = traitSummaries(rows, ours);
+    expect(summaries.find((s) => s.key === "durationSec")?.top).toBe(8);
+    const length = recommendations(summaries, patterns, [], titleSummary([], [])).find((r) => r.area === "length")!;
+    expect(length.advice).toBe("Render 8 s clips: ours run 30 s.");
+    expect(length.levers).toEqual([{ kind: "setting", name: "recordingDuration", link: "dur", value: 8 }]);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&dur=8")).recordingDuration).toBe(8);
+    expect(presetToSettings({ recordingDuration: 8 }).recordingDuration).toBe(8);
+    // whole seconds, never 0 s: a length under a second to a tenth
+    expect([adviceClipSec(6.5), adviceClipSec(22.4), adviceClipSec(1.4), adviceClipSec(0.44), adviceClipSec(0.02)]).toEqual([7, 22, 1, 0.4, 0.1]);
   });
 
   it("turns the benchmarks into our levers, only from three videos up, and says where our renders are a step away", () => {
