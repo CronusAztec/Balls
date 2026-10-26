@@ -290,6 +290,10 @@ blueprint mode, as the page and the finder play it), the others load the Bluepri
 A link's slider values (`blv`, which Mode Lab's Copy link always writes) are applied as the page applies them, so the tools
 judge the game the link plays; `params` (the same comma-separated form, `"3,60"`) gives them for any Blueprint and takes the
 place of a link's. The result's `params` then says what was applied. A link whose game cannot be read is refused.
+A link's Slow motion switch (`smo=0`) is read too: `bp-check` then words a run the engine slows as too heavy to play in real
+time, as the page does with the switch off (the verdict and `problems` are the same either way), and `bp-link` keeps
+`smo=0` in the link it writes. `slowMotion` (a boolean) gives the switch for any Blueprint and takes the place of a link's;
+`bp-check`'s result says which it played with.
 
 - `bp-validate` is strict: an unknown field, a value past its domain, a dangling reference or a formula that does not compile
   is an error with its path. It also returns the tolerant sanitizer's notes: what it would drop or change to play the spec.

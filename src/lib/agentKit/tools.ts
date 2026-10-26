@@ -64,7 +64,7 @@ const bpCode: JsonSchema = {
   type: "string",
   minLength: 3,
   maxLength: LINK_MAX_CHARS,
-  description: "A Blueprint link code (b1.…), or a Mode Lab link / query string holding bls=b1.… or blp=<catalog id> (never fetched); its slider values (blv) are applied, as the page plays them.",
+  description: "A Blueprint link code (b1.…), or a Mode Lab link / query string holding bls=b1.… or blp=<catalog id> (never fetched); its slider values (blv) are applied and its Slow motion switch (smo=0) read, as the page plays them.",
 };
 const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape)." };
 const bpLite: JsonSchema = { type: "object", description: "A Blueprint in the Lite form (enum words only: the app's small local model writes it)." };
@@ -76,6 +76,11 @@ const bpParams: JsonSchema = {
   description: "Slider values, comma-separated in the order of the spec's params (an empty place keeps the spec's own value), as a Mode Lab link's blv writes them: \"3,60\". They replace a link's own blv.",
 };
 const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite, params: bpParams };
+// --- slow-motion --- the page's Slow motion switch a game is played with, as a link's smo=0 writes it off
+const bpSlowMotion: JsonSchema = {
+  type: "boolean",
+  description: "The Slow motion switch (default on; false is a Mode Lab link's smo=0): off, the page plays the game in real time and a run the engine slows is worded as too heavy for it. It replaces a link's own smo.",
+};
 // --- inspiration --- a video link (fetched with yt-dlp, never opened by the browser), a search, the ranking, the fetch size
 const videoUrl: JsonSchema = { type: "string", minLength: 8, maxLength: URL_MAX_CHARS, pattern: "^[Hh][Tt][Tt][Pp][Ss]?://", description: "A video link: TikTok, Instagram, YouTube (a Short too) or any site yt-dlp reads; http or https, never this machine or its private network (the link and where its host resolves are checked). One video: a playlist, channel, profile or hashtag link is refused. Fetched into .agent-out/inbox/." };
 const videoUrls: JsonSchema = { type: "array", minItems: 1, items: videoUrl, description: "Video links to add (TikTok, Instagram, YouTube or any site), each read with yt-dlp for its numbers." };
@@ -381,7 +386,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     input: {
       type: "object",
       additionalProperties: false,
-      properties: { ...bpInput, seeds: { type: "array", minItems: 1, maxItems: 8, items: { type: "integer", minimum: 0, maximum: 4294967295 }, description: "The seeds (default [1, 2, 3, 4]: the verdict's own)." } },
+      properties: { ...bpInput, slowMotion: bpSlowMotion, seeds: { type: "array", minItems: 1, maxItems: 8, items: { type: "integer", minimum: 0, maximum: 4294967295 }, description: "The seeds (default [1, 2, 3, 4]: the verdict's own)." } },
     },
     writes: "none",
     network: "none",
@@ -392,7 +397,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     name: "bp-link",
     title: "Blueprint link",
     description: "The link code (b1.…), the simulator link (?mode=blueprint&bls=…, the blueprint mode's link key) and the site's short share code (?c=…) of a Blueprint, with their lengths.",
-    input: { type: "object", additionalProperties: false, properties: { ...bpInput, locale: { type: "string", enum: ["en", "pl", "es"], description: "The link's locale (default en)." } } },
+    input: { type: "object", additionalProperties: false, properties: { ...bpInput, slowMotion: bpSlowMotion, locale: { type: "string", enum: ["en", "pl", "es"], description: "The link's locale (default en)." } } },
     writes: "none",
     network: "none",
     mcp: true,

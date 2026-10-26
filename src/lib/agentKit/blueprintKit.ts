@@ -19,17 +19,25 @@ export type BlueprintInput =
       params: (number | null)[];
       /** Where the slider values came from: the link's `blv`, the call's `params`, or null (none). */
       paramsFrom: "link" | "params" | null;
+      /**
+       * --- slow-motion --- The Slow motion switch the game plays with: false for a link's `smo=0` (Mode Lab then plays it in
+       * real time and words a run the engine slows as too heavy for it), or the call's own `slowMotion`; true otherwise.
+       */
+      slowMotion: boolean;
     }
   | { ok: false; error: string };
 
-/** The Blueprint keys of a link or a query string (`bls`, `blp`, `blv`), or null when the text is a bare code. */
-function linkKeys(text: string): { spec: string | null; preset: string | null; values: string | null } | null {
+/**
+ * The Blueprint keys of a link or a query string (`bls`, `blp`, `blv`), or null when the text is a bare code. --- slow-motion ---
+ * With its Slow motion switch, read as settingsFromSearchParams() reads `smo`: off for "0" alone (on is the default).
+ */
+function linkKeys(text: string): { spec: string | null; preset: string | null; values: string | null; slowMotion: boolean } | null {
   const t = text.trim();
   const q = t.indexOf("?");
   const query = q >= 0 ? t.slice(q + 1) : /^[A-Za-z]\w*=/.test(t) ? t : null;
   if (query === null) return null;
   const params = new URLSearchParams(query.split("#")[0]);
-  return { spec: params.get(BLUEPRINT_LINK_KEYS.spec), preset: params.get(BLUEPRINT_LINK_KEYS.preset), values: params.get("blv") };
+  return { spec: params.get(BLUEPRINT_LINK_KEYS.spec), preset: params.get(BLUEPRINT_LINK_KEYS.preset), values: params.get("blv"), slowMotion: params.get("smo") !== "0" };
 }
 
 const unknownCatalog = (id: unknown) => `Unknown catalog id "${String(id).slice(0, 40)}" (the catalog: ${BLUEPRINT_CATALOG_IDS.join(", ")})`;
@@ -39,17 +47,19 @@ const unknownCatalog = (id: unknown) => `Unknown catalog id "${String(id).slice(
  * spec. --- review fix (blueprint) --- A link is read the way Mode Lab reads it: its game (`bls`, or a catalog game by its
  * `blp`) and its slider values (`blv`, which Copy link always writes), so a tool judges the game the link plays; the call's
  * own `params` (the same comma-separated form) take the place of the link's. A link whose game cannot be read is refused –
- * the page would play a catalog game instead, never the one the link meant.
+ * the page would play a catalog game instead, never the one the link meant. --- slow-motion --- The link's Slow motion switch
+ * (`smo=0`) is read too, and the call's own `slowMotion` takes its place.
  */
-export function blueprintInput(args: { spec?: unknown; code?: unknown; catalog?: unknown; lite?: unknown; params?: unknown }): BlueprintInput {
+export function blueprintInput(args: { spec?: unknown; code?: unknown; catalog?: unknown; lite?: unknown; params?: unknown; slowMotion?: unknown }): BlueprintInput {
   const own = typeof args.params === "string" ? parseParamValues(args.params) : [];
+  const keys = typeof args.code === "string" ? linkKeys(args.code) : null;
+  const slowMotion = typeof args.slowMotion === "boolean" ? args.slowMotion : (keys?.slowMotion ?? true);
   const done = (raw: unknown, source: "spec" | "code" | "catalog" | "lite", catalogId = "", linkValues: (number | null)[] = []): BlueprintInput => {
     const params = own.length ? own : linkValues;
-    return { ok: true, raw, source, catalogId, params, paramsFrom: own.length ? "params" : linkValues.length ? "link" : null };
+    return { ok: true, raw, source, catalogId, params, paramsFrom: own.length ? "params" : linkValues.length ? "link" : null, slowMotion };
   };
   if (args.spec !== undefined) return done(args.spec, "spec");
   if (typeof args.code === "string") {
-    const keys = linkKeys(args.code);
     const values = keys?.values ? parseParamValues(keys.values) : [];
     if (keys && keys.spec === null) {
       if (keys.preset === null) return { ok: false, error: "The link holds no Blueprint: Mode Lab's links carry bls=b1.… (a game) or blp=<catalog id> (a built-in game)" };

@@ -149,13 +149,15 @@ async function explainTool(tb, args) {
  * A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). ---
  * review fix (blueprint) --- `blueprint` is the game as it plays: the slider values of the link (`blv`) or of the call
  * (`params`) applied, as Mode Lab applies them; `base` is the spec before them, and `params` says what was applied.
+ * --- slow-motion --- `slowMotion` is the Slow motion switch it plays with: the link's (`smo=0` off) or the call's own.
  */
 function blueprintOf(bk, args) {
   const input = bk.blueprintInput(args);
   if (!input.ok) throw new ToolError(input.error);
   const errors = bk.validateBlueprint(input.raw);
   const { blueprint: base, notes, newer } = bk.sanitizeBlueprint(input.raw);
-  if (!input.params.length) return { source: input.source, catalogId: input.catalogId, base, blueprint: base, errors, notes, newer, params: null };
+  const slowMotion = input.slowMotion;
+  if (!input.params.length) return { source: input.source, catalogId: input.catalogId, base, blueprint: base, errors, notes, newer, params: null, slowMotion };
   const applied = bk.applyBlueprintParams(base, input.params);
   const values = bk.formatParamValues(input.params);
   const params = {
@@ -167,7 +169,7 @@ function blueprintOf(bk, args) {
       ? `Slider values applied (${input.paramsFrom === "link" ? "from the link's blv" : "from params"}): this is the game the link plays, not the spec's own defaults.`
       : "The spec has no sliders: the slider values change nothing.",
   };
-  return { source: input.source, catalogId: input.catalogId, base, blueprint: applied.blueprint, errors, notes, newer, params };
+  return { source: input.source, catalogId: input.catalogId, base, blueprint: applied.blueprint, errors, notes, newer, params, slowMotion };
 }
 
 async function bpSchemaTool(bk, args) {
@@ -205,14 +207,16 @@ async function bpValidateTool(bk, args) {
 export const BP_CHECK_SLOW_MS = 20_000;
 
 async function bpCheckTool(bk, args) {
-  const { source, blueprint, errors, notes, params } = blueprintOf(bk, args);
+  const { source, blueprint, errors, notes, params, slowMotion } = blueprintOf(bk, args);
   const started = Date.now();
-  const report = bk.playabilityCheck(blueprint, args.seeds ? { seeds: args.seeds } : {});
+  // --- slow-motion --- the switch the page plays it with: off, a run the engine slows is worded as too heavy for real time
+  const report = bk.playabilityCheck(blueprint, { ...(args.seeds ? { seeds: args.seeds } : {}), slowMotion });
   const wallMs = Date.now() - started;
   return {
     verdict: report.verdict,
     feedback: report.feedback,
     problems: report.problems,
+    slowMotion,
     source,
     ...(params ? { params } : {}),
     ...(errors.length ? { validationErrors: errors, checked: "the sanitized spec (validation errors above)", sanitizerNotes: notes } : {}),
@@ -225,11 +229,12 @@ async function bpCheckTool(bk, args) {
 }
 
 async function bpLinkTool(bk, args) {
-  const { source, catalogId, base, blueprint, errors, params } = blueprintOf(bk, args);
-  // (a link carries the spec as written and its slider values beside it, as Mode Lab's Copy link writes them)
+  const { source, catalogId, base, blueprint, errors, params, slowMotion } = blueprintOf(bk, args);
+  // (a link carries the spec as written and its slider values beside it, as Mode Lab's Copy link writes them; --- slow-motion ---
+  // and the Slow motion switch, only ever written off: smo=0)
   const code = bk.encodeBlueprint(base);
   const game = catalogId ? bk.catalogQuery(catalogId) : bk.blueprintQuery(base);
-  const query = params && params.blv && base.params.length ? `${game}&blv=${params.blv}` : game;
+  const query = `${params && params.blv && base.params.length ? `${game}&blv=${params.blv}` : game}${slowMotion ? "" : "&smo=0"}`;
   const link = bk.simulatorLink(query, args.locale ?? "en");
   const shareCode = await bk.encodeShareCode(new URLSearchParams(query));
   return {

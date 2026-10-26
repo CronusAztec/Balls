@@ -146,6 +146,31 @@ describe("blueprint tools: end to end", () => {
     expect(agent("bp-link", { code: link }).json.result.query).toBe(`mode=blueprint&bls=${code}&blv=3,60`);
   }, 180_000);
 
+  // --- slow-motion --- a link's smo=0 is the page's Slow motion switch off: the game plays in real time, and a run the engine
+  // slows is too heavy for it – the same verdict, in the page's words
+  it("bp-check and bp-link read a link's smo=0: the same problems, worded as too heavy for real time, and the switch kept in the link", () => {
+    const code = encodeBlueprint(sanitizeBlueprint({ v: 1, meta: { name: "Slow" }, finish: { timeoutSec: 30 }, bodies: [{ id: "b", radius: 2 }], spawners: [{ body: "b", speed: 10_000 }] }).blueprint);
+    const link = `/en/simulator/?mode=blueprint&bls=${code}`;
+    expect(blueprintInput({ code: `${link}&smo=0` })).toMatchObject({ ok: true, slowMotion: false });
+    expect(blueprintInput({ code: `${link}&smo=1` })).toMatchObject({ ok: true, slowMotion: true });
+    expect(blueprintInput({ code: link })).toMatchObject({ ok: true, slowMotion: true });
+    expect(blueprintInput({ code: `${link}&smo=0`, slowMotion: true })).toMatchObject({ ok: true, slowMotion: true });
+    expect(blueprintInput({ catalog: "conquer", slowMotion: false })).toMatchObject({ ok: true, slowMotion: false });
+    const off = agent("bp-check", { code: `${link}&smo=0`, seeds: [1] });
+    const on = agent("bp-check", { code: link, seeds: [1] });
+    expect([off.code, on.code]).toEqual([0, 0]);
+    expect([off.json.result.slowMotion, on.json.result.slowMotion]).toEqual([false, true]);
+    expect(off.json.result.problems).toContain("slow");
+    expect([off.json.result.verdict, off.json.result.problems]).toEqual([on.json.result.verdict, on.json.result.problems]);
+    expect(off.json.result.feedback[0]).toMatch(/^It is too heavy to play in real time on seed 1/);
+    expect(on.json.result.feedback[0]).toMatch(/^It plays in slow motion on seed 1/);
+    // the call's own switch, for any Blueprint
+    expect(agent("bp-check", { code: link, seeds: [1], slowMotion: false }).json.result.feedback[0]).toBe(off.json.result.feedback[0]);
+    expect(agent("bp-link", { code: `${link}&smo=0` }).json.result.query).toBe(`mode=blueprint&bls=${code}&smo=0`);
+    expect(agent("bp-link", { catalog: "ringBreaker", params: "3,60", slowMotion: false }).json.result.query).toBe("mode=blueprint&blp=ringBreaker&blv=3,60&smo=0");
+    expect(agent("bp-link", { code: link }).json.result.query).toBe(`mode=blueprint&bls=${code}`);
+  }, 180_000);
+
   // --- review fix (blueprint) --- the largest legal game: bp-link's link is a link simulate, preview and render take
   it("plays a valid Blueprint near the 6 KB ceiling from the link bp-link gives it: simulate, preview and render take that link", () => {
     const value = `1 + 0 * (t${" + t".repeat(44)})`;
