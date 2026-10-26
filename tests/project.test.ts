@@ -28,7 +28,9 @@ import {
 } from "@/lib/project";
 import { bytesToBase64 } from "@/lib/base64";
 import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
-import { defaultSettings, presetToSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { MEANINGFUL_FLOORS } from "@/lib/uncap"; // --- unlimited-sizes --- (the values a file keeps below a slider's start)
+import { MODE_IDS } from "@/lib/physics/types";
 // --- unlimited-sizes --- the list settings' own limits
 import { BM_NOTES_MAX } from "@/lib/physics/beatMachine";
 import { MAX_MARKERS, serializeMarkers } from "@/lib/simulation/beatSource";
@@ -261,6 +263,41 @@ describe("project files from before the checks (review fix: recording-export)", 
     const r = parseProject(legacy({ ballRadius: -5, wallCount: 0 }));
     expect(r.ok && r.project.settings.ballRadius).toBe(4);
     expect(r.ok && r.project.settings.wallCount).toBe(1);
+  });
+
+  // --- unlimited-sizes --- a file lifted every value below a slider's start onto it, the meaningful floors too
+  it("every meaningful floor below a slider's start comes back through a saved and opened file, as a link keeps it", () => {
+    const ranges = RANGES as unknown as Record<string, { min: number; max: number } | undefined>;
+    // values below each slider's start, from its floor up (the finder's search length is a field, not a setting a file holds)
+    const below: Record<string, number[]> = {
+      rotationSpeed: [0, 0.05],
+      gapSize: [0.05],
+      recordingDuration: [3, 5],
+      targetCount: [1, 2],
+      multiplySpawnCount: [0, 1],
+      growRate: [1, 2],
+      slowMoFactor: [0, 0.1],
+      slowMoMs: [50, 100],
+    };
+    const settingKeys = Object.keys(MEANINGFUL_FLOORS).filter((key) => ranges[key] && MODE_IDS.some((m) => key in (defaultSettings(m) as unknown as Record<string, unknown>)));
+    expect(settingKeys.sort()).toEqual(Object.keys(below).sort());
+    for (const [key, values] of Object.entries(below)) {
+      const floor = MEANINGFUL_FLOORS[key];
+      const range = ranges[key]!;
+      const mode = MODE_IDS.find((m) => key in (defaultSettings(m) as unknown as Record<string, unknown>))!;
+      for (const value of values) {
+        expect(value, key).toBeLessThan(range.min);
+        const settings = { ...defaultSettings(mode), [key]: value } as SimulatorSettings;
+        const linked = settingsFromSearchParams(settingsToSearchParams(settings)) as unknown as Record<string, unknown>;
+        expect(linked[key], `${key} ${value} through a link`).toBe(value);
+        const opened = parseProject(serializeProject(buildProject({ name: "Floors", settings })));
+        expect(opened.ok, key).toBe(true);
+        expect(opened.ok && (opened.project.settings as unknown as Record<string, unknown>)[key], `${key} ${value} through a file`).toBe(value);
+      }
+      // below the floor (or at a refused one) the file still lifts it onto the slider's start
+      const under = floor.above ? floor.min : floor.min - 1;
+      expect((resolveProjectSettings({ mode, [key]: under }) as unknown as Record<string, unknown>)[key], `${key} below its floor`).toBe(range.min);
+    }
   });
 });
 

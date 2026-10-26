@@ -21,7 +21,7 @@ import { base64ToBytes, bytesToBase64 } from "@/lib/base64";
 import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
-import { SIGNED_KEYS, memoryCeiling } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- memoryCeiling: the Sound Vortex waves' limit)
+import { SIGNED_KEYS, atLeastFloor, memoryCeiling } from "@/lib/uncap"; // --- uncap-all --- (--- unlimited-sizes --- memoryCeiling: the Sound Vortex waves' limit; atLeastFloor: the meaningful floors)
 import { BLUEPRINT_SPEC_MAX_CHARS } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) ---
 // --- unlimited-sizes --- the list settings' own limits (LONG_TEXT_SETTINGS)
 import { BM_NOTES_MAX } from "@/lib/physics/beatMachine";
@@ -349,7 +349,9 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
         // --- uncap-all --- whatever its switch: only a value below the minimum of an unsigned setting is lifted onto it; every
         // other finite value is kept exactly for presetToSettings() to validate – a list index too (the Rigged forced winner's
         // team slot: resolveRiggedConfig() turns a slot past the team list off, and keeps every slot on it)
-        clean[key] = range && value < range.min && !SIGNED_KEYS.has(key) ? range.min : value;
+        // --- unlimited-sizes --- from the setting's meaningful floor up (MEANINGFUL_FLOORS: a still ring, a 5 s clip, a factor-0
+        // slow motion), as links, share codes and presets keep it – only a value below that floor is lifted onto the minimum
+        clean[key] = range && !SIGNED_KEYS.has(key) ? atLeastFloor(value, key, range) : value;
       }
     } else if (typeof fallback === "string") {
       if (typeof value === "string") clean[key] = value.slice(0, projectTextLimit(key)); // --- unlimited-sizes --- (each list at its own limit)
