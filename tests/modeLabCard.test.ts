@@ -91,10 +91,14 @@ describe("the Mode Lab card, measured in Chromium with the site's fonts", () => 
       return list.map((x) => ({
         name: width(x.name, "font-family:SiteUi;font-weight:500;font-size:14px;letter-spacing:normal"),
         tag: width(x.tag, "font-family:SiteMono;font-weight:400;font-size:12px;letter-spacing:0.08em;text-transform:uppercase"),
+        loaded: document.fonts.check("500 14px SiteUi", x.name) && document.fonts.check("400 12px SiteMono", x.tag.toUpperCase()),
       }));
     }, texts);
-    // (the faces loaded: a mono tag is 0.6 em a letter plus its tracking, so LAB is about 24.5 px)
-    expect(widths[0].tag).toBeCloseTo(3 * (0.6 * 12 + 0.08 * 12), 0);
+    // (the faces loaded – the browser says so – and a mono tag is 0.6 em a letter plus its tracking, so LAB is about 24.5 px.
+    // A Chromium without subpixel text positioning, like the CI runner's, rounds each advance to a whole pixel: 7 px, not
+    // 7.2, so the word may come out up to half a pixel a letter narrower or wider.)
+    expect(widths.map((w) => w.loaded)).toEqual(texts.map(() => true));
+    expect(Math.abs(widths[0].tag - 3 * (0.6 * 12 + 0.08 * 12))).toBeLessThanOrEqual(3 * 0.5);
     expect([NARROWEST_CARDS_PX.wall, NARROWEST_CARDS_PX.picker, PHONE_CARD_PX].map((w) => Math.round(w * 10) / 10)).toEqual([186.7, 172, 140]);
     texts.forEach((x, i) => {
       const line = Math.round((widths[i].name + NAME_TAG_GAP_PX + widths[i].tag) * 10) / 10;
