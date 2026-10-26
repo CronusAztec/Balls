@@ -385,6 +385,55 @@ describe("the engine's step time scale (--- slow-motion ---)", () => {
     expect(engine.getStepTimeScale()).toBe(1);
   });
 
+  it("is 1 on every step of a run whose balls escaped, its plan dilated or not: the end plays a step a callback, nothing lost", () => {
+    // Classic with ten balls at 100,000 px/s (the link nb=10&s=100000&smo=0): every step until the escape is dilated, and the
+    // page used to repay that dilation with 16 steps a callback for as long as it stayed open after the run was over.
+    const engine = new PhysicsEngine({ ...config, ballCount: 10, ballSpeed: 100_000, slowMotion: false });
+    engine.setCinematicEnabled(false);
+    engine.setSeed(1);
+    engine.initMode("classic");
+    let dilated = 0;
+    for (let f = 0; f < 3000 && !engine.isSimulationFinished(); f++) {
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+      if (engine.getStepTimeScale() < 1) dilated++;
+    }
+    expect(engine.isSimulationFinished()).toBe(true);
+    expect(dilated).toBeGreaterThan(10);
+    // The live loop on the real engine, at a 60 Hz display's jittered timestamps.
+    const clock = new RealTimeClock();
+    let steps = 0;
+    const stepper: RealTimeStepper = {
+      step: () => {
+        steps++;
+        engine.update(STEP_MS, 0);
+        engine.consumeSoundEvents();
+        return engine.getStepTimeScale();
+      },
+      now: () => 0,
+    };
+    let now = 1000;
+    let most = 0;
+    for (let i = 0; i < 300; i++) {
+      now += 1000 / 60 + ((i * 7919) % 13) / 13 - 0.5;
+      const tick = clock.tick(now, run(), stepper);
+      most = Math.max(most, tick.steps);
+      if (tick.steps > 0) expect(engine.getStepTimeScale(), `callback ${i}`).toBe(1); // (the step that ended the run paid its own dilation)
+      expect(tick.draw, `callback ${i}`).toBe(true);
+    }
+    expect(most).toBeLessThanOrEqual(2);
+    expect(Math.abs(steps - 300)).toBeLessThanOrEqual(2);
+    expect(clock.lostMs).toBe(0);
+    // The fast export's frames of the end hold: one step each.
+    const pacer = new OfflineRealTime();
+    for (let f = 0; f < 30; f++) {
+      pacer.beginFrame(1000 / 60);
+      expect(pacer.advance(stepper.step), `frame ${f}`).toBeLessThanOrEqual(2);
+      expect(pacer.endFrame()).toBe(false);
+    }
+    expect(pacer.steps).toBeLessThanOrEqual(31);
+  });
+
   it("never touches the run: a seed's steps are the same whether or not anyone reads it", () => {
     const a = createEngineForSettings(FINGERPRINT_CONFIG, "multipliers", FINGERPRINT_MODE_SETTINGS, 99);
     const b = createEngineForSettings(FINGERPRINT_CONFIG, "multipliers", FINGERPRINT_MODE_SETTINGS, 99);

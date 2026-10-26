@@ -2414,7 +2414,8 @@ export class PhysicsEngine {
   /**
    * The time scale of the last step: the share of a fixed step (1000 / 60 ms) it simulated after the engine's time dilation – a
    * plan's `dilation` (multipliers, the limits runtime, a mode's sub-step ceiling) – and 1 for a whole step, a new run and a run
-   * that is over. The bounce-math "timeScale" clock is left out (a rule, not slow motion). With Slow motion off the page pays a
+   * that is over: once a run has finished its steps count whole, dilated or not, so its end plays one step a frame and a page
+   * paying it never runs hundreds of steps a frame for a run that is done. The bounce-math "timeScale" clock is left out (a rule, not slow motion). With Slow motion off the page pays a
    * step 16.666 × this of its real-time debt (lib/simulation/realTime.ts): a dilated run then plays in real time.
    */
   getStepTimeScale(): number {
@@ -2867,6 +2868,10 @@ export class PhysicsEngine {
     const modeName = this.currentMode?.name;
     mult.setMode(modeName);
     // --- end gerald-multipliers ---
+    // --- slow-motion --- a run that was over before this call (its finish recorded and still finished) pays whole steps: with
+    // Slow motion off the page then plays its end one step a frame, as with it on, instead of repaying the plan's dilation with
+    // hundreds of steps a frame for as long as the page stays open (the step that ends the run still pays its own dilation)
+    const runOver = this.finishedAtMs >= 0 && this.isSimulationFinished();
     this.timeAccumulator += dt;
     let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
     const bmOn = this.bounceMath.on; // --- bounce-math ---
@@ -2927,7 +2932,7 @@ export class PhysicsEngine {
       }
       // --- slow-motion --- the dilation of this step, which the page repays with Slow motion off (lib/simulation/realTime.ts); the
       // bounce-math clock stays out of it: a rule the visitor wrote, not slow motion
-      this.lastStepTimeScale = plan ? plan.dilation : 1;
+      this.lastStepTimeScale = plan && !runOver ? plan.dilation : 1;
       const stepMs = (plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS) * clock;
       if (plan && clock !== 1) mult.getView().dilation = plan.dilation * clock; // --- bounce-math --- (SLOW-MO only while the world really runs slow)
       this._elapsedMs += stepMs;
