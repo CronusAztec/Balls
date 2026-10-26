@@ -307,6 +307,44 @@ describe("queue sources", async () => {
     expect(expandBatch([clip], { resolutions: ["1080x1920"], fps: [24, Number.NaN, Infinity], codecs: ["h264"], presets: ["native"] })).toEqual([]);
   });
 
+  // --- uncap-all --- (review fix) the add form's own frame rates: the 30 and 60 chips and the shared number field beside them,
+  // which adds any other rate from 30 up as a chip of its own (the form offered only 30 and 60 while the queue renders any rate)
+  it("lets the add form type any frame rate from 30 up beside the 30 and 60 chips, in en, pl and es", async () => {
+    const { QUEUE_FPS_RANGE, pickQueueFps, queueFpsChips, renderFormatFor } = await import("@/lib/desktop/presets");
+    const { FAST_EXPORT_RANGES } = await import("@/lib/recording/fastRenderPlan");
+    expect(QUEUE_FPS_RANGE).toEqual(FAST_EXPORT_RANGES.fastExportFps); // (the page's own export field: from 30 up)
+    expect(pickQueueFps([60], 45)).toEqual([60, 45]);
+    expect(pickQueueFps([60, 45], 120)).toEqual([60, 45, 120]);
+    expect(pickQueueFps([45, 60], 45)).toEqual([60, 45]); // (picked already: it moves last, where the field shows it)
+    expect(pickQueueFps([30], 59.94)).toEqual([30, 59.94]);
+    for (const junk of [24, 0, -60, Number.NaN, Infinity]) expect([junk, pickQueueFps([60], junk)]).toEqual([junk, [60]]);
+    expect(queueFpsChips([60])).toEqual([30, 60]);
+    expect(queueFpsChips([120, 60, 45, 59.94, 45])).toEqual([30, 60, 45, 59.94, 120]);
+    // the picked rates make their jobs, and a typed one renders at its rate
+    const clip = seedSource(defaultSettings("classic"), 5);
+    const jobs = expandBatch([clip], { resolutions: ["1080x1920"], fps: pickQueueFps([60], 45), codecs: ["h264"], presets: ["native"] });
+    expect(jobs.map((j) => j.fps)).toEqual([60, 45]);
+    expect(renderFormatFor(jobs[1].preset, jobs[1].resolution, jobs[1].fps)).toEqual({ resolution: "1080x1920", fps: 45 });
+    // the form: the two chips, the number field named by the frame rate and showing the rate picked last, and the line under them
+    const React = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { NextIntlClientProvider } = await import("next-intl");
+    (globalThis as { React?: unknown }).React = React; // (vitest compiles .tsx with the classic JSX runtime)
+    const { default: QueuePanel } = await import("@/components/simulator/desktop/QueuePanel");
+    const queue = { state: EMPTY_QUEUE, resumable: null, folder: "", cutting: null, lastError: null, add: () => 0, pendingCuts: () => [] } as unknown as React.ComponentProps<typeof QueuePanel>["queue"];
+    const page = { settings: defaultSettings("classic"), busy: false, pageSeed: () => 1 } as unknown as React.ComponentProps<typeof QueuePanel>["page"];
+    for (const locale of ["en", "pl", "es"] as const) {
+      const messages = (await import(`../messages/${locale}.json`)).default as { Desktop: Record<string, string>; Uncap: Record<string, string> };
+      const html = renderToStaticMarkup(
+        React.createElement(NextIntlClientProvider, { locale, messages, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, React.createElement(QueuePanel, { bridge: {} as React.ComponentProps<typeof QueuePanel>["bridge"], queue, page, folder: "", onFolder: () => {} })),
+      ).replace(/&#x27;/g, "'");
+      const field = /<input[^>]*data-number-field="queueFps"[^>]*>/.exec(html)?.[0] ?? "";
+      expect([locale, field.match(/\saria-label="([^"]*)"/)?.[1], field.match(/\svalue="([^"]*)"/)?.[1], field.match(/\sdata-testid="([^"]*)"/)?.[1]]).toEqual([locale, messages.Uncap.fieldLabel.replace("{label}", messages.Desktop.queueFps), "60", "queue-fps"]);
+      expect([locale, [...html.matchAll(/aria-pressed="(true|false)"[^>]*>(\d+(?:\.\d+)?) fps</g)].map((m) => `${m[2]}:${m[1]}`)]).toEqual([locale, ["30:false", "60:true"]]);
+      expect([locale, html.includes(messages.Desktop.queueFpsTyped)]).toEqual([locale, true]);
+    }
+  });
+
   // --- ai-cut --- the cut the AI answered for a clip travels with it: source → every job of the batch → the queue
   it("carries an AI clip's TikTok cut into its jobs", () => {
     const cut: ClipEditSpec = { startSec: 3, lengthSec: 11.5, zoom: 1.25, hook: "Will Pip make it?", url: "jumpingballs.live", cardSec: 1.5 };

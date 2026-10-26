@@ -4818,6 +4818,7 @@
     "queueNoBotPlan": "There is no clip plan yet. Plan clips in the Recording section first.",
     "queueResolutions": "Resolutions",
     "queueFps": "Frame rate",
+    "queueFpsTyped": "Type any other rate from 30 up to add it.",
     "queueCodecs": "Codecs",
     "queuePresets": "Output",
     "queueAdd": "Add to queue",

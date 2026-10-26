@@ -9328,6 +9328,23 @@ await smokeBlock("desktop-exe", async () => {
     // --- review fix (uncap-all) --- the random-seed count is the shared number field (Enter commits; no 100 cap)
     await q.getByTestId("queue-random-count").fill("1");
     await q.getByTestId("queue-random-count").press("Enter");
+    // --- uncap-all --- (review fix) the frame rates: the number field beside the 30 and 60 chips adds any other rate from 30 up
+    // as a chip of its own, and refuses one below 30 (the typed chip is taken off again, so the clip below renders as before)
+    await q.getByTestId("queue-fps").fill("45");
+    await q.getByTestId("queue-fps").press("Enter");
+    const typedFpsChip = await q.getByRole("button", { name: "45 fps", exact: true }).getAttribute("aria-pressed", { timeout: 5000 }).catch(() => null);
+    const typedFpsField = await q.getByTestId("queue-fps").inputValue().catch(() => "");
+    await q.getByRole("button", { name: "45 fps", exact: true }).click().catch(() => {});
+    const typedFpsLeft = await q.getByRole("button", { name: "45 fps", exact: true }).count();
+    await q.getByTestId("queue-fps").fill("24");
+    await q.getByTestId("queue-fps").press("Enter");
+    const lowFpsRefused = await q.getByTestId("queue-fps").getAttribute("aria-invalid").catch(() => null);
+    await q.getByTestId("queue-fps").press("Escape");
+    check(
+      "uncap-all: the render queue's add form takes a typed frame rate from 30 up as a chip of its own, and refuses one below 30",
+      typedFpsChip === "true" && typedFpsField === "45" && typedFpsLeft === 0 && lowFpsRefused === "true",
+      `(45 fps chip pressed ${typedFpsChip}, field ${typedFpsField}, chips left after taking it off ${typedFpsLeft}, 24 refused ${lowFpsRefused})`,
+    );
     await q.getByRole("button", { name: "500x500", exact: true }).click();
     await q.getByRole("button", { name: "1080x1920", exact: true }).click();
     await q.getByRole("button", { name: "30 fps", exact: true }).click();

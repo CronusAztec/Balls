@@ -45,6 +45,28 @@ export function queueFps(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= FAST_EXPORT_RANGES.fastExportFps.min ? value : null;
 }
 
+/**
+ * --- uncap-all --- (review fix) The add form's frame-rate number field, beside the 30 and 60 chips: the page's own export
+ * field's range (the arrow keys step 30 → 60, and about a tenth of the value past it) and its floor, 30 (`queueFps()`).
+ */
+export const QUEUE_FPS_RANGE = FAST_EXPORT_RANGES.fastExportFps;
+
+/**
+ * --- uncap-all --- (review fix) The add form's picked frame rates after one is typed: a rate `queueFps()` takes joins them as
+ * the last one (the field shows the last rate picked, so a typed rate stays in view), a rate picked already moves there, and
+ * anything else changes nothing. The form offered only the 30 and 60 chips, while the queue renders any rate from 30 up.
+ */
+export function pickQueueFps(picked: readonly number[], typed: number): number[] {
+  const fps = queueFps(typed);
+  return fps === null ? [...picked] : [...picked.filter((f) => f !== fps), fps];
+}
+
+/** --- uncap-all --- (review fix) The add form's frame-rate chips: 30 and 60 always, then every other rate picked, lowest first. */
+export function queueFpsChips(picked: readonly number[]): number[] {
+  const offered: readonly number[] = QUEUE_FPS;
+  return [...offered, ...[...new Set(picked)].filter((f) => !offered.includes(f)).sort((a, b) => a - b)];
+}
+
 /** Bitrate (kbit/s) of a custom transcode: ~0.08 bit per pixel and frame, 2–80 Mbit/s; HEVC and AV1 need ~35 % less. */
 export function customVideoKbps(width: number, height: number, fps: number, codec: VideoCodec): number {
   const bits = (0.08 * width * height * fps) / 1000;

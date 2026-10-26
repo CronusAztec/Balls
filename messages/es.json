@@ -4818,6 +4818,7 @@
     "queueNoBotPlan": "Todavía no hay un plan de clips. Planifica clips primero en la sección Grabación.",
     "queueResolutions": "Resoluciones",
     "queueFps": "Fotogramas por segundo",
+    "queueFpsTyped": "Escribe cualquier otro valor a partir de 30 para añadirlo.",
     "queueCodecs": "Códecs",
     "queuePresets": "Salida",
     "queueAdd": "Añadir a la cola",

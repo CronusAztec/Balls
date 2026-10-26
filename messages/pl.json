@@ -4818,6 +4818,7 @@
     "queueNoBotPlan": "Nie ma jeszcze planu klipów. Najpierw zaplanuj klipy w sekcji Nagrywanie.",
     "queueResolutions": "Rozdzielczości",
     "queueFps": "Liczba klatek",
+    "queueFpsTyped": "Wpisz dowolną inną wartość od 30 w górę, aby ją dodać.",
     "queueCodecs": "Kodeki",
     "queuePresets": "Wyjście",
     "queueAdd": "Dodaj do kolejki",

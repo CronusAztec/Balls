@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { DesktopApi, VideoCodec } from "@/lib/desktop/contract";
 import { VIDEO_CODECS } from "@/lib/desktop/contract";
-import { OUTPUT_PRESETS, QUEUE_FPS, QUEUE_RESOLUTIONS, type OutputPreset } from "@/lib/desktop/presets";
+import { OUTPUT_PRESETS, QUEUE_FPS_RANGE, QUEUE_RESOLUTIONS, pickQueueFps, queueFpsChips, type OutputPreset } from "@/lib/desktop/presets"; // (--- uncap-all --- (review fix) a typed frame rate: QUEUE_FPS_RANGE, pickQueueFps, queueFpsChips)
 import { MAX_QUEUE_JOBS, expandBatch, queueSummary, type BatchClipSource, type QueueJob } from "@/lib/desktop/renderQueue";
 import NumberField from "../NumberField"; // --- review fix (uncap-all) ---
 import { planSource, seedSource } from "@/lib/desktop/queueSources";
@@ -21,6 +21,8 @@ import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-wa
  * random seeds), or the viral bot's last plan – times the resolutions, frame rates, codecs and output presets picked, and
  * work through it on the GPU into the output folder: per job its progress, Cancel, Retry, order; Start / Pause, Cancel all,
  * Retry failed, Clear finished; after a crash or restart the queue offers to resume.
+ * --- uncap-all --- (review fix) The frame rates: the 30 and 60 chips and the shared number field beside them, which adds any
+ * other rate from 30 up as a chip of its own (the queue renders any rate the page's fast export takes, `queueFps()`).
  */
 
 type SourceKind = "seeds" | "random" | "bot";
@@ -38,7 +40,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
   const [list, setList] = useState("");
   const [count, setCount] = useState(3);
   const [resolutions, setResolutions] = useState<string[]>([page.settings.recordingResolution]);
-  const [fps, setFps] = useState<(30 | 60)[]>([60]);
+  const [fps, setFps] = useState<number[]>([60]); // --- uncap-all --- (review fix) (any rate from 30 up, not only 30 and 60)
   const [codecs, setCodecs] = useState<VideoCodec[]>(["h264"]);
   const [presets, setPresets] = useState<OutputPreset[]>(["native"]);
   const [adding, setAdding] = useState(false);
@@ -122,13 +124,16 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
               ))}
             </div>
             <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueFps")}</p>
-            <div className="flex gap-2 flex-wrap">
-              {QUEUE_FPS.map((f) => (
+            <div className="flex gap-2 flex-wrap items-center">
+              {queueFpsChips(fps).map((f) => (
                 <Chip key={f} on={fps.includes(f)} onClick={() => toggle(fps, f, setFps)}>
                   {f} fps
                 </Chip>
               ))}
+              {/* --- uncap-all --- (review fix) any other rate (from 30 up: 45, 120, 59.94…), typed: it joins the picked ones */}
+              <NumberField value={fps[fps.length - 1]} onCommit={(v) => setFps(pickQueueFps(fps, v))} label={t("queueFps")} range={QUEUE_FPS_RANGE} rules={{ min: QUEUE_FPS_RANGE.min }} settingKey="queueFps" testId="queue-fps" />
             </div>
+            <p className="text-xs text-ink-3">{t("queueFpsTyped")}</p>
             <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueCodecs")}</p>
             <div className="flex gap-2 flex-wrap">
               {VIDEO_CODECS.map((c) => (
