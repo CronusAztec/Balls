@@ -108,7 +108,8 @@ describe("what is trending in the app's AI prompts (--- trends ---)", () => {
     expect(ideasTask("x", { copy, locale: "en", playbook: context }).system).not.toContain("What is trending");
     // the page hands the committed summary to both, and the planner's research budget to the playbook's rest
     const hook = fs.readFileSync(path.join(ROOT, "src", "components", "simulator", "desktop", "useDesktopAi.ts"), "utf8");
-    expect(hook).toContain("trending: trendingContext(TRENDS, TRENDING_CHARS.videos)");
+    expect(hook).toContain("trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos)");
+    expect(hook).not.toMatch(/from "@\/content\/trends"/); // the website's page never carries the summary: it loads on first use
     expect(hook).toContain("selectPlaybookContext(playbookRef.current, prompt, IDEAS_RESEARCH_CHARS - trending.length)");
   });
 });

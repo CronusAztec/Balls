@@ -7,7 +7,6 @@ import type { BotPlatform } from "@/lib/bot/playbook";
 import { runAgent, type AgentEvent, type AgentTask } from "@/lib/desktop/ai/agent";
 import { bridgeChatModel } from "@/lib/desktop/ai/bridgeModel";
 import { TRENDING_CHARS, selectPlaybookContext, trendingContext } from "@/lib/desktop/ai/playbookContext";
-import { TRENDS } from "@/content/trends"; // --- trends --- what is trending (src/content/trends.json)
 import { changedKeys, patchFromChanges, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { customFighterTask, fighterFromAnswer } from "@/lib/desktop/ai/customFighter";
 import { customModeFrom, customModeTask, type CustomModeResult, type CustomModeSpec } from "@/lib/desktop/ai/customMode";
@@ -21,7 +20,7 @@ import type { DesktopPageHooks } from "./pageHooks";
 import { studioPorts } from "./studioPorts";
 import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix --- the IPC prefix gone wherever it sits
 // --- social-autopilot --- the "plan" job: proposals for the Posts tab's queue (never a post)
-import { runPlanner } from "@/lib/desktop/ai/planRun";
+import { committedTrends, runPlanner } from "@/lib/desktop/ai/planRun"; // --- trends --- (the committed summary, loaded on first use)
 import type { PlanResult } from "@/lib/desktop/ai/plan";
 import type { PostizChannel, SocialProposalInput } from "@/lib/desktop/contract";
 import { desktopCapabilities, hasCustom, hasSocial, type DesktopCapabilities } from "@/lib/desktop/capabilities"; // --- old-bridge ---
@@ -255,7 +254,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           if (task === "videos") {
             const store = new PlanStore();
             const ports = studioPorts({ copy: page.copy, locale: page.locale, getWorld: page.getWorld });
-            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */, trending: trendingContext(TRENDS, TRENDING_CHARS.videos) /* --- trends --- */ }), { onEvent, signal: controller.signal });
+            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */, trending: trendingContext(await committedTrends(), TRENDING_CHARS.videos) /* --- trends --- */ }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
             // --- ai-cut --- (one click: the queue starts when asked; the result keeps whether it did, for the clips card)
@@ -322,7 +321,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           } else {
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
             // --- trends --- what is trending takes its share of the 4,500-character research budget, the playbook the rest
-            const trending = trendingContext(TRENDS, TRENDING_CHARS.ideas);
+            const trending = trendingContext(await committedTrends(), TRENDING_CHARS.ideas);
             const context = selectPlaybookContext(playbookRef.current, prompt, IDEAS_RESEARCH_CHARS - trending.length);
             const out = await runAgent(model, ideasTask(prompt, { copy: page.copy, locale: page.locale, playbook: context, trending }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);

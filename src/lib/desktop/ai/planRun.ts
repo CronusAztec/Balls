@@ -4,7 +4,6 @@ import { plannerChannels, proposalsLeftToday, toQueueProposals, unpostedClips } 
 import { runAgent, type AgentEvent, type ChatModel } from "./agent";
 import { planTask, type PlanOutcome, type PlanResult } from "./plan";
 import { TRENDING_CHARS, selectPlaybookContext, trendingContext } from "./playbookContext";
-import { TRENDS } from "@/content/trends"; // --- trends ---
 import type { TrendSummary } from "@/lib/trends";
 
 /*
@@ -31,8 +30,16 @@ export interface PlanRunOptions {
   ignoreBudget?: boolean;
   /** --- ai-cut --- The render queue's jobs whose TikTok cut is still being made (renderQueue.ts cutsPending): their video waits. */
   pendingCuts?: readonly string[];
-  /** --- trends --- The trend summary (default: the committed src/content/trends.json; null: none). */
+  /** --- trends --- The trend summary (default: the committed src/content/trends.json, loaded on first use; null: none). */
   trends?: TrendSummary | null;
+}
+
+/**
+ * --- trends --- The committed trend summary, loaded when a job first needs it: its own chunk, so the website's simulator
+ * page (which never runs the AI) does not carry it.
+ */
+export async function committedTrends(): Promise<TrendSummary | null> {
+  return (await import("@/content/trends")).TRENDS;
 }
 
 /** The planner's research budget (characters): the playbook excerpt and what is trending together. */
@@ -52,7 +59,7 @@ export async function runPlanner(bridge: Pick<SocialBridge, "library" | "social"
     .filter((p) => p.channel && (p.state === "PUBLISHED" || p.state === "ERROR"))
     .map((p) => ({ channelId: p.channel!.id, platform: p.channel!.platform, state: p.state, at: p.publishDate, text: p.content }));
   // --- trends --- what is trending takes its share of the research budget, the playbook the rest
-  const trending = trendingContext(options.trends === undefined ? TRENDS : options.trends, TRENDING_CHARS.plan, "copy");
+  const trending = trendingContext(options.trends === undefined ? await committedTrends() : options.trends, TRENDING_CHARS.plan, "copy");
   const playbook = selectPlaybookContext(options.playbook, `best time to post schedule ${channels.map((c) => c.platform).join(" ")} ${clips.map((c) => c.title).join(" ")}`, PLAN_RESEARCH_CHARS - trending.length);
   const task = planTask({ locale: options.locale, language: settings.language, clips, channels, perDay: Math.min(settings.perDay, left), quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, playbook, outcomes, trending });
   const out = await runAgent(model, task, { onEvent: options.onEvent, signal: options.signal });
