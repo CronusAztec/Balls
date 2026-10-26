@@ -139,7 +139,8 @@ describe("Wide sliders: the keyboard on the wide track (--- unlimited-sizes ---)
         expect(wideTrackKeyValue(key, v, r, "PageDown")!, key).toBeLessThanOrEqual(left);
         // inside the comfort range a press is one step, as on the plain track
         if (v >= r.min && v < r.max && Math.abs((v - r.min) / r.step - Math.round((v - r.min) / r.step)) < 1e-9) {
-          expect(right, `${key} ${v} → one step`).toBeCloseTo(Math.min(r.max, v + r.step), 6);
+          if (v + r.step <= r.max + 1e-9) expect(right, `${key} ${v} → one step`).toBeCloseTo(v + r.step, 6);
+          else expect(right, `${key} ${v} → on past an end off the grid`).toBeGreaterThan(r.max);
         }
       }
       // from the range's end a press up always leaves it, and a press down from there comes back into the range

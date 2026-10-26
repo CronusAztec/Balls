@@ -123,11 +123,14 @@ export function wideTrackKeyValue(key: string, value: number, range: NumericRang
     const steps = page ? Math.max(1, Math.round((range.max - range.min) / 10 / step)) : 1;
     const at = (v - range.min) / step;
     const k = up ? Math.floor(at + 1e-9) + steps : Math.ceil(at - 1e-9) - steps;
-    return Math.min(range.max, Math.max(range.min, Number((range.min + k * step).toFixed(6))));
+    const next = Number((range.min + k * step).toFixed(6));
+    if (down) return next < range.min ? range.min : next;
+    if (!(next > range.max)) return next;
+    // (a step past the range's end – an end off the grid, a page – goes on into the log track from that end)
   }
   // past it: notches of the log track, until the value changes
   const notch = page ? WIDE_PAGE_NOTCH : WIDE_KEY_NOTCH;
-  let pos = Math.min(SLIDER_SPAN, sliderPosition(key, v, range, top));
+  let pos = Math.min(SLIDER_SPAN, sliderPosition(key, up && v < range.max ? range.max : v, range, top));
   for (let i = 0; i <= SLIDER_SPAN / WIDE_KEY_NOTCH; i++) {
     pos += up ? notch : -notch;
     if (down && pos <= LINEAR_SPAN) return range.max;
