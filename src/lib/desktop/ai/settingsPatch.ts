@@ -14,7 +14,7 @@ import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-p
 import { WT_MODELS, WT_SOURCES } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { SB_LIFE_RULES } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 import { SCOREBOARD_POSITIONS } from "@/lib/teams"; // --- low-findings-2 ---
-import { BLUEPRINT_PRESET_IDS, blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) ---
+import { BLUEPRINT_PRESET_IDS, blueprintParamBounds, blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) --- (--- unlimited-sizes --- a slider's real bound: the language's)
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -69,15 +69,24 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
 
 /**
  * --- review fix (blueprint) --- What a mode's own setting means, for the prompt, when "<mode> setting" says too little: Mode
- * Lab's game (its ids) and its sliders (the playing game's, in order, each with its range).
+ * Lab's game (its ids) and its sliders (the playing game's, in order, each with its range). --- unlimited-sizes --- A slider's
+ * range is said as every setting's is ("number from 5 up to 180, slider 24–30, step 1"): the bound is the game's own, the one
+ * its language holds that number to (`blueprintParamBounds()`), and the slider's range a comfort range, never a limit.
  */
 const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) => string>> = {
   // --- review fix (blueprint) --- (a new game plays in place of a link's, with its own sliders: validateSettingsPatch)
   blPreset: (current) => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}${current.blSpec ? " (the page plays a game from a link now: a game named here takes its place)" : ""}; a new game starts with its own slider values unless blParams is set with it`,
   blParams: (current) => {
-    const params = resolveBlueprintSpec(blueprintSettingsOf(current)).base.params;
+    const base = resolveBlueprintSpec(blueprintSettingsOf(current)).base;
+    const params = base.params;
     if (!params.length) return "Mode Lab's slider values (this game has none)";
-    return `Mode Lab's slider values, comma-separated in this order: ${params.map((p) => `${p.id} (${p.min} to ${p.max})`).join(", ")}; an empty place keeps the game's own value`;
+    // --- unlimited-sizes --- (each slider as a setting is said: its real bound, then its comfort range)
+    const bounds = blueprintParamBounds(base);
+    const each = params.map((p, i) => {
+      const b = bounds[i] ?? {};
+      return `${p.id} (${b.integer ? "whole number" : "number"} ${describeBounds(b.min ?? -Infinity, b.max ?? Infinity, b.above === true)}, slider ${p.min}–${p.max}, step ${p.step})`;
+    });
+    return `Mode Lab's slider values, comma-separated in this order: ${each.join(", ")}; a slider range is a comfort range, never a limit: a value past it plays as typed within the game's own bounds; an empty place keeps the game's own value`;
   },
 };
 
@@ -200,6 +209,11 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
  */
 function describeUnlimited(key: string, range: { min: number; max: number; step: number }): string {
   const { min, max, above } = unlimitedBounds(key, range); // --- unlimited-sizes --- (from the setting's meaningful floor: "above 0" for a gap or a clip)
+  return describeBounds(min, max, above === true);
+}
+
+/** --- unlimited-sizes --- Bounds as the prompt says them: `from 50, no upper limit`, `above 0 up to 225`, `any value, no upper limit`. */
+function describeBounds(min: number, max: number, above: boolean): string {
   const from = Number.isFinite(min) ? (above ? `above ${min}` : `from ${min}`) : "any value";
   return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit`;
 }

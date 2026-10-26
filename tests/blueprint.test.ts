@@ -10,7 +10,7 @@ import { modeDetail } from "@/lib/agentKit/modeCatalog";
 import { ballControlsOf, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
 import enMessages from "../messages/en.json";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
-import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, BLUEPRINT_RADIUS_CEILING, blueprintJson, catalogBlueprint, decodeBlueprint, encodeBlueprint, sanitizeBlueprint, type Blueprint } from "@/lib/blueprint";
 import { blueprintLinkNotice, blueprintProblemKey, blueprintVerdictLine } from "@/components/simulator/sections/BlueprintSection";
 import type { CheckProblem, PlayabilityReport } from "@/lib/blueprint";
 import { createTranslator } from "next-intl";
@@ -342,7 +342,30 @@ describe("blueprint: the app's AI and the modes tool know Mode Lab's settings", 
 
   it("names the playing game's sliders, in order with their ranges, for blParams", () => {
     const line = settingsCatalog(current).split("\n").find((l) => l.startsWith("blParams"))!;
-    expect(line).toContain("grow (0.2 to 3), exit (14 to 40), size (4 to 20)");
+    // --- unlimited-sizes --- each slider said as every setting is: the game's own bound, then the slider as a comfort range
+    expect(line).toContain(`grow (number any value, no upper limit, slider 0.2–3, step 0.1), exit (number from 1 up to 180, slider 14–40, step 1), size (number above 0 up to ${BLUEPRINT_RADIUS_CEILING}, slider 4–20, step 1)`);
+  });
+
+  // --- unlimited-sizes --- the prompt never presents a Mode Lab slider's range as a limit
+  it("says every catalog game's slider ranges as comfort ranges, a value past them playing as typed within the game's own bounds", () => {
+    const lineOf = (id: string) => settingsCatalog({ ...defaultSettings("blueprint"), blPreset: id }).split("\n").find((l) => l.startsWith("blParams"))!;
+    const ballSpeed = settingsCatalog(defaultSettings("blueprint")).split("\n").find((l) => l.startsWith("ballSpeed"))!;
+    expect(ballSpeed).toMatch(/slider \d+–\d+, step \d+/); // (the wording every other setting has)
+    for (const id of BLUEPRINT_CATALOG_IDS) {
+      const line = lineOf(id);
+      expect([id, line]).toEqual([id, expect.stringContaining("a slider range is a comfort range, never a limit: a value past it plays as typed within the game's own bounds")]);
+      // every slider of the game, in order, with its slider range and the language's own bound – never "(a to b)"
+      const sliders = catalogBlueprint(id).params.map((p) => `${p.id} (`);
+      expect([id, sliders.map((s) => line.indexOf(s)).every((at, i, all) => at > 0 && (i === 0 || at > all[i - 1]))]).toEqual([id, true]);
+      for (const p of catalogBlueprint(id).params) expect([id, line]).toEqual([id, expect.stringContaining(`slider ${p.min}–${p.max}, step ${p.step})`)]);
+      expect([id, /\(\d[\d.]* to \d/.test(line)]).toEqual([id, false]);
+      expect([id, line.length < 600]).toEqual([id, true]); // (about 60 tokens more than "(a to b)" for the page's whole prompt)
+    }
+    // the narrowed sliders' real bounds: Ring Breaker's gap from 5° to 180°, its spin and Peg Race's any value, Tier Climb's tier to 99
+    expect(lineOf("ringBreaker")).toContain("rings (whole number from 1 up to 8, slider 3–8, step 1), gap (number from 5 up to 180, slider 24–30, step 1), spin (number any value, no upper limit, slider 0–120, step 5)");
+    expect(lineOf("plinkoRace")).toContain("spin (number any value, no upper limit, slider 15–35, step 5)");
+    expect(lineOf("tierClimb")).toContain("target (whole number from 1 up to 99, slider 6–8, step 1)");
+    expect(lineOf("tierClimb")).toContain("gravity (number any value, no upper limit, slider 200–1200, step 20)");
   });
 
   it("lists blPreset, blParams and the link-only blSpec with their link keys, each kept by a link", () => {
