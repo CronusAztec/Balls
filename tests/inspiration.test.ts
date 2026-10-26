@@ -630,6 +630,31 @@ describe("the stills fallback and the report's lessons from the live runs (--- i
     expect(asks?.levers).toEqual([{ kind: "setting", name: "captions", link: "cap", value: "question at 0 s" }]);
   });
 
+  // --- inspiration --- the colours of the whole list: every video past the fetched top is seen through its stills
+  it("counts a video past the top seen through its stills as seen, not failed, and says what each trait compares over", () => {
+    const shorts = PAGES.map((p) => meta(p, "search", true)).filter((v) => v.short);
+    expect(shorts.length).toBeGreaterThanOrEqual(4);
+    const stills = (meanSat: number) => ({ dir: ".agent-out/frames/x", sheet: ".agent-out/frames/x/stills-sheet.png", files: [], colour: { meanLuma: 0.5, meanSat, darkShare: 0, stills: 4 } });
+    const analysed = [
+      { meta: shorts[0], features: features({ durationSec: 12 }) },
+      { meta: shorts[1], error: "Sign in to confirm you're not a bot", stills: stills(0.4) },
+      ...shorts.slice(2).map((m, i) => ({ meta: m, error: null, stills: stills(0.5 + i * 0.05) })),
+    ];
+    const report = buildInspirationReport({ query: "ball simulation", at: "2026-10-26T12:00:00.000Z", sortBy: "views", candidates: shorts, analysed, ours: [], modes: [...MODE_IDS], shortForm: true, top: 2 });
+    expect(report.counts).toMatchObject({ candidates: shorts.length, analysed: 1, failed: 1 });
+    expect(report.stillsOnly).toBe(shorts.length - 1);
+    const notes = report.notes.join(" ");
+    expect(notes).toMatch(/1 video could not be fetched and was seen through YouTube's public stills/);
+    expect(notes).toContain(`${shorts.length - 2} videos past the 2 fetched were seen through their public stills alone`);
+    expect(notes).toMatch(/Motion, cuts, the first second, the loop seam and the sound come only from the 1 video measured whole/);
+    expect(report.traits.find((t) => t.key === "meanSat")).toMatchObject({ n: shorts.length, scope: "list" });
+    expect(report.traits.find((t) => t.key === "hookMotion")).toMatchObject({ n: 1, scope: "fetched" });
+    const md = inspirationMarkdown(report);
+    expect(md).toContain(`1 not fetched (1 seen from stills) · ${shorts.length - 2} more seen from stills`);
+    expect(md).toMatch(/\| saturation \| .* \| the list \|/);
+    expect(md).toMatch(/\| motion \| .* \| the fetched top \|/);
+  });
+
   it("compares only short-form videos in a short-form run, and says which were seen through their stills", () => {
     const shorts = PAGES.map((p) => meta(p, "search", true)).filter((v) => v.short);
     expect(shorts.length).toBeGreaterThanOrEqual(3);

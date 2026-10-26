@@ -157,16 +157,20 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   the folder `ours` names), and a report in `.agent-out/inspiration/<date>-<slug>/` (report.json and report.md). The
   report compares the most viewed third with the rest, per trait: length, cuts a minute, motion, the first second's
   motion (the hook), first motion, where the peak sits, brightness, saturation, dark share, the loop seam, loudness, tempo,
-  sound events a second, title words and themes. It lists the patterns that separate them (medians and Spearman's rank
+  sound events a second, title words and themes. Each trait says what it compares over (its `scope`): the length, the
+  shape and the colours span the whole list, since every video not measured whole is seen through its stills; motion,
+  cuts, the hook, the loop seam and the sound exist only for the `top` videos fetched, so for those "the most viewed" and
+  "the rest" are both within that top, and the report's notes say so. It lists the patterns that separate them (medians and Spearman's rank
   correlation with views) and recommendations in our own levers: settings with their link keys (`recordingDuration` as
   `dur`, `bpm`, `captions` as `cap`…), modes, Blueprint mechanics and the tools to check them. A video that cannot be
   fetched stays in the report with its error. Every measured video is added to `.agent-out/inspiration/dataset.jsonl` (or
   `dataset`'s name) once, by its platform and id, so the dataset grows from run to run.
 - **What the first live runs taught `inspire`** (October 2026, `scripts/agent/stills.mjs`). A YouTube video that cannot be
-  fetched is seen through its public stills instead: YouTube's image host serves every video's opening frame, frames at
-  about 25, 50 and 75% of it and its cover. They are saved in `.agent-out/frames/youtube-<id>/`, cropped to the video's
-  shape, laid out on stills-sheet.png and their brightness, saturation and dark share measured (the report marks such a
-  video `measured: "stills"`; `stills: false` turns this off). A short-form run (the default) compares only short-form
+  fetched, and every one of the list past `top`, is seen through its public stills: YouTube's image host serves every
+  video's opening frame, frames at about 25, 50 and 75% of it and its cover. They are saved in
+  `.agent-out/frames/youtube-<id>/`, cropped to the video's shape, laid out on stills-sheet.png and their brightness,
+  saturation and dark share measured (the report marks such a video `measured: "stills"`, and counts a video past `top`
+  as seen, not failed; `stills: false` turns this off). A short-form run (the default) compares only short-form
   videos: a long compilation is listed, marked long-form, and left out of the numbers. A theme is weighed by its videos'
   ranks, never by summed views, which one hit decides (in October one video of 3.6 million views made two themes "×5"):
   it is advice from three videos up, when their median view percentile in their list is above the other videos' with and

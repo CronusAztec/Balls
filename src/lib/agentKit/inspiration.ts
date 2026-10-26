@@ -286,6 +286,8 @@ export interface TraitSummary {
   rho: number | null;
   /** (top − rest) in steps. */
   effect: number | null;
+  /** --- inspiration --- Over the whole list ("list": its page, its stills) or the fetched top of it only ("fetched"). */
+  scope: "list" | "fetched";
 }
 
 export interface Pattern {
@@ -322,7 +324,7 @@ export function traitSummaries(rows: readonly MetricRow[], ours: readonly ClipTr
     const rho = spearman(values, have.map((r) => r.metric));
     const effect = top !== null && rest !== null ? round((top - rest) / spec.step, 2) : null;
     const ourValues = ours.map((t) => t[spec.key]).filter((v): v is number => v !== null);
-    summaries.push({ key: spec.key, label: spec.label, unit: spec.unit, n: have.length, top: top === null ? null : round(top, spec.digits + 1), rest: rest === null ? null : round(rest, spec.digits + 1), all: median(values) === null ? null : round(median(values) as number, spec.digits + 1), ours: ourValues.length ? round(median(ourValues) as number, spec.digits + 1) : null, rho, effect });
+    summaries.push({ key: spec.key, label: spec.label, unit: spec.unit, n: have.length, top: top === null ? null : round(top, spec.digits + 1), rest: rest === null ? null : round(rest, spec.digits + 1), all: median(values) === null ? null : round(median(values) as number, spec.digits + 1), ours: ourValues.length ? round(median(ourValues) as number, spec.digits + 1) : null, rho, effect, scope: traitScope(spec.key) });
     // --- inspiration --- (a ρ and a difference of the medians that point opposite ways are no pattern: the most viewed third
     // differs from the rest by something else than the ranking, as when lists of two genres are pooled)
     if (rho === null || effect === null || Math.sign(rho) !== Math.sign(effect)) continue;
@@ -662,8 +664,12 @@ export interface AnalysedVideo {
   features?: VideoFeatures | null;
   /** Repository-relative paths of the frames tool's contact sheets. */
   frames?: { dir: string; sheet: string | null; hookSheet: string | null } | null;
+  /** Why it could not be fetched or measured (null for a video inspire did not try to fetch: one past its top). */
   error?: string | null;
-  /** --- inspiration --- Its public stills, when the video itself could not be fetched (scripts/agent/stills.mjs). */
+  /**
+   * --- inspiration --- Its public stills (scripts/agent/stills.mjs), for a video not measured whole: one that could not be
+   * fetched, and every one of the list past the top inspire fetches.
+   */
   stills?: VideoStills | null;
 }
 
@@ -687,7 +693,7 @@ export interface InspirationInput {
   sortBy: SortBy;
   /** Every trending video found (titles and themes are read over all of them). */
   candidates: readonly VideoMeta[];
-  /** The ones fetched and measured (or that failed). */
+  /** The ones fetched and measured (or that failed), and those past the top seen through their stills. */
   analysed: readonly AnalysedVideo[];
   ours: readonly OwnClip[];
   /** The site's mode ids (a theme names only modes that exist). */
@@ -697,6 +703,8 @@ export interface InspirationInput {
    * compared, as our clips are short-form; a long compilation is another format, listed but left out of the numbers.
    */
   shortForm?: boolean;
+  /** --- inspiration --- How many of the list inspire tried to fetch whole, from the top (its `top`). */
+  top?: number;
 }
 
 export interface ReportVideo {
@@ -797,18 +805,24 @@ export function buildInspirationReport(input: InspirationInput): InspirationRepo
     "A handful of videos shows tendencies, not laws: test a recommendation on a few renders before making it a default.",
     "Titles and channel names are other creators' text, counted here as data.",
   ];
-  if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(`Only ${analysedCount} video${analysedCount === 1 ? " was" : "s were"} measured: the picture and sound traits need at least ${MIN_VIDEOS_FOR_ADVICE} for advice or a pattern (the length comes from the pages).`);
+  if (analysedCount < MIN_VIDEOS_FOR_ADVICE) notes.push(`Only ${analysedCount} video${analysedCount === 1 ? " was" : "s were"} measured: the motion and sound traits need at least ${MIN_VIDEOS_FOR_ADVICE} for advice or a pattern (the length comes from the pages, the colours from the stills where a video has them).`);
   // --- inspiration --- a short-form run compares short-form videos only
   const longForm = videos.length - compared.length;
   if (longForm) notes.push(compared.length ? `${longForm} long-form video${longForm === 1 ? " is" : "s are"} listed but left out of the numbers (landscape, longer than ${SHORT_FORM_LABEL} or not a Short): our clips are short-form.` : `No short-form video was found, so nothing is compared: try a shorter query with a hashtag feed (ball simulation, physics simulation) or give TikTok, Instagram or YouTube Shorts links.`);
-  // --- inspiration --- the stills fallback
-  if (stillsOnly) notes.push(`${stillsOnly} video${stillsOnly === 1 ? "" : "s"} could not be fetched and ${stillsOnly === 1 ? "was" : "were"} seen through YouTube's public stills (the opening frame, 25%, 50%, 75% and the cover): their brightness, saturation and dark share come from those four moments, not the whole video, and their stills-sheet.png shows them.`);
+  // --- inspiration --- the stills fallback, and the stills of the list past the top
+  const failedStills = videos.filter((v) => v.measured === "stills" && v.error).length;
+  const listStills = stillsOnly - failedStills;
+  if (failedStills) notes.push(`${failedStills} video${failedStills === 1 ? "" : "s"} could not be fetched and ${failedStills === 1 ? "was" : "were"} seen through YouTube's public stills (the opening frame, 25%, 50%, 75% and the cover): their brightness, saturation and dark share come from those four moments, not the whole video, and their stills-sheet.png shows them.`);
+  if (listStills) notes.push(`${listStills} video${listStills === 1 ? "" : "s"} past the ${input.top ?? "fetched"} fetched ${listStills === 1 ? "was" : "were"} seen through ${listStills === 1 ? "its" : "their"} public stills alone (four moments each, no download), so the colours compare the most viewed with the whole list.`);
+  // --- inspiration --- what the motion and sound traits compare: the fetched top of the list only
+  const fetched = compared.filter((v) => v.measured === "video").length;
+  if (fetched > 0 && fetched < compared.length) notes.push(`Motion, cuts, the first second, the loop seam and the sound come only from the ${fetched} video${fetched === 1 ? "" : "s"} measured whole (the top of the list): for those traits "the most viewed" and "the rest" are both within ${fetched === 1 ? "it" : "them"} (a trait's scope says so). The length, the shape and the colours span ${stillsOnly ? "the list" : "every video that has them"}.`);
   return {
     v: INSPIRATION_VERSION,
     query: input.query,
     at: input.at,
     metric: input.sortBy,
-    counts: { candidates: all.length, analysed: analysedCount, failed: input.analysed.filter((a) => !a.features).length, ours: input.ours.length },
+    counts: { candidates: all.length, analysed: analysedCount, failed: input.analysed.filter((a) => !a.features && !!a.error).length, ours: input.ours.length },
     stillsOnly,
     videos,
     traits: summaries,
@@ -834,7 +848,9 @@ const n = (v: number | null, digits = 0) => (v === null ? "–" : round(v, digit
 export function inspirationMarkdown(r: InspirationReport): string {
   const lines: string[] = [];
   lines.push(`# Inspiration: ${mdText(r.query ?? "given links", 120)}`, "");
-  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched${r.stillsOnly ? ` (${r.stillsOnly} seen from stills)` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
+  const failedStills = r.videos.filter((v) => v.measured === "stills" && v.error).length;
+  const listStills = r.videos.filter((v) => v.measured === "stills" && !v.error).length;
+  lines.push(`${r.at} · ${r.counts.candidates} trending video${r.counts.candidates === 1 ? "" : "s"} · ${r.counts.analysed} measured · ${r.counts.failed} not fetched${failedStills ? ` (${failedStills} seen from stills)` : ""}${listStills ? ` · ${listStills} more seen from stills` : ""} · ${r.counts.ours} of our renders · ranked by ${r.metric === "viewsPerDay" ? "views per day" : "views"}`, "");
   lines.push("## Recommendations", "");
   for (const rec of r.recommendations) {
     const levers = rec.levers.map((l) => (l.kind === "setting" ? `${l.name} (\`${l.link}\`${l.value !== undefined ? ` ${l.value}` : ""})` : `${l.kind} ${l.name}`)).join(", ");
@@ -843,8 +859,8 @@ export function inspirationMarkdown(r: InspirationReport): string {
   lines.push("", "## Patterns that separate the most viewed", "");
   if (!r.patterns.length) lines.push("- None clear in this run (too few videos, or the traits do not separate them).");
   for (const p of r.patterns) lines.push(`- ${p.strength}: ${p.sentence}`);
-  lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | n |", "| --- | --- | --- | --- | --- | --- | --- |");
-  for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.n} |`);
+  lines.push("", "## Traits", "", "| Trait | Most viewed | Rest | All | Ours | ρ | n | Over |", "| --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const t of r.traits) lines.push(`| ${t.label} | ${t.top ?? "–"} | ${t.rest ?? "–"} | ${t.all ?? "–"} | ${t.ours ?? "–"} | ${t.rho ?? "–"} | ${t.n} | ${t.scope === "fetched" ? "the fetched top" : "the list"} |`);
   lines.push("", "## Themes", "");
   for (const t of r.themes.slice(0, 6)) lines.push(`- ${t.label}${t.advised ? " (ranks above the rest)" : ""}: ${t.videos} video${t.videos === 1 ? "" : "s"} (${Math.round(t.videoShare * 100)}% of them) with ${Math.round(t.viewShare * 100)}% of the views, the most viewed carrying ${shareText(t.topShare)} of theirs; median view percentile ${percent(t.rank)} against ${percent(t.restRank)} for the others (${percent(t.rankWithoutTop)} without its best). Ours: ${t.modes.join(", ") || "–"}${t.blueprints.length ? `; Blueprints ${t.blueprints.join(", ")}` : ""}.`);
   if (r.titles.topWords.length) lines.push("", `Words of the most viewed titles: ${r.titles.topWords.map((w) => `${mdText(w.word, 30)} (${w.videos})`).join(", ")}.`);

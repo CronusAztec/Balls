@@ -493,8 +493,17 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     const r = agent("inspire", args);
     expect(r.code, JSON.stringify(r.json)).toBe(0);
     const res = r.json.result;
-    expect(res.stillsOnly).toBe(1);
+    // --- inspiration --- every video not measured whole: the one that could not be fetched, and the whole list past the top
+    expect(res.videos.length).toBeGreaterThan(args.top + 1);
+    expect(res.stillsOnly).toBe(res.videos.length - 1);
+    expect(res.videos[0]).toMatchObject({ url: "https://www.youtube.com/shorts/FFJ5THnzdDE", analysed: true });
+    expect(res.videos[0].stillsSheet).toBeUndefined();
     expect(res.videos[1]).toMatchObject({ url: "https://www.youtube.com/shorts/o-DtHwlRIqU", analysed: false, stillsSheet: ".agent-out/frames/youtube-o-DtHwlRIqU/stills-sheet.png", error: expect.stringMatching(/Video unavailable/) });
+    for (const v of res.videos.slice(args.top)) {
+      expect(v, v.url).toMatchObject({ analysed: false, stillsSheet: expect.stringMatching(/^\.agent-out\/frames\/youtube-[\w-]{11}\/stills-sheet\.png$/) });
+      expect(v.error, v.url).toBeUndefined(); // (never tried: seen, not failed)
+    }
+    expect(res.counts).toMatchObject({ candidates: res.videos.length, analysed: 1, failed: 1 });
     const sheet = path.join(ROOT, res.videos[1].stillsSheet);
     expect(fs.readFileSync(sheet).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     const report = JSON.parse(fs.readFileSync(path.join(ROOT, res.report), "utf8"));
@@ -502,9 +511,16 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(seen).toMatchObject({ measured: "stills", stills: { colour: { stills: 4 } } });
     expect(seen.stills.files.map((f: { label: string }) => f.label)).toEqual(["start", "25%", "50%", "75%"]); // no cover: the host has none
     expect(seen.traits.meanLuma).toBeGreaterThan(0);
-    expect(fs.readFileSync(path.join(ROOT, res.markdown), "utf8")).toContain("(1 seen from stills)");
+    const listed = res.videos.length - args.top;
+    expect(fs.readFileSync(path.join(ROOT, res.markdown), "utf8")).toContain(`(1 seen from stills) · ${listed} more seen from stills`);
+    expect(report.notes.join(" ")).toContain(`${listed} videos past the ${args.top} fetched were seen through their public stills alone`);
+    expect(report.traits.find((t: { key: string }) => t.key === "meanSat")).toMatchObject({ n: res.videos.length, scope: "list" });
+    expect(report.traits.find((t: { key: string }) => t.key === "motion")).toMatchObject({ n: 1, scope: "fetched" });
+    // each video's own stills from that host only, and none of the one measured whole
     const asked = stillRequests().slice(before);
-    expect([...asked].sort()).toEqual(["frame0", "hq1", "hq2", "hq3", "oardefault"].map((n) => `/vi/o-DtHwlRIqU/${n}.jpg`));
+    const ids = res.videos.slice(1).map((v: { url: string }) => v.url.split("/").pop());
+    expect([...asked].sort()).toEqual(ids.flatMap((id: string) => ["frame0", "hq1", "hq2", "hq3", "oardefault"].map((n) => `/vi/${id}/${n}.jpg`)).sort());
+    expect(asked.some((a) => a.includes("FFJ5THnzdDE"))).toBe(false);
     // stills false: none read; a stills host that is not this machine: refused before anything runs
     const quiet = agent("inspire", { ...args, stills: false });
     expect(quiet.json.result.stillsOnly).toBe(0);

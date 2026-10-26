@@ -9,10 +9,11 @@
  *     recommendations in our levers) written to .agent-out/inspiration/<date>-<slug>/report.json and report.md;
  *  5. every measured video appended to .agent-out/inspiration/dataset.jsonl (or <dataset>.jsonl), once per video (its key),
  *     so the dataset grows across runs.
- * A video that cannot be fetched or measured stays in the report with its error; the run goes on. Unless stills is false, a
- * YouTube video that cannot be fetched is seen through its public stills instead (stills.mjs: the opening frame, 25, 50 and
- * 75%, the cover, on stills-sheet.png, and their colours measured). Every file is written through paths.mjs (fresh name,
- * then renamed into place) and stays under .agent-out/.
+ * A video that cannot be fetched or measured stays in the report with its error; the run goes on. Unless stills is false,
+ * every YouTube video of the list that is not measured whole – one that cannot be fetched, and every one past the top – is
+ * seen through its public stills (stills.mjs: the opening frame, 25, 50 and 75%, the cover, on stills-sheet.png, and their
+ * colours measured), so the colours compare the most viewed with the whole list, not with the next few of the top. Every
+ * file is written through paths.mjs (fresh name, then renamed into place) and stays under .agent-out/.
  */
 import fs from "fs";
 import path from "path";
@@ -24,6 +25,8 @@ import { OUT_DIR, PathError, ROOT, isInside, outFolder, repoRelative, writeFileS
 
 /** Videos fetched and measured at once. */
 const FETCHES = 2;
+/** --- inspiration --- Videos whose stills are read at once (each reads three stills at a time). */
+const STILL_VIDEOS = 3;
 const OWN_VIDEO = /\.(mp4|webm|mov|mkv|m4v)$/i;
 
 /**
@@ -132,6 +135,19 @@ export async function inspireTool(tb, args) {
       return { meta, rowKey: meta.key, error, stills };
     }
   });
+  // --- inspiration --- the rest of the list through its stills: the colours of every video, not only the top's
+  const rest = origin ? found.videos.slice(picked.length) : [];
+  if (rest.length) note(`the stills of the other ${rest.length}`);
+  const listStills = await mapLimit(rest, STILL_VIDEOS, async (meta) => {
+    try {
+      const stills = await fetchStills(tb, ffmpeg, meta, { name: tb.videoFileName(meta), origin });
+      return stills ? { meta, rowKey: meta.key, error: null, stills } : null;
+    } catch (s) {
+      note(`no stills of ${meta.url}: ${s instanceof Error ? s.message : String(s)}`);
+      return null;
+    }
+  });
+  analysed.push(...listStills.filter(Boolean));
   const ours = [];
   if (oursDir && (args.oursMax ?? 8) > 0) {
     for (const file of ownRenders(oursDir, args.oursMax ?? 8)) {
@@ -143,18 +159,19 @@ export async function inspireTool(tb, args) {
     }
   }
   // --- inspiration --- one entry per video: two rows that turn out to be the same video (their pages name one id) count
-  // once, the measured one kept, in the report's numbers and in the dataset
+  // once, the best measured one kept (the video, then its stills), in the report's numbers and in the dataset
   const byKey = new Map();
+  const grade = (a) => (a.features ? 2 : a.stills ? 1 : 0);
   for (const a of analysed) {
     const had = byKey.get(a.meta.key);
-    if (!had || (!had.features && a.features)) byKey.set(a.meta.key, a);
+    if (!had || grade(a) > grade(had)) byKey.set(a.meta.key, a);
   }
   const unique = [...byKey.values()];
   const seen = new Set();
   const candidates = found.videos
     .map((v) => analysed.find((a) => a.rowKey === v.key)?.meta ?? v)
     .filter((m) => !seen.has(m.key) && seen.add(m.key));
-  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed: unique, ours, modes: modeIds(), shortForm: (args.maxDurationSec ?? tb.SHORT_MAX_SEC) <= tb.SHORT_MAX_SEC });
+  const report = tb.buildInspirationReport({ query: found.query, at, sortBy, candidates, analysed: unique, ours, modes: modeIds(), shortForm: (args.maxDurationSec ?? tb.SHORT_MAX_SEC) <= tb.SHORT_MAX_SEC, top: picked.length });
   const runDir = outFolder("inspiration", tb.runFolderName(at, found.query));
   const reportFile = writeFileSafe(path.join(runDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
   const markdownFile = writeFileSafe(path.join(runDir, "report.md"), tb.inspirationMarkdown(report));
@@ -179,7 +196,7 @@ export async function inspireTool(tb, args) {
     stillsOnly: report.stillsOnly,
     recommendations: report.recommendations.slice(0, 12).map((r) => ({ area: r.area, basis: r.basis, advice: r.advice, levers: r.levers })),
     patterns: report.patterns.slice(0, 8),
-    themes: report.themes.slice(0, 4).map((t) => ({ label: t.label, viewShare: t.viewShare, videos: t.videos, modes: t.modes, blueprints: t.blueprints })),
+    themes: report.themes.slice(0, 4).map((t) => ({ label: t.label, videos: t.videos, viewShare: t.viewShare, rank: t.rank, restRank: t.restRank, advised: t.advised, modes: t.modes, blueprints: t.blueprints })),
     videos: report.videos.map((v) => ({ rank: v.rank, url: v.url, title: v.title, views: v.views, viewsPerDay: v.viewsPerDay, durationSec: v.durationSec, analysed: v.analysed, sheet: v.frames?.sheet ?? null, hookSheet: v.frames?.hookSheet ?? null, ...(v.stills ? { stillsSheet: v.stills.sheet } : {}), ...(v.compared ? {} : { longForm: true }), ...(v.error ? { error: v.error } : {}) })),
     ...(found.refused ? { refused: found.refused } : {}),
     ...(found.errors ? { errors: found.errors } : {}),
