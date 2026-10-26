@@ -5,7 +5,10 @@
  * .agent-out/frames/<name>/. The ffmpeg command lines are pure (src/lib/videoAnalysis/ffmpegArgs.ts): every input is
  * opened as a local file only, every output is a bare name in that folder, written under a fresh name and renamed into
  * place (a link a checkout carries there is replaced, never written through). A link is fetched into .agent-out/inbox/
- * first (videoSources.mjs); the frames of an earlier run in the folder are replaced.
+ * first (videoSources.mjs); the frames of an earlier run in the folder are replaced. The work ceilings (ffmpegArgs.ts
+ * framePlan, sheetPick): never more frames than the video has or than FRAMES_CEILING of each kind, and a sheet of
+ * SHEET_TILES_CEILING frames at most (an even pick of them); the result's `limited` says what was cut, and a sheet ffmpeg
+ * cannot make is null, the frames still returned.
  */
 import crypto from "crypto";
 import fs from "fs";
@@ -56,9 +59,10 @@ export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSe
   const dir = outFolder("frames", name);
   for (const f of fs.readdirSync(dir)) if (OUR_FILES.test(f)) fs.rmSync(path.join(dir, f), { force: true });
   const pad = (i, n) => String(i + 1).padStart(Math.max(2, String(n).length), "0");
+  const plan = tb.framePlan(info.durationSec, info.fps, { count, hookSec, hookStepSec });
   const shots = [
-    ...tb.frameTimes(info.durationSec, count).map((sec, i, all) => ({ kind: "frame", sec, name: `frame-${pad(i, all.length)}.png` })),
-    ...tb.hookTimes(info.durationSec, hookSec, hookStepSec).map((sec, i, all) => ({ kind: "hook", sec, name: `hook-${pad(i, all.length)}.png` })),
+    ...plan.frames.map((sec, i, all) => ({ kind: "frame", sec, name: `frame-${pad(i, all.length)}.png` })),
+    ...plan.hook.map((sec, i, all) => ({ kind: "hook", sec, name: `hook-${pad(i, all.length)}.png` })),
   ];
   const written = new Set();
   await eachLimit(shots, PASSES, async (s) => {
@@ -71,14 +75,22 @@ export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSe
   const portrait = info.width !== null && info.height !== null && info.height > info.width;
   const tileW = tb.SHEET_TILE_WIDTH;
   const tileH = info.width && info.height ? Math.round((tileW * info.height) / info.width) : Math.round(tileW * (portrait ? 16 / 9 : 9 / 16));
-  const makeSheet = async (list, sheetName) => {
+  const limited = { ...plan.limited, ...(plan.limited?.count ? { count: { ...plan.limited.count, made: frames.length } } : {}) };
+  const makeSheet = async (list, sheetName, key) => {
     if (!sheet || !list.length) return null;
-    const names = list.map((f) => path.basename(f.file));
-    const ok = await writePng(ffmpeg, dir, sheetName, (tmpName) => tb.sheetArgs(names, tmpName, tb.sheetGrid(names.length, portrait), tileW, tileH));
-    return ok ? rel(sheetName) : null;
+    // --- inspiration --- at most SHEET_TILES_CEILING pictures, spread evenly; a sheet that fails leaves the frames as they are
+    const names = tb.sheetPick(list.length).map((i) => path.basename(list[i].file));
+    if (names.length < list.length) limited[key] = { frames: list.length, tiles: names.length };
+    try {
+      const ok = await writePng(ffmpeg, dir, sheetName, (tmpName) => tb.sheetArgs(names, tmpName, tb.sheetGrid(names.length, portrait), tileW, tileH));
+      return ok ? rel(sheetName) : null;
+    } catch (e) {
+      process.stderr.write(`agent frames: no ${sheetName}: ${e instanceof Error ? e.message : String(e)}\n`);
+      return null;
+    }
   };
-  const [sheetFile, hookSheet] = await Promise.all([makeSheet(frames, "sheet.png"), makeSheet(hook, "hook-sheet.png")]);
-  return { dir: repoRelative(dir), durationSec: info.durationSec, width: info.width, height: info.height, frames, hook, sheet: sheetFile, hookSheet };
+  const [sheetFile, hookSheet] = await Promise.all([makeSheet(frames, "sheet.png", "sheet"), makeSheet(hook, "hook-sheet.png", "hookSheet")]);
+  return { dir: repoRelative(dir), durationSec: info.durationSec, width: info.width, height: info.height, frames, hook, sheet: sheetFile, hookSheet, ...(Object.keys(limited).length ? { limited } : {}) };
 }
 
 /** The frames folder's default name: the inbox file's own (<platform>-<id>), else the file's name and a hash of its path. */

@@ -31,7 +31,7 @@ import {
   topCount,
   traitSummaries,
 } from "@/lib/agentKit/inspiration";
-import { IMAGE_DEMUXERS, SAMPLE_BYTES, STILL_DEMUXERS, VIDEO_DEMUXERS, frameArgs, frameTimes, hookTimes, sheetArgs, sheetGrid, stillArgs, stillSampleArgs } from "@/lib/videoAnalysis/ffmpegArgs";
+import { FRAMES_CEILING, IMAGE_DEMUXERS, SAMPLE_BYTES, SHEET_TILES_CEILING, STILL_DEMUXERS, VIDEO_DEMUXERS, frameArgs, framePlan, frameTimes, hookTimes, sheetArgs, sheetGrid, sheetPick, stillArgs, stillSampleArgs } from "@/lib/videoAnalysis/ffmpegArgs";
 import type { VideoFeatures } from "@/lib/videoAnalysis/features";
 import { LOUDNESS_TARGET_LUFS } from "@/lib/audio/loudness";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -222,6 +222,38 @@ describe("frames for a vision-capable AI (--- inspiration ---)", () => {
     expect(sheetGrid(12, true)).toEqual({ cols: 6, rows: 2 });
     expect(sheetGrid(12, false)).toEqual({ cols: 4, rows: 3 });
     expect(sheetGrid(3, true)).toEqual({ cols: 3, rows: 1 });
+  });
+
+  // --- inspiration --- count 1500 ran 1500 ffmpeg passes and a sheet argument past Linux's 128 KiB; 1e9 ran out of heap
+  it("cuts the frames to the work ceilings – no more than the video has, FRAMES_CEILING of each kind, SHEET_TILES_CEILING a sheet – and says so", () => {
+    expect(frameTimes(10, 1e9)).toHaveLength(FRAMES_CEILING);
+    expect(frameTimes(10, Number.POSITIVE_INFINITY)).toEqual([]);
+    expect(hookTimes(3600, 3600, 1e-9)).toHaveLength(FRAMES_CEILING);
+    // a 6 s clip at 30 fps has 180 frames, and the hook no finer step than one of them
+    const many = framePlan(6, 30, { count: 1500, hookSec: 0, hookStepSec: 0.25 });
+    expect(many.frames).toHaveLength(180);
+    expect(many.hook).toEqual([]);
+    expect(many.limited).toEqual({ count: { asked: 1500, made: 180 } });
+    expect(many.frames.slice(-2)).toEqual([5.95, 5.966]); // (the last at the last frame's start, where a seek still finds one)
+    const fine = framePlan(6, 30, { count: 12, hookSec: 3, hookStepSec: 0.01 });
+    expect(fine.hook).toHaveLength(90); // (the opening 3 s, a frame every 1/30 s)
+    expect(fine.limited).toEqual({ hookStepSec: { asked: 0.01, used: 0.0333 } });
+    const huge = framePlan(36_000, 60, { count: 1e9, hookSec: 36_000, hookStepSec: 0.04 });
+    expect([huge.frames.length, huge.hook.length]).toEqual([FRAMES_CEILING, FRAMES_CEILING]);
+    expect(huge.limited?.hookStepSec?.used).toBeCloseTo(60, 1);
+    // the defaults are untouched, and an unknown rate leaves the fixed ceiling alone
+    expect(framePlan(6, 30, { count: 12, hookSec: 3, hookStepSec: 0.25 })).toEqual({ frames: frameTimes(6, 12), hook: hookTimes(6), limited: null });
+    expect(framePlan(6, null, { count: 1500, hookSec: 0, hookStepSec: 0.25 }).frames).toHaveLength(FRAMES_CEILING);
+    // a sheet shows SHEET_TILES_CEILING frames at most, spread evenly, and its filter graph stays far below 128 KiB
+    expect(sheetPick(12)).toEqual([...Array(12).keys()]);
+    const picked = sheetPick(1500);
+    expect(picked).toHaveLength(SHEET_TILES_CEILING);
+    expect(picked.every((v, i) => i === 0 || v > picked[i - 1])).toBe(true);
+    expect([picked[0], picked[picked.length - 1]]).toEqual([6, 1493]);
+    const names = picked.map((i) => `frame-${String(i + 1).padStart(4, "0")}.png`);
+    const big = sheetArgs(names, "sheet.png", sheetGrid(names.length, true), 240, 427);
+    expect(big[big.indexOf("-filter_complex") + 1].length).toBeLessThan(32 * 1024);
+    expect(big.join(" ").length).toBeLessThan(128 * 1024);
   });
 
   it("open the video as a local file only, write bare names only, never over a file that is there", () => {

@@ -1,5 +1,6 @@
 import { validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { DEFAULT_QUERY, SHORT_MAX_SEC, URL_MAX_CHARS } from "./videoSources";
+import { FRAMES_CEILING, SHEET_TILES_CEILING } from "@/lib/videoAnalysis/ffmpegArgs";
 
 /*
  * --- agent-cli --- The fixed tool table of the agent toolbox: one entry per command of `npm run agent -- <tool> --json '{…}'`
@@ -230,9 +231,9 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
       properties: {
         path: { type: "string", minLength: 1, maxLength: 1000, description: "The video file inside the repository. Give path or url." },
         url: videoUrl,
-        count: { type: "integer", minimum: 1, description: "Frames spread evenly over the video (default 12)." },
+        count: { type: "integer", minimum: 1, description: `Frames spread evenly over the video (default 12; never more than the video has, nor ${FRAMES_CEILING}: the result's limited says so; a sheet shows ${SHEET_TILES_CEILING} of them at most).` },
         hookSec: { type: "number", minimum: 0, description: "The opening seconds shown in finer steps (default 3; 0: none)." },
-        hookStepSec: { type: "number", minimum: 0.04, description: "The step of the opening frames (default 0.25 s)." },
+        hookStepSec: { type: "number", minimum: 0.04, description: `The step of the opening frames (default 0.25 s; no finer than one frame, and ${FRAMES_CEILING} frames at most).` },
         width: { type: "integer", minimum: 64, description: "Each frame's width in px (default 540; the height keeps the picture's shape)." },
         sheet: { type: "boolean", description: "Also lay the frames out on contact sheets (default true)." },
         out,

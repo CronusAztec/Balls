@@ -145,7 +145,10 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
 - **`frames`** writes `count` frames spread over a video (default 12), its first `hookSec` seconds every `hookStepSec`
   (default 3 s every 0.25 s: the hook a viewer decides on) and a contact sheet of each, into `.agent-out/frames/<name>/`:
   sheet.png, hook-sheet.png, frame-01.png… and hook-01.png…. A model that reads images looks at the two sheets to see what
-  the numbers describe.
+  the numbers describe. No number is refused for being large, but the work has ceilings (`FRAMES_CEILING` and
+  `SHEET_TILES_CEILING` in `src/lib/videoAnalysis/ffmpegArgs.ts`): never more frames than the video has, 600 of each kind
+  at most, a hook step no finer than one frame, and 120 pictures a sheet, an even pick of the frames. The result's `limited`
+  says what was cut. A sheet ffmpeg cannot make comes back as null, with the frames.
 - **`inspire`** runs the whole pipeline: `trending` (short-form by default), the top `top` videos fetched, measured as
   `analyse` measures a file and cut into frames, our own renders measured alike (the newest under `.agent-out/render`, or
   the folder `ours` names), and a report in `.agent-out/inspiration/<date>-<slug>/` (report.json and report.md). The

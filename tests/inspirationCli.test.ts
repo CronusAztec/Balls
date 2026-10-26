@@ -5,10 +5,13 @@ import path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_QUERY, parseJsonLines, type VideoMeta } from "@/lib/agentKit/videoSources";
 import { runFolderName } from "@/lib/agentKit/inspiration";
+import * as ffmpegArgs from "@/lib/videoAnalysis/ffmpegArgs";
 import { hookTimes } from "@/lib/videoAnalysis/ffmpegArgs";
+import { parseMediaInfo } from "@/lib/videoAnalysis/ffmpegParse";
 import { AGENT_TOOLS, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
+import { extractFrames } from "../scripts/agent/frames.mjs";
 import * as videoSources from "@/lib/agentKit/videoSources";
 import { readPages, ytDlpCommand } from "../scripts/agent/videoSources.mjs";
 import { PathError, outFolder } from "../scripts/agent/paths.mjs";
@@ -278,6 +281,26 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(byUrl.json.result.fetched).toMatchObject({ url, meta: { key: "tiktok:7508828818702978326" } });
     // a link given as a path is still no file: the answer says how
     expect(agent("analyse", { path: url }).json.error).toMatch(/give a video link as url/);
+  }, 240_000);
+
+  // --- inspiration --- the frames' work ceilings end to end, and a contact sheet ffmpeg cannot make
+  it("makes no more frames than the video has, says what it cut, and returns the frames when a sheet cannot be made", async () => {
+    if (!ffmpeg) return;
+    const small = path.join(TEST_DIR, "small.mp4");
+    const make = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=64x112:r=10:d=2", "-c:v", "mpeg4", "-q:v", "4", small], { encoding: "utf8", timeout: 60_000 });
+    expect(make.status, make.stderr).toBe(0);
+    const out = `test-inspiration-${process.pid}`;
+    const r = agent("frames", { path: path.relative(ROOT, small), out, count: 1_000_000_000, hookSec: 0, width: 64 });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    expect(r.json.result.frames).toHaveLength(20); // (2 s at 10 fps)
+    expect(r.json.result.limited).toEqual({ count: { asked: 1_000_000_000, made: 20 } });
+    expect(fs.readFileSync(path.join(ROOT, r.json.result.sheet)).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    // a sheet whose ffmpeg run fails to start (as E2BIG did) leaves the frames as they are, with no sheet
+    const failing = { ...ffmpegArgs, parseMediaInfo, sheetArgs: () => { throw new Error("spawn E2BIG"); } };
+    const res = await extractFrames(failing, ffmpeg, small, { name: out, count: 4, hookSec: 0 });
+    expect(res.frames).toHaveLength(4);
+    expect(res.sheet).toBeNull();
+    expect(fs.readdirSync(path.join(ROOT, res.dir)).sort()).toEqual(["frame-01.png", "frame-02.png", "frame-03.png", "frame-04.png"]);
   }, 240_000);
 
   it("runs the whole inspiration pipeline: a report in our levers, a failed video kept with its error, the dataset grown once per video", () => {

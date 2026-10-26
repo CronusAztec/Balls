@@ -104,20 +104,74 @@ const bareName = (name: string, what: string) => {
   return name;
 };
 
-/** `count` moments spread evenly over the video: the middle of each of `count` equal parts (seconds, to the millisecond). */
-export function frameTimes(durationSec: number, count: number): number[] {
-  const n = Math.max(0, Math.floor(count));
+/*
+ * --- inspiration --- The frames tool's work ceilings, in the spirit of lib/uncap.ts MEMORY_CEILINGS: no number is refused
+ * for being large, it is cut to what can be made and the result says so (framePlan's `limited`). A frame is one ffmpeg pass
+ * and a PNG on disk, and a video has no more frames than its length times its rate; a contact sheet's filter graph is one
+ * argument, and Linux takes 128 KiB at most in one (MAX_ARG_STRLEN, reached at about 1,040 tiles).
+ */
+/** The most frames of each kind one call makes (the evenly spread ones, and the hook's). */
+export const FRAMES_CEILING = 600;
+/** The most pictures on one contact sheet; more frames than that: an even pick of them (sheetPick). */
+export const SHEET_TILES_CEILING = 120;
+
+const whole = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
+
+/** `count` moments spread evenly over the video: the middle of each of `count` equal parts (seconds, to the millisecond), at most `max`. */
+export function frameTimes(durationSec: number, count: number, max = FRAMES_CEILING): number[] {
+  const n = Math.min(whole(count), whole(max));
   if (!(durationSec > 0) || n === 0) return [];
   return Array.from({ length: n }, (_, i) => Math.round(((i + 0.5) * durationSec * 1000) / n) / 1000);
 }
 
-/** The opening `hookSec` seconds every `stepSec` from 0 (the hook a viewer decides on), never past the video's end. */
-export function hookTimes(durationSec: number, hookSec = HOOK_SEC, stepSec = HOOK_STEP_SEC): number[] {
-  if (!(durationSec > 0) || !(hookSec > 0) || !(stepSec > 0)) return [];
+/**
+ * The opening `hookSec` seconds every `stepSec` from 0 (the hook a viewer decides on), never past the video's end, and at
+ * most `max` of them (a finer step is widened to spread `max` over the opening).
+ */
+export function hookTimes(durationSec: number, hookSec = HOOK_SEC, stepSec = HOOK_STEP_SEC, max = FRAMES_CEILING): number[] {
+  if (!(durationSec > 0) || !(hookSec > 0) || !(stepSec > 0) || whole(max) === 0) return [];
   const end = Math.min(hookSec, durationSec - 0.05);
+  const step = Math.max(stepSec, end / whole(max));
   const out: number[] = [];
-  for (let i = 0; i * stepSec < end - 1e-9; i++) out.push(Math.round(i * stepSec * 1000) / 1000);
+  for (let i = 0; i * step < end - 1e-9 && out.length < whole(max); i++) out.push(Math.round(i * step * 1000) / 1000);
   return out;
+}
+
+export interface FramePlan {
+  frames: number[];
+  hook: number[];
+  /** What the ceilings cut, null when nothing was: the frames asked for and made, the hook's step asked for and used. */
+  limited: { count?: { asked: number; made: number }; hookStepSec?: { asked: number; used: number } } | null;
+}
+
+/**
+ * --- inspiration --- The moments the frames tool takes (see the ceilings above): `count` spread over the video, never more
+ * than FRAMES_CEILING or than the video has (its length × `fps`, when ffmpeg names the rate), and the opening `hookSec`
+ * every `hookStepSec`, no finer than one frame and FRAMES_CEILING at most.
+ */
+export function framePlan(durationSec: number, fps: number | null, ask: { count: number; hookSec: number; hookStepSec: number }): FramePlan {
+  const rate = fps !== null && Number.isFinite(fps) && fps > 0 ? fps : null;
+  const inVideo = rate !== null && durationSec > 0 ? Math.max(1, Math.floor(durationSec * rate)) : FRAMES_CEILING;
+  // (never past the last frame's start: a seek beyond it finds no frame, which the middle of the last part is when the
+  // parts are about a frame long)
+  const lastSec = rate !== null ? Math.max(0, Math.floor((durationSec - 1 / rate) * 1000) / 1000) : durationSec;
+  const frames = frameTimes(durationSec, ask.count, Math.min(FRAMES_CEILING, inVideo)).map((t) => Math.min(t, lastSec));
+  const end = Math.min(ask.hookSec, durationSec - 0.05);
+  let step = ask.hookStepSec > 0 ? ask.hookStepSec : 0; // (no step: no hook)
+  if (step > 0 && rate !== null) step = Math.max(step, 1 / rate);
+  if (end > 0 && step > 0 && end / step > FRAMES_CEILING) step = end / FRAMES_CEILING;
+  const hook = hookTimes(durationSec, ask.hookSec, step);
+  const limited: NonNullable<FramePlan["limited"]> = {};
+  if (durationSec > 0 && frames.length < whole(ask.count)) limited.count = { asked: ask.count, made: frames.length };
+  if (hook.length && step > ask.hookStepSec) limited.hookStepSec = { asked: ask.hookStepSec, used: Math.round(step * 10000) / 10000 };
+  return { frames, hook, limited: Object.keys(limited).length ? limited : null };
+}
+
+/** --- inspiration --- Which of `n` frames a contact sheet shows: all of them up to `max`, else `max` spread evenly (indexes). */
+export function sheetPick(n: number, max = SHEET_TILES_CEILING): number[] {
+  const total = whole(n);
+  const keep = Math.min(total, Math.max(1, whole(max)));
+  return Array.from({ length: keep }, (_, i) => (keep === total ? i : Math.floor(((i + 0.5) * total) / keep)));
 }
 
 /** A contact sheet's grid: up to 6 columns for a portrait video, 4 for a landscape one. */
