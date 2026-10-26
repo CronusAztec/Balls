@@ -7717,7 +7717,8 @@ await smokeBlock("review-fix-modes-gerald-odd", async () => {
 // the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
 {
   // (a 10 s clip – the Clip Length slider's start, not the shortest clip: since 1.16.0 any length above 0 records,
-  // MEANINGFUL_FLOORS.recordingDuration – at the slowest slow motion, whose windows last 1.5 s)
+  // MEANINGFUL_FLOORS.recordingDuration – at the Slow motion slider's slowest factor, 0.2, not the slowest slow motion: since
+  // 1.16.0 a factor down to 0 plays, MEANINGFUL_FLOORS.slowMoFactor; its windows last 1.5 s)
   const CLIP_MS = 10000;
   await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=10`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();

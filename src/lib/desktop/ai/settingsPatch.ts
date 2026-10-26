@@ -77,14 +77,16 @@ const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) =
   // --- review fix (blueprint) --- (a new game plays in place of a link's, with its own sliders: validateSettingsPatch)
   blPreset: (current) => `Mode Lab's game, one of ${BLUEPRINT_PRESET_IDS.join(", ")}${current.blSpec ? " (the page plays a game from a link now: a game named here takes its place)" : ""}; a new game starts with its own slider values unless blParams is set with it`,
   blParams: (current) => {
-    const base = resolveBlueprintSpec(blueprintSettingsOf(current)).base;
+    const resolved = resolveBlueprintSpec(blueprintSettingsOf(current));
+    const base = resolved.base;
     const params = base.params;
     if (!params.length) return "Mode Lab's slider values (this game has none)";
-    // --- unlimited-sizes --- (each slider as a setting is said: its real bound, then its comfort range)
-    const bounds = blueprintParamBounds(base);
+    // --- unlimited-sizes --- (each slider as a setting is said: its real bound, then its comfort range; a bound that depends on
+    // the other sliders – rows under the tile ceiling given the columns – read with their values now, as the panel's fields are)
+    const bounds = blueprintParamBounds(base, resolved.blueprint);
     const each = params.map((p, i) => {
       const b = bounds[i] ?? {};
-      return `${p.id} (${b.integer ? "whole number" : "number"} ${describeBounds(b.min ?? -Infinity, b.max ?? Infinity, b.above === true)}, slider ${p.min}–${p.max}, step ${p.step})`;
+      return `${p.id} (${b.integer ? "whole number" : "number"} ${describeBounds(b.min ?? -Infinity, b.max ?? Infinity, b.above === true, b.below === true)}, slider ${p.min}–${p.max}, step ${p.step})`;
     });
     return `Mode Lab's slider values, comma-separated in this order: ${each.join(", ")}; a slider range is a comfort range, never a limit: a value past it plays as typed within the game's own bounds; an empty place keeps the game's own value`;
   },
@@ -212,10 +214,14 @@ function describeUnlimited(key: string, range: { min: number; max: number; step:
   return describeBounds(min, max, above === true);
 }
 
-/** --- unlimited-sizes --- Bounds as the prompt says them: `from 50, no upper limit`, `above 0 up to 225`, `any value, no upper limit`. */
-function describeBounds(min: number, max: number, above: boolean): string {
+/**
+ * --- unlimited-sizes --- Bounds as the prompt says them: `from 50, no upper limit`, `above 0 up to 225`, `any value, no upper
+ * limit`, and – a top the value must stay under (`below`: a Blueprint's tiles' inner edge under the outer one) – `from 0.05 and
+ * below 0.8`.
+ */
+function describeBounds(min: number, max: number, above: boolean, below = false): string {
   const from = Number.isFinite(min) ? (above ? `above ${min}` : `from ${min}`) : "any value";
-  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit`;
+  return Number.isFinite(max) ? `${from} ${below ? "and below" : "up to"} ${max}` : `${from}, no upper limit`;
 }
 
 /** The prefix of the settings that belong to a mode (its block of the panel), so the assistant can tune the mode on the page. */

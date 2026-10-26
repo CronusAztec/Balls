@@ -502,6 +502,18 @@ export function paramPathSteps(path: string): (string | number)[] | null {
   return (PARAM_SECTIONS as readonly string[]).includes(steps[0] as string) ? steps : null;
 }
 
+// --- unlimited-sizes --- one spelling per number
+/**
+ * A path as the sanitizer's walker spells it (`bodies[00].radius` → `bodies[0].radius`: names joined by dots, an index as
+ * `[n]`), or null for a path PARAM_PATH refuses. A parameter's `at` is stored this way, so its bound is found by it and two
+ * sliders never share one number under two spellings.
+ */
+export function canonicalParamPath(path: string): string | null {
+  const steps = paramPathSteps(path);
+  if (!steps) return null;
+  return steps.reduce<string>((out, s) => (typeof s === "number" ? `${out}[${s}]` : out ? `${out}.${s}` : s), "");
+}
+
 /** The container a path's last step is in and that step (own properties only; null when the path does not reach). */
 function paramSlot(root: unknown, path: string): { holder: Record<string, unknown> | unknown[]; key: string | number } | null {
   const steps = paramPathSteps(path);

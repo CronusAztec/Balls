@@ -4,10 +4,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramBounds, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type BlueprintNumberBound, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramBounds, paramPlayed, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type BlueprintNumberBound, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
-import { isIntegerRange } from "@/lib/unlimited"; // --- unlimited-sizes ---
-import type { NumberRules, NumericRange } from "@/lib/uncap";
+import type { NumberRules } from "@/lib/uncap"; // --- unlimited-sizes ---
 
 export interface BlueprintSectionProps {
   t: Translate;
@@ -84,15 +83,28 @@ export function blueprintProblemKey(code: CheckProblem, slowMotion: boolean): st
   return code === "slow" && !slowMotion ? "slowRealTime" : code;
 }
 
+/** --- unlimited-sizes --- The decimals a value is written with (0.4 → 1, 0.0004 → 4, 1.5e-7 → 8), as many as it has. */
+function decimalsOf(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const m = /^-?\d+(?:\.(\d+))?(?:e([+-]\d+))?$/.exec(String(value));
+  if (!m) return 0;
+  return Math.max(0, (m[1]?.length ?? 0) - Number(m[2] ?? 0));
+}
+
+/** --- unlimited-sizes --- The most decimals a slider's value shows: the number field next to it holds the exact value. */
+const DISPLAY_DECIMALS_MAX = 6;
+
 /**
  * --- review fix (blueprint) --- A slider's value as the panel shows it: in the page's number format, with as many decimals
  * as its step has, and in its unit (paramUnit(): "6 s", "21°", "30°/s", "0,6 px", "300 px/s"); a count shows bare. `unitText`
- * says a unit's message (Blueprint.unit.<unit>) with the number filled in.
+ * says a unit's message (Blueprint.unit.<unit>) with the number filled in. --- unlimited-sizes --- A typed value keeps its own
+ * decimals too (a 0.4 px ball on a slider that steps by 1 shows 0.4 px, never 0 px), up to DISPLAY_DECIMALS_MAX.
  */
 export function blueprintParamDisplay(bp: Blueprint, i: number, value: number, locale: string, unitText: (unit: Exclude<ParamUnit, "">, n: string) => string): string {
   const step = bp.params[i]?.step ?? 1;
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
-  const n = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
+  const most = Math.max(decimals, Math.min(DISPLAY_DECIMALS_MAX, decimalsOf(value)));
+  const n = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: most }).format(value);
   const unit = paramUnit(bp, i);
   return unit ? unitText(unit, n) : n;
 }
@@ -100,17 +112,18 @@ export function blueprintParamDisplay(bp: Blueprint, i: number, value: number, l
 /**
  * --- unlimited-sizes --- A slider's number field rules: the bound the Blueprint's language holds that number to
  * (`paramBounds()`, the sanitizer's own rule at the parameter's path: a ring gap of at least 5° and at most 180°, a target
- * tier from 1 to 99, a spin of any value), never the slider's start or end – those only shape the drag, which the catalog
- * tunes so each game still makes a clip at both ends. A value inside the bound is kept as typed (a still exit, a 20° gap), an
- * arrow press steps on from it, and one past it is refused with the bound named. Whole numbers where the language counts or
- * the slider steps by whole numbers.
+ * tier from 1 to 99, a spin of any value), never the slider's start, end or step – those only shape the drag, which the
+ * catalog tunes so each game still makes a clip at both ends. A value inside the bound is kept as typed (a still exit, a 20°
+ * gap, a 22.5° gap on a slider that steps by 1), an arrow press steps on from it, and one past it is refused with the bound
+ * named. Whole numbers only where the language counts (rings, tiers, rows): the sanitizer's own `int` rule.
  */
-export function blueprintParamRules(bound: BlueprintNumberBound, range: NumericRange): NumberRules {
+export function blueprintParamRules(bound: BlueprintNumberBound): NumberRules {
   return {
     ...(bound.min !== undefined ? { min: bound.min } : {}),
     ...(bound.above ? { above: true } : {}),
     ...(bound.max !== undefined ? { max: bound.max } : {}),
-    integer: bound.integer === true || isIntegerRange(range),
+    ...(bound.below ? { below: true } : {}),
+    integer: bound.integer === true,
   };
 }
 
@@ -143,7 +156,9 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   const link = blueprintLinkNotice(resolved);
   const base = resolved.base;
   const values = parseParamValues(s.blParams);
-  const bounds = useMemo(() => paramBounds(base), [base]); // --- unlimited-sizes --- (each number field's floor and top: the language's, at the slider's path)
+  // --- unlimited-sizes --- each number field's floor and top: the language's, at the slider's path, read on the spec it plays
+  // (a bound that depends on the other sliders – rows under the tile ceiling given the columns – follows their values)
+  const bounds = useMemo(() => paramBounds(base, resolved.blueprint), [base, resolved.blueprint]);
   const catalogKey = (id: string, key: string) => (b.has(`${id}.${key}`) ? b(`${id}.${key}`) : null);
   const name = (!fromLink && catalogKey(resolved.catalogId, "name")) || base.meta.name;
   const description = (!fromLink && catalogKey(resolved.catalogId, "description")) || base.meta.description;
@@ -311,9 +326,10 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
           const paramT = Object.assign((key: string) => (key === `blParam${i}` ? label : t(key)), t) as Translate;
           // the value in the page's number format, with its unit (s, °, °/s, px, px/s, px/s²)
           const display = blueprintParamDisplay(base, i, value, locale, (unit, n) => unitT(unit, { n }));
-          // --- unlimited-sizes --- the track is the spec's comfort range; the number field takes anything the language does
+          // --- unlimited-sizes --- the track is the spec's comfort range; the number field takes anything the language does, and
+          // a link's value the game plays otherwise (past the language's bound) says what plays
           const range = { min: p.min, max: p.max, step: p.step };
-          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={range} rules={blueprintParamRules(bounds[i] ?? {}, range)} onChange={(v) => setParam(i, v)} display={display} />;
+          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={range} rules={blueprintParamRules(bounds[i] ?? {})} plays={paramPlayed(base, resolved.blueprint, i)} onChange={(v) => setParam(i, v)} display={display} />;
         })}
       {/* --- How it plays: the arena, the start, every rule and the ending, in plain words */}
       {!search && (

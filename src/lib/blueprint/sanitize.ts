@@ -55,6 +55,7 @@ import {
   VOICES,
   WINNERS,
   WITH_RELATIONS,
+  canonicalParamPath,
   numberAt,
   obstacleCount,
   paramPathSteps,
@@ -181,6 +182,8 @@ export interface BlueprintNumberBound {
   min?: number;
   above?: boolean;
   max?: number;
+  /** The top itself is refused too (a "less than" top: the tiles' inner edge stays below their outer one). */
+  below?: boolean;
   integer?: boolean;
 }
 
@@ -195,10 +198,29 @@ function noteBound(rd: Reader, path: string, r: NumRule) {
   rd.bounds.set(path, b);
 }
 
-/** Lowers the recorded top at `path` to `max` where a later check of the walker cuts the number further (the tile ceiling, the palette). */
-function lowerTop(rd: Reader, path: string, max: number) {
+/**
+ * Lowers the recorded top at `path` to `max` where a later check of the walker cuts the number further (the tile ceiling, the
+ * palette, the obstacle ceiling), or – `below` – changes it at `max` already (the tiles' inner edge at their outer one).
+ */
+function lowerTop(rd: Reader, path: string, max: number, below = false) {
   const b = rd.bounds?.get(path);
-  if (b && !(b.max !== undefined && b.max <= max)) b.max = max;
+  if (!b) return;
+  if (b.max === undefined || max < b.max) {
+    b.max = max;
+    if (below) b.below = true;
+    else delete b.below;
+  } else if (max === b.max && below) b.below = true;
+}
+
+/** Raises the recorded floor at `path` to `min` (`above`: `min` itself is changed too) where a later check of the walker resets the number below it. */
+function raiseFloor(rd: Reader, path: string, min: number, above = false) {
+  const b = rd.bounds?.get(path);
+  if (!b) return;
+  if (b.min === undefined || min > b.min) {
+    b.min = min;
+    if (above) b.above = true;
+    else delete b.above;
+  } else if (min === b.min && above) b.above = true;
 }
 // --- end unlimited-sizes ---
 
@@ -488,6 +510,9 @@ function readTiles(rd: Reader, raw: unknown): BlueprintTiles | null {
   };
   let inner = num(rd, "tiles.inner", own(t, "inner"), { def: D.inner, min: 0.05, max: 1 });
   let outer = num(rd, "tiles.outer", own(t, "outer"), { def: D.outer, min: 0.05, max: 1 });
+  // --- unlimited-sizes --- (the inner edge stays below the outer one: at or past it both are reset below)
+  lowerTop(rd, "tiles.inner", outer, true);
+  raiseFloor(rd, "tiles.outer", inner, true);
   if (outer <= inner) {
     issue(rd, "tiles.outer", `must be above tiles.inner (${inner})`);
     inner = D.inner;
@@ -900,11 +925,14 @@ function readParams(rd: Reader, raw: unknown, bp: Omit<Blueprint, "params">): Bl
     unknownFields(rd, p, r, ["id", "label", "at", "min", "max", "step"]);
     const id = newId(rd, join(p, "id"), own(r, "id"), ids, new Set<string>(), `p${ids.length + 1}`);
     if (id === null) return null;
-    const at = own(r, "at");
-    if (typeof at !== "string" || paramPathSteps(at) === null) {
-      issue(rd, join(p, "at"), `must be the path of a number of the spec, such as "tiles.rows" or "spawners[0].count", got ${kindOf(at)}`);
+    const written = own(r, "at");
+    if (typeof written !== "string" || paramPathSteps(written) === null) {
+      issue(rd, join(p, "at"), `must be the path of a number of the spec, such as "tiles.rows" or "spawners[0].count", got ${kindOf(written)}`);
       return null;
     }
+    // --- unlimited-sizes --- (kept in the walker's own spelling: `bodies[00].radius` is `bodies[0].radius`, its bound found by it,
+    // and a second slider on the same number is refused below whichever way it is written)
+    const at = canonicalParamPath(written)!;
     if (numberAt(bp, at) === undefined) {
       issue(rd, join(p, "at"), `"${at}" names no number of this spec (a field it has, holding a number – not a formula)`);
       return null;
@@ -1039,9 +1067,12 @@ export interface SanitizeResult {
 /**
  * The bound of every number of a resolved spec (sanitizeBlueprint's output, so the paths are the spec's own), by its path
  * (`arena.rings.gapDeg`, `bodies[0].radius`, `finish.any[0].atLeast`): the very rule this file's walker reads the number
- * with, the tile ceiling and the palette's length included – so a value inside it is kept as written, and one past it is
- * what sanitizing would change. Mode Lab's number fields take their floor and top from it (lib/blueprint/params.ts
- * `paramBounds()`), never from a slider's ends. A path the walker reads no number at is not in the map: it has no bound.
+ * with, its checks across numbers included – the tile ceiling over rows and columns, the obstacle ceiling over every
+ * pattern, the palette's length, the tiles' inner edge below their outer one. Those take the spec's other numbers as they
+ * are, so a value inside the bound is kept as written while the others stay, and one past it is what sanitizing would
+ * change. Mode Lab's number fields take their floor and top from it, read on the spec it plays with every slider applied
+ * (lib/blueprint/params.ts `paramBounds()`), never from a slider's ends. A path the walker reads no number at is not in the
+ * map: it has no bound.
  */
 export function blueprintNumberBounds(spec: Blueprint): ReadonlyMap<string, BlueprintNumberBound> {
   const bounds = new Map<string, BlueprintNumberBound>();

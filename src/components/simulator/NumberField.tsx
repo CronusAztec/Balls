@@ -8,7 +8,8 @@
  * beyond the slider's comfort range is shown exactly, with a faint tint and a "beyond the slider" tooltip. The behaviour
  * itself is the pure `numberFieldReduce()` of lib/uncap.ts (tested there); this component only renders it.
  * --- unlimited-sizes --- The one field with a top is a Mode Lab parameter's (`rules.max`, the bound its Blueprint's language
- * holds that number to): a value past it is refused with that top named, as one below a floor is.
+ * holds that number to): a value past it is refused with that top named, as one below a floor is. A value that came in past
+ * it (a link's) is shown as it is, and `changedTip` says what the game plays instead of "the value runs as typed".
  */
 import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
@@ -43,9 +44,14 @@ export interface NumberFieldProps {
   testId?: string;
   /** --- slow-motion --- (review fix) The id of a note that describes the control (an overridden slider's "Slow motion is off" note). */
   describedBy?: string;
+  /**
+   * --- unlimited-sizes --- What the run makes of a value it does not play as shown (a Mode Lab link's number past its game's
+   * own bounds, Uncap.playsAs): the tooltip in place of "beyond the slider", with the warn tint.
+   */
+  changedTip?: string;
 }
 
-export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy }: NumberFieldProps) {
+export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy, changedTip }: NumberFieldProps) {
   const t = useTranslations("Uncap");
   const [state, setState] = useState<NumberFieldState>(IDLE_FIELD);
   const errorId = useId();
@@ -81,12 +87,16 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
         ? t("errNotAbove", { min: formatCompact(error.min ?? range.min) })
       : error.reason === "aboveMax" // --- unlimited-sizes --- (a Mode Lab number past its language's top)
         ? t("errAboveMax", { max: formatCompact(error.max ?? range.max) })
+      : error.reason === "notBelow" // --- unlimited-sizes --- (a "less than" top: a Blueprint's tiles' inner edge at their outer one)
+        ? t("errNotBelow", { max: formatCompact(error.max ?? range.max) })
       : error.reason === "notFinite"
         ? t("errNotFinite")
         : error.reason === "empty"
           ? t("errEmpty")
           : t("errNotNumber", { text: (error.text ?? "").slice(0, 24) });
-  const beyondTip = display.beyond ? t("beyondTip", { value: display.compact, min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined;
+  // (--- unlimited-sizes --- a value the game plays otherwise says what it plays: it does not run as typed)
+  const beyondTip = changedTip ?? (display.beyond ? t("beyondTip", { value: display.compact, min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined);
+  const warn = display.beyond || changedTip !== undefined;
   return (
     <span className="relative inline-flex shrink-0 flex-col items-end">
       {/* No `type` attribute: a text input all the same (any typed form – 1e6, 1,5, 2.5k – reaches the parser), but the
@@ -109,9 +119,10 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
         data-number-field={settingKey ?? ""}
         data-testid={testId}
         data-beyond={display.beyond ? "1" : undefined}
+        data-changed={changedTip !== undefined ? "1" : undefined}
         /* --- review fix (site-redesign) --- a 32 px field (44 px on touch), the kit's control height */
         className={`${className ?? "w-20"} h-8 px-2 text-right font-mono text-xs rounded-md border disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 ${
-          error ? "border-danger bg-danger/8 text-danger" : display.beyond ? "border-warn/60 bg-warn/10 text-warn focus:border-warn" : "border-line-strong bg-surface-2 text-ink focus:border-accent-dim"
+          error ? "border-danger bg-danger/8 text-danger" : warn ? "border-warn/60 bg-warn/10 text-warn focus:border-warn" : "border-line-strong bg-surface-2 text-ink focus:border-accent-dim"
         }`}
       />
       {message && (

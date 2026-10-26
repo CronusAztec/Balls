@@ -492,6 +492,8 @@ export interface NumberRules {
    * it is refused (`aboveMax`) and an arrow press stops there.
    */
   max?: number;
+  /** --- unlimited-sizes --- The top itself is refused too (`notBelow`: a Blueprint's tiles' inner edge stays under the outer one). */
+  below?: boolean;
   /**
    * --- review fix (uncap-all) --- An optional value (bounce math's min / max: none means no bound): an empty field clears
    * it instead of being refused.
@@ -500,7 +502,7 @@ export interface NumberRules {
 }
 
 /** Why typed text was refused (the field keeps the old value and says why). */
-export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin" | "notAbove" | "aboveMax"; // --- unlimited-sizes --- (notAbove: at or below a "more than" floor; aboveMax: past a Blueprint number's top)
+export type NumberRefusal = "empty" | "notNumber" | "notFinite" | "belowMin" | "notAbove" | "aboveMax" | "notBelow"; // --- unlimited-sizes --- (notAbove: at or below a "more than" floor; aboveMax: past a Blueprint number's top; notBelow: at or past a "less than" one)
 
 export type NumberCheck = { ok: true; value: number } | { ok: false; reason: NumberRefusal; min?: number; max?: number };
 
@@ -538,7 +540,8 @@ export function checkNumber(value: number | null, rules: NumberRules = {}): Numb
   const v = rules.integer ? Math.round(value) : value;
   if (rules.min !== undefined && v < rules.min) return { ok: false, reason: rules.above ? "notAbove" : "belowMin", min: rules.min };
   if (rules.min !== undefined && rules.above && v <= rules.min) return { ok: false, reason: "notAbove", min: rules.min }; // --- unlimited-sizes ---
-  if (rules.max !== undefined && v > rules.max) return { ok: false, reason: "aboveMax", max: rules.max }; // --- unlimited-sizes --- (a Blueprint number's own top)
+  if (rules.max !== undefined && v > rules.max) return { ok: false, reason: rules.below ? "notBelow" : "aboveMax", max: rules.max }; // --- unlimited-sizes --- (a Blueprint number's own top)
+  if (rules.max !== undefined && rules.below && v >= rules.max) return { ok: false, reason: "notBelow", max: rules.max }; // --- unlimited-sizes ---
   return { ok: true, value: v };
 }
 
@@ -552,7 +555,8 @@ export function checkTypedNumber(text: string, rules: NumberRules = {}): NumberC
  * The next value for an arrow key: ±`step` inside the comfort range, and – beyond it, where one step would take forever –
  * a step of about a tenth of the value's own size (1,000,000 → 1,100,000). `coarse` (Shift) takes ten steps, `fine`
  * (Alt) a tenth of one. The result respects the rules (a value below the minimum stops at it; --- unlimited-sizes --- one past a
- * real top, `max`, too).
+ * real top, `max`, too). A step away from a bound the value is already past (a Mode Lab link's number the game plays at its
+ * bound) is not taken: an arrow never moves a value the other way.
  */
 export function stepNumber(value: number, direction: 1 | -1, range: NumericRange, rules: NumberRules = {}, modifier: "coarse" | "fine" | null = null): number {
   const base = Number.isFinite(value) ? value : range.min;
@@ -566,10 +570,12 @@ export function stepNumber(value: number, direction: 1 | -1, range: NumericRange
   const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 1);
   if (decimals > 0 && decimals < 16) next = Number(next.toFixed(decimals));
   if (rules.integer) next = Math.round(next);
-  if (rules.min !== undefined && next < rules.min) next = rules.min;
+  if (rules.min !== undefined && next < rules.min) next = direction < 0 && base < rules.min ? base : rules.min; // (--- unlimited-sizes --- down from below the floor: stays)
   // --- unlimited-sizes --- a "more than" floor: a step down onto it is not taken (the value stays; a smaller one can be typed)
   if (rules.min !== undefined && rules.above && next <= rules.min) next = base;
-  if (rules.max !== undefined && next > rules.max) next = rules.max; // --- unlimited-sizes --- (a Blueprint number's own top)
+  if (rules.max !== undefined && next > rules.max) next = direction > 0 && base > rules.max ? base : rules.max; // --- unlimited-sizes --- (a Blueprint number's own top; up from past it: stays)
+  // --- unlimited-sizes --- a "less than" top: a step up onto it is not taken, as onto a "more than" floor
+  if (rules.max !== undefined && rules.below && next >= rules.max) next = base;
   return next;
 }
 

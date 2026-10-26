@@ -81,6 +81,7 @@ export function Slider({
   log,
   settingKey: namedKey,
   rules,
+  plays,
 }: {
   t: Translate;
   search: string;
@@ -104,6 +105,13 @@ export function Slider({
    * floor and top are the bounds its Blueprint's language holds that number to, never the slider's ends.
    */
   rules?: NumberRules;
+  /**
+   * --- unlimited-sizes --- The value the run plays, where it may not be `value`: a Mode Lab parameter's number in the spec the
+   * game plays (a link's value past the language's bound is changed there), or null when the game no longer has that number
+   * (a pattern past the obstacle ceiling dropped). When it differs, the slider says so (Uncap.playsAs, Uncap.playsNone) in a
+   * note and in the tooltips, never that the value runs as typed.
+   */
+  plays?: number | null;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
@@ -118,13 +126,15 @@ export function Slider({
   const u = useTranslations("Uncap");
   const overridden = useContext(ControlOverride); // --- slow-motion --- (review fix) dimmed label and track, the note named
   const describedBy = overridden?.describedBy;
+  // --- unlimited-sizes --- a value the run plays otherwise (a Mode Lab link's past its game's bounds): what it plays instead
+  const changed = plays !== undefined && !live && plays !== value ? (plays === null ? u("playsNone") : u("playsAs", { value: formatCompact(plays) })) : undefined;
   const track = log ? (
     // --- unlimited-sizes --- with Wide sliders on the log track goes on past the comfort range to the track's top (every decade the same length)
     <LogTrackInput log={{ ...log, high: wideKey ? sliderCeiling(wideKey, range) : range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond && !wideKey} describedBy={describedBy} />
   ) : wideKey && !live ? (
     <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} describedBy={describedBy} />
   ) : (
-    <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
+    <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={changed ?? (beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined)} data-beyond={beyond ? "1" : undefined}>
       <input
         type="range"
         min={range.min}
@@ -158,9 +168,14 @@ export function Slider({
           ) : (
             track
           )}
-          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rules ?? rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} />
+          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rules ?? rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} describedBy={describedBy} changedTip={changed} />
         </div>
         {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
+        {changed && (
+          <p className="text-xs text-warn" data-uncap-plays={settingKey ?? labelKey}>
+            {changed}
+          </p>
+        )}
       </div>
     </Searchable>
   );
