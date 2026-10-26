@@ -514,7 +514,8 @@ export interface Ranked {
 }
 
 /**
- * The videos deduplicated by key (the detailed row of a video wins), filtered (fewer views than minViews or an unknown count
+ * The videos deduplicated by key (the detailed row of a video wins, and either row's short-form flag and Shorts-feed source
+ * carry over), filtered (fewer views than minViews or an unknown count
  * when minViews is set; longer than maxDurationSec), sorted by `sortBy`, most first (an unknown value last; then views, then
  * the key, so equal input gives equal output), short-form first when maxDurationSec is at most SHORT_MAX_SEC, and cut to `limit`.
  */
@@ -526,7 +527,15 @@ export function rankVideos(videos: readonly VideoMeta[], opt: RankOptions): Rank
     if (!had) byKey.set(v.key, v);
     else {
       duplicates++;
-      if (v.detailed && !had.detailed) byKey.set(v.key, { ...v, short: v.short || had.short });
+      // --- inspiration --- on every duplicate: a search row of a Short has a /watch link and no size, so it reads as
+      // long-form; the same video's Shorts-feed row knows better (unless a length past SHORT_MAX_SEC says otherwise)
+      const [keep, other] = v.detailed && !had.detailed ? [v, had] : [had, v];
+      const durationSec = keep.durationSec ?? other.durationSec;
+      byKey.set(v.key, {
+        ...keep,
+        short: (keep.short || other.short) && (durationSec === null || durationSec <= SHORT_MAX_SEC),
+        source: keep.source === "search" && other.source === "shorts" ? "shorts" : keep.source,
+      });
     }
   }
   let belowMinViews = 0;

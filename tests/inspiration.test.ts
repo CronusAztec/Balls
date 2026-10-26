@@ -215,6 +215,21 @@ describe("a video's numbers (--- inspiration ---)", () => {
     expect(mergeMeta(other, meta({ id: "video", webpage_url: "https://example.com/v/1", view_count: 5 }, "url", true)).key).toBe("other:example.com/v/1");
   });
 
+  // --- inspiration --- a Short found by the search (a /watch link, no size: long-form) and by its Shorts feed
+  it("keeps a duplicate's short-form flag and Shorts-feed source, whichever row is kept, unless its length says otherwise", () => {
+    const searchRow = meta({ id: "AAAAAAAAAAA", url: "https://www.youtube.com/watch?v=AAAAAAAAAAA", title: "a Short", view_count: 900_000, duration: 30 }, "search");
+    const feedRow = meta({ id: "AAAAAAAAAAA", url: "https://www.youtube.com/shorts/AAAAAAAAAAA", view_count: 900_000 }, "shorts");
+    const small = meta({ id: "BBBBBBBBBBB", url: "https://www.youtube.com/shorts/BBBBBBBBBBB", view_count: 1000 }, "shorts");
+    expect([searchRow.short, feedRow.short]).toEqual([false, true]);
+    const ranked = rankVideos([searchRow, feedRow, small], { sortBy: "views", limit: 10, maxDurationSec: SHORT_MAX_SEC });
+    expect(ranked.videos.map((v) => v.id)).toEqual(["AAAAAAAAAAA", "BBBBBBBBBBB"]);
+    expect(ranked.videos[0]).toMatchObject({ short: true, source: "shorts", url: searchRow.url, title: "a Short" });
+    expect(rankVideos([feedRow, searchRow, small], { sortBy: "views", limit: 10, maxDurationSec: SHORT_MAX_SEC }).videos[0]).toMatchObject({ id: "AAAAAAAAAAA", short: true });
+    // a page that says ten minutes: long-form, whatever the feed row said
+    const longPage = meta({ id: "AAAAAAAAAAA", webpage_url: "https://www.youtube.com/watch?v=AAAAAAAAAAA", view_count: 900_100, duration: 600 }, "search", true);
+    expect(rankVideos([feedRow, longPage], { sortBy: "views", limit: 10 }).videos[0]).toMatchObject({ short: false, detailed: true, views: 900_100 });
+  });
+
   it("keeps other people's text as one clean line", () => {
     expect(cleanText("a\u0000b‮c\n\n  d")).toBe("a b c d");
     expect(cleanText("x".repeat(500))).toHaveLength(200);
