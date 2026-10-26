@@ -794,13 +794,17 @@ export function recommendations(summaries: readonly TraitSummary[], patterns: re
     // --- inspiration --- each clause from its own number only: no saturation, no word on the colours (a trend summary drops
     // a number its searches disagree on), and no clause at all, no look advice
     const colours = sat ? (vivid ? `Use saturated colours (a vivid theme such as ${LOOKS.vividTheme}, rainbow trails)` : `Keep the colours calm (a muted theme such as ${LOOKS.calmTheme}, no trails)`) : null;
-    const ground = darkBg ? "a dark background" : dark ? "a light or mid background" : null;
+    // --- inspiration --- ours darker than the most viewed by a step of dark share, theirs dark as well: a dark ground that is
+    // not all black – the dark pair as a gradient, black to slate, about two thirds of it under DARK_LUMA – never the solid
+    // black that would widen the gap (the first TikTok run: ours 90% dark against their 71%)
+    const dim = darkBg && dark.gap && dark.ours !== null && dark.ours > dark.top;
+    const ground = dim ? `a dark background that is not all black (a gradient from black to slate: ours are ${Math.round((dark.ours as number) * 100)}% dark against ${Math.round(dark.top * 100)}%)` : darkBg ? "a dark background" : dark ? "a light or mid background" : null;
     const advice = colours ? `${colours}${toneText ? `, and ${toneText}` : ground ? ` on ${ground}` : ""}.` : toneText ? `${toneText[0].toUpperCase()}${toneText.slice(1)}.` : ground ? `Use ${ground}.` : null;
     // --- inspiration --- levers that make the look, each with its value: the theme (its palette), the trails (rainbow: the
     // colourful trail with no trail colours) and the background by its colours, the light one being no theme's
-    const groundTone = tone === "darker" ? "light" : tone === "brighter" ? "dark" : darkBg ? "dark" : dark ? "light" : null;
+    const groundTone = tone === "darker" ? "light" : tone === "brighter" ? "dark" : dim ? "dim" : darkBg ? "dark" : dark ? "light" : null;
     const colourLevers = !colours ? [] : vivid ? [setting("theme", LOOKS.vividTheme), setting("trails", true), setting("colorTrail", true), setting("trailColors", [])] : [setting("theme", LOOKS.calmTheme), setting("trails", false)];
-    const groundLevers = groundTone === "light" ? [setting("backgroundType", "gradient"), setting("backgroundColors", LOOKS.lightGround)] : groundTone === "dark" ? [setting("backgroundType", "solid"), setting("backgroundColors", LOOKS.darkGround)] : [];
+    const groundLevers = groundTone === "light" ? [setting("backgroundType", "gradient"), setting("backgroundColors", LOOKS.lightGround)] : groundTone === "dim" ? [setting("backgroundType", "gradient"), setting("backgroundColors", LOOKS.darkGround)] : groundTone === "dark" ? [setting("backgroundType", "solid"), setting("backgroundColors", LOOKS.darkGround)] : [];
     if (advice)
       out.push({
         area: "look",

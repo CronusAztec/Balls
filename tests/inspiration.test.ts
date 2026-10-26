@@ -692,6 +692,26 @@ describe("the stills fallback and the report's lessons from the live runs (--- i
     expect(inTheme(THEMES.find((t) => t.id === "escape")!, "This Ball Is Trapped in a Perfect Loop")).toBe(true);
   });
 
+  // --- inspiration --- the first TikTok run: theirs dark (71% of the picture), ours darker (90%), the brightness close
+  it("moves a render darker than the dark trending clips toward theirs: a dark gradient, not the solid black", () => {
+    const dark = (darkShare: number) => ({ ...features({ durationSec: 12 }), meanLuma: 0.13, meanSat: 0.3, darkShare });
+    const rows = Array.from({ length: 6 }, (_, i) => ({ metric: (6 - i) * 1000, traits: clipTraits(dark(0.7)) }));
+    const lookOf = (oursDark: number) => {
+      const { summaries, patterns } = traitSummaries(rows, [clipTraits({ ...dark(oursDark), meanLuma: 0.06 })]);
+      return recommendations(summaries, patterns, [], titleSummary([], [])).find((r) => r.area === "look")!;
+    };
+    const darker = lookOf(0.9);
+    expect(darker.basis).toBe("gap");
+    expect(darker.advice).toBe("Keep the colours calm (a muted theme such as pastel, no trails) on a dark background that is not all black (a gradient from black to slate: ours are 90% dark against 70%).");
+    expect(darker.levers.map((l) => [l.name, l.value])).toEqual([["themeId", "pastel"], ["showTrails", false], ["backgroundType", "gradient"], ["backgroundColors", LOOKS.darkGround]]);
+    // ours lighter than theirs, or as dark: the solid dark ground
+    for (const oursDark of [0.5, 0.72]) {
+      const look = lookOf(oursDark);
+      expect(look.advice, String(oursDark)).toBe("Keep the colours calm (a muted theme such as pastel, no trails) on a dark background.");
+      expect(look.levers.slice(-2).map((l) => [l.name, l.value]), String(oursDark)).toEqual([["backgroundType", "solid"], ["backgroundColors", LOOKS.darkGround]]);
+    }
+  });
+
   it("tells our renders to lighten up when they are far darker than every trending clip, and reads the title formats", () => {
     const bright = (luma: number) => ({ ...features({ durationSec: 12 }), meanLuma: luma, meanSat: 0.3, darkShare: 0.05 });
     const rows = Array.from({ length: 6 }, (_, i) => ({ metric: (6 - i) * 1000, traits: clipTraits(bright(0.4 + (i % 2) * 0.1)) }));

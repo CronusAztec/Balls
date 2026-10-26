@@ -182,8 +182,10 @@ npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
   `topShare`, the part of the theme's views its most viewed video carries. "satisfying" names the genre, not a mechanic,
   and is never advice; a theme's words leave out fillers such as "out" and "first". A pattern needs its ρ and the
   difference of the medians to point the same way. The look advice also compares our renders with all the trending clips, so a
-  picture far darker than every one of them is said, and the titles' formats are counted (a question, a count of 100 or
-  more, a versus, a scale stepped up such as "0% vs 100%", a numbered series).
+  picture far darker than every one of them is said, and a render darker than dark trending clips (more of it under the
+  dark threshold than theirs) is given a dark gradient, black to slate, never the solid black that would widen the gap. The
+  titles' formats are counted (a question, a count of 100 or more, a versus, a scale stepped up such as "0% vs 100%", a
+  numbered series).
 - **`npm run trends`** sums inspire reports up for the app's AI. It is a script, not a toolbox tool, because it writes
   `src/content/trends.json`, which is committed: `npm run trends -- .agent-out/inspiration/<run> …` (a run folder or its
   report.json; `npm run trends -- --stdout <run> …` prints instead, `npm run trends -- --check` checks the committed file).
