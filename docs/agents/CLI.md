@@ -25,7 +25,7 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
 | `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. | `{"mode":"classic","seed":42,"seconds":10}` |
 | `site-shot` | PNG screenshots of site pages at the given widths (one file per page and width, numbered in the list's order), with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
-| `analyse` | Numeric features of a local video file: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
+| `analyse` | Numeric features of a video file, your own clip or another creator's trending one: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
 | `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"plan":true}`, `{"browser":true}` |
 | `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error, or one of the guard's own: a weakened test, a stale export, a missing install or browser. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
 | `bp-schema` | The Blueprint language: its JSON Schema (`form`: `full` or `lite`), the vocabulary block for prompts and the sandbox ceilings. | `{"form":"lite"}` |
@@ -56,9 +56,9 @@ page can play differently here. `preview` and `render` run in the page and use i
   name first. The CLI runs code from it, so it is private: created 0700, and refused when it is a link, belongs to another
   user or others may write to it. The `guard` tool's state is the
   guard's own (`node_modules/.cache/jbl-guard`), and with `browser` the guard rebuilds the repository's `.next/` and `out/`.
-- **Every path argument must resolve inside the repository**, symbolic links included. URLs (`http:`, `https:`, `data:`,
-  `file:`…) are refused, never opened. To analyse a file from elsewhere, copy it to `.agent-out/inbox/` first. `explain`
-  reads only test files inside `tests/`.
+- **Every path argument must resolve inside the repository**, symbolic links included. A URL (`http:`, `https:`, `data:`,
+  `file:`…) is not a path: download the video into `.agent-out/inbox/` first (see analyse), and copy a file from elsewhere
+  there too. `explain` reads only test files inside `tests/`.
 - **Arguments match their schema exactly.** An unknown field is refused, a field named after a JavaScript built-in such as
   `constructor` or `__proto__` too. `--json -` reads the arguments from stdin, at any length.
 - **No shell.** Child processes (ffmpeg, git, next, the guard) get argument arrays.
@@ -89,17 +89,24 @@ Chromium comes from Playwright's browsers (`PLAYWRIGHT_BROWSERS_PATH`) or `CHROM
 
 ## analyse
 
-`analyse` reads only a local file inside the repository and keeps only numbers. Nothing is uploaded, copied or kept.
-ffmpeg opens the file as `file:` with only the file protocol and video demuxers allowed, so a playlist dressed as `.mp4`
-is refused, never followed. Its ffmpeg is `FFMPEG_PATH`, else the Windows app's bundled one
-(`desktop/node_modules/ffmpeg-static`, after `npm ci` in `desktop/`), else `ffmpeg` on the PATH. With none, it says so
-and measures nothing.
+`analyse` measures a video file inside the repository and returns numbers: your own clips, and the trending and viral
+videos of other creators on TikTok, Instagram, YouTube or any other site, so you learn what makes them work and make the
+clips better. Download a video from a site into `.agent-out/inbox/` first (git ignores the folder):
+
+```sh
+yt-dlp -j --flat-playlist "ytsearch20:satisfying ball simulation"   # YouTube results: title, url, view_count, duration
+yt-dlp -o ".agent-out/inbox/%(id)s.%(ext)s" "<a TikTok, Instagram or YouTube video link>"
+npm run -s agent -- analyse --json '{"path":".agent-out/inbox/<id>.mp4"}'
+```
+
+Nothing is uploaded, and the tool keeps no copy of the file. ffmpeg opens the file as `file:` with only the file protocol
+and video demuxers allowed, so a playlist dressed as `.mp4` is refused, never followed. Its ffmpeg is `FFMPEG_PATH`, else
+the Windows app's bundled one (`desktop/node_modules/ffmpeg-static`, after `npm ci` in `desktop/`), else `ffmpeg` on the
+PATH. With none, it says so and measures nothing.
 
 The feature definitions are in `src/lib/videoAnalysis/features.ts`. Pictures are sampled as 16 × 16 RGB twice a second, the
 rate own clips are compared at. Cuts come from scdet, loudness from ebur128 (BS.1770, like the export's normaliser), and
 tempo from the app's own beat detector.
-
-Only analyse files you made or may use.
 
 ## guard and explain
 

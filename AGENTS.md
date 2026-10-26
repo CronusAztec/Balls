@@ -112,7 +112,7 @@ Every changed file lands in one zone, listed in the guard report and defined in 
   the budgets of `docs/COPY-STYLE.md` (`tests/copyStyle.test.ts`). Follow `docs/COPY-STYLE.md` for any copy a visitor reads.
 - **One release commit.** The changelog entry (`src/content/changelog.json`), the version bump and `CHANGELOG.md`
   (`npm run changelog`) go in one commit (`docs/RELEASING.md`).
-- **Privacy.** No cookies, ad tags, telemetry-named modules or scraping. No new network host without privacy copy for it
+- **Privacy.** No cookies, ad tags or telemetry-named modules. No new network host without privacy copy for it
   (`tests/legalCopy.test.ts`, `tests/analytics.test.ts`).
 
 ## A new mechanic: the decision tree
@@ -158,7 +158,7 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `preview` | Get a watermarked PNG contact sheet of a link from a local export of your working tree |
 | `render` | Render a watermarked clip through the page's own fast export |
 | `site-shot` | Take PNG screenshots of site pages at phone and desktop widths |
-| `analyse` | Measure a local video file inside the repository (cuts, motion, colour, loudness, tempo) |
+| `analyse` | Measure a video file (cuts, motion, colour, loudness, tempo): your own clips, or trending videos from any site |
 | `guard` | Run the core guard and return its report (`{"plan":true}` for the static checks alone) |
 | `explain` | Sort a failure into a source pin, a behaviour change, a fingerprint and so on, with the legitimate fix |
 | `bp-schema` | Get the Blueprint language: its JSON Schema (full or Lite), the prompt vocabulary and the ceilings |
@@ -169,8 +169,9 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
-Every tool writes its results only under `.agent-out/`, refuses paths outside the repository and URLs, starts no shell, and
-uses no network except its own 127.0.0.1 server. The two owner-run tools call only the owner's own host, with the owner's
+Every tool writes its results only under `.agent-out/`, reads files inside the repository (download a TikTok, Instagram or
+YouTube video into `.agent-out/inbox/` first, with yt-dlp), starts no shell, and uses no network except its own 127.0.0.1
+server. The two owner-run tools call only the owner's own host, with the owner's
 key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of your own cache folder
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
@@ -214,6 +215,8 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 - The guard's static checks run in CI as annotations only (`continue-on-error`): they block no build and no deploy. Making
   them a gate is the owner's call. The VPS deployer's gating and the deploy job are unchanged.
 - That batch changed nothing visitors see and bumped no version.
+- Agents and tools may search, download and analyse other creators' trending and viral videos (TikTok, Instagram,
+  YouTube or any site) to learn from them and make the clips better. Downloads go to `.agent-out/`, which git ignores.
 
 ## Read next
 
