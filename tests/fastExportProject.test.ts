@@ -5,9 +5,10 @@ import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } fro
 import { DEFAULT_FAST_EXPORT_FPS } from "@/lib/recording/fastRenderPlan";
 
 // Integration of fast-render with project-files: the fast export's frame rate (`fastExportFps`, URL `xfps`) is an ordinary
-// setting, so project files and short share codes must carry it and snap a foreign value onto 30 / 60 on the way in.
+// setting, so project files and short share codes must carry it: --- uncap-all --- any rate from 30 up as it is, a lower one
+// lifted onto 30 and one that is no number back to the default (`resolveFastExportFps()`) on the way in.
 describe("fast export frame rate in project files and share codes", () => {
-  it("survives a project file and is snapped to 30 or 60 when the file holds another value", () => {
+  it("survives a project file and keeps another rate from 30 up, lifting a lower one onto 30", () => {
     const settings = { ...defaultSettings("classic"), fastExportFps: 30, recordingResolution: "1080x1920" };
     const parsed = parseProject(serializeProject(buildProject({ name: "fps", settings })));
     expect(parsed.ok && parsed.project.settings.fastExportFps).toBe(30);
