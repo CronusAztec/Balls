@@ -15,6 +15,7 @@ import CameraSection from "@/components/simulator/sections/CameraSection";
 import BullseyeSection from "@/components/simulator/sections/BullseyeSection";
 import FightLeagueSection from "@/components/simulator/sections/FightLeagueSection";
 import StringBattleSection from "@/components/simulator/sections/StringBattleSection";
+import MultipliersSection from "@/components/simulator/sections/MultipliersSection"; // --- review fix ---
 import { paletteKeyGroups, sectionDefaults } from "@/components/simulator/Controls";
 import type { PanelShown } from "@/components/simulator/panelKeys";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -412,6 +413,33 @@ describe("a live control keeps its look, with a note only (--- slow-motion --- r
     };
     expect(run(true)).toEqual({ finished: true, duel: true, hunted: true });
     expect(run(false)).toEqual({ finished: true, duel: false, hunted: false });
+  });
+
+  it("Unlimited Multipliers: its tip promises SLOW-MO only with the switch on, and with it off a note under the live toggle says the run keeps normal speed", () => {
+    // (the tip said past 64 the clock slows down with SLOW-MO; with the switch off the page repays that slowdown and the HUD shows
+    // no SLOW-MO: tests/slowMotionLoop.test.ts, "tags SLOW-MO with the dilation the page does not repay")
+    for (const [locale, catalog, budget] of [["en", en, 300], ["pl", pl, 380], ["es", es, 380]] as const) {
+      const u = catalog.Unlimited as Record<string, string>;
+      const c = catalog.Controls as Record<string, string>;
+      const hudTag = (catalog.Simulator as Record<string, string>).canvasMpSlowMo.replace(" [factor]", "");
+      const tip = c.mpUnlimitedTip;
+      // the tip names the tag, the switch and where it is, within the tooltip budget, in the house style (no engine talk)
+      expect([locale, tip.includes(hudTag), tip.includes(u.slowMotion), tip.includes(c.ballPhysicsTab), [...tip].length <= budget]).toEqual([locale, true, true, true, true]);
+      expect([locale, /[();—]|\s–\s/.test(tip), /sub-?step|podkrok|subpaso/i.test(tip)]).toEqual([locale, false, false]);
+      const html = (s: SimulatorSettings) => render(createElement(MultipliersSection as unknown as React.FC<ReturnType<typeof props>>, props(s)), locale, catalog);
+      const off = html(settingsOf("classic", { slowMotion: false }));
+      const on = html(settingsOf("classic"));
+      // on: nothing new; off: the note alone, the toggle as it was (it still stacks or caps the multipliers)
+      expect([locale, on.includes("data-slow-motion-off-note")]).toEqual([locale, false]);
+      expect([locale, off.includes("data-slow-motion-overridden"), off.includes("aria-describedby")]).toEqual([locale, false, false]);
+      expect([locale, withoutNotes(off) === on]).toEqual([locale, true]);
+      const note = elementWith(off, 'data-testid="mp-slow-motion-off"');
+      expect([locale, note.includes(u.mpOffNote.replace(/&/g, "&amp;")), u.mpOffNote.includes(hudTag)]).toEqual([locale, true, true]);
+      expect(off.indexOf('data-testid="mp-slow-motion-off"')).toBeGreaterThan(off.indexOf("Unlimited Multipliers"));
+      // the same with a cap set (Unlimited Multipliers off): the note stays, the cap slider is not dimmed
+      const capped = html(settingsOf("classic", { slowMotion: false, mpUnlimited: false, mpCap: 128 }));
+      expect([locale, capped.includes('data-testid="mp-slow-motion-off"'), capped.includes("data-overridden-track")]).toEqual([locale, true, false]);
+    }
   });
 });
 

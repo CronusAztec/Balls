@@ -4,6 +4,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { CLONE_MODES, MULTIPLIER_COLORS, PICKUP_FACTORS, PICKUP_KINDS, PICKUP_MODES, SMASH_MODES, parsePickupTypes, type PickupKind } from "@/lib/physics/multipliers";
+import { SlowMotionOffNote } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface MultipliersSectionProps {
   t: Translate;
@@ -39,6 +40,8 @@ export function showsMultipliersSection(mode: SimulatorSettings["mode"], glassGa
  * (on/off, how often, which kinds, how long they float), the cap – none by default ("unlimited") – and the damage from
  * which a ball smashes the rings. The values live in SimulatorSettings; Simulator.tsx forwards them to the engine inside
  * the physics config, like the physics extras.
+ * --- slow-motion --- (review fix) While the Slow motion switch (Ball & Physics) is off, a note under Unlimited Multipliers says
+ * the run shows no SLOW-MO and keeps normal speed (the page repays the clock's slowdown, multiplierRenderer.ts `repaid`).
  */
 export default function MultipliersSection({ t, search, matches, settings: s, update }: MultipliersSectionProps) {
   const pickupMode = PICKUP_MODES.includes(s.mode) || !!search;
@@ -95,7 +98,12 @@ export default function MultipliersSection({ t, search, matches, settings: s, up
         </>
       )}
       <Searchable search={search} matches={matches} labelKey="mpUnlimited">
-        <Toggle t={t} labelKey="mpUnlimited" tipKey="mpUnlimitedTip" value={s.mpUnlimited} onChange={(v) => update(v ? { mpUnlimited: true } : { mpUnlimited: false, mpCap: s.mpCap > 0 ? s.mpCap : 32 })} />
+        {/* --- slow-motion --- (review fix) the tip promises SLOW-MO past what the walls take: with the switch off the page repays the
+            clock's slowdown and the HUD shows no SLOW-MO, which the note under the (live) toggle says */}
+        <div className="space-y-1">
+          <Toggle t={t} labelKey="mpUnlimited" tipKey="mpUnlimitedTip" value={s.mpUnlimited} onChange={(v) => update(v ? { mpUnlimited: true } : { mpUnlimited: false, mpCap: s.mpCap > 0 ? s.mpCap : 32 })} />
+          <SlowMotionOffNote settings={s} testId="mp-slow-motion-off" messageKey="mpOffNote" />
+        </div>
       </Searchable>
       {(!s.mpUnlimited || !!search) && (
         <Slider t={t} search={search} matches={matches} labelKey="mpCap" tipKey="mpCapTip" value={s.mpCap} range={RANGES.mpCap} onChange={(v) => update({ mpCap: v })} display={s.mpCap === 0 ? t("mpCapOff") : `x${s.mpCap}`} />
