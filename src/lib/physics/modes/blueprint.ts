@@ -45,11 +45,13 @@ export const DEFAULT_BLUEPRINT_SETTINGS: BlueprintSettings = { preset: "hatchery
 export const BLUEPRINT_PRESET_IDS: readonly string[] = BLUEPRINT_CATALOG_IDS;
 
 /**
- * --- unlimited-sizes --- The bound the language holds each of a game's sliders to (lib/blueprint `paramBounds()`, read on the
- * spec it plays, `played`, where a bound depends on the other sliders), for the app AI's prompt (its Mode Lab note says it
- * before the slider's comfort range): only Mode Lab's own files read lib/blueprint.
+ * --- unlimited-sizes --- The bound the language holds each of a game's sliders to (lib/blueprint `paramBounds()`, read with
+ * the sliders at `params` – the link's `blv` – where a bound depends on the other sliders), for the app AI's prompt (its Mode
+ * Lab note says it before the slider's comfort range): only Mode Lab's own files read lib/blueprint.
  */
-export const blueprintParamBounds: (bp: Blueprint, played?: Blueprint) => BlueprintNumberBound[] = paramBounds;
+export function blueprintParamBounds(bp: Blueprint, params = ""): BlueprintNumberBound[] {
+  return paramBounds(bp, parseParamValues(params));
+}
 /** --- review fix (blueprint) --- The longest `blSpec` a link, a project file or the render queue keeps (the codec's limit). */
 export const BLUEPRINT_SPEC_MAX_CHARS = BLUEPRINT_CODE_MAX_CHARS;
 

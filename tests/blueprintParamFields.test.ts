@@ -3,7 +3,7 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider, createTranslator } from "next-intl";
-import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING, applyBlueprintParams, blueprintNumberBounds, catalogBlueprint, encodeBlueprint, formatParamValues, numberAt, paramBounds, paramPlayed, parseParamValues, sanitizeBlueprint, validateBlueprint, type Blueprint, type BlueprintCatalogId } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, BLUEPRINT_LIMITS, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING, HeadlessBlueprint, applyBlueprintParams, blueprintNumberBounds, catalogBlueprint, encodeBlueprint, formatParamValues, paramBounds, paramPlayed, paramsPlayed, parseParamValues, sanitizeBlueprint, validateBlueprint, type Blueprint, type BlueprintCatalogId } from "@/lib/blueprint";
 import BlueprintSection, { blueprintParamDisplay, blueprintParamRules } from "@/components/simulator/sections/BlueprintSection";
 import { resolveBlueprintSpec } from "@/lib/physics/modes/blueprint";
 import { settingsCatalog } from "@/lib/desktop/ai/settingsPatch";
@@ -83,7 +83,8 @@ describe("Mode Lab: each slider's number field is bounded by the language, not b
     expect(table).toEqual({
       hatchery: { layers: { min: 1, max: BLUEPRINT_LIMITS.tileRows, integer: true }, glass: { min: 1, integer: true }, speed: { min: -BLUEPRINT_SPEED_CEILING, max: BLUEPRINT_SPEED_CEILING } },
       ringBreaker: { rings: { min: 1, max: BLUEPRINT_LIMITS.rings, integer: true }, gap: { min: 5, max: 180 }, spin: {} },
-      conquer: { per: {}, boost: { min: 0, above: true } },
+      // (Colour Conquest's balls a colour: a variable its spawners count by, a whole number from 0 to a spawn's 8 balls)
+      conquer: { per: { min: 0, max: BLUEPRINT_LIMITS.perSpawn, integer: true }, boost: { min: 0, above: true } },
       tierClimb: { target: { min: 1, max: BLUEPRINT_LIMITS.maxTier, integer: true }, rain: { min: 0 }, gravity: {} },
       // (Peg Race's peg rows: its grid of 7 columns stops at the obstacle ceiling, 6 rows – the slider's end is the language's here)
       plinkoRace: { exit: { min: 1, max: 180 }, spin: {}, rows: { min: 1, max: Math.floor(BLUEPRINT_LIMITS.obstacles / 7), integer: true } },
@@ -100,13 +101,11 @@ describe("Mode Lab: each slider's number field is bounded by the language, not b
     for (const id of BLUEPRINT_CATALOG_IDS) {
       const bp = catalogBlueprint(id);
       paramBounds(bp).forEach((b, i) => {
-        const at = bp.params[i].at;
+        // (kept: what the game plays is the value as written – its number in the spec, a counted variable as the runtime counts it)
         const play = (v: number) => {
-          const { blueprint, notes } = applyBlueprintParams(
-            bp,
-            bp.params.map((_, k) => (k === i ? v : null)),
-          );
-          return { kept: numberAt(blueprint, at) === v && notes.length === 0 };
+          const values = bp.params.map((_, k) => (k === i ? v : null));
+          const { notes } = applyBlueprintParams(bp, values);
+          return { kept: paramPlayed(bp, values, i) === v && notes.length === 0 };
         };
         const name = `${id}.${bp.params[i].id}`;
         // the field's floor and top are where the sanitizer starts to change the value
@@ -262,11 +261,11 @@ const linkSpec = (raw: Record<string, unknown>) => {
 };
 /** The number field of slider `i` of a rendered panel. */
 const fieldAt = (all: NumberFieldProps[], i: number) => all.find((x) => x.settingKey === `blParam${i}`)!;
-/** Whether `v` plays as written at slider `i` (the others as `values` has them): the value kept and nothing repaired. */
+/** Whether `v` plays as written at slider `i` (the others as `values` has them): the value the game plays and nothing repaired. */
 const plays = (bp: Blueprint, i: number, v: number, values: (number | null)[] = []) => {
   const all = bp.params.map((_, k) => (k === i ? v : (values[k] ?? null)));
-  const { blueprint, notes } = applyBlueprintParams(bp, all);
-  return numberAt(blueprint, bp.params[i].at) === v && notes.length === 0;
+  const { notes } = applyBlueprintParams(bp, all);
+  return paramPlayed(bp, all, i) === v && notes.length === 0;
 };
 
 describe("Mode Lab: a field keeps a decimal wherever the language does, whatever the slider's step", () => {
@@ -287,7 +286,7 @@ describe("Mode Lab: a field keeps a decimal wherever the language does, whatever
     }
   });
 
-  it("takes the review's values as typed: a 0.4 px ball, a 0.4 s boost, a 20.5° and a 22.5° gap, a 2.5° exit, 0.4 balls per colour", () => {
+  it("takes the review's values as typed: a 0.4 px ball, a 0.4 s boost, a 20.5° and a 22.5° gap, a 2.5° exit", () => {
     const fieldOf = (game: BlueprintCatalogId, id: string) => fieldAt(render({ blPreset: game }).fields, slider(game, id));
     const cases: [BlueprintCatalogId, string, string, number][] = [
       ["growEscape", "size", "0.4", 0.4],
@@ -299,7 +298,6 @@ describe("Mode Lab: a field keeps a decimal wherever the language does, whatever
       ["ringBreaker", "gap", "22.5", 22.5],
       ["plinkoRace", "exit", "2.5", 2.5],
       ["growEscape", "exit", "12.5", 12.5],
-      ["conquer", "per", "0.4", 0.4],
     ];
     for (const [game, id, text, value] of cases) {
       expect([game, id, typed(fieldOf(game, id), text)]).toEqual([game, id, { commit: value }]);
@@ -308,6 +306,9 @@ describe("Mode Lab: a field keeps a decimal wherever the language does, whatever
     // ("More than 0" is never said of 0.4: only 0 and below are refused, and a counted tier still rounds as the game does)
     expect(typed(fieldOf("growEscape", "size"), "0")).toEqual({ refused: { reason: "notAbove", min: 0, text: "0" } });
     expect(typed(fieldOf("tierClimb", "target"), "5.4")).toEqual({ commit: 5 });
+    // (balls a colour are counted too: the spawners count by them, whole, so a typed 0.4 commits the 0 it plays)
+    expect(typed(fieldOf("conquer", "per"), "0.4")).toEqual({ commit: 0 });
+    expect(plays(catalogBlueprint("conquer"), slider("conquer", "per"), 0)).toBe(true);
   });
 
   it("shows a typed decimal in the slider's value too, in the page's number format", () => {
@@ -366,8 +367,7 @@ describe("Mode Lab: a bound across numbers holds with the other sliders where th
   it("tops the rows at the tile ceiling over the columns the cols slider holds now", () => {
     const { bp, code } = tiles;
     expect(paramBounds(bp)[0]).toEqual({ min: 1, max: BLUEPRINT_LIMITS.tileRows, integer: true }); // (8 columns: the rows' own top)
-    const played = resolveBlueprintSpec({ preset: "hatchery", spec: code, params: ",48" }).blueprint;
-    expect(paramBounds(bp, played)[0]).toEqual({ min: 1, max: Math.floor(BLUEPRINT_LIMITS.tiles / 48), integer: true });
+    expect(paramBounds(bp, parseParamValues(",48"))[0]).toEqual({ min: 1, max: Math.floor(BLUEPRINT_LIMITS.tiles / 48), integer: true });
     const f = fieldAt(render({ blSpec: code, blParams: ",48" }).fields, 0);
     expect(f.rules?.max).toBe(Math.floor(BLUEPRINT_LIMITS.tiles / 48));
     expect(typed(f, "13")).toEqual({ refused: { reason: "aboveMax", min: undefined, max: 12, text: "13" } });
@@ -458,7 +458,7 @@ describe("Mode Lab: a link's value past the language's bound says what plays", (
   it("shows Ring Breaker's gap 500 with the 180 it plays, never 'the value runs as typed', and steps down onto 180", () => {
     const i = slider("ringBreaker", "gap");
     const { html, fields: all } = render({ blPreset: "ringBreaker", blParams: `${",".repeat(i)}500` });
-    expect(paramPlayed(catalogBlueprint("ringBreaker"), resolveBlueprintSpec({ preset: "ringBreaker", spec: "", params: `${",".repeat(i)}500` }).blueprint, i)).toBe(180);
+    expect(paramPlayed(catalogBlueprint("ringBreaker"), parseParamValues(`${",".repeat(i)}500`), i)).toBe(180);
     const f = fieldAt(all, i);
     expect(f.value).toBe(500);
     expect(f.changedTip).toBe("Past this game's own bounds, so it plays 180. The link keeps your number.");
@@ -497,9 +497,13 @@ describe("Mode Lab: a link's value past the language's bound says what plays", (
     });
     const played = resolveBlueprintSpec({ preset: "plinkoRace", spec: code, params: "6,24" }).blueprint;
     expect(played.obstacles).toEqual([]);
-    expect([paramPlayed(bp, played, 0), paramPlayed(bp, played, 1)]).toEqual([null, null]);
-    // (the bounds fall back to the spec's own: the grid the link's values drop is not there to read them on)
-    expect(paramBounds(bp, played)).toEqual(paramBounds(bp));
+    expect([paramPlayed(bp, [6, 24], 0), paramPlayed(bp, [6, 24], 1)]).toEqual([null, null]);
+    // (the bounds are read with the values the link holds: the dropped grid's rows stop at the room the other patterns leave it
+    // under its 24 columns – 48 obstacles, none taken –, its columns at that room under its 6 rows)
+    expect(paramBounds(bp, [6, 24])).toEqual([
+      { min: 1, max: Math.floor(BLUEPRINT_LIMITS.obstacles / 24), integer: true },
+      { min: 1, max: Math.floor(BLUEPRINT_LIMITS.obstacles / 6), integer: true },
+    ]);
     const { fields: all } = render({ blSpec: code, blParams: "6,24" });
     expect(fieldAt(all, 0).changedTip).toBe("Past this game's own bounds, so the game leaves this part out. The link keeps your number.");
   });
@@ -511,5 +515,224 @@ describe("Mode Lab: a link's value past the language's bound says what plays", (
       expect([locale, u("playsNone").length > 20]).toEqual([locale, true]);
     }
     expect(fieldAt(render({ blPreset: "ringBreaker", blParams: `${",".repeat(slider("ringBreaker", "gap"))}500` }, "pl").fields, slider("ringBreaker", "gap")).changedTip).toBe(pl.Uncap.playsAs.replace("{value}", "180"));
+  });
+});
+
+// --- unlimited-sizes --- (review round 3) a variable a count reads, bounds read on the values a link holds, a dropped pattern
+// told apart from the ones that still play, an arrow press out of a strict bound, and a slider's value past its range in its unit
+
+describe("Mode Lab: a variable a count reads is bounded and played as that count", () => {
+  const conquer = catalogBlueprint("conquer");
+  const per = slider("conquer", "per");
+  const at = (v: string) => `${",".repeat(per)}${v}`;
+  /** The balls in Colour Conquest's arena a moment after the start, with balls a colour at `v`. */
+  const ballsAtStart = (v: string) => {
+    const r = new HeadlessBlueprint(conquer, { seed: 1, params: at(v) });
+    for (let k = 0; k < 3; k++) r.step();
+    return r.run.count("balls");
+  };
+
+  it("says what a link's balls a colour play – the runtime's whole count of 0 to 8 –, never that they run as typed", () => {
+    for (const [link, played] of [["0.4", 0], ["2.5", 3], ["20", BLUEPRINT_LIMITS.perSpawn], ["-3", 0], ["1e9", BLUEPRINT_LIMITS.perSpawn]] as const) {
+      expect([link, paramPlayed(conquer, parseParamValues(at(link)), per)]).toEqual([link, played]);
+      // (four colours: the arena holds four times what one plays)
+      expect([link, ballsAtStart(link)]).toEqual([link, 4 * played]);
+      const { html, fields: all } = render({ blPreset: "conquer", blParams: at(link) });
+      expect([link, fieldAt(all, per).changedTip]).toEqual([link, `Past this game's own bounds, so it plays ${played}. The link keeps your number.`]);
+      expect([link, html.includes(`data-uncap-plays="blParam${per}"`)]).toEqual([link, true]);
+    }
+    // (a whole count inside them plays as written, and says nothing)
+    expect(ballsAtStart("5")).toBe(20);
+    const fine = render({ blPreset: "conquer", blParams: at("5") });
+    expect(fieldAt(fine.fields, per).changedTip).toBeUndefined();
+    expect(fine.html).not.toContain("data-uncap-plays");
+  });
+
+  it("gives the field the count's bound: whole numbers from 0 to a spawn's 8 balls, refused past them with the bound named", () => {
+    const f = fieldAt(render({ blPreset: "conquer" }).fields, per);
+    expect(f.rules).toEqual({ min: 0, max: BLUEPRINT_LIMITS.perSpawn, integer: true });
+    expect(typed(f, "-3")).toEqual({ refused: { reason: "belowMin", min: 0, text: "-3" } });
+    expect(typed(f, "9")).toEqual({ refused: { reason: "aboveMax", min: undefined, max: BLUEPRINT_LIMITS.perSpawn, text: "9" } });
+    expect(typed(f, "1e9")).toEqual({ refused: { reason: "aboveMax", min: undefined, max: BLUEPRINT_LIMITS.perSpawn, text: "1e9" } });
+    expect(typed(f, "2.5")).toEqual({ commit: 3 });
+    expect(typed(f, "8")).toEqual({ commit: 8 });
+    // ...and the app AI is told the same
+    const line = settingsCatalog({ ...defaultSettings("blueprint"), blPreset: "conquer" }).split("\n").find((l) => l.startsWith("blParams"))!;
+    expect(line).toContain(`per (whole number from 0 up to ${BLUEPRINT_LIMITS.perSpawn}, slider 2–8, step 1)`);
+  });
+
+  it("bounds a split's into from 2, and leaves a variable a rule changes, or a count of a formula, unbounded", () => {
+    const base = { v: 1, meta: { name: "Counts" }, bodies: [{ id: "b" }], finish: { timeoutSec: 30 } };
+    const split = linkSpec({
+      ...base,
+      vars: [{ id: "k", start: 3 }],
+      spawners: [{ body: "b" }],
+      rules: [{ when: "wallHit", do: [{ act: "split", into: "k" }] }],
+      params: [{ id: "k", at: "vars[0].start", min: 2, max: 6, step: 1 }],
+    }).bp;
+    expect(paramBounds(split)).toEqual([{ min: 2, max: BLUEPRINT_LIMITS.perSpawn, integer: true }]);
+    expect(paramPlayed(split, [1], 0)).toBe(2);
+    const changed = linkSpec({
+      ...base,
+      vars: [{ id: "k", start: 3 }],
+      spawners: [{ body: "b", count: "k" }],
+      rules: [{ when: "timer", sec: 1, do: [{ act: "var", id: "k", op: "add", value: 1 }] }],
+      params: [{ id: "k", at: "vars[0].start", min: 1, max: 6, step: 1 }],
+    }).bp;
+    expect([paramBounds(changed), paramPlayed(changed, [0.4], 0)]).toEqual([[{}], 0.4]);
+    const formula = linkSpec({ ...base, vars: [{ id: "k", start: 3 }], spawners: [{ body: "b", count: "k * 2" }], params: [{ id: "k", at: "vars[0].start", min: 1, max: 6, step: 1 }] }).bp;
+    expect(paramBounds(formula)).toEqual([{}]);
+  });
+});
+
+describe("Mode Lab: bounds read on the values a link holds", () => {
+  const { bp, code } = linkSpec({
+    ...catalogBlueprint("hatchery"),
+    params: [
+      { id: "inner", at: "tiles.inner", min: 0.1, max: 0.6, step: 0.05 },
+      { id: "outer", at: "tiles.outer", min: 0.5, max: 0.95, step: 0.05 },
+    ],
+  });
+
+  it("keeps the outer edge above the inner edge a link holds, even when the two cross and the game resets both", () => {
+    // (0.7 and 0.6 cross: the game plays its own edges, and each field is bounded by the other's held value, not the reset one)
+    expect(resolveBlueprintSpec({ preset: "hatchery", spec: code, params: "0.7,0.6" }).notes).toEqual(["tiles.outer: must be above tiles.inner (0.7)"]);
+    expect(paramBounds(bp, [0.7, 0.6])).toEqual([
+      { min: 0.05, max: 0.6, below: true },
+      { min: 0.7, above: true, max: 1 },
+    ]);
+    const all = render({ blSpec: code, blParams: "0.7,0.6" }).fields;
+    expect(typed(fieldAt(all, 1), "0.65")).toEqual({ refused: { reason: "notAbove", min: 0.7, text: "0.65" } });
+    expect(typed(fieldAt(all, 0), "0.75")).toEqual({ refused: { reason: "notBelow", min: undefined, max: 0.6, text: "0.75" } });
+    // (what each field takes plays as typed with the other where it is)
+    expect(typed(fieldAt(all, 1), "0.75")).toEqual({ commit: 0.75 });
+    expect(plays(bp, 1, 0.75, [0.7])).toBe(true);
+    expect(typed(fieldAt(all, 0), "0.55")).toEqual({ commit: 0.55 });
+    expect(plays(bp, 0, 0.55, [null, 0.6])).toBe(true);
+    const line = settingsCatalog({ ...defaultSettings("blueprint"), blSpec: code, blParams: "0.7,0.6" }).split("\n").find((l) => l.startsWith("blParams"))!;
+    expect(line).toContain("outer (number above 0.7 up to 1, slider 0.5–0.95, step 0.05)");
+  });
+
+  it("tops a peg grid a link's values drop by the room the other patterns leave it", () => {
+    const peg = catalogBlueprint("plinkoRace");
+    const grid = linkSpec({
+      ...peg,
+      obstacles: [{ ...peg.obstacles[0], rows: 2, cols: 7 }],
+      params: [
+        { id: "rows", at: "obstacles[0].rows", min: 1, max: 6, step: 1 },
+        { id: "cols", at: "obstacles[0].cols", min: 1, max: 24, step: 1 },
+      ],
+    });
+    const rows = fieldAt(render({ blSpec: grid.code, blParams: "6,24" }).fields, 0);
+    expect(rows.rules?.max).toBe(Math.floor(BLUEPRINT_LIMITS.obstacles / 24));
+    expect(typed(rows, "3")).toEqual({ refused: { reason: "aboveMax", min: undefined, max: 2, text: "3" } });
+    expect(typed(rows, "2")).toEqual({ commit: 2 });
+    expect(plays(grid.bp, 0, 2, [null, 24])).toBe(true);
+    expect(plays(grid.bp, 0, 3, [null, 24])).toBe(false);
+  });
+});
+
+describe("Mode Lab: a pattern the obstacle ceiling drops is told apart from the ones that still play", () => {
+  // Peg Race with a peg grid, a peg ring and a bar, a slider on each
+  const peg = catalogBlueprint("plinkoRace");
+  const { bp, code } = linkSpec({
+    ...peg,
+    obstacles: [
+      { ...peg.obstacles[0], rows: 3, cols: 4 },
+      { kind: "pegRing", radius: 0.3, count: 8 },
+      { kind: "bar", y: 0.6, len: 0.4 },
+    ],
+    params: [
+      { id: "rows", at: "obstacles[0].rows", min: 1, max: 9, step: 1 },
+      { id: "ring", at: "obstacles[1].count", min: 1, max: 20, step: 1 },
+      { id: "len", at: "obstacles[2].len", min: 0.1, max: 1, step: 0.1 },
+    ],
+  });
+
+  it("says only the dropped ring is left out: the grid's 9 rows and the bar play, each read at its place in the game", () => {
+    const played = resolveBlueprintSpec({ preset: "plinkoRace", spec: code, params: "9,20" }).blueprint;
+    expect(played.obstacles.map((o) => o.kind)).toEqual(["pegGrid", "bar"]);
+    expect(paramsPlayed(bp, [9, 20])).toEqual([9, null, 0.4]);
+    const { html, fields: all } = render({ blSpec: code, blParams: "9,20" });
+    expect([fieldAt(all, 0).changedTip, fieldAt(all, 1).changedTip, fieldAt(all, 2).changedTip]).toEqual([undefined, "Past this game's own bounds, so the game leaves this part out. The link keeps your number.", undefined]);
+    expect(html.match(/data-uncap-plays="[^"]*"/g)).toEqual(['data-uncap-plays="blParam1"']);
+  });
+
+  it("bounds each pattern by the room the others leave it as the link holds them", () => {
+    const L = BLUEPRINT_LIMITS.obstacles;
+    // (the grid's 36 pegs and the bar kept, the ring of 20 dropped: the grid's rows and the ring each get what the others leave)
+    expect(paramBounds(bp, [9, 20])).toEqual([
+      { min: 1, max: Math.floor((L - 1) / 4), integer: true },
+      { min: 1, max: L - 36 - 1, integer: true },
+      { min: 0, above: true, max: 2 },
+    ]);
+    // (the ring at that top plays and so does everything else; one more, and the bar is dropped)
+    expect(plays(bp, 1, L - 37, [9])).toBe(true);
+    expect(paramsPlayed(bp, [9, L - 36])).toEqual([9, L - 36, null]);
+    // (the grid's rows up to their top keep the bar; past it the grid still plays, the bar is dropped)
+    expect(paramsPlayed(bp, [Math.floor((L - 1) / 4), 20])).toEqual([Math.floor((L - 1) / 4), null, 0.4]);
+    expect(paramsPlayed(bp, [Math.floor((L - 1) / 4) + 1, 20])).toEqual([Math.floor((L - 1) / 4) + 1, null, null]);
+  });
+});
+
+describe("Mode Lab: an arrow press steps out of a link's value past a strict bound", () => {
+  it("steps up from below a 'more than' floor to the first value past it, and down from past a 'less than' top", () => {
+    const size = slider("growEscape", "size");
+    const low = fieldAt(render({ blPreset: "growEscape", blParams: `${",".repeat(size)}-5` }).fields, size);
+    expect(low.rules).toMatchObject({ min: 0, above: true });
+    expect(arrow(low, 1)).toBe(1);
+    expect(arrow({ ...low, value: -15 }, 1)).toBe(1);
+    expect(arrow(low, -1)).toBe(-5); // (down from below the floor: nothing, as before)
+    const boost = slider("conquer", "boost");
+    const every = fieldAt(render({ blPreset: "conquer", blParams: `${",".repeat(boost)}-3` }).fields, boost);
+    expect([arrow(every, 1), arrow({ ...every, value: -30 }, 1), arrow(every, -1)]).toEqual([1, 1, -3]);
+    // (Shift's ten steps land past it too)
+    expect(numberFieldReduce(IDLE_FIELD, { type: "step", direction: 1, modifier: "coarse" }, -15, low.range, low.rules).commit).toBe(10);
+    // the mirror: Glass Hatchery's inner edge from past the outer one steps down below it
+    const hatchery = catalogBlueprint("hatchery");
+    const { code } = linkSpec({ ...hatchery, params: [{ id: "inner", at: "tiles.inner", min: 0.1, max: 0.6, step: 0.05 }] });
+    const inner = fieldAt(render({ blSpec: code, blParams: "0.93" }).fields, 0);
+    expect(inner.rules).toMatchObject({ max: hatchery.tiles!.outer, below: true });
+    const below = Number((hatchery.tiles!.outer - 0.05).toFixed(3));
+    expect([arrow(inner, -1), arrow({ ...inner, value: 1.1 }, -1), arrow(inner, 1)]).toEqual([below, below, 0.93]);
+    // (onto the bound itself from inside: still not taken)
+    expect(arrow({ ...inner, value: below }, 1)).toBe(below);
+  });
+
+  it("leaves an 'at least' floor and a plain top as they were", () => {
+    expect(stepNumber(-50, 1, { min: 24, max: 30, step: 1 }, { min: 5 })).toBe(5);
+    expect(stepNumber(500, -1, { min: 24, max: 30, step: 1 }, { min: 5, max: 180 })).toBe(180);
+    expect(stepNumber(0.5, -1, { min: 4, max: 20, step: 1 }, { min: 0, above: true })).toBe(0.5);
+  });
+});
+
+describe("Mode Lab: a slider's value past its range keeps its unit and the page's number format", () => {
+  /** The value a slider's label shows, and whether it is tinted as past the range. */
+  const labelOf = (html: string, i: number) => {
+    const m = html.slice(html.indexOf(`data-uncap-slider="blParam${i}"`)).match(/<span class="num shrink-0 text-xs([^"]*)">([^<]*)<\/span>/);
+    return { text: m?.[2] ?? "", warn: /text-warn/.test(m?.[1] ?? "") };
+  };
+  const shown = (game: BlueprintCatalogId, id: string, value: string, locale: Locale = "en") => {
+    const i = slider(game, id);
+    return labelOf(render({ blPreset: game, blParams: `${",".repeat(i)}${value}` }, locale).html, i);
+  };
+
+  it("shows a 0.4 px ball, a 0.0004 s rain, a 20.5° gap and a 1234.5 px/s² gravity as it shows them inside the range", () => {
+    expect(shown("growEscape", "size", "0.4")).toEqual({ text: "0.4 px", warn: true });
+    expect(shown("growEscape", "size", "0.4", "pl")).toEqual({ text: "0,4 px", warn: true });
+    expect(shown("tierClimb", "rain", "0.0004")).toEqual({ text: "0.0004 s", warn: true });
+    expect(shown("tierClimb", "rain", "0.0004", "pl")).toEqual({ text: "0,0004 s", warn: true });
+    expect(shown("ringBreaker", "gap", "20.5")).toEqual({ text: "20.5°", warn: true });
+    expect(shown("tierClimb", "gravity", "1234.5")).toEqual({ text: "1,234.5 px/s²", warn: true });
+    expect(shown("tierClimb", "gravity", "1234.5", "pl")).toEqual({ text: "1234,5 px/s²", warn: true });
+    // (inside the range: as before, untinted)
+    expect(shown("growEscape", "size", "4.5", "pl")).toEqual({ text: "4,5 px", warn: false });
+  });
+
+  it("keeps a huge or a tiny value short, never every digit or 0", () => {
+    expect(shown("tierClimb", "gravity", "1e12")).toEqual({ text: "1T px/s²", warn: true });
+    expect(shown("tierClimb", "gravity", "1e300")).toEqual({ text: "1E300 px/s²", warn: true });
+    expect(shown("tierClimb", "rain", "1e-7")).toEqual({ text: "1E-7 s", warn: true });
+    expect(shown("tierClimb", "rain", "1e-7", "es")).toEqual({ text: "1E-7 s", warn: true });
   });
 });

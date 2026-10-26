@@ -82,6 +82,7 @@ export function Slider({
   settingKey: namedKey,
   rules,
   plays,
+  displayBeyond,
 }: {
   t: Translate;
   search: string;
@@ -112,6 +113,12 @@ export function Slider({
    * note and in the tooltips, never that the value runs as typed.
    */
   plays?: number | null;
+  /**
+   * --- unlimited-sizes --- `display` is written for a value past the comfort range too (Mode Lab's: its unit and the page's
+   * number format, a huge or tiny value kept short): the label shows it there, in the warning tint, instead of the bare short
+   * number (formatCompact()) a slider whose display only knows its comfort range shows.
+   */
+  displayBeyond?: boolean;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
@@ -158,7 +165,7 @@ export function Slider({
             {label}
             {tipKey && <Tooltip text={t(tipKey)} />}
           </span>
-          <span className={`num shrink-0 text-xs ${beyond ? "font-medium text-warn" : "text-ink-3"}`}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
+          <span className={`num shrink-0 text-xs ${beyond ? "font-medium text-warn" : "text-ink-3"}`}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? (displayBeyond && display !== undefined ? display : formatCompact(value)) : (display ?? value)}</span>
         </label>
         <div className="flex items-center gap-3">
           {overridden ? (

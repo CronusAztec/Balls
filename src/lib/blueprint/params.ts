@@ -4,7 +4,7 @@
  * spec's own value). A value is never clamped to its slider here: the patched spec is sanitized again, so a structural
  * ceiling (tiles, balls, rings…) or a design domain puts it back in range, exactly as it would in a spec written that way.
  */
-import { blueprintNumberBounds, sanitizeBlueprint, type BlueprintNumberBound } from "./sanitize";
+import { readBlueprintNumbers, sanitizeBlueprint, type BlueprintNumberBound } from "./sanitize";
 import { canonicalParamPath, numberAt, paramPathSteps, setNumberAt, type Blueprint } from "./schema";
 import { formatExact } from "@/lib/uncap"; // --- unlimited-sizes --- (a link value written exactly)
 
@@ -49,61 +49,70 @@ export function formatParamValues(values: readonly (number | null | undefined)[]
  * again. With no value set it is the spec itself.
  */
 export function applyBlueprintParams(bp: Blueprint, values: readonly (number | null | undefined)[]): { blueprint: Blueprint; notes: string[] } {
-  if (!values.some((v, i) => i < bp.params.length && typeof v === "number" && Number.isFinite(v))) return { blueprint: bp, notes: [] };
+  const held = heldSpec(bp, values);
+  if (!held) return { blueprint: bp, notes: [] };
+  const { blueprint, notes } = sanitizeBlueprint(held);
+  return { blueprint, notes };
+}
+
+/**
+ * --- unlimited-sizes --- The spec with parameter values written in (as applyBlueprintParams() takes them), before it is
+ * sanitized again: the numbers a link's values hold, crossing or past a ceiling as they may be. Null when no value is set.
+ */
+function heldSpec(bp: Blueprint, values: readonly (number | null | undefined)[]): Blueprint | null {
+  if (!values.some((v, i) => i < bp.params.length && typeof v === "number" && Number.isFinite(v))) return null;
   const copy = JSON.parse(JSON.stringify(bp)) as Blueprint;
   bp.params.forEach((p, i) => {
     const v = values[i];
     if (typeof v === "number" && Number.isFinite(v)) setNumberAt(copy, p.at, v);
   });
-  const { blueprint, notes } = sanitizeBlueprint(copy);
-  return { blueprint, notes };
+  return copy;
 }
 
 // --- unlimited-sizes --- the bound a slider's number field holds to
 /**
- * Whether `played` (the spec `bp` plays with its slider values applied) still has the number at `at` where `bp` has it:
- * every list on the path keeps its length, so a pattern the obstacle ceiling dropped is not read in the place of the one
- * that moved up into its index.
+ * The bound the language holds each parameter's number to, in order: the sanitizer's own rule at its path
+ * (`blueprintNumberBounds()`: a gap of at least 5°, a tier from 1 to 99, a radius above 0 up to the radius ceiling), {} for a
+ * number it does not bound; a variable a count reads (Colour Conquest's balls a colour) is that count's, a whole number from 0
+ * to 8. A slider's `min` and `max` never enter it: they only shape the drag (Mode Lab's number field takes any value inside
+ * this bound, past the slider's ends too). A bound that depends on other numbers (rows under the tile ceiling given the
+ * columns, a peg grid's rows given the other patterns, the tiles' inner edge below the outer one) is read on the spec with
+ * every slider's value written in (`values`, the link's `blv`), before it is sanitized: it holds while the other sliders stay
+ * where they are, even where their values cross (both edges reset) or drop a pattern (its room is what the others leave it).
  */
-function sameNumber(bp: Blueprint, played: Blueprint, at: string): boolean {
-  const steps = paramPathSteps(at);
-  if (!steps || numberAt(played, at) === undefined) return false;
-  let a: unknown = bp;
-  let b: unknown = played;
-  for (const step of steps) {
-    if (typeof step === "number" && (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)) return false;
-    a = (a as Record<string | number, unknown> | null)?.[step];
-    b = (b as Record<string | number, unknown> | null)?.[step];
-  }
-  return true;
+export function paramBounds(bp: Blueprint, values: readonly (number | null | undefined)[] = []): BlueprintNumberBound[] {
+  const { bounds } = readBlueprintNumbers(heldSpec(bp, values) ?? bp);
+  return bp.params.map((p) => ({ ...bounds.get(canonicalParamPath(p.at) ?? p.at) }));
 }
 
 /**
- * The bound the language holds each parameter's number to, in order: the sanitizer's own rule at its path
- * (`blueprintNumberBounds()`: a gap of at least 5°, a tier from 1 to 99, a radius above 0 up to the radius ceiling), {} for a
- * number it does not bound. A slider's `min` and `max` never enter it: they only shape the drag (Mode Lab's number field
- * takes any value inside this bound, past the slider's ends too). A bound that depends on other numbers (rows under the tile
- * ceiling given the columns, a peg grid's rows given the other patterns, the tiles' inner edge below the outer one) is read
- * on `played`, the spec with every slider's value applied, so it holds while the other sliders stay where they are; a
- * number `played` no longer has (its pattern dropped) keeps `bp`'s bound.
+ * The value each parameter plays with the sliders at `values` (the link's `blv`), in order: its path's number in the spec the
+ * game plays – the one a link's value past the language's bound was changed to, found at its new place when a pattern before
+ * it was dropped –, a counted variable's start as the runtime counts it (rounded into its bound: 0.4 balls a colour play 0),
+ * or null when the game no longer has that number (its pattern dropped by the obstacle ceiling).
  */
-export function paramBounds(bp: Blueprint, played: Blueprint = bp): BlueprintNumberBound[] {
-  const own = blueprintNumberBounds(bp);
-  const now = played === bp ? own : blueprintNumberBounds(played);
+export function paramsPlayed(bp: Blueprint, values: readonly (number | null | undefined)[]): (number | null)[] {
+  const held = heldSpec(bp, values);
+  const played = held ? sanitizeBlueprint(held).blueprint : bp;
+  const { bounds, counted, obstacleAt } = readBlueprintNumbers(held ?? bp);
   return bp.params.map((p) => {
     const at = canonicalParamPath(p.at) ?? p.at;
-    return { ...(played !== bp && sameNumber(bp, played, at) ? now.get(at) : own.get(at)) };
+    // (a number of an obstacle pattern: at the pattern's index in the spec played; a pattern not read there is not played)
+    const pattern = /^obstacles\[(\d+)\]/.exec(at);
+    const moved = pattern ? (obstacleAt[Number(pattern[1])] ?? null) : undefined;
+    if (moved === null) return null;
+    const v = numberAt(played, pattern ? `obstacles[${moved}]${at.slice(pattern[0].length)}` : at);
+    if (v === undefined) return null;
+    if (!counted.has(at)) return v;
+    const b = bounds.get(at) ?? {};
+    const whole = Math.round(v);
+    return b.min !== undefined && whole < b.min ? b.min : b.max !== undefined && whole > b.max ? b.max : whole;
   });
 }
 
-/**
- * The value parameter `i` plays in `played` (the spec `bp` plays, its sliders applied): its path's number there – the one a
- * link's value past the language's bound was changed to –, or null when `played` no longer has that number (a pattern the
- * obstacle ceiling dropped).
- */
-export function paramPlayed(bp: Blueprint, played: Blueprint, i: number): number | null {
-  const p = bp.params[i];
-  return p && sameNumber(bp, played, p.at) ? numberAt(played, p.at)! : null;
+/** The value parameter `i` plays with the sliders at `values` (`paramsPlayed()`), or null when the game leaves it out. */
+export function paramPlayed(bp: Blueprint, values: readonly (number | null | undefined)[], i: number): number | null {
+  return paramsPlayed(bp, values)[i] ?? null;
 }
 
 // --- review fix (blueprint) --- the unit a slider shows its value in

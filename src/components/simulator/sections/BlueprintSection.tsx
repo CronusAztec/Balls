@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramBounds, paramPlayed, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type BlueprintNumberBound, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, SUMMARY_BIG, formatParamValues, paramBounds, paramsPlayed, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type BlueprintNumberBound, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
 import type { NumberRules } from "@/lib/uncap"; // --- unlimited-sizes ---
 
@@ -98,13 +98,21 @@ const DISPLAY_DECIMALS_MAX = 6;
  * --- review fix (blueprint) --- A slider's value as the panel shows it: in the page's number format, with as many decimals
  * as its step has, and in its unit (paramUnit(): "6 s", "21°", "30°/s", "0,6 px", "300 px/s"); a count shows bare. `unitText`
  * says a unit's message (Blueprint.unit.<unit>) with the number filled in. --- unlimited-sizes --- A typed value keeps its own
- * decimals too (a 0.4 px ball on a slider that steps by 1 shows 0.4 px, never 0 px), up to DISPLAY_DECIMALS_MAX.
+ * decimals too (a 0.4 px ball on a slider that steps by 1 shows 0.4 px, never 0 px), up to DISPLAY_DECIMALS_MAX. It is shown
+ * past the slider's ends too (the Slider's `displayBeyond`), so it stays short there: from SUMMARY_BIG on as How it plays says
+ * a number (1,2 mln px/s², 1E300), and a value too small for DISPLAY_DECIMALS_MAX in exponent form (1E-7 s), never "0 s".
  */
 export function blueprintParamDisplay(bp: Blueprint, i: number, value: number, locale: string, unitText: (unit: Exclude<ParamUnit, "">, n: string) => string): string {
   const step = bp.params[i]?.step ?? 1;
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
   const most = Math.max(decimals, Math.min(DISPLAY_DECIMALS_MAX, decimalsOf(value)));
-  const n = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: most }).format(value);
+  const size = Math.abs(value);
+  const n =
+    size >= SUMMARY_BIG
+      ? summaryNumberFormat(locale)(value)
+      : size > 0 && size < 10 ** -DISPLAY_DECIMALS_MAX
+        ? new Intl.NumberFormat(locale, { notation: "scientific", maximumFractionDigits: 2 }).format(value)
+        : new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: most }).format(value);
   const unit = paramUnit(bp, i);
   return unit ? unitText(unit, n) : n;
 }
@@ -155,10 +163,13 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
   const unreadable = resolved.unreadable;
   const link = blueprintLinkNotice(resolved);
   const base = resolved.base;
-  const values = parseParamValues(s.blParams);
-  // --- unlimited-sizes --- each number field's floor and top: the language's, at the slider's path, read on the spec it plays
-  // (a bound that depends on the other sliders – rows under the tile ceiling given the columns – follows their values)
-  const bounds = useMemo(() => paramBounds(base, resolved.blueprint), [base, resolved.blueprint]);
+  const values = useMemo(() => parseParamValues(s.blParams), [s.blParams]);
+  // --- unlimited-sizes --- each number field's floor and top: the language's, at the slider's path, read with the sliders'
+  // values written in (a bound that depends on the other sliders – rows under the tile ceiling given the columns, the inner
+  // edge under the outer one – follows the values they hold, crossing or dropping a pattern as they may), and what each value
+  // plays (a counted variable as the runtime counts it; null where the game leaves its pattern out)
+  const bounds = useMemo(() => paramBounds(base, values), [base, values]);
+  const plays = useMemo(() => paramsPlayed(base, values), [base, values]);
   const catalogKey = (id: string, key: string) => (b.has(`${id}.${key}`) ? b(`${id}.${key}`) : null);
   const name = (!fromLink && catalogKey(resolved.catalogId, "name")) || base.meta.name;
   const description = (!fromLink && catalogKey(resolved.catalogId, "description")) || base.meta.description;
@@ -329,7 +340,7 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
           // --- unlimited-sizes --- the track is the spec's comfort range; the number field takes anything the language does, and
           // a link's value the game plays otherwise (past the language's bound) says what plays
           const range = { min: p.min, max: p.max, step: p.step };
-          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={range} rules={blueprintParamRules(bounds[i] ?? {})} plays={paramPlayed(base, resolved.blueprint, i)} onChange={(v) => setParam(i, v)} display={display} />;
+          return <Slider key={`${resolved.catalogId}-${p.id}`} t={paramT} search={search} matches={matches} labelKey={`blParam${i}`} value={value} range={range} rules={blueprintParamRules(bounds[i] ?? {})} plays={plays[i] ?? null} onChange={(v) => setParam(i, v)} display={display} displayBeyond />;
         })}
       {/* --- How it plays: the arena, the start, every rule and the ending, in plain words */}
       {!search && (

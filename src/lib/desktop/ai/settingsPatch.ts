@@ -83,7 +83,7 @@ const MODE_SETTING_NOTES: Readonly<Record<string, (current: SimulatorSettings) =
     if (!params.length) return "Mode Lab's slider values (this game has none)";
     // --- unlimited-sizes --- (each slider as a setting is said: its real bound, then its comfort range; a bound that depends on
     // the other sliders – rows under the tile ceiling given the columns – read with their values now, as the panel's fields are)
-    const bounds = blueprintParamBounds(base, resolved.blueprint);
+    const bounds = blueprintParamBounds(base, current.blParams);
     const each = params.map((p, i) => {
       const b = bounds[i] ?? {};
       return `${p.id} (${b.integer ? "whole number" : "number"} ${describeBounds(b.min ?? -Infinity, b.max ?? Infinity, b.above === true, b.below === true)}, slider ${p.min}–${p.max}, step ${p.step})`;

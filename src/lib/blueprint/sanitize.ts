@@ -98,6 +98,12 @@ interface Reader {
   paletteSize: number;
   /** --- unlimited-sizes --- When set, the bound each number is read with, by its path (`blueprintNumberBounds()`). */
   bounds?: Map<string, BlueprintNumberBound>;
+  /** --- unlimited-sizes --- The path of each variable's start as written, by its id (a count that reads the variable bounds it). */
+  varStart: Map<string, string>;
+  /** --- unlimited-sizes --- The numbers the runtime takes as a whole count, by their path as written (`readBlueprintNumbers()`). */
+  counted: Set<string>;
+  /** --- unlimited-sizes --- Where each obstacle pattern as written lands in the spec read: its index there, or null (dropped). */
+  obstacleAt: (number | null)[];
 }
 
 function issue(rd: Reader, path: string, message: string) {
@@ -554,7 +560,11 @@ const OBSTACLE_FIELDS: Readonly<Record<string, NumRule>> = {
 
 function readObstacles(rd: Reader, raw: unknown): BlueprintObstacle[] {
   let total = 0;
+  // --- unlimited-sizes --- every pattern read, kept or dropped, by its path as written (its count's top is set below)
+  const read: { path: string; obstacle: BlueprintObstacle; kept: boolean }[] = [];
+  let keptSoFar = 0;
   const obstacles = readList(rd, "obstacles", raw, L.obstaclePatterns, (v, p) => {
+    rd.obstacleAt.push(null); // --- unlimited-sizes --- (its index in the spec read, once it is kept)
     const o = readRecord(rd, p, v, true);
     if (!o) return null;
     const kind = oneOf(rd, join(p, "kind"), own(o, "kind"), OBSTACLE_KINDS, "peg", true);
@@ -571,20 +581,24 @@ function readObstacles(rd: Reader, raw: unknown): BlueprintObstacle[] {
     const n = obstacleCount(obstacle);
     if (total + n > L.obstacles) {
       issue(rd, p, `expands to ${n} obstacles, ${total + n} in all (at most ${L.obstacles})`);
+      read.push({ path: p, obstacle, kept: false });
       return null;
     }
     total += n;
+    read.push({ path: p, obstacle, kept: true });
+    rd.obstacleAt[rd.obstacleAt.length - 1] = keptSoFar++; // --- unlimited-sizes ---
     return obstacle;
   });
   // --- unlimited-sizes --- (a pattern's own count stops where all the patterns together reach the obstacle ceiling: past it the
-  // pattern is dropped above)
-  obstacles.forEach((o, j) => {
-    const room = L.obstacles - (total - obstacleCount(o));
+  // pattern is dropped above. Its room is what the kept patterns leave it, read at the path it is written at, so a pattern a
+  // spec's numbers drop – a link's values – is bounded by the others' counts as they are, and the ones after it by their own)
+  for (const { path, obstacle: o, kept } of read) {
+    const room = L.obstacles - (total - (kept ? obstacleCount(o) : 0));
     if (o.kind === "pegGrid") {
-      lowerTop(rd, `obstacles[${j}].rows`, Math.max(1, Math.floor(room / o.cols)));
-      lowerTop(rd, `obstacles[${j}].cols`, Math.max(1, Math.floor(room / o.rows)));
-    } else if (o.kind === "pegRing") lowerTop(rd, `obstacles[${j}].count`, Math.max(1, room));
-  });
+      lowerTop(rd, `${path}.rows`, Math.max(1, Math.floor(room / o.cols)));
+      lowerTop(rd, `${path}.cols`, Math.max(1, Math.floor(room / o.rows)));
+    } else if (o.kind === "pegRing") lowerTop(rd, `${path}.count`, Math.max(1, room));
+  }
   return obstacles;
 }
 
@@ -596,8 +610,38 @@ function readVars(rd: Reader, raw: unknown): BlueprintVar[] {
     const id = newId(rd, join(p, "id"), own(r, "id"), rd.vars, RESERVED_VAR_IDS, `v${rd.vars.length + 1}`);
     if (id === null) return null;
     rd.vars.push(id);
+    rd.varStart.set(id, join(p, "start")); // --- unlimited-sizes ---
     return { id, start: num(rd, join(p, "start"), own(r, "start"), { def: 0 }) };
   });
+}
+
+// --- unlimited-sizes --- a variable a count reads as it is
+/**
+ * Bounds the start of a variable that a count reads as it is (Colour Conquest's spawners count `per`) and that no rule
+ * changes: the runtime takes that count whole, from 0 – a split's `into` from 2 – up to the balls a spawn makes
+ * (`L.perSpawn`), so the start plays as that count does (0.4 balls a colour play 0, 20 play 8). Its bound is the count's, a
+ * whole number in that span, and it is counted (`Reader.counted`): what plays is the start rounded into it. A count of a formula
+ * (`per * 2`), or of a variable a rule changes, has no bound of its own here: its value is the run's, not the start's.
+ */
+function boundCountedVars(rd: Reader, spawners: readonly BlueprintSpawner[], rules: readonly BlueprintRule[]) {
+  if (!rd.bounds) return;
+  const changed = new Set<string>();
+  const counts: [Num, number][] = spawners.map((s) => [s.count, 0]);
+  for (const r of rules)
+    for (const a of r.do) {
+      if (a.act === "var") changed.add(a.id);
+      else if (a.act === "spawn") counts.push([a.count, 0]);
+      else if (a.act === "split") counts.push([a.into, 2]);
+    }
+  for (const [count, floor] of counts) {
+    const at = typeof count === "string" && !changed.has(count) ? rd.varStart.get(count) : undefined;
+    const b = at ? rd.bounds.get(at) : undefined;
+    if (!at || !b) continue;
+    raiseFloor(rd, at, floor);
+    lowerTop(rd, at, L.perSpawn);
+    b.integer = true;
+    rd.counted.add(at);
+  }
 }
 
 function readSpawners(rd: Reader, raw: unknown): BlueprintSpawner[] {
@@ -980,8 +1024,8 @@ function checkPaletteRefs(rd: Reader, bp: Blueprint) {
 
 const TOP_FIELDS = ["v", "meta", "arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "hud", "look", "sound", "params"] as const;
 
-function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumberBound>): { blueprint: Blueprint; issues: string[]; newer: string[] } {
-  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length, bounds };
+function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumberBound>): { blueprint: Blueprint; issues: string[]; newer: string[]; rd: Reader } {
+  const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length, bounds, varStart: new Map(), counted: new Set(), obstacleAt: [] };
   const root = isRecord(raw) ? raw : (issue(rd, "$", `a Blueprint is a JSON object, got ${kindOf(raw)}`), {});
   unknownFields(rd, "$", root, TOP_FIELDS);
   const v = own(root, "v");
@@ -997,6 +1041,7 @@ function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumbe
   const obstacles = readObstacles(rd, own(root, "obstacles"));
   const spawners = readSpawners(rd, own(root, "spawners"));
   const rules = readRules(rd, own(root, "rules"));
+  boundCountedVars(rd, spawners, rules); // --- unlimited-sizes ---
   const finish = readFinish(rd, own(root, "finish"));
   const hud = readHud(rd, own(root, "hud"));
   const look = readLook(rd, own(root, "look"));
@@ -1005,7 +1050,7 @@ function walk(raw: unknown, strict: boolean, bounds?: Map<string, BlueprintNumbe
   const blueprint: Blueprint = { v: 1, meta: metaOut, arena, bodies, tiles, obstacles, vars, spawners, rules, finish, hud, look, sound, params: [] };
   checkPaletteRefs(rd, blueprint);
   blueprint.params = readParams(rd, own(root, "params"), blueprint);
-  return { blueprint, issues: rd.issues, newer: newerFormat ? [newerFormat, ...newer] : newer };
+  return { blueprint, issues: rd.issues, newer: newerFormat ? [newerFormat, ...newer] : newer, rd };
 }
 
 /** Shrinks a spec whose canonical JSON is past the byte ceiling: the description, then rules, obstacles, HUD and spawners from the end. */
@@ -1070,18 +1115,44 @@ export interface SanitizeResult {
  * with, its checks across numbers included – the tile ceiling over rows and columns, the obstacle ceiling over every
  * pattern, the palette's length, the tiles' inner edge below their outer one. Those take the spec's other numbers as they
  * are, so a value inside the bound is kept as written while the others stay, and one past it is what sanitizing would
- * change. Mode Lab's number fields take their floor and top from it, read on the spec it plays with every slider applied
+ * change. Mode Lab's number fields take their floor and top from it, read on the spec with every slider's value written in
  * (lib/blueprint/params.ts `paramBounds()`), never from a slider's ends. A path the walker reads no number at is not in the
  * map: it has no bound.
  */
 export function blueprintNumberBounds(spec: Blueprint): ReadonlyMap<string, BlueprintNumberBound> {
+  return readBlueprintNumbers(spec).bounds;
+}
+
+// --- unlimited-sizes --- a spec's numbers as written, before sanitizing changes any
+/** What the walker reads of a spec's numbers as written (`readBlueprintNumbers()`). */
+export interface BlueprintNumberReading {
+  /** The bound of every number, by its path as written (`blueprintNumberBounds()`). */
+  bounds: ReadonlyMap<string, BlueprintNumberBound>;
+  /**
+   * The numbers the runtime takes as a whole count, by their path as written: the start of a variable a count reads as it is
+   * (`boundCountedVars()`). What plays is the number rounded into its bound (0.4 balls a colour play 0, 20 play 8).
+   */
+  counted: ReadonlySet<string>;
+  /** Where each obstacle pattern as written lands in the spec sanitizing makes: its index there, or null (dropped). */
+  obstacleAt: readonly (number | null)[];
+}
+
+/**
+ * The bounds of a spec's numbers read on the spec as written – Mode Lab's spec with a link's slider values in it, before
+ * sanitizing resets or drops anything –, so a bound across numbers takes the others as they are held: the tiles' outer edge
+ * stays above the inner edge a link holds even when the two cross and sanitizing resets both, a peg grid a link's values drop
+ * is topped by the room the other patterns leave it. With where each obstacle pattern lands once sanitized, so a number of a
+ * pattern after a dropped one is found at its new place.
+ */
+export function readBlueprintNumbers(spec: unknown): BlueprintNumberReading {
   const bounds = new Map<string, BlueprintNumberBound>();
   try {
-    walk(spec, false, bounds);
+    const { rd } = walk(spec, false, bounds);
+    return { bounds, counted: rd.counted, obstacleAt: rd.obstacleAt };
   } catch {
-    bounds.clear(); // (a spec the walker cannot read has no bounds to give: sanitizeBlueprint replaces it whole)
+    // (a spec the walker cannot read has no bounds to give: sanitizeBlueprint replaces it whole)
+    return { bounds: new Map(), counted: new Set(), obstacleAt: [] };
   }
-  return bounds;
 }
 
 /** The valid spec closest to `raw`, never throwing (see the file's header). */
