@@ -119,7 +119,8 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 1. **Data first.** Try the data-driven blocks a mode already reads: bounce math, obstacles, timeline keyframes, captions
    and teams, set through settings, links and presets. The app's AI makes a "custom mode" the same way: a base mode plus a
-   settings patch (`src/lib/desktop/ai/customMode.ts`).
+   settings patch (`src/lib/desktop/ai/customMode.ts`). `inspire` says which of these levers the most viewed simulation
+   videos pull, measured on the videos themselves.
 2. **A Blueprint.** A mechanic as data run by one sandboxed interpreter: write a spec in the vocabulary of
    `docs/agents/BLUEPRINTS.md` and check it with `bp-validate` and `bp-check` until it is `playable`. The language lives in
    `src/lib/blueprint/`; the site plays any spec in the `blueprint` mode (Mode Lab, `?mode=blueprint&bls=<code>`), with no
@@ -158,7 +159,11 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `preview` | Get a watermarked PNG contact sheet of a link from a local export of your working tree |
 | `render` | Render a watermarked clip through the page's own fast export |
 | `site-shot` | Take PNG screenshots of site pages at phone and desktop widths |
-| `analyse` | Measure a video file (cuts, motion, colour, loudness, tempo): your own clips, or trending videos from any site |
+| `analyse` | Measure a video (cuts, motion, colour, loudness, tempo): your own clips, or trending videos from any site (a file or a link) |
+| `frames` | Get a video's frames and contact sheets (its first 3 s in finer steps) to look at with a vision-capable model |
+| `trending` | Find trending and viral videos: a YouTube search, its Shorts feed and any TikTok, Instagram or YouTube links |
+| `fetch-video` | Download one video (TikTok, Instagram, YouTube or any site) into `.agent-out/inbox/` with its numbers |
+| `inspire` | Learn from trending videos: fetch, measure and frame the top ones, and get a report in our own levers |
 | `guard` | Run the core guard and return its report (`{"plan":true}` for the static checks alone) |
 | `explain` | Sort a failure into a source pin, a behaviour change, a fingerprint and so on, with the legitimate fix |
 | `bp-schema` | Get the Blueprint language: its JSON Schema (full or Lite), the prompt vocabulary and the ceilings |
@@ -169,15 +174,17 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
-Every tool writes its results only under `.agent-out/`, reads files inside the repository (download a TikTok, Instagram or
-YouTube video into `.agent-out/inbox/` first, with yt-dlp), starts no shell, and uses no network except its own 127.0.0.1
-server. The two owner-run tools call only the owner's own host, with the owner's
+Every tool writes its results only under `.agent-out/`, reads files inside the repository, starts no shell, and uses no
+network except its own 127.0.0.1 server and, for the video tools (`analyse` and `frames` with a link, `trending`,
+`fetch-video`, `inspire`), the video sites yt-dlp reads (`yt-dlp` on the PATH or `JBL_YTDLP`; a link to this machine or its
+private network is refused). Downloads land in `.agent-out/inbox/`. The two owner-run tools call only the owner's own host, with the owner's
 key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of your own cache folder
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
 
-**MCP.** The MCP server exposes 14 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
-`guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and `bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
+**MCP.** The MCP server exposes 18 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
+`frames`, `trending`, `fetch-video`, `inspire`, `guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and
+`bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
 hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
 result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
 200 KB. The guard's `baseline` and `base` are CLI-only (a baseline excuses failures, a later base hides committed ones), and
@@ -217,6 +224,7 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 - That batch changed nothing visitors see and bumped no version.
 - Agents and tools may search, download and analyse other creators' trending and viral videos (TikTok, Instagram,
   YouTube or any site) to learn from them and make the clips better. Downloads go to `.agent-out/`, which git ignores.
+  The toolbox does it: `trending`, `fetch-video`, `frames` and `inspire`, whose dataset grows across runs.
 
 ## Read next
 

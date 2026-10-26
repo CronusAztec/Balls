@@ -226,6 +226,8 @@ npm run go-live                            # --- go-live-kit --- the launch wiza
 npm run go-live:check                      # --- go-live-kit --- proves the site, the billing Worker, the providers and GitHub agree (PASS/FAIL per check)
 npm run guard                              # --- ai-guard --- the core guard: type check, lint, the core unit tests, desktop and billing, the fingerprint lock (see "Core guard")
 npm run guard:browser                      # --- ai-guard --- the same, then a /smoke build and the core smoke blocks (core-every-mode included)
+npm run -s agent -- trending --json '{"query":"ball simulation","maxDurationSec":180}'  # --- inspiration --- trending simulation videos with views, likes and upload dates (yt-dlp)
+npm run -s agent -- inspire --json '{"query":"ball simulation"}'                         # --- inspiration --- fetch, measure and frame the top ones: a report in our own levers
 ```
 
 ## Deploying (Cloudflare, jumpingballslive.com)
@@ -536,6 +538,18 @@ src/
 ```
 
 ## How to extend it
+
+### Learn from trending videos
+--- inspiration --- Before tuning a mode or writing a new one, see what the most viewed simulation videos do:
+`npm run -s agent -- inspire --json '{"query":"ball simulation"}'` finds trending videos (a YouTube search, its Shorts feed,
+and any TikTok, Instagram or YouTube links given as `urls`), fetches the top ones with yt-dlp into `.agent-out/inbox/`,
+measures them as `analyse` does, cuts frames and contact sheets for a model to look at, and writes a report
+(`.agent-out/inspiration/<date>-<slug>/report.md`): what separates the most viewed from the rest, and recommendations in our
+own levers – the clip length (`dur`), the first second, captions (`cap`), the music tempo (`bpm`), colours, modes and
+Blueprint mechanics – compared with our own renders. Every measured video is added once to
+`.agent-out/inspiration/dataset.jsonl`, so the dataset grows from run to run. It needs yt-dlp (`pipx install
+"yt-dlp[default,curl-cffi]"`: TikTok needs its browser impersonation; `JBL_YTDLP` names another) and ffmpeg; the tools
+`trending`, `fetch-video`, `frames` and `analyse` with a `url` do each step alone ([docs/agents/CLI.md](docs/agents/CLI.md#learning-from-trending-videos)).
 
 ### Add a setting
 1. Add the field and its default to `SimulatorSettings` / `defaultSettings()` in `src/lib/settings.ts` (and a range in `RANGES` if it is numeric – the slider's comfort range: the value itself is uncapped, see [Uncapped](#uncapped)).

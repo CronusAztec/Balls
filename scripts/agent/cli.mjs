@@ -16,7 +16,11 @@
  *   preview      a watermarked PNG contact sheet of a link from a local export             (Chromium)
  *   render       a watermarked clip of a link through the page's own fast export           (Chromium)
  *   site-shot    PNG screenshots of site pages from the local export                       (Chromium)
- *   analyse      numeric features of a video file: own clips or downloaded trending ones   (ffmpeg)
+ *   analyse      numeric features of a video: own clips, or other creators' (a file or a link) (ffmpeg)
+ *   frames       still frames and contact sheets of a video for a vision-capable AI          (ffmpeg)
+ *   trending     trending and viral videos: a YouTube search, the Shorts feed, given links  (yt-dlp)
+ *   fetch-video  one video (TikTok, Instagram, YouTube, any site) into .agent-out/inbox/     (yt-dlp)
+ *   inspire      trending → fetch → analyse + frames → a report and our levers, the dataset (yt-dlp, ffmpeg)
  *   guard        the core guard (npm run guard; {"plan":true} for the static checks alone)
  *   explain      which fix a failure allows (source pin, behaviour, fingerprint…)
  *   bp-schema    the Blueprint language: its JSON Schema (full or Lite), the vocabulary for prompts, the ceilings
@@ -31,8 +35,9 @@
  * agent cache in this user's cache folder, and for the guard its own, see tools.ts alsoWrites); every path argument must resolve
  * inside the repository; it never starts a shell (child processes get
  * argument arrays); it uses no network except the CLI's own localhost server for the browser tools – the browser is
- * fenced to it – and, for the two owner-run commands, the owner's own host they document. Pictures and clips carry the
- * watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
+ * fenced to it –, for the two owner-run commands the owner's own host they document, and (--- inspiration ---) for the
+ * video tools the video sites yt-dlp reads (a checked http or https link, never this machine or its private network).
+ * Pictures and clips carry the watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
  */
 import { spawn } from "child_process";
 import crypto from "crypto";
@@ -366,6 +371,11 @@ const TOOLS = {
   render: async (tb, args) => (await import("./browser.mjs")).renderTool(tb, args),
   "site-shot": async (tb, args) => (await import("./browser.mjs")).siteShotTool(tb, args),
   analyse: async (tb, args) => (await import("./analyse.mjs")).analyseTool(tb, args),
+  // --- inspiration --- other creators' trending and viral videos (the owner's decision)
+  frames: async (tb, args) => (await import("./frames.mjs")).framesTool(tb, args),
+  trending: async (tb, args) => (await import("./videoSources.mjs")).trendingTool(tb, args),
+  "fetch-video": async (tb, args) => (await import("./videoSources.mjs")).fetchVideoTool(tb, args),
+  inspire: async (tb, args) => (await import("./inspire.mjs")).inspireTool(tb, args),
   "site-stats": async (tb, args) => (await import("./site-stats.mjs")).siteStatsTool(tb, args),
   "postiz-probe": async (tb, args) => (await import("./postiz-probe.mjs")).postizProbeTool(tb, args),
   "bp-schema": bpSchemaTool,

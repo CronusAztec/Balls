@@ -2,7 +2,8 @@
  * --- agent-cli --- Where the agent toolbox may read and write (scripts/agent/*.mjs):
  *  - ROOT: the repository (this checkout). Every path a caller names is resolved – symbolic links included – and must stay
  *    inside it. A URL (http:, https:, data:, file: …) is not a path: a video on TikTok, Instagram, YouTube or any site is
- *    downloaded into .agent-out/inbox/ first (yt-dlp), and its path is what a tool takes.
+ *    given as a tool's url (--- inspiration --- videoSources.mjs fetches it into .agent-out/inbox/ with yt-dlp), or
+ *    downloaded there first, and its path is what a tool takes.
  *  - OUT_DIR: <repo>/.agent-out/, the only place a tool writes files (PNG, MP4, JSON reports). It ignores itself (it holds a
  *    .gitignore of "*"), so nothing a tool writes ever shows in `git status`.
  *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else jbl-agent/<hash of ROOT> in this user's own
@@ -150,7 +151,7 @@ export function resolveInputFile(input) {
   const text = String(input ?? "").trim();
   if (!text) throw new PathError("No file given");
   if (/[\0\r\n]/.test(text)) throw new PathError("The path has a control character");
-  if (hasScheme(text)) throw new PathError(`"${text.slice(0, 40)}${text.length > 40 ? "…" : ""}" is a URL or a data: URI, not a file: download the video into .agent-out/inbox/ first (yt-dlp -o ".agent-out/inbox/%(id)s.%(ext)s" <link> takes TikTok, Instagram, YouTube and most sites) and pass that path`);
+  if (hasScheme(text)) throw new PathError(`"${text.slice(0, 40)}${text.length > 40 ? "…" : ""}" is a URL or a data: URI, not a file: give a video link as url (analyse and frames fetch it first), or download the video into .agent-out/inbox/ first (the fetch-video tool, or yt-dlp -o ".agent-out/inbox/%(id)s.%(ext)s" <link>: TikTok, Instagram, YouTube and most sites) and pass that path`);
   const resolved = path.resolve(ROOT, text);
   if (!isInside(ROOT, resolved)) throw new PathError(`${text} is outside the repository: copy the file into .agent-out/inbox/ first`);
   if (!fs.existsSync(resolved)) throw new PathError(`${path.relative(ROOT, resolved) || text} does not exist`);
@@ -178,6 +179,21 @@ export function ensureOutDir() {
     fs.renameSync(tmp, ignore);
   }
   return OUT_DIR;
+}
+
+/**
+ * --- inspiration --- A fresh-or-reused folder .agent-out/<part>/<part>/… (inbox, frames/<name>, inspiration/<run>): every part a
+ * bare folder name, the result checked to lead inside .agent-out/ before and after it is made (a linked part is refused).
+ */
+export function outFolder(...parts) {
+  if (!parts.length) throw new PathError("No folder named");
+  for (const p of parts) if (typeof p !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(p) || p.includes("..")) throw new PathError(`The folder name "${p}" must be a bare name (letters, digits, . _ -)`);
+  const dir = path.join(ensureOutDir(), ...parts);
+  if (!isInside(OUT_DIR, dir)) throw new PathError("The folder must stay inside .agent-out/");
+  assertLeadsInside(OUT_DIR, dir, `.agent-out/${parts.join("/")}`);
+  fs.mkdirSync(dir, { recursive: true });
+  if (!isInside(fs.realpathSync(OUT_DIR), fs.realpathSync(dir))) throw new PathError("The folder leads outside .agent-out/ (a symbolic link)");
+  return dir;
 }
 
 /** A fresh-or-reused folder .agent-out/<tool>/<name>/ for a tool's files; `name` is a bare folder name (checked again here). */

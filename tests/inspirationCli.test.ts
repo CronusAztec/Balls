@@ -1,0 +1,253 @@
+import { spawnSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DEFAULT_QUERY, parseJsonLines, type VideoMeta } from "@/lib/agentKit/videoSources";
+import { runFolderName } from "@/lib/agentKit/inspiration";
+import { hookTimes } from "@/lib/videoAnalysis/ffmpegArgs";
+import { AGENT_TOOLS, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { createMcpHandler } from "../scripts/agent/mcp.mjs";
+import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
+import { ytDlpCommand } from "../scripts/agent/videoSources.mjs";
+import { PathError, outFolder } from "../scripts/agent/paths.mjs";
+
+// --- inspiration --- The inspiration tools of the agent toolbox (trending, fetch-video, frames, inspire; analyse with a
+// url): the owner wants agents to learn from other creators' trending and viral simulation videos. Their tool table and MCP
+// listing, and the CLI end to end with a fake yt-dlp on the PATH (tests/fixtures/fake-yt-dlp.mjs, answering from the
+// recorded output in tests/fixtures/ytdlp/) and a clip ffmpeg makes here: no test reaches the network. Their pure halves:
+// tests/inspiration.test.ts.
+
+const ROOT = path.resolve(__dirname, "..");
+const CLI = path.join(ROOT, "scripts", "agent", "cli.mjs");
+const FIXTURES = path.join(ROOT, "tests", "fixtures", "ytdlp");
+const FAKE = path.join(ROOT, "tests", "fixtures", "fake-yt-dlp.mjs");
+const lines = (file: string) => parseJsonLines(fs.readFileSync(path.join(FIXTURES, file), "utf8"));
+const SEARCH = lines("search.jsonl");
+const SHORTS = lines("shorts.jsonl");
+const PAGES = lines("pages.jsonl");
+const TIKTOK = JSON.parse(fs.readFileSync(path.join(FIXTURES, "tiktok-page.json"), "utf8")) as Record<string, unknown>;
+
+describe("yt-dlp itself and where its files go (--- inspiration ---)", () => {
+  it("runs a script given as JBL_YTDLP with this Node, anything else as it is", () => {
+    expect(ytDlpCommand("/x/fake.mjs")).toEqual({ file: process.execPath, prefix: ["/x/fake.mjs"] });
+    expect(ytDlpCommand("yt-dlp")).toEqual({ file: "yt-dlp", prefix: [] });
+  });
+
+  it("writes only into bare-named folders under .agent-out/, never through a link", () => {
+    for (const bad of ["../x", "a/b", ".hidden", "", "a..b"]) expect(() => outFolder("frames", bad), bad).toThrow(PathError);
+    expect(() => outFolder()).toThrow(PathError);
+    const name = `test-link-${process.pid}`;
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-outside-"));
+    const link = path.join(ROOT, ".agent-out", "frames", name);
+    fs.mkdirSync(path.dirname(link), { recursive: true });
+    fs.symlinkSync(outside, link);
+    try {
+      expect(() => outFolder("frames", name)).toThrow(/outside|link/);
+      expect(() => outFolder("frames", name, "inner")).toThrow(/outside|link/);
+      expect(fs.readdirSync(outside)).toEqual([]);
+    } finally {
+      fs.rmSync(link, { force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+    expect(outFolder("inbox")).toBe(path.join(ROOT, ".agent-out", "inbox"));
+  });
+});
+
+describe("the tool table (--- inspiration ---)", () => {
+  it("takes one video a call as a file or a link, links that are http or https, and no maximum where none is needed", () => {
+    expect([...PATH_OR_URL_TOOLS].sort()).toEqual(["analyse", "frames"]);
+    for (const tool of ["analyse", "frames"]) {
+      expect(checkToolArgs(tool, {}).ok, tool).toBe(false);
+      expect(checkToolArgs(tool, { path: "a.mp4", url: "https://x.test/v" }).ok, tool).toBe(false);
+      expect(checkToolArgs(tool, { url: "https://www.tiktok.com/@a/video/1" }).ok, tool).toBe(true);
+      expect(checkToolArgs(tool, { url: "ftp://x.test/v" }).ok, tool).toBe(false);
+    }
+    expect(checkToolArgs("fetch-video", {}).ok).toBe(false);
+    expect(checkToolArgs("fetch-video", { url: "https://youtu.be/vyLcAYfbJ_k", maxHeight: 4320 }).ok).toBe(true);
+    expect(checkToolArgs("trending", { limit: 500, urls: ["https://www.instagram.com/reel/C0abc12/"], sortBy: "viewsPerDay" }).ok).toBe(true);
+    expect(checkToolArgs("trending", { limit: 0 }).ok).toBe(false);
+    expect(checkToolArgs("trending", { platform: "tiktok" }).ok).toBe(false);
+    expect(checkToolArgs("inspire", { top: 50, dataset: "../x" }).ok).toBe(false);
+    expect(checkToolArgs("inspire", { top: 50, dataset: "satisfying-2026" }).ok).toBe(true);
+    const web = AGENT_TOOLS.filter((t) => t.network === "web").map((t) => t.name);
+    expect(web).toEqual(["analyse", "frames", "trending", "fetch-video", "inspire"]);
+    for (const t of AGENT_TOOLS.filter((x) => x.network === "web")) expect(t.mcp, t.name).toBe(true);
+  });
+
+  it("says over MCP which tools reach video sites (openWorldHint) and which only read", async () => {
+    const { handle } = createMcpHandler({ tools: AGENT_TOOLS, run: async () => ({ ok: true, result: {} }) });
+    const listed = (await handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string; annotations: { openWorldHint: boolean; readOnlyHint: boolean } }[] } };
+    const by = new Map(listed.result.tools.map((t) => [t.name, t.annotations]));
+    for (const name of ["analyse", "frames", "trending", "fetch-video", "inspire"]) expect(by.get(name)?.openWorldHint, name).toBe(true);
+    for (const name of ["modes", "simulate", "guard", "bp-check"]) expect(by.get(name)?.openWorldHint, name).toBe(false);
+    expect(by.get("trending")?.readOnlyHint).toBe(true);
+    expect(by.get("fetch-video")?.readOnlyHint).toBe(false);
+  });
+});
+
+// --- inspiration --- the CLI end to end: the fake yt-dlp on the PATH, a clip ffmpeg makes here, nothing from the network
+
+const TEST_DIR = path.join(ROOT, ".agent-out", `test-inspiration-${process.pid}`);
+const BIN = path.join(TEST_DIR, "bin");
+const LOG = path.join(TEST_DIR, "ytdlp.log");
+const CLIP = path.join(TEST_DIR, "clip.mp4");
+const QUERY = `ball simulation test ${process.pid}`;
+const DATASET = `test-${process.pid}`;
+/** What these tests write outside their own folder: moved aside first, put back after. */
+const FIXTURE_NAMES = [...[...SEARCH, ...SHORTS, ...PAGES].map((r) => `youtube-${r.id}`), `tiktok-${TIKTOK.id}`];
+const touched = () => [
+  ...FIXTURE_NAMES.flatMap((n) => [".mp4", ".webm", ".info.json"].map((ext) => path.join(ROOT, ".agent-out", "inbox", `${n}${ext}`))),
+  ...FIXTURE_NAMES.map((n) => path.join(ROOT, ".agent-out", "frames", n)),
+  path.join(ROOT, ".agent-out", "frames", `test-inspiration-${process.pid}`),
+  path.join(ROOT, ".agent-out", "inspiration", runFolderName(new Date().toISOString(), QUERY)),
+  path.join(ROOT, ".agent-out", "inspiration", `${DATASET}.jsonl`),
+];
+const moved: [string, string][] = [];
+
+function agent(tool: string, args: unknown, env: Record<string, string> = {}) {
+  const base: NodeJS.ProcessEnv = { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_YTDLP_LOG: LOG, FAKE_YTDLP_CLIP: CLIP, ...env };
+  if (!("JBL_YTDLP" in env)) delete base.JBL_YTDLP;
+  const r = spawnSync(process.execPath, [CLI, tool, "--json", JSON.stringify(args)], { cwd: ROOT, env: base, encoding: "utf8", timeout: 240_000 });
+  const last = r.stdout.trim().split("\n").pop() ?? "";
+  return { code: r.status, json: JSON.parse(last || "null"), stderr: r.stderr };
+}
+const calls = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as string[]) : []);
+
+describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)", () => {
+  const ffmpeg = resolveFfmpeg();
+  beforeAll(() => {
+    fs.mkdirSync(BIN, { recursive: true });
+    fs.mkdirSync(path.join(TEST_DIR, "backup"), { recursive: true });
+    fs.writeFileSync(path.join(BIN, "yt-dlp"), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE)} "$@"\n`, { mode: 0o755 });
+    touched().forEach((p, i) => {
+      if (fs.existsSync(p)) {
+        const aside = path.join(TEST_DIR, "backup", String(i));
+        fs.renameSync(p, aside);
+        moved.push([p, aside]);
+      }
+    });
+    if (ffmpeg) {
+      const make = spawnSync(ffmpeg.path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=180x320:r=30:d=6", "-f", "lavfi", "-i", "sine=frequency=880:beep_factor=4:d=6", "-c:v", "mpeg4", "-q:v", "4", "-c:a", "aac", "-shortest", CLIP], { encoding: "utf8", timeout: 60_000 });
+      if (make.status !== 0) throw new Error(make.stderr);
+    }
+  });
+  afterAll(() => {
+    for (const p of touched()) fs.rmSync(p, { recursive: true, force: true });
+    for (const [p, aside] of moved) fs.renameSync(aside, p);
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it("finds trending videos from the search, the Shorts feed and given links, each with its numbers, and never reaches the network", () => {
+    const r = agent("trending", { query: DEFAULT_QUERY, limit: 6, maxDurationSec: 180, urls: ["https://www.tiktok.com/@channel_7/video/7508828818702978326", "http://169.254.169.254/latest/"] });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    const res = r.json.result;
+    expect(res).toMatchObject({ query: DEFAULT_QUERY, count: 6, sources: { search: 8, shorts: 6, urls: 1 }, ytdlp: { source: "PATH", version: "2099.01.01-fake" }, refused: [{ url: "http://169.254.169.254/latest/", error: expect.stringMatching(/private network/) }] });
+    expect(res.videos.map((v: VideoMeta) => v.key)).toEqual(["tiktok:7508828818702978326", "youtube:FFJ5THnzdDE", "youtube:o-DtHwlRIqU", "youtube:8aj37SIIbQc", "youtube:WGZeukpDBMw", "youtube:iOjJe2bjOCg"]);
+    for (const v of res.videos as VideoMeta[]) {
+      for (const k of ["url", "platform", "title", "channel", "views", "likes", "comments", "durationSec", "uploadDate", "viewsPerDay"]) expect(v, `${v.key} ${k}`).toHaveProperty(k);
+      expect(v.short).toBe(true);
+    }
+    expect(res.videos[1]).toMatchObject({ views: 806359, likes: 2450, uploadDate: "2026-10-11", detailed: true });
+    // every run without the user's config or a cache; every link after --
+    const runs = calls().filter((c) => !c.includes("--version"));
+    expect(runs.length).toBeGreaterThanOrEqual(3);
+    for (const c of runs) {
+      expect(c.slice(0, 2)).toEqual(["--ignore-config", "--no-cache-dir"]);
+      expect(c).toContain("--");
+    }
+    expect(runs.some((c) => c.includes("https://www.youtube.com/hashtag/ballsimulation/shorts"))).toBe(true);
+    expect(runs.flat().some((a) => a.includes("169.254"))).toBe(false); // the refused link never reached yt-dlp
+  });
+
+  it("says what is missing without yt-dlp, and takes JBL_YTDLP (a script runs with this Node)", () => {
+    const empty = path.join(TEST_DIR, "empty");
+    fs.mkdirSync(empty, { recursive: true });
+    const none = agent("trending", { limit: 2 }, { PATH: empty });
+    expect(none.code).toBe(1);
+    expect(none.json.error).toMatch(/No yt-dlp found: .*JBL_YTDLP/);
+    const viaEnv = agent("trending", { limit: 2, details: false }, { PATH: empty, JBL_YTDLP: FAKE });
+    expect(viaEnv.code, JSON.stringify(viaEnv.json)).toBe(0);
+    expect(viaEnv.json.result).toMatchObject({ count: 2, pages: { read: 0, unread: 0 }, ytdlp: { source: "JBL_YTDLP" } });
+    // (a search asks for half as many again as it returns: the fake's first three rows, the two most viewed of them)
+    expect(calls().some((c) => c[c.length - 1] === "ytsearch3:ball simulation")).toBe(true);
+    expect(viaEnv.json.result.videos.map((v: VideoMeta) => v.id)).toEqual(["wGN0hxfuqiE", "OKZltUoI7eE"]);
+  });
+
+  it("fetches a video into .agent-out/inbox/<platform>-<id>.mp4 with its info JSON, reuses it, and refuses a private link before yt-dlp runs", () => {
+    const url = "https://www.tiktok.com/@channel_7/video/7508828818702978326";
+    const first = agent("fetch-video", { url });
+    if (!ffmpeg) {
+      // (without ffmpeg the fake still hands its file out; nothing here needs ffmpeg but the clip it copies)
+      expect(first.json.error ?? "").toMatch(/FAKE_YTDLP_CLIP|No ffmpeg/);
+      return;
+    }
+    expect(first.code, JSON.stringify(first.json)).toBe(0);
+    expect(first.json.result).toMatchObject({ file: ".agent-out/inbox/tiktok-7508828818702978326.mp4", infoFile: ".agent-out/inbox/tiktok-7508828818702978326.info.json", cached: false, meta: { platform: "tiktok", views: 4100000 } });
+    expect(fs.statSync(path.join(ROOT, first.json.result.file)).size).toBe(fs.statSync(CLIP).size);
+    expect(fs.readdirSync(path.join(ROOT, ".agent-out", "inbox")).filter((f) => f.startsWith(".fetch-"))).toEqual([]); // the fresh folder is gone
+    expect(agent("fetch-video", { url }).json.result.cached).toBe(true);
+    expect(agent("fetch-video", { url, force: true }).json.result.cached).toBe(false);
+    const before = calls().length;
+    const refused = agent("fetch-video", { url: "http://192.168.0.1/v.mp4" });
+    expect(refused.code).toBe(1);
+    expect(refused.json.error).toMatch(/private network/);
+    expect(calls().length).toBe(before);
+  });
+
+  it("cuts frames and contact sheets for a vision-capable AI, and analyses a link exactly as a file", () => {
+    if (!ffmpeg) {
+      expect(agent("frames", { path: path.relative(ROOT, CLIP) }).json.error).toMatch(/No ffmpeg found/);
+      return;
+    }
+    const out = `test-inspiration-${process.pid}`;
+    const r = agent("frames", { path: path.relative(ROOT, CLIP), out });
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    const res = r.json.result;
+    expect(res.dir).toBe(`.agent-out/frames/${out}`);
+    expect(res.frames).toHaveLength(12);
+    expect(res.hook.map((h: { sec: number }) => h.sec)).toEqual(hookTimes(6));
+    const png = (rel: string) => fs.readFileSync(path.join(ROOT, rel)).subarray(0, 8).toString("hex");
+    for (const f of [res.sheet, res.hookSheet, res.frames[0].file, res.hook[0].file]) expect(png(f), f).toBe("89504e470d0a1a0a");
+    // a second, smaller run replaces the first one's frames
+    const again = agent("frames", { path: path.relative(ROOT, CLIP), out, count: 4, hookSec: 0, sheet: false });
+    expect(again.json.result).toMatchObject({ hook: [], sheet: null, hookSheet: null });
+    expect(fs.readdirSync(path.join(ROOT, res.dir)).sort()).toEqual(["frame-01.png", "frame-02.png", "frame-03.png", "frame-04.png"]);
+    // analyse with a link: fetched first (here: reused), then measured as the file is
+    const url = "https://www.tiktok.com/@channel_7/video/7508828818702978326";
+    const byUrl = agent("analyse", { url });
+    expect(byUrl.code, JSON.stringify(byUrl.json)).toBe(0);
+    const byPath = agent("analyse", { path: byUrl.json.result.file });
+    expect(byUrl.json.result.features).toEqual(byPath.json.result.features);
+    expect(byUrl.json.result.fetched).toMatchObject({ url, meta: { key: "tiktok:7508828818702978326" } });
+    // a link given as a path is still no file: the answer says how
+    expect(agent("analyse", { path: url }).json.error).toMatch(/give a video link as url/);
+  }, 240_000);
+
+  it("runs the whole inspiration pipeline: a report in our levers, a failed video kept with its error, the dataset grown once per video", () => {
+    const ours = path.join(TEST_DIR, "ours");
+    if (!ffmpeg) {
+      expect(agent("inspire", { query: QUERY, top: 1 }).json.error).toMatch(/No ffmpeg found/);
+      return;
+    }
+    fs.mkdirSync(ours, { recursive: true });
+    fs.copyFileSync(CLIP, path.join(ours, "clip.mp4"));
+    const args = { query: QUERY, limit: 6, top: 2, ours: path.relative(ROOT, ours), dataset: DATASET };
+    const r = agent("inspire", args);
+    expect(r.code, JSON.stringify(r.json)).toBe(0);
+    const res = r.json.result;
+    expect(res.counts).toEqual({ candidates: 6, analysed: 1, failed: 1, ours: 1 });
+    expect(res.videos[0]).toMatchObject({ url: "https://www.youtube.com/shorts/FFJ5THnzdDE", analysed: true, sheet: ".agent-out/frames/youtube-FFJ5THnzdDE/sheet.png" });
+    expect(res.videos[1]).toMatchObject({ url: "https://www.youtube.com/shorts/o-DtHwlRIqU", analysed: false, error: expect.stringMatching(/Video unavailable/) });
+    const report = JSON.parse(fs.readFileSync(path.join(ROOT, res.report), "utf8"));
+    expect(report).toMatchObject({ v: 1, query: QUERY, metric: "views", ours: { files: [path.relative(ROOT, path.join(ours, "clip.mp4")).split(path.sep).join("/")] } });
+    expect(report.recommendations.some((x: { area: string; levers: { link?: string }[] }) => x.area === "length" && x.levers[0].link === "dur")).toBe(true);
+    expect(fs.readFileSync(path.join(ROOT, res.markdown), "utf8")).toMatch(/^# Inspiration: ball simulation test/);
+    expect(res.dataset).toEqual({ file: `.agent-out/inspiration/${DATASET}.jsonl`, added: 1, total: 1 });
+    const line = JSON.parse(fs.readFileSync(path.join(ROOT, res.dataset.file), "utf8").trim());
+    expect(line).toMatchObject({ key: "youtube:FFJ5THnzdDE", query: QUERY, traits: { durationSec: expect.any(Number) }, features: { cuts: expect.any(Number) } });
+    expect(line.features.motion).toBeUndefined();
+    // a second run adds nothing it already holds
+    expect(agent("inspire", { ...args, frames: false }).json.result.dataset).toEqual({ file: `.agent-out/inspiration/${DATASET}.jsonl`, added: 0, total: 1 });
+  }, 240_000);
+});

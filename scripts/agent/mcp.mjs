@@ -9,6 +9,8 @@
  *
  * The tools are the CLI's (src/lib/agentKit/tools.ts AGENT_TOOLS, the entries marked `mcp`), each with its JSON Schema;
  * the owner-run commands (site-stats, postiz-probe) are not offered, nor a tool's CLI-only arguments (the guard's baseline).
+ * --- inspiration --- The video tools (frames, trending, fetch-video, inspire; analyse with a url) reach video sites through
+ * yt-dlp, as the CLI does: their annotations say so (openWorldHint).
  * A call runs exactly the CLI – `node scripts/agent/cli.mjs <tool> --json -` as a child process with an argument array (no
  * shell), the arguments on its stdin (a command line holds 128 KiB per argument on Linux, about 32K characters in all on
  * Windows) – so it keeps every CLI rule: arguments checked against the schema, paths confined to the repository, files
@@ -40,6 +42,7 @@ const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "cli.mjs");
 
 const INSTRUCTIONS =
   "JumpingBallsLive's agent toolbox: modes, simulate, fingerprint, preview, render, site-shot, analyse, guard, explain, " +
+  "the inspiration tools frames, trending, fetch-video and inspire (learn from other creators' trending and viral videos), " +
   "and the Blueprint tools bp-schema, bp-validate, bp-check, bp-link, bp-docs (new modes as data: docs/agents/BLUEPRINTS.md). " +
   "Results are JSON; pictures and clips are written under .agent-out/ and returned as paths. Read AGENTS.md first; " +
   "never re-record a fingerprint (a moved one is a behaviour change to fix).";
@@ -224,7 +227,8 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
             title: t.title,
             description: t.description,
             inputSchema: { ...withoutCliOnly(t), type: "object" },
-            annotations: { title: t.title, readOnlyHint: t.writes === "none", destructiveHint: false, idempotentHint: t.writes === "none", openWorldHint: false },
+            // (--- inspiration --- the video tools reach video sites: an open world)
+            annotations: { title: t.title, readOnlyHint: t.writes === "none", destructiveHint: false, idempotentHint: t.writes === "none", openWorldHint: t.network === "web" },
           })),
         });
       case "tools/call": {

@@ -213,14 +213,16 @@ describe("explain (--- agent-cli ---)", () => {
 });
 
 describe("the tool table (--- agent-cli ---)", () => {
-  it("names every tool once with an object schema; only owner-run commands touch the network beyond localhost, and MCP never offers them", () => {
+  it("names every tool once with an object schema; beyond localhost only owner-run commands (never over MCP) and the video tools reach the network", () => {
     const names = AGENT_TOOLS.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "site-stats", "postiz-probe"]);
+    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "site-stats", "postiz-probe"]);
     for (const t of AGENT_TOOLS) {
       expect(t.input.type, t.name).toBe("object");
       expect(t.input.additionalProperties, t.name).toBe(false);
       if (t.network === "owner") expect(t.mcp, t.name).toBe(false);
+      // --- inspiration --- video sites through yt-dlp: the tools that learn from other creators' videos (the owner's decision)
+      else if (t.network === "web") expect(["analyse", "frames", "trending", "fetch-video", "inspire"], t.name).toContain(t.name);
       else expect(["none", "localhost"]).toContain(t.network);
     }
     expect(AGENT_TOOLS.filter((t) => t.mcp).map((t) => t.name)).not.toContain("site-stats");

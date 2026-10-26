@@ -1,8 +1,9 @@
 # The agent toolbox (`npm run agent`)
 
 The agent toolbox gives a coding agent, or a person, eyes on this repository. An agent can simulate a seed, check a mode's
-determinism fingerprint, see a mode and the website, render a clip and measure a video file. It does all of this without
-editing anything but its own output folder. Every call prints exactly one JSON result, so any agent with a shell can use it.
+determinism fingerprint, see a mode and the website, render a clip and measure a video. It can also find other creators'
+trending and viral simulation videos, fetch them, look at their frames and learn from them what makes our clips better. It
+does all of this without editing anything but its own output folder. Every call prints exactly one JSON result, so any agent with a shell can use it.
 An optional MCP server offers the same tools to agents that take tools over MCP.
 
 ```sh
@@ -25,7 +26,11 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
 | `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. | `{"mode":"classic","seed":42,"seconds":10}` |
 | `site-shot` | PNG screenshots of site pages at the given widths (one file per page and width, numbered in the list's order), with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
-| `analyse` | Numeric features of a video file, your own clip or another creator's trending one: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
+| `analyse` | Numeric features of a video, your own clip or another creator's trending one: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. A file (`path`) or a link (`url`, fetched first). | `{"path":".agent-out/inbox/clip.mp4"}`, `{"url":"https://www.tiktok.com/@…/video/…"}` |
+| `frames` | Frames of a video spread over it, its opening seconds in finer steps and a contact sheet of each, for a vision-capable model. A file or a link. | `{"url":"https://www.youtube.com/shorts/…","count":12}` |
+| `trending` | Trending and viral videos: a YouTube search, its Shorts feed and any links you give, with views, likes, comments, length, upload date and views per day, ranked. | `{"query":"ball simulation","limit":20,"maxDurationSec":180}` |
+| `fetch-video` | One video downloaded into `.agent-out/inbox/<platform>-<id>.mp4` with its info JSON and its numbers. | `{"url":"https://www.instagram.com/reel/…"}` |
+| `inspire` | The whole pipeline: trending, fetch the top videos, analyse and frames for each, and a report of what separates the most viewed, in our own levers. | `{"query":"ball simulation","top":8}` |
 | `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"plan":true}`, `{"browser":true}` |
 | `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error, or one of the guard's own: a weakened test, a stale export, a missing install or browser. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
 | `bp-schema` | The Blueprint language: its JSON Schema (`form`: `full` or `lite`), the vocabulary block for prompts and the sandbox ceilings. | `{"form":"lite"}` |
@@ -57,14 +62,15 @@ page can play differently here. `preview` and `render` run in the page and use i
   user or others may write to it. The `guard` tool's state is the
   guard's own (`node_modules/.cache/jbl-guard`), and with `browser` the guard rebuilds the repository's `.next/` and `out/`.
 - **Every path argument must resolve inside the repository**, symbolic links included. A URL (`http:`, `https:`, `data:`,
-  `file:`…) is not a path: download the video into `.agent-out/inbox/` first (see analyse), and copy a file from elsewhere
-  there too. `explain` reads only test files inside `tests/`.
+  `file:`…) is not a path: give a video link as `url` (analyse, frames, fetch-video), or download it into `.agent-out/inbox/`
+  first, and copy a file from elsewhere there too. `explain` reads only test files inside `tests/`.
 - **Arguments match their schema exactly.** An unknown field is refused, a field named after a JavaScript built-in such as
   `constructor` or `__proto__` too. `--json -` reads the arguments from stdin, at any length.
-- **No shell.** Child processes (ffmpeg, git, next, the guard) get argument arrays.
-- **No network** except the CLI's own static server on 127.0.0.1 for the browser tools. The browser is fenced to that
+- **No shell.** Child processes (ffmpeg, yt-dlp, git, next, the guard) get argument arrays.
+- **No network** except the CLI's own static server on 127.0.0.1 for the browser tools, and the video sites yt-dlp reads for
+  the video tools (see [Learning from trending videos](#learning-from-trending-videos)). The browser is fenced to that
   server: every other request is aborted and reported as `blockedRequests`, and service workers are blocked. The two
-  owner-run commands are the only exceptions, and they call only the hosts listed below.
+  owner-run commands call only the hosts listed below.
 - **The watermark stays.** No tool installs a licence, and the committed TEST licence stays inside the smoke harness. The
   browser opens the site as a free visitor, so pictures and clips carry the watermark exactly as a free render does. A
   picture or a clip the page reports as clean is refused and never written. `tests/agentCli.test.ts` checks this.
@@ -89,24 +95,74 @@ Chromium comes from Playwright's browsers (`PLAYWRIGHT_BROWSERS_PATH`) or `CHROM
 
 ## analyse
 
-`analyse` measures a video file inside the repository and returns numbers: your own clips, and the trending and viral
-videos of other creators on TikTok, Instagram, YouTube or any other site, so you learn what makes them work and make the
-clips better. Download a video from a site into `.agent-out/inbox/` first (git ignores the folder):
+`analyse` measures a video and returns numbers: your own clips, and the trending and viral videos of other creators on
+TikTok, Instagram, YouTube or any other site, so you learn what makes them work and make the clips better. Give a file
+inside the repository as `path`, or a link as `url`: the link is fetched into `.agent-out/inbox/` first (as `fetch-video`
+does, a video already there is reused) and the file is then measured exactly as a path is.
 
 ```sh
-yt-dlp -j --flat-playlist "ytsearch20:satisfying ball simulation"   # YouTube results: title, url, view_count, duration
-yt-dlp -o ".agent-out/inbox/%(id)s.%(ext)s" "<a TikTok, Instagram or YouTube video link>"
-npm run -s agent -- analyse --json '{"path":".agent-out/inbox/<id>.mp4"}'
+npm run -s agent -- analyse --json '{"url":"https://www.tiktok.com/@…/video/…"}'
+npm run -s agent -- analyse --json '{"path":".agent-out/inbox/tiktok-<id>.mp4"}'
 ```
 
 Nothing is uploaded, and the tool keeps no copy of the file. ffmpeg opens the file as `file:` with only the file protocol
-and video demuxers allowed, so a playlist dressed as `.mp4` is refused, never followed. Its ffmpeg is `FFMPEG_PATH`, else
-the Windows app's bundled one (`desktop/node_modules/ffmpeg-static`, after `npm ci` in `desktop/`), else `ffmpeg` on the
-PATH. With none, it says so and measures nothing.
+and video demuxers allowed, so a playlist dressed as `.mp4` is refused, never followed. Its ffmpeg is `JBL_FFMPEG` or
+`FFMPEG_PATH`, else the Windows app's bundled one (`desktop/node_modules/ffmpeg-static`, after `npm ci` in `desktop/`), else
+`ffmpeg` on the PATH. With none, it says so and measures nothing.
 
 The feature definitions are in `src/lib/videoAnalysis/features.ts`. Pictures are sampled as 16 × 16 RGB twice a second, the
 rate own clips are compared at. Cuts come from scdet, loudness from ebur128 (BS.1770, like the export's normaliser), and
 tempo from the app's own beat detector.
+
+## Learning from trending videos
+
+The owner wants agents to take inspiration from trending and viral simulation videos, analyse them and make our clips and
+our algorithm better. Four tools do it, with yt-dlp (`yt-dlp` on the PATH, or `JBL_YTDLP`: an executable, or a .mjs
+script run with Node) and ffmpeg. Without yt-dlp they say how to install it and fetch nothing. Install it with its browser
+impersonation (`pipx install "yt-dlp[default,curl-cffi]"`): TikTok answers yt-dlp without it with an error.
+
+```sh
+npm run -s agent -- trending --json '{"query":"ball simulation","limit":20,"maxDurationSec":180}'
+npm run -s agent -- fetch-video --json '{"url":"https://www.youtube.com/shorts/<id>"}'
+npm run -s agent -- frames --json '{"path":".agent-out/inbox/youtube-<id>.mp4"}'
+npm run -s agent -- inspire --json '{"query":"ball simulation","top":8}'
+```
+
+- **`trending`** searches YouTube (`ytsearchN:`), and with `maxDurationSec` at most 180 also the query's hashtag Shorts feed
+  (`ball simulation` reads `#ballsimulation`). Links in `urls` (TikTok, Instagram, YouTube or any site) are added; yt-dlp
+  cannot list TikTok's tags, so give TikTok videos as links. The best rows' own pages are then read for exact views, likes,
+  comments, length and upload date (`details: false` skips that). It returns each video's link, platform, title, channel,
+  views, likes, comments, length, upload date, views per day and whether it is short-form, sorted by `sortBy` (`views` or
+  `viewsPerDay`), short-form first when `maxDurationSec` is at most 180. `limit` has no maximum. It writes nothing.
+- **`fetch-video`** downloads one video into `.agent-out/inbox/<platform>-<id>.mp4` with `<platform>-<id>.info.json` beside
+  it: the best picture up to `maxHeight` (the shorter side, default 1080, so a 1080 × 1920 short stays whole), merged into
+  MP4 with ffmpeg. A video already there is reused unless `force`.
+- **`frames`** writes `count` frames spread over a video (default 12), its first `hookSec` seconds every `hookStepSec`
+  (default 3 s every 0.25 s: the hook a viewer decides on) and a contact sheet of each, into `.agent-out/frames/<name>/`:
+  sheet.png, hook-sheet.png, frame-01.png… and hook-01.png…. A model that reads images looks at the two sheets to see what
+  the numbers describe.
+- **`inspire`** runs the whole pipeline: `trending` (short-form by default), the top `top` videos fetched, measured as
+  `analyse` measures a file and cut into frames, our own renders measured alike (the newest under `.agent-out/render`, or
+  the folder `ours` names), and a report in `.agent-out/inspiration/<date>-<slug>/` (report.json and report.md). The
+  report compares the most viewed third with the rest, per trait: length, cuts a minute, motion, the first second's
+  motion (the hook), first motion, where the peak sits, brightness, saturation, dark share, the loop seam, loudness, tempo,
+  sound events a second, title words and themes. It lists the patterns that separate them (medians and Spearman's rank
+  correlation with views) and recommendations in our own levers: settings with their link keys (`recordingDuration` as
+  `dur`, `bpm`, `captions` as `cap`…), modes, Blueprint mechanics and the tools to check them. A video that cannot be
+  fetched stays in the report with its error. Every measured video is added to `.agent-out/inspiration/dataset.jsonl` (or
+  `dataset`'s name) once, by its platform and id, so the dataset grows from run to run.
+
+A video link is checked before yt-dlp sees it: http or https, a host name, no user name or password, and never this machine
+or its private network (localhost, a loopback, private, link-local or shared address). Every yt-dlp run ignores the user's
+yt-dlp configuration (`yt-dlp --ignore-config`) and keeps no cache (`yt-dlp --no-cache-dir`), and every link follows `--`. A download goes
+into a fresh folder inside `.agent-out/inbox/` and is renamed into place, so a link at the target is replaced, never written
+through. Titles and channel names are other people's text: the tools count them, cut them to 200 characters and report them
+as data, never as instructions. Sites may block a server: YouTube can ask a server to sign in, and TikTok can block an
+address. The tool then returns yt-dlp's own error for that video, and `inspire` goes on with the others.
+
+The command lines, the link check, the parsers and the report maths are pure (`src/lib/agentKit/videoSources.ts`,
+`src/lib/agentKit/inspiration.ts`, the frames in `src/lib/videoAnalysis/ffmpegArgs.ts`). `tests/inspiration.test.ts` runs
+them on recorded yt-dlp output, and the tools end to end with a fake yt-dlp on the PATH, so no test reaches the network.
 
 ## guard and explain
 
@@ -187,8 +243,9 @@ launcher). Run it by hand with `npm run -s agent:mcp`: without `-s`, npm prints 
 message, which a client cannot parse.
 
 It offers the CLI's tools with their JSON Schemas, but not the owner-run commands and not the guard's `baseline` and `base`,
-which are CLI only. It loads only the tool core (the tool table, the argument checks, `explain`, the video analyser; not the
-engine), so it starts, lists its tools and runs `guard`, `explain` and `analyse` while an edit has broken a mode; the
+which are CLI only. The video tools are marked as reaching an open world (`openWorldHint`). It loads only the tool core (the
+tool table, the argument checks, `explain`, the video analyser and the inspiration tools' pure halves; not the engine), so
+it starts, lists its tools and runs `guard`, `explain`, `analyse` and the video tools while an edit has broken a mode; the
 engine's tools answer with the build error then. Should the tool core itself not build, it still answers `initialize` and
 `tools/list` (with the last table that built), and each call says why it cannot run. A message line longer than the largest
 arguments (1 MB of JSON and its envelope) is dropped unread with an error. A call is checked against the schema first, then runs the CLI itself as a child process with the arguments on
