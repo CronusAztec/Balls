@@ -163,6 +163,15 @@ export function collideSettingFields(settings: CollideSettings): Omit<CollideSet
 
 /* ------------------------------------------------------------------ constants */
 
+/**
+ * --- unlimited-sizes --- How many bodies a run of resolved settings plays: every orb, or on the ring at most its Bodies on
+ * the Ring (`ringCount`, `RING_MAX_BODIES` when absent). The mode builds exactly this many, and the panel's Orbs readout
+ * says so (CollisionPlaygroundSection).
+ */
+export function collideBodyCount(s: Pick<CollideSettings, "count" | "ring" | "ringCount">): number {
+  return s.ring ? Math.min(s.count, s.ringCount ?? RING_MAX_BODIES) : s.count;
+}
+
 /** Most bodies on the ring (a track only holds so many lollipops; the rest of the count is ignored there). */
 export const RING_MAX_BODIES = 36;
 /** Fraction of the container the orbs cover at the default ball size (8 px); the Ball Size setting scales it. */
@@ -519,7 +528,7 @@ export class CollideMode implements GameMode {
     this.lastBallRadius = ctx.config.ballRadius || 8;
     const field = buildCollideField(ctx.config.width, ctx.config.height, s.container);
     v.field = field;
-    const n = s.ring ? Math.min(s.count, s.ringCount ?? RING_MAX_BODIES) : s.count; // --- unlimited-sizes --- (the ring's bodies: a setting, 36 by default)
+    const n = collideBodyCount(s); // --- unlimited-sizes --- (the ring's bodies: a setting, 36 by default)
     this.n = n;
     v.count = n;
     this.firstId = ctx.getNextId();

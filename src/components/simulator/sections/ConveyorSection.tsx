@@ -5,6 +5,7 @@ import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from 
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { CONVEYOR_ARENAS, conveyorBallCount, conveyorNominalRunSec, conveyorSettingsOf, type ConveyorArena } from "@/lib/physics/modes/conveyor";
 import { RESPAWN_MODES } from "@/lib/physics/respawn";
+import { BOUNCE_MATH_SPAWN_MODES } from "@/lib/physics/bounceMathRuntime"; // --- unlimited-sizes --- (the modes bounce math's "balls" rules copy balls in)
 import type { ModeId } from "@/lib/physics/types";
 
 export interface ConveyorSectionProps {
@@ -23,6 +24,14 @@ export const RESPAWN_KEYS = ["respawnEvery", "swarmLimit"];
 /** Whether the Ball section shows the respawn timer in `mode`. */
 export function showsRespawn(mode: ModeId): boolean {
   return RESPAWN_MODES.includes(mode);
+}
+
+/**
+ * --- unlimited-sizes --- Whether the Ball section shows the Swarm Limit in `mode`: wherever the swarm's ceiling stops new
+ * balls, the respawn timer's modes (Multiply's escapes included) and every mode a bounce math "balls" rule copies balls in.
+ */
+export function showsSwarmLimit(mode: ModeId): boolean {
+  return RESPAWN_MODES.includes(mode) || BOUNCE_MATH_SPAWN_MODES.includes(mode);
 }
 
 const ARENA_OPTIONS: Record<ConveyorArena, { icon: string; labelKey: string; hintKey: string }> = {
@@ -92,7 +101,19 @@ export function RespawnControl({ t, search, matches, settings: s, update }: Conv
   return (
     <div data-testid="respawn-every">
       <Slider t={t} search={search} matches={matches} labelKey="respawnEvery" tipKey="respawnEveryTip" value={s.respawnEvery} range={RANGES.respawnEvery} onChange={(v) => update({ respawnEvery: v })} display={s.respawnEvery > 0 ? t("respawnEveryValue", { seconds: s.respawnEvery.toFixed(1) }) : t("respawnEveryOff")} />
-      {/* --- unlimited-sizes --- the swarm's ceiling (Multiply's escapes, the respawns, bounce math's copies): 200 by default, past it the crowd */}
+    </div>
+  );
+}
+
+/**
+ * --- unlimited-sizes --- The swarm's ceiling, in the Ball section under the respawn timer: the most balls Multiply's escapes,
+ * the respawns and bounce math's copies grow a swarm to (200 by default, past it the crowd). It shows in every mode one of
+ * them adds balls in (showsSwarmLimit()), so a "balls" rule in Lines, Target or Accumulation can be raised from the panel too.
+ */
+export function SwarmLimitControl({ t, search, matches, settings: s, update }: ConveyorSectionProps) {
+  if (!showsSwarmLimit(s.mode)) return null;
+  return (
+    <div data-testid="swarm-limit">
       <Slider t={t} search={search} matches={matches} labelKey="swarmLimit" tipKey="swarmLimitTip" value={s.swarmLimit} range={RANGES.swarmLimit} onChange={(v) => update({ swarmLimit: v })} display={String(s.swarmLimit)} />
     </div>
   );

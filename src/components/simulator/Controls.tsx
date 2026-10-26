@@ -81,7 +81,7 @@ import BlueprintSection, { BLUEPRINT_KEYS } from "./sections/BlueprintSection"; 
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
 import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
-import ConveyorSection, { CONVEYOR_KEYS, RESPAWN_KEYS, RespawnControl } from "./sections/ConveyorSection"; // --- gerald-conveyor --- the Conveyor block of the Mode row, the respawn timer of the Ball section
+import ConveyorSection, { CONVEYOR_KEYS, RESPAWN_KEYS, RespawnControl, SwarmLimitControl } from "./sections/ConveyorSection"; // --- gerald-conveyor --- the Conveyor block of the Mode row, the respawn timer of the Ball section (--- unlimited-sizes --- and the swarm's ceiling)
 import OrbGridSection, { ORB_GRID_KEYS, OrbGridPresets } from "./sections/OrbGridSection"; // --- orb-grid --- the Bouncing Orbs block of the Mode row, its presets in the Presets group
 import type { OrbGridFields } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import FightLeagueSection, { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league --- the Fight League block of the Mode row
@@ -521,6 +521,8 @@ export default function Controls(props: ControlsProps) {
       {MULTI_BALL_MODES.includes(s.mode) && <BallCountControl t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- gerald-conveyor --- the respawn timer of Classic and Multiply (a new ball drops in every N seconds) */}
       <RespawnControl t={t} search={search} matches={matches} settings={s} update={update} />
+      {/* --- unlimited-sizes --- the swarm's ceiling, in every mode the escapes, the respawns or bounce math's copies add balls in */}
+      <SwarmLimitControl t={t} search={search} matches={matches} settings={s} update={update} />
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}

@@ -33,7 +33,7 @@ import { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { STRING_BATTLE_KEYS } from "./sections/StringBattleSection";
 import { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory ---
 import { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze ---
-import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // --- gerald-conveyor ---
+import { CONVEYOR_KEYS, showsRespawn, showsSwarmLimit } from "./sections/ConveyorSection"; // --- gerald-conveyor --- (--- unlimited-sizes --- and the swarm's ceiling)
 import { ORB_GRID_KEYS } from "./sections/OrbGridSection"; // --- orb-grid ---
 import { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league ---
 import { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim ---
@@ -229,7 +229,7 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   if (MODE_BLOCK_KEY_SET.has(key) || SEARCH_ALIASES.has(key)) return false;
   if (key === "ballCount") return MULTI_BALL_MODES.includes(p.mode);
   if (key === "respawnEvery") return showsRespawn(p.mode); // --- gerald-conveyor --- the respawn timer of Classic and Multiply
-  if (key === "swarmLimit") return showsRespawn(p.mode); // --- unlimited-sizes --- (the swarm's ceiling, beside the respawn timer)
+  if (key === "swarmLimit") return showsSwarmLimit(p.mode); // --- unlimited-sizes --- (the swarm's ceiling: the respawn timer's modes and every mode bounce math copies balls in)
   if (BALL_INTERACTION_SET.has(key)) return TWO_BALL_MODES.includes(p.mode);
   if (key === "ballColor") return !p.ballPicture && ballControlsOf(p.mode).color; // --- low-findings-2 --- (and ballSpeed / ballSize below)
   if (key === "ballSpeed") return ballControlsOf(p.mode).speed;

@@ -3,7 +3,7 @@
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { COLLIDE_CONTAINERS, RING_MAX_BODIES, type CollideContainer } from "@/lib/physics/modes/collide";
+import { COLLIDE_CONTAINERS, collideBodyCount, collideSettingsOf, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide"; // (--- unlimited-sizes --- the ring's bodies as the run builds them)
 
 export interface CollisionPlaygroundSectionProps {
   t: Translate;
@@ -32,7 +32,9 @@ const pct = (v: number) => `${Math.round(100 * v)}%`;
  * lib/physics/modes/collide.ts) and restarts the playground when they change.
  */
 export default function CollisionPlaygroundSection({ t, search, matches, settings: s, update }: CollisionPlaygroundSectionProps) {
-  const onRing = Math.min(s.cpCount, RING_MAX_BODIES);
+  // --- unlimited-sizes --- the bodies the run builds: on the ring, at most its Bodies on the Ring (36 by default)
+  const run = resolveCollideSettings(collideSettingsOf(s));
+  const onRing = collideBodyCount(run);
   return (
     <div className="space-y-3 pt-2" data-testid="collision-playground">
       {!search && (
@@ -50,7 +52,7 @@ export default function CollisionPlaygroundSection({ t, search, matches, setting
         value={s.cpCount}
         range={RANGES.cpCount}
         onChange={(v) => update({ cpCount: v })}
-        display={s.cpRing && s.cpCount > RING_MAX_BODIES ? t("cpCountOnRing", { count: onRing }) : String(s.cpCount)}
+        display={run.ring && onRing < run.count ? t("cpCountOnRing", { count: onRing }) : String(s.cpCount)}
       />
       <Slider t={t} search={search} matches={matches} labelKey="cpSizeSpread" tipKey="cpSizeSpreadTip" value={s.cpSizeSpread} range={RANGES.cpSizeSpread} onChange={(v) => update({ cpSizeSpread: v })} display={pct(s.cpSizeSpread)} />
       {(!s.cpRing || !!search) && (
