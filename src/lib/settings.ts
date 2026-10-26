@@ -11,7 +11,7 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 // --- jdm-polyrhythm ---
 import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 // --- jdm-collisions ---
-import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide";
+import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, RING_MAX_BODIES, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide"; // (--- unlimited-sizes --- RING_MAX_BODIES: the default of cpRingCount)
 // --- gerald-glass ---
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
@@ -86,7 +86,9 @@ import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writ
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConveyorFields, writeConveyorParams, type ConveyorArena } from "@/lib/physics/modes/conveyor";
 import { RESPAWN_RANGES } from "@/lib/physics/respawn";
-import { GROWTH_CAP_RANGES, defaultGrowthCapFields } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings as settings)
+import { GROWTH_CAP_RANGES, defaultGrowthCapFields, type GrowthCapFields } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings as settings)
+import { MAX_TEMPO } from "@/lib/physics/modes/paddle"; // --- unlimited-sizes --- (Paddle's top tempo: the default of pdMaxTempo)
+import { FL_BOUT_CAP_SEC } from "@/lib/physics/modes/fightLeagueShow"; // --- unlimited-sizes --- (the default of flBoutCap)
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
 import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGridPastCeiling, readOrbGridParams, resolveOrbGridFields, writeOrbGridParams, type OgArrangement, type OgDistribution, type OgFloor, type OgMaterial, type OgPalette, type OgProperty, type OgRelease, type OgSound } from "@/lib/physics/modes/orbGrid";
 import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
@@ -1451,12 +1453,17 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
     slowMotion: true, // --- slow-motion --- (on: every slow-motion moment, as always; out here, past the core literal's fast-path limit)
+    // --- unlimited-sizes --- the growth caps as settings, each at the old constant (out here too, past the fast-path limit)
+    ...defaultGrowthCapFields(),
+    cpRingCount: RING_MAX_BODIES,
+    pdMaxTempo: MAX_TEMPO,
+    flBoutCap: FL_BOUT_CAP_SEC,
   };
 }
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
   return {
     mode,
     gravity: 300,
@@ -1575,7 +1582,6 @@ function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEs
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
     ...defaultMazeFields(), // --- odd-maze ---
     ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
-    ...defaultGrowthCapFields(), // --- unlimited-sizes --- (200 swarm balls, 2,000 full-physics balls: the old constants)
     ...defaultOrbGridFields(), // --- orb-grid ---
     // --- fight-league --- the feature's fields, and the mode's own gravity (0: the fighters drift) and clip (a minute) in Fight League only
     ...defaultFightLeagueFields(),
@@ -2201,7 +2207,9 @@ function clampPolyrhythmSettings(settings: SimulatorSettings) {
 // --- jdm-collisions ---
 /** Keeps the Collision Playground settings inside their ranges (count and anti-collision time as whole numbers); an unknown container or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampCollideSettings(settings: SimulatorSettings) {
-  Object.assign(settings, collideSettingFields(resolveCollideSettings(collideSettingsOf(settings))));
+  const collide = resolveCollideSettings(collideSettingsOf(settings));
+  Object.assign(settings, collideSettingFields(collide));
+  settings.cpRingCount = collide.ringCount ?? RING_MAX_BODIES; // --- unlimited-sizes --- (the ring's bodies: written back on their own, outside the core literal's fields)
 }
 
 // --- gerald-glass ---

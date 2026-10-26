@@ -719,10 +719,9 @@ describe("CollideMode in the engine", () => {
 describe("Collision Playground settings", () => {
   it("default to 300 orbs in a circle for every mode and stay out of default links", () => {
     for (const mode of MODE_IDS) expect(collideSettingsOf(defaultSettings(mode))).toEqual(DEFAULT_COLLIDE_SETTINGS);
-    // (--- unlimited-sizes --- and the ring's bodies, the old RING_MAX_BODIES: a setting now, URL cprc)
-    expect(collideSettingFields(DEFAULT_COLLIDE_SETTINGS)).toEqual({ cpCount: 300, cpSizeSpread: 0.6, cpContainer: "circle", cpGravity: 0.3, cpRestitution: 1, cpSquishy: false, cpSyncStart: false, cpAntiCollisionAt: 0, cpRing: false, cpRingCount: RING_MAX_BODIES });
+    expect(collideSettingFields(DEFAULT_COLLIDE_SETTINGS)).toEqual({ cpCount: 300, cpSizeSpread: 0.6, cpContainer: "circle", cpGravity: 0.3, cpRestitution: 1, cpSquishy: false, cpSyncStart: false, cpAntiCollisionAt: 0, cpRing: false });
     const params = settingsToSearchParams(defaultSettings("collide"));
-    for (const key of ["cpn", "cpsz", "cpc", "cpg", "cpe", "cpsq", "cpsy", "cpac", "cpr", "cprc"]) expect(params.has(key)).toBe(false);
+    for (const key of ["cpn", "cpsz", "cpc", "cpg", "cpe", "cpsq", "cpsy", "cpac", "cpr"]) expect(params.has(key)).toBe(false);
     expect(RANGES.cpCount).toEqual(COLLIDE_RANGES.cpCount);
     expect(RANGES.cpRestitution).toEqual({ min: 0.7, max: 1, step: 0.01 });
   });

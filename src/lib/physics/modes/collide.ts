@@ -143,8 +143,11 @@ export function collideSettingsOf(source: CollideSettingFields): CollideSettings
   };
 }
 
-/** Writes resolved Collision Playground settings back into the SimulatorSettings field names. */
-export function collideSettingFields(settings: CollideSettings): CollideSettingFields {
+/**
+ * Writes resolved Collision Playground settings back into the SimulatorSettings field names (--- unlimited-sizes --- but the
+ * ring's bodies, `cpRingCount`: settings.ts writes `ringCount` back on its own, out of the core defaults' literal).
+ */
+export function collideSettingFields(settings: CollideSettings): Omit<CollideSettingFields, "cpRingCount"> {
   return {
     cpCount: settings.count,
     cpSizeSpread: settings.sizeSpread,
@@ -155,7 +158,6 @@ export function collideSettingFields(settings: CollideSettings): CollideSettingF
     cpSyncStart: settings.syncStart,
     cpAntiCollisionAt: settings.antiCollisionAt,
     cpRing: settings.ring,
-    cpRingCount: settings.ringCount ?? RING_MAX_BODIES, // --- unlimited-sizes ---
   };
 }
 

@@ -105,7 +105,7 @@ export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | u
   return out;
 }
 
-export function paddleSettingsOf(source: PaddleFields & { scale?: ScaleId; rootNote?: number }): PaddleSettings {
+export function paddleSettingsOf(source: Omit<PaddleFields, "pdMaxTempo"> & Partial<Pick<PaddleFields, "pdMaxTempo">> & { scale?: ScaleId; rootNote?: number }): PaddleSettings {
   return {
     auto: source.pdAuto,
     skill: source.pdSkill,
@@ -119,16 +119,20 @@ export function paddleSettingsOf(source: PaddleFields & { scale?: ScaleId; rootN
   };
 }
 
-export function paddleSettingFields(settings: PaddleSettings): PaddleFields {
-  return { pdAuto: settings.auto, pdSkill: settings.skill, pdMisses: settings.misses, pdWidth: settings.width, pdSpin: settings.spin, pdSpeedUp: settings.speedUp, pdMaxTempo: settings.maxTempo ?? MAX_TEMPO /* --- unlimited-sizes --- */ };
+/** (--- unlimited-sizes --- without the top tempo, `pdMaxTempo`: the core defaults' literal leaves it out – resolvePaddleFields() adds it) */
+export function paddleSettingFields(settings: PaddleSettings): Omit<PaddleFields, "pdMaxTempo"> {
+  return { pdAuto: settings.auto, pdSkill: settings.skill, pdMisses: settings.misses, pdWidth: settings.width, pdSpin: settings.spin, pdSpeedUp: settings.speedUp };
 }
 
-export function defaultPaddleFields(): PaddleFields {
+export function defaultPaddleFields(): Omit<PaddleFields, "pdMaxTempo"> {
   return paddleSettingFields(DEFAULT_PADDLE_SETTINGS);
 }
 
-export function resolvePaddleFields(source: Partial<PaddleFields>): PaddleFields {
-  return paddleSettingFields(resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp, maxTempo: source.pdMaxTempo /* --- unlimited-sizes --- */ }));
+export function resolvePaddleFields(source: Partial<PaddleFields>): Omit<PaddleFields, "pdMaxTempo"> & Partial<Pick<PaddleFields, "pdMaxTempo">> {
+  const resolved = resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp, maxTempo: source.pdMaxTempo /* --- unlimited-sizes --- */ });
+  // --- unlimited-sizes --- the top tempo where it is not the old 2, or where the source held something else (a junk value back to 2)
+  const top = resolved.maxTempo ?? MAX_TEMPO;
+  return { ...paddleSettingFields(resolved), ...(top !== MAX_TEMPO || (source.pdMaxTempo !== undefined && source.pdMaxTempo !== top) ? { pdMaxTempo: top } : {}) };
 }
 
 const PADDLE_NUMERIC_KEYS = { pdsk: "pdSkill", pdm: "pdMisses", pdw: "pdWidth", pdsp: "pdSpin", pdu: "pdSpeedUp", pdmt: "pdMaxTempo" /* --- unlimited-sizes --- */ } as const;

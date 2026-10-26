@@ -18,7 +18,7 @@ import {
   FL_NUMERIC_URL_FIELDS,
   FL_SWITCH_URL_FIELDS,
   FL_TELEGRAPH_CLASS_MS,
-  defaultFightLeagueFields,
+  resolveFightLeagueFields,
   telegraphMs,
   type FightLeagueFields,
   type FlBandRule,
@@ -107,7 +107,7 @@ export function flUrlField(key: string): keyof FightLeagueFields | undefined {
 
 /** Every fl* URL key: its field, its default (as the URL writes it; "" = none) and, for a number, its comfort range. */
 export function flSettingsTableMarkdown(): string {
-  const defaults = defaultFightLeagueFields();
+  const defaults = resolveFightLeagueFields({}); // --- unlimited-sizes --- (every field's default, the bout cap included)
   const ranges = FIGHT_LEAGUE_RANGES as Readonly<Record<string, { min: number; max: number; step: number }>>;
   const lines = ["| URL key | Field | Default | Comfort range (slider; typed: from its minimum, no maximum) |", "| --- | --- | --- | --- |"];
   for (const key of FIGHT_LEAGUE_URL_KEYS) {

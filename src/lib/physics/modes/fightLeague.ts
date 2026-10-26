@@ -687,9 +687,11 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
   return out;
 }
 
-/** The defaults of the feature's fields. */
-export function defaultFightLeagueFields(): FightLeagueFields {
-  return fightLeagueSettingFields(DEFAULT_FIGHT_LEAGUE_SETTINGS);
+/** The defaults of the feature's fields (--- unlimited-sizes --- but the bout cap, `flBoutCap`: settings.ts adds it, out of the core defaults' literal). */
+export function defaultFightLeagueFields(): Omit<FightLeagueFields, "flBoutCap"> {
+  const { flBoutCap, ...fields } = fightLeagueSettingFields(DEFAULT_FIGHT_LEAGUE_SETTINGS);
+  void flBoutCap;
+  return fields;
 }
 
 /** Validates the feature's fields (URL parameters and presets alike): known ids and options, uncapped numbers, real booleans. */
