@@ -1,5 +1,5 @@
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId } from "@/lib/blueprint/catalog";
-import { BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_CODE_PREFIX, BLUEPRINT_LINK_KEYS, blueprintCodeFormat, decodeBlueprint } from "@/lib/blueprint/codec";
+import { BLUEPRINT_CODE_MAX_CHARS, BLUEPRINT_CODE_PREFIX, BLUEPRINT_LINK_KEYS, blueprintCodeFormat, blueprintDigest, decodeBlueprint } from "@/lib/blueprint/codec";
 import { BLUEPRINT_MAX_SUBSTEPS } from "@/lib/blueprint/limits";
 import { applyBlueprintParams, formatParamValues, paramBounds, parseParamValues } from "@/lib/blueprint/params";
 import { sanitizeBlueprint, type BlueprintNumberBound } from "@/lib/blueprint/sanitize";
@@ -185,6 +185,17 @@ export function resolveBlueprintSpec(settings: BlueprintSettings): ResolvedBluep
   const applied = applyBlueprintParams(base, parseParamValues(settings.params));
   notes.push(...applied.notes);
   return { blueprint: applied.blueprint, catalogId, base, notes, newer, unreadable };
+}
+
+// --- insights ---
+/**
+ * The game the settings play, for a clip's genes (lib/insights/genes.ts): the catalog entry (null for a link's spec) and the
+ * digest of the spec played, sliders applied (lib/blueprint/codec.ts `blueprintDigest()`). Never throws. The desktop side
+ * reads the language through this mode, never the language itself (tests/blueprintSchema.test.ts, "isolation and purity").
+ */
+export function blueprintGameOf(settings: BlueprintSettings): { catalogId: string | null; digest: string } {
+  const resolved = resolveBlueprintSpec(settings);
+  return { catalogId: resolved.catalogId || null, digest: blueprintDigest(resolved.blueprint) };
 }
 
 /* ------------------------------------------------------------------ the mode */

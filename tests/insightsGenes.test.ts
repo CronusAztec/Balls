@@ -37,6 +37,7 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { SONGS } from "@/lib/audio/songs";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog";
 import { blueprintDigest, encodeBlueprint } from "@/lib/blueprint/codec";
+import { blueprintGameOf, blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint"; // --- insights --- (acceptance fix)
 import { aiClipSource, blueprintGenesOf, episodeOfPlanId, genesWithPlayedMelody, jobCutGenes, jobGenes, jobMelody, planSource, rerenderSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
 import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
 import type { LibraryMeta } from "@/lib/desktop/contract";
@@ -379,6 +380,13 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(fromLink).toMatchObject({ recipe: null, blueprintDigest: blueprintDigest(spec) });
     expect(fromLink.blueprintDigest).toMatch(/^[0-9a-f]{8}$/);
     expect(blueprintGenesOf(defaultSettings("classic"))).toBeNull();
+    // --- insights --- (acceptance fix) the game is read through the mode, which lib/blueprint stays private to: the sliders
+    // played are in the digest, and an unreadable link names the catalog entry it plays instead
+    const slid = { ...lab, blParams: "3" };
+    expect(blueprintGenesOf(slid)).toEqual(blueprintGameOf(blueprintSettingsOf(slid)));
+    expect(blueprintGenesOf(slid)!.digest).toBe(blueprintDigest(resolveBlueprintSpec(blueprintSettingsOf(slid)).blueprint));
+    expect(blueprintGenesOf(slid)!.digest).not.toBe(blueprintDigest(catalogBlueprint("ringBreaker")));
+    expect(blueprintGenesOf({ ...lab, blSpec: "b1.cut-short" })).toEqual({ catalogId: "ringBreaker", digest: blueprintDigest(catalogBlueprint("ringBreaker")) });
     // without the page's resolution, a catalog game still names its recipe (no digest)
     expect(genesFromSettings(lab, {}, "seed")).toMatchObject({ recipe: "blueprint:ringBreaker", blueprintDigest: null });
   });

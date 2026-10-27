@@ -5,8 +5,7 @@ import { RECIPES, type BotPlatform } from "@/lib/bot/playbook";
 import { bucketKept, genesFromPlan, genesFromSettings, genesOfCut, sanitizeGenes, type ClipGenes, type GeneSource, type GenesMeta } from "@/lib/insights/genes";
 import { drawnHookOf, scoreRecipeFor } from "@/lib/insights/score"; // --- insights --- (review fix) the hook a clip draws, the recipe that plays it
 import { SONGS } from "@/lib/audio/songs"; // --- insights --- (review fix) the melodies a re-render can select again
-import { blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint";
-import { blueprintDigest } from "@/lib/blueprint/codec";
+import { blueprintGameOf, blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- insights --- (Mode Lab's game through the mode, never lib/blueprint itself)
 import { clipCutSpec, type MadeClip } from "./ai/studio"; // --- ai-cut --- (clipCutSpec: the model's five fields plus the site's address)
 import type { OutputPreset } from "./presets";
 import type { BatchClipSource, QueueBatchOptions, QueueJob } from "./renderQueue";
@@ -46,8 +45,7 @@ export function rerenderOptions(settings: Pick<SimulatorSettings, "recordingReso
 /** Mode Lab's game for a clip's genes: the catalog entry played (null for a link's spec) and the spec's digest; null in any other mode. */
 export function blueprintGenesOf(settings: SimulatorSettings): GenesMeta["blueprint"] {
   if (settings.mode !== "blueprint") return null;
-  const resolved = resolveBlueprintSpec(blueprintSettingsOf(settings)); // (never throws: an unreadable link plays the catalog entry)
-  return { catalogId: resolved.catalogId || null, digest: blueprintDigest(resolved.blueprint) };
+  return blueprintGameOf(blueprintSettingsOf(settings)); // (never throws: an unreadable link plays the catalog entry)
 }
 
 /**
