@@ -4062,7 +4062,9 @@ PC.
   master or cut, the features; a bot plan's bucket stays the planned one, an AI clip's only while the file's length fits it),
   and the Clip editor writes a cut's: a cut of a clip with genes keeps them as a cut, whether the editor was opened from the
   Library or from the Publish block (its clips carry the Library item's hook and genes, `PublishClipLibrary`). A Library
-  re-render keeps the clip's genes and measures its own file.
+  re-render keeps the clip's genes and measures its own file (`rerenderSource`): a cut file's re-render is its master alone,
+  scored from its run, and genes that name no source of the clip (the editor's, of a cut of a clip that had none) or none
+  at all (a clip saved before 1.6.0) give way to the link's, with the item's own copy, so the master is scored like a link's.
 - **The genes in the files** – three optional fields, sanitised by the main process (`sanitizeGenes`) on every write and every
   load: closed enums, clamped numbers, strict ids of 64 characters or fewer, anything else null; a record past 4 KB drops its
   features, then its verdicts, then its checklist. `LibraryMeta.genes` sits in the Library index (`desktop/src/library.ts`),
@@ -4099,7 +4101,10 @@ PC.
   score is only the Queue's estimate until then. A bot plan's clip keeps its plan's score.
 - **The score chip** – `src/components/simulator/desktop/ScoreChip.tsx`, on the approval card (`PostizPostCard.tsx`), on each
   Library item and on each Queue job: "Playbook 72", coloured by the bot's bands (90 and 75), a button that opens the reasons
-  below it, one line per checklist item with its points, in the bot's words. It says it is the playbook's score, not yet
+  below it, one line per checklist item with its points, in the bot's words (a countdown by its name in each language,
+  `ViralBot.countdownKinds`, never its code: the planner's "Why this clip" list and the ZIP's manifest name it the same way).
+  The reasons open in the flow; while one Library card's are open, the grid aligns its cards to the top, so no other card
+  stretches to its height with an empty block above its buttons. It says it is the playbook's score, not yet
   measured on your channel, and it is advice only: Approve and the card's checks never read it. A clip without a score (saved
   before 1.6.0, a link's job not yet rendered, or a TikTok cut) shows no chip. A button with `aria-expanded`, named from its
   visible label ("Playbook 72 out of 100"), with "not yet measured" said once, as its description; Escape closes the
@@ -4113,8 +4118,9 @@ Tests: `tests/insightsGenes.test.ts` (the builders, and the sanitiser against ab
 (old files load, the main process sanitises, the ledger survives deleting the Library file and the queue item),
 `tests/clipFeatures.test.ts` (the analyser's numbers on the same pixels, the digest unchanged, the sound, failures, purity),
 `tests/insightsScore.test.ts` (the plan-like holds every field `scoreClip` reads and nothing else, a bot plan scored from its
-settings and its run gets the plan's verdicts, the queue's scoring cancels with the job) and `tests/insightsScoreChip.test.ts`
-(the chip in three languages, its keys and labels, a 360 px panel, the three panels).
+settings and its run gets the plan's verdicts, the queue's scoring cancels with the job), `tests/insightsScoreChip.test.ts`
+(the chip in three languages, its keys and labels, a 360 px panel, the three panels, the countdown's name) and
+`tests/insightsLibraryGrid.test.ts` (the Library's grid with one card's reasons open, laid out in Chromium with the site's CSS).
 
 ## Browser support
 

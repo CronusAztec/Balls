@@ -1,5 +1,5 @@
 import { SITE_NAME } from "@/lib/site";
-import { copyString, fillTemplate, type BotCopy } from "./copy";
+import { copyString, fillTemplate, reasonValues, type BotCopy } from "./copy";
 import { recipeById, type BotPlatform } from "./playbook";
 import type { ClipPlan, ScoreReason } from "./planner";
 import { coverFrameOf, type CoverFrame } from "./cover"; // --- mode-thumbnails ---
@@ -70,9 +70,9 @@ export interface Manifest {
   clips: ManifestClip[];
 }
 
-/** A reason of the score in words (the copy's `reasons.<key>`). */
+/** A reason of the score in words (the copy's `reasons.<key>`; --- insights --- a countdown by its name, not its code). */
 export function reasonText(copy: BotCopy, reason: Pick<ScoreReason, "key" | "values">): string {
-  return fillTemplate(copyString(copy, `reasons.${reason.key}`) || reason.key, reason.values);
+  return fillTemplate(copyString(copy, `reasons.${reason.key}`) || reason.key, reasonValues(reason.values, (path) => copyString(copy, path)));
 }
 
 /** `<episode>-<recipe>-<seed>` – the video, its caption file and the manifest all use it. */

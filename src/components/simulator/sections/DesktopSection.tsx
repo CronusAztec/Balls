@@ -7,7 +7,7 @@ import { getDesktop, pickedToFile } from "@/lib/desktop/bridge";
 import { hasSocial } from "@/lib/desktop/capabilities"; // --- old-bridge --- what the app the page runs in can do
 import { setHardwarePreferred } from "@/lib/desktop/gpuEncode";
 import { mediaKindOfName } from "@/lib/desktop/mediaKinds";
-import { aiClipSource, presetForPlatform, rerenderOptions, seedSource } from "@/lib/desktop/queueSources";
+import { aiClipSource, presetForPlatform, rerenderOptions, rerenderSource } from "@/lib/desktop/queueSources";
 import { expandBatch } from "@/lib/desktop/renderQueue";
 import { linkJobSettings, linkSeed, resolveLinkSettings } from "@/lib/recording/batch";
 import type { MakeVideosResult } from "@/lib/desktop/ai/studio";
@@ -328,10 +328,10 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         const r = await resolveLinkSettings(item.meta.link);
         if (!r.ok) throw new Error(t("libRerenderFailed"));
         const settings = linkJobSettings(r.settings, pageRef.current.settings);
-        const source = seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link });
-        // --- insights --- a re-render is the same clip: it keeps the genes it was made with (a clip saved before 1.6.0 gets its link's)
-        const genes = item.meta.genes ?? source.meta?.genes;
-        const clip = { ...source, name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link, ...(genes ? { genes } : {}) }, cut: item.meta.queueJobId?.endsWith("-cut") ? null : (item.meta.cut ?? null) /* --- ai-cut --- a master's re-render makes its cut again; a cut file's re-render is the master alone */ };
+        // --- ai-cut --- a master's re-render makes its cut again; a cut file's re-render is the master alone
+        // --- insights --- a re-render is the same clip: it keeps the genes it was made with (the Clip editor's genes of a cut and a
+        // clip saved before 1.6.0 get the link's, with the item's copy, so the master is scored from its run)
+        const clip = rerenderSource(item, settings, linkSeed(item.meta.link) ?? item.meta.seed);
         const codec = item.encoder?.startsWith("hevc") || item.encoder === "libx265" ? "hevc" : item.encoder?.startsWith("av1") || item.encoder?.includes("av1") ? "av1" : "h264";
         queue.add(expandBatch([clip], rerenderOptions(settings, codec, presetForPlatform(item.meta.platform)))); // --- uncap-all --- (review fix) (the page's frame rate as typed, not 30 or 60)
         show("queue");

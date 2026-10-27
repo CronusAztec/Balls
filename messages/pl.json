@@ -3690,6 +3690,14 @@
       "layers": "warstwy",
       "hp": "HP"
     },
+    "countdownKinds": {
+      "walls": "licznik ścian",
+      "timer": "zegar",
+      "percent": "procent",
+      "lives": "życia",
+      "layers": "warstwy",
+      "hp": "paski zdrowia"
+    },
     "payoffTypes": {
       "escape": "ucieczka",
       "fill": "wypełnienie",

@@ -3690,6 +3690,14 @@
       "layers": "capas",
       "hp": "PV"
     },
+    "countdownKinds": {
+      "walls": "contador de paredes",
+      "timer": "temporizador",
+      "percent": "porcentaje",
+      "lives": "vidas",
+      "layers": "capas",
+      "hp": "barras de vida"
+    },
     "payoffTypes": {
       "escape": "escape",
       "fill": "llenado",

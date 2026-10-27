@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NextIntlClientProvider } from "next-intl";
+import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -11,10 +11,13 @@ import ScoreChip, { ScoreChipView, chipKey, scoreLines } from "@/components/simu
 import { PostizPostCardView, initialCardState } from "@/components/simulator/desktop/PostizPostCard";
 import LibraryPanel from "@/components/simulator/desktop/LibraryPanel";
 import QueuePanel from "@/components/simulator/desktop/QueuePanel";
-import { genesOfCut, genesOfSavedFile, genesWithScore, type ClipGenes } from "@/lib/insights/genes";
+import { GENE_COUNTDOWN_KINDS, genesOfCut, genesOfSavedFile, genesWithScore, type ClipGenes } from "@/lib/insights/genes";
 import { scoreOfSettings } from "@/lib/insights/score";
-import { CHECKLIST, RECIPES } from "@/lib/bot/playbook";
+import { CHECKLIST, COUNTDOWN_KINDS, RECIPES } from "@/lib/bot/playbook";
 import { planClip } from "@/lib/bot/planner";
+import { reasonText } from "@/lib/bot/output"; // --- insights --- (review fix) the ZIP's manifest words the reasons too
+import { defaultBotOptions } from "@/lib/bot/store";
+import BotSection, { type BotPanelProps } from "@/components/simulator/sections/BotSection";
 import { planSource, seedSource } from "@/lib/desktop/queueSources";
 import { EMPTY_QUEUE, enqueue, expandBatch } from "@/lib/desktop/renderQueue";
 import { cardProblems } from "@/lib/desktop/socialCard";
@@ -192,5 +195,67 @@ describe("the chip on the panels", () => {
     const done = { ...state, jobs: state.jobs.map((j) => (j.id === "job-2" ? { ...j, status: "done" as const, meta: { ...j.meta, genes: scored } } : j)) };
     const html = withIntl(createElement(QueuePanel, { bridge: {} as React.ComponentProps<typeof QueuePanel>["bridge"], queue: { ...queue, state: done }, page, folder: "", onFolder: () => {} }));
     expect((html.match(/data-testid="job-score"/g) ?? []).length).toBe(2);
+  });
+});
+
+// --- insights --- (review fix) "Odliczanie na ekranie (walls)." and "Cuenta atrás en pantalla (walls).": the countdown's code
+// (playbook COUNTDOWN_KINDS) went into the sentence as it was. Every place that words a verdict names the countdown in its own
+// language (ViralBot.countdownKinds): the chip, the planner's "Why this clip" list and the reasons of the ZIP's manifest.
+describe("the countdown's name in a verdict", () => {
+  type Bot = { reasons: Record<string, string>; countdownKinds: Record<string, string> };
+  const bot = (locale: string) => LOCALES[locale].ViralBot as unknown as Bot;
+  const NAMED = ["countdownCaption", "countdownHud", "countdownHudCovered"] as const;
+  const codeIn = (html: string) => COUNTDOWN_KINDS.filter((kind) => html.includes(`(${kind})`));
+
+  it("has a name for every countdown kind in the three languages, and a code only in English where the code is the word", () => {
+    expect([...GENE_COUNTDOWN_KINDS].sort()).toEqual([...COUNTDOWN_KINDS].sort());
+    for (const locale of ["en", "pl", "es"]) {
+      expect([locale, Object.keys(bot(locale).countdownKinds).sort()]).toEqual([locale, [...COUNTDOWN_KINDS].sort()]);
+      for (const kind of COUNTDOWN_KINDS) {
+        const name = bot(locale).countdownKinds[kind];
+        expect([locale, kind, name.length > 0, locale === "en" || name !== kind]).toEqual([locale, kind, true, true]);
+      }
+    }
+  });
+
+  it("names the countdown on the chip in the viewer's language, never by its code", () => {
+    for (const locale of ["en", "pl", "es"]) {
+      for (const kind of GENE_COUNTDOWN_KINDS) {
+        for (const key of NAMED) {
+          const genes: ClipGenes = { ...scored, reasons: { ...scored.reasons, countdown: { key, values: { kind } } } };
+          const html = view(genes, true, locale);
+          expect([locale, kind, key, html.includes(format(bot(locale).reasons[key], locale, { kind: bot(locale).countdownKinds[kind] }))]).toEqual([locale, kind, key, true]);
+          if (locale !== "en") expect([locale, kind, key, codeIn(html)]).toEqual([locale, kind, key, []]);
+        }
+      }
+    }
+    // a real plan's chip: Ring Escape counts its walls with a caption
+    const ring = planClip(RECIPES.find((r) => r.id === "ring-escape")!, 3, "reels", { copy: bot("en") as unknown as Parameters<typeof planClip>[3]["copy"], search: false });
+    const genes = planSource(ring).meta!.genes!;
+    expect(genes.reasons?.countdown).toEqual({ key: "countdownCaption", values: { kind: "walls" } });
+    expect(view(genes, true, "pl")).toContain("Odliczanie na ekranie (licznik ścian).");
+    expect(view(genes, true, "es")).toContain("Cuenta atrás en pantalla (contador de paredes).");
+  });
+
+  it("names it in the planner's \"Why this clip\" list and in the reasons of the ZIP's manifest", () => {
+    const recipes = ["ring-escape", "grow-fill", "power-layers", "battle-royale"].map((id) => RECIPES.find((r) => r.id === id)!);
+    for (const locale of ["en", "pl", "es"]) {
+      const copy = bot(locale) as unknown as Parameters<typeof planClip>[3]["copy"];
+      const clips = recipes.map((recipe, n) => planClip(recipe, 3 + n, "reels", { copy, search: false }));
+      const countdowns = clips.map((clip) => clip.reasons.find((r) => r.id === "countdown")!);
+      expect([locale, countdowns.map((r) => r.values.kind)]).toEqual([locale, ["walls", "percent", "layers", "lives"]]);
+      // the manifest's words (lib/bot/output.ts reasonText)
+      for (const r of countdowns) {
+        const text = reasonText(copy as unknown as Record<string, unknown>, r);
+        expect([locale, r.values.kind, text.includes(`(${bot(locale).countdownKinds[String(r.values.kind)]})`)]).toEqual([locale, r.values.kind, true]);
+        if (locale !== "en") expect([locale, codeIn(text)]).toEqual([locale, []]);
+      }
+      // the Bot section's list (its "why" details are in the markup, closed)
+      const props = { options: defaultBotOptions(), setOptions: () => {}, plan: { date: "2026-10-27", platform: "reels", kind: "custom", clips }, planning: null, rerolling: null, render: { status: "idle", total: 0, done: 0, zip: false }, renderCurrent: 0, renderProgress: null, worldChanged: false, supported: true, disabled: false, splitRace: false, onPlan: () => {}, onToday: () => {}, onCancel: () => {}, onOpen: () => {}, onReroll: () => {}, onRenderAll: () => {}, onStop: () => {}, onClear: () => {} } as unknown as BotPanelProps;
+      const Section = () => createElement(BotSection, { t: useTranslations("Controls"), search: "", matches: () => true, bot: props });
+      const html = withIntl(createElement(Section), locale);
+      for (const r of countdowns) expect([locale, r.values.kind, html.includes(format(bot(locale).reasons[r.key], locale, { kind: bot(locale).countdownKinds[String(r.values.kind)] }))]).toEqual([locale, r.values.kind, true]);
+      if (locale !== "en") expect([locale, codeIn(html)]).toEqual([locale, []]);
+    }
   });
 });

@@ -8,6 +8,7 @@ import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById, type BotFamily, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE } from "@/lib/bot/store";
+import { reasonValues } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
 import type { ModeId } from "@/lib/physics/types";
 import type { BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
@@ -81,7 +82,7 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
                 {r.points === r.max ? "✓" : r.points > 0 ? "◐" : "✕"}
               </span>
               <span className="flex-1 text-ink-2">
-                <span className="text-ink-3">{b(`checklist.${r.id}`)}:</span> {b(`reasons.${r.key}`, r.values)}
+                <span className="text-ink-3">{b(`checklist.${r.id}`)}:</span> {b(`reasons.${r.key}`, reasonValues(r.values, (path) => (b.has(path) ? b(path) : "")))}
               </span>
               <span className="text-ink-3 tabular-nums">
                 {r.points}/{r.max}

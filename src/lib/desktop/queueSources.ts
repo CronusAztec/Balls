@@ -8,9 +8,10 @@ import { blueprintDigest } from "@/lib/blueprint/codec";
 import { clipCutSpec, type MadeClip } from "./ai/studio"; // --- ai-cut --- (clipCutSpec: the model's five fields plus the site's address)
 import type { OutputPreset } from "./presets";
 import type { BatchClipSource, QueueBatchOptions, QueueJob } from "./renderQueue";
-import type { VideoCodec } from "./contract";
+import type { LibraryItem, VideoCodec } from "./contract";
 import { resolveFastExportFps } from "@/lib/recording/fastRenderPlan"; // --- uncap-all --- (review fix)
 import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
+import { isCutJob } from "@/lib/clipEdit/propose"; // --- insights --- (a cut file's re-render is its master alone)
 
 /*
  * --- desktop-exe --- Where render-queue clips come from: the page's own setup with a list of seeds or links, the viral bot's
@@ -80,6 +81,20 @@ export function seedSource(settings: SimulatorSettings, seed: number, source: Ba
   const name = `${settings.mode}-${seed}`;
   const hook = settings.topText || null;
   return { name, source, settings, seed, meta: { title: name, platform: null, hook, caption: null, hashtags: [], genes: settingsGenes(settings, { hook, caption: null, hashtags: [] }, source.kind) /* --- insights --- */ } };
+}
+
+/**
+ * A Library item's re-render: its link's settings and seed, with the item's copy. --- ai-cut --- A master's re-render makes its
+ * cut again; a cut file's re-render is the master alone. --- insights --- A re-render is the same clip, so it keeps the genes it
+ * was made with, and the queue completes them and scores the run again when it saves the file (a cut's genes keep no score:
+ * its master's run is scored, genes.ts genesOfCut). Genes that name no source of the clip (the Clip editor's, of a cut of a
+ * clip that had none) and a clip saved before 1.6.0 get the link's, with the item's own copy: a link's clip, scored from its run.
+ */
+export function rerenderSource(item: Pick<LibraryItem, "fileName" | "meta">, settings: SimulatorSettings, seed: number): BatchClipSource {
+  const { meta } = item;
+  const copy = { hook: meta.hook, caption: meta.caption, hashtags: meta.hashtags };
+  const genes = meta.genes && meta.genes.source !== "editor" ? meta.genes : settingsGenes(settings, copy, "link");
+  return { name: item.fileName.replace(/\.[^.]+$/, ""), source: { kind: "link", link: meta.link }, settings, seed, meta: { title: meta.title, platform: meta.platform, ...copy, link: meta.link, genes }, cut: isCutJob(meta.queueJobId) ? null : (meta.cut ?? null) };
 }
 
 /** A clip of the viral bot's plan. */

@@ -34,6 +34,17 @@ export function fillTemplate(template: string, vars: Record<string, string | num
   return template.replace(/\{(\w+)\}/g, (whole, key: string) => (key in vars ? String(vars[key]) : whole));
 }
 
+// --- insights ---
+/**
+ * A score reason's values as its words take them: the countdown's `kind` (a playbook COUNTDOWN_KINDS code, "walls") by its
+ * name in the copy (`countdownKinds.<kind>`, "wall counter", pl "licznik ścian"), so no code reaches a sentence in any
+ * language. `name` looks the name up: the bot's copy here and in the manifest, next-intl's `ViralBot` in the page.
+ */
+export function reasonValues(values: Readonly<Record<string, string | number>>, name: (path: string) => string): Record<string, string | number> {
+  return typeof values.kind === "string" ? { ...values, kind: name(`countdownKinds.${values.kind}`) || values.kind } : { ...values };
+}
+// --- end insights ---
+
 /** A copy string of the recipe, filled (`field`: name, hook, cliffHook, payoff, cliffQuestion, postQuestion…). */
 export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey">, field: string, vars: Record<string, string | number> = {}): string {
   return fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.${field}`), vars).trim();

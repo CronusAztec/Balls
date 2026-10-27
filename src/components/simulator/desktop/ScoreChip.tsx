@@ -3,13 +3,15 @@
 import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { CHECKLIST, type ChecklistId } from "@/lib/bot/playbook";
+import { reasonValues } from "@/lib/bot/copy";
 import { GENE_REASON_NUMBERS, type ClipGenes, type GeneReason } from "@/lib/insights/genes";
 
 /*
  * --- insights --- The playbook's score of a clip (C6, lib/insights/score.ts) as a chip on the approval card (PostizPostCard),
  * the Library and the Queue: "Playbook 72", and a button that opens its reasons below it, one line per checklist item with
- * its points, worded as the viral bot words them (ViralBot.reasons; the two that quote the clip's own words get Insights'
- * words, since the genes keep no text). It says it is the playbook's score, not yet measured on the channel, and advice only:
+ * its points, worded as the viral bot words them (ViralBot.reasons, a countdown by its name in the viewer's language,
+ * ViralBot.countdownKinds, never by its code; the two that quote the clip's own words get Insights' words, since the genes
+ * keep no text). It says it is the playbook's score, not yet measured on the channel, and advice only:
  * nothing reads it to allow or refuse a post.
  *
  * Accessible: a real button with aria-expanded and aria-controls, a name that starts with its visible label and reads the
@@ -67,7 +69,7 @@ export function ScoreChipView({ genes, open, onToggle, onClose, panelId, testId 
   const reasonText = (reason: GeneReason) => {
     if (QUOTING.has(reason.key)) return i(`reasons.${reason.key}`);
     const values: Record<string, string | number> = Object.fromEntries(GENE_REASON_NUMBERS.map((k) => [k, "–"]));
-    return b(`reasons.${reason.key}`, { ...values, kind: "–", ...reason.values });
+    return b(`reasons.${reason.key}`, { ...values, kind: "–", ...reasonValues(reason.values, (path) => (b.has(path) ? b(path) : "")) }); // (a countdown by its name, ViralBot.countdownKinds)
   };
   return (
     <div className="w-full min-w-0 text-xs" data-testid={testId} data-score={score} data-open={open ? "1" : "0"}>

@@ -24,7 +24,9 @@ import ScoreChip from "./ScoreChip"; // --- insights --- (C6) the clip's playboo
  * one (lib/clipEdit/propose.ts `libraryEditOpen`): a queue cut opens its master with the spec it was cut with, and a cut
  * with no master opens as it is, with nothing added and no AI to add it.
  *
- * --- insights --- (C6) Each clip shows its playbook score from its genes (ScoreChip.tsx), with the reasons a click away.
+ * --- insights --- (C6) Each clip shows its playbook score from its genes (ScoreChip.tsx), with the reasons a click away. Closed,
+ * the cards of a row stretch to one height and line their buttons up at the bottom; while one card's reasons are open the grid
+ * aligns its cards to the top, so no other card stretches to the open one's height with an empty block above its buttons.
  */
 
 /** --- ai-cut --- What the editor asks of the AI for one Library item, and what comes back: a cut and a one-line summary. */
@@ -104,7 +106,9 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender, onS
       {items.length === 0 ? (
         <p className="text-xs text-ink-3 py-6 text-center">{t("libEmpty")}</p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        // --- insights --- while a card's score reasons are open (they open in the card's flow, ScoreChip.tsx) the cards keep their
+        // own height: stretched to the open card's row they would show an empty block above their buttons, which `mt-auto` pushes down
+        <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 has-data-[open=1]:items-start">
           {items.map((item) => (
             <li key={item.id} className="rounded-lg border border-line bg-surface-1/60 overflow-hidden flex flex-col" data-library-item={item.fileName}>
               <div className="relative bg-black aspect-video flex items-center justify-center">

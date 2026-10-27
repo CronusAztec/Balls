@@ -34,7 +34,9 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { SONGS } from "@/lib/audio/songs";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog";
 import { blueprintDigest, encodeBlueprint } from "@/lib/blueprint/codec";
-import { aiClipSource, blueprintGenesOf, episodeOfPlanId, jobGenes, planSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
+import { aiClipSource, blueprintGenesOf, episodeOfPlanId, jobGenes, planSource, rerenderSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
+import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
+import type { LibraryMeta } from "@/lib/desktop/contract";
 import { runFactsSync, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (the score of a saved clip's run)
 import { EMPTY_QUEUE, enqueue, expandBatch, journalOf, restoreQueue, QUEUE_JOURNAL_FORMAT } from "@/lib/desktop/renderQueue";
 import { PlanStore, makeVideosTools, type StudioPorts } from "@/lib/desktop/ai/studio";
@@ -300,6 +302,38 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(jobGenes(state.jobs[0])).toBe(state.jobs[0].meta.genes);
     expect(jobGenes({ ...old, source: { kind: "ai", melodyId: "twinkle-twinkle" } })).toMatchObject({ source: "ai", melody: "twinkle-twinkle", recipe: null });
     expect(jobGenes({ ...old, source: { kind: "seed" } })).toEqual(settingsGenes(old.settings, { hook: old.meta.hook, caption: old.meta.caption, hashtags: old.meta.hashtags }, "seed"));
+  });
+
+  // --- insights --- (review fix) the re-render of the editor's cut of an older clip was saved as the editor's genes, a source
+  // the queue never scores: the same link-rendered master that a clip without genes gets scored for showed no chip
+  it("re-renders a Library clip with the genes it was made with, a cut file as its master scored from its run, and the editor's genes as the link's", async () => {
+    const item = (meta: Partial<LibraryMeta>, fileName = "pip.mp4") => ({ fileName, meta: { title: "Pip!", mode: plan.mode, seed: plan.seed, link: plan.shareUrl, platform: "tiktok", hook: plan.hook, caption: "Will Pip make it?", hashtags: ["#pip"], queueJobId: "job-1", ...meta } });
+    const save = (genes: ClipGenes) => scoreSavedClip(genesOfSavedFile(genes, { durationSec: plan.timing.clipSec, cut: "master" }), { settings: plan.settings, seed: plan.seed, world: plan.world, durationSec: plan.timing.clipSec, features: null, platform: plan.platform, pause: async () => {} });
+    // a master: the same clip, its genes kept and its cut made again
+    const master = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: plan.timing.clipSec, cut: "master" });
+    const again = rerenderSource(item({ genes: master, cut: DEFAULT_CLIP_EDIT }), plan.settings, plan.seed);
+    expect(again).toMatchObject({ name: "pip", source: { kind: "link", link: plan.shareUrl }, seed: plan.seed, cut: DEFAULT_CLIP_EDIT, meta: { title: "Pip!", hook: plan.hook, caption: "Will Pip make it?", hashtags: ["#pip"], link: plan.shareUrl } });
+    expect(again.meta!.genes).toBe(master);
+    // the queue's cut of it: the master alone, with the clip's genes, scored again as the master
+    const cut = genesOfCut(master, { durationSec: 11.5, hook: "Who gets out first?", sameHook: false });
+    const ofCut = rerenderSource(item({ genes: cut, queueJobId: "job-1-cut", cut: DEFAULT_CLIP_EDIT, hook: "Who gets out first?" }, "pip-tiktok.mp4"), plan.settings, plan.seed);
+    expect([ofCut.cut, ofCut.meta!.genes]).toEqual([null, cut]);
+    const savedCut = await save(ofCut.meta!.genes!);
+    expect(savedCut).toMatchObject({ source: "plan", recipe: plan.recipe, family: plan.family, cut: "master" });
+    expect(savedCut.planScore).toEqual(expect.any(Number));
+    // the editor's cut of a clip saved before 1.6.0: its genes name no source, so the master is the link's, with the item's copy
+    const copy = { hook: "Which way out?", caption: "Guess!", hashtags: ["#pip", "#asmr"] };
+    const editorCut = editorGenes({ mode: plan.mode, durationSec: 11.5, copy });
+    const ofEditor = rerenderSource(item({ genes: editorCut, queueJobId: "job-0-cut", ...copy }, "pip-old-tiktok.mp4"), plan.settings, plan.seed);
+    expect([ofEditor.cut, ofEditor.meta!.genes]).toEqual([null, settingsGenes(plan.settings, copy, "link")]);
+    const savedEditor = await save(ofEditor.meta!.genes!);
+    expect(savedEditor).toMatchObject({ source: "link", cut: "master", hookKey: "custom", hookChars: 14, hashtagCount: 2, captionQuestion: false });
+    expect(savedEditor.planScore).toEqual(expect.any(Number));
+    expect(await save(editorCut)).toMatchObject({ source: "editor", planScore: null }); // (what the cut's own genes were saved as)
+    // a clip saved before 1.6.0: the link's genes with the item's own copy
+    expect(rerenderSource(item({}), plan.settings, plan.seed).meta!.genes).toEqual(settingsGenes(plan.settings, { hook: plan.hook, caption: "Will Pip make it?", hashtags: ["#pip"] }, "link"));
+    // the Library's Re-render button queues this job
+    expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8")).toMatch(/const clip = rerenderSource\(item, settings, linkSeed\(item\.meta\.link\) \?\? item\.meta\.seed\);\n\s+const codec/);
   });
 });
 

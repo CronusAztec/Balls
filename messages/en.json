@@ -3690,6 +3690,14 @@
       "layers": "layers",
       "hp": "HP"
     },
+    "countdownKinds": {
+      "walls": "wall counter",
+      "timer": "timer",
+      "percent": "percentage",
+      "lives": "lives",
+      "layers": "layers",
+      "hp": "health bars"
+    },
     "payoffTypes": {
       "escape": "escape",
       "fill": "fill",
