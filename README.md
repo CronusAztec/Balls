@@ -3584,6 +3584,8 @@ desktop/
 src/lib/desktop/               shared with the page (pure): contract.ts (every IPC channel, event and payload),
                                bridge.ts, gpuEncode.ts, presets.ts, renderQueue.ts, queueSources.ts, publish.ts,
                                release.ts, ai/ (agent loop, JSON schema checks, settings patches, studio tasks, playbook)
+src/lib/insights/              --- insights --- genes.ts (a clip's genes and their sanitiser; types only, so the main process
+                               bundles it), score.ts (the playbook score of a clip without a plan; the page's)
 src/components/simulator/sections/DesktopSection.tsx + desktop/*  the Desktop group (GPU, Render queue, AI, Library)
 src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, navbar and footer); the navbar / footer link
                                and the landing button read the small DesktopLink namespace, which every page hands its client
@@ -3977,7 +3979,8 @@ Phase 2 posts a Library clip through Postiz, after the user approves it on a car
   across a restart), a 429 waited once for Postiz's Retry-After.
 - `desktop/src/social/outcomes.ts` – `GET /posts` for `days` back and forward (scheduled posts show too), mapped to
   `{ id, channel, state QUEUE | PUBLISHED | ERROR | DRAFT, publishDate, releaseUrl, error, content }`; `social/audit.ts` –
-  `social-audit.json` in the data folder (every create and delete with the time, channels, post ids, clip and `by: "user"`).
+  `social-audit.json` in the data folder (every create and delete with the time, channels, post ids, clip and `by: "user"`;
+  --- insights --- a create also keeps its clip's genes, see "Windows app: clip genes and the playbook score").
 - the `social` bridge gains `prepare`, `post`, `posts(days?)`, `postDelete`, `audit(limit?)`, `channelSettings(id)`, `slot(id)`
   and the `social:progress` event; `checkIpcArgs` bounds every argument (`checkSocialPostRequest`: 1–20 channels, text ≤ 5000,
   plain-object settings with `__type` ≤ 20 000 JSON characters, `when` in the future).
@@ -4038,6 +4041,67 @@ exactly once and only with the card's request, skip / remove / edit, events, the
 argument checks through the guard) and `tests/desktopAutopilot.test.ts` (the plan task's schema and checks, a scripted model,
 `shouldPlanNow`, the quiet hours, `runPlanner` over a fake bridge, the Proposed group and Autopilot card in three languages,
 the card prefilled from a proposal, the strings).
+
+### Windows app: clip genes and the playbook score (insights)
+
+Feature insights (phase P2 of the agent platform, Windows app 1.6.0): every clip the app makes carries what it was made from
+(its **genes**), what its fast export measured and the viral bot's playbook score. The Library, the Queue and the approval card
+show that score before anything is posted, and every post the app creates keeps the genes of its clip. All of it stays on the
+PC.
+
+- **The genes** – `src/lib/insights/genes.ts`, ClipGenes v1, a closed record of 4 KB at most: the source (`plan`, `ai`,
+  `link`, `seed` or `editor`), the recipe (a playbook recipe id, or `blueprint:<catalog id>` for a Mode Lab game), family,
+  mode, ending, length and its bucket, melody, the hook's copy key and its length (never its words), the hashtag count, whether
+  the caption asks a question, master or TikTok cut, the series day, the playbook score with each checklist item's share of
+  its points and its verdict (`reasons`: the message key and its numbers, never its text), the measured features, the
+  Blueprint's digest, the parent and the TikTok audience chosen at approval. Post hour and weekday are not stored: they come
+  from the post's publish date. The render queue's sources set them (`src/lib/desktop/queueSources.ts`: a bot plan from the
+  plan; an AI clip from its plan as `set_clip_settings` and `find_simulation` left it, scored again, with the AI's own copy;
+  a link and the page's setup with a seed from the settings), `useRenderQueue.ts` completes them when it saves the file (its
+  real length, master or cut, the features), and the Clip editor writes a cut's. A Library re-render keeps the clip's genes
+  and measures its own file.
+- **The genes in the files** – three optional fields, sanitised by the main process (`sanitizeGenes`) on every write and every
+  load: closed enums, clamped numbers, strict ids of 64 characters or fewer, anything else null; a record past 4 KB drops its
+  features, then its verdicts, then its checklist. `LibraryMeta.genes` sits in the Library index (`desktop/src/library.ts`),
+  `SocialQueueItem.genes` in `social-queue.json` (a proposal copies its clip's genes from the Library item, never from the
+  caller: `social/queue.ts`) and `SocialAuditEntry.genes` in `social-audit.json` (`social/posting.ts`, `social/audit.ts`).
+  Files written before 1.6.0 carry no genes and load exactly as they were stored. The audit copy is the **attribution
+  ledger**: Approve writes the clip's genes, with the TikTok audience the card chose, into the post's audit line, so a Postiz
+  post id keeps them after the Library file and the queue item are deleted (docs/SOCIAL-AUTOPILOT.md, section 5).
+- **Measured features** – `src/lib/recording/clipFeatures.ts`, ClipFeatures v1. The fast export measures every clip it makes,
+  with nothing drawn or read back for it: `sampleDigest()` in `fastRender.ts` hands the 16 × 16 thumbnail the digest already
+  hashes, every `DIGEST_EVERY`-th frame, to the collector once the digest has read it (`sampleHz`: 4 a second at 60 fps, 2 at
+  30). It measures the way the agent toolbox's `analyse` measures a reference video (`src/lib/videoAnalysis/features.ts`, the
+  same functions on the same RGB): the motion curve (the first 600 samples), the first motion and the peak's position, mean
+  luma, saturation, dark share and the loop seam; the engine's sound events a second and its gap events; the first sound in
+  the finished mix and the mix's loudness. `FastRenderResult.features` is optional: a failed measurement leaves it out and
+  never fails an export. The genes keep the scalars (the curve stays out of the 4 KB), and a TikTok cut carries none, since
+  its frames are not the ones measured. The export digests are byte-identical (`tests/fastRender.test.ts` and the smoke
+  test's fast-render block).
+- **The score** – `src/lib/insights/score.ts`: the viral bot's 0–100 checklist score (`scoreClip` in `src/lib/bot/planner.ts`,
+  unchanged, so no plan's score moves) for a clip without a plan. `planLikeFromSettings(settings, facts)` builds the fields
+  of a plan that `scoreClip` reads, and only those. The captions' roles are inferred (a counter caption is the countdown, one
+  on screen from 0.05 s the hook, a question caption the question). The facts come from the planner's own run of the seed
+  (`simulateFactsSteps`, in slices so the page stays responsive) and from the export's features (the file's real length, its
+  first motion or sound). The render queue scores a link's clip or the page's setup as it saves the file (cancelled with the
+  job, never failing the save); a plan's and the AI's clips keep their plan's score.
+- **The score chip** – `src/components/simulator/desktop/ScoreChip.tsx`, on the approval card (`PostizPostCard.tsx`), on each
+  Library item and on each Queue job: "Playbook 72", coloured by the bot's bands (90 and 75), a button that opens the reasons
+  below it, one line per checklist item with its points, in the bot's words. It says it is the playbook's score, not yet
+  measured on your channel, and it is advice only: Approve and the card's checks never read it. A clip without a score (saved
+  before 1.6.0, or a link's job not yet rendered) shows no chip. A named button with `aria-expanded`; Escape closes the
+  reasons; the points are read as words. The strings are the `Insights` namespace in en, pl and es.
+- **What stays on the PC** – everything above. The genes, the features and the scores live in the app's own files in its data
+  folder. There is no new IPC channel (the genes ride the `render.save` and `social` payloads that exist, so
+  `tests/desktopCapabilities.test.ts` is unchanged), no new network call and no new host. Postiz gets what it got before, the
+  clip and its text on Approve, and never the genes; the app's AI, local or cloud, never reads them either.
+
+Tests: `tests/insightsGenes.test.ts` (the builders, and the sanitiser against absurd answers), `desktop/tests/clipGenes.test.ts`
+(old files load, the main process sanitises, the ledger survives deleting the Library file and the queue item),
+`tests/clipFeatures.test.ts` (the analyser's numbers on the same pixels, the digest unchanged, the sound, failures, purity),
+`tests/insightsScore.test.ts` (the plan-like holds every field `scoreClip` reads and nothing else, a bot plan scored from its
+settings and its run gets the plan's verdicts, the queue's scoring cancels with the job) and `tests/insightsScoreChip.test.ts`
+(the chip in three languages, its keys and labels, a 360 px panel, the three panels).
 
 ## Browser support
 

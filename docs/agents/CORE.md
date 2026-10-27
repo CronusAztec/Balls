@@ -108,7 +108,10 @@ frames and sound match the live run.
   `tests/zip.test.ts`, `tests/renderBudget.test.ts`.
 - **Smoke blocks:** `recording` and `fast-render` (always in tier 1).
 - **Also:** a change under `src/lib/recording/` escalates to the `paywall-gate`, `free-watermark` and `watermark-everywhere`
-  blocks. The `batch-render` block runs in tier 2.
+  blocks. The `batch-render` block runs in tier 2. The digest's samples also feed the clip's measured features
+  (`sampleDigest` in `src/lib/recording/fastRender.ts`, the collector in `src/lib/recording/clipFeatures.ts`). The collector
+  reads the thumbnail after the digest and never writes it, and a failed measurement never fails an export, so the export
+  digests stay byte-identical. A change that moves one changes what the export renders: find out why.
 
 ### 7. Watermark (`watermark`)
 
@@ -143,7 +146,10 @@ working.
   `tests/desktopEncode.test.ts`.
 - **Smoke blocks:** `desktop-exe` (always in tier 1), `desktop-current` and `desktop-ai-fix` (tier 1 when touched).
 - **Also:** lane B runs the desktop app's type check and tests. The Windows build, `JumpingBallsLive.exe --smoke`, runs
-  only in `.github/workflows/desktop.yml`.
+  only in `.github/workflows/desktop.yml`. An optional field on a payload that exists is no new channel and needs no
+  capability. The clip genes are such fields (`LibraryMeta.genes`, `SocialQueueItem.genes`, `SocialAuditEntry.genes`): the
+  main process sanitises them on every write and load (`sanitizeGenes` in `src/lib/insights/genes.ts`), and the files an
+  older app wrote, without them, load unchanged.
 
 ### 10. i18n (`i18n`)
 

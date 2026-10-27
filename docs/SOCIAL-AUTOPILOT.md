@@ -109,7 +109,8 @@ Windows app, Electron main (Node 22, no new dependencies)          Postiz (cloud
   social/autopilot.ts  the autopilot's settings block (phase 4)
   social/transcode.ts  WebM → MP4 (bundled ffmpeg) before upload
   social/audit.ts      social-audit.json: every call that changed
-                       something, with the time and who approved
+                       something, with the time and who approved,
+                       and a created post's clip genes (section 5)
 page (React, app:// only; the Desktop group gets two tabs)
   Accounts tab   paste the key (and address), channels with their platform and picture, Postiz notices, Insights, Forget key
   Queue tab      proposals → Approve (opens the settings card) / Edit / Skip; scheduled; posted (with links); failed (with the
@@ -141,6 +142,8 @@ Rules in code:
 - The AI's text is marked `by: ai` until the user edits or approves it. Nothing the AI wrote is sent unedited without the user
   seeing it on the card.
 - Audit log and a "Forget key" that also clears the queue's Postiz ids.
+- The audit line of every post the app creates keeps the genes of its clip (section 5), so its numbers can be joined to what
+  made it later; nothing more goes to Postiz.
 
 ## 4. Phases
 
@@ -226,7 +229,83 @@ Rules in code:
 
 Each phase: vitest with stand-in servers, the desktop tests, a read-only review (security, copy), then `main`.
 
-## 5. Out of scope, on purpose
+## 5. Each post keeps its clip's genes (the attribution ledger)
+
+**Built** (2026-10-27, phase P2 of the agent platform, Windows app 1.6.0; README "Windows app: clip genes and the playbook
+score"). To learn later which clips do well, the app must know what made each post, and Postiz reports its numbers per post
+id (`GET /analytics/post/:postId`). So every post the app creates keeps, next to its post ids, the **genes** of the clip it
+showed (`src/lib/insights/genes.ts`: what the clip was made from, what its fast export measured and its playbook score):
+
+- **In the audit** – `SocialAuditEntry.genes` on the `createPosts` line that `social/posting.ts` writes to `social-audit.json`
+  once `POST /posts` has answered. The genes are the queue item's copy when the post comes from the queue
+  (`SocialQueue.approve` hands them to `ClipPoster.postClip` beside the card's request), else the Library item's (a post
+  approved on the card alone). The TikTok audience the card chose goes with them (`tiktokPrivacy`: public, friends,
+  followers or self, from the first TikTok channel's `privacy_level`; null without TikTok).
+- **In the queue** – `SocialQueueItem.genes`: a proposal copies its clip's genes from the Library item when it is proposed
+  (the main process reads them; the caller cannot hand any), so the item keeps them after the Library forgets the clip.
+- **Sanitised in the main process** on every write and every load (`sanitizeGenes`: closed enums, clamped numbers, strict
+  ids of 64 characters or fewer, no free text, 4 KB at most). A line or item without genes (written by 1.5.0 or earlier)
+  loads exactly as it was stored; a value that is not a genes record is dropped and the rest of the line kept.
+- **It survives deletion.** Deleting the Library file or the queue item leaves the audit line, so the post id keeps its
+  genes (`desktop/tests/clipGenes.test.ts`). The audit keeps its newest 2000 lines, as before.
+- Post hour and weekday are not stored: they follow from the post's `publishDate` in `GET /posts`.
+- **Nothing more leaves the PC.** The create call carries the clip and its text, as before; the genes stay in the app's data
+  folder, and the AI's planner never reads them.
+
+## 6. The owner's check for the Insights (P7): what your Postiz returns
+
+The Insights work (phase P7: the owner's own post statistics on the PC, joined to the genes of section 5) has to know which
+analytics series the owner's Postiz really returns, per platform and per post: Postiz hands each provider's own labels
+through, and they differ between providers and Postiz versions. So before P7 is designed, the owner runs the probe once
+against the real Postiz and records its output here. The probe goes through the Windows app's own Postiz client and prints
+series labels and point counts only: never a value, a channel name, a post text or the key (docs/agents/CLI.md, "Owner-run
+commands").
+
+1. On your own PC, in the repository, put your Postiz address and API key in the git-ignored `.env.local`, as in the app's
+   Accounts tab (`https://api.postiz.com` for Postiz cloud, else your backend's address):
+   ```sh
+   POSTIZ_URL=https://api.postiz.com
+   POSTIZ_API_KEY=paste-your-key-here
+   ```
+2. Run `npm run -s agent -- postiz-probe --json '{"days":30,"posts":5}'` (`days` is 7, 30 or 90; `posts` is how many recent
+   published posts it reads, 0 to 20). Without the two variables it prints `not configured` and exits 0.
+3. Paste its output below and fill in the tables. The key never appears in it; `host` names your Postiz server, so leave it
+   out if that is private.
+4. Take the key out of `.env.local` again if you do not want it kept there.
+
+**Status: not run yet.** The development machine has no Postiz key: on 2026-10-27 the probe answered `"configured":false`
+("not configured: set POSTIZ_URL and POSTIZ_API_KEY").
+
+| Filled in by the owner | |
+| --- | --- |
+| Run on (date) | |
+| Postiz: cloud or self-hosted | |
+| `days` and `posts` | |
+
+Per channel (the output's `channels`: the platform, whether it is disabled, and each series' `label` with its `points`, or
+the `error`):
+
+| index | platform | disabled | series (label: points) or error |
+| --- | --- | --- | --- |
+| | | | |
+
+Per recent post (the output's `posts`):
+
+| index | platform | series (label: points) or error |
+| --- | --- | --- |
+| | | |
+
+The probe's output as printed:
+
+```json
+(paste it here)
+```
+
+What P7 takes from it: which labels stand for views, likes, comments, shares and followers on each platform; whether a
+post's series are daily points or a single total; how many days back a post has numbers; and which platforms return nothing
+(an `error`, or no series), which then get no Insights card.
+
+## 7. Out of scope, on purpose
 
 Posting or replying without a person approving each action; anything that needs the account password or a browser session;
 buying or trading engagement; TikTok comments and analytics, Instagram caption edits (the APIs do not offer them); Facebook,

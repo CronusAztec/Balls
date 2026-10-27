@@ -321,7 +321,7 @@ git-ignored `.env` files. Without a key they print `not configured` and exit 0. 
 - **`postiz-probe`** needs `POSTIZ_URL` and `POSTIZ_API_KEY`. It goes through the Windows app's own Postiz client and calls
   `GET /public/v1/integrations`, `/analytics/<channel>`, `/posts` and `/analytics/post/<post>`. It prints series labels and
   point counts only, never values, channel names or post text. Run it before the Insights work is built, to see what your
-  providers really return.
+  providers really return, and record its output in docs/SOCIAL-AUTOPILOT.md, section 6, where that work reads it.
 
 The keys never appear in any output.
 
