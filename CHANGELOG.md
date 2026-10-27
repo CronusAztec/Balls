@@ -14,7 +14,7 @@ Clearer words in Paddle Keep-Up and the Clip planner
 ### Fixed
 
 - Paddle Keep-Up's Skill past 100% now says it plays 100%. Before, the note said your number ran as typed. The link still keeps the number you typed.
-- The Clip planner now names the countdown in your language, like wall counter. Before, Why this clip showed a code such as walls. The downloaded ZIP names it the same way.
+- The Clip planner now names the countdown in plain words, like wall counter or health bars. Before, Why this clip showed a code such as walls or hp. The downloaded ZIP names it the same way.
 
 ## Windows app 1.6.0 · 2026-10-27
 
