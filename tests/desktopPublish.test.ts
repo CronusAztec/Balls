@@ -5,7 +5,7 @@ import type { LibraryItem } from "@/lib/desktop/contract";
 import { clipVideoKey } from "@/lib/desktop/autopilot"; // --- cut-reedit ---
 import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { publishTargets, type PublishClip as LibraryClip } from "@/lib/desktop/publish";
-import { offerPublishClip, publishClips, resetPublishClips } from "@/lib/publish/clips";
+import { PUBLISH_LIBRARY_KEYS, offerPublishClip, publishClips, publishLibraryOf, resetPublishClips, setPublishClipGenes } from "@/lib/publish/clips";
 import { notifyLibraryChanged, onLibraryChanged } from "@/lib/desktop/libraryChanged"; // --- cut-reedit ---
 import { PublishController, type ControllerDeps } from "@/lib/publish/controller";
 import { applyCopyToPublish, draftOfLibraryClip, publishPlatformOf, publishToAccounts, registerDesktopPublishTargets, shareLibraryClip, stageLibraryClip, type DesktopPublishLabels } from "@/lib/publish/desktopTargets";
@@ -13,6 +13,11 @@ import { PUBLISH_STORAGE_KEY } from "@/lib/publish/store";
 import { emptyDraft } from "@/lib/publish/caption";
 import type { FetchLike } from "@/lib/publish/youtube";
 import { EntitlementRequiredError, type EntitlementDecision } from "@/lib/billing/guard"; // --- social-postiz ---
+import { genesOfEditorCut, genesOfSavedFile } from "@/lib/insights/genes"; // --- insights ---
+import { planSource } from "@/lib/desktop/queueSources"; // --- insights ---
+import { planClip } from "@/lib/bot/planner"; // --- insights ---
+import { RECIPES } from "@/lib/bot/playbook"; // --- insights ---
+import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec"; // --- insights ---
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -233,7 +238,7 @@ describe("the Library's Publish targets (desktop app)", () => {
     const masterItem = { ...item("reels"), id: "lib-master-x", meta: { ...item("reels").meta, queueJobId: "job-x" } } as LibraryItem;
     const masterId = stageLibraryClip(c, clipOf(masterItem));
     const master = publishClips().find((x) => x.id === masterId);
-    expect(master?.library).toEqual({ title: "Glass smash", link: "https://x/en/simulator/?mode=glass", caption: "Which floor breaks first?", hashtags: ["#glass", "#asmr"], queueJobId: "job-x" });
+    expect(master?.library).toEqual({ title: "Glass smash", link: "https://x/en/simulator/?mode=glass", caption: "Which floor breaks first?", hashtags: ["#glass", "#asmr"], queueJobId: "job-x", hook: "Pip vs glass" /* --- insights --- */ });
     // the editor's job rule on that meta: the master's cut, under the master's video key
     const cutJob = editCutJobId(master?.library?.queueJobId);
     expect(cutJob).toBe("job-x-cut");
@@ -248,9 +253,10 @@ describe("the Library's Publish targets (desktop app)", () => {
     const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     // (--- cut-reedit --- and a cut saved there refreshes the Desktop group's open Library)
     expect(read("src/components/simulator/sections/PublishSection.tsx")).toContain("desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined, onSaved: notifyLibraryChanged } : null}");
-    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/source: "edit",[^\n]*library: \{ title: cutMeta\.title, link: cutMeta\.link, caption: cutMeta\.caption, hashtags: cutMeta\.hashtags, queueJobId: cutMeta\.queueJobId, cut: cutMeta\.cut \} \}\);/);
+    // (--- insights --- the cut's whole Library meta as the Publish clip keeps it: publishLibraryOf, tested below)
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/source: "edit",[^\n]*library: publishLibraryOf\(cutMeta\) /);
     const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
-    expect(dialog).toContain("library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };");
+    expect(dialog).toContain("library = publishLibraryOf(meta);");
     expect(dialog).toMatch(/source: "edit",[^\n]*, library \}\);/);
     expect(dialog).toMatch(/desktop\.onSaved\?\.\(\);/);
   });
@@ -276,7 +282,10 @@ describe("the Library's Publish targets (desktop app)", () => {
     const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     const queue = read("src/components/simulator/desktop/useRenderQueue.ts");
     // the job handed to runJobs carries the same title, link, caption and hashtags as the master's LibraryMeta, and its job
-    expect(queue).toMatch(/library: \{ title: job\.meta\.title \|\| job\.name, link: job\.meta\.link \?\? jobLink\(job, page\.locale\), caption: job\.meta\.caption, hashtags: job\.meta\.hashtags, queueJobId: job\.id \},\s+\},\s+\]\);/);
+    expect(queue).toMatch(/library: \{ title: job\.meta\.title \|\| job\.name, link: job\.meta\.link \?\? jobLink\(job, page\.locale\), caption: job\.meta\.caption, hashtags: job\.meta\.hashtags, queueJobId: job\.id, hook: job\.meta\.hook, genes: planned \},\s+\},\s+\]\);/);
+    // --- insights --- (with the job's hook and genes until it is saved, then the saved genes)
+    expect(queue).toMatch(/const planned = jobGenes\(job\);/);
+    expect(queue).toMatch(/markDone\([^\n]*\);\n\s+setPublishClipGenes\(job\.id, genes\);/);
     expect(queue).toMatch(/title: job\.meta\.title \|\| job\.name,\s+mode: job\.settings\.mode,\s+seed: job\.seed,\s+link: job\.meta\.link \?\? jobLink\(job, page\.locale\),/);
     // the batch renderer offers a handed-in job's clip with it
     const batch = read("src/components/simulator/useBatchRender.ts");
@@ -291,6 +300,33 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(cutJob).toBe("job-q1-cut");
     const master = { ...item("tiktok"), meta: { ...item("tiktok").meta, queueJobId: "job-q1" } } as LibraryItem;
     expect(clipVideoKey({ meta: { ...master.meta, queueJobId: cutJob } })).toBe(clipVideoKey(master));
+  });
+
+  // --- insights --- "Edit for TikTok" in the block saves a cut of the clip's genes (recipe, family, score), not the editor's own
+  it("hands the Clip editor a Publish clip's hook and genes, so a cut made in the block keeps the clip's genes", () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const copy = (en as unknown as { ViralBot: Parameters<typeof planClip>[3]["copy"] }).ViralBot;
+    const plan = planClip(RECIPES.find((r) => r.id === "pip-escape")!, 9, "tiktok", { copy, search: false });
+    const genes = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: 24, cut: "master" });
+    const masterItem = { ...item("tiktok"), id: "lib-genes", meta: { ...item("tiktok").meta, hook: plan.hook, queueJobId: "job-g", genes } } as LibraryItem;
+    const stagedId = stageLibraryClip(c, clipOf(masterItem));
+    const staged = publishClips().find((x) => x.id === stagedId)!;
+    expect(staged.library).toMatchObject({ hook: plan.hook, genes, queueJobId: "job-g" });
+    // the editor's cut of it (PublishSection hands it `editing.library` as its meta): the clip's genes as a cut, its hook told apart
+    const cutOf = (hook: string) => genesOfEditorCut(staged.library, { mode: "glass", durationSec: 11.5, copy: { hook, caption: null, hashtags: [] } });
+    expect(cutOf("Will Pip make it?")).toMatchObject({ source: "plan", recipe: "pip-escape", family: plan.family, planScore: plan.score, cut: "tiktok", durationSec: 11.5, hookKey: "custom" });
+    expect(cutOf(plan.hook).hookKey).toBe("recipes.pipEscape");
+    // the pick keeps every key the Publish clip holds of a Library item's meta, and nothing else of it
+    const full = { ...masterItem.meta, cut: DEFAULT_CLIP_EDIT, fanMadeBurned: true };
+    expect(Object.keys(publishLibraryOf(full)).sort()).toEqual([...PUBLISH_LIBRARY_KEYS].sort());
+    expect(publishLibraryOf({ title: "t", genes: undefined })).toEqual({ title: "t" });
+    // the queue's master: offered with the job's genes when its export is done, then given the genes it was saved with
+    const blob = new Blob(["x"], { type: "video/mp4" });
+    const offered = offerPublishClip({ blob, name: "job-q2", source: "bot", library: { queueJobId: "job-q2", hook: plan.hook, genes: planSource(plan).meta!.genes } });
+    const other = offerPublishClip({ blob, name: "job-q3", source: "bot", library: { queueJobId: "job-q3", genes: planSource(plan).meta!.genes } });
+    setPublishClipGenes("job-q2", genes);
+    expect(publishClips().find((x) => x.id === offered.id)?.library).toEqual({ queueJobId: "job-q2", hook: plan.hook, genes });
+    expect(publishClips().find((x) => x.id === other.id)?.library?.genes).toEqual(planSource(plan).meta!.genes);
   });
 
   it("writes the AI's posts into the Publish block's draft, per platform – or says there is no clip yet", () => {

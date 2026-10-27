@@ -43,11 +43,11 @@ import { fanMadeLine, fanMadeMode, type EditCardText } from "@/lib/clipEdit/draw
 import { renderClipEdit } from "@/lib/clipEdit/render";
 import { editFileName } from "@/lib/clipEdit/spec";
 import { refitClipEdit } from "@/lib/clipEdit/propose";
-import { offerPublishClip } from "@/lib/publish/clips";
+import { offerPublishClip, publishLibraryOf, setPublishClipGenes } from "@/lib/publish/clips";
 // --- insights --- the clip's genes as saved: its source's, the file's length, master or cut
 import { genesOfCut, genesOfSavedFile } from "@/lib/insights/genes";
-import { settingsGenes } from "@/lib/desktop/queueSources";
-import { platformOf, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (C6) the playbook's score of a link's or the page's clip
+import { jobGenes } from "@/lib/desktop/queueSources";
+import { platformOf, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (C6) the playbook's score of a clip from its run
 // --- free-watermark --- (was paywall-gate) the render queue renders for everyone: its jobs are fast exports, watermarked without a Pro licence
 
 /*
@@ -66,12 +66,15 @@ import { platformOf, scoreSavedClip } from "@/lib/insights/score"; // --- insigh
  * Once the cut's file is made it is being saved (`cutting.saving`): a Cancel no longer stops it, so the row says "Saving…".
  *
  * --- insights --- The saved file's meta carries the clip's genes (lib/insights/genes.ts): the job's, from its source (a job
- * of an older journal gets its settings'), with the file's length and "master" and the features the fast export measured of
- * it (lib/recording/clipFeatures.ts); its cut gets them as a cut of its own length and hook (and no features: those are the
- * master's frames). The app's main process sanitises them when it writes the Library.
- * A clip made from settings (a link, the page's setup) gets the playbook's score there (lib/insights/score.ts): the planner's
- * run of its seed in the page's world, in slices, with the file's length and first motion; the done job keeps the genes, so
- * the Queue shows the score too. A plan's and the AI's clip carry their plan's. A cancel during the run saves nothing.
+ * of an older journal gets its settings' and what its source names: queueSources.ts jobGenes), with the file's length and
+ * "master" and the features the fast export measured of it (lib/recording/clipFeatures.ts); its cut gets them as a cut of
+ * its own length and hook (and no features: those are the master's frames). The app's main process sanitises them when it
+ * writes the Library. The master's and the cut's Publish clips carry them with their hook, so a cut made in the Publish block
+ * keeps them too (the master's are given the saved genes once it is saved: setPublishClipGenes).
+ * A link's clip, the page's setup and an AI clip get the playbook's score there (lib/insights/score.ts): the planner's run of
+ * its seed in the page's world, in slices, with the file's length and first motion (an AI clip's with its plan's recipe,
+ * series day and bucket: the AI's tools changed what the run plays after the plan was scored); the done job keeps the genes,
+ * so the Queue shows the score too. A bot plan's clip carries its plan's. A cancel during the run saves nothing.
  */
 
 const PROGRESS_SAVE_MS = 2000;
@@ -215,6 +218,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         // --- insights --- (C6) what the score's run needs of the page as it renders this job: its world and the melody it plays
         const world = page.getWorld();
         const pageMelody = melody === undefined ? page.currentMelody : null;
+        const planned = jobGenes(job); // (a job journalled before 1.6.0: what its source names)
         const t0 = Date.now();
         const files = await page.runJobs([
           {
@@ -224,8 +228,9 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             prepare: melody !== undefined ? async () => void (await page.selectMelody(melody)) : undefined,
             download: false,
             // --- cut-reedit --- the Publish clip is the master's Library item: a cut of it in the block is saved as `<job>-cut`
-            // with the master's copy, the way the Library's own Edit for TikTok saves it
-            library: { title: job.meta.title || job.name, link: job.meta.link ?? jobLink(job, page.locale), caption: job.meta.caption, hashtags: job.meta.hashtags, queueJobId: job.id },
+            // with the master's copy, the way the Library's own Edit for TikTok saves it (--- insights --- with its hook and genes:
+            // the job's until the master is saved, then the saved ones, setPublishClipGenes below)
+            library: { title: job.meta.title || job.name, link: job.meta.link ?? jobLink(job, page.locale), caption: job.meta.caption, hashtags: job.meta.hashtags, queueJobId: job.id, hook: job.meta.hook, genes: planned },
           },
         ]);
         setDesktopExportCodec("h264");
@@ -243,8 +248,8 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const transcode = transcodeSpecFor(job.preset, job.codec, { width: size.width, height: size.height, fps: render.fps }, rendered);
         if (transcode) apply((s) => markEncoding(s, job.id, Date.now()));
         // --- insights ---
-        const saved0 = genesOfSavedFile(job.meta.genes ?? settingsGenes(job.settings, { hook: job.meta.hook, caption: job.meta.caption, hashtags: job.meta.hashtags }, job.source.kind), { durationSec: file.durationSec, cut: "master", features: file.result?.features ?? null /* what the fast export measured of this file */ });
-        // (C6) a link's or the page's clip: the playbook's score of its run (in slices; never fails the save)
+        const saved0 = genesOfSavedFile(planned, { durationSec: file.durationSec, cut: "master", features: file.result?.features ?? null /* what the fast export measured of this file */ });
+        // (C6) a link's, the page's or an AI clip: the playbook's score of the run this file was made of (in slices; never fails the save)
         const genes = await scoreSavedClip(saved0, { settings: job.settings, seed: job.seed, world, durationSec: file.durationSec, features: file.result?.features, platform: platformOf(job.meta.platform, job.preset), melody: pageMelody, signal: { get aborted() { return cancelled.current.has(job.id); } } });
         if (cancelled.current.has(job.id)) return;
         const meta: LibraryMeta = {
@@ -264,6 +269,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const saved = await bridge.render.save({ jobId: job.id, folder, name: job.name, extension: file.extension, data: await blobBytes(file.blob), durationSec: file.durationSec, transcode, meta });
         if (cancelled.current.has(job.id)) return;
         apply((s) => markDone(s, job.id, { path: saved.path, bytes: saved.bytes, durationSec: saved.durationSec, encoder: saved.encoder }, Date.now(), genes /* --- insights --- (C6) the Queue shows the saved clip's score */));
+        setPublishClipGenes(job.id, genes); // --- insights --- the master's Publish clip: a cut of it in the block is a cut of these
         // --- ai-cut --- the master is done; now its cut, from the fast export still in memory, in the page (lib/clipEdit/render.ts).
         // Its own try/catch: whatever the cut does, the master stays done and is not rendered again.
         const cutDeps = cutRef.current;
@@ -286,7 +292,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
               // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`,
               // and the spec it was cut with goes along, so the trim is saved as a cut of the master (composeCutSpec)
-              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed, library: { title: cutMeta.title, link: cutMeta.link, caption: cutMeta.caption, hashtags: cutMeta.hashtags, queueJobId: cutMeta.queueJobId, cut: cutMeta.cut } });
+              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed, library: publishLibraryOf(cutMeta) /* --- insights --- with the cut's hook and genes */ });
               cutDeps.onCut?.(job, { watermarked: result.watermarked });
             }
           } catch (err) {

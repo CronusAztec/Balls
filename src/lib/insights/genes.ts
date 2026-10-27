@@ -65,6 +65,10 @@ export const TIKTOK_PRIVACY_GENES: Readonly<Record<string, GenePrivacy>> = {
  * the standard bucket's 30 s to the long one's 60 s) standard, longer long (playbook BUCKET_SECONDS).
  */
 export const GENE_BUCKET_EDGES = { short: 15, standard: 45 } as const;
+/** The seconds each bucket is planned for (playbook BUCKET_SECONDS). */
+export const GENE_BUCKET_SECONDS = { short: { min: 8, max: 15 }, standard: { min: 15, max: 30 }, long: { min: 60, max: 90 } } as const satisfies Record<LengthBucket, { min: number; max: number }>;
+/** How far past a bucket's ends a length still fits it (s): scoreClip's own slack for "inside the bucket". */
+export const GENE_BUCKET_SLACK_SEC = 0.5;
 
 /**
  * The measured features of the clip's fast export (C6, lib/recording/clipFeatures.ts): their scalar summary, since the
@@ -169,6 +173,16 @@ const asksSomething = (text: string | null | undefined) => !!text && /[?？¿]/.
 export function bucketOfSeconds(sec: number | null | undefined): LengthBucket | null {
   if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) return null;
   return sec <= GENE_BUCKET_EDGES.short ? "short" : sec <= GENE_BUCKET_EDGES.standard ? "standard" : "long";
+}
+
+/**
+ * The bucket a clip planned for `planned` is in at `sec` seconds: the planned one while the length fits it (GENE_BUCKET_SECONDS,
+ * with scoreClip's slack), else the length's own; without a plan, the length's own.
+ */
+export function bucketKept(planned: LengthBucket | null, sec: number | null | undefined): LengthBucket | null {
+  if (!planned || typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) return planned ?? bucketOfSeconds(sec);
+  const range = GENE_BUCKET_SECONDS[planned];
+  return sec >= range.min - GENE_BUCKET_SLACK_SEC && sec <= range.max + GENE_BUCKET_SLACK_SEC ? planned : bucketOfSeconds(sec);
 }
 
 /** The gene of a Postiz TikTok privacy_level (null for any other value). */
@@ -394,16 +408,19 @@ export function genesFromSettings(settings: Pick<SimulatorSettings, "mode" | "re
 }
 
 /**
- * The genes of the file the queue saved: its real length and master or cut. A plan's bucket is kept (the length it was planned
- * for); any other is the file's own (a link's clip may end before its clip length, a re-rendered cut is the whole clip again).
+ * The genes of the file the queue saved: its real length and master or cut. A bot plan's bucket is kept (the length it was
+ * planned for: the planner fits its run to it); an AI clip's while the file's length fits it (the AI's set_clip_settings and
+ * find_simulation may have changed the length since the plan was made: a 70 s file of a standard plan is a long clip); any
+ * other is the file's own (a link's clip may end before its clip length, a re-rendered cut is the whole clip again).
  * `features` is what the export measured of this file (FastRenderResult.features; null when it measured nothing): it replaces
  * whatever the genes carried (a re-render measures its own file). Absent: the genes' features are kept.
  */
 export function genesOfSavedFile(genes: ClipGenes, file: { durationSec: number | null; cut: GeneCut; features?: ClipFeatures | null }): ClipGenes {
   const durationSec = typeof file.durationSec === "number" && Number.isFinite(file.durationSec) && file.durationSec > 0 ? file.durationSec : genes.durationSec;
   const planned = (genes.source === "plan" || genes.source === "ai") && genes.cut !== "tiktok" && genes.bucket !== null;
+  const bucket = !planned ? bucketOfSeconds(durationSec) : genes.source === "ai" ? bucketKept(genes.bucket, durationSec) : genes.bucket;
   const features = file.features === undefined ? genes.features : featureGenes(file.features); // --- insights --- (C6)
-  return finish({ ...genes, durationSec, bucket: planned ? genes.bucket : bucketOfSeconds(durationSec), cut: file.cut, features });
+  return finish({ ...genes, durationSec, bucket, cut: file.cut, features });
 }
 
 /**
@@ -421,6 +438,17 @@ export function genesOfCut(genes: ClipGenes, cut: { durationSec: number | null; 
 export function editorGenes(clip: { mode: string | null; durationSec: number | null; copy: GenesCopy }): ClipGenes {
   const durationSec = typeof clip.durationSec === "number" && Number.isFinite(clip.durationSec) && clip.durationSec > 0 ? clip.durationSec : null;
   return finish({ ...blank("editor"), mode: clip.mode, durationSec, bucket: bucketOfSeconds(durationSec), ...hookGenes(clip.copy.hook), hashtagCount: clip.copy.hashtags.length, captionQuestion: asksSomething(clip.copy.caption), cut: "tiktok" });
+}
+
+/**
+ * The genes of a cut the Clip editor saves: a cut of the clip's own genes when the clip it was opened on carries them (a
+ * Library item, or the Publish block's clip of one: lib/publish/clips.ts PublishClipLibrary), its hook measured against that
+ * clip's hook; else the editor's own (`editorGenes`).
+ */
+export function genesOfEditorCut(clip: { genes?: ClipGenes | null; hook?: string | null } | null | undefined, cut: { mode: string | null; durationSec: number | null; copy: GenesCopy }): ClipGenes {
+  if (!clip?.genes) return editorGenes(cut);
+  const hook = cut.copy.hook ?? "";
+  return genesOfCut(clip.genes, { durationSec: cut.durationSec, hook, sameHook: hook.trim() === (clip.hook ?? "").trim() });
 }
 
 /** The genes an approved post keeps in the audit: the clip's, with the TikTok audience the card chose (null without TikTok). */

@@ -12,7 +12,7 @@ import { burnedBadgeBox, burnedBadgeShows, drawEditFrame, fanMadeLine, fanMadeMo
 import { BADGE_HEIGHT, BADGE_INSET, safeZone } from "@/lib/watermark/layout";
 import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
 import { composeCutSpec, cutFileSpec, cutFileTrim, editCutJobId, isCutJob, libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
-import { offerPublishClip, resetPublishClips } from "@/lib/publish/clips";
+import { offerPublishClip, publishLibraryOf, resetPublishClips } from "@/lib/publish/clips";
 import { FastRenderUnsupportedError, pickExportFormat } from "@/lib/recording/fastRender";
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
@@ -718,10 +718,12 @@ describe("the editor in the page and in the Windows app", () => {
     const withProposal: Item = { ...master, meta: { queueJobId: "job-a", cut: proposal } };
     const bare: Item = { id: "b", durationSec: 9, exists: true, meta: { queueJobId: "job-a-cut" } };
     expect(libraryEditOpen(bare, [bare, withProposal])).toMatchObject({ item: withProposal, spec: { startSec: 2.4, lengthSec: 10.6 } });
-    // every cut offered to the Publish block carries the spec it was cut with
-    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/queueJobId: cutMeta\.queueJobId, cut: cutMeta\.cut \} \}\);/);
-    expect(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx")).toContain("library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };");
-    expect(read("src/lib/publish/desktopTargets.ts")).toContain("queueJobId: meta.queueJobId, cut: meta.cut };");
+    // every cut offered to the Publish block carries the spec it was cut with (--- insights --- through publishLibraryOf, which
+    // keeps a meta's job and spec: the queue's cut, the editor's own cut and a Library clip staged in the block)
+    expect(publishLibraryOf({ queueJobId: "job-a-cut", cut: composed })).toEqual({ queueJobId: "job-a-cut", cut: composed });
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/library: publishLibraryOf\(cutMeta\) /);
+    expect(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx")).toContain("library = publishLibraryOf(meta);");
+    expect(read("src/lib/publish/desktopTargets.ts")).toContain("const library = publishLibraryOf(meta);");
   });
 
   // --- badge-safe --- a clip the page made carries the burned badge; a picked file is not known to, unless the Library says so

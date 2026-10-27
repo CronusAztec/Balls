@@ -4056,10 +4056,13 @@ PC.
   its points and its verdict (`reasons`: the message key and its numbers, never its text), the measured features, the
   Blueprint's digest, the parent and the TikTok audience chosen at approval. Post hour and weekday are not stored: they come
   from the post's publish date. The render queue's sources set them (`src/lib/desktop/queueSources.ts`: a bot plan from the
-  plan; an AI clip from its plan as `set_clip_settings` and `find_simulation` left it, scored again, with the AI's own copy;
-  a link and the page's setup with a seed from the settings), `useRenderQueue.ts` completes them when it saves the file (its
-  real length, master or cut, the features), and the Clip editor writes a cut's. A Library re-render keeps the clip's genes
-  and measures its own file.
+  plan; an AI clip from its plan as `set_clip_settings` and `find_simulation` left it, with the AI's own copy; a link and the
+  page's setup with a seed from the settings; a job journalled before 1.6.0 from its settings and what its source names, a
+  plan's recipe, family, series day and melody), `useRenderQueue.ts` completes them when it saves the file (its real length,
+  master or cut, the features; a bot plan's bucket stays the planned one, an AI clip's only while the file's length fits it),
+  and the Clip editor writes a cut's: a cut of a clip with genes keeps them as a cut, whether the editor was opened from the
+  Library or from the Publish block (its clips carry the Library item's hook and genes, `PublishClipLibrary`). A Library
+  re-render keeps the clip's genes and measures its own file.
 - **The genes in the files** – three optional fields, sanitised by the main process (`sanitizeGenes`) on every write and every
   load: closed enums, clamped numbers, strict ids of 64 characters or fewer, anything else null; a record past 4 KB drops its
   features, then its verdicts, then its checklist. `LibraryMeta.genes` sits in the Library index (`desktop/src/library.ts`),
@@ -4079,12 +4082,15 @@ PC.
   its frames are not the ones measured. The export digests are byte-identical (`tests/fastRender.test.ts` and the smoke
   test's fast-render block).
 - **The score** – `src/lib/insights/score.ts`: the viral bot's 0–100 checklist score (`scoreClip` in `src/lib/bot/planner.ts`,
-  unchanged, so no plan's score moves) for a clip without a plan. `planLikeFromSettings(settings, facts)` builds the fields
-  of a plan that `scoreClip` reads, and only those. The captions' roles are inferred (a counter caption is the countdown, one
-  on screen from 0.05 s the hook, a question caption the question). The facts come from the planner's own run of the seed
-  (`simulateFactsSteps`, in slices so the page stays responsive) and from the export's features (the file's real length, its
-  first motion or sound). The render queue scores a link's clip or the page's setup as it saves the file (cancelled with the
-  job, never failing the save); a plan's and the AI's clips keep their plan's score.
+  unchanged, so no plan's score moves) for a clip scored from its run. `planLikeFromSettings(settings, facts)` builds the
+  fields of a plan that `scoreClip` reads, and only those. The captions' roles are inferred (a counter caption is the
+  countdown, one on screen from 0.05 s the hook, a question caption the question); a clip with no hook caption has its Top
+  Text as its hook, and a clip that is not part of the series (series day 0) is never scored as part of one. The facts come
+  from the planner's own run of the seed (`simulateFactsSteps`, in slices so the page stays responsive) and from the export's
+  features (the file's real length, its first motion or sound). The render queue scores a link's clip, the page's setup and
+  an AI clip as it saves the file (cancelled with the job, never failing the save): the AI's tools change what the run plays
+  after its plan was scored, so its file is scored on its own run with the plan's recipe, series day and bucket, and its plan
+  score is only the Queue's estimate until then. A bot plan's clip keeps its plan's score.
 - **The score chip** – `src/components/simulator/desktop/ScoreChip.tsx`, on the approval card (`PostizPostCard.tsx`), on each
   Library item and on each Queue job: "Playbook 72", coloured by the bot's bands (90 and 75), a button that opens the reasons
   below it, one line per checklist item with its points, in the bot's words. It says it is the playbook's score, not yet

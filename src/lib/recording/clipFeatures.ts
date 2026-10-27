@@ -33,6 +33,13 @@ import { DARK_LUMA, MAX_MOTION_SAMPLES, MOTION_MIN, firstSoundSecOf, lumaDiffere
 // --- insights ---
 
 export const CLIP_FEATURES_VERSION = 1;
+/**
+ * How close to the clip's end (s) a frame's time may come and still be past it: far below a frame (1/240 s at 240 fps), far
+ * above the rounding of the export's clocks. The loop cut's stop frame lies exactly at the end, but its time (simFrameTimeMs()
+ * / 1000) and the clip's length (exportDurationSec()) are two roundings of one number: at sim frame 13 the first is one ulp
+ * below the second.
+ */
+export const CLIP_END_SLACK_SEC = 1e-6;
 
 export interface ClipFeatures {
   v: typeof CLIP_FEATURES_VERSION;
@@ -158,8 +165,8 @@ export class ClipFeaturesCollector {
     try {
       const durationSec = end.durationSec;
       const timed = Number.isFinite(durationSec) && durationSec > 0;
-      // the latest time's events count when that frame is inside the clip
-      const inClip = timed && this.pendingSec < durationSec;
+      // the latest time's events count when that frame is inside the clip (a frame at its very end is not: CLIP_END_SLACK_SEC)
+      const inClip = timed && this.pendingSec < durationSec - CLIP_END_SLACK_SEC;
       const events = this.events + (inClip ? this.pendingEvents : 0);
       const gaps = this.gaps + (inClip ? this.pendingGaps : 0);
       const n = this.samples;

@@ -5,6 +5,8 @@ import {
   GENES_MAX_JSON,
   GENE_BUCKETS,
   GENE_BUCKET_EDGES,
+  GENE_BUCKET_SECONDS,
+  GENE_BUCKET_SLACK_SEC,
   GENE_CHECKLIST,
   GENE_ENDINGS,
   GENE_FAMILIES,
@@ -12,12 +14,14 @@ import {
   GENE_LIMITS,
   GENE_SOURCES,
   TIKTOK_PRIVACY_GENES,
+  bucketKept,
   bucketOfSeconds,
   editorGenes,
   genesAtApproval,
   genesFromPlan,
   genesFromSettings,
   genesOfCut,
+  genesOfEditorCut,
   genesOfSavedFile,
   sanitizeGenes,
   tiktokPrivacyOf,
@@ -30,7 +34,8 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { SONGS } from "@/lib/audio/songs";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog";
 import { blueprintDigest, encodeBlueprint } from "@/lib/blueprint/codec";
-import { aiClipSource, blueprintGenesOf, planSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
+import { aiClipSource, blueprintGenesOf, episodeOfPlanId, jobGenes, planSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
+import { runFactsSync, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (the score of a saved clip's run)
 import { EMPTY_QUEUE, enqueue, expandBatch, journalOf, restoreQueue, QUEUE_JOURNAL_FORMAT } from "@/lib/desktop/renderQueue";
 import { PlanStore, makeVideosTools, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { defaultSettings } from "@/lib/settings";
@@ -67,6 +72,21 @@ describe("the genes' closed lists", () => {
     expect(GENE_BUCKET_EDGES.standard).toBe((BUCKET_SECONDS.standard.max + BUCKET_SECONDS.long.min) / 2);
     for (const bucket of LENGTH_BUCKETS) for (const sec of [BUCKET_SECONDS[bucket].min + 0.5, BUCKET_SECONDS[bucket].max - 0.5]) expect([bucket, sec, bucketOfSeconds(sec)]).toEqual([bucket, sec, bucket]);
     expect([bucketOfSeconds(0), bucketOfSeconds(-3), bucketOfSeconds(Number.NaN), bucketOfSeconds(null), bucketOfSeconds(3), bucketOfSeconds(600)]).toEqual([null, null, null, null, "short", "long"]);
+  });
+
+  it("keep a planned bucket while the length fits it, with scoreClip's slack, else the length's own bucket", () => {
+    expect(GENE_BUCKET_SECONDS).toEqual(BUCKET_SECONDS);
+    for (const bucket of LENGTH_BUCKETS) {
+      const { min, max } = BUCKET_SECONDS[bucket];
+      for (const sec of [min - GENE_BUCKET_SLACK_SEC, min, (min + max) / 2, max, max + GENE_BUCKET_SLACK_SEC]) expect([bucket, sec, bucketKept(bucket, sec)]).toEqual([bucket, sec, bucket]);
+      for (const sec of [min - GENE_BUCKET_SLACK_SEC - 0.1, max + GENE_BUCKET_SLACK_SEC + 0.1]) expect([bucket, sec, bucketKept(bucket, sec)]).toEqual([bucket, sec, bucketOfSeconds(sec)]);
+    }
+    // scoreClip's own slack: a plan whose clip is half a second past its bucket's end is still inside it
+    const edge = { ...plan, timing: { ...plan.timing, clipSec: BUCKET_SECONDS[plan.bucket].max + GENE_BUCKET_SLACK_SEC } };
+    const past = { ...plan, timing: { ...plan.timing, clipSec: BUCKET_SECONDS[plan.bucket].max + GENE_BUCKET_SLACK_SEC + 0.01 } };
+    expect([scoreClip(edge).reasons.find((r) => r.id === "length")!.key, scoreClip(past).reasons.find((r) => r.id === "length")!.key]).toEqual(["lengthOk", "lengthOut"]);
+    // no length: the planned bucket; no plan: the length's own
+    expect([bucketKept("long", null), bucketKept("long", Number.NaN), bucketKept(null, 70), bucketKept(null, null)]).toEqual(["long", "long", "long", null]);
   });
 
   it("keeps every recipe, catalog game, mode and built-in melody the app can name", () => {
@@ -132,6 +152,58 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(genes.checklist?.series).toBeCloseTo(rescored.reasons.find((r) => r.id === "series")!.points / rescored.reasons.find((r) => r.id === "series")!.max, 3);
   });
 
+  // --- insights --- the AI's tools change what the run plays after the plan was scored: the saved file is scored on its own run
+  const toolRun = { signal: undefined, progress: () => {} } as never;
+  const aiCopy = (p: typeof plan) => ({ planId: p.id, name: "clip", title: "Clip", hook: p.hook, caption: "Will it make it?", hashtags: ["#physics"], platform: p.platform });
+  const savedAi = async (changed: typeof plan, durationSec: number) => {
+    const queued = aiClipSource(aiCopy(changed), changed).meta!.genes!;
+    const saved = genesOfSavedFile(queued, { durationSec, cut: "master" });
+    return { queued, saved: await scoreSavedClip(saved, { settings: changed.settings, seed: changed.seed, world: changed.world, durationSec, features: null, platform: changed.platform, pause: async () => {} }) };
+  };
+
+  it("scores an AI clip whose length set_clip_settings changed on the run its file was made of, in the file's bucket", async () => {
+    // Ring Escape, planned resolved at 16 s with its escape at 15.4 s; the AI cuts it to 10 s: the file never shows the escape
+    const ring = planClip(RECIPES.find((r) => r.id === "ring-escape")!, 5, "reels", { copy, ending: "resolved" });
+    expect([ring.settings.recordingDuration, ring.bucket, ring.reasons.find((r) => r.id === "payoff")!.key]).toEqual([16, "standard", "payoffTight"]);
+    const store = new PlanStore();
+    store.add(ring);
+    const ports: StudioPorts = { planClips: async () => [ring], findSimulation: async () => ({ found: false, seed: ring.seed, durationSec: 0 }) };
+    await makeVideosTools(store, ports).find((t) => t.name === "set_clip_settings")!.run({ planId: ring.id, changes: [{ setting: "recordingDuration", value: 10 }] }, toolRun);
+    const changed = store.get(ring.id)!;
+    expect([changed.settings.recordingDuration, changed.timing.clipSec, changed.bucket]).toEqual([10, ring.timing.clipSec, "standard"]); // (the plan's own facts stay the old run's)
+    const { queued, saved } = await savedAi(changed, 10);
+    expect(queued.reasons?.payoff?.key).toBe("payoffTight"); // the queue's estimate until the file is saved
+    expect(saved).toMatchObject({ source: "ai", recipe: "ring-escape", durationSec: 10, bucket: "short", ending: "resolved" });
+    expect([saved.reasons?.payoff?.key, saved.reasons?.length]).toEqual(["payoffMissing", { key: "lengthOk", values: { sec: 10, min: 8, max: 15 } }]);
+    expect(saved.planScore).toBeLessThan(queued.planScore!);
+  });
+
+  it("scores an AI clip whose length find_simulation or set_clip_settings made long in the long bucket, with the new run's payoff", async () => {
+    // find_simulation: a 75 s run of a standard plan (the finder's answer stubbed, the run itself the real one)
+    const store = new PlanStore();
+    store.add(plan);
+    const ports: StudioPorts = { planClips: async () => [plan], findSimulation: async () => ({ found: true, seed: 77, durationSec: 75 }) };
+    await makeVideosTools(store, ports).find((t) => t.name === "find_simulation")!.run({ planId: plan.id, targetSec: 75, outcome: "duration" }, toolRun);
+    const found = store.get(plan.id)!;
+    expect([found.seed, found.settings.recordingDuration, found.bucket]).toEqual([77, 75, plan.bucket]);
+    const { saved } = await savedAi(found, 75.4);
+    expect(saved).toMatchObject({ bucket: "long", durationSec: 75.4 });
+    expect(saved.reasons?.length?.values).toMatchObject({ sec: 75.4, min: BUCKET_SECONDS.long.min, max: BUCKET_SECONDS.long.max });
+    const run = runFactsSync(found.settings, found.seed, found.world, found.recipe);
+    if (run.payoffSec !== null && run.payoffSec <= 75.4) expect(saved.reasons?.payoff?.values.sec).toBe(Math.round(run.payoffSec * 10) / 10);
+    else expect(["payoffMissing", "payoffNever"]).toContain(saved.reasons?.payoff?.key);
+    // set_clip_settings: a pendulum wave (a run that never stops by itself) planned standard, set to 70 s
+    const wave = planClip(RECIPES.find((r) => r.id === "pendulum-wave")!, 4, "reels", { copy, search: false });
+    expect(wave.bucket).toBe("standard");
+    const store2 = new PlanStore();
+    store2.add(wave);
+    await makeVideosTools(store2, { ...ports, planClips: async () => [wave] }).find((t) => t.name === "set_clip_settings")!.run({ planId: wave.id, changes: [{ setting: "recordingDuration", value: 70 }] }, toolRun);
+    const longer = await savedAi(store2.get(wave.id)!, 70);
+    expect(longer.queued.reasons?.length?.values.sec).toBe(Math.round(wave.timing.clipSec * 10) / 10); // (the plan's old length)
+    expect(longer.saved).toMatchObject({ bucket: "long", durationSec: 70 });
+    expect(longer.saved.reasons?.length?.values).toEqual({ sec: 70, min: BUCKET_SECONDS.long.min, max: BUCKET_SECONDS.long.max });
+  });
+
   it("gives a link's and the page's clip the mode, length, bucket and hook, and Mode Lab's game as its recipe", () => {
     const page = seedSource({ ...defaultSettings("glass"), recordingDuration: 22, topText: "Will it break?" }, 42).meta!.genes!;
     expect(page).toMatchObject({ source: "seed", mode: "glass", durationSec: 22, bucket: "standard", hookKey: "custom", hookChars: 14, hashtagCount: 0, captionQuestion: false, recipe: null, family: null, planScore: null, melody: null });
@@ -167,6 +239,17 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(editorGenes({ mode: "glass", durationSec: 9, copy: { hook: "Which floor?", caption: "Guess!", hashtags: ["#glass"] } })).toMatchObject({ source: "editor", mode: "glass", cut: "tiktok", bucket: "short", hookKey: "custom", hookChars: 12, hashtagCount: 1, captionQuestion: false });
   });
 
+  // --- insights --- the editor's cut of a clip it was handed with genes (the Library's item, the Publish block's clip of one)
+  it("keeps a clip's genes in the Clip editor's cut of it, its hook told apart from the clip's", () => {
+    const master = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: 24, cut: "master" });
+    const cut = { mode: plan.mode, durationSec: 11.5, copy: { hook: plan.hook, caption: "c", hashtags: [] } };
+    expect(genesOfEditorCut({ genes: master, hook: plan.hook }, cut)).toEqual(genesOfCut(master, { durationSec: 11.5, hook: plan.hook, sameHook: true }));
+    expect(genesOfEditorCut({ genes: master, hook: plan.hook }, cut)).toMatchObject({ source: "plan", recipe: plan.recipe, family: plan.family, planScore: plan.score, hookKey: "recipes.pipEscape", cut: "tiktok" });
+    expect(genesOfEditorCut({ genes: master, hook: plan.hook }, { ...cut, copy: { ...cut.copy, hook: "Will Pip make it?" } })).toMatchObject({ recipe: plan.recipe, hookKey: "custom", hookChars: 17 });
+    // no genes (a page clip, an older Library item): the editor's own
+    for (const clip of [undefined, null, {}, { genes: null, hook: plan.hook }]) expect(genesOfEditorCut(clip, cut)).toEqual(editorGenes(cut));
+  });
+
   it("travels with the job through the batch and the journal, sanitised on restore", () => {
     const specs = expandBatch([planSource(plan)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264", "hevc"], presets: ["native"] });
     expect(specs.every((s) => s.meta.genes?.recipe === plan.recipe)).toBe(true);
@@ -180,6 +263,29 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(junk.meta.genes).toMatchObject({ recipe: null, planScore: 100, cut: null });
     expect(before.meta).not.toHaveProperty("genes");
     expect(restoreQueue({ format: QUEUE_JOURNAL_FORMAT, version: 1, running: false, jobs: [{ ...job, meta: { ...job.meta, genes: "yes" } }] }, 4).state.jobs[0].meta).not.toHaveProperty("genes");
+  });
+
+  // --- insights --- a job queued before 1.6.0 and rendered after it: what its source still names, then the score of its run
+  it("gives a job journalled before 1.6.0 what its source names, and the score of its run when it is saved", async () => {
+    expect(episodeOfPlanId(plan.id)).toBe(plan.episode);
+    expect([episodeOfPlanId("ep012-3-ring-escape-5"), episodeOfPlanId("pip-9"), episodeOfPlanId("")]).toEqual([12, null, null]);
+    const state = enqueue(EMPTY_QUEUE, expandBatch([planSource(plan)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: ["native"] }), 1, ids());
+    const journal = JSON.parse(JSON.stringify(journalOf(state, 2)));
+    delete journal.jobs[0].meta.genes; // (a 1.5.x journal: no genes)
+    const [old] = restoreQueue(journal, 3).state.jobs;
+    expect(old.meta).not.toHaveProperty("genes");
+    expect(old.source).toEqual({ kind: "plan", planId: plan.id, recipe: "pip-escape", melodyId: plan.melodyId });
+    const genes = jobGenes(old);
+    expect(genes).toMatchObject({ source: "plan", recipe: "pip-escape", family: plan.family, episode: plan.episode, melody: plan.melodyId ?? "none", planScore: null });
+    expect(sanitizeGenes(genes)).toEqual(genes);
+    const saved = await scoreSavedClip(genesOfSavedFile(genes, { durationSec: plan.timing.clipSec, cut: "master" }), { settings: old.settings, seed: old.seed, world: plan.world, durationSec: plan.timing.clipSec, features: null, platform: plan.platform, pause: async () => {} });
+    expect(saved).toMatchObject({ source: "plan", recipe: "pip-escape", ending: plan.ending, bucket: plan.bucket });
+    expect(saved.planScore).not.toBeNull();
+    expect(Object.keys(saved.reasons ?? {})).toEqual([...GENE_CHECKLIST]);
+    // a job with genes keeps its own; an old AI job keeps its melody; a link's or the page's job is its settings' genes
+    expect(jobGenes(state.jobs[0])).toBe(state.jobs[0].meta.genes);
+    expect(jobGenes({ ...old, source: { kind: "ai", melodyId: "twinkle-twinkle" } })).toMatchObject({ source: "ai", melody: "twinkle-twinkle", recipe: null });
+    expect(jobGenes({ ...old, source: { kind: "seed" } })).toEqual(settingsGenes(old.settings, { hook: old.meta.hook, caption: old.meta.caption, hashtags: old.meta.hashtags }, "seed"));
   });
 });
 

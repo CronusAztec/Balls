@@ -7,13 +7,13 @@ import { btn, ghostBtn, inputClass, primaryBtn } from "@/components/simulator/de
 import type { DesktopApi, LibraryMeta } from "@/lib/desktop/contract";
 import { blobBytes } from "@/lib/desktop/bridge";
 import { downloadExport } from "@/lib/recording/fastRender";
-import { offerPublishClip, type PublishClipLibrary } from "@/lib/publish/clips";
+import { offerPublishClip, publishLibraryOf, type PublishClipLibrary } from "@/lib/publish/clips";
 import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { composeCutSpec, cutFileTrim, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
-import { editorGenes, genesOfCut } from "@/lib/insights/genes"; // --- insights ---
+import { genesOfEditorCut } from "@/lib/insights/genes"; // --- insights ---
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipEditTrack, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditNumberKey, type ClipEditSpec } from "@/lib/clipEdit/spec";
 import { SliderTrack } from "@/components/simulator/ControlPrimitives"; // --- review fix (unlimited-sizes) --- (the wide tracks)
 import NumberField from "@/components/simulator/NumberField"; // --- review fix (unlimited-sizes) --- (any start, length, crop-in or card)
@@ -222,13 +222,14 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         const caption = desktop.meta?.caption ?? null;
         const hashtags = desktop.meta?.hashtags ?? [];
         // --- insights --- a cut of a clip with genes keeps them as a cut (its length, its hook); any other cut is the editor's
-        const genes = desktop.meta?.genes ? genesOfCut(desktop.meta.genes, { durationSec: result.durationSec, hook, sameHook: hook.trim() === (desktop.meta.hook ?? "").trim() }) : editorGenes({ mode: desktop.meta?.mode ?? source.mode ?? null, durationSec: result.durationSec, copy: { hook, caption, hashtags } });
+        const genes = genesOfEditorCut(desktop.meta, { mode: desktop.meta?.mode ?? source.mode ?? null, durationSec: result.durationSec, copy: { hook, caption, hashtags } });
         const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook, caption, hashtags, queueJobId: editCutJobId(desktop.meta?.queueJobId), ...(cut ? { cut } : {}), ...(fanMade ? { fanMadeBurned: true } : {}) /* --- badge-safe --- a Fight League cut carries the badge, drawn or kept */, genes };
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";
         // --- cut-reedit --- the Publish clip is that Library item: a cut of it in the block stays under the same job
-        library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };
+        // (--- insights --- with the cut's hook and genes: a trim of it is a cut of those genes)
+        library = publishLibraryOf(meta);
       } else downloadExport(result.blob, result.format.extension, name.replace(/\.[a-z0-9]+$/i, ""));
       offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null, botClipId: source.botClipId ?? null, loopCaption: source.loopCaption ?? null, library });
       setRender({ status: "done", result, where });

@@ -24,8 +24,9 @@ import ScoreChip from "./ScoreChip"; // --- insights --- (C6) a job's playbook s
  * Retry failed, Clear finished; after a crash or restart the queue offers to resume.
  * --- uncap-all --- (review fix) The frame rates: the 30 and 60 chips and the shared number field beside them, which adds any
  * other rate from 30 up as a chip of its own (the queue renders any rate the page's fast export takes, `queueFps()`).
- * --- insights --- (C6) A job shows its playbook score (ScoreChip.tsx): a plan's and the AI's from the start, a link's or the
- * page's setup's once it is rendered (the score of its run, useRenderQueue.ts).
+ * --- insights --- (C6) A job shows its playbook score (ScoreChip.tsx): a plan's and the AI's from the start (the AI's its
+ * plan's estimate, scored again on its run once rendered), a link's or the page's setup's once it is rendered (the score of
+ * its run, useRenderQueue.ts).
  */
 
 type SourceKind = "seeds" | "random" | "bot";

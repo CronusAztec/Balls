@@ -7,6 +7,7 @@
 import { SITE_SLUG } from "@/lib/site";
 import type { LoopCaptionContext } from "./loopCaption"; // --- low-findings ---
 import type { LibraryMeta } from "@/lib/desktop/contract"; // --- cut-reedit --- (a type only)
+import type { ClipGenes } from "@/lib/insights/genes"; // --- insights --- (a type only)
 
 export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file", "edit" /* --- clip-editor --- */] as const;
 export type ClipSource = (typeof CLIP_SOURCES)[number];
@@ -17,8 +18,18 @@ export type ClipSource = (typeof CLIP_SOURCES)[number];
  * so a cut of it is saved as `<job>-cut` with that copy, the way the Library's own Edit for TikTok saves it, and the
  * autopilot sees one video. A cut's `cut` is the spec it was cut from its master with: a trim of it is saved as a cut of
  * that master (lib/clipEdit/propose.ts composeCutSpec), so the Library opens the master on the part the trim kept.
+ * --- insights --- With the item's hook and genes: a cut made in the block keeps the clip's genes as a cut (its recipe, family
+ * and score), its own hook told apart from the clip's (lib/insights/genes.ts genesOfEditorCut), as the Library's cut does.
  */
-export type PublishClipLibrary = Partial<Pick<LibraryMeta, "title" | "link" | "caption" | "hashtags" | "queueJobId" | "cut">>;
+export const PUBLISH_LIBRARY_KEYS = ["title", "link", "caption", "hashtags", "queueJobId", "cut", "hook", "genes" /* --- insights --- */] as const satisfies readonly (keyof LibraryMeta)[];
+export type PublishClipLibrary = Partial<Pick<LibraryMeta, (typeof PUBLISH_LIBRARY_KEYS)[number]>>;
+
+/** --- insights --- The Publish clip's part of a Library item's meta (every PUBLISH_LIBRARY_KEYS key it has), for the sites that offer one. */
+export function publishLibraryOf(meta: Partial<LibraryMeta>): PublishClipLibrary {
+  const out: Record<string, unknown> = {};
+  for (const key of PUBLISH_LIBRARY_KEYS) if (meta[key] !== undefined) out[key] = meta[key];
+  return out as PublishClipLibrary;
+}
 
 export interface PublishClip {
   id: string;
@@ -149,6 +160,21 @@ export function setClipDuration(id: string, durationSec: number): void {
     if (c.id !== id || c.durationSec !== null) return c;
     changed = true;
     return { ...c, durationSec };
+  });
+  if (changed) emit();
+}
+
+/**
+ * --- insights --- The render queue's master is offered when its export is done, before the queue saves it: once saved, the
+ * genes it was saved with (its file's length, what the export measured, the score of its run) replace the ones it was
+ * offered with, on every Publish clip of that job, so a cut made in the block is a cut of the Library item's genes.
+ */
+export function setPublishClipGenes(queueJobId: string, genes: ClipGenes): void {
+  let changed = false;
+  clips = clips.map((c) => {
+    if (!c.library || c.library.queueJobId !== queueJobId) return c;
+    changed = true;
+    return { ...c, library: { ...c.library, genes } };
   });
   if (changed) emit();
 }

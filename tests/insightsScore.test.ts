@@ -8,6 +8,7 @@ import {
   SCORE_RUN_MARGIN_SEC,
   captionRolesOf,
   factsOfExport,
+  hookedSettings,
   mergeFacts,
   planLikeFromSettings,
   platformForBucket,
@@ -16,6 +17,7 @@ import {
   runFactsSync,
   scoreOfSettings,
   scorePlanLike,
+  scoreRecipeFor,
   scoreRecipeOf,
   scoreSavedClip,
   scoresFromSettings,
@@ -23,7 +25,7 @@ import {
 } from "@/lib/insights/score";
 import { GENE_CHECKLIST, GENE_COUNTDOWN_KINDS, GENE_REASON_KEYS, bucketOfSeconds, genesWithScore, reasonsOf, sanitizeGenes, type ClipGenes } from "@/lib/insights/genes";
 import { BOT_PLATFORMS, CHECKLIST, COUNTDOWN_KINDS, LENGTH_BUCKETS, PLATFORMS, RECIPES } from "@/lib/bot/playbook";
-import { FACTS_SLICE_STEPS, drain, planClip, scoreClip, simulateFacts, simulateFactsSteps, type ClipPlan } from "@/lib/bot/planner";
+import { FACTS_SLICE_STEPS, drain, edgeTextBox, hasTopHud, planClip, scoreClip, simulateFacts, simulateFactsSteps, type ClipPlan } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultCaption, type Caption } from "@/lib/captions";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -178,6 +180,60 @@ describe("planLikeFromSettings", () => {
     expect(scoreRecipeOf("blueprint")).toBeNull();
   });
 
+  // --- insights --- a link's or the page's one-liner on top is the hook a viewer reads, not a series label
+  it("takes a clip's Top Text as its hook when no caption is, out of the series label's slot", () => {
+    const top = settings({ topText: "Can it escape 5 rings?", captions: [], recordingDuration: 20 });
+    const like = planLikeFromSettings(top, facts({ clipSec: 20, payoffSec: 18 }));
+    expect([like.settings.topText, like.captionRoles, like.settings.captions.map((c) => [c.text, c.position, c.start, c.end])]).toEqual(["", ["hook"], [["Can it escape 5 rings?", "top", 0, 0]]]);
+    // drawn at the Top Text's own size (the recorder's line over the captions' base size)
+    expect(like.settings.captions[0].style.size).toBeCloseTo(0.04 / 0.045, 6);
+    const scored = scoreOfSettings(top, facts({ clipSec: 20, payoffSec: 18 }));
+    const reason = (id: string) => scored.reasons.find((r) => r.id === id)!;
+    expect(reason("hook").key).not.toBe("hookMissing");
+    expect(reason("hook")).toMatchObject({ key: "hookTiming", values: { text: "Can it escape 5 rings?" } }); // on screen from the start, and for the whole clip
+    expect(reason("series").key).toBe("seriesWeak");
+    // the settings stay as they were, and a hook caption keeps the Top Text out of the hook
+    expect(top.topText).toBe("Can it escape 5 rings?");
+    const captioned = settings({ topText: "Day 3", captions: [caption("text", "Can it escape?", 0, 2.5)] });
+    expect(hookedSettings(captioned)).toEqual({ settings: captioned, roles: ["hook"] });
+    expect(hookedSettings(settings())).toEqual({ settings: settings(), roles: [] });
+    // over an arena game's scoreboard the Top Text covers the band: no hook there, as scoreClip says
+    const arena = { ...defaultSettings("battle"), topText: "Who wins?" };
+    expect(hasTopHud(arena.mode)).toBe(true);
+    expect(hookedSettings(arena).settings).toBe(arena);
+    expect(scoreOfSettings(arena, facts()).reasons.find((r) => r.id === "series")!.key).toBe("seriesCovered");
+    // the genes of that page clip say the same hook the score reads
+    const genes = seedSource(top, 7).meta!.genes!;
+    expect([genes.hookKey, genes.hookChars]).toEqual(["custom", 22]);
+  });
+
+  it("never calls a clip that is not part of the series (day 0) part of one; a series day keeps its label", () => {
+    const labelled = settings({ topText: "Ring Escape #3", captions: [caption("text", "Can it escape?", 0, 2.5)] });
+    expect(edgeTextBox("Ring Escape #3", "top").left).toBeGreaterThanOrEqual(0); // (the label is on screen)
+    const seriesOf = (context: Parameters<typeof scoreOfSettings>[2]) => scoreOfSettings(labelled, facts(), context).reasons.find((r) => r.id === "series")!;
+    const oneOff = seriesOf({});
+    const unlabelled = scoreClip({ ...planLikeFromSettings(labelled, facts()), settings: { ...labelled, topText: "", bottomText: "" } } as unknown as ClipPlan).reasons.find((r) => r.id === "series")!;
+    expect(oneOff).toEqual(unlabelled);
+    expect(oneOff.key).toBe("seriesWeak");
+    expect(seriesOf({ episode: 0 })).toEqual(oneOff);
+    expect(seriesOf({ episode: 3 })).toMatchObject({ key: "seriesOk" });
+    // the total is the items' sum
+    const scored = scoreOfSettings(labelled, facts());
+    expect(scored.score).toBe(scored.reasons.reduce((sum, r) => sum + r.points, 0));
+    // a bot plan (series day 1 and up) scores as scoreClip scores it
+    for (const plan of quickPlans()) expect(plan.episode).toBeGreaterThanOrEqual(1);
+  });
+
+  it("scores with the plan's recipe while it plays the clip's mode, else the mode's own", () => {
+    for (const recipe of RECIPES) for (const mode of recipe.modes) expect([recipe.id, mode, scoreRecipeFor(mode, recipe.id)?.id]).toEqual([recipe.id, mode, recipe.id]);
+    const other = RECIPES.find((r) => !r.modes.includes("classic"))!;
+    expect(scoreRecipeFor("classic", other.id)?.id).toBe(scoreRecipeOf("classic")?.id);
+    expect([scoreRecipeFor("classic", null)?.id, scoreRecipeFor("classic", "blueprint:ringBreaker")?.id, scoreRecipeFor("blueprint", "pip-escape")]).toEqual(["ring-escape", "ring-escape", null]);
+    // a plan's bucket stays while the clip's length fits it
+    expect([planLikeFromSettings(settings(), facts({ clipSec: 31 }), { bucket: "standard" }).bucket, planLikeFromSettings(settings(), facts({ clipSec: 40 }), { bucket: "standard" }).bucket, planLikeFromSettings(settings(), facts({ clipSec: 70 }), { bucket: "standard" }).bucket]).toEqual(["standard", "standard", "long"]);
+    expect(planLikeFromSettings(settings(), facts({ clipSec: 12 }), { bucket: "standard" }).bucket).toBe("short");
+  });
+
   it("falls back to the settings' clip length, and never takes a negative or unknown fact for one", () => {
     const like = planLikeFromSettings(settings({ recordingDuration: 30 }), { firstImpactSec: -1, payoffSec: Number.NaN, clipSec: null });
     expect([like.timing, like.payoff, like.bucket]).toEqual([{ clipSec: 30, firstImpactSec: null }, { atSec: null, position: null, cutGapSec: null }, "standard"]);
@@ -252,6 +308,23 @@ describe("a link's or the page's clip", () => {
     const broken = { ...page, captions: null } as unknown as SimulatorSettings;
     expect(await scoreSavedClip(link, { settings: broken, seed: 9, world: null, durationSec: 10, features: null, platform: null, pause: async () => {} })).toBe(link);
     expect(await scoreSavedClip(link, { settings: page, seed: 9, world: null, durationSec: 10, features: null, platform: null, signal: { aborted: true } })).toBe(link);
+  });
+
+  // --- insights --- an AI clip's plan was scored before its tools changed what the run plays; an old bot plan job has no score
+  it("scores an AI clip and a bot plan's clip without a score from their run, with the plan's recipe, series day and bucket", async () => {
+    const plan = planClip(RECIPES[0], 3, "reels", { copy, search: false });
+    const ai = { ...planSource(plan).meta!.genes!, source: "ai" as const };
+    const unscored = { ...planSource(plan).meta!.genes!, planScore: null, checklist: null };
+    delete (unscored as Partial<ClipGenes>).reasons;
+    expect([scoresFromSettings(ai), scoresFromSettings(unscored), scoresFromSettings(planSource(plan).meta!.genes), scoresFromSettings({ ...ai, source: "editor" }), scoresFromSettings(null)]).toEqual([true, true, false, false, false]);
+    for (const genes of [ai, unscored]) {
+      const saved = await scoreSavedClip(genes, { settings: plan.settings, seed: plan.seed, world: plan.world, durationSec: plan.timing.clipSec, features: null, platform: plan.platform, pause: async () => {} });
+      const run = runFactsSync(plan.settings, plan.seed, plan.world, plan.recipe);
+      const direct = scoreOfSettings(plan.settings, mergeFacts(run, { firstImpactSec: null, clipSec: plan.timing.clipSec }), { platform: plan.platform, episode: plan.episode, melody: genes.melody, recipe: plan.recipe, bucket: plan.bucket });
+      expect([genes.source, saved.planScore]).toEqual([genes.source, direct.score]);
+      expect(saved).toMatchObject({ recipe: plan.recipe, episode: plan.episode, ending: plan.ending });
+      for (const r of direct.reasons) expect([genes.source, r.id, saved.reasons?.[r.id]?.key]).toEqual([genes.source, r.id, r.key]);
+    }
   });
 
   it("keeps the melody the page played it with when its genes knew none", async () => {

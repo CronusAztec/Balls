@@ -3,9 +3,9 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { CLIP_FEATURES_VERSION, ClipFeaturesCollector, type ClipFeatures } from "@/lib/recording/clipFeatures";
+import { CLIP_END_SLACK_SEC, CLIP_FEATURES_VERSION, ClipFeaturesCollector, type ClipFeatures } from "@/lib/recording/clipFeatures";
 import { sampleDigest } from "@/lib/recording/fastRender";
-import { DIGEST_EVERY, fnv1a } from "@/lib/recording/fastRenderPlan";
+import { DIGEST_EVERY, SIM_FPS, exportDurationSec, exportFrameRange, fnv1a, simFrameTimeMs } from "@/lib/recording/fastRenderPlan";
 import { MAX_MOTION_SAMPLES, MOTION_MIN, firstSoundSecOf, loopSeamDiff, pictureFeatures, soundFeatures } from "@/lib/videoAnalysis/features";
 import { GENE_FEATURE_KEYS, featureGenes, genesFromSettings, genesOfCut, genesOfSavedFile, sanitizeGenes } from "@/lib/insights/genes";
 import { defaultSettings } from "@/lib/settings";
@@ -179,6 +179,29 @@ describe("clip features: the sound (--- insights ---)", () => {
     inside.sound(1.9, { type: "gap" });
     expect(inside.finish({ durationSec: 2, lufs: null })).toMatchObject({ soundEventsPerSec: 0.5, gapEvents: 1, lufs: null });
     expect(new ClipFeaturesCollector(4).finish({ durationSec: 2, lufs: -Infinity })).toMatchObject({ soundEventsPerSec: 0, gapEvents: 0, lufs: null });
+  });
+
+  // --- insights --- the loop cut's stop frame lies at the clip's very end; its time and the clip's length are two roundings
+  it("never counts the events of the loop cut's stop frame, whichever way the clocks round its time", () => {
+    // the frame loop's clock (simFrameTimeMs / 1000) against the clip's length (exportDurationSec of the frames exported)
+    const stopAt = (k: number, fps: number) => {
+      const c = new ClipFeaturesCollector(fps / DIGEST_EVERY);
+      c.sound(simFrameTimeMs(k - 1) / 1000, { type: "hit" }); // the clip's last frame: inside it
+      for (let i = 0; i < 5; i++) c.sound(simFrameTimeMs(k) / 1000, { type: "gap" }); // the stop frame, drawn nowhere
+      return c.finish({ durationSec: exportDurationSec(exportFrameRange(k, fps)[0], fps), lufs: null })!;
+    };
+    expect(simFrameTimeMs(13) / 1000).toBeLessThan(exportDurationSec(13, 60)); // (one ulp below: the case that counted them)
+    for (const [k, fps] of [[13, 60], [23, 60], [601, 60], [12, 60], [600, 60], [26, 30], [24, 30], [631, 60], [646, 60]] as const) {
+      const f = stopAt(k, fps);
+      expect([k, fps, f.gapEvents, f.soundEventsPerSec]).toEqual([k, fps, 0, Math.round((1 / exportDurationSec(exportFrameRange(k, fps)[0], fps)) * 10000) / 10000]); // (the last frame's one hit)
+    }
+    // every stop frame of the first minute at 60 and 30 fps
+    for (const fps of [60, 30]) for (let k = 2; k <= 60 * SIM_FPS; k += fps === 30 ? 2 : 1) expect([fps, k, stopAt(k, fps).gapEvents]).toEqual([fps, k, 0]);
+    // the slack is far below a frame: the last frame before the end still counts, at any rate up to 240 fps
+    expect(CLIP_END_SLACK_SEC).toBeLessThan(1 / 240 / 100);
+    const last = new ClipFeaturesCollector(60);
+    last.sound(2 - 1 / 240, { type: "gap" });
+    expect(last.finish({ durationSec: 2, lufs: null })?.gapEvents).toBe(1);
   });
 
   it("finds the first sound in the export's mix with the analyser's rule (a stereo mix as its mono mean)", () => {
