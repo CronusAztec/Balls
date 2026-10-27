@@ -1,6 +1,51 @@
 {
   "releases": [
     {
+      "id": "app-1-6-0",
+      "product": "app",
+      "version": "1.6.0",
+      "date": "2026-10-27",
+      "headline": {
+        "en": "Mode Lab and a playbook score for the clips you render",
+        "pl": "Laboratorium trybów i ocena klipów według poradnika",
+        "es": "Lab de modos y una puntuación según la guía para tus clips"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Clips you render get a playbook score from 0 to 100, but not their TikTok cuts. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.",
+            "pl": "Renderowane klipy, poza wersjami na TikToka, dostają ocenę od 0 do 100 według poradnika. Biblioteka, Kolejka renderowania i karta zatwierdzania pokazują ją z uzasadnieniem. To tylko wskazówka i nie wstrzymuje posta.",
+            "es": "Tus clips, no sus cortes para TikTok, reciben una puntuación de 0 a 100 según la guía. La Biblioteca, la Cola de renderizado y la tarjeta de aprobación dan sus motivos. Es solo un consejo y nunca frena una publicación."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The app now has Mode Lab, with six new games built from rules. Each game has its own sliders and ends by itself.",
+            "pl": "Aplikacja ma teraz Laboratorium trybów z sześcioma nowymi grami zbudowanymi z reguł. Każda gra ma własne suwaki i kończy się sama.",
+            "es": "La app ya tiene el Lab de modos, con seis juegos nuevos hechos de reglas. Cada juego tiene sus propios deslizadores y termina solo."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The Slow motion switch and the sliders that go further come to the app too. Turn Slow motion off and a knockout plays at normal speed.",
+            "pl": "Przełącznik Zwolnione tempo i suwaki sięgające dalej są też w aplikacji. Wyłącz Zwolnione tempo, a nokaut poleci z normalną prędkością.",
+            "es": "El interruptor Cámara lenta y los deslizadores que van más allá llegan también a la app. Desactiva Cámara lenta y un KO va a velocidad normal."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The Render queue takes any frame rate from 30 up. Type one in the field beside 30 and 60 and it joins them as a choice of its own.",
+            "pl": "Kolejka renderowania przyjmuje dowolną liczbę klatek na sekundę od 30 w górę. Wpisz ją w polu obok 30 i 60, a dołączy do nich jako osobna opcja.",
+            "es": "La Cola de renderizado acepta cualquier velocidad de fotogramas a partir de 30. Escríbela en el campo junto a 30 y 60 y se suma a ellos como una opción más."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-16-1",
       "product": "site",
       "version": "1.16.1",
@@ -25,43 +70,6 @@
             "en": "The Clip planner now names the countdown in plain words, like wall counter or health bars. Before, Why this clip showed a code such as walls or hp. The downloaded ZIP names it the same way.",
             "pl": "Planer klipów nazywa teraz odliczanie w twoim języku, na przykład licznik ścian. Wcześniej lista Dlaczego ten klip pokazywała kod, taki jak walls. Pobrany plik ZIP nazywa je tak samo.",
             "es": "El Planificador de clips ahora nombra la cuenta atrás en tu idioma, como contador de paredes. Antes, la lista Por qué este clip mostraba un código como walls. El ZIP descargado la nombra igual."
-          }
-        }
-      ]
-    },
-    {
-      "id": "app-1-6-0",
-      "product": "app",
-      "version": "1.6.0",
-      "date": "2026-10-27",
-      "headline": {
-        "en": "A playbook score for the clips you render",
-        "pl": "Ocena według poradnika dla renderowanych klipów",
-        "es": "Una puntuación de la guía para los clips que renderizas"
-      },
-      "items": [
-        {
-          "kind": "new",
-          "text": {
-            "en": "Clips you render get a playbook score from 0 to 100. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.",
-            "pl": "Renderowane klipy dostają ocenę według poradnika od 0 do 100. Biblioteka, Kolejka renderowania i karta zatwierdzania pokazują ją z uzasadnieniem. To tylko wskazówka i nigdy nie wstrzymuje posta.",
-            "es": "Los clips que renderizas reciben una puntuación de la guía de 0 a 100. La Biblioteca, la Cola de renderizado y la tarjeta de aprobación la muestran con sus motivos. Es solo un consejo y nunca frena una publicación."
-          }
-        },
-        {
-          "kind": "new",
-          "text": {
-            "en": "Each clip remembers what it was made from, like its mode, its ending and its hook. A post you approve keeps that, even after you delete the clip. It all stays on your PC.",
-            "pl": "Każdy klip pamięta, z czego powstał, na przykład tryb, zakończenie i hook. Zatwierdzony post zachowuje te dane, nawet gdy usuniesz klip. Wszystko zostaje na Twoim komputerze.",
-            "es": "Cada clip recuerda de qué está hecho, como su modo, su final y su gancho. Una publicación que apruebas lo conserva aunque borres el clip. Todo se queda en tu PC."
-          }
-        },
-        {
-          "kind": "improved",
-          "text": {
-            "en": "The Render queue takes any frame rate from 30 up. Type it next to 30 and 60 and it joins them as a choice of its own.",
-            "pl": "Kolejka renderowania przyjmuje dowolną liczbę klatek od 30 w górę. Wpisz ją obok 30 i 60, a dołączy do nich jako osobna opcja.",
-            "es": "La Cola de renderizado acepta cualquier velocidad de fotogramas a partir de 30. Escríbela junto a 30 y 60 y se suma a ellas como una opción más."
           }
         }
       ]

@@ -7,6 +7,20 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Windows app 1.6.0 · 2026-10-27
+
+Mode Lab and a playbook score for the clips you render
+
+### New
+
+- Clips you render get a playbook score from 0 to 100, but not their TikTok cuts. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.
+- The app now has Mode Lab, with six new games built from rules. Each game has its own sliders and ends by itself.
+
+### Improved
+
+- The Slow motion switch and the sliders that go further come to the app too. Turn Slow motion off and a knockout plays at normal speed.
+- The Render queue takes any frame rate from 30 up. Type one in the field beside 30 and 60 and it joins them as a choice of its own.
+
 ## Website 1.16.1 · 2026-10-27
 
 Clearer words in Paddle Keep-Up and the Clip planner
@@ -15,19 +29,6 @@ Clearer words in Paddle Keep-Up and the Clip planner
 
 - Paddle Keep-Up's Skill past 100% now says it plays 100%. Before, the note said your number ran as typed. The link still keeps the number you typed.
 - The Clip planner now names the countdown in plain words, like wall counter or health bars. Before, Why this clip showed a code such as walls or hp. The downloaded ZIP names it the same way.
-
-## Windows app 1.6.0 · 2026-10-27
-
-A playbook score for the clips you render
-
-### New
-
-- Clips you render get a playbook score from 0 to 100. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.
-- Each clip remembers what it was made from, like its mode, its ending and its hook. A post you approve keeps that, even after you delete the clip. It all stays on your PC.
-
-### Improved
-
-- The Render queue takes any frame rate from 30 up. Type it next to 30 and 60 and it joins them as a choice of its own.
 
 ## Website 1.16.0 · 2026-10-26
 
