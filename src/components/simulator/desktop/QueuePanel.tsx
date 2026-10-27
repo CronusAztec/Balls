@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { DesktopApi, VideoCodec } from "@/lib/desktop/contract";
 import { VIDEO_CODECS } from "@/lib/desktop/contract";
@@ -25,6 +25,8 @@ import ScoreChip from "./ScoreChip"; // --- insights --- (C6) a job's playbook s
  * --- uncap-all --- (review fix) The frame rates: the 30 and 60 chips and the shared number field beside them, which adds any
  * other rate from 30 up as a chip of its own (the queue renders any rate the page's fast export takes, `queueFps()`).
  * --- insights --- (review fix) Its arrow keys edit the rate it added instead of adding one per press (`commitQueueFps()`).
+ * --- insights --- (review fix) It goes with no slider: a rate past 60 is no warning, and the line under it (a typed rate is
+ * added, from 30 up) is its description.
  * --- insights --- (C6) A job shows its playbook score (ScoreChip.tsx): a plan's and the AI's from the start (the AI's its
  * plan's estimate, scored again on its run once rendered), a link's or the page's setup's once it is rendered (the score of
  * its run, useRenderQueue.ts).
@@ -47,6 +49,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
   const [resolutions, setResolutions] = useState<string[]>([page.settings.recordingResolution]);
   const [fps, setFps] = useState<number[]>([60]); // --- uncap-all --- (review fix) (any rate from 30 up, not only 30 and 60)
   const [fieldFps, setFieldFps] = useState<number | null>(null); // --- insights --- (review fix) the rate the number field added: its arrow keys edit it
+  const fpsHintId = useId(); // --- insights --- (review fix) the line that says what the field does, read as its description
   const [codecs, setCodecs] = useState<VideoCodec[]>(["h264"]);
   const [presets, setPresets] = useState<OutputPreset[]>(["native"]);
   const [adding, setAdding] = useState(false);
@@ -157,9 +160,11 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                 rules={{ min: QUEUE_FPS_RANGE.min }}
                 settingKey="queueFps"
                 testId="queue-fps"
+                describedBy={fpsHintId}
+                sliderless
               />
             </div>
-            <p className="text-xs text-ink-3">{t("queueFpsTyped")}</p>
+            <p id={fpsHintId} className="text-xs text-ink-3">{t("queueFpsTyped")}</p>
             <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueCodecs")}</p>
             <div className="flex gap-2 flex-wrap">
               {VIDEO_CODECS.map((c) => (

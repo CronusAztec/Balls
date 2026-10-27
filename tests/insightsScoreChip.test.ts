@@ -73,6 +73,13 @@ describe("the score chip", () => {
     }
   });
 
+  // --- insights --- (review fix) the closed button's description stands on its own: no noun of it goes with it there (pl's
+  // "Poradnik" is masculine, and a feminine participle that agreed with the open region's "Ocena" dangled on the button)
+  it("says it is unmeasured in words that need no noun of the open region's, so they read on the closed button too", () => {
+    const html = view(scored, false, "pl");
+    expect([attr(html, "title"), /\b(?:nie)?zmierzon[aey]\b|\b(?:nie)?zmierzeni\b/u.test(pl.Insights.unmeasured)]).toEqual([pl.Insights.unmeasured, false]);
+  });
+
   it("opens its reasons below it: the region it controls, every checklist item with its verdict and its points as words", () => {
     for (const locale of ["en", "pl", "es"]) {
       const m = LOCALES[locale];

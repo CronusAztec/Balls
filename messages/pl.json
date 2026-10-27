@@ -6814,7 +6814,7 @@
     "chip": "Poradnik {score}",
     "chipLabel": "Poradnik {score} na 100",
     "title": "Ocena według poradnika: {score} na 100",
-    "unmeasured": "Jeszcze niezmierzona na Twoim kanale.",
+    "unmeasured": "Jeszcze nie zmierzono na Twoim kanale.",
     "note": "Lista kontrolna poradnika dla krótkiego klipu. To tylko wskazówka i nigdy nie wstrzymuje posta.",
     "points": "{points} z {max} pkt",
     "reasons": {

@@ -10,6 +10,8 @@
  * --- unlimited-sizes --- The one field with a top is a Mode Lab parameter's (`rules.max`, the bound its Blueprint's language
  * holds that number to): a value past it is refused with that top named, as one below a floor is. A value that came in past
  * it (a link's) is shown as it is, and `changedTip` says what the game plays instead of "the value runs as typed".
+ * --- insights --- (review fix) A field with no slider beside it (`sliderless`: the render queue's frame rate) is never
+ * tinted or called "beyond the slider": its range drives the arrow keys alone.
  */
 import { useId, useState, type KeyboardEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
@@ -56,15 +58,21 @@ export interface NumberFieldProps {
    * own bounds, Uncap.playsAs): the tooltip in place of "beyond the slider", with the warn tint.
    */
   changedTip?: string;
+  /**
+   * --- insights --- (review fix) No slider goes with this field (the render queue's frame rate, which adds the rate typed): a
+   * value past `range` is a plain value, with no warn tint and no "beyond the slider" tooltip; `range` drives the arrow keys.
+   */
+  sliderless?: boolean;
 }
 
-export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy, changedTip }: NumberFieldProps) {
+export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId, describedBy, changedTip, sliderless }: NumberFieldProps) {
   const t = useTranslations("Uncap");
   const locale = useLocale(); // --- unlimited-sizes --- (review fix) (a refusal's bound in the page's number format)
   const [state, setState] = useState<NumberFieldState>(IDLE_FIELD);
   const errorId = useId();
   const optional = !!onClear;
-  const display = value === undefined ? { text: "", beyond: false, compact: "" } : fieldDisplay(value, range);
+  const shown = value === undefined ? { text: "", beyond: false, compact: "" } : fieldDisplay(value, range);
+  const display = sliderless ? { ...shown, beyond: false } : shown; // --- insights --- (review fix) (no slider: nothing lies beyond one)
   const fieldRules = optional ? { ...rules, optional: true } : rules;
   const dispatch = (event: NumberFieldEvent) => {
     // (an optional field without a value steps from the range's start, as a slider would)

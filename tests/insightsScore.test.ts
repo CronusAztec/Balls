@@ -275,6 +275,46 @@ describe("planLikeFromSettings", () => {
     expect(scoreOfSettings(settings(), facts({ payoffSec: 24.75 })).reasons.find((r) => r.id === "payoff")!.key).toBe("payoffCut");
   });
 
+  // --- insights --- (review fix) a run that ends with the clip: its 1/60 s steps add up to a hair past 20 or 30 s (and a hair
+  // short of 12 or 45 s), and a payoff 1.0000000000000013 of the way in scored 0 of 20 where the same clip scores 8 at 12 s
+  it("puts a payoff that comes with the clip's last frame 100 % in, never past it: a Double Pendulum run to its clip length", async () => {
+    const pendulum = (sec: number) => ({ ...defaultSettings("doublePendulum"), recordingDuration: sec });
+    expect([20, 30].map((sec) => runFactsSync(pendulum(sec), 1).payoffSec! > sec)).toEqual([true, true]); // (the steps' sum, past the end)
+    for (const sec of [12, 20, 25, 30, 45]) {
+      const run = runFactsSync(pendulum(sec), 1);
+      expect([sec, Math.abs(run.payoffSec! - sec) < 1e-9]).toEqual([sec, true]); // (the run ends with the clip)
+      const like = planLikeFromSettings(pendulum(sec), mergeFacts(run, factsOfExport(null, sec)));
+      expect([sec, like.ending, like.payoff.position! <= 1, like.payoff.atSec! <= sec]).toEqual([sec, "resolved", true, true]);
+      const payoff = scoreOfSettings(pendulum(sec), mergeFacts(run, factsOfExport(null, sec))).reasons.find((r) => r.id === "payoff")!;
+      expect([sec, payoff.key, payoff.points, payoff.values]).toEqual([sec, "payoffOff", 8, { sec: sec.toFixed(1), pct: 100 }]);
+    }
+    // through the queue's save path: the page's clip of that setup, saved as a 30 s file
+    const saved = await scoreSavedClip(genesOfSavedFile(seedSource(pendulum(30), 1).meta!.genes!, { durationSec: 30, cut: "master" }), { settings: pendulum(30), seed: 1, world: null, durationSec: 30, features: null, platform: null, pause: async () => {} });
+    expect([saved.reasons?.payoff, saved.checklist?.payoff]).toEqual([{ key: "payoffOff", values: { sec: 30, pct: 100 } }, 0.4]);
+    // a payoff that does come after the end is still a clip cut before it
+    const after = planLikeFromSettings(settings(), facts({ payoffSec: 24 + 1e-6 }));
+    expect([after.ending, after.payoff.atSec]).toEqual(["cliffhanger", 24 + 1e-6]);
+  });
+
+  // --- insights --- (review fix) a planned cliffhanger asking at its end, its payoff inside the clip: the result, then the question
+  it("keeps a clip planned as a cliffhanger one while its question is on screen at its end, wherever its payoff falls", () => {
+    const asking = settings({ captions: [caption("text", "Who wins?", 0, 2.5), caption("question", "Alien or T-Rex? 👇", 22)] });
+    const items = (s: SimulatorSettings, f: ScoreFacts, context: Parameters<typeof scoreOfSettings>[2]) => scoreOfSettings(s, f, context).reasons.filter((r) => r.id === "payoff" || r.id === "ending").map((r) => r.key);
+    // the payoff inside the clip: with no plan resolved; planned as a cliffhanger, the bot's verdict (the gap before the cut negative)
+    expect(planLikeFromSettings(asking, facts()).ending).toBe("resolved");
+    const planned = planLikeFromSettings(asking, facts(), { ending: "cliffhanger" });
+    expect([planned.ending, planned.payoff]).toEqual(["cliffhanger", { atSec: 20, position: 20 / 24, cutGapSec: -4 }]);
+    expect(items(asking, facts(), { ending: "cliffhanger" })).toEqual(["payoffCutWrong", "endingQuestion"]);
+    // a planned cliffhanger whose question is gone by its end, and a planned resolved clip, end as their payoff falls
+    const gone = settings({ captions: [caption("text", "Who wins?", 0, 2.5), caption("question", "Alien or T-Rex? 👇", 10, 14)] });
+    expect([planLikeFromSettings(gone, facts(), { ending: "cliffhanger" }).ending, planLikeFromSettings(asking, facts(), { ending: "resolved" }).ending]).toEqual(["resolved", "resolved"]);
+    // after the end or none inside it: cut before the result, as ever
+    expect([items(asking, facts({ payoffSec: 24.75 }), { ending: "cliffhanger" }), items(asking, facts({ payoffSec: null }), { ending: "cliffhanger" })]).toEqual([
+      ["payoffCut", "endingQuestion"],
+      ["payoffNever", "endingQuestion"],
+    ]);
+  });
+
   it("calls a clip with no payoff and a question on screen a cut one, and one without a question a clip that misses it", () => {
     const asking = settings({ captions: [caption("text", "Can it escape?", 0, 2.5), caption("question", "Who gets out first?", 20)] });
     const cut = scoreOfSettings(asking, facts({ payoffSec: null }));

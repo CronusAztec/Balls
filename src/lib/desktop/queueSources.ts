@@ -2,7 +2,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import { scoreClip, type ClipPlan } from "@/lib/bot/planner";
 import { RECIPES, type BotPlatform } from "@/lib/bot/playbook";
 // --- insights --- a clip's genes from its source (the main process only sanitises them: it never loads these modules)
-import { genesFromPlan, genesFromSettings, genesOfCut, sanitizeGenes, type ClipGenes, type GeneSource, type GenesMeta } from "@/lib/insights/genes";
+import { bucketKept, genesFromPlan, genesFromSettings, genesOfCut, sanitizeGenes, type ClipGenes, type GeneSource, type GenesMeta } from "@/lib/insights/genes";
 import { drawnHookOf, scoreRecipeFor } from "@/lib/insights/score"; // --- insights --- (review fix) the hook a clip draws, the recipe that plays it
 import { SONGS } from "@/lib/audio/songs"; // --- insights --- (review fix) the melodies a re-render can select again
 import { blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint";
@@ -165,6 +165,12 @@ export function aiClipSource(clip: MadeClip, plan: ClipPlan, base: ClipEditSpec 
   const playing = scoreRecipeFor(plan.settings.mode, plan.recipe);
   const playedBy = playing?.id === plan.recipe ? {} : { playedBy: playing };
   const drawn = drawnHookOf(plan.settings);
+  // --- insights --- (review fix) the bucket of the estimate, which its saved file keeps at this length (genes.ts
+  // genesOfSavedFile): the plan's – one the planner could not fit to it (timing.found false) is scored there, lengthOut, as the
+  // bot scores it – or, for a run find_simulation found since (timing.found: one the planner found always fits its bucket), the
+  // bucket of its length where it no longer fits the plan's
+  const bucket = plan.timing.found ? (bucketKept(plan.bucket, plan.timing.clipSec) ?? plan.bucket) : plan.bucket;
+  const estimate: ClipPlan = bucket === plan.bucket ? plan : { ...plan, bucket };
   return {
     name: clip.name.trim() || plan.id,
     source: { kind: "ai", melodyId: plan.melodyId },
@@ -173,7 +179,7 @@ export function aiClipSource(clip: MadeClip, plan: ClipPlan, base: ClipEditSpec 
     // --- insights --- the plan as the AI's tools left it, scored again (set_clip_settings and find_simulation change what scoreClip
     // reads), with the AI's own caption and hashtags and the hook the clip draws: the queue's estimate until the file is saved
     // and scored on its run
-    meta: { title: clip.title, platform: clip.platform as BotPlatform, hook: clip.hook, caption: clip.caption, hashtags: clip.hashtags, link: plan.shareUrl, genes: genesFromPlan(plan, scoreClip(plan), { source: "ai", recipe: recipeOf(plan), ...playedBy, copy: { hook: drawn, caption: clip.caption, hashtags: clip.hashtags } }) },
+    meta: { title: clip.title, platform: clip.platform as BotPlatform, hook: clip.hook, caption: clip.caption, hashtags: clip.hashtags, link: plan.shareUrl, genes: genesFromPlan(estimate, scoreClip(estimate), { source: "ai", recipe: recipeOf(plan), ...playedBy, copy: { hook: drawn, caption: clip.caption, hashtags: clip.hashtags } }) },
     cut: clip.cut ? clipCutSpec(clip.cut, base) : null, // --- ai-cut --- the model never writes the address: the base's goes on
   };
 }

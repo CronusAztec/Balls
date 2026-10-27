@@ -188,6 +188,19 @@ export function bucketKept(planned: LengthBucket | null, sec: number | null | un
   return sec >= range.min - GENE_BUCKET_SLACK_SEC && sec <= range.max + GENE_BUCKET_SLACK_SEC ? planned : bucketOfSeconds(sec);
 }
 
+// --- insights --- (review fix) a planned clip rendered at the length it was planned at stays in its bucket
+/**
+ * The bucket of a planned clip at `sec` seconds when it was planned for `planned` at `plannedSec` seconds: the planned one while
+ * the clip is that length (within GENE_BUCKET_SLACK_SEC: the clip the plan scored, in its bucket even where the planner's run
+ * missed it, lengthOut, as the bot scores it), else `bucketKept()` (the AI's tools changed the length). No planned length:
+ * `bucketKept()`.
+ */
+export function bucketOfPlannedLength(planned: LengthBucket | null, plannedSec: number | null | undefined, sec: number | null | undefined): LengthBucket | null {
+  const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+  return planned && finite(plannedSec) && finite(sec) && Math.abs(sec - plannedSec) <= GENE_BUCKET_SLACK_SEC ? planned : bucketKept(planned, sec);
+}
+// --- end insights ---
+
 /** The gene of a Postiz TikTok privacy_level (null for any other value). */
 export function tiktokPrivacyGene(level: unknown): GenePrivacy | null {
   return typeof level === "string" && Object.prototype.hasOwnProperty.call(TIKTOK_PRIVACY_GENES, level) ? TIKTOK_PRIVACY_GENES[level] : null;
@@ -436,16 +449,18 @@ export function genesFromSettings(settings: Pick<SimulatorSettings, "mode" | "re
 
 /**
  * The genes of the file the queue saved: its real length and master or cut. A bot plan's bucket is kept (the length it was
- * planned for: the planner fits its run to it); an AI clip's while the file's length fits it (the AI's set_clip_settings and
- * find_simulation may have changed the length since the plan was made: a 70 s file of a standard plan is a long clip); any
- * other is the file's own (a link's clip may end before its clip length, a re-rendered cut is the whole clip again).
+ * planned for: the planner fits its run to it); an AI clip's while the file is the length its genes were planned at, or while
+ * the file's length fits it (`bucketOfPlannedLength()`: the AI's set_clip_settings and find_simulation may have changed the
+ * length since the plan was made, and a 70 s file of a standard plan is a long clip, but a plan the AI left as it was is the
+ * bot's clip, in the bot's bucket); any other is the file's own (a link's clip may end before its clip length, a re-rendered
+ * cut is the whole clip again).
  * `features` is what the export measured of this file (FastRenderResult.features; null when it measured nothing): it replaces
  * whatever the genes carried (a re-render measures its own file). Absent: the genes' features are kept.
  */
 export function genesOfSavedFile(genes: ClipGenes, file: { durationSec: number | null; cut: GeneCut; features?: ClipFeatures | null }): ClipGenes {
   const durationSec = typeof file.durationSec === "number" && Number.isFinite(file.durationSec) && file.durationSec > 0 ? file.durationSec : genes.durationSec;
   const planned = (genes.source === "plan" || genes.source === "ai") && genes.cut !== "tiktok" && genes.bucket !== null;
-  const bucket = !planned ? bucketOfSeconds(durationSec) : genes.source === "ai" ? bucketKept(genes.bucket, durationSec) : genes.bucket;
+  const bucket = !planned ? bucketOfSeconds(durationSec) : genes.source === "ai" ? bucketOfPlannedLength(genes.bucket, genes.durationSec, durationSec) /* --- insights --- (review fix) */ : genes.bucket;
   const features = file.features === undefined ? genes.features : featureGenes(file.features); // --- insights --- (C6)
   return finish({ ...genes, durationSec, bucket, cut: file.cut, features });
 }

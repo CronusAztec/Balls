@@ -1,13 +1,13 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
 import { captionBaseFont, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
-import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type LengthBucket } from "@/lib/bot/playbook";
+import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
 import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { recordingTextLayout } from "@/lib/recording/recorder";
 import { linkParams } from "@/lib/recording/batch"; // --- insights --- (review fix) a Library clip's link, read for the hook it draws
 import { SHARE_CODE_PARAM } from "@/lib/shareCode";
-import { bucketKept, bucketOfSeconds, genesWithScore, type ClipGenes, type ClipGenesFeatures } from "./genes";
+import { bucketOfPlannedLength, bucketOfSeconds, genesWithScore, type ClipGenes, type ClipGenesFeatures } from "./genes";
 
 /*
  * --- insights --- A score on every clip (C6 part 2): the viral bot's 0–100 checklist score (lib/bot/planner.ts scoreClip,
@@ -32,12 +32,16 @@ import { bucketKept, bucketOfSeconds, genesWithScore, type ClipGenes, type ClipG
  *    it): its payoff strategy, whether the mode's own notes are the melody and the recurring cast its series uses. No recipe
  *    plays the mode: the payoff is the run's own end;
  *  - the facts: when the first impact comes, when the payoff comes and how long the clip is. The ending follows from them:
- *    a clip cut before the result has its payoff after its end, or none inside it and a question on screen at its end; any
- *    other clip is resolved. A payoff more than 3 s after the end (SCORE_PAYOFF_REACH_SEC, as far as scoreClip grades a
- *    cut) counts as none, whatever times it: the run is followed no further, and a payoff a strategy knows without one (a
- *    pendulum's cycle) is read the same way;
+ *    a clip cut before the result has its payoff after its end, or none inside it and a question on screen at its end; a
+ *    planned cliffhanger (ScoreContext.ending) with its question on screen at its end stays one with its payoff inside it
+ *    (it shows the result, then asks for it: the planner's payoffCutWrong); any other clip is resolved. A payoff more than
+ *    3 s after the end (SCORE_PAYOFF_REACH_SEC, as far as scoreClip grades a cut) counts as none, whatever times it: the run
+ *    is followed no further, and a payoff a strategy knows without one (a pendulum's cycle) is read the same way. A payoff
+ *    inside the clip comes at its end at the latest: the run's 1/60 s steps add up to a hair past a whole second, so a run
+ *    that ends with the clip has its payoff at its last frame, 100 % in, never past it;
  *  - the platform the clip is for (else the one whose default bucket is the clip's), its series day and its melody, and the
- *    bucket: a plan's while the clip's length fits it, else the bucket of the clip's length.
+ *    bucket: a plan's while the clip is the length it was planned at or its length fits it, else the bucket of the clip's
+ *    length.
  * A clip that is not part of the series (series day 0) has no series label: its series item reads no Top or Bottom Text
  * (`scorePlanLike()`), so a one-off clip is never "part of a series".
  *
@@ -112,6 +116,18 @@ export interface ScoreContext {
   recipe?: string | null;
   /** The bucket the clip was planned for: kept while the clip's length fits it (genes.ts bucketKept); null: the length's own. */
   bucket?: LengthBucket | null;
+  /**
+   * --- insights --- (review fix) The length the clip was planned at (s, the genes' `durationSec`): at a clip length within
+   * GENE_BUCKET_SLACK_SEC of it the planned bucket is kept even where the length is outside it, as the bot scores its plan
+   * (lengthOut: genes.ts bucketOfPlannedLength); null: kept only while the length fits it.
+   */
+  bucketSec?: number | null;
+  /**
+   * --- insights --- (review fix) The ending the clip was planned with (the genes' `ending`): a cliffhanger with its question on
+   * screen at its end stays one with its payoff inside the clip, as the planner scores that plan; null: the ending follows from
+   * where the payoff falls (see the header).
+   */
+  ending?: EndingStyle | null;
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -215,13 +231,16 @@ export function platformOf(platform: string | null | undefined, preset?: string 
 export function planLikeFromSettings(clipSettings: SimulatorSettings, facts: ScoreFacts, context: ScoreContext = {}): ScorePlan {
   const recipe = scoreRecipeFor(clipSettings.mode, context.recipe);
   const clipSec = finite(facts.clipSec) && facts.clipSec > 0 ? facts.clipSec : clipSettings.recordingDuration;
-  const bucket = (context.bucket ? bucketKept(context.bucket, clipSec) : bucketOfSeconds(clipSec)) ?? "short";
+  const bucket = (context.bucket ? bucketOfPlannedLength(context.bucket, context.bucketSec, clipSec) : bucketOfSeconds(clipSec)) ?? "short"; // --- insights --- (review fix) (the plan's length)
   // (a payoff past scoreClip's reach is none inside the clip, for every strategy: see the header)
   const payoff = finite(facts.payoffSec) && facts.payoffSec >= 0 && facts.payoffSec - clipSec <= SCORE_PAYOFF_REACH_SEC ? facts.payoffSec : null;
   const { settings, roles } = hookedSettings(clipSettings, clipSec);
   // cut before the result: the payoff after the clip's end, or none inside it and the clip ends on a question (the bot's never-escapes cut)
   const asks = roles.some((r, i) => r === "question" && settings.captions[i]);
-  const cut = payoff !== null ? payoff > clipSec + 1e-9 : asks;
+  // --- insights --- (review fix) a planned cliffhanger asking at its end with its payoff inside the clip: the result, then the question
+  const cut = payoff !== null ? payoff > clipSec + 1e-9 || (context.ending === "cliffhanger" && asks) : asks;
+  // --- insights --- (review fix) a payoff inside the clip comes at its last frame at the latest (the steps' sum runs a hair past it)
+  const at = payoff === null ? null : cut ? payoff : Math.min(payoff, clipSec);
   const counter = settings.captions[roles.indexOf("countdown")];
   const counterKind = counter && (COUNTER_CAPTIONS as readonly string[]).includes(counter.type) ? COUNTER_KIND[counter.type as (typeof COUNTER_CAPTIONS)[number]] : null;
   const melody = context.melody && context.melody !== "none" ? context.melody : null;
@@ -236,7 +255,7 @@ export function planLikeFromSettings(clipSettings: SimulatorSettings, facts: Sco
     captionRoles: roles,
     countdown: { kind: counterKind ?? recipe?.countdown.kind ?? "timer", source: counter ? "caption" : "hud" },
     timing: { clipSec, firstImpactSec: finite(facts.firstImpactSec) && facts.firstImpactSec >= 0 ? facts.firstImpactSec : null },
-    payoff: payoff === null ? { atSec: null, position: null, cutGapSec: null } : cut ? { atSec: payoff, position: payoff / clipSec, cutGapSec: payoff - clipSec } : { atSec: payoff, position: payoff / clipSec, cutGapSec: null },
+    payoff: at === null ? { atSec: null, position: null, cutGapSec: null } : { atSec: at, position: at / clipSec, cutGapSec: cut ? at - clipSec : null },
   };
 }
 
@@ -374,9 +393,10 @@ export interface SavedClipScore {
 /**
  * The genes of a saved clip scored from its run (scoresFromSettings), with the playbook's score: the run of its seed in the
  * page's world, the file's length and first motion, the platform and melody it was made for and, for a planned clip (an AI
- * clip, an old bot plan job), its plan's recipe, series day and bucket – that bucket kept while the file's length fits it, and
- * its ending the run's (an AI clip's new run may resolve where the plan was cut, or not). Anything else, an aborted run or a
- * failure: the genes as they were (a score can never fail a save).
+ * clip, an old bot plan job), its plan's recipe, series day, bucket and ending – that bucket the one its genes have for the
+ * file (genes.ts genesOfSavedFile: kept at the planned length, or while the file's length fits it), and its ending the run's
+ * (an AI clip's new run may resolve where the plan was cut, or not; a cliffhanger asking at its end stays one). Anything
+ * else, an aborted run or a failure: the genes as they were (a score can never fail a save).
  */
 export async function scoreSavedClip(genes: ClipGenes, clip: SavedClipScore): Promise<ClipGenes> {
   if (!scoresFromSettings(genes)) return genes;
@@ -386,7 +406,8 @@ export async function scoreSavedClip(genes: ClipGenes, clip: SavedClipScore): Pr
     if (!run) return genes;
     const facts = mergeFacts(run, factsOfExport(clip.features ?? genes.features, clip.durationSec));
     const melody = genes.melody ?? (typeof clip.melody === "string" && clip.melody ? clip.melody : null);
-    const like = planLikeFromSettings(clip.settings, facts, { platform: clip.platform, episode: genes.episode, melody, recipe: genes.recipe, bucket: planned ? genes.bucket : null });
+    // (--- insights --- (review fix) the bucket the genes have for this length, and the ending they were planned with)
+    const like = planLikeFromSettings(clip.settings, facts, { platform: clip.platform, episode: genes.episode, melody, recipe: genes.recipe, bucket: planned ? genes.bucket : null, bucketSec: planned ? genes.durationSec : null, ending: planned ? genes.ending : null });
     return genesWithScore({ ...genes, melody, ...(planned ? { bucket: like.bucket, ending: like.ending } : {}) }, scorePlanLike(like));
   } catch {
     return genes;

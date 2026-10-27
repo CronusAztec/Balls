@@ -16,6 +16,7 @@ import {
   TIKTOK_PRIVACY_GENES,
   approvedTextOf,
   bucketKept,
+  bucketOfPlannedLength,
   bucketOfSeconds,
   editorGenes,
   genesAtApproval,
@@ -221,6 +222,44 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(longer.queued.reasons?.length?.values.sec).toBe(Math.round(wave.timing.clipSec * 10) / 10); // (the plan's old length)
     expect(longer.saved).toMatchObject({ bucket: "long", durationSec: 70 });
     expect(longer.saved.reasons?.length?.values).toEqual({ sec: 70, min: BUCKET_SECONDS.long.min, max: BUCKET_SECONDS.long.max });
+  });
+
+  // --- insights --- (review fix) the planner's best run of a plan may miss its bucket (timing.found false): the bot scores it
+  // there (lengthOut), while the AI's clip of the very same plan was moved to the bucket of its length and scored higher
+  it("keeps an AI clip the AI left as planned in the plan's bucket with the plan's score, where the planner's run missed the bucket", async () => {
+    const ring = planClip(RECIPES.find((r) => r.id === "ring-escape")!, 17, "reels", { copy, ending: "resolved", episode: 3, maxSeeds: 6 });
+    expect([ring.timing.found, ring.bucket, bucketOfSeconds(ring.timing.clipSec), ring.reasons.find((r) => r.id === "length")!.key]).toEqual([false, "standard", "short", "lengthOut"]);
+    const { queued, saved } = await savedAi(ring, ring.timing.clipSec);
+    expect([queued.bucket, queued.planScore]).toEqual(["standard", ring.score]); // (the Queue's chip before the render)
+    expect([saved.bucket, saved.planScore, saved.reasons?.length?.key]).toEqual(["standard", ring.score, "lengthOut"]); // (and after it)
+    for (const reason of ring.reasons) expect([reason.id, saved.reasons?.[reason.id]?.key]).toEqual([reason.id, reason.key]);
+    // the bot's own clip of the plan: the same bucket; a file a few frames longer is the same clip
+    expect(genesOfSavedFile(planSource(ring).meta!.genes!, { durationSec: ring.timing.clipSec, cut: "master" }).bucket).toBe("standard");
+    expect((await savedAi(ring, ring.timing.clipSec + 0.4)).saved).toMatchObject({ bucket: "standard", planScore: ring.score });
+    // the rule: the planned bucket at the planned length (with scoreClip's slack), else while the length fits it, else the length's own
+    expect([bucketOfPlannedLength("standard", 11.7, 11.7), bucketOfPlannedLength("standard", 11.7, 11.7 + GENE_BUCKET_SLACK_SEC), bucketOfPlannedLength("standard", 11.7, 20), bucketOfPlannedLength("standard", 11.7, 12.3), bucketOfPlannedLength("standard", 11.7, 70)]).toEqual(["standard", "standard", "standard", "short", "long"]);
+    expect([bucketOfPlannedLength("standard", null, 11.7), bucketOfPlannedLength("standard", Number.NaN, 11.7), bucketOfPlannedLength(null, 11.7, 11.7), bucketOfPlannedLength("long", 75, null)]).toEqual(["short", "short", "short", "long"]);
+    // a run find_simulation found since is in the bucket of its length from the queue's estimate on (the planner's found runs fit theirs)
+    const store = new PlanStore();
+    store.add(plan);
+    await makeVideosTools(store, { planClips: async () => [plan], findSimulation: async () => ({ found: true, seed: 77, durationSec: 75 }) }).find((t) => t.name === "find_simulation")!.run({ planId: plan.id, targetSec: 75, outcome: "duration" }, toolRun);
+    const found = store.get(plan.id)!;
+    expect([found.bucket, found.timing.found, aiClipSource(aiCopy(found), found).meta!.genes!.bucket]).toEqual([plan.bucket, true, "long"]);
+  });
+
+  // --- insights --- (review fix) a planned cliffhanger whose KO comes before its cut (the recorder's 10 s floor) shows the
+  // winner, then asks who wins: the bot scores it payoffCutWrong, and the AI's clip of it was read as a clean resolved loop
+  it("keeps a planned cliffhanger asking at its end a cliffhanger, with the plan's score, when its payoff falls inside the clip", async () => {
+    const duel = planClip(RECIPES.find((r) => r.id === "fight-duel")!, 5, "shorts", { copy, ending: "cliffhanger", episode: 3, maxSeeds: 6 });
+    const verdict = (id: string) => duel.reasons.find((r) => r.id === id)!.key;
+    expect([duel.ending, duel.payoff.cutGapSec! < 0, verdict("payoff"), verdict("ending")]).toEqual(["cliffhanger", true, "payoffCutWrong", "endingQuestion"]);
+    const { queued, saved } = await savedAi(duel, duel.timing.clipSec);
+    expect([queued.ending, queued.planScore]).toEqual(["cliffhanger", duel.score]);
+    expect([saved.ending, saved.planScore, saved.reasons?.payoff?.key, saved.reasons?.ending?.key]).toEqual(["cliffhanger", duel.score, "payoffCutWrong", "endingQuestion"]);
+    // the bot's clip of it with no score of its own (scoresFromSettings): scored from its run, the same
+    const unscored = genesOfSavedFile({ ...planSource(duel).meta!.genes!, planScore: null, checklist: null, reasons: undefined }, { durationSec: duel.timing.clipSec, cut: "master" });
+    const rescored = await scoreSavedClip(unscored, { settings: duel.settings, seed: duel.seed, world: duel.world, durationSec: duel.timing.clipSec, features: null, platform: duel.platform, pause: async () => {} });
+    expect([rescored.ending, rescored.planScore, rescored.reasons?.payoff?.key]).toEqual(["cliffhanger", duel.score, "payoffCutWrong"]);
   });
 
   // --- insights --- (review fix) an AI clip's master draws its plan's hook captions: the AI's own hook is on its cut's card alone
