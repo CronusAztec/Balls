@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AUDIO_CHUNK_FRAMES,
   DEFAULT_FAST_EXPORT_FPS,
+  DIGEST_EVERY, // --- insights ---
   END_HOLD_FALLBACK_MS,
   END_STOP_DELAY_MS,
   EXPORT_SAMPLE_RATE,
@@ -34,7 +35,8 @@ import {
   vp9CodecString,
   type EndHolds,
 } from "@/lib/recording/fastRenderPlan";
-import { exportPacer, payExportFrame, playSoundEvent } from "@/lib/recording/fastRender";
+import { exportPacer, payExportFrame, playSoundEvent, sampleDigest } from "@/lib/recording/fastRender";
+import { ClipFeaturesCollector } from "@/lib/recording/clipFeatures"; // --- insights ---
 import { EXPORT_CATCH_UP_CHUNK, EXPORT_CATCH_UP_STEPS, OfflineRealTime } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { PhysicsEngine } from "@/lib/physics/engine"; // --- slow-motion ---
 import { MIN_DILATION } from "@/lib/physics/multipliers"; // --- slow-motion ---
@@ -322,6 +324,27 @@ describe("fast export: progress, speed and reproducibility", () => {
     expect(fnv1a([97])).toBe(0xe40c292c);
     expect(fnv1a([98], fnv1a([97]))).toBe(fnv1a([97, 98]));
   });
+
+  // --- insights --- the clip's features read the digest's thumbnails: the digest is byte for byte the plain FNV-1a chain
+  it("keeps the digest the FNV-1a chain of the sampled thumbnails while the clip's features read them", () => {
+    const thumbs = Array.from({ length: 8 }, (_, k) => Uint8ClampedArray.from({ length: 16 * 16 * 4 }, (_, i) => (i % 4 === 3 ? 255 : (i * 7 + k * 13) & 0xff)));
+    const copies = thumbs.map((t) => Uint8ClampedArray.from(t));
+    let plain = 0x811c9dc5;
+    let sampled = 0x811c9dc5;
+    let alone = 0x811c9dc5;
+    const features = new ClipFeaturesCollector(60 / DIGEST_EVERY);
+    for (const t of thumbs) {
+      plain = fnv1a(t, plain);
+      sampled = sampleDigest(t, sampled, features);
+      alone = sampleDigest(t, alone, null);
+    }
+    expect(sampled).toBe(plain);
+    expect(alone).toBe(plain);
+    expect(sampled.toString(16).padStart(8, "0")).toBe("cd54c1c5");
+    thumbs.forEach((t, i) => expect(Array.from(t)).toEqual(Array.from(copies[i])));
+    expect(features.finish({ durationSec: 2, lufs: -14 })).toMatchObject({ v: 1, sampleHz: 4, firstMotionSec: 0.25, meanLuma: 0.5 });
+  });
+  // --- end insights ---
 });
 
 describe("fast export: settings", () => {

@@ -1,6 +1,7 @@
 import type { ClipPlan, ScoreReason } from "@/lib/bot/planner";
 import type { BotFamily, BotRecipe, ChecklistId, EndingStyle, LengthBucket } from "@/lib/bot/playbook";
 import type { SimulatorSettings } from "@/lib/settings";
+import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 
 /*
  * --- insights --- Clip genes (ClipGenes v1): what a clip was made from, as a small closed record that travels with the clip
@@ -181,6 +182,11 @@ function sanitizeFeatures(raw: unknown): ClipGenesFeatures | null {
   return out;
 }
 
+/** The features gene of a fast export's measurement (lib/recording/clipFeatures.ts): its scalars, without the motion curve. */
+export function featureGenes(features: ClipFeatures | null | undefined): ClipGenesFeatures | null {
+  return sanitizeFeatures(features);
+}
+
 /**
  * A genes record as the app stores it, or null when `raw` is not one (not an object, or not version 1). Every field is read
  * on its own: a closed enum or a strict id pattern, a number clamped into its bounds; anything else becomes null, unknown
@@ -318,21 +324,25 @@ export function genesFromSettings(settings: Pick<SimulatorSettings, "mode" | "re
 /**
  * The genes of the file the queue saved: its real length and master or cut. A plan's bucket is kept (the length it was planned
  * for); any other is the file's own (a link's clip may end before its clip length, a re-rendered cut is the whole clip again).
+ * `features` is what the export measured of this file (FastRenderResult.features; null when it measured nothing): it replaces
+ * whatever the genes carried (a re-render measures its own file). Absent: the genes' features are kept.
  */
-export function genesOfSavedFile(genes: ClipGenes, file: { durationSec: number | null; cut: GeneCut }): ClipGenes {
+export function genesOfSavedFile(genes: ClipGenes, file: { durationSec: number | null; cut: GeneCut; features?: ClipFeatures | null }): ClipGenes {
   const durationSec = typeof file.durationSec === "number" && Number.isFinite(file.durationSec) && file.durationSec > 0 ? file.durationSec : genes.durationSec;
   const planned = (genes.source === "plan" || genes.source === "ai") && genes.cut !== "tiktok" && genes.bucket !== null;
-  return finish({ ...genes, durationSec, bucket: planned ? genes.bucket : bucketOfSeconds(durationSec), cut: file.cut });
+  const features = file.features === undefined ? genes.features : featureGenes(file.features); // --- insights --- (C6)
+  return finish({ ...genes, durationSec, bucket: planned ? genes.bucket : bucketOfSeconds(durationSec), cut: file.cut, features });
 }
 
 /**
  * The genes of a TikTok cut made of a clip: the clip's, as a cut of its own length (and that length's bucket), with the cut's
- * hook ("custom" when it is not the clip's own hook).
+ * hook ("custom" when it is not the clip's own hook). No measured features: the clip's were measured on its own frames, not
+ * on the cut's (a part of them, under a hook card).
  */
 export function genesOfCut(genes: ClipGenes, cut: { durationSec: number | null; hook: string | null; sameHook: boolean }): ClipGenes {
   const durationSec = typeof cut.durationSec === "number" && Number.isFinite(cut.durationSec) && cut.durationSec > 0 ? cut.durationSec : null;
   const hook = cut.sameHook ? { hookKey: genes.hookKey, hookChars: genes.hookChars } : hookGenes(cut.hook);
-  return finish({ ...genes, ...hook, durationSec, bucket: bucketOfSeconds(durationSec), cut: "tiktok" });
+  return finish({ ...genes, ...hook, durationSec, bucket: bucketOfSeconds(durationSec), cut: "tiktok", features: null });
 }
 
 /** The genes of a cut the Clip editor saved of a clip that carries none (an older Library item, a page clip). */

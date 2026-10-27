@@ -46,6 +46,7 @@ import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVid
 import type { VideoCodec } from "@/lib/desktop/contract";
 import { prepareStamp, sealVerdict, sealWatermark } from "@/lib/watermark/seal"; // --- free-watermark ---
 import type { LiveHud } from "@/lib/watermark/liveLayout"; // --- low-findings ---
+import { ClipFeaturesCollector, type ClipFeatures } from "./clipFeatures"; // --- insights ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -232,7 +233,24 @@ export interface FastRenderResult {
    * play slower than real time (0: the whole clip is real time). Absent with the switch on, where the export is today's.
    */
   laggedFrames?: number;
+  /**
+   * --- insights --- What the clip looks and sounds like, measured as it was made (clipFeatures.ts: the digest's own
+   * thumbnails, the frames' sound events, the finished mix). Absent when the measurement failed: it never fails an export.
+   */
+  features?: ClipFeatures;
 }
+
+// --- insights ---
+/**
+ * One digest sample: the thumbnail's pixels hashed into the digest first, then handed to the clip's features collector
+ * (clipFeatures.ts), which only reads them – so the digest is byte for byte what it is without one. Returns the new digest.
+ */
+export function sampleDigest(pixels: Uint8ClampedArray, digest: number, features: ClipFeaturesCollector | null): number {
+  const next = fnv1a(pixels, digest);
+  features?.frame(pixels);
+  return next;
+}
+// --- end insights ---
 
 /** --- loop-foundation --- How much longer (s) than the clip a whole-loop export may run to end on its seam (its frames and its mix are sized for it). */
 export const LOOP_PAD_SEC = 0.1;
@@ -591,6 +609,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop), loopHud: loopHudOf ? () => loopHudOf(engine) : undefined /* --- loop-foundation --- */ };
     prepareStamp(seal, { width, height }); // --- free-watermark --- (a mark that cannot be drawn stops the export before its first frame)
     let digest = 0x811c9dc5;
+    const features = new ClipFeaturesCollector(fps / DIGEST_EVERY); // --- insights --- (the digest's samples: fps / DIGEST_EVERY a second)
 
     const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-gerald-odd) --- (the slow motion's lag)
     const lastFrame = maxSimFrames(options.durationSec + loopPadSec, stretch); // --- loop-foundation --- (the pad: 0 without whole loops)
@@ -620,7 +639,10 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       if (pacer) await payExportFrame(pacer, simFrame > 0 ? t - simFrameTimeMs(simFrame - 1) : SIM_FRAME_MS, stepOnce, between); // --- slow-motion ---
       sandbox(() => {
         frameRenderer.renderFrame();
-        for (const ev of engine.consumeSoundEvents()) playSoundEvent(mix, ev, () => frameRenderer.noteWallBreak());
+        for (const ev of engine.consumeSoundEvents()) {
+          playSoundEvent(mix, ev, () => frameRenderer.noteWallBreak());
+          features.sound(t / 1000, ev); // --- insights ---
+        }
         frameRenderer.setSongProgress(mix.getSliceProgress());
         const finished = engine.isSimulationFinished();
         tracker.frame(t, finished, frameRenderer.holdsEndScreen(), finished && options.endHolds ? options.endHolds(engine) : NO_END_HOLDS, frameRenderer.slowLagMs());
@@ -644,7 +666,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
         frame.close();
         if (index % DIGEST_EVERY === 0) {
           thumbCtx.drawImage(frameCanvas, 0, 0, 16, 16);
-          digest = fnv1a(thumbCtx.getImageData(0, 0, 16, 16).data, digest);
+          digest = sampleDigest(thumbCtx.getImageData(0, 0, 16, 16).data, digest, features); // --- insights --- (was: fnv1a(...data, digest); the features read the same pixels)
         }
         exported = index + 1;
         await drainQueue(videoEncoder, 6);
@@ -694,6 +716,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     audioEncoder.close();
     audioEncoder = null;
 
+    // --- insights --- the clip's features, the mix as the file holds it included (null when the measurement failed)
+    const measured = features.finish({ durationSec, lufs: loudness.inputLufs, mix: { channels, sampleRate: EXPORT_SAMPLE_RATE, frames: total } });
     report("finish", 0, exported, durationSec);
     const blob = new Blob([muxer.finalize()], { type: format.mimeType });
     report("finish", 1, exported, durationSec);
@@ -709,6 +733,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       loudnessLufs: loudness.inputLufs, // --- loop-foundation ---
       loudnessGainDb: loudness.gainDb,
       ...(pacer ? { laggedFrames: pacer.laggedFrames } : {}), // --- slow-motion ---
+      ...(measured ? { features: measured } : {}), // --- insights ---
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return null;

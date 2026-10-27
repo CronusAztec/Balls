@@ -65,8 +65,9 @@ import { settingsGenes } from "@/lib/desktop/queueSources";
  * Once the cut's file is made it is being saved (`cutting.saving`): a Cancel no longer stops it, so the row says "Saving…".
  *
  * --- insights --- The saved file's meta carries the clip's genes (lib/insights/genes.ts): the job's, from its source (a job
- * of an older journal gets its settings'), with the file's length and "master"; its cut gets them as a cut of its own length
- * and hook. The app's main process sanitises them when it writes the Library.
+ * of an older journal gets its settings'), with the file's length and "master" and the features the fast export measured of
+ * it (lib/recording/clipFeatures.ts); its cut gets them as a cut of its own length and hook (and no features: those are the
+ * master's frames). The app's main process sanitises them when it writes the Library.
  */
 
 const PROGRESS_SAVE_MS = 2000;
@@ -235,7 +236,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const transcode = transcodeSpecFor(job.preset, job.codec, { width: size.width, height: size.height, fps: render.fps }, rendered);
         if (transcode) apply((s) => markEncoding(s, job.id, Date.now()));
         // --- insights ---
-        const genes = genesOfSavedFile(job.meta.genes ?? settingsGenes(job.settings, { hook: job.meta.hook, caption: job.meta.caption, hashtags: job.meta.hashtags }, job.source.kind), { durationSec: file.durationSec, cut: "master" });
+        const genes = genesOfSavedFile(job.meta.genes ?? settingsGenes(job.settings, { hook: job.meta.hook, caption: job.meta.caption, hashtags: job.meta.hashtags }, job.source.kind), { durationSec: file.durationSec, cut: "master", features: file.result?.features ?? null /* what the fast export measured of this file */ });
         const meta: LibraryMeta = {
           title: job.meta.title || job.name,
           mode: job.settings.mode,

@@ -141,21 +141,37 @@ export interface SoundFeatures {
   firstSoundSec: number | null;
 }
 
+// --- insights --- (one rule for both sides: a reference video's mono PCM here, an own clip's export mix in
+// lib/recording/clipFeatures.ts)
+/**
+ * The first sound (s): the start of the first 10 ms window louder than SOUND_MIN_DB (RMS) of `channels` mixed to mono (their
+ * mean, as ffmpeg's `-ac 1`), over their first `length` samples; null when none is.
+ */
+export function firstSoundSecOf(channels: readonly ArrayLike<number>[], sampleRate: number, length = Infinity): number | null {
+  const count = channels.length;
+  if (count === 0 || !(sampleRate > 0)) return null;
+  const total = Math.min(Math.floor(length), ...channels.map((c) => c.length));
+  const window = Math.max(1, Math.round(sampleRate / 100));
+  const floor = Math.pow(10, SOUND_MIN_DB / 20);
+  for (let at = 0; at + window <= total; at += window) {
+    let sq = 0;
+    for (let i = at; i < at + window; i++) {
+      let s = 0;
+      for (let c = 0; c < count; c++) s += channels[c][i];
+      s /= count;
+      sq += s * s;
+    }
+    if (Math.sqrt(sq / window) > floor) return r4(at / sampleRate);
+  }
+  return null;
+}
+// --- end insights ---
+
 /** Tempo, onsets and the first sound of mono PCM (the app's beat detector; 0 bpm – no usable beat – is null). */
 export function soundFeatures(samples: Float32Array, sampleRate: number): SoundFeatures {
   const seconds = samples.length / sampleRate;
   if (samples.length === 0 || seconds < 0.5) return { bpm: null, bpmConfidence: null, onsetsPerSec: null, firstSoundSec: null };
-  const window = Math.max(1, Math.round(sampleRate / 100));
-  const floor = Math.pow(10, SOUND_MIN_DB / 20);
-  let firstSoundSec: number | null = null;
-  for (let at = 0; at + window <= samples.length; at += window) {
-    let sq = 0;
-    for (let i = at; i < at + window; i++) sq += samples[i] * samples[i];
-    if (Math.sqrt(sq / window) > floor) {
-      firstSoundSec = r4(at / sampleRate);
-      break;
-    }
-  }
+  const firstSoundSec = firstSoundSecOf([samples], sampleRate); // --- insights --- (was the same loop, inline)
   const beats = analyzeBeats({ numberOfChannels: 1, length: samples.length, sampleRate, getChannelData: () => samples });
   return {
     bpm: beats.bpm > 0 ? Math.round(beats.bpm * 10) / 10 : null,
