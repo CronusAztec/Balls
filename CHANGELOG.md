@@ -7,6 +7,19 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Windows app 1.6.0 · 2026-10-27
+
+A playbook score for the clips you render
+
+### New
+
+- Clips you render get a playbook score from 0 to 100. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.
+- Each clip remembers what it was made from, like its mode, its ending and its hook. A post you approve keeps that, even after you delete the clip. It all stays on your PC.
+
+### Improved
+
+- The Render queue takes any frame rate from 30 up. Type it next to 30 and 60 and it joins them as a choice of its own.
+
 ## Website 1.16.0 · 2026-10-26
 
 A Slow motion switch and sliders that go further

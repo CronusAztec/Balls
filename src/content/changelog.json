@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "app-1-6-0",
+      "product": "app",
+      "version": "1.6.0",
+      "date": "2026-10-27",
+      "headline": {
+        "en": "A playbook score for the clips you render",
+        "pl": "Ocena według poradnika dla renderowanych klipów",
+        "es": "Una puntuación de la guía para los clips que renderizas"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Clips you render get a playbook score from 0 to 100. The Library, the Render queue and the approval card show it with its reasons. It is only advice and never holds a post back.",
+            "pl": "Renderowane klipy dostają ocenę według poradnika od 0 do 100. Biblioteka, Kolejka renderowania i karta zatwierdzania pokazują ją z uzasadnieniem. To tylko wskazówka i nigdy nie wstrzymuje posta.",
+            "es": "Los clips que renderizas reciben una puntuación de la guía de 0 a 100. La Biblioteca, la Cola de renderizado y la tarjeta de aprobación la muestran con sus motivos. Es solo un consejo y nunca frena una publicación."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Each clip remembers what it was made from, like its mode, its ending and its hook. A post you approve keeps that, even after you delete the clip. It all stays on your PC.",
+            "pl": "Każdy klip pamięta, z czego powstał, na przykład tryb, zakończenie i hook. Zatwierdzony post zachowuje te dane, nawet gdy usuniesz klip. Wszystko zostaje na Twoim komputerze.",
+            "es": "Cada clip recuerda de qué está hecho, como su modo, su final y su gancho. Una publicación que apruebas lo conserva aunque borres el clip. Todo se queda en tu PC."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The Render queue takes any frame rate from 30 up. Type it next to 30 and 60 and it joins them as a choice of its own.",
+            "pl": "Kolejka renderowania przyjmuje dowolną liczbę klatek od 30 w górę. Wpisz ją obok 30 i 60, a dołączy do nich jako osobna opcja.",
+            "es": "La Cola de renderizado acepta cualquier velocidad de fotogramas a partir de 30. Escríbela junto a 30 y 60 y se suma a ellas como una opción más."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-16-0",
       "product": "site",
       "version": "1.16.0",

@@ -41,6 +41,9 @@ import { runFactsSync, scoreSavedClip } from "@/lib/insights/score"; // --- insi
 import { EMPTY_QUEUE, enqueue, expandBatch, journalOf, restoreQueue, QUEUE_JOURNAL_FORMAT } from "@/lib/desktop/renderQueue";
 import { PlanStore, makeVideosTools, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { defaultSettings } from "@/lib/settings";
+import { CHANGELOG } from "@/content/changelog"; // --- insights --- (the release that brings the genes)
+import { DESKTOP_VERSION } from "@/lib/desktop/release";
+import { compareVersions } from "@/lib/desktop/whatsNew";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -449,5 +452,46 @@ describe("the TikTok audience at approval", () => {
     expect(genesAtApproval(planSource(plan).meta!.genes, [tiktok("SELF_ONLY")])).toEqual({ ...planSource(plan).meta!.genes, tiktokPrivacy: "self" });
     expect(genesAtApproval(undefined, [tiktok("SELF_ONLY")])).toBeNull();
     expect(genesAtApproval({ v: 9 }, [tiktok("SELF_ONLY")])).toBeNull();
+  });
+});
+
+// --- insights --- The app version that first writes genes: the README, docs/SOCIAL-AUTOPILOT.md and the code's comments say
+// "Windows app 1.6.0" and "saved before 1.6.0", so the tree that writes genes must be that version or later and have its
+// changelog entry (docs/RELEASING.md: the entry, DESKTOP_VERSION and CHANGELOG.md in one commit), or those sentences are false.
+describe("the release that brings the genes", () => {
+  const read = (file: string) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+  const section = (file: string, heading: string) => {
+    const text = read(file);
+    const from = text.indexOf(heading);
+    expect(from, `${file}: ${heading}`).toBeGreaterThanOrEqual(0);
+    const rest = text.slice(from + heading.length);
+    const end = /^## /m.exec(rest);
+    return rest.slice(0, end ? end.index : undefined);
+  };
+  const DOCS = [section("README.md", "### Windows app: clip genes and the playbook score"), section("docs/SOCIAL-AUTOPILOT.md", "## 5. Each post keeps its clip's genes")];
+  const CODE = [
+    "desktop/src/library.ts",
+    "desktop/src/social/audit.ts",
+    "desktop/tests/clipGenes.test.ts",
+    "src/lib/desktop/contract.ts",
+    "src/lib/desktop/queueSources.ts",
+    "src/components/simulator/sections/DesktopSection.tsx",
+    "src/components/simulator/desktop/useRenderQueue.ts",
+    "src/lib/insights/score.ts",
+  ].map(read);
+  const all = (texts: string[], re: RegExp) => texts.flatMap((text) => [...text.matchAll(re)].map((m) => m[1]));
+
+  it("is the version this tree builds, with its changelog entry, and every 'before' and 'or earlier' agrees", () => {
+    const named = all(DOCS, /Windows app (\d+\.\d+\.\d+)/g);
+    expect(named.length, "the README and SOCIAL-AUTOPILOT.md name the version").toBeGreaterThanOrEqual(2);
+    expect(new Set(named).size, named.join(", ")).toBe(1);
+    const since = named[0];
+    const apps = CHANGELOG.filter((r) => r.product === "app").map((r) => r.version);
+    expect(apps, `an app ${since} release in src/content/changelog.json`).toContain(since);
+    expect(compareVersions(DESKTOP_VERSION, since), `DESKTOP_VERSION ${DESKTOP_VERSION} writes genes, so it is ${since} or later`).toBeGreaterThanOrEqual(0);
+    const before = all([...DOCS, ...CODE], /\bbefore[\s*]+(\d+\.\d+\.\d+)/g);
+    expect(before.length).toBeGreaterThan(5);
+    expect(new Set(before)).toEqual(new Set([since]));
+    expect(all(DOCS, /written by (\d+\.\d+\.\d+) or earlier/g)).toEqual([apps[apps.indexOf(since) + 1]]);
   });
 });
