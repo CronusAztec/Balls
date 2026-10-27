@@ -563,6 +563,22 @@ describe("Chaos fan: settings, presets and links", () => {
     expect(p).toMatchObject({ dpFan: true, dpFanCount: 1000, dpSpreadDeg: 0.0001 });
   });
 
+  // --- review fix (chaos-fan) --- the smoke suite plays the 200-pendulum preset's link on this seed (scripts/smoke-test.mjs,
+  // the chaos-fan block): the preset draws a fresh seeded high start every run, and some starts never spread the split's 30 px
+  // in the 10 s forward run – about one draw in 27 –, so its check of the split and the way home needs a seed that has both
+  it("splits and comes home in one cycle of the 200-pendulum preset on the smoke suite's seed, which a fresh draw need not", () => {
+    const SMOKE_FAN_SEED = 12345;
+    const cycle = (seed: number) => {
+      const engine = engineOf({}, seed);
+      const fan = fanOf(engine);
+      run(engine, chaosFanCycleSec(chaosFanPresetFields("hairApart").dpForwardSec));
+      return { cycles: fan.cycles, splits: fan.splits, reverses: fan.reverses, homes: fan.homes };
+    };
+    expect(cycle(SMOKE_FAN_SEED)).toEqual({ cycles: 1, splits: 1, reverses: 1, homes: 1 });
+    // a start that never spreads 30 px on its way out: the turn and the seam come, the split and the way home do not
+    expect(cycle(2130023043)).toEqual({ cycles: 1, splits: 0, reverses: 1, homes: 0 });
+  });
+
   // --- chaos-fan --- (review fix) the rig the run does not build reads none of its keys: no ⚡ machinery, no ARENA FULL from it
   it("engage No limits and ARENA FULL from the rig the run builds only (a harp run ignores the fan's numbers, a fan run the harp's)", () => {
     const of = (query: string) => settingsFromSearchParams(new URLSearchParams(`mode=doublePendulum&${query}`));

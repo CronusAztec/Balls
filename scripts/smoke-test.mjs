@@ -16573,6 +16573,10 @@ await smokeBlock("chaos-fan", async () => {
   await page.locator('[data-dp-fan-preset="hairApart"]').first().click();
   await page.waitForTimeout(400);
   const query = new URLSearchParams(page.url().split("?")[1] || "");
+  // --- review fix (chaos-fan) --- the preset's own link on a pinned seed (tests/chaosFan.test.ts, SMOKE_FAN_SEED): the preset draws
+  // a fresh seeded high start every run, and about one start in 27 never spreads the split's 30 px in the 10 s forward run (no
+  // split, no way home), so the run on a fresh draw failed on the draw, not on the page
+  await page.goto(`${BASE}/en/simulator/?${query.toString()}&seed=12345`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const osc = [];
     const texts = [];
