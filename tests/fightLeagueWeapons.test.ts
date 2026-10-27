@@ -555,7 +555,9 @@ describe("fight league determinism and naming gates", () => {
     const banned = ["b", "o", "r", "i", "s"].join("");
     const re = new RegExp(banned, "i");
     const hits: string[] = [];
-    const skip = new Set(["node_modules", ".git", "out", ".next", "smoke-output"]);
+    // (.agent-out is git-ignored output too: the toolbox's results, a linked worktree's guard cache and the other creators'
+    // videos inspire downloads, whose titles are not the repository's words)
+    const skip = new Set(["node_modules", ".git", "out", ".next", "smoke-output", ".agent-out"]);
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         if (skip.has(entry.name)) continue;
