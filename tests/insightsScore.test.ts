@@ -33,7 +33,9 @@ import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultCaption, type Caption } from "@/lib/captions";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { MODE_IDS } from "@/lib/physics/types";
-import { planSource, seedSource } from "@/lib/desktop/queueSources";
+import { aiClipSource, planSource, seedSource } from "@/lib/desktop/queueSources";
+import { genesOfSavedFile } from "@/lib/insights/genes";
+import { PlanStore, makeVideosTools } from "@/lib/desktop/ai/studio";
 import { EMPTY_QUEUE, enqueue, expandBatch, journalOf, markDone, markRendering, restoreQueue } from "@/lib/desktop/renderQueue";
 import en from "../messages/en.json";
 
@@ -123,6 +125,54 @@ describe("the captions' roles", () => {
     expect(roles).toEqual(["hook", "hook", "payoff", "payoff", "question", "question"]);
     // without the clip's length only a caption with no end of its own is on screen at the end
     expect(captionRolesOf([caption("text", "Who wins now?", 6, 20), caption("question", "And now?", 18)])).toEqual(["payoff", "question"]);
+  });
+
+  // --- insights --- (review fix) a caption that enters at or after the clip's end is never on screen: no role scoreClip reads
+  it("read a caption that enters at or after the clip's end as none of the hook, the countdown or the closing question", () => {
+    const captions = [caption("text", "Can it escape?", 0, 2.5), caption("question", "Will it get out?", 25), caption("text", "Who wins?", 20), caption("wallCounter", "Walls", 25), caption("text", "3 left", 21), caption("countdown", "", 19.99)];
+    expect(captionRolesOf(captions, 20)).toEqual(["hook", "payoff", "payoff", "payoff", "payoff", "countdown"]);
+    expect(captionRolesOf(captions)).toEqual(["hook", "question", "question", "countdown", "countdown", "countdown"]); // (no length: every one is shown)
+    expect(captionRolesOf([caption("text", "A late hook", 2, 2.9)], 1.5)).toEqual(["payoff"]); // a clip shorter than its hook's start
+  });
+});
+
+// --- insights --- (review fix) what a clip never shows scores nothing: the closing question an AI clip's plan kept after
+// set_clip_settings cut it short gave it the cliffhanger's points (12 + 10 of 20 + 20 for a question nobody saw)
+describe("a caption that enters after the clip's end", () => {
+  it("counts for nothing in a page clip's score: a question, a question mark or a counter set past its end", () => {
+    const hook = { ...caption("text", "Can it escape?", 0, 2.5), position: "top" as const };
+    const page = { ...defaultSettings("classic"), recordingDuration: 20, captions: [hook] };
+    const facts: ScoreFacts = { firstImpactSec: 0.3, payoffSec: null, clipSec: 20 };
+    const plain = scoreOfSettings(page, facts);
+    for (const late of [caption("question", "Will it get out?", 25), caption("text", "Who wins?", 20), caption("wallCounter", "Walls", 25), caption("progress", "", 22), caption("countdown", "[time]", 20)]) {
+      expect([late.type, late.start, scoreOfSettings({ ...page, captions: [hook, late] }, facts)]).toEqual([late.type, late.start, plain]);
+    }
+    // the same question entering before the end is the closing question
+    const asked = scoreOfSettings({ ...page, captions: [hook, caption("question", "Will it get out?", 18)] }, facts);
+    expect([plain.reasons.find((r) => r.id === "ending")?.key, asked.reasons.find((r) => r.id === "ending")?.key]).toEqual(["endingLongTail", "endingQuestion"]);
+    expect(asked.score).toBeGreaterThan(plain.score);
+  });
+
+  it("counts for nothing in an AI clip set_clip_settings cut short: its plan's closing question enters after its file ends", async () => {
+    const ring = planClip(RECIPES.find((r) => r.id === "ring-escape")!, 17, "reels", { copy, ending: "cliffhanger", episode: 3, maxSeeds: 6 });
+    const question = ring.settings.captions[ring.captionRoles.indexOf("question")];
+    expect([ring.ending, question.end]).toEqual(["cliffhanger", 0]);
+    expect(question.start).toBeGreaterThan(11);
+    const store = new PlanStore();
+    store.add(ring);
+    await makeVideosTools(store, { planClips: async () => [ring], findSimulation: async () => ({ found: false, seed: ring.seed, durationSec: 0 }) }).find((t) => t.name === "set_clip_settings")!.run({ planId: ring.id, changes: [{ setting: "recordingDuration", value: 11 }] }, { signal: undefined, progress: () => {} } as never);
+    const short = store.get(ring.id)!;
+    expect(short.settings.captions).toEqual(ring.settings.captions); // (set_clip_settings moves no caption)
+    const save = (settings: SimulatorSettings) => {
+      const clip = { ...short, settings };
+      const genes = aiClipSource({ planId: clip.id, name: "x", title: "x", hook: clip.hook, caption: "Will it?", hashtags: ["#a"], platform: "reels" }, clip).meta!.genes!;
+      return scoreSavedClip(genesOfSavedFile(genes, { durationSec: 11, cut: "master" }), { settings, seed: clip.seed, world: clip.world, durationSec: 11, features: null, platform: "reels", melody: null, pause: async () => {} });
+    };
+    const saved = await save(short.settings);
+    const shown = await save({ ...short.settings, captions: short.settings.captions.filter((c) => c.start < 11) });
+    expect(saved.reasons?.ending?.key).not.toBe("endingQuestion");
+    expect(saved.reasons?.payoff?.key).not.toBe("payoffNever");
+    expect([saved.planScore, saved.reasons, saved.ending]).toEqual([shown.planScore, shown.reasons, shown.ending]);
   });
 });
 

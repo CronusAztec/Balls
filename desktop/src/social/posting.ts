@@ -14,7 +14,8 @@
  * restart); a 429 waits Postiz's Retry-After once, then the error surfaces. Every create is written to social-audit.json.
  *
  * --- insights --- The audit line of a create keeps the clip's genes (lib/insights/genes.ts) with the TikTok audience the card
- * chose: the queue item's copy when the post comes from the queue, else the Library item's, sanitised either way.
+ * chose and the hashtag count and question of the text it approved (genesAtApproval): the queue item's copy of the genes when
+ * the post comes from the queue, else the Library item's, sanitised either way.
  */
 
 import fs from "fs/promises";
@@ -230,7 +231,7 @@ export class ClipPoster {
         .get(request.clipId)
         .then((item) => ({ video: item ? clipVideoKey(item) : null, libraryGenes: item?.meta?.genes as unknown }))
         .catch(() => ({ video: null, libraryGenes: undefined }));
-      // --- insights --- the clip's genes with the audience the card chose, kept with the post ids (the attribution ledger)
+      // --- insights --- the clip's genes with the audience and the text the card approved, kept with the post ids (the attribution ledger)
       const genes = genesAtApproval(from.genes ?? libraryGenes, request.channels);
       this.deps.emit({ clipId: request.clipId, phase: "uploading", percent: 0 });
       const bytes = await this.files.readFile(prepared.path);

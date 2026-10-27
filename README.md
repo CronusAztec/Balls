@@ -4056,23 +4056,31 @@ PC.
   its points and its verdict (`reasons`: the message key and its numbers, never its text), the measured features, the
   Blueprint's digest, the parent and the TikTok audience chosen at approval. Post hour and weekday are not stored: they come
   from the post's publish date. The render queue's sources set them (`src/lib/desktop/queueSources.ts`: a bot plan from the
-  plan; an AI clip from its plan as `set_clip_settings` and `find_simulation` left it, with the AI's own copy; a link and the
-  page's setup with a seed from the settings; a job journalled before 1.6.0 from its settings and what its source names, a
-  plan's recipe, family, series day and melody), `useRenderQueue.ts` completes them when it saves the file (its real length,
-  master or cut, the features; a bot plan's bucket stays the planned one, an AI clip's only while the file's length fits it),
-  and the Clip editor writes a cut's: a cut of a clip with genes keeps them as a cut, whether the editor was opened from the
-  Library or from the Publish block (its clips carry the Library item's hook and genes, `PublishClipLibrary`). A Library
-  re-render keeps the clip's genes and measures its own file (`rerenderSource`): a cut file's re-render is its master alone,
-  scored from its run, and genes that name no source of the clip (the editor's, of a cut of a clip that had none) or none
-  at all (a clip saved before 1.6.0) give way to the link's, with the item's own copy, so the master is scored like a link's.
+  plan; an AI clip from its plan as `set_clip_settings` and `find_simulation` left it, with the AI's own caption and hashtags,
+  and as the recipe that plays it, the mode's own once the AI changed the mode; a link and the page's setup with a seed from
+  the settings; a job journalled before 1.6.0 from its settings and what its source names, a plan's recipe, family, series day
+  and melody), `useRenderQueue.ts` completes them when it saves the file (its real length, master or cut, the features, the
+  melody it played; a bot plan's bucket stays the planned one, an AI clip's only while the file's length fits it), and the
+  Clip editor writes a cut's: a cut of a clip with genes keeps them as a cut, whether the editor was opened from the Library
+  or from the Publish block (its clips carry the Library item's hook and genes, `PublishClipLibrary`). The hook genes are the
+  hook the clip draws, by the score's rule (`drawnHookOf` in `score.ts`): a hook caption first, else the Top Text where it is
+  the hook. An AI clip's master draws its plan's hook captions, so the AI's own hook counts only on its TikTok cut's card,
+  and a cut's hook is told apart from the hook its master draws (`shownHookOf`), never from the AI's copy. A Library
+  re-render keeps the clip's genes, plays the melody they name again (`jobMelody`) and measures its own file
+  (`rerenderSource`); a file that played another melody (one the page could not select or load) gets that melody and is
+  scored again. A cut file's re-render is its master alone, scored from its run, and genes that name no source of the clip
+  (the editor's, of a cut of a clip that had none) or none at all (a clip saved before 1.6.0) give way to the link's, with
+  the item's own caption and hashtags, so the master is scored like a link's.
 - **The genes in the files** – three optional fields, sanitised by the main process (`sanitizeGenes`) on every write and every
   load: closed enums, clamped numbers, strict ids of 64 characters or fewer, anything else null; a record past 4 KB drops its
   features, then its verdicts, then its checklist. `LibraryMeta.genes` sits in the Library index (`desktop/src/library.ts`),
   `SocialQueueItem.genes` in `social-queue.json` (a proposal copies its clip's genes from the Library item, never from the
   caller: `social/queue.ts`) and `SocialAuditEntry.genes` in `social-audit.json` (`social/posting.ts`, `social/audit.ts`).
   Files written before 1.6.0 carry no genes and load exactly as they were stored. The audit copy is the **attribution
-  ledger**: Approve writes the clip's genes, with the TikTok audience the card chose, into the post's audit line, so a Postiz
-  post id keeps them after the Library file and the queue item are deleted (docs/SOCIAL-AUTOPILOT.md, section 5).
+  ledger**: Approve writes the clip's genes, with the TikTok audience the card chose and the hashtag count and question of the
+  text it approved (the TikTok channel's, else the first channel's: the autopilot writes each channel's text, and the card
+  may change it), into the post's audit line, so a Postiz post id keeps them after the Library file and the queue item are
+  deleted (docs/SOCIAL-AUTOPILOT.md, section 5).
 - **Measured features** – `src/lib/recording/clipFeatures.ts`, ClipFeatures v1. The fast export measures every clip it makes,
   with nothing drawn or read back for it: `sampleDigest()` in `fastRender.ts` hands the 16 × 16 thumbnail the digest already
   hashes, every `DIGEST_EVERY`-th frame, to the collector once the digest has read it (`sampleHz`: 4 a second at 60 fps, 2 at
@@ -4089,9 +4097,9 @@ PC.
   unchanged, so no plan's score moves) for a clip scored from its run. `planLikeFromSettings(settings, facts)` builds the
   fields of a plan that `scoreClip` reads, and only those. The captions' roles are inferred (a counter caption is the
   countdown, one that enters inside the hook's 3 s the hook – scored as late, `hookTiming`, after 0.05 s, where it sits
-  measured once it is on screen –, and a question on screen at the clip's end the closing question); a clip with no hook
-  caption has its Top Text as its hook, and a clip that is not part of the series (series day 0) is never scored as part of
-  one. The run is followed 4 s past the clip (`SCORE_RUN_MARGIN_SEC`: scoreClip grades a cut up to 3 s before the payoff,
+  measured once it is on screen –, and a question on screen at the clip's end the closing question; a caption that enters at
+  or after the clip's end is never on screen, so it is none of them); a clip with no hook caption has its Top Text as its
+  hook, and a clip that is not part of the series (series day 0) is never scored as part of one. The run is followed 4 s past the clip (`SCORE_RUN_MARGIN_SEC`: scoreClip grades a cut up to 3 s before the payoff,
   and Ball Drop's payoff is known only when its run ends a second later); a payoff farther past the end counts as none
   inside the clip, whether the run found it or the strategy knows it (a pendulum's cycle). The facts come
   from the planner's own run of the seed (`simulateFactsSteps`, in slices so the page stays responsive) and from the export's

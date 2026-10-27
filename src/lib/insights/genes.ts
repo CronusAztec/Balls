@@ -6,9 +6,10 @@ import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 /*
  * --- insights --- Clip genes (ClipGenes v1): what a clip was made from, as a small closed record that travels with the clip
  * from the render queue to the Library (`LibraryMeta.genes`), the posting queue (`SocialQueueItem.genes`) and the audit line
- * of every post the app created (`SocialAuditEntry.genes`, with the TikTok privacy chosen at approval). That last copy is the
- * attribution ledger: a Postiz post id keeps its genes after the Library file or the queue item is gone, so what made each
- * post can still be read when its numbers come in.
+ * of every post the app created (`SocialAuditEntry.genes`, with the TikTok privacy chosen at approval and the hashtag count
+ * and question of the text approved: `genesAtApproval()`). That last copy is the attribution ledger: a Postiz post id keeps
+ * its genes after the Library file or the queue item is gone, so what made each post can still be read when its numbers
+ * come in. The hook genes are the hook the clip draws (lib/insights/score.ts drawnHookOf), never copy it does not show.
  *
  * Who writes them: the render queue's sources (lib/desktop/queueSources.ts: a bot plan, an AI clip, a link or the page's own
  * setup with a seed), completed by the queue when it saves the file (components/simulator/desktop/useRenderQueue.ts: the
@@ -192,11 +193,16 @@ export function tiktokPrivacyGene(level: unknown): GenePrivacy | null {
   return typeof level === "string" && Object.prototype.hasOwnProperty.call(TIKTOK_PRIVACY_GENES, level) ? TIKTOK_PRIVACY_GENES[level] : null;
 }
 
+/** A post's channel is a TikTok one: its platform, or its provider settings' type, says so. */
+function isTikTokChannel(c: { platform?: unknown; settings?: unknown } | null | undefined): boolean {
+  return c?.platform === "tiktok" || (isPlainObject(c?.settings) && own(c.settings, "__type") === "tiktok");
+}
+
 /** The TikTok audience of an approved post: the first TikTok channel's privacy_level (null without a TikTok channel). */
 export function tiktokPrivacyOf(channels: readonly { platform?: unknown; settings?: unknown }[]): GenePrivacy | null {
   for (const c of channels) {
+    if (!isTikTokChannel(c)) continue;
     const settings = isPlainObject(c?.settings) ? c.settings : null;
-    if (c?.platform !== "tiktok" && own(settings ?? {}, "__type") !== "tiktok") continue;
     const gene = tiktokPrivacyGene(settings ? own(settings, "privacy_level") : undefined);
     if (gene) return gene;
   }
@@ -336,7 +342,19 @@ export interface GenesFromPlanOptions {
   source?: "plan" | "ai";
   /** The plan's recipe from RECIPES: the caller looks it up (this file loads no recipe). Without it, no hook key or melody kind. */
   recipe?: Pick<BotRecipe, "copyKey" | "musicFirst"> | null;
-  /** The copy the clip goes out with when it is not the plan's own (an AI clip's hook, caption and hashtags). */
+  /**
+   * --- insights --- (review fix) The recipe that plays the clip when the plan's no longer does: an AI clip whose mode
+   * set_clip_settings changed, played as the mode's own recipe (lib/insights/score.ts scoreRecipeFor, the one its score
+   * reads), or null when none plays the mode. Its id and family are the clip's recipe and family, and whether its mode's own
+   * notes are the melody. Absent: the plan's recipe plays the clip. The hook key stays the plan's recipe's (`recipe`): the
+   * hook captions are the plan's whatever mode plays under them.
+   */
+  playedBy?: Pick<BotRecipe, "id" | "family" | "musicFirst"> | null;
+  /**
+   * The copy the clip goes out with when it is not the plan's own: an AI clip's caption and hashtags, with the hook it draws
+   * (lib/insights/score.ts drawnHookOf: the plan's hook captions as the AI's tools left them). The AI's own hook is drawn on
+   * its TikTok cut's card alone, so it is the cut's hook gene (`genesOfCut()`), never the master's.
+   */
   copy?: GenesCopy;
 }
 
@@ -344,8 +362,8 @@ export interface GenesFromPlanOptions {
  * The genes of a planned clip: its recipe, family, mode, ending, bucket, planned length, melody, hook, copy, series day and
  * score, with each checklist item's share of its points. `scored` is scoreClip's verdict (the plan's own by default; an AI
  * clip whose settings the AI changed is scored again by the caller). The hook key is the recipe's hook copy
- * ("recipes.<copyKey>", its cliffhanger line on a cliffhanger where the copy has one): an AI clip that wrote its own hook
- * gets "custom".
+ * ("recipes.<copyKey>", its cliffhanger line on a cliffhanger where the copy has one) while the clip draws the plan's hook;
+ * any other hook it draws is "custom".
  */
 export function genesFromPlan(plan: ClipPlan, scored: { score: number; reasons: readonly ScoreReason[] } = plan, options: GenesFromPlanOptions = {}): ClipGenes {
   const recipe = options.recipe ?? null;
@@ -354,15 +372,18 @@ export function genesFromPlan(plan: ClipPlan, scored: { score: number; reasons: 
   const hook = copy ? copy.hook : plan.hook;
   const sameHook = !copy || (copy.hook ?? "").trim() === plan.hook.trim();
   const caption = copy ? copy.caption : [plan.post.caption, plan.post.question].filter(Boolean).join("\n\n");
+  // --- insights --- (review fix) the recipe that plays it: the plan's, or the mode's own once the AI changed the mode
+  const playedBy = options.playedBy;
+  const arm = playedBy === undefined ? { recipe: plan.recipe, family: plan.family } : { recipe: playedBy?.id ?? null, family: playedBy?.family ?? null };
+  const notes = playedBy === undefined ? recipe : playedBy; // (whether the mode's own notes are the melody)
   return finish({
     ...blank(options.source ?? "plan"),
-    recipe: plan.recipe,
-    family: plan.family,
+    ...arm,
     mode: plan.mode,
     ending: plan.ending,
     bucket: plan.bucket,
     durationSec: plan.timing.clipSec,
-    melody: plan.melodyId ?? (recipe ? (recipe.musicFirst ? "ladder" : "none") : null),
+    melody: plan.melodyId ?? (notes ? (notes.musicFirst ? "ladder" : "none") : null),
     ...hookGenes(hook, sameHook ? planKey : "custom"),
     hashtagCount: (copy ? copy.hashtags : plan.post.hashtags).length,
     captionQuestion: asksSomething(caption),
@@ -375,7 +396,11 @@ export function genesFromPlan(plan: ClipPlan, scored: { score: number; reasons: 
 
 /** What the genes of a clip made from settings read besides them: its copy, its length and the Blueprint it plays. */
 export interface GenesMeta {
-  /** The on-screen hook (the settings' Top Text when absent). */
+  /**
+   * The on-screen hook: the hook the clip draws, by the score's rule (lib/insights/score.ts drawnHookOf: its hook caption, else
+   * its Top Text where that line is its hook), which the app's callers pass (lib/desktop/queueSources.ts settingsGenes); the
+   * settings' Top Text when absent (this file reads no caption roles).
+   */
   hook?: string | null;
   caption?: string | null;
   hashtags?: readonly string[];
@@ -445,8 +470,9 @@ export function editorGenes(clip: { mode: string | null; durationSec: number | n
 
 /**
  * The genes of a cut the Clip editor saves: a cut of the clip's own genes when the clip it was opened on carries them (a
- * Library item, or the Publish block's clip of one: lib/publish/clips.ts PublishClipLibrary), its hook measured against that
- * clip's hook; else the editor's own (`editorGenes`).
+ * Library item, or the Publish block's clip of one: lib/publish/clips.ts PublishClipLibrary), its hook measured against the
+ * hook that clip shows (`clip.hook`: lib/insights/score.ts shownHookOf, the hook a master draws or a cut's card, not an AI
+ * clip's own hook, which its master never draws); else the editor's own (`editorGenes`).
  */
 export function genesOfEditorCut(clip: { genes?: ClipGenes | null; hook?: string | null } | null | undefined, cut: { mode: string | null; durationSec: number | null; copy: GenesCopy }): ClipGenes {
   if (!clip?.genes) return editorGenes(cut);
@@ -454,10 +480,38 @@ export function genesOfEditorCut(clip: { genes?: ClipGenes | null; hook?: string
   return genesOfCut(clip.genes, { durationSec: cut.durationSec, hook, sameHook: hook.trim() === (clip.hook ?? "").trim() });
 }
 
-/** The genes an approved post keeps in the audit: the clip's, with the TikTok audience the card chose (null without TikTok). */
-export function genesAtApproval(raw: unknown, channels: readonly { platform?: unknown; settings?: unknown }[]): ClipGenes | null {
+// --- insights --- (review fix) the copy a post went out with: the card's text, not the clip's copy at render time
+/**
+ * The hashtags of a post's text, counted as the approval card counts them (lib/desktop/socialCard.ts hashtagCount: a "#" at
+ * the start or after a space, then anything but a space or another "#"; this file loads no page module, so
+ * tests/insightsGenes.test.ts keeps the two equal).
+ */
+export function hashtagsIn(text: string): number {
+  return (text.match(/(^|\s)#[^\s#]+/g) ?? []).length;
+}
+
+/**
+ * The text an approved post went out with, which its copy genes describe: its first TikTok channel's (the channel whose
+ * audience the record keeps), else its first channel's; null when no channel has a text. The autopilot writes each channel's
+ * text (and its hashtags) itself and the card may change it again, so the clip's own caption is not what was posted.
+ */
+export function approvedTextOf(channels: readonly { platform?: unknown; settings?: unknown; text?: unknown }[]): string | null {
+  const texts = channels.filter((c) => typeof c?.text === "string");
+  const chosen = texts.find(isTikTokChannel) ?? texts[0];
+  return chosen ? (chosen.text as string) : null;
+}
+
+/**
+ * The genes an approved post keeps in the audit: the clip's, with the TikTok audience the card chose (null without TikTok)
+ * and the copy genes of the text it went out with (`approvedTextOf()`: its hashtag count and whether it asks something, no
+ * words); a request with no text keeps the clip's.
+ */
+export function genesAtApproval(raw: unknown, channels: readonly { platform?: unknown; settings?: unknown; text?: unknown }[]): ClipGenes | null {
   const genes = sanitizeGenes(raw);
-  return genes ? finish({ ...genes, tiktokPrivacy: tiktokPrivacyOf(channels) }) : null;
+  if (!genes) return null;
+  const text = approvedTextOf(channels);
+  const copy = text === null ? {} : { hashtagCount: hashtagsIn(text), captionQuestion: asksSomething(text) };
+  return finish({ ...genes, ...copy, tiktokPrivacy: tiktokPrivacyOf(channels) });
 }
 
 // --- end insights ---

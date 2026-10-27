@@ -241,7 +241,10 @@ TikTok cut's carry neither of the last two, which were measured on the clip it w
   once `POST /posts` has answered. The genes are the queue item's copy when the post comes from the queue
   (`SocialQueue.approve` hands them to `ClipPoster.postClip` beside the card's request), else the Library item's (a post
   approved on the card alone). The TikTok audience the card chose goes with them (`tiktokPrivacy`: public, friends,
-  followers or self, from the first TikTok channel's `privacy_level`; null without TikTok).
+  followers or self, from the first TikTok channel's `privacy_level`; null without TikTok), and so does the copy the post
+  went out with: `hashtagCount` and `captionQuestion` are counted on the text the card approved (the first TikTok channel's,
+  else the first channel's; `genesAtApproval`), not on the clip's own caption, since the autopilot writes each channel's
+  text and hashtags itself and the card may change them again. The hook genes stay the hook the clip draws on screen.
 - **In the queue** – `SocialQueueItem.genes`: a proposal copies its clip's genes from the Library item when it is proposed
   (the main process reads them; the caller cannot hand any), so the item keeps them after the Library forgets the clip.
 - **Sanitised in the main process** on every write and every load (`sanitizeGenes`: closed enums, clamped numbers, strict

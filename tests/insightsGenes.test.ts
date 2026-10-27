@@ -14,6 +14,7 @@ import {
   GENE_LIMITS,
   GENE_SOURCES,
   TIKTOK_PRIVACY_GENES,
+  approvedTextOf,
   bucketKept,
   bucketOfSeconds,
   editorGenes,
@@ -23,21 +24,23 @@ import {
   genesOfCut,
   genesOfEditorCut,
   genesOfSavedFile,
+  hashtagsIn,
   sanitizeGenes,
   tiktokPrivacyOf,
   type ClipGenes,
 } from "@/lib/insights/genes";
 import { BOT_FAMILIES, BUCKET_SECONDS, CHECKLIST, ENDING_STYLES, LENGTH_BUCKETS, RECIPES } from "@/lib/bot/playbook";
-import { planClip, scoreClip } from "@/lib/bot/planner";
-import { TIKTOK_PRIVACY } from "@/lib/desktop/socialCard";
+import { hasTopHud, planClip, scoreClip } from "@/lib/bot/planner";
+import { TIKTOK_PRIVACY, hashtagCount } from "@/lib/desktop/socialCard";
 import { MODE_IDS } from "@/lib/physics/types";
 import { SONGS } from "@/lib/audio/songs";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog";
 import { blueprintDigest, encodeBlueprint } from "@/lib/blueprint/codec";
-import { aiClipSource, blueprintGenesOf, episodeOfPlanId, jobGenes, planSource, rerenderSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
+import { aiClipSource, blueprintGenesOf, episodeOfPlanId, genesWithPlayedMelody, jobCutGenes, jobGenes, jobMelody, planSource, rerenderSource, seedSource, settingsGenes } from "@/lib/desktop/queueSources";
 import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
 import type { LibraryMeta } from "@/lib/desktop/contract";
-import { runFactsSync, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (the score of a saved clip's run)
+import { drawnHookOf, runFactsSync, scoreRecipeFor, scoreSavedClip, scoresFromSettings, shownHookOf } from "@/lib/insights/score"; // --- insights --- (the score of a saved clip's run, the hook it draws)
+import { defaultCaption } from "@/lib/captions";
 import { EMPTY_QUEUE, enqueue, expandBatch, journalOf, restoreQueue, QUEUE_JOURNAL_FORMAT } from "@/lib/desktop/renderQueue";
 import { PlanStore, makeVideosTools, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { defaultSettings } from "@/lib/settings";
@@ -115,6 +118,17 @@ describe("the genes' closed lists", () => {
     }
   });
 
+  // --- insights --- (review fix) the hook genes describe the hook a clip draws: a bot plan's is its hook, in its hook captions
+  it("finds every recipe's hook in its plan's hook captions, so an AI clip of it keeps the recipe's copy key whatever hook the AI wrote", () => {
+    for (const r of RECIPES)
+      for (const ending of ["resolved", "cliffhanger"] as const) {
+        const recipePlan = planClip(r, 3, "shorts", { copy, ending, search: false });
+        expect([recipePlan.id, drawnHookOf(recipePlan.settings)]).toEqual([recipePlan.id, recipePlan.hook]);
+        const genes = aiClipSource({ planId: recipePlan.id, name: "x", title: "x", hook: "Something else entirely?", caption: "c", hashtags: [], platform: "shorts" as const }, recipePlan).meta!.genes!;
+        expect([recipePlan.id, genes.hookKey, genes.hookChars]).toEqual([recipePlan.id, `recipes.${r.copyKey}`, [...recipePlan.hook].length]);
+      }
+  });
+
   it("loads no module of the page: the app's main process bundles this file (types only)", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "insights", "genes.ts"), "utf8");
     const imports = source.split("\n").filter((l) => /^\s*import\b/.test(l));
@@ -139,7 +153,7 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(planSource(rhythmPlan).meta!.genes!.melody).toBe("ladder");
   });
 
-  it("gives an AI clip its plan's genes as the AI's set_clip_settings left the plan, scored again, with the AI's own copy", async () => {
+  it("gives an AI clip its plan's genes as the AI's set_clip_settings left the plan, scored again, with the AI's own caption and hashtags and the hook it draws", async () => {
     const same = aiClipSource({ planId: plan.id, name: "Pip Monday", title: "Pip!", hook: plan.hook, caption: "Will Pip make it?", hashtags: ["#pip", "#physics", "#asmr"], platform: "tiktok" }, plan).meta!.genes!;
     expect(same).toMatchObject({ source: "ai", recipe: plan.recipe, planScore: plan.score, hookKey: "recipes.pipEscape", hashtagCount: 3, captionQuestion: true });
     // the AI changes the plan with its tool: the genes read the plan the store holds now, and its score is the new one
@@ -153,7 +167,7 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     const rescored = scoreClip(changed);
     expect(rescored.score).toBeLessThan(plan.score); // Gerald's series loses its cast
     const genes = aiClipSource({ planId: plan.id, name: "Bob", title: "Bob!", hook: "Can Bob escape?", caption: "Bob's first day", hashtags: ["#bob", "#physics", "#asmr", "#fyp"], platform: "tiktok" }, changed).meta!.genes!;
-    expect(genes).toMatchObject({ source: "ai", planScore: rescored.score, hookKey: "custom", hookChars: 15, hashtagCount: 4, captionQuestion: false });
+    expect(genes).toMatchObject({ source: "ai", planScore: rescored.score, hookKey: "recipes.pipEscape", hookChars: [...plan.hook].length, hashtagCount: 4, captionQuestion: false }); // (its master draws the plan's hook, not "Can Bob escape?")
     expect(genes.checklist?.series).toBeCloseTo(rescored.reasons.find((r) => r.id === "series")!.points / rescored.reasons.find((r) => r.id === "series")!.max, 3);
   });
 
@@ -209,6 +223,109 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(longer.saved.reasons?.length?.values).toEqual({ sec: 70, min: BUCKET_SECONDS.long.min, max: BUCKET_SECONDS.long.max });
   });
 
+  // --- insights --- (review fix) an AI clip's master draws its plan's hook captions: the AI's own hook is on its cut's card alone
+  it("gives an AI clip's master the hook it draws, and its TikTok cut the AI's hook when its card shows that", () => {
+    const clip = { planId: plan.id, name: "Bob", title: "Bob!", hook: "Can Bob escape?", caption: "Bob's day", hashtags: ["#bob"], platform: "tiktok" as const };
+    const source = aiClipSource(clip, plan);
+    expect([source.meta!.hook, drawnHookOf(source.settings)]).toEqual(["Can Bob escape?", plan.hook]); // (the Library keeps the AI's copy)
+    const master = genesOfSavedFile(source.meta!.genes!, { durationSec: plan.timing.clipSec, cut: "master" });
+    expect(master).toMatchObject({ source: "ai", cut: "master", hookKey: "recipes.pipEscape", hookChars: [...plan.hook].length });
+    // the queue's cut: its card's hook told apart from the master's drawn one, not from the AI's copy
+    expect(jobCutGenes(master, source, { durationSec: 11.5, hook: "Can Bob escape?" }, plan.timing.clipSec)).toMatchObject({ cut: "tiktok", hookKey: "custom", hookChars: 15 });
+    expect(jobCutGenes(master, source, { durationSec: 11.5, hook: plan.hook }, plan.timing.clipSec)).toMatchObject({ cut: "tiktok", hookKey: "recipes.pipEscape", hookChars: [...plan.hook].length });
+    // the Clip editor's cut of the saved master (its meta: the AI's hook and the plan's link), and what a cut shows: its card
+    const meta = { hook: clip.hook, link: plan.shareUrl, genes: master };
+    expect(shownHookOf(meta)).toBe(plan.hook);
+    const editorCut = (hook: string) => genesOfEditorCut({ genes: master, hook: shownHookOf(meta) }, { mode: plan.mode, durationSec: 11.5, copy: { hook, caption: null, hashtags: [] } });
+    expect(editorCut(clip.hook)).toMatchObject({ cut: "tiktok", hookKey: "custom", hookChars: 15 });
+    expect(editorCut(plan.hook)).toMatchObject({ cut: "tiktok", hookKey: "recipes.pipEscape" });
+    const cut = jobCutGenes(master, source, { durationSec: 11.5, hook: clip.hook });
+    expect(shownHookOf({ hook: clip.hook, link: plan.shareUrl, genes: cut })).toBe(clip.hook);
+    // a link read only later (a short `?c=` code) or none: the meta's hook
+    expect(shownHookOf({ hook: clip.hook, link: "https://jumpingballslive.com/en/simulator/?c=AbC123", genes: master })).toBe(clip.hook);
+    expect([shownHookOf({ hook: clip.hook, link: "", genes: master }), shownHookOf(null), shownHookOf(undefined)]).toEqual([clip.hook, null, null]);
+    // the render queue's cut and the Clip editor's compare with these
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/genes: jobCutGenes\(genes, job, \{ durationSec: result\.durationSec, hook: result\.spec\.hook \}, file\.durationSec\)/);
+    expect(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx")).toMatch(/genesOfEditorCut\(desktop\.meta \? \{ genes: desktop\.meta\.genes, hook: shownHookOf\(desktop\.meta\) \} : null,/);
+  });
+
+  // --- insights --- (review fix) set_clip_settings may change the mode: the recipe that plays the clip is then the mode's own
+  it("gives an AI clip whose mode set_clip_settings changed the recipe, family and melody kind that play it, as its score reads them", async () => {
+    const setMode = async (p: typeof plan, mode: string) => {
+      const store = new PlanStore();
+      store.add(p);
+      await makeVideosTools(store, { planClips: async () => [p], findSimulation: async () => ({ found: false, seed: p.seed, durationSec: 0 }) }).find((t) => t.name === "set_clip_settings")!.run({ planId: p.id, changes: [{ setting: "mode", value: mode }] }, toolRun);
+      return store.get(p.id)!;
+    };
+    const glass = await setMode(plan, "glass");
+    expect([glass.mode, glass.settings.mode, glass.recipe, pip.modes.includes("glass")]).toEqual(["glass", "glass", "pip-escape", false]);
+    const own = scoreRecipeFor("glass", glass.recipe)!;
+    expect(own.id).not.toBe("pip-escape");
+    const queued = aiClipSource(aiCopy(glass), glass).meta!.genes!;
+    expect(queued).toMatchObject({ source: "ai", mode: "glass", recipe: own.id, family: own.family, melody: plan.melodyId, hookKey: "recipes.pipEscape" }); // (the hook captions are still the plan's)
+    const saved = await scoreSavedClip(genesOfSavedFile(queued, { durationSec: glass.timing.clipSec, cut: "master" }), { settings: glass.settings, seed: glass.seed, world: glass.world, durationSec: glass.timing.clipSec, features: null, platform: glass.platform, pause: async () => {} });
+    expect(saved).toMatchObject({ recipe: own.id, family: own.family });
+    expect(scoreRecipeFor(glass.settings.mode, saved.recipe)?.id).toBe(saved.recipe);
+    // a music-first plan (its mode's own notes, no melody) moved to a mode whose recipe is not music-first: no melody
+    const wave = planClip(RECIPES.find((r) => r.id === "pendulum-wave")!, 3, "tiktok", { copy, search: false });
+    expect([wave.melodyId, aiClipSource(aiCopy(wave), wave).meta!.genes!.melody]).toEqual([null, "ladder"]);
+    const classic = await setMode(wave, "classic");
+    const ownClassic = scoreRecipeFor("classic", classic.recipe)!;
+    expect(ownClassic.musicFirst ?? false).toBe(false);
+    expect(aiClipSource(aiCopy(classic), classic).meta!.genes).toMatchObject({ mode: "classic", recipe: ownClassic.id, family: ownClassic.family, melody: "none", hookKey: "recipes.pendulumWave" });
+    // a mode the plan's recipe plays: the plan's recipe
+    expect(aiClipSource(aiCopy(plan), plan).meta!.genes).toMatchObject({ recipe: "pip-escape", family: plan.family });
+  });
+
+  // --- insights --- (review fix) a re-render plays the clip again: the melody its genes name, not the one the page has loaded
+  it("re-renders a clip with the melody its genes name, and gives a file that played another that melody and its run's score", async () => {
+    const item = (genes: ClipGenes) => ({ fileName: "pip.mp4", meta: { title: "Pip!", mode: plan.mode, seed: plan.seed, link: plan.shareUrl, platform: "tiktok", hook: plan.hook, caption: null, hashtags: [], queueJobId: "job-1", genes } });
+    const job = (genes: ClipGenes) => expandBatch([rerenderSource(item(genes), plan.settings, plan.seed)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: ["native"] })[0];
+    const master = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: plan.timing.clipSec, cut: "master" });
+    expect(SONGS.map((song) => song.id)).toContain(plan.melodyId);
+    expect([plan.shareUrl.includes(plan.melodyId!), job(master).source]).toEqual([false, { kind: "link", link: plan.shareUrl }]); // (a link names no melody)
+    expect(jobMelody(job(master))).toBe(plan.melodyId);
+    expect([jobMelody(job({ ...master, melody: "ladder" })), jobMelody(job({ ...master, melody: "none" }))]).toEqual([null, null]); // (the mode's own notes or none: no melody on top)
+    // a melody the page cannot select, genes that name none, a link's or the page's clip: the page plays the one it has
+    expect([jobMelody(job({ ...master, melody: "custom-upload" })), jobMelody(job({ ...master, melody: null }))]).toEqual([undefined, undefined]);
+    expect([jobMelody(seedSource(defaultSettings("classic"), 3, { kind: "link", link: "https://x.invalid/en/simulator/?mode=classic" })), jobMelody(seedSource(defaultSettings("classic"), 3))]).toEqual([undefined, undefined]);
+    // a bot plan's and an AI clip's job select their plan's
+    expect([jobMelody(planSource(plan)), jobMelody(aiClipSource(aiCopy(plan), plan))]).toEqual([plan.melodyId, plan.melodyId]);
+    // the file played the genes' melody: kept as they are; another (not loaded, or the page's own): that one, scored again
+    expect(genesWithPlayedMelody(master, plan.melodyId)).toBe(master);
+    expect(genesWithPlayedMelody({ ...master, melody: "ladder" }, null)).toEqual({ ...master, melody: "ladder" });
+    expect(genesWithPlayedMelody({ ...master, melody: null }, "fur-elise")).toEqual({ ...master, melody: null }); // (none named: the score reads the page's)
+    const played = genesWithPlayedMelody(master, null);
+    expect(played).toMatchObject({ source: "plan", recipe: plan.recipe, melody: null, planScore: null, checklist: null });
+    expect("reasons" in played).toBe(false);
+    expect(scoresFromSettings(played)).toBe(true);
+    const rescored = await scoreSavedClip(played, { settings: plan.settings, seed: plan.seed, world: plan.world, durationSec: plan.timing.clipSec, features: null, platform: plan.platform, melody: null, pause: async () => {} });
+    expect([master.reasons?.sound?.key, rescored.reasons?.sound?.key, rescored.melody]).toEqual(["soundOk", "soundFlat", null]);
+    // the render queue selects it before the render and reads what played after it
+    const queue = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "useRenderQueue.ts"), "utf8");
+    expect(queue).toMatch(/const melody = jobMelody\(job\);/);
+    expect(queue).toMatch(/prepare: melody !== undefined \? async \(\) => void \(await page\.selectMelody\(melody\)\) : undefined,/);
+    expect(queue).toMatch(/const saved0 = genesWithPlayedMelody\(genesOfSavedFile\(planned, \{[^\n]*\}\), pageRef\.current\.currentMelody\);/);
+  });
+
+  // --- insights --- (review fix) the hook genes of a clip made from settings read its hook by the score's rule
+  it("gives a link's and the page's clip the hook it draws: its hook caption before its Top Text, a Top Text over no scoreboard", () => {
+    // the share link of a bot plan: its Top Text is the series label, its hook the caption
+    expect(plan.settings.topText).not.toBe(plan.hook);
+    expect(seedSource(plan.settings, plan.seed, { kind: "link", link: plan.shareUrl }).meta!.genes).toMatchObject({ source: "link", hookKey: "custom", hookChars: [...plan.hook].length });
+    // the page: a hook caption and no Top Text, a hook caption under a Top Text, a Top Text alone
+    const hookCaption = { ...defaultCaption("text", { text: "Can it escape?" }), position: "top" as const, start: 0, end: 3 };
+    const classic = { ...defaultSettings("classic"), topText: "" };
+    expect(seedSource({ ...classic, captions: [hookCaption] }, 7).meta!.genes).toMatchObject({ hookKey: "custom", hookChars: 14 });
+    expect(seedSource({ ...classic, topText: "Day 12 of the rings", captions: [hookCaption] }, 7).meta!.genes).toMatchObject({ hookKey: "custom", hookChars: 14 });
+    expect(seedSource({ ...classic, topText: "Day 12 of the rings" }, 7).meta!.genes).toMatchObject({ hookKey: "custom", hookChars: 19 });
+    // a caption entering after the hook's window is no hook; a Top Text over an arena game's scoreboard is none either
+    expect(seedSource({ ...classic, captions: [{ ...hookCaption, start: 4, end: 7 }] }, 7).meta!.genes).toMatchObject({ hookKey: null, hookChars: 0 });
+    const arena = MODE_IDS.find((m) => hasTopHud(m))!;
+    expect(seedSource({ ...defaultSettings(arena), topText: "Who wins?", captions: [] }, 7).meta!.genes).toMatchObject({ mode: arena, hookKey: null, hookChars: 0 });
+  });
+
   it("gives a link's and the page's clip the mode, length, bucket and hook, and Mode Lab's game as its recipe", () => {
     const page = seedSource({ ...defaultSettings("glass"), recordingDuration: 22, topText: "Will it break?" }, 42).meta!.genes!;
     expect(page).toMatchObject({ source: "seed", mode: "glass", durationSec: 22, bucket: "standard", hookKey: "custom", hookChars: 14, hashtagCount: 0, captionQuestion: false, recipe: null, family: null, planScore: null, melody: null });
@@ -219,7 +336,7 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(blueprintGenesOf(lab)).toEqual({ catalogId: "ringBreaker", digest: blueprintDigest(catalogBlueprint("ringBreaker")) });
     expect(seedSource(lab, 7).meta!.genes).toMatchObject({ recipe: "blueprint:ringBreaker", blueprintDigest: blueprintDigest(catalogBlueprint("ringBreaker")) });
     const spec = catalogBlueprint("hatchery");
-    const fromLink = settingsGenes({ ...lab, blSpec: encodeBlueprint(spec) }, { hook: null }, "link");
+    const fromLink = settingsGenes({ ...lab, blSpec: encodeBlueprint(spec) }, {}, "link");
     expect(fromLink).toMatchObject({ recipe: null, blueprintDigest: blueprintDigest(spec) });
     expect(fromLink.blueprintDigest).toMatch(/^[0-9a-f]{8}$/);
     expect(blueprintGenesOf(defaultSettings("classic"))).toBeNull();
@@ -304,7 +421,10 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     // a job with genes keeps its own; an old AI job keeps its melody; a link's or the page's job is its settings' genes
     expect(jobGenes(state.jobs[0])).toBe(state.jobs[0].meta.genes);
     expect(jobGenes({ ...old, source: { kind: "ai", melodyId: "twinkle-twinkle" } })).toMatchObject({ source: "ai", melody: "twinkle-twinkle", recipe: null });
-    expect(jobGenes({ ...old, source: { kind: "seed" } })).toEqual(settingsGenes(old.settings, { hook: old.meta.hook, caption: old.meta.caption, hashtags: old.meta.hashtags }, "seed"));
+    expect(jobGenes({ ...old, source: { kind: "seed" } })).toEqual(settingsGenes(old.settings, { caption: old.meta.caption, hashtags: old.meta.hashtags }, "seed"));
+    // --- insights --- (review fix) the hook it draws: an old plan job's is its plan's hook, with the recipe's copy key
+    expect(genes).toMatchObject({ hookKey: "recipes.pipEscape", hookChars: [...plan.hook].length });
+    expect(jobGenes({ ...old, source: { kind: "seed" } })).toMatchObject({ hookKey: "custom", hookChars: [...plan.hook].length });
   });
 
   // --- insights --- (review fix) the re-render of the editor's cut of an older clip was saved as the editor's genes, a source
@@ -330,11 +450,12 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     const ofEditor = rerenderSource(item({ genes: editorCut, queueJobId: "job-0-cut", ...copy }, "pip-old-tiktok.mp4"), plan.settings, plan.seed);
     expect([ofEditor.cut, ofEditor.meta!.genes]).toEqual([null, settingsGenes(plan.settings, copy, "link")]);
     const savedEditor = await save(ofEditor.meta!.genes!);
-    expect(savedEditor).toMatchObject({ source: "link", cut: "master", hookKey: "custom", hookChars: 14, hashtagCount: 2, captionQuestion: false });
+    // (the master draws its link's hook caption, not the cut's card "Which way out?")
+    expect(savedEditor).toMatchObject({ source: "link", cut: "master", hookKey: "custom", hookChars: [...plan.hook].length, hashtagCount: 2, captionQuestion: false });
     expect(savedEditor.planScore).toEqual(expect.any(Number));
     expect(await save(editorCut)).toMatchObject({ source: "editor", planScore: null }); // (what the cut's own genes were saved as)
     // a clip saved before 1.6.0: the link's genes with the item's own copy
-    expect(rerenderSource(item({}), plan.settings, plan.seed).meta!.genes).toEqual(settingsGenes(plan.settings, { hook: plan.hook, caption: "Will Pip make it?", hashtags: ["#pip"] }, "link"));
+    expect(rerenderSource(item({}), plan.settings, plan.seed).meta!.genes).toEqual(settingsGenes(plan.settings, { caption: "Will Pip make it?", hashtags: ["#pip"] }, "link"));
     // the Library's Re-render button queues this job
     expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8")).toMatch(/const clip = rerenderSource\(item, settings, linkSeed\(item\.meta\.link\) \?\? item\.meta\.seed\);\n\s+const codec/);
   });
@@ -436,7 +557,7 @@ describe("sanitizeGenes", () => {
 });
 
 describe("the TikTok audience at approval", () => {
-  const channel = (platform: string, settings: unknown) => ({ id: `int-${platform}`, platform, text: "t", settings });
+  const channel = (platform: string, settings: unknown, text = "t") => ({ id: `int-${platform}`, platform, text, settings });
   const tiktok = (privacy_level: unknown) => channel("tiktok", { __type: "tiktok", privacy_level });
 
   it("records the card's privacy level as public, friends, followers or self (null without TikTok)", () => {
@@ -448,8 +569,24 @@ describe("the TikTok audience at approval", () => {
     expect(tiktokPrivacyOf([channel("tiktok", "nope"), channel("tiktok", null), channel("tiktok", ["SELF_ONLY"])])).toBeNull();
   });
 
+  // --- insights --- (review fix) the copy genes of the text the card approved, not of the clip's caption at render time
+  it("counts the hashtags and the question of the text approved: the TikTok channel's, else the first channel's", () => {
+    const genes = planSource(plan).meta!.genes!;
+    expect(genes.hashtagCount).toBe(plan.post.hashtags.length);
+    // the autopilot's own words for TikTok (its planner's text and hashtags), a YouTube description beside them
+    const approved = genesAtApproval(genes, [channel("youtube", { __type: "youtube" }, "Pip vs the rings? #a #b #c"), channel("tiktok", { __type: "tiktok", privacy_level: "PUBLIC_TO_EVERYONE" }, "Ring 3 was close.\n\n#physics #satisfying")]);
+    expect(approved).toMatchObject({ hashtagCount: 2, captionQuestion: false, tiktokPrivacy: "public", hookKey: genes.hookKey, recipe: genes.recipe, planScore: genes.planScore });
+    // no TikTok channel: the first channel's text; no text at all: the clip's own copy genes
+    expect(genesAtApproval(genes, [channel("youtube", { __type: "youtube" }, "Who gets out first? #pip"), channel("instagram", { __type: "instagram" }, "#a #b #c")])).toMatchObject({ hashtagCount: 1, captionQuestion: true, tiktokPrivacy: null });
+    expect(genesAtApproval(genes, [{ platform: "tiktok", settings: { __type: "tiktok" } }])).toMatchObject({ hashtagCount: genes.hashtagCount, captionQuestion: genes.captionQuestion });
+    expect([approvedTextOf([channel("youtube", {}, "y"), channel("custom", { __type: "tiktok" }, "t")]), approvedTextOf([])]).toEqual(["t", null]);
+    // a hashtag as the approval card counts it (lib/desktop/socialCard.ts)
+    for (const text of ["#physics #fyp, #ąę #_x #1", "C# and # alone ## or a#b", "", "#pip#ball\n#a\t#b", "Ring 3 was close.\n\n#physics #satisfying"]) expect([text, hashtagsIn(text)]).toEqual([text, hashtagCount(text)]);
+  });
+
   it("copies the clip's genes with it, and nothing for a clip without genes", () => {
-    expect(genesAtApproval(planSource(plan).meta!.genes, [tiktok("SELF_ONLY")])).toEqual({ ...planSource(plan).meta!.genes, tiktokPrivacy: "self" });
+    // (the channel's text "t" is what went out: no hashtag, no question)
+    expect(genesAtApproval(planSource(plan).meta!.genes, [tiktok("SELF_ONLY")])).toEqual({ ...planSource(plan).meta!.genes, tiktokPrivacy: "self", hashtagCount: 0, captionQuestion: false });
     expect(genesAtApproval(undefined, [tiktok("SELF_ONLY")])).toBeNull();
     expect(genesAtApproval({ v: 9 }, [tiktok("SELF_ONLY")])).toBeNull();
   });

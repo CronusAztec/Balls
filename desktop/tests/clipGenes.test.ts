@@ -10,12 +10,14 @@ import { SocialAudit } from "../src/social/audit";
 import { ClipPoster } from "../src/social/posting";
 import type { PostizClient } from "../src/social/postiz";
 import { SocialQueue, sanitizeQueueItem } from "../src/social/queue";
+import { toQueueProposals } from "@/lib/desktop/autopilot"; // --- insights --- (review fix) the autopilot's own words for a channel
 
 /*
  * --- insights --- Clip genes in the app's main process (phase P2): the Library, the posting queue and the audit log sanitise
  * them on every write and every load, files written before 1.6.0 (no genes) load exactly as they were stored, and approving a
- * queued clip writes its genes, with the TikTok audience the card chose, into the post's audit line, where the post ids keep
- * them after the Library file and the queue item are deleted and the app restarts (the attribution ledger).
+ * queued clip writes its genes, with the TikTok audience the card chose and the hashtag count and question of the text it
+ * approved, into the post's audit line, where the post ids keep them after the Library file and the queue item are deleted
+ * and the app restarts (the attribution ledger).
  */
 
 const NOW = Date.parse("2026-10-26T12:00:00.000Z");
@@ -164,7 +166,7 @@ describe("the attribution ledger", () => {
     expect(postiz.created).toHaveLength(1);
     const [line] = await audit.recent();
     expect(line).toMatchObject({ action: "createPosts", postIds: ["post-1", "post-2"], clipId: clip.id, video: "job:job-1" });
-    expect(line.genes).toEqual({ ...GENES, tiktokPrivacy: "self" });
+    expect(line.genes).toEqual({ ...GENES, tiktokPrivacy: "self", hashtagCount: 1 }); // (the TikTok text approved: "Will Pip make it? #pip")
     // the Library file and the queue item go; after a restart the post ids still name their genes
     await library.remove(clip.id, true, async (f) => fs.rmSync(f));
     await queue.remove(proposed.id);
@@ -173,8 +175,8 @@ describe("the attribution ledger", () => {
     expect(await restarted.queue.list()).toEqual([]);
     const ledger = (await restarted.audit.recent()).filter((e) => e.action === "createPosts");
     expect(ledger.flatMap((e) => e.postIds.map((postId) => [postId, e.genes]))).toEqual([
-      ["post-1", { ...GENES, tiktokPrivacy: "self" }],
-      ["post-2", { ...GENES, tiktokPrivacy: "self" }],
+      ["post-1", { ...GENES, tiktokPrivacy: "self", hashtagCount: 1 }],
+      ["post-2", { ...GENES, tiktokPrivacy: "self", hashtagCount: 1 }],
     ]);
   });
 
@@ -182,12 +184,12 @@ describe("the attribution ledger", () => {
     const { library, poster, audit } = app();
     const withGenes = await addClip(library, "a.mp4", meta({ genes: { ...GENES, cut: "tiktok" }, queueJobId: "job-9-cut" }));
     await poster.postClip({ ...request(withGenes.id), channels: [{ ...request(withGenes.id).channels[0], settings: { ...request(withGenes.id).channels[0].settings, privacy_level: "PUBLIC_TO_EVERYONE" } }] });
-    expect((await audit.recent())[0]).toMatchObject({ clipId: withGenes.id, video: "job:job-9", genes: { ...GENES, cut: "tiktok", tiktokPrivacy: "public" } });
+    expect((await audit.recent())[0]).toMatchObject({ clipId: withGenes.id, video: "job:job-9", genes: { ...GENES, cut: "tiktok", tiktokPrivacy: "public", hashtagCount: 1 } });
     const without = await addClip(library, "b.mp4", meta({ queueJobId: null }));
     await poster.postClip({ ...request(without.id), channels: [request(without.id).channels[1]] });
     expect((await audit.recent())[0].clipId).toBe(without.id);
     expect((await audit.recent())[0]).not.toHaveProperty("genes");
-    expect(sanitizeGenes((await audit.recent())[1].genes)).toEqual({ ...GENES, cut: "tiktok", tiktokPrivacy: "public" });
+    expect(sanitizeGenes((await audit.recent())[1].genes)).toEqual({ ...GENES, cut: "tiktok", tiktokPrivacy: "public", hashtagCount: 1 });
   });
 
   it("falls back to the Library item's genes for a queue item saved before genes", async () => {
@@ -197,6 +199,27 @@ describe("the attribution ledger", () => {
     const { queue, audit } = app();
     expect((await queue.list())[0]).not.toHaveProperty("genes");
     await queue.approve("q-old", { ...request(clip.id), channels: [{ ...request(clip.id).channels[0], settings: { ...request(clip.id).channels[0].settings, privacy_level: "MUTUAL_FOLLOW_FRIENDS" } }] });
-    expect((await audit.recent())[0].genes).toEqual({ ...GENES, tiktokPrivacy: "friends" });
+    expect((await audit.recent())[0].genes).toEqual({ ...GENES, tiktokPrivacy: "friends", hashtagCount: 1 });
+  });
+
+  // --- insights --- (review fix) the copy genes of a post are the text it went out with: the autopilot writes each channel's
+  // own text and hashtags (and the card may change them again), so the clip's caption at render time is not what was posted
+  it("records the hashtag count and question of the text approved, not of the clip's own caption", async () => {
+    const { library, queue, audit, postiz, poster } = app();
+    const clip = await addClip(library, "ring.mp4", meta({ genes: GENES, caption: "Will Pip make it out?", hashtags: ["#pip", "#physics", "#satisfying", "#asmr", "#fyp", "#balls"] }));
+    expect([GENES.hashtagCount, GENES.captionQuestion]).toEqual([6, true]);
+    const channels = [{ id: "int-tt", platform: "tiktok", name: "tt", disabled: false }, { id: "int-yt", platform: "youtube", name: "yt", disabled: false }];
+    const proposals = toQueueProposals([{ clipId: clip.id, channels: [{ integrationId: "int-yt", text: "Pip vs ring 3?", hashtags: ["#shorts"] }, { integrationId: "int-tt", text: "Ring 3 was close.", hashtags: ["#physics", "#satisfying"] }], when: "now", reason: "Evenings did well." }], channels as never, [clip]);
+    const [item] = await queue.propose(proposals, "ai");
+    const tiktokText = item.channels.find((c) => c.integrationId === "int-tt")!.text;
+    expect(tiktokText).toBe("Ring 3 was close.\n\n#physics #satisfying");
+    await queue.approve(item.id, { clipId: clip.id, channels: [{ ...request(clip.id).channels[1], text: "Pip vs ring 3?\n\n#shorts" }, { ...request(clip.id).channels[0], text: tiktokText }], when: "now" });
+    expect(JSON.stringify(postiz.created)).toContain("Ring 3 was close.");
+    expect((await audit.recent())[0].genes).toEqual({ ...GENES, hashtagCount: 2, captionQuestion: false, tiktokPrivacy: "self" });
+    // a card the user edited before Approve: its words, a question and three hashtags
+    const second = await addClip(library, "ring2.mp4", meta({ genes: GENES, queueJobId: "job-2" }));
+    const tt = request(second.id).channels[0];
+    await poster.postClip({ clipId: second.id, channels: [{ ...tt, id: "int-tt-2", text: "Which ring stops Pip? #a #b #c" }], when: "now" });
+    expect((await audit.recent())[0].genes).toMatchObject({ hashtagCount: 3, captionQuestion: true, tiktokPrivacy: "self" });
   });
 });

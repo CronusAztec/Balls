@@ -2,9 +2,11 @@ import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
 import { captionBaseFont, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
-import type { SimulatorSettings } from "@/lib/settings";
+import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { recordingTextLayout } from "@/lib/recording/recorder";
+import { linkParams } from "@/lib/recording/batch"; // --- insights --- (review fix) a Library clip's link, read for the hook it draws
+import { SHARE_CODE_PARAM } from "@/lib/shareCode";
 import { bucketKept, bucketOfSeconds, genesWithScore, type ClipGenes, type ClipGenesFeatures } from "./genes";
 
 /*
@@ -23,7 +25,9 @@ import { bucketKept, bucketOfSeconds, genesWithScore, type ClipGenes, type ClipG
  *    bot's own enters 2 s before it and stays) and the payoff's words when it has left by then; a caption with a number
  *    token (a digit) is the countdown, and the rest the payoff's words (scoreClip reads no payoff role). A clip with no hook
  *    caption and a Top Text has that line as its hook (`hookedSettings()`): the viral bot's Top Text is its series label,
- *    the page's one-liner on top is what a viewer reads first;
+ *    the page's one-liner on top is what a viewer reads first. A caption that enters at or after the clip's end is never on
+ *    screen: it is none of these (the payoff's words), whatever it says. The hook these roles give is the one the clip's
+ *    genes describe (`drawnHookOf()`);
  *  - the plan's recipe where it has one that plays the mode, else the mode's recipe in the playbook (the first that plays
  *    it): its payoff strategy, whether the mode's own notes are the melody and the recurring cast its series uses. No recipe
  *    plays the mode: the payoff is the run's own end;
@@ -115,11 +119,15 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
 /**
  * The roles of a clip's captions (see the header): what scoreClip reads as its hook, countdown and closing question.
  * `clipSec`: the clip's length, so a question that stays to it is on screen at the end; without one only a caption that stays
- * to the end of the run (no end of its own) is.
+ * to the end of the run (no end of its own) is. A caption that enters at or after the clip's end is never on screen in it
+ * (lib/captions.ts captionPhase: nothing of it before its start), so it is the payoff's words, a role scoreClip reads nothing
+ * of: never the hook, the countdown or the closing question (an AI clip set_clip_settings cut short keeps its plan's captions).
  */
 export function captionRolesOf(captions: readonly Pick<Caption, "type" | "text" | "start" | "end">[], clipSec?: number | null): CaptionRole[] {
   const atEnd = (c: Pick<Caption, "start" | "end">) => isOpenEnded(c) || (finite(clipSec) && c.end >= clipSec - END_SLACK_SEC);
+  const unseen = (c: Pick<Caption, "start">) => finite(clipSec) && c.start >= clipSec - END_SLACK_SEC; // --- insights --- (review fix)
   return captions.map((c) => {
+    if (unseen(c)) return "payoff";
     if ((COUNTER_CAPTIONS as readonly string[]).includes(c.type)) return "countdown";
     if (c.start < HOOK_WINDOW_SEC) return "hook";
     if (c.type === "question") return atEnd(c) ? "question" : "payoff";
@@ -156,6 +164,38 @@ export function hookedSettings(settings: SimulatorSettings, clipSec?: number | n
   const hook: Caption = { ...base, position: "top", start: 0, end: 0, style: { ...base.style, size } };
   return { settings: { ...settings, topText: "", captions: [hook, ...settings.captions] }, roles: ["hook", ...roles] };
 }
+
+// --- insights --- (review fix) the hook a clip draws: what its genes describe and a cut of it is told apart from
+/**
+ * The hook a clip draws, as the score reads it (`hookedSettings()`): the words of its hook captions, joined as scoreClip joins
+ * them, else its Top Text where that line is its hook (no hook caption, no arena scoreboard under it); null for none. A bot
+ * plan's is its hook (its hook captions are its lines); an AI clip's is its plan's, as the AI's tools left the plan
+ * (set_clip_settings changes no caption), never the AI's own hook, which only the TikTok cut's card shows. `clipSec`: the
+ * clip's length (captionRolesOf; the settings' clip length when absent).
+ */
+export function drawnHookOf(settings: SimulatorSettings, clipSec?: number | null): string | null {
+  const { settings: hooked, roles } = hookedSettings(settings, finite(clipSec) && clipSec > 0 ? clipSec : settings.recordingDuration);
+  const text = hooked.captions
+    .filter((c, i) => roles[i] === "hook" && c)
+    .map((c) => c.text)
+    .join(" ")
+    .trim();
+  return text || null;
+}
+
+/**
+ * The hook a Library clip shows, which the Clip editor's cut of it is told apart from (genes.ts genesOfEditorCut): a TikTok
+ * cut's is its card's, its meta's hook; a master's is the hook its settings draw, read from its link (`drawnHookOf()`: an AI
+ * clip's meta hook is the AI's own, drawn on its cut's card alone, and a page clip's Top Text is its hook only without a hook
+ * caption). A link this cannot read at once (a short `?c=` link: its code is decoded later) gives the meta's hook.
+ */
+export function shownHookOf(clip: { hook?: string | null; link?: string | null; genes?: Pick<ClipGenes, "cut"> | null } | null | undefined): string | null {
+  if (!clip) return null;
+  const params = clip.genes?.cut !== "tiktok" && clip.link ? linkParams(clip.link) : null;
+  if (!params || params.has(SHARE_CODE_PARAM)) return clip.hook ?? null;
+  return drawnHookOf(settingsFromSearchParams(params));
+}
+// --- end insights ---
 
 /** The platform a clip of this bucket suits best: the one whose default bucket it is, else the first it fits. */
 export function platformForBucket(bucket: LengthBucket): BotPlatform {

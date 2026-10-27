@@ -45,8 +45,8 @@ import { editFileName } from "@/lib/clipEdit/spec";
 import { refitClipEdit } from "@/lib/clipEdit/propose";
 import { offerPublishClip, publishLibraryOf, setPublishClipGenes } from "@/lib/publish/clips";
 // --- insights --- the clip's genes as saved: its source's, the file's length, master or cut
-import { genesOfCut, genesOfSavedFile } from "@/lib/insights/genes";
-import { jobGenes } from "@/lib/desktop/queueSources";
+import { genesOfSavedFile } from "@/lib/insights/genes";
+import { genesWithPlayedMelody, jobCutGenes, jobGenes, jobMelody } from "@/lib/desktop/queueSources";
 import { platformOf, scoreSavedClip } from "@/lib/insights/score"; // --- insights --- (C6) the playbook's score of a clip from its run
 // --- free-watermark --- (was paywall-gate) the render queue renders for everyone: its jobs are fast exports, watermarked without a Pro licence
 
@@ -68,9 +68,12 @@ import { platformOf, scoreSavedClip } from "@/lib/insights/score"; // --- insigh
  * --- insights --- The saved file's meta carries the clip's genes (lib/insights/genes.ts): the job's, from its source (a job
  * of an older journal gets its settings' and what its source names: queueSources.ts jobGenes), with the file's length and
  * "master" and the features the fast export measured of it (lib/recording/clipFeatures.ts); its cut gets them as a cut of
- * its own length and hook (and no features: those are the master's frames). The app's main process sanitises them when it
- * writes the Library. The master's and the cut's Publish clips carry them with their hook, so a cut made in the Publish block
- * keeps them too (the master's are given the saved genes once it is saved: setPublishClipGenes).
+ * its own length and hook (and no features: those are the master's frames; its hook told apart from the hook the master
+ * draws, not from the job's copy: an AI clip's own hook is on the cut's card alone). The app's main process sanitises them
+ * when it writes the Library. A job plays the melody its source names (a re-render: the one its genes name, jobMelody); a
+ * file that played another (the melody could not be selected or loaded) has that melody in its genes and is scored again.
+ * The master's and the cut's Publish clips carry them with their hook, so a cut made in the Publish block keeps them too
+ * (the master's are given the saved genes once it is saved: setPublishClipGenes).
  * A link's clip, the page's setup and an AI clip get the playbook's score there (lib/insights/score.ts): the planner's run of
  * its seed in the page's world, in slices, with the file's length and first motion (an AI clip's with its plan's recipe,
  * series day and bucket: the AI's tools changed what the run plays after the plan was scored); the done job keeps the genes,
@@ -214,7 +217,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         // WebCodecs writes the codec itself for a native job (HEVC / AV1 on the GPU when it can); a platform preset renders
         // H.264 and ffmpeg encodes the target.
         setDesktopExportCodec(job.preset === "native" ? job.codec : "h264");
-        const melody = job.source.kind === "plan" || job.source.kind === "ai" ? job.source.melodyId : undefined;
+        const melody = jobMelody(job); // --- insights --- (review fix) a re-render plays the melody its genes name again
         // --- insights --- (C6) what the score's run needs of the page as it renders this job: its world and the melody it plays
         const world = page.getWorld();
         const pageMelody = melody === undefined ? page.currentMelody : null;
@@ -247,8 +250,8 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const rendered = { extension: file.extension, codec: file.extension === "mp4" ? codecOfString(lastVideoAcceleration()?.codec) ?? "h264" : null };
         const transcode = transcodeSpecFor(job.preset, job.codec, { width: size.width, height: size.height, fps: render.fps }, rendered);
         if (transcode) apply((s) => markEncoding(s, job.id, Date.now()));
-        // --- insights ---
-        const saved0 = genesOfSavedFile(planned, { durationSec: file.durationSec, cut: "master", features: file.result?.features ?? null /* what the fast export measured of this file */ });
+        // --- insights --- (the melody the page has loaded now is the one the file played: the selection's, or the page's own)
+        const saved0 = genesWithPlayedMelody(genesOfSavedFile(planned, { durationSec: file.durationSec, cut: "master", features: file.result?.features ?? null /* what the fast export measured of this file */ }), pageRef.current.currentMelody);
         // (C6) a link's, the page's or an AI clip: the playbook's score of the run this file was made of (in slices; never fails the save)
         const genes = await scoreSavedClip(saved0, { settings: job.settings, seed: job.seed, world, durationSec: file.durationSec, features: file.result?.features, platform: platformOf(job.meta.platform, job.preset), melody: pageMelody, signal: { get aborted() { return cancelled.current.has(job.id); } } });
         if (cancelled.current.has(job.id)) return;
@@ -288,7 +291,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
               run.saving = true;
               setCutting({ jobId: job.id, progress: 1, saving: true });
               const fileName = editFileName(job.name, result.format.extension);
-              const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec, genes: genesOfCut(genes, { durationSec: result.durationSec, hook: result.spec.hook, sameHook: result.spec.hook.trim() === (meta.hook ?? "").trim() }) /* --- insights --- */ };
+              const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec, genes: jobCutGenes(genes, job, { durationSec: result.durationSec, hook: result.spec.hook }, file.durationSec) /* --- insights --- (its card's hook against the master's drawn one) */ };
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
               // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`,
               // and the spec it was cut with goes along, so the trim is saved as a cut of the master (composeCutSpec)
