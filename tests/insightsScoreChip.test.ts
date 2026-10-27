@@ -11,7 +11,7 @@ import ScoreChip, { ScoreChipView, chipKey, scoreLines } from "@/components/simu
 import { PostizPostCardView, initialCardState } from "@/components/simulator/desktop/PostizPostCard";
 import LibraryPanel from "@/components/simulator/desktop/LibraryPanel";
 import QueuePanel from "@/components/simulator/desktop/QueuePanel";
-import { genesWithScore, type ClipGenes } from "@/lib/insights/genes";
+import { genesOfCut, genesOfSavedFile, genesWithScore, type ClipGenes } from "@/lib/insights/genes";
 import { scoreOfSettings } from "@/lib/insights/score";
 import { CHECKLIST, RECIPES } from "@/lib/bot/playbook";
 import { planClip } from "@/lib/bot/planner";
@@ -54,6 +54,20 @@ describe("the score chip", () => {
     }
     // the chip with its own state starts closed
     expect(withIntl(createElement(ScoreChip, { genes: scored }))).toContain('aria-expanded="false"');
+  });
+
+  // --- insights --- (review fix) WCAG 2.5.3: a voice command that says the label it sees ("click Poradnik 64") finds the button,
+  // and a screen reader says once that the score is not yet measured (the description), not twice (name and description)
+  it("has a name that starts with its visible label, and says it is unmeasured once, as its description", () => {
+    for (const locale of ["en", "pl", "es"]) {
+      const i = LOCALES[locale].Insights;
+      const html = view(scored, false, locale);
+      const name = attr(html, "aria-label") ?? "";
+      const visible = format(i.chip, locale, { score: scored.planScore! });
+      expect([locale, name.startsWith(visible), name.includes(String(scored.planScore)), name.includes("100")]).toEqual([locale, true, true, true]);
+      expect([locale, name.includes(i.unmeasured), name.includes(i.unmeasured.replace(/[.。]$/, ""))]).toEqual([locale, false, false]);
+      expect([locale, attr(html, "title")]).toEqual([locale, i.unmeasured]);
+    }
   });
 
   it("opens its reasons below it: the region it controls, every checklist item with its verdict and its points as words", () => {
@@ -149,6 +163,20 @@ describe("the chip on the panels", () => {
     const html = withIntl(createElement(LibraryPanel, { bridge: {} as React.ComponentProps<typeof LibraryPanel>["bridge"], items: [item(planned, "planned"), item(undefined, "old")], onRefresh: () => {}, onRerender: () => {} }));
     expect((html.match(/data-testid="library-score"/g) ?? []).length).toBe(1);
     expect(html).toContain(`data-score="${planned.planScore}"`);
+  });
+
+  // --- insights --- (review fix) a cut's chip showed its master's score: "Length: 23 s", the master's payoff and hook
+  it("shows no chip on a TikTok cut's Library item or approval card: its master's score is not the cut's", () => {
+    const master = genesOfSavedFile(planned, { durationSec: 23, cut: "master" });
+    const cut = genesOfCut(master, { durationSec: 11.5, hook: "Who gets out first?", sameHook: false });
+    const library = withIntl(createElement(LibraryPanel, { bridge: {} as React.ComponentProps<typeof LibraryPanel>["bridge"], items: [item(master, "master"), item(cut, "cut")], onRefresh: () => {}, onRerender: () => {} }));
+    expect([...library.matchAll(/data-testid="library-score"[^>]*data-score="(\d+)"/g)].map((m) => Number(m[1]))).toEqual([Math.round(master.planScore!)]);
+    const card = (genes: ClipGenes) => {
+      const it = item(genes);
+      return withIntl(createElement(PostizPostCardView, { item: it, state: initialCardState(it), now: 0, onDraft: () => {}, onApprove: () => {}, onClose: () => {}, onSlot: () => {} }));
+    };
+    expect(card(master)).toContain('data-testid="postiz-card-score"');
+    expect(card(cut)).not.toContain('data-testid="postiz-card-score"');
   });
 
   it("shows a plan's score in the Queue from the start, and a link's once it is rendered", () => {

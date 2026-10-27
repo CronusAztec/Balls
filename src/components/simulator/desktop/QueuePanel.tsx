@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { DesktopApi, VideoCodec } from "@/lib/desktop/contract";
 import { VIDEO_CODECS } from "@/lib/desktop/contract";
-import { OUTPUT_PRESETS, QUEUE_FPS_RANGE, QUEUE_RESOLUTIONS, pickQueueFps, queueFpsChips, type OutputPreset } from "@/lib/desktop/presets"; // (--- uncap-all --- (review fix) a typed frame rate: QUEUE_FPS_RANGE, pickQueueFps, queueFpsChips)
+import { OUTPUT_PRESETS, QUEUE_FPS_RANGE, QUEUE_RESOLUTIONS, chipQueueFps, commitQueueFps, queueFpsChips, type OutputPreset } from "@/lib/desktop/presets"; // (--- uncap-all --- (review fix) a typed frame rate: QUEUE_FPS_RANGE, queueFpsChips; --- insights --- (review fix) commitQueueFps, chipQueueFps)
 import { MAX_QUEUE_JOBS, expandBatch, queueSummary, type BatchClipSource, type QueueJob } from "@/lib/desktop/renderQueue";
 import NumberField from "../NumberField"; // --- review fix (uncap-all) ---
 import { planSource, seedSource } from "@/lib/desktop/queueSources";
@@ -24,6 +24,7 @@ import ScoreChip from "./ScoreChip"; // --- insights --- (C6) a job's playbook s
  * Retry failed, Clear finished; after a crash or restart the queue offers to resume.
  * --- uncap-all --- (review fix) The frame rates: the 30 and 60 chips and the shared number field beside them, which adds any
  * other rate from 30 up as a chip of its own (the queue renders any rate the page's fast export takes, `queueFps()`).
+ * --- insights --- (review fix) Its arrow keys edit the rate it added instead of adding one per press (`commitQueueFps()`).
  * --- insights --- (C6) A job shows its playbook score (ScoreChip.tsx): a plan's and the AI's from the start (the AI's its
  * plan's estimate, scored again on its run once rendered), a link's or the page's setup's once it is rendered (the score of
  * its run, useRenderQueue.ts).
@@ -45,6 +46,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
   const [count, setCount] = useState(3);
   const [resolutions, setResolutions] = useState<string[]>([page.settings.recordingResolution]);
   const [fps, setFps] = useState<number[]>([60]); // --- uncap-all --- (review fix) (any rate from 30 up, not only 30 and 60)
+  const [fieldFps, setFieldFps] = useState<number | null>(null); // --- insights --- (review fix) the rate the number field added: its arrow keys edit it
   const [codecs, setCodecs] = useState<VideoCodec[]>(["h264"]);
   const [presets, setPresets] = useState<OutputPreset[]>(["native"]);
   const [adding, setAdding] = useState(false);
@@ -130,12 +132,32 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
             <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueFps")}</p>
             <div className="flex gap-2 flex-wrap items-center">
               {queueFpsChips(fps).map((f) => (
-                <Chip key={f} on={fps.includes(f)} onClick={() => toggle(fps, f, setFps)}>
+                <Chip
+                  key={f}
+                  on={fps.includes(f)}
+                  onClick={() => {
+                    toggle(fps, f, setFps);
+                    setFieldFps(chipQueueFps({ picked: fps, field: fieldFps }, f)); // --- insights --- (review fix) the chip takes the rate over
+                  }}
+                >
                   {f} fps
                 </Chip>
               ))}
-              {/* --- uncap-all --- (review fix) any other rate (from 30 up: 45, 120, 59.94…), typed: it joins the picked ones */}
-              <NumberField value={fps[fps.length - 1]} onCommit={(v) => setFps(pickQueueFps(fps, v))} label={t("queueFps")} range={QUEUE_FPS_RANGE} rules={{ min: QUEUE_FPS_RANGE.min }} settingKey="queueFps" testId="queue-fps" />
+              {/* --- uncap-all --- (review fix) any other rate (from 30 up: 45, 120, 59.94…), typed: it joins the picked ones
+                  (--- insights --- (review fix) and an arrow step edits the rate the field added, rather than adding another) */}
+              <NumberField
+                value={fps[fps.length - 1]}
+                onCommit={(v, how) => {
+                  const next = commitQueueFps({ picked: fps, field: fieldFps }, v, how ?? "typed");
+                  setFps(next.picked);
+                  setFieldFps(next.field);
+                }}
+                label={t("queueFps")}
+                range={QUEUE_FPS_RANGE}
+                rules={{ min: QUEUE_FPS_RANGE.min }}
+                settingKey="queueFps"
+                testId="queue-fps"
+              />
             </div>
             <p className="text-xs text-ink-3">{t("queueFpsTyped")}</p>
             <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueCodecs")}</p>

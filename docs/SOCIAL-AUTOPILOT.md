@@ -234,7 +234,8 @@ Each phase: vitest with stand-in servers, the desktop tests, a read-only review 
 **Built** (2026-10-27, phase P2 of the agent platform, Windows app 1.6.0; README "Windows app: clip genes and the playbook
 score"). To learn later which clips do well, the app must know what made each post, and Postiz reports its numbers per post
 id (`GET /analytics/post/:postId`). So every post the app creates keeps, next to its post ids, the **genes** of the clip it
-showed (`src/lib/insights/genes.ts`: what the clip was made from, what its fast export measured and its playbook score):
+showed (`src/lib/insights/genes.ts`: what the clip was made from, what its fast export measured and its playbook score; a
+TikTok cut's carry neither of the last two, which were measured on the clip it was cut from):
 
 - **In the audit** – `SocialAuditEntry.genes` on the `createPosts` line that `social/posting.ts` writes to `social-audit.json`
   once `POST /posts` has answered. The genes are the queue item's copy when the post comes from the queue

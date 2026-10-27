@@ -6804,7 +6804,7 @@
   },
   "Insights": {
     "chip": "Poradnik {score}",
-    "chipLabel": "Ocena według poradnika: {score} na 100. Jeszcze niezmierzona na Twoim kanale.",
+    "chipLabel": "Poradnik {score} na 100",
     "title": "Ocena według poradnika: {score} na 100",
     "unmeasured": "Jeszcze niezmierzona na Twoim kanale.",
     "note": "Lista kontrolna poradnika dla krótkiego klipu. To tylko wskazówka i nigdy nie wstrzymuje posta.",

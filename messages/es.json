@@ -6804,7 +6804,7 @@
   },
   "Insights": {
     "chip": "Guía {score}",
-    "chipLabel": "Puntuación según la guía: {score} de 100. Aún sin medir en tu canal.",
+    "chipLabel": "Guía {score} de 100",
     "title": "Puntuación según la guía: {score} de 100",
     "unmeasured": "Aún sin medir en tu canal.",
     "note": "La lista de comprobación de la guía para un clip corto. Es solo un consejo y nunca frena una publicación.",

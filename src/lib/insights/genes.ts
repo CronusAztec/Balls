@@ -22,7 +22,9 @@ import type { ClipFeatures } from "@/lib/recording/clipFeatures";
  *
  * The score (C6, lib/insights/score.ts): `planScore`, each checklist item's share of its points and, when the record has them,
  * scoreClip's verdicts (`reasons`: each item's message key under `ViralBot.reasons` with its number values, never its text),
- * so the Library, the Queue and the approval card can say why without the plan.
+ * so the Library, the Queue and the approval card can say why without the plan. A TikTok cut gets none of it, nor any
+ * measured features (`genesOfCut()`): all of them were measured on the clip it was cut from (its length, its payoff, its
+ * hook), not on the cut.
  *
  * This file imports types only: the main process bundles it, and must not load the page's modules (the recipe list alone
  * pulls the Fight League roster in). The lists below mirror the playbook's; tests/insightsGenes.test.ts keeps them equal.
@@ -425,13 +427,14 @@ export function genesOfSavedFile(genes: ClipGenes, file: { durationSec: number |
 
 /**
  * The genes of a TikTok cut made of a clip: the clip's, as a cut of its own length (and that length's bucket), with the cut's
- * hook ("custom" when it is not the clip's own hook). No measured features: the clip's were measured on its own frames, not
- * on the cut's (a part of them, under a hook card).
+ * hook ("custom" when it is not the clip's own hook). No measured features and no score: the clip's were measured on its own
+ * frames, not on the cut's (a part of them, under a hook card) – its length, its payoff's place and its hook are not the
+ * cut's, so the cut's Library item and approval card show no chip, and the audit line of its post keeps no score.
  */
 export function genesOfCut(genes: ClipGenes, cut: { durationSec: number | null; hook: string | null; sameHook: boolean }): ClipGenes {
   const durationSec = typeof cut.durationSec === "number" && Number.isFinite(cut.durationSec) && cut.durationSec > 0 ? cut.durationSec : null;
   const hook = cut.sameHook ? { hookKey: genes.hookKey, hookChars: genes.hookChars } : hookGenes(cut.hook);
-  return finish({ ...genes, ...hook, durationSec, bucket: bucketOfSeconds(durationSec), cut: "tiktok", features: null });
+  return finish({ ...genes, ...hook, durationSec, bucket: bucketOfSeconds(durationSec), cut: "tiktok", features: null, planScore: null, checklist: null, reasons: undefined });
 }
 
 /** The genes of a cut the Clip editor saved of a clip that carries none (an older Library item, a page clip). */

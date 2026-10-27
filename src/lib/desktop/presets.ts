@@ -61,6 +61,35 @@ export function pickQueueFps(picked: readonly number[], typed: number): number[]
   return fps === null ? [...picked] : [...picked.filter((f) => f !== fps), fps];
 }
 
+// --- insights --- (review fix) the frame-rate field's arrow keys
+/** The add form's frame rates: the ones picked, and the one its number field added and still owns (null: none). */
+export interface QueueFpsPick {
+  picked: number[];
+  field: number | null;
+}
+
+/**
+ * The add form's frame rates after its number field commits `value`: a typed rate joins the picked ones (`pickQueueFps()`),
+ * and an arrow step edits the rate the field shows (the last picked) when the field added it – the step takes its place – so
+ * stepping 60 → 90 → 120 picks 60 and 120, and stepping back down picks 60 alone again (each step used to add a rate: three
+ * presses picked 90, 120 and 150 and kept them). A rate picked with a chip is never taken away by a step. The field owns the
+ * rate it committed when that rate was not picked before.
+ */
+export function commitQueueFps(state: QueueFpsPick, value: number, how: "typed" | "step"): QueueFpsPick {
+  const fps = queueFps(value);
+  if (fps === null) return { picked: [...state.picked], field: state.field };
+  const shown = state.picked[state.picked.length - 1];
+  const edits = how === "step" && state.field !== null && shown === state.field;
+  const from = edits ? state.picked.filter((f) => f !== state.field) : state.picked;
+  return { picked: pickQueueFps(from, fps), field: !from.includes(fps) || fps === state.field ? fps : null };
+}
+
+/** The field's own rate after a chip toggles `fps`: the chip takes it over (or takes it off), so a step no longer replaces it. */
+export function chipQueueFps(state: QueueFpsPick, fps: number): number | null {
+  return state.field === fps ? null : state.field;
+}
+// --- end insights ---
+
 /** --- uncap-all --- (review fix) The add form's frame-rate chips: 30 and 60 always, then every other rate picked, lowest first. */
 export function queueFpsChips(picked: readonly number[]): number[] {
   const offered: readonly number[] = QUEUE_FPS;

@@ -314,7 +314,7 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(staged.library).toMatchObject({ hook: plan.hook, genes, queueJobId: "job-g" });
     // the editor's cut of it (PublishSection hands it `editing.library` as its meta): the clip's genes as a cut, its hook told apart
     const cutOf = (hook: string) => genesOfEditorCut(staged.library, { mode: "glass", durationSec: 11.5, copy: { hook, caption: null, hashtags: [] } });
-    expect(cutOf("Will Pip make it?")).toMatchObject({ source: "plan", recipe: "pip-escape", family: plan.family, planScore: plan.score, cut: "tiktok", durationSec: 11.5, hookKey: "custom" });
+    expect(cutOf("Will Pip make it?")).toMatchObject({ source: "plan", recipe: "pip-escape", family: plan.family, planScore: null, cut: "tiktok", durationSec: 11.5, hookKey: "custom" }); // (a cut keeps no score of its clip's)
     expect(cutOf(plan.hook).hookKey).toBe("recipes.pipEscape");
     // the pick keeps every key the Publish clip holds of a Library item's meta, and nothing else of it
     const full = { ...masterItem.meta, cut: DEFAULT_CLIP_EDIT, fanMadeBurned: true };

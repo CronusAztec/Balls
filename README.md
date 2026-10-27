@@ -4079,13 +4079,19 @@ PC.
   luma, saturation, dark share and the loop seam; the engine's sound events a second and its gap events; the first sound in
   the finished mix and the mix's loudness. `FastRenderResult.features` is optional: a failed measurement leaves it out and
   never fails an export. The genes keep the scalars (the curve stays out of the 4 KB), and a TikTok cut carries none, since
-  its frames are not the ones measured. The export digests are byte-identical (`tests/fastRender.test.ts` and the smoke
+  its frames are not the ones measured – nor its clip's score, which was measured on the clip's length, payoff and hook
+  (`genesOfCut`): a cut's Library item and approval card show no chip, and a re-render of a cut, the whole clip again, is
+  scored from its run. The export digests are byte-identical (`tests/fastRender.test.ts` and the smoke
   test's fast-render block).
 - **The score** – `src/lib/insights/score.ts`: the viral bot's 0–100 checklist score (`scoreClip` in `src/lib/bot/planner.ts`,
   unchanged, so no plan's score moves) for a clip scored from its run. `planLikeFromSettings(settings, facts)` builds the
   fields of a plan that `scoreClip` reads, and only those. The captions' roles are inferred (a counter caption is the
-  countdown, one on screen from 0.05 s the hook, a question caption the question); a clip with no hook caption has its Top
-  Text as its hook, and a clip that is not part of the series (series day 0) is never scored as part of one. The facts come
+  countdown, one that enters inside the hook's 3 s the hook – scored as late, `hookTiming`, after 0.05 s, where it sits
+  measured once it is on screen –, and a question on screen at the clip's end the closing question); a clip with no hook
+  caption has its Top Text as its hook, and a clip that is not part of the series (series day 0) is never scored as part of
+  one. The run is followed 4 s past the clip (`SCORE_RUN_MARGIN_SEC`: scoreClip grades a cut up to 3 s before the payoff,
+  and Ball Drop's payoff is known only when its run ends a second later); a payoff farther past the end counts as none
+  inside the clip, whether the run found it or the strategy knows it (a pendulum's cycle). The facts come
   from the planner's own run of the seed (`simulateFactsSteps`, in slices so the page stays responsive) and from the export's
   features (the file's real length, its first motion or sound). The render queue scores a link's clip, the page's setup and
   an AI clip as it saves the file (cancelled with the job, never failing the save): the AI's tools change what the run plays
@@ -4095,7 +4101,8 @@ PC.
   Library item and on each Queue job: "Playbook 72", coloured by the bot's bands (90 and 75), a button that opens the reasons
   below it, one line per checklist item with its points, in the bot's words. It says it is the playbook's score, not yet
   measured on your channel, and it is advice only: Approve and the card's checks never read it. A clip without a score (saved
-  before 1.6.0, or a link's job not yet rendered) shows no chip. A named button with `aria-expanded`; Escape closes the
+  before 1.6.0, a link's job not yet rendered, or a TikTok cut) shows no chip. A button with `aria-expanded`, named from its
+  visible label ("Playbook 72 out of 100"), with "not yet measured" said once, as its description; Escape closes the
   reasons; the points are read as words. The strings are the `Insights` namespace in en, pl and es.
 - **What stays on the PC** – everything above. The genes, the features and the scores live in the app's own files in its data
   folder. There is no new IPC channel (the genes ride the `render.save` and `social` payloads that exist, so

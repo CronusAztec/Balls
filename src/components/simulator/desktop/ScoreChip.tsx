@@ -12,9 +12,10 @@ import { GENE_REASON_NUMBERS, type ClipGenes, type GeneReason } from "@/lib/insi
  * words, since the genes keep no text). It says it is the playbook's score, not yet measured on the channel, and advice only:
  * nothing reads it to allow or refuse a post.
  *
- * Accessible: a real button with aria-expanded and aria-controls, a name that reads the score and that it is unmeasured,
- * Escape closes the reasons and keeps the focus on the button, the marks are hidden from screen readers (the points are read
- * as words). The reasons open in the flow, not over it, so a card that clips its overflow or a 360 px panel shows them whole.
+ * Accessible: a real button with aria-expanded and aria-controls, a name that starts with its visible label and reads the
+ * score out of 100 ("Playbook 72 out of 100": a voice command that names the label finds it, WCAG 2.5.3) and, once, as its
+ * description, that it is not yet measured (its title; never in the name as well), Escape closes the reasons and keeps the
+ * focus on the button, the marks are hidden from screen readers (the points are read as words). The reasons open in the flow, not over it, so a card that clips its overflow or a 360 px panel shows them whole.
  * A clip without a score (an older Library item, a link's clip still queued) shows no chip.
  */
 

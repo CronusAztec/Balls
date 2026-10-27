@@ -15,11 +15,18 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { IDLE_FIELD, fieldDisplay, formatCompact, numberFieldMessage, numberFieldReduce, type NumberFieldEvent, type NumberFieldState, type NumberRules, type NumericRange } from "@/lib/uncap";
 
+/** --- insights --- (review fix) How a value was committed: typed (Enter, leaving the field) or stepped with an arrow key. */
+export type NumberCommitKind = "typed" | "step";
+
 export interface NumberFieldProps {
   /** The current value (what the settings hold); undefined only for an optional value (`onClear`) that has none. */
   value: number | undefined;
-  /** A valid typed or stepped value (never an invalid one). */
-  onCommit: (value: number) => void;
+  /**
+   * A valid typed or stepped value (never an invalid one). --- insights --- (review fix) `how` says which (the field always
+   * passes it): a field that adds what it commits (the render queue's frame rates) edits its own value on an arrow step
+   * instead of adding each step.
+   */
+  onCommit: (value: number, how?: NumberCommitKind) => void;
   /**
    * --- review fix (uncap-all) --- An optional value (bounce math's min / max): an empty field calls this instead of being
    * refused, and the field shows `placeholder` while there is no value.
@@ -65,7 +72,7 @@ export default function NumberField({ value, onCommit, onClear, placeholder, lab
     setState(next.state);
     if (next.clear) {
       if (value !== undefined) onClear?.();
-    } else if (next.commit !== undefined && next.commit !== value) onCommit(next.commit);
+    } else if (next.commit !== undefined && next.commit !== value) onCommit(next.commit, event.type === "step" ? "step" : "typed");
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {

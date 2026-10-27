@@ -3,7 +3,10 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   COUNTER_CAPTIONS,
+  HOOK_LOOK_SEC,
   HOOK_START_SEC,
+  HOOK_WINDOW_SEC,
+  SCORE_PAYOFF_REACH_SEC,
   SCORE_PLAN_FIELDS,
   SCORE_RUN_MARGIN_SEC,
   captionRolesOf,
@@ -24,7 +27,7 @@ import {
   type ScoreFacts,
 } from "@/lib/insights/score";
 import { GENE_CHECKLIST, GENE_COUNTDOWN_KINDS, GENE_REASON_KEYS, bucketOfSeconds, genesWithScore, reasonsOf, sanitizeGenes, type ClipGenes } from "@/lib/insights/genes";
-import { BOT_PLATFORMS, CHECKLIST, COUNTDOWN_KINDS, LENGTH_BUCKETS, PLATFORMS, RECIPES } from "@/lib/bot/playbook";
+import { BOT_PLATFORMS, CHECKLIST, COUNTDOWN_KINDS, HOOK_SEC, LENGTH_BUCKETS, PLATFORMS, RECIPES } from "@/lib/bot/playbook";
 import { FACTS_SLICE_STEPS, drain, edgeTextBox, hasTopHud, planClip, scoreClip, simulateFacts, simulateFactsSteps, type ClipPlan } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultCaption, type Caption } from "@/lib/captions";
@@ -89,7 +92,7 @@ describe("the captions' roles", () => {
       caption("text", "Can it escape 5 rings?", 0, 2.5), // hook (its digit does not make it a countdown: it enters at the start)
       caption("text", "Second line of the hook", HOOK_START_SEC, 2.5), // hook: the edge counts
       caption("wallCounter", "Walls left", 0), // a counter at the start is still the countdown
-      caption("text", "Late", HOOK_START_SEC + 0.01), // not the hook any more: the payoff's words
+      caption("text", "Late", HOOK_WINDOW_SEC), // not the hook any more: it enters as the hook's window closes – the payoff's words
       caption("question", "Will it make it in 10 s?", 8), // a question caption, digit or not
       caption("text", "3 walls to go", 4), // a number token
       caption("text", "[n] left", 4), // a counter's placeholder
@@ -101,6 +104,26 @@ describe("the captions' roles", () => {
     for (const type of COUNTER_CAPTIONS) expect(captionRolesOf([caption(type, "", 6)])).toEqual(["countdown"]);
     expect(captionRolesOf([])).toEqual([]);
   });
+
+  // --- insights --- (review fix) a hook that enters a moment late is still the hook, and only a question on screen at the clip's
+  // end is its closing question (the bot's enters 2 s before the end and stays)
+  it("read a caption entering inside the hook's window as the hook, and a question as the closing one only while it is on screen at the end", () => {
+    expect(HOOK_WINDOW_SEC).toBe(HOOK_SEC.max);
+    const roles = captionRolesOf(
+      [
+        caption("text", "Can it escape?", 0.3, 3), // a late hook (it asks, and it has left long before the end)
+        caption("question", "Will it make it?", HOOK_WINDOW_SEC - 0.01, 2.99), // still inside the window: the hook
+        caption("question", "Gone by the end?", 6, 9), // a question that has left by the end: the payoff's words
+        caption("text", "Who wins?", 6, 9), // the same for a question mark
+        caption("text", "Who wins now?", 6, 20), // on screen to the clip's end: the closing question
+        caption("question", "And now?", 18), // no end of its own: on screen to the end
+      ],
+      20,
+    );
+    expect(roles).toEqual(["hook", "hook", "payoff", "payoff", "question", "question"]);
+    // without the clip's length only a caption with no end of its own is on screen at the end
+    expect(captionRolesOf([caption("text", "Who wins now?", 6, 20), caption("question", "And now?", 18)])).toEqual(["payoff", "question"]);
+  });
 });
 
 describe("a bot plan scored from its settings and its run alone", () => {
@@ -111,6 +134,20 @@ describe("a bot plan scored from its settings and its run alone", () => {
 
   it("replays the planner's run: the same first impact and the same payoff", () => {
     plans.forEach((plan, k) => expect([plan.id, runs[k].firstImpactSec, runs[k].payoffSec]).toEqual([plan.id, plan.timing.firstImpactSec, plan.payoff.atSec]));
+  });
+
+  // --- insights --- (review fix) Ball Drop's payoff is its run's end less its rest: a cut 1.2–1.4 s before it was read as none
+  // (the planner's real search, as above: reels and TikTok cliffhangers whose best seed is cut 1.2 and 1.4 s before the payoff)
+  const drops = (["reels", "tiktok"] as const).map((platform) => planClip(RECIPES.find((r) => r.id === "drop-symphony")!, 5, platform, { copy, ending: "cliffhanger", episode: 3, maxSeeds: 6 }));
+  it("gives a Ball Drop cliffhanger cut 1–1.5 s before its payoff the plan's own payoff verdict", () => {
+    for (const plan of drops) {
+      const own = plan.reasons.find((r) => r.id === "payoff")!;
+      expect([plan.platform, own.key, plan.payoff.cutGapSec! > 1]).toEqual([plan.platform, "payoffCutFar", true]);
+      const run = runFactsSync(plan.settings, plan.seed, plan.world, plan.recipe);
+      expect([plan.platform, run.payoffSec]).toEqual([plan.platform, plan.payoff.atSec]);
+      const scored = scoreOfSettings(plan.settings, mergeFacts(run, { firstImpactSec: null, clipSec: plan.timing.clipSec }), { platform: plan.platform, episode: plan.episode, melody: melodyOf(plan), recipe: plan.recipe, bucket: plan.bucket });
+      expect([plan.platform, scored.reasons.find((r) => r.id === "payoff")]).toEqual([plan.platform, own]);
+    }
   });
 
   it("gets the plan's verdict on every item, the length judged against the bucket of the clip's own length", () => {
@@ -135,6 +172,50 @@ describe("a bot plan scored from its settings and its run alone", () => {
 describe("planLikeFromSettings", () => {
   const settings = (over: Partial<SimulatorSettings> = {}): SimulatorSettings => ({ ...defaultSettings("classic"), ...over });
   const facts = (over: Partial<ScoreFacts> = {}): ScoreFacts => ({ firstImpactSec: 0.4, payoffSec: 20, clipSec: 24, ...over });
+
+  // --- insights --- (review fix) delaying the hook by 0.3 s made the clip a cliffhanger with no hook, and raised its score
+  it("scores a hook that enters after 0.05 s as a late hook, never as a closing question, and never above one on time", () => {
+    const at = (start: number) => settings({ recordingDuration: 20, captions: [caption("text", "Can it escape?", start, 3)] });
+    const scored = (start: number) => scoreOfSettings(at(start), facts({ payoffSec: null, clipSec: 20 }));
+    const keys = (start: number) => scored(start).reasons.filter((r) => ["hook", "payoff", "ending"].includes(r.id)).map((r) => r.key);
+    expect(keys(0)).toEqual(["hookOk", "payoffMissing", "endingLongTail"]);
+    for (const start of [0.1, 0.3, 1, 2.5]) {
+      expect([start, planLikeFromSettings(at(start), facts({ payoffSec: null, clipSec: 20 })).ending]).toEqual([start, "resolved"]);
+      // where it sits is measured once it is on screen (scoreClip looks at 0.1 s): late, but inside the safe zone
+      expect([start, keys(start)]).toEqual([start, ["hookTiming", "payoffMissing", "endingLongTail"]]);
+      expect([start, scored(start).score]).toEqual([start, scored(0).score - 5]);
+    }
+    expect(HOOK_LOOK_SEC).toBeGreaterThan(HOOK_START_SEC);
+    // the hook's own verdict for a hook on time is scoreClip's: nothing is moved
+    const own = scoreOfSettings(at(0), facts({ payoffSec: null, clipSec: 20 }));
+    expect(own).toEqual(scoreClip(planLikeFromSettings(at(0), facts({ payoffSec: null, clipSec: 20 })) as unknown as ClipPlan));
+    // a clip that does end on a question with no payoff is still the bot's never-escapes cut
+    const asking = settings({ recordingDuration: 20, captions: [caption("text", "Can it escape?", 0.3, 3), caption("question", "Who gets out first?", 18)] });
+    expect(scoreOfSettings(asking, facts({ payoffSec: null, clipSec: 20 })).reasons.filter((r) => ["hook", "payoff", "ending"].includes(r.id)).map((r) => r.key)).toEqual(["hookTiming", "payoffNever", "endingQuestion"]);
+  });
+
+  // --- insights --- (review fix) the run is followed as far as scoreClip grades a cut, and a payoff past that is none, whatever times it
+  it("reads a payoff up to 3 s after the end as a clip cut before it, and one farther off as none, for every strategy", () => {
+    expect(SCORE_RUN_MARGIN_SEC).toBeGreaterThanOrEqual(SCORE_PAYOFF_REACH_SEC + 1); // (+ Ball Drop's rest: its payoff is a second before its run's end)
+    const near = planLikeFromSettings(settings(), facts({ payoffSec: 24 + SCORE_PAYOFF_REACH_SEC }));
+    expect([near.ending, near.payoff.cutGapSec]).toEqual(["cliffhanger", SCORE_PAYOFF_REACH_SEC]);
+    expect(scoreOfSettings(settings(), facts({ payoffSec: 24 + SCORE_PAYOFF_REACH_SEC })).reasons.find((r) => r.id === "payoff")!.key).toBe("payoffCutFar");
+    const far = planLikeFromSettings(settings(), facts({ payoffSec: 24 + SCORE_PAYOFF_REACH_SEC + 0.01 }));
+    expect([far.ending, far.payoff]).toEqual(["resolved", { atSec: null, position: null, cutGapSec: null }]);
+    // a pendulum's cycle is known 40 s past a 20 s clip: no payoff inside it, as a simulated one that far off would be
+    const wave = { ...defaultSettings("pendulum"), pwCycleSeconds: 60, recordingDuration: 20 };
+    const run = mergeFacts(runFactsSync(wave, 1), null);
+    expect(run.payoffSec).toBe(60);
+    expect(planLikeFromSettings(wave, run).payoff).toEqual({ atSec: null, position: null, cutGapSec: null });
+    // Classic cut 2.6 s before its escape: the run sees the escape (it was followed 2 s past the end, and read as no payoff)
+    const classic = settings({ gapSize: 0.5, recordingDuration: 32 });
+    const escape = runFactsSync({ ...classic, recordingDuration: 60 }, 6).payoffSec!;
+    expect(escape - 32).toBeGreaterThan(2);
+    expect(escape - 32).toBeLessThanOrEqual(SCORE_PAYOFF_REACH_SEC);
+    const cut = runFactsSync(classic, 6);
+    expect(cut.payoffSec).toBe(escape);
+    expect(scoreOfSettings(classic, mergeFacts(cut, null)).reasons.filter((r) => r.id === "payoff" || r.id === "ending").map((r) => r.key)).toEqual(["payoffCutFar", "endingNoQuestion"]);
+  });
 
   it("ends a clip as its payoff falls: inside it resolved, after its end cut before the result", () => {
     const inside = planLikeFromSettings(settings(), facts());

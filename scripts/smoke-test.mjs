@@ -9345,6 +9345,22 @@ await smokeBlock("desktop-exe", async () => {
       typedFpsChip === "true" && typedFpsField === "45" && typedFpsLeft === 0 && lowFpsRefused === "true",
       `(45 fps chip pressed ${typedFpsChip}, field ${typedFpsField}, chips left after taking it off ${typedFpsLeft}, 24 refused ${lowFpsRefused})`,
     );
+    // --- insights --- (review fix) the field's arrow keys edit the rate it added: two presses up from 60 leave 60 and 120 (not
+    // 90 as well), and two presses back leave 60 alone (each press used to add a rate and keep it)
+    const pressedFps = () => q.locator("button[aria-pressed]").evaluateAll((els) => els.map((el) => (el.getAttribute("aria-pressed") === "true" ? el.textContent.trim() : "")).filter((x) => / fps$/.test(x)));
+    await q.getByTestId("queue-fps").press("ArrowUp");
+    await q.getByTestId("queue-fps").press("ArrowUp");
+    const fpsUp = await pressedFps().catch(() => []);
+    const fieldUp = await q.getByTestId("queue-fps").inputValue().catch(() => "");
+    await q.getByTestId("queue-fps").press("ArrowDown");
+    await q.getByTestId("queue-fps").press("ArrowDown");
+    const fpsBack = await pressedFps().catch(() => []);
+    const ninetyLeft = await q.getByRole("button", { name: "90 fps", exact: true }).count();
+    check(
+      "insights: the render queue's frame-rate arrows edit the rate the field added instead of adding one per press",
+      fpsUp.join("|") === "60 fps|120 fps" && fieldUp === "120" && fpsBack.join("|") === "60 fps" && ninetyLeft === 0,
+      `(after two presses up ${JSON.stringify(fpsUp)}, field ${fieldUp}, after two down ${JSON.stringify(fpsBack)}, 90 fps chips ${ninetyLeft})`,
+    );
     await q.getByRole("button", { name: "500x500", exact: true }).click();
     await q.getByRole("button", { name: "1080x1920", exact: true }).click();
     await q.getByRole("button", { name: "30 fps", exact: true }).click();

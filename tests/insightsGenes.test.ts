@@ -227,7 +227,7 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     const master = genesOfSavedFile(planned, { durationSec: 41.3, cut: "master" });
     expect(master).toMatchObject({ cut: "master", durationSec: 41.3, bucket: plan.bucket, recipe: plan.recipe, planScore: plan.score }); // the planned bucket stays
     const cut = genesOfCut(master, { durationSec: 11.5, hook: "Will Pip make it?", sameHook: false });
-    expect(cut).toMatchObject({ cut: "tiktok", durationSec: 11.5, bucket: "short", hookKey: "custom", hookChars: 17, recipe: plan.recipe, planScore: plan.score });
+    expect(cut).toMatchObject({ cut: "tiktok", durationSec: 11.5, bucket: "short", hookKey: "custom", hookChars: 17, recipe: plan.recipe, planScore: null });
     expect(genesOfCut(master, { durationSec: 11.5, hook: plan.hook, sameHook: true })).toMatchObject({ hookKey: "recipes.pipEscape", hookChars: master.hookChars });
     // a clip from settings takes the file's own bucket (a run may end before its clip length); a re-rendered cut is whole again
     const page = seedSource({ ...defaultSettings("glass"), recordingDuration: 60 }, 1).meta!.genes!;
@@ -239,12 +239,26 @@ describe("genes from a plan, an AI clip, a link and the page's seed", () => {
     expect(editorGenes({ mode: "glass", durationSec: 9, copy: { hook: "Which floor?", caption: "Guess!", hashtags: ["#glass"] } })).toMatchObject({ source: "editor", mode: "glass", cut: "tiktok", bucket: "short", hookKey: "custom", hookChars: 12, hashtagCount: 1, captionQuestion: false });
   });
 
+  // --- insights --- (review fix) the master's score described the master: its length, its payoff's place and its hook
+  it("keeps no score, checklist, verdicts or features measured on the master in a TikTok cut's genes, from the queue or the editor", () => {
+    const master = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: 23, cut: "master" });
+    expect([master.planScore, master.reasons?.length?.values.sec]).toEqual([plan.score, Number(plan.reasons.find((r) => r.id === "length")!.values.sec)]);
+    const cuts = [genesOfCut(master, { durationSec: 11.5, hook: "Who gets out first?", sameHook: false }), genesOfCut(master, { durationSec: 11.5, hook: plan.hook, sameHook: true }), genesOfEditorCut({ genes: master, hook: plan.hook }, { mode: plan.mode, durationSec: 11.5, copy: { hook: plan.hook, caption: null, hashtags: [] } })];
+    for (const cut of cuts) {
+      expect(cut).toMatchObject({ cut: "tiktok", durationSec: 11.5, bucket: "short", recipe: plan.recipe, family: plan.family, planScore: null, checklist: null, features: null });
+      expect("reasons" in cut).toBe(false);
+      expect(sanitizeGenes(cut)).toEqual(cut);
+    }
+    // a re-render of the cut is the whole clip again: scored from its run as it is saved (score.ts scoresFromSettings)
+    expect(genesOfSavedFile(cuts[0], { durationSec: 23, cut: "master" })).toMatchObject({ cut: "master", planScore: null });
+  });
+
   // --- insights --- the editor's cut of a clip it was handed with genes (the Library's item, the Publish block's clip of one)
   it("keeps a clip's genes in the Clip editor's cut of it, its hook told apart from the clip's", () => {
     const master = genesOfSavedFile(planSource(plan).meta!.genes!, { durationSec: 24, cut: "master" });
     const cut = { mode: plan.mode, durationSec: 11.5, copy: { hook: plan.hook, caption: "c", hashtags: [] } };
     expect(genesOfEditorCut({ genes: master, hook: plan.hook }, cut)).toEqual(genesOfCut(master, { durationSec: 11.5, hook: plan.hook, sameHook: true }));
-    expect(genesOfEditorCut({ genes: master, hook: plan.hook }, cut)).toMatchObject({ source: "plan", recipe: plan.recipe, family: plan.family, planScore: plan.score, hookKey: "recipes.pipEscape", cut: "tiktok" });
+    expect(genesOfEditorCut({ genes: master, hook: plan.hook }, cut)).toMatchObject({ source: "plan", recipe: plan.recipe, family: plan.family, planScore: null, hookKey: "recipes.pipEscape", cut: "tiktok" });
     expect(genesOfEditorCut({ genes: master, hook: plan.hook }, { ...cut, copy: { ...cut.copy, hook: "Will Pip make it?" } })).toMatchObject({ recipe: plan.recipe, hookKey: "custom", hookChars: 17 });
     // no genes (a page clip, an older Library item): the editor's own
     for (const clip of [undefined, null, {}, { genes: null, hook: plan.hook }]) expect(genesOfEditorCut(clip, cut)).toEqual(editorGenes(cut));

@@ -1,5 +1,9 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "@/lib/settings";
+import { QUEUE_FPS_RANGE, chipQueueFps, commitQueueFps, queueFpsChips, type QueueFpsPick } from "@/lib/desktop/presets"; // --- insights --- (review fix) the frame-rate field's arrows
+import { stepNumber } from "@/lib/uncap"; // --- insights --- (review fix) (the rates the field's arrow keys step through)
 import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { clipCutOf } from "@/lib/desktop/ai/normalise"; // --- ai-cut ---
 import {
@@ -343,6 +347,44 @@ describe("queue sources", async () => {
       expect([locale, [...html.matchAll(/aria-pressed="(true|false)"[^>]*>(\d+(?:\.\d+)?) fps</g)].map((m) => `${m[2]}:${m[1]}`)]).toEqual([locale, ["30:false", "60:true"]]);
       expect([locale, html.includes(messages.Desktop.queueFpsTyped)]).toEqual([locale, true]);
     }
+  });
+
+  // --- insights --- (review fix) the field commits on every arrow press: three presses up picked 90, 120 and 150 and kept them
+  it("lets the add form's frame-rate arrows edit the rate the field added, never pile up a rate per press", () => {
+    const steps = (from: QueueFpsPick, ...values: number[]) => values.reduce((state, v) => commitQueueFps(state, v, "step"), from);
+    const start: QueueFpsPick = { picked: [60], field: null };
+    // the rates the field's own arrow keys step through from 60 (NumberField: stepNumber on the queue's range and floor)
+    const arrow = (from: number, direction: 1 | -1) => stepNumber(from, direction, QUEUE_FPS_RANGE, { min: QUEUE_FPS_RANGE.min });
+    expect([arrow(60, 1), arrow(90, 1), arrow(120, 1), arrow(120, -1), arrow(90, -1), arrow(60, -1), arrow(30, -1)]).toEqual([90, 120, 150, 90, 60, 30, 30]);
+    // ↑ ↑ from 60 (the field steps 30 at a time: QUEUE_FPS_RANGE's step): 60 and the rate it shows
+    const up = steps(start, 90, 120);
+    expect(up).toEqual({ picked: [60, 120], field: 120 });
+    expect(queueFpsChips(up.picked)).toEqual([30, 60, 120]);
+    expect(steps(up, 150)).toEqual({ picked: [60, 150], field: 150 });
+    // ↓ ↓ back to 60: 60 alone again, and a step down from it picks 30, which a step back up takes off
+    const back = steps(up, 90, 60);
+    expect(back).toEqual({ picked: [60], field: null });
+    expect(steps(back, 30)).toEqual({ picked: [60, 30], field: 30 });
+    expect(steps(back, 30, 60)).toEqual({ picked: [60], field: null });
+    // typed rates still join the picked ones (the line under the field: "Type any other rate from 30 up to add it"), and the
+    // arrows then edit the last one typed
+    const typed = commitQueueFps(commitQueueFps(start, 45, "typed"), 120, "typed");
+    expect(typed).toEqual({ picked: [60, 45, 120], field: 120 });
+    expect(steps(typed, 150)).toEqual({ picked: [60, 45, 150], field: 150 });
+    // a rate picked with a chip is never taken off by a step: the chip takes the field's rate over, and a step from a chip's rate adds
+    const chipped = { picked: [60, 90], field: chipQueueFps({ picked: [60, 90], field: 90 }, 90) };
+    expect(chipped.field).toBeNull();
+    expect(steps(chipped, 120)).toEqual({ picked: [60, 90, 120], field: 120 });
+    expect(chipQueueFps({ picked: [60, 90], field: 90 }, 30)).toBe(90);
+    expect(steps({ picked: [60, 90, 30], field: 90 }, 60)).toEqual({ picked: [90, 30, 60], field: null }); // (the field showed 30, not its 90)
+    // a rate that is no rate changes nothing
+    expect(commitQueueFps(up, 24, "step")).toEqual(up);
+    // what the panel does with them: the field tells a step from a typed rate, and the chips hand theirs over
+    const panel = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "QueuePanel.tsx"), "utf8");
+    expect(panel).toMatch(/onCommit=\{\(v, how\) => \{\s+const next = commitQueueFps\(\{ picked: fps, field: fieldFps \}, v, how \?\? "typed"\);/);
+    expect(panel).toMatch(/toggle\(fps, f, setFps\);\s+setFieldFps\(chipQueueFps\(\{ picked: fps, field: fieldFps \}, f\)\)/);
+    const field = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "NumberField.tsx"), "utf8");
+    expect(field).toMatch(/onCommit\(next\.commit, event\.type === "step" \? "step" : "typed"\)/);
   });
 
   // --- ai-cut --- the cut the AI answered for a clip travels with it: source → every job of the batch → the queue
