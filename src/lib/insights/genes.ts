@@ -1,5 +1,5 @@
 import type { ClipPlan, ScoreReason } from "@/lib/bot/planner";
-import type { BotFamily, BotRecipe, ChecklistId, EndingStyle, LengthBucket } from "@/lib/bot/playbook";
+import type { BotFamily, BotRecipe, ChecklistId, CountdownKind, EndingStyle, LengthBucket } from "@/lib/bot/playbook";
 import type { SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 
@@ -19,6 +19,10 @@ import type { ClipFeatures } from "@/lib/recording/clipFeatures";
  * The rules: closed enums, numbers clamped into the record's bounds, strings of 64 characters or fewer from a strict alphabet
  * (ids and copy keys; never free text: a hook is kept as its length), anything unknown becomes null, and the JSON is 4 KB or
  * less. Post hour and weekday are not stored: they come from the post's publish date. Nothing here leaves the PC.
+ *
+ * The score (C6, lib/insights/score.ts): `planScore`, each checklist item's share of its points and, when the record has them,
+ * scoreClip's verdicts (`reasons`: each item's message key under `ViralBot.reasons` with its number values, never its text),
+ * so the Library, the Queue and the approval card can say why without the plan.
  *
  * This file imports types only: the main process bundles it, and must not load the page's modules (the recipe list alone
  * pulls the Fight League roster in). The lists below mirror the playbook's; tests/insightsGenes.test.ts keeps them equal.
@@ -70,6 +74,22 @@ export const GENE_FEATURE_KEYS = ["sampleHz", "firstMotionSec", "peakMotionPos",
 export type GeneFeatureKey = (typeof GENE_FEATURE_KEYS)[number];
 export type ClipGenesFeatures = { v: 1 } & { [K in GeneFeatureKey]: number | null };
 
+// --- insights --- (C6) the verdicts of the score
+/** The message keys of scoreClip's verdicts (lib/bot/planner.ts, `ViralBot.reasons.<key>`). */
+export const GENE_REASON_KEYS = ["motionOk", "motionLate", "motionSlow", "motionUnknown", "hookOk", "hookTiming", "hookUnsafe", "hookMissing", "countdownCaption", "countdownHud", "countdownHudCovered", "countdownUnsafe", "countdownMissing", "payoffOk", "payoffTight", "payoffOff", "payoffMissing", "payoffCut", "payoffCutFar", "payoffCutWrong", "payoffNever", "lengthOk", "lengthPlatform", "lengthOut", "soundOk", "soundFlat", "endingLoop", "endingLongTail", "endingQuestion", "endingNoQuestion", "seriesOk", "seriesWeak", "seriesCovered", "lookOk", "lookOff"] as const;
+export type GeneReasonKey = (typeof GENE_REASON_KEYS)[number];
+/** The number values a verdict's message reads (seconds, a percentage, a bucket's ends). Its words (the hook, the series label) are never kept. */
+export const GENE_REASON_NUMBERS = ["sec", "pct", "gap", "tail", "min", "max"] as const;
+export type GeneReasonNumber = (typeof GENE_REASON_NUMBERS)[number];
+/** The countdowns a verdict names (playbook COUNTDOWN_KINDS). */
+export const GENE_COUNTDOWN_KINDS = ["walls", "lives", "layers", "percent", "timer", "hp"] as const satisfies readonly CountdownKind[];
+/** One checklist item's verdict: its message key and the values of its message that are numbers or a countdown kind. */
+export interface GeneReason {
+  key: GeneReasonKey;
+  values: { [K in GeneReasonNumber]?: number } & { kind?: CountdownKind };
+}
+// --- end insights ---
+
 /** The bounds of the record's numbers (a record's, not a slider's: a clip may be any length, a record keeps up to 11 days). */
 export const GENE_LIMITS = {
   durationSec: 1_000_000,
@@ -106,6 +126,8 @@ export interface ClipGenes {
   planScore: number | null;
   /** Points over the most per checklist item (0–1). */
   checklist: Partial<Record<ChecklistId, number>> | null;
+  /** --- insights --- (C6) scoreClip's verdict per checklist item; absent when the record keeps none (a record written before them). */
+  reasons?: Partial<Record<ChecklistId, GeneReason>>;
   features: ClipGenesFeatures | null;
   /** The Blueprint the clip played (lib/blueprint/codec.ts blueprintDigest: 8 hex digits). */
   blueprintDigest: string | null;
@@ -175,6 +197,33 @@ function sanitizeChecklist(raw: unknown): ClipGenes["checklist"] {
   return Object.keys(out).length ? out : null;
 }
 
+// --- insights --- (C6)
+function sanitizeReason(raw: unknown): GeneReason | null {
+  if (!isPlainObject(raw)) return null;
+  const key = oneOf(GENE_REASON_KEYS, own(raw, "key"));
+  const rawValues = own(raw, "values");
+  if (!key || !isPlainObject(rawValues)) return null;
+  const values: GeneReason["values"] = {};
+  for (const name of GENE_REASON_NUMBERS) {
+    const value = bounded(own(rawValues, name), -GENE_LIMITS.feature, GENE_LIMITS.feature, 2);
+    if (value !== null) values[name] = value;
+  }
+  const kind = oneOf(GENE_COUNTDOWN_KINDS, own(rawValues, "kind"));
+  if (kind) values.kind = kind;
+  return { key, values };
+}
+
+function sanitizeReasons(raw: unknown): ClipGenes["reasons"] {
+  if (!isPlainObject(raw)) return undefined;
+  const out: Partial<Record<ChecklistId, GeneReason>> = {};
+  for (const id of GENE_CHECKLIST) {
+    const reason = sanitizeReason(own(raw, id));
+    if (reason) out[id] = reason;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+// --- end insights ---
+
 function sanitizeFeatures(raw: unknown): ClipGenesFeatures | null {
   if (!isPlainObject(raw) || own(raw, "v") !== 1) return null;
   const out = { v: 1 } as ClipGenesFeatures;
@@ -190,7 +239,8 @@ export function featureGenes(features: ClipFeatures | null | undefined): ClipGen
 /**
  * A genes record as the app stores it, or null when `raw` is not one (not an object, or not version 1). Every field is read
  * on its own: a closed enum or a strict id pattern, a number clamped into its bounds; anything else becomes null, unknown
- * keys are dropped, and a record that would still weigh more than 4 KB as JSON loses its features, then its checklist.
+ * keys are dropped, and a record that would still weigh more than 4 KB as JSON loses its features, then its verdicts, then
+ * its checklist. The verdicts (`reasons`) are kept only when there are some: a record without them has no such key.
  */
 export function sanitizeGenes(raw: unknown): ClipGenes | null {
   if (!isPlainObject(raw) || own(raw, "v") !== GENES_VERSION) return null;
@@ -214,11 +264,14 @@ export function sanitizeGenes(raw: unknown): ClipGenes | null {
     planScore: bounded(own(raw, "planScore"), 0, GENE_LIMITS.planScore, 2),
     checklist: sanitizeChecklist(own(raw, "checklist")),
     features: sanitizeFeatures(own(raw, "features")),
+    reasons: sanitizeReasons(own(raw, "reasons")), // --- insights --- (C6)
     blueprintDigest: matching(own(raw, "blueprintDigest"), DIGEST),
     parent: matching(own(raw, "parent"), RECIPE_ID, BLUEPRINT_ARM, DIGEST),
     tiktokPrivacy: oneOf(GENE_PRIVACY, own(raw, "tiktokPrivacy")),
   };
   if (JSON.stringify(genes).length > GENES_MAX_JSON) genes.features = null;
+  if (JSON.stringify(genes).length > GENES_MAX_JSON) genes.reasons = undefined; // --- insights --- (C6)
+  if (!genes.reasons) delete genes.reasons;
   if (JSON.stringify(genes).length > GENES_MAX_JSON) genes.checklist = null;
   return JSON.stringify(genes).length <= GENES_MAX_JSON ? genes : null;
 }
@@ -237,6 +290,24 @@ export function checklistOf(reasons: readonly ScoreReason[]): ClipGenes["checkli
   for (const r of reasons) if ((GENE_CHECKLIST as readonly string[]).includes(r.id) && r.max > 0) out[r.id] = r.points / r.max;
   return Object.keys(out).length ? out : null;
 }
+
+// --- insights --- (C6)
+/** scoreClip's verdicts as the record keeps them: per item its message key and the values that are numbers (a "1.2" read as 1.2) or a countdown kind. */
+export function reasonsOf(reasons: readonly ScoreReason[]): ClipGenes["reasons"] {
+  const raw: Record<string, unknown> = {};
+  for (const r of reasons) {
+    const values: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(r.values)) values[name] = typeof value === "string" && name !== "kind" && value.trim() !== "" ? Number(value) : value;
+    raw[r.id] = { key: r.key, values };
+  }
+  return sanitizeReasons(raw);
+}
+
+/** A record with a score: scoreClip's total, each item's share of its points and its verdicts. */
+export function genesWithScore(genes: ClipGenes, scored: { score: number; reasons: readonly ScoreReason[] }): ClipGenes {
+  return finish({ ...genes, planScore: scored.score, checklist: checklistOf(scored.reasons), reasons: reasonsOf(scored.reasons) });
+}
+// --- end insights ---
 
 /** The hook gene of a text: "custom" for words of the clip's own, null for none. */
 const hookGenes = (hook: string | null | undefined, key: string | null = "custom") => {
@@ -282,6 +353,7 @@ export function genesFromPlan(plan: ClipPlan, scored: { score: number; reasons: 
     episode: plan.episode,
     planScore: scored.score,
     checklist: checklistOf(scored.reasons),
+    reasons: reasonsOf(scored.reasons), // --- insights --- (C6)
   });
 }
 

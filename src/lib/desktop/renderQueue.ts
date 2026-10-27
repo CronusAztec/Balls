@@ -2,7 +2,7 @@ import { resolveProjectSettings } from "@/lib/project";
 import { RESOLUTIONS, type SimulatorSettings } from "@/lib/settings";
 import { isLinkSeed } from "@/lib/recording/batch"; // --- low-findings --- (was MAX_SEED: a negative found seed was lost)
 import { parseClipEdit, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
-import { sanitizeGenes } from "@/lib/insights/genes"; // --- insights ---
+import { sanitizeGenes, type ClipGenes } from "@/lib/insights/genes"; // --- insights ---
 import { VIDEO_CODECS, type LibraryMeta, type VideoCodec } from "./contract";
 import { OUTPUT_PRESETS, queueFps, type OutputPreset } from "./presets"; // --- uncap-all --- (review fix) (queueFps: any rate from 30 up)
 import { DEFAULT_FAST_EXPORT_FPS } from "@/lib/recording/fastRenderPlan";
@@ -169,8 +169,9 @@ export function markEncoding(state: QueueState, id: string, now: number): QueueS
   return patchJob(state, id, (j) => (j.status === "rendering" ? { status: "encoding", progress: Math.max(j.progress, RENDER_SHARE) } : null), now);
 }
 
-export function markDone(state: QueueState, id: string, output: QueueJobOutput, now: number): QueueState {
-  return patchJob(state, id, (j) => (isActive(j) ? { status: "done", progress: 1, output, error: null } : null), now);
+/** --- insights --- (C6) `genes`: the saved file's (its score among them), kept in the job's meta for the Queue's row. */
+export function markDone(state: QueueState, id: string, output: QueueJobOutput, now: number, genes?: ClipGenes | null): QueueState {
+  return patchJob(state, id, (j) => (isActive(j) ? { status: "done", progress: 1, output, error: null, ...(genes ? { meta: { ...j.meta, genes } } : {}) } : null), now);
 }
 
 export function markFailed(state: QueueState, id: string, error: string, now: number): QueueState {

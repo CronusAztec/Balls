@@ -11,6 +11,7 @@ import { IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 import ClipEditorDialog, { type ClipEditorSource } from "../clipEditor/ClipEditorDialog"; // --- clip-editor ---
 import type { ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { libraryEditOpen } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
+import ScoreChip from "./ScoreChip"; // --- insights --- (C6) the clip's playbook score
 /*
  * --- desktop-exe --- The Library: the clips the render queue saved, newest first – thumbnail, length, size, encoder, the
  * post copy – with Open, Show in folder, Re-render (the clip's simulator link and seed back into the queue), Copy post text,
@@ -22,6 +23,8 @@ import { libraryEditOpen } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
  * which asks for a cut of this very item. --- cut-reedit --- A cut file already shows its look, so it never gets a second
  * one (lib/clipEdit/propose.ts `libraryEditOpen`): a queue cut opens its master with the spec it was cut with, and a cut
  * with no master opens as it is, with nothing added and no AI to add it.
+ *
+ * --- insights --- (C6) Each clip shows its playbook score from its genes (ScoreChip.tsx), with the reasons a click away.
  */
 
 /** --- ai-cut --- What the editor asks of the AI for one Library item, and what comes back: a cut and a one-line summary. */
@@ -124,6 +127,7 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender, onS
                 </p>
                 <p className="text-ink-3">{new Date(item.createdAt).toLocaleString()}</p>
                 {item.meta.hook && <p className="text-accent-strong truncate">{item.meta.hook}</p>}
+                <ScoreChip genes={item.meta.genes} testId="library-score" /* --- insights --- (C6) */ />
                 <div className="flex gap-1.5 flex-wrap mt-auto pt-1">
                   <button type="button" className={`${primaryBtn} !py-0.5`} disabled={!item.exists} onClick={() => void bridge.library.open(item.id)}>
                     {t("libOpen")}

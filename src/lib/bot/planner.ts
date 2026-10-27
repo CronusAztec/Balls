@@ -395,7 +395,8 @@ const MAX_ACCEPTED = 3;
 /* Holds the page adds after a run's end before the end screen (Simulator.tsx; the fast export follows it). */
 const HOLD_SEC = { teams: 3, stringBattle: 3, arena: 3, multipliers: 2, stop: 0.5 } as const;
 
-function endHoldsSec(s: SimulatorSettings): number {
+/** The holds after a run's own end (s), the recorder's stop included (--- insights --- exported: a scored clip's length without an export). */
+export function endHoldsSec(s: SimulatorSettings): number {
   let pre = 0;
   if (s.mode === "stringBattle") pre = HOLD_SEC.stringBattle;
   else if (s.mode === "battle" || s.mode === "ctf") pre = HOLD_SEC.arena;
@@ -459,6 +460,18 @@ export const GROW_FILL_SHARE = 0.95;
 
 /** Simulates one seed the way the page's export engine plays it, collecting what the payoff timing needs. */
 export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick<BotRecipe, "strategy">, horizonSec: number): RunFacts {
+  return drain(simulateFactsSteps(request, seed, recipe, horizonSec));
+}
+
+// --- insights ---
+/** Steps simulateFactsSteps() runs between two pauses: a second of the run at 60 Hz. */
+export const FACTS_SLICE_STEPS = 60;
+
+/**
+ * simulateFacts() as a generator: the same run and the same facts, with a pause (it yields the playback ms so far) every
+ * FACTS_SLICE_STEPS steps, so the page can follow a heavy run in slices (lib/insights/score.ts) – drain() takes none.
+ */
+export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe: Pick<BotRecipe, "strategy">, horizonSec: number): Generator<number, RunFacts> {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
   const horizonMs = horizonSec * 1000;
@@ -482,6 +495,7 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
   const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed";
   let elapsed = 0;
   let atEscape: RunSummary | null = null;
+  let steps = 0; // --- insights --- (the pauses)
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step); // --- slow-motion --- (the playback time the export renders the run in, with the switch off too)
@@ -529,6 +543,7 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
     }
     // An escape settles the escape payoffs; follow it a few seconds to learn when the run ends.
     if ((recipe.strategy === "escape" || (recipe.strategy === "winner" && request.mode !== "stringBattle" && request.mode !== "fightLeague" /* --- fl-overhaul --- (Stage 6) */)) && facts.firstEscapeSec >= 0 && sec > facts.firstEscapeSec + Math.max(6, 0.25 * facts.firstEscapeSec)) break;
+    if (++steps % FACTS_SLICE_STEPS === 0) yield elapsed; // --- insights --- (a pause between whole steps: the run is the same)
   }
   facts.summary = recipe.strategy === "winner" && request.mode !== "stringBattle" && request.mode !== "fightLeague" && atEscape ? atEscape : snapshot(elapsed, facts.finishSec >= 0);
   // --- fl-overhaul --- (Stage 6) a fight's story (RunSummary.fl, the cliffhanger's moment) and its double KO, as the finder sees them

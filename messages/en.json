@@ -6801,5 +6801,17 @@
     "suggested": "AI: {summary}",
     "suggestedPlain": "The AI set the cut.",
     "suggestFailed": "The AI could not propose a cut: {error}"
+  },
+  "Insights": {
+    "chip": "Playbook {score}",
+    "chipLabel": "Playbook score: {score} out of 100. Not yet measured on your channel.",
+    "title": "Playbook score: {score} out of 100",
+    "unmeasured": "Not yet measured on your channel.",
+    "note": "The playbook's checklist for a short clip. It is only advice and never holds a post back.",
+    "points": "{points} of {max} points",
+    "reasons": {
+      "hookOk": "The hook is on screen for the first seconds, clear of the platform's buttons.",
+      "seriesOk": "Part of a series, with its label on screen and a recurring cast."
+    }
   }
 }

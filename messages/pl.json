@@ -6801,5 +6801,17 @@
     "suggested": "AI: {summary}",
     "suggestedPlain": "AI ustawiła cięcie.",
     "suggestFailed": "AI nie zaproponowała cięcia: {error}"
+  },
+  "Insights": {
+    "chip": "Poradnik {score}",
+    "chipLabel": "Ocena według poradnika: {score} na 100. Jeszcze niezmierzona na Twoim kanale.",
+    "title": "Ocena według poradnika: {score} na 100",
+    "unmeasured": "Jeszcze niezmierzona na Twoim kanale.",
+    "note": "Lista kontrolna poradnika dla krótkiego klipu. To tylko wskazówka i nigdy nie wstrzymuje posta.",
+    "points": "{points} z {max} pkt",
+    "reasons": {
+      "hookOk": "Hook widać przez pierwsze sekundy, z dala od przycisków platformy.",
+      "seriesOk": "Część serii, z nazwą na ekranie i stałą obsadą."
+    }
   }
 }

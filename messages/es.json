@@ -6801,5 +6801,17 @@
     "suggested": "IA: {summary}",
     "suggestedPlain": "La IA ajustó el corte.",
     "suggestFailed": "La IA no pudo proponer un corte: {error}"
+  },
+  "Insights": {
+    "chip": "Guía {score}",
+    "chipLabel": "Puntuación según la guía: {score} de 100. Aún sin medir en tu canal.",
+    "title": "Puntuación según la guía: {score} de 100",
+    "unmeasured": "Aún sin medir en tu canal.",
+    "note": "La lista de comprobación de la guía para un clip corto. Es solo un consejo y nunca frena una publicación.",
+    "points": "{points} de {max} puntos",
+    "reasons": {
+      "hookOk": "El gancho se ve en los primeros segundos, lejos de los botones de la plataforma.",
+      "seriesOk": "Parte de una serie, con su nombre en pantalla y reparto fijo."
+    }
   }
 }

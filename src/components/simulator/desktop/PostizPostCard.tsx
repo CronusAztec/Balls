@@ -32,6 +32,7 @@ import {
 import { LIMITS } from "@/lib/publish/platforms";
 import { platformLabel } from "./AccountsPanel";
 import { Bar, Card, errorText, formatBytes, formatSeconds, ghostBtn, inputClass, primaryBtn } from "./ui";
+import ScoreChip from "./ScoreChip"; // --- insights --- (C6) the clip's playbook score: advice, never a gate on Approve
 
 /*
  * --- social-postiz --- The approval card (phase 2 of docs/SOCIAL-AUTOPILOT.md): a Library clip, the channels connected in
@@ -40,6 +41,8 @@ import { Bar, Card, errorText, formatBytes, formatSeconds, ghostBtn, inputClass,
  * a generic form for the rest – and when it goes out: now, a scheduled time (Postiz's next free slot on a button) or a draft
  * in Postiz. Nothing reaches Postiz until Approve, whose label says what will happen. Then the progress (transcode, upload,
  * create) and the outcome per channel, polled from Postiz for up to three minutes.
+ * --- insights --- (C6) The clip's playbook score and its reasons sit under the clip (ScoreChip.tsx): advice only, Approve and
+ * the card's problems never read it.
  */
 
 /** What Retry (the Posts tab) hands the card: the channels and texts of the failed post. */
@@ -287,6 +290,8 @@ export function PostizPostCardView({ item, state, now = Date.now(), onDraft, onA
           {!prepared && !/\.(mp4|m4v)$/i.test(item.fileName) && <p>{t("postizCardWillTranscode")}</p>}
         </div>
       </div>
+      {/* --- insights --- (C6) the playbook's score of the clip and its reasons: nothing below reads it */}
+      <ScoreChip genes={item.meta.genes} testId="postiz-card-score" />
 
       {/* the channels */}
       <div className="space-y-1.5" data-testid="postiz-card-channels">

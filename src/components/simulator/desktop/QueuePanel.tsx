@@ -15,6 +15,7 @@ import type { RenderQueueApi } from "./useRenderQueue";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, inputClass, primaryBtn } from "./ui";
 import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: the queue renders for everyone, watermarked without Pro)
+import ScoreChip from "./ScoreChip"; // --- insights --- (C6) a job's playbook score: a plan's from the start, a link's once it is rendered
 
 /*
  * --- desktop-exe --- The Render queue panel: build a batch – the page's setup with a list of seeds (or share links, or N
@@ -23,6 +24,8 @@ import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-wa
  * Retry failed, Clear finished; after a crash or restart the queue offers to resume.
  * --- uncap-all --- (review fix) The frame rates: the 30 and 60 chips and the shared number field beside them, which adds any
  * other rate from 30 up as a chip of its own (the queue renders any rate the page's fast export takes, `queueFps()`).
+ * --- insights --- (C6) A job shows its playbook score (ScoreChip.tsx): a plan's and the AI's from the start, a link's or the
+ * page's setup's once it is rendered (the score of its run, useRenderQueue.ts).
  */
 
 type SourceKind = "seeds" | "random" | "bot";
@@ -237,6 +240,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                     )}
                     <span className={`whitespace-nowrap ${job.status === "failed" ? "text-danger" : job.status === "done" && !cuttingJob(job) ? "text-accent" : "text-ink-2"}`}>{statusText(job)}</span>
                   </div>
+                  <ScoreChip genes={job.meta.genes} testId="job-score" /* --- insights --- (C6) */ />
                   {(job.status === "rendering" || job.status === "encoding") && <Bar value={job.progress} tone={job.status === "encoding" ? "cyan" : "lime"} />}
                   {cuttingJob(job) && <Bar value={queue.cutting?.progress ?? 0} tone="cyan" /* --- ai-cut --- */ />}
                   {job.error && <p className="text-xs text-danger break-words">{job.error}</p>}
