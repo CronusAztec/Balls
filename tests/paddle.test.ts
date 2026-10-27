@@ -38,6 +38,7 @@ import { rhythmDegreeMidi } from "@/lib/physics/modes/jdmRhythm";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { fakeGraph } from "./fakeAudio";
+import { DEFAULT_JDM_RHYTHM_LABELS, PaddleLayer, paddleControllerTag } from "@/components/simulator/jdmRhythmRenderer"; // --- uncap-all --- (review fix) (the controller's tag over the field)
 
 /**
  * Paddle Keep-Up (feature jdm-rhythm-runner): the flight predictor, the catch controller (skill 1 never misses; below it
@@ -447,6 +448,32 @@ describe("Paddle Keep-Up settings", () => {
     expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1 }); // --- uncap-all --- (no maximum)
     expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9 });
     expect(paddleSettingsOf({ ...defaultSettings("paddle"), scale: "minor", rootNote: 4 })).toMatchObject({ scale: "minor", rootNote: 4, skill: 0.7 });
+  });
+});
+
+// --- uncap-all --- (review fix) The tag over the field is part of every frame and every video: past 100% it names the Skill the
+// controller plays (100%), as the panel's note does, not the typed number.
+describe("Paddle Keep-Up's controller tag", () => {
+  /** The texts the overlay writes, through a 2D context that records fillText and accepts everything else. */
+  const overlayTexts = (pd: Partial<PaddleSettings>) => {
+    const engine = engineFor(pd);
+    for (let i = 0; i < 30; i++) engine.update(STEP, 0);
+    const texts: string[] = [];
+    const state: Record<string, unknown> = {};
+    const ctx = new Proxy(state, {
+      get: (target, prop) => (prop === "fillText" ? (text: string) => void texts.push(String(text)) : prop in target ? target[prop as string] : () => ({ width: 10 })),
+      set: (target, prop, value) => ((target[prop as string] = value), true),
+    }) as unknown as CanvasRenderingContext2D;
+    new PaddleLayer().drawOverlay(ctx, engine.getPaddleView(), DEFAULT_JDM_RHYTHM_LABELS);
+    return texts;
+  };
+
+  it("names the Skill the controller plays: 85% as typed, 100% for a Skill of 1 or past it", () => {
+    expect([paddleControllerTag("AUTO", 0.85), paddleControllerTag("AUTO", 1), paddleControllerTag("AUTO", 3)]).toEqual(["AUTO · 85%", "AUTO · 100%", "AUTO · 100%"]);
+    expect(overlayTexts({ auto: true, skill: 3 })).toContain("AUTO · 100%");
+    expect(overlayTexts({ auto: true, skill: 3 }).some((t) => t.includes("300%"))).toBe(false);
+    expect(overlayTexts({ auto: true, skill: 0.85 })).toContain("AUTO · 85%");
+    expect(overlayTexts({ auto: false, skill: 3 }).some((t) => t.startsWith("AUTO"))).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 import { CAMERA_AT, FINISH_HOLD_SEC, MAX_RR_PARTICLES, RR_PARTICLE_GRAVITY, RR_TRAIL, VIEW_UNITS, type RunnerView } from "@/lib/physics/modes/runner";
-import { GAME_OVER_HOLD_SEC, MAX_PD_PARTICLES, PD_ASPECT, PD_CEILING, PD_PLATFORM, PD_THICKNESS, type PaddleView } from "@/lib/physics/modes/paddle";
+import { GAME_OVER_HOLD_SEC, MAX_PD_PARTICLES, PD_ASPECT, PD_CEILING, PD_PLATFORM, PD_THICKNESS, playedSkill, type PaddleView } from "@/lib/physics/modes/paddle"; // (--- uncap-all --- (review fix) playedSkill: the controller's tag)
 
 /**
  * Canvas side of feature jdm-rhythm-runner (lib/physics/modes/runner.ts and paddle.ts have the physics).
@@ -438,6 +438,14 @@ export class RunnerLayer {
 
 /* ------------------------------------------------------------------ Paddle Keep-Up */
 
+/**
+ * --- uncap-all --- (review fix) The controller's tag over the field ("AUTO · 85%"): the Skill the controller plays
+ * (`playedSkill`, 100% at most), as the panel's note under the Skill says, never a typed Skill past 100% ("AUTO · 300%").
+ */
+export function paddleControllerTag(auto: string, skill: number): string {
+  return `${auto} · ${Math.round(100 * playedSkill(skill))}%`;
+}
+
 export class PaddleLayer {
   particlesDrawn = 0;
 
@@ -588,7 +596,7 @@ export class PaddleLayer {
     if (view.streak >= 2) ctx.fillText(L.streak(view.streak), f.left + 0.97 * f.width, f.top + 0.36 * band);
     ctx.fillStyle = "rgba(244, 244, 245, 0.5)";
     ctx.font = `600 ${0.15 * band}px sans-serif`;
-    ctx.fillText(view.settings.auto ? `${L.auto} · ${Math.round(100 * view.settings.skill)}%` : "", f.left + 0.97 * f.width, f.top + 0.68 * band);
+    ctx.fillText(view.settings.auto ? paddleControllerTag(L.auto, view.settings.skill) : "", f.left + 0.97 * f.width, f.top + 0.68 * band); // --- uncap-all --- (review fix) (the Skill it plays)
     if (!view.settings.auto && t < 3) subText(ctx, L.moveHint, cx, f.top + 0.45 * s, Math.max(12, fitFont(ctx, L.moveHint, 0.035 * s, 0.92 * f.width, 700)), GOLD);
     // MISS!
     const missAge = t - view.lastMissSec;
