@@ -1,6 +1,35 @@
 {
   "releases": [
     {
+      "id": "site-1-16-1",
+      "product": "site",
+      "version": "1.16.1",
+      "date": "2026-10-27",
+      "headline": {
+        "en": "Clearer words in Paddle Keep-Up and the Clip planner",
+        "pl": "Jaśniejsze opisy w Piłce na platformie i Planerze klipów",
+        "es": "Textos más claros en la Habilidad y el Planificador de clips"
+      },
+      "items": [
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Paddle Keep-Up's Skill past 100% now says it plays 100%. Before, the note said your number ran as typed. The link still keeps the number you typed.",
+            "pl": "Umiejętność w trybie Piłka na platformie powyżej 100% mówi teraz, że gra przyjmuje 100%. Wcześniej opis twierdził, że liczba działa tak, jak wpisano. Link nadal zachowuje wpisaną liczbę.",
+            "es": "La Habilidad de Pelota en la plataforma por encima del 100% ahora dice que el juego usa el 100%. Antes, la nota decía que tu número se usaba tal cual. El enlace sigue guardando el número que escribiste."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "The Clip planner now names the countdown in your language, like wall counter. Before, Why this clip showed a code such as walls. The downloaded ZIP names it the same way.",
+            "pl": "Planer klipów nazywa teraz odliczanie w twoim języku, na przykład licznik ścian. Wcześniej lista Dlaczego ten klip pokazywała kod, taki jak walls. Pobrany plik ZIP nazywa je tak samo.",
+            "es": "El Planificador de clips ahora nombra la cuenta atrás en tu idioma, como contador de paredes. Antes, Por qué este clip mostraba un código como walls. El ZIP descargado la nombra igual."
+          }
+        }
+      ]
+    },
+    {
       "id": "app-1-6-0",
       "product": "app",
       "version": "1.6.0",

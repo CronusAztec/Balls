@@ -671,3 +671,27 @@ describe("the release that brings the genes", () => {
     expect(all(DOCS, /written by (\d+\.\d+\.\d+) or earlier/g)).toEqual([apps[apps.indexOf(since) + 1]]);
   });
 });
+
+// --- insights --- (review fix) the branch's fixes a website visitor sees get a website release of their own: Paddle
+// Keep-Up's Skill past 100% says it plays 100% (9300e3b) and the Clip planner names the countdown in the page's language
+// (3cc9875: "Why this clip" and the ZIP's manifest). The push that releases the Windows app deploys the site too, which had
+// gone out still calling itself 1.16.0, the live site's version, with no word on /changelog (docs/RELEASING.md, step 2).
+describe("the website release after the live 1.16.0", () => {
+  type Names = { Modes: { paddle: { name: string } }; Controls: { pdSkill: string }; ViralBot: { title: string; why: string; countdownKinds: { walls: string } } };
+  const MESSAGES = { en, pl, es } as unknown as Record<"en" | "pl" | "es", Names>;
+
+  it("announces both fixes in en, pl and es with the page's own names, at a version package.json builds", () => {
+    const site = CHANGELOG.find((r) => r.id === "site-1-16-1");
+    expect(site, "a website 1.16.1 release in src/content/changelog.json").toBeDefined();
+    expect([site!.product, compareVersions(site!.version, "1.16.0")! > 0]).toEqual(["site", true]);
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")) as { version: string };
+    expect(compareVersions(pkg.version, site!.version), `package.json ${pkg.version} builds ${site!.version} or later`).toBeGreaterThanOrEqual(0);
+    expect(site!.items.map((item) => item.kind)).toEqual(["fixed", "fixed"]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const m = MESSAGES[locale];
+      const [skill, countdown] = site!.items.map((item) => item.text[locale]);
+      for (const name of [m.Modes.paddle.name, m.Controls.pdSkill, "100%"]) expect(skill, `${locale}: ${name}`).toContain(name);
+      for (const name of [m.ViralBot.title, m.ViralBot.why, m.ViralBot.countdownKinds.walls]) expect(countdown, `${locale}: ${name}`).toContain(name);
+    }
+  });
+});
