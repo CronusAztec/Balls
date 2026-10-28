@@ -142,6 +142,17 @@ export interface TemplateCopy {
   hashtags: string[];
 }
 
+/**
+ * --- crew --- A fix's seed search as the caller found it: the re-planned clip and the words its plan wrote. A new seed, ending
+ * or length changes the plan's words (a hook's seconds), so the producer's brief and its fallback read these, never the old plan's.
+ */
+export interface ReplanFound {
+  clip: CrewClip;
+  post: TemplateCopy | null;
+}
+
+const isReplanFound = (found: CrewClip | ReplanFound | null): found is ReplanFound => found !== null && "clip" in found && "post" in found;
+
 export interface PanelCandidate {
   id: string;
   clip: CrewClip;
@@ -596,13 +607,14 @@ const confirmedMajor = (c: PanelClip) => c.marks.filter((m) => m.stands && m.mar
  * A fix judged by the rules: kept when every gate passes, the pick score did not go down and the facts no longer confirm a
  * major objection it answers, else reverted (see the header).
  */
-function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix): PanelState {
+function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix, fixedPost?: TemplateCopy | null): PanelState {
   const c = clipOf(s, id)!;
   const confidence = c.reviewer.result?.confidence ?? null;
   let outcome: ClipFix = fix;
   let clip = c.clip;
   let clarity = c.clarity;
   let original: CrewClip | null = c.original;
+  let post = c.post;
   if (fix.state !== "refused") {
     if (!fixed) outcome = { ...fix, state: "reverted", why: "it does not apply to the clip" };
     else {
@@ -621,12 +633,13 @@ function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix)
         original = c.original ?? c.clip;
         clip = fixed;
         clarity = after;
+        if (fixedPost !== undefined) post = fixedPost;
       }
     }
   }
   const standingMajor = confirmedMajor(c).length > 0 || (c.makesSense !== null && c.makesSense !== "yes");
   const dropped = outcome.state !== "applied" && standingMajor;
-  return finishClip(s, id, (x) => ({ ...x, clip, clarity, original, fix: outcome, verdict: dropped ? "drop" : "fix", dropWhy: dropped ? (outcome.state === "refused" ? "fixRefused" : "fixReverted") : null, confidence }));
+  return finishClip(s, id, (x) => ({ ...x, clip, clarity, original, post, fix: outcome, verdict: dropped ? "drop" : "fix", dropWhy: dropped ? (outcome.state === "refused" ? "fixRefused" : "fixReverted") : null, confidence }));
 }
 
 /** The review of the current clip, step by step: a call, the seed search, or its verdict. */
@@ -1087,15 +1100,17 @@ export function applyCandidates(state: PanelState, candidates: readonly PanelCan
  * own look, so the clip comes back as the reviewed one stood before its rule fix), then the fix's look and text, then judged by
  * the rules – against the clip the reviewer saw, never against a look it did not have.
  */
-export function applyReplan(state: PanelState, clipId: string, clip: CrewClip | null): PanelState {
+export function applyReplan(state: PanelState, clipId: string, found: CrewClip | ReplanFound | null): PanelState {
   const s = advance(state);
   if (s.pending?.kind !== "replan" || s.pending.clipId !== clipId) return s;
   const c = clipOf(s, clipId)!;
   const fix = c.fix!;
   const next = { ...s, pending: null };
-  if (!clip) return judged(next, clipId, null, { ...fix, state: "applied" });
+  if (!found) return judged(next, clipId, null, { ...fix, state: "applied" });
+  // --- crew --- (the acceptance run) the re-planned plan's words go with its clip; a bare clip keeps the words it had
+  const clip = isReplanFound(found) ? found.clip : found;
   const base = c.ruleFix.length ? withRuleFix(clip, c.ruleFix, c.simple).clip : clip;
-  return judged(next, clipId, applyCompiledFix(base, fix.compiled!, { simple: c.simple }), { ...fix, state: "applied" });
+  return judged(next, clipId, applyCompiledFix(base, fix.compiled!, { simple: c.simple }), { ...fix, state: "applied" }, isReplanFound(found) ? found.post : undefined);
 }
 
 /**
@@ -1191,8 +1206,8 @@ export interface PanelDriver {
   model: CrewModel;
   /** The planner: the ideas in, the candidate clips out (none: an empty batch). */
   plan?: (ideas: readonly BrainstormIdea[]) => Promise<readonly PanelCandidate[]> | readonly PanelCandidate[];
-  /** The seed search for a fix: the clip and what the fix needs in, the re-planned clip out (null: none found). */
-  replan?: (clip: CrewClip, need: FinderNeed) => Promise<CrewClip | null> | CrewClip | null;
+  /** The seed search for a fix: the clip and what the fix needs in, the re-planned clip out, with its plan's words where the caller has them (null: none found). */
+  replan?: (clip: CrewClip, need: FinderNeed) => Promise<CrewClip | ReplanFound | null> | CrewClip | ReplanFound | null;
   /** The caller's clock (ms), so the time cap counts; without one the calls cost no time. */
   clock?: () => number;
   signal?: AbortSignal;

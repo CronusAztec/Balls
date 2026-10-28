@@ -103,7 +103,9 @@ argument.
 - **One fix round.** The fixes are compiled and measured again. A fix that makes a gate fail, lowers the pick score or
   leaves a confirmed major objection it answers still confirmed (a payoff still past 90 %, two texts still on screen at
   once) is reverted, and no role is asked again about that clip. A fix that needs a new seed or length runs the seed search
-  here: the clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need. A
+  here: the clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need, and the
+  clip takes that plan's words with it (a new length is a new number in "Can it escape in 24 seconds?"): the producer reads
+  them, and they are the post's when no producer answers. A
   retimed payoff must land on time (66-90 % of the clip), near the target, and no farther from it than an on-time payoff
   was. The planner keeps its own payoff band, so a payoff target outside it is rarely met, and the fix is then reverted.
 - **Retries count.** A refused answer comes back with its errors (at most 8, each cut to 200 characters). After 4 refusals

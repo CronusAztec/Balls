@@ -873,7 +873,8 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
       const found = record ? studioReplan(record, step.need, ctx.copyOf(record.plan.locale)) : null;
       notes.push(`${step.clipId}: the fix's seed search (${step.need.actions.join(", ")}) ${found ? `found seed ${found.plan.seed}` : "found no plan that meets it"}`);
       if (found) file = { ...file, replans: { ...file.replans, [step.clipId]: { id: found.id, plan: found.plan, run: found.run } } };
-      state = applyReplan(state, step.clipId, found ? found.clip : null);
+      // --- studio --- (the acceptance run) the re-planned plan's words, so the producer and its fallback read the new run's
+      state = applyReplan(state, step.clipId, found ? { clip: found.clip, post: templateCopy(found.plan) } : null);
       continue;
     }
     break;

@@ -846,6 +846,61 @@ describe("the studio's second review round, findings 13-18 (--- studio ---)", ()
   });
 });
 
+describe("the acceptance run's finding: a re-planned clip's words (--- studio ---)", () => {
+  // (Get Out on Classic, plan seed 2: its payoff lands past 90 %, and the retime's seed search plans another length, so the hook's
+  // seconds change. The acceptance run's producer read the old plan's caption, "Can it escape in 29 seconds?", beside the
+  // clip's own 24-second hook, and 29 among the numbers the clip has; a producer out of budget would have posted it.)
+  const late = { oneIdea: "One ball escapes the rings", objections: [{ id: "o1", kind: "payoffLate", evidence: ["beats.payoff"], severity: "major", note: "the escape comes late" }] };
+  const retime = { action: "retimePayoff", targetPos: 0.85 };
+  const fix = { verdict: "fix", confidence: "medium", answers: [{ objection: "o1", accept: true, reason: null, fix: retime }], viewerAnswer: null, fixes: [retime], why: "land the escape on time" };
+  const numbersOf = (text: string) => (text.match(/\d+/g) ?? []).map(Number);
+
+  it("the producer reads the new plan's caption and the new run's numbers, and its fallback posts the new plan's words", async () => {
+    const rec = planned({ template: "get-out-classic", count: 1, planSeed: 2 })[0];
+    const id = rec.id;
+    const s = studio([rec]);
+    s.call({ wanted: 1 });
+    s.call({ role: "skeptic", clip: id, verdict: late });
+    const out = s.call({ role: "reviewer", clip: id, verdict: fix });
+    expect(out.result).toMatchObject({ accepted: { ok: true }, status: "call" });
+    const re = s.panel()!.replans[id].plan;
+    const gone = numbersOf(rec.plan.hook).filter((n) => !numbersOf(re.hook).includes(n));
+    expect([re.hook === rec.plan.hook, gone.length > 0]).toEqual([false, true]);
+    const next = nextOf(out);
+    expect(next.role).toBe("producer");
+    const kept = JSON.parse(/Kept clips \(JSON\): (.*)/.exec(next.messages[next.messages.length - 1].content)![1]) as { hook: string; numbers: number[]; templateCopy: { caption: string } | null }[];
+    expect(kept[0].hook).toBe(re.hook);
+    expect(kept[0].templateCopy?.caption).toBe(re.post.caption);
+    for (const n of gone) expect(kept[0].numbers).not.toContain(n);
+    // a producer that never answers: the rules post the template's words, the re-planned plan's
+    let done = out;
+    for (let i = 0; i < 4 && done.result.status === "call"; i++) done = s.call({ role: "producer", verdict: { clips: [] } });
+    expect(done.result.status).toBe("done");
+    const copied = (done.result.decision as { copy: { source: string; clips: { title: string; caption: string }[] } }).copy;
+    expect(copied).toMatchObject({ source: "template", clips: [{ title: re.hook, caption: re.post.caption }] });
+    expect(done.post).toContain(re.hook);
+    expect(done.post).not.toContain(rec.plan.hook);
+  }, 120_000);
+
+  it("the app's way: a seed search that hands back its plan's words gives the panel's fallback those words", async () => {
+    const rec = planned({ template: "get-out-classic", count: 1, planSeed: 2 })[0];
+    const wordsOf = (plan: typeof rec.plan) => ({ name: plan.id, title: plan.hook, caption: plan.post.caption, hashtags: [...plan.post.hashtags] });
+    const model: CrewModel = async ({ brief }) => ({ reply: brief.role === "skeptic" ? late : brief.role === "reviewer" ? fix : {} });
+    let re: typeof rec.plan | null = null;
+    const hand = await runPanel(createPanel({ stage: "pre", wanted: 1, off: ["producer"], candidates: [{ id: rec.id, clip: crewClipOfPlan(rec.plan, { run: rec.run }), post: wordsOf(rec.plan) }], who: "app", separation: "contexts" }), {
+      model,
+      replan: (_clip, need) => {
+        const found = studioReplan(rec, need, copy);
+        re = found?.plan ?? null;
+        return found ? { clip: found.clip, post: wordsOf(found.plan) } : null;
+      },
+    });
+    expect(re).not.toBeNull();
+    expect(hand.clips[0].fix?.state).toBe("applied");
+    expect(hand.copy).toMatchObject({ source: "template", clips: [{ title: re!.hook, caption: re!.post.caption }] });
+  }, 120_000);
+});
+
 describe("research and the prompts (--- studio ---)", () => {
   it("digests the trend summary and the inspire dataset by our own searches, never another creator's title or channel", () => {
     const records = [
