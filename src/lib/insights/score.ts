@@ -1,5 +1,5 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
-import { captionBaseFont, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { captionBaseFont, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
 import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -327,6 +327,34 @@ export function runFactsSync(settings: SimulatorSettings, seed: number, world?: 
   }
 }
 
+// --- crew ---
+/**
+ * The run itself (the planner's RunFacts: the winner, the first escape, the finish – what the score's facts leave out), in one
+ * go: the run runFactsSync() reads, followed past `clipSec` when given (the file's length). The crew's rules and dossier read it
+ * (lib/crew/clip.ts).
+ */
+export function runSync(settings: SimulatorSettings, seed: number, world?: BotWorld | null, recipe?: string | null, clipSec?: number | null): RunFacts {
+  return drain(runSteps(settings, seed, world, clipSec, recipe));
+}
+
+/** The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. */
+export async function runOf(settings: SimulatorSettings, seed: number, options: RunFactsOptions = {}): Promise<RunFacts | null> {
+  const now = options.now ?? clock;
+  const pause = options.pause ?? breathe;
+  const steps = runSteps(settings, seed, options.world, options.clipSec, options.recipe);
+  let mark = now();
+  for (;;) {
+    if (options.signal?.aborted) return null;
+    const next = steps.next();
+    if (next.done) return next.value;
+    if (now() - mark >= SCORE_SLICE_MS) {
+      await pause();
+      mark = now();
+    }
+  }
+}
+// --- end crew ---
+
 export interface RunFactsOptions {
   /** The world the page simulates in (its canvas in CSS px), so the run is the one the export played; 800 × 600 without one. */
   world?: BotWorld | null;
@@ -413,5 +441,37 @@ export async function scoreSavedClip(genes: ClipGenes, clip: SavedClipScore): Pr
     return genes;
   }
 }
+
+// --- crew ---
+/** A saved clip's genes as scoreSavedClip() gives them, with the run they were scored from and the facts the score read. */
+export interface SavedClipFacts {
+  genes: ClipGenes;
+  /** The run of its seed in the page's world (null: aborted, or a failure). */
+  run: RunFacts | null;
+  /** The run's facts with the export's (mergeFacts), null without a run. */
+  facts: ScoreFacts | null;
+}
+
+/**
+ * scoreSavedClip() that keeps what it measured: the genes it gives (the same record), the run of the clip's seed and the facts
+ * the score read – for the crew's after-save look (lib/crew/clip.ts crewClipOfSaved), which needs the run's winner, escapes and
+ * finish. Unlike scoreSavedClip(), the seed is run for every clip, a bot plan's that keeps its own score too (its genes are
+ * then returned as they were). Anything else, an aborted run or a failure: the genes as they were, no run and no facts.
+ */
+export async function scoreSavedClipWithFacts(genes: ClipGenes, clip: SavedClipScore): Promise<SavedClipFacts> {
+  try {
+    const run = await runOf(clip.settings, clip.seed, { world: clip.world, clipSec: clip.durationSec, recipe: genes.recipe, signal: clip.signal, now: clip.now, pause: clip.pause });
+    if (!run) return { genes, run: null, facts: null };
+    const facts = mergeFacts(factsOfRun(clip.settings, run, strategyOf(clip.settings.mode, genes.recipe)), factsOfExport(clip.features ?? genes.features, clip.durationSec));
+    if (!scoresFromSettings(genes)) return { genes, run, facts };
+    const planned = genes.source === "ai" || genes.source === "plan";
+    const melody = genes.melody ?? (typeof clip.melody === "string" && clip.melody ? clip.melody : null);
+    const like = planLikeFromSettings(clip.settings, facts, { platform: clip.platform, episode: genes.episode, melody, recipe: genes.recipe, bucket: planned ? genes.bucket : null, bucketSec: planned ? genes.durationSec : null, ending: planned ? genes.ending : null });
+    return { genes: genesWithScore({ ...genes, melody, ...(planned ? { bucket: like.bucket, ending: like.ending } : {}) }, scorePlanLike(like)), run, facts };
+  } catch {
+    return { genes, run: null, facts: null };
+  }
+}
+// --- end crew ---
 
 // --- end insights ---

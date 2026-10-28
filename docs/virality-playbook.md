@@ -125,6 +125,81 @@ What the simulator taught us while building it **[observed in our own planner ru
 Next: feed each clip's average watch time, sends per reach, saves and first-hour comments back into the checklist weights, and
 compare the resolved and cliffhanger clips the bot alternates.
 
+### The Simple score and the clarity gates
+
+The AI studio's crew (`src/lib/crew/`) checks every clip with plain rules before any model looks at it, and a model may fix or
+drop a clip that fails a rule, never keep it.
+
+**The Simple score** (0–100, `simplicity.ts`) measures "simple, not a lot of distractions" from the settings and the caption
+timeline. It is 100 minus:
+
+- text on screen at once (a caption group, the Top or Bottom Text, a HUD's words, a name label, a cut's hook pill or address
+  line): 2 messages cost 5, 3 cost 15, 4 or more cost 30;
+- 20 × the share of the clip above 15 % with 2 or more messages on screen;
+- 6 for every persistent message (on screen for more than 80 % of the clip) after the first;
+- a hook over 7 words (2 a word, at most 10) or over 2 lines (5);
+- a message said twice: an AI hook that is not the drawn one 10, a cut's hook pill that is not the clip's hook 6, a payoff line
+  the hook already says 3, a countdown caption beside a HUD that counts down 5;
+- effects: wall glow 2, thick trails 3, a colour-cycling trail 3, rainbow walls 4, a rainbow ball 3, a reactive background 5,
+  shake up to 5, the cinematic camera 3, confetti bursts 2, a confetti wall break 2 (the wall effects only in ring modes);
+- 5 for each mode HUD or badge the clip does not keep (the HUD that counts down is kept when it is the countdown);
+- after a render: 5 for motion above twice the most viewed median, 5 for no motion by 1.5 s.
+
+80 or more is Simple, 60–79 a bit busy, below 60 busy. The watermark badge is not counted.
+
+**The clarity gates** (`clarity.ts`):
+
+| Gate | Passes when |
+| --- | --- |
+| G1 motion early | The first impact comes within 1 s (after a render: the measured first motion within 1.5 s). |
+| G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. |
+| G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
+| G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim. |
+| G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band. |
+| G6 not too busy | Simple is 60 or more. |
+| G7 length fits | The length is in a bucket the platform takes. |
+| G8 rendered | At most 2 % lagged frames, and the watermark on every free clip. |
+
+**Today's bot clips are busy** **[observed in our own planner: 19 recipes × 3 platforms × 4 plan seeds, 228 plans, the bot's
+look]**. Their median Simple is 44 (15–56), while their median checklist score is 100.
+
+- Every clip stacks the hook, the countdown and the series label in its first seconds and keeps two messages on screen for the
+  whole clip.
+- Every clip has the colour trail and the cinematic camera. The ring modes add wall glow, shake and the confetti wall break.
+- 74 plans fail G5, 60 of them with a hook of more than 7 words (mostly Grow until it fills, Power Layers, String Battle and
+  Territory). 12 fail G1 (the square race's 3-2-1). 7 fail G2 (a payoff at 97 % with 0.5 s after it) and 7 fail G7.
+- 2 fail G4: their seed search found no seed, so the run never shows the escape or the fill.
+
+| Recipe | Simple (median) | Simple (range) | Checklist (median) |
+| --- | --- | --- | --- |
+| ring-escape | 47 | 47–47 | 98 |
+| pip-escape | 26 | 26–26 | 98 |
+| grow-fill | 40 | 40–40 | 100 |
+| clone-per-pass | 44 | 44–44 | 100 |
+| multipliers-board | 30 | 30–30 | 100 |
+| power-layers | 26 | 26–28 | 100 |
+| pendulum-wave | 56 | 56–56 | 100 |
+| polyrhythm | 30 | 30–30 | 100 |
+| drop-symphony | 56 | 56–56 | 100 |
+| glass-smash | 24 | 24–24 | 100 |
+| string-battle | 52 | 52–52 | 100 |
+| territory | 28 | 28–28 | 100 |
+| battle-royale | 56 | 56–56 | 100 |
+| square-race | 25 | 25–25 | 95 |
+| maze-race | 15 | 15–15 | 99 |
+| fight-duel | 51 | 51–51 | 100 |
+| fight-upset | 51 | 51–51 | 100 |
+| fight-bracket | 51 | 51–51 | 94 |
+| fight-boss | 49 | 47–49 | 100 |
+
+The Simple look (a later step) is measured against this baseline.
+
+**The cinematic camera is not only a look** **[observed in our own planner runs]**. Its slow motion changes the physics steps,
+so turning `cinematicEnabled` off changes the run in 12 modes: Classic, Accumulation, Multiply, Shatter, Color Match, Ball Drop,
+Multipliers, String Battle, Maze, Conveyor, Fight League and Land Claim. A seed found with the camera on plays differently with it
+off, so a calmer look must keep it or plan its seeds with it off. Every other look setting the Simple score reads leaves the run
+alone.
+
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your
 Bouncing Ball Videos Go Viral"; creatorflow.so, "Instagram Algorithm 2026: What Changed"; clixie.ai, "Instagram
