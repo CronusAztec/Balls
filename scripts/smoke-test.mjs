@@ -68,7 +68,9 @@ const errors = [];
 // --- review fix (site-static) --- the served origin and base path: same-origin failures are the site's, foreign ones are noise
 const ORIGIN = new URL(BASE).origin;
 const BASE_PATH = new URL(BASE).pathname.replace(/\/+$/, "");
-page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+// --- react-hydration-replay --- each entry also names the page it happened on (page.url()), so a failure of "no console/page
+// errors" says where to look; the filters below match the error text, which no URL the suite opens contains.
+page.on("pageerror", (e) => errors.push(`pageerror: ${e.message} (page ${page.url()})`));
 page.on("console", (m) => {
   if (m.type() !== "error") return;
   const text = m.text();
@@ -76,7 +78,7 @@ page.on("console", (m) => {
   // error; a same-origin one stays (its HTTP status is also reported precisely by the response listener below).
   const url = m.location()?.url || "";
   if (/^Failed to load resource/.test(text) && url && !url.startsWith(`${ORIGIN}/`)) return;
-  errors.push(`console: ${text}${/^Failed to load resource/.test(text) && url ? ` (${url})` : ""}`);
+  errors.push(`console: ${text}${/^Failed to load resource/.test(text) && url ? ` (${url})` : ""} (page ${page.url()})`);
 });
 /**
  * --- review fix (site-static) --- Every same-origin response of 400 or more fails the run ("no failed same-origin requests"): a
