@@ -68,7 +68,7 @@ describe("the npm installs stay out of git (--- ai-guard ---)", () => {
 
 /*
  * --- react-hydration-replay --- A plain `npm install` rewrites no lock file either. npm records `"hasInstallScript": true` in
- * a lock's root entry when its package.json has a preinstall, install or postinstall script (@npmcli/arborist, Node's
+ * a lock's root entry when its package.json has a preinstall, install or postinstall script (npm's tree builder, Node's
  * hasInstallScript), and leaves it out without one. A lock that disagrees is rewritten by the next plain `npm install` (the
  * README's "Getting started"), and the tree it leaves is no longer clean: `npm run guard -- --baseline` refuses it. `npm ci`
  * (CI, the VPS deployer) never writes the lock, so only a local install shows it. The site's postinstall
