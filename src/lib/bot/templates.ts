@@ -5,6 +5,7 @@ import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
 import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
+import { templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name)
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -13,8 +14,9 @@ import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outco
  * (SIMPLE_LOOK, the one-line-at-a-time text plan) that keeps a clip calm.
  *
  *  - A format: its idea in one sentence, its claim (what the run must visibly do: the crew's G4 and the viewer check it), its
- *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion – a later
- *    step writes it), where its countdown comes from and the endings it takes.
+ *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion, in en, pl
+ *    and es: copy.ts formatText, its `{thing}` the mode's noun under `ViralBot.things`), where its countdown comes from and the
+ *    endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf).
  *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
  *    the recipe's does not show the format's payoff: Ball Drop's last note –, the bound finder outcome's moment ("outcome") or
  *    the clip's last 1.5 s ("atEnd"): outcomeStrategy.ts), the settings it plays its recipe with (`tune`: Pendulum Wave's chord
@@ -27,8 +29,9 @@ import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outco
  *    Fight League's boss rush (its hook), the square race (its count-in) and Ball Drop (its run fades out: review round 2,
  *    21). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden; the other 32 are declared, experimental and hidden until their settings, copy and planning acceptance land
- *    (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its strategy can plan it.
+ *    hidden; the other 32 are declared, experimental and hidden until their settings and planning acceptance land – their
+ *    format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
+ *    strategy can plan it.
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
  *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
  *    buckets its seed search finds the payoff in. A variant without a recipe adapts its binding (ownRecipe: the format's family,
@@ -244,7 +247,7 @@ export interface TemplateFormat {
   idea: string;
   /** What the run must visibly do (crew/clip.ts CLAIMS). */
   claim: Claim;
-  /** Its copy under `ViralBot.formats.<id>` (a later step; the proven templates speak with their recipes' copy). */
+  /** Its copy under `ViralBot.formats.<id>` (copy.ts formatText; the proven templates speak with their recipes' copy). */
   copyKey: string;
   countdown: readonly CountdownFrom[];
   endings: readonly EndingStyle[];
@@ -442,14 +445,14 @@ const COUNT_IN = "its 3-2-1-GO opens the gate at 1.8 s, so G1 (the first impact 
  */
 const FADES_OUT = "its run fades out: the last ball's last note is one faint tick over a board at rest (G2 Still), then silence until the SETTLED! banner, which the recorder shows for 0.5 s (G2 asks 0.8 s): no moment at 80–90 % of the clip lands";
 
-/** A binding of a later step: no recipe – its own settings, its format's copy still to come –, trial once it leaves EXPERIMENTAL. */
+/** A binding of a later step: no recipe – its own settings and its format's copy –, trial once it leaves EXPERIMENTAL. */
 const later = (format: TemplateFormatId, strategy: TemplateStrategy, extra: Partial<BindingSpec> = {}): BindingSpec => ({ format, strategy, tier: "trial", keepHud: null, ...extra });
 
 // --- templates --- why a binding is in the experimental table
 /** Its strategy can plan it (the outcome's moment, the clip's end, the run's finish); it waits for the rest. */
-const AWAITS = "waits for its own settings, its format's copy and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
+const AWAITS = "waits for its own settings and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
 /** Its outcome is found over settings, not seeds: the outcome strategy has no seed's moment for it (outcomeStrategy.ts). */
-const OWN_SEARCH = "its outcome is searched over settings by its own finder, not over seeds: the outcome strategy cannot plan it, and it waits for that search as well as its settings, its format's copy and the planning acceptance";
+const OWN_SEARCH = "its outcome is searched over settings by its own finder, not over seeds: the outcome strategy cannot plan it, and it waits for that search as well as its settings and the planning acceptance";
 
 /**
  * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
@@ -610,9 +613,19 @@ export function readyTemplates(family: BotFamilyChoice = "default"): TemplateInf
   return INFOS.filter((t) => t.ready && t.family !== null && families.includes(t.family));
 }
 
-/** The noun a format's `{thing}` takes for a mode: its key under `ViralBot` (a later step writes `things`). */
+/** The noun a format's `{thing}` takes for a mode: its key under `ViralBot` ("things.shatter": "the ball", "piłka", "la pelota"). */
 export function thingKeyOf(mode: ModeId): string {
   return `things.${mode}`;
+}
+
+/**
+ * --- templates --- A template's name in the copy's language (copy.ts templateName): "{Mode name} · {Format name}" ("Shatter · Get
+ * out"), and for a binding's further variant the name of the recipe it wraps after it ("Classic · Get out · Gerald escapes").
+ * `modeName`: the site's name of its mode (`Modes.<id>.name`), which the caller reads.
+ */
+export function templateNameOf(info: TemplateInfo, copy: BotCopy, modeName: string): string {
+  const first = info.binding.variants[0]?.id === info.id;
+  return templateName(copy, modeName, info.format.id, first ? null : info.recipe);
 }
 
 /* ------------------------------------------------------------------ the adapter */
@@ -701,8 +714,9 @@ export function ownSettingsOf(binding: ModeBinding): BotRecipe["settings"] {
  * --- templates --- A binding's own recipe (a variant without one): its format's family (or its own), payoff, copy key, endings and
  * countdown sources, its own settings (ownSettingsOf), strategy, outcome, countdown and hook values, under the template id – and
  * the format's words as a wrapped recipe has them. An atEnd binding ends resolved only (no event comes to cut before) and fills
- * the buckets whose payoff lands in the planner's band (AT_END_BUCKETS). Its copy is its format's (`ViralBot.formats.<id>`, a
- * later step): until it lands the clip draws no words. Null for an outcome the outcome strategy has no moment for.
+ * the buckets whose payoff lands in the planner's band (AT_END_BUCKETS). Its copy is its format's (`ViralBot.formats.<id>`,
+ * BotRecipe.formatCopy: copy.ts formatText), its `{thing}` its mode's noun (thingKeyOf). Null for an outcome the outcome
+ * strategy has no moment for.
  */
 function ownRecipe(info: TemplateInfo): BotRecipe | null {
   const b = info.binding;
@@ -726,6 +740,8 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     ...(buckets && buckets.length ? { buckets } : {}),
     settings: ownSettingsOf(b),
     hookVars: b.hookVars ?? (() => ({})),
+    formatCopy: true, // --- templates --- (its format's words, its mode's noun)
+    copyVars: () => ({ thing: thingKeyOf(b.mode) }),
     ...(f.payoffWords ? {} : { payoffWords: false as const }),
     ...(f.stakeHook ? { stakeHook: true as const } : {}),
     ...(b.hookAsk ? { hookAsk: b.hookAsk } : {}),

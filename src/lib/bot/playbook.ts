@@ -195,7 +195,7 @@ export type HookVars = Record<string, string | number>;
 export interface BotRecipe {
   /** Kebab-case id, used in file names and the manifest. */
   id: string;
-  /** Key of its copy under `ViralBot.recipes` in messages/*.json. */
+  /** Key of its copy under `ViralBot.recipes` in messages/*.json (--- templates --- under `ViralBot.formats` with `formatCopy`). */
   copyKey: string;
   family: BotFamily;
   /** The modes it plays in; the generator picks one (the first is the main one). */
@@ -258,6 +258,11 @@ export interface BotRecipe {
    * the Simple look draws a counter caption only where it lists "caption".
    */
   countdownFrom?: readonly CountdownSource[];
+  /**
+   * --- templates --- Its words are its format's (a template's own recipe, templates.ts ownRecipe): its `copyKey` names a format,
+   * and its copy is `ViralBot.formats.<copyKey>`, `{thing}` its mode's noun (copy.ts recipeText, formatText).
+   */
+  formatCopy?: true;
 }
 
 /* seeded helpers ---------------------------------------------------------- */

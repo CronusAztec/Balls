@@ -7,6 +7,9 @@ import { HASHTAG_COUNT, PLATFORMS } from "./playbook";
  * (hooks, on-screen payoff texts and questions, post captions, keywords, hashtags, series names, posting notes) filled in
  * with the clip's numbers. Pure: the planner (in the page and in Node) hands in the `ViralBot` object of one locale. The
  * templates use plain `{name}` placeholders (no ICU plurals), so they read the same through next-intl and here.
+ * --- templates --- A viral template without a recipe speaks with its format's words (`ViralBot.formats.<format>`), its
+ * `{thing}` its mode's noun (`ViralBot.things.<mode>`), written so that nothing in a Polish or Spanish sentence has to agree
+ * with it; a template's name is "{Mode name} · {Format name}"; the two looks have a name and a line (`ViralBot.looks`).
  */
 
 export const BOT_LOCALES = ["en", "pl", "es"] as const;
@@ -45,10 +48,97 @@ export function reasonValues(values: Readonly<Record<string, string | number>>, 
 }
 // --- end insights ---
 
-/** A copy string of the recipe, filled (`field`: name, hook, cliffHook, payoff, cliffQuestion, postQuestion…). */
-export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey">, field: string, vars: Record<string, string | number> = {}): string {
+/**
+ * A copy string of the recipe, filled (`field`: name, hook, cliffHook, payoff, cliffQuestion, postQuestion…). --- templates ---
+ * A template's own recipe (BotRecipe.formatCopy) speaks with its format's words (formatText).
+ */
+export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, field: string, vars: Record<string, string | number> = {}): string {
+  if (recipe.formatCopy) return formatText(copy, recipe.copyKey, field, vars); // --- templates ---
   return fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.${field}`), vars).trim();
 }
+
+// --- templates --- the formats' words (ViralBot.formats.<format>), the modes' nouns (ViralBot.things) and the looks (ViralBot.looks)
+
+/** --- templates --- Where a recipe's copy is under `ViralBot`: `recipes.<copyKey>`, or its format's `formats.<copyKey>` (BotRecipe.formatCopy). */
+export function recipeCopyPath(recipe: Pick<BotRecipe, "copyKey" | "formatCopy">): string {
+  return `${recipe.formatCopy ? "formats" : "recipes"}.${recipe.copyKey}`;
+}
+
+/**
+ * The fields of a format's copy (`ViralBot.formats.<format>`, per format, not per template): its name, its hooks a, b and c, the
+ * hook of a clip cut before its payoff, the payoff's words, the closing question and the post's question.
+ */
+export const FORMAT_COPY_FIELDS = ["name", "hook", "hookB", "hookC", "cliffHook", "payoff", "cliffQuestion", "postQuestion"] as const;
+export type FormatCopyField = (typeof FORMAT_COPY_FIELDS)[number];
+
+/** A format's hook variants (crew/roles.ts HOOK_VARIANTS) and the field of its copy each one is. */
+export const FORMAT_HOOK_FIELDS = { a: "hook", b: "hookB", c: "hookC" } as const satisfies Readonly<Record<string, FormatCopyField>>;
+
+/**
+ * The placeholders a format's words take: its mode's noun (`{thing}`: ViralBot.things), the clip's numbers (`{count}`,
+ * `{seconds}`), a name (`{name}`; `{winner}`, the run's winner, as the recipes' payoffs and the planner have it) and a target
+ * (`{target}`).
+ */
+export const FORMAT_PLACEHOLDERS = ["thing", "count", "seconds", "name", "winner", "target"] as const;
+
+/** A recipe's field a format's copy does not have, and the one that stands in for it: its name is its series, its closing question a cliffhanger's post question. */
+const FORMAT_STAND_INS: Readonly<Record<string, FormatCopyField>> = { series: "name", cliffPostQuestion: "cliffQuestion" };
+
+/** A value at the start of a sentence, with a capital: its first letter, after any mark before it. */
+const capitalised = (value: string) => value.replace(/^(\P{L}*)(\p{Ll})/u, (_, lead: string, first: string) => `${lead}${first.toUpperCase()}`);
+
+/**
+ * `template` filled from `vars`: a value at the start of a sentence (the text's start, after ".", "!", "?" or "…", or after an
+ * opening "¿" or "¡") starts with a capital ("{thing} vs the clock." → "The ball vs the clock."); a template with a placeholder
+ * left unfilled – no value, or an empty one – is no text (""), so no clip draws a brace or a sentence with a hole in it.
+ */
+function fillSentences(template: string, vars: Readonly<Record<string, string | number>>): string {
+  let unfilled = false;
+  const text = template.replace(/\{(\w+)\}/g, (whole, key: string, at: number) => {
+    const value = Object.hasOwn(vars, key) ? String(vars[key]).trim() : "";
+    if (!value) {
+      unfilled = true;
+      return whole;
+    }
+    const before = template.slice(0, at).trimEnd();
+    return before === "" || /[.!?…¿¡]$/u.test(before) ? capitalised(value) : value;
+  });
+  return unfilled ? "" : text.trim();
+}
+
+/**
+ * A format's words for a field, filled (fillSentences: capitals at a sentence's start, "" while a placeholder is unfilled); a
+ * recipe's field the format has none of reads the one that stands in for it (its name as the series, the closing question as
+ * a cliffhanger's post question); "" for a field neither has (its keywords, its own hashtags).
+ */
+export function formatText(copy: BotCopy, format: string, field: string, vars: Readonly<Record<string, string | number>> = {}): string {
+  const own = copyString(copy, `formats.${format}.${field}`);
+  const standIn = FORMAT_STAND_INS[field];
+  return fillSentences(own || (standIn ? copyString(copy, `formats.${format}.${standIn}`) : ""), vars);
+}
+
+/** A mode's noun, the one its format's `{thing}` takes (`ViralBot.things.<mode>`: "the ball", "piłka", "las esferas", "Gerald"); "" without one. */
+export function thingOf(copy: BotCopy, mode: string): string {
+  return copyString(copy, `things.${mode}`);
+}
+
+/**
+ * A template's name: "{Mode name} · {Format name}" ("Shatter · Get out"), with the mode's name as the site shows it
+ * (`Modes.<id>.name`, which the caller reads: this copy is the `ViralBot` namespace alone); a binding's further variant
+ * (templates.ts templateNameOf) adds the name of the recipe it wraps ("Classic · Get out · Gerald escapes"), so no two
+ * templates share a name.
+ */
+export function templateName(copy: BotCopy, modeName: string, format: string, variantOf?: Pick<BotRecipe, "copyKey"> | null): string {
+  const parts = [modeName.trim(), copyString(copy, `formats.${format}.name`) || format];
+  if (variantOf) parts.push(copyString(copy, `recipes.${variantOf.copyKey}.name`) || variantOf.copyKey);
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** A look's name and its one line (`ViralBot.looks.<look>`: "Simple", "Dark and calm. One line of text at a time."). */
+export function lookCopy(copy: BotCopy, look: string): { name: string; line: string } {
+  return { name: copyString(copy, `looks.${look}.name`) || look, line: copyString(copy, `looks.${look}.line`) };
+}
+// --- end templates ---
 
 /** The words of a hashtag list ("#a #b, #c"), each starting with "#", without repeats (case-insensitive). */
 export function parseHashtags(text: string): string[] {
@@ -73,8 +163,8 @@ export function recipeCopyVars(copy: BotCopy, recipe: Pick<BotRecipe, "copyVars"
  * out), then the family's, the platform's tag and the locale's common ones – never more than HASHTAG_COUNT.max, and padded
  * from the common list to at least HASHTAG_COUNT.min.
  */
-export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family">, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
-  const own = parseHashtags(fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.hashtags`), vars));
+export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy">, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
+  const own = parseHashtags(fillTemplate(copyString(copy, `${recipeCopyPath(recipe)}.hashtags`), vars)); // --- templates --- (a format has none of its own)
   const family = parseHashtags(copyString(copy, `hashtags.${recipe.family}`));
   const common = parseHashtags(copyString(copy, "hashtags.common"));
   const out: string[] = [];
@@ -89,12 +179,12 @@ export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | 
 }
 
 /** "Ring Escape · Day 12": the series label on the clip (Top Text) and in the caption. */
-export function seriesLabel(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey">, episode: number): string {
+export function seriesLabel(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, episode: number): string {
   return fillTemplate(copyString(copy, "post.seriesLabel") || "{series} · {episode}", { series: recipeText(copy, recipe, "series"), episode });
 }
 
 export interface PostCopyInput {
-  recipe: Pick<BotRecipe, "copyKey" | "family">;
+  recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy">;
   platform: BotPlatform;
   ending: EndingStyle;
   hook: string;

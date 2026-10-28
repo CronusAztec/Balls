@@ -4015,6 +4015,168 @@
         "hashtags": "#ballfight #fightsimulation {divisionTag} #satisfying"
       }
     },
+    "formats": {
+      "getOut": {
+        "name": "Get out",
+        "hook": "Will {thing} get out?",
+        "hookB": "Will {thing} make it home?",
+        "hookC": "{seconds} seconds. One way out.",
+        "cliffHook": "{thing} vs the clock.",
+        "payoff": "Out! 🔓",
+        "cliffQuestion": "Out or not? 👇",
+        "postQuestion": "Would you have bet on the escape?"
+      },
+      "smash": {
+        "name": "Smash",
+        "hook": "Every hit counts. Which one breaks it?",
+        "hookB": "{count} to break. How many hits?",
+        "hookC": "{thing} vs everything.",
+        "cliffHook": "Every hit counts. Will it break?",
+        "payoff": "Smashed. 💥",
+        "cliffQuestion": "One more hit? 👇",
+        "postQuestion": "How many hits did you think it would take?"
+      },
+      "fill": {
+        "name": "Fill it",
+        "hook": "Can {thing} fill it all?",
+        "hookB": "Watch it fill to the top.",
+        "hookC": "{seconds} seconds to fill it.",
+        "cliffHook": "{thing} vs the last gap.",
+        "payoff": "Full! 😮",
+        "cliffQuestion": "Does it fit? 👇",
+        "postQuestion": "When did you know it would fill?"
+      },
+      "count": {
+        "name": "Count",
+        "hook": "One ball. How many by the end?",
+        "hookB": "How many by the end? Guess now.",
+        "hookC": "{thing} vs the counter.",
+        "cliffHook": "Keep counting. How many now?",
+        "payoff": "{count}! 🤯",
+        "cliffQuestion": "How many now? 👇",
+        "postQuestion": "What was your guess before the end?"
+      },
+      "whoWins": {
+        "name": "Who wins",
+        "hook": "Pick a colour.",
+        "hookB": "Pick one before it starts.",
+        "hookC": "{thing}. Only one wins.",
+        "cliffHook": "Pick a colour before the end.",
+        "payoff": "{winner} wins! 🏆",
+        "cliffQuestion": "Who wins? 👇",
+        "postQuestion": "Which one did you pick before it started?"
+      },
+      "aim": {
+        "name": "Aim",
+        "hook": "Will {thing} hit the mark?",
+        "hookB": "Will one hit the bullseye?",
+        "hookC": "How long can it last?",
+        "cliffHook": "Almost there. Will it hit?",
+        "payoff": "Bullseye! 🎯",
+        "cliffQuestion": "Hit or miss? 👇",
+        "postQuestion": "Did you think it would hit?"
+      },
+      "lineUp": {
+        "name": "Line up",
+        "hook": "Wait for it…",
+        "hookB": "Will {thing} line up?",
+        "hookC": "Out of step. Not for long.",
+        "cliffHook": "Almost in line. Almost…",
+        "payoff": "There it is. ✨",
+        "cliffQuestion": "Do they line up? 👇",
+        "postQuestion": "At what second did you see it coming?"
+      },
+      "onTheBeat": {
+        "name": "On the beat",
+        "hook": "Sound on.",
+        "hookB": "Every bounce is a note.",
+        "hookC": "Sound on for {thing}.",
+        "cliffHook": "Sound on. Wait for the drop.",
+        "payoff": "Final note. 🎹",
+        "cliffQuestion": "What comes next? 👇",
+        "postQuestion": "Which song should it play next?"
+      },
+      "reveal": {
+        "name": "Reveal",
+        "hook": "Guess what it draws.",
+        "hookB": "Watch {thing} draw. What is it?",
+        "hookC": "Line by line. Guess the picture.",
+        "cliffHook": "Almost done. Guess now.",
+        "payoff": "The full picture. 🖼️",
+        "cliffQuestion": "What is it? 👇",
+        "postQuestion": "What did you think it was drawing?"
+      },
+      "labGame": {
+        "name": "Lab game",
+        "hook": "One rule. Watch where it goes.",
+        "hookB": "{thing} vs the rules.",
+        "hookC": "How does this one end?",
+        "cliffHook": "How does it end? Guess now.",
+        "payoff": "Game over! 🏁",
+        "cliffQuestion": "How does it end? 👇",
+        "postQuestion": "What rule should the next game try?"
+      }
+    },
+    "things": {
+      "classic": "the ball",
+      "accumulation": "the balls",
+      "multiply": "the balls",
+      "lines": "the ball",
+      "paint": "the ball",
+      "target": "the ball",
+      "portal": "the ball",
+      "shatter": "the ball",
+      "colorMatch": "the ball",
+      "grow": "the ball",
+      "drop": "the balls",
+      "box": "the shapes",
+      "pendulum": "the pendulums",
+      "polyrhythm": "the metronomes",
+      "collide": "the orbs",
+      "glass": "Gerald",
+      "multipliers": "the balls",
+      "doublePendulum": "the pendulums",
+      "illusion": "the balls",
+      "stringBattle": "the balls",
+      "powerLayers": "the ball",
+      "race": "the squares",
+      "battle": "the squares",
+      "ctf": "the squares",
+      "runner": "the square",
+      "paddle": "the ball",
+      "vortex": "the balls",
+      "journey": "Gerald",
+      "bullseye": "the balls",
+      "beatDrop": "the ball",
+      "territory": "the balls",
+      "maze": "the balls",
+      "conveyor": "the balls",
+      "orbGrid": "the orbs",
+      "fightLeague": "the fighters",
+      "landClaim": "the balls",
+      "colourSort": "the balls",
+      "starChords": "the stars",
+      "hoops": "the beads",
+      "ellipseFoci": "the balls",
+      "beatMachine": "the marbles",
+      "waveTank": "the waves",
+      "brickRebuild": "the balls",
+      "drawingMachine": "the pen",
+      "perfectFit": "the pieces",
+      "mergeRing": "the balls",
+      "spiralGlass": "the balls",
+      "blueprint": "the balls"
+    },
+    "looks": {
+      "bot": {
+        "name": "Bold",
+        "line": "Neon glow, colour trails and the series label on screen."
+      },
+      "simple": {
+        "name": "Simple",
+        "line": "Dark and calm. One line of text at a time."
+      }
+    },
     "cover": {
       "label": "Cover",
       "at": "{sec} s – {why}",

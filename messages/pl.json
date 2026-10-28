@@ -4015,6 +4015,168 @@
         "hashtags": "#ballfight #symulacjawalki {divisionTag} #satysfakcjonujace"
       }
     },
+    "formats": {
+      "getOut": {
+        "name": "Ucieczka",
+        "hook": "{thing} w pułapce. Uda się wyjść?",
+        "hookB": "{thing} w drodze. Cel: dom.",
+        "hookC": "{seconds} s. Jedno wyjście.",
+        "cliffHook": "{thing} kontra czas.",
+        "payoff": "Wolność! 🔓",
+        "cliffQuestion": "Udało się? 👇",
+        "postQuestion": "Postawiłbyś na ucieczkę?"
+      },
+      "smash": {
+        "name": "Rozbijanie",
+        "hook": "Każdy cios się liczy. Który rozbije?",
+        "hookB": "Do rozbicia: {count}. Ile uderzeń?",
+        "hookC": "{thing} kontra wszystko.",
+        "cliffHook": "Każdy cios się liczy. Pęknie?",
+        "payoff": "Rozbite. 💥",
+        "cliffQuestion": "Jeszcze jedno uderzenie? 👇",
+        "postQuestion": "Ile uderzeń według ciebie było trzeba?"
+      },
+      "fill": {
+        "name": "Do pełna",
+        "hook": "{thing} kontra pustka. Do pełna?",
+        "hookB": "Patrz, jak się zapełnia.",
+        "hookC": "{seconds} s na wypełnienie.",
+        "cliffHook": "{thing} kontra ostatnia luka.",
+        "payoff": "Pełne! 😮",
+        "cliffQuestion": "Zmieści się? 👇",
+        "postQuestion": "Kiedy wiedziałeś, że się wypełni?"
+      },
+      "count": {
+        "name": "Liczenie",
+        "hook": "Jedna piłka. Ile będzie na końcu?",
+        "hookB": "Ile będzie na końcu? Zgaduj teraz.",
+        "hookC": "{thing} kontra licznik.",
+        "cliffHook": "Licz dalej. Ile już jest?",
+        "payoff": "{count}! 🤯",
+        "cliffQuestion": "Ile ich teraz? 👇",
+        "postQuestion": "Jaki był twój typ przed końcem?"
+      },
+      "whoWins": {
+        "name": "Kto wygra",
+        "hook": "Wybierz kolor.",
+        "hookB": "Wybierz, zanim ruszy.",
+        "hookC": "{thing}. Zwycięzca tylko jeden.",
+        "cliffHook": "Wybierz kolor przed końcem.",
+        "payoff": "{winner} wygrywa! 🏆",
+        "cliffQuestion": "Kto wygra? 👇",
+        "postQuestion": "Kogo wybrałeś przed startem?"
+      },
+      "aim": {
+        "name": "Celność",
+        "hook": "{thing} kontra cel. Będzie trafienie?",
+        "hookB": "Ktoś trafi w dziesiątkę?",
+        "hookC": "Jak długo wytrzyma?",
+        "cliffHook": "Już blisko. Trafi?",
+        "payoff": "W dziesiątkę! 🎯",
+        "cliffQuestion": "Trafi czy nie? 👇",
+        "postQuestion": "Myślałeś, że trafi?"
+      },
+      "lineUp": {
+        "name": "W jednej linii",
+        "hook": "Poczekaj chwilę…",
+        "hookB": "Czy {thing} ustawią się w linii?",
+        "hookC": "Każdy w swoim rytmie. Do czasu.",
+        "cliffHook": "Prawie w jednej linii…",
+        "payoff": "Jest! ✨",
+        "cliffQuestion": "Ustawią się w linii? 👇",
+        "postQuestion": "W której sekundzie to przewidziałeś?"
+      },
+      "onTheBeat": {
+        "name": "W rytm",
+        "hook": "Włącz dźwięk.",
+        "hookB": "Każde odbicie to nuta.",
+        "hookC": "{thing} w rytmie. Włącz dźwięk.",
+        "cliffHook": "Włącz dźwięk. Czekaj na finał.",
+        "payoff": "Ostatnia nuta. 🎹",
+        "cliffQuestion": "Co dalej? 👇",
+        "postQuestion": "Jaką piosenkę zagrać następną?"
+      },
+      "reveal": {
+        "name": "Odsłona",
+        "hook": "Zgadnij, co narysuje.",
+        "hookB": "{thing} przy pracy. Co z tego będzie?",
+        "hookC": "Linia po linii. Zgadnij obrazek.",
+        "cliffHook": "Prawie gotowe. Zgaduj teraz.",
+        "payoff": "Cały obrazek. 🖼️",
+        "cliffQuestion": "Co to jest? 👇",
+        "postQuestion": "Co twoim zdaniem powstawało?"
+      },
+      "labGame": {
+        "name": "Gra z laboratorium",
+        "hook": "Jedna zasada. Dokąd prowadzi?",
+        "hookB": "{thing} kontra zasady.",
+        "hookC": "Jak to się skończy?",
+        "cliffHook": "Jak się skończy? Zgaduj.",
+        "payoff": "Koniec gry! 🏁",
+        "cliffQuestion": "Jak się skończy? 👇",
+        "postQuestion": "Jaką zasadę sprawdzić w następnej grze?"
+      }
+    },
+    "things": {
+      "classic": "piłka",
+      "accumulation": "piłki",
+      "multiply": "piłki",
+      "lines": "piłka",
+      "paint": "piłka",
+      "target": "piłka",
+      "portal": "piłka",
+      "shatter": "piłka",
+      "colorMatch": "piłka",
+      "grow": "piłka",
+      "drop": "piłki",
+      "box": "kształty",
+      "pendulum": "wahadła",
+      "polyrhythm": "metronomy",
+      "collide": "kule",
+      "glass": "Gerald",
+      "multipliers": "piłki",
+      "doublePendulum": "wahadła",
+      "illusion": "piłki",
+      "stringBattle": "piłki",
+      "powerLayers": "piłka",
+      "race": "kwadraty",
+      "battle": "kwadraty",
+      "ctf": "kwadraty",
+      "runner": "kwadrat",
+      "paddle": "piłka",
+      "vortex": "piłki",
+      "journey": "Gerald",
+      "bullseye": "piłki",
+      "beatDrop": "piłka",
+      "territory": "piłki",
+      "maze": "piłki",
+      "conveyor": "piłki",
+      "orbGrid": "kule",
+      "fightLeague": "wojownicy",
+      "landClaim": "piłki",
+      "colourSort": "piłki",
+      "starChords": "gwiazdy",
+      "hoops": "koraliki",
+      "ellipseFoci": "piłki",
+      "beatMachine": "kulki",
+      "waveTank": "fale",
+      "brickRebuild": "piłki",
+      "drawingMachine": "pióro",
+      "perfectFit": "klocki",
+      "mergeRing": "kulki",
+      "spiralGlass": "kulki",
+      "blueprint": "kulki"
+    },
+    "looks": {
+      "bot": {
+        "name": "Wyrazisty",
+        "line": "Neonowa poświata, kolorowe smugi i nazwa serii na ekranie."
+      },
+      "simple": {
+        "name": "Prosty",
+        "line": "Ciemno i spokojnie. Jedna linijka tekstu naraz."
+      }
+    },
     "cover": {
       "label": "Okładka",
       "at": "{sec} s – {why}",

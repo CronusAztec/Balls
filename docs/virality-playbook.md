@@ -219,7 +219,7 @@ checks (G4).
 - **Ready now:** 14 of the 16 modes a recipe plays, as 18 templates. Classic and Portal also have a Gerald variant, and Fight
   League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode. Gerald's Portal escape
   takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time on about half the plans.
-- **Hidden for now:** the other 32 modes are bound but wait for their own settings, copy and planning acceptance. They sit in
+- **Hidden for now:** the other 32 modes are bound but wait for their own settings and planning acceptance. They sit in
   the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Their
   payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
@@ -235,6 +235,16 @@ checks (G4).
   ready either, though each wraps a recipe, and the beat format has no ready template.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
+- **Words:** a template that wraps a recipe speaks with the recipe's words. The other 32 speak with their format's, written
+  once per format in English, Polish and Spanish (`ViralBot.formats` in messages/*.json, read by `src/lib/bot/copy.ts`): a
+  name, three hooks to pick from, a hook for a clip cut before its payoff, the payoff's words, the closing question and the
+  post's question. `{thing}` is the mode's own noun ("the ball", "the orbs", "Gerald": `ViralBot.things`). In Polish and
+  Spanish the formats put it where nothing has to agree with it ("Piłka w pułapce. Uda się wyjść?", "¿Hay salida para la
+  pelota?"), so one hook reads right on every mode. A test fills every hook with every noun of its format, in each language:
+  at most 7 words on 2 lines, broken at its clause, at most 42 characters in English and 52 in Polish and Spanish. A number
+  the planner cannot fill yet (a count format's "{count}!") leaves the text out, never a brace. A template is named "{Mode
+  name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
+  Gerald escapes"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
 

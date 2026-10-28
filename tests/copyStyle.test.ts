@@ -32,12 +32,15 @@ const DOWNLOAD_PREFIXES = ["Desktop.metaTitle", "Desktop.metaDescription", "Desk
 const SECTION_INTRO = /^Controls\.[A-Za-z]+Desc$/;
 const TIPS = ["boxSpeedRatioTip", "pwLayoutTip", "prLayoutTip", "glassGatesTip", "captionsTip", "captionTypeTip", "sbRuleTip", "batchRenderTip", "mzBrainTip", "exitBehaviorTip", "splatBarrierTip", "ogRhythmTip", "scStarPresetsTip", "flMakeClipTip"].map((k) => `Controls.${k}`).concat(["BatchRender.listHint", "ViralBot.manual.steps"]);
 const COLOUR_SORT_INTRO = "ColourSort.csDesc";
+/** --- templates --- The viral templates' words a clip and the Bot section show: the formats' copy, the modes' nouns and the looks. */
+const VIRAL_TEMPLATE_PREFIXES = ["ViralBot.formats.", "ViralBot.things.", "ViralBot.looks."];
 
 /** Is this key one a visitor reads (docs/COPY-STYLE.md's scope)? */
 function covered(key: string): boolean {
   if (SITE_NAMESPACES.includes(key.split(".")[0])) return true;
   if (/^(Privacy|Terms|Disclaimer|Account|Press)\.meta(Title|Description)$/.test(key)) return true; // --- seo --- the search snippets of the pages whose body text is legal copy
   if (DOWNLOAD_PREFIXES.some((p) => key === p || key.startsWith(p))) return true;
+  if (VIRAL_TEMPLATE_PREFIXES.some((p) => key.startsWith(p))) return true; // --- templates ---
   return SECTION_INTRO.test(key) || TIPS.includes(key) || RANGE_TIPS.has(key) || key === COLOUR_SORT_INTRO;
 }
 
@@ -103,6 +106,7 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
       expect(keys.length, locale).toBeGreaterThan(600);
       for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc", "Desktop.update.available", "Desktop.update.ready" /* --- low-findings-2 --- */, "Changelog.title", "WhatsNew.body", `Changelog:${CHANGELOG[0].id}.headline`, `Changelog:${CHANGELOG[0].id}.0` /* --- changelog --- */]) expect(keys, `${locale} ${key}`).toContain(key);
       for (const key of RANGE_TIPS) expect(keys, `${locale} ${key}`).toContain(key); // --- unlimited-sizes --- (review fix)
+      for (const key of ["ViralBot.formats.getOut.hook", "ViralBot.things.classic", "ViralBot.looks.simple.line"]) expect(keys, `${locale} ${key}`).toContain(key); // --- templates ---
     }
   });
 

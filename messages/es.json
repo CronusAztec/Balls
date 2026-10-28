@@ -4015,6 +4015,168 @@
         "hashtags": "#ballfight #simulaciondepelea {divisionTag} #satisfactorio"
       }
     },
+    "formats": {
+      "getOut": {
+        "name": "Escape",
+        "hook": "¿Hay salida para {thing}?",
+        "hookB": "{thing} en camino. Meta: casa.",
+        "hookC": "{seconds} segundos. Una sola salida.",
+        "cliffHook": "{thing} contra el reloj.",
+        "payoff": "¡Fuera! 🔓",
+        "cliffQuestion": "¿Hubo salida? 👇",
+        "postQuestion": "¿Habrías apostado por el escape?"
+      },
+      "smash": {
+        "name": "Romper",
+        "hook": "Cada golpe cuenta. ¿Cuál lo rompe?",
+        "hookB": "{count} por romper. ¿Cuántos golpes?",
+        "hookC": "{thing} contra todo.",
+        "cliffHook": "Cada golpe cuenta. ¿Se romperá?",
+        "payoff": "¡Se rompió! 💥",
+        "cliffQuestion": "¿Un golpe más? 👇",
+        "postQuestion": "¿Cuántos golpes creías que harían falta?"
+      },
+      "fill": {
+        "name": "Hasta arriba",
+        "hook": "¿Se llenará con {thing}?",
+        "hookB": "Mira cómo se llena.",
+        "hookC": "{seconds} segundos para llenarlo.",
+        "cliffHook": "{thing} contra el último hueco.",
+        "payoff": "¡Lleno! 😮",
+        "cliffQuestion": "¿Cabe? 👇",
+        "postQuestion": "¿Cuándo supiste que se llenaría?"
+      },
+      "count": {
+        "name": "Recuento",
+        "hook": "Una pelota. ¿Cuántas al final?",
+        "hookB": "¿Cuántas al final? Adivina ya.",
+        "hookC": "{thing} contra el contador.",
+        "cliffHook": "Sigue contando. ¿Cuántas van?",
+        "payoff": "¡{count}! 🤯",
+        "cliffQuestion": "¿Cuántas hay ya? 👇",
+        "postQuestion": "¿Cuál era tu apuesta antes del final?"
+      },
+      "whoWins": {
+        "name": "Quién gana",
+        "hook": "Elige un color.",
+        "hookB": "Elige antes de que empiece.",
+        "hookC": "{thing}. Un solo ganador.",
+        "cliffHook": "Elige un color antes del final.",
+        "payoff": "¡{winner} gana! 🏆",
+        "cliffQuestion": "¿Quién gana? 👇",
+        "postQuestion": "¿A quién elegiste antes de empezar?"
+      },
+      "aim": {
+        "name": "Puntería",
+        "hook": "¿Habrá diana para {thing}?",
+        "hookB": "¿Alguien dará en la diana?",
+        "hookC": "¿Cuánto aguantará?",
+        "cliffHook": "Casi. ¿Acertará?",
+        "payoff": "¡Diana! 🎯",
+        "cliffQuestion": "¿Acierta o falla? 👇",
+        "postQuestion": "¿Pensabas que acertaría?"
+      },
+      "lineUp": {
+        "name": "En línea",
+        "hook": "Espera a verlo…",
+        "hookB": "¿Se alinearán {thing}?",
+        "hookC": "Cada uno a su ritmo. Por ahora.",
+        "cliffHook": "Casi en línea…",
+        "payoff": "¡Ahí está! ✨",
+        "cliffQuestion": "¿Se alinean? 👇",
+        "postQuestion": "¿En qué segundo lo viste venir?"
+      },
+      "onTheBeat": {
+        "name": "Al ritmo",
+        "hook": "Sube el volumen.",
+        "hookB": "Cada rebote es una nota.",
+        "hookC": "{thing} al ritmo. Sube el volumen.",
+        "cliffHook": "Sube el volumen. Espera el final.",
+        "payoff": "Última nota. 🎹",
+        "cliffQuestion": "¿Qué viene ahora? 👇",
+        "postQuestion": "¿Qué canción toca después?"
+      },
+      "reveal": {
+        "name": "Revelación",
+        "hook": "Adivina qué dibuja.",
+        "hookB": "{thing} en acción. ¿Qué saldrá?",
+        "hookC": "Línea a línea. Adivina el dibujo.",
+        "cliffHook": "Casi listo. Adivina ya.",
+        "payoff": "El dibujo completo. 🖼️",
+        "cliffQuestion": "¿Qué es? 👇",
+        "postQuestion": "¿Qué creías que estaba dibujando?"
+      },
+      "labGame": {
+        "name": "Juego del lab",
+        "hook": "Una regla. Mira adónde lleva.",
+        "hookB": "{thing} contra las reglas.",
+        "hookC": "¿Cómo acaba esto?",
+        "cliffHook": "¿Cómo acaba? Adivina ya.",
+        "payoff": "¡Fin del juego! 🏁",
+        "cliffQuestion": "¿Cómo acaba? 👇",
+        "postQuestion": "¿Qué regla probamos en el próximo juego?"
+      }
+    },
+    "things": {
+      "classic": "la pelota",
+      "accumulation": "las pelotas",
+      "multiply": "las pelotas",
+      "lines": "la pelota",
+      "paint": "la pelota",
+      "target": "la pelota",
+      "portal": "la pelota",
+      "shatter": "la pelota",
+      "colorMatch": "la pelota",
+      "grow": "la pelota",
+      "drop": "las pelotas",
+      "box": "las formas",
+      "pendulum": "los péndulos",
+      "polyrhythm": "los metrónomos",
+      "collide": "las esferas",
+      "glass": "Gerald",
+      "multipliers": "las pelotas",
+      "doublePendulum": "los péndulos",
+      "illusion": "las pelotas",
+      "stringBattle": "las pelotas",
+      "powerLayers": "la pelota",
+      "race": "los cuadrados",
+      "battle": "los cuadrados",
+      "ctf": "los cuadrados",
+      "runner": "el cuadrado",
+      "paddle": "la pelota",
+      "vortex": "las pelotas",
+      "journey": "Gerald",
+      "bullseye": "las pelotas",
+      "beatDrop": "la pelota",
+      "territory": "las pelotas",
+      "maze": "las pelotas",
+      "conveyor": "las pelotas",
+      "orbGrid": "las esferas",
+      "fightLeague": "los luchadores",
+      "landClaim": "las pelotas",
+      "colourSort": "las pelotas",
+      "starChords": "las estrellas",
+      "hoops": "las cuentas",
+      "ellipseFoci": "las pelotas",
+      "beatMachine": "las canicas",
+      "waveTank": "las ondas",
+      "brickRebuild": "las bolas",
+      "drawingMachine": "la pluma",
+      "perfectFit": "las piezas",
+      "mergeRing": "las bolas",
+      "spiralGlass": "las bolas",
+      "blueprint": "las bolas"
+    },
+    "looks": {
+      "bot": {
+        "name": "Intenso",
+        "line": "Brillo neón, estelas de colores y el nombre de la serie en pantalla."
+      },
+      "simple": {
+        "name": "Sencillo",
+        "line": "Oscuro y tranquilo. Una línea de texto a la vez."
+      }
+    },
     "cover": {
       "label": "Portada",
       "at": "{sec} s – {why}",

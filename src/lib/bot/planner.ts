@@ -9,7 +9,7 @@ import { recordingTextLayout } from "@/lib/recording/recorder";
 import { seedParam } from "@/lib/recording/batch"; // --- low-findings --- (the `seed=` of a share link)
 import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
-import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
+import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyPath, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
 import { actionSampleSec, actionTrackSteps, actionUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
 import { askHookText, botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
@@ -1143,8 +1143,8 @@ export function postingTimeFor(platform: BotPlatform, index: number, count: numb
  * one: the mode's own verdict still shares the win between them (its banner, the teams' stats), but nobody was left standing,
  * so the clip's words name no winner.
  */
-export function payoffKeyOf(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey">, facts: Pick<RunFacts, "summary"> | null): string {
-  return facts?.summary.doubleKo === true && copyString(copy, `recipes.${recipe.copyKey}.payoffDoubleKo`) ? "payoffDoubleKo" : "payoff";
+export function payoffKeyOf(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, facts: Pick<RunFacts, "summary"> | null): string {
+  return facts?.summary.doubleKo === true && copyString(copy, `${recipeCopyPath(recipe)}.payoffDoubleKo`) ? "payoffDoubleKo" : "payoff";
 }
 
 /* ------------------------------------------------------------------ planClip */
@@ -1171,7 +1171,8 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     settings.bottomText = sanitizeCaptionText(label, 60);
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
-  const ownHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
+  // (--- templates --- a template's own recipe reads its format's cliffhanger hook)
+  const ownHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `${recipeCopyPath(recipe)}.cliffHook`) ? "cliffHook" : "hook", vars);
   // --- templates --- (review round 2, 20) a template that asks rather than promise a chord its run plays elsewhere too
   const fullHook = recipe.hookAsk ? askHookText(ownHook, recipeText(copy, recipe, recipe.hookAsk, vars)) : ownHook;
   // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the
