@@ -217,6 +217,19 @@ export function sheetArgs(inputNames: readonly string[], outName: string, grid: 
   return [...QUIET, ...inputs, "-filter_complex", [...cells, joined].join(";"), "-map", "[sheet]", "-frames:v", "1", "-f", "image2", "-c:v", "png", "-n", `file:${outName}`];
 }
 
+// --- studio --- a sheet as one JPEG small enough for an MCP image block (scripts/agent/frames.mjs jpegUnder: the widths and
+// qualities tried in turn until the file fits)
+/** The widths (px) and the qualities (ffmpeg's -q:v, 2 best to 31) a sheet's JPEG is tried at, in order. */
+export const JPEG_STEPS = { widths: [1280, 1024, 800, 640, 480, 360], qualities: [4, 7, 11, 16, 24] } as const;
+
+/** A sheet already written (a bare PNG name in the working folder) as a JPEG at most `width` wide, at quality `q`. */
+export function jpegArgs(inName: string, outName: string, width: number, q: number): string[] {
+  bareName(inName, "The sheet's file");
+  bareName(outName, "The picture's file");
+  const w = Math.max(16, Math.round(width / 2) * 2);
+  return [...QUIET, "-protocol_whitelist", "file", "-format_whitelist", IMAGE_DEMUXERS, "-i", `file:${inName}`, "-frames:v", "1", "-vf", `scale='min(${w},iw)':-2:flags=lanczos`, "-q:v", String(Math.max(2, Math.min(31, Math.round(q)))), "-f", "image2", "-c:v", "mjpeg", "-n", `file:${outName}`];
+}
+
 // --- inspiration --- a video's public stills (inspire's fallback when a download is refused: lib/agentKit/videoSources.ts
 // videoStills), opened like the frames above: a bare name in the working folder, the file protocol only, image demuxers only.
 

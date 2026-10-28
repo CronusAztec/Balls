@@ -7,6 +7,9 @@
  * preview, render) is bundled only for those calls.
  */
 export { AGENT_TOOLS, checkToolArgs, toolSpec, type AgentToolSpec } from "./tools";
+// --- studio --- the MCP prompts' table, the image block's limit and the tools that load the studio kit
+export { AGENT_PROMPTS, IMAGE_MAX_BYTES, STUDIO_TOOLS, type AgentPromptSpec } from "./tools";
+export { JPEG_STEPS, jpegArgs } from "@/lib/videoAnalysis/ffmpegArgs";
 export { PINNED_HUB_FILES, explainFailure, testFilesIn, textReadsOf } from "./explain";
 // --- agent-cli --- (video analysis) the analyser's pure halves (the app's reference shelf reuses them)
 export { PCM_RATE, SAMPLE_BYTES, audioStatsArgs, cutsArgs, infoArgs, lastFramesArgs, pcmArgs, sampleFramesArgs } from "@/lib/videoAnalysis/ffmpegArgs";

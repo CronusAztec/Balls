@@ -3,8 +3,8 @@ import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import os from "os";
-import { ERR, MAX_LINE_CHARS, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createLineReader, createMcpHandler, runCliTool, stopTree, toolResult } from "../scripts/agent/mcp.mjs";
-import { AGENT_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { ERR, IMAGE_MAX_BASE64, MAX_LINE_CHARS, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createLineReader, createMcpHandler, resultChars, runCliTool, stopTree, toolResult } from "../scripts/agent/mcp.mjs";
+import { AGENT_PROMPTS, AGENT_TOOLS, IMAGE_MAX_BYTES, checkToolArgs } from "@/lib/agentKit/tools";
 
 // --- agent-cli --- The MCP wrapper (scripts/agent/mcp.mjs): JSON-RPC 2.0 over stdio, initialize / tools/list / tools/call /
 // ping, the CLI's tools with their schemas (never the owner-run commands), a call's answer equal to the CLI's own.
@@ -66,10 +66,10 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
       8,
     );
     const byId = new Map(replies.map((r) => [r.id, r]));
-    expect(byId.get(1)?.result).toEqual({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: SERVER_NAME, version: expect.any(String) }, instructions: expect.stringMatching(/AGENTS\.md/) });
+    expect(byId.get(1)?.result).toEqual({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } }, serverInfo: { name: SERVER_NAME, version: expect.any(String) }, instructions: expect.stringMatching(/AGENTS\.md/) });
     const tools = (byId.get(2)?.result?.tools ?? []) as { name: string; inputSchema: { type: string }; description: string }[];
     expect(tools.map((t) => t.name)).toEqual(AGENT_TOOLS.filter((t) => t.mcp).map((t) => t.name));
-    expect(tools.map((t) => t.name)).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs"]);
+    expect(tools.map((t) => t.name)).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "templates", "plan", "score", "review", "research"]);
     for (const t of tools) expect(t.inputSchema.type, t.name).toBe("object");
     // the call is the CLI: the same JSON, as text and as structured content
     const cli = spawnSync(process.execPath, [CLI, "simulate", "--json", JSON.stringify(simulateArgs)], { cwd: ROOT, encoding: "utf8" });
@@ -87,7 +87,34 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
     expect((byId.get(7)?.result?.content as { text: string }[] | undefined)?.[0]?.text).not.toMatch(/never fetch/);
     // stdout carries only protocol messages
     expect(replies.every((r) => r.jsonrpc === "2.0")).toBe(true);
-    expect(stderr).toMatch(/18 tools on stdio/);
+    expect(stderr).toMatch(/23 tools on stdio, 7 prompts/);
+  }, 120_000);
+
+  // --- studio --- the crew's roles and the studio's loop as prompts, their texts the CLI's (made from lib/crew/roles.ts)
+  it("lists its 7 prompts and gives one's text; an unknown prompt or a missing argument is refused", async () => {
+    const { replies } = await talk(
+      [
+        JSON.stringify({ jsonrpc: "2.0", id: 1, method: "prompts/list" }),
+        JSON.stringify({ jsonrpc: "2.0", id: 2, method: "prompts/get", params: { name: "crew-skeptic", arguments: { studio: "s1" } } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 3, method: "prompts/get", params: { name: "crew-skeptic", arguments: {} } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 4, method: "prompts/get", params: { name: "nope" } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 5, method: "prompts/get", params: { name: "make-video", arguments: { count: "2" } } }),
+      ],
+      5,
+    );
+    const byId = new Map(replies.map((r) => [r.id, r]));
+    const prompts = (byId.get(1)?.result?.prompts ?? []) as { name: string; arguments: { name: string; required: boolean }[] }[];
+    expect(prompts.map((p) => p.name)).toEqual(AGENT_PROMPTS.map((p) => p.name));
+    expect(prompts.map((p) => p.name)).toEqual(["crew-researcher", "crew-brainstormer", "crew-skeptic", "crew-viewer", "crew-reviewer", "make-video", "review-clip"]);
+    const skeptic = byId.get(2)?.result as { description: string; messages: { role: string; content: { type: string; text: string } }[] };
+    expect(skeptic.messages).toHaveLength(1);
+    expect(skeptic.messages[0]).toMatchObject({ role: "user", content: { type: "text", text: expect.stringMatching(/Your role: the skeptic[\s\S]*review \{"studio":"s1"\}/) } });
+    // the CLI's own text, byte for byte
+    const cli = spawnSync(process.execPath, [CLI, "--prompt", "crew-skeptic", "--json", JSON.stringify({ studio: "s1" })], { cwd: ROOT, encoding: "utf8" });
+    expect(JSON.parse(cli.stdout).result).toEqual(skeptic);
+    expect(byId.get(3)?.error).toMatchObject({ code: ERR.invalidParams, message: expect.stringMatching(/needs studio/) });
+    expect(byId.get(4)?.error).toMatchObject({ code: ERR.invalidParams, message: expect.stringMatching(/Unknown prompt "nope"/) });
+    expect((byId.get(5)?.result as { messages: { content: { text: string } }[] }).messages[0].content.text).toMatch(/Make 2 short ball-physics videos/);
   }, 120_000);
 });
 
@@ -145,7 +172,7 @@ describe("the MCP wrapper's limits and its children (--- agent-cli ---)", () => 
     expect(REGISTERED.command).toBe("node");
     const { replies, stderr } = await talk([JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } })], 1, 60_000, { args: REGISTERED.args, cwd: path.join(ROOT, "desktop") });
     expect(replies[0]?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
-    expect(stderr).toMatch(/18 tools on stdio/);
+    expect(stderr).toMatch(/23 tools on stdio, 7 prompts/);
   }, 60_000);
 });
 
@@ -217,6 +244,29 @@ describe("the MCP protocol handler (--- agent-cli ---)", () => {
     expect("structuredContent" in big).toBe(false);
     expect(toolResult({ ok: false, error: "no ffmpeg" })).toEqual({ content: [{ type: "text", text: "no ffmpeg" }], isError: true });
   });
+
+  it("--- studio --- returns a picture as an image block, its base64 counted with the text within 200 KB; a larger one is left out", () => {
+    expect(IMAGE_MAX_BYTES).toBe(110_000);
+    expect(IMAGE_MAX_BASE64).toBe(146_668);
+    const data = Buffer.alloc(IMAGE_MAX_BYTES, 7).toString("base64");
+    expect(data.length).toBeLessThanOrEqual(IMAGE_MAX_BASE64);
+    // a small result: the JSON without the base64, then the picture
+    const small = toolResult({ ok: true, result: { sheet: "a/sheet.png", image: { file: "a/sheet.jpg", mimeType: "image/jpeg", bytes: IMAGE_MAX_BYTES, data } } });
+    expect(small.content.map((c) => c.type)).toEqual(["text", "image"]);
+    expect(small.content[1]).toEqual({ type: "image", data, mimeType: "image/jpeg" });
+    expect(JSON.parse((small.content[0] as { text: string }).text)).toEqual({ sheet: "a/sheet.png", image: { file: "a/sheet.jpg", mimeType: "image/jpeg", bytes: IMAGE_MAX_BYTES } });
+    expect(resultChars(small)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    // a big result beside the largest picture: the text is cut, the two together within 200 KB after base64
+    const both = toolResult({ ok: true, result: { frames: "f".repeat(150_000), image: { mimeType: "image/jpeg", data } } });
+    expect(both.content.map((c) => c.type)).toEqual(["text", "image"]);
+    expect(resultChars(both)).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect((both.content[0] as { text: string }).text).toMatch(/cut at \d+ characters of \d+: the picture takes the rest of 200000/);
+    // a picture over the limit (or not a JPEG or PNG) is left out, and the text says so
+    const huge = toolResult({ ok: true, result: { image: { mimeType: "image/jpeg", data: Buffer.alloc(IMAGE_MAX_BYTES + 3, 1).toString("base64") } } });
+    expect(huge.content.map((c) => c.type)).toEqual(["text"]);
+    expect((huge.content[0] as { text: string }).text).toMatch(/the picture was left out/);
+    expect(toolResult({ ok: true, result: { image: { mimeType: "image/svg+xml", data: "PHN2Zz4=" } } }).content.map((c) => c.type)).toEqual(["text"]);
+  });
 });
 
 describe("the MCP wrapper's transport (--- agent-cli ---)", () => {
@@ -286,15 +336,20 @@ describe("the MCP wrapper's transport (--- agent-cli ---)", () => {
       const first = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
       const byId = new Map(first.map((r) => [r.id, r]));
       expect(byId.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
-      expect(((byId.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(18);
+      expect(((byId.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(23);
       expect(byId.get(3)?.result).toMatchObject({ isError: false, structuredContent: { kind: "behaviour" } });
       expect(byId.get(4)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/did not build/) }] });
+      // --- studio --- the prompts are listed from the tool core; their texts need the crew, so prompts/get says why it cannot
+      const prompts = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, [JSON.stringify({ jsonrpc: "2.0", id: 5, method: "prompts/list" }), JSON.stringify({ jsonrpc: "2.0", id: 6, method: "prompts/get", params: { name: "crew-viewer", arguments: { studio: "s1" } } })], 2);
+      const p = new Map(prompts.map((r) => [r.id, r]));
+      expect(((p.get(5)?.result?.prompts ?? []) as unknown[]).length).toBe(7);
+      expect(p.get(6)?.error).toMatchObject({ code: ERR.internal, message: expect.stringMatching(/did not build/) });
       // the tool core itself broken: initialize and tools/list (the last table that built) still answer, a call says why
       fs.appendFileSync(path.join(dir, "src/lib/agentKit/tools.ts"), "\nexport const broken = ;\n");
       const second = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
       const again = new Map(second.map((r) => [r.id, r]));
       expect(again.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME }, instructions: expect.stringMatching(/tool core did not build/) });
-      expect(((again.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(18);
+      expect(((again.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(23);
       expect(again.get(3)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/tools\.ts:\d+:\d+/) }] });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

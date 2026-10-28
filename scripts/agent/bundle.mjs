@@ -6,7 +6,10 @@
  *  - the toolbox (src/lib/agentKit/toolbox.ts: the core plus the engine, the finder, the settings and every mode): only the
  *    engine's tools load it (modes, simulate, fingerprint, preview, render);
  *  - --- blueprint --- the Blueprint kit (src/lib/agentKit/blueprintKit.ts: the Blueprint language, its interpreter and
- *    catalog, no engine): only the bp-* tools load it.
+ *    catalog, no engine): only the bp-* tools load it;
+ *  - --- studio --- the studio kit (src/lib/agentKit/studioKit.ts: the bot's planner and templates, the app's scores, the
+ *    crew and the engine they simulate on): only the studio tools (templates, plan, score, review, research), render's
+ *    planned clip and the MCP prompts' texts load it.
  * Each is cached in the agent cache (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt
  * only when an input's size or time changed, a file was added to src/lib/agentKit, src/lib/videoAnalysis or src/lib/blueprint, or esbuild is
  * another version – and whenever the list of inputs is empty or lacks the entry. The list is kept only when every input
@@ -25,6 +28,8 @@ const BLUEPRINT_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "blueprintKit.
 // --- trends --- the trend summary of inspire reports, for `npm run trends` only (scripts/trends.mjs): kept out of the tool
 // core, which stays small enough to build while the rest of the site does not
 const TRENDS_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "trends.ts");
+// --- studio --- Claude's studio: the crew, the templates and the planner (docs/agents/STUDIO.md)
+const STUDIO_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "studioKit.ts");
 const WATCHED_DIRS = [path.join(ROOT, "src", "lib", "agentKit"), path.join(ROOT, "src", "lib", "videoAnalysis"), path.join(ROOT, "src", "lib", "blueprint"), path.join(ROOT, "src", "lib", "blueprint", "catalog")];
 
 function stamp(file) {
@@ -81,7 +86,7 @@ export function settled(files, started, mtimeOf = (f) => {
   });
 }
 
-export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, BLUEPRINT_ENTRY as BLUEPRINTKIT_ENTRY, listing as toolboxListing };
+export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, BLUEPRINT_ENTRY as BLUEPRINTKIT_ENTRY, STUDIO_ENTRY as STUDIOKIT_ENTRY, listing as toolboxListing };
 
 /** Builds (or takes from the cache) the bundle of `entry` named `name`, and imports it. */
 async function load(entry, name) {
@@ -133,6 +138,7 @@ let core = null;
 let full = null;
 let blueprint = null;
 let trends = null;
+let studio = null;
 
 /** The tool core (tool table, argument checks, explain, video analysis): every call loads it. */
 export async function loadToolCore() {
@@ -156,4 +162,10 @@ export async function loadBlueprintKit() {
 export async function loadTrendsKit() {
   trends ??= await load(TRENDS_ENTRY, "trendskit");
   return trends;
+}
+
+/** --- studio --- The studio kit (src/lib/agentKit/studioKit.ts): the studio tools, render's planned clip and the MCP prompts load it. */
+export async function loadStudioKit() {
+  studio ??= await load(STUDIO_ENTRY, "studiokit");
+  return studio;
 }

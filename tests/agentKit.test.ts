@@ -234,7 +234,7 @@ describe("the tool table (--- agent-cli ---)", () => {
   it("names every tool once with an object schema; beyond localhost only owner-run commands (never over MCP) and the video tools reach the network", () => {
     const names = AGENT_TOOLS.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "site-stats", "postiz-probe"]);
+    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "frames", "trending", "fetch-video", "inspire", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "templates", "plan", "score", "review", "research", "site-stats", "postiz-probe"]);
     for (const t of AGENT_TOOLS) {
       expect(t.input.type, t.name).toBe("object");
       expect(t.input.additionalProperties, t.name).toBe(false);

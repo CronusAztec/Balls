@@ -23,11 +23,11 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). A field only a link sets, never a slider or a patch, is listed too and marked `linkOnly` (Mode Lab's `blSpec`, link key `bls`). The switches every mode shares are not a mode's fields and are not listed: Wide sliders (`inf=0`) and Slow motion (`smo=0`). | `{"mode":"mergeRing"}` |
 | `simulate` | One seed of a link or a mode, run in Node exactly as the seed finder runs it. It returns `finished` and `finishSec` (the finder's own time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. | `{"mode":"spiralGlass","seed":12345,"seconds":10}` |
 | `fingerprint` | A mode's fingerprint by the `tests/extras.test.ts` recipe (seed 12345, 600 frames) and its diff against that file's BASELINE entry. Without `mode`: every mode, equal or not. | `{"mode":"classic"}` |
-| `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
-| `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. | `{"mode":"classic","seed":42,"seconds":10}` |
+| `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. With `image`, also the sheet as one JPEG of at most 110,000 bytes, in the result as base64 (an MCP image block). | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
+| `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. With `plan` (a studio's `.agent-out/studio/<studio>/plan.json`) and `clip`: that planned clip as the crew left it, its melody played, into the studio's folder with its frames' sheets and its scores after the render (render v3, `docs/agents/STUDIO.md`). | `{"mode":"classic","seed":42,"seconds":10}`, `{"plan":".agent-out/studio/rings/plan.json","clip":"ep001-1-…"}` |
 | `site-shot` | PNG screenshots of site pages at the given widths (one file per page and width, numbered in the list's order), with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
 | `analyse` | Numeric features of a video, your own clip or another creator's trending one: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. A file (`path`) or a link (`url`, fetched first). | `{"path":".agent-out/inbox/clip.mp4"}`, `{"url":"https://www.tiktok.com/@…/video/…"}` |
-| `frames` | Frames of a video spread over it, its opening seconds in finer steps and a contact sheet of each, for a vision-capable model. A file or a link. | `{"url":"https://www.youtube.com/shorts/…","count":12}` |
+| `frames` | Frames of a video spread over it, its opening seconds in finer steps and a contact sheet of each, for a vision-capable model. A file or a link. With `image`, also the whole video's sheet as one JPEG (an MCP image block). | `{"url":"https://www.youtube.com/shorts/…","count":12}` |
 | `trending` | Trending and viral videos: a YouTube search, its Shorts feed and any links you give, with views, likes, comments, length, upload date and views per day, ranked. | `{"query":"ball simulation","limit":20,"maxDurationSec":180}` |
 | `fetch-video` | One video downloaded into `.agent-out/inbox/<platform>-<id>.mp4` with its info JSON and its numbers. | `{"url":"https://www.instagram.com/reel/…"}` |
 | `inspire` | The whole pipeline: trending, fetch the top videos, analyse and frames for each, and a report of what separates the most viewed, in our own levers. | `{"query":"ball simulation","top":8}` |
@@ -38,6 +38,11 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `bp-check` | A Blueprint played headless on seeds 1-4 on the real runtime (the engine in the blueprint mode): `playable`, `endless` or `broken`, with plain feedback and each seed's counts. Deterministic; the wall time is an advisory. | `{"catalog":"conquer"}` |
 | `bp-link` | A Blueprint's link code (`b1.…`), simulator link (`?mode=blueprint&bls=…`) and short share code, with their lengths. | `{"code":"b1.…","locale":"pl"}` |
 | `bp-docs` | `docs/agents/BLUEPRINTS.md` as the code generates it, and whether the committed file is current. | `{"markdown":false}` |
+| `templates` | The ten formats with their claims, every mode's binding (format, strategy, tier, the HUD it keeps), the ready templates with their words in one `locale`, the Simple look, the clarity gates and the Simple score's weights. `family` picks the families (default: escape and rhythm; the battle family only when asked). | `{"family":"all","copy":false}` |
+| `plan` | Clips planned by the bot's own planner from a ready `template`, a playbook `recipe` or a `mode`'s templates (or the family's best, formats mixed), in the Simple look unless `look` is `bot`. Deterministic: clip i plans from `planSeed` + i. Each plan's query, world, melody, captions, beats, scores, gates and the crew's dossier, and `.agent-out/studio/<studio>/plan.json`. | `{"template":"get-out-classic","count":3,"world":{"width":800,"height":450}}` |
+| `score` | A clip's scores by the app's rules: the Playbook checklist, the Simple score and its deductions, the clarity gates and the clutter `turnOff` may name. A link (or mode) and seed simulated in `world`, or a studio clip as the crew left it, measured by its render once rendered. | `{"studio":"rings","clip":"ep001-1-…"}` |
+| `review` | The crew's panel with you playing each role; no model is called. Without `verdict`: the next role's brief. With it: your answer checked (the role order, the schema, the evidence keys, the fixes and their bounds), marked by the facts, its fixes compiled and measured again, and the next brief or the decision. `stage` post after the render. | `{"studio":"rings"}`, `{"studio":"rings","role":"skeptic","clip":"…","verdict":{…}}` |
+| `research` | The research digest offline: the committed trend summary and the playbook as at most five pieces of advice with their levers and strengths, and the local inspire dataset by the searches that made it. | `{"theme":"ball escape"}` |
 | `site-stats` | Owner-run. Aggregate website numbers from the owner's own Plausible or Umami. | `{"days":30}` |
 | `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
 
@@ -92,7 +97,9 @@ on 4 CPUs.
   repository's `next.config.ts` is not touched. Types are `npm run typecheck`'s and the guard's job.
 - `build: "auto"` (the default) rebuilds when HEAD or any changed site file differs from the last build. `reuse` takes the
   last build as it is, and `force` always rebuilds.
-- `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so.
+- `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so. A planned
+  clip (`plan`) needs version 3, whose `renderLink` plays the clip's melody and reports the page's world and the melody it
+  played.
   `seconds` takes any length above 0, as the site keeps a clip of any length (10 s is only where the Clip Length slider
   starts), and the tool renders at most 60 s.
 
@@ -253,6 +260,15 @@ The command lines, the link check, the parsers and the report maths are pure (`s
 `src/lib/agentKit/inspiration.ts`, the frames in `src/lib/videoAnalysis/ffmpegArgs.ts`). `tests/inspiration.test.ts` runs
 them on recorded yt-dlp output, and the tools end to end with a fake yt-dlp on the PATH, so no test reaches the network.
 
+## Claude's studio (templates, plan, score, review, research)
+
+The studio tools let an agent make videos the way the app's crew will: plan with the bot's planner and the viral templates,
+score with the app's rules, play each crew role through `review` (the rules overrule every role), render the kept clips
+watermarked with `render`'s `plan`, look at their sheets and review them again after the render. Their state and output
+live in `.agent-out/studio/<studio>/`: plan.json, panel.json, post.txt and a folder per rendered clip. The studio kit
+(`src/lib/agentKit/studioKit.ts`) is bundled on its own, like the Blueprint kit, so the tool core stays free of the engine.
+`docs/agents/STUDIO.md` is the guide, with a worked example.
+
 ## guard and explain
 
 `guard` runs the core guard, `scripts/agent/guard.mjs`, through `package.json`'s `guard` script (a plain `node <file>`
@@ -328,8 +344,8 @@ The keys never appear in any output.
 ## MCP
 
 `scripts/agent/mcp.mjs` is a hand-written MCP server: JSON-RPC 2.0 over stdio, one message per line, with no SDK and no new
-dependency. It implements `initialize`, `ping`, `tools/list` and `tools/call`, plus the `initialized` and `cancelled`
-notifications. `.mcp.json` registers it for Claude Code as `jumpingballs-agent`, and Claude Code asks each user to approve
+dependency. It implements `initialize`, `ping`, `tools/list`, `tools/call`, `prompts/list` and `prompts/get`, plus the
+`initialized` and `cancelled` notifications. `.mcp.json` registers it for Claude Code as `jumpingballs-agent`, and Claude Code asks each user to approve
 a project server before it starts. Its entry is a one-line launcher that walks up from the session's folder to the
 repository, so a session opened in `desktop/` starts it too. A client's command is `node scripts/agent/mcp.mjs` (or that
 launcher). Run it by hand with `npm run -s agent:mcp`: without `-s`, npm prints its banner on stdout before the first
@@ -345,7 +361,12 @@ arguments (1 MB of JSON and its envelope) is dropped unread with an error. A cal
 its stdin, so a result is exactly the CLI's, a long `explain` fits, and every rule above holds. The child runs in a process
 group of its own: a cancelled or timed-out call, or a stopped server, ends it with everything it started (the guard's
 lanes and vitest workers, `next build`, ffmpeg). There is no exec, shell or file-write tool. A result is at most 200 KB of
-text, and pictures and clips come back as repository paths.
+text, and pictures and clips come back as repository paths. A tool that returns a picture on request (`preview` and
+`frames` with `image`) has it as an image block: one JPEG of at most 110,000 bytes (`IMAGE_MAX_BYTES`), whose base64
+counts with the text against the same 200 KB, the text cut first. The prompts are the crew's five roles, `make-video` and
+`review-clip` (`docs/agents/STUDIO.md`): `prompts/list` reads them from the tool core, and `prompts/get` runs the CLI for
+their text (`node scripts/agent/cli.mjs --prompt crew-skeptic --json '{"studio":"rings"}'`), made from the role cards in
+`src/lib/crew/roles.ts`, so a broken mode fails `prompts/get` only.
 
 ## Decisions for the agent platform (October 2026: the guard, the toolbox, the guide)
 

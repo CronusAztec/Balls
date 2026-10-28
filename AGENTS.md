@@ -172,6 +172,11 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `bp-check` | Play a Blueprint headless on four seeds: playable, endless or broken, with feedback (deterministic) |
 | `bp-link` | Get a Blueprint's link code, simulator link and share code |
 | `bp-docs` | Regenerate `docs/agents/BLUEPRINTS.md` in memory and say whether the committed one is current |
+| `templates` | List the viral templates: ten formats, every mode's binding and tier, the ready ones with their words |
+| `plan` | Plan clips with the bot's own planner (deterministic): links, scores, gates and the crew's dossier per clip |
+| `score` | Score a link or a studio clip by the app's rules: Playbook, Simple, the clarity gates, the clutter |
+| `review` | Play the crew's roles on a studio's clips: the next role's brief, or your verdict checked and applied |
+| `research` | Read the research digest offline: the trend summary, the playbook and the local inspire dataset |
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
@@ -184,14 +189,16 @@ key. The caches live elsewhere: the toolbox's bundle and local export in a priva
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
 
-**MCP.** The MCP server exposes 18 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
-`frames`, `trending`, `fetch-video`, `inspire`, `guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and
-`bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
-hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
-result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
-200 KB. The guard's `baseline` and `base` are CLI-only (a baseline excuses failures, a later base hides committed ones), and
-a cancelled or timed-out call stops everything it started. The server loads only the tool table, not the engine, so it
-starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode.
+**MCP.** The MCP server exposes 23 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
+`frames`, `trending`, `fetch-video`, `inspire`, `guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link`,
+`bp-docs`, `templates`, `plan`, `score`, `review` and `research`, each with its JSON Schema, and 7 prompts: the crew's
+five roles, `make-video` and `review-clip` (`docs/agents/STUDIO.md`). It does not offer the owner-run tools. It is
+`scripts/agent/mcp.mjs`, a hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the
+CLI as a child process, so the result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write
+tool, and a result is at most 200 KB, an image block's base64 included. The guard's `baseline` and `base` are CLI-only (a
+baseline excuses failures, a later base hides committed ones), and a cancelled or timed-out call stops everything it
+started. The server loads only the tool table, not the engine, so it starts and runs `guard`, `explain` and `analyse`
+while an edit has broken a mode.
 
 - **Claude Code:** the project's `.mcp.json` registers the server as `jumpingballs-agent`, with a launcher that finds the
   repository from any folder of it (a session opened in `desktop/` too). Claude Code asks you to approve a project server
@@ -235,4 +242,5 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 - `docs/agents/MODES.md`: the checklist for a coded mode.
 - `docs/agents/BLUEPRINTS.md`: the Blueprint language, its ceilings and the catalog (generated: `npm run blueprints:docs`).
 - `docs/agents/CLI.md`: the agent toolbox and the MCP server.
+- `docs/agents/STUDIO.md`: Claude's studio: clips planned, judged by the crew and rendered watermarked; a worked example.
 - `README.md`: "How to extend it" and "Core guard". `docs/RELEASING.md` covers releases.

@@ -1,0 +1,415 @@
+import { spawnSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import { describe, expect, it } from "vitest";
+import en from "../messages/en.json";
+import { STUDIO_TOOLS as CLI_STUDIO_TOOLS } from "../scripts/agent/cli.mjs";
+import { IMAGE_MAX_BYTES as MCP_IMAGE_MAX_BYTES } from "../scripts/agent/mcp.mjs";
+import { AGENT_PROMPTS, AGENT_TOOLS, IMAGE_MAX_BYTES, STUDIO_BUCKETS, STUDIO_CLIPS_MAX, STUDIO_DEPTHS, STUDIO_ENDINGS, STUDIO_FAMILIES, STUDIO_FORMATS, STUDIO_LOCALES, STUDIO_LOOKS, STUDIO_PLAN_MAX, STUDIO_PLATFORMS, STUDIO_ROLES, STUDIO_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import {
+  inspireThemes,
+  queryOf,
+  renderSummary,
+  studioClip,
+  studioFileText,
+  studioHash,
+  studioPlan,
+  studioPrompt,
+  studioRenderJob,
+  studioRenderRecord,
+  studioReplan,
+  studioResearch,
+  studioReview,
+  studioTemplates,
+  templateMenu,
+  type StudioPanelFile,
+  type StudioPlanFile,
+  type StudioRenderRecord,
+  type StudioReviewInput,
+} from "@/lib/agentKit/studioKit";
+import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS } from "@/lib/bot/playbook";
+import { BOT_LOCALES } from "@/lib/bot/copy";
+import { BOT_LOOKS, TEMPLATE_FORMAT_IDS } from "@/lib/bot/templates";
+import { settingsFromSearchParams } from "@/lib/settings";
+import { TRENDS } from "@/content/trends";
+import type { ClipFeatures } from "@/lib/recording/clipFeatures";
+import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, createPanel, crewClipOfPlan, panelDecision, runPanel, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
+
+/*
+ * --- studio --- Claude's studio in the agent toolbox (docs/agents/STUDIO.md, C5 of the AI studio plan): the studio kit
+ * (src/lib/agentKit/studioKit.ts) on real plans – templates lists the 48 bindings, plan is deterministic, review holds Claude to
+ * the crew's rules (the role order, one fix round, the evidence keys, the fixed list of fixes and their bounds, a harmful fix
+ * reverted) and reaches the decision the app's in-process panel reaches on the same scripted verdicts, render v3 picks the clip
+ * the crew left with its melody, the research names no other creator – and the CLI end to end on a studio folder of its own.
+ * The browser half of render v3 (the fenced page, the watermark refusal) needs a local export and Chromium: docs/agents/STUDIO.md
+ * records a real run.
+ */
+
+const ROOT = path.resolve(__dirname, "..");
+const CLI = path.join(ROOT, "scripts", "agent", "cli.mjs");
+const copy = (en as unknown as { ViralBot: Record<string, unknown> }).ViralBot;
+const copyOf = () => copy;
+
+function agent(args: string[], input?: string) {
+  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: ROOT, encoding: "utf8", timeout: 240_000, ...(input !== undefined ? { input } : {}) });
+  const lines = r.stdout.trim().split("\n");
+  return { code: r.status, stdout: r.stdout, json: JSON.parse(lines[lines.length - 1] || "null") };
+}
+
+/** A plan file of the plan tool's records (what plan.json holds), its text's hash, and a review context on it. */
+function studio(records: StudioPlanFile["plans"], name = "t") {
+  const plan: StudioPlanFile = { v: 1, studio: name, made: { by: "plan", args: {} }, plans: records };
+  const planHash = studioHash(studioFileText(plan));
+  let panel: StudioPanelFile | null = null;
+  let rendered: StudioRenderRecord[] = [];
+  /** One review call as the CLI makes it: the panel read back from its JSON text, the outcome's panel kept the same way. */
+  const call = (input: StudioReviewInput) => {
+    const out = studioReview(input, { studio: name, plan, planHash, panel, rendered, digest: null, copyOf });
+    if (out.ok) panel = JSON.parse(studioFileText(out.panel)) as StudioPanelFile;
+    return out;
+  };
+  return { plan, planHash, call, panel: () => panel, setRendered: (r: StudioRenderRecord[]) => (rendered = r) };
+}
+
+const planned = (input: Parameters<typeof studioPlan>[0]) => {
+  const p = studioPlan(input, copy);
+  if (!p.ok) throw new Error(p.error);
+  return p.records;
+};
+
+const NOTHING = { oneIdea: "Will the ball get out of the rings?", objections: [] };
+const KEEP = { verdict: "keep", confidence: "high", answers: [], viewerAnswer: null, fixes: [], why: "clear and simple" };
+type Next = { role: string; clip: string | null; schema: Record<string, unknown>; messages: { role: string; content: string }[]; look?: unknown; answer: Record<string, unknown> };
+const nextOf = (out: { result: Record<string, unknown> }) => out.result.next as Next;
+function produced(schema: Record<string, unknown>) {
+  const item = ((schema.properties as Record<string, { items: { properties: Record<string, { enum: string[] }> } }>).clips.items.properties);
+  return { clips: item.planId.enum.map((id) => ({ planId: id, name: `clip ${id.slice(0, 12)}`, title: "Will it get out?", hook: "any", caption: "Which ring falls last?", hashtags: ["#physics", "#satisfying", "#asmr", "#ballescape", "#simulation"], platform: item.platform.enum[0] })), summary: "words for the kept clips" };
+}
+
+describe("the studio's enums and tables (--- studio ---)", () => {
+  it("are the code's: the platforms, buckets, endings, looks, locales, families, formats, roles, depths and limits", () => {
+    expect([...STUDIO_PLATFORMS]).toEqual([...BOT_PLATFORMS]);
+    expect([...STUDIO_BUCKETS]).toEqual(["auto", ...LENGTH_BUCKETS]);
+    expect([...STUDIO_ENDINGS]).toEqual([...ENDING_CHOICES]);
+    expect([...STUDIO_LOOKS].sort()).toEqual([...BOT_LOOKS].sort());
+    expect([...STUDIO_LOCALES]).toEqual([...BOT_LOCALES]);
+    expect([...STUDIO_FAMILIES]).toEqual(["default", "all", ...BOT_FAMILIES]);
+    expect([...STUDIO_FORMATS]).toEqual([...TEMPLATE_FORMAT_IDS]);
+    expect([...STUDIO_ROLES]).toEqual([...CREW_ROLES]);
+    expect([...STUDIO_DEPTHS]).toEqual([...PANEL_DEPTHS]);
+    expect(IMAGE_MAX_BYTES).toBe(MCP_IMAGE_MAX_BYTES);
+    expect([...CLI_STUDIO_TOOLS]).toEqual([...STUDIO_TOOLS]);
+    // five tools, each offered over MCP, none reaching a network
+    for (const name of STUDIO_TOOLS) {
+      const t = AGENT_TOOLS.find((x) => x.name === name)!;
+      expect([name, t.mcp, t.network]).toEqual([name, true, "none"]);
+    }
+    expect(AGENT_PROMPTS.map((p) => p.name)).toEqual(["crew-researcher", "crew-brainstormer", "crew-skeptic", "crew-viewer", "crew-reviewer", "make-video", "review-clip"]);
+  });
+
+  it("checks a studio call's sources: one of template, recipe or mode; a score's link or studio clip; a plan's render alone", () => {
+    expect(checkToolArgs("plan", { template: "get-out-classic", mode: "classic" }).ok).toBe(false);
+    expect(checkToolArgs("plan", { count: STUDIO_PLAN_MAX + 1 }).ok).toBe(false);
+    expect(checkToolArgs("plan", { template: "../escape" }).ok).toBe(false);
+    expect(checkToolArgs("plan", { template: "get-out-classic", count: 3, look: "simple" }).ok).toBe(true);
+    expect(checkToolArgs("score", {}).ok).toBe(false);
+    expect(checkToolArgs("score", { studio: "a" }).ok).toBe(false);
+    expect(checkToolArgs("score", { link: "?mode=classic", studio: "a", clip: "b" }).ok).toBe(false);
+    expect(checkToolArgs("score", { studio: "a", clip: "b" }).ok).toBe(true);
+    expect(checkToolArgs("render", { plan: ".agent-out/studio/a/plan.json", clip: "x", seconds: 5 }).ok).toBe(false);
+    expect(checkToolArgs("render", { clip: "x" }).ok).toBe(false);
+    expect(checkToolArgs("review", { studio: "a", verdict: {} }).ok).toBe(false);
+    expect(checkToolArgs("review", {}).ok).toBe(false);
+    expect(checkToolArgs("review", { studio: "a", wanted: STUDIO_CLIPS_MAX + 1 }).ok).toBe(false);
+  });
+});
+
+describe("templates (--- studio ---)", () => {
+  it("lists the ten formats and all 48 bindings with their tiers; the ready templates with their words, the battle family only when asked", () => {
+    const t = studioTemplates({}, copy);
+    expect(t.formats.map((f) => f.id)).toEqual([...TEMPLATE_FORMAT_IDS]);
+    expect(t.bindings).toHaveLength(48);
+    expect(t.counts).toMatchObject({ formats: 10, bindings: 48 });
+    for (const b of t.bindings) expect(["proven", "trial", "experimental"], b.mode).toContain(b.tier);
+    expect(t.templates.length).toBeGreaterThan(5);
+    for (const x of t.templates) {
+      expect(x.family, x.id).not.toBe("battle");
+      expect((x as { words?: Record<string, string> }).words?.hook, x.id).toBeTruthy();
+    }
+    const all = studioTemplates({ family: "all", copy: false }, copy);
+    expect(all.templates.some((x) => x.family === "battle")).toBe(true);
+    expect(all.templates.every((x) => !("words" in x))).toBe(true);
+    expect(studioTemplates({ mode: "classic" }, copy).bindings.map((b) => b.mode)).toEqual(["classic"]);
+    expect(templateMenu().map((m) => m.template)).toEqual(t.templates.map((x) => x.id));
+  });
+});
+
+describe("plan (--- studio ---)", () => {
+  it("gives the same plans twice, each from planSeed + i, and its query plays the clip's own settings and seed", () => {
+    const a = planned({ template: "get-out-classic", count: 2, planSeed: 5 });
+    const b = planned({ template: "get-out-classic", count: 2, planSeed: 5 });
+    expect(studioFileText(a)).toBe(studioFileText(b));
+    expect(a.map((r) => r.plan.planSeed)).toEqual([5, 6]);
+    for (const r of a) {
+      expect(r.plan.template).toBe("get-out-classic");
+      expect(r.plan.look).toBe("simple");
+      const q = new URLSearchParams(queryOf(r.plan.settings, r.plan.seed, "en"));
+      expect(JSON.stringify(settingsFromSearchParams(q))).toBe(JSON.stringify(r.plan.settings));
+      expect(Number(q.get("seed"))).toBe(r.plan.seed);
+    }
+    // the family's templates, formats mixed: no two of the first ones share a format
+    const mixed = planned({ count: 3 });
+    expect(new Set(mixed.map((r) => r.plan.template)).size).toBe(3);
+  });
+
+  it("refuses an unknown or hidden template, and a mode without a ready one, naming the ready ones", () => {
+    for (const input of [{ template: "get-out-nowhere" }, { template: "who-wins-fight-league-boss" }, { mode: "lines" }, { recipe: "no-such-recipe" }]) {
+      const p = studioPlan(input, copy);
+      expect(p.ok, JSON.stringify(input)).toBe(false);
+      expect(!p.ok && p.error, JSON.stringify(input)).toMatch(/ready|recipes/);
+    }
+  });
+});
+
+describe("review: Claude plays the roles, the rules hold it (--- studio ---)", () => {
+  const records = planned({ template: "get-out-classic", count: 2, planSeed: 1 });
+
+  it("answers the next role's brief; refuses an out-of-order role, an absent evidence key, an unknown fix and a hook over 7 words", () => {
+    const s = studio(records);
+    const first = s.call({ depth: "thorough" });
+    expect(first.ok).toBe(true);
+    let next = nextOf(first);
+    // thorough: the viewer first, on the screen view alone
+    expect(next.role).toBe("viewer");
+    const clip = next.clip!;
+    expect(next.messages.map((m) => m.role)).toEqual(["system", "system", "user"]);
+    expect(next.messages.map((m) => m.content).join("\n")).not.toContain(SHARED_RUBRIC.slice(0, 60));
+    expect(next.answer).toMatchObject({ studio: "t", role: "viewer", clip });
+    // out of order: nothing changes
+    const wrong = s.call({ role: "reviewer", clip, verdict: KEEP });
+    expect(wrong.result.accepted).toMatchObject({ ok: false, errors: [expect.stringMatching(/out of order/)] });
+    expect(nextOf(wrong)).toMatchObject({ role: "viewer", clip });
+    next = nextOf(s.call({ role: "viewer", clip, verdict: { whatHappens: "out", understood: "a ball escapes rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" } }));
+    expect(next).toMatchObject({ role: "skeptic", clip });
+    // the skeptic's evidence must be dossier keys, written exactly
+    const absent = s.call({ role: "skeptic", clip, verdict: { oneIdea: "Will it escape?", objections: [{ id: "o1", kind: "notShareable", evidence: ["beats.nope"], severity: "major", note: "too small" }] } });
+    expect(absent.result.accepted).toMatchObject({ ok: false, errors: [expect.stringMatching(/evidence/)] });
+    next = nextOf(s.call({ role: "skeptic", clip, verdict: { oneIdea: "Will it escape?", objections: [{ id: "o1", kind: "notShareable", evidence: ["beats.payoff"], severity: "major", note: "the escape is small" }] } }));
+    expect(next).toMatchObject({ role: "reviewer", clip });
+    // fixes from the fixed list only, inside their bounds
+    const unknown = s.call({ role: "reviewer", clip, verdict: { ...KEEP, verdict: "fix", answers: [{ objection: "o1", accept: true, reason: null, fix: { action: "makeItViral" } }], fixes: [{ action: "makeItViral" }] } });
+    expect(unknown.result.accepted).toMatchObject({ ok: false });
+    const long = { action: "rewriteHook", text: "Will this little ball ever get out of here" };
+    const tooLong = s.call({ role: "reviewer", clip, verdict: { ...KEEP, verdict: "fix", answers: [{ objection: "o1", accept: true, reason: null, fix: long }], fixes: [long] } });
+    expect(tooLong.result.accepted).toMatchObject({ ok: false, errors: expect.arrayContaining([expect.stringMatching(/7 words|42 characters/)]) });
+    // an answer to an objection the skeptic never raised
+    const absentObjection = s.call({ role: "reviewer", clip, verdict: { ...KEEP, answers: [{ objection: "o3", accept: false, reason: "notSupported", fix: null }] } });
+    expect(absentObjection.result.accepted).toMatchObject({ ok: false });
+    expect(nextOf(absentObjection)).toMatchObject({ role: "reviewer", clip });
+  });
+
+  it("allows one fix round: a fix that lowers the pick score is reverted, and no second reviewer answer is taken", () => {
+    const s = studio(records);
+    let out = s.call({ depth: "thorough", wanted: 1 });
+    const clip = nextOf(out).clip!;
+    s.call({ role: "viewer", clip, verdict: { whatHappens: "out", understood: "a ball escapes", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" } });
+    // a busy-text objection the facts refute (Simple 97, one text at a time): dropped before the reviewer, who then has none to answer
+    out = s.call({ role: "skeptic", clip, verdict: { oneIdea: "Will it escape?", objections: [{ id: "o1", kind: "tooBusy", evidence: ["text.atOnce"], severity: "major", note: "a counter and a hook" }] } });
+    expect((out.result.log as string[]).some((l) => /o1 tooBusy major refuted/.test(l))).toBe(true);
+    // dropping the walls counter loses the checklist's countdown points: the pick score goes down, the rules revert it
+    const drop = { action: "dropCountdownCaption" };
+    const answered = s.call({ role: "reviewer", clip, verdict: { verdict: "fix", confidence: "high", answers: [{ objection: "o1", accept: true, reason: null, fix: drop }], viewerAnswer: null, fixes: [drop], why: "one text at a time" } });
+    expect(answered.result.accepted).toMatchObject({ ok: false, errors: [expect.stringMatching(/answers: must have at most 0 items/)] }); // (the schema is the clip's: no objection stands)
+    out = s.call({ role: "reviewer", clip, verdict: { verdict: "fix", confidence: "high", answers: [], viewerAnswer: null, fixes: [drop], why: "one text at a time" } });
+    expect(out.result.accepted).toMatchObject({ ok: true });
+    const line = (out.result.clips as { id: string; verdict: string; fix?: { state: string; why?: string } }[]).find((c) => c.id === clip)!;
+    expect(line.fix).toMatchObject({ state: "reverted", why: expect.stringMatching(/^pick /) });
+    expect(line.verdict).toBe("fix"); // (nothing major stands: the clip stays as planned)
+    // the clip is done: a second fix round for it is refused
+    const again = s.call({ role: "reviewer", clip, verdict: { ...KEEP, verdict: "fix", fixes: [{ action: "rewriteHook", text: "Can it escape the rings?" }] } });
+    expect(again.result.accepted).toMatchObject({ ok: false });
+    // the panel.json the CLI writes holds every role's verdict
+    const panel = s.panel()!;
+    expect(panel.records.pre[clip] ?? null).toBeNull(); // (the records are written when the stage is done)
+    expect(panel.pre!.clips.find((c) => c.id === clip)!.fix!.state).toBe("reverted");
+  });
+
+  it("reaches the decision the app's in-process panel reaches on the same scripted verdicts (a fix with a seed search included)", async () => {
+    const recs = planned({ count: 4, planSeed: 3 });
+    const claims = new Map(recs.map((r) => [r.id, crewClipOfPlan(r.plan).claim]));
+    const other = recs[0].plan.ending === "resolved" ? "cliffhanger" : "resolved";
+    const verdicts = (brief: Pick<RoleBrief, "role" | "clipId" | "final">): unknown => {
+      // the first clip is misread (notSure: it makes sense only partly), the others read as their claims
+      if (brief.role === "viewer") return { whatHappens: brief.clipId === recs[0].id ? "notSure" : claims.get(brief.clipId ?? ""), understood: "balls move", waitingFor: "the end", clearBySec: 2, distractions: [], watchToEnd: "maybe" };
+      if (brief.role === "skeptic") return brief.clipId === recs[0].id ? { oneIdea: "One escape", objections: [{ id: "o1", kind: "hookMismatch", evidence: ["words.hook"], severity: "major", note: "the hook" }] } : NOTHING;
+      if (brief.role === "reviewer") {
+        if (brief.clipId === recs[0].id) {
+          const fix = { action: "rewriteHook", text: "Can this ball escape?" };
+          const ending = { action: "switchEnding", ending: other };
+          return { verdict: "fix", confidence: "medium", answers: [{ objection: "o1", accept: true, reason: null, fix }], viewerAnswer: { accept: true, fix: ending }, fixes: [fix, ending], why: "say what the run shows" };
+        }
+        return KEEP;
+      }
+      if (brief.role === "producer") return produced(brief.final as Record<string, unknown>);
+      return {};
+    };
+    // the app's way: runPanel with the model as a function (the same candidates the tool makes of plan.json), the seed search the studio's own
+    const candidates: PanelCandidate[] = recs.map((r, i) => ({ id: r.id, clip: crewClipOfPlan(r.plan, { run: r.run }), post: { name: r.plan.id, title: r.plan.hook, caption: r.plan.post.caption, hashtags: [...r.plan.post.hashtags] }, order: i }));
+    const model: CrewModel = async ({ brief }) => ({ reply: verdicts(brief) });
+    // the tool's way: one review call per answer, the panel through its JSON text between calls
+    const s = studio(recs);
+    let out = s.call({ depth: "thorough", wanted: 2 });
+    for (let i = 0; i < 40 && out.result.status === "call"; i++) {
+      const n = nextOf(out);
+      out = s.call({ role: n.role as StudioReviewInput["role"], clip: n.clip ?? undefined, verdict: verdicts({ role: n.role as RoleBrief["role"], clipId: n.clip, final: n.schema }) });
+      expect(out.result.accepted, `${n.role} ${n.clip}`).toMatchObject({ ok: true });
+    }
+    expect(out.result.status).toBe("done");
+    const toolState = s.panel()!.pre!;
+    const hand = await runPanel(createPanel({ stage: "pre", depth: "thorough", wanted: 2, candidates, request: { text: "", open: false, namedTemplate: false, platform: "reels", locale: "en" }, digest: null, liveResearch: false, who: "claude", separation: "sameContext" }), {
+      model,
+      replan: (clip, need) => {
+        const rec = recs.find((r) => r.plan.seed === clip.seed) ?? null;
+        return rec ? studioReplan(rec, need, copy)?.clip ?? null : null;
+      },
+    });
+    const pick = (st: typeof hand) => ({ decision: { ...panelDecision(st), spent: null }, clips: st.clips.map((c) => [c.id, c.verdict, c.confidence, c.fix?.state ?? null, c.dropWhy, c.notReviewed]) });
+    expect(pick(toolState)).toEqual(pick(hand));
+    const fixed = toolState.clips.find((c) => c.id === recs[0].id)!;
+    expect(fixed.fix?.actions.map((a) => a.action)).toEqual(["rewriteHook", "switchEnding"]);
+    expect(out.post).toMatch(/the crew's picks/);
+  }, 120_000);
+});
+
+describe("post-render review and render v3's clip (--- studio ---)", () => {
+  const features = (first: number): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+
+  it("renders the clip the crew left with the plan's melody; refuses a clip over 60 s; records the payoff planned and played", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const s = studio(recs);
+    s.call({});
+    const plan = s.plan;
+    const job = studioRenderJob(plan, s.panel(), undefined);
+    expect(job.ok).toBe(true);
+    if (!job.ok) return;
+    const found = studioClip(plan, s.panel(), undefined);
+    expect(found.ok && found.clip.settings).toEqual(job.job.base.settings);
+    expect(job.job.melodyId).toBe(recs[0].plan.melodyId);
+    expect(job.job.seconds).toBe(job.job.base.settings.recordingDuration);
+    expect(job.job.query).toBe(queryOf(job.job.base.settings, job.job.seed, "en"));
+    const record = studioRenderRecord(job.job, { file: "x/clip.webm", mp4: "x/clip.mp4", world: recs[0].plan.world, durationSec: job.job.base.timing.clipSec, frames: 900, laggedFrames: null, watermarked: true, digest: "d", features: features(0.3), melodyPlayed: job.job.melodyId, sheet: "x/sheet.png", hookSheet: "x/hook-sheet.png" });
+    expect(record.payoff.deltaSec).toBe(0); // (the plan's own world: the same run)
+    expect(record.crew.measured).toMatchObject({ watermarked: true, free: true, laggedFrames: 0 });
+    const summary = renderSummary(record);
+    expect(summary).toMatchObject({ sameWorld: true, watermarked: true, melodyPlayed: recs[0].plan.melodyId, after: { stage: "post" } });
+    expect(summary.after.gates.find((g) => g.id === "G8")?.ok).toBe(true);
+    // a clean frame fails G8 (the watermark on every free run)
+    expect(renderSummary(studioRenderRecord(job.job, { ...record, world: record.world, laggedFrames: 0, watermarked: false, melodyPlayed: null, sheet: null, hookSheet: null })).after.failed).toContain("G8");
+    // a long clip is not the toolbox's to render
+    const long = planned({ template: "who-wins-fight-league-bracket", count: 1, family: "all", bucket: "long" });
+    const longJob = studioRenderJob({ ...plan, plans: long }, null, undefined);
+    expect(!longJob.ok && longJob.error).toMatch(/60 s at most/);
+  });
+
+  it("after the render the viewer reads the screen view and is pointed at the clip's sheets; the record says who answered", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const s = studio(recs);
+    expect(s.call({ depth: "rules" }).result.status).toBe("done"); // (the rules alone before the render: no role is asked)
+    const job = studioRenderJob(s.plan, s.panel(), undefined);
+    if (!job.ok) throw new Error(job.error);
+    const record = studioRenderRecord(job.job, { file: "f.webm", mp4: null, world: recs[0].plan.world, durationSec: job.job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features: features(0.3), melodyPlayed: job.job.melodyId, sheet: ".agent-out/studio/t/c/sheet.png", hookSheet: ".agent-out/studio/t/c/hook-sheet.png" });
+    s.setRendered([record]);
+    const out = s.call({ stage: "post", separation: "contexts" });
+    const next = nextOf(out);
+    expect(next).toMatchObject({ role: "viewer", clip: recs[0].id, look: { sheet: ".agent-out/studio/t/c/sheet.png", hookSheet: ".agent-out/studio/t/c/hook-sheet.png" }, answer: { stage: "post", role: "viewer" } });
+    const done = s.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: { whatHappens: "out", understood: "a ball escapes the rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" } });
+    expect(done.result.status).toBe("done");
+    const rec = s.panel()!.records.post[recs[0].id];
+    expect(rec).toMatchObject({ stage: "post", verdict: "keep", makesSense: "yes", who: "claude", separation: "contexts" });
+    expect(rec.roles.find((r) => r.role === "viewer")).toMatchObject({ source: "model", verdict: "out" });
+    expect(done.post).toMatch(/the viewer read "out"/);
+    // no render, no post stage
+    const bare = studio(recs, "u");
+    expect(bare.call({ stage: "post" })).toMatchObject({ ok: false, error: expect.stringMatching(/render the kept clips first/) });
+  });
+});
+
+describe("research and the prompts (--- studio ---)", () => {
+  it("digests the trend summary and the inspire dataset by our own searches, never another creator's title or channel", () => {
+    const records = [
+      { query: "ball escape", title: "SECRET TITLE", channel: "SECRET CHANNEL", views: 1000, durationSec: 20, features: { firstMotionSec: 0.2, cutsPerMin: 3, lufs: -12, bpm: 120, darkShare: 0.5 } },
+      { query: "ball escape", title: "OTHER TITLE", channel: "OTHER CHANNEL", views: 3000, durationSec: 30, features: { firstMotionSec: 0.4 } },
+      { query: "satisfying physics", title: "T", channel: "C", views: 10, durationSec: 15, features: null },
+      { title: "no query" },
+    ];
+    const themes = inspireThemes(records);
+    expect(themes.themes.map((t) => [t.query, t.videos, t.medianViews, t.medianSec, t.firstMotionSec])).toEqual([["ball escape", 2, 2000, 25, 0.3], ["satisfying physics", 1, 10, 15, null]]);
+    expect(inspireThemes(records, "escape").themes).toHaveLength(1);
+    const r = studioResearch({ playbook: fs.readFileSync(path.join(ROOT, "docs", "virality-playbook.md"), "utf8"), trends: TRENDS, now: Date.parse(`${TRENDS?.date ?? "2026-10-26"}T12:00:00Z`), inspire: records });
+    const text = JSON.stringify(r);
+    expect(text).not.toMatch(/SECRET|OTHER TITLE|OTHER CHANNEL/);
+    expect(r.brief.points.length).toBeGreaterThan(0);
+    expect(r.brief.points.length).toBeLessThanOrEqual(5);
+    expect(r.inspire.searches.map((t) => t.query)).toEqual(["ball escape", "satisfying physics"]);
+    expect(r.trends).toMatchObject({ stale: false });
+    // the searches are the digest's own lines where its budget has room (the trends and the playbook come first)
+    expect(studioResearch({ playbook: null, trends: null, now: 0, inspire: records }).digest.text).toContain('[i1] inspire search "ball escape": 2 videos');
+  });
+
+  it("makes every prompt from the role cards: the same words the app's crew reads", () => {
+    for (const p of AGENT_PROMPTS) {
+      const args = Object.fromEntries(p.arguments.filter((a) => a.required).map((a) => [a.name, "s1"]));
+      const made = studioPrompt(p.name, args);
+      expect(made.ok, p.name).toBe(true);
+      if (!made.ok) continue;
+      const text = made.prompt.messages[0].content.text;
+      if (p.name.startsWith("crew-")) expect(text, p.name).toContain(ROLE_SPECS[p.name.slice(5) as keyof typeof ROLE_SPECS].card);
+      expect(text, p.name).toMatch(/review/);
+    }
+    expect(studioPrompt("crew-skeptic", { studio: "s1" }).ok && (studioPrompt("crew-skeptic", { studio: "s1" }) as { prompt: { messages: { content: { text: string } }[] } }).prompt.messages[0].content.text).toContain(SHARED_RUBRIC);
+    expect(studioPrompt("crew-skeptic", {})).toMatchObject({ ok: false, error: expect.stringMatching(/needs studio/) });
+    expect(studioPrompt("crew-skeptic", { studio: "../x" })).toMatchObject({ ok: false });
+    const make = studioPrompt("make-video", { count: "2", request: "rings" });
+    expect(make.ok && make.prompt.messages[0].content.text).toMatch(/watermark[\s\S]*never install a licence/);
+  });
+});
+
+describe("the studio tools through the CLI (--- studio ---)", () => {
+  it("plans into .agent-out/studio/<studio>/ (the same JSON twice), reviews there, and prints a prompt; nothing else is written", () => {
+    const name = `vitest-studio-${process.pid}`;
+    const dir = path.join(ROOT, ".agent-out", "studio", name);
+    const gitStatus = () => spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: ROOT, encoding: "utf8" }).stdout;
+    const before = gitStatus();
+    try {
+      const args = JSON.stringify({ template: "get-out-classic", count: 2, studio: name });
+      const a = agent(["plan", "--json", args]);
+      const b = agent(["plan", "--json", args]);
+      expect(a.code).toBe(0);
+      expect(a.stdout).toBe(b.stdout);
+      expect(a.json.result).toMatchObject({ studio: name, planFile: `.agent-out/studio/${name}/plan.json`, count: 2 });
+      expect(fs.existsSync(path.join(dir, "plan.json"))).toBe(true);
+      const r = agent(["review", "--json", JSON.stringify({ studio: name })]);
+      expect(r.code).toBe(0);
+      expect(r.json.result).toMatchObject({ status: "call", next: { role: "skeptic" }, files: { panel: `.agent-out/studio/${name}/panel.json` } });
+      const bad = agent(["review", "--json", "-"], JSON.stringify({ studio: name, role: "skeptic", clip: r.json.result.next.clip, verdict: { oneIdea: "x", objections: [{ id: "o1", kind: "nope", evidence: [], severity: "minor", note: "" }] } }));
+      expect(bad.json.result.accepted).toMatchObject({ ok: false });
+      const s = agent(["score", "--json", JSON.stringify({ studio: name, clip: r.json.result.next.clip })]);
+      expect(s.json.result).toMatchObject({ source: "panel", pass: true });
+      const prompt = agent(["--prompt", "crew-viewer", "--json", JSON.stringify({ studio: name })]);
+      expect(prompt.json).toMatchObject({ ok: true, prompt: "crew-viewer", result: { messages: [{ role: "user", content: { type: "text" } }] } });
+      expect(agent(["--prompt", "crew-viewer", "--json", "{}"]).code).toBe(2);
+      expect(gitStatus()).toBe(before);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 240_000);
+
+  it("render v3 asks the page's bot handle for version 3, its melody and its world, and keeps the free-render refusals", () => {
+    const browser = fs.readFileSync(path.join(ROOT, "scripts", "agent", "browser.mjs"), "utf8");
+    expect(browser).toMatch(/renderInPage\(page, job\.query, \{ seconds: job\.seconds, melodyId: job\.melodyId \}, 3\)/);
+    expect(browser).toMatch(/if \(result\.watermarked !== true\) throw new Error/);
+    const bot = fs.readFileSync(path.join(ROOT, "src", "components", "simulator", "useViralBot.ts"), "utf8");
+    expect(bot).toMatch(/version: 3,/);
+    expect(bot).toMatch(/world: latest\.current\.getWorld\(\), melodyId: played/);
+  });
+});

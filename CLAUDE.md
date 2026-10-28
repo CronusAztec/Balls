@@ -37,5 +37,6 @@ The guide above is the whole contract. What a Claude Code session must not skip:
 
 - The agent toolbox: `npm run -s agent -- <tool> --json '{…}'` (`docs/agents/CLI.md`).
 - The MCP server `jumpingballs-agent` (`.mcp.json`) offers the same tools once you approve it in Claude Code.
+- Making videos: Claude's studio, `docs/agents/STUDIO.md` (the `make-video` prompt, the crew's roles; every clip watermarked).
 - A new mechanic as data: `docs/agents/BLUEPRINTS.md`. A coded mode: `docs/agents/MODES.md`. The core functions and their
   proofs: `docs/agents/CORE.md`.

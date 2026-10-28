@@ -5,7 +5,8 @@
  * line (stdout carries only protocol messages; notes go to stderr). Registered for Claude Code in the project's .mcp.json
  * (Claude Code asks each user to approve a project server before it starts).
  *
- * Methods: initialize, ping, tools/list, tools/call, and the notifications initialized and cancelled.
+ * Methods: initialize, ping, tools/list, tools/call, --- studio --- prompts/list and prompts/get, and the notifications
+ * initialized and cancelled.
  *
  * The tools are the CLI's (src/lib/agentKit/tools.ts AGENT_TOOLS, the entries marked `mcp`), each with its JSON Schema;
  * the owner-run commands (site-stats, postiz-probe) are not offered, nor a tool's CLI-only arguments (the guard's baseline).
@@ -18,6 +19,10 @@
  * runs in a process group of its own: a cancelled or timed-out call, or a stopped server, stops it with everything it
  * started (the guard's tsc, ESLint and vitest workers, next build, ffmpeg; taskkill /T on Windows). There is no exec, shell
  * or file-write tool. A result is at most 200 KB of text; pictures and clips are returned as repository paths.
+ * --- studio --- A tool that returns a picture on request (preview and frames with image: a sheet as one JPEG of at most
+ * IMAGE_MAX_BYTES) has it as an image content block, its base64 counted with the text against the same 200 KB. The prompts
+ * (the crew's roles and the studio's loop) are listed from the tool core's table and their texts made by the CLI
+ * (`cli.mjs --prompt <name> --json -`, from lib/crew/roles.ts), so a broken mode fails prompts/get only, never the server.
  *
  * .mcp.json starts it from whatever folder the session opened (desktop/, say): a one-line launcher finds the repository by
  * walking up to scripts/agent/mcp.mjs and calls startServer(). Only `node scripts/agent/mcp.mjs` (or that launcher) is a
@@ -38,14 +43,20 @@ import { ROOT, cacheDir, isMainModule } from "./paths.mjs";
 export const SERVER_NAME = "jumpingballs-agent";
 export const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const MAX_RESULT_CHARS = 200_000;
+/** --- studio --- An image block's JPEG at most (bytes before base64; tools.ts IMAGE_MAX_BYTES, held equal by a test). */
+export const IMAGE_MAX_BYTES = 110_000;
+/** Its base64 at most (characters): what it counts against MAX_RESULT_CHARS. */
+export const IMAGE_MAX_BASE64 = Math.ceil(IMAGE_MAX_BYTES / 3) * 4;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "cli.mjs");
 
 const INSTRUCTIONS =
   "JumpingBallsLive's agent toolbox: modes, simulate, fingerprint, preview, render, site-shot, analyse, guard, explain, " +
   "the inspiration tools frames, trending, fetch-video and inspire (learn from other creators' trending and viral videos), " +
-  "and the Blueprint tools bp-schema, bp-validate, bp-check, bp-link, bp-docs (new modes as data: docs/agents/BLUEPRINTS.md). " +
-  "Results are JSON; pictures and clips are written under .agent-out/ and returned as paths. Read AGENTS.md first; " +
-  "never re-record a fingerprint (a moved one is a behaviour change to fix).";
+  "the Blueprint tools bp-schema, bp-validate, bp-check, bp-link, bp-docs (new modes as data: docs/agents/BLUEPRINTS.md), " +
+  "and the studio tools templates, plan, score, review and research (make videos judged by the crew, you playing each role: " +
+  "docs/agents/STUDIO.md and the make-video prompt). " +
+  "Results are JSON; pictures and clips are written under .agent-out/ and returned as paths (preview and frames also as an image on request). " +
+  "Read AGENTS.md first; never re-record a fingerprint (a moved one is a behaviour change to fix); every clip carries the watermark.";
 
 /** A tool's input schema as offered over MCP: without its CLI-only arguments (tools.ts `cliOnly`). */
 function withoutCliOnly(t) {
@@ -113,13 +124,22 @@ export function stopAll() {
  * @returns {Promise<{ ok: boolean, result?: any, error?: string }>}
  */
 export function runCliTool(name, args, { timeoutMs, signal, cli = CLI } = {}) {
+  return runCli([name, "--json", "-"], args, { timeoutMs, signal, cli });
+}
+
+/** --- studio --- An MCP prompt's text from the CLI (`cli.mjs --prompt <name> --json -`): { ok, result | error, usage? }. */
+export function runCliPrompt(name, args, { timeoutMs = 120_000, signal, cli = CLI } = {}) {
+  return runCli(["--prompt", name, "--json", "-"], args, { timeoutMs, signal, cli });
+}
+
+function runCli(argv, args, { timeoutMs, signal, cli = CLI } = {}) {
   return new Promise((resolve) => {
     const json = JSON.stringify(args ?? {});
     if (json.length > MAX_ARGS_CHARS) return resolve({ ok: false, error: `the arguments are ${json.length} characters of JSON; at most ${MAX_ARGS_CHARS}` });
     let child;
     try {
       // its own process group (POSIX), so stopping it stops what it started; the arguments go on stdin, never the command line
-      child = spawn(process.execPath, [cli, name, "--json", "-"], { cwd: ROOT, env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
+      child = spawn(process.execPath, [cli, ...argv], { cwd: ROOT, env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
     } catch (e) {
       return resolve({ ok: false, error: `the tool could not start: ${e instanceof Error ? e.message : String(e)}` });
     }
@@ -177,9 +197,34 @@ export function runCliTool(name, args, { timeoutMs, signal, cli = CLI } = {}) {
  */
 export function toolResult(answer) {
   if (!answer.ok) return { content: [{ type: "text", text: String(answer.error ?? "failed") }], isError: true };
+  // --- studio --- a picture on request: an image block, its base64 counted with the text against MAX_RESULT_CHARS
+  const image = answer.result && typeof answer.result === "object" ? answer.result.image : undefined;
+  if (image && typeof image === "object" && typeof image.data === "string") return imageResult(answer.result, image);
   const text = JSON.stringify(answer.result);
   if (text.length <= MAX_RESULT_CHARS) return { content: [{ type: "text", text }], structuredContent: answer.result, isError: false };
   return { content: [{ type: "text", text: `${text.slice(0, MAX_RESULT_CHARS)}… [cut at ${MAX_RESULT_CHARS} characters of ${text.length}; ask for less, e.g. one mode]` }], isError: false };
+}
+
+/**
+ * --- studio --- A result with a picture: the JSON without the picture's base64 as text, then the picture as an image block
+ * (a JPEG or PNG of at most IMAGE_MAX_BYTES; a larger one is left out and the text says so). The two together stay within
+ * MAX_RESULT_CHARS, counted after base64: the text is cut first. No structured content beside them (it would hold the text
+ * twice).
+ */
+function imageResult(result, image) {
+  const { data, ...meta } = image;
+  const fits = (image.mimeType === "image/jpeg" || image.mimeType === "image/png") && /^[A-Za-z0-9+/]+=*$/.test(data) && data.length <= IMAGE_MAX_BASE64;
+  const shown = { ...result, image: fits ? meta : { ...meta, left: `the picture was left out: ${data.length} characters of base64, at most ${IMAGE_MAX_BASE64} (a JPEG of ${IMAGE_MAX_BYTES} bytes)` } };
+  const text = JSON.stringify(shown);
+  const room = MAX_RESULT_CHARS - (fits ? data.length : 0);
+  const note = `… [cut at ${room} characters of ${text.length}: the picture takes the rest of ${MAX_RESULT_CHARS}]`;
+  const body = text.length <= room ? text : `${text.slice(0, Math.max(0, room - note.length))}${note}`;
+  return { content: [{ type: "text", text: body }, ...(fits ? [{ type: "image", data, mimeType: image.mimeType }] : [])], isError: false };
+}
+
+/** --- studio --- The characters a tool result's content blocks hold (the text and the base64 of every image). */
+export function resultChars(result) {
+  return (result?.content ?? []).reduce((n, c) => n + (c.type === "text" ? c.text.length : c.type === "image" ? c.data.length : 0), 0);
 }
 
 /**
@@ -188,10 +233,10 @@ export function toolResult(answer) {
  * toolbox's checkToolArgs) refuses arguments the schema does not allow before anything starts.
  */
 /**
- * @param {{ tools: readonly { name: string, title: string, description: string, input: any, writes: string, mcp: boolean, cliOnly?: readonly string[], timeoutMs: number }[], version?: string, run?: (name: string, args: any, options: { timeoutMs: number, signal: AbortSignal }) => Promise<any>, check?: (name: string, args: any) => { ok: boolean, errors?: string[] }, notice?: string }} options
+ * @param {{ tools: readonly { name: string, title: string, description: string, input: any, writes: string, mcp: boolean, cliOnly?: readonly string[], timeoutMs: number }[], version?: string, run?: (name: string, args: any, options: { timeoutMs: number, signal: AbortSignal }) => Promise<any>, check?: (name: string, args: any) => { ok: boolean, errors?: string[] }, notice?: string, prompts?: readonly { name: string, title: string, description: string, arguments: readonly { name: string, description: string, required: boolean }[] }[], getPrompt?: (name: string, args: any, options: { signal: AbortSignal }) => Promise<any> }} options
  * @returns {{ handle: (msg: any) => Promise<any>, offered: any[], cancelAll: () => void }}
  */
-export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, check, notice }) {
+export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, check, notice, prompts = [], getPrompt = (name, args, o) => runCliPrompt(name, args, o) }) {
   const offered = tools.filter((t) => t.mcp);
   const byName = new Map(offered.map((t) => [t.name, t]));
   const running = new Map();
@@ -213,7 +258,7 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
         const asked = typeof params.protocolVersion === "string" ? params.protocolVersion : PROTOCOL_VERSIONS[0];
         return reply(msg.id, {
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-          capabilities: { tools: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
           serverInfo: { name: SERVER_NAME, version },
           instructions: notice ? `${INSTRUCTIONS} ${notice}` : INSTRUCTIONS,
         });
@@ -246,6 +291,27 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
           const answer = await run(spec.name, args, { timeoutMs: spec.timeoutMs, signal: controller.signal });
           if (controller.signal.aborted) return null; // cancelled: no answer is sent
           return reply(msg.id, toolResult(answer));
+        } finally {
+          running.delete(msg.id);
+        }
+      }
+      // --- studio --- the crew's roles and the studio's loop as prompts (their texts from lib/crew/roles.ts, through the CLI)
+      case "prompts/list":
+        return reply(msg.id, { prompts: prompts.map((p) => ({ name: p.name, title: p.title, description: p.description, arguments: p.arguments.map((a) => ({ name: a.name, description: a.description, required: a.required })) })) });
+      case "prompts/get": {
+        const spec = typeof params.name === "string" ? prompts.find((p) => p.name === params.name) : undefined;
+        if (!spec) return fail(msg.id, ERR.invalidParams, `Unknown prompt "${params.name}" (the prompts: ${prompts.map((p) => p.name).join(", ")})`);
+        const args = params.arguments ?? {};
+        if (!args || typeof args !== "object" || Array.isArray(args)) return fail(msg.id, ERR.invalidParams, "arguments must be an object");
+        const missing = spec.arguments.filter((a) => a.required && (typeof args[a.name] !== "string" || !args[a.name]));
+        if (missing.length) return fail(msg.id, ERR.invalidParams, `The prompt ${spec.name} needs ${missing.map((a) => a.name).join(", ")}`);
+        const controller = new AbortController();
+        running.set(msg.id, controller);
+        try {
+          const answer = await getPrompt(spec.name, args, { signal: controller.signal });
+          if (controller.signal.aborted) return null;
+          if (!answer?.ok) return fail(msg.id, answer?.usage ? ERR.invalidParams : ERR.internal, String(answer?.error ?? "the prompt could not be made"));
+          return reply(msg.id, answer.result);
         } finally {
           running.delete(msg.id);
         }
@@ -305,9 +371,9 @@ export function createLineReader({ maxChars, onLine, onOversize }) {
 }
 
 /** The last tool table that built, in the agent cache: what tools/list offers while the tool core itself does not build. */
-function lastToolTable(tools) {
+function lastToolTable(tools, name = "tools.json") {
   try {
-    const file = path.join(cacheDir("bundle"), "tools.json");
+    const file = path.join(cacheDir("bundle"), name);
     if (tools) fs.writeFileSync(file, JSON.stringify(tools));
     else return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
@@ -316,13 +382,13 @@ function lastToolTable(tools) {
   return tools ?? [];
 }
 
-/** The tool core, or why it did not build (with the last table that did). */
+/** The tool core, or why it did not build (with the last table that did; --- studio --- and the last prompt table). */
 async function toolTable() {
   try {
     const core = await loadToolCore();
-    return { core, tools: lastToolTable(core.AGENT_TOOLS), error: null };
+    return { core, tools: lastToolTable(core.AGENT_TOOLS), prompts: lastToolTable(core.AGENT_PROMPTS, "prompts.json"), error: null };
   } catch (e) {
-    return { core: null, tools: lastToolTable(null), error: e instanceof Error ? e.message : String(e) };
+    return { core: null, tools: lastToolTable(null), prompts: lastToolTable(null, "prompts.json"), error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -337,6 +403,7 @@ export async function startServer() {
   let table = await toolTable();
   const server = createMcpHandler({
     tools: table.tools,
+    prompts: table.prompts,
     version,
     notice: table.error ? `The tool core did not build, so every call answers with its error until it does: ${table.error}` : undefined,
     check: (name, args) => (table.core ? table.core.checkToolArgs(name, args) : { ok: true }),
@@ -392,7 +459,7 @@ export async function startServer() {
   process.on("exit", stopAll); // whichever way the server ends: the calls' process groups end with it
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  process.stderr.write(`${SERVER_NAME} ${version}: ${server.offered.length} tools on stdio${table.error ? ` (the tool core did not build: ${table.error})` : ""}\n`);
+  process.stderr.write(`${SERVER_NAME} ${version}: ${server.offered.length} tools on stdio, ${table.prompts.length} prompts${table.error ? ` (the tool core did not build: ${table.error})` : ""}\n`);
 }
 
 const invoked = isMainModule(import.meta.url); // (--- agent-cli --- real paths: a start through a symbolic link runs too)

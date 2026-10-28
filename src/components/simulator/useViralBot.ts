@@ -122,11 +122,28 @@ interface BotCliPlanRequest {
 export interface BotLinkRenderRequest {
   seconds?: number;
   seed?: number;
+  /**
+   * --- studio --- (version 3) The built-in melody the clip plays on its bounces (a lib/audio/songs.ts id, as a planned clip's
+   * melodyId), null for none; absent: whatever the page has loaded. Loaded before the export, the page's own restored after.
+   */
+  melodyId?: string | null;
 }
 
 /** What `renderLink()` gives back: the clip (in the page) with the fast export's result, or why there is none. */
 export type BotLinkRenderResult =
-  | { status: "done"; file: string; blob: Blob; durationSec: number; seed: number; mode: string; result: Omit<FastRenderResult, "blob"> | null }
+  | {
+      status: "done";
+      file: string;
+      blob: Blob;
+      durationSec: number;
+      seed: number;
+      mode: string;
+      result: Omit<FastRenderResult, "blob"> | null;
+      /** --- studio --- (version 3) The page's world the clip ran in (its canvas in CSS px), null before there is one. */
+      world: BotWorld | null;
+      /** --- studio --- (version 3) The melody the page had loaded when the export ended (null: none). */
+      melodyId: string | null;
+    }
   | { status: "failed"; error: string };
 
 /** Longest clip renderLink() makes (s): a short check, not a production render. */
@@ -136,7 +153,10 @@ export const LINK_RENDER_MAX_SEC = 60;
 declare global {
   interface Window {
     __jumpingBallsBot?: {
-      /** 1: plan, render, textFiles, world, licence; --- agent-cli --- 2: also renderLink. */
+      /**
+       * 1: plan, render, textFiles, world, licence; --- agent-cli --- 2: also renderLink; --- studio --- 3: renderLink plays the
+       * melody it is given (a planned clip's) and reports the page's world and the melody it played.
+       */
       version: number;
       plan: (request?: BotCliPlanRequest) => Promise<ClipPlan[]>;
       render: (request?: { download?: "each" | "zip" }) => Promise<RenderedClip[]>;
@@ -326,17 +346,28 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     const seconds = request?.seconds;
     const settings = typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? presetToSettings({ ...read.settings, recordingDuration: Math.min(LINK_RENDER_MAX_SEC, seconds) }) : read.settings;
     const seed = linkSeed(link) ?? (typeof request?.seed === "number" && Number.isFinite(request.seed) ? Math.trunc(request.seed) : 1);
-    const files = await l.runJobs([{ seed, settings, name: `${SITE_SLUG}-${settings.mode}-${seed}`, download: false }]);
+    // --- studio --- (version 3) the clip's own melody, as renderAll plays a plan's: loaded once its settings are on the page,
+    // the page's own back afterwards
+    const melody = typeof request?.melodyId === "string" || request?.melodyId === null ? request.melodyId : undefined;
+    const melodyBefore = l.currentMelody;
+    let files: CustomBatchFile[] = [];
+    let played: string | null = null;
+    try {
+      files = await l.runJobs([{ seed, settings, name: `${SITE_SLUG}-${settings.mode}-${seed}`, download: false, ...(melody !== undefined ? { prepare: async () => void (await latest.current.selectMelody(melody)) } : {}) }]);
+      played = latest.current.currentMelody;
+    } finally {
+      if (melody !== undefined) await latest.current.selectMelody(melodyBefore);
+    }
     const f = files[0];
     if (!f) return { status: "failed", error: "render" };
     const result = f.result ? (Object.fromEntries(Object.entries(f.result).filter(([key]) => key !== "blob")) as Omit<FastRenderResult, "blob">) : null;
-    return { status: "done", file: f.name, blob: f.blob, durationSec: f.durationSec, seed, mode: settings.mode, result };
+    return { status: "done", file: f.name, blob: f.blob, durationSec: f.durationSec, seed, mode: settings.mode, result, world: latest.current.getWorld(), melodyId: played };
   }, []);
 
   /* ---------------------------------------------------------- the CLI's handle */
   useEffect(() => {
     window.__jumpingBallsBot = {
-      version: 2, // --- agent-cli --- (renderLink)
+      version: 3, // --- agent-cli --- (renderLink; --- studio --- 3: its melody, the page's world)
       plan: (request) => planWith("today", { family: "all", bucket: "auto", ending: "auto", ...request }),
       render: (request) => renderAll(request?.download ?? "each"),
       textFiles: () => {

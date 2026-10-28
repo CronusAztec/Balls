@@ -25,7 +25,7 @@ const ROOT = path.resolve(__dirname, "..");
 const read = (file: string) => fs.readFileSync(path.join(ROOT, file), "utf8");
 const exists = (file: string) => fs.existsSync(path.join(ROOT, file));
 
-const GUIDE = ["AGENTS.md", "CLAUDE.md", "docs/agents/CORE.md", "docs/agents/MODES.md", "docs/agents/CLI.md"] as const;
+const GUIDE = ["AGENTS.md", "CLAUDE.md", "docs/agents/CORE.md", "docs/agents/MODES.md", "docs/agents/CLI.md", "docs/agents/STUDIO.md"] as const; // --- studio --- (Claude's studio)
 const TEXT: Record<string, string> = Object.fromEntries(GUIDE.map((f) => [f, read(f)]));
 const CORE = JSON.parse(read("scripts/agent/core.json")) as CoreConfig;
 const PROTECTED = JSON.parse(read("scripts/agent/protected.json")) as ProtectedConfig;

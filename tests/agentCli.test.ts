@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ENGINE_TOOLS, GUARD_SCRIPT, guardCommand, guardFlags, guardReportFile, parseArgv, runCaptured, testSourceOf } from "../scripts/agent/cli.mjs";
 import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import { CACHE_DIR, PathError, cacheDirFor, defaultOutName, hasScheme, isInside, isMainModule, outputDir, resolveInputFile, untrustedCacheReason, userCacheBase, writeFileSafe } from "../scripts/agent/paths.mjs";
-import { SETTLE_MS, TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, settled, toolboxListing } from "../scripts/agent/bundle.mjs";
+import { SETTLE_MS, STUDIOKIT_ENTRY, TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, settled, toolboxListing } from "../scripts/agent/bundle.mjs";
 import os from "os";
 import { buildEnv, lockPids, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
@@ -95,6 +95,21 @@ describe("the agent CLI (--- agent-cli ---)", () => {
     expect(browser).toMatch(/if \(!shot\.watermarked\) throw new Error/);
     expect(browser).toMatch(/if \(result\.watermarked !== true\) throw new Error/);
   });
+
+  it("--- studio --- the studio kit installs no licence either: its sources name none, and its bundle carries no TEST key or init script", async () => {
+    const LICENCE = /test-license|signTestLicense|installLicenseScript|LICENSE_STORAGE_KEY|jbl\.license|addInitScript|license-test-key/;
+    for (const f of ["src/lib/agentKit/studioKit.ts", "scripts/agent/studio.mjs"]) {
+      const src = fs.readFileSync(path.join(ROOT, f), "utf8");
+      expect(src, f).not.toMatch(LICENCE);
+      expect(src, f).not.toMatch(/from "@\/lib\/(billing|bot\/node)|lib\/watermark\/seal/);
+    }
+    // the planner it bundles reads a free visitor's empty licence store, as the page does; nothing in it writes one or signs a TEST licence
+    const esbuild = await import("esbuild");
+    const built = await esbuild.build({ entryPoints: [STUDIOKIT_ENTRY], bundle: true, platform: "node", format: "esm", write: false, metafile: true, alias: { "@": path.join(ROOT, "src") }, logLevel: "silent", absWorkingDir: ROOT });
+    const inputs = Object.keys(built.metafile.inputs);
+    expect(inputs.filter((f) => /license-test-key|test-license|bot\/node\.ts|scripts\//.test(f))).toEqual([]);
+    expect(built.outputFiles[0].text).not.toMatch(/signTestLicense|installLicenseScript|license-test-key|addInitScript/);
+  }, 120_000);
 });
 
 describe("paths (--- agent-cli ---)", () => {

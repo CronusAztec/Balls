@@ -5,6 +5,7 @@
  *   npm run agent -- <tool> [--json '{…}'] [--pretty]
  *   npm run agent -- <tool> --json -        the arguments from stdin (any length; the MCP server calls it so)
  *   npm run agent -- --help                 the tools and their input schemas
+ *   npm run agent -- --prompt <name> --json '{…}'   an MCP prompt's text (--- studio --- the MCP server's prompts/get)
  *
  * Prints exactly one JSON object on stdout – {"ok":true,"tool":…,"result":…} or {"ok":false,"tool":…,"error":…} – and
  * exits 0 (ok), 1 (the tool failed) or 2 (a usage error: unknown tool, bad JSON, arguments the tool's schema refuses).
@@ -28,6 +29,11 @@
  *   bp-check     a Blueprint played headless on four seeds: playable, endless or broken, with feedback   (deterministic)
  *   bp-link      a Blueprint's link code, simulator link and share code
  *   bp-docs      docs/agents/BLUEPRINTS.md as the code generates it, and whether the committed one is current
+ *   templates    --- studio --- the formats, the 48 modes' bindings, the ready templates and their words, the Simple look
+ *   plan         clips planned by the bot's planner from a template, recipe or mode: .agent-out/studio/<studio>/plan.json
+ *   score        a link's or a studio clip's Playbook and Simple scores, gates and clutter by the app's rules  (deterministic)
+ *   review       the crew's panel with you playing each role: the next brief, or your verdict checked and applied
+ *   research     the research digest and brief, offline, with the local inspire dataset by its searches
  *   site-stats   owner-run: aggregate numbers from the owner's Plausible or Umami (needs their key)
  *   postiz-probe owner-run: which analytics series the owner's Postiz returns (needs their key)
  *
@@ -44,7 +50,7 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { loadBlueprintKit, loadToolCore, loadToolbox } from "./bundle.mjs";
+import { loadBlueprintKit, loadStudioKit, loadToolCore, loadToolbox } from "./bundle.mjs";
 import { OUT_DIR, ROOT, ensureOutDir, isInside, isMainModule, repoRelative } from "./paths.mjs";
 
 export class UsageError extends Error {}
@@ -72,6 +78,12 @@ export function parseArgv(argv) {
     const a = argv[i];
     if (a === "--help" || a === "-h") out.help = true;
     else if (a === "--pretty") out.pretty = true;
+    // --- studio --- an MCP prompt's text instead of a tool (the MCP server's prompts/get)
+    else if (a === "--prompt") {
+      const name = argv[++i];
+      if (name === undefined || !/^[a-z][a-z-]*$/.test(name)) throw new UsageError("--prompt needs a prompt's name");
+      out.prompt = name;
+    }
     else if (a === "--json" || a.startsWith("--json=")) {
       const text = a === "--json" ? argv[++i] : a.slice("--json=".length);
       if (text === undefined) throw new UsageError("--json needs a JSON object");
@@ -389,12 +401,20 @@ const TOOLS = {
   "bp-check": bpCheckTool,
   "bp-link": bpLinkTool,
   "bp-docs": bpDocsTool,
+  // --- studio --- Claude's studio (docs/agents/STUDIO.md): the studio kit's values, the files in studio.mjs
+  templates: async (kit, args) => (await import("./studio.mjs")).templatesTool(kit, args),
+  plan: async (kit, args) => (await import("./studio.mjs")).planTool(kit, args),
+  score: async (kit, args) => (await import("./studio.mjs")).scoreTool(kit, args),
+  review: async (kit, args) => (await import("./studio.mjs")).reviewTool(kit, args),
+  research: async (kit, args) => (await import("./studio.mjs")).researchTool(kit, args),
 };
 
 /** --- agent-cli --- The tools that need the engine (the whole toolbox bundle); the others run on the tool core alone. */
 export const ENGINE_TOOLS = new Set(["modes", "simulate", "fingerprint", "preview", "render"]);
 /** --- blueprint --- The tools that need the Blueprint kit (the language, its runtime and catalog; no engine). */
 export const BLUEPRINT_TOOLS = new Set(["bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs"]);
+/** --- studio --- The tools that need the studio kit (the planner, the templates, the scores, the crew and their engine). */
+export const STUDIO_TOOLS = new Set(["templates", "plan", "score", "review", "research"]);
 
 /** Runs one tool call: { ok, tool, result } or { ok: false, tool, error, usage? }. */
 export async function runTool(name, rawArgs) {
@@ -411,7 +431,7 @@ export async function runTool(name, rawArgs) {
   try {
     // (a broken mode or engine fails these five only: guard, explain and analyse never load it; the bp-* tools load the
     // Blueprint kit alone)
-    const tb = ENGINE_TOOLS.has(name) ? await loadToolbox() : BLUEPRINT_TOOLS.has(name) ? await loadBlueprintKit() : core;
+    const tb = ENGINE_TOOLS.has(name) ? await loadToolbox() : BLUEPRINT_TOOLS.has(name) ? await loadBlueprintKit() : STUDIO_TOOLS.has(name) ? await loadStudioKit() : core;
     return { ok: true, tool: name, result: await impl(tb, check.args) };
   } catch (e) {
     return { ok: false, tool: name, error: e instanceof Error ? e.message : String(e) };
@@ -422,8 +442,32 @@ function helpText(tb) {
   return {
     usage: "npm run agent -- <tool> [--json '{…}'] [--pretty]",
     tools: tb.AGENT_TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, writes: t.writes, ...(t.alsoWrites ? { alsoWrites: t.alsoWrites } : {}), network: t.network, input: t.input })),
+    // --- studio --- the MCP prompts (npm run agent -- --prompt <name> --json '{…}' prints one's text)
+    prompts: (tb.AGENT_PROMPTS ?? []).map((p) => ({ name: p.name, title: p.title, description: p.description, arguments: p.arguments })),
     guide: "docs/agents/CLI.md",
   };
+}
+
+/**
+ * --- studio --- An MCP prompt's text (prompts/get): the studio kit makes it from lib/crew/roles.ts. { ok, prompt, result } or
+ * { ok: false, error, usage? } (an unknown prompt or a missing argument is a usage error).
+ */
+export async function runPrompt(name, args) {
+  let core;
+  try {
+    core = await loadToolCore();
+  } catch (e) {
+    return { ok: false, prompt: name, error: e instanceof Error ? e.message : String(e) };
+  }
+  const spec = core.AGENT_PROMPTS.find((p) => p.name === name);
+  if (!spec) return { ok: false, prompt: name, error: `Unknown prompt "${name}" (the prompts: ${core.AGENT_PROMPTS.map((p) => p.name).join(", ")})`, usage: true };
+  for (const [k, v] of Object.entries(args ?? {})) if (!spec.arguments.some((a) => a.name === k) || (typeof v !== "string" && typeof v !== "number")) return { ok: false, prompt: name, error: `The prompt ${name} takes ${spec.arguments.map((a) => a.name).join(", ") || "no arguments"} (strings): not ${k}`, usage: true };
+  try {
+    const made = (await import("./studio.mjs")).promptOf(await loadStudioKit(), name, args ?? {});
+    return made.ok ? { ok: true, prompt: name, result: made.prompt } : { ok: false, prompt: name, error: made.error, usage: true };
+  } catch (e) {
+    return { ok: false, prompt: name, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** All of stdin as text. */
@@ -445,6 +489,12 @@ async function main() {
   }
   // The one line of JSON, then exit (a browser or a child the tool left behind never keeps the process alive).
   const finish = (value, code) => process.stdout.write(`${parsed.pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value)}\n`, () => process.exit(code));
+  if (parsed.prompt !== undefined) {
+    // --- studio --- a prompt, not a tool
+    if (parsed.tool !== null) return finish({ ok: false, tool: parsed.tool, error: "--prompt takes no tool", usage: true }, 2);
+    const out = await runPrompt(parsed.prompt, parsed.args);
+    return finish(out, out.ok ? 0 : out.usage ? 2 : 1);
+  }
   try {
     if (parsed.help || !parsed.tool) return finish({ ok: true, tool: null, result: helpText(await loadToolCore()) }, 0);
     // .agent-out/ (and its own .gitignore) exists before a tool that writes there runs – the guard writes its report into it

@@ -101,6 +101,63 @@ export const PATH_OR_URL_TOOLS: ReadonlySet<string> = new Set(["analyse", "frame
 /** The tools that take a Blueprint (exactly one of spec, code, catalog, lite). */
 export const BLUEPRINT_INPUT_TOOLS: ReadonlySet<string> = new Set(["bp-validate", "bp-check", "bp-link"]);
 
+// --- studio --- Claude's studio (docs/agents/STUDIO.md): the crew's tools and what they take. The enums are the code's
+// (lib/bot/playbook.ts, lib/bot/templates.ts, lib/crew/roles.ts), written out here so the tool core stays free of the engine;
+// tests/agentStudio.test.ts holds them equal.
+/** Clips the plan tool plans in one call at most. */
+export const STUDIO_PLAN_MAX = 10;
+/** Clips the review tool reviews in one studio folder at most. */
+export const STUDIO_CLIPS_MAX = 8;
+/** An image block's JPEG at most (bytes, before base64: about 147 KB after it), counted against the MCP result's 200 KB. */
+export const IMAGE_MAX_BYTES = 110_000;
+export const STUDIO_PLATFORMS = ["reels", "tiktok", "shorts"] as const;
+export const STUDIO_BUCKETS = ["auto", "short", "standard", "long"] as const;
+export const STUDIO_ENDINGS = ["auto", "resolved", "cliffhanger"] as const;
+export const STUDIO_LOOKS = ["simple", "bot"] as const;
+export const STUDIO_LOCALES = ["en", "pl", "es"] as const;
+export const STUDIO_FAMILIES = ["default", "all", "escape", "rhythm", "battle"] as const;
+export const STUDIO_FORMATS = ["getOut", "smash", "fill", "count", "whoWins", "aim", "lineUp", "onTheBeat", "reveal", "labGame"] as const;
+export const STUDIO_ROLES = ["researcher", "brainstormer", "skeptic", "viewer", "reviewer", "producer"] as const;
+export const STUDIO_DEPTHS = ["quick", "thorough", "rules"] as const;
+/** The tools that plan, score or review a studio clip: the studio kit (bundle.mjs loadStudioKit), not the engine's toolbox. */
+export const STUDIO_TOOLS: ReadonlySet<string> = new Set(["templates", "plan", "score", "review", "research"]);
+const studioId: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A studio folder's name: .agent-out/studio/<studio>/ (the plan tool's `studio` in its result)." };
+const clipId: JsonSchema = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A clip's id in the studio's plan.json (its plan id, as the plan tool lists it)." };
+const locale: JsonSchema = { type: "string", enum: [...STUDIO_LOCALES], description: "The clip's language (default en)." };
+const platform: JsonSchema = { type: "string", enum: [...STUDIO_PLATFORMS], description: "The platform it is for (default reels)." };
+const family: JsonSchema = { type: "string", enum: [...STUDIO_FAMILIES], description: "The template families drawn from when none is named: default (escape and rhythm: never the battle family, whose Fight League names third-party characters), all, or one family." };
+const templateId: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[a-z0-9][a-z0-9-]*$", description: "A ready template's id (see the templates tool), e.g. get-out-classic." };
+const image: JsonSchema = { type: "boolean", description: `Also return the sheet as one JPEG of at most ${IMAGE_MAX_BYTES} bytes (base64 in the result; an MCP image block), for a model that cannot read files (default false).` };
+
+/** --- studio --- The MCP prompts (prompts/list): the crew's roles and the studio's loop, their texts made from lib/crew/roles.ts by the studio kit. */
+export interface AgentPromptSpec {
+  name: string;
+  title: string;
+  description: string;
+  arguments: readonly { name: string; description: string; required: boolean }[];
+}
+const promptStudio = { name: "studio", description: "The studio folder's name (.agent-out/studio/<studio>/).", required: true } as const;
+const promptClip = { name: "clip", description: "One clip's id (default: whichever the panel asks for).", required: false } as const;
+export const AGENT_PROMPTS: readonly AgentPromptSpec[] = [
+  { name: "crew-researcher", title: "Crew: researcher", description: "Play the researcher in a fresh conversation: the research digest in at most five pieces of advice, each with its lever and its strength.", arguments: [promptStudio] },
+  { name: "crew-brainstormer", title: "Crew: brainstormer", description: "Play the brainstormer: different clips for an open request, each a ready template on one of its modes.", arguments: [promptStudio] },
+  { name: "crew-skeptic", title: "Crew: skeptic", description: "Play the skeptic: a clip's one idea and at most three objections, each citing the dossier's keys; never a fix.", arguments: [promptStudio, promptClip] },
+  { name: "crew-viewer", title: "Crew: viewer", description: "Play the cold viewer: what a stranger thinks a clip is about, from what is on screen alone.", arguments: [promptStudio, promptClip] },
+  { name: "crew-reviewer", title: "Crew: reviewer", description: "Play the reviewer: keep, fix or drop, every confirmed objection and misread answered, fixes from the fixed list.", arguments: [promptStudio, promptClip] },
+  {
+    name: "make-video",
+    title: "Make videos",
+    description: "The studio's whole loop: research, templates, plan, the crew's review before the render, the watermarked render, the frames, the review after it and the post copy.",
+    arguments: [
+      { name: "request", description: "What to make, in words (default: the best ready templates).", required: false },
+      { name: "count", description: "How many clips to keep (default 3).", required: false },
+      { name: "platform", description: "reels, tiktok or shorts (default reels).", required: false },
+    ],
+  },
+  { name: "review-clip", title: "Review a rendered clip", description: "The crew's look after the render: the viewer on the clip's frames, the reviewer where the read, the rules or the facts disagree.", arguments: [promptStudio, promptClip] },
+];
+// --- end studio ---
+
 export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "modes",
@@ -159,6 +216,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         camera: { type: "object", additionalProperties: false, properties: { x: { type: "number" }, y: { type: "number" }, zoom: { type: "number", minimum: 0.1, maximum: 20 } }, description: "The still camera (default: the whole world)." },
         out,
         build,
+        image, // --- studio ---
       },
     },
     writes: ".agent-out",
@@ -170,7 +228,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "render",
     title: "Render a clip",
-    description: "A short clip of a link (or mode) through the page's own fast export (the batch path of window.__jumpingBallsBot.renderLink), with its export digest and render result. Watermarked like a free render. WebM from a browser without H.264 is also converted to MP4 when ffmpeg is present.",
+    description: "A short clip of a link (or mode) through the page's own fast export (the batch path of window.__jumpingBallsBot.renderLink), with its export digest and render result. Watermarked like a free render. WebM from a browser without H.264 is also converted to MP4 when ffmpeg is present. --- studio --- With plan (a studio's plan.json) and clip: that planned clip as the crew left it, with its melody, into .agent-out/studio/<studio>/<clip>/ with its frames' sheets, its measured features, lagged frames, the page's world, the payoff planned and played, and its Simple and Playbook scores and gates after the render.",
     input: {
       type: "object",
       additionalProperties: false,
@@ -182,6 +240,9 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         mp4: { type: "boolean", description: "Convert a WebM clip to MP4 with ffmpeg when present (default true)." },
         out,
         build,
+        // --- studio --- render v3: a planned clip
+        plan: { type: "string", minLength: 1, maxLength: 300, description: "A studio's plan.json inside the repository (.agent-out/studio/<studio>/plan.json, as the plan tool returns it). Give link, mode or plan." },
+        clip: clipId,
       },
     },
     writes: ".agent-out",
@@ -250,6 +311,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         sheet: { type: "boolean", description: "Also lay the frames out on contact sheets (default true)." },
         out,
         maxHeight: maxHeightArg,
+        image, // --- studio --- (the whole video's sheet)
       },
     },
     writes: ".agent-out",
@@ -413,6 +475,129 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     mcp: true,
     timeoutMs: 120_000,
   },
+  // --- studio --- Claude's studio (docs/agents/STUDIO.md): the crew's templates, the bot's planner, the app's rules and the
+  // crew's panel, with Claude playing the roles; no model is called and no key is read here
+  {
+    name: "templates",
+    title: "Viral templates",
+    description: "The ten formats (get out, smash, fill, count, who wins, aim, line up, on the beat, reveal, Mode Lab game) with their claims, all 48 modes' bindings with their tiers, the ready templates with their copy in one locale, the Simple look, the clarity gates and the Simple score's weights. Writes nothing.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        locale,
+        family,
+        mode: { ...mode, description: "Only this mode's binding and templates." },
+        format: { type: "string", enum: [...STUDIO_FORMATS], description: "Only this format's bindings and templates." },
+        copy: { type: "boolean", description: "Include each ready template's words in the locale (default true)." },
+      },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "plan",
+    title: "Plan clips",
+    description: "Plans clips with the bot's own planner (deterministic: the same call, the same JSON): a ready template, a playbook recipe or a mode's templates (or the best ready ones), in the Simple look unless look is bot. Each plan's link (its settings and seed), world and melody, captions, beats, Playbook and Simple scores, the clarity gates and the crew's dossier (the intent view and the screen view). Writes .agent-out/studio/<studio>/plan.json for review and render. No licence is read or used.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        template: templateId,
+        recipe: { type: "string", minLength: 1, maxLength: 80, pattern: "^[a-z0-9][a-z0-9-]*$", description: "A playbook recipe's id (e.g. ring-escape) instead of a template." },
+        mode: { ...mode, description: "Plan this mode's ready templates." },
+        platform,
+        bucket: { type: "string", enum: [...STUDIO_BUCKETS], description: "The length bucket (default auto: the platform's)." },
+        ending: { type: "string", enum: [...STUDIO_ENDINGS], description: "The ending (default auto: the bot alternates)." },
+        look: { type: "string", enum: [...STUDIO_LOOKS], description: "simple (default: dark and calm, one text at a time, one counter) or bot (the daily bot's look)." },
+        locale,
+        count: { type: "integer", minimum: 1, maximum: STUDIO_PLAN_MAX, description: `Clips planned (default 3; at most ${STUDIO_PLAN_MAX}). Clip i plans from planSeed + i.` },
+        planSeed: { type: "integer", minimum: 0, maximum: 4294967295, description: "The planner's seed (default 1): its settings draws and its seed search start from it." },
+        world,
+        family,
+        maxSeeds: { type: "integer", minimum: 1, maximum: 200, description: "Seeds the planner's search tries at most per clip (default the planner's 24)." },
+        studio: { ...studioId, description: "The studio folder to write (default: one named after the call). A plan written there starts its review over." },
+      },
+    },
+    writes: ".agent-out",
+    network: "none",
+    mcp: true,
+    timeoutMs: 10 * 60_000,
+  },
+  {
+    name: "score",
+    title: "Score a clip",
+    description: "A clip's scores by the app's rules: the Playbook checklist, the Simple score with its deductions, the clarity gates and the clutter turnOff may switch off. A link (or mode) and seed, simulated in Node in the given world; or a studio clip as the crew left it, with what its render measured once it is rendered. Deterministic. Writes nothing.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        link,
+        mode,
+        seed,
+        world,
+        platform,
+        template: templateId,
+        studio: studioId,
+        clip: clipId,
+      },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 5 * 60_000,
+  },
+  {
+    name: "review",
+    title: "The crew's review",
+    description: "The crew's panel on a studio's clips, with you playing each role (no model is called here). Without a verdict: the next role's brief (its card, the dossier or the screen view, the answer's schema and its shape). With one: it is checked (the role order, the schema, the evidence keys, the fixes and their bounds), the objections are marked by the facts, fixes are compiled and measured again (a harmful fix is reverted, one fix round only), and the next brief or the decision comes back. stage post reviews the rendered clips. The state is .agent-out/studio/<studio>/panel.json; the kept clips' words go to post.txt.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["studio"],
+      properties: {
+        studio: studioId,
+        stage: { type: "string", enum: ["pre", "post"], description: "pre (default): before the render, on the studio's plans; post: after it, on its rendered clips." },
+        depth: { type: "string", enum: [...STUDIO_DEPTHS], description: "quick (default: the reviewer only where something is in doubt), thorough (every role on every clip) or rules (no role at all)." },
+        request: { type: "string", minLength: 1, maxLength: 400, description: `What to make, in words: without a plan.json the brainstormer pitches for it and the ideas are planned here (at most ${STUDIO_CLIPS_MAX}).` },
+        wanted: { type: "integer", minimum: 1, maximum: STUDIO_CLIPS_MAX, description: "Clips to keep (default 3, at most the plans)." },
+        platform,
+        locale,
+        family,
+        research: { type: "string", enum: ["code", "live"], description: "code (default): the research brief built by code from the digest; live: the researcher's role plays it first." },
+        separation: { type: "string", enum: ["contexts", "sameContext"], description: "contexts: each role answers in a conversation of its own (Claude Code's subagents); sameContext (default): one conversation plays them all, and the record says so." },
+        role: { type: "string", enum: [...STUDIO_ROLES], description: "The role you answer as (the brief's)." },
+        clip: clipId,
+        verdict: { type: "object", description: "Your answer as the role: ONE JSON object in the brief's shape." },
+        restart: { type: "boolean", description: "Start this stage's panel over." },
+      },
+    },
+    writes: ".agent-out",
+    network: "none",
+    mcp: true,
+    timeoutMs: 10 * 60_000,
+  },
+  {
+    name: "research",
+    title: "Research digest",
+    description: "What the crew reads as research, offline: the committed trend summary (src/content/trends.json) and the playbook in at most five pieces of advice with their levers and strengths, plus the local inspire dataset (.agent-out/inspiration/) aggregated by the searches that made it. No other creator's title or name. Writes nothing.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        query: { type: "string", minLength: 1, maxLength: 200, description: "What the playbook excerpt is chosen for (default: hook, payoff, countdown, simple, one idea)." },
+        theme: { type: "string", minLength: 1, maxLength: 80, description: "Only the inspire searches holding these words." },
+        dataset: { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$", description: "The inspire dataset: .agent-out/inspiration/<dataset>.jsonl (default dataset)." },
+      },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  // --- end studio ---
   {
     name: "site-stats",
     title: "Website statistics (owner-run)",
@@ -454,5 +639,16 @@ export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
   if (BLUEPRINT_INPUT_TOOLS.has(name) && ["spec", "code", "catalog", "lite"].filter((k) => a[k] !== undefined).length !== 1) return { ok: false, errors: ["Give exactly one of spec, code, catalog or lite"] };
   // --- inspiration --- one video a call: a file or a link
   if (PATH_OR_URL_TOOLS.has(name) && ["path", "url"].filter((k) => a[k] !== undefined).length !== 1) return { ok: false, errors: ["Give path (a file inside the repository) or url (a video link), exactly one"] };
+  // --- studio --- one source a call
+  const given = (...keys: string[]) => keys.filter((k) => a[k] !== undefined);
+  if (name === "plan" && given("template", "recipe", "mode").length > 1) return { ok: false, errors: ["Give template, recipe or mode, at most one"] };
+  if (name === "score") {
+    if (given("link", "mode").length + given("studio").length !== 1) return { ok: false, errors: ["Give link (or mode) and seed, or studio and clip"] };
+    if (a.studio !== undefined && a.clip === undefined) return { ok: false, errors: ["Give the studio's clip (its plan id)"] };
+    if (a.studio === undefined && a.clip !== undefined) return { ok: false, errors: ["clip names a studio's clip: give studio too"] };
+  }
+  if (name === "render" && a.plan !== undefined && given("link", "mode", "seed", "seconds").length) return { ok: false, errors: ["A plan renders as planned: give plan and clip, without link, mode, seed or seconds"] };
+  if (name === "render" && a.clip !== undefined && a.plan === undefined) return { ok: false, errors: ["clip names a planned clip: give plan (the studio's plan.json) too"] };
+  if (name === "review" && a.verdict !== undefined && a.role === undefined) return { ok: false, errors: ["A verdict needs its role (the brief's role, and its clip)"] };
   return { ok: true, args: a };
 }

@@ -14,9 +14,9 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { NO_FFMPEG, pictureEnd, resolveFfmpeg, runFfmpeg } from "./analyse.mjs";
-import { OUT_DIR, defaultOutName, isInside, outFolder, repoRelative, resolveInputFile } from "./paths.mjs";
+import { OUT_DIR, ROOT, defaultOutName, isInside, outFolder, repoRelative, resolveInputFile } from "./paths.mjs";
 
-const OUR_FILES = /^(frame-\d+\.png|hook-\d+\.png|sheet\.png|hook-sheet\.png)$/;
+const OUR_FILES = /^(frame-\d+\.png|hook-\d+\.png|sheet\.png|hook-sheet\.png|sheet\.jpg)$/;
 /** ffmpeg passes run at once. */
 const PASSES = 4;
 
@@ -49,17 +49,18 @@ async function eachLimit(items, limit, fn) {
 }
 
 /**
- * The frames and sheets of `file` (a real path inside the repository) in .agent-out/frames/<name>/: { dir, durationSec,
- * width, height, frames: [{ file, sec }], hook: [{ file, sec }], sheet, hookSheet } with repository-relative paths.
+ * The frames and sheets of `file` (a real path inside the repository) in .agent-out/frames/<name>/ (--- studio --- or the
+ * folder `folder` names under .agent-out/: a studio clip's own): { dir, durationSec, width, height, frames: [{ file, sec }],
+ * hook: [{ file, sec }], sheet, hookSheet } with repository-relative paths.
  */
-export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSec = tb.HOOK_SEC, hookStepSec = tb.HOOK_STEP_SEC, width = tb.FRAME_WIDTH, sheet = true }) {
+export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSec = tb.HOOK_SEC, hookStepSec = tb.HOOK_STEP_SEC, width = tb.FRAME_WIDTH, sheet = true, folder = ["frames", name] }) {
   const banner = tb.parseMediaInfo((await runFfmpeg(ffmpeg.path, tb.infoArgs(file), { cwd: OUT_DIR })).stderr);
   if (!banner.hasVideo) throw new Error(`${repoRelative(file)} has no video stream ffmpeg can read`);
   if (!banner.durationSec) throw new Error(`${repoRelative(file)} has no duration ffmpeg can read`);
   // --- inspiration --- a sound that runs on past the picture: the frames are spread over the picture, not the sound
   const end = await pictureEnd(tb, ffmpeg, file, banner, OUT_DIR);
   const info = end === null ? banner : { ...banner, durationSec: end };
-  const dir = outFolder("frames", name);
+  const dir = outFolder(...folder);
   for (const f of fs.readdirSync(dir)) if (OUR_FILES.test(f)) fs.rmSync(path.join(dir, f), { force: true });
   const pad = (i, n) => String(i + 1).padStart(Math.max(2, String(n).length), "0");
   const plan = tb.framePlan(info.durationSec, info.fps, { count, hookSec, hookStepSec });
@@ -96,6 +97,25 @@ export async function extractFrames(tb, ffmpeg, file, { name, count = 12, hookSe
   return { dir: repoRelative(dir), durationSec: info.durationSec, width: info.width, height: info.height, frames, hook, sheet: sheetFile, hookSheet, ...(Object.keys(limited).length ? { limited } : {}) };
 }
 
+// --- studio --- an image block: a sheet as one JPEG of at most IMAGE_MAX_BYTES (before base64), for a model that cannot
+// read files (Claude Desktop over MCP); the MCP server counts its base64 against the result's 200 KB
+/**
+ * The sheet `pngName` in `dir` as `jpegName` beside it, at the first width and quality of tb.JPEG_STEPS that fits in
+ * `maxBytes`: { file, mimeType, bytes, width, quality, data } (data: base64), or null when none fits or ffmpeg fails.
+ */
+export async function jpegUnder(tb, ffmpeg, dir, pngName, jpegName = "sheet.jpg", maxBytes = tb.IMAGE_MAX_BYTES) {
+  for (const width of tb.JPEG_STEPS.widths) {
+    for (const quality of tb.JPEG_STEPS.qualities) {
+      if (!(await writePng(ffmpeg, dir, jpegName, (tmpName) => tb.jpegArgs(pngName, tmpName, width, quality)))) return null;
+      const full = path.join(dir, jpegName);
+      const bytes = fs.statSync(full).size;
+      if (bytes <= maxBytes) return { file: repoRelative(full), mimeType: "image/jpeg", bytes, width, quality, data: fs.readFileSync(full).toString("base64") };
+    }
+  }
+  fs.rmSync(path.join(dir, jpegName), { force: true });
+  return null;
+}
+
 /** The frames folder's default name: the inbox file's own (<platform>-<id>), else the file's name and a hash of its path. */
 export function framesName(file) {
   const base = path.basename(file, path.extname(file));
@@ -116,11 +136,18 @@ export async function framesTool(tb, args) {
     file = resolveInputFile(args.path);
     if (!ffmpeg) throw new Error(NO_FFMPEG);
   }
-  const result = await extractFrames(tb, ffmpeg, file, { name: args.out ?? framesName(file), count: args.count ?? 12, hookSec: args.hookSec ?? tb.HOOK_SEC, hookStepSec: args.hookStepSec ?? tb.HOOK_STEP_SEC, width: args.width ?? tb.FRAME_WIDTH, sheet: args.sheet !== false });
+  const result = await extractFrames(tb, ffmpeg, file, { name: args.out ?? framesName(file), count: args.count ?? 12, hookSec: args.hookSec ?? tb.HOOK_SEC, hookStepSec: args.hookStepSec ?? tb.HOOK_STEP_SEC, width: args.width ?? tb.FRAME_WIDTH, sheet: args.sheet !== false || args.image === true });
+  // --- studio --- the whole video's sheet as an image block, on request
+  let image;
+  if (args.image === true) {
+    const made = result.sheet ? await jpegUnder(tb, ffmpeg, path.join(ROOT, result.dir), "sheet.png") : null;
+    image = made ?? { error: `no JPEG of the sheet fits in ${tb.IMAGE_MAX_BYTES} bytes: look at the PNG instead` };
+  }
   return {
     video: repoRelative(file),
     ...(fetched ? { fetched: { url: fetched.url, cached: fetched.cached, meta: fetched.meta } } : {}),
     ...result,
+    ...(image ? { image } : {}),
     note: "Look at sheet.png for the whole video and hook-sheet.png for its opening; the single frames are beside them.",
   };
 }
