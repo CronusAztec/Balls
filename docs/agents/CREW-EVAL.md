@@ -11,8 +11,9 @@ This file holds the corpus's design, how to run the eval, and every recorded run
 `tests/crewEval.test.ts` fails while it is stale.
 
 - **40 clean clips** (`tests/fixtures/crew/clean.json`): the ready templates in the Simple look, planned from plan seed 1 up.
-  A plan is kept when it passes every gate and crosses no evidence threshold. The one exception is the two-messages-at-once
-  line on a template that keeps a HUD beside its hook. The clips are taken round robin over 16 templates. Fight League's
+  A plan is kept when it passes every gate and crosses no evidence threshold. The two-messages-at-once line leaves out the
+  HUD a template draws by design (the mode's own, or the one it keeps for its countdown), so a template with a HUD beside its
+  hook is clean too. The clips are taken round robin over 16 templates. Fight League's
   templates are left out, because their fighters are third-party characters. Who Wins: Race is hidden, because none of its
   plans passes gate G1: its first impact comes at 1.8 s. It keeps its place in the turn order and gives no clip, as it gave
   none before it was hidden.
@@ -141,8 +142,10 @@ proof that the loop works end to end. They do not settle which roles are worth t
   something breaking, not as a count.
 - Get Out: Glass ends its cliffhanger on "Will the glass hold?", and the viewer read it as a breaking clip, not as Gerald
   getting home.
-- The tooBusy line (two messages at once) confirms an objection on every template that keeps a HUD beside its hook, even at
-  Simple 86-92. The corpus therefore counts that line as the template's own.
+- The tooBusy line (two messages at once) confirmed an objection on every template that keeps a HUD beside its hook, even at
+  Simple 86-92. The corpus therefore counted that line as the template's own. Since the studio's second review round the
+  evidence check itself leaves those HUDs out: no listed fix takes them away. The corpus and every run's numbers stayed the
+  same.
 - Who Wins: Race fails gate G1 on every plan seed tried (its first impact comes at 1.8 s), although its binding is proven.
   The studio's first review round hid it (`docs/virality-playbook.md` §5).
 

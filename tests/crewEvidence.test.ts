@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { recipeById } from "@/lib/bot/playbook";
-import { planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
+import { planClip, planTemplate, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
 import type { SimulatorSettings } from "@/lib/settings";
 import { runSync } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -12,9 +12,13 @@ import {
   clarityOf,
   confirmedDistractions,
   crewClipOfPlan,
+  crowding,
+  hudsOn,
   makesSenseOf,
   markObjection,
   markObjections,
+  overlaysOf,
+  shownSecOf,
   standing,
   type CrewClip,
   type CrewMeasured,
@@ -41,6 +45,8 @@ function calm(plan: ClipPlan): ClipPlan {
 }
 const runOf = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
 const withRun = (plan: ClipPlan): CrewClip => crewClipOfPlan(plan, { run: runOf(plan) });
+/** A ready template's Simple plan (reels, plan seed 1), with its run. */
+const templateClip = (id: string): CrewClip => withRun(planTemplate(id, 1, "reels", { copy, look: "simple" }));
 /** A render's features, its first sound with its first motion (a bounce is heard when it is seen); `sound` apart from it. */
 const features = (first: number | null, sound: number | null = first): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: sound, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
 const rendered = (clip: CrewClip, m: Partial<CrewMeasured> = {}): CrewClip => ({ ...clip, measured: { features: features(0.4), durationSec: clip.timing.clipSec, laggedFrames: 0, frames: 1000, watermarked: true, free: true, ...m } });
@@ -133,6 +139,22 @@ describe("each measurable kind: confirmed past its threshold, refuted short of i
     expect(clarityOf(clean).simple.score).toBeGreaterThanOrEqual(EVIDENCE.busySimpleBelow);
     expect(markOf(clean, "tooBusy").mark).toBe("confirmed");
     expect(markOf(single, "tooBusy").mark).toBe("refuted");
+  });
+
+  it("tooBusy leaves out the HUDs a clip draws by design: the mode's own, and the one it keeps for its countdown (--- crew ---, review round 2)", () => {
+    // (Power Layers' layer count is on screen beside the hook – two at once, Simple 91 –, and no listed fix takes it away)
+    const layers = templateClip("smash-power-layers");
+    expect(crowding(overlaysOf(layers), shownSecOf(layers)).most).toBe(2);
+    expect(clarityOf(layers).simple.score).toBeGreaterThanOrEqual(EVIDENCE.busySimpleBelow);
+    expect(markOf(layers, "tooBusy")).toMatchObject({ mark: "refuted", basis: expect.stringMatching(/1 at once at most beside the HUD the clip keeps$/) });
+    // (String Battle's lives panel: kept, it is the template's countdown; a clip that does not keep it can turn it off)
+    const strings = templateClip("who-wins-string-battle");
+    expect(hudsOn(strings.settings).map((h) => h.id)).toContain("sbHud");
+    expect(markOf(strings, "tooBusy").mark).toBe("refuted");
+    const unkept = markObjection(objection("tooBusy"), strings, clarityOf(strings, { keepHuds: [] }), { keepHuds: [] });
+    expect([unkept.mark, unkept.basis]).toEqual(["confirmed", `Simple ${clarityOf(strings, { keepHuds: [] }).simple.score}, 2 at once at most`]);
+    // (and a busy look stays busy: the line below 80 is the Simple score's, HUDs and all)
+    expect(markOf(busy, "tooBusy").mark).toBe("confirmed");
   });
 });
 

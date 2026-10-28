@@ -17,6 +17,7 @@ import {
   confirmedKinds,
   corpusHash,
   createPanel,
+  crowding,
   defectHolds,
   drawnHookText,
   evalMetrics,
@@ -25,9 +26,11 @@ import {
   fixtureToJson,
   nextEvalAsk,
   nextStep,
+  overlaysOf,
   recordedAnswer,
   remediesOf,
   renderEvalTables,
+  shownSecOf,
   simpleScore,
   softClean,
   type EvalAnswer,
@@ -146,11 +149,11 @@ describe("the fixture corpus (--- crew ---)", () => {
       expect(DEFECTS[d].kinds.length, d).toBeGreaterThan(0);
       expect(remediesOf(d)).toEqual([...new Set(DEFECTS[d].kinds.flatMap((k: ObjectionKind) => FIXES_FOR_KIND[k]))]);
     }
-    // the tooBusy line a template that keeps a HUD beside its hook crosses alone (two messages at once, Simple 80 or more) is
-    // the template's: such clips are clean, and an objection the line confirms on them counts as a false alarm
-    const hudClean = CLEAN.filter((f) => confirmedKinds(f.clip).includes("tooBusy"));
+    // the HUD a template keeps beside its hook (two messages at once, Simple 80 or more) is the template's own: the tooBusy line
+    // leaves it out (evidence.ts, review round 2), so such clips are clean and no measurable kind is confirmed on them
+    const hudClean = CLEAN.filter((f) => crowding(overlaysOf(f.clip), shownSecOf(f.clip)).most >= 2);
     expect(hudClean.length).toBeGreaterThan(0);
-    for (const f of hudClean) expect([f.id, simpleScore(f.clip).score >= 80, confirmedBeyondTemplate(f.clip)]).toEqual([f.id, true, []]);
+    for (const f of hudClean) expect([f.id, simpleScore(f.clip).score >= 80, confirmedKinds(f.clip), confirmedBeyondTemplate(f.clip)]).toEqual([f.id, true, [], []]);
   });
 });
 

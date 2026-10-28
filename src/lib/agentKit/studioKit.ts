@@ -49,6 +49,7 @@ import {
   joinCandidates,
   nextEvalAsk,
   nextStep,
+  oneLine,
   panelDecision,
   pickScore,
   plantDefect,
@@ -59,6 +60,8 @@ import {
   researchBriefOf,
   researchDigest,
   researchGapOf,
+  hookVariantOf,
+  retimeLands,
   screenView,
   softClean,
   type BrainstormIdea,
@@ -676,7 +679,7 @@ function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPla
     const run = runOfPlan(plan);
     records.push({ id: plan.id, plan, run });
     let clip = crewClipOfPlan(plan, { run });
-    if (!["a", "b", "c"].includes(idea.hook)) {
+    if (hookVariantOf(idea.hook) === null) {
       // the brainstormer's own hook, drawn as a rewriteHook fix draws it (its words, numbers and safe zone checked)
       const fix = compileFixes(clip, [{ action: "rewriteHook", text: idea.hook }]);
       const fixed = fix.ok ? applyCompiledFix(clip, fix) : null;
@@ -689,14 +692,14 @@ function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPla
 }
 
 const REPLAN_TRIES = 6;
-/** How close a re-planned payoff must come to the fix's target share of the clip. */
-export const REPLAN_POS_SLACK = 0.05;
 
 /**
  * A fix's seed search (lib/crew/fixes.ts FinderNeed): the clip's template or recipe planned again – its bucket and ending as
  * the fix asks, the settings that move the run set first – from its plan seed and then its re-roll seeds, until a plan meets
- * the need (a first impact early enough, the payoff near the target share); null when none of REPLAN_TRIES does. The planner
- * keeps its own payoff band, so a target outside it is rarely met: the fix is then reverted ("it does not apply").
+ * the need (a first impact early enough; a payoff where a retime lands, fixes.ts retimeLands: near the target share, neither
+ * early nor late, and no farther from the target than the clip's own payoff when that was on time); null when none of
+ * REPLAN_TRIES does. The planner keeps its own payoff band, so a target outside it is rarely met: the fix is then reverted
+ * ("it does not apply").
  */
 export function studioReplan(record: StudioPlanRecord, need: FinderNeed, copy: BotCopy): (StudioPlanRecord & { clip: CrewClip }) | null {
   const plan = record.plan;
@@ -712,7 +715,7 @@ export function studioReplan(record: StudioPlanRecord, need: FinderNeed, copy: B
     const next = drain(planClipSteps(recipe, planSeed, plan.platform, options));
     if (!next.timing.found) continue;
     if (need.firstImpactMaxSec !== null && !(next.timing.firstImpactSec !== null && next.timing.firstImpactSec <= need.firstImpactMaxSec)) continue;
-    if (need.targetPos !== null && next.ending === "resolved" && !(next.payoff.position !== null && Math.abs(next.payoff.position - need.targetPos) <= REPLAN_POS_SLACK)) continue;
+    if (need.targetPos !== null && next.ending === "resolved" && !retimeLands(next.payoff.position, need.targetPos, plan.ending === "resolved" ? plan.payoff.position : null)) continue;
     const run = runOfPlan(next);
     return { id: record.id, plan: next, run, clip: crewClipOfPlan(next, { run }) };
   }
@@ -920,12 +923,18 @@ const NOT_REVIEWED_WORDS: Readonly<Record<NonNullable<PanelClip["notReviewed"]>,
   broken: "the model's replies stayed invalid",
 };
 
-/** A clip's verdict in post.txt: "not reviewed" with why, and "rules only" when no model answered any of its roles. */
+/** A clip's verdict in post.txt: "not reviewed" with why, a drop with its reason, and "rules only" when no model answered any of its roles. */
 function verdictWords(c: PanelClip, confidence: boolean): string {
   if (c.verdict === null) return "not yet";
-  const verdict = c.verdict === "notReviewed" ? `not reviewed (${NOT_REVIEWED_WORDS[c.notReviewed ?? "budget"]})` : `${c.verdict}${confidence && c.confidence ? ` (${c.confidence})` : ""}`;
+  const verdict = c.verdict === "notReviewed" ? `not reviewed (${NOT_REVIEWED_WORDS[c.notReviewed ?? "budget"]})` : c.verdict === "drop" && c.dropWhy ? `drop (${c.dropWhy})` : `${c.verdict}${confidence && c.confidence ? ` (${c.confidence})` : ""}`;
   return [c.skeptic, c.viewer, c.reviewer].some((r) => r.source === "model") ? verdict : `${verdict}, rules only: no model looked at it`;
 }
+
+/**
+ * --- studio --- (the studio's second review round, finding 6) A model's words in post.txt, so no reply can start a line of
+ * its own ("## 2. …", "Crew before the render: keep (high)"): a title on one line, a caption as a block of "> " lines.
+ */
+const quotedLines = (text: string): string[] => text.split(/\r\n|[\n\r\u000b\u000c\u0085\u2028\u2029]/).map((line) => `> ${oneLine(line)}`.trimEnd());
 
 /** post.txt: the kept clips' words to post (the producer's, or the template's) with the crew's lines before and after the render. */
 export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | null): string {
@@ -944,12 +953,11 @@ export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | nul
     if (!c) return;
     const words = d.copy?.clips.find((w) => w.planId === k.id);
     const p = plan?.plans.find((x) => x.id === k.id)?.plan;
-    lines.push(`## ${i + 1}. ${words?.title ?? c.post?.title ?? k.id}`, "");
+    lines.push(`## ${i + 1}. ${oneLine(words?.title ?? c.post?.title ?? k.id)}`, "");
     lines.push(`Clip: ${k.id} · ${c.clip.template ?? c.clip.recipe ?? c.clip.mode} (${c.clip.mode}) · ${c.clip.platform} · ${c.clip.bucket} · ${c.clip.ending} · seed ${c.clip.seed ?? p?.seed ?? "?"}`);
-    lines.push(`Hook on screen: ${drawnHookText(c.clip) || c.clip.hook || "(none)"}`);
-    if (words) {
-      lines.push(`File name: ${words.name}`, `Title: ${words.title}`, `Caption: ${words.caption}`, `Hashtags: ${words.hashtags.join(" ")}`);
-    } else if (c.post) lines.push(`Title: ${c.post.title}`, `Caption: ${c.post.caption}`, `Hashtags: ${c.post.hashtags.join(" ")}`);
+    lines.push(`Hook on screen: ${oneLine(drawnHookText(c.clip) || c.clip.hook || "(none)")}`);
+    const copy = words ? { name: words.name, title: words.title, caption: words.caption, hashtags: words.hashtags } : c.post;
+    if (copy) lines.push(...(words ? [`File name: ${oneLine(words.name)}`] : []), `Title: ${oneLine(copy.title)}`, "Caption:", ...quotedLines(copy.caption), `Hashtags: ${oneLine(copy.hashtags.join(" "))}`);
     lines.push(`Crew before the render: ${verdictWords(c, true)}${c.fix ? `, fix ${c.fix.state} (${c.fix.actions.map((a) => a.action).join(", ")})` : ""}, ${fmtScore(c)}`);
     const pc = post?.clips.find((x) => x.id === k.id);
     if (pc) {

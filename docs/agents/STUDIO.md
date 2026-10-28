@@ -91,15 +91,18 @@ argument.
   opinion (half weight, never a blocker, standing only at major or fatal). A confirmed objection cannot be rejected, and a
   clip that fails a gate is never kept. Nor can a viewer's misread (its makesSense no or partly): the reviewer accepts it,
   with a new hook or the other ending before a render, or drops the clip.
-- **One fix round.** The fixes are compiled and measured again. A fix that makes a gate fail or lowers the pick score is
-  reverted, and no role is asked again about that clip. A fix that needs a new seed or length runs the seed search here: the
-  clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need. The planner keeps
-  its own payoff band, so a payoff target outside it is rarely met, and the fix is then reverted.
+- **One fix round.** The fixes are compiled and measured again. A fix that makes a gate fail, lowers the pick score or
+  leaves a confirmed major objection it answers still confirmed (a payoff still past 90 %, two texts still on screen at
+  once) is reverted, and no role is asked again about that clip. A fix that needs a new seed or length runs the seed search
+  here: the clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need. A
+  retimed payoff must land on time (66-90 % of the clip), near the target, and no farther from it than an on-time payoff
+  was. The planner keeps its own payoff band, so a payoff target outside it is rarely met, and the fix is then reverted.
 - **Retries count.** A refused answer comes back with its errors. After 3 refusals in a row the rules answer for that role,
   labelled so. Every answer, a refused one too, spends a call of the app's budget (after a render two a clip), and once it
   is spent the rules answer the rest. A clip no model answered for (its skeptic, or after the render its viewer, refused
   until the budget ended or the role broke) is "not reviewed", rules only, never kept as seen. At most 8 clips a studio; the
-  panel stops once enough are kept with a model's medium confidence or more, and marks the rest "not reviewed".
+  panel stops once enough are kept with a model's medium confidence or more, and marks the rest "not reviewed". A clip that
+  fails a gate is dropped by the rules whether a model reached it or not, after the render too.
 - **Depth.** `quick` (the default) asks the reviewer only where something is in doubt; `thorough` asks every role about
   every clip; `rules` asks no role at all.
 
@@ -207,7 +210,8 @@ reviewer  power layers  keep (medium): the first 7 s move little and FREEDOM sho
 decision  keeps: all three
 ```
 
-post.txt holds each clip's words and the crew's lines, for example:
+post.txt holds each clip's words and the crew's lines, for example (a title is one line and a caption is quoted, line by
+line, so the model's words never start a line of their own):
 
 ```text
 ## 3. Every hit doubles the power.
@@ -215,7 +219,8 @@ post.txt holds each clip's words and the crew's lines, for example:
 Clip: ep001-1-smash-power-layers-799547072 · smash-power-layers (powerLayers) · reels · standard · resolved · seed 799547072
 Hook on screen: Every hit doubles the power.
 Title: Every hit doubles the power.
-Caption: Every bounce hits twice as hard as the last, until the ball smashes out through 700 layers. …
+Caption:
+> Every bounce hits twice as hard as the last, until the ball smashes out through 700 layers. …
 Crew before the render: keep (medium), Simple 90, Playbook 96
 Crew after the render: keep, the viewer read "break" (makes sense: yes), would watch to the end: maybe, Simple 90, Playbook 96
 ```

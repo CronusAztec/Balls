@@ -327,19 +327,176 @@ const NUMBER_RE = /(^|[^\p{L}\p{N}.,])(?:([1-9]\d{0,2}([,.'\u2019\u00a0\u202f\u2
 const MAGNITUDE: Readonly<Record<string, number>> = { k: 1e3, K: 1e3, M: 1e6 };
 
 /**
- * The numbers a text states, as a reader reads them: "1,000", "1.000" and "1 000" are a thousand, "2,500" is 2500, "1,5" and
- * "1.5" are one and a half, "10k" is ten thousand (see NUMBER_RE). A number glued to a letter before it ("x2", "ep12") or
- * after a multiplication sign ("×4") is a label, not a count, and is left out.
+ * --- crew --- (the studio's second review round, finding 3) A text's decimal digits of any script – Arabic-Indic, Devanagari,
+ * fullwidth, mathematical bold… – as ASCII digits, so "５０", "٥٠" and "𝟓𝟎" read as 50. Unicode assigns decimal digits only
+ * in runs of ten from 0 to 9, some runs back to back (the mathematical digits), so a digit's value is its distance from the
+ * start of its run of digits, modulo ten.
  */
-export function numbersIn(text: string): number[] {
-  const out: number[] = [];
-  for (const m of text.matchAll(NUMBER_RE)) {
+export function asciiDigits(text: string): string {
+  return text.replace(/\p{Nd}/gu, (d) => {
+    const cp = d.codePointAt(0)!;
+    if (cp <= 0x7f) return d;
+    let k = 0;
+    while (k < 100 && /\p{Nd}/u.test(String.fromCodePoint(cp - k - 1))) k++;
+    return String(k % 10);
+  });
+}
+
+/**
+ * The numbers a text writes in digits (asciiDigits first), as a reader reads them: "1,000", "1.000" and "1 000" are a
+ * thousand, "2,500" is 2500, "1,5" and "1.5" are one and a half, "10k" is ten thousand (see NUMBER_RE). A number glued to a
+ * letter before it ("x2", "ep12") or after a multiplication sign ("×4") is a label, not a count, and is left out.
+ */
+export function numeralsIn(text: string): number[] {
+  return numeralsAt(text).map((x) => x.value);
+}
+
+function numeralsAt(text: string): { at: number; value: number }[] {
+  const out: { at: number; value: number }[] = [];
+  for (const m of asciiDigits(text).matchAll(NUMBER_RE)) {
     if (m[1] === "×") continue;
     const n = m[2] !== undefined ? Number(`${m[2].replace(/\D/g, "")}${m[4] !== undefined ? `.${m[4]}` : ""}`) : Number(m[5].replace(",", "."));
     const value = m[6] ? n * MAGNITUDE[m[6]] : n;
-    if (finite(value)) out.push(Math.round(value * 1e6) / 1e6);
+    if (finite(value)) out.push({ at: (m.index ?? 0) + m[1].length, value: Math.round(value * 1e6) / 1e6 });
   }
   return out;
+}
+
+/*
+ * --- crew --- (the studio's second review round, finding 3) Number words in the clip languages (en, pl, es), the way a hook
+ * spells a count: the units, the teens, the tens, the hundreds, a dozen, thousand and million, in the forms a hook uses
+ * (Polish cases included). A word's place says what may follow it in one number: a smaller word ("twenty one", "treinta y
+ * tres", "sto dwadzieścia"), or a multiplier ("two hundred", "dwa tysiące", "dos mil", "a dozen"). Three words are a number
+ * in one language and a plain word in another, and read by the text's language: "ten" (Polish "this"), "mil" (Polish
+ * "miles") and "once" (English, not Spanish eleven).
+ */
+type NumberWord = { value: number; kind: "add" | "times" | "scale" };
+const NUMBER_WORDS: ReadonlyMap<string, NumberWord> = (() => {
+  const m = new Map<string, NumberWord>();
+  const add = (value: number, ...words: string[]) => words.forEach((w) => m.set(w, { value, kind: "add" }));
+  const times = (value: number, ...words: string[]) => words.forEach((w) => m.set(w, { value, kind: "times" }));
+  const scale = (value: number, ...words: string[]) => words.forEach((w) => m.set(w, { value, kind: "scale" }));
+  const each = (from: number, step: number, words: string[]) => words.forEach((w, i) => add(from + step * i, w));
+  // English
+  each(0, 1, ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]);
+  each(10, 1, ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]);
+  each(20, 10, ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]);
+  times(100, "hundred", "hundreds");
+  times(12, "dozen", "dozens");
+  scale(1e3, "thousand", "thousands");
+  scale(1e6, "million", "millions");
+  // Polish (the cases a hook uses)
+  add(1, "jeden", "jedna", "jedno", "jednego", "jednej", "jedną", "jednym", "jednemu");
+  add(2, "dwa", "dwie", "dwóch", "dwoma", "dwu", "dwoje", "dwojga");
+  add(3, "trzy", "trzech", "trzema", "troje", "trojga");
+  add(4, "cztery", "czterech", "czterema", "czworo", "czworga");
+  add(5, "pięć", "pięciu", "pięcioma", "pięcioro");
+  add(6, "sześć", "sześciu", "sześcioma", "sześcioro");
+  add(7, "siedem", "siedmiu", "siedmioma", "siedmioro");
+  add(8, "osiem", "ośmiu", "ośmioma", "ośmioro");
+  add(9, "dziewięć", "dziewięciu", "dziewięcioma", "dziewięcioro");
+  add(10, "dziesięć", "dziesięciu", "dziesięcioma");
+  each(11, 1, ["jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście", "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście"]);
+  each(11, 1, ["jedenastu", "dwunastu", "trzynastu", "czternastu", "piętnastu", "szesnastu", "siedemnastu", "osiemnastu", "dziewiętnastu"]);
+  each(20, 10, ["dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt", "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt"]);
+  each(20, 10, ["dwudziestu", "trzydziestu", "czterdziestu", "pięćdziesięciu", "sześćdziesięciu", "siedemdziesięciu", "osiemdziesięciu", "dziewięćdziesięciu"]);
+  each(100, 100, ["sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset", "osiemset", "dziewięćset"]);
+  each(100, 100, ["stu", "dwustu", "trzystu", "czterystu", "pięciuset", "sześciuset", "siedmiuset", "ośmiuset", "dziewięciuset"]);
+  times(12, "tuzin", "tuziny", "tuzinów", "tuzina");
+  scale(1e3, "tysiąc", "tysiące", "tysięcy", "tysiąca");
+  scale(1e6, "milion", "miliony", "milionów", "miliona");
+  // Spanish
+  add(0, "cero");
+  add(1, "un", "uno", "una");
+  each(2, 1, ["dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez"]);
+  each(11, 1, ["once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"]);
+  each(20, 1, ["veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"]);
+  add(21, "veintiún", "veintiuna");
+  each(30, 10, ["treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"]);
+  add(100, "cien", "ciento");
+  each(200, 100, ["doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"]);
+  each(200, 100, ["doscientas", "trescientas", "cuatrocientas", "quinientas", "seiscientas", "setecientas", "ochocientas", "novecientas"]);
+  times(12, "docena", "docenas");
+  scale(1e3, "mil");
+  scale(1e6, "millón", "millones");
+  return m;
+})();
+/** A multiplier in the plural with no number before it is no count: "hundreds of balls", "tysiące kulek", "docenas de". */
+const VAGUE_ALONE = new Set(["hundreds", "dozens", "thousands", "millions", "tuziny", "tuzinów", "tysiące", "tysięcy", "miliony", "milionów", "docenas", "millones"]);
+/** Words that join the parts of one number: "one hundred and five", "treinta y tres". */
+const NUMBER_JOINS = new Set(["and", "y"]);
+/** "a" and "an" before a multiplier are one: "a hundred", "a dozen", "a thousand". */
+const ONE_BEFORE = new Set(["a", "an"]);
+/** A Polish text: a letter only Polish writes of the three languages, or a word only Polish has. */
+const POLISH_LETTERS = /[ąćęłńśźż]/u;
+const POLISH_WORDS = new Set(["czy", "się", "nie", "jak", "ile", "kto", "jest", "są", "ze", "tylko", "już", "przez", "aż", "gdzie", "kiedy", "gdy", "co", "czym", "dlaczego", "albo", "oraz", "aby", "zanim", "jeszcze", "teraz", "bardzo", "który", "która", "które", "którą", "każdy", "każda", "każde", "wszystkie", "wszystko", "kulka", "kulki", "kulek", "klip"]);
+/** A Spanish text: its marks and accents, or a word only Spanish has. */
+const SPANISH_LETTERS = /[ñ¿¡áéíú]/u;
+const SPANISH_WORDS = new Set(["el", "la", "los", "las", "de", "del", "que", "y", "en", "por", "con", "se", "es", "son", "hasta", "sin", "cuántas", "cuántos", "cuantas", "cuantos", "quién", "quien", "qué", "cuál", "gana", "bola", "bolas", "anillo", "anillos"]);
+/** Between two words of one number: spaces and hyphens only ("twenty-one"); any other mark ends it ("one, two"). */
+const JOINED = /^[\s\-\u2010\u2011]*$/u;
+
+/** The place a word fills in a number: what may come after it is smaller (a unit after "twenty", anything below 100 after "sto"). */
+const placeOf = (value: number) => (value >= 100 && value % 100 === 0 ? 100 : value >= 20 && value < 100 && value % 10 === 0 ? 10 : 1);
+
+/** --- crew --- The numbers a text spells in words (see NUMBER_WORDS), each where it starts. */
+function numberWordsAt(text: string): { at: number; value: number }[] {
+  const lower = text.normalize("NFC").toLocaleLowerCase("en");
+  const tokens = [...lower.matchAll(/[\p{L}\p{M}]+/gu)].map((m) => ({ word: m[0], at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }));
+  const polish = POLISH_LETTERS.test(lower) || tokens.some((t) => POLISH_WORDS.has(t.word));
+  const spanish = SPANISH_LETTERS.test(lower) || tokens.some((t) => SPANISH_WORDS.has(t.word));
+  const wordOf = (w: string): NumberWord | null => {
+    if (w === "ten" && (polish || spanish)) return null; // (Polish "this", Spanish "have")
+    if (w === "mil" && polish) return null; // (Polish "miles")
+    if (w === "once" && !spanish) return null; // (English "once")
+    return NUMBER_WORDS.get(w) ?? null;
+  };
+  const out: { at: number; value: number }[] = [];
+  let group: { at: number; total: number; current: number; place: number } | null = null;
+  const close = () => {
+    if (group) out.push({ at: group.at, value: group.total + group.current });
+    group = null;
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (i > 0 && !JOINED.test(lower.slice(tokens[i - 1].end, t.at))) close();
+    const after = tokens[i + 1] && JOINED.test(lower.slice(t.end, tokens[i + 1].at)) ? wordOf(tokens[i + 1].word) : null;
+    if (group && NUMBER_JOINS.has(t.word) && after?.kind === "add" && after.value < group.place) continue;
+    let w = wordOf(t.word);
+    if (!w && ONE_BEFORE.has(t.word) && after && after.kind !== "add") w = { value: 1, kind: "add" };
+    if (w && w.kind !== "add" && VAGUE_ALONE.has(t.word) && !group) w = null;
+    if (!w) {
+      close();
+      continue;
+    }
+    if (w.kind === "add" && group && !(w.value < group.place)) close();
+    const g: { at: number; total: number; current: number; place: number } = group ?? { at: t.at, total: 0, current: 0, place: Infinity };
+    group = g;
+    if (w.kind === "add") {
+      g.current += w.value;
+      g.place = placeOf(w.value);
+    } else if (w.kind === "times") {
+      g.current = (g.current || 1) * w.value;
+      g.place = w.value === 100 ? 100 : 1;
+    } else {
+      if (g.current === 0 && g.total > 0 && w.value > g.place) g.total *= w.value; // ("dos mil millones")
+      else g.total += (g.current || 1) * w.value;
+      g.current = 0;
+      g.place = w.value;
+    }
+  }
+  close();
+  return out;
+}
+
+/**
+ * The numbers a text states, as a reader reads them, in its order: the ones it writes in digits of any script (numeralsIn)
+ * and the ones it spells in words in English, Polish or Spanish ("Fifty rings", "pięćdziesiąt", "cincuenta y tres", "a dozen").
+ * --- crew --- (the studio's second review round, finding 3) A hook's numbers are checked against the clip's facts whichever
+ * way they are written (gate G4, rewriteHook, the skeptic's hookUntrue).
+ */
+export function numbersIn(text: string): number[] {
+  return [...numeralsAt(text), ...numberWordsAt(text)].sort((a, b) => a.at - b.at).map((x) => x.value);
 }
 
 /** The buckets the platform takes that the clip's length is in (scoreClip's 0.5 s slack). */

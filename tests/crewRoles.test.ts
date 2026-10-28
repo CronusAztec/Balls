@@ -34,6 +34,9 @@ import {
   VIEWER_READS,
   brainstormFinal,
   checkBrainstorm,
+  hookVariantOf,
+  normaliseBrainstorm,
+  OWN_HOOK_MIN_WORDS,
   checkProducer,
   checkReview,
   checkSkeptic,
@@ -352,6 +355,19 @@ describe("the checks beyond the schemas", () => {
     expect(checkBrainstorm(oneFormat, { menu: m, named: true })).toEqual([]);
     expect(checkBrainstorm({ ideas: [idea("ring-escape", "b")] }, { menu: m, named: false }).some((e) => e.includes("variants"))).toBe(true);
     expect(checkBrainstorm({ ideas: [idea("ring-escape", "one two three four five six seven eight")] }, { menu: m, named: false }).some((e) => e.includes("at most 7 words"))).toBe(true);
+  });
+
+  it("a brainstormed hook is a variant in either case or with spaces around it, else the brainstormer's own words – two of them at least (--- crew ---, review round 2)", () => {
+    const m: MenuItem[] = menu;
+    const idea = (hook: string) => ({ template: "ring-escape", mode: m.find((x) => x.template === "ring-escape")!.modes[0], hook, ending: "resolved" as const, bucket: "standard" as const, angle: "", basis: "none" });
+    expect(["a", "A", "a ", " A\t", "Escape!", "Will it get out?"].map(hookVariantOf)).toEqual(["a", "a", "a", "a", null, null]);
+    // one form for the check and the planner: "A" and "a " are the variant a
+    expect(normaliseBrainstorm({ ideas: [idea("A"), idea("a "), idea("  Will it\nget out?  ")] })).toEqual({ ideas: [idea("a"), idea("a"), idea("Will it get out?")] });
+    for (const hook of ["A", "a "]) expect([hook, checkBrainstorm({ ideas: [idea(hook)] }, { menu: m, named: false })]).toEqual([hook, []]);
+    expect(checkBrainstorm({ ideas: [idea("B")] }, { menu: m, named: false }).some((e) => e.includes("variants"))).toBe(true);
+    // a one-word hook of its own is no hook
+    for (const hook of ["Escape!", "🔥 Out"]) expect([hook, checkBrainstorm({ ideas: [idea(hook)] }, { menu: m, named: false })]).toEqual([hook, [`ideas[0].hook: a hook of your own has ${OWN_HOOK_MIN_WORDS} words or more; or name a variant (a)`]]);
+    expect(checkBrainstorm({ ideas: [idea("Last ring standing")] }, { menu: m, named: false })).toEqual([]);
   });
 
   it("the researcher's points keep only a basis the digest has; the producer's hooks are the drawn ones, each clip worded once", () => {

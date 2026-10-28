@@ -16,6 +16,8 @@ import {
   factNumbersOf,
   failedGates,
   numbersIn,
+  asciiDigits,
+  markObjection,
   publicDomain,
   runWinnerOf,
   simpleScore,
@@ -290,6 +292,46 @@ describe("the facts a hook may state", () => {
     expect([numbersIn("1,5"), numbersIn("2.5"), numbersIn("3,14"), numbersIn("0,500"), numbersIn("1234,567")]).toEqual([[1.5], [2.5], [3.14], [0.5], [1234.567]]);
     // a glued k or M multiplies
     expect([numbersIn("10k balls"), numbersIn("2.5M views"), numbersIn("10km")]).toEqual([[10000], [2500000], [10]]);
+  });
+
+  it("reads digits of any script and numbers spelled in words in en, pl and es (--- crew ---, review round 2)", () => {
+    // fullwidth, Arabic-Indic, mathematical bold and Devanagari digits are the ASCII ones
+    expect(["５０ rings", "٥٠ rings", "𝟓𝟎 rings", "𝟱𝟬 rings", "५० rings", "۵۰ rings"].map(numbersIn)).toEqual([[50], [50], [50], [50], [50], [50]]);
+    expect(asciiDigits("x٢ in １,５ s")).toBe("x2 in 1,5 s");
+    // words, in reading order with the digits, one number however many words it takes
+    expect(numbersIn("Fifty rings. One way out.")).toEqual([50, 1]);
+    expect(numbersIn("Twenty-one balls, 3 gaps")).toEqual([21, 3]);
+    expect(numbersIn("a hundred and five rings")).toEqual([105]);
+    expect(numbersIn("two thousand three hundred balls")).toEqual([2300]);
+    expect(numbersIn("a dozen rings, fifteen hundred bounces")).toEqual([12, 1500]);
+    expect(numbersIn("one, two, three")).toEqual([1, 2, 3]);
+    expect(numbersIn("Pięćdziesiąt pierścieni, dwa tysiące odbić, sto dwadzieścia trzy kulki")).toEqual([50, 2000, 123]);
+    expect(numbersIn("Trzech wojowników, ośmiu graczy")).toEqual([3, 8]);
+    expect(numbersIn("Cincuenta anillos, treinta y tres bolas, doscientas veinte notas")).toEqual([50, 33, 220]);
+    expect(numbersIn("dos mil millones de rebotes")).toEqual([2e9]);
+    // a plural multiplier alone is no count; a word a language uses otherwise is read by the text's language
+    expect([numbersIn("Hundreds of balls"), numbersIn("tysiące kulek"), numbersIn("docenas de bolas")]).toEqual([[], [], []]);
+    expect([numbersIn("Ten rings, one gap"), numbersIn("Ten pierścień pęknie"), numbersIn("Czy ten klip wygra"), numbersIn("¡Ten cuidado!")]).toEqual([[10, 1], [], [], []]);
+    expect([numbersIn("Watch it once"), numbersIn("¿Once bolas?"), numbersIn("Dos mil anillos"), numbersIn("Sto mil na godzinę? Nie")]).toEqual([[], [11], [2000], [100]]);
+    // a word inside another word is no number ("someone", "tension"), nor an ordinal
+    expect(numbersIn("Someone's tension: the second ring")).toEqual([]);
+  });
+
+  it("G4 and the skeptic's hookUntrue read a spelled number as one: a count the clip does not have fails, one it has passes (--- crew ---, review round 2)", () => {
+    // (the hook in one line, its words the given ones)
+    const first = clean.captionRoles.indexOf("hook");
+    const keep = clean.captions.map((_, i) => clean.captionRoles[i] !== "hook" || i === first);
+    const withHookText = (text: string): CrewClip => {
+      const captions = clean.captions.map((c, i) => (i === first ? { ...c, text } : c)).filter((_, i) => keep[i]);
+      return { ...setCaptions(clean, captions, clean.captionRoles.filter((_, i) => keep[i])), hook: null };
+    };
+    const untrue = (clip: CrewClip) => markObjection({ id: "o1", kind: "hookUntrue", evidence: ["words.hook"], severity: "fatal", note: "" }, clip, clarityOf(clip)).mark;
+    for (const text of ["Fifty rings. One way out.", "５０ rings. One way out.", "Cincuenta anillos", "Pięćdziesiąt pierścieni"]) {
+      expect([text, gateOf(withHookText(text), "G4").problems, untrue(withHookText(text))]).toEqual([text, ["wordsMatchPictureHookNumber"], "confirmed"]);
+    }
+    const n = clean.timing.recordingDuration;
+    const spelled = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"][n];
+    expect([spelled, gateOf(withHookText(`Out in ${spelled} seconds?`), "G4").ok, untrue(withHookText(`Out in ${spelled} seconds?`))]).toEqual([spelled, true, "refuted"]);
   });
 
   it("knows the recipe's hook values, the clip's length and the day", () => {

@@ -715,6 +715,27 @@ export interface BrainstormContext {
   named: boolean;
 }
 
+/** --- crew --- (the studio's second review round, finding 5) The fewest words a brainstormer's own hook has: one word is no hook. */
+export const OWN_HOOK_MIN_WORDS = 2;
+
+/**
+ * --- crew --- (the studio's second review round, finding 5) The template variant a brainstormed hook names: one letter, in
+ * either case, spaces around it ("a", "A", "a ") as its lower-case letter; null for a hook of the brainstormer's own words.
+ * checkBrainstorm and the planner (studioKit.ts planIdeas) read a hook through it alike.
+ */
+export function hookVariantOf(hook: string): string | null {
+  const h = hook.trim();
+  return /^\p{L}$/u.test(h) ? h.toLocaleLowerCase("en") : null;
+}
+
+/** The brainstormer's ideas with each hook in one form: a variant as its letter ("A" -> "a"), the brainstormer's own words on one line. */
+export function normaliseBrainstorm(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const v = value as Record<string, unknown>;
+  if (!Array.isArray(v.ideas)) return value;
+  return { ...v, ideas: v.ideas.map((idea) => (idea && typeof idea === "object" && typeof (idea as Record<string, unknown>).hook === "string" ? { ...(idea as Record<string, unknown>), hook: hookVariantOf((idea as { hook: string }).hook) ?? oneLine((idea as { hook: string }).hook) } : idea)) };
+}
+
 /** The brainstormer's ideas against the diversity rules and the menu. */
 export function checkBrainstorm(result: BrainstormResult, ctx: BrainstormContext): string[] {
   const errors: string[] = [];
@@ -723,12 +744,13 @@ export function checkBrainstorm(result: BrainstormResult, ctx: BrainstormContext
   for (const [template, n] of count) if (n > 2) errors.push(`ideas: ${n} on ${template}, at most 2 on one template`);
   result.ideas.forEach((idea, i) => {
     const item = ctx.menu.find((m) => m.template === idea.template);
-    const variant = /^[a-z]$/.test(idea.hook.trim());
+    const variant = hookVariantOf(idea.hook);
     if (!item) errors.push(`ideas[${i}]: ${idea.template} is not on the menu`);
-    else if (variant && !item.hooks.includes(idea.hook.trim())) errors.push(`ideas[${i}].hook: ${idea.template} has the variants ${item.hooks.join(", ")}`);
-    if (!variant && wordCount(idea.hook) > FIX_BOUNDS.hookWords) errors.push(`ideas[${i}].hook: at most ${FIX_BOUNDS.hookWords} words`);
+    else if (variant !== null && !item.hooks.includes(variant)) errors.push(`ideas[${i}].hook: ${idea.template} has the variants ${item.hooks.join(", ")}`);
+    if (variant === null && wordCount(idea.hook) > FIX_BOUNDS.hookWords) errors.push(`ideas[${i}].hook: at most ${FIX_BOUNDS.hookWords} words`);
+    else if (variant === null && wordCount(idea.hook) < OWN_HOOK_MIN_WORDS) errors.push(`ideas[${i}].hook: a hook of your own has ${OWN_HOOK_MIN_WORDS} words or more; or name a variant (${item?.hooks.join(", ") ?? HOOK_VARIANTS.join(", ")})`);
   });
-  const own = result.ideas.map((idea, i) => ({ i, start: /^[a-z]$/.test(idea.hook.trim()) ? `${idea.template}:${idea.hook.trim()}` : firstWords(idea.hook, 3) }));
+  const own = result.ideas.map((idea, i) => ({ i, start: hookVariantOf(idea.hook) !== null ? `${idea.template}:${hookVariantOf(idea.hook)}` : firstWords(idea.hook, 3) }));
   for (let i = 0; i < own.length; i++) for (let j = 0; j < i; j++) if (own[i].start && own[i].start === own[j].start) errors.push(`ideas[${own[i].i}].hook: starts like ideas[${own[j].i}]'s – make the hooks differ`);
   const formats = new Set(result.ideas.map((idea) => ctx.menu.find((m) => m.template === idea.template)?.format ?? idea.template));
   if (!ctx.named && result.ideas.length >= 4 && formats.size < 2) errors.push("ideas: at least 2 formats when you pitch 4 or more");
@@ -760,12 +782,16 @@ export function normaliseResearch(value: unknown, sourceIds: readonly string[]):
   return { ...v, points };
 }
 
-/** The producer's clips with each hook the drawn one (the hook lock: the meta hook is what the clip shows). */
+/**
+ * The producer's clips with each hook the drawn one (the hook lock: the meta hook is what the clip shows), --- crew --- and
+ * each title on one line (the studio's second review round, finding 6: a title is a line of its own wherever it is shown).
+ */
 export function normaliseProducer(value: unknown, drawn: Readonly<Record<string, string>>): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const v = value as Record<string, unknown>;
   if (!Array.isArray(v.clips)) return value;
-  return { ...v, clips: v.clips.map((c) => (c && typeof c === "object" && Object.hasOwn(drawn, (c as Record<string, unknown>).planId as string) ? { ...(c as Record<string, unknown>), hook: drawn[(c as Record<string, unknown>).planId as string] } : c)) };
+  const titled = (c: Record<string, unknown>) => (typeof c.title === "string" ? { ...c, title: oneLine(c.title) } : c);
+  return { ...v, clips: v.clips.map((c) => (c && typeof c === "object" && Object.hasOwn(drawn, (c as Record<string, unknown>).planId as string) ? titled({ ...(c as Record<string, unknown>), hook: drawn[(c as Record<string, unknown>).planId as string] }) : c)) };
 }
 
 /** Every kept clip worded once. */

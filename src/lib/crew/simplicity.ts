@@ -275,6 +275,22 @@ export function textOverActionSec(clip: CrewClip): number | null {
   return sec;
 }
 
+/** The HUD flag ids a clip keeps: its template's (`keepHuds`), else the one that shows the countdown when the countdown is the HUD's. */
+function keptHudIds(clip: CrewClip, options: SimpleOptions): Set<string> {
+  return new Set(options.keepHuds ?? defaultKeptHuds(clip.settings, clip.countdown?.source ?? null));
+}
+
+/**
+ * --- crew --- (the studio's second review round, finding 1) The HUDs a clip draws by design: the mode's own (hudFlags.ts
+ * MODE_HUDS, which no setting switches off) and the flags it keeps (keptHudIds). No listed fix takes one away – there is no
+ * turnOff for a mode's own HUD, and one for a kept HUD loses the countdown the Playbook score credits –, so the evidence check's
+ * "two messages at once" line leaves them out (evidence.ts tooBusy). The Simple score still counts their words on screen.
+ */
+export function ownHudIds(clip: CrewClip, options: SimpleOptions = {}): Set<string> {
+  const kept = keptHudIds(clip, options);
+  return new Set(hudsOn(clip.settings).filter((h) => !h.flag || kept.has(h.id)).map((h) => h.id));
+}
+
 /** The most messages on screen at once and the share of the clip with 2 or more. */
 export function crowding(overlays: readonly Overlay[], shownSec: number): { most: number; busyShare: number } {
   if (!(shownSec > 0)) return { most: 0, busyShare: 0 };
@@ -344,7 +360,7 @@ export function simpleScore(clip: CrewClip, options: SimpleOptions = {}): Simple
   if (s.particleStyle === "confetti") add({ id: "burstParticles", points: W.burstParticles, values: {}, key: "particleStyle" });
   if (ring && (s.wallBreakStyle === "confetti" || s.wallBreakStyle === "all")) add({ id: "wallBreak", points: W.wallBreak, values: { style: s.wallBreakStyle }, key: "wallBreakStyle" });
   // HUDs
-  const kept = new Set(options.keepHuds ?? defaultKeptHuds(s, clip.countdown?.source ?? null));
+  const kept = keptHudIds(clip, options);
   for (const h of hudsOn(s)) if (h.flag && h.costs && !kept.has(h.id)) add({ id: "hud", points: W.hud, values: { flag: h.id }, key: h.id as keyof SimulatorSettings & string });
   // --- templates --- a text over the action, where the other edge of the square would leave it in sight
   const hiddenSec = textOverActionSec(clip);

@@ -3,7 +3,7 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { recipeById } from "@/lib/bot/playbook";
-import { placeSimpleTexts, planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
+import { placeSimpleTexts, planClip, planTemplate, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
 import { actionTrackSync } from "@/lib/bot/actionTrack";
 import type { SimulatorSettings } from "@/lib/settings";
 import { runSync } from "@/lib/insights/score";
@@ -84,6 +84,15 @@ const batch = (): PanelCandidate[] => [
 ];
 /** A calm ring escape that passes every gate. */
 const calmRing = fresh(withRun(calm(PLANS.ring)));
+/**
+ * --- crew --- (review round 2) …with one text at a time: its counter leaves when the payoff's words come, so nothing but its
+ * look can make it too busy (the calm one shows two texts at once for a while, which only a text fix answers).
+ */
+const calmSingle: CrewClip = (() => {
+  const payoffStart = Math.min(...calmRing.captions.filter((_, i) => calmRing.captionRoles[i] === "payoff").map((c) => c.start));
+  const captions = calmRing.captions.map((c, i) => (calmRing.captionRoles[i] === "countdown" ? { ...c, end: payoffStart } : c));
+  return fresh({ ...calmRing, captions, settings: { ...calmRing.settings, captions } });
+})();
 
 /* ------------------------------------------------------------------ scripted models */
 
@@ -217,7 +226,7 @@ describe("the evidence check and the reviewer", () => {
 
   it("a confirmed objection must be answered and accepted with a fix that answers it; the fix round applies it, once", async () => {
     // a calm ring escape with a few effects back: it passes G6 (Simple 60 or more) but is a bit busy (below 80)
-    const busyish = fresh({ ...calmRing, settings: { ...calmRing.settings, screenShake: 0.3, showWallGlow: true, colorTrail: true, rainbowWalls: true, rainbowBall: true, reactiveBackground: true } });
+    const busyish = fresh({ ...calmSingle, settings: { ...calmSingle.settings, screenShake: 0.3, showWallGlow: true, colorTrail: true, rainbowWalls: true, rainbowBall: true, reactiveBackground: true } });
     const k = clarityOf(busyish);
     expect([k.pass, k.simple.score < 80]).toEqual([true, true]);
     const replies = [
@@ -278,9 +287,53 @@ describe("the evidence check and the reviewer", () => {
     expect(needs[0]).toEqual({ ending: "resolved", bucket: late.bucket, targetPos: 0.85, firstImpactMaxSec: null, settings: {}, actions: ["retimePayoff"] });
   });
 
+  it("a fix that leaves a confirmed major objection it answers confirmed is reverted: a retime whose payoff is still late, or later (--- crew ---, review round 2)", async () => {
+    const c = calmRing.timing.clipSec;
+    const at = (position: number) => fresh({ ...calmRing, payoff: { ...calmRing.payoff, atSec: position * c, position } });
+    const late = at(0.93);
+    const script: Script = (brief) =>
+      brief.role === "skeptic"
+        ? { ...NOTHING, objections: [{ id: "o1", kind: "payoffLate", evidence: ["beats.payoff"], severity: "major", note: "" }] }
+        : brief.role === "reviewer"
+          ? { verdict: "fix", confidence: "high", answers: [{ objection: "o1", accept: true, reason: null, fix: { action: "retimePayoff", targetPos: 0.9 } }], viewerAnswer: null, fixes: [], why: "retime" }
+          : defaults(brief, 1, []);
+    for (const back of [at(0.94), at(0.91)]) {
+      // (every gate passes on the clip the search hands back, and the pick score does not go down: only the objection stands)
+      expect(clarityOf(back).pass).toBe(true);
+      const { state } = await run({ stage: "pre", wanted: 1, candidates: [{ id: "l1", clip: late }] }, script, { replan: () => back });
+      const l = clip(state, "l1");
+      expect([l.verdict, l.fix?.state, l.dropWhy, l.fix?.why]).toEqual(["drop", "reverted", "fixReverted", `payoffLate still confirmed: payoff at ${Math.round(100 * back.payoff.position!)}%`]);
+      expect(l.clip).toEqual(late);
+      expect(done(state).keeps).toEqual([]);
+    }
+    // (a payoff brought inside the band answers it)
+    const { state } = await run({ stage: "pre", wanted: 1, candidates: [{ id: "l1", clip: late }] }, script, { replan: () => at(0.88) });
+    expect([clip(state, "l1").verdict, clip(state, "l1").fix?.state]).toEqual(["fix", "applied"]);
+    // a calm look for a clip whose counter stays on beside the payoff's words: Simple back above 80, still two texts at once
+    const busy = fresh({ ...calmRing, settings: { ...calmRing.settings, rainbowWalls: true, reactiveBackground: true, rainbowBall: true, colorTrail: true } });
+    const calmer: Script = (brief) =>
+      brief.role === "skeptic"
+        ? { ...NOTHING, objections: [{ id: "o1", kind: "tooBusy", evidence: ["text.atOnce"], severity: "major", note: "" }] }
+        : brief.role === "reviewer"
+          ? { verdict: "fix", confidence: "high", answers: [{ objection: "o1", accept: true, reason: null, fix: { action: "simplifyLook" } }], viewerAnswer: null, fixes: [{ action: "simplifyLook" }], why: "calm the look" }
+          : defaults(brief, 1, []);
+    const b = clip((await run({ stage: "pre", wanted: 1, candidates: [{ id: "b1", clip: busy }] }, calmer)).state, "b1");
+    expect([b.verdict, b.fix?.state, b.dropWhy, b.fix?.why]).toEqual(["drop", "reverted", "fixReverted", expect.stringMatching(/^tooBusy still confirmed: Simple (8\d|9\d), 2 at once at most$/)]);
+  });
+
+  it("a tooBusy objection on a template's own HUD is refuted: the Power Layers count beside the hook is no clutter a fix can take away (--- crew ---, review round 2)", async () => {
+    const layers = withRun(planTemplate("smash-power-layers", 1, "reels", { copy, look: "simple" }));
+    const script: Script = (brief) => (brief.role === "skeptic" ? { ...NOTHING, objections: [{ id: "o1", kind: "tooBusy", evidence: ["text.atOnce"], severity: "major", note: "the hook over the counter" }] } : defaults(brief, 1, []));
+    const { state, seq } = await run({ stage: "pre", wanted: 1, candidates: [{ id: "p1", clip: layers }] }, script);
+    expect(seq()).toEqual(["skeptic p1", "producer"]);
+    const p = clip(state, "p1");
+    expect([p.marks[0].mark, p.verdict, p.fix]).toEqual(["refuted", "keep", null]);
+    expect(state.log.join("\n")).toMatch(/o1 tooBusy major refuted – not supported by the run: Simple \d+, 1 at once at most beside the HUD the clip keeps/);
+  });
+
   it("turnOff may name only what the clip draws: another mode's HUD never answers a confirmed objection", () => {
     // (a calm ring escape with a few effects back: Simple below 80, and every mode's HUD flag on in its settings)
-    const busyish = fresh({ ...calmRing, settings: { ...calmRing.settings, screenShake: 0.3, showWallGlow: true, colorTrail: true, rainbowWalls: true, rainbowBall: true, reactiveBackground: true } });
+    const busyish = fresh({ ...calmSingle, settings: { ...calmSingle.settings, screenShake: 0.3, showWallGlow: true, colorTrail: true, rainbowWalls: true, rainbowBall: true, reactiveBackground: true } });
     expect([busyish.settings.sbHud, busyish.settings.flHud]).toEqual([true, true]);
     let s = createPanel({ stage: "pre", wanted: 1, candidates: [{ id: "b1", clip: busyish }] });
     s = applyVerdict(nextStep(s).state, { role: "skeptic", clipId: "b1", reply: { ...NOTHING, objections: [{ id: "o1", kind: "tooBusy", evidence: ["score.simple"], severity: "major", note: "" }] } }).state;
@@ -513,6 +566,29 @@ describe("after a render", () => {
     expect(seq()).toEqual(["viewer s1"]);
     expect([clip(state, "s2").verdict, clip(state, "s2").notReviewed]).toEqual(["notReviewed", "budget"]);
     expect(clipReviewOf(state, "s2")!.verdict).toBe("notReviewed");
+  });
+
+  it("a clip no model reaches that fails a gate is still dropped by the rules: past the budget, past the viewer's budget, after a cancel (--- crew ---, review round 2)", async () => {
+    // (s2 draws a local watermark – G8 –, s3 starts moving at 2.4 s – G1)
+    const local = rendered(calmRing, { watermarkDomain: "localhost:3000" });
+    const slow = rendered(calmRing, { features: features(2.4) });
+    expect([failedGates(clarityOf(local)), failedGates(clarityOf(slow))]).toEqual([["G8"], ["G1"]]);
+    const candidates = [{ id: "s1", clip: rendered(calmRing) }, { id: "s2", clip: local }, { id: "s3", clip: slow }, { id: "s4", clip: rendered(calmRing) }];
+    const verdicts = (state: PanelState) => ["s2", "s3", "s4"].map((id) => [id, clip(state, id).verdict, clip(state, id).dropWhy ?? clip(state, id).notReviewed]);
+    // the stop rule: the budget covers s1's viewer alone
+    const stopped = await run({ stage: "post", candidates, caps: { maxCalls: 1 } });
+    expect(verdicts(stopped.state)).toEqual([["s2", "drop", "gate:G8"], ["s3", "drop", "gate:G1"], ["s4", "notReviewed", "budget"]]);
+    expect(clipReviewOf(stopped.state, "s2")).toMatchObject({ verdict: "drop", gates: ["G8"] });
+    expect(panelDecision(stopped.state).drops.map((d) => d.id).sort()).toEqual(["s2", "s3"]);
+    // the viewer's budget: a refused reply on s1 spends the call s2's viewer would have had
+    const viewerSpent = await run({ stage: "post", candidates, caps: { maxCalls: 3 } }, (brief, attempt) => (brief.role === "viewer" && brief.clipId === "s1" && attempt === 1 ? { nonsense: true } : defaults(brief, attempt, [])));
+    expect(viewerSpent.seq()).toEqual(["viewer s1", "viewer s1", "viewer s2"]);
+    expect(verdicts(viewerSpent.state)).toEqual([["s2", "drop", "gate:G8"], ["s3", "drop", "gate:G1"], ["s4", "notReviewed", "budget"]]);
+    // a cancel after s1's viewer
+    let s = createPanel({ stage: "post", candidates });
+    s = applyVerdict(nextStep(s).state, { role: "viewer", clipId: "s1", reply: defaults({ role: "viewer", clipId: "s1" } as RoleBrief, 1, []) }).state;
+    const cancelled = nextStep(cancelPanel(s)).state;
+    expect(verdicts(cancelled)).toEqual([["s2", "drop", "gate:G8"], ["s3", "drop", "gate:G1"], ["s4", "notReviewed", "cancelled"]]);
   });
 });
 

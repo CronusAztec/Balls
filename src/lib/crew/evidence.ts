@@ -1,7 +1,7 @@
 import { CLARITY, type Clarity } from "./clarity";
 import { claimSeen, measuredFirstImpactSec, shownSecOf, type Claim, type CrewClip } from "./clip";
 import { hasRingWalls } from "./hudFlags";
-import { crowding, overlaysOf, SIMPLE_BANDS } from "./simplicity";
+import { crowding, overlaysOf, ownHudIds, SIMPLE_BANDS, type SimpleOptions } from "./simplicity";
 import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type ObjectionKind, type SkepticObjection, type ViewerRead } from "./roles";
 
 /*
@@ -19,9 +19,10 @@ import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type O
  * little shown after it (gate G2's NotShown); payoffEarly – before 66 % (the reviewer's retime band starts there), or on a
  * cliffhanger the payoff shown before the clip ends; payoffMissing – no payoff in the run, or the run does not show the claim; slowStart – the
  * first impact after 1 s (after a render: the measured first impact – the export's first motion or first sound, as gate G1
- * reads it – after 1.5 s, or none); tooBusy – Simple below 80 or two
- * messages on screen at once; textUnreadable – gate G5 fails; hookUntrue – a number in the hook the clip does not have, or a
- * winner named that the run does not have (gate G4).
+ * reads it – after 1.5 s, or none); tooBusy – Simple below 80 or two messages on screen at once that a listed fix can take
+ * away (the HUDs the clip draws by design, the mode's own and the one it keeps, are left out: simplicity.ts ownHudIds);
+ * textUnreadable – gate G5 fails; hookUntrue – a number in the hook the clip does not have, or a winner named that the run
+ * does not have (gate G4).
  *
  * The cited keys are DOSSIER_KEYS (the schema holds them to it); the mark is the measure's, whichever key is cited, and a mark's
  * `basis` says which fact decided it. The viewer's side is here too: makesSense (its read against the claim) and the
@@ -62,7 +63,7 @@ const isMeasurable = (kind: ObjectionKind) => (MEASURABLE_KINDS as readonly stri
 const gate = (clarity: Clarity, id: string) => clarity.gates.find((g) => g.id === id);
 
 /** The measure of one measurable kind: true (crossed), false (contradicted), null (the fact is not known). */
-function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity): { crossed: boolean | null; basis: string } {
+function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity, options: SimpleOptions): { crossed: boolean | null; basis: string } {
   const p = clip.payoff;
   const cliff = clip.ending === "cliffhanger";
   switch (kind) {
@@ -103,9 +104,12 @@ function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity): { cross
       return { crossed: untrue.length > 0, basis: untrue.length ? untrue.join(", ") : "every number and name is the run's" };
     }
     case "tooBusy": {
-      const { most } = crowding(overlaysOf(clip), shownSecOf(clip));
+      // --- crew --- (the studio's second review round, finding 1) the messages a listed fix can take away: the HUDs the clip
+      // draws by design – the mode's own, the one it keeps for its countdown – stay on screen whatever the reviewer picks
+      const own = ownHudIds(clip, options);
+      const { most } = crowding(overlaysOf(clip).filter((o) => !(o.hud && own.has(o.hud))), shownSecOf(clip));
       const simple = clarity.simple.score;
-      return { crossed: simple < EVIDENCE.busySimpleBelow || most >= EVIDENCE.busyAtOnce, basis: `Simple ${simple}, ${most} at once at most` };
+      return { crossed: simple < EVIDENCE.busySimpleBelow || most >= EVIDENCE.busyAtOnce, basis: `Simple ${simple}, ${most} at once at most${own.size ? " beside the HUD the clip keeps" : ""}` };
     }
     case "textUnreadable": {
       const g5 = gate(clarity, "G5");
@@ -116,11 +120,11 @@ function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity): { cross
   }
 }
 
-/** The mark of one objection (see the header). */
-export function markObjection(objection: SkepticObjection, clip: CrewClip, clarity: Clarity): MarkedObjection {
+/** The mark of one objection (see the header). `options`: the clip's Simple options (the HUDs its template keeps). */
+export function markObjection(objection: SkepticObjection, clip: CrewClip, clarity: Clarity, options: SimpleOptions = {}): MarkedObjection {
   const opinionStands = objection.severity !== "minor";
   if (isMeasurable(objection.kind)) {
-    const { crossed, basis } = measure(objection.kind, clip, clarity);
+    const { crossed, basis } = measure(objection.kind, clip, clarity, options);
     if (crossed === true) return { ...objection, mark: "confirmed", stands: true, weight: 1, blocker: objection.severity === "fatal", basis };
     if (crossed === false) return { ...objection, mark: "refuted", stands: false, weight: 0, blocker: false, basis: `not supported by the run: ${basis}` };
     return { ...objection, mark: "opinion", stands: opinionStands, weight: opinionStands ? 0.5 : 0, blocker: false, basis };
@@ -128,8 +132,8 @@ export function markObjection(objection: SkepticObjection, clip: CrewClip, clari
   return { ...objection, mark: "opinion", stands: opinionStands, weight: opinionStands ? 0.5 : 0, blocker: false, basis: "a judgement" };
 }
 
-export function markObjections(objections: readonly SkepticObjection[], clip: CrewClip, clarity: Clarity): MarkedObjection[] {
-  return objections.map((o) => markObjection(o, clip, clarity));
+export function markObjections(objections: readonly SkepticObjection[], clip: CrewClip, clarity: Clarity, options: SimpleOptions = {}): MarkedObjection[] {
+  return objections.map((o) => markObjection(o, clip, clarity, options));
 }
 
 /** The objections that stand (for the reviewer). */

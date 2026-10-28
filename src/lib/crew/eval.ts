@@ -2,7 +2,7 @@ import type { Caption } from "@/lib/captions";
 import { captionWordsOf, type CaptionRole } from "@/lib/bot/planner";
 import { HOOK_SEC } from "@/lib/bot/playbook";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
-import { factNumbersOf, numbersIn, type Claim, type CrewClip } from "./clip";
+import { factNumbersOf, numeralsIn, type Claim, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type GateId } from "./clarity";
 import { markObjection } from "./evidence";
 import { hookCaptionsOf, hookEdgeOf, playbookOf } from "./fixes";
@@ -24,9 +24,9 @@ import { drawnHookText, SIMPLE_BANDS, simpleScore } from "./simplicity";
  *
  * Nine defect classes, three planted clips each (DEFECTS). Four fail exactly one gate (the rules catch them for free, before
  * any model); five pass every gate and leave only a judgement – or a measure below a gate's line – to the roles. A clean
- * clip passes every gate and crosses no evidence threshold beyond its template's own (softClean: a template that keeps a HUD
- * beside its hook has two messages on screen at once, which confirms a tooBusy objection by the evidence check's line while
- * Simple stays 80 or more), so an objection to it is a false alarm – a confirmed one included, and the tables say how many.
+ * clip passes every gate and crosses no evidence threshold (softClean: the HUD a template keeps beside its hook is two
+ * messages on screen at once, which the evidence check's tooBusy line leaves out as the template's own), so an objection to
+ * it is a false alarm – the tables say how many.
  *
  * What counts:
  *  - caught: a planted clip that does not reach the keeps as it came – dropped, or changed by a fix that answers its defect
@@ -150,12 +150,13 @@ export function confirmedKinds(clip: CrewClip): ObjectionKind[] {
 }
 
 /**
- * The measurable kinds a clip's facts confirm beyond its template's own: tooBusy confirmed by the two-messages-at-once line
- * alone (a HUD the template keeps beside its hook, Simple still 80 or more) is the template's, not a defect of the clip.
+ * The measurable kinds a clip's facts confirm beyond its template's own. --- crew --- (the studio's second review round,
+ * finding 1) The HUDs a template draws by design – the mode's own, the one it keeps beside its hook for its countdown – are
+ * left out of the evidence check's "two messages at once" line itself (evidence.ts tooBusy), so every kind it confirms is the
+ * clip's: confirmedKinds. (The corpus was the same before and after: no clean plan crosses the line on what a fix can remove.)
  */
 export function confirmedBeyondTemplate(clip: CrewClip): ObjectionKind[] {
-  const busy = simpleScore(clip).score < SIMPLE_BANDS.simple;
-  return confirmedKinds(clip).filter((k) => k !== "tooBusy" || busy);
+  return confirmedKinds(clip);
 }
 
 /**
@@ -354,7 +355,7 @@ export function plantDefect(clip: CrewClip, defect: DefectClass, variant: number
       const own = drawnHookText(clip);
       const n = untrueNumbers(clip)[k];
       if (n === undefined) return null;
-      return withHook(clip, numbersIn(own).length ? own.replace(/\d+(?:[.,]\d+)?/, String(n)) : NUMBER_HOOKS[claim].replace("{n}", String(n)));
+      return withHook(clip, numeralsIn(own).length ? own.replace(/\d+(?:[.,]\d+)?/, String(n)) : NUMBER_HOOKS[claim].replace("{n}", String(n)));
     }
     case "textUnreadable":
       return withLongHook(clip, LONG_HOOKS[k]);

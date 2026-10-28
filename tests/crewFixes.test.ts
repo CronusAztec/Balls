@@ -7,7 +7,9 @@ import { drawnHookOf, runSync } from "@/lib/insights/score";
 import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import {
   CLUTTER_KEYS,
+  EVIDENCE,
   FIX_BOUNDS,
+  RETIME_SLACK,
   applyCompiledFix,
   clarityOf,
   clutterOn,
@@ -20,6 +22,7 @@ import {
   offValueOf,
   overlaysOf,
   playbookOf,
+  retimeLands,
   shownSecOf,
   textOverActionSec,
   visibleText,
@@ -164,10 +167,20 @@ describe("the text", () => {
   it("rewriteHook refuses a number the clip does not have, a hook past 7 words or 42 characters, and one outside the safe zone", () => {
     expect(factNumbersOf(busy)).not.toContain(99);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "Out in 99 seconds?" })]).errors[0]).toMatch(/^rewriteHook: 99 is not a number this clip has/);
-    expect(compileFixes(busy, [fix("rewriteHook", { text: "one two three four five six seven eight" })]).errors).toEqual(["rewriteHook: at most 7 words (got 8)"]);
+    expect(compileFixes(busy, [fix("rewriteHook", { text: "Can this tiny ball ever get out now" })]).errors).toEqual(["rewriteHook: at most 7 words (got 8)"]);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "x".repeat(FIX_BOUNDS.hookChars + 5) })]).errors).toContain(`rewriteHook: at most ${FIX_BOUNDS.hookChars} characters`);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "W".repeat(FIX_BOUNDS.hookChars) })]).errors).toEqual(["rewriteHook: a line of it falls outside the safe zone"]);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "   " })]).errors).toEqual(["rewriteHook: an empty hook"]);
+  });
+
+  it("rewriteHook reads a number however it is written: other scripts' digits and number words in en, pl and es (--- crew ---, review round 2)", () => {
+    // (the calm ring escape's facts: 1, 3, 4, 17 and 18)
+    expect(factNumbersOf(busy)).toEqual([1, 3, 4, 17, 18]);
+    for (const text of ["Fifty rings. One way out.", "５０ rings. One way out.", "٥٠ rings. One way out.", "𝟓𝟎 rings. One way out.", "Cincuenta anillos, una salida", "Pięćdziesiąt pierścieni", "Fifty-three rings to go"]) {
+      expect([text, compileFixes(busy, [fix("rewriteHook", { text })]).errors[0]]).toEqual([text, expect.stringMatching(/^rewriteHook: 5[03] is not a number this clip has/)]);
+    }
+    // a number word the clip has is its number, and one is always a fact
+    for (const text of ["Three rings. One way out.", "Eighteen seconds to get out", "Trzy pierścienie, jedno wyjście", "Tres anillos, una salida", "Out in ١٨ seconds?"]) expect([text, compileFixes(busy, [fix("rewriteHook", { text })]).ok]).toEqual([text, true]);
   });
 
   it("rewriteHook takes no invisible hook: format characters out (an emoji's joiner kept), and a hook with no word is refused", () => {
@@ -248,6 +261,19 @@ describe("the seed and the length: what the seed search must find", () => {
     expect(compileFixes(cliff, [fix("retimePayoff", { targetPos: 0.85 })]).errors).toEqual(["retimePayoff: a cliffhanger's payoff comes after its cut"]);
     // (with the switch to a resolved ending in the same round it may)
     expect(compileFixes(cliff, [fix("switchEnding", { ending: "resolved" }), fix("retimePayoff", { targetPos: 0.85 })]).finder).toMatchObject({ ending: "resolved", targetPos: 0.85 });
+  });
+
+  it("a re-planned payoff answers a retime only on time, near the target, and no farther from it than an on-time payoff was (--- crew ---, review round 2)", () => {
+    // (on time: from 66 % to 90 %, the evidence check's lines; near: within RETIME_SLACK)
+    expect([EVIDENCE.payoffEarlyBelow, EVIDENCE.payoffLateFrom, RETIME_SLACK]).toEqual([FIX_BOUNDS.retimeFrom, FIX_BOUNDS.retimeTo, 0.05]);
+    // a late payoff (93 %) retimed to 90 %: 86-90 % answers it; still late, later, too far or unknown does not
+    for (const [position, lands] of [[0.88, true], [0.855, true], [0.9, true], [0.91, false], [0.943, false], [0.84, false], [null, false]] as const) expect([position, retimeLands(position, 0.9, 0.93)]).toEqual([position, lands]);
+    // an early one (62 %) retimed to 70 %
+    expect([0.66, 0.7, 0.74, 0.65].map((p) => retimeLands(p, 0.7, 0.62))).toEqual([true, true, true, false]);
+    // an on-time payoff (80 %) moved towards 85 %: no farther from the target than it was
+    expect([0.83, 0.85, 0.88, 0.8, 0.79].map((p) => retimeLands(p, 0.85, 0.8))).toEqual([true, true, true, true, false]);
+    // the clip's own payoff unknown: on time and near is enough
+    expect(retimeLands(0.86, 0.85, null)).toBe(true);
   });
 
   it("reseedEarlyMotion asks for a first impact within the first second", () => {

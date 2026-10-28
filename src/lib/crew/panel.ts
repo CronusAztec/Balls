@@ -4,7 +4,7 @@ import { captionWordsOf } from "@/lib/bot/planner"; // --- templates --- (a mess
 import { claimOfRecipe, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type Clarity } from "./clarity";
 import { intentView, screenView, type OtherCandidate } from "./dossier";
-import { confirmedDistractions, makesSenseOf, markObjections, standing, type MarkedObjection } from "./evidence";
+import { confirmedDistractions, makesSenseOf, markObjection, markObjections, standing, type MarkedObjection } from "./evidence";
 import { applyCompiledFix, clutterOn, compileFixes, type CompiledFix, type FinderNeed } from "./fixes";
 import { pick, pickScore, type PickCandidate, type PickEntry, type Picked } from "./pick";
 import { briefText, BRIEF_CHARS, researchBriefOf, researchGapOf, type ResearchDigest } from "./research";
@@ -19,6 +19,7 @@ import {
   checkViewer,
   CREW_ROLES,
   effortOf,
+  normaliseBrainstorm,
   normaliseProducer,
   normaliseResearch,
   normaliseReview,
@@ -68,7 +69,8 @@ import {
  *  4. per candidate in that order, its calls back to back (a model's cache keeps the shared prefix): the viewer (Thorough only;
  *     the screen view), the skeptic, the evidence check (code), the reviewer – at Quick only where something is in doubt (a
  *     confirmed objection, a major opinion, Playbook or Simple below 80) – and one fix round (code: fixes.ts; a fix that makes a
- *     gate fail or lowers the pick score is reverted, and no model is asked again);
+ *     gate fail, lowers the pick score or leaves a confirmed major objection it answers confirmed on the fixed clip is
+ *     reverted, and no model is asked again);
  *  5. the stop rule: no new candidate once N are kept with medium confidence or more (a model's: a keep the rules alone
  *     weighed never counts), or 5 were reviewed, or the budget is spent – the rest are "not reviewed" (the picker takes them
  *     only to fill the N, never as seen);
@@ -82,7 +84,8 @@ import {
  * A role whose replies stay invalid (more than maxRetries in a row), or that the budget no longer covers, falls back to the
  * rules for that step, labelled so ("rules only"). When no model answered any of a clip's roles that way – a broken skeptic
  * before a render, a broken or out-of-budget viewer after one – a keep by the rules is "not reviewed" ("broken", "budget"),
- * like a clip the budget never reached: never passed off as seen (a drop by the rules stands). Every call and every retry
+ * like a clip the budget never reached: never passed off as seen (a drop by the rules stands: a clip that fails a gate is
+ * dropped whether or not a model reached it, after a render as before one). Every call and every retry
  * counts against the caps; the time and the cost are the caller's to report (the panel has no clock). A cancel ends the run at
  * the next step and queues nothing. A run may leave roles out (`off`: the role eval measures each role against the rules
  * alone, eval.ts): an off role is never asked – the skeptic and the viewer are skipped, the reviewer's place, the producer's,
@@ -489,6 +492,17 @@ function unlessUnseen(c: PanelClip): PanelClip {
   return why ? { ...c, verdict: "notReviewed", notReviewed: why, confidence: null } : c;
 }
 
+/**
+ * --- crew --- (the studio's second review round, finding 4) A clip no model will look at – the stop rule reached it, the budget
+ * ran out before its viewer, the run was cancelled –: a failed gate still drops it, by the rules (a drop by the rules stands);
+ * only a clip the rules would keep is "not reviewed".
+ */
+function unreviewed(c: PanelClip, why: ReviewNotReviewed): PanelClip {
+  const fails = failedGates(c.clarity);
+  if (!fails.length) return { ...c, status: "done", verdict: "notReviewed", notReviewed: why };
+  return { ...c, status: "done", verdict: "drop", dropWhy: `gate:${fails[0]}`, confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
+}
+
 /** The rules' verdict where no reviewer answered (see the header): a gate, a standing confirmed major objection, a misread after a render. */
 function rulesVerdict(s: PanelState, c: PanelClip, why: string): PanelClip {
   const fails = failedGates(c.clarity);
@@ -537,7 +551,13 @@ function fixRound(s: PanelState, c: PanelClip): PanelState {
   return judged(s, c.id, applyCompiledFix(c.clip, compiled, { simple: c.simple }), { actions: result.fixes, state: "applied", why: null, compiled });
 }
 
-/** A fix judged by the rules: kept when every gate passes and the pick score did not go down, else reverted (see the header). */
+/** The confirmed objections at major or fatal that stand on a clip: the ones its reviewer must answer with a fix, or drop it. */
+const confirmedMajor = (c: PanelClip) => c.marks.filter((m) => m.stands && m.mark === "confirmed" && m.severity !== "minor");
+
+/**
+ * A fix judged by the rules: kept when every gate passes, the pick score did not go down and the facts no longer confirm a
+ * major objection it answers, else reverted (see the header).
+ */
 function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix): PanelState {
   const c = clipOf(s, id)!;
   const confidence = c.reviewer.result?.confidence ?? null;
@@ -551,8 +571,13 @@ function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix)
       const after = clarityOf(fixed, c.simple);
       const before = pickScore(c.clarity.playbook.score, c.clarity.simple.score, confidence);
       const now = pickScore(after.playbook.score, after.simple.score, confidence);
+      // --- crew --- (the studio's second review round, findings 1 and 2) the objections the fix answers, marked again on the
+      // fixed clip: one the facts still confirm was not answered – a retime that leaves the payoff late, or later; a calmer look
+      // that leaves two messages at once
+      const left = after.pass && now >= before - 1e-9 ? confirmedMajor(c).map((m) => markObjection(m, fixed, after, c.simple)).find((m) => m.mark === "confirmed") : undefined;
       if (!after.pass) outcome = { ...fix, state: "reverted", why: `${failedGates(after).join(", ")} fails` };
       else if (now < before - 1e-9) outcome = { ...fix, state: "reverted", why: `pick ${before} -> ${now}` };
+      else if (left) outcome = { ...fix, state: "reverted", why: `${left.kind} still confirmed: ${left.basis}` };
       else {
         outcome = { ...fix, state: "applied", why: null };
         original = c.original ?? c.clip;
@@ -561,7 +586,7 @@ function judged(s: PanelState, id: string, fixed: CrewClip | null, fix: ClipFix)
       }
     }
   }
-  const standingMajor = c.marks.some((m) => m.stands && m.mark === "confirmed" && m.severity !== "minor") || (c.makesSense !== null && c.makesSense !== "yes");
+  const standingMajor = confirmedMajor(c).length > 0 || (c.makesSense !== null && c.makesSense !== "yes");
   const dropped = outcome.state !== "applied" && standingMajor;
   return finishClip(s, id, (x) => ({ ...x, clip, clarity, original, fix: outcome, verdict: dropped ? "drop" : "fix", dropWhy: dropped ? (outcome.state === "refused" ? "fixRefused" : "fixReverted") : null, confidence }));
 }
@@ -576,7 +601,7 @@ function reviewStep(s: PanelState): PanelState {
     if (roleOff(s, "viewer")) return withClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "skipped", why: "off" } }));
     if (!pre || s.depth === "thorough") {
       if (canCall(s)) return call(s, "viewer", c.id);
-      if (!pre) return finishClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "rules", why: "budget" }, verdict: "notReviewed", notReviewed: "budget" }));
+      if (!pre) return finishClip(s, c.id, (x) => unreviewed({ ...x, viewer: { ...x.viewer, source: "rules", why: "budget" } }, "budget"));
       return withClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "rules", why: "budget" } }));
     }
     return withClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "skipped", why: "quick" } }));
@@ -661,7 +686,7 @@ function advance(start: PanelState): PanelState {
   for (let guard = 0; guard < 10_000; guard++) {
     if (s.pending) return s;
     if (s.cancelled && s.phase !== "done") {
-      s = { ...s, current: null, phase: "done", clips: s.clips.map((c) => (c.status === "done" ? c : { ...c, status: "done", verdict: "notReviewed", notReviewed: "cancelled" })) };
+      s = { ...s, current: null, phase: "done", clips: s.clips.map((c) => (c.status === "done" ? c : unreviewed(c, "cancelled"))) };
       return log(s, "cancelled");
     }
     switch (s.phase) {
@@ -698,7 +723,7 @@ function advance(start: PanelState): PanelState {
           }
           const why = stopWhy(s);
           if (why) {
-            s = log({ ...s, clips: s.clips.map((c) => (c.status === "waiting" ? { ...c, status: "done", verdict: "notReviewed", notReviewed: why } : c)) }, `stop: ${why}`);
+            s = log({ ...s, clips: s.clips.map((c) => (c.status === "waiting" ? unreviewed(c, why) : c)) }, `stop: ${why}`);
             break;
           }
           s = startClip(s, next);
@@ -872,6 +897,7 @@ function checkReply(s: PanelState, role: CrewRole, c: PanelClip | null, raw: unk
   if (!parsed.ok) return { value: null, errors: [parsed.error] };
   let value = parsed.value;
   if (role === "reviewer") value = normaliseReview(value);
+  if (role === "brainstormer") value = normaliseBrainstorm(value); // --- crew --- (review round 2: "A" is the variant a)
   if (role === "researcher") value = normaliseResearch(value, s.digest?.sources.map((x) => x.id) ?? []);
   if (role === "producer") {
     const drawn: Record<string, string> = {};
@@ -942,7 +968,7 @@ function record(s: PanelState, role: CrewRole, clipId: string | null, value: unk
     case "producer":
       return { ...next, producer: run(next.producer), copy: { source: "producer", clips: (value as ProducerResult).clips } };
     case "skeptic": {
-      next = withClip(next, clipId!, (c) => ({ ...c, skeptic: run(c.skeptic), marks: markObjections((value as SkepticResult).objections, c.clip, c.clarity) }));
+      next = withClip(next, clipId!, (c) => ({ ...c, skeptic: run(c.skeptic), marks: markObjections((value as SkepticResult).objections, c.clip, c.clarity, c.simple) }));
       const c = clipOf(next, clipId)!;
       for (const m of c.marks) next = log(next, `skeptic ${clipId}: ${m.id} ${m.kind} ${m.severity} ${m.mark}${m.mark === "refuted" ? ` – ${m.basis}` : ""}`);
       return next;

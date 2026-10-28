@@ -8,6 +8,7 @@ import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import type { SimulatorSettings } from "@/lib/settings";
 import { CLARITY } from "./clarity";
 import { factNumbersOf, numbersIn, type CrewClip } from "./clip";
+import { EVIDENCE } from "./evidence";
 import { defaultKeptHuds, hudCounts, hudsOn } from "./hudFlags";
 import { overlaysOf, SIMPLE_TRAIL_THICKNESS, simpleScore, wordCount, type SimpleOptions } from "./simplicity";
 import { CLUTTER_KEYS, FIX_ACTIONS, FIX_BOUNDS, RUN_MOVING_KEYS, type FixAction, type FixId } from "./roles";
@@ -51,6 +52,22 @@ export interface FinderNeed {
   settings: Partial<SimulatorSettings>;
   /** The fixes that need it. */
   actions: FixId[];
+}
+
+/** --- crew --- How close a re-planned payoff must come to a retime's target share of the clip. */
+export const RETIME_SLACK = 0.05;
+
+/**
+ * --- crew --- (the studio's second review round, finding 2) Whether a re-planned payoff answers a retimePayoff: within
+ * RETIME_SLACK of the target, inside the band the reviewer may target – the evidence check's on-time band, so the payoff is
+ * neither early nor late by its lines (EVIDENCE.payoffEarlyBelow, payoffLateFrom) –, and, when the clip's own payoff was in
+ * that band already, no farther from the target than it was. `before`: the clip's own payoff share (null: unknown).
+ */
+export function retimeLands(position: number | null, targetPos: number, before: number | null): boolean {
+  if (position === null || Math.abs(position - targetPos) > RETIME_SLACK + EPS) return false;
+  const onTime = (p: number) => p >= EVIDENCE.payoffEarlyBelow - EPS && p <= EVIDENCE.payoffLateFrom + EPS;
+  if (!onTime(position)) return false;
+  return before === null || !onTime(before) || Math.abs(position - targetPos) <= Math.abs(before - targetPos) + EPS;
 }
 
 export interface CompiledFix {
