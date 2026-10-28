@@ -543,14 +543,19 @@ export function researchFinal(sourceIds: readonly string[]): JsonSchema {
   });
 }
 
-/** The brainstormer's answer schema: 1..k ideas, each a menu template on one of its modes (a oneOf per template). */
-export function brainstormFinal(menu: readonly MenuItem[], k: number, pointIds: readonly string[] = []): JsonSchema {
+/**
+ * The brainstormer's answer schema: atLeast..k ideas, each a menu template on one of its modes (a oneOf per template). --- crew
+ * --- (the studio's second review round, finding 10) `atLeast` is the floor the run needs to reach its N (panel.ts
+ * ideasAtLeast): a reply with fewer ideas is refused and asked again, and a local model's grammar never writes fewer.
+ */
+export function brainstormFinal(menu: readonly MenuItem[], k: number, pointIds: readonly string[] = [], atLeast = 1): JsonSchema {
   const basis: JsonSchema = { enum: [...pointIds.filter((p) => (BRIEF_POINT_IDS as readonly string[]).includes(p)), "none"] };
+  const most = Math.max(1, Math.round(k));
   return obj({
     ideas: {
       type: "array",
-      minItems: 1,
-      maxItems: Math.max(1, Math.round(k)),
+      minItems: Math.max(1, Math.min(most, Math.floor(atLeast))),
+      maxItems: most,
       items: {
         oneOf: menu.map((m) =>
           obj({ template: { const: m.template }, mode: { enum: [...m.modes] }, hook: str(FIX_BOUNDS.hookChars, 1), ending: { enum: [...(m.endings ?? ENDING_STYLES)] }, bucket: { enum: [...(m.buckets ?? LENGTH_BUCKETS)] }, angle: str(80), basis }),

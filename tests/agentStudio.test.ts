@@ -8,7 +8,9 @@ import { IMAGE_MAX_BYTES as MCP_IMAGE_MAX_BYTES } from "../scripts/agent/mcp.mjs
 import { AGENT_PROMPTS, AGENT_TOOLS, IMAGE_MAX_BYTES, STUDIO_BUCKETS, STUDIO_CLIPS_MAX, STUDIO_DEPTHS, STUDIO_ENDINGS, STUDIO_FAMILIES, STUDIO_FORMATS, STUDIO_LOCALES, STUDIO_LOOKS, STUDIO_PLAN_MAX, STUDIO_PLATFORMS, STUDIO_ROLES, STUDIO_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { TOOLBOX_SITE_DOMAIN } from "../scripts/agent/local-build.mjs";
 import {
+  REFUSALS_LINE,
   STUDIO_SITE_URL,
+  fixedIdOf,
   inspireThemes,
   queryOf,
   renderSummary,
@@ -29,6 +31,7 @@ import {
   templateMenu,
   type StudioPanelFile,
   type StudioPlanFile,
+  type StudioRenderJob,
   type StudioRenderRecord,
   type StudioReviewInput,
 } from "@/lib/agentKit/studioKit";
@@ -38,7 +41,7 @@ import { BOT_LOOKS, TEMPLATE_FORMAT_IDS } from "@/lib/bot/templates";
 import { settingsFromSearchParams } from "@/lib/settings";
 import { TRENDS } from "@/content/trends";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
-import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, clarityOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
+import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRules, clarityOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
 
 /*
  * --- studio --- Claude's studio in the agent toolbox (docs/agents/STUDIO.md, C5 of the AI studio plan): the studio kit
@@ -583,6 +586,139 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     expect(out.result).toMatchObject({ status: "done", after: `0 of 1 rendered clips have their look; not reviewed: ${recs[0].id} (budget). post.txt says so; review again with "restart":true to try once more.` });
     expect(s.panel()!.records.post[recs[0].id]).toMatchObject({ verdict: "notReviewed", notReviewed: "budget", confidence: null });
     expect(out.post).toMatch(/Crew after the render: not reviewed \(the budget ran out\), rules only: no model looked at it/);
+  });
+});
+
+describe("the studio's second review round, findings 7-12 (--- studio ---)", () => {
+  const features = (first: number): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+  const render = (job: StudioRenderJob) => studioRenderRecord(job, { file: `${job.clip}/clip.webm`, mp4: null, world: job.plannedWorld, durationSec: job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features: features(0.3), melodyPlayed: job.melodyId, sheet: `${job.clip}/sheet.png`, hookSheet: `${job.clip}/hook-sheet.png` });
+  const jobOf = (s: ReturnType<typeof studio>, id: string, options: Parameters<typeof studioRenderJob>[3] = {}) => {
+    const made = studioRenderJob(s.plan, s.panel(), id, options);
+    if (!made.ok) throw new Error(made.error);
+    return made.job;
+  };
+  const read = (whatHappens: string) => ({ whatHappens, understood: "a ball and rings", waitingFor: "the end", clearBySec: 1, distractions: [], watchToEnd: "yes" });
+
+  it("finding 7: at depth rules no clip is called looked at: the picks, the after line, post.txt and the records say rules only", () => {
+    const recs = [...planned({ template: "get-out-classic", count: 1, planSeed: 2 }), ...planned({ template: "line-up-pendulum", count: 1, planSeed: 2 })];
+    const s = studio(recs);
+    const pre = s.call({ depth: "rules", wanted: 2 });
+    expect((pre.result.decision as { keeps: { reason: string }[] }).keeps.map((k) => k.reason)).toEqual(["rules", "rules"]);
+    s.setRendered(recs.map((r) => render(jobOf(s, r.id))));
+    const post = s.call({ stage: "post", depth: "rules" });
+    expect(post.result.status).toBe("done");
+    expect(post.result.after).toMatch(/^0 of 2 rendered clips have their look; rules only, no model looked: \S+ \(keep\), \S+ \(keep\)\. post\.txt says so; review again with "restart":true and "depth":"quick" for a model's look\.$/);
+    expect(post.post).toContain("After the render: 2 kept of 2 rendered (rules); a model looked at 0 of them.");
+    for (const stage of ["pre", "post"] as const) for (const r of recs) expect([stage, r.id, s.panel()!.records[stage][r.id].model]).toEqual([stage, r.id, null]);
+    // a model's look: the record names it, and every clip has its look
+    const t = studio(recs, "m");
+    t.call({ depth: "rules", wanted: 2 });
+    t.setRendered(recs.map((r) => render(jobOf(t, r.id))));
+    t.call({ stage: "post" });
+    t.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: read("out") });
+    const both = t.call({ stage: "post", role: "viewer", clip: recs[1].id, verdict: read("inSync") });
+    expect(both.result.after).toMatch(/^Every rendered clip has its look/);
+    expect(both.post).toContain("a model looked at every one.");
+    expect(t.panel()!.records.post[recs[0].id].model).toBe("claude");
+  });
+
+  it("finding 9: a refused answer's errors stay small: a 300,000-character key never pushes the brief past the MCP cap", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const s = studio(recs);
+    s.call({ depth: "rules" });
+    s.setRendered([render(jobOf(s, recs[0].id))]);
+    const brief = s.call({ stage: "post" });
+    const size = { result: JSON.stringify(brief.result).length, panel: studioFileText(brief.panel).length };
+    const out = s.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: { ...read("out"), ["k".repeat(300_000)]: 1 } });
+    expect(out.result.accepted).toMatchObject({ ok: false, errors: [expect.stringMatching(/^\$: unknown field "k+…$/)] });
+    expect(JSON.stringify(out.result).length).toBeLessThan(size.result + 2_000);
+    expect(studioFileText(out.panel).length).toBeLessThan(size.panel + 2_000);
+    // the brief fetched again: whole, with its messages and schema
+    const again = s.call({ stage: "post" });
+    expect(JSON.stringify(again.result).length).toBeLessThan(size.result + 2_000);
+    expect(nextOf(again)).toMatchObject({ role: "viewer", clip: recs[0].id, messages: expect.any(Array), schema: expect.any(Object) });
+  });
+
+  it("finding 10: an open request for three clips refuses a brainstorm of one idea and asks again", () => {
+    const s = studio([], "open3");
+    expect(nextOf(s.call({ request: "three satisfying clips", wanted: 3 })).role).toBe("brainstormer");
+    const one = s.call({ role: "brainstormer", verdict: { ideas: [{ template: "get-out-classic", mode: "classic", hook: "a", ending: "resolved", bucket: "standard", angle: "the last ring", basis: "none" }] } });
+    expect(one.result.accepted).toMatchObject({ ok: false, errors: ["$.ideas: must have at least 3 items"] });
+    expect(nextOf(one)).toMatchObject({ role: "brainstormer", errors: ["$.ideas: must have at least 3 items"] });
+    expect(one.plan).toBeNull();
+  });
+
+  it("finding 11: makes the fix offered after a render as a clip of its own, which the panel then looks at; post.txt says how, then what came of it", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const id = recs[0].id;
+    const s = studio(recs);
+    s.call({ depth: "rules" });
+    const first = jobOf(s, id);
+    // no fix offered yet: nothing to make
+    expect(studioRenderJob(s.plan, s.panel(), id, { fixed: true, copyOf })).toMatchObject({ ok: false, error: expect.stringMatching(/^No fix is offered for/) });
+    s.setRendered([render(first)]);
+    s.call({ stage: "post" });
+    // the viewer misreads; the reviewer offers a new hook
+    expect(nextOf(s.call({ stage: "post", role: "viewer", clip: id, verdict: { ...read("nothing"), watchToEnd: "maybe" } }))).toMatchObject({ role: "reviewer", clip: id });
+    const hook = { action: "rewriteHook", text: "Watch it break out" };
+    const offered = s.call({ stage: "post", role: "reviewer", clip: id, verdict: { verdict: "fix", confidence: "medium", answers: [], viewerAnswer: { accept: true, fix: hook }, fixes: [hook], why: "say what to watch" } });
+    const call = { plan: ".agent-out/studio/t/plan.json", clip: id, fixed: true };
+    expect(offered.result).toMatchObject({ accepted: { ok: true }, status: "done", fixed: [{ clip: id, fix: 'rewriteHook "Watch it break out"', call }] });
+    expect(offered.post).toContain(`fix offered (rewriteHook "Watch it break out"): make the fixed version with render ${JSON.stringify(call)}, then review with "stage":"post" for its look`);
+    expect(offered.post).not.toMatch(/plan it again/);
+    expect(checkToolArgs("render", call).ok).toBe(true);
+    expect(checkToolArgs("render", { fixed: true }).ok).toBe(false);
+    // the fixed version: its own id and query, the new hook drawn, the same seed and melody; the same panel, the same job
+    const fixed = jobOf(s, id, { fixed: true, copyOf });
+    expect([fixed.clip, fixed.source, fixed.seed, fixed.melodyId, drawnHookText(fixed.base)]).toEqual([fixedIdOf(id), "fix", first.seed, first.melodyId, "Watch it break out"]);
+    expect(fixed.query).not.toBe(first.query);
+    expect(jobOf(s, id, { fixed: true, copyOf })).toEqual(fixed);
+    // rendered, it joins the panel after the render for its own look
+    s.setRendered([render(first), render(fixed)]);
+    expect(nextOf(s.call({ stage: "post" }))).toMatchObject({ role: "viewer", clip: fixedIdOf(id) });
+    const seen = s.call({ stage: "post", role: "viewer", clip: fixedIdOf(id), verdict: read("out") });
+    expect(seen.result).toMatchObject({ status: "done", after: expect.stringMatching(/^Every rendered clip has its look/) });
+    expect(seen.result.fixed).toBeUndefined();
+    expect(seen.post).toContain(`fix offered (rewriteHook "Watch it break out"): made as ${fixedIdOf(id)}`);
+    expect(seen.post).toContain(`Fixed version: ${fixedIdOf(id)} · hook on screen: Watch it break out · seed ${first.seed}`);
+    expect(seen.post).toMatch(/Crew after the render \(the fixed version\): keep, the viewer read "out" \(makes sense: yes\)/);
+    expect(seen.post).toContain(`Video: .agent-out/studio/t/${fixedIdOf(id)}/`);
+    expect(Object.keys(s.panel()!.records.post).sort()).toEqual([id, fixedIdOf(id)].sort());
+  });
+
+  it("finding 11: a fix that needs the seed search makes its fixed version from a re-planned seed", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const id = recs[0].id;
+    const s = studio(recs);
+    s.call({ depth: "rules" });
+    s.setRendered([render(jobOf(s, id))]);
+    s.call({ stage: "post" });
+    s.call({ stage: "post", role: "viewer", clip: id, verdict: { ...read("out"), watchToEnd: "no" } });
+    const shorter = { action: "changeLength", bucket: "short" };
+    const out = s.call({ stage: "post", role: "reviewer", clip: id, verdict: { verdict: "fix", confidence: "medium", answers: [], viewerAnswer: null, fixes: [shorter], why: "shorter" } });
+    expect(out.result).toMatchObject({ accepted: { ok: true }, status: "done" });
+    const made = jobOf(s, id, { fixed: true, copyOf });
+    const own = jobOf(s, id);
+    expect([made.clip, made.base.bucket, made.source]).toEqual([fixedIdOf(id), "short", "fix"]);
+    expect(made.seconds).toBeLessThan(own.seconds);
+    expect(made.seed).not.toBe(own.seed);
+    // (without the clip's words the seed search cannot plan)
+    expect(studioRenderJob(s.plan, s.panel(), id, { fixed: true })).toMatchObject({ ok: false, error: expect.stringMatching(/seed search/) });
+  });
+
+  it("finding 12: every prompt says when the rules answer as the panel counts it: after 4 refusals in a row", () => {
+    const n = refusalsBeforeRules();
+    expect(n).toBe(4);
+    expect(REFUSALS_LINE).toBe(`after ${n} refusals in a row the rules answer for you`);
+    for (const p of AGENT_PROMPTS.filter((x) => x.name.startsWith("crew-"))) {
+      const made = studioPrompt(p.name, { studio: "s1" });
+      expect(made.ok && made.prompt.messages[0].content.text, p.name).toContain(REFUSALS_LINE);
+    }
+    for (const f of studioAgentFiles().filter((x) => x.path.startsWith(".claude/agents/"))) {
+      expect(f.text, f.path).toContain(REFUSALS_LINE);
+      expect(f.text, f.path).not.toMatch(/after 3 refusals/);
+    }
+    expect(fs.readFileSync(path.join(ROOT, "docs", "agents", "STUDIO.md"), "utf8").replace(/\s+/g, " ")).toContain(`After ${n} refusals in a row (the first answer and its ${n - 1} retries) the rules answer for that role`);
   });
 });
 

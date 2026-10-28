@@ -6,7 +6,7 @@
  *  - plan.json   the plans (the plan tool, or the brainstormer's ideas planned by the review tool), with their runs;
  *  - panel.json  the crew's panel before and after the render (the app's own state machine's state), every role's verdict;
  *  - post.txt    the kept clips' words to post with the crew's lines;
- *  - <clip>/     a rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json;
+ *  - <clip>/     a rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json (<clip>-fixed/: its fixed version);
  *  - eval.json   the role eval's answers (review with fixture), on the corpus it reads from tests/fixtures/crew/.
  * Every folder it writes through paths.mjs outFolder (bare names, never a link out of .agent-out/), made only once there is
  * something to write: a studio it only reads is named the same way and never created (studioPath). Every file written under
@@ -107,18 +107,23 @@ export function writeRenderRecord(kit, name, clip, record) {
 
 /**
  * The studio's rendered clips (their render.json), in plan order: only those rendered from the clip as it stands now (the
- * same settings and seed: a re-plan or a new fix makes an older render stale, and it is left out with a note).
+ * same settings and seed: a re-plan or a new fix makes an older render stale, and it is left out with a note). --- studio ---
+ * Each clip's fixed version (<clip>-fixed: the fix offered after its render, render {"fixed":true}) follows it, while the
+ * panel after the render still offers that very fix.
  */
 export function renderedClips(kit, loaded) {
   const out = [];
   const stale = [];
   for (const p of loaded.plan?.plans ?? []) {
-    const file = path.join(loaded.dir, p.id, RENDER_FILE);
-    if (!fs.existsSync(file)) continue;
-    const record = parse(readInside(file), repoRelative(file));
-    const job = kit.studioRenderJob(loaded.plan, loaded.panel, p.id);
-    if (record?.v === 1 && record.clip === p.id && job.ok && record.query === job.job.query) out.push(record);
-    else stale.push(p.id);
+    for (const fixed of [false, true]) {
+      const id = fixed ? kit.fixedIdOf(p.id) : p.id;
+      const file = path.join(loaded.dir, id, RENDER_FILE);
+      if (!fs.existsSync(file)) continue;
+      const record = parse(readInside(file), repoRelative(file));
+      const job = kit.studioRenderJob(loaded.plan, loaded.panel, p.id, fixed ? { fixed: true, copyOf } : {});
+      if (record?.v === 1 && record.clip === id && job.ok && record.query === job.job.query) out.push(record);
+      else stale.push(id);
+    }
   }
   return { records: out, stale };
 }

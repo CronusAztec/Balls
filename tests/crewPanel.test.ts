@@ -11,7 +11,11 @@ import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { TRENDS } from "@/content/trends";
 import {
   DOSSIER_KEYS,
+  ERRORS_KEPT,
+  ERROR_CHARS,
+  PANEL_DEFAULTS,
   SHARED_RUBRIC,
+  applyReplan,
   applyVerdict,
   cancelPanel,
   clarityOf,
@@ -20,9 +24,12 @@ import {
   crewClipOfPlan,
   drawnHookText,
   failedGates,
+  ideasAtLeast,
+  lookedAt,
   nextStep,
   panelDecision,
   playbookOf,
+  refusalsBeforeRules,
   researchDigest,
   runPanel,
   sanitizeReview,
@@ -30,6 +37,7 @@ import {
   type CrewClip,
   type CrewMeasured,
   type CrewModel,
+  type MenuItem,
   type PanelCandidate,
   type PanelInput,
   type PanelState,
@@ -287,6 +295,32 @@ describe("the evidence check and the reviewer", () => {
     expect(needs[0]).toEqual({ ending: "resolved", bucket: late.bucket, targetPos: 0.85, firstImpactMaxSec: null, settings: {}, actions: ["retimePayoff"] });
   });
 
+  it("a cancel while a fix's seed search runs refuses the fix, keeps the clip as it was and records no confidence (--- crew ---, review round 2)", () => {
+    const c = calmRing.timing.clipSec;
+    const late = fresh({ ...calmRing, payoff: { ...calmRing.payoff, atSec: 0.93 * c, position: 0.93 } });
+    let s = createPanel({ stage: "pre", wanted: 1, candidates: [{ id: "l1", clip: late }] });
+    s = applyVerdict(nextStep(s).state, { role: "skeptic", clipId: "l1", reply: { ...NOTHING, objections: [{ id: "o1", kind: "payoffLate", evidence: ["beats.payoff"], severity: "major", note: "" }] } }).state;
+    const retime = { verdict: "fix", confidence: "high", answers: [{ objection: "o1", accept: true, reason: null, fix: { action: "retimePayoff", targetPos: 0.85 } }], viewerAnswer: null, fixes: [], why: "retime" };
+    const answered = applyVerdict(nextStep(s).state, { role: "reviewer", clipId: "l1", reply: retime });
+    expect(answered.ok).toBe(true);
+    const searching = nextStep(answered.state);
+    expect(searching.step.type).toBe("replan");
+    // (no fix is applied before the rules judged what the search brings back)
+    expect([clip(searching.state, "l1").fix?.state, clip(searching.state, "l1").confidence]).toEqual(["pending", null]);
+    const cancelled = nextStep(cancelPanel(searching.state));
+    expect(cancelled.step.type).toBe("done");
+    const l = clip(cancelled.state, "l1");
+    expect([l.verdict, l.notReviewed, l.confidence, l.fix?.state, l.fix?.why]).toEqual(["notReviewed", "cancelled", null, "refused", "cancelled"]);
+    expect(l.clip).toEqual(late);
+    const record = clipReviewOf(cancelled.state, "l1", { model: "claude" })!;
+    expect([record.verdict, record.notReviewed, record.confidence, record.fixState, record.fixes]).toEqual(["notReviewed", "cancelled", null, "refused", ["retimePayoff"]]);
+    expect(sanitizeReview(record)).toEqual(record);
+    // a search that answers after the cancel changes nothing, and nothing is queued
+    expect(applyReplan(cancelled.state, "l1", late)).toEqual(cancelled.state);
+    const d = done(cancelled.state);
+    expect([d.keeps, d.left.map((k) => [k.id, k.reason])]).toEqual([[], [["l1", "cancelled"]]]);
+  });
+
   it("a fix that leaves a confirmed major objection it answers confirmed is reverted: a retime whose payoff is still late, or later (--- crew ---, review round 2)", async () => {
     const c = calmRing.timing.clipSec;
     const at = (position: number) => fresh({ ...calmRing, payoff: { ...calmRing.payoff, atSec: position * c, position } });
@@ -501,6 +535,54 @@ describe("the caps and the fallbacks", () => {
     expect(nextStep(cancelPanel(createPanel({ stage: "pre", wanted: 1, candidates: batch() }))).step.type).toBe("done");
   });
 
+  it("a keep only the rules weighed is picked as \"rules\", never \"reviewed\", and its record names no model (--- crew ---, review round 2)", async () => {
+    const rules = await runPanel(createPanel({ stage: "pre", depth: "rules", wanted: 2, candidates: batch() }), {
+      model: async () => {
+        throw new Error("no model at Rules only");
+      },
+    });
+    expect(done(rules).keeps.map((k) => [k.id, k.reason])).toEqual([["c1", "rules"], ["c2", "rules"]]);
+    expect([lookedAt(clip(rules, "c1")), clipReviewOf(rules, "c1", { model: "claude" })!.model]).toEqual([false, null]);
+    // a model's skeptic looked: "reviewed", and the record names the model
+    const { state } = await run({ stage: "pre", wanted: 1, candidates: batch() });
+    expect(done(state).keeps).toEqual([{ id: "c1", score: expect.any(Number), reason: "reviewed" }]);
+    expect([lookedAt(clip(state, "c1")), clipReviewOf(state, "c1", { model: "claude" })!.model]).toEqual([true, "claude"]);
+  });
+
+  it("the rules answer for a role at its refusalsBeforeRules()th invalid reply in a row: the first and every retry (--- crew ---, review round 2)", () => {
+    expect(refusalsBeforeRules()).toBe(PANEL_DEFAULTS.retries + 1);
+    for (const maxRetries of [0, 1, 3]) {
+      let s = nextStep(createPanel({ stage: "pre", wanted: 1, candidates: [{ id: "r1", clip: calmRing }], caps: { maxRetries, maxCalls: 20 } })).state;
+      let refusals = 0;
+      while (clip(s, "r1").skeptic.source === null && refusals < 10) {
+        s = applyVerdict(s, { role: "skeptic", clipId: "r1", reply: "not json" }).state;
+        refusals++;
+      }
+      expect([maxRetries, refusals, clip(s, "r1").skeptic.why]).toEqual([maxRetries, refusalsBeforeRules(maxRetries), "broken"]);
+    }
+  });
+
+  it("a refused reply's errors are bounded: a key of 300,000 characters is named by its start, thirty by a count (--- crew ---, review round 2)", () => {
+    const read = { whatHappens: "out", understood: "a ball escapes the rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" };
+    const s = nextStep(createPanel({ stage: "post", candidates: [{ id: "s1", clip: rendered(calmRing) }] })).state;
+    const huge = applyVerdict(s, { role: "viewer", clipId: "s1", reply: { ...read, ["k".repeat(300_000)]: 1 } });
+    expect(huge.ok).toBe(false);
+    expect(huge.errors).toHaveLength(1);
+    expect(huge.errors[0]).toMatch(/^\$: unknown field "k{20,}…$/);
+    expect(huge.errors[0].length).toBeLessThanOrEqual(ERROR_CHARS);
+    const retry = nextStep(huge.state).step;
+    expect(retry.type === "call" && [retry.attempt, retry.errors]).toEqual([2, huge.errors]);
+    expect(JSON.stringify(huge.state).length).toBeLessThan(JSON.stringify(s).length + 1_000);
+    const many = applyVerdict(s, { role: "viewer", clipId: "s1", reply: { ...read, ...Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`extra${i}`, i])) } });
+    // (the schema check stops at 20 errors: 8 of them, and the rest counted)
+    expect(many.errors).toEqual([...Array.from({ length: ERRORS_KEPT }, (_, i) => `$: unknown field "extra${i}"`), "and 12 more"]);
+    // the call failed with a long message: one line, cut
+    const failed = applyVerdict(s, { role: "viewer", clipId: "s1", error: `boom\n${"x".repeat(5_000)}` });
+    expect(failed.errors).toHaveLength(1);
+    expect(failed.errors[0]).toMatch(/^the call failed: boom x+…$/);
+    expect(failed.errors[0].length).toBeLessThanOrEqual(ERROR_CHARS);
+  });
+
   it("an answer out of order is refused and changes nothing", () => {
     const { state } = nextStep(createPanel({ stage: "pre", wanted: 1, candidates: batch() }));
     const out = applyVerdict(state, { role: "reviewer", clipId: "c1", reply: KEEP });
@@ -612,6 +694,26 @@ describe("a whole run", () => {
     const d = done(state);
     expect(d.copy?.source).toBe("producer");
     for (const c of d.copy!.clips) expect(c.hook).toBe(drawnHookText(clip(state, c.planId).clip));
+  });
+
+  it("the brainstormer pitches at least one idea for each clip wanted: a reply with fewer is refused and asked again (--- crew ---, review round 2)", () => {
+    const first = nextStep(createPanel({ stage: "pre", wanted: 3, request: { text: "three satisfying clips", open: true, platform: "reels", locale: "en" } }));
+    const brief = (first.step as { brief: RoleBrief }).brief;
+    expect([brief.role, brief.user.includes("Pitch 6 ideas.")]).toEqual(["brainstormer", true]);
+    const ideas = (brief.final.properties as Record<string, { minItems: number; maxItems: number }>).ideas;
+    expect([ideas.minItems, ideas.maxItems]).toEqual([3, 6]);
+    const menu = first.state.menu;
+    const idea = (m: MenuItem) => ({ template: m.template, mode: m.modes[0], hook: "a", ending: (m.endings ?? ["resolved"])[0], bucket: (m.buckets ?? ["standard"])[0], angle: "", basis: "none" });
+    const one = applyVerdict(first.state, { role: "brainstormer", clipId: null, reply: { ideas: [idea(menu[0])] } });
+    expect([one.ok, one.errors]).toEqual([false, ["$.ideas: must have at least 3 items"]]);
+    const retry = nextStep(one.state).step;
+    expect(retry.type === "call" && [retry.role, retry.attempt]).toEqual(["brainstormer", 2]);
+    const three = applyVerdict(one.state, { role: "brainstormer", clipId: null, reply: { ideas: menu.slice(0, 3).map(idea) } });
+    expect(three.ok).toBe(true);
+    const plan = nextStep(three.state).step;
+    expect(plan.type === "plan" && plan.ideas.map((i) => i.template)).toEqual(menu.slice(0, 3).map((m) => m.template));
+    // a menu of fewer templates asks for as many as it has; never more than the brief asks for
+    expect([ideasAtLeast(3, menu.slice(0, 2)), ideasAtLeast(1, menu), ideasAtLeast(8, menu)]).toEqual([2, 1, Math.min(6, new Set(menu.map((m) => m.template)).size)]);
   });
 
   it("a request no model pitches, or a broken brainstormer: the ideas by code, a format of each first", async () => {

@@ -378,14 +378,15 @@ export async function renderTool(tb, args) {
  * hook-sheet.png when ffmpeg is there, and render.json, the record the crew's look after the render reads: the page's world,
  * what the export measured (its features, lagged frames, the watermark and the domain it draws), the payoff planned and played,
  * and the clip's Simple and Playbook scores and gates after the render. At most 60 s; a clip without the watermark is refused,
- * nothing written.
+ * nothing written. With `fixed`: the fix the crew offered after that clip's render, as a clip of its own (<clip>-fixed).
  */
 async function renderPlanTool(tb, args) {
   const studio = await import("./studio.mjs");
   const { loadStudioKit } = await import("./bundle.mjs");
   const kit = await loadStudioKit();
   const loaded = studio.loadStudioOfPlan(kit, args.plan);
-  const made = kit.studioRenderJob(loaded.plan, loaded.panel, args.clip);
+  // --- studio --- (the studio's second review round, finding 11) fixed: the fix offered after the clip's render, as <clip>-fixed
+  const made = kit.studioRenderJob(loaded.plan, loaded.panel, args.clip, { fixed: args.fixed === true, copyOf: studio.copyOf });
   if (!made.ok) throw new Error(made.error);
   const job = made.job;
   const dir = studio.clipDir(loaded.name, job.clip);

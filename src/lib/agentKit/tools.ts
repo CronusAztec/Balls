@@ -232,7 +232,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "render",
     title: "Render a clip",
-    description: "A short clip of a link (or mode) through the page's own fast export (the batch path of window.__jumpingBallsBot.renderLink), with its export digest and render result. Watermarked like a free render. WebM from a browser without H.264 is also converted to MP4 when ffmpeg is present. --- studio --- With plan (a studio's plan.json) and clip: that planned clip as the crew left it, with its melody, into .agent-out/studio/<studio>/<clip>/ with its frames' sheets, its measured features, lagged frames, the page's world, the payoff planned and played, and its Simple and Playbook scores and gates after the render.",
+    description: "A short clip of a link (or mode) through the page's own fast export (the batch path of window.__jumpingBallsBot.renderLink), with its export digest and render result. Watermarked like a free render. WebM from a browser without H.264 is also converted to MP4 when ffmpeg is present. --- studio --- With plan (a studio's plan.json) and clip: that planned clip as the crew left it, with its melody, into .agent-out/studio/<studio>/<clip>/ with its frames' sheets, its measured features, lagged frames, the page's world, the payoff planned and played, and its Simple and Playbook scores and gates after the render. With fixed: the fix the crew's reviewer offered for that clip after its render, made as a clip of its own (<clip>-fixed, its own folder), which the review after the render then looks at.",
     input: {
       type: "object",
       additionalProperties: false,
@@ -247,6 +247,8 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         // --- studio --- render v3: a planned clip
         plan: { type: "string", minLength: 1, maxLength: 300, description: "A studio's plan.json inside the repository (.agent-out/studio/<studio>/plan.json, as the plan tool returns it). Give link, mode or plan." },
         clip: clipId,
+        // --- studio --- (the studio's second review round, finding 11) "Make the fixed version"
+        fixed: { type: "boolean", description: "With plan: render the fix the crew offered for the clip after its render (review stage post: verdict fix, the fix offered) as a clip of its own, <clip>-fixed." },
       },
     },
     writes: ".agent-out",
@@ -656,6 +658,7 @@ export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
   }
   if (name === "render" && a.plan !== undefined && given("link", "mode", "seed", "seconds").length) return { ok: false, errors: ["A plan renders as planned: give plan and clip, without link, mode, seed or seconds"] };
   if (name === "render" && a.clip !== undefined && a.plan === undefined) return { ok: false, errors: ["clip names a planned clip: give plan (the studio's plan.json) too"] };
+  if (name === "render" && a.fixed !== undefined && a.plan === undefined) return { ok: false, errors: ["fixed makes a studio clip's offered fix: give plan (the studio's plan.json) and clip too"] };
   if (name === "review" && a.verdict !== undefined && a.role === undefined) return { ok: false, errors: ["A verdict needs its role (the brief's role, and its clip)"] };
   if (name === "review" && a.fixture === true) {
     // --- studio --- the role eval asks its own briefs: none of a studio panel's settings apply

@@ -8,7 +8,7 @@ import { confirmedDistractions, makesSenseOf, markObjection, markObjections, sta
 import { applyCompiledFix, clutterOn, compileFixes, type CompiledFix, type FinderNeed } from "./fixes";
 import { pick, pickScore, type PickCandidate, type PickEntry, type Picked } from "./pick";
 import { briefText, BRIEF_CHARS, researchBriefOf, researchGapOf, type ResearchDigest } from "./research";
-import { sanitizeReview, type ClipReview, type ClipReviewRole, type ReviewFixState, type ReviewIssue, type ReviewNotReviewed } from "./review";
+import { cleanNote, sanitizeReview, type ClipReview, type ClipReviewRole, type ReviewFixState, type ReviewIssue, type ReviewNotReviewed } from "./review";
 import { drawnHookText, type SimpleOptions } from "./simplicity";
 import {
   brainstormFinal,
@@ -107,12 +107,21 @@ export interface PanelCaps {
   maxMs: number | null;
   /** The cost the caller may spend (US dollars, its own estimate), null: no cap. */
   maxUsd: number | null;
-  /** Invalid replies in a row a role gets before the rules answer for it (runAgent's maxRetries). */
+  /**
+   * The retries a role gets after an invalid reply (runAgent's maxRetries): the rules answer for it at its maxRetries + 1st
+   * invalid reply in a row (--- crew ---, the studio's second review round, finding 12: 4 refusals with the default 3).
+   */
   maxRetries: number;
 }
 
 /** The defaults: 5 candidates reviewed, a 15-minute batch, $1.50 a batch, 3 retries. */
 export const PANEL_DEFAULTS = { candidates: 5, ms: 15 * 60_000, usd: 1.5, retries: 3 } as const;
+
+/**
+ * --- crew --- (the studio's second review round, finding 12) The invalid replies in a row after which the rules answer for a
+ * role: its first reply and every retry (applyVerdict falls back at attempt maxRetries + 1). The prompts say this number.
+ */
+export const refusalsBeforeRules = (maxRetries: number = PANEL_DEFAULTS.retries) => Math.max(0, Math.floor(maxRetries)) + 1;
 
 /**
  * The call cap of a run (retries count against it): before a render a research and a brainstorm pass when they run, two calls
@@ -169,7 +178,11 @@ export interface RoleRun<T> {
 
 export interface ClipFix {
   actions: FixAction[];
-  state: ReviewFixState;
+  /**
+   * What became of it (review.ts REVIEW_FIX_STATES), or --- crew --- "pending" while its seed search runs (the studio's second
+   * review round, finding 8: a fix is applied only once the rules judged it; a run cancelled before then refuses it, "cancelled").
+   */
+  state: ReviewFixState | "pending";
   why: string | null;
   compiled: CompiledFix | null;
 }
@@ -327,6 +340,16 @@ export function ideasByCode(menu: readonly MenuItem[], k: number, platform: BotP
 /** How many ideas an open request gets: twice the clips wanted, at most 6. */
 export const ideasWanted = (wanted: number) => Math.max(1, Math.min(2 * Math.max(1, wanted), 6));
 
+/**
+ * --- crew --- (the studio's second review round, finding 10) The fewest ideas the brainstormer may pitch: one for each clip
+ * wanted (each idea becomes one candidate, and a run of fewer can never reach its N), as many as the menu has templates when
+ * it has fewer (one idea a template always meets the diversity rules), and never more than it is asked for.
+ */
+export function ideasAtLeast(wanted: number, menu: readonly MenuItem[]): number {
+  const templates = new Set(menu.map((m) => m.template)).size;
+  return Math.max(1, Math.min(Math.max(1, Math.round(wanted)), ideasWanted(wanted), templates));
+}
+
 const candidateClip = (c: PanelCandidate, i: number): PanelClip => ({
   id: c.id,
   order: c.order ?? i,
@@ -426,12 +449,15 @@ const templateOf = (clip: CrewClip) => clip.template ?? clip.recipe ?? clip.mode
 /** A clip the crew keeps: a keep, or a fix (applied, or reverted with nothing major left standing). */
 const kept = (c: PanelClip) => c.verdict === "keep" || c.verdict === "fix";
 
-type RuleFix = PanelClip["ruleFix"][number];
+export type RuleFix = PanelClip["ruleFix"][number];
 /** The measure step's rule fix (a failed G5 or G6): the calm look, then one text at a time. */
 const RULE_FIXES: readonly RuleFix[] = ["simplifyLook", "oneTextAtATime"];
 
-/** The rule fix's actions applied to a clip in order; one that does not apply there (a look calm already) is left out. */
-function withRuleFix(start: CrewClip, actions: readonly RuleFix[], simple: SimpleOptions): { clip: CrewClip; applied: RuleFix[] } {
+/**
+ * The rule fix's actions applied to a clip in order; one that does not apply there (a look calm already) is left out. ---
+ * studio --- (exported: the toolbox's fixed version of a rendered clip re-applies it after a seed search, studioKit.ts)
+ */
+export function withRuleFix(start: CrewClip, actions: readonly RuleFix[], simple: SimpleOptions): { clip: CrewClip; applied: RuleFix[] } {
   let clip = start;
   const applied: RuleFix[] = [];
   for (const action of actions) {
@@ -475,6 +501,15 @@ function measured(s: PanelState, candidates: readonly PanelCandidate[]): PanelSt
 }
 
 /**
+ * --- crew --- (the studio's second review round, finding 7) Whether a model looked at a clip: one of its roles (the skeptic,
+ * the viewer, the reviewer) was answered by a model. A clip only the rules weighed – Rules only, its roles off or broken – is
+ * never counted, labelled or recorded as seen.
+ */
+export function lookedAt(c: Pick<PanelClip, "skeptic" | "viewer" | "reviewer">): boolean {
+  return [c.skeptic, c.viewer, c.reviewer].some((r) => r.source === "model");
+}
+
+/**
  * Why no model looked at a clip although the run asked one to: the first of its roles the rules answered for because its replies
  * stayed invalid, the budget ran out or the run was cancelled during its retries; null when a model answered one of its roles,
  * or the run left them to the rules on purpose (Rules only, roles off).
@@ -499,8 +534,11 @@ function unlessUnseen(c: PanelClip): PanelClip {
  */
 function unreviewed(c: PanelClip, why: ReviewNotReviewed): PanelClip {
   const fails = failedGates(c.clarity);
-  if (!fails.length) return { ...c, status: "done", verdict: "notReviewed", notReviewed: why };
-  return { ...c, status: "done", verdict: "drop", dropWhy: `gate:${fails[0]}`, confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
+  // --- crew --- (the studio's second review round, finding 8) a fix whose seed search never came back was never tried: refused,
+  // and the clip is the one it was; a clip no verdict came to has no confidence
+  const fix: ClipFix | null = c.fix?.state === "pending" ? { ...c.fix, state: "refused", why } : c.fix;
+  if (!fails.length) return { ...c, status: "done", verdict: "notReviewed", notReviewed: why, confidence: null, fix };
+  return { ...c, status: "done", verdict: "drop", dropWhy: `gate:${fails[0]}`, confidence: null, fix, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
 }
 
 /** The rules' verdict where no reviewer answered (see the header): a gate, a standing confirmed major objection, a misread after a render. */
@@ -547,7 +585,7 @@ function fixRound(s: PanelState, c: PanelClip): PanelState {
   const result = c.reviewer.result!;
   const compiled = compileFixes(c.clip, result.fixes, { simple: c.simple });
   if (!compiled.ok) return judged(s, c.id, null, { actions: result.fixes, state: "refused", why: compiled.errors[0] ?? "refused", compiled });
-  if (compiled.finder) return { ...withClip(s, c.id, (x) => ({ ...x, fix: { actions: result.fixes, state: "applied", why: null, compiled } })), pending: { kind: "replan", clipId: c.id } };
+  if (compiled.finder) return { ...withClip(s, c.id, (x) => ({ ...x, fix: { actions: result.fixes, state: "pending", why: null, compiled } })), pending: { kind: "replan", clipId: c.id } };
   return judged(s, c.id, applyCompiledFix(c.clip, compiled, { simple: c.simple }), { actions: result.fixes, state: "applied", why: null, compiled });
 }
 
@@ -677,6 +715,7 @@ export function pickCandidateOf(c: PanelClip): PickCandidate {
     verdict: c.verdict === "drop" ? "drop" : c.verdict === "notReviewed" || c.verdict === null ? "notReviewed" : "keep",
     confidence: c.confidence,
     dropWhy: c.dropWhy,
+    seen: lookedAt(c),
   };
 }
 
@@ -803,7 +842,7 @@ export function briefOf(s: PanelState, role: CrewRole, clipId: string | null): R
     case "brainstormer":
       prefix = SHARED_RUBRIC;
       user = brainstormUser(s);
-      final = brainstormFinal(s.menu, ideasWanted(s.wanted), s.brief?.points.map((p) => p.id) ?? []);
+      final = brainstormFinal(s.menu, ideasWanted(s.wanted), s.brief?.points.map((p) => p.id) ?? [], ideasAtLeast(s.wanted, s.menu));
       break;
     case "skeptic":
       prefix = clipPrefix(c!);
@@ -984,6 +1023,18 @@ function record(s: PanelState, role: CrewRole, clipId: string | null, value: unk
 }
 
 /**
+ * --- crew --- (the studio's second review round, finding 9) The errors a refused reply comes back with, bounded whatever the
+ * reply held: at most ERRORS_KEPT, each one line of at most ERROR_CHARS characters (a key of 300,000 characters is named by its
+ * start), and a last line that counts the rest. They go into the next brief, the toolbox's result and panel.json.
+ */
+export const ERRORS_KEPT = 8;
+export const ERROR_CHARS = 200;
+export function boundErrors(errors: readonly string[]): string[] {
+  const kept = errors.slice(0, ERRORS_KEPT).map((e) => cleanNote(e, ERROR_CHARS));
+  return errors.length > ERRORS_KEPT ? [...kept, `and ${errors.length - ERRORS_KEPT} more`] : kept;
+}
+
+/**
  * A role's answer to the pending call. A reply out of order (another role or clip than the call asked for) is refused and
  * changes nothing; an invalid one counts as a call and comes back with its errors for a retry, until maxRetries in a row or
  * the budget's end, when the rules answer for that step.
@@ -998,10 +1049,11 @@ export function applyVerdict(state: PanelState, answer: RoleAnswer, spent: CallS
   const brief = briefOf(next, p.role, p.clipId);
   const checked = answer.error !== undefined ? { value: null, errors: [`the call failed: ${answer.error}`] } : checkReply(next, p.role, clipOf(next, p.clipId), answer.reply, brief);
   if (checked.errors.length === 0) return { state: record(next, p.role, p.clipId, checked.value, p.attempt, brief.hash), ok: true, errors: [] };
+  const errors = boundErrors(checked.errors);
   next = { ...next, spent: { ...next.spent, retries: next.spent.retries + 1 } };
-  if (p.attempt > next.caps.maxRetries) return { state: fallback(next, p.role, p.clipId, "broken", p.attempt), ok: false, errors: checked.errors };
-  if (!canCall(next)) return { state: fallback(next, p.role, p.clipId, next.cancelled ? "cancelled" : "budget", p.attempt), ok: false, errors: checked.errors };
-  return { state: { ...next, pending: { ...p, attempt: p.attempt + 1, errors: checked.errors.slice(0, 8) } }, ok: false, errors: checked.errors };
+  if (p.attempt > next.caps.maxRetries) return { state: fallback(next, p.role, p.clipId, "broken", p.attempt), ok: false, errors };
+  if (!canCall(next)) return { state: fallback(next, p.role, p.clipId, next.cancelled ? "cancelled" : "budget", p.attempt), ok: false, errors };
+  return { state: { ...next, pending: { ...p, attempt: p.attempt + 1, errors } }, ok: false, errors };
 }
 
 /** The planner's candidates for the ideas (the plan step); measured and ranked at once. */
@@ -1064,7 +1116,10 @@ export function panelDecision(s: PanelState): PanelDecision {
   return { ...base, keeps: s.cancelled ? [] : picked.keeps, left: s.cancelled ? [...picked.keeps.map((k) => ({ ...k, reason: "cancelled" })), ...picked.left] : picked.left, drops: picked.drops };
 }
 
-/** A clip's review record (review.ts ClipReview, sanitised). `model`: the model's id; `date`: the caller's. */
+/**
+ * A clip's review record (review.ts ClipReview, sanitised). `model`: the model's id, kept only where a model answered one of
+ * the clip's roles (lookedAt); `date`: the caller's.
+ */
 export function clipReviewOf(s: PanelState, clipId: string, meta: { model?: string | null; date?: string | null } = {}): ClipReview | null {
   const c = clipOf(s, clipId);
   if (!c) return null;
@@ -1079,7 +1134,8 @@ export function clipReviewOf(s: PanelState, clipId: string, meta: { model?: stri
     depth: s.depth,
     stage: s.stage,
     verdict: c.verdict ?? "notReviewed",
-    confidence: c.confidence ?? conf(c),
+    // --- crew --- (the studio's second review round, finding 8) a clip no verdict came to has no confidence
+    confidence: c.verdict === "notReviewed" || c.verdict === null ? null : c.confidence ?? conf(c),
     makesSense: c.makesSense,
     simple: c.clarity.simple.score,
     playbook: c.clarity.playbook.score,
@@ -1087,10 +1143,11 @@ export function clipReviewOf(s: PanelState, clipId: string, meta: { model?: stri
     gates: failedGates(c.clarity),
     issues,
     fixes: c.fix ? c.fix.actions.map((a) => a.action) : [],
-    fixState: c.fix?.state ?? null,
+    fixState: c.fix && c.fix.state !== "pending" ? c.fix.state : null,
     notReviewed: c.notReviewed,
     roles: [line("skeptic", c.skeptic, worst, c.skeptic.result?.oneIdea ?? ""), line("viewer", c.viewer, v?.whatHappens ?? null, v?.understood ?? ""), line("reviewer", c.reviewer, r?.verdict ?? null, r?.why ?? "")],
-    model: meta.model ?? null,
+    // --- crew --- (the studio's second review round, finding 7) the model's id only where a model answered one of the clip's roles
+    model: lookedAt(c) ? meta.model ?? null : null,
     promptHash: c.reviewer.hash ?? c.skeptic.hash ?? c.viewer.hash,
     date: meta.date ?? null,
     who: s.who,

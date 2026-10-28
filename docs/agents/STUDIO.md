@@ -74,7 +74,9 @@ argument.
    what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree. The panel after the
    render is its own, so every call of it keeps `"stage":"post"`, each next brief and each answer (a brief's `next.answer`
    has it); a call without it reaches the finished panel before the render, and its result notes that the other one waits.
-   A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look.
+   A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look. A fix the
+   reviewer offers there is never applied to the rendered clip: `render` with `"fixed":true` (the review's `fixed` lists the
+   calls) makes it as a clip of its own, `<clip>-fixed`, and the next post-render call looks at it like any rendered clip.
 7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post. Every clip's watermark
    draws the live site's domain, jumpingballslive.com (the toolbox builds its export with it), and every plan's share link
    opens the live site; gate G8 refuses a render whose watermark draws an address no viewer can open, such as localhost.
@@ -97,14 +99,17 @@ argument.
   here: the clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need. A
   retimed payoff must land on time (66-90 % of the clip), near the target, and no farther from it than an on-time payoff
   was. The planner keeps its own payoff band, so a payoff target outside it is rarely met, and the fix is then reverted.
-- **Retries count.** A refused answer comes back with its errors. After 3 refusals in a row the rules answer for that role,
-  labelled so. Every answer, a refused one too, spends a call of the app's budget (after a render two a clip), and once it
+- **Retries count.** A refused answer comes back with its errors (at most 8, each cut to 200 characters). After 4 refusals
+  in a row (the first answer and its 3 retries) the rules answer for that role, labelled so. Every answer, a refused one too, spends a call of the app's budget (after a render two a clip), and once it
   is spent the rules answer the rest. A clip no model answered for (its skeptic, or after the render its viewer, refused
   until the budget ended or the role broke) is "not reviewed", rules only, never kept as seen. At most 8 clips a studio; the
   panel stops once enough are kept with a model's medium confidence or more, and marks the rest "not reviewed". A clip that
   fails a gate is dropped by the rules whether a model reached it or not, after the render too.
 - **Depth.** `quick` (the default) asks the reviewer only where something is in doubt; `thorough` asks every role about
-  every clip; `rules` asks no role at all.
+  every clip; `rules` asks no role at all. A clip only the rules weighed is never called looked at: its pick reason is
+  `rules`, its record names no model, and post.txt and the review's `after` say "rules only".
+- **Ideas.** An open request's brainstormer pitches up to 6 ideas, and at least one for each clip wanted (fewer when the menu
+  has fewer templates): a reply with fewer is refused, since each idea is one candidate.
 
 ## After the render
 
@@ -113,6 +118,12 @@ through the page's own fast export, at most 60 s. A clip the page reports as cle
 result has the page's world, the payoff planned and played, the clip's length planned and rendered, the melody planned and
 played, the measured features and lagged frames, the sheets, and the clip's gates and scores after the render. render.json
 keeps it all for the post-render review, which reviews only clips rendered from the clip as it stands now.
+
+The fixed version. After the render the reviewer's fix is offered, never applied: `render` with `"plan"`, `"clip"` and
+`"fixed":true` applies the offered fix to the clip as rendered (its look and words; for a new seed, ending or length the seed
+search runs first, then the clip's rule fix and its fix before the render again) and renders it into `<clip>-fixed/`, with its
+own sheets and render.json. The panel after the render looks at it on its next call, and post.txt lists it under its clip.
+One fixed version a clip; a render of an offer the panel no longer makes is left out as stale.
 
 After the render, gate G1 reads the clip's first impact as the Playbook score reads the same file: its first motion or its
 first sound, the earlier. The picture alone misses a small ball on the Simple look's dark background. The export measures

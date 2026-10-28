@@ -55,7 +55,11 @@ export const REVIEW_DISTRACTIONS = ["text", "effects", "hud", "background", "sha
 export const REVIEW_ISSUES = [...REVIEW_OBJECTION_KINDS, "misread", "wouldScroll", ...REVIEW_DISTRACTIONS] as const;
 export type ReviewIssue = (typeof REVIEW_ISSUES)[number];
 export const REVIEW_FIXES = ["simplifyLook", "oneTextAtATime", "dropCountdownCaption", "rewriteHook", "retimePayoff", "reseedEarlyMotion", "switchEnding", "changeLength", "turnOff"] as const satisfies readonly FixId[];
-/** What became of the fixes: applied (the clip kept is the fixed one), reverted (it made things worse), offered (after a render: "Make the fixed version"), refused (they did not compile). */
+/**
+ * What became of the fixes: applied (the clip kept is the fixed one), reverted (it made things worse), offered (after a render:
+ * "Make the fixed version"), refused (they did not compile, or --- crew --- the run was cancelled before their seed search came
+ * back: never tried, the clip is the one it was).
+ */
 export const REVIEW_FIX_STATES = ["applied", "reverted", "offered", "refused"] as const;
 export type ReviewFixState = (typeof REVIEW_FIX_STATES)[number];
 /**

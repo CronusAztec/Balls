@@ -10,7 +10,8 @@ import type { Confidence } from "./roles";
  *    statistics exist.
  *  - A clip that fails a gate, or that the crew dropped, is never picked (drops are listed with their reason, never rendered).
  *  - Reviewed clips come before clips the crew had no time for ("not reviewed"), which are picked only to fill the N and are
- *    never passed off as seen.
+ *    never passed off as seen; --- crew --- a keep no model looked at (the rules alone weighed it: Rules only, its roles off)
+ *    is picked as "rules", never as "reviewed" (the studio's second review round, finding 7).
  *  - Diversity: at most one clip per template in a batch of three or fewer, unless the request named one template.
  *  - Ties break on Simple, then Playbook, then plan order.
  *
@@ -48,12 +49,14 @@ export interface PickCandidate {
   confidence: Confidence | null;
   /** Why it was dropped (a key: "gate:G2", "reviewer", "fixReverted"…). */
   dropWhy?: string | null;
+  /** --- crew --- A model answered one of its roles (panel.ts lookedAt); false: the rules alone weighed it. Absent: true. */
+  seen?: boolean;
 }
 
 export interface PickEntry {
   id: string;
   score: number;
-  /** keeps: "reviewed" or "notReviewed"; left: "sameTemplate" or "enough"; drops: the reason. */
+  /** keeps: "reviewed" (a model looked), "rules" (the rules alone weighed it) or "notReviewed"; left: "sameTemplate" or "enough"; drops: the reason. */
   reason: string;
 }
 
@@ -87,7 +90,7 @@ export function pick(candidates: readonly PickCandidate[], n: number, options: {
     if (keeps.length >= want) left.push({ id: c.id, score: c.score, reason: "enough" });
     else if (diverse && used.has(c.template)) left.push({ id: c.id, score: c.score, reason: "sameTemplate" });
     else {
-      keeps.push({ id: c.id, score: c.score, reason: c.verdict === "keep" ? "reviewed" : "notReviewed" });
+      keeps.push({ id: c.id, score: c.score, reason: c.verdict !== "keep" ? "notReviewed" : c.seen === false ? "rules" : "reviewed" });
       used.add(c.template);
     }
   }
