@@ -27,7 +27,7 @@ import {
 } from "@/lib/bot/templates";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
-import { clarityOf, type GateId } from "@/lib/crew/clarity";
+import { clarityOf } from "@/lib/crew/clarity";
 import { HUD_FLAGS, hudsOn } from "@/lib/crew/hudFlags";
 import { crowding, overlaysOf, SIMPLE_TRAIL_THICKNESS, wordCount } from "@/lib/crew/simplicity";
 
@@ -40,6 +40,11 @@ import { crowding, overlaysOf, SIMPLE_TRAIL_THICKNESS, wordCount } from "@/lib/c
 
 // Planning simulates physics seed by seed: a busy machine can take many times the usual couple of seconds per test.
 vi.setConfig({ testTimeout: 60_000 });
+/**
+ * A turn of the event loop between long synchronous plans: vitest runs one synchronous test after another without one, and a
+ * minute without it times its worker's RPC out ("Timeout calling onTaskUpdate").
+ */
+const breathe = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 const COPY: Record<BotLocale, BotCopy> = { en: en.ViralBot as BotCopy, pl: pl.ViralBot as BotCopy, es: es.ViralBot as BotCopy };
 const copy = COPY.en;
@@ -47,13 +52,11 @@ const SITE = "https://example.test";
 
 /** The 16 modes a playbook recipe plays: the proven bindings. */
 const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass", "powerLayers", "grow", "multiply", "multipliers", "race", "ctf", "battle", "stringBattle", "fightLeague", "pendulum", "polyrhythm", "drop"];
-/** The variants of ready bindings that are hidden, and why (they fail a gate on every plan). */
-const HIDDEN_VARIANTS = ["who-wins-fight-league-boss"];
 /**
- * The gates a ready template fails on every plan, by design of its mode: the square race's 3-2-1-GO opens the gate at 1.8 s
- * (G1, the first motion within 1 s), as in today's bot clips (docs/virality-playbook.md §5).
+ * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
+ * words of G5, and the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s).
  */
-const GATE_EXCEPTIONS: Readonly<Record<string, readonly GateId[]>> = { "who-wins-race": ["G1"] };
+const HIDDEN_VARIANTS = ["who-wins-race", "who-wins-fight-league-boss"];
 
 /** Every numeric setting that has a range is inside it and on its step (as tests/bot.test.ts checks the recipes). */
 function rangeViolations(s: SimulatorSettings): string[] {
@@ -133,6 +136,33 @@ describe("the bindings", () => {
     expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(32);
   });
 
+  it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
+    const race = templateById("who-wins-race")!;
+    expect([race.binding.ready, race.ready]).toEqual([true, false]);
+    expect(race.binding.variants.find((v) => v.id === race.id)!.hidden).toMatch(/3-2-1-GO.*G1/);
+    expect(templateRecipeById(race.id)).toBeUndefined();
+    expect(readyTemplates("all").map((t) => t.id)).not.toContain(race.id);
+    expect(() => planTemplate(race.id, 1, "reels", { copy, search: false })).toThrow(/ready template/);
+    // the reason still holds: the race's own plans in the Simple look fail G1 (when they no longer do, it may be shown again)
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planClip(recipeById("square-race")!, seed, "reels", { copy, episode: 3, index: seed, look: "simple" });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
+      expect(clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id), `square-race/${seed}`).toContain("G1");
+    }
+  });
+
+  it("narrows a variant to the buckets its seed search finds the payoff in: Gerald's Portal escape plans the standard length, on Shorts too", () => {
+    const gerald = templateById("get-out-portal-gerald")!;
+    expect(gerald.buckets).toEqual(["standard"]);
+    expect(templateRecipeById(gerald.id)!.buckets).toEqual(["standard"]);
+    // the binding's other variant keeps the binding's buckets
+    expect(templateRecipeById("get-out-portal")!.buckets).toEqual(["short", "standard"]);
+    expect(platformsOf(gerald.id)).toEqual([...BOT_PLATFORMS]);
+    for (const platform of BOT_PLATFORMS) {
+      for (const bucket of ["auto", "short", "standard"] as const) expect(planTemplate(gerald.id, 1, platform, { copy, search: false, bucket }).bucket, `${platform}/${bucket}`).toBe("standard");
+    }
+  });
+
   it("never binds a looping mode to 'finish', and keeps only a HUD that shows the countdown", () => {
     for (const mode of ["conveyor", "mergeRing", "brickRebuild", "colourSort", "collide", "waveTank", "lines", "drawingMachine", "illusion"] as const) expect(MODE_TEMPLATES[mode].strategy, mode).not.toBe("finish");
     for (const b of BINDINGS) {
@@ -147,7 +177,9 @@ describe("the bindings", () => {
   it("offers the battle family only when it is asked for, as the daily bot does", () => {
     expect(readyTemplates().every((t) => BOT_DEFAULT_FAMILIES.includes(t.family!))).toBe(true);
     expect(readyTemplates().some((t) => t.mode === "fightLeague")).toBe(false);
-    expect(readyTemplates("battle").map((t) => t.mode)).toEqual(expect.arrayContaining(["race", "ctf", "battle", "stringBattle", "fightLeague"]));
+    expect(readyTemplates("battle").map((t) => t.mode)).toEqual(expect.arrayContaining(["ctf", "battle", "stringBattle", "fightLeague"]));
+    // (the square race's binding is ready, its one template hidden: its count-in fails G1 on every plan)
+    expect(readyTemplates("battle").map((t) => t.mode)).not.toContain("race");
     expect(readyTemplates("battle").every((t) => t.family === "battle")).toBe(true);
     expect(readyTemplates("all")).toHaveLength(readyTemplates("default").length + readyTemplates("battle").length);
   });
@@ -396,6 +428,31 @@ describe("the Simple look", () => {
     }
   });
 
+  // with the seed search on (DEFAULT_MAX_SEEDS), on every platform a template is offered on: the search ranks and stops on the
+  // bot look's score, so the Simple look's 4 series points never send it on to other seeds and other numbers
+  for (const platform of BOT_PLATFORMS) {
+    it(`leaves the run alone with the seed search on, on ${platform}: the bot look's seed, numbers, payoff and run, 4 series points apart`, { timeout: 180_000 }, async () => {
+      const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
+      expect(offered.length).toBeGreaterThan(0);
+      for (const t of offered) {
+        for (const seed of [1, 2]) {
+          const options = { copy, episode: 3, index: seed };
+          const simple = planTemplate(t.id, seed, platform, options);
+          const bot = planTemplate(t.id, seed, platform, { ...options, look: "bot" });
+          const where = `${t.id}/${platform}/${seed}`;
+          expect([simple.seed, simple.timing.seedsTested, simple.payoff.atSec, simple.timing.found], where).toEqual([bot.seed, bot.timing.seedsTested, bot.payoff.atSec, bot.timing.found]);
+          const changed = Object.keys(simple.settings).filter((k) => JSON.stringify((simple.settings as unknown as Record<string, unknown>)[k]) !== JSON.stringify((bot.settings as unknown as Record<string, unknown>)[k]));
+          expect(changed.filter((k) => !LOOK_KEYS.has(k)), where).toEqual([]);
+          expect(runFactsSync(simple.settings, simple.seed, simple.world, simple.recipe), where).toEqual(runFactsSync(bot.settings, bot.seed, bot.world, bot.recipe));
+          // the checklist: the series label's 4 points apart, every other item the same
+          const moved = bot.reasons.filter((r) => simple.reasons.find((x) => x.id === r.id)?.points !== r.points).map((r) => r.id);
+          expect([moved, bot.score - simple.score], where).toEqual([["series"], 4]);
+        }
+        await breathe();
+      }
+    });
+  }
+
   it("takes the recipes to Simple 80 or more for at most 5 Playbook points, the look item kept", { timeout: 180_000 }, () => {
     const simple: number[] = [];
     const before: number[] = [];
@@ -413,31 +470,30 @@ describe("the Simple look", () => {
     expect(median(before) - median(after)).toBeLessThanOrEqual(5);
   });
 
-  it("every ready template passes every clarity gate on 3 of 4 plan seeds at Playbook 75+, each plan at Simple 80+", { timeout: 240_000 }, () => {
-    for (const t of ready) {
-      const platform = platformsOf(t.id)[0];
-      const except = new Set(GATE_EXCEPTIONS[t.id] ?? []);
-      let passed = 0;
-      const seen = new Set<GateId>();
-      for (const seed of [1, 2, 3, 4]) {
-        const plan = planTemplate(t.id, seed, platform, { copy, episode: 3, index: seed });
-        const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
-        const clarity = clarityOf(crewClipOfPlan(plan, { run }));
-        const where = `${t.id}/${platform}/${seed}`;
-        expect(clarity.simple.score, where).toBeGreaterThanOrEqual(80);
-        const failed = clarity.gates.filter((g) => !g.ok).map((g) => g.id);
-        for (const g of failed) if (except.has(g)) seen.add(g);
-        // (a plan whose seed search found no payoff fails a gate and loses its payoff points: it is the 1 in 4)
-        if (failed.every((g) => except.has(g))) {
-          passed++;
-          expect(plan.score, where).toBeGreaterThanOrEqual(75);
+  // every platform a template is offered on, not only the first (Portal's Gerald had passed on Reels and missed on Shorts)
+  for (const platform of BOT_PLATFORMS) {
+    it(`every ready template offered on ${platform} passes every clarity gate on 3 of 4 plan seeds at Playbook 75+, each plan at Simple 80+`, { timeout: 240_000 }, async () => {
+      const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
+      expect(offered.length).toBeGreaterThan(0);
+      for (const t of offered) {
+        let passed = 0;
+        for (const seed of [1, 2, 3, 4]) {
+          const plan = planTemplate(t.id, seed, platform, { copy, episode: 3, index: seed });
+          const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
+          const clarity = clarityOf(crewClipOfPlan(plan, { run }));
+          const where = `${t.id}/${platform}/${seed}`;
+          expect(clarity.simple.score, where).toBeGreaterThanOrEqual(80);
+          // (a plan whose seed search found no payoff fails a gate and loses its payoff points: it is the 1 in 4)
+          if (clarity.gates.every((g) => g.ok)) {
+            passed++;
+            expect(plan.score, where).toBeGreaterThanOrEqual(75);
+          }
         }
+        expect(passed, `${t.id}/${platform}`).toBeGreaterThanOrEqual(3);
+        await breathe();
       }
-      expect(passed, t.id).toBeGreaterThanOrEqual(3);
-      // an exception that no longer happens is no exception: the table only shrinks
-      expect([...seen].sort(), t.id).toEqual([...except].sort());
-    }
-  });
+    });
+  }
 
   it("templates' ids and claims reach the crew from a plan that records them", () => {
     const plan = planTemplate("smash-power-layers", 4, "reels", { copy, search: false });

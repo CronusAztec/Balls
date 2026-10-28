@@ -48,7 +48,7 @@ plain code.
 | `review` | Play the crew's roles: take the next brief, answer it, get the next one or the decision |
 | `render` | With `plan` and `clip`: render a planned clip as the crew left it, watermarked, with its melody and sheets |
 | `score` | Score a link, or a studio clip as the crew left it (and as its render measured it) |
-| `frames`, `preview` | With `image`: a sheet as one JPEG image block, for a client that cannot read files |
+| `frames`, `preview` | With `image`: a sheet as one JPEG image block, for a client that cannot read files (`frames` with `"imageOf":"hook"`: the opening's sheet) |
 
 Run them with `npm run -s agent -- <tool> --json '{…}'`, or over MCP (`jumpingballs-agent`). `docs/agents/CLI.md` has every
 argument.
@@ -140,7 +140,10 @@ The MCP server offers the studio tools and 7 prompts: `crew-researcher`, `crew-b
 `crew-reviewer`, `make-video` and `review-clip`. Their texts are the role cards of `src/lib/crew/roles.ts`, so the app and
 Claude ask the same questions in the same words. A client that cannot read files gets a sheet as an image block from
 `frames` or `preview` with `image`: one JPEG of at most 110,000 bytes, its base64 counted with the text against the
-result's 200 KB. Without subagents, one conversation plays every role, and panel.json says so.
+result's 200 KB. The viewer needs both sheets of a rendered clip, one a call: the whole clip, `frames
+{"path":"<the clip>","image":true}`, then its opening seconds, the same with `"imageOf":"hook"`. The post-render brief's
+`look.pictures` holds the two calls for its clip, and the `crew-viewer`, `make-video` and `review-clip` prompts name them.
+Without subagents, one conversation plays every role, and panel.json says so.
 
 ## A worked example
 

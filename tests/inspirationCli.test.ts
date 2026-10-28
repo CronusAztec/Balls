@@ -8,7 +8,7 @@ import { runFolderName } from "@/lib/agentKit/inspiration";
 import * as ffmpegArgs from "@/lib/videoAnalysis/ffmpegArgs";
 import { hookTimes } from "@/lib/videoAnalysis/ffmpegArgs";
 import { parseMediaInfo, parseProgressSec, pictureEndSec } from "@/lib/videoAnalysis/ffmpegParse";
-import { AGENT_TOOLS, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { AGENT_TOOLS, IMAGE_MAX_BYTES, PATH_OR_URL_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { createMcpHandler } from "../scripts/agent/mcp.mjs";
 import { resolveFfmpeg } from "../scripts/agent/analyse.mjs";
 import { extractFrames } from "../scripts/agent/frames.mjs";
@@ -431,6 +431,15 @@ describe("the video tools end to end, with a fake yt-dlp (--- inspiration ---)",
     expect(res.hook.map((h: { sec: number }) => h.sec)).toEqual(hookTimes(6));
     const png = (rel: string) => fs.readFileSync(path.join(ROOT, rel)).subarray(0, 8).toString("hex");
     for (const f of [res.sheet, res.hookSheet, res.frames[0].file, res.hook[0].file]) expect(png(f), f).toBe("89504e470d0a1a0a");
+    // --- studio --- each sheet as a picture (an MCP image block), one a call: the whole video's, then its opening's
+    const jpeg = (data: string) => Buffer.from(data, "base64").subarray(0, 3).toString("hex");
+    const whole = agent("frames", { path: path.relative(ROOT, CLIP), out, image: true }).json.result;
+    const opening = agent("frames", { path: path.relative(ROOT, CLIP), out, image: true, imageOf: "hook" }).json.result;
+    expect([whole.image.of, whole.image.file, jpeg(whole.image.data)]).toEqual(["sheet", `${res.dir}/sheet.jpg`, "ffd8ff"]);
+    expect([opening.image.of, opening.image.file, jpeg(opening.image.data)]).toEqual(["hook", `${res.dir}/hook-sheet.jpg`, "ffd8ff"]);
+    for (const image of [whole.image, opening.image]) expect(image.bytes).toBeLessThanOrEqual(IMAGE_MAX_BYTES);
+    expect(opening.image.data).not.toBe(whole.image.data);
+    expect(agent("frames", { path: path.relative(ROOT, CLIP), out, image: true, imageOf: "hook", hookSec: 0 }).json.result.image).toEqual({ error: "no hook-sheet.png (hookSec 0 makes none) to send" });
     // a second, smaller run replaces the first one's frames
     const again = agent("frames", { path: path.relative(ROOT, CLIP), out, count: 4, hookSec: 0, sheet: false });
     expect(again.json.result).toMatchObject({ hook: [], sheet: null, hookSheet: null });

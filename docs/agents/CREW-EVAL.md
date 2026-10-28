@@ -13,8 +13,9 @@ This file holds the corpus's design, how to run the eval, and every recorded run
 - **40 clean clips** (`tests/fixtures/crew/clean.json`): the ready templates in the Simple look, planned from plan seed 1 up.
   A plan is kept when it passes every gate and crosses no evidence threshold. The one exception is the two-messages-at-once
   line on a template that keeps a HUD beside its hook. The clips are taken round robin over 16 templates. Fight League's
-  templates are left out, because their fighters are third-party characters. Who Wins: Race is left out because none of its
-  plans passes gate G1: its first impact comes at 1.8 s.
+  templates are left out, because their fighters are third-party characters. Who Wins: Race is hidden, because none of its
+  plans passes gate G1: its first impact comes at 1.8 s. It keeps its place in the turn order and gives no clip, as it gave
+  none before it was hidden.
 - **27 planted clips** (`tests/fixtures/crew/planted.json`): clean clips, each used once, with one defect planted by a named
   transform (`src/lib/crew/eval.ts` `plantDefect`). There are nine classes, three clips each:
 
@@ -143,6 +144,7 @@ proof that the loop works end to end. They do not settle which roles are worth t
 - The tooBusy line (two messages at once) confirms an objection on every template that keeps a HUD beside its hook, even at
   Simple 86-92. The corpus therefore counts that line as the template's own.
 - Who Wins: Race fails gate G1 on every plan seed tried (its first impact comes at 1.8 s), although its binding is proven.
+  The studio's first review round hid it (`docs/virality-playbook.md` §5).
 
 ### claude-opus-5-5-2026-10-28-step6
 
@@ -188,7 +190,7 @@ every answer by its brief's hash, and the earlier run stays above as history. Th
 ### claude-opus-5-5-2026-10-28-round1
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-round1 -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (243 replies, refused ones included). Corpus 8e1c1023a7b609a9.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (243 replies, refused ones included). Corpus 8e1c1023a7b609a9 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -227,3 +229,47 @@ in one context. The other 112 answers (the skeptic's 55, the viewer's 54, the br
 did not change by a byte, and step 6's run stays above as history. The numbers did not move, save the calls: on the two
 endingConfusing clips whose templates end resolved only, the reviewer again tried switchEnding, was refused, and dropped them,
 now in all three runs that ask it (six refusals), so the reviewer alone costs 1.08 calls per kept clip and Thorough 3.34.
+
+### claude-opus-5-5-2026-10-28-round1b
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-round1b -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (244 replies, refused ones included). Corpus 1eb78cc0c5c16f05.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.08 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.44 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.34 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 4 | 4 | 2 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-round1b -->
+
+**What this run is.** The round-1 run, carried over to the corpus and the briefs as the round's findings 7 to 12 left them.
+Gerald's Portal escape now takes the standard length only: in the short one, on Shorts, its seed search missed the escape on
+half the plan seeds. So one clean clip changed. The Gerald Portal plan of plan seed 3 on Shorts is clean now and takes the
+place of plan seed 4's, and the ids after it moved. The same model answered that clip's four briefs (the cold viewer's, the
+skeptic's and two reviewers'), in one context, knowing it was a clean clip of the corpus. The brainstormer's third request had
+pitched Gerald's Portal escape at the short length, which the menu no longer offers. Its recorded reply is now refused, and
+the same model answered again with the standard length, the other five ideas unchanged: the brainstormer took 4 calls and was
+valid the first time on 2 of 3 requests. The other 233 briefs keep round 1's answers, to briefs that did not change by a byte,
+and round 1's run stays above as history. The numbers did not move otherwise.

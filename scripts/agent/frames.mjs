@@ -16,7 +16,7 @@ import path from "path";
 import { NO_FFMPEG, pictureEnd, resolveFfmpeg, runFfmpeg } from "./analyse.mjs";
 import { OUT_DIR, ROOT, defaultOutName, isInside, outFolder, repoRelative, resolveInputFile } from "./paths.mjs";
 
-const OUR_FILES = /^(frame-\d+\.png|hook-\d+\.png|sheet\.png|hook-sheet\.png|sheet\.jpg)$/;
+const OUR_FILES = /^(frame-\d+\.png|hook-\d+\.png|sheet\.png|hook-sheet\.png|sheet\.jpg|hook-sheet\.jpg)$/;
 /** ffmpeg passes run at once. */
 const PASSES = 4;
 
@@ -137,11 +137,14 @@ export async function framesTool(tb, args) {
     if (!ffmpeg) throw new Error(NO_FFMPEG);
   }
   const result = await extractFrames(tb, ffmpeg, file, { name: args.out ?? framesName(file), count: args.count ?? 12, hookSec: args.hookSec ?? tb.HOOK_SEC, hookStepSec: args.hookStepSec ?? tb.HOOK_STEP_SEC, width: args.width ?? tb.FRAME_WIDTH, sheet: args.sheet !== false || args.image === true });
-  // --- studio --- the whole video's sheet as an image block, on request
+  // --- studio --- a sheet as an image block, on request: the whole video's (imageOf "sheet", the default) or its opening
+  // seconds' (imageOf "hook": hook-sheet.png), one per call, so a client that cannot read files sees both in two calls
   let image;
   if (args.image === true) {
-    const made = result.sheet ? await jpegUnder(tb, ffmpeg, path.join(ROOT, result.dir), "sheet.png") : null;
-    image = made ?? { error: `no JPEG of the sheet fits in ${tb.IMAGE_MAX_BYTES} bytes: look at the PNG instead` };
+    const hook = args.imageOf === "hook";
+    const png = hook ? result.hookSheet : result.sheet;
+    const made = png ? await jpegUnder(tb, ffmpeg, path.join(ROOT, result.dir), hook ? "hook-sheet.png" : "sheet.png", hook ? "hook-sheet.jpg" : "sheet.jpg") : null;
+    image = made ? { of: hook ? "hook" : "sheet", ...made } : { error: png ? `no JPEG of ${hook ? "hook-sheet.png" : "sheet.png"} fits in ${tb.IMAGE_MAX_BYTES} bytes: look at the PNG instead` : `no ${hook ? "hook-sheet.png (hookSec 0 makes none)" : "sheet.png"} to send` };
   }
   return {
     video: repoRelative(file),

@@ -1,6 +1,6 @@
 import { selectPlaybookContext, trendsAgeDays, TRENDS_DROP_DAYS, TRENDS_OLD_DAYS } from "@/lib/desktop/ai/playbookContext";
 import type { TrendAdvice, TrendLever, TrendNumber, TrendSummary } from "@/lib/trends";
-import { BRIEF_POINT_IDS, type ResearchArea, type ResearchLever, type ResearchPoint, type ResearchResult, type Strength } from "./roles";
+import { BRIEF_POINT_IDS, oneLine, type ResearchArea, type ResearchLever, type ResearchPoint, type ResearchResult, type Strength } from "./roles";
 
 /*
  * --- crew --- The research the crew reads: one digest of the evidence, budgeted (RESEARCH_CHARS), every item with a source id the
@@ -71,7 +71,7 @@ export interface DigestInput {
   inspire?: readonly string[];
 }
 
-const flat = (text: string) => text.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+const flat = oneLine;
 /** A text cut at a word to `max` characters ("…" where cut). */
 function cut(text: string, max: number): string {
   const t = flat(text);
@@ -157,13 +157,17 @@ export function researchBriefOf(digest: ResearchDigest): ResearchResult {
   return { points, stale: digest.stale };
 }
 
-/** The brief as a role reads it, within `max` characters: "[r1] (weak) advice (lever: setting bpm)". */
+/**
+ * The brief as a role reads it, within `max` characters: a line per point, `[r1] (weak, pace) "advice" (lever: setting "bpm")`.
+ * The texts are the researcher model's where live research exists, so each is flattened and quoted as a JSON string, as the
+ * reviewer gets the objections: data inside the line code writes, never a prompt line of its own.
+ */
 export function briefText(brief: ResearchResult | null, max: number): string {
   if (!brief || brief.points.length === 0) return "none";
   const lines: string[] = [];
   let used = 0;
   for (const p of brief.points) {
-    const line = `[${p.id}] (${p.strength}${p.area ? `, ${p.area}` : ""}) ${p.advice}${p.lever ? ` (lever: ${p.lever.kind} ${p.lever.name})` : ""}`;
+    const line = `[${p.id}] (${p.strength}${p.area ? `, ${p.area}` : ""}) ${JSON.stringify(flat(p.advice))}${p.lever ? ` (lever: ${p.lever.kind} ${JSON.stringify(flat(p.lever.name))})` : ""}`;
     if (used + line.length + 1 > max) continue;
     lines.push(line);
     used += line.length + 1;
@@ -173,6 +177,6 @@ export function briefText(brief: ResearchResult | null, max: number): string {
 
 /** The research gap of a clip's dossier: the brief's first two points, a line each. */
 export function researchGapOf(brief: ResearchResult | null): string[] {
-  return (brief?.points ?? []).slice(0, 2).map((p) => `${p.id} ${p.strength}: ${p.advice}`);
+  return (brief?.points ?? []).slice(0, 2).map((p) => `${p.id} ${p.strength}: ${flat(p.advice)}`);
 }
 // --- end crew ---

@@ -168,6 +168,14 @@ describe("plan (--- studio ---)", () => {
       expect(p.ok, JSON.stringify(input)).toBe(false);
       expect(!p.ok && p.error, JSON.stringify(input)).toMatch(/ready|recipes/);
     }
+    // the square race is hidden (its count-in fails G1 on every plan): the template and the mode say why, and no menu offers it
+    for (const input of [{ template: "who-wins-race" }, { mode: "race" }]) {
+      const p = studioPlan(input, copy);
+      expect(p.ok, JSON.stringify(input)).toBe(false);
+      expect(!p.ok && p.error, JSON.stringify(input)).toMatch(/3-2-1-GO.*G1/);
+    }
+    expect(studioTemplates({ family: "all", copy: false }, copy).templates.map((x) => x.id)).not.toContain("who-wins-race");
+    expect(templateMenu("all").map((m) => m.template)).not.toContain("who-wins-race");
   });
 });
 
@@ -354,6 +362,16 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     const out = s.call({ stage: "post", separation: "contexts" });
     const next = nextOf(out);
     expect(next).toMatchObject({ role: "viewer", clip: recs[0].id, look: { sheet: ".agent-out/studio/t/c/sheet.png", hookSheet: ".agent-out/studio/t/c/hook-sheet.png" }, answer: { stage: "post", role: "viewer" } });
+    // a client that cannot read files (Claude Desktop over MCP) gets both sheets as pictures: the two frames calls, valid as they stand
+    const pictures = (next.look as { pictures: { sheet: string; hookSheet: string } }).pictures;
+    const argsOf = (call: string) => {
+      const [tool, ...json] = call.split(" ");
+      return { tool, args: JSON.parse(json.join(" ")) as Record<string, unknown> };
+    };
+    expect(argsOf(pictures.sheet)).toEqual({ tool: "frames", args: { path: "f.webm", image: true } });
+    expect(argsOf(pictures.hookSheet)).toEqual({ tool: "frames", args: { path: "f.webm", image: true, imageOf: "hook" } });
+    for (const call of [pictures.sheet, pictures.hookSheet]) expect(checkToolArgs("frames", argsOf(call).args).ok, call).toBe(true);
+    expect(checkToolArgs("frames", { path: "f.webm", image: true, imageOf: "both" }).ok).toBe(false);
     const done = s.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: { whatHappens: "out", understood: "a ball escapes the rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" } });
     expect(done.result.status).toBe("done");
     const rec = s.panel()!.records.post[recs[0].id];
@@ -456,6 +474,13 @@ describe("research and the prompts (--- studio ---)", () => {
     // the plan tool's route and an open request's both plan in the page's world, where render plays the clip
     const step3 = (make.ok ? make.prompt.messages[0].content.text : "").split("\n").find((l) => l.startsWith("3. "))!;
     expect(step3.split('"world":{"width":800,"height":450}').length - 1).toBe(2);
+    // every prompt that sends the viewer to the sheets says how a client that cannot read files gets both as pictures
+    for (const [name, args] of [["crew-viewer", { studio: "s1" }], ["make-video", {}], ["review-clip", { studio: "s1" }]] as const) {
+      const made = studioPrompt(name, args);
+      const text = made.ok ? made.prompt.messages[0].content.text : "";
+      expect(text, name).toContain('frames {"path":"<look.clip>","image":true}');
+      expect(text, name).toContain('frames {"path":"<look.clip>","image":true,"imageOf":"hook"}');
+    }
   });
 });
 

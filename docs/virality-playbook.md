@@ -166,8 +166,10 @@ look]**. Their median Simple is 44 (15–56), while their median checklist score
 - Every clip stacks the hook, the countdown and the series label in its first seconds and keeps two messages on screen for the
   whole clip.
 - Every clip has the colour trail and the cinematic camera. The ring modes add wall glow, shake and the confetti wall break.
-- 74 plans fail G5, 60 of them with a hook of more than 7 words (mostly Grow until it fills, Power Layers, String Battle and
-  Territory). 12 fail G1 (the square race's 3-2-1). 7 fail G2 (a payoff at 97 % with 0.5 s after it) and 7 fail G7.
+- 74 plans fail G5, 60 of them with a hook of more than 7 words: 12 each of Grow until it fills, Power Layers, String Battle,
+  Territory and Fight League's boss rush. 12 fail G1 (the square race's 3-2-1). 7 fail G7.
+- 7 fail G2. 4 show their payoff for 0.5 s only, at 97 % of the clip. In 1 cliffhanger the seed search never found the
+  escape, 1 Grow clip never fills, and 1 cliffhanger race shows its finish 2.7 s before the cut instead of just after it.
 - 2 fail G4: their seed search found no seed, so the run never shows the escape or the fill.
 
 | Recipe | Simple (median) | Simple (range) | Checklist (median) |
@@ -206,10 +208,13 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** the 16 modes a recipe plays, as 20 templates. Classic and Portal also have a Gerald variant, and Fight League
-  has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
+- **Ready now:** 15 of the 16 modes a recipe plays, as 19 templates. Classic and Portal also have a Gerald variant, and Fight
+  League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode. Gerald's Portal escape
+  takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time on about half the plans.
 - **Hidden for now:** the other 32 modes are bound but wait for their own payoff timing and copy. So does Fight League's boss
-  rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows.
+  rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
+  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. A template that fails
+  a gate on every plan is hidden with its reason, never kept by an exception.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
 
@@ -225,8 +230,10 @@ checks (G4).
   takes the board?" becomes "Which colour takes the board?"). The closing question gets the last 2 s, or 2.5 s on two lines;
 - the series label and the rest of a long hook go in the post caption, not on the clip.
 
-It changes look settings only. The cinematic camera stays as the mode plays it, since it moves the run. A test checks that the
-Simple look leaves the seed, every other setting and the run's facts (`runFactsSync`) of every ready template as they are.
+It changes look settings only. The cinematic camera stays as the mode plays it, since it moves the run. The seed search ranks
+and stops on the bot look's score, so the series label's 4 points never send it on to another seed. A test checks that the
+Simple look leaves the seed, every other setting and the run's facts (`runFactsSync`) of every ready template as they are,
+with the seed search on and off, on every platform the template is offered on.
 
 **What it costs and what it buys** **[observed in our own planner: the 19 recipes × 3 platforms × 4 plan seeds, 228 plans in
 each look]**:
@@ -235,17 +242,19 @@ each look]**:
 | --- | --- | --- |
 | Simple score, median (range) | 44 (15–56) | 91 (85–97) |
 | Checklist score, median | 100 | 96 |
-| Plans that pass every clarity gate | 0 | 192 |
+| Plans that pass every clarity gate | 0 | 190 |
 
-- The checklist loses the series item's label points alone: 4 on every plan. The look item stays at 5 on every plan.
+- Both looks pick the same seed. The checklist loses the series item's label points alone: 4 on every plan. The look item
+  stays at 5 on every plan.
 - The Simple score still charges every plan 3 for the cinematic camera. 132 plans show two messages at once for a while: a
   mode's own HUD (an arena's band, the layer count, the stage dots) beside a text.
-- 36 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
-  hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. 5 payoffs land too close to the
-  end, after the cut or never (G2), and 3 payoff lines stay under 1.2 s a line (G5).
+- 38 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
+  hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. The bot look's 7 G2 misses stay,
+  on the same seeds, and 5 payoff lines stay under 1.2 s a line (G5).
 
-**The 20 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 236 plans]** have a median Simple
-of 97 (86–97) and a median checklist score of 96. 219 plans pass every gate:
+**The 19 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 224 plans]** have a median Simple
+of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, and every template passes on at least 3 of 4
+plan seeds on each platform it is offered on (a test checks it):
 
 | Template | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- |
@@ -253,27 +262,28 @@ of 97 (86–97) and a median checklist score of 96. 219 plans pass every gate:
 | get-out-classic-gerald | 97 | 96 | 12/12 |
 | get-out-accumulation | 97 | 96 | 12/12 |
 | get-out-portal | 97 | 96 | 12/12 |
-| get-out-portal-gerald | 97 | 96 | 10/12 |
+| get-out-portal-gerald | 97 | 96 | 12/12 |
 | get-out-glass | 89 | 96 | 11/12 |
 | smash-power-layers | 89.5 | 96 | 12/12 |
 | fill-grow | 97 | 92 | 10/12 |
 | count-multiply | 97 | 92 | 12/12 |
 | count-multipliers | 89 | 96 | 12/12 |
-| who-wins-race | 89 | 91 | 0/12 |
 | who-wins-ctf | 90 | 96 | 12/12 |
 | who-wins-battle | 89.5 | 96 | 12/12 |
-| who-wins-string-battle | 89 | 96 | 12/12 |
+| who-wins-string-battle | 89 | 96 | 11/12 |
 | who-wins-fight-league | 89 | 96 | 12/12 |
 | who-wins-fight-league-upset | 90 | 96 | 12/12 |
 | who-wins-fight-league-bracket | 92 | 90 | 8/8 |
 | line-up-pendulum | 97 | 92 | 12/12 |
-| line-up-polyrhythm | 97 | 96 | 12/12 |
+| line-up-polyrhythm | 97 | 94 | 12/12 |
 | on-the-beat-drop | 97 | 92 | 12/12 |
 
-- The square race fails G1 on every plan, as the bot's own race clips do. No setting skips its 3-2-1.
+- The square race is not in the table: it failed G1 on every plan (0 of 12), as the bot's own race clips do, so it is hidden
+  (above).
 - Portal and Accumulation end the run with the escape. A resolved clip would show it for the recorder's 0.5 s only, under
   G2's 0.8 s, so their templates take the cliffhanger ending and cut before it.
-- The other misses are seeds the search could not fit: no escape or fill found in time, or a length outside the bucket.
+- The other misses are seeds the search could not fit: no fill found in time, a length outside the bucket, a cut too far
+  from the payoff, and one String Battle whose first hit comes at 1.4 s.
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

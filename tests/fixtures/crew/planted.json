@@ -3621,7 +3621,7 @@
    }
   },
   {
-   "id": "f38",
+   "id": "f37",
    "source": "count-multiply#3",
    "defect": "tooBusy",
    "variant": 0,
@@ -3865,7 +3865,7 @@
    }
   },
   {
-   "id": "f40",
+   "id": "f39",
    "source": "who-wins-ctf#2",
    "defect": "payoffLate",
    "variant": 0,
@@ -4106,7 +4106,7 @@
    }
   },
   {
-   "id": "f44",
+   "id": "f43",
    "source": "line-up-pendulum#1",
    "defect": "textUnreadable",
    "variant": 2,
@@ -4354,7 +4354,7 @@
    }
   },
   {
-   "id": "f46",
+   "id": "f45",
    "source": "on-the-beat-drop#4",
    "defect": "payoffCut",
    "variant": 0,
@@ -4598,7 +4598,7 @@
    }
   },
   {
-   "id": "f48",
+   "id": "f47",
    "source": "get-out-glass#2",
    "defect": "slowStart",
    "variant": 2,

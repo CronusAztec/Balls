@@ -19,10 +19,13 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type Bo
  *    the one that shows the countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe and passes every
  *    clarity gate at Simple 80+ and Playbook 75+), trial and experimental (hidden from every menu). Only ready bindings plan:
  *    in this release the 16 proven ones, each variant wrapping one recipe; the other 32 are declared and hidden until their
- *    strategies and copy land (docs/virality-playbook.md §5).
+ *    strategies and copy land (docs/virality-playbook.md §5). A proven binding's variant whose plans fail a gate on every
+ *    seed is hidden with its reason, never kept ready by an exception: Fight League's boss rush (its hook) and the square
+ *    race (its count-in), so the race binding has no ready template yet.
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe, or
- *    hidden with its reason (a variant that fails a gate on every plan). Its adapter (templateRecipe) is the recipe pinned to
- *    the binding's mode, buckets and endings (the format's, narrowed by the binding's): planClipSteps plans it like any recipe
+ *    hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length buckets its seed search
+ *    finds the payoff in. Its adapter (templateRecipe) is the recipe pinned to the binding's mode, buckets (the variant's where
+ *    it narrows them) and endings (the format's, narrowed by the binding's): planClipSteps plans it like any recipe
  *    (seed search, payoff band, captions, share link, post copy) and the plan carries the template id as its recipe, which the
  *    planner's scoreClip and re-roll, and the Insights score (scoreRecipeFor), resolve back here.
  *
@@ -35,7 +38,9 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type Bo
  * off but the one that counts down, no name label; one text at a time – the hook (at most 7 words, 2 lines) for 2.5 s, then
  * the countdown caption where no HUD counts, then the payoff's words or the closing question –, and the series label moved to
  * the post caption. Look settings only: the physics, the payoff's timing and the run (lib/insights/score.ts runFactsSync) stay
- * the bot look's. The cinematic camera stays as the mode plays it, since its slow motion moves the run in 12 modes (§5).
+ * the bot look's, with the seed search on too – it ranks and stops on the bot look's score (planner.ts planClipSteps), so the
+ * series label's 4 points never send it to another seed. The cinematic camera stays as the mode plays it, since its slow
+ * motion moves the run in 12 modes (§5).
  *
  * Pure: data and small functions, no clock, no randomness of its own (a settings generator draws from the context's).
  */
@@ -209,6 +214,8 @@ export interface TemplateVariant {
   recipe: string | null;
   /** Why a variant of a ready binding is hidden (it fails a clarity gate on every plan); absent: it plans with its binding. */
   hidden?: string;
+  /** The length buckets this variant fills, narrower than its binding's: the ones its seed search finds the payoff in. */
+  buckets?: readonly LengthBucket[];
 }
 
 export interface ModeBinding {
@@ -242,18 +249,27 @@ export function templateIdOf(format: TemplateFormatId, mode: ModeId, suffix?: st
   return [kebab(format), kebab(mode), ...(suffix ? [suffix] : [])].join("-");
 }
 
-/** A variant's spec: the recipe it wraps, its id's suffix, why it is hidden. */
-type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string];
+/** A variant's spec: the recipe it wraps, its id's suffix, why it is hidden, the buckets it narrows its binding's to. */
+type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[]];
 type BindingSpec = Omit<ModeBinding, "mode" | "variants" | "ready"> & { variants?: readonly VariantSpec[] };
 
 /** A binding from its spec: its variants' ids from the format and the mode; ready when proven. */
 function bind(mode: ModeId, spec: BindingSpec): ModeBinding {
-  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}) }));
+  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}) }));
   return { ...spec, mode, ready: spec.tier === "proven", variants };
 }
 
 /** The run ends with the escape: a resolved clip would show it for the recorder's 0.5 s only, under the crew's G2 0.8 s. */
 const ENDS_AT_ESCAPE = "the run ends with the escape (a resolved clip shows it for 0.5 s, G2 asks 0.8 s): the template cuts before it";
+
+/**
+ * Gerald's Portal escape takes the standard length only: in the short one (8–15 s, Shorts' own) its seed search finds no escape
+ * in time on about half the plans (3 or 4 of 8 pass every gate, on every platform), in the standard one 7 or 8 of 8 do.
+ */
+const GERALD_PORTAL_BUCKETS: readonly LengthBucket[] = ["standard"];
+
+/** The square race's count-in: no plan passes G1, and no setting skips it (docs/virality-playbook.md §5). */
+const COUNT_IN = "its 3-2-1-GO opens the gate at 1.8 s, so G1 (the first impact within 1 s) fails on every plan, and no setting skips the count";
 
 /** A hidden binding of a later step: a strategy of its own (outcome, atEnd) or the format's copy still to come. */
 const later = (format: TemplateFormatId, strategy: TemplateStrategy, extra: Partial<BindingSpec> = {}): BindingSpec => ({ format, strategy, tier: "trial", keepHud: null, ...extra });
@@ -266,7 +282,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // getOut
   classic: bind("classic", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"], ["pip-escape", "gerald"]], note: "ring-at with ringEscape on is a later variant" }),
   accumulation: bind("accumulation", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"]], buckets: ["short", "standard"], endings: ["cliffhanger"], note: `a minute-long escape needs Classic's slow grind; ${ENDS_AT_ESCAPE}` }),
-  portal: bind("portal", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"], ["pip-escape", "gerald"]], buckets: ["short", "standard"], endings: ["cliffhanger"], note: `a minute-long escape needs Classic's slow grind; ${ENDS_AT_ESCAPE}` }),
+  portal: bind("portal", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"], ["pip-escape", "gerald", undefined, GERALD_PORTAL_BUCKETS]], buckets: ["short", "standard"], endings: ["cliffhanger"], note: `a minute-long escape needs Classic's slow grind; ${ENDS_AT_ESCAPE}` }),
   glass: bind("glass", { format: "getOut", strategy: "finish", tier: "proven", keepHud: null, variants: [["glass-smash"]], note: "home is the way out: 'Will Gerald make it home?'" }),
   shatter: bind("shatter", later("getOut", "outcome", { outcome: "escapes-at" })),
   colorMatch: bind("colorMatch", later("getOut", "outcome", { outcome: "escapes-at" })),
@@ -286,7 +302,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   conveyor: bind("conveyor", later("count", "atEnd", { note: "loops: never 'finish'" })),
   mergeRing: bind("mergeRing", later("count", "atEnd", { note: "loops: never 'finish'; hook b 'How far can it merge?'" })),
   // whoWins (the battle family: offered only where the battle family is asked for, as the daily bot's BOT_DEFAULT_FAMILIES)
-  race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race"]] }),
+  race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race", undefined, COUNT_IN]], note: "it waits for a race whose gate opens within the first second" }),
   ctf: bind("ctf", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["territory"]] }),
   battle: bind("battle", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["battle-royale"]] }),
   stringBattle: bind("stringBattle", { format: "whoWins", strategy: "winner", tier: "proven", keepHud: "sbHud", variants: [["string-battle"]] }),
@@ -343,12 +359,15 @@ export interface TemplateInfo {
   /** The family of the recipe it wraps (null: none yet). */
   family: BotFamily | null;
   ready: boolean;
+  /** The length buckets it fills when narrower than its recipe's: its variant's, else its binding's. */
+  buckets?: readonly LengthBucket[];
 }
 
 const INFOS: readonly TemplateInfo[] = BINDINGS.flatMap((binding) =>
   binding.variants.map((v) => {
     const recipe = v.recipe ? (recipeById(v.recipe) ?? null) : null;
-    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family: recipe?.family ?? null, ready: binding.ready && !!recipe && !v.hidden };
+    const buckets = v.buckets ?? binding.buckets;
+    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family: recipe?.family ?? null, ready: binding.ready && !!recipe && !v.hidden, ...(buckets ? { buckets } : {}) };
   }),
 );
 const INFO_BY_ID = new Map(INFOS.map((t) => [t.id, t]));
@@ -392,11 +411,12 @@ function pinnedSettings(recipe: BotRecipe, mode: ModeId): BotRecipe["settings"] 
   };
 }
 
-/** A template's recipe: the wrapped recipe pinned to the binding's mode, its buckets and the format's endings, under the template id. */
+/** A template's recipe: the wrapped recipe pinned to the binding's mode, its buckets (the variant's) and the format's endings, under the template id. */
 export function templateRecipe(info: TemplateInfo): BotRecipe | null {
   const recipe = info.recipe;
   if (!info.ready || !recipe) return null;
-  const buckets = info.binding.buckets ? (recipe.buckets ?? info.binding.buckets).filter((b) => info.binding.buckets!.includes(b)) : recipe.buckets;
+  const narrow = info.buckets;
+  const buckets = narrow ? (recipe.buckets ?? narrow).filter((b) => narrow.includes(b)) : recipe.buckets;
   const ownEndings = recipe.endings ?? (["resolved", "cliffhanger"] as const);
   const endings = ownEndings.filter((e) => info.format.endings.includes(e) && (!info.binding.endings || info.binding.endings.includes(e)));
   return {

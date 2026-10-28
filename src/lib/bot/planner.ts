@@ -937,6 +937,11 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
   const search = options.search !== false;
   const range = BUCKET_SECONDS[bucket];
   let best: ClipPlan | null = null;
+  // --- templates --- what the search ranks by and stops on: the bot look's score of the candidate, whatever look it is drawn
+  // in. The Simple look charges points the bot look does not (the series label goes to the post), so ranked on its own score a
+  // first seed of 96 would read 92, miss GOOD_ENOUGH and send the search on to other seeds and other numbers: the Simple look
+  // would then change the physics, the payoff's timing and the run, which it promises to leave as they are.
+  let bestRank = -Infinity;
   let bestAccepted = false;
   let accepted = 0;
   let tested = 0;
@@ -948,7 +953,9 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
     const clipTarget = Math.max(ending === "cliffhanger" ? R_DUR.min : range.min, range.min + rng() * (range.max - range.min));
     const payoffTarget = ending === "cliffhanger" ? Math.floor(clipTarget) + (CLIFF_GAP_SEC.min + CLIFF_GAP_SEC.max) / 2 : clipTarget * ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2);
     const ctx: RecipeContext = { rng, bucket, ending, payoffTarget, roster: SERIES_ROSTER, planSeed /* --- fl-overhaul --- (Stage 6) */ };
-    const built = recipeSettings(recipe, ctx, look);
+    const botBuilt = recipeSettings(recipe, ctx, "bot");
+    // --- templates --- the Simple look over the same draw (recipeSettings' own patch: look fields only)
+    const built: BuiltSettings = look === "simple" ? { ...botBuilt, settings: { ...botBuilt.settings, ...simpleLookPatch(botBuilt.settings, recipe.countdown.source) } } : botBuilt;
     const drawnHookEnd = rng() < 0.5 ? HOOK_SEC.min + 0.5 : HOOK_SEC.max;
     const hookEndSec = look === "simple" ? SIMPLE_TEXT.hookEndSec : drawnHookEnd; // --- templates --- (the draw is made either way: the same generator after it)
     // The simulation runs a little past where the latest acceptable payoff could come.
@@ -964,13 +971,16 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
       const verdict = search ? passesFinderPredicates(recipe, facts, timing, ending, teamCount) : { ok: false, winner: -1 };
       const winner = verdict.winner >= 0 ? verdict.winner : (facts?.winnerIndex ?? -1);
       const plan = assemblePlan(recipe, built, seed, planSeed, platform, bucket, ending, facts, timing, winner, verdict.ok, tested, hookEndSec, options);
+      // --- templates --- (the bot look's plan of this candidate, for its score: see bestRank)
+      const rank = look === "bot" ? plan.score : assemblePlan(recipe, botBuilt, seed, planSeed, platform, bucket, ending, facts, timing, winner, verdict.ok, tested, drawnHookEnd, { ...options, look: "bot" }).score;
       if (verdict.ok) accepted++;
-      if (!best || (verdict.ok && !bestAccepted) || (verdict.ok === bestAccepted && plan.score > best.score)) {
+      if (!best || (verdict.ok && !bestAccepted) || (verdict.ok === bestAccepted && rank > bestRank)) {
         best = plan;
+        bestRank = rank;
         bestAccepted = verdict.ok;
       }
       yield { seedsTested: tested, maxSeeds };
-      if (!search || (bestAccepted && (best.score >= GOOD_ENOUGH || accepted >= MAX_ACCEPTED))) {
+      if (!search || (bestAccepted && (bestRank >= GOOD_ENOUGH || accepted >= MAX_ACCEPTED))) {
         best.timing.seedsTested = tested;
         return best;
       }

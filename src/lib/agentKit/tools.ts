@@ -313,7 +313,8 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         sheet: { type: "boolean", description: "Also lay the frames out on contact sheets (default true)." },
         out,
         maxHeight: maxHeightArg,
-        image, // --- studio --- (the whole video's sheet)
+        image, // --- studio --- (the whole video's sheet, or the opening's)
+        imageOf: { type: "string", enum: ["sheet", "hook"], description: "Which sheet `image` returns: the whole video's (sheet, the default) or its opening seconds' (hook: hook-sheet.png, where the hook is decided). One picture a call: ask twice for both." },
       },
     },
     writes: ".agent-out",

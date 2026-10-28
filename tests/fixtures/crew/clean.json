@@ -5079,252 +5079,7 @@
    }
   },
   {
-   "id": "f37",
-   "source": "get-out-portal-gerald#4",
-   "defect": null,
-   "variant": 0,
-   "clip": {
-    "from": "plan",
-    "captionRoles": [
-     "hook",
-     "hook",
-     "countdown",
-     "question"
-    ],
-    "mode": "portal",
-    "recipe": "get-out-portal-gerald",
-    "template": "get-out-portal-gerald",
-    "claim": "out",
-    "platform": "reels",
-    "bucket": "standard",
-    "ending": "cliffhanger",
-    "seed": 1954006320,
-    "episode": 1,
-    "hook": "Gerald always escapes… right?",
-    "payoff": {
-     "type": "escape",
-     "atSec": 30.750000000000806,
-     "position": 1.0250000000000268,
-     "cutGapSec": 0.7500000000008065,
-     "text": "FREE!",
-     "winner": null
-    },
-    "timing": {
-     "clipSec": 30,
-     "recordingDuration": 30,
-     "firstImpactSec": 0.4500000000000002
-    },
-    "countdown": {
-     "kind": "walls",
-     "source": "caption"
-    },
-    "simulated": true,
-    "run": {
-     "firstImpactSec": 0.4500000000000002,
-     "firstEscapeSec": 30.750000000000806,
-     "finishSec": 30.750000000000806,
-     "homeSec": -1,
-     "fillSec": -1,
-     "winSec": -1,
-     "winnerIndex": -1,
-     "summary": {
-      "mode": "portal",
-      "durationMs": 30750.000000000808,
-      "finished": true,
-      "firstEscapeMs": 30750.000000000808,
-      "teams": [
-       {
-        "bounces": 0,
-        "walls": 0,
-        "escapes": 0,
-        "firstEscapeMs": -1
-       }
-      ]
-     }
-    },
-    "measured": null,
-    "cut": null,
-    "playbook": {
-     "score": 96,
-     "reasons": [
-      {
-       "id": "motion",
-       "points": 10,
-       "max": 10,
-       "key": "motionOk",
-       "values": {
-        "sec": "0.5"
-       }
-      },
-      {
-       "id": "hook",
-       "points": 15,
-       "max": 15,
-       "key": "hookOk",
-       "values": {
-        "text": "Gerald always escapes… right?"
-       }
-      },
-      {
-       "id": "countdown",
-       "points": 10,
-       "max": 10,
-       "key": "countdownCaption",
-       "values": {
-        "kind": "walls"
-       }
-      },
-      {
-       "id": "payoff",
-       "points": 20,
-       "max": 20,
-       "key": "payoffCut",
-       "values": {
-        "gap": "0.8"
-       }
-      },
-      {
-       "id": "length",
-       "points": 10,
-       "max": 10,
-       "key": "lengthOk",
-       "values": {
-        "sec": "30.0",
-        "min": 15,
-        "max": 30
-       }
-      },
-      {
-       "id": "sound",
-       "points": 10,
-       "max": 10,
-       "key": "soundOk",
-       "values": {
-        "melody": "mountain-king"
-       }
-      },
-      {
-       "id": "ending",
-       "points": 10,
-       "max": 10,
-       "key": "endingQuestion",
-       "values": {}
-      },
-      {
-       "id": "series",
-       "points": 6,
-       "max": 10,
-       "key": "seriesWeak",
-       "values": {
-        "label": ""
-       }
-      },
-      {
-       "id": "look",
-       "points": 5,
-       "max": 5,
-       "key": "lookOk",
-       "values": {}
-      }
-     ]
-    },
-    "settingsPatch": {
-     "mode": "portal",
-     "ballSpeed": 540,
-     "ballColor": "#f9f871",
-     "ballRadius": 15,
-     "ballColor2": "#faff00",
-     "wallCount": 4,
-     "rotationSpeed": 1.4,
-     "circleColor": "#ff00e6",
-     "rainbowWalls": false,
-     "showGlow": true,
-     "colorTrail": false,
-     "wallBreakStyle": "shatter",
-     "themeId": "neon",
-     "backgroundType": "gradient",
-     "backgroundColors": [
-      "#05070a",
-      "#141a24"
-     ],
-     "particleStyle": "sparks",
-     "trailColors": [
-      "#00f0ff",
-      "#ff00e6"
-     ],
-     "lineColor": "#00f0ff",
-     "instrument": "marimba",
-     "melodyInstrument": "marimba",
-     "scale": "pentatonic",
-     "rootNote": 2,
-     "ballFace": "cute",
-     "ballName": "Gerald",
-     "nameLabel": false,
-     "ballSquash": 0.5,
-     "cameraZoom": 0.35,
-     "captions": [
-      {
-       "type": "text",
-       "text": "Gerald always",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "escapes… right?",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "wallCounter",
-       "text": "🧱 [n]/[total]",
-       "answer": "",
-       "position": "top",
-       "start": 2.5,
-       "end": 28,
-       "animation": "slide",
-       "style": {
-        "size": 1,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "question",
-       "text": "Will Gerald make it? 👇",
-       "answer": "",
-       "position": "top",
-       "start": 28,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "f39",
+   "id": "f38",
    "source": "line-up-pendulum#2",
    "defect": null,
    "variant": 0,
@@ -5570,7 +5325,7 @@
    }
   },
   {
-   "id": "f41",
+   "id": "f40",
    "source": "who-wins-string-battle#1",
    "defect": null,
    "variant": 0,
@@ -5828,7 +5583,7 @@
    }
   },
   {
-   "id": "f42",
+   "id": "f41",
    "source": "count-multiply#3",
    "defect": null,
    "variant": 0,
@@ -6073,7 +5828,7 @@
    }
   },
   {
-   "id": "f43",
+   "id": "f42",
    "source": "get-out-accumulation#4",
    "defect": null,
    "variant": 0,
@@ -6316,7 +6071,7 @@
    }
   },
   {
-   "id": "f45",
+   "id": "f44",
    "source": "line-up-polyrhythm#1",
    "defect": null,
    "variant": 0,
@@ -6563,7 +6318,7 @@
    }
   },
   {
-   "id": "f47",
+   "id": "f46",
    "source": "get-out-portal-gerald#2",
    "defect": null,
    "variant": 0,
@@ -6807,7 +6562,7 @@
    }
   },
   {
-   "id": "f49",
+   "id": "f48",
    "source": "who-wins-battle#2",
    "defect": null,
    "variant": 0,
@@ -7064,6 +6819,252 @@
      "btCount": 9,
      "btHp": 8,
      "arenaNudge": 0.4
+    }
+   }
+  },
+  {
+   "id": "f49",
+   "source": "get-out-portal-gerald#3",
+   "defect": null,
+   "variant": 0,
+   "clip": {
+    "from": "plan",
+    "captionRoles": [
+     "hook",
+     "hook",
+     "countdown",
+     "question"
+    ],
+    "mode": "portal",
+    "recipe": "get-out-portal-gerald",
+    "template": "get-out-portal-gerald",
+    "claim": "out",
+    "platform": "shorts",
+    "bucket": "standard",
+    "ending": "cliffhanger",
+    "seed": 1305998814,
+    "episode": 1,
+    "hook": "Gerald always escapes… right?",
+    "payoff": {
+     "type": "escape",
+     "atSec": 28.583333333333982,
+     "position": 1.0208333333333566,
+     "cutGapSec": 0.5833333333339823,
+     "text": "FREE!",
+     "winner": null
+    },
+    "timing": {
+     "clipSec": 28,
+     "recordingDuration": 28,
+     "firstImpactSec": 0.33333333333333337
+    },
+    "countdown": {
+     "kind": "walls",
+     "source": "caption"
+    },
+    "simulated": true,
+    "run": {
+     "firstImpactSec": 0.33333333333333337,
+     "firstEscapeSec": 28.583333333333982,
+     "finishSec": 28.583333333333982,
+     "homeSec": -1,
+     "fillSec": -1,
+     "winSec": -1,
+     "winnerIndex": -1,
+     "summary": {
+      "mode": "portal",
+      "durationMs": 28583.333333333983,
+      "finished": true,
+      "firstEscapeMs": 28583.333333333983,
+      "teams": [
+       {
+        "bounces": 0,
+        "walls": 0,
+        "escapes": 0,
+        "firstEscapeMs": -1
+       }
+      ]
+     }
+    },
+    "measured": null,
+    "cut": null,
+    "playbook": {
+     "score": 94,
+     "reasons": [
+      {
+       "id": "motion",
+       "points": 10,
+       "max": 10,
+       "key": "motionOk",
+       "values": {
+        "sec": "0.3"
+       }
+      },
+      {
+       "id": "hook",
+       "points": 15,
+       "max": 15,
+       "key": "hookOk",
+       "values": {
+        "text": "Gerald always escapes… right?"
+       }
+      },
+      {
+       "id": "countdown",
+       "points": 10,
+       "max": 10,
+       "key": "countdownCaption",
+       "values": {
+        "kind": "walls"
+       }
+      },
+      {
+       "id": "payoff",
+       "points": 20,
+       "max": 20,
+       "key": "payoffCut",
+       "values": {
+        "gap": "0.6"
+       }
+      },
+      {
+       "id": "length",
+       "points": 8,
+       "max": 10,
+       "key": "lengthOk",
+       "values": {
+        "sec": "28.0",
+        "min": 15,
+        "max": 30
+       }
+      },
+      {
+       "id": "sound",
+       "points": 10,
+       "max": 10,
+       "key": "soundOk",
+       "values": {
+        "melody": "canon-in-d"
+       }
+      },
+      {
+       "id": "ending",
+       "points": 10,
+       "max": 10,
+       "key": "endingQuestion",
+       "values": {}
+      },
+      {
+       "id": "series",
+       "points": 6,
+       "max": 10,
+       "key": "seriesWeak",
+       "values": {
+        "label": ""
+       }
+      },
+      {
+       "id": "look",
+       "points": 5,
+       "max": 5,
+       "key": "lookOk",
+       "values": {}
+      }
+     ]
+    },
+    "settingsPatch": {
+     "mode": "portal",
+     "ballSpeed": 550,
+     "ballColor": "#f9f871",
+     "ballRadius": 16,
+     "ballColor2": "#faff00",
+     "wallCount": 5,
+     "gapSize": 0.35,
+     "rotationSpeed": 0.9,
+     "circleColor": "#ff00e6",
+     "rainbowWalls": false,
+     "showGlow": true,
+     "colorTrail": false,
+     "wallBreakStyle": "shatter",
+     "themeId": "neon",
+     "backgroundType": "gradient",
+     "backgroundColors": [
+      "#05070a",
+      "#141a24"
+     ],
+     "particleStyle": "sparks",
+     "trailColors": [
+      "#00f0ff",
+      "#ff00e6"
+     ],
+     "lineColor": "#00f0ff",
+     "recordingDuration": 28,
+     "melodyInstrument": "pluck",
+     "scale": "major",
+     "rootNote": 5,
+     "ballFace": "cute",
+     "ballName": "Gerald",
+     "nameLabel": false,
+     "ballSquash": 0.4,
+     "cameraZoom": 0.35,
+     "captions": [
+      {
+       "type": "text",
+       "text": "Gerald always",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "text",
+       "text": "escapes… right?",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "wallCounter",
+       "text": "🧱 [n]/[total]",
+       "answer": "",
+       "position": "top",
+       "start": 2.5,
+       "end": 26,
+       "animation": "slide",
+       "style": {
+        "size": 1,
+        "color": "#93d119",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "question",
+       "text": "Will Gerald make it? 👇",
+       "answer": "",
+       "position": "top",
+       "start": 26,
+       "end": 0,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      }
+     ]
     }
    }
   },

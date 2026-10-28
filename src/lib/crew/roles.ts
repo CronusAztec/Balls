@@ -734,7 +734,14 @@ export function checkBrainstorm(result: BrainstormResult, ctx: BrainstormContext
   return errors;
 }
 
-/** The researcher's points with a basis the digest has (others dropped, not refused), numbered r1… in order. */
+/** A text as one line: control characters (C0, DEL, C1) and the line and paragraph separators made spaces, runs of space one. */
+export const oneLine = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * The researcher's points with a basis the digest has (others dropped, not refused), numbered r1… in order, and their texts (the
+ * advice, the lever's name) each one line: the brief goes into the other roles' prompts, so a reply's newline never forges a
+ * prompt line ("Stage: …", "Objections (JSON): …") under the real ones.
+ */
 export function normaliseResearch(value: unknown, sourceIds: readonly string[]): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const v = value as Record<string, unknown>;
@@ -742,7 +749,13 @@ export function normaliseResearch(value: unknown, sourceIds: readonly string[]):
   const points = v.points
     .filter((p) => p && typeof p === "object" && sourceIds.includes((p as Record<string, unknown>).basis as string))
     .slice(0, BRIEF_POINT_IDS.length)
-    .map((p, i) => ({ ...(p as Record<string, unknown>), id: BRIEF_POINT_IDS[i] }));
+    .map((p, i) => {
+      const q: Record<string, unknown> = { ...(p as Record<string, unknown>), id: BRIEF_POINT_IDS[i] };
+      if (typeof q.advice === "string") q.advice = oneLine(q.advice);
+      const lever = q.lever as Record<string, unknown> | null | undefined;
+      if (lever && typeof lever === "object" && !Array.isArray(lever) && typeof lever.name === "string") q.lever = { ...lever, name: oneLine(lever.name) };
+      return q;
+    });
   return { ...v, points };
 }
 

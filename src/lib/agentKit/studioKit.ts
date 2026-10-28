@@ -189,7 +189,7 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
       ...(b.note ? { note: b.note } : {}),
       variants: b.variants.map((v) => {
         const info = templateById(v.id);
-        return { id: v.id, recipe: v.recipe, ready: !!info?.ready, family: info?.family ?? null, ...(v.hidden ? { hidden: v.hidden } : {}) };
+        return { id: v.id, recipe: v.recipe, ready: !!info?.ready, family: info?.family ?? null, ...(v.hidden ? { hidden: v.hidden } : {}), ...(v.buckets ? { buckets: [...v.buckets] } : {}) };
       }),
     })),
     templates: ready.map((t) => {
@@ -291,7 +291,9 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     if (!list.length) {
       const b = BINDINGS.find((x) => x.mode === input.mode)!;
       const modes = [...new Set(allTemplates().filter((t) => t.ready).map((t) => t.mode))];
-      return { ok: false, error: `The mode ${input.mode} has no ready template yet (its binding: ${b.format}, ${b.tier}${b.note ? `, ${b.note}` : ""}). The modes with one: ${modes.join(", ")}` };
+      // --- studio --- a ready binding whose every variant is hidden says why (the square race: its count-in)
+      const hidden = b.ready ? b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`) : [];
+      return { ok: false, error: `The mode ${input.mode} has no ready template yet (${hidden.length ? `hidden: ${hidden.join("; ")}` : `its binding: ${b.format}, ${b.tier}${b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
     }
     return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
   }
@@ -739,10 +741,27 @@ function startStage(stage: PanelStage, input: StudioReviewInput, ctx: StudioRevi
   return { ok: true, state: createPanel({ stage: "pre", ...common, wanted: Math.max(1, Math.min(STUDIO_CLIPS_MAX, input.wanted ?? 3)), request: { text: input.request, open: true, platform, locale }, menu: templateMenu(input.family ?? "default", ctx.copyOf(locale)) }) };
 }
 
-/** Where the viewer's eyes are after a render: the rendered clip's sheets (Claude looks at them before it answers). */
+/**
+ * Where the viewer's eyes are after a render: the rendered clip's sheets (Claude looks at them before it answers), and – for a
+ * client that cannot read files (Claude Desktop over MCP) – the two frames calls that return each sheet as a picture.
+ */
 function lookOf(ctx: StudioReviewContext, clipId: string | null) {
   const r = ctx.rendered.find((x) => x.clip === clipId);
-  return r ? { sheet: r.sheet, hookSheet: r.hookSheet, clip: r.mp4 ?? r.file, note: "Look at sheet.png (the whole clip) and hook-sheet.png (its first seconds) before you answer: judge only what is on screen." } : null;
+  if (!r) return null;
+  const clip = r.mp4 ?? r.file;
+  return {
+    sheet: r.sheet,
+    hookSheet: r.hookSheet,
+    clip,
+    // --- studio --- the same two sheets as image blocks, one a call
+    pictures: framesPictureCalls(clip),
+    note: "Look at sheet.png (the whole clip) and hook-sheet.png (its first seconds) before you answer: judge only what is on screen. Cannot read files? `pictures` are the two frames calls that return them as pictures (the whole clip, then its opening).",
+  };
+}
+
+/** --- studio --- The frames calls that return a rendered clip's two sheets as image blocks (the whole clip, then its opening). */
+export function framesPictureCalls(clip: string): { sheet: string; hookSheet: string } {
+  return { sheet: toolCall("frames", { path: clip, image: true }), hookSheet: toolCall("frames", { path: clip, image: true, imageOf: "hook" }) };
 }
 
 /** The review tool (see the header): one call, as many of the code's steps as come before the next role's call or the end. */
@@ -1073,6 +1092,11 @@ const ROLE_DATA: Readonly<Record<CrewRole, string>> = {
 };
 
 const toolCall = (name: string, args: Record<string, unknown>) => `${name} ${JSON.stringify(args)}`;
+/** --- studio --- The two picture calls in a prompt, on the clip the brief's `look.clip` names (its `look.pictures` hold them ready). */
+const PICTURE_CALLS = (() => {
+  const c = framesPictureCalls("<look.clip>");
+  return `${c.sheet} for sheet.png, then ${c.hookSheet} for hook-sheet.png (the brief's \`look.pictures\`)`;
+})();
 
 /** A crew role's prompt: its rubric (the viewer's preamble), its card and protocol, and how to fetch and answer its brief. */
 function rolePrompt(role: CrewRole, studio: string, clip: string | null): string {
@@ -1091,7 +1115,7 @@ function rolePrompt(role: CrewRole, studio: string, clip: string | null): string
     `How to work, with the agent toolbox's review tool, in the studio "${studio}":`,
     `1. Ask for your brief: ${toolCall("review", { studio })}${stage}. It names the role and the clip the panel asks for now and holds your data – ${ROLE_DATA[role]} – with the answer's JSON Schema and its shape. Answer only a brief for the ${role}${clip ? ` on the clip ${clip}` : ""}; when the panel asks for another role, stop and say which.`,
     `2. Answer it: ${toolCall("review", { studio, role, ...(role === "skeptic" || role === "viewer" || role === "reviewer" ? { clip: clip ?? "<the brief's clip>" } : {}), verdict: "<your JSON object>" })}. A refused answer comes back with its errors: answer again, fixed (after 3 refusals the rules answer for you, labelled so).`,
-    ...(role === "viewer" ? ["3. After a render the brief's `look` names the clip's sheet.png (the whole clip) and hook-sheet.png (its first seconds): look at both before you answer, and judge only what is on screen."] : []),
+    ...(role === "viewer" ? [`3. After a render the brief's \`look\` names the clip's sheet.png (the whole clip) and hook-sheet.png (its first seconds): look at both before you answer, and judge only what is on screen. If you cannot read files, ask for them as pictures: ${PICTURE_CALLS}.`] : []),
     ...(role === "skeptic" || role === "reviewer" || role === "viewer" ? [`${role === "viewer" ? "4" : "3"}. Then take the next brief while the panel asks for the ${role}.`] : []),
     "Never write files, render, edit the repository or answer for another role.",
   ];
@@ -1111,7 +1135,7 @@ function makeVideoPrompt(args: Record<string, string>): string {
     `3. ${toolCall("plan", { template: "<id>", count, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way in the page's world, where render plays the clip.`,
     `4. ${toolCall("review", { studio: "<name>" })}: play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
     `5. ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<a kept clip>" })} for each kept clip: watermarked, with its melody, with its frames' sheets.`,
-    `6. Look at each clip's sheet.png and hook-sheet.png, then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks.`,
+    `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks.`,
     "7. Hand over .agent-out/studio/<name>/: the clips, panel.json (every role's verdict and the viewer's read) and post.txt (the words to post).",
     "",
     "Rules: every clip is a free visitor's render and carries the watermark – never install a licence or use the TEST key; write only under .agent-out/; a verdict never deletes a clip; never push and never post: the owner approves every post.",
@@ -1123,7 +1147,7 @@ function reviewClipPrompt(studio: string, clip: string | null): string {
     `Review ${clip ? `the clip ${clip}` : "the rendered clips"} of the studio "${studio}" after the render, as JumpingBallsLive's crew does for every saved clip.`,
     "",
     `1. A clip without its folder in .agent-out/studio/${studio}/ is not rendered yet: ${toolCall("render", { plan: `.agent-out/studio/${studio}/plan.json`, clip: clip ?? "<id>" })}.`,
-    `2. ${toolCall("review", { studio, stage: "post" })}: the viewer's brief comes first. Look at the clip's sheet.png and hook-sheet.png (the brief's \`look\`), then answer as a stranger on a phone from what is on screen alone (the crew-viewer prompt is that role's card).`,
+    `2. ${toolCall("review", { studio, stage: "post" })}: the viewer's brief comes first. Look at the clip's sheet.png and hook-sheet.png (the brief's \`look\`; a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then answer as a stranger on a phone from what is on screen alone (the crew-viewer prompt is that role's card).`,
     "3. The reviewer only when the panel asks: the rules, the read or the facts disagree. After a render a fix is offered as a new version, never applied to the rendered clip.",
     `4. Read .agent-out/studio/${studio}/post.txt and panel.json: the verdict, the viewer's read and the words to post. A clip the AI could not look at says "not reviewed"; it is never passed off as seen.`,
   ].join("\n");
@@ -1165,10 +1189,14 @@ export const CREW_FIXTURE_SEEDS = 12;
  */
 export function crewEvalCorpus(copy: BotCopy): { clean: EvalFixture[]; planted: EvalFixture[]; notes: string[] } {
   const notes: string[] = [];
-  // (Fight League's templates name third-party characters: they stay out of the committed corpus; the battle family's others are in)
-  const perTemplate: { source: string; clip: CrewClip }[][] = readyTemplates("all")
-    .filter((t) => t.mode !== "fightLeague")
+  // (Fight League's templates name third-party characters: they stay out of the committed corpus; the battle family's others are in.
+  // The turn order is every variant of a ready binding, a hidden one too, which adds no clip but keeps its place: the platform
+  // each template is planned on follows its place, so hiding a template – the square race, whose plans never passed G1 and gave
+  // no clip – leaves the others' clips as they were.)
+  const perTemplate: { source: string; clip: CrewClip }[][] = allTemplates()
+    .filter((t) => t.binding.ready && t.recipe !== null && t.mode !== "fightLeague")
     .map((t, ti) => {
+      if (!t.ready) return [];
       const recipe = templateRecipeById(t.id)!;
       const endings = recipe.endings ?? ENDING_STYLES;
       const found: { source: string; clip: CrewClip }[] = [];
