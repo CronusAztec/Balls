@@ -68,7 +68,9 @@ const errors = [];
 // --- review fix (site-static) --- the served origin and base path: same-origin failures are the site's, foreign ones are noise
 const ORIGIN = new URL(BASE).origin;
 const BASE_PATH = new URL(BASE).pathname.replace(/\/+$/, "");
-page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+// --- react-hydration-replay --- each entry also names the page it happened on (page.url()), so a failure of "no console/page
+// errors" says where to look; the filters below match the error text, which no URL the suite opens contains.
+page.on("pageerror", (e) => errors.push(`pageerror: ${e.message} (page ${page.url()})`));
 page.on("console", (m) => {
   if (m.type() !== "error") return;
   const text = m.text();
@@ -76,7 +78,7 @@ page.on("console", (m) => {
   // error; a same-origin one stays (its HTTP status is also reported precisely by the response listener below).
   const url = m.location()?.url || "";
   if (/^Failed to load resource/.test(text) && url && !url.startsWith(`${ORIGIN}/`)) return;
-  errors.push(`console: ${text}${/^Failed to load resource/.test(text) && url ? ` (${url})` : ""}`);
+  errors.push(`console: ${text}${/^Failed to load resource/.test(text) && url ? ` (${url})` : ""} (page ${page.url()})`);
 });
 /**
  * --- review fix (site-static) --- Every same-origin response of 400 or more fails the run ("no failed same-origin requests"): a
@@ -17482,7 +17484,7 @@ await smokeBlock("land-claim-pyramid", async () => {
 // Rebuild and Loop, its time; the wall's columns and rows hidden), the summary line (data-total, data-balls), controls → URL and
 // back to the wall, the search box, Find Simulation's outcomes (summit-last; a looping pyramid has no verdict or length to
 // search); the "Pyramid, 1,144 blocks" preset (the navy page, the loop HUD, one yellow colour, a clip of a whole cycle) run at
-// 8× to its clear – 0 blocks, 146 balls, the summit last, every ball on the floor (data-lcp-*), the plucks on C-major pentatonic
+// 8× on a pinned seed to its clear – 0 blocks, 146 balls, the summit last, every ball on the floor (data-lcp-*), the plucks on C-major pentatonic
 // and the loop voices (OscillatorNode.start instrumented), the HUD's lowercase title and grey "N blocks" counter drawn into the
 // canvas – then the hold, the rebuild and the seam (data-loop-cycle, data-loop-seams); the preset at 1× at 30+ fps; Find
 // Simulation's "the summit falls last", played back to the found second; a fast export with Export whole loops; and a free
@@ -17544,6 +17546,11 @@ let lcpPresetUrl = "";
     query.get("lcl") === "pyramid" && query.get("lcrb") === "1" && query.get("lct") === "1" && query.get("lh") === "1" && totals.total === "1144" && totals.balls === "146" && Number(query.get("dur")) >= 40,
     `(${query.toString()}, ${JSON.stringify(totals)})`,
   );
+  // --- review fix (land-claim-pyramid) --- the preset's own link on a pinned seed (tests/landClaimPyramid.test.ts, SMOKE_LCP_SEED):
+  // the preset draws a fresh seed every run, and the summit falls last in most runs, not all – a few draws in a hundred knock it
+  // down with blocks still standing (shard 2 drew one: the summit fell with 4 left) –, so the check of the summit last on a fresh
+  // draw failed on the draw, not on the page
+  await page.goto(`${BASE}/en/simulator/?${query.toString()}&seed=12345`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const osc = [];
     const texts = [];
@@ -17584,7 +17591,7 @@ let lcpPresetUrl = "";
   check(
     "the pyramid preset at 8× knocks all 1,144 blocks down, the summit last, and ends with 146 balls on the floor",
     atStart.lcLayout === "pyramid" && atStart.lcpTotal === "1144" && atStart.lcpShown === "1144" && atStart.lcpStartBalls === "3" && atStart.lcBallCount === "3" && cleared.lcpEnd === "cleared" && cleared.lcpSummitLast === "1" && cleared.lcpSummitLeft === "0" && cleared.lcpEndBalls === "146" && Number(cleared.lcpClearSec) > 3 && Number(cleared.lcpClearSec) < 40 && cleared.lcpOnFloor === "1" && Number(cleared.lcpPlucks) > 100 && Number(cleared.lcpChimes) >= 1 && cleared.lcpSummits === "1" && cleared.lcpClears === "1",
-    `(${JSON.stringify({ total: atStart.lcpTotal, start: atStart.lcBallCount, end: cleared.lcpEnd, summitLast: cleared.lcpSummitLast, summitLeft: cleared.lcpSummitLeft, summitSec: cleared.lcpSummitSec, clearSec: cleared.lcpClearSec, endBalls: cleared.lcpEndBalls, onFloor: cleared.lcpOnFloor, plucks: cleared.lcpPlucks, chimes: cleared.lcpChimes, summits: cleared.lcpSummits, clears: cleared.lcpClears })})`,
+    `(${JSON.stringify({ seed: cleared.seed, total: atStart.lcpTotal, start: atStart.lcBallCount, end: cleared.lcpEnd, summitLast: cleared.lcpSummitLast, summitLeft: cleared.lcpSummitLeft, summitSec: cleared.lcpSummitSec, clearSec: cleared.lcpClearSec, endBalls: cleared.lcpEndBalls, onFloor: cleared.lcpOnFloor, plucks: cleared.lcpPlucks, chimes: cleared.lcpChimes, summits: cleared.lcpSummits, clears: cleared.lcpClears })})`,
   );
   check(
     "the pyramid holds, rebuilds and loops back to its first frame (the loop contract reports its cycle and seams)",

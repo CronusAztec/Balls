@@ -5,6 +5,7 @@
   "license": "UNLICENSED",
   "description": "JumpingBallsLive – free browser-based ball physics simulator for TikTok, Reels and Shorts, exported as a static site for GitHub Pages",
   "scripts": {
+    "postinstall": "node scripts/patch-react-hydration-replay.mjs",
     "dev": "next dev",
     "build": "next build && node scripts/postexport.mjs",
     "start": "node scripts/serve-static.mjs",

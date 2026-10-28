@@ -231,6 +231,26 @@ npm run -s agent -- trending --json '{"query":"ball simulation","maxDurationSec"
 npm run -s agent -- inspire --json '{"query":"ball simulation"}'                         # --- inspiration --- fetch, measure and frame the top ones: a report in our own levers
 ```
 
+### Dependencies
+
+--- react-hydration-replay --- A plain `npm install` and `npm ci` end with `node scripts/patch-react-hydration-replay.mjs`
+(the `postinstall` script; CI, the Windows app's workflow and the VPS deployer all run `npm ci`). It patches the React that Next 15.5.26
+bundles (19.2.0-canary, `node_modules/next/dist/compiled/react-dom*`) with React 19.3's fix for a hydration bug: an element
+that waited for a part of the page still streaming in was matched against its own first child, "Minified React error #418
+(args HTML)", about one page load in a thousand (it failed a smoke shard on CI), and React then rendered the page again on the
+client. The script prints one line per file, does nothing on a second run, and stops the install, naming the file, when Next's
+React no longer looks as it expects. `next.config.ts` puts a digest of that React into webpack's cache version, because webpack
+trusts `node_modules` by package version and a `.next/cache` from before the patch went on shipping the old code.
+`tests/hydrationReplay.test.ts` reproduces the bug in Chromium. npm runs the project's `postinstall` only for a plain
+`npm install` or `npm ci`: `npm install <package>` (`npm install next@15.5.x` too), `npm update`, `npm audit fix` and any
+install with `--ignore-scripts` skip it, and a `next` they reinstall bundles the unpatched React again, which `npm run dev`,
+`npm run build` and `npm run guard:browser` then use without a word. After one of them, run `npm install` or
+`node scripts/patch-react-hydration-replay.mjs`; until then `tests/hydrationReplay.test.ts` fails and says so. The
+`"hasInstallScript": true` in the root entry of `package-lock.json` is npm's record of the `postinstall`: without it a plain
+`npm install` rewrites the lock. Remove the script, its `postinstall` entry, that line of the lock (a plain `npm install`
+drops it), the webpack hook in `next.config.ts` and the script's checks in the test once `next` bundles React 19.3 or later
+(Next 16.2+).
+
 ## Deploying (Cloudflare, jumpingballslive.com)
 
 GitHub only keeps the code and runs the builds, so the repository can be private. The live site at
