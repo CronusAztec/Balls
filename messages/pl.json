@@ -4177,6 +4177,10 @@
         "line": "Ciemno i spokojnie. Jedna linijka tekstu naraz."
       }
     },
+    "variants": {
+      "ring": "Jeden pierścień",
+      "fills": "Wypełnij do końca"
+    },
     "cover": {
       "label": "Okładka",
       "at": "{sec} s – {why}",

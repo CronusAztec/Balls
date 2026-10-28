@@ -11,6 +11,7 @@ import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, CLIFF_GAP_SEC, LENGTH_BUCKETS, PAY
 import {
   ACTION_GAIN_SEC,
   BOT_PLAN_VERSION,
+  bannerCoverSec,
   actionCoverSec,
   bottomEdgeFree,
   captionMessagesOf,
@@ -34,7 +35,7 @@ import {
   type ClipPlan,
 } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { ACTION_GRID, ACTION_STEP_SEC, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, type ActionTrack } from "@/lib/bot/actionTrack";
+import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
 import {
@@ -60,9 +61,10 @@ import {
   ownSettingsOf,
   plannedRecipe,
   strategyCanPlan,
+  variantBinding,
   type OutcomeFlag,
 } from "@/lib/bot/templates";
-import { AT_END_BUCKETS, AT_END_SEC, OUTCOME_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { AT_END_BUCKETS, AT_END_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { simulateOutcomeRun } from "@/lib/simulation/finder";
@@ -74,8 +76,8 @@ import { crowding, drawnHookText, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverAc
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
- * formats, the 16 proven bindings (14 ready: the square race's and Ball Drop's one variant each is hidden) and the other 32
- * hidden, the adapter the planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights
+ * formats, the 16 proven bindings (14 ready: the square race's and Ball Drop's one variant each is hidden), the trial bindings
+ * AI studio step 3 readied with their own settings (TRIAL_READY) and the rest hidden, the adapter the planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights
  * score), the bot's own look byte-identical to before, and the Simple look measured – one text at a time, Simple 80 or more,
  * the checklist's look item kept, the run untouched.
  */
@@ -100,11 +102,21 @@ const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass",
  */
 const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !== "drop");
 /**
+ * --- templates --- (AI studio step 3) The trial bindings readied with their own settings (group A): each planned on 4 plan seeds
+ * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
+ * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
+ * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
+ * mini-map and clock crowd the screen (both watched in the render).
+ */
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit"];
+/** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
+const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
+/**
  * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
  * words of G5, the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s), and Ball Drop's run fades
  * out – a lone faint note over a board at rest, then silence (G2: review round 2, 21).
  */
-const HIDDEN_VARIANTS = ["on-the-beat-drop", "who-wins-race", "who-wins-fight-league-boss"];
+const HIDDEN_VARIANTS = ["fill-grow-fills", "on-the-beat-drop", "who-wins-race", "who-wins-fight-league-boss"];
 /**
  * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its template is
  * hidden, and the Simple look's placement and line breaks are the look's, whoever planned the clip.
@@ -166,32 +178,40 @@ describe("the bindings", () => {
     expect(new Set(TEMPLATE_FORMAT_IDS.map((f) => TEMPLATE_FORMATS[f].claim)).size).toBe(TEMPLATE_FORMAT_IDS.length);
   });
 
-  it("readies the proven bindings that have a variant to plan, each variant wrapping a recipe of its mode; the other 32 are declared and hidden", () => {
+  it("readies the proven bindings that have a variant to plan, each variant wrapping a recipe of its mode or playing its own way, and the trial bindings that passed their planning; the rest are declared and hidden", () => {
     const proven = BINDINGS.filter((b) => b.tier === "proven").map((b) => b.mode);
     expect([...proven].sort()).toEqual([...PROVEN].sort());
     // (a binding is ready only while one of its variants plans: the square race's one variant is hidden, so its binding is not)
-    expect(BINDINGS.filter((b) => b.ready).map((b) => b.mode).sort()).toEqual([...READY_MODES].sort());
-    for (const b of BINDINGS) expect([b.mode, b.ready], b.mode).toEqual([b.mode, b.tier === "proven" && b.variants.some((v) => v.recipe !== null && !v.hidden)]);
+    expect(BINDINGS.filter((b) => b.ready).map((b) => b.mode).sort()).toEqual([...READY_MODES, ...TRIAL_READY].sort());
+    for (const b of BINDINGS) {
+      const plans = b.variants.some((v) => !v.hidden && (v.recipe !== null || strategyCanPlan(variantBinding(b, v))));
+      expect([b.mode, b.ready], b.mode).toEqual([b.mode, b.tier === "proven" ? plans : b.tier === "trial" && plans]);
+    }
     // the proven ones are exactly the modes the playbook's recipes play
     expect([...new Set(RECIPES.flatMap((r) => r.modes))].sort()).toEqual([...PROVEN].sort());
     for (const b of BINDINGS) {
       for (const v of b.variants) {
-        if (b.tier === "proven") {
+        if (b.tier === "proven" && v.recipe !== null) {
           const recipe = recipeById(v.recipe);
           expect(recipe, v.id).toBeDefined();
           expect(recipe!.modes, v.id).toContain(b.mode);
           // the crew's claim of the recipe is the format's
           expect(CLAIM_OF_RECIPE[recipe!.id], v.id).toBe(TEMPLATE_FORMATS[b.format].claim);
+        } else if (b.tier === "proven") {
+          // --- templates --- (AI studio step 3) a variant without a recipe plays its own way: its strategy and outcome over its binding
+          expect([v.id, OWN_VARIANTS.includes(v.id), v.own !== undefined, strategyCanPlan(variantBinding(b, v))]).toEqual([v.id, true, true, true]);
+          expect(templateRecipeById(v.id) !== undefined, v.id).toBe(!v.hidden);
         } else {
           expect(v.recipe, v.id).toBeNull();
-          expect(templateRecipeById(v.id), v.id).toBeUndefined();
+          expect(templateRecipeById(v.id) !== undefined, v.id).toBe(b.ready);
         }
       }
     }
     expect(allTemplates().filter((t) => t.binding.tier === "proven" && !t.ready).map((t) => t.id)).toEqual(HIDDEN_VARIANTS);
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
     expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34);
+    expect(BINDINGS.filter((b) => b.tier === "trial").map((b) => b.mode).sort()).toEqual([...TRIAL_READY].sort());
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34 - TRIAL_READY.length);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
@@ -297,7 +317,7 @@ describe("the adapter", () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(planTemplate("get-out-classic", 6, "reels", { copy, maxSeeds: 6, siteUrl: SITE }))).not.toBe(JSON.stringify(a));
     expect(() => planTemplate("who-wins-fight-league-boss", 1, "reels", { copy, search: false })).toThrow();
-    expect(() => planTemplate("smash-target", 1, "reels", { copy, search: false })).toThrow();
+    expect(() => planTemplate("fill-paint", 1, "reels", { copy, search: false })).toThrow(); // (--- templates --- AI studio step 3: Target is offered now)
     expect(() => planTemplate("ring-escape", 1, "reels", { copy, search: false })).toThrow();
     // the bot's own look on request
     const bot = planTemplate("get-out-classic", 5, "reels", { copy, search: false, look: "bot" });
@@ -310,9 +330,10 @@ describe("the adapter", () => {
     for (const t of ready) {
       const recipe = templateRecipeById(t.id)!;
       expect(botRecipeById(t.id)).toBe(recipe);
-      expect(recipe.wraps).toBe(t.recipe!.id);
+      // (--- templates --- AI studio step 3: a template without a recipe wraps none and speaks with its format's words)
+      expect(recipe.wraps).toBe(t.recipe ? t.recipe.id : undefined);
       expect(recipe.modes).toEqual([t.mode]);
-      expect(recipe.copyKey).toBe(t.recipe!.copyKey);
+      expect(recipe.copyKey).toBe(t.recipe ? t.recipe.copyKey : t.format.copyKey);
       expect(scoreRecipeFor(t.mode, t.id)).toBe(recipe);
       // another mode than the template's: the mode's own playbook recipe, as for a recipe id
       const other = t.mode === "classic" ? "drop" : "classic";
@@ -525,7 +546,8 @@ describe("the Simple look", () => {
           // look draws no counter: the bot look's bar or timer counts the clip's seconds, which one text at a time would cut short
           // at the payoff (--- templates --- review round 2, 22)
           const moved = bot.reasons.filter((r) => simple.reasons.find((x) => x.id === r.id)?.points !== r.points).map((r) => r.id);
-          const counted = simple.countdown.source === "picture";
+          // (--- templates --- AI studio step 3: a template without a recipe lets the picture count in both looks: no counter to lose)
+          const counted = simple.countdown.source === "picture" && t.recipe !== null;
           if (counted) expect([where, bot.settings.captions[bot.captionRoles.indexOf("countdown")]?.type]).toEqual([where, expect.stringMatching(/^(progress|countdown)$/)]);
           expect([moved, bot.score - simple.score], where).toEqual(counted ? [["countdown", "series"], 14] : [["series"], 4]);
         }
@@ -652,8 +674,10 @@ describe("a template keeps its format's promise where its recipe's own would bre
   it("times every ready template by its binding's strategy (its recipe's, but where it has one of its own)", () => {
     for (const t of ready) {
       const r = templateRecipeById(t.id)!;
-      expect([t.id, (PAYOFF_STRATEGIES as readonly string[]).includes(t.binding.strategy), r.strategy]).toEqual([t.id, true, t.binding.strategy]);
-      if (t.mode !== "drop") expect([t.id, r.strategy]).toEqual([t.id, t.recipe!.strategy]);
+      // (--- templates --- AI studio step 3: a variant without a recipe plays its own strategy over its binding's – Classic's one ring)
+      const b = variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id));
+      expect([t.id, (PAYOFF_STRATEGIES as readonly string[]).includes(b.strategy), r.strategy]).toEqual([t.id, true, b.strategy]);
+      if (t.mode !== "drop" && t.recipe) expect([t.id, r.strategy]).toEqual([t.id, t.recipe.strategy]);
     }
     expect([MODE_TEMPLATES.drop.strategy, recipeById("drop-symphony")!.strategy]).toEqual(["lastNote", "finish"]);
   });
@@ -884,10 +908,13 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
 // binding the planner plans while it is not yet offered
 describe("the outcome and atEnd strategies, a binding's own settings and the experimental table", () => {
   /**
-   * The experimental table as this release has it: the 32 bindings without a recipe. Shrink only – a binding leaves the table
+   * The experimental table as this release has it: 27 of the 32 bindings without a recipe. Shrink only – a binding leaves the table
    * (and may leave this list) when its planning acceptance passes; one that joins the table fails here.
    */
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["shatter", "colorMatch", "journey", "target", "brickRebuild", "spiralGlass", "paint", "perfectFit", "conveyor", "mergeRing", "maze", "territory", "landClaim", "bullseye", "box", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
+  // (--- templates --- AI studio step 3: five of group A's trial bindings left it, planned on 3 of 4 seeds on every platform and
+  // watched; Paint stays, its run ending at its fill, Spiral Glass, its own question drawn over the spiral, and the Journey, its
+  // own banners, mini-map and clock)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["journey", "paint", "spiralGlass", "conveyor", "mergeRing", "maze", "territory", "landClaim", "bullseye", "box", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -908,12 +935,14 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     }
     expect(BINDINGS.filter((b) => b.tier === "proven").every((b) => EXPERIMENTAL[b.mode] === undefined)).toBe(true);
     expect(readyTemplates("all").every((t) => EXPERIMENTAL[t.mode] === undefined)).toBe(true);
-    // the six outcomes the finder searches over settings, not seeds: the outcome strategy has no moment for them
+    // the four outcomes the finder searches over settings, not seeds: the outcome strategy has no moment for them (--- templates ---
+    // AI studio step 3: Brick Smash's first smash and Perfect Fit's first box full have a seed's moment, read off a run of their own)
     const ownSearch = BINDINGS.filter((b) => !strategyCanPlan(b));
-    expect(ownSearch.map((b) => b.mode).sort()).toEqual(["beatMachine", "brickRebuild", "ellipseFoci", "perfectFit", "starChords", "vortex"]);
+    expect(ownSearch.map((b) => b.mode).sort()).toEqual(["beatMachine", "ellipseFoci", "starChords", "vortex"]);
     for (const b of ownSearch) expect([b.mode, EXPERIMENTAL[b.mode] !== undefined, outcomeStrategyPlans(b.outcome)]).toEqual([b.mode, true, false]);
-    // every other bound outcome has its seed's moment
-    for (const b of BINDINGS.filter((x) => x.strategy === "outcome" && strategyCanPlan(x))) expect([b.mode, OUTCOME_MOMENTS[b.outcome!] !== undefined]).toEqual([b.mode, true]);
+    // every other bound outcome has its seed's moment: the finder's own run's, or a run of its own
+    for (const b of BINDINGS.filter((x) => x.strategy === "outcome" && strategyCanPlan(x))) expect([b.mode, OUTCOME_MOMENTS[b.outcome!] !== undefined || OWN_RUN_MOMENTS[b.outcome!] !== undefined]).toEqual([b.mode, true]);
+    expect(Object.keys(OWN_RUN_MOMENTS).sort()).toEqual(["bricks-cleared-by", "most-on-floor"]);
     // no playbook recipe times its payoff with a template's own strategy
     for (const r of RECIPES) expect(["lastNote", "outcome", "atEnd"], r.id).not.toContain(r.strategy);
   });
@@ -929,7 +958,10 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     expect(outcomeFlagHolds("colourSortSettles", outcomeContextOfSettings({ ...defaultSettings("colourSort"), csRule: "bothWaysNotOwn" }))).toBe(false);
     const bound = BINDINGS.filter((b) => b.outcome);
     expect(bound.length).toBe(15);
-    for (const b of bound) {
+    // (--- templates --- AI studio step 3: and the variants that play an outcome of their own – Classic's ring-at, Grow's fills-by)
+    const variantsBound = BINDINGS.flatMap((b) => b.variants.filter((v) => v.own?.outcome).map((v) => variantBinding(b, v)));
+    expect(variantsBound.map((b) => [b.mode, b.outcome, b.needs])).toEqual([["classic", "ring-at", "ringEscape"], ["grow", "fills-by", "growFinish"]]);
+    for (const b of [...bound, ...variantsBound]) {
       for (const seed of [1, 2, 3, 4]) {
         const s = { ...defaultSettings(b.mode), ...ownSettingsOf(b)(ctxOf(seed)) } as SimulatorSettings;
         const context = outcomeContextOfSettings(s);
@@ -949,20 +981,26 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     const a = ownSettingsOf(drawn)(ctxOf(5, 17));
     expect(a).toEqual(ownSettingsOf(drawn)(ctxOf(5, 17)));
     expect([a.mode, a.recordingDuration, [20, 30, 40].includes(a.cvMaxBalls as number)]).toEqual(["conveyor", 20, true]);
-    expect(ownSettingsOf({ ...MODE_TEMPLATES.shatter, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "shatter" });
+    // (--- templates --- AI studio step 3: Shatter draws its own settings now; Maze has neither yet)
+    expect(ownSettingsOf({ ...MODE_TEMPLATES.maze, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "maze" });
     // the defaults, where a binding has neither
-    expect(ownSettingsOf(MODE_TEMPLATES.shatter)(ctxOf(1))).toEqual({ mode: "shatter" });
+    expect(ownSettingsOf(MODE_TEMPLATES.maze)(ctxOf(1))).toEqual({ mode: "maze" });
+    // a seeded generator draws under its tune: the tune's value wins, every other number is the draw's
+    const shatter = ownSettingsOf(MODE_TEMPLATES.shatter)(ctxOf(1));
+    expect(ownSettingsOf({ ...MODE_TEMPLATES.shatter, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ...shatter, ballSpeed: 450 });
   });
 
   it("adapts a binding without a recipe: its own settings inside RANGES and canonical, its mode, its strategy and outcome, its format's family and copy key", () => {
     const own = allTemplates().filter((t) => t.binding.variants.find((v) => v.id === t.id)!.recipe === null);
-    expect(own.length).toBe(32);
+    // (the 32 bindings without a recipe and – --- templates --- AI studio step 3 – two variants of proven ones that play their own way)
+    expect(own.length).toBe(32 + OWN_VARIANTS.length);
     for (const t of own) {
+      const b = variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id));
       const r = plannedRecipe(t);
-      expect([t.id, r === null]).toEqual([t.id, !strategyCanPlan(t.binding)]);
+      expect([t.id, r === null]).toEqual([t.id, !strategyCanPlan(b)]);
       expect([t.id, t.family]).toEqual([t.id, t.binding.family ?? t.format.family]);
       if (!r) continue;
-      expect([r.id, r.modes, r.strategy, r.outcome, r.copyKey, r.family, r.wraps]).toEqual([t.id, [t.mode], t.binding.strategy, t.binding.outcome, t.format.copyKey, t.family, undefined]);
+      expect([r.id, r.modes, r.strategy, r.outcome, r.copyKey, r.family, r.wraps]).toEqual([t.id, [t.mode], b.strategy, b.outcome, t.format.copyKey, t.family, undefined]);
       expect([t.id, r.endings!.every((e) => t.format.endings.includes(e))]).toEqual([t.id, true]);
       if (r.strategy === "atEnd") expect([t.id, r.endings, r.buckets]).toEqual([t.id, ["resolved"], AT_END_BUCKETS]);
       for (const bucket of LENGTH_BUCKETS) {
@@ -974,7 +1012,7 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
           expect([where, s.mode, plan.template, plan.recipe]).toEqual([where, t.mode, t.id, t.id]);
           expect(sameSettings(presetToSettings(s), s), where).toBe(true);
           for (const c of s.captions) expect(sanitizeCaption(c), where).toEqual(c);
-          if (t.binding.needs) expect([where, outcomeFlagHolds(t.binding.needs, outcomeContextOfSettings(s))]).toEqual([where, true]);
+          if (b.needs) expect([where, outcomeFlagHolds(b.needs, outcomeContextOfSettings(s))]).toEqual([where, true]);
         }
       }
     }
@@ -984,10 +1022,12 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     expect(plannedRecipe(templateById("who-wins-race")!)!.wraps).toBe("square-race");
   });
 
-  it("proves the outcome strategy on Shatter's binding (escapes-at; planned, not yet offered): the payoff is the run's first escape, inside the band or 0.5-1 s after the cut, on 3 of 4 plan seeds", async () => {
+  it("proves the outcome strategy on Shatter's binding (escapes-at): the payoff is the run's first escape, inside the band or 0.5-1 s after the cut, on 3 of 4 plan seeds", async () => {
     const t = templateById("get-out-shatter")!;
-    expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
-    const r = plannedRecipe(t)!;
+    // (--- templates --- AI studio step 3: offered now, cut before its escape – the run ends with it; the strategy is proven on both
+    // endings here, the template's recipe asked for the resolved one too)
+    expect([t.ready, t.binding.tier, templateRecipeById(t.id)?.endings]).toEqual([true, "trial", ["cliffhanger"]]);
+    const r = { ...plannedRecipe(t)!, endings: ["resolved", "cliffhanger"] as const };
     expect([r.strategy, r.outcome, r.endings]).toEqual(["outcome", "escapes-at", ["resolved", "cliffhanger"]]);
     let found = 0;
     const endings = new Set<string>();
@@ -1058,5 +1098,101 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     expect(clipTiming(r, { ...s, recordingDuration: 15 }, null, "cliffhanger", "short").accepted).toBe(false);
     // the clip's length comes from the payoff target: the clip it is 85 % of, whole seconds, the recording's least at least
     expect([atEndRecordingSec(12.75), atEndRecordingSec(17), atEndRecordingSec(1)]).toEqual([15, 20, RANGES.recordingDuration.min]);
+  });
+});
+
+// --- templates --- (AI studio step 3) group A: the get-out, smash and fill bindings with their own settings, Classic's one ring and
+// Grow's fill that ends the run, and Glass Smash's hook kept clear of the mode's own STAGE banners (the studio's first known gap)
+describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Classic's one ring", () => {
+  const GROUP_A = ["get-out-shatter", "get-out-color-match", "smash-target", "smash-brick-rebuild", "fill-perfect-fit", "get-out-classic-ring"];
+
+  it("offers every one of them, in its format's words, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
+    for (const id of GROUP_A) {
+      const t = templateById(id)!;
+      const r = templateRecipeById(id)!;
+      expect([id, t.ready, r.formatCopy, r.wraps]).toEqual([id, true, true, undefined]);
+      const b = variantBinding(t.binding, t.binding.variants.find((v) => v.id === id));
+      const platforms = platformsOf(id);
+      for (const seed of [1, 2, 3, 4]) {
+        const platform = platforms[(seed - 1) % platforms.length];
+        const options = { copy, episode: 3, index: seed };
+        const plan = planTemplate(id, seed, platform, options);
+        const where = `${id}/${platform}/${seed}`;
+        expect(JSON.stringify(planTemplate(id, seed, platform, options)), where).toBe(JSON.stringify(plan));
+        expect(rangeViolations(plan.settings), where).toEqual([]);
+        if (b.outcome) expect([where, availableOutcomes(t.mode, outcomeContextOfSettings(plan.settings)).includes(b.outcome)]).toEqual([where, true]);
+      }
+      await breathe();
+    }
+    // the bot's own plans are untouched: no template of group A is a recipe, and none plays a recipe's mode but Classic's ring
+    expect(GROUP_A.filter((id) => RECIPES.some((r) => r.modes.includes(templateById(id)!.mode)))).toEqual(["get-out-classic-ring"]);
+  });
+
+  it("reads each payoff where the run shows it: the box full and Journey's HOME as the claim's facts, Spiral Glass's clear 2 s before its run's end", () => {
+    expect(FILL_OUTCOMES).toEqual(["fills-by", "most-on-floor"]);
+    // Perfect Fit: the first box full is the payoff and the fill the crew's claim reads
+    const fit = planTemplate("fill-perfect-fit", 1, "reels", { copy, episode: 3, index: 1 });
+    const horizon = fit.timing.clipSec + 2;
+    const facts = simulateFacts(finderRequestOfSettings(fit.settings, fit.world, horizon), fit.seed, { strategy: "outcome", outcome: "most-on-floor" }, horizon);
+    expect([facts.fillSec > 0, facts.fillSec]).toEqual([true, facts.outcomeRun!.atSec]);
+    expect(fit.payoff.atSec).toBeCloseTo(facts.fillSec, 9);
+    // Journey (experimental: its own HUD): HOME, then 1.8 s of celebration before its run ends (Glass Smash's), so a resolved clip shows it
+    const home = planClip(plannedRecipe(templateById("get-out-journey")!)!, 1, "reels", { copy, look: "simple", template: "get-out-journey", episode: 3, index: 1, ending: "resolved" });
+    const jh = home.timing.clipSec + 3;
+    const journey = simulateFacts(finderRequestOfSettings(home.settings, home.world, jh), home.seed, { strategy: "finish" }, jh);
+    expect([home.ending, journey.homeSec > 0, journey.finishSec - journey.homeSec > 1.5]).toEqual(["resolved", true, true]);
+    expect(home.payoff.atSec).toBeCloseTo(journey.homeSec, 9);
+    // Spiral Glass (experimental: its own question over the spiral): GLASS CLEARED 2 s before the run finishes
+    const spiral = planClip(plannedRecipe(templateById("smash-spiral-glass")!)!, 1, "reels", { copy, look: "simple", template: "smash-spiral-glass", episode: 3, index: 1, ending: "resolved" });
+    const sh = spiral.timing.clipSec + 3;
+    const sg = simulateFacts(finderRequestOfSettings(spiral.settings, spiral.world, sh), spiral.seed, { strategy: "finish" }, sh);
+    expect(spiral.payoff.atSec).toBeCloseTo(sg.finishSec - 2, 9);
+    // a run of its own reads Brick Smash's first smash (bricks-cleared-by) and loops on: no end of its own
+    const brick = planTemplate("smash-brick-rebuild", 1, "reels", { copy, episode: 3, index: 1 });
+    const own = outcomeRunOf(finderRequestOfSettings(brick.settings, brick.world, brick.timing.clipSec + 2), brick.seed, "bricks-cleared-by", brick.timing.clipSec + 2);
+    expect([own.facts.atSec > 0, own.facts.endSec, own.summary.finished]).toEqual([true, null, false]);
+  });
+
+  it("keeps Paint experimental and Grow's fill that ends its run hidden, with their reasons: the run ends at the fill, so a resolved clip shows it for the recorder's 0.5 s (G2)", () => {
+    expect(EXPERIMENTAL.paint).toMatch(/95 %.*0\.5 s.*G2/);
+    // (and the two hidden after watching their render: what they draw of their own, which no setting switches off)
+    expect([EXPERIMENTAL.spiralGlass, EXPERIMENTAL.journey]).toEqual([expect.stringMatching(/Will the ball multiply\?.*watched/), expect.stringMatching(/banner.*mini-map.*clock.*watched/)]);
+    const grow = templateById("fill-grow-fills")!;
+    expect([grow.ready, grow.binding.ready, grow.binding.variants.find((v) => v.id === grow.id)!.hidden]).toEqual([false, true, expect.stringMatching(/0\.5 s.*G2/)]);
+    // the reasons still hold (when they no longer do, they may be shown): every plan fails G2, timed by the fill that ends the run
+    for (const id of ["fill-paint", "fill-grow-fills"]) {
+      const r = plannedRecipe(templateById(id)!)!;
+      for (const seed of [1, 2]) {
+        const plan = planClip(r, seed, "reels", { copy, look: "simple", template: id, episode: 3, index: seed });
+        const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+        const g2 = clarityOf(crewClipOfPlan(plan, { run })).gates.find((g) => g.id === "G2")!;
+        expect([id, seed, plan.ending, g2.ok]).toEqual([id, seed, "resolved", false]);
+      }
+    }
+  });
+
+  it("keeps Glass Smash's hook clear of its STAGE banners: the hook takes the bottom, and the crew's G5 fails a text drawn over a banner", () => {
+    for (const seed of [1, 2]) {
+      const plan = planTemplate("get-out-glass", seed, "reels", { copy, episode: 3, index: seed });
+      const where = `glass/${seed}`;
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const track = run.action!;
+      // the run's track keeps the banners it shows: STAGE 1 from the first frame, the next as each stage begins
+      expect([where, isActionTrack(track), track.banners?.length, actionCellsOf(track.banners![0]).length > 0]).toEqual([where, true, track.samples.length, true]);
+      const hook = plan.captionRoles.flatMap((r, i) => (r === "hook" ? [i] : []));
+      expect([where, hook.map((i) => plan.settings.captions[i].position)]).toEqual([where, hook.map(() => "bottom")]);
+      expect([where, bannerCoverSec(plan.settings.captions, hook, track, plan.timing.clipSec)]).toEqual([where, 0]);
+      const clip = crewClipOfPlan(plan, { run });
+      expect([where, clarityOf(clip).gates.find((g) => g.id === "G5")!.problems]).toEqual([where, []]);
+      // the same clip with its hook back at the top: two texts stacked, which G5 fails
+      const atTop = crewClipOfPlan({ ...plan, settings: { ...plan.settings, captions: captionsAtEdge(plan.settings.captions, hook, "top") } }, { run });
+      expect([where, bannerCoverSec(atTop.captions, hook, track, plan.timing.clipSec) >= 1]).toEqual([where, true]);
+      expect([where, clarityOf(atTop).gates.find((g) => g.id === "G5")!.problems]).toEqual([where, ["readableOverBanner"]]);
+    }
+    // only the modes that draw a banner of their own text keep the banners: every other mode's track is as it was
+    expect([...BANNER_MODES]).toEqual(["glass", "journey"]);
+    const pendulum = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false });
+    expect("banners" in actionTrackSync(pendulum.settings, pendulum.seed, pendulum.world, 3)).toBe(false);
+    expect([isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [1] }), isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [""] })]).toEqual([false, true]);
   });
 });

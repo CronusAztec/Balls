@@ -125,12 +125,14 @@ export function thingOf(copy: BotCopy, mode: string): string {
 /**
  * A template's name: "{Mode name} · {Format name}" ("Shatter · Get out"), with the mode's name as the site shows it
  * (`Modes.<id>.name`, which the caller reads: this copy is the `ViralBot` namespace alone); a binding's further variant
- * (templates.ts templateNameOf) adds the name of the recipe it wraps ("Classic · Get out · Gerald escapes"), so no two
+ * (templates.ts templateNameOf) adds the name of the recipe it wraps ("Classic · Get out · Gerald escapes") – --- templates ---
+ * (AI studio step 3) or, a variant without one, its own (`ViralBot.variants.<key>`: "Classic · Get out · One ring") –, so no two
  * templates share a name.
  */
-export function templateName(copy: BotCopy, modeName: string, format: string, variantOf?: Pick<BotRecipe, "copyKey"> | null): string {
+export function templateName(copy: BotCopy, modeName: string, format: string, variantOf?: Pick<BotRecipe, "copyKey"> | { variant: string } | null): string {
   const parts = [modeName.trim(), copyString(copy, `formats.${format}.name`) || format];
-  if (variantOf) parts.push(copyString(copy, `recipes.${variantOf.copyKey}.name`) || variantOf.copyKey);
+  if (variantOf && "variant" in variantOf) parts.push(copyString(copy, `variants.${variantOf.variant}`) || variantOf.variant);
+  else if (variantOf) parts.push(copyString(copy, `recipes.${variantOf.copyKey}.name`) || variantOf.copyKey);
   return parts.filter(Boolean).join(" · ");
 }
 

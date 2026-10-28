@@ -250,10 +250,25 @@ const scriptedReviewer = (ask: EvalAsk) => {
   return { verdict: drop ? "drop" : fixes.length ? "fix" : "keep", confidence: "medium", answers, viewerAnswer, fixes: drop ? [] : fixes.slice(0, 3), why: drop ? "no fix holds" : fixes.length ? "the fixes answer the objections" : "clear" };
 };
 
+/**
+ * The ending and the length a template's idea may take, as the brainstormer's answer schema allows them (roles.ts brainstormFinal:
+ * one variant a template): --- templates --- (AI studio step 3) a template cut before its payoff takes the cliffhanger only
+ * (Shatter's, Target's), so a pitch that reads the schema asks for that.
+ */
+type IdeaSchema = { properties: { template: { const: string }; ending: { enum: string[] }; bucket: { enum: string[] } } };
+const allowedOf = (ask: EvalAsk, template: string) => (ask.brief.final as unknown as { properties: { ideas: { items: { oneOf: IdeaSchema[] } } } }).properties.ideas.items.oneOf.find((v) => v.properties.template.const === template)?.properties;
+
 const scriptedBrainstormer = (ask: EvalAsk) => {
   const menu = [...ask.brief.user.matchAll(/^- ([a-z0-9-]+) \(([a-zA-Z]+)\): ([a-zA-Z]+);/gm)].map((m) => ({ template: m[1], format: m[2], mode: m[3] }));
   const firsts = menu.filter((m, i) => menu.findIndex((x) => x.format === m.format) === i);
-  return { ideas: firsts.slice(0, 6).map((m, i) => ({ template: m.template, mode: m.mode, hook: "a", ending: "resolved", bucket: "standard", angle: `idea ${i + 1}`, basis: "none" })) };
+  return {
+    ideas: firsts.slice(0, 6).map((m, i) => {
+      const allowed = allowedOf(ask, m.template);
+      const endings = allowed?.ending.enum ?? ["resolved"];
+      const buckets = allowed?.bucket.enum ?? ["standard"];
+      return { template: m.template, mode: m.mode, hook: "a", ending: endings.includes("resolved") ? "resolved" : endings[0], bucket: buckets.includes("standard") ? "standard" : buckets[0], angle: `idea ${i + 1}`, basis: "none" };
+    }),
+  };
 };
 
 const scripted: EvalAnswer = (ask) => {
@@ -354,6 +369,9 @@ describe("the recorded runs (--- crew --- tests/fixtures/crew/runs/)", () => {
  * (review round 2, 21) Ball Drop's hidden template took its three clean clips and its format out of the menu: a third Glass
  * clip, whose hook has no word of its claim, draws the scripted skeptic's hookMismatch and the viewer's misread, three Ball
  * Drop hooks the viewer read as a count are gone, and the scripted brainstormer's first template of each format gives 5 ideas.
+ * --- templates --- (AI studio step 3) Target's template is the smash format's first in the menu now (Power Layers' before it): cut
+ * before its last segment, every idea of it passes every gate, so the code's ideas pass 18 of 18 (15 before) and the scripted
+ * brainstormer's – which takes each template's ending as its schema allows it – 15 of 15 (12). No catch rate moved.
  */
 const SCRIPTED_TABLES = [
   "Corpus: 40 clean clips, 27 planted (9 classes).",
@@ -381,6 +399,6 @@ const SCRIPTED_TABLES = [
   "",
   "| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |",
   "| --- | --- | --- | --- | --- | --- | --- | --- |",
-  "| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 5 | 0 | - |",
-  "| the brainstormer | 3 | 15 | 15 | 12 of 15 (80%) | 5 | 3 | 3 of 3 |",
+  "| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 5 | 0 | - |",
+  "| the brainstormer | 3 | 15 | 15 | 15 of 15 (100%) | 5 | 3 | 3 of 3 |",
 ].join("\n");

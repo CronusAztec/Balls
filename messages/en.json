@@ -4177,6 +4177,10 @@
         "line": "Dark and calm. One line of text at a time."
       }
     },
+    "variants": {
+      "ring": "One ring",
+      "fills": "Fill to finish"
+    },
     "cover": {
       "label": "Cover",
       "at": "{sec} s – {why}",

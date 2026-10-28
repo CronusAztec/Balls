@@ -158,7 +158,7 @@ timeline. It is 100 minus:
 | G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. A shown payoff happens in the run: a sound there where the clip promises one (a beat, or words that name a chord), the mode's own chord where the words name one, no chord as large after a hook that promises one, and never silence with the balls at a quarter of their usual motion or less (on a beat, never only a few lone notes, fewer than the run's usual moment plays). A clip that ends without words never ends on more than 1.5 s of silence over still balls. |
 | G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
 | G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim, and a bar or a timer of the clip's seconds stays on screen to within 1 s of its end. |
-| G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band. |
+| G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band, and no text over a mode's own banner while it shows (Glass's "STAGE 2" as each floor begins). |
 | G6 not too busy | Simple is 60 or more. |
 | G7 length fits | The length is in a bucket the platform takes. |
 | G8 rendered | At most 2 % lagged frames, and the watermark on every free clip, drawing an address a viewer can open (never localhost). |
@@ -216,17 +216,23 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 14 of the 16 modes a recipe plays, as 18 templates. Classic and Portal also have a Gerald variant, and Fight
-  League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode. Gerald's Portal escape
-  takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time on about half the plans.
-- **Hidden for now:** the other 32 modes are bound but wait for their own settings and planning acceptance. They sit in
-  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Their
+- **Ready now:** 19 modes as 24 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
+  Gerald variant, and Fight League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
+  Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
+  on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
+  Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
+  ("Classic · Get out · One ring"). Their numbers are in the table of step 3 below.
+- **Hidden for now:** the other 27 modes are bound but wait for their own settings and planning acceptance. They sit in
+  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Three of
+  them were planned and measured in step 3 and stay with the reason found: Journey, Paint and Spiral Glass (below). Their
   payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
   of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
   in the short and standard lengths. A binding's own settings switch on the option its outcome needs, such as the chaos fan
   for the Double Pendulum's split. The finder searches six outcomes over settings, not seeds: Chord Stars, Focus Shot, Beat
-  Machines, the vortex's ring waves, Brick Smash and Perfect Fit. Their bindings wait for that search too. So does Fight
+  Machines, the vortex's ring waves, Brick Smash and Perfect Fit. The first four bindings wait for that search too. Brick Smash
+  and Perfect Fit plan from a run of their own instead: the planner plays the seed's run with the template's settings and reads
+  the moment off it, the last brick of the picture or the last piece landed (`OWN_RUN_MOMENTS`). So does Fight
   League's boss rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
   hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. So is Ball Drop's:
   its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
@@ -235,7 +241,7 @@ checks (G4).
   ready either, though each wraps a recipe, and the beat format has no ready template.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
-- **Words:** a template that wraps a recipe speaks with the recipe's words. The other 32 speak with their format's, written
+- **Words:** a template that wraps a recipe speaks with the recipe's words. The 32 bindings without one speak with their format's, written
   once per format in English, Polish and Spanish (`ViralBot.formats` in messages/*.json, read by `src/lib/bot/copy.ts`): a
   name, three hooks to pick from, a hook for a clip cut before its payoff, the payoff's words, the closing question and the
   post's question. `{thing}` is the mode's own noun ("the ball", "the orbs", "Gerald": `ViralBot.things`). In Polish and
@@ -244,7 +250,7 @@ checks (G4).
   at most 7 words on 2 lines, broken at its clause, at most 42 characters in English and 52 in Polish and Spanish. A number
   the planner cannot fill yet (a count format's "{count}!") leaves the text out, never a brace. A template is named "{Mode
   name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
-  Gerald escapes"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
+  Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
 
@@ -260,7 +266,8 @@ checks (G4).
 - each text at the edge of the square its run leaves clear: the top, or the bottom where the text would hide the moving
   balls there for at least 1 s less (Ball Drop's hook while the balls enter at the top, Pendulum Wave's texts over the short
   pendulums). Never the bottom where the mode draws something of its own there (Fight League's boxes, Multipliers' counter,
-  the loop HUD's counter);
+  the loop HUD's counter). A mode's own banner counts first: a text takes the edge where it covers the banner for less time, so
+  Glass's hooks sit at the bottom, clear of its "STAGE n" banner (G5);
 - a text of two lines broken where a reader breaks it: at its clause ("15 pendulums." / "Wait for the chord."), a size step
   or two smaller where only that fits, else evenly, never with a last line of one or two words;
 - a hook of at most 7 words. A longer one keeps its own whole clauses ("Pick a side: which colour takes the board?" becomes
@@ -301,7 +308,7 @@ each look]**:
   Wave's template asks whether they line up instead, and Ball Drop's is hidden (below).
 
 **The 18 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 212 plans]** have a median Simple
-of 97 (86–97) and a median checklist score of 96. 208 plans pass every gate, G2's reading of the payoff's moment included,
+of 97 (83–97) and a median checklist score of 96. 208 plans pass every gate, G2's reading of the payoff's moment included,
 and every template passes on at least 3 of 4 plan seeds on each platform it is offered on, in English, Polish and Spanish
 alike (208 of the 212 plans in each; a test checks it). Pendulum Wave's template sounds its chord at the realignment and asks
 whether the pendulums line up, where the bot's own Pendulum Wave fails G2 (a realignment with no chord). The four templates
@@ -314,7 +321,7 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
 | get-out-accumulation | 97 | 96 | 12/12 |
 | get-out-portal | 97 | 96 | 12/12 |
 | get-out-portal-gerald | 97 | 96 | 12/12 |
-| get-out-glass | 89 | 96 | 11/12 |
+| get-out-glass | 88.5 | 96 | 11/12 |
 | smash-power-layers | 89.5 | 96 | 12/12 |
 | fill-grow | 97 | 82 | 10/12 |
 | count-multiply | 97 | 82 | 12/12 |
@@ -334,6 +341,50 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
   G2's 0.8 s, so their templates take the cliffhanger ending and cut before it.
 - The other misses are seeds the search could not fit: no fill found in time, a length outside the bucket, a cut too far
   from the payoff, and one String Battle whose first hit comes at 1.4 s.
+- Glass's row is AI studio step 3's. Its hook moved to the bottom of the square, clear of the mode's "STAGE n" banner (G5,
+  above), and its Simple score is 88.5 in English, 89 in Polish and 88 in Spanish (83–97 over its plans). Its one miss is a
+  Shorts cliffhanger, the same in each language: its seed search found no seed that fits, and the cut comes 1 s after the
+  payoff instead of before it.
+
+**AI studio step 3's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
+the same counts in each]**. Five modes without a recipe play settings of their own, drawn from the planner's seeded context
+on their sliders' steps (`src/lib/bot/templates.ts`), and Classic adds one ring. Each also passed its watch: one clip of each
+rendered watermarked through the page's own fast export, and its hook and contact sheets looked at.
+
+| Template | Its own settings | Simple (median) | Checklist (median) | Pass every gate |
+| --- | --- | --- | --- | --- |
+| get-out-shatter | 8–12 rings of glass (short) or 16–20 (standard), ball speed 380–440; cut before the escape | 97 | 86 | 12/12 |
+| get-out-color-match | one ring of 12 segments in 2 colours, ball speed 600–800; standard only, cut before the escape | 97 | 86 | 12/12 |
+| smash-target | 5 numbered segments (short) or 6–7 (standard), ball speed 600–720, no gravity; cut before the last | 97 | 86 | 12/12 |
+| smash-brick-rebuild | a new ball every max(1, target ÷ 5) bricks, ball speed 420–520; the last brick of the picture | 100 | 86 | 12/12 |
+| fill-perfect-fit | the 12 pentominoes in a 10 × 6, 12 × 5 or 15 × 4 box, timed to fill at the target; the tiling with the most pieces on the floor | 97 | 82 | 12/12 |
+| get-out-classic-ring | one ring with a 15–25 % gap, ball speed 420–560, spin 0.8–1.6, ball 8–11 | 97 | 86 | 11/12 |
+
+- Their runs are the bot look's: the seed and every run fact (`runFactsSync`) are the same in both looks, on every plan.
+- They let the picture count (the rings left, the segment's number, the bricks, the empty box), so each gives up the
+  checklist's 10 countdown points, as Grow does, and the series item's 4. Perfect Fit loses 4 more: a looping run's payoff
+  is close to its end (below).
+- Shatter, Color Match and Target end their run with the payoff: a resolved clip would show it for the recorder's 0.5 s, under
+  G2's 0.8 s, so they cut before it and ask, as Portal does. Color Match's escape comes 17–36 s in, the standard length's.
+- Brick Smash never finishes: it rebuilds its picture and smashes it again. Perfect Fit loops too: it fills its box, bursts
+  it and starts again. Both plan from a run of their own (`OWN_RUN_MOMENTS` in `outcomeStrategy.ts`). Perfect Fit's page
+  records whole loops, so its clip ends on the loop's seam, 1.4 s after the box is full, and its payoff lands at 85–94 %,
+  inside G2's band but past the checklist's 90 % on TikTok and Reels.
+- Classic's one ring misses one Shorts plan: in the short length its seed search found no escape in time.
+- In the bot look, Brick Smash and Perfect Fit are busy (G6), as Glass is: the Simple look is what makes them ready.
+
+Hidden after measuring, each with its reason in `EXPERIMENTAL` (a template that fails a gate on every plan, or a screen that
+is not calm when watched, is hidden, never kept by an exception):
+
+- **Paint** fills its picture and ends the run at 95 %: a resolved clip shows the fill for the recorder's 0.5 s only, and
+  the fill format ends resolved only. 0 of 12 plans passed. Grow's own variant whose fill ends the run (`fills-by`) fails the
+  same way, 0 of 12; the grow-fill recipe's ring goes on after its fill.
+- **Spiral Glass** passed every gate on 12 of 12 plans in each language, timed at its GLASS CLEARED, 2 s before its run ends.
+  Watched, it draws a question of its own over the spiral for the whole run ("Will the ball multiply?"), with its title, its
+  tiles left and a progress ring, and no setting switches them off: a template's hook stacks a second question over it.
+- **Journey** passed every gate on 11 of 12 plans in each language, home as its way out. Watched, its own HUD (a banner as each
+  stage begins, a mini-map, a clock, every stage's label) and its HOME! card beside the payoff's words put two or three texts
+  on screen at once, and no setting switches them off.
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

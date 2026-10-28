@@ -1,4 +1,5 @@
 import type { SimulatorSettings } from "@/lib/settings";
+import { templateById, variantBinding } from "@/lib/bot/templates"; // --- crew --- (AI studio step 3) a template's own scene line
 import { hasRingWalls, hudsOn } from "./hudFlags";
 import { runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { clarityOf, type Clarity } from "./clarity";
@@ -413,8 +414,20 @@ function clampLines(text: string, max: number, keep: (line: string) => boolean =
 
 const where = (position: string) => (position === "center" ? "middle" : position);
 
-/** The screen view (see the header). `scene`: a binding's own scene line (default: sceneOf the settings). */
+/**
+ * --- crew --- (AI studio step 3) A template's own scene line (its binding's `scene`, a variant's own first: lib/bot/templates.ts),
+ * for a clip still in its template's mode; undefined: none, so sceneOf describes it.
+ */
+export function templateSceneOf(clip: Pick<CrewClip, "template" | "settings">): string | undefined {
+  const info = templateById(clip.template);
+  if (!info || info.mode !== clip.settings.mode) return undefined;
+  const binding = variantBinding(info.binding, info.binding.variants.find((v) => v.id === info.id));
+  return binding.scene ? binding.scene(clip.settings) : undefined;
+}
+
+/** The screen view (see the header). `scene`: a binding's own scene line (default: the clip's template's, templateSceneOf, else sceneOf the settings). */
 export function screenView(clip: CrewClip, options: { scene?: string } = {}): ScreenView {
+  const scene = options.scene ?? templateSceneOf(clip); // --- crew --- (AI studio step 3)
   const levels = [
     { quote: 64, list: 10 },
     { quote: 40, list: 8 },
@@ -423,7 +436,7 @@ export function screenView(clip: CrewClip, options: { scene?: string } = {}): Sc
   ];
   let text = "";
   for (const level of levels) {
-    text = renderScreen(clip, options.scene, level).join("\n");
+    text = renderScreen(clip, scene, level).join("\n");
     if (text.length <= SCREEN_MAX) break;
   }
   if (text.length > SCREEN_MAX) text = clampLines(text, SCREEN_MAX);

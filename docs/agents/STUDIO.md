@@ -379,22 +379,33 @@ What the run showed:
 - **Fixed in this step.** The producer's brief for the re-planned ring escape still carried the old plan's caption, "Can it
   escape in 29 seconds?". It also listed 29 among the clip's numbers. A re-planned clip now takes its plan's words with it.
 - **Known gaps** (below), noted and not fixed:
-  - Glass's hook is drawn over the mode's STAGE banner.
+  - Glass's hook is drawn over the mode's STAGE banner (fixed in AI studio step 3: below).
   - post.txt counts a clip whose fix is offered among the keeps, beside its fixed version ("4 kept of 4 rendered").
   - The fixed version keeps the producer's title that was written for the clip before its fix.
 
 ## Known gaps
 
-- **Text over a mode's own banner.** The Glass template's hook sits at the top of the square for its first 2.5 s. The
-  mode's STAGE 1 and STAGE 2 banners are drawn under it at the same time, and the acceptance run's viewer named the text. The
-  Simple look places a text by where the balls move, not by the mode's banners. G5 checks Top Text over a scoreboard band
-  only, not a caption over a banner. As with the finish banners below, a fix would move the template's plans and Simple
-  scores, so it waits for the owner.
+- **Text over a mode's own banner** (fixed in AI studio step 3). The run's action track (`src/lib/bot/actionTrack.ts`) now
+  records where a mode's own banner shows, every half second: Glass's "STAGE n" and the Journey's stage banner, with the
+  camera these modes scroll. G5 fails a caption over such a banner (`readableOverBanner`), and the Simple look places a text
+  at the edge where it covers the banner for less time, before it weighs the balls. Glass's hooks moved to the bottom of the
+  square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). The banners the track knows
+  are these two: a mode's other texts of its own are not in it (below).
+- **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Spiral Glass asks "Will the ball
+  multiply?" over its spiral for the whole run, and the Journey shows a mini-map, a clock and every stage's label. Their
+  templates passed every gate and were hidden after the render was watched (docs/virality-playbook.md §5). Perfect Fit labels
+  its box ("4 × 15 / one of 368 ways") under it, where neither the Simple score nor the screen view sees it: its hook sits at
+  the top, over the tray of pieces that wait still, never over the label.
+- **A loop's last second.** Perfect Fit fills its box, bursts it and starts again, and its page records whole loops, so its
+  clip ends on the loop's seam (watched at 5 frames a second): the box is full and flashes at the payoff, bursts 0.2 s later,
+  and its last 0.5 s show the empty box and the next loop's tray coming in, all under the payoff's "Full!", as every Simple
+  payoff's words stay to the end. A clip that loops back to its start may want that; the owner should decide whether the
+  payoff's words leave with the burst, a change of the payoff caption's end for every template.
 - **A fix offered after the render.** The clip as rendered keeps its place among the keeps beside its fixed version: post.txt
   lists both, with the viewer's read of each, and the owner picks. The producer does not run after a render, so the fixed
   version keeps the title and caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it.
 - **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s". The template's
-  payoff caption ("FREEDOM 🌈") shows beside it. Neither the Simple score nor the screen view knows these banners. A fix would
+  payoff caption ("FREEDOM 🌈") shows beside it. The Journey's HOME! card did the same, one reason its template is hidden. Neither the Simple score nor the screen view knows these banners. A fix would
   change the plans or the Simple scores of every such template, and with them the role eval's corpus and its recorded run.
   The owner should first choose which of the two stays. (Ball Drop's template, which drew no payoff words, is hidden.)
 - **The pendulum's other chords.** With every bob sounding at its turning points, the realignment's chord also sounds, as

@@ -1,11 +1,13 @@
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
-import type { SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, intBetween, pick, recipeById, stepBetween, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
 import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 import { templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name)
+import { modeSettingsOfSettings } from "./finderRequest"; // --- templates --- (Perfect Fit's solution seed: the finder's own search)
+import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- templates ---
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -16,7 +18,8 @@ import { templateName, type BotCopy } from "./copy"; // --- templates --- (a tem
  *  - A format: its idea in one sentence, its claim (what the run must visibly do: the crew's G4 and the viewer check it), its
  *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion, in en, pl
  *    and es: copy.ts formatText, its `{thing}` the mode's noun under `ViralBot.things`), where its countdown comes from and the
- *    endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf).
+ *    endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf); a further variant adds its recipe's
+ *    name, or without one its own (`ViralBot.variants`: "Classic · Get out · One ring").
  *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
  *    the recipe's does not show the format's payoff: Ball Drop's last note –, the bound finder outcome's moment ("outcome") or
  *    the clip's last 1.5 s ("atEnd"): outcomeStrategy.ts), the settings it plays its recipe with (`tune`: Pendulum Wave's chord
@@ -26,12 +29,13 @@ import { templateName, type BotCopy } from "./copy"; // --- templates --- (a tem
  *    one; the variants that plan pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (the bindings
  *    of the EXPERIMENTAL table, a shrink-only list: hidden from every menu until the planning acceptance passes them). A proven
  *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception:
- *    Fight League's boss rush (its hook), the square race (its count-in) and Ball Drop (its run fades out: review round 2,
- *    21). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
+ *    Fight League's boss rush (its hook), the square race (its count-in), Ball Drop (its run fades out: review round 2, 21)
+ *    and Grow's fill that ends the run (AI studio step 3: shown 0.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden; the other 32 are declared, experimental and hidden until their settings and planning acceptance land – their
+ *    hidden, and 5 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit, each with its own
+ *    settings); the other 27 are declared, experimental and hidden until their settings and planning acceptance land – their
  *    format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
- *    strategy can plan it.
+ *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
  *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
  *    buckets its seed search finds the payoff in. A variant without a recipe adapts its binding (ownRecipe: the format's family,
@@ -323,7 +327,15 @@ export interface TemplateVariant {
   hidden?: string;
   /** The length buckets this variant fills, narrower than its binding's: the ones its seed search finds the payoff in. */
   buckets?: readonly LengthBucket[];
+  /**
+   * --- templates --- (AI studio step 3) A variant without a recipe that plays its own way: what it sets over its binding (its
+   * strategy, outcome, context flag, settings, endings, hook…) – Classic's one ring timed by ring-at, Grow's fill that ends the run.
+   */
+  own?: VariantOwn;
 }
+
+/** --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). */
+export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "note">>;
 
 export interface ModeBinding {
   mode: ModeId;
@@ -369,8 +381,18 @@ export interface ModeBinding {
    * (askHookText), in both looks: where the run plays that chord elsewhere too, so the hook never promises it.
    */
   hookAsk?: string;
-  /** The viewer's scene line where the dossier's own (crew/dossier.ts sceneOf) does not describe the mode (a later step). */
+  /**
+   * The viewer's scene line where the dossier's own (crew/dossier.ts sceneOf) does not describe the mode: --- templates --- (AI
+   * studio step 3) the screen view reads it (crew/dossier.ts screenView), in neutral words from the settings' numbers.
+   */
   scene?: (s: SimulatorSettings) => string;
+  /**
+   * --- templates --- (AI studio step 3) The hook it draws in either ending: its format's `hook`, `hookB` or `hookC`
+   * (FORMAT_HOOK_FIELDS). Without one a cliffhanger draws its format's `cliffHook` ("{thing} vs the clock."), else its `hook`.
+   */
+  hookKey?: "hook" | "hookB" | "hookC";
+  /** --- templates --- (AI studio step 3) Gerald plays the ball (BotRecipe.character: his face and name; the Simple look draws no label). */
+  character?: true;
   /** Why it is bound this way, or what it waits for. */
   note?: string;
 }
@@ -382,8 +404,11 @@ export function templateIdOf(format: TemplateFormatId, mode: ModeId, suffix?: st
   return [kebab(format), kebab(mode), ...(suffix ? [suffix] : [])].join("-");
 }
 
-/** A variant's spec: the recipe it wraps, its id's suffix, why it is hidden, the buckets it narrows its binding's to. */
-type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[]];
+/**
+ * A variant's spec: the recipe it wraps, its id's suffix, why it is hidden, the buckets it narrows its binding's to and – --- templates
+ * --- a variant without a recipe that plays its own way – what it sets over its binding.
+ */
+type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[], own?: VariantOwn];
 type BindingSpec = Omit<ModeBinding, "mode" | "variants" | "ready"> & { variants?: readonly VariantSpec[] };
 
 /**
@@ -401,10 +426,19 @@ export function strategyCanPlan(binding: Pick<ModeBinding, "strategy" | "outcome
  * ready while one of its variants is not hidden and its strategy can plan it.
  */
 function bind(mode: ModeId, spec: BindingSpec): ModeBinding {
-  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}) }));
+  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets, own]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}), ...(own ? { own } : {}) }));
   const tier: TemplateTier = spec.tier !== "proven" && EXPERIMENTAL[mode] !== undefined ? "experimental" : spec.tier;
-  const ready = tier === "proven" ? variants.some((v) => v.recipe !== null && !v.hidden) : tier === "trial" && variants.some((v) => !v.hidden) && strategyCanPlan(spec);
+  // (--- templates --- a proven binding's variant without a recipe plans its own way: AI studio step 3)
+  const ready = tier === "proven" ? variants.some((v) => !v.hidden && (v.recipe !== null || strategyCanPlan({ ...spec, ...(v.own ?? {}) }))) : tier === "trial" && variants.some((v) => !v.hidden) && strategyCanPlan(spec);
   return { ...spec, tier, mode, ready, variants };
+}
+
+/**
+ * --- templates --- (AI studio step 3) The binding a variant plays: its binding, with what a variant without a recipe sets over it
+ * (VariantOwn: Classic's one ring timed by ring-at); a variant that wraps a recipe plays its binding as it is.
+ */
+export function variantBinding(binding: ModeBinding, variant: Pick<TemplateVariant, "recipe" | "own"> | undefined): ModeBinding {
+  return variant && variant.recipe === null && variant.own ? { ...binding, ...variant.own } : binding;
 }
 
 /** The run ends with the escape: a resolved clip would show it for the recorder's 0.5 s only, under the crew's G2 0.8 s. */
@@ -448,7 +482,120 @@ const FADES_OUT = "its run fades out: the last ball's last note is one faint tic
 /** A binding of a later step: no recipe – its own settings and its format's copy –, trial once it leaves EXPERIMENTAL. */
 const later = (format: TemplateFormatId, strategy: TemplateStrategy, extra: Partial<BindingSpec> = {}): BindingSpec => ({ format, strategy, tier: "trial", keepHud: null, ...extra });
 
+// --- templates --- (AI studio step 3) group A's own settings: seeded from the planner's context (its rng only), every value on its
+// RANGES step, never clamped, no mode default changed
+/** A value per length bucket (the playbook's byBucket). */
+const forBucket = <T,>(ctx: RecipeContext, values: Readonly<Record<LengthBucket, T>>): T => values[ctx.bucket];
+
+/**
+ * Shatter's rings of glass segments: the ball breaks its way out of 8–12 in a short clip (it is out 4–13 s in), of 16–20 in a
+ * standard one (6–35 s): the outcome strategy's seed search picks the seed whose escape the clip cuts before.
+ */
+function shatterSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const walls = forBucket(ctx, { short: [8, 12], standard: [16, 20], long: [18, 20] });
+  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10) };
+}
+
+/**
+ * Target's numbered segments, hit in order: 5 in a short clip, 6–7 in a standard one, a fast ball without gravity, so the last
+ * one goes 8–25 s in (with gravity and 10 segments it takes a minute or more).
+ */
+function targetSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const count = forBucket(ctx, { short: [5, 5], standard: [6, 7], long: [8, 9] });
+  return { targetCount: intBetween(ctx.rng, count[0], count[1]), ballSpeed: stepBetween(ctx.rng, 600, 720, 10), gravity: 0 };
+}
+
+/**
+ * Brick Smash's first smash: a new ball every `brEvery` bricks sets its pace – the last brick falls about 5 s a brick of it in
+ * (2: 7–9 s, 4: 19–21 s, 6: 28–34 s) –, so it is drawn from the payoff target, with the balls' speed for the rest.
+ */
+function brickSmashSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { brEvery: Math.max(1, Math.round(ctx.payoffTarget / 5)), brSpeed: stepBetween(ctx.rng, 420, 520, 10) };
+}
+
+/** Perfect Fit's boxes of the twelve pentominoes, one a clip (W × H = 60): the 10 × 6, the 12 × 5 or the 15 × 4. */
+const PF_ONE_BOX = ["10×6", "12×5", "15×4"] as const;
+/** The solution seeds the Perfect Fit binding tests for the most pieces on the floor (the finder's own search, most-on-floor). */
+const PF_FLOOR_TRIES = 6;
+
+/**
+ * Perfect Fit: one box, its twelve pieces timed so its last one lands at the payoff target (a box is full 12 pieces' time in:
+ * the plan is the clock's), and the tiling with the most pieces resting on the floor of the solution seeds the finder tests from a
+ * drawn start (most-on-floor: perfectFitFinder.ts). The rectangles' variant is the default and the outcome's flag.
+ */
+function perfectFitSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const pfBoxes = pick(ctx.rng, PF_ONE_BOX);
+  const pfPieceSec = Math.max(0.05, Math.round((100 * ctx.payoffTarget) / 12) / 100);
+  const base = intBetween(ctx.rng, 1, 99999 - PF_FLOOR_TRIES);
+  const modeSettings = modeSettingsOfSettings({ ...defaultSettings("perfectFit"), pfVariant: "pento", pfBoxes, pfPieceSec });
+  const found = findPerfectFitRun({ targetDurationSec: 2 * ctx.payoffTarget, maxSeeds: PF_FLOOR_TRIES, modeSettings, outcome: { kind: "most-on-floor", clipSec: 2 * ctx.payoffTarget } }, base);
+  return { pfBoxes, pfPieceSec, pfSeed: found.seed };
+}
+
+/** Classic's one ring, its ring sounds on (ring-at's flag): a pluck a bounce, the chord at the way out. */
+function oneRingSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { wallCount: 1, gapSize: stepBetween(ctx.rng, 0.15, 0.25, 0.05), ballSpeed: stepBetween(ctx.rng, 420, 560, 10), rotationSpeed: stepBetween(ctx.rng, 0.8, 1.6, 0.1), ballRadius: intBetween(ctx.rng, 8, 11) };
+}
+
+/** Grow's fill that ends the run (fills-by's flag), drawn as the grow-fill recipe draws its growth. */
+function growFinishSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return {
+    growRate: forBucket(ctx, { short: intBetween(ctx.rng, 7, 10), standard: intBetween(ctx.rng, 5, 8), long: 3 }),
+    ballSpeed: forBucket(ctx, { short: stepBetween(ctx.rng, 500, 650, 10), standard: stepBetween(ctx.rng, 450, 600, 10), long: stepBetween(ctx.rng, 150, 250, 10) }),
+    ballRadius: intBetween(ctx.rng, 6, 9),
+  };
+}
+
+/**
+ * Journey's stages before HOME: a short clip's three, a standard one's four. None of the multiplier gates or the bullseye: their
+ * badges ("SPEED x1.5") and score ("10 pts") would be more texts on screen, and a calm clip keeps one idea – the way home.
+ */
+const JOURNEY_SHORT = ["pegs,glass,funnel,home", "glass,pegs,funnel,home", "rings-s,glass,funnel,home"] as const;
+const JOURNEY_STANDARD = ["rings-s,pegs,glass,funnel,home", "glass,pegs,rings-s,funnel,home", "pegs,glass,glass-l,funnel,home"] as const;
+function journeySettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { journeyStages: pick(ctx.rng, ctx.bucket === "short" ? JOURNEY_SHORT : JOURNEY_STANDARD), journeyAutoStages: 0 };
+}
+
+/** Spiral Glass's channel of glass: fewer turns and a faster queue for a shorter clip (it clears 12–20 s in). */
+function spiralGlassSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return ctx.bucket === "short" ? { sgTurns: 5, sgGlassHp: 1, sgSpeed: 2 } : { sgTurns: intBetween(ctx.rng, 3, 4), sgGlassHp: 2, sgSpeed: stepBetween(ctx.rng, 1.5, 2, 0.1) };
+}
+
+/**
+ * Color Match's one ring of twelve segments in two colours, the ball switching colour every bounce, faster than the default (it is
+ * out 17–36 s in: the standard length's): the outcome strategy's seed search picks the seed whose escape the clip cuts before.
+ */
+function colorMatchSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { colorMatchColorCount: 2, ballSpeed: stepBetween(ctx.rng, 600, 800, 10) };
+}
+
+/** Paint's fastest coverage on the sliders: the biggest ball, at the top speed, without gravity (95 % painted 21–33 s in). */
+const PAINT_FAST: Partial<SimulatorSettings> = { ballRadius: 30, ballSpeed: 800, gravity: 0 };
+// --- end of group A's settings
+
 // --- templates --- why a binding is in the experimental table
+/**
+ * --- templates --- (AI studio step 3) Paint's run ends the moment 95 % is painted (picturePaint.ts COVERAGE_DONE): a resolved clip
+ * shows it for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only – measured: 0 of 12 plans pass.
+ */
+const PAINT_ENDS_AT_FILL = "its run ends the moment 95 % is painted, so a resolved clip shows the fill for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only: 0 of 12 plans passed (4 plan seeds × 3 platforms)";
+/** --- templates --- (AI studio step 3) Grow's fill that ends the run, likewise (its fills-by variant). */
+const GROW_ENDS_AT_FILL = "with Grow's fill ending the run (fills-by's flag) the clip shows the fill for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only: 0 of 12 plans passed; the grow-fill recipe's ring goes on after its fill";
+/**
+ * --- templates --- (AI studio step 3) Spiral Glass draws a text of its own over the spiral for the whole run – its question "Will the
+ * ball multiply?" – with its title, its tiles left and a progress ring in the corners, which no setting switches off: a template's
+ * hook would stack a second text and ask a second question over it (watched in the studio's render), whatever it plans.
+ */
+const SPIRAL_OWN_TEXT = "it draws a question of its own over the spiral for the whole run (\"Will the ball multiply?\"), with its title, its tiles left and a progress ring in the corners, which no setting switches off: a template's hook stacks a second text and a second question over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
+/**
+ * --- templates --- (AI studio step 3) The Journey plans (its HOME is the way out, Glass Smash's: the chord, then 1.8 s of
+ * celebration), but its own HUD – a banner as each stage begins ("Stage 3/5: Rings"), a mini-map, a clock, every stage's label
+ * – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, the screen is not calm.
+ */
+const JOURNEY_OWN_HUD = "its own HUD – a banner as each stage begins (\"Stage 3/5: Rings\"), a mini-map, a clock and every stage's label – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, two or three texts at once and the screen not calm (its plans pass every gate, 11 of 12 a language)";
+/** --- templates --- (AI studio step 3) A run that ends with its payoff (the escape, the last segment, the glass cleared): cut before it. */
+const ENDS_AT_FINISH = "the run ends with its payoff (a resolved clip shows it for 0.5 s, G2 asks 0.8 s): the template cuts before it";
+
 /** Its strategy can plan it (the outcome's moment, the clip's end, the run's finish); it waits for the rest. */
 const AWAITS = "waits for its own settings and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
 /** Its outcome is found over settings, not seeds: the outcome strategy has no seed's moment for it (outcomeStrategy.ts). */
@@ -458,17 +605,13 @@ const OWN_SEARCH = "its outcome is searched over settings by its own finder, not
  * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
  * ready –, each with its reason. Shrink only: tests/botTemplates.test.ts pins it, so a binding leaves it when it passes (with its
  * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin. All 32 bindings without
- * a recipe start here.
+ * a recipe started here; AI studio step 3 passed five (Shatter, Color Match, Target, Brick Smash, Perfect Fit) and gave Journey,
+ * Paint and Spiral Glass their measured reasons.
  */
 export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
-  shatter: AWAITS,
-  colorMatch: AWAITS,
-  journey: AWAITS,
-  target: AWAITS,
-  brickRebuild: OWN_SEARCH,
-  spiralGlass: AWAITS,
-  paint: AWAITS,
-  perfectFit: OWN_SEARCH,
+  journey: JOURNEY_OWN_HUD,
+  paint: PAINT_ENDS_AT_FILL,
+  spiralGlass: SPIRAL_OWN_TEXT,
   conveyor: AWAITS,
   mergeRing: AWAITS,
   maze: AWAITS,
@@ -501,22 +644,28 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
  */
 export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // getOut
-  classic: bind("classic", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"], ["pip-escape", "gerald"]], note: "ring-at with ringEscape on is a later variant" }),
+  classic: bind("classic", {
+    format: "getOut",
+    strategy: "escape",
+    tier: "proven",
+    keepHud: null,
+    variants: [["ring-escape"], ["pip-escape", "gerald"], [null, "ring", undefined, undefined, { strategy: "outcome", outcome: "ring-at", needs: "ringEscape", generate: oneRingSettings, hookKey: "hook", scene: () => "one ball inside one spinning ring with one gap", note: "one ring with the Ring Escape sounds: its first ring is its way out (ring-at)" }]],
+  }),
   accumulation: bind("accumulation", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"]], buckets: ["short", "standard"], endings: ["cliffhanger"], note: `a minute-long escape needs Classic's slow grind; ${ENDS_AT_ESCAPE}` }),
   portal: bind("portal", { format: "getOut", strategy: "escape", tier: "proven", keepHud: null, variants: [["ring-escape"], ["pip-escape", "gerald", undefined, GERALD_PORTAL_BUCKETS]], buckets: ["short", "standard"], endings: ["cliffhanger"], note: `a minute-long escape needs Classic's slow grind; ${ENDS_AT_ESCAPE}` }),
   glass: bind("glass", { format: "getOut", strategy: "finish", tier: "proven", keepHud: null, variants: [["glass-smash"]], note: "home is the way out: 'Will Gerald make it home?'" }),
-  shatter: bind("shatter", later("getOut", "outcome", { outcome: "escapes-at" })),
-  colorMatch: bind("colorMatch", later("getOut", "outcome", { outcome: "escapes-at" })),
-  journey: bind("journey", later("getOut", "finish", { note: "home, Gerald variant" })),
+  shatter: bind("shatter", later("getOut", "outcome", { outcome: "escapes-at", generate: shatterSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE })),
+  colorMatch: bind("colorMatch", later("getOut", "outcome", { outcome: "escapes-at", generate: colorMatchSettings, buckets: ["standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE, scene: (s) => `one ball inside a ring of 12 segments in ${s.colorMatchColorCount} colours, a counter in the middle` })),
+  journey: bind("journey", later("getOut", "finish", { generate: journeySettings, buckets: ["short", "standard"], hookKey: "hook", character: true, note: "home is the way out (its HOME is Glass Smash's: the chord, then 1.8 s of celebration); the payoff's words stand beside the mode's own HOME! card, as Power Layers' beside its FREEDOM! banner (docs/agents/STUDIO.md, Known gaps)", scene: (s) => `one ball with a face at the top of a column of ${s.journeyStages.split(",").length - 1} stages, a door at the bottom` })),
   // smash
   powerLayers: bind("powerLayers", { format: "smash", strategy: "fixed", tier: "proven", keepHud: null, variants: [["power-layers"]], note: "the layer count is the mode's own HUD" }),
-  target: bind("target", later("smash", "finish")),
-  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", note: "loops forever: never 'finish'" })),
-  spiralGlass: bind("spiralGlass", later("smash", "finish", { note: "if its run loops, the binding moves to atEnd or ships experimental" })),
+  target: bind("target", later("smash", "finish", { generate: targetSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookVars: (s) => ({ count: s.targetCount }), note: ENDS_AT_FINISH, scene: (s) => `one ball inside a ring of ${s.targetCount} numbered segments, a big number in the middle` })),
+  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'", scene: () => "a few small balls under a wall of bricks that draws a picture" })),
+  spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, buckets: ["short", "standard"], note: "its GLASS CLEARED is the payoff, 2 s before the run's end (planner.ts payoffSecOf)" })),
   // fill
-  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill"]], note: "fills-by with growFinish on is a later variant" }),
-  paint: bind("paint", later("fill", "finish", { note: "100 % painted" })),
-  perfectFit: bind("perfectFit", later("fill", "outcome", { outcome: "most-on-floor", needs: "pfPento", note: "or landings-on-beat" })),
+  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill"], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
+  paint: bind("paint", later("fill", "finish", { patch: PAINT_FAST, note: "95 % painted" })),
+  perfectFit: bind("perfectFit", later("fill", "outcome", { outcome: "most-on-floor", needs: "pfPento", generate: perfectFitSettings, buckets: ["short", "standard"], note: "one box, its tiling with the most pieces on the floor; landings-on-beat would need the page's tempo", scene: () => "twelve puzzle pieces in a tray at the top, an empty rectangular box below them" })),
   // count
   multiply: bind("multiply", { format: "count", strategy: "fill", tier: "proven", keepHud: null, variants: [["clone-per-pass"]] }),
   multipliers: bind("multipliers", { format: "count", strategy: "finish", tier: "proven", keepHud: null, variants: [["multipliers-board"]], note: "the ball counter at home is the mode's own HUD" }),
@@ -590,10 +739,11 @@ const familyOfBinding = (binding: ModeBinding): BotFamily => binding.family ?? T
 const INFOS: readonly TemplateInfo[] = BINDINGS.flatMap((binding) =>
   binding.variants.map((v) => {
     const recipe = v.recipe ? (recipeById(v.recipe) ?? null) : null;
-    const buckets = v.buckets ?? binding.buckets;
+    const buckets = v.buckets ?? v.own?.buckets ?? binding.buckets;
     // (--- templates --- a variant without a recipe plans its binding's own settings)
     const family = v.recipe === null ? familyOfBinding(binding) : (recipe?.family ?? null);
-    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family, ready: binding.ready && !v.hidden && (v.recipe === null || !!recipe), ...(buckets ? { buckets } : {}) };
+    // (--- templates --- a variant without a recipe plans while its own way can: AI studio step 3)
+    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family, ready: binding.ready && !v.hidden && (v.recipe === null ? strategyCanPlan(variantBinding(binding, v)) : !!recipe), ...(buckets ? { buckets } : {}) };
   }),
 );
 const INFO_BY_ID = new Map(INFOS.map((t) => [t.id, t]));
@@ -621,11 +771,19 @@ export function thingKeyOf(mode: ModeId): string {
 /**
  * --- templates --- A template's name in the copy's language (copy.ts templateName): "{Mode name} · {Format name}" ("Shatter · Get
  * out"), and for a binding's further variant the name of the recipe it wraps after it ("Classic · Get out · Gerald escapes").
- * `modeName`: the site's name of its mode (`Modes.<id>.name`), which the caller reads.
+ * `modeName`: the site's name of its mode (`Modes.<id>.name`), which the caller reads. --- templates --- (AI studio step 3) A further
+ * variant without a recipe adds its own name ("Classic · Get out · One ring": `ViralBot.variants`).
  */
 export function templateNameOf(info: TemplateInfo, copy: BotCopy, modeName: string): string {
   const first = info.binding.variants[0]?.id === info.id;
-  return templateName(copy, modeName, info.format.id, first ? null : info.recipe);
+  // (--- templates --- AI studio step 3: a further variant without a recipe is named by its own key, its id's suffix)
+  return templateName(copy, modeName, info.format.id, first ? null : info.recipe ?? { variant: variantKeyOf(info) });
+}
+
+/** --- templates --- (AI studio step 3) A further variant's key: its id's suffix after its binding's first id ("ring" of get-out-classic-ring). */
+export function variantKeyOf(info: Pick<TemplateInfo, "id" | "binding">): string {
+  const base = info.binding.variants[0]?.id ?? "";
+  return info.id.startsWith(`${base}-`) ? info.id.slice(base.length + 1) : info.id;
 }
 
 /* ------------------------------------------------------------------ the adapter */
@@ -719,7 +877,7 @@ export function ownSettingsOf(binding: ModeBinding): BotRecipe["settings"] {
  * strategy has no moment for.
  */
 function ownRecipe(info: TemplateInfo): BotRecipe | null {
-  const b = info.binding;
+  const b = variantBinding(info.binding, info.binding.variants.find((v) => v.id === info.id)); // --- templates --- (a variant's own way)
   const f = info.format;
   if (!strategyCanPlan(b)) return null;
   const atEnd = b.strategy === "atEnd";
@@ -740,6 +898,8 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     ...(buckets && buckets.length ? { buckets } : {}),
     settings: ownSettingsOf(b),
     hookVars: b.hookVars ?? (() => ({})),
+    ...(b.hookKey ? { hookKey: b.hookKey } : {}), // --- templates --- (AI studio step 3) its hook variant, in either ending
+    ...(b.character ? { character: true } : {}),
     formatCopy: true, // --- templates --- (its format's words, its mode's noun)
     copyVars: () => ({ thing: thingKeyOf(b.mode) }),
     ...(f.payoffWords ? {} : { payoffWords: false as const }),

@@ -4177,6 +4177,10 @@
         "line": "Oscuro y tranquilo. Una línea de texto a la vez."
       }
     },
+    "variants": {
+      "ring": "Un anillo",
+      "fills": "Llenar hasta el final"
+    },
     "cover": {
       "label": "Portada",
       "at": "{sec} s – {why}",

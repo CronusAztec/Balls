@@ -10,11 +10,11 @@ This file holds the corpus's design, how to run the eval, and every recorded run
 `npm run crew:fixtures` (`scripts/crew-fixtures.mjs`) generates the corpus from the code, and nobody edits it by hand.
 `tests/crewEval.test.ts` fails while it is stale.
 
-- **40 clean clips** (`tests/fixtures/crew/clean.json`): the ready templates in the Simple look, planned from plan seed 1 up.
-  A plan is kept when it passes every gate and crosses no evidence threshold. The two-messages-at-once line leaves out the
-  HUD a template draws by design (the mode's own, or the one it keeps for its countdown), so a template with a HUD beside its
-  hook is clean too. The clips are taken round robin over 16 templates. Fight League's
-  templates are left out, because their fighters are third-party characters. Who Wins: Race is hidden, because none of its
+- **40 clean clips** (`tests/fixtures/crew/clean.json`): the ready templates that wrap a recipe (the proven ones) in the
+  Simple look, planned from plan seed 1 up. A plan is kept when it passes every gate and crosses no evidence threshold.
+  The two-messages-at-once line leaves out the HUD a template draws by design (the mode's own, or the one it keeps for its
+  countdown), so a template with a HUD beside its hook is clean too. The clips are taken round robin over 16 templates.
+  Fight League's templates are left out, because their fighters are third-party characters. Who Wins: Race is hidden, because none of its
   plans passes gate G1: its first impact comes at 1.8 s. It keeps its place in the turn order and gives no clip, as it gave
   none before it was hidden. On the Beat: Ball Drop is hidden too (review round 2, 21: its run fades out, and every plan
   fails G2), so it keeps its place and gives no clip either.
@@ -424,7 +424,7 @@ answers are round 1d's, to briefs that did not change by a byte, and round 1d's 
 ### claude-opus-5-5-2026-10-28-round2e
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-round2e -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 403f7108a837b3c6.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 403f7108a837b3c6 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -467,3 +467,52 @@ stays above as history. No catch rate, misread or call count moved. Three number
 ideas mix 5 formats a request instead of 6, and the brainstormer's 3.33 instead of 4. One of the brainstormer's ideas, a Grow
 clip on plan seed 3, found no fill in time, so 17 of 18 passed every gate (18 before). Its first reply to the calm request put
 a Grow clip in the long bucket, which the template does not take, and was refused once.
+
+### claude-opus-5-5-2026-10-28-step3
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-step3 -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus e5038a4fbafe84b8.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 5 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 17 of 18 (94%) | 2.67 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-step3 -->
+
+AI studio step 3 changed the corpus's four Glass clips (f02, f14 and f51 clean, f07 planted with twoIdeas) and no other. Gate
+G5 now sees a text over a mode's own banner, Glass's "STAGE 2" as each floor begins, and the Simple look places a Glass
+hook clear of it, so the four hooks moved to the bottom of the square. Their runs' action tracks follow Glass's camera and
+carry the banner's box. The corpus takes only the proven templates, so the step's new trial templates gave it no clip. Four
+viewer, two skeptic and five reviewer briefs changed, all on those four clips. Six templates joined the brainstormer's menu:
+Shatter, Color Match, Target, Brick Smash, Perfect Fit and Classic's one ring. A template without a recipe now shows its
+format's words there ("Will the ball get out?"), so the three brainstormer briefs changed too. The same model answered those
+14 briefs again in one context. The other 223 answers are round 2e's, to briefs that did not change by a byte, and round 2e's
+run stays above as history. No catch rate, misread, fix or clip call count moved. Four numbers did, all in the ideas for open
+requests. The code's ideas pass 18 of 18 (15 before): Target's template is now the smash format's first in the menu, ahead
+of Power Layers', and every idea of it, cut before its last segment, passes every gate. The brainstormer pitched Perfect
+Fit, Brick Smash, Shatter and Target among its ideas and mixed 2.67 formats a request (3.33): its calm request took only
+Line up and Fill. All three of its replies were valid the first time (2 of 3), so it made 3 calls (4). Its Grow clip on plan
+seed 3 again found no fill in time, so 17 of 18 passed every gate, as before.

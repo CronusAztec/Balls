@@ -263,6 +263,11 @@ export interface BotRecipe {
    * and its copy is `ViralBot.formats.<copyKey>`, `{thing}` its mode's noun (copy.ts recipeText, formatText).
    */
   formatCopy?: true;
+  /**
+   * --- templates --- (AI studio step 3) The copy key of the hook it draws in either ending: a binding's hook variant, its format's
+   * hook, hookB or hookC ("Will Gerald make it home?"). Without it a cliffhanger draws its copy's cliffHook, else its hook.
+   */
+  hookKey?: string;
 }
 
 /* seeded helpers ---------------------------------------------------------- */

@@ -11,11 +11,12 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyPath, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
-import { actionSampleSec, actionTrackSteps, actionUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
+import { actionSampleSec, actionTrackSteps, actionUnder, bannerUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
 import { askHookText, botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
-import { atEndPayoffSec, outcomeRunOf, payoffWindow, strategyOutcome, type OutcomeRunFacts } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
+import { atEndPayoffSec, FILL_OUTCOMES, outcomeRunOf, payoffWindow, strategyOutcome, type OutcomeRunFacts } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
+import { CLEAR_HOLD_MS as SPIRAL_CLEAR_HOLD_MS } from "@/lib/physics/modes/spiralGlass"; // --- templates --- (AI studio step 3)
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip";
 import {
@@ -451,6 +452,24 @@ export function actionCoverSec(captions: readonly Caption[], indices: readonly n
   return sec;
 }
 
+/**
+ * --- templates --- (AI studio step 3) The seconds message `indices` of `captions` sits over a banner of the mode's own text
+ * (ActionTrack.banners: Glass Smash's "STAGE 2") before `untilSec`: two texts stacked, which the crew's G5 fails.
+ */
+export function bannerCoverSec(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, untilSec: number, topText = false, topHud = false): number {
+  let sec = 0;
+  if (!track.banners) return sec;
+  for (let k = 0; k < track.samples.length; k++) {
+    const t = actionSampleSec(track, k);
+    if (t >= untilSec - 1e-9) break;
+    if (indices.some((i) => {
+      const box = captionBoxAt(captions, i, t, BOT_FRAME, topText, topHud);
+      return !!box && bannerUnder(track, k, squareBoxOf(box));
+    })) sec += track.stepSec;
+  }
+  return sec;
+}
+
 /** Whether message `indices` of `captions` hides a moving ball at sample `k` of `track` (actionCoverSec's test). */
 export function actionHiddenAt(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, k: number, topText = false, topHud = false): boolean {
   const t = actionSampleSec(track, k);
@@ -479,8 +498,10 @@ export const ACTION_GAIN_SEC = 1;
 /**
  * The Simple look's texts, each at the edge of the square its run leaves clearer: a message moves to the bottom when it would
  * hide the moving balls there for at least ACTION_GAIN_SEC less than at the top, over the clip (`untilSec`), its lines read as
- * before. None moves where the mode draws something of its own along the bottom (bottomEdgeFree); the others stay at the top,
- * the bot look's place. Pure: it reads the run's action track.
+ * before – --- templates --- (AI studio step 3) and, before the balls, to the edge where it sits over a banner of the mode's own
+ * text for less time (Glass Smash's "STAGE n" under a top hook: bannerCoverSec). None moves where the mode draws something of
+ * its own along the bottom (bottomEdgeFree); the others stay at the top, the bot look's place. Pure: it reads the run's action
+ * track.
  */
 export function placeSimpleTexts(captions: readonly Caption[], roles: readonly CaptionRole[], track: ActionTrack, settings: Pick<SimulatorSettings, "mode" | "loopHud" | "ringTimer">, untilSec: number): Caption[] {
   let out = captions.slice();
@@ -489,7 +510,11 @@ export function placeSimpleTexts(captions: readonly Caption[], roles: readonly C
   for (const message of captionMessagesOf(roles)) {
     const top = captionsAtEdge(out, message, "top");
     const bottom = captionsAtEdge(out, message, "bottom");
-    out = actionCoverSec(top, message, track, untilSec, false, topHud) - actionCoverSec(bottom, message, track, untilSec, false, topHud) >= ACTION_GAIN_SEC - 1e-9 ? bottom : top;
+    // --- templates --- (AI studio step 3) first the edge clear of the mode's own banners (two texts never stacked), then the action
+    const overTop = bannerCoverSec(top, message, track, untilSec, false, topHud);
+    const overBottom = bannerCoverSec(bottom, message, track, untilSec, false, topHud);
+    if (overTop !== overBottom) out = overTop > overBottom ? bottom : top;
+    else out = actionCoverSec(top, message, track, untilSec, false, topHud) - actionCoverSec(bottom, message, track, untilSec, false, topHud) >= ACTION_GAIN_SEC - 1e-9 ? bottom : top;
   }
   return out;
 }
@@ -789,6 +814,8 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
       atEscape = snapshot(elapsed, engine.isSimulationFinished());
     }
     if (request.mode === "glass" && facts.homeSec < 0 && engine.getGlassProgress().home) facts.homeSec = sec;
+    // --- templates --- (AI studio step 3) Journey's HOME, its way out (the crew's claim "out" reads it)
+    if (request.mode === "journey" && facts.homeSec < 0 && engine.getJourneyView().homeReached) facts.homeSec = sec;
     // The race names its winner as the first racer crosses the line (race.ts finish(): the "winner" callout and the
     // fanfare) – that is the payoff, not the complete podium seconds later.
     if (request.mode === "race" && facts.winSec < 0) {
@@ -839,6 +866,8 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
     facts.firstEscapeSec = summary.firstEscapeMs >= 0 ? summary.firstEscapeMs / 1000 : -1;
     facts.winnerIndex = outcomeRun.winner;
     facts.outcomeRun = outcomeRun;
+    // --- templates --- (AI studio step 3) an outcome whose moment is a fill (the box full, the ring filled): the crew's claim "full" reads it
+    if (FILL_OUTCOMES.includes(recipe.outcome) && outcomeRun.atSec >= 0) facts.fillSec = outcomeRun.atSec;
   }
   return facts;
 }
@@ -860,10 +889,13 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
   if (recipe.strategy === "escape") sec = facts.firstEscapeSec;
   else if (recipe.strategy === "winner") sec = settings.mode === "stringBattle" || settings.mode === "fightLeague" /* --- fl-overhaul --- (Stage 6) the final KO */ ? facts.finishSec : facts.firstEscapeSec;
   else if (recipe.strategy === "finish") {
-    if (settings.mode === "glass") sec = facts.homeSec >= 0 ? facts.homeSec : facts.finishSec;
+    // (--- templates --- AI studio step 3: the Journey's HOME too, which plays Glass Smash's – its chord, then 1.8 s of celebration)
+    if (settings.mode === "glass" || settings.mode === "journey") sec = facts.homeSec >= 0 ? facts.homeSec : facts.finishSec;
     else if (settings.mode === "race") sec = facts.winSec >= 0 ? facts.winSec : facts.finishSec;
     // Ball Drop ends once every ball has rested for a second: the last one landed that second before.
     else if (settings.mode === "drop") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - DROP_REST_SEC) : -1;
+    // --- templates --- (AI studio step 3) Spiral Glass ends CLEAR_HOLD_MS after its GLASS CLEARED (the flash, the chord): the clear is the payoff
+    else if (settings.mode === "spiralGlass") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SPIRAL_CLEAR_HOLD_MS / 1000) : -1;
     else sec = facts.finishSec;
   }
   else if (recipe.strategy === "fill") sec = facts.fillSec;
@@ -936,7 +968,8 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
     recordingDuration = clampInt(Math.max(payoff / PAYOFF_MID, payoff + 1), R_DUR.min, R_DUR.max);
     clipSec = Math.min(recordingDuration, payoff + endHoldsSec(settings));
   } else if (end !== null) {
-    const natural = end + endHoldsSec(settings);
+    // (--- templates --- AI studio step 3: a loop's seam ends the page's whole-loop export right there, no stop after it)
+    const natural = end + (recipe.strategy === "outcome" && facts?.outcomeRun?.seam ? 0 : endHoldsSec(settings));
     recordingDuration = clampInt(Math.ceil(natural), R_DUR.min, R_DUR.max);
     clipSec = Math.min(recordingDuration, natural);
   } else {
@@ -1172,7 +1205,8 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
   // (--- templates --- a template's own recipe reads its format's cliffhanger hook)
-  const ownHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `${recipeCopyPath(recipe)}.cliffHook`) ? "cliffHook" : "hook", vars);
+  // (--- templates --- a binding's own hook variant, in either ending: AI studio step 3)
+  const ownHook = recipeText(copy, recipe, recipe.hookKey ?? (ending === "cliffhanger" && copyString(copy, `${recipeCopyPath(recipe)}.cliffHook`) ? "cliffHook" : "hook"), vars);
   // --- templates --- (review round 2, 20) a template that asks rather than promise a chord its run plays elsewhere too
   const fullHook = recipe.hookAsk ? askHookText(ownHook, recipeText(copy, recipe, recipe.hookAsk, vars)) : ownHook;
   // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the

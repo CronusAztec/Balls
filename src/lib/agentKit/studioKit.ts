@@ -2,11 +2,12 @@ import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
 import { askHookText, BINDINGS, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
-import { copyString, isBotLocale, type BotCopy, type BotLocale } from "@/lib/bot/copy";
+import { copyString, isBotLocale, recipeCopyVars, recipeText, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { parseTrends } from "@/lib/trends";
 import { isModeId } from "@/lib/physics/types";
+import { defaultSettings } from "@/lib/settings";
 import {
   CLARITY,
   CLEAN_COUNT,
@@ -166,9 +167,20 @@ const COPY_FIELDS = ["name", "series", "hook", "cliffHook", "payoff", "cliffQues
 /**
  * A ready template's words in the locale's copy (its recipe's, with their `{name}` placeholders): the fields it has – its hook
  * as the template draws it (--- templates --- review round 2, 20: a question in place of a chord its run plays elsewhere too).
+ * --- templates --- (AI studio step 3) A template without a recipe speaks with its format's words, its `{thing}` its mode's noun
+ * ("Will the ball get out?"), its hook the one it draws: its own variant, else a cut clip's where it only ends cut.
  */
-function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk">, copy: BotCopy): Record<string, string> {
+function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | "copyVars" | "modes" | "hookKey" | "endings">, copy: BotCopy): Record<string, string> {
   const out: Record<string, string> = {};
+  if (recipe.formatCopy) {
+    const vars = recipeCopyVars(copy, recipe, defaultSettings(recipe.modes[0]));
+    const drawn = recipe.hookKey ?? (recipe.endings?.length === 1 && recipe.endings[0] === "cliffhanger" ? "cliffHook" : "hook");
+    for (const f of COPY_FIELDS) {
+      const text = recipeText(copy, recipe, f === "hook" ? drawn : f, vars);
+      if (text) out[f] = text;
+    }
+    return out;
+  }
   for (const f of COPY_FIELDS) {
     const text = copyString(copy, `recipes.${recipe.copyKey}.${f}`);
     if (text) out[f] = text;

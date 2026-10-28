@@ -1,5 +1,5 @@
 import { RANGES } from "@/lib/settings";
-import { simulateOutcomeRun, type FinderRequest } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateOutcomeRun, stepPlaybackMs, type FinderRequest } from "@/lib/simulation/finder";
 import { ESCAPE_AT_TOLERANCE_SEC, outcomeClipSec, outcomeMatches, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "@/lib/simulation/outcomes";
 import { BUCKET_SECONDS, CLIFF_GAP_SEC, PAYOFF_BAND, snapStep, type EndingStyle, type LengthBucket } from "./playbook";
 
@@ -58,9 +58,101 @@ export const OUTCOME_MOMENTS: Readonly<Partial<Record<FinderOutcomeKind, { windo
   "summit-last": { window: "end", ms: (r) => r.summitMs ?? -1 }, // --- land-claim-pyramid ---
 };
 
-/** Whether the "outcome" strategy can plan this outcome: its moment is a seed's run's (OUTCOME_MOMENTS). */
+// --- templates --- (AI studio step 3) the outcomes whose seed's moment a run of its own reads
+/** What a run of its own reads of an outcome: the run summed up, the outcome's moment and where the run ended (ms; −1 / null: never). */
+interface OwnRun {
+  summary: RunSummary;
+  ms: number;
+  endMs: number | null;
+  /** The end is a loop's seam: the page's whole-loop export ends the clip right there (Export whole loops). */
+  seam?: true;
+}
+
+/** The engine's view of a run of its own, stepped as the page plays it (stepPlaybackMs) until `done` says so or `horizonSec`. */
+function stepOwnRun(request: FinderRequest, seed: number, horizonSec: number, done: (engine: ReturnType<typeof createEngineForSettings>) => boolean): { elapsedMs: number; reached: boolean } {
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  while (elapsed < 1000 * horizonSec - 1e-6) {
+    engine.update(step, 0);
+    elapsed += stepPlaybackMs(engine, step);
+    engine.consumeSoundEvents();
+    if (done(engine)) return { elapsedMs: elapsed, reached: true };
+  }
+  return { elapsedMs: elapsed, reached: false };
+}
+
+/**
+ * Brick Smash's first smash (bricks-cleared-by: brickRebuildFinder.ts steps the same run): the moment its last brick falls, the
+ * run followed until its first smash ends – cleared, or its time limit. The run loops on (the settle, the rebuild, the next
+ * smash), so it never ends: a clip around the clear is cut where the planner puts its end.
+ */
+function brickSmashRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  let cleared = false;
+  const { elapsedMs, reached } = stepOwnRun(request, seed, horizonSec, (engine) => {
+    const view = engine.getBrickRebuildView();
+    if (view.firstEnd === "") return false;
+    cleared = view.firstEnd === "cleared";
+    return true;
+  });
+  return { summary: { mode: request.mode, durationMs: elapsedMs, finished: false, firstEscapeMs: -1, teams: [] }, ms: reached && cleared ? elapsedMs : -1, endMs: null };
+}
+
+/**
+ * Perfect Fit's first box full (most-on-floor: the binding's settings take the finder's solution seed with the most pieces on
+ * the floor, perfectFitFinder.ts, so the seed's run is that tiling's): the moment its last piece lands and the completion chord
+ * plays. The run loops on (the scatter, the next box) and never finishes, but the page exports whole loops only (the loop
+ * contract: Export whole loops), so a clip of it ends on its loop's seam – the box empty again after the scatter (the studio's
+ * render of step 3: 22.9 s rendered of a 25 s plan).
+ */
+function perfectFitRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  let loopMs = -1;
+  const { elapsedMs, reached } = stepOwnRun(request, seed, horizonSec, (engine) => {
+    const view = engine.getPerfectFitView();
+    loopMs = 1000 * view.plan.loopSec;
+    return view.rects >= 1;
+  });
+  const seam = reached && loopMs > 0;
+  return { summary: { mode: request.mode, durationMs: elapsedMs, finished: false, firstEscapeMs: -1, teams: [] }, ms: reached ? elapsedMs : -1, endMs: seam ? loopMs : null, ...(seam ? { seam: true as const } : {}) };
+}
+
+/**
+ * --- templates --- (AI studio step 3) The outcomes the finder searches with a run of their own (not simulateOutcomeRun's) that
+ * still have a seed's moment, each with its window and the run that reads it.
+ */
+export const OWN_RUN_MOMENTS: Readonly<Partial<Record<FinderOutcomeKind, { window: OutcomeWindowKind; run: (request: FinderRequest, seed: number, horizonSec: number) => OwnRun }>>> = {
+  "bricks-cleared-by": { window: "by", run: brickSmashRun }, // --- brick-rebuild ---
+  "most-on-floor": { window: "at", run: perfectFitRun }, // --- perfect-fit ---
+};
+
+/** --- templates --- (AI studio step 3) The outcomes whose moment is a fill (Grow's ring filled, Perfect Fit's first box full): a fill's fact. */
+export const FILL_OUTCOMES: readonly FinderOutcomeKind[] = ["fills-by", "most-on-floor"];
+
+/** The window kind of an outcome the strategy plans (OUTCOME_MOMENTS, else OWN_RUN_MOMENTS). */
+function windowOf(kind: FinderOutcomeKind): OutcomeWindowKind | undefined {
+  return OUTCOME_MOMENTS[kind]?.window ?? OWN_RUN_MOMENTS[kind]?.window;
+}
+
+/** Whether a run's moment (ms; −1: never) meets the outcome's window. */
+function inWindow(outcome: FinderOutcome, ms: number): boolean {
+  if (ms < 0) return false;
+  switch (windowOf(outcome.kind)) {
+    case "at":
+      return Math.abs(ms - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
+    case "by":
+      return ms <= 1000 * (outcome.atSec ?? 0) + 1e-6;
+    default:
+      return true;
+  }
+}
+// --- end templates ---
+
+/**
+ * Whether the "outcome" strategy can plan this outcome: its moment is a seed's run's (OUTCOME_MOMENTS, or – --- templates --- – a
+ * run of its own: OWN_RUN_MOMENTS).
+ */
 export function outcomeStrategyPlans(kind: FinderOutcomeKind | undefined): kind is FinderOutcomeKind {
-  return kind !== undefined && OUTCOME_MOMENTS[kind] !== undefined;
+  return kind !== undefined && (OUTCOME_MOMENTS[kind] !== undefined || OWN_RUN_MOMENTS[kind] !== undefined);
 }
 
 /**
@@ -91,7 +183,7 @@ export function payoffWindow(payoffTarget: number, bucket: LengthBucket, ending:
  */
 export function strategyOutcome(kind: FinderOutcomeKind, horizonSec: number, window?: { atSec: number; toleranceSec: number }): FinderOutcome {
   const w = window ?? { atSec: horizonSec / 2, toleranceSec: horizonSec / 2 };
-  switch (OUTCOME_MOMENTS[kind]?.window) {
+  switch (windowOf(kind) /* --- templates --- (a run of its own too) */) {
     case "at":
       return { kind, clipSec: horizonSec, atSec: w.atSec, toleranceSec: w.toleranceSec };
     case "by":
@@ -112,6 +204,11 @@ export interface OutcomeRunFacts {
   winner: number;
   /** Where the run ended on its own, or closed its loop (outcomeClipSec, s); null: it went on past the run followed. */
   endSec: number | null;
+  /**
+   * --- templates --- (AI studio step 3) The end is a loop's seam the page's whole-loop export cuts on: the clip ends there, with
+   * no stop after it (planner.ts clipTiming). Absent otherwise.
+   */
+  seam?: true;
 }
 
 /**
@@ -121,6 +218,13 @@ export interface OutcomeRunFacts {
  */
 export function outcomeRunOf(request: FinderRequest, seed: number, kind: FinderOutcomeKind, horizonSec: number): { summary: RunSummary; facts: OutcomeRunFacts } {
   const outcome = request.outcome && request.outcome.kind === kind ? request.outcome : strategyOutcome(kind, horizonSec);
+  // --- templates --- (AI studio step 3) an outcome a run of its own reads: its moment, the window, a run that loops on
+  const own = OWN_RUN_MOMENTS[kind];
+  if (own) {
+    const run = own.run(request, seed, horizonSec);
+    const endSec = run.endMs !== null && run.endMs >= 0 ? run.endMs / 1000 : null;
+    return { summary: run.summary, facts: { kind, atSec: run.ms >= 0 ? run.ms / 1000 : -1, matched: inWindow(outcome, run.ms), winner: -1, endSec, ...(run.seam && endSec !== null ? { seam: true as const } : {}) } };
+  }
   const summary = simulateOutcomeRun(seed, request, outcome);
   const ms = OUTCOME_MOMENTS[kind]?.ms(summary) ?? -1;
   let winner = -1;

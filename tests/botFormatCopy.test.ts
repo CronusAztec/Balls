@@ -9,7 +9,7 @@ import { evenCaptionLines, planClip, type ClipPlan } from "@/lib/bot/planner";
 import { HOOK_VARIANTS } from "@/lib/crew/roles";
 import { numbersIn } from "@/lib/crew/clip";
 import { wordCount } from "@/lib/crew/simplicity";
-import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMAT_IDS, allTemplates, plannedRecipe, simpleHookText, simplePayoffText, templateById, templateNameOf, templateRecipeById, thingKeyOf, type TemplateFormatId } from "@/lib/bot/templates";
+import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMAT_IDS, allTemplates, plannedRecipe, simpleHookText, simplePayoffText, templateById, templateNameOf, templateRecipeById, thingKeyOf, variantKeyOf, type TemplateFormatId } from "@/lib/bot/templates";
 
 /*
  * --- templates --- The formats' words (AI studio step 2: messages/*.json ViralBot.formats, ViralBot.things, ViralBot.looks, read
@@ -161,7 +161,9 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
   it("keeps the proven templates' own words and gives a template without a recipe its format's: recipeText reads the one the recipe names", () => {
     const own = allTemplates().filter((t) => t.recipe === null);
     const wrapped = allTemplates().filter((t) => t.recipe !== null);
-    expect([own.length, wrapped.length]).toEqual([32, 21]);
+    // (--- templates --- AI studio step 3: and two variants of proven bindings that play their own way, Classic's one ring and Grow's
+    // fill that ends the run)
+    expect([own.length, wrapped.length]).toEqual([34, 21]);
     for (const t of wrapped) {
       const r = plannedRecipe(t)!;
       expect([t.id, r.formatCopy, recipeCopyPath(r)]).toEqual([t.id, undefined, `recipes.${t.recipe!.copyKey}`]);
@@ -178,19 +180,28 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
         expect(recipeText(COPY[locale], r, "series"), `${locale} ${t.id}`).toBe(formatText(COPY[locale], t.format.id, "name"));
       }
     }
-    // the ready templates are all proven ones: no ready template speaks with a format's words yet
-    for (const t of allTemplates().filter((x) => x.ready)) expect([t.id, templateRecipeById(t.id)!.formatCopy]).toEqual([t.id, undefined]);
+    // a ready template speaks with its recipe's words, and – --- templates --- (AI studio step 3) one without a recipe with its format's
+    for (const t of allTemplates().filter((x) => x.ready)) expect([t.id, templateRecipeById(t.id)!.formatCopy]).toEqual([t.id, t.recipe ? undefined : true]);
+    expect(allTemplates().filter((x) => x.ready && !x.recipe).length).toBeGreaterThan(0);
   });
 
   it("plans a template without a recipe in its format's words, in every locale: its mode's noun in the hook, the cliffhanger's own hook, the post, no brace", () => {
+    // (--- templates --- AI studio step 3: Shatter's binding cuts before its escape and asks its format's own hook in either ending,
+    // so the cliffhanger's own hook is proven on Shatter's adapter asked for both endings, and on Shatter as it is offered)
     const shatter = templateById("get-out-shatter")!;
     const conveyor = templateById("count-conveyor")!;
     const drawn = (plan: ClipPlan, role: string) => plan.captionRoles.flatMap((r, i) => (r === role ? [plan.settings.captions[i].text] : []));
+    const { hookKey: _offered, ...asked } = plannedRecipe(shatter)!;
+    const bothEndings = { ...asked, endings: ["resolved", "cliffhanger"] as const };
+    expect([_offered, plannedRecipe(shatter)!.endings]).toEqual(["hook", ["cliffhanger"]]);
     for (const locale of LOCALES) {
       const copy = COPY[locale];
       const options = { copy, locale, look: "simple" as const, search: false, episode: 3, index: 1 };
+      // the template as it is offered: its format's hook, cut before the escape
+      const offered = planClip(plannedRecipe(shatter)!, 2, "shorts", { ...options, template: shatter.id });
+      expect([locale, offered.ending, offered.hook]).toEqual([locale, "cliffhanger", formatText(copy, "getOut", "hook", { seconds: offered.settings.recordingDuration, thing: thingOf(copy, "shatter") })]);
       for (const ending of ["resolved", "cliffhanger"] as const) {
-        const plan = planClip(plannedRecipe(shatter)!, 2, "shorts", { ...options, ending, template: shatter.id });
+        const plan = planClip(bothEndings, 2, "shorts", { ...options, ending, template: shatter.id });
         const where = `${locale} ${shatter.id} ${ending}`;
         const vars = { seconds: plan.settings.recordingDuration, thing: thingOf(copy, "shatter") };
         expect([where, plan.ending]).toEqual([where, ending]);
@@ -217,11 +228,20 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
       expect(new Set(names).size, locale).toBe(names.length);
       for (const [i, t] of allTemplates().entries()) {
         const base = `${modes[t.mode].name} · ${formatText(COPY[locale], t.format.id, "name")}`;
-        expect(names[i], `${locale} ${t.id}`).toBe(t.binding.variants[0].id === t.id ? base : `${base} · ${recipeText(COPY[locale], t.recipe!, "name")}`);
+        // (--- templates --- AI studio step 3: a further variant without a recipe adds its own name, ViralBot.variants)
+        const variantName = t.recipe ? recipeText(COPY[locale], t.recipe, "name") : String(copyPath(COPY[locale], `variants.${variantKeyOf(t)}`));
+        expect(names[i], `${locale} ${t.id}`).toBe(t.binding.variants[0].id === t.id ? base : `${base} · ${variantName}`);
       }
     }
     const en = (id: string) => templateNameOf(templateById(id)!, COPY.en, (MESSAGES.en.Modes as unknown as Record<string, { name: string }>)[templateById(id)!.mode].name);
     expect([en("get-out-shatter"), en("get-out-classic"), en("get-out-classic-gerald"), en("who-wins-fight-league-upset")]).toEqual(["Shatter · Get out", "Classic · Get out", "Classic · Get out · Gerald escapes", "Fight League · Who wins · Fight upset"]);
+    // --- templates --- (AI studio step 3) the variants without a recipe, by their own names, in every locale
+    expect([en("get-out-classic-ring"), en("fill-grow-fills")]).toEqual(["Classic · Get out · One ring", "Grow · Fill it · Fill to finish"]);
+    for (const locale of LOCALES) {
+      const variants = (MESSAGES[locale].ViralBot as unknown as { variants: Record<string, string> }).variants;
+      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills"]]);
+      for (const name of Object.values(variants)) expect([locale, name, wordCount(name) <= 4, /[{}]/.test(name)]).toEqual([locale, name, true, false]);
+    }
     expect(templateName(COPY.pl, "Rozbicie", "getOut")).toBe("Rozbicie · Ucieczka");
     expect(templateName(COPY.es, " ", "lineUp")).toBe("En línea");
   });

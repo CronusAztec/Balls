@@ -1,7 +1,8 @@
 import type { ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
 import { botRecipeById, CHORD_WORDS } from "@/lib/bot/templates";
-import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
+import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } from "@/lib/bot/planner";
+import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTrack"; // --- crew --- (AI studio step 3) the modes' banners
 import { STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
 import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
@@ -31,7 +32,9 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *     run shows the claim; a counter of the clip's seconds (a bar, a timer) reaches its end on screen – 100 % or 0:00, within
  *     a second of it – rather than leaving at "84 %" (the studio's second review round, 22).
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
- *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band.
+ *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band, and – --- crew
+ *     --- (AI studio step 3) – no caption over a banner of the mode's own text while it shows (the run's action track:
+ *     Glass Smash's "STAGE n", the Journey's stage banner), which would stack two texts.
  *  G6 notTooBusy – Simple at least 60 (simplicity.ts).
  *  G7 lengthFits – the clip's length inside a bucket its platform takes.
  *  G8 rendered (after a render only) – at most 2 % lagged frames, the watermark on every free run, drawing an address a viewer
@@ -272,7 +275,26 @@ function lookTimes(clip: CrewClip): number[] {
   return [...times].filter((t) => t < end).sort((a, b) => a - b);
 }
 
-/** G5: readable – safe zone, lines, hook words, time per line, no Top Text over a scoreboard band. */
+/**
+ * --- crew --- (AI studio step 3) The first caption drawn over a banner of the mode's own text while that shows (the run's action
+ * track, RunFacts.action.banners: Glass Smash's "STAGE n" under the template's hook, the studio's first known gap): the caption
+ * (1-based) and the second, or null – none, or no run read.
+ */
+function captionOverBanner(clip: CrewClip, topText: boolean, topHud: boolean): { caption: number; sec: number } | null {
+  const track = clip.run?.action;
+  if (!track || !isActionTrack(track) || !track.banners) return null;
+  for (let k = 0; k < track.samples.length; k++) {
+    const t = actionSampleSec(track, k);
+    if (t >= clip.timing.clipSec - EPS) break;
+    for (let i = 0; i < clip.captions.length; i++) {
+      const box = captionBoxAt(clip.captions, i, t, BOT_FRAME, topText, topHud);
+      if (box && bannerUnder(track, k, squareBoxOf(box))) return { caption: i + 1, sec: r1(t) };
+    }
+  }
+  return null;
+}
+
+/** G5: readable – safe zone, lines, hook words, time per line, no Top Text over a scoreboard band, no caption over a mode's banner. */
 function readableGate(clip: CrewClip): Gate {
   const problems: { key: string; values?: Record<string, string | number> }[] = [];
   const topText = !!clip.topText.trim();
@@ -297,6 +319,8 @@ function readableGate(clip: CrewClip): Gate {
   if (words > CLARITY.hookWordsMax) problems.push({ key: "HookWords", values: { words } });
   const hurried = groups.find((g) => (g.end - g.start) / g.lines < CLARITY.secPerLine - EPS);
   if (hurried) problems.push({ key: "Hurried", values: { sec: r1((hurried.end - hurried.start) / hurried.lines), lines: hurried.lines } });
+  const banner = captionOverBanner(clip, topText, topHud); // --- crew --- (AI studio step 3)
+  if (banner) problems.push({ key: "OverBanner", values: banner });
   return gate("G5", problems, "Ok");
 }
 
