@@ -65,3 +65,25 @@ describe("the npm installs stay out of git (--- ai-guard ---)", () => {
     expect(untracked(dir)).toEqual([]);
   });
 });
+
+/*
+ * --- react-hydration-replay --- A plain `npm install` rewrites no lock file either. npm records `"hasInstallScript": true` in
+ * a lock's root entry when its package.json has a preinstall, install or postinstall script (@npmcli/arborist, Node's
+ * hasInstallScript), and leaves it out without one. A lock that disagrees is rewritten by the next plain `npm install` (the
+ * README's "Getting started"), and the tree it leaves is no longer clean: `npm run guard -- --baseline` refuses it. `npm ci`
+ * (CI, the VPS deployer) never writes the lock, so only a local install shows it. The site's postinstall
+ * (scripts/patch-react-hydration-replay.mjs) brought the first such script.
+ */
+describe("a plain npm install leaves every lock file as it is (--- react-hydration-replay ---)", () => {
+  it("records hasInstallScript in each lock's root entry exactly when its package.json has an install script", () => {
+    for (const install of INSTALLS) {
+      const dir = path.join(ROOT, path.dirname(install));
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) as { scripts?: Record<string, string> };
+      const lockFile = path.join(dir, "package-lock.json");
+      const lock = JSON.parse(fs.readFileSync(lockFile, "utf8")) as { packages: Record<string, { hasInstallScript?: boolean }> };
+      const scripts = pkg.scripts ?? {};
+      const hasInstallScript = Boolean(scripts.preinstall || scripts.install || scripts.postinstall);
+      expect(lock.packages[""].hasInstallScript, path.relative(ROOT, lockFile)).toBe(hasInstallScript ? true : undefined);
+    }
+  });
+});
