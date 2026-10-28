@@ -144,7 +144,7 @@ export interface FixSpec {
 
 export const FIX_ACTIONS: Readonly<Record<FixId, FixSpec>> = {
   simplifyLook: { id: "simplifyLook", params: "", what: "calm look: no wall glow, colour trail, rainbow, pulsing background, shake or confetti; thin trails; extra HUDs off", finder: false },
-  oneTextAtATime: { id: "oneTextAtATime", params: "", what: "one text at a time: no series line, the counter after the hook and gone at the payoff", finder: false },
+  oneTextAtATime: { id: "oneTextAtATime", params: "", what: "one text at a time: no series line, the counter after the hook and gone at the payoff, each text at the edge of the square the action leaves clear", finder: false },
   dropCountdownCaption: { id: "dropCountdownCaption", params: "", what: "remove the countdown caption", finder: false },
   rewriteHook: { id: "rewriteHook", params: `text: at most ${FIX_BOUNDS.hookWords} words and ${FIX_BOUNDS.hookChars} characters, only numbers the clip has`, what: "a new hook, drawn in the safe zone", finder: false },
   retimePayoff: { id: "retimePayoff", params: `targetPos: ${FIX_BOUNDS.retimeFrom}-${FIX_BOUNDS.retimeTo}`, what: "a seed and length that put the payoff at that share of the clip", finder: true },

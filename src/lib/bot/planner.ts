@@ -11,6 +11,7 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
+import { actionSampleSec, actionTrackSteps, actionUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
 import { botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
@@ -192,13 +193,84 @@ export function splitCaptionLines(text: string, size: number, frameWidth: number
   return lines;
 }
 
-/** One caption per line at the largest size (from `size` down to 0.8) that keeps it to `maxLines` lines. */
-function captionLines(text: string, size: number, maxLines: number): { lines: string[]; size: number } {
+// --- templates --- (review round 1, 25) where the Simple look breaks a text of two lines
+/** A word that ends a clause: a sentence's end or a colon (a closing quote or bracket after it allowed). */
+const CLAUSE_END = /[.!?…:]["'”’»)\]]*$/u;
+/** A part of a text a reader reads as words: a letter or a digit in it (an emoji alone is none). */
+const hasWord = (words: readonly string[]) => words.some((w) => /[\p{L}\p{N}]/u.test(w));
+/** The fewest words a last line keeps in a text of five words or more (fewer is an orphan). */
+const ORPHAN_WORDS = 2;
+
+/**
+ * `text` broken into two lines at `size` as the Simple look breaks it, where splitCaptionLines() fills the first line
+ * greedily ("15 pendulums. Wait for" / "the chord."): at a clause boundary when both parts fit the safe width, the most even
+ * such break ("15 pendulums." / "Wait for the chord."); else the most even break that fits (the smallest widest line), with a
+ * last line of more than two words in a text of five or more ("Every hit" / "doubles the power.", never "Every hit doubles" /
+ * "the power.") where such a break fits. The first line keeps a word to read, and so does the second but after a whole sentence
+ * (its emoji: "Harley Quinn wins!" / "🏆"). The greedy lines when the text takes one line or more than two, or when no two lines
+ * fit (a word wider than a line).
+ */
+export function evenCaptionLines(text: string, size: number, frameWidth: number = BOT_FRAME.width): string[] {
+  const greedy = splitCaptionLines(text, size, frameWidth);
+  if (greedy.length !== 2) return greedy;
+  const fs = captionBaseFont(frameWidth) * size;
+  const max = 0.9 * maxSafeBoxWidth(frameWidth) - 1.1 * fs;
+  const words = sanitizeCaptionText(text).split(" ").filter(Boolean);
+  const breaks: { lines: [string, string]; widest: number; clause: boolean; orphan: boolean }[] = [];
+  for (let i = 1; i < words.length; i++) {
+    const first = words.slice(0, i);
+    const last = words.slice(i);
+    const clause = CLAUSE_END.test(words[i - 1]);
+    // (a line of emoji alone only after a whole sentence: "Harley Quinn wins!" / "🏆", never "Harley Quinn" / "wins! 🏆")
+    if (!hasWord(first) || (!hasWord(last) && !clause)) continue;
+    const lines: [string, string] = [first.join(" "), last.join(" ")];
+    const widest = Math.max(estimateTextWidth(lines[0], fs), estimateTextWidth(lines[1], fs));
+    if (widest > max) continue;
+    breaks.push({ lines, widest, clause, orphan: words.length >= 5 && last.length <= ORPHAN_WORDS });
+  }
+  const evenest = (pool: typeof breaks) => pool.reduce((a, b) => (b.widest < a.widest - 1e-9 ? b : a));
+  const clauses = breaks.filter((b) => b.clause);
+  if (clauses.length) return [...evenest(clauses).lines];
+  const whole = breaks.filter((b) => !b.orphan);
+  if (whole.length) return [...evenest(whole).lines];
+  return breaks.length ? [...evenest(breaks).lines] : greedy;
+}
+// --- end templates ---
+
+/** --- templates --- Whether two lines break at a clause boundary (the first ends one). */
+const breaksAtClause = (lines: readonly string[]) => lines.length === 2 && CLAUSE_END.test(lines[0]);
+
+/** --- templates --- Whether a text has a clause boundary a line may break at (a word to read on each side of it). */
+function hasClauseBoundary(text: string): boolean {
+  const words = sanitizeCaptionText(text).split(" ").filter(Boolean);
+  return words.some((_, i) => i > 0 && CLAUSE_END.test(words[i - 1]) && hasWord(words.slice(0, i)) && hasWord(words.slice(i)));
+}
+
+/** --- templates --- How much smaller (size steps of 0.1) a Simple text may be drawn to break at its clause boundary. */
+const CLAUSE_SHRINK_STEPS = 2;
+
+/**
+ * One caption per line at the largest size (from `size` down to 0.8) that keeps it to `maxLines` lines. --- templates --- `even`
+ * (the Simple look): two lines broken where a reader would break them (evenCaptionLines) – at the same size, since the greedy
+ * lines that fit are one of the breaks it chooses from – or, for a text of two clauses whose break there does not fit at that
+ * size ("16 pelotas. Cada" / "clavo es una nota."), at its clause boundary a step or two smaller ("16 pelotas." / "Cada clavo es
+ * una nota.").
+ */
+function captionLines(text: string, size: number, maxLines: number, even = false): { lines: string[]; size: number } {
+  const split = even ? evenCaptionLines : splitCaptionLines; // --- templates ---
   let s = size;
-  let lines = splitCaptionLines(text, s);
+  let lines = split(text, s);
   while (lines.length > maxLines && s > 0.8 + 1e-9) {
     s = Math.round((s - 0.1) * 10) / 10;
-    lines = splitCaptionLines(text, s);
+    lines = split(text, s);
+  }
+  // --- templates --- a clause break a step or two smaller before a break inside a clause
+  if (even && lines.length === 2 && !breaksAtClause(lines) && hasClauseBoundary(text)) {
+    for (let k = 1, t = s; k <= CLAUSE_SHRINK_STEPS && t > 0.8 + 1e-9; k++) {
+      t = Math.round((t - 0.1) * 10) / 10;
+      const smaller = evenCaptionLines(text, t);
+      if (breaksAtClause(smaller)) return { lines: smaller, size: t };
+    }
   }
   return { lines: lines.slice(0, Math.max(maxLines, 1)), size: s };
 }
@@ -279,6 +351,121 @@ export function hasTopHud(mode: SimulatorSettings["mode"]): boolean {
 export function inSafeZone(box: CaptionBox, frame: { width: number; height: number } = BOT_FRAME): boolean {
   return box.left >= 0 && box.top >= 0 && box.right <= (1 - SAFE_ZONE.right) * frame.width + 1e-6 && box.bottom <= (1 - SAFE_ZONE.bottom) * frame.height + 1e-6;
 }
+
+// --- templates --- (review round 1, 26) a text at either edge of the square, read in the order a viewer reads it
+/**
+ * The indices of `indices` (captions of one message) in the order a viewer reads them: a top or a centre stack downwards, in
+ * the list's order; a bottom stack upwards, since the canvas stacks it from the square's bottom margin (captionsRenderer.ts,
+ * captionBoxAt), so its first caption is its lowest line. Top ones first, then the centre's, then the bottom's.
+ */
+export function inReadingOrder(captions: readonly Pick<Caption, "position">[], indices: readonly number[]): number[] {
+  const at = (p: Caption["position"]) => indices.filter((i) => captions[i]?.position === p);
+  return [...at("top"), ...at("center"), ...at("bottom").reverse()];
+}
+
+/**
+ * The words of captions `indices` in the order a viewer reads them (inReadingOrder), joined by a space, as scoreClip joins a
+ * hook's.
+ */
+export function captionWordsOf(captions: readonly Pick<Caption, "position" | "text">[], indices: readonly number[]): string {
+  return inReadingOrder(captions, indices)
+    .map((i) => captions[i].text)
+    .join(" ")
+    .trim();
+}
+
+/**
+ * The captions with message `indices` moved to the top or the bottom edge of the square, read as before: its lines take the
+ * message's own places in the list, in the order that stack reads them in (a bottom stack's lowest line first).
+ */
+export function captionsAtEdge(captions: readonly Caption[], indices: readonly number[], position: "top" | "bottom"): Caption[] {
+  const slots = [...indices].sort((a, b) => a - b);
+  const read = inReadingOrder(captions, indices).map((i) => ({ ...captions[i], position }));
+  const listed = position === "bottom" ? read.reverse() : read;
+  const out = captions.slice();
+  slots.forEach((slot, k) => (out[slot] = listed[k]));
+  return out;
+}
+
+/**
+ * The modes that draw something of their own along the bottom of the square (Canvas.tsx, the live watermark's bottom bands and
+ * blocks: Fight League's ability boxes, a string battle's standings strip, Multipliers' ball counter at home, a race's standings
+ * and mini-map, the Journey's clock), which captionBoxAt does not know: a Simple text stays at the top there.
+ */
+const BOTTOM_HUD_MODES: readonly SimulatorSettings["mode"][] = ["fightLeague", "stringBattle", "multipliers", "race", "journey"];
+
+/**
+ * Whether a Simple text may take the bottom edge of the square with these settings: not in BOTTOM_HUD_MODES, nor under the loop
+ * HUD (its counter line along the bottom) or Classic's time-in-ring line under the rings.
+ */
+export function bottomEdgeFree(s: Pick<SimulatorSettings, "mode" | "loopHud" | "ringTimer">): boolean {
+  return !BOTTOM_HUD_MODES.includes(s.mode) && !s.loopHud && !(s.mode === "classic" && s.ringTimer);
+}
+
+/** A caption's box in the exported square, as shares of its side (the action track's coordinates). */
+export function squareBoxOf(box: CaptionBox, frame: { width: number; height: number } = BOT_FRAME): SquareBox {
+  const side = Math.min(frame.width, frame.height);
+  const left = (frame.width - side) / 2;
+  const top = (frame.height - side) / 2;
+  return { left: (box.left - left) / side, top: (box.top - top) / side, right: (box.right - left) / side, bottom: (box.bottom - top) / side };
+}
+
+/**
+ * The seconds message `indices` of `captions` hides the run's moving balls (`track`): the samples, before `untilSec`, at which a
+ * ball moves under one of its boxes as captionBoxAt lays them out (with `topText` and `topHud` as it takes them).
+ */
+export function actionCoverSec(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, untilSec: number, topText = false, topHud = false): number {
+  let sec = 0;
+  for (let k = 0; k < track.samples.length; k++) {
+    if (actionSampleSec(track, k) >= untilSec - 1e-9) break;
+    if (actionHiddenAt(captions, indices, track, k, topText, topHud)) sec += track.stepSec;
+  }
+  return sec;
+}
+
+/** Whether message `indices` of `captions` hides a moving ball at sample `k` of `track` (actionCoverSec's test). */
+export function actionHiddenAt(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, k: number, topText = false, topHud = false): boolean {
+  const t = actionSampleSec(track, k);
+  return indices.some((i) => {
+    const box = captionBoxAt(captions, i, t, BOT_FRAME, topText, topHud);
+    return !!box && actionUnder(track, k, squareBoxOf(box));
+  });
+}
+
+/** The messages of a caption list: the runs of captions with the same role, in order (a hook's lines are one). */
+export function captionMessagesOf(roles: readonly CaptionRole[]): number[][] {
+  const out: number[][] = [];
+  roles.forEach((r, i) => {
+    if (i > 0 && roles[i - 1] === r) out[out.length - 1].push(i);
+    else out.push([i]);
+  });
+  return out;
+}
+
+/**
+ * The least a text must hide the action less at the other edge of the square to be moved there (s): two samples of the track,
+ * so one ball passing once does not send a text from edge to edge.
+ */
+export const ACTION_GAIN_SEC = 1;
+
+/**
+ * The Simple look's texts, each at the edge of the square its run leaves clearer: a message moves to the bottom when it would
+ * hide the moving balls there for at least ACTION_GAIN_SEC less than at the top, over the clip (`untilSec`), its lines read as
+ * before. None moves where the mode draws something of its own along the bottom (bottomEdgeFree); the others stay at the top,
+ * the bot look's place. Pure: it reads the run's action track.
+ */
+export function placeSimpleTexts(captions: readonly Caption[], roles: readonly CaptionRole[], track: ActionTrack, settings: Pick<SimulatorSettings, "mode" | "loopHud" | "ringTimer">, untilSec: number): Caption[] {
+  let out = captions.slice();
+  if (!bottomEdgeFree(settings)) return out;
+  const topHud = hasTopHud(settings.mode);
+  for (const message of captionMessagesOf(roles)) {
+    const top = captionsAtEdge(out, message, "top");
+    const bottom = captionsAtEdge(out, message, "bottom");
+    out = actionCoverSec(top, message, track, untilSec, false, topHud) - actionCoverSec(bottom, message, track, untilSec, false, topHud) >= ACTION_GAIN_SEC - 1e-9 ? bottom : top;
+  }
+  return out;
+}
+// --- end templates ---
 
 /* ------------------------------------------------------------------ the plan */
 
@@ -460,6 +647,11 @@ export interface RunFacts {
   // --- crew ---
   /** What the run does around its payoff (lib/insights/score.ts payoffMomentSync): the crew's runs carry it, the bot's never. */
   moment?: PayoffMoment;
+  /**
+   * --- templates --- Where the run moves over the clip (actionTrack.ts: the cells of the square a moving ball touches, every
+   * half second): the crew's runs carry it (lib/insights/score.ts runSync with the clip's length), the bot's never.
+   */
+  action?: ActionTrack;
 }
 
 /**
@@ -814,13 +1006,13 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
     captions.push(caption);
     roles.push(role);
   };
-  const hookParts = captionLines(hook, hookStyle.size, 2);
+  const oneLine = textPlan === "oneLine"; // --- templates --- (and its lines broken where a reader breaks them)
+  const hookParts = captionLines(hook, hookStyle.size, 2, oneLine);
   for (const line of hookParts.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: 0, end: hookEndSec, animation: "pop", style: { ...hookStyle, size: hookParts.size } }, "hook");
   const clip = timing.recordingDuration;
-  const oneLine = textPlan === "oneLine"; // --- templates ---
   // when the closing question and the payoff's words come in (--- templates --- one text at a time: a question of two lines
   // gets 2.5 s, 1.25 s a line)
-  const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2) : null;
+  const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2, oneLine) : null;
   const questionStart = half(Math.max(hookEndSec + 0.5, clip - (oneLine && q && q.lines.length > 1 ? 2.5 : 2)));
   const payoffStart = timing.payoffSec !== null ? half(Math.max(hookEndSec + 0.5, Math.floor(timing.payoffSec * 2) / 2)) : null;
   if (recipe.countdown.source === "caption") {
@@ -835,7 +1027,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
   } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
-    const p = captionLines(oneLine ? simplePayoffText(words) : words, 1.3, 2); // --- templates ---
+    const p = captionLines(oneLine ? simplePayoffText(words) : words, 1.3, 2, oneLine); // --- templates ---
     for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: payoffStart, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
   }
   return { captions, roles };
@@ -1013,12 +1205,37 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
       yield { seedsTested: tested, maxSeeds };
       if (!search || (bestAccepted && (bestRank >= GOOD_ENOUGH || accepted >= MAX_ACCEPTED))) {
         best.timing.seedsTested = tested;
-        return best;
+        return look === "simple" && search ? yield* placedSimple(best, options, maxSeeds) : best; // --- templates ---
       }
     }
   }
   best!.timing.seedsTested = tested;
-  return best!;
+  return look === "simple" && search ? yield* placedSimple(best!, options, maxSeeds) : best!; // --- templates ---
+}
+
+/**
+ * --- templates --- (review round 1, 26) A Simple plan with its texts where its run leaves the square clear (placeSimpleTexts):
+ * its seed played again to the clip's end for its action track (pausing as the search does), and the plan's link and score
+ * read again when a text moved. Only a searched plan: a plan without the search has no run to read.
+ */
+function* placedSimple(plan: ClipPlan, options: PlanOptions, maxSeeds: number): Generator<PlanProgress, ClipPlan> {
+  if (!bottomEdgeFree(plan.settings)) return plan;
+  const steps = actionTrackSteps(plan.settings, plan.seed, plan.world, plan.timing.clipSec);
+  let track: ActionTrack;
+  for (;;) {
+    const next = steps.next();
+    if (next.done) {
+      track = next.value;
+      break;
+    }
+    yield { seedsTested: plan.timing.seedsTested, maxSeeds };
+  }
+  const captions = placeSimpleTexts(plan.settings.captions, plan.captionRoles, track, plan.settings, plan.timing.clipSec);
+  if (JSON.stringify(captions) === JSON.stringify(plan.settings.captions)) return plan;
+  const settings: SimulatorSettings = { ...plan.settings, captions };
+  const placed: ClipPlan = { ...plan, settings, shareUrl: clipShareUrl(settings, plan.seed, plan.locale, options.siteUrl) };
+  const scored = scoreClip(placed);
+  return { ...placed, score: scored.score, reasons: scored.reasons };
 }
 
 export function planClip(recipe: BotRecipe, planSeed: number, platform: BotPlatform, options: PlanOptions): ClipPlan {
@@ -1084,7 +1301,7 @@ export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason
   // 2. the hook: on screen from the start for 2–3 s, inside the safe zone
   const hookIdx = plan.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0 && s.captions[i]);
   const hookCaps = hookIdx.map((i) => s.captions[i]);
-  const hookText = hookCaps.map((c) => c.text).join(" ").trim();
+  const hookText = captionWordsOf(s.captions, hookIdx); // --- templates --- (a bottom stack's lines read upwards)
   if (!hookText) add("hook", 0, "hookMissing");
   else {
     const timed = hookCaps.every((c) => c.start <= 0.05 && c.end >= HOOK_SEC.min - 1e-9 && c.end <= HOOK_SEC.max + 0.5 + 1e-9);

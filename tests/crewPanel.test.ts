@@ -3,7 +3,8 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { recipeById } from "@/lib/bot/playbook";
-import { planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
+import { placeSimpleTexts, planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
+import { actionTrackSync } from "@/lib/bot/actionTrack";
 import type { SimulatorSettings } from "@/lib/settings";
 import { runSync } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -46,11 +47,15 @@ import {
 
 const copy = (en as unknown as { ViralBot: Parameters<typeof planClip>[3]["copy"] }).ViralBot;
 
-/** A plan in a calm look (the look settings that leave the run alone), its countdown after its hook. */
+/**
+ * A plan in a calm look (the look settings that leave the run alone), its countdown after its hook, --- templates --- each text
+ * at the edge of the square its run leaves clear (the Simple look's text plan: planner.ts placeSimpleTexts).
+ */
 function calm(plan: ClipPlan): ClipPlan {
   const s: SimulatorSettings = { ...plan.settings, showWallGlow: false, colorTrail: false, rainbowWalls: false, screenShake: 0, wallBreakStyle: "shatter", particleStyle: "sparks", rainbowBall: false, topText: "", bottomText: "" };
   const hookEnd = Math.max(...s.captions.filter((_, i) => plan.captionRoles[i] === "hook").map((c) => c.end));
   s.captions = s.captions.map((c, i) => (plan.captionRoles[i] === "countdown" ? { ...c, start: hookEnd } : c));
+  s.captions = placeSimpleTexts(s.captions, plan.captionRoles, actionTrackSync(s, plan.seed, plan.world, plan.timing.clipSec), s, plan.timing.clipSec);
   return { ...plan, settings: s };
 }
 const runOf = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);

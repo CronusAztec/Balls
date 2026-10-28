@@ -24,7 +24,7 @@ Reply with ONE JSON object and nothing else, in this shape: {"verdict":"keep|fix
 The fixed list of fixes:
 
 - simplifyLook: calm look: no wall glow, colour trail, rainbow, pulsing background, shake or confetti; thin trails; extra HUDs off
-- oneTextAtATime: one text at a time: no series line, the counter after the hook and gone at the payoff
+- oneTextAtATime: one text at a time: no series line, the counter after the hook and gone at the payoff, each text at the edge of the square the action leaves clear
 - dropCountdownCaption: remove the countdown caption
 - rewriteHook {text: at most 7 words and 42 characters, only numbers the clip has}: a new hook, drawn in the safe zone
 - retimePayoff {targetPos: 0.66-0.9}: a seed and length that put the payoff at that share of the clip

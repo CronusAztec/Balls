@@ -10,6 +10,8 @@ import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { finderRequestOfSettings, DEFAULT_BOT_WORLD } from "@/lib/bot/finderRequest";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { captionRolesOf, planLikeFromSettings, runSync } from "@/lib/insights/score";
+import { ACTION_GAIN_SEC, captionsAtEdge } from "@/lib/bot/planner";
+import { ACTION_GRID, ACTION_STEP_SEC, actionCellsOf, actionSampleSec, type ActionTrack } from "@/lib/bot/actionTrack";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import {
   HUD_FLAGS,
@@ -25,6 +27,7 @@ import {
   hudsOn,
   overlaysOf,
   simpleScore,
+  textOverActionSec,
   trendsMotionRef,
   type CrewClip,
   type SimpleDeductionId,
@@ -232,6 +235,36 @@ describe("one case per deduction", () => {
     expect(simpleScore(measured(features(ref!, 2.5, 1.9))).deductions.filter((d) => d.measured).map((d) => [d.id, d.values.sec])).toEqual([["measuredFirstMotion", 1.9]]);
     // not measured before a render
     expect(simpleScore(clean).deductions.some((d) => d.measured)).toBe(false);
+  });
+
+  // --- templates --- (the studio's first review round, finding 26: Ball Drop's balls entering under a top hook)
+  it("a text over the action: 2 a second it hides the run's moving balls 1 s or more longer than at the other edge, 10 at most; none without the run's track", () => {
+    const hook = clean.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+    const hookEnd = Math.max(...hook.map((i) => clean.captions[i].end));
+    const samples = Math.ceil(clean.timing.clipSec / ACTION_STEP_SEC);
+    const track = (sample: (k: number) => string): ActionTrack => ({ stepSec: ACTION_STEP_SEC, grid: ACTION_GRID, samples: Array.from({ length: samples }, (_, k) => sample(k)) });
+    const withTrack = (t: ActionTrack | undefined, clip: CrewClip = clean): CrewClip => ({ ...clip, run: { ...clip.run!, action: t } });
+    // balls moving under the top stack (cells 29 and 30 of 20 × 20: the middle of the square's second row) while the hook is up
+    const whileHook = (cells: string) => (k: number) => (actionSampleSec({ stepSec: ACTION_STEP_SEC }, k) < hookEnd - 1e-9 ? cells : "");
+    expect(actionCellsOf("0t0u")).toEqual([29, 30]);
+    const hookSec = Array.from({ length: samples }, (_, k) => actionSampleSec({ stepSec: ACTION_STEP_SEC }, k)).filter((t) => t < hookEnd - 1e-9).length * ACTION_STEP_SEC;
+    expect(hookSec).toBeGreaterThanOrEqual(ACTION_GAIN_SEC);
+    const under = withTrack(track(whileHook("0t0u")));
+    expect([textOverActionSec(under), points(under, "textOverAction")]).toEqual([hookSec, Math.min(SIMPLE_WEIGHTS.textOverActionMax, SIMPLE_WEIGHTS.textOverAction * hookSec)]);
+    // the hook at the bottom of the square, read as before: nothing hidden there
+    const atBottom = changed(clean, { captions: captionsAtEdge(clean.captions, hook, "bottom") });
+    expect(textOverActionSec(withTrack(track(whileHook("0t0u")), atBottom))).toBe(0);
+    // balls under both edges (cells 369 and 370: the square's 19th row, under the bottom stack): moving gains nothing
+    expect(actionCellsOf("a9aa")).toEqual([369, 370]);
+    expect(textOverActionSec(withTrack(track(whileHook("0t0ua9aa"))))).toBe(0);
+    // half a second under the hook is no reason to move it: under ACTION_GAIN_SEC
+    expect(textOverActionSec(withTrack(track((k) => (k === 0 ? "0t0u" : ""))))).toBe(0);
+    // balls under the top stack the whole clip: every top text owes it, 10 at most
+    expect(points(withTrack(track(() => "0t0u")), "textOverAction")).toBe(SIMPLE_WEIGHTS.textOverActionMax);
+    // no track (a plan with no run, a run read without the clip's length): not counted
+    expect([textOverActionSec({ ...clean, run: null }), textOverActionSec(withTrack(undefined)), points(withTrack(undefined), "textOverAction")]).toEqual([null, null, 0]);
+    // a mode that draws its own band along the bottom: the bottom is no other edge for a top text
+    expect(textOverActionSec(withTrack(track(whileHook("0t0u")), changed(clean, { loopHud: true })))).toBe(0);
   });
 
   it("ignores the watermark: its badge is fixed and protected", () => {

@@ -1,8 +1,9 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
-import { captionBaseFont, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { captionBaseFont, captionWordsOf, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { createEngineForSettings, stepPlaybackMs } from "@/lib/simulation/finder"; // --- crew --- (the payoff's moment)
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
+import { actionTrackSteps, actionTrackSync } from "@/lib/bot/actionTrack"; // --- templates --- (where the run moves)
 import { botRecipeById } from "@/lib/bot/templates"; // --- templates --- (a plan's recipe may be a template's)
 import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -197,11 +198,11 @@ export function hookedSettings(settings: SimulatorSettings, clipSec?: number | n
  */
 export function drawnHookOf(settings: SimulatorSettings, clipSec?: number | null): string | null {
   const { settings: hooked, roles } = hookedSettings(settings, finite(clipSec) && clipSec > 0 ? clipSec : settings.recordingDuration);
-  const text = hooked.captions
-    .filter((c, i) => roles[i] === "hook" && c)
-    .map((c) => c.text)
-    .join(" ")
-    .trim();
+  // --- templates --- (in the order a viewer reads them: a hook at the bottom of the square is stacked upwards)
+  const text = captionWordsOf(
+    hooked.captions,
+    hooked.captions.map((c, i) => (roles[i] === "hook" && c ? i : -1)).filter((i) => i >= 0),
+  );
   return text || null;
 }
 
@@ -337,11 +338,14 @@ export function runFactsSync(settings: SimulatorSettings, seed: number, world?: 
 /**
  * The run itself (the planner's RunFacts: the winner, the first escape, the finish – what the score's facts leave out), in one
  * go: the run runFactsSync() reads, followed past `clipSec` when given (the file's length). The crew's rules and dossier read it
- * (lib/crew/clip.ts). With `payoffSec` (the clip's payoff) it carries the payoff's moment too (payoffMomentSync: RunFacts.moment).
+ * (lib/crew/clip.ts). With `payoffSec` (the clip's payoff) it carries the payoff's moment too (payoffMomentSync: RunFacts.moment),
+ * and --- templates --- with `clipSec` where the run moves over the clip (lib/bot/actionTrack.ts: RunFacts.action, the crew's
+ * Simple score's textOverAction).
  */
 export function runSync(settings: SimulatorSettings, seed: number, world?: BotWorld | null, recipe?: string | null, clipSec?: number | null, payoffSec?: number | null): RunFacts {
   const run = drain(runSteps(settings, seed, world, clipSec, recipe));
-  return finite(payoffSec) && payoffSec >= 0 ? { ...run, moment: payoffMomentSync(settings, seed, world, payoffSec) } : run;
+  const withMoment = finite(payoffSec) && payoffSec >= 0 ? { ...run, moment: payoffMomentSync(settings, seed, world, payoffSec) } : run;
+  return finite(clipSec) && clipSec > 0 ? { ...withMoment, action: actionTrackSync(settings, seed, world, clipSec) } : withMoment; // --- templates ---
 }
 
 /** The payoff's moment: from this long before the payoff (s)… */
@@ -421,21 +425,31 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
   return { atSec: Math.round(payoffSec * 1000) / 1000, sounds, notes, chordMax, accent, motion: anyBalls ? r2(mean(inside) ?? 0) : null, motionMedian: anyBalls ? r2(median(before)) : null };
 }
 
-/** The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. */
+/**
+ * The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. With `clipSec`,
+ * --- templates --- where the run moves over the clip too (RunFacts.action), as runSync() reads it.
+ */
 export async function runOf(settings: SimulatorSettings, seed: number, options: RunFactsOptions = {}): Promise<RunFacts | null> {
   const now = options.now ?? clock;
   const pause = options.pause ?? breathe;
-  const steps = runSteps(settings, seed, options.world, options.clipSec, options.recipe);
   let mark = now();
-  for (;;) {
-    if (options.signal?.aborted) return null;
-    const next = steps.next();
-    if (next.done) return next.value;
-    if (now() - mark >= SCORE_SLICE_MS) {
-      await pause();
-      mark = now();
+  // (each generator drained in slices: the same pauses, and an abort between any two)
+  async function drained<T>(steps: Generator<unknown, T>): Promise<T | null> {
+    for (;;) {
+      if (options.signal?.aborted) return null;
+      const next = steps.next();
+      if (next.done) return next.value;
+      if (now() - mark >= SCORE_SLICE_MS) {
+        await pause();
+        mark = now();
+      }
     }
   }
+  const run = await drained(runSteps(settings, seed, options.world, options.clipSec, options.recipe));
+  if (!run || !(finite(options.clipSec) && options.clipSec > 0)) return run;
+  // --- templates --- where the run moves over the clip, as runSync() reads it (RunFacts.action)
+  const action = await drained(actionTrackSteps(settings, seed, options.world, options.clipSec));
+  return action ? { ...run, action } : null;
 }
 // --- end crew ---
 

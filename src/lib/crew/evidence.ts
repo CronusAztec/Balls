@@ -153,7 +153,7 @@ export function confirmedDistractions(distractions: readonly Distraction[], clip
   const g1 = gate(clarity, "G1");
   const ring = hasRingWalls(s.mode);
   const test: Record<Distraction, () => boolean> = {
-    text: () => d.has("textAtOnce") || d.has("busyShare") || d.has("persistent") || d.has("hookWords"),
+    text: () => d.has("textAtOnce") || d.has("busyShare") || d.has("persistent") || d.has("hookWords") || d.has("textOverAction") /* --- templates --- (a text over the action) */,
     effects: () => ["wallGlow", "thickTrails", "colorTrail", "rainbowWalls", "rainbowBall", "cinematic", "burstParticles", "wallBreak"].some((k) => d.has(k)),
     hud: () => d.has("hud") || d.has("countdownBesideHud"),
     background: () => s.reactiveBackground,

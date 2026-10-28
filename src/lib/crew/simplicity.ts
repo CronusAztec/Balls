@@ -1,5 +1,7 @@
+import type { Caption } from "@/lib/captions";
 import type { SimulatorSettings } from "@/lib/settings";
-import type { CaptionRole } from "@/lib/bot/planner";
+import { ACTION_GAIN_SEC, actionHiddenAt, bottomEdgeFree, captionMessagesOf, captionsAtEdge, captionWordsOf, hasTopHud, type CaptionRole } from "@/lib/bot/planner";
+import { actionSampleSec, isActionTrack } from "@/lib/bot/actionTrack"; // --- templates --- (where the run moves)
 import { TRENDS } from "@/content/trends";
 import { defaultKeptHuds, hasRingWalls, hudCounts, hudsOn } from "./hudFlags";
 import { measuredFirstImpactSec, shownSecOf, type CrewClip } from "./clip";
@@ -26,12 +28,16 @@ import { measuredFirstImpactSec, shownSecOf, type CrewClip } from "./clip";
  *  - HUDs: each mode HUD or badge flag that is on and that the clip does not keep: 5 (hudFlags.ts HUD_FLAGS; the ball names
  *    only past 4 names); a clip keeps, by default, the HUD that counts down when its countdown is the HUD's;
  *  - measured after a render (soft, tagged `measured`): mean motion above twice the trend summary's most viewed median 5,
- *    the first motion after 1.5 s 5 (the export's first impact, its first motion or first sound, as gate G1 reads it).
+ *    the first motion after 1.5 s 5 (the export's first impact, its first motion or first sound, as gate G1 reads it);
+ *  - --- templates --- a text over the action, read on the run (RunFacts.action, where its balls move): 2 a second a text hides
+ *    them for 1 s or more longer than it would at the square's other edge, 10 at most (textOverActionSec).
  * Not counted: the watermark badge, which is fixed and protected (the captions keep out of its corner through the safe zone).
  *
  * Monotonic: adding a caption, a HUD flag or an effect never raises the score – every term only grows with more on screen –
- * with one exception by design: the two duplicated-hook terms compare whole hooks, so a caption that completes the drawn hook
- * into the AI's own (or the cut's) hook removes that duplicate. Bounded, deterministic, pure (no clock, no randomness).
+ * with two exceptions by design: the two duplicated-hook terms compare whole hooks, so a caption that completes the drawn hook
+ * into the AI's own (or the cut's) hook removes that duplicate; and the text-over-the-action term weighs a text against the
+ * other edge of the square, where another caption stacked there can change what it would hide. Bounded, deterministic, pure
+ * (no clock, no randomness).
  */
 
 // --- crew ---
@@ -69,6 +75,9 @@ export const SIMPLE_WEIGHTS = {
   measuredMotionFactor: 2,
   measuredFirstMotion: 5,
   measuredFirstMotionSec: 1.5,
+  /** --- templates --- A second a text hides the run's moving balls where the square's other edge would not; at most the max. */
+  textOverAction: 2,
+  textOverActionMax: 10,
 } as const;
 
 /** The trail thickness a clip may have for free when its template names none (the settings' default). */
@@ -101,6 +110,7 @@ export const SIMPLE_DEDUCTIONS = [
   "hud",
   "measuredMotion",
   "measuredFirstMotion",
+  "textOverAction",
 ] as const;
 export type SimpleDeductionId = (typeof SIMPLE_DEDUCTIONS)[number];
 
@@ -171,11 +181,11 @@ export function trendsMotionRef(): number | null {
 
 /** The hook the clip draws: its hook captions' words, joined as scoreClip joins them; "" for none. */
 export function drawnHookText(clip: Pick<CrewClip, "captions" | "captionRoles" | "timing">): string {
-  return clip.captions
-    .filter((c, i) => clip.captionRoles[i] === "hook" && c.start < clip.timing.clipSec)
-    .map((c) => c.text)
-    .join(" ")
-    .trim();
+  // --- templates --- (in the order a viewer reads them: a hook at the bottom of the square is stacked upwards)
+  return captionWordsOf(
+    clip.captions,
+    clip.captions.map((c, i) => (clip.captionRoles[i] === "hook" && c.start < clip.timing.clipSec ? i : -1)).filter((i) => i >= 0),
+  );
 }
 
 /**
@@ -211,6 +221,8 @@ export function overlaysOf(clip: CrewClip): Overlay[] {
     groups.set(key, overlay);
     out.push(overlay);
   });
+  // --- templates --- a message at the bottom of the square reads upwards (its first caption is its lowest line)
+  for (const g of groups.values()) if (g.captions!.some((i) => clip.captions[i].position === "bottom")) g.words = captionWordsOf(clip.captions, g.captions!);
   const whole = shown(0, clipSec);
   if (whole) {
     if (clip.topText.trim()) out.push({ id: "topText", kind: "topText", start: whole[0], end: whole[1], words: clip.topText.trim(), lines: 1 });
@@ -224,6 +236,43 @@ export function overlaysOf(clip: CrewClip): Overlay[] {
   }
   if (clip.cut && clip.cut.cardSec > EPS) out.push({ id: "endCard", kind: "endCard", start: actionEnd, end: actionEnd + clip.cut.cardSec, words: clip.cut.url.trim(), lines: 1 });
   return out;
+}
+
+/**
+ * --- templates --- (the studio's first review round, finding 26) The seconds the clip's texts hide the run's moving balls
+ * (RunFacts.action, lib/bot/actionTrack.ts) beyond what each would hide at the square's other edge – the bottom for a top text,
+ * where nothing of the mode's own is drawn along the bottom (planner.ts bottomEdgeFree), the top for a bottom one –, by
+ * ACTION_GAIN_SEC or more, over the clip as shown: Ball Drop's balls entering under a top hook while the bottom of the square
+ * is empty. The Simple look's planner puts every text at the edge that hides less by that much (placeSimpleTexts), so its
+ * plans owe none of it. Null without the run's track (a plan with no run, a saved clip whose run was not read to its end). A
+ * text in the middle of the square is not compared.
+ */
+export function textOverActionSec(clip: CrewClip): number | null {
+  const track = clip.run?.action;
+  if (!isActionTrack(track)) return null;
+  const topText = !!clip.topText.trim();
+  const topHud = hasTopHud(clip.settings.mode);
+  const offset = clip.cut ? Math.max(0, clip.cut.startSec) : 0;
+  const end = clip.cut ? offset + Math.max(0, Math.min(clip.cut.lengthSec, clip.timing.clipSec - offset)) : clip.timing.clipSec;
+  const coverSec = (captions: readonly Caption[], message: readonly number[]) => {
+    let sec = 0;
+    for (let k = 0; k < track.samples.length; k++) {
+      const t = actionSampleSec(track, k);
+      if (t >= end - EPS) break;
+      if (t >= offset - EPS && actionHiddenAt(captions, message, track, k, topText, topHud)) sec += track.stepSec;
+    }
+    return sec;
+  };
+  let sec = 0;
+  for (const message of captionMessagesOf(clip.captionRoles)) {
+    const position = clip.captions[message[0]]?.position;
+    if (position !== "top" && position !== "bottom") continue;
+    const other = position === "top" ? "bottom" : "top";
+    if (other === "bottom" && !bottomEdgeFree(clip.settings)) continue;
+    const gain = coverSec(clip.captions, message) - coverSec(captionsAtEdge(clip.captions, message, other), message);
+    if (gain >= ACTION_GAIN_SEC - EPS) sec += gain;
+  }
+  return sec;
 }
 
 /** The most messages on screen at once and the share of the clip with 2 or more. */
@@ -297,6 +346,9 @@ export function simpleScore(clip: CrewClip, options: SimpleOptions = {}): Simple
   // HUDs
   const kept = new Set(options.keepHuds ?? defaultKeptHuds(s, clip.countdown?.source ?? null));
   for (const h of hudsOn(s)) if (h.flag && h.costs && !kept.has(h.id)) add({ id: "hud", points: W.hud, values: { flag: h.id }, key: h.id as keyof SimulatorSettings & string });
+  // --- templates --- a text over the action, where the other edge of the square would leave it in sight
+  const hiddenSec = textOverActionSec(clip);
+  if (hiddenSec !== null) add({ id: "textOverAction", points: Math.min(W.textOverActionMax, W.textOverAction * hiddenSec), values: { sec: round1(hiddenSec) } });
   // measured after a render
   const features = clip.measured?.features ?? null;
   if (features) {

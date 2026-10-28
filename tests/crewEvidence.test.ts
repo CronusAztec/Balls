@@ -206,5 +206,11 @@ describe("the viewer's read", () => {
     expect(confirmedDistractions(["nothingHappens", "nothingHappens"], still, clarityOf(still))).toEqual(["nothingHappens"]);
     const wide = setCaptions(quiet, quiet.captions.map((x, i) => (hookIdx[0] === i ? { ...x, text: "W".repeat(40) } : x)));
     expect(confirmedDistractions(["watermarkOverlap"], wide, clarityOf(wide))).toEqual(["watermarkOverlap"]);
+    // --- templates --- a text over the action is text in the way: balls moving under the top hook (the second row of the
+    // square's 20 × 20 cells) while the bottom stays clear, the whole clip
+    const covered: CrewClip = { ...quiet, run: { ...quiet.run!, action: { stepSec: 0.5, grid: 20, samples: Array.from({ length: 60 }, () => "0t0u") } } };
+    expect(clarityOf(covered).simple.deductions.some((d) => d.id === "textOverAction")).toBe(true);
+    expect(confirmedDistractions(["text"], quiet, clarityOf(quiet))).toEqual([]);
+    expect(confirmedDistractions(["text"], covered, clarityOf(covered))).toEqual(["text"]);
   });
 });

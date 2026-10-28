@@ -1,7 +1,8 @@
 import { sanitizeCaptionText, type Caption } from "@/lib/captions";
 import { BOT_FRAME, HOOK_SEC, PLATFORMS, TOP_HUD_MODES, type BotRecipe, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { botRecipeById } from "@/lib/bot/templates";
-import { captionBoxAt, clipCaptions, inSafeZone, scoreClip, type CaptionRole, type ClipPlan, type ClipTiming, type ScoreReason } from "@/lib/bot/planner";
+import { captionBoxAt, captionsAtEdge, captionWordsOf, clipCaptions, inSafeZone, placeSimpleTexts, scoreClip, type CaptionRole, type ClipPlan, type ClipTiming, type ScoreReason } from "@/lib/bot/planner";
+import { isActionTrack } from "@/lib/bot/actionTrack"; // --- templates --- (where the run moves)
 import { scorePlanLike, type ScorePlan } from "@/lib/insights/score";
 import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import type { SimulatorSettings } from "@/lib/settings";
@@ -17,8 +18,10 @@ import { CLUTTER_KEYS, FIX_ACTIONS, FIX_BOUNDS, RUN_MOVING_KEYS, type FixAction,
  *
  *  - Look and labels (simplifyLook, turnOff): a settings patch, checked by the AI assistant's own validator
  *    (lib/desktop/ai/settingsPatch.ts validateSettingsPatch: known settings, valid values, the settings loader's last word).
- *  - Text (oneTextAtATime, dropCountdownCaption, rewriteHook): the captions rebuilt. A new hook is drawn through the planner's
- *    own caption builder (lib/bot/planner.ts clipCaptions: its line split and its hook style), its invisible format characters
+ *  - Text (oneTextAtATime, dropCountdownCaption, rewriteHook): the captions rebuilt – one text at a time, each at the edge of the
+ *    square its run leaves clear where the run's action track is known (planner.ts placeSimpleTexts, as the Simple look plans
+ *    it), a rewritten hook where the old one was. A new hook is drawn through the planner's own caption builder
+ *    (lib/bot/planner.ts clipCaptions: the Simple look's line breaks and its hook style), its invisible format characters
  *    out (visibleText), refused when it has no word to read, more than 7 words or 42 characters, a number the clip does not
  *    have (clip.ts factNumbersOf), or a line outside the safe zone; the clip's meta hook becomes the drawn one, so the words and
  *    the picture agree (gate G4).
@@ -159,13 +162,23 @@ function hookEndOf(clip: CrewClip): { end: number } {
   return { end: hooks.some((c) => !(c.end > c.start)) ? HOOK_END_SEC : Math.max(...hooks.map((c) => c.end)) };
 }
 
-/** The planner's hook captions of a text (clipCaptions: its line split, two lines at most, its hook style), from 0 to `endSec`. */
-export function hookCaptionsOf(text: string, endSec: number, recordingDuration: number): Caption[] {
+/**
+ * The planner's hook captions of a text (clipCaptions: the Simple look's line breaks – --- templates --- at a clause, else even –,
+ * two lines at most, its hook style), from 0 to `endSec`, at the top of the square or (`position`, a hook the Simple look put
+ * there) at its bottom, stacked as the canvas reads that edge (planner.ts captionsAtEdge).
+ */
+export function hookCaptionsOf(text: string, endSec: number, recordingDuration: number, position: "top" | "bottom" = "top"): Caption[] {
   // a recipe that draws no counter and a run with no payoff: clipCaptions gives the hook lines alone
   const stub = { countdown: { kind: "walls", source: "hud" }, copyKey: "" } as unknown as BotRecipe;
   const timing: ClipTiming = { payoffSec: null, recordingDuration, clipSec: recordingDuration, position: null, cutGapSec: null, accepted: true };
-  const { captions, roles } = clipCaptions(stub, {}, text, {}, timing, "resolved", endSec);
-  return captions.filter((_, i) => roles[i] === "hook");
+  const { captions, roles } = clipCaptions(stub, {}, text, {}, timing, "resolved", endSec, "payoff", "oneLine");
+  const lines = captions.filter((_, i) => roles[i] === "hook");
+  return position === "bottom" ? captionsAtEdge(lines, lines.map((_, i) => i), "bottom") : lines;
+}
+
+/** --- templates --- The edge of the square a clip's hook is at (its first line's): the bottom where the Simple look put it there. */
+export function hookEdgeOf(clip: Pick<CrewClip, "captions" | "captionRoles">): "top" | "bottom" {
+  return clip.captions.find((_, i) => clip.captionRoles[i] === "hook")?.position === "bottom" ? "bottom" : "top";
 }
 
 /** Whether every caption in `indices` sits in the safe zone at time `t` (as the clarity check's G5 and scoreClip look). */
@@ -261,7 +274,9 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
           } else captions.push(c.start < hookEnd - EPS ? { ...c, start: hookEnd } : c);
           roles.push(role);
         });
-        clip = withCaptions(clip, captions, roles);
+        // --- templates --- (the Simple look's text plan) each text at the edge of the square its run leaves clear
+        const track = clip.run?.action;
+        clip = withCaptions(clip, isActionTrack(track) ? placeSimpleTexts(captions, roles, track, clip.settings, clip.timing.clipSec) : captions, roles);
         if (JSON.stringify([clip.captions, clip.captionRoles, clip.topText, clip.bottomText]) === before) errors.push("oneTextAtATime: one text at a time already");
         break;
       }
@@ -295,8 +310,8 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
         if (untrue.length) errors.push(`rewriteHook: ${untrue[0]} is not a number this clip has (${facts.join(", ")})`);
         if (errors.some((e) => e.startsWith("rewriteHook"))) break;
         const { end } = hookEndOf(clip);
-        const lines = hookCaptionsOf(text, end, clip.timing.recordingDuration);
-        if (lines.map((c) => c.text).join(" ") !== text) {
+        const lines = hookCaptionsOf(text, end, clip.timing.recordingDuration, hookEdgeOf(clip)); // --- templates --- (where the hook was)
+        if (captionWordsOf(lines, lines.map((_, k) => k)) !== text) {
           errors.push("rewriteHook: it does not fit in two lines");
           break;
         }

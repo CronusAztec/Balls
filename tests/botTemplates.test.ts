@@ -8,7 +8,29 @@ import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, LENGTH_BUCKETS, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
-import { BOT_PLAN_VERSION, drain, hashString, matchupEpisode, planClip, planDay, planTemplate, rerollClipSteps, seededRandom, type ClipPlan } from "@/lib/bot/planner";
+import {
+  ACTION_GAIN_SEC,
+  BOT_PLAN_VERSION,
+  actionCoverSec,
+  bottomEdgeFree,
+  captionMessagesOf,
+  captionsAtEdge,
+  captionWordsOf,
+  drain,
+  evenCaptionLines,
+  hashString,
+  inReadingOrder,
+  matchupEpisode,
+  placeSimpleTexts,
+  planClip,
+  planDay,
+  planTemplate,
+  rerollClipSteps,
+  seededRandom,
+  splitCaptionLines,
+  type ClipPlan,
+} from "@/lib/bot/planner";
+import { ACTION_GRID, ACTION_STEP_SEC, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
 import {
@@ -31,7 +53,7 @@ import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
 import { clarityOf } from "@/lib/crew/clarity";
 import { HUD_FLAGS, hudsOn } from "@/lib/crew/hudFlags";
-import { crowding, overlaysOf, SIMPLE_TRAIL_THICKNESS, wordCount } from "@/lib/crew/simplicity";
+import { crowding, drawnHookText, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
@@ -576,5 +598,121 @@ describe("a template keeps its format's promise where its recipe's own would bre
     // the bot's look draws the recipe's whole hook, as before
     const bot = planTemplate("smash-power-layers", 1, "reels", { copy, search: false, look: "bot" });
     expect(bot.hook.split(". ").length).toBe(2);
+  });
+});
+
+// --- templates --- what the studio's real run showed (review round 1, 25 and 26): hooks broken mid-phrase ("15 pendulums. Wait
+// for" / "the chord."), and texts over the action – Ball Drop's balls entering under the hook, Pendulum Wave's short pendulums
+// swinging under it – while the bottom of the square stayed empty
+describe("a Simple text reads as one phrase a line, where the run leaves the square clear", () => {
+  it("breaks a text of two lines at a clause, else evenly, never leaving a one- or two-word orphan", () => {
+    // the three hooks of the run, greedy before
+    expect(splitCaptionLines("15 pendulums. Wait for the chord.", 1.2)).toEqual(["15 pendulums. Wait for", "the chord."]);
+    expect(evenCaptionLines("15 pendulums. Wait for the chord.", 1.2)).toEqual(["15 pendulums.", "Wait for the chord."]);
+    expect(evenCaptionLines("10 balls. Every peg is a note.", 1.2)).toEqual(["10 balls.", "Every peg is a note."]);
+    expect(evenCaptionLines("Every hit doubles the power.", 1.2)).toEqual(["Every hit", "doubles the power."]);
+    // the other plans' hooks the run split the same way
+    expect(evenCaptionLines("Gerald vs 4 floors of glass.", 1.2)).toEqual(["Gerald vs 4", "floors of glass."]);
+    expect(evenCaptionLines("10 rhythms. When do they all meet?", 1.2)).toEqual(["10 rhythms.", "When do they all meet?"]);
+    expect(evenCaptionLines("x2 x4 x8… until it breaks.", 1.2)).toEqual(["x2 x4 x8…", "until it breaks."]);
+    expect(evenCaptionLines("¿Quién gana? Elige un color.", 1.2)).toEqual(["¿Quién gana?", "Elige un color."]);
+    // one line stays one line; an emoji takes a line of its own only after a whole sentence, never splitting a name from its verb
+    expect(evenCaptionLines("260 layers to go.", 1.2)).toEqual(["260 layers to go."]);
+    expect(evenCaptionLines("Back in line. 🎼", 1.2)).toEqual(["Back in line. 🎼"]);
+    expect(evenCaptionLines("Harley Quinn wins! 🏆", 1.3)).toEqual(["Harley Quinn wins!", "🏆"]);
+    expect(evenCaptionLines("Harley Quinn wins 🏆 🏆 🏆", 1.3).every((line) => /\p{L}/u.test(line))).toBe(true);
+    for (const text of ["15 pendulums. Wait for the chord.", "Every hit doubles the power.", "Which colour takes the board?", "8 squares, one survivor. Pick yours now."]) {
+      const lines = evenCaptionLines(text, 1.2);
+      expect(lines.join(" "), text).toBe(text);
+      expect(lines.length, text).toBe(splitCaptionLines(text, 1.2).length);
+      if (lines.length === 2 && wordCount(text) >= 5) expect(wordCount(lines[1]), text).toBeGreaterThan(2);
+    }
+  });
+
+  it("draws the Simple look's hooks so, in every language, and leaves the bot look's as they were", () => {
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
+        const plan = planTemplate(id, 1, "reels", { copy: COPY[locale], locale, search: false });
+        const hook = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "hook");
+        const lines = hook.map((c) => c.text);
+        expect([locale, id, lines]).toEqual([locale, id, evenCaptionLines(plan.hook, hook[0].style.size)]);
+        // (the hook's first clause takes the first line – its number –, then what to watch: "16 pelotas." / "Cada clavo es una
+        // nota." a step smaller rather than "16 pelotas. Cada" / "clavo es una nota.")
+        expect([locale, id, lines.length, /[.!?:…]$/u.test(lines[0]), /\d/u.test(lines[0])]).toEqual([locale, id, 2, true, true]);
+        expect([locale, id, hook[0].style.size >= 1.0]).toEqual([locale, id, true]);
+      }
+    }
+    const bot = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false, look: "bot" });
+    const botLines = bot.settings.captions.filter((_, i) => bot.captionRoles[i] === "hook").map((c) => c.text);
+    expect(botLines).toEqual(splitCaptionLines(bot.hook, bot.settings.captions[0].style.size));
+  });
+
+  it("puts each text of a searched plan at the edge of the square its run leaves clear: Ball Drop's and Pendulum Wave's hooks at the bottom", { timeout: 120_000 }, async () => {
+    for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
+      for (const seed of [1, 2]) {
+        const plan = planTemplate(id, seed, "reels", { copy, episode: 3, index: seed });
+        const where = `${id}/${seed}`;
+        const hook = plan.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+        expect([where, hook.map((i) => plan.settings.captions[i].position)]).toEqual([where, hook.map(() => "bottom")]);
+        // read as before: the canvas stacks the bottom upwards, so the first line is listed last
+        expect([where, captionWordsOf(plan.settings.captions, hook), inReadingOrder(plan.settings.captions, hook)]).toEqual([where, plan.hook, [...hook].reverse()]);
+        // the run's track: at the top the hook would hide the balls for a second or more longer
+        const track = actionTrackSync(plan.settings, plan.seed, plan.world, plan.timing.clipSec);
+        const top = actionCoverSec(captionsAtEdge(plan.settings.captions, hook, "top"), hook, track, plan.timing.clipSec);
+        const bottom = actionCoverSec(plan.settings.captions, hook, track, plan.timing.clipSec);
+        expect([where, top - bottom >= ACTION_GAIN_SEC, bottom]).toEqual([where, true, 0]);
+        // the crew reads it so: every caption in the safe zone, the drawn hook the plan's, nothing over the action left to move
+        const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+        const clip = crewClipOfPlan(plan, { run });
+        const clarity = clarityOf(clip);
+        expect([where, clarity.gates.filter((g) => !g.ok).map((g) => g.id), textOverActionSec(clip), drawnHookText(clip)]).toEqual([where, [], 0, plan.hook]);
+        // and the same clip with its texts back at the top owes the Simple score for the action they hide
+        const atTop = captionMessagesOf(plan.captionRoles).reduce((caps, m) => captionsAtEdge(caps, m, "top"), plan.settings.captions);
+        const back = crewClipOfPlan({ ...plan, settings: { ...plan.settings, captions: atTop } }, { run });
+        expect([where, textOverActionSec(back)! >= ACTION_GAIN_SEC]).toEqual([where, true]);
+        expect(clarityOf(back).simple.deductions.find((d) => d.id === "textOverAction")?.points, where).toBeGreaterThanOrEqual(2);
+        // the link carries the placed captions
+        expect(new URL(plan.shareUrl, SITE).searchParams.get("cap"), where).toBeTruthy();
+      }
+      await breathe();
+    }
+    // a plan without the search has no run to read: its texts stay at the top, the bot look's place
+    const unsearched = planTemplate("on-the-beat-drop", 1, "reels", { copy, search: false });
+    expect(unsearched.settings.captions.every((c) => c.position === "top")).toBe(true);
+    // the bot look never moves a text
+    const bot = planTemplate("on-the-beat-drop", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
+    expect(bot.settings.captions.every((c) => c.position === "top")).toBe(true);
+  });
+
+  it("never moves a text where the mode draws something of its own along the bottom of the square", () => {
+    // (balls moving in the middle of the square's third row, under the hook, the whole clip: cells 49 and 50 of the 20 × 20)
+    const track: ActionTrack = { stepSec: 0.5, grid: 20, samples: Array.from({ length: 40 }, () => "1d1e") };
+    expect(actionCellsOf("1d1e")).toEqual([49, 50]);
+    const plan = planTemplate("on-the-beat-drop", 1, "reels", { copy, search: false });
+    // (the hook moves to the bottom where the bottom is free)
+    expect(placeSimpleTexts(plan.settings.captions, plan.captionRoles, track, plan.settings, 20).filter((c) => c.position === "bottom").length).toBeGreaterThan(0);
+    for (const s of [{ ...plan.settings, mode: "fightLeague" as const }, { ...plan.settings, mode: "multipliers" as const }, { ...plan.settings, loopHud: true }, { ...plan.settings, mode: "classic" as const, ringTimer: true }]) {
+      expect(bottomEdgeFree(s), `${s.mode} ${s.loopHud}`).toBe(false);
+      expect(placeSimpleTexts(plan.settings.captions, plan.captionRoles, track, s, 20)).toEqual(plan.settings.captions);
+    }
+  });
+
+  it("keeps the action track small and exact: cells of the square in base 36, read back as written", () => {
+    const plan = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false });
+    const track = actionTrackSync(plan.settings, plan.seed, plan.world, 5);
+    expect(isActionTrack(track)).toBe(true);
+    expect([track.stepSec, track.grid, track.samples.length]).toEqual([ACTION_STEP_SEC, ACTION_GRID, 10]);
+    for (const sample of track.samples) {
+      const cells = actionCellsOf(sample);
+      expect(cells.every((c, k) => Number.isInteger(c) && c >= 0 && c < ACTION_GRID * ACTION_GRID && (k === 0 || c > cells[k - 1]))).toBe(true);
+    }
+    // the pendulums hang from a bar near the top: every bob moves in the upper half of the square, none at its bottom
+    const rows = track.samples.flatMap((s) => actionCellsOf(s).map((c) => Math.floor(c / ACTION_GRID)));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(Math.max(...rows)).toBeLessThan(ACTION_GRID * 0.6);
+    // the same seed, the same track; a malformed sample reads as none
+    expect(actionTrackSync(plan.settings, plan.seed, plan.world, 5)).toEqual(track);
+    expect([actionCellsOf("0"), actionCellsOf("zz!x")]).toEqual([[], []]);
+    expect(actionUnder(track, 0, { left: 0, top: 0, right: 1, bottom: 1 })).toBe(actionCellsOf(track.samples[0]).length > 0);
   });
 });

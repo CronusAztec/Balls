@@ -1,11 +1,11 @@
 import type { Caption } from "@/lib/captions";
-import type { CaptionRole } from "@/lib/bot/planner";
+import { captionWordsOf, type CaptionRole } from "@/lib/bot/planner";
 import { HOOK_SEC } from "@/lib/bot/playbook";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { factNumbersOf, numbersIn, type Claim, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type GateId } from "./clarity";
 import { markObjection } from "./evidence";
-import { hookCaptionsOf, playbookOf } from "./fixes";
+import { hookCaptionsOf, hookEdgeOf, playbookOf } from "./fixes";
 import { hasRingWalls } from "./hudFlags";
 import { applyCandidates, applyReplan, applyVerdict, createPanel, nextStep, type PanelCandidate, type PanelClip, type PanelState, type RoleBrief } from "./panel";
 import { FIXES_FOR_KIND, MEASURABLE_KINDS, promptHash, type BrainstormIdea, type CrewRole, type Distraction, type FixId, type MenuItem, type ObjectionKind, type PanelDepth } from "./roles";
@@ -204,8 +204,8 @@ function withHookLines(clip: CrewClip, lines: Caption[], text: string): CrewClip
 
 /** A new hook drawn as the planner draws one (two lines at most), or null when it does not fit. */
 function withHook(clip: CrewClip, text: string): CrewClip | null {
-  const lines = hookCaptionsOf(text, hookEnd(clip), clip.timing.recordingDuration);
-  if (lines.map((c) => c.text).join(" ") !== text) return null;
+  const lines = hookCaptionsOf(text, hookEnd(clip), clip.timing.recordingDuration, hookEdgeOf(clip)); // --- templates --- (where the hook was)
+  if (captionWordsOf(lines, lines.map((_, k) => k)) !== text) return null;
   return withHookLines(clip, lines, text);
 }
 
@@ -216,8 +216,9 @@ function withLongHook(clip: CrewClip, text: string): CrewClip | null {
   const words = text.split(" ");
   const half = Math.ceil(words.length / 2);
   const end = hookEnd(clip);
-  const lines = [words.slice(0, half).join(" "), words.slice(half).join(" ")].map((t) => ({ ...first, text: t, start: 0, end }));
-  return withHookLines(clip, lines, text);
+  const read = [words.slice(0, half).join(" "), words.slice(half).join(" ")].map((t) => ({ ...first, text: t, start: 0, end }));
+  // --- templates --- (a hook at the bottom of the square: its lines stacked upwards, its lowest first, read as before)
+  return withHookLines(clip, first.position === "bottom" ? read.slice().reverse() : read, text);
 }
 
 /** The payoff's words replaced by these (its first caption kept, in its place and style). */

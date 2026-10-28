@@ -1,5 +1,6 @@
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { BOT_DEFAULT_FAMILIES, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, RECIPES, type BotFamily, type BotPlatform } from "@/lib/bot/playbook";
+import { captionWordsOf } from "@/lib/bot/planner"; // --- templates --- (a message read as a viewer reads it)
 import { claimOfRecipe, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type Clarity } from "./clarity";
 import { intentView, screenView, type OtherCandidate } from "./dossier";
@@ -755,11 +756,8 @@ function producerUser(s: PanelState): string {
   const ids = s.picked?.keeps.map((k) => k.id) ?? [];
   const clips = ids.map((id) => {
     const c = clipOf(s, id)!;
-    const words = (role: string) =>
-      c.clip.captions
-        .filter((_, i) => c.clip.captionRoles[i] === role)
-        .map((x) => x.text)
-        .join(" ");
+    // --- templates --- (as a viewer reads them: a message at the bottom of the square is stacked upwards)
+    const words = (role: string) => captionWordsOf(c.clip.captions, c.clip.captions.map((_, i) => (c.clip.captionRoles[i] === role ? i : -1)).filter((i) => i >= 0));
     return { planId: id, platform: c.clip.platform, mode: c.clip.mode, lengthSec: Math.round(c.clip.timing.clipSec * 10) / 10, hook: drawnHookText(c.clip) || c.clip.hook || "", payoff: words("payoff"), question: words("question"), templateCopy: c.post ? { caption: c.post.caption, hashtags: c.post.hashtags } : null };
   });
   return [`Write in ${LANGUAGES[s.request?.locale ?? "en"] ?? "English"}.`, `Kept clips (JSON): ${JSON.stringify(clips)}`, `Research: ${briefText(s.brief, BRIEF_CHARS.producer)}`].join("\n");

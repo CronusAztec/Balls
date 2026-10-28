@@ -2,7 +2,7 @@ import type { Caption } from "@/lib/captions";
 import { outcomeMatches } from "@/lib/simulation/outcomes";
 import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
-import type { CaptionRole, ClipPlan, RunFacts, ScoreReason } from "@/lib/bot/planner";
+import { inReadingOrder, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BUCKET_SECONDS, PLATFORMS, type BotPlatform, type CountdownKind, type CountdownSource, type EndingStyle, type LengthBucket, type PayoffType } from "@/lib/bot/playbook";
 import { botRecipeById, templateClaimOf } from "@/lib/bot/templates";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -217,7 +217,8 @@ export function crewClipOfSaved(input: SavedCrewInput): CrewClip {
   const scored = scorePlanLike(like);
   const s = like.settings;
   const mode = (genes?.mode as ModeId | null | undefined) ?? input.settings.mode;
-  const payoffWords = s.captions.filter((_, i) => like.captionRoles[i] === "payoff").map((c) => c.text.trim()).filter(Boolean);
+  // --- templates --- (as a viewer reads them: a message at the bottom of the square is stacked upwards)
+  const payoffWords = inReadingOrder(s.captions, s.captions.map((_, i) => (like.captionRoles[i] === "payoff" ? i : -1)).filter((i) => i >= 0)).map((i) => s.captions[i].text.trim()).filter(Boolean);
   return {
     from: "saved",
     settings: input.settings,

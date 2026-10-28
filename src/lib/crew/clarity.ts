@@ -1,7 +1,7 @@
 import type { ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
 import { botRecipeById } from "@/lib/bot/templates";
-import { captionBoxAt, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
+import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
 import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 
@@ -67,6 +67,9 @@ export const CLARITY = {
 
 /** --- crew --- Words that promise a chord (en, pl, es, and the notes' emoji): the payoff must play one. */
 const CHORD_WORDS = /chord|akord|acorde|🎼|🎹/iu;
+
+/** --- templates --- The indices of a clip's captions of one role, in the list's order. */
+const rolesAt = (clip: Pick<CrewClip, "captions" | "captionRoles">, role: string): number[] => clip.captions.map((_, i) => (clip.captionRoles[i] === role ? i : -1)).filter((i) => i >= 0);
 
 export interface Gate {
   id: GateId;
@@ -149,7 +152,7 @@ function payoffGate(clip: CrewClip): Gate {
 function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: Record<string, string | number> }[] {
   const m = clip.run?.moment;
   if (!m || Math.abs(m.atSec - atSec) > 0.01) return [];
-  const words = [drawnHookText(clip), ...clip.captions.filter((_, i) => clip.captionRoles[i] === "payoff").map((c) => c.text)].join(" ");
+  const words = [drawnHookText(clip), captionWordsOf(clip.captions, rolesAt(clip, "payoff"))].join(" ");
   const chordPromised = CHORD_WORDS.test(words);
   const out: { key: string; values?: Record<string, string | number> }[] = [];
   if (m.sounds === 0 && (clip.claim === "beat" || chordPromised)) out.push({ key: "Unheard", values: { sec: r1(atSec) } });
@@ -183,7 +186,7 @@ function wordsGate(clip: CrewClip): Gate {
   // a winner the payoff names is the run's
   const runWinner = runWinnerOf(clip);
   const names = clip.settings.teams.map((t) => t.name).filter((n) => n.trim().length > 0);
-  const payoffWords = clip.captions.filter((_, i) => clip.captionRoles[i] === "payoff").map((c) => c.text).join(" ");
+  const payoffWords = captionWordsOf(clip.captions, rolesAt(clip, "payoff")); // --- templates --- (as a viewer reads them)
   const named = names.filter((n) => new RegExp(`(^|[^\\p{L}\\p{N}])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}\\p{N}])`, "u").test(payoffWords));
   if (clip.run) {
     if (clip.payoff.winner && runWinner !== null && clip.payoff.winner !== runWinner) problems.push({ key: "WrongWinner", values: { said: clip.payoff.winner, run: runWinner } });

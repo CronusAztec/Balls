@@ -143,7 +143,10 @@ timeline. It is 100 minus:
 - effects: wall glow 2, thick trails 3, a colour-cycling trail 3, rainbow walls 4, a rainbow ball 3, a reactive background 5,
   shake up to 5, the cinematic camera 3, confetti bursts 2, a confetti wall break 2 (the wall effects only in ring modes);
 - 5 for each mode HUD or badge the clip does not keep (the HUD that counts down is kept when it is the countdown);
-- after a render: 5 for motion above twice the most viewed median, 5 for no motion by 1.5 s.
+- after a render: 5 for motion above twice the most viewed median, 5 for no motion by 1.5 s;
+- a text over the action: 2 a second a text hides the run's moving balls for 1 s or more longer than it would at the other
+  edge of the square (the top or the bottom), 10 at most. It reads the run itself (where its balls move, every half second),
+  so a plan with no run is not charged.
 
 80 or more is Simple, 60–79 a bit busy, below 60 busy. The watermark badge is not counted.
 
@@ -194,6 +197,11 @@ look]**. Their median Simple is 44 (15–56), while their median checklist score
 | fight-bracket | 51 | 51–51 | 94 |
 | fight-boss | 49 | 47–49 | 100 |
 
+These are the plans' own scores: settings and captions. Read with its run (where its balls move, half a second at a time),
+the bot look also pays for its texts over the action, which all sit at the top of the square: 78 of the 228 plans, most of
+all Grow until it fills, Clone per pass, Pendulum Wave, Ball Drop, Polyrhythm, Territory and the maze race. The median then
+drops to 35 (8–56). The Simple look puts each text at the edge its run leaves clear and owes none of it.
+
 The Simple look (below) is measured against this baseline.
 
 **The cinematic camera is not only a look** **[observed in our own planner runs]**. Its slow motion changes the physics steps,
@@ -226,6 +234,12 @@ checks (G4).
 - every HUD switched off but the one that counts down (String Battle's panel, Fight League's HP bars), and no name label;
 - one text at a time: the hook for 2.5 s, then the countdown caption until the next text, then the payoff's words or the
   closing question. No countdown caption appears where a HUD on screen counts down already;
+- each text at the edge of the square its run leaves clear: the top, or the bottom where the text would hide the moving
+  balls there for at least 1 s less (Ball Drop's hook while the balls enter at the top, Pendulum Wave's texts over the short
+  pendulums). Never the bottom where the mode draws something of its own there (Fight League's boxes, Multipliers' counter,
+  the loop HUD's counter);
+- a text of two lines broken where a reader breaks it: at its clause ("15 pendulums." / "Wait for the chord."), a size step
+  or two smaller where only that fits, else evenly, never with a last line of one or two words;
 - a hook of at most 7 words and a payoff of at most 3. A longer one keeps its own whole clauses ("Pick a side: which colour
   takes the board?" becomes "Which colour takes the board?"). The closing question gets the last 2 s, or 2.5 s on two lines;
 - the series label and the rest of a long hook go in the post caption, not on the clip.
@@ -241,16 +255,19 @@ each look]**:
 | | Bot look | Simple look |
 | --- | --- | --- |
 | Simple score, median (range) | 44 (15–56) | 91 (85–97) |
+| Simple score with the run read, median (range) | 35 (8–56) | 91 (85–97) |
 | Checklist score, median | 100 | 96 |
-| Plans that pass every clarity gate | 0 | 190 |
+| Plans that pass every clarity gate | 0 | 178 |
 
 - Both looks pick the same seed. The checklist loses the series item's label points alone: 4 on every plan. The look item
   stays at 5 on every plan.
 - The Simple score still charges every plan 3 for the cinematic camera. 132 plans show two messages at once for a while: a
   mode's own HUD (an arena's band, the layer count, the stage dots) beside a text.
-- 38 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
+- 50 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
   hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. The bot look's 7 G2 misses stay,
-  on the same seeds, and 5 payoff lines stay under 1.2 s a line (G5).
+  on the same seeds, and 5 payoff lines stay under 1.2 s a line (G5). 12 Drop Symphony and Pendulum Wave plans fail G2's
+  reading of the payoff's moment: "Final chord. 🎹" over a silent board, and a realignment that plays no chord. Their
+  templates fix both (below).
 
 **The 19 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 224 plans]** have a median Simple
 of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, G2's reading of the payoff's moment included,

@@ -240,7 +240,7 @@ None is a sure share. The crew kept all three, and every gate passed: no rule lo
 hears a clip. And every frame of the three clips carried a watermark that read "localhost:3000", since the toolbox built
 its export without the site's domain, with share links to localhost in plan.json.
 
-**What review round 1 changed after this run** (findings 19-24; the clips above were made before it):
+**What review round 1 changed after this run** (findings 19-26; the clips above were made before it):
 
 - The pendulum template sounds every bob at its turning points (`pwSoundOn` "extremes"), so all of them play one accented
   chord, with the mode's flash, at the realignment, and it hangs the pendulums in a row, so "Back in line." is a line. The
@@ -256,6 +256,15 @@ its export without the site's domain, with share links to localhost in plan.json
   Symphony and Pendulum Wave, as this run played them, now fail G2.
 - The toolbox's export draws the live site's domain, studio plans link to the live site, and G8 refuses a watermark that
   draws a local address. render.json records the domain.
+- The Simple look breaks a text of two lines where a reader would: at its clause ("15 pendulums." / "Wait for the chord.",
+  "10 balls." / "Every peg is a note."), a size step or two smaller where only that fits, else evenly ("Every hit" /
+  "doubles the power."), never with a last line of one or two words. The bot look keeps its own breaks.
+- Each Simple text sits at the edge of the square its run leaves clear. The planner plays the chosen seed to the clip's end
+  and notes where its balls move every half second (`run.action`, lib/bot/actionTrack.ts); a text moves to the bottom of the
+  square when it would hide them there for at least 1 s less than at the top. Ball Drop's hook goes to the bottom, while the
+  balls enter the board at the top, and so do Pendulum Wave's texts, whose short pendulums swing under the top band. The
+  Simple score charges a text that hides the action where the other edge would not (textOverAction), the viewer's "text"
+  distraction counts as confirmed then, and the oneTextAtATime fix places the texts the same way.
 
 Rendered again after these changes (plan seed 1 of each template, in the page's world): the pendulum clip's loudest moment
 is its payoff, the accented chord at 21.05 s after 0.2 s of quiet as every bob reaches its turning point; the Ball Drop
@@ -298,6 +307,11 @@ were answered again, and the numbers did not move.
   the run" beside a payoff at 16.7 s. The evidence check refutes a payoffMissing on them, but a model reads the two lines as a
   contradiction. The run's payoff moment (`run.payoffMoment`) is read on its own run to the payoff, so it shows what they play
   and how they move there.
+- **Texts inside the square.** The canvas draws every caption inside the exported square, so a Simple text can take only its
+  top or its bottom edge. Where the action fills the square, some text still hides some of it: Ball Drop's countdown, while
+  the balls enter at the top and pile up at the bottom. The free band above the square (22 % of a 9:16 frame when there is no
+  Top Text) would hide nothing, but drawing captions there is a renderer change in hub files (Canvas.tsx, the recorder's
+  frame, the fast export) that needs tier 2. The owner should decide it.
 - **A countdown that is not to the payoff.** Ball Drop's timer counts down the recording, so it reads 0:03 when the payoff
   replaces it. This is the bot recipe's own countdown, and tests/bot.test.ts pins the bot's plans.
 - **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its

@@ -21,6 +21,7 @@ import {
   overlaysOf,
   playbookOf,
   shownSecOf,
+  textOverActionSec,
   visibleText,
   type CrewClip,
   type FixAction,
@@ -185,6 +186,41 @@ describe("the text", () => {
     // an emoji built with a zero-width joiner keeps it
     expect(visibleText("Can 👩\u200d🚀 get out?")).toBe("Can 👩\u200d🚀 get out?");
     expect(visibleText("Can\u200d it?")).toBe("Can it?");
+  });
+
+  // --- templates --- (the studio's first review round, findings 25 and 26)
+  it("oneTextAtATime puts each text at the edge of the square its run leaves clear: the bot's Ball Drop hook goes to the bottom, read as before", () => {
+    const drop = withRun(planClip(recipeById("drop-symphony")!, 1, "reels", { copy, ending: "resolved", episode: 3 }));
+    expect(drop.captions.every((c) => c.position === "top")).toBe(true);
+    // the bot look's texts at the top hide the balls entering the board: the Simple score says so
+    expect(textOverActionSec(drop)!).toBeGreaterThanOrEqual(1);
+    const { clip } = apply(drop, [fix("oneTextAtATime")]);
+    const hook = clip.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+    expect(hook.map((i) => clip.captions[i].position)).toEqual(hook.map(() => "bottom"));
+    expect([drawnHookText(clip), drawnHookOf(clip.settings, clip.timing.clipSec)]).toEqual([drawnHookText(drop), drawnHookText(drop)]);
+    expect([textOverActionSec(clip), clarityOf(clip).gates.find((g) => g.id === "G5")!.ok]).toEqual([0, true]);
+    // without the run's track nothing moves: the texts stay where they were
+    const blind = apply({ ...drop, run: { ...drop.run!, action: undefined } }, [fix("oneTextAtATime")]).clip;
+    expect(blind.captions.every((c) => c.position === "top")).toBe(true);
+  });
+
+  it("rewriteHook keeps the hook where it was: at the bottom, stacked upwards and read in order, broken where a reader would break it", () => {
+    const drop = withRun(planClip(recipeById("drop-symphony")!, 1, "reels", { copy, ending: "resolved", episode: 3 }));
+    const placed = apply(drop, [fix("oneTextAtATime")]).clip;
+    const count = placed.settings.dropBallCount;
+    const text = `${count} balls. Every peg is a note.`;
+    const { clip } = apply(placed, [fix("rewriteHook", { text })]);
+    const hook = clip.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+    expect(hook.map((i) => clip.captions[i].position)).toEqual(["bottom", "bottom"]);
+    // the canvas stacks the bottom from its margin upwards: the first line is listed last, and every reader reads it first
+    expect(hook.map((i) => clip.captions[i].text)).toEqual(["Every peg is a note.", `${count} balls.`]);
+    expect([drawnHookText(clip), drawnHookOf(clip.settings, clip.timing.clipSec), clip.hook]).toEqual([text, text, text]);
+    expect(hookCaptionsOf(text, 2.5, clip.timing.recordingDuration).map((c) => c.text)).toEqual([`${count} balls.`, "Every peg is a note."]);
+    hook.forEach((i) => {
+      const box = captionBoxAt(clip.captions, i, 0.1, BOT_FRAME, false, false);
+      expect(!!box && inSafeZone(box)).toBe(true);
+    });
+    expect(clarityOf(clip).gates.find((g) => g.id === "G4")!.ok).toBe(true);
   });
 
   it("rewriteHook reads a thousands separator as one: '1,000 rings' is a thousand, refused on a clip with none and taken where the run has it", () => {

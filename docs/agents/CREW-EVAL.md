@@ -328,7 +328,7 @@ reads that were right. Without round 1b's 6 refused replies the calls per kept c
 ### claude-opus-5-5-2026-10-28-round1d
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-round1d -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 97b0eff71b9fea6d.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 97b0eff71b9fea6d (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -368,3 +368,49 @@ again in one context (7 viewer, 55 skeptic, 125 reviewer). The other 47 viewer b
 change by a byte and keep round 1c's answers, and round 1c's run stays above as history. The verdicts and fixes are round
 1c's on every clip whose content did not change. On the Ball Drop clips the skeptic now notes the soft payoff (one last note
 as the board goes still) as a minor opinion, which counts nowhere. No number moved.
+
+### claude-opus-5-5-2026-10-28-round1e
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-round1e -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 8e7a5ba73072f11e.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 4 | 4 | 2 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-round1e -->
+
+Review round 1's findings 25 and 26 changed the corpus. The Simple look now breaks a text of two lines at its clause ("16
+balls." / "Every peg is a note.", never "16 balls. Every peg is" / "a note."), a size step smaller where only that fits
+("Gerald always escapes…" / "right?"), and puts each text at the edge of the square its run leaves clear, so 32 clean and 18
+planted clips have other captions: the hooks of the Ball Drop, Pendulum Wave and Capture the Flag clips moved to the bottom of
+the square, and so did a Grow clip's counter and one pendulum clip's counter and payoff words. Every run now also says where
+its balls move (`run.action`). The intent dossier shows neither the line breaks
+nor the places, so no skeptic or reviewer brief changed; the screen view says where each text is, so 12 viewer briefs did.
+The same model answered those again in one context, with the same reads. On the busy Ball Drop clip (f25), whose hook now
+shares the bottom with the loop HUD's counter, it also named the text, which a measure confirms, and that changed one
+reviewer brief (all:f25), answered again with the same fix: the calm look, which takes the loop HUD off. The other 224
+answers are round 1d's, to briefs that did not change by a byte, and round 1d's run stays above as history. No number moved.
