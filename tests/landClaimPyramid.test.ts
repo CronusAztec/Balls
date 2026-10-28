@@ -383,6 +383,22 @@ describe("Land Claim pyramid: the knock-down", () => {
     expect(last).toBeGreaterThanOrEqual(4);
   });
 
+  // --- review fix (land-claim-pyramid) --- the smoke suite plays the "Pyramid, 1,144 blocks" preset's link on this seed
+  // (scripts/smoke-test.mjs, the land-claim-pyramid block): the summit falls last in most runs, not all – 11 of the seeds 1-300 of
+  // this test's world knock it down with blocks still standing –, so its check of the summit last needs a seed that has it, which a
+  // fresh draw need not. The page plays it in its own world, where that check proves it.
+  it("knocks the summit down last on the smoke suite's seed, which a fresh draw need not", { timeout: 30_000 }, () => {
+    const SMOKE_LCP_SEED = 12345;
+    const summitLeft = (seed: number) => {
+      const engine = pyramid({}, seed);
+      runUntil(engine, (e) => e.getLandClaimView().finished);
+      return engine.getLandClaimView().pyramid!.firstSummitLeft;
+    };
+    expect(summitLeft(SMOKE_LCP_SEED)).toBe(0);
+    // a draw whose summit falls with five blocks still standing
+    expect(summitLeft(56)).toBe(5);
+  });
+
   it("replays a seed exactly – the same knock-down at 30, 60 and 120 frames a second (a pinned fingerprint)", { timeout: 30_000 }, () => {
     function fnv(bytes: Uint8Array, h = 0x811c9dc5) {
       for (let i = 0; i < bytes.length; i++) {
