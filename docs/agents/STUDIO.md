@@ -342,8 +342,57 @@ these fixes):
 The role eval's recorded run was carried over to the changed briefs (`docs/agents/CREW-EVAL.md`): nine briefs changed and
 were answered again, and the numbers did not move.
 
+## The step's acceptance run
+
+The same open request again, after review round 2: "Three simple, satisfying clips for Reels that make sense to a stranger,
+each a different kind of payoff, with few distractions." World 800 × 450; Claude played every role in one conversation, so
+the record says "same context". Everything is in `.agent-out/studio/acc-real/`.
+
+The brainstormer pitched six ideas: Ring Escape, Power Layers, Polyrhythm, Multipliers, Glass and Pendulum Wave.
+
+Before the render (Quick, 7 calls):
+
+```text
+skeptic   ring escape   payoffLate, major (beats.payoff: escape at 95 % of 28.4 s)        -> confirmed
+reviewer  ring escape   fix (medium): retimePayoff 0.85 -> seed search: 23.8 s, escape at 21.4 s (90 %), applied
+skeptic   power layers  notShareable, major -> opinion; tooBusy, minor -> refuted (one text beside the HUD it keeps)
+reviewer  power layers  keep (medium): the break-out is the template's payoff
+skeptic   glass         endingConfusing, minor -> opinion, does not stand                  -> keep; three kept: stop
+producer  the three clips' words; the ring escape's brief reads its re-planned plan ("24 seconds")
+```
+
+The renders: all three played their payoff at the planned second and ran their planned length. Each was watermarked
+jumpingballslive.com, played its melody, had 0 lagged frames and passed every gate.
+
+After the render, the viewer looked at each clip's two sheets first:
+
+```text
+viewer    ring escape   out, clear by 2 s, [effects] (confirmed: the camera), maybe       -> reviewer keep (medium)
+viewer    power layers  break, clear by 3 s, [text, nothingHappens] (text confirmed), maybe -> reviewer keep (medium)
+viewer    glass         break: the claim is out, so makes sense: no                       -> reviewer fix, offered:
+                        rewriteHook "Can Gerald smash his way home?", made as its own clip (render "fixed")
+viewer    glass, fixed  out, clear by 2 s, [text], yes                                     -> reviewer keep (medium)
+```
+
+What the run showed:
+
+- **Fixed in this step.** The producer's brief for the re-planned ring escape still carried the old plan's caption, "Can it
+  escape in 29 seconds?". It also listed 29 among the clip's numbers. A re-planned clip now takes its plan's words with it.
+- **Known gaps** (below), noted and not fixed:
+  - Glass's hook is drawn over the mode's STAGE banner.
+  - post.txt counts a clip whose fix is offered among the keeps, beside its fixed version ("4 kept of 4 rendered").
+  - The fixed version keeps the producer's title that was written for the clip before its fix.
+
 ## Known gaps
 
+- **Text over a mode's own banner.** The Glass template's hook sits at the top of the square for its first 2.5 s. The
+  mode's STAGE 1 and STAGE 2 banners are drawn under it at the same time, and the acceptance run's viewer named the text. The
+  Simple look places a text by where the balls move, not by the mode's banners. G5 checks Top Text over a scoreboard band
+  only, not a caption over a banner. As with the finish banners below, a fix would move the template's plans and Simple
+  scores, so it waits for the owner.
+- **A fix offered after the render.** The clip as rendered keeps its place among the keeps beside its fixed version: post.txt
+  lists both, with the viewer's read of each, and the owner picks. The producer does not run after a render, so the fixed
+  version keeps the title and caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it.
 - **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s". The template's
   payoff caption ("FREEDOM 🌈") shows beside it. Neither the Simple score nor the screen view knows these banners. A fix would
   change the plans or the Simple scores of every such template, and with them the role eval's corpus and its recorded run.
