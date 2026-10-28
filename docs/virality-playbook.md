@@ -222,7 +222,8 @@ checks (G4).
 - **Hidden for now:** the other 32 modes are bound but wait for their own payoff timing and copy. So does Fight League's boss
   rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
   hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. A template that fails
-  a gate on every plan is hidden with its reason, never kept by an exception.
+  a gate on every plan is hidden with its reason, never kept by an exception. A binding is ready only while one of its
+  templates is, so the race's binding is not ready either, though it wraps a recipe.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
 
@@ -240,8 +241,12 @@ checks (G4).
   the loop HUD's counter);
 - a text of two lines broken where a reader breaks it: at its clause ("15 pendulums." / "Wait for the chord."), a size step
   or two smaller where only that fits, else evenly, never with a last line of one or two words;
-- a hook of at most 7 words and a payoff of at most 3. A longer one keeps its own whole clauses ("Pick a side: which colour
-  takes the board?" becomes "Which colour takes the board?"). The closing question gets the last 2 s, or 2.5 s on two lines;
+- a hook of at most 7 words. A longer one keeps its own whole clauses ("Pick a side: which colour takes the board?" becomes
+  "Which colour takes the board?");
+- a payoff cut the same way toward 3 words ("FREE! Gerald made it 🎉" becomes "FREE!"). A payoff of one clause keeps its
+  words ("Thor is the champion! 🏆", "Znów w jednej linii. 🎼"). It gets 1.2 s a line: where the seconds after it are too
+  short for two lines, as on Shorts, it takes one line, without its closing emoji and a size smaller if need be. The closing
+  question gets the last 2 s, or 2.5 s on two lines;
 - the series label and the rest of a long hook go in the post caption, not on the clip.
 
 It changes look settings only. The cinematic camera stays as the mode plays it, since it moves the run. The seed search ranks
@@ -257,22 +262,24 @@ each look]**:
 | Simple score, median (range) | 44 (15–56) | 91 (85–97) |
 | Simple score with the run read, median (range) | 35 (8–56) | 91 (85–97) |
 | Checklist score, median | 100 | 96 |
-| Plans that pass every clarity gate | 0 | 178 |
+| Plans that pass every clarity gate | 0 | 179 |
 
 - Both looks pick the same seed. The checklist loses the series item's label points alone: 4 on every plan. The look item
   stays at 5 on every plan.
 - The Simple score still charges every plan 3 for the cinematic camera. 132 plans show two messages at once for a while: a
   mode's own HUD (an arena's band, the layer count, the stage dots) beside a text.
-- 50 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
+- 49 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
   hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. The bot look's 7 G2 misses stay,
-  on the same seeds, and 5 payoff lines stay under 1.2 s a line (G5). 12 Drop Symphony and Pendulum Wave plans fail G2's
+  on the same seeds, and the 4 of them that show their payoff for 0.5 s give its one line under 1.2 s (G5). A payoff of two
+  lines whose clip ends too soon for both is drawn on one line (above). 12 Drop Symphony and Pendulum Wave plans fail G2's
   reading of the payoff's moment: "Final chord. 🎹" over a silent board, and a realignment that plays no chord. Their
   templates fix both (below).
 
 **The 19 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 224 plans]** have a median Simple
 of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, G2's reading of the payoff's moment included,
-and every template passes on at least 3 of 4 plan seeds on each platform it is offered on (a test checks it). Ball Drop's
-template times its payoff at the last ball's last note and Pendulum Wave's sounds its chord at the realignment; the bot's
+and every template passes on at least 3 of 4 plan seeds on each platform it is offered on, in English, Polish and Spanish
+alike (220 of the 224 plans in each; a test checks it). Ball Drop's template times its payoff at the last ball's last note
+and Pendulum Wave's sounds its chord at the realignment; the bot's
 own Drop Symphony and Pendulum Wave fail G2 there (a silent, settled board under "Final chord. 🎹"; a realignment with no
 chord):
 

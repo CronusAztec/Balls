@@ -1,9 +1,9 @@
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { BOT_DEFAULT_FAMILIES, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, RECIPES, type BotFamily, type BotPlatform } from "@/lib/bot/playbook";
 import { captionWordsOf } from "@/lib/bot/planner"; // --- templates --- (a message read as a viewer reads it)
-import { claimOfRecipe, type CrewClip } from "./clip";
+import { claimOfRecipe, factNumbersOf, numbersIn, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type Clarity } from "./clarity";
-import { intentView, screenView, type OtherCandidate } from "./dossier";
+import { intentView, sceneOf, screenView, type OtherCandidate } from "./dossier";
 import { confirmedDistractions, makesSenseOf, markObjection, markObjections, standing, type MarkedObjection } from "./evidence";
 import { applyCompiledFix, clutterOn, compileFixes, type CompiledFix, type FinderNeed } from "./fixes";
 import { pick, pickScore, type PickCandidate, type PickEntry, type Picked } from "./pick";
@@ -816,13 +816,32 @@ function brainstormUser(s: PanelState): string {
   ].join("\n");
 }
 
+/** --- templates --- A clip's words of one caption role, as a viewer reads them (a message at the bottom of the square is stacked upwards). */
+const roleWords = (clip: CrewClip, role: string) => captionWordsOf(clip.captions, clip.captions.map((_, i) => (clip.captionRoles[i] === role ? i : -1)).filter((i) => i >= 0));
+
+/**
+ * --- crew --- (the studio's second review round, finding 18) The numbers a kept clip's title and caption may state: the clip's
+ * own (clip.ts factNumbersOf: its hook values, its length, the day, one), the ones its scene line states (the rings, layers or
+ * balls on screen: dossier.ts sceneOf), its payoff's second, and the ones in the words drawn on it and in its template's own post
+ * copy (the series label's day or match) – each true of this run by construction. The producer's brief lists them, and
+ * checkProducer refuses a title or caption with any other.
+ */
+export function producerNumbersOf(c: Pick<PanelClip, "clip" | "post">): number[] {
+  const out = new Set<number>(factNumbersOf(c.clip));
+  const at = c.clip.payoff.atSec;
+  if (at !== null && Number.isFinite(at)) for (const n of [Math.floor(at), Math.round(at), Math.ceil(at)]) out.add(n);
+  const texts = [sceneOf(c.clip.settings), drawnHookText(c.clip), roleWords(c.clip, "payoff"), roleWords(c.clip, "question"), c.post?.title ?? "", c.post?.caption ?? ""];
+  for (const t of texts) for (const n of numbersIn(t)) out.add(n);
+  return [...out].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+}
+
 function producerUser(s: PanelState): string {
   const ids = s.picked?.keeps.map((k) => k.id) ?? [];
   const clips = ids.map((id) => {
     const c = clipOf(s, id)!;
-    // --- templates --- (as a viewer reads them: a message at the bottom of the square is stacked upwards)
-    const words = (role: string) => captionWordsOf(c.clip.captions, c.clip.captions.map((_, i) => (c.clip.captionRoles[i] === role ? i : -1)).filter((i) => i >= 0));
-    return { planId: id, platform: c.clip.platform, mode: c.clip.mode, lengthSec: Math.round(c.clip.timing.clipSec * 10) / 10, hook: drawnHookText(c.clip) || c.clip.hook || "", payoff: words("payoff"), question: words("question"), templateCopy: c.post ? { caption: c.post.caption, hashtags: c.post.hashtags } : null };
+    const at = c.clip.payoff.atSec;
+    // --- crew --- (finding 18) what is on screen and the numbers it has: a title or caption states no other
+    return { planId: id, platform: c.clip.platform, mode: c.clip.mode, scene: sceneOf(c.clip.settings), lengthSec: Math.round(c.clip.timing.clipSec * 10) / 10, payoffSec: at !== null && Number.isFinite(at) ? Math.round(at * 10) / 10 : null, numbers: producerNumbersOf(c), hook: drawnHookText(c.clip) || c.clip.hook || "", payoff: roleWords(c.clip, "payoff"), question: roleWords(c.clip, "question"), templateCopy: c.post ? { caption: c.post.caption, hashtags: c.post.hashtags } : null };
   });
   return [`Write in ${LANGUAGES[s.request?.locale ?? "en"] ?? "English"}.`, `Kept clips (JSON): ${JSON.stringify(clips)}`, `Research: ${briefText(s.brief, BRIEF_CHARS.producer)}`].join("\n");
 }
@@ -956,7 +975,7 @@ function checkReply(s: PanelState, role: CrewRole, c: PanelClip | null, raw: unk
     case "brainstormer":
       return { value, errors: checkBrainstorm(value as BrainstormResult, { menu: s.menu, named: !!s.request?.namedTemplate }) };
     case "producer":
-      return { value, errors: checkProducer(value as ProducerResult, s.picked?.keeps.map((k) => k.id) ?? []) };
+      return { value, errors: checkProducer(value as ProducerResult, s.picked?.keeps.map((k) => k.id) ?? [], Object.fromEntries((s.picked?.keeps ?? []).flatMap((k) => { const x = clipOf(s, k.id); return x ? [[k.id, producerNumbersOf(x)]] : []; }))) };
     case "reviewer": {
       const st = standing(c!.marks);
       return {

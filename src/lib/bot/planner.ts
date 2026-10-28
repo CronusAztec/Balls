@@ -275,6 +275,33 @@ function captionLines(text: string, size: number, maxLines: number, even = false
   return { lines: lines.slice(0, Math.max(maxLines, 1)), size: s };
 }
 
+// --- templates --- (review round 2, 13) the Simple payoff's lines get their time
+/** A text without its closing emoji ("Znów w jednej linii. 🎼" → "Znów w jednej linii."): the text itself when it ends on a word. */
+function withoutClosingEmoji(text: string): string {
+  const words = sanitizeCaptionText(text).split(" ").filter(Boolean);
+  let n = words.length;
+  while (n > 0 && !hasWord(words.slice(n - 1, n))) n--;
+  return n > 0 && n < words.length ? words.slice(0, n).join(" ") : text;
+}
+
+/**
+ * The Simple look's payoff (`words`: simplePayoffText's) on the lines it gets: the lines captionLines() breaks at 1.3 where the
+ * clip's tail after the payoff (`tailSec`) gives each SIMPLE_TEXT.secPerLine (the crew's G5); else one line, the largest size
+ * from 1.3 down to 0.8 that fits it, without its closing emoji – "Znów w jednej linii. 🎼" on Shorts, whose 🎼 took a line of its
+ * own in the 2 s the clip leaves after the payoff, 1 s a line – and the lines it had where no one line fits.
+ */
+function simplePayoffLines(words: string, tailSec: number): { text: string; lines: string[]; size: number } {
+  const two = captionLines(words, 1.3, 2, true);
+  if (two.lines.length < 2 || tailSec / two.lines.length >= SIMPLE_TEXT.secPerLine - 1e-9) return { text: words, ...two };
+  const text = withoutClosingEmoji(words);
+  for (let s = 1.3; s > 0.8 - 1e-9; s = Math.round((s - 0.1) * 10) / 10) {
+    const lines = evenCaptionLines(text, s);
+    if (lines.length === 1) return { text, lines, size: s };
+  }
+  return { text: words, ...two };
+}
+// --- end templates ---
+
 export interface CaptionBox {
   left: number;
   top: number;
@@ -997,9 +1024,10 @@ export type TextPlan = "stack" | "oneLine";
  * --- low-findings --- `payoffKey`: the recipe's copy of the payoff (`payoffKeyOf()`: a double KO's own words).
  * --- templates --- `textPlan` "oneLine" (the Simple look): one text at a time – the countdown caption comes after the hook and
  * leaves when the payoff's words or the closing question come, so no two texts are on screen together – and the payoff's words
- * cut to at most 3 (templates.ts simplePayoffText).
+ * cut by whole clauses toward 3 (templates.ts simplePayoffText), on one line where the clip's tail after them is too short for
+ * two at 1.2 s a line (simplePayoffLines). `payoffText`: the payoff's words as drawn (null: none drawn).
  */
-export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack"): { captions: Caption[]; roles: CaptionRole[] } {
+export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack"): { captions: Caption[]; roles: CaptionRole[]; payoffText: string | null } {
   const captions: Caption[] = [];
   const roles: CaptionRole[] = [];
   const add = (caption: Caption, role: CaptionRole) => {
@@ -1007,6 +1035,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
     roles.push(role);
   };
   const oneLine = textPlan === "oneLine"; // --- templates --- (and its lines broken where a reader breaks them)
+  let payoffText: string | null = null; // the payoff's words as drawn (none: no payoff words)
   const hookParts = captionLines(hook, hookStyle.size, 2, oneLine);
   for (const line of hookParts.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: 0, end: hookEndSec, animation: "pop", style: { ...hookStyle, size: hookParts.size } }, "hook");
   const clip = timing.recordingDuration;
@@ -1027,10 +1056,12 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
   } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
-    const p = captionLines(oneLine ? simplePayoffText(words) : words, 1.3, 2, oneLine); // --- templates ---
+    // --- templates --- (the Simple look: its words cut by clauses, on the lines the clip's tail after them has time for)
+    const p = oneLine ? simplePayoffLines(simplePayoffText(words), Math.min(timing.clipSec, clip) - payoffStart) : { text: words, ...captionLines(words, 1.3, 2) };
     for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: payoffStart, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
+    payoffText = p.text;
   }
-  return { captions, roles };
+  return { captions, roles, payoffText };
 }
 
 /** The share link of a clip: the simulator with its settings and its seed (`seed=` pins the run). */
@@ -1097,7 +1128,7 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const payoffText = recipe.payoffWords === false ? "" : recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" }); // --- templates --- (none drawn)
   // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the countdown)
   const textRecipe: BotRecipe = simple && recipe.countdown.source === "caption" && hudShowsCountdown(settings) ? { ...recipe, countdown: { ...recipe.countdown, source: "hud" } } : recipe;
-  const { captions, roles } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");
+  const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];
@@ -1127,7 +1158,7 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     captionRoles: roles,
     hook,
     countdown: { ...textRecipe.countdown },
-    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: simple ? simplePayoffText(payoffText) : payoffText /* --- templates --- (the words it draws) */, winner: winnerName },
+    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: simple ? (drawnPayoff ?? simplePayoffText(payoffText)) : payoffText /* --- templates --- (the words it draws) */, winner: winnerName },
     timing: { recordingDuration: timing.recordingDuration, clipSec: timing.clipSec, firstImpactSec: facts && facts.firstImpactSec >= 0 ? facts.firstImpactSec : null, found, seedsTested },
     score: 0,
     reasons: [],

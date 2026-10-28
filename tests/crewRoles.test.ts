@@ -380,4 +380,21 @@ describe("the checks beyond the schemas", () => {
     expect(checkProducer({ clips: [clip], summary: "" }, ["c1"])).toEqual([]);
     expect(checkProducer({ clips: [clip, clip], summary: "" }, ["c1", "c2"])).toEqual(["clips: c1 2 times", "clips: write c2"]);
   });
+
+  // --- crew --- (the studio's second review round, finding 18) "Four spinning rings, one gap each" on a clip of five rings was posted
+  it("the producer's title and caption state only numbers the clip has, in digits or in words; a clip with no list is not checked", () => {
+    const clip = { planId: "c1", name: "rings", title: "5 rings, 16 seconds", hook: "a", caption: "Five spinning rings, one gap each. Day 3: which ring falls last?", hashtags: ["#a", "#b", "#c"], platform: BOT_PLATFORMS[0] };
+    const numbers = { c1: [1, 3, 5, 16, 17] };
+    expect(checkProducer({ clips: [clip], summary: "" }, ["c1"], numbers)).toEqual([]);
+    expect(checkProducer({ clips: [{ ...clip, title: "7 rings, 16 seconds", caption: "Four spinning rings, one gap each." }], summary: "" }, ["c1"], numbers)).toEqual([
+      "clips: c1 title: 7 is not a number this clip has (1, 3, 5, 16, 17)",
+      "clips: c1 caption: 4 is not a number this clip has (1, 3, 5, 16, 17)",
+    ]);
+    expect(checkProducer({ clips: [{ ...clip, caption: "Pięć pierścieni, 1,000 odbić" }], summary: "" }, ["c1"], numbers)).toEqual(["clips: c1 caption: 1000 is not a number this clip has (1, 3, 5, 16, 17)"]);
+    // hashtags and the file name are not posted words, and a clip the panel gave no list is not checked
+    expect(checkProducer({ clips: [{ ...clip, name: "rings 7", hashtags: ["#top10", "#b", "#c"] }], summary: "" }, ["c1"], numbers)).toEqual([]);
+    expect(checkProducer({ clips: [{ ...clip, title: "7 rings" }], summary: "" }, ["c1"])).toEqual([]);
+    // the card says so
+    expect(ROLE_SPECS.producer.card).toMatch(/Every number in a title or caption is one the clip has/);
+  });
 });

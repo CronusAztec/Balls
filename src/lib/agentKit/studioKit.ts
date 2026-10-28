@@ -305,8 +305,8 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     if (!list.length) {
       const b = BINDINGS.find((x) => x.mode === input.mode)!;
       const modes = [...new Set(allTemplates().filter((t) => t.ready).map((t) => t.mode))];
-      // --- studio --- a ready binding whose every variant is hidden says why (the square race: its count-in)
-      const hidden = b.ready ? b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`) : [];
+      // --- studio --- a proven binding whose every variant is hidden says why (the square race: its count-in)
+      const hidden = b.tier === "proven" ? b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`) : [];
       return { ok: false, error: `The mode ${input.mode} has no ready template yet (${hidden.length ? `hidden: ${hidden.join("; ")}` : `its binding: ${b.format}, ${b.tier}${b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
     }
     return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
@@ -355,7 +355,8 @@ export function studioPlan(input: StudioPlanInput, copy: BotCopy): { ok: true; r
  */
 export function studioPlanNext(studio: string, count: number, args: Record<string, unknown>): string {
   const plan = `.agent-out/studio/${studio}/plan.json`;
-  if (count <= STUDIO_CLIPS_MAX) return `review {"studio":"${studio}"}: the crew judges these before any render (a plan written here starts that review over)`;
+  // --- studio --- (the studio's second review round, finding 15) the panel's first call fixes how many it keeps
+  if (count <= STUDIO_CLIPS_MAX) return `review {"studio":"${studio}"}: the crew judges these before any render (a plan written here starts that review over). Its first call starts the panel and fixes how many clips it keeps: add "wanted" (the clips asked for; default ${Math.min(3, count)}, at most ${count}).`;
   const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== "count" && k !== "planSeed" && k !== "studio"));
   const planSeed = args.planSeed;
   const seed = typeof planSeed === "number" ? planSeed : 1;
@@ -750,9 +751,11 @@ function clipLine(c: PanelClip) {
 }
 
 /** A stage's panel, started: the studio's plans (pre), an open request for the brainstormer (pre, no plan), or the rendered clips (post). */
-function startStage(stage: PanelStage, input: StudioReviewInput, ctx: StudioReviewContext): { ok: true; state: PanelState } | { ok: false; error: string } {
+function startStage(stage: PanelStage, input: StudioReviewInput, ctx: StudioReviewContext, before: PanelState | null): { ok: true; state: PanelState } | { ok: false; error: string } {
   const depth = input.depth ?? "quick";
-  const separation = input.separation ?? "sameContext";
+  // --- studio --- (the studio's second review round, finding 17) the panel after the render plays its roles as the one before
+  // it did unless the call says otherwise: the skill's subagents play both, and the record says so
+  const separation = input.separation ?? (stage === "post" ? before?.separation : undefined) ?? "sameContext";
   const platform = input.platform ?? ctx.plan?.plans[0]?.plan.platform ?? "reels";
   const locale = input.locale ?? ctx.plan?.plans[0]?.plan.locale ?? "en";
   const common = { depth, who: "claude" as const, separation, digest: ctx.digest, liveResearch: input.research === "live" };
@@ -815,7 +818,7 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     if (stage === "pre") file = { ...file, post: null, replans: {}, records: { pre: {}, post: {} } };
   }
   if (!state) {
-    const started = startStage(stage, input, ctx);
+    const started = startStage(stage, input, ctx, file.pre);
     if (!started.ok) return { ok: false, error: started.error, panel: file, plan: null, post: null, result: { studio: ctx.studio, stage, error: started.error } };
     state = started.state;
     // --- studio --- an open request's ideas are planned in the world it names, on a later call that names none: kept here
@@ -823,6 +826,9 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     notes.push(`the ${stage === "pre" ? "pre-render" : "post-render"} panel starts: depth ${state.depth}, ${state.clips.length || "no"} candidates yet, ${state.wanted} wanted, roles ${state.separation === "contexts" ? "each in a context of its own" : "in one context (the record says so)"}`);
   } else {
     if (input.depth !== undefined && input.depth !== state.depth) notes.push(`depth ${input.depth} applies when a stage starts: this panel runs at ${state.depth} (restart to change it)`);
+    // --- studio --- (the studio's second review round, findings 15 and 17) so do wanted and separation: never silently ignored
+    if (input.wanted !== undefined && input.wanted !== state.wanted) notes.push(`wanted ${input.wanted} applies when a stage starts: this panel keeps ${state.wanted} (restart to change it)`);
+    if (input.separation !== undefined && input.separation !== state.separation) notes.push(`separation ${input.separation} applies when a stage starts: this panel's record says ${state.separation} (restart to change it)`);
     // --- studio --- a kept clip rendered after the post-render panel began, or rendered again since, joins it for its own look
     if (stage === "post") {
       const looked = state;
@@ -983,7 +989,7 @@ export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | nul
     const pd = panelDecision(post);
     // --- studio --- (the studio's second review round, finding 7) a clip only the rules weighed is not "looked at"
     const looked = post.clips.filter(lookedAt).length;
-    lines.push(`After the render: ${pd.keeps.length} kept of ${post.clips.length} rendered (${post.depth}); a model looked at ${looked === post.clips.length ? "every one" : `${looked} of them`}.`);
+    lines.push(`After the render: ${pd.keeps.length} kept of ${post.clips.length} rendered (${post.depth}; roles ${post.separation === "contexts" ? "each in a context of its own" : "in one context"}); a model looked at ${looked === post.clips.length ? "every one" : `${looked} of them`}.`);
   }
   lines.push("Every clip carries the watermark (a free visitor's render). The owner approves every post.", "");
   d.keeps.forEach((k, i) => {
@@ -1288,8 +1294,16 @@ function rolePrompt(role: CrewRole, studio: string, clip: string | null, stage: 
   return lines.join("\n");
 }
 
+/**
+ * --- studio --- (the studio's second review round, finding 15) The clips the make-video loop plans for `count` kept: two spare,
+ * so the crew can drop a clip and still keep the count, at most the crew's STUDIO_CLIPS_MAX a studio.
+ */
+export const STUDIO_SPARE_CLIPS = 2;
+export const studioCandidatesFor = (count: number) => Math.min(STUDIO_CLIPS_MAX, Math.max(1, Math.round(count)) + STUDIO_SPARE_CLIPS);
+
 function makeVideoPrompt(args: Record<string, string>): string {
   const count = Math.max(1, Math.min(STUDIO_CLIPS_MAX, Math.round(Number(args.count) || 3)));
+  const candidates = studioCandidatesFor(count);
   const platform = ["reels", "tiktok", "shorts"].includes(args.platform ?? "") ? args.platform : "reels";
   const request = (args.request ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 400);
   return [
@@ -1298,10 +1312,10 @@ function makeVideoPrompt(args: Record<string, string>): string {
     "The loop (docs/agents/STUDIO.md has a worked example):",
     `1. ${toolCall("research", {})}: the research brief, at most five pieces of advice with their levers; a weak finding is weak. When the trend summary is stale you may run inspire on a template's theme words first.`,
     `2. ${toolCall("templates", {})}: the ready templates (the battle family only when asked for).`,
-    `3. ${toolCall("plan", { template: "<id>", count, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, platform, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way for ${platform}, in the page's world, where render plays the clip.`,
-    `4. ${toolCall("review", { studio: "<name>" })}: play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
+    `3. ${toolCall("plan", { template: "<id>", count: candidates, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })}${candidates > count ? ` (${candidates - count} more than the ${count} to keep, so the crew can drop one and still keep ${count})` : ""} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, platform, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way for ${platform}, in the page's world, where render plays the clip.`,
+    `4. ${toolCall("review", { studio: "<name>", wanted: count })}: its first call starts the panel and fixes how many clips it keeps (on the plan route this call; an open request's step 3), so keep "wanted":${count} there. Then play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
     `5. ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<a kept clip>" })} for each kept clip: watermarked, with its melody, with its frames' sheets.`,
-    `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks. The panel after the render is its own: every call of it, each next brief and each answer, keeps "stage":"post" (answer with the brief's \`next.answer\`). A fix the reviewer offers there is made as a clip of its own with ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<the clip>", fixed: true })} (the review's \`fixed\` lists the calls); review with "stage":"post" again for its look.`,
+    `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks. The panel after the render is its own: every call of it, each next brief and each answer, keeps "stage":"post" (answer with the brief's \`next.answer\`); it plays its roles as the panel before the render did (its separation) unless its first call names another. A fix the reviewer offers there is made as a clip of its own with ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<the clip>", fixed: true })} (the review's \`fixed\` lists the calls); review with "stage":"post" again for its look.`,
     "7. Hand over .agent-out/studio/<name>/: the clips, panel.json (every role's verdict and the viewer's read) and post.txt (the words to post).",
     "",
     "Rules: every clip is a free visitor's render and carries the watermark – never install a licence or use the TEST key; write only under .agent-out/; a verdict never deletes a clip; never push and never post: the owner approves every post.",
@@ -1357,11 +1371,11 @@ export const CREW_FIXTURE_SEEDS = 12;
 export function crewEvalCorpus(copy: BotCopy): { clean: EvalFixture[]; planted: EvalFixture[]; notes: string[] } {
   const notes: string[] = [];
   // (Fight League's templates name third-party characters: they stay out of the committed corpus; the battle family's others are in.
-  // The turn order is every variant of a ready binding, a hidden one too, which adds no clip but keeps its place: the platform
+  // The turn order is every variant of a proven binding, a hidden one too, which adds no clip but keeps its place: the platform
   // each template is planned on follows its place, so hiding a template – the square race, whose plans never passed G1 and gave
-  // no clip – leaves the others' clips as they were.)
+  // no clip, and whose binding is not ready since – leaves the others' clips as they were.)
   const perTemplate: { source: string; clip: CrewClip }[][] = allTemplates()
-    .filter((t) => t.binding.ready && t.recipe !== null && t.mode !== "fightLeague")
+    .filter((t) => t.binding.tier === "proven" && t.recipe !== null && t.mode !== "fightLeague")
     .map((t, ti) => {
       if (!t.ready) return [];
       const recipe = templateRecipeById(t.id)!;
@@ -1669,10 +1683,10 @@ function skillFileText(): string {
     "",
     `1. ${cli("research", {})}: the research brief, at most five pieces of advice; a weak finding is weak. When the trend summary is stale, \`inspire\` on a template's theme words refreshes the evidence first.`,
     `2. ${cli("templates", {})}: the ready templates. The battle family (Fight League names third-party characters) only when the owner asks for it.`,
-    `3. ${cli("plan", { template: "<id>", count: 3, platform: "<reels|tiktok|shorts>", world: STUDIO_RENDER_WORLD, studio: "<studio>" })}: plan for the platform asked for (default reels), in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
-    `4. ${cli("review", { studio: "<studio>", separation: "contexts" })} starts the panel (add \`"request"\`, \`"wanted"\`, \`"platform"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned for that platform in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
+    `3. ${cli("plan", { template: "<id>", count: studioCandidatesFor(3), platform: "<reels|tiktok|shorts>", world: STUDIO_RENDER_WORLD, studio: "<studio>" })}: plan the clips asked for and ${STUDIO_SPARE_CLIPS} more (at most ${STUDIO_CLIPS_MAX}), so the crew can drop one and still keep the count; for the platform asked for (default reels), in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
+    `4. ${cli("review", { studio: "<studio>", wanted: 3, separation: "contexts" })} starts the panel: \`"wanted"\` is the clips asked for (default 3), on the plan route as on an open request, since the panel's first call fixes it (add \`"request"\`, \`"platform"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned for that platform in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
     `5. ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<a kept clip>" })} for each clip the decision keeps: watermarked, with its melody and its sheets.`,
-    `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree. The panel after the render is its own: every call of it keeps \`"stage":"post"\`, your re-fetches for the next brief as well as the subagents' arguments (a call without it reaches the finished panel before the render). The viewer looks at the clip's sheet.png and hook-sheet.png itself. A fix the reviewer offers there: ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<the clip>", fixed: true })} makes it as a clip of its own (\`<clip>-fixed\`; the review's \`fixed\` lists the calls), and the panel after the render looks at it on its next call.`,
+    `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree. The panel after the render is its own: every call of it keeps \`"stage":"post"\`, your re-fetches for the next brief as well as the subagents' arguments (a call without it reaches the finished panel before the render). It keeps the separation the panel before the render started with, so its record says the subagents played it too. The viewer looks at the clip's sheet.png and hook-sheet.png itself. A fix the reviewer offers there: ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<the clip>", fixed: true })} makes it as a clip of its own (\`<clip>-fixed\`; the review's \`fixed\` lists the calls), and the panel after the render looks at it on its next call.`,
     "7. Hand over the studio folder: the clips, panel.json and post.txt; say which clips were kept or dropped and why, which fixes were applied or offered, and that the roles ran in separate contexts (or that they did not).",
     "",
     "Without subagents (the MCP server not approved, or a client without them), play each role yourself through the CLI, one brief at a time, and leave `separation` at its default: the record then says the roles shared one context.",

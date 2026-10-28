@@ -36,7 +36,7 @@ plain code.
 | Viewer | you | the screen view only (after the render: the clip's sheets too) | what a stranger thinks happens |
 | Reviewer | you, where something is in doubt | the dossier, the objections marked by the facts, the viewer's read | keep, fix or drop |
 | Picker | code | the gates and the scores | the best clips |
-| Producer | you | the kept clips | the words to post, the hook locked to the drawn one |
+| Producer | you | the kept clips, each with its scene and its numbers | the words to post, the hook locked to the drawn one, no number the clip does not have |
 
 ## The tools
 
@@ -59,21 +59,26 @@ argument.
    on a template's theme words refreshes the evidence first.
 2. `npm run -s agent -- templates --json '{}'`: the ready templates. The battle family (Fight League names third-party
    characters) only when the owner asks for it.
-3. `npm run -s agent -- plan --json '{"template":"get-out-classic","count":3,"world":{"width":800,"height":450},"studio":"rings"}'`.
+3. `npm run -s agent -- plan --json '{"template":"get-out-classic","count":5,"world":{"width":800,"height":450},"studio":"rings"}'`.
    Plan in the page's own world, as here (the headless page is 800 × 450), or the clip plays another run than the one
    planned; render tells you when the worlds differ. Add `"platform"` (`reels`, `tiktok` or `shorts`; default reels) for
    the platform asked for. The crew reviews 8 plans at most in one studio: plan more only to render them without it. For an
    open request, skip the plan and start the review with `"request"`, the same `"world"` and `"platform"`: the brainstormer
    pitches, and the review tool plans the ideas itself, in that world, for that platform.
-4. `npm run -s agent -- review --json '{"studio":"rings"}'`, then answer each brief with
-   `{"studio":"rings","role":"…","clip":"…","verdict":{…}}` until the panel is done. Play each role in a context of its own
-   where you can (in Claude Code, the `jbl-<role>` subagents of the `jbl-make-video` skill) and pass
-   `"separation":"contexts"` when the panel starts; otherwise the record says the roles shared one context.
+4. `npm run -s agent -- review --json '{"studio":"rings","wanted":3}'`, then answer each brief with
+   `{"studio":"rings","role":"…","clip":"…","verdict":{…}}` until the panel is done. The first call starts the panel and
+   fixes how many clips it keeps: `"wanted"`, the clips asked for (default 3, at most the plans), on this route as on an open
+   request. Plan two more than that, so the crew can drop one and still keep the count. Play each role in a context of its
+   own where you can (in Claude Code, the `jbl-<role>` subagents of the `jbl-make-video` skill) and pass
+   `"separation":"contexts"` when the panel starts; otherwise the record says the roles shared one context. A later call
+   that names another `wanted`, `depth` or `separation` changes nothing, and its result says so.
 5. `npm run -s agent -- render --json '{"plan":".agent-out/studio/rings/plan.json","clip":"…"}'` for each kept clip.
 6. Look at each clip's sheet.png and hook-sheet.png, then review again with `"stage":"post"`: the viewer reads the clip from
    what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree. The panel after the
    render is its own, so every call of it keeps `"stage":"post"`, each next brief and each answer (a brief's `next.answer`
    has it); a call without it reaches the finished panel before the render, and its result notes that the other one waits.
+   It keeps the separation the panel before the render started with, unless its first call names another, and post.txt
+   says how each panel played its roles.
    A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look. A fix the
    reviewer offers there is never applied to the rendered clip: `render` with `"fixed":true` (the review's `fixed` lists the
    calls) makes it as a clip of its own, `<clip>-fixed`, and the next post-render call looks at it like any rendered clip.

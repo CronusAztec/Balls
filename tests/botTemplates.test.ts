@@ -51,15 +51,16 @@ import {
 } from "@/lib/bot/templates";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
-import { clarityOf } from "@/lib/crew/clarity";
+import { CLARITY, clarityOf } from "@/lib/crew/clarity";
 import { HUD_FLAGS, hudsOn } from "@/lib/crew/hudFlags";
 import { crowding, drawnHookText, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
- * formats, the 16 proven bindings ready and the other 32 hidden, the adapter the planner plans like a recipe, the template-aware
- * recipe lookups (scoreClip, the re-roll, the Insights score), the bot's own look byte-identical to before, and the Simple look
- * measured – one text at a time, Simple 80 or more, the checklist's look item kept, the run untouched.
+ * formats, the 16 proven bindings (15 ready: the square race's one variant is hidden) and the other 32 hidden, the adapter the
+ * planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights score), the bot's own
+ * look byte-identical to before, and the Simple look measured – one text at a time, Simple 80 or more, the checklist's look
+ * item kept, the run untouched.
  */
 
 // Planning simulates physics seed by seed: a busy machine can take many times the usual couple of seconds per test.
@@ -76,6 +77,8 @@ const SITE = "https://example.test";
 
 /** The 16 modes a playbook recipe plays: the proven bindings. */
 const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass", "powerLayers", "grow", "multiply", "multipliers", "race", "ctf", "battle", "stringBattle", "fightLeague", "pendulum", "polyrhythm", "drop"];
+/** --- templates --- (review round 2, 14) The proven bindings that plan: all but the square race, whose one variant is hidden. */
+const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race");
 /**
  * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
  * words of G5, and the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s).
@@ -135,15 +138,17 @@ describe("the bindings", () => {
     expect(new Set(TEMPLATE_FORMAT_IDS.map((f) => TEMPLATE_FORMATS[f].claim)).size).toBe(TEMPLATE_FORMAT_IDS.length);
   });
 
-  it("readies the 16 proven bindings, each variant wrapping a recipe of its mode; the other 32 are declared and hidden", () => {
+  it("readies the proven bindings that have a variant to plan, each variant wrapping a recipe of its mode; the other 32 are declared and hidden", () => {
     const proven = BINDINGS.filter((b) => b.tier === "proven").map((b) => b.mode);
     expect([...proven].sort()).toEqual([...PROVEN].sort());
-    expect(BINDINGS.filter((b) => b.ready).map((b) => b.mode).sort()).toEqual([...PROVEN].sort());
+    // (a binding is ready only while one of its variants plans: the square race's one variant is hidden, so its binding is not)
+    expect(BINDINGS.filter((b) => b.ready).map((b) => b.mode).sort()).toEqual([...READY_MODES].sort());
+    for (const b of BINDINGS) expect([b.mode, b.ready], b.mode).toEqual([b.mode, b.tier === "proven" && b.variants.some((v) => v.recipe !== null && !v.hidden)]);
     // the proven ones are exactly the modes the playbook's recipes play
     expect([...new Set(RECIPES.flatMap((r) => r.modes))].sort()).toEqual([...PROVEN].sort());
     for (const b of BINDINGS) {
       for (const v of b.variants) {
-        if (b.ready) {
+        if (b.tier === "proven") {
           const recipe = recipeById(v.recipe);
           expect(recipe, v.id).toBeDefined();
           expect(recipe!.modes, v.id).toContain(b.mode);
@@ -155,14 +160,15 @@ describe("the bindings", () => {
         }
       }
     }
-    expect(allTemplates().filter((t) => t.binding.ready && !t.ready).map((t) => t.id)).toEqual(HIDDEN_VARIANTS);
+    expect(allTemplates().filter((t) => t.binding.tier === "proven" && !t.ready).map((t) => t.id)).toEqual(HIDDEN_VARIANTS);
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(32);
+    expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(33);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
     const race = templateById("who-wins-race")!;
-    expect([race.binding.ready, race.ready]).toEqual([true, false]);
+    expect([race.binding.tier, race.binding.ready, race.ready]).toEqual(["proven", false, false]);
     expect(race.binding.variants.find((v) => v.id === race.id)!.hidden).toMatch(/3-2-1-GO.*G1/);
     expect(templateRecipeById(race.id)).toBeUndefined();
     expect(readyTemplates("all").map((t) => t.id)).not.toContain(race.id);
@@ -202,7 +208,7 @@ describe("the bindings", () => {
     expect(readyTemplates().every((t) => BOT_DEFAULT_FAMILIES.includes(t.family!))).toBe(true);
     expect(readyTemplates().some((t) => t.mode === "fightLeague")).toBe(false);
     expect(readyTemplates("battle").map((t) => t.mode)).toEqual(expect.arrayContaining(["ctf", "battle", "stringBattle", "fightLeague"]));
-    // (the square race's binding is ready, its one template hidden: its count-in fails G1 on every plan)
+    // (the square race's one template is hidden, so its binding is not ready: its count-in fails G1 on every plan)
     expect(readyTemplates("battle").map((t) => t.mode)).not.toContain("race");
     expect(readyTemplates("battle").every((t) => t.family === "battle")).toBe(true);
     expect(readyTemplates("all")).toHaveLength(readyTemplates("default").length + readyTemplates("battle").length);
@@ -430,7 +436,7 @@ describe("the Simple look", () => {
             expect(wordCount(plan.hook), where).toBeLessThanOrEqual(SIMPLE_TEXT.hookWordsMax);
             expect(plan.captionRoles.filter((r) => r === "hook").length, where).toBeLessThanOrEqual(2);
             const readable = clarityOf(clip).gates.find((g) => g.id === "G5")!;
-            expect(readable.problems.filter((p) => p !== "readableHurried"), where).toEqual([]);
+            expect(readable.problems, where).toEqual([]);
           }
         }
       }
@@ -494,18 +500,20 @@ describe("the Simple look", () => {
     expect(median(before) - median(after)).toBeLessThanOrEqual(5);
   });
 
-  // every platform a template is offered on, not only the first (Portal's Gerald had passed on Reels and missed on Shorts)
+  // every platform a template is offered on, not only the first (Portal's Gerald had passed on Reels and missed on Shorts), and
+  // --- templates --- (review round 2, 13) in every language, not only English: Polish Pendulum Wave had failed G5 on every Shorts plan
+  for (const locale of ["en", "pl", "es"] as const)
   for (const platform of BOT_PLATFORMS) {
-    it(`every ready template offered on ${platform} passes every clarity gate on 3 of 4 plan seeds at Playbook 75+, each plan at Simple 80+`, { timeout: 240_000 }, async () => {
+    it(`every ready template offered on ${platform} passes every clarity gate on 3 of 4 plan seeds at Playbook 75+, each plan at Simple 80+ (${locale})`, { timeout: 240_000 }, async () => {
       const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
       expect(offered.length).toBeGreaterThan(0);
       for (const t of offered) {
         let passed = 0;
         for (const seed of [1, 2, 3, 4]) {
-          const plan = planTemplate(t.id, seed, platform, { copy, episode: 3, index: seed });
+          const plan = planTemplate(t.id, seed, platform, { copy: COPY[locale], locale, episode: 3, index: seed });
           const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
           const clarity = clarityOf(crewClipOfPlan(plan, { run }));
-          const where = `${t.id}/${platform}/${seed}`;
+          const where = `${locale}/${t.id}/${platform}/${seed}`;
           expect(clarity.simple.score, where).toBeGreaterThanOrEqual(80);
           // (a plan whose seed search found no payoff fails a gate and loses its payoff points: it is the 1 in 4)
           if (clarity.gates.every((g) => g.ok)) {
@@ -518,6 +526,34 @@ describe("the Simple look", () => {
       }
     });
   }
+
+  // --- templates --- (review round 2, 13) "Znów w jednej linii. 🎼" is one clause of 4 words: no clause cut shortens it, and on
+  // Shorts its 🎼 took a second line in the 2 s the clip leaves after the payoff – 1 s a line, under G5's 1.2 s, on every plan
+  it("gives the Simple payoff the time its lines need: one line where the clip's end is too near for two, its closing emoji left out", () => {
+    expect(SIMPLE_TEXT.secPerLine).toBe(CLARITY.secPerLine);
+    /** The payoff's captions in reading order (a text at the bottom of the square reads upwards). */
+    const payoffOf = (plan: ClipPlan) => inReadingOrder(plan.settings.captions, plan.captionRoles.flatMap((r, i) => (r === "payoff" ? [i] : []))).map((i) => plan.settings.captions[i]);
+    // (in the planner's world and in the page's, where the studio renders)
+    for (const [world, seed] of [null, { width: 800, height: 450 }].flatMap((w) => [1, 2, 3, 4].map((n) => [w, n] as const))) {
+      const plan = planTemplate("line-up-pendulum", seed, "shorts", { copy: COPY.pl, locale: "pl", episode: 3, index: seed, ...(world ? { world } : {}) });
+      const where = `pl/shorts/${world ? "800x450/" : ""}${seed}`;
+      const lines = payoffOf(plan);
+      expect([where, lines.map((c) => c.text), plan.payoff.text]).toEqual([where, ["Znów w jednej linii."], "Znów w jednej linii."]);
+      // (two lines would have had 1 s each)
+      expect(plan.timing.clipSec - lines[0].start, where).toBeLessThan(2 * SIMPLE_TEXT.secPerLine);
+      expect(clarityOf(crewClipOfPlan(plan)).gates.find((g) => g.id === "G5")!.ok, where).toBe(true);
+    }
+    // a payoff that fits one line keeps its emoji ("Back in line. 🎼"), and one with time for two lines keeps both
+    const en = planTemplate("line-up-pendulum", 1, "shorts", { copy, episode: 3, index: 1 });
+    expect(payoffOf(en).map((c) => c.text)).toEqual(["Back in line. 🎼"]);
+    const reels = planTemplate("line-up-pendulum", 1, "reels", { copy: COPY.pl, locale: "pl", episode: 3, index: 1 });
+    const two = payoffOf(reels);
+    expect([two.map((c) => c.text), reels.payoff.text]).toEqual([["Znów w jednej linii.", "🎼"], "Znów w jednej linii. 🎼"]);
+    expect((reels.timing.clipSec - two[0].start) / two.length).toBeGreaterThanOrEqual(SIMPLE_TEXT.secPerLine);
+    // the bot's look draws the recipe's own words, as before
+    const bot = planTemplate("line-up-pendulum", 1, "shorts", { copy: COPY.pl, locale: "pl", episode: 3, index: 1, look: "bot" });
+    expect(bot.payoff.text).toBe("Znów w jednej linii. 🎼");
+  });
 
   it("templates' ids and claims reach the crew from a plan that records them", () => {
     const plan = planTemplate("smash-power-layers", 4, "reels", { copy, search: false });

@@ -146,8 +146,9 @@ proof that the loop works end to end. They do not settle which roles are worth t
   Simple 86-92. The corpus therefore counted that line as the template's own. Since the studio's second review round the
   evidence check itself leaves those HUDs out: no listed fix takes them away. The corpus and every run's numbers stayed the
   same.
-- Who Wins: Race fails gate G1 on every plan seed tried (its first impact comes at 1.8 s), although its binding is proven.
-  The studio's first review round hid it (`docs/virality-playbook.md` §5).
+- Who Wins: Race fails gate G1 on every plan seed tried (its first impact comes at 1.8 s), although its binding is proven
+  (it wraps a recipe). The studio's first review round hid it, and the second marked its binding not ready, since no variant
+  of it plans (`docs/virality-playbook.md` §5).
 
 ### claude-opus-5-5-2026-10-28-step6
 

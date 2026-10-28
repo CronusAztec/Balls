@@ -18,12 +18,13 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, PAYOFF_STRATEGIES, recipeById, type
  *    the recipe's does not show the format's payoff: Ball Drop's last note –, or – a later step – the bound finder outcome or
  *    the clip's end), the settings it plays its recipe with (`tune`: Pendulum Wave's chord where the hook promises one), the
  *    context flag that outcome needs, the length buckets it can fill, the HUD it keeps (only the one that shows the
- *    countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe and passes every
- *    clarity gate at Simple 80+ and Playbook 75+), trial and experimental (hidden from every menu). Only ready bindings plan:
- *    in this release the 16 proven ones, each variant wrapping one recipe; the other 32 are declared and hidden until their
- *    strategies and copy land (docs/virality-playbook.md §5). A proven binding's variant whose plans fail a gate on every
- *    seed is hidden with its reason, never kept ready by an exception: Fight League's boss rush (its hook) and the square
- *    race (its count-in), so the race binding has no ready template yet.
+ *    countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe, each variant one; the variants that plan
+ *    pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (hidden from every menu). A proven
+ *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception:
+ *    Fight League's boss rush (its hook) and the square race (its count-in). Only ready bindings plan – a proven one with a
+ *    variant that plans (bind(): ready is derived, never declared) –: in this release 15 of the 16 proven ones, the square
+ *    race's binding not ready since its one variant is hidden; the other 32 are declared and hidden until their strategies
+ *    and copy land (docs/virality-playbook.md §5).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe, or
  *    hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length buckets its seed search
  *    finds the payoff in. Its adapter (templateRecipe) is the recipe pinned to the binding's mode, buckets (the variant's where
@@ -125,8 +126,14 @@ export const SIMPLE_TEXT = {
   hookEndSec: 2.5,
   /** The hook's words at most (the crew's G5). */
   hookWordsMax: 7,
-  /** The payoff's words at most: one short line, read in the second or so a run leaves after its payoff. */
+  /**
+   * The payoff's words a clause cut aims at: one short line, read in the second or so a run leaves after its payoff. A cap by
+   * whole clauses only – a payoff of one clause ("Znów w jednej linii.", "Liu Kang is the champion!") keeps its words –, so
+   * what holds every payoff is the time a line (secPerLine) and the one line its time takes (planner.ts clipCaptions).
+   */
   payoffWordsMax: 3,
+  /** --- templates --- (review round 2, 13) The seconds a line of text needs on screen: the crew's G5 (clarity.ts CLARITY.secPerLine). */
+  secPerLine: 1.2,
 } as const;
 
 const wordsOf = (text: string) => text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
@@ -182,7 +189,11 @@ export function stakeNumbersOf(vars: HookVars): number[] {
   return out;
 }
 
-/** The payoff's words the Simple look draws: the recipe's own, cut to at most 3 words by whole clauses ("FREE! Gerald made it 🎉" → "FREE!"). */
+/**
+ * The payoff's words the Simple look draws: the recipe's own, cut toward 3 words by whole clauses ("FREE! Gerald made it 🎉"
+ * → "FREE!"); a payoff none of whose clause runs fits keeps its words ("Thor is the champion! 🏆"). Its lines get their time in
+ * planner.ts clipCaptions: one line where the clip's tail is too short for two (its closing emoji left out first).
+ */
 export function simplePayoffText(payoff: string): string {
   return shortenByClauses(payoff, SIMPLE_TEXT.payoffWordsMax, 1, false);
 }
@@ -238,7 +249,7 @@ export interface TemplateVariant {
   id: string;
   /** The playbook recipe it wraps (null: the binding's own generator, a later step). */
   recipe: string | null;
-  /** Why a variant of a ready binding is hidden (it fails a clarity gate on every plan); absent: it plans with its binding. */
+  /** Why a variant of a proven binding is hidden (it fails a clarity gate on every plan); absent: it plans with its binding. */
   hidden?: string;
   /** The length buckets this variant fills, narrower than its binding's: the ones its seed search finds the payoff in. */
   buckets?: readonly LengthBucket[];
@@ -249,7 +260,10 @@ export interface ModeBinding {
   format: TemplateFormatId;
   strategy: TemplateStrategy;
   tier: TemplateTier;
-  /** It plans in this release (the proven bindings); the others are declared and hidden. */
+  /**
+   * It plans in this release: a proven binding with at least one variant that plans (bind() derives it). The square race's is
+   * proven but not ready (its one variant is hidden); the others are declared and hidden.
+   */
   ready: boolean;
   variants: readonly TemplateVariant[];
   /** The finder outcome its payoff is (strategy "outcome"). */
@@ -284,10 +298,13 @@ export function templateIdOf(format: TemplateFormatId, mode: ModeId, suffix?: st
 type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[]];
 type BindingSpec = Omit<ModeBinding, "mode" | "variants" | "ready"> & { variants?: readonly VariantSpec[] };
 
-/** A binding from its spec: its variants' ids from the format and the mode; ready when proven. */
+/**
+ * A binding from its spec: its variants' ids from the format and the mode; ready when proven and one of its variants plans
+ * (wraps a recipe and is not hidden) – --- templates --- (review round 2, 14) never ready with nothing to plan, as the square race.
+ */
 function bind(mode: ModeId, spec: BindingSpec): ModeBinding {
   const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}) }));
-  return { ...spec, mode, ready: spec.tier === "proven", variants };
+  return { ...spec, mode, ready: spec.tier === "proven" && variants.some((v) => v.recipe !== null && !v.hidden), variants };
 }
 
 /** The run ends with the escape: a resolved clip would show it for the recorder's 0.5 s only, under the crew's G2 0.8 s. */
