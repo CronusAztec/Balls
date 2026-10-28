@@ -151,7 +151,7 @@ timeline. It is 100 minus:
 
 | Gate | Passes when |
 | --- | --- |
-| G1 motion early | The first impact comes within 1 s (after a render: the measured first motion within 1.5 s). |
+| G1 motion early | The first impact comes within 1 s (after a render: the measured first impact, the first motion or the first sound, within 1.5 s). |
 | G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. |
 | G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
 | G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim. |

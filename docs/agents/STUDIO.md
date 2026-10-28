@@ -62,7 +62,7 @@ argument.
 3. `npm run -s agent -- plan --json '{"template":"get-out-classic","count":3,"studio":"rings"}'`. Plan in the page's own
    world (the headless page is 800 × 450: pass `"world":{"width":800,"height":450}`), or the clip plays another run than
    the one planned; render tells you when the worlds differ. For an open request, skip the plan and start the review with
-   `"request"`: the brainstormer pitches, and the review tool plans the ideas itself.
+   `"request"` and the same `"world"`: the brainstormer pitches, and the review tool plans the ideas itself, in that world.
 4. `npm run -s agent -- review --json '{"studio":"rings"}'`, then answer each brief with
    `{"studio":"rings","role":"…","clip":"…","verdict":{…}}` until the panel is done. Play each role in a context of its own
    where you can (in Claude Code, the `jbl-<role>` subagents of the `jbl-make-video` skill) and pass
@@ -100,6 +100,12 @@ result has the page's world, the payoff planned and played, the clip's length pl
 played, the measured features and lagged frames, the sheets, and the clip's gates and scores after the render. render.json
 keeps it all for the post-render review, which reviews only clips rendered from the clip as it stands now.
 
+After the render, gate G1 reads the clip's first impact as the Playbook score reads the same file: its first motion or its
+first sound, the earlier. The picture alone misses a small ball on the Simple look's dark background. The export measures
+motion on 16 × 16 thumbnails against the analyser's threshold, and in the worked example below a Power Layers clip measured
+its first motion at 7.5 s while its first bounce was heard at 0.83 s. A Ball Drop clip never crossed the threshold at all. The
+dossier shows both numbers (`measured.firstMotion: 7.5 s (first sound 0.8 s)`).
+
 ## In Claude Code: a subagent per role, and the make-video skill
 
 `npm run studio:agents` (`scripts/studio-agents.mjs`) writes the Claude Code files from the crew's roles, so they never
@@ -134,79 +140,127 @@ result's 200 KB. Without subagents, one conversation plays every role, and panel
 
 ## A worked example
 
-A real run on this branch (Claude Code playing every role in one context). The plan, in the page's world:
+A real run on this branch, as the owner would ask for it: an open request, three clips wanted, Claude Code playing every
+role in one conversation (this session had no subagent tool, so the record says "same context"). Everything is in
+`.agent-out/studio/simple-three/`: plan.json, panel.json, post.txt and a folder per rendered clip with its frames and sheets.
 
 ```text
-plan {"count":3,"world":{"width":800,"height":450},"studio":"real-run","planSeed":21}
-ep001-1-get-out-classic-1431990282  get-out-classic  17.7 s  escape at 16.1 s (91%)  Simple 97  Playbook 92  gates pass
-ep001-2-count-multiply-184890734    count-multiply   21 s    fill at 17.9 s (85%)    Simple 97  Playbook 92  gates pass
-ep001-3-fill-grow-1578788951        fill-grow        26 s    fill at 22.1 s (85%)    Simple 97  Playbook 92  gates pass
+review {"studio":"simple-three","wanted":3,"world":{"width":800,"height":450},
+        "request":"Three simple, satisfying clips for Reels, each a different kind: something that breaks,
+                   something on the beat, something that lines up."}
 ```
 
-The review before the render, at Quick depth with three wanted:
+The brainstormer read the menu (each template with its hook's words) and pitched six ideas, one each on Power Layers, Ball
+Drop, Pendulum Wave, Glass, Polyrhythm and Multipliers. The review tool planned them in the page's world, plan seeds 1 to 6:
 
 ```text
-skeptic   ring escape    payoffLate, minor, evidence beats.payoff        -> confirmed (91% is past 90%)
-reviewer  ring escape    keep, high: the objection accepted, no fix needed for a minor one
-skeptic   multiply       hookMismatch, major, evidence words.hook + run.escape
-                         ("every escape spawns 4 more balls", but the first escape comes at 11.2 s) -> opinion
-reviewer  multiply       fix, medium: rewriteHook "One ball. How many by the end?" -> applied (the gates pass, the pick holds)
-skeptic   growing ball   no objection -> kept without the reviewer
-producer  three titles, captions with one question each, 6 hashtags each
-decision  keeps: ring escape (95.1), multiply (92.1), growing ball (92.1)
+ep001-3-line-up-pendulum-1147647781   16 s    payoff at 14 s (88%)     Simple 97  Playbook 96  gates pass
+ep001-5-line-up-polyrhythm-350413613  18 s    payoff at 15.5 s (86%)   Simple 97  Playbook 96  gates pass
+ep001-2-on-the-beat-drop-1957595456   12.3 s  payoff at 10.8 s (88%)   Simple 97  Playbook 94  gates pass
+ep001-1-smash-power-layers-799547072  19 s    payoff at 16.7 s (88%)   Simple 90  Playbook 96  gates pass
+ep001-4-get-out-glass-337905923       22.3 s  payoff at 20 s (90%)     Simple 90  Playbook 96  gates pass
+ep001-6-count-multipliers-1749420188  15.2 s  payoff at 12.7 s (84%)   Simple 88  Playbook 94  gates pass
 ```
 
-The renders (35-63 s each on 4 CPUs):
+The review before the render, at Quick depth, in rule-rank order (7 calls):
 
 ```text
-render {"plan":".agent-out/studio/real-run/plan.json","clip":"ep001-1-get-out-classic-1431990282"}
-  world 800 × 450 (the plan's), payoff planned 16.1 s, played 16.1 s, length 17.7 s planned and rendered,
-  melody canon-in-d played, watermarked, 1,060 frames, 0 lagged, sheet.png and hook-sheet.png written
-render {"plan":".agent-out/studio/real-run/plan.json","clip":"ep001-2-count-multiply-184890734"}
-  rendered as the crew left it (the rewritten hook), payoff 17.9 s planned and played, 21 s long,
-  melody entertainer played, watermarked, 1,260 frames, 0 lagged
-render {"plan":".agent-out/studio/real-run/plan.json","clip":"ep001-3-fill-grow-1578788951"}
-  payoff 22.1 s planned and played, 26 s long, melody ode-to-joy played, watermarked, 1,560 frames, 0 lagged
+skeptic   pendulum      no objection                                   -> keep (medium), no reviewer needed
+skeptic   polyrhythm    sameAsOther, major, evidence others + clip.claim -> opinion
+reviewer  polyrhythm    drop (medium): a second drift-then-line-up clip next to the pendulum one
+skeptic   ball drop     no objection                                   -> keep
+skeptic   power layers  no objection                                   -> keep; three kept: stop
+producer  three titles, captions ending on one question with the series line, 6 hashtags each
+decision  keeps: pendulum (93.9), ball drop (93), power layers (90.7); glass and multipliers not reviewed (enough)
 ```
 
-The review after the render, each clip's sheets looked at first:
+The renders, all in the planned world (29-66 s each on 4 CPUs, the first one with a 20 s export build): the payoff played
+at the planned second and the clip ran its planned length on all three, each watermarked, with 0 lagged frames. Measured
+first motion: 0.25 s, none, 7.5 s. First sound: 0.15 s, 0.87 s, 0.83 s. Every gate passed after the render.
+
+The review after the render. The viewer looked at each clip's sheet.png and hook-sheet.png first (4 calls):
 
 ```text
-viewer    ring escape    out, "A ball breaks out of spinning rings before the time is up.", clear by 2 s, would watch: yes
-reviewer  ring escape    fix, low: reseedEarlyMotion offered (G1 fails on the measured motion; see Known gaps)
-viewer    multiply       distractions ["the timer counts down, not the balls"] -> refused (a distraction is one of
-                         the listed kinds); again: count, clear by 3 s, distractions [hud] (not confirmed by the facts)
-reviewer  multiply       fix, low: reseedEarlyMotion offered
-viewer    growing ball   full, "A ball grows on every bounce until it fills the whole ring.", clear by 2 s,
-                         distractions [effects]
-reviewer  growing ball   the rules, by budget (2 calls a clip after a render, and the refused answer spent one): drop, G1
-decision  keeps: none. Drops: ring escape 86.8, multiply 86.8, growing ball 87.6, all on G1
+viewer    ball drop     beat, "Ten balls fall through pegs and every peg they hit plays a note", clear by 2 s,
+                        distractions [text], would watch: maybe          -> keep
+viewer    pendulum      inSync, "Balls on the spokes of a wheel drift out of step, then all meet at once", clear by 3 s,
+                        distractions [background], would watch: yes      -> keep
+viewer    power layers  break, "A ball smashes down through rainbow layers, faster every hit, then breaks out",
+                        distractions [text] (confirmed: two texts at once), would watch: maybe
+reviewer  power layers  keep (medium): the first 7 s move little and FREEDOM shows twice at the end; no listed fix
+                        removes either
+decision  keeps: all three
 ```
 
-post.txt then holds each kept clip's words and the crew's lines, for example:
+post.txt holds each clip's words and the crew's lines, for example:
 
 ```text
-## 2. One ball. How many by the end?
+## 3. Every hit doubles the power.
 
-Clip: ep001-2-count-multiply-184890734 · count-multiply (multiply) · reels · standard · resolved · seed 184890734
-Hook on screen: One ball. How many by the end?
-Title: One ball. How many by the end?
-Caption: Every ball that escapes comes back as four more. …
-Crew before the render: fix (medium), fix applied (rewriteHook), Simple 97, Playbook 92
-Crew after the render: fix, the viewer read "count" (makes sense: yes), would watch to the end: yes, fix offered
-(reseedEarlyMotion): plan it again to make the fixed version, Simple 92, Playbook 92
+Clip: ep001-1-smash-power-layers-799547072 · smash-power-layers (powerLayers) · reels · standard · resolved · seed 799547072
+Hook on screen: Every hit doubles the power.
+Title: Every hit doubles the power.
+Caption: Every bounce hits twice as hard as the last, until the ball smashes out through 700 layers. …
+Crew before the render: keep (medium), Simple 90, Playbook 96
+Crew after the render: keep, the viewer read "break" (makes sense: yes), would watch to the end: maybe, Simple 90, Playbook 96
 ```
 
-All three clips read as planned, and all three fail G1 after the render: the first gap below, which the owner decides.
+How the clips came out, judged plainly:
+
+- **Pendulum wave**, the best of the three. A wheel of balls drifts apart, a progress bar counts up, and at 14 s every ball
+  meets in the center on a chord, with "Back in line." under it. One text at a time; a stranger gets "wait for them to
+  line up" by 3 s. Weak spots: the hook says "15 pendulums" over a wheel of balls with no strings, and the camera's zoom
+  shows the canvas's lighter box for a moment.
+- **Ball drop.** Ten balls fall through pegs and every peg plays a note; it is the calmest clip on screen (Simple 97). Its
+  payoff is the weakest: the balls just come to rest. The timer counts down the recording, not the payoff, so "Final
+  chord." replaces it at 0:03. The last 1.5 s show two texts, "Final chord." and the mode's own "SETTLED!".
+- **Power layers.** The hook, the layer counter and the break-out at 16.7 s make sense together. The first 7 s barely move
+  (700 to 685 layers): doubling starts slow, and many viewers would scroll before it gets going. The end shows "FREEDOM"
+  twice, the caption and the mode's own banner.
+
+All three make sense and are simple on screen; none is a sure share. The crew kept them for the right reasons and named
+their weak spots. What it could not fix comes from the modes and the templates themselves (see Known gaps).
+
+**What the run showed, and what this step fixed** (a first pass, in `.agent-out/studio/s6-run/`, ran on the code before
+these fixes):
+
+- An open request's ideas were planned in 800 × 600 and rendered in the page's 800 × 450, a different run than the one the
+  crew had judged. `review` now takes `world` for a request, keeps it for the panel, and the skill and the make-video prompt
+  pass the page's world on both routes.
+- After the render, every Simple clip failed G1 on the thumbnails' motion although its first bounce was heard within a
+  second. G1, the skeptic's slowStart check and the Simple score's measured term now read the export's first impact, its
+  motion or its sound, as the Playbook score already did.
+- With three other candidates and two research lines, the dossier cut the hook to 20 characters ("15 pendulums. Wait …"),
+  the one line the skeptic judges a hook by. The clip's own words now stay whole; the other candidates and the research are
+  cut first.
+- The cold viewer read "15 pendulums side by side" for a wheel of balls, and "one ball under a stack" for a ball bouncing on
+  top of its layers. The scene line now follows the pendulum's layout and the layer stack's side.
+- The brainstormer saw each template's hook as the letter "a". Its menu now shows the hook's words.
+- The research digest offered a table's head row ("| | Bot look | Simple look |") as a playbook source. Table rows are
+  left out.
+
+The role eval's recorded run was carried over to the changed briefs (`docs/agents/CREW-EVAL.md`): nine briefs changed and
+were answered again, and the numbers did not move.
 
 ## Known gaps
 
-- **G1 after a render.** The measured first motion comes from the export's 16 × 16 thumbnails with the analyser's 0.02
-  threshold. In the calm Simple look the frames move from the first quarter second but stay under it (0.005-0.017), so most
-  Simple clips fail G1 after the render although their first sound comes at 0.2-0.7 s (the worked example: all three). The
-  post-render review then asks the reviewer to fix or drop a clip that starts well. This is the crew's gate
-  (`src/lib/crew/clarity.ts`), not the studio's, and changing it is the owner's call.
-- **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world.
+- **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s" and Ball Drop's
+  "SETTLED! All 10 balls at rest". The template's payoff caption ("FREEDOM 🌈", "Final chord. 🎹") shows beside it. Neither
+  the Simple score nor the screen view knows these banners. A fix would change the plans or the Simple scores of every such
+  template, and with them the role eval's corpus and its recorded run. The owner should first choose which of the two stays.
+- **Every mode's HUD flags under turnOff.** The reviewer's "turnOff may name" lists every HUD flag that is on in the settings
+  (sbHud, tyHud …), even on a clip whose mode draws none of them. A turnOff on one of those changes nothing, so this is noise,
+  not harm. Narrowing it would change the reviewer's brief on every eval clip (125 recorded answers).
+- **Payoffs the settings time.** Power Layers, Pendulum Wave and Polyrhythm time their payoff from the settings, so the
+  planner stops simulating after the first impact. Their dossier then says "no first escape in the run" and "no finish in
+  the run" beside a payoff at 16.7 s. The evidence check refutes a payoffMissing on them, but a model reads the two lines as a
+  contradiction.
+- **A countdown that is not to the payoff.** Ball Drop's timer counts down the recording, so it reads 0:03 when the payoff
+  replaces it. This is the bot recipe's own countdown, and tests/bot.test.ts pins the bot's plans.
+- **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its
+  slow motion moves the run in several modes.
+- **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world,
+  on both routes (`plan`'s and an open request's `world`). render reports the page's world and says when they differ.
 - **Lengths.** The planner estimates a clip's length; the page's own end of the run can differ (a Ball Drop clip rendered
   17 s against 18 s planned). render reports both.
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).

@@ -7,7 +7,7 @@ import { BUCKET_SECONDS, PLATFORMS, type BotPlatform, type CountdownKind, type C
 import { botRecipeById, templateClaimOf } from "@/lib/bot/templates";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import type { ClipGenes, ClipGenesFeatures } from "@/lib/insights/genes";
-import { planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } from "@/lib/insights/score";
+import { factsOfExport, planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } from "@/lib/insights/score";
 
 /*
  * --- crew --- The clip as the crew reads it (CrewClip): one shape for a planned clip (a bot plan, a Claude studio plan) and a
@@ -246,6 +246,17 @@ export function crewClipOfSaved(input: SavedCrewInput): CrewClip {
 export function shownSecOf(clip: Pick<CrewClip, "cut" | "timing">): number {
   if (clip.cut) return Math.max(0, clip.cut.lengthSec) + Math.max(0, clip.cut.cardSec);
   return clip.timing.clipSec;
+}
+
+/**
+ * The first impact a render measured: its first motion or its first sound, the earlier – the Playbook score's own reading of
+ * an export (lib/insights/score.ts factsOfExport), so the crew's gate G1 and the checklist's motion item never disagree on one
+ * file. The picture alone misses a small ball on the Simple look's dark background (the analyser's 16 × 16 thumbnails and its
+ * MOTION_MIN): the studio's real run measured a Power Layers clip's first motion at 7.5 s and heard its first bounce at 0.83 s.
+ * null: neither was measured.
+ */
+export function measuredFirstImpactSec(features: Pick<ClipFeatures | ClipGenesFeatures, "firstMotionSec" | "firstSoundSec">): number | null {
+  return factsOfExport(features, null).firstImpactSec;
 }
 
 /** The winner the run names (its mode's own, a fight's name, or the team the finder's winner predicate picks); null: none. */

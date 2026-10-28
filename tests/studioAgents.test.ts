@@ -96,6 +96,11 @@ describe("the Claude Code subagents and the make-video skill (--- studio ---)", 
     for (const role of CREW_ROLES) expect(body).toContain(`\`${studioAgentName(role)}\``);
     for (const m of body.matchAll(/`((?:docs|src|tests|scripts)\/[\w./-]+|AGENTS\.md)`/g)) expect(fs.existsSync(path.join(ROOT, m[1])), m[1]).toBe(true);
     for (const m of body.matchAll(/`(mcp__[\w-]+__[\w-]+)`/g)) expect(m[1]).toBe(STUDIO_AGENT_TOOL);
+    // both routes plan in the page's world, the plan tool's and an open request's (the studio's real run had planned a
+    // request's ideas in 800 × 600 and rendered them in 800 × 450)
+    const page = '"world":{"width":800,"height":450}';
+    expect(body.split("\n").find((l) => l.startsWith("3. "))).toContain(page);
+    expect(body.split("\n").find((l) => l.startsWith("4. "))).toMatch(/"request"[^\n]*"world":\{"width":800,"height":450\}/);
     // the rules: the watermark, no licence, .agent-out only, one fix round, never push or post
     for (const rule of ["carries the watermark", "Never install or use a licence", "only under `.agent-out/`", "one fix round and never a second", "Never push and never post"]) expect(body).toContain(rule);
   });

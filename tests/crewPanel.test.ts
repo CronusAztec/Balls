@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { recipeById } from "@/lib/bot/playbook";
@@ -55,7 +57,8 @@ const runOf = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, pl
 const withRun = (plan: ClipPlan): CrewClip => crewClipOfPlan(plan, { run: runOf(plan) });
 /** A clip whose Playbook score is its own fields' (after a hand edit). */
 const fresh = (clip: CrewClip): CrewClip => ({ ...clip, playbook: playbookOf(clip) });
-const features = (first: number | null): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+/** A render's features, its first sound with its first motion (a bounce is heard when it is seen). */
+const features = (first: number | null): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: first, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
 const rendered = (clip: CrewClip, m: Partial<CrewMeasured> = {}): CrewClip => ({ ...clip, measured: { features: features(0.4), durationSec: clip.timing.clipSec, laggedFrames: 0, frames: 1000, watermarked: true, free: true, ...m } });
 
 const PLANS = {
@@ -463,6 +466,19 @@ describe("a whole run", () => {
     const broken = await run({ stage: "pre", wanted: 2, request: { text: "anything", open: true, platform: "reels", locale: "en" } }, (brief) => (brief.role === "brainstormer" ? "no" : defaults(brief, 1, [])), { plan: () => [] });
     expect(broken.state.brainstormer).toMatchObject({ source: "rules", why: "broken" });
     expect(broken.state.ideas.length).toBe(4);
+  });
+
+  it("the digest's playbook lines are sentences, never a table's rows", () => {
+    // (the studio's real run read the Simple look's table head "| | Bot look | Simple look |" as a research source)
+    const playbook = fs.readFileSync(path.join(__dirname, "..", "docs", "virality-playbook.md"), "utf8");
+    expect(playbook).toContain("| | Bot look | Simple look |");
+    for (const query of [undefined, "simple look", "hook payoff countdown simple one idea"]) {
+      const digest = researchDigest({ playbook, trends: TRENDS, now: Date.parse("2026-10-28T12:00:00Z"), query });
+      const lines = digest.sources.filter((x) => x.kind === "playbook").map((x) => x.text);
+      expect(lines.length).toBeGreaterThan(0);
+      expect(lines.filter((l) => l.startsWith("|"))).toEqual([]);
+      expect(digest.text).not.toMatch(/^\[p\d+\] \|/m);
+    }
   });
 
   it("live research: the researcher's pass on the digest, its points with an unknown basis dropped", async () => {

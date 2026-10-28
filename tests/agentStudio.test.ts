@@ -234,6 +234,38 @@ describe("review: Claude plays the roles, the rules hold it (--- studio ---)", (
     expect(panel.pre!.clips.find((c) => c.id === clip)!.fix!.state).toBe("reverted");
   });
 
+  it("plans an open request's ideas in the world the panel was started with (the page's 800 × 450), the planner's own without one", () => {
+    // (the studio's real run started a request without a world: its six ideas were planned in 800 × 600 and rendered in the
+    // page's 800 × 450 – another run than the one the crew had judged)
+    const page = { width: 800, height: 450 };
+    expect(checkToolArgs("review", { studio: "a", request: "a ring escape", world: page }).ok).toBe(true);
+    expect(checkToolArgs("review", { studio: "a", request: "a ring escape", world: { width: 10, height: 450 } }).ok).toBe(false);
+    const idea = { template: "get-out-classic", mode: "classic", hook: "a", ending: "resolved", bucket: "short", angle: "the last ring", basis: "none" };
+    const worlds = [page, undefined].map((world) => {
+      let panel: StudioPanelFile | null = null;
+      const call = (input: StudioReviewInput) => {
+        const out = studioReview(input, { studio: "w", plan: null, planHash: null, panel, rendered: [], digest: null, copyOf });
+        if (out.ok) panel = JSON.parse(studioFileText(out.panel)) as StudioPanelFile;
+        return out;
+      };
+      expect(nextOf(call({ request: "a ring escape", wanted: 1, ...(world ? { world } : {}) })).role).toBe("brainstormer");
+      // (the brainstormer's answer comes in a later call, which names no world: the panel keeps the one it started with)
+      const out = call({ role: "brainstormer", verdict: { ideas: [idea] } });
+      expect(out.result.accepted).toMatchObject({ ok: true });
+      return out.plan!.plans.map((p) => p.plan.world);
+    });
+    expect(worlds).toEqual([[page], [{ width: 800, height: 600 }]]);
+  });
+
+  it("shows the brainstormer each template's hook words, so it picks a variant by what it says", () => {
+    // (the studio's real run showed the menu as "smash-power-layers (smash): powerLayers; a": a letter, not a hook)
+    const out = studioReview({ request: "something that breaks", wanted: 1 }, { studio: "m", plan: null, planHash: null, panel: null, rendered: [], digest: null, copyOf });
+    const user = nextOf(out).messages.find((m) => m.role === "user")!.content;
+    expect(user).toContain('- smash-power-layers (smash): powerLayers; a "{rule}. {layers} layers to go."');
+    expect(user).toContain('- get-out-classic (getOut): classic; a "Can it escape in {seconds} seconds?"');
+    for (const item of templateMenu("default", copy as never)) expect([item.template, Object.keys(item.hookWords ?? {})]).toEqual([item.template, item.hooks]);
+  });
+
   it("reaches the decision the app's in-process panel reaches on the same scripted verdicts (a fix with a seed search included)", async () => {
     const recs = planned({ count: 4, planSeed: 3 });
     const claims = new Map(recs.map((r) => [r.id, crewClipOfPlan(r.plan).claim]));
@@ -371,6 +403,9 @@ describe("research and the prompts (--- studio ---)", () => {
     expect(studioPrompt("crew-skeptic", { studio: "../x" })).toMatchObject({ ok: false });
     const make = studioPrompt("make-video", { count: "2", request: "rings" });
     expect(make.ok && make.prompt.messages[0].content.text).toMatch(/watermark[\s\S]*never install a licence/);
+    // the plan tool's route and an open request's both plan in the page's world, where render plays the clip
+    const step3 = (make.ok ? make.prompt.messages[0].content.text : "").split("\n").find((l) => l.startsWith("3. "))!;
+    expect(step3.split('"world":{"width":800,"height":450}').length - 1).toBe(2);
   });
 });
 

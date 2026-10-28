@@ -41,7 +41,8 @@ function calm(plan: ClipPlan): ClipPlan {
 }
 const runOf = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
 const withRun = (plan: ClipPlan): CrewClip => crewClipOfPlan(plan, { run: runOf(plan) });
-const features = (first: number | null): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+/** A render's features, its first sound with its first motion (a bounce is heard when it is seen); `sound` apart from it. */
+const features = (first: number | null, sound: number | null = first): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: sound, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
 const rendered = (clip: CrewClip, m: Partial<CrewMeasured> = {}): CrewClip => ({ ...clip, measured: { features: features(0.4), durationSec: clip.timing.clipSec, laggedFrames: 0, frames: 1000, watermarked: true, free: true, ...m } });
 
 const resolvedPlan = planClip(recipeById("ring-escape")!, 2, "reels", { copy, ending: "resolved", episode: 3 });
@@ -118,6 +119,13 @@ describe("each measurable kind: confirmed past its threshold, refuted short of i
     expect(markOf(rendered(clean, { features: features(1.2) }), "slowStart").mark).toBe("refuted");
     // (the plan's first impact past 1 s, but the render moved by 1.2 s: the render decides)
     expect(markOf(rendered({ ...clean, timing: { ...clean.timing, firstImpactSec: 1.3 } }, { features: features(1.2) }), "slowStart").mark).toBe("refuted");
+  });
+
+  it("slowStart after a render reads the export's first impact as gate G1 does: a first bounce heard early refutes it", () => {
+    // (the picture's motion measured late on a calm dark clip, its first bounce heard at 0.83 s: the clip starts well)
+    const heard = markOf(rendered(clean, { features: features(7.5, 0.83) }), "slowStart");
+    expect([heard.mark, heard.basis]).toEqual(["refuted", "not supported by the run: first impact measured at 0.8 s (motion 7.5 s, sound 0.8 s)"]);
+    expect(markOf(rendered(clean, { features: features(2, 1.9) }), "slowStart").mark).toBe("confirmed");
   });
 
   it("tooBusy with two messages on screen at once, even at a high Simple score", () => {

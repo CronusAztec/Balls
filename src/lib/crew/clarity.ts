@@ -2,7 +2,7 @@ import type { ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
 import { botRecipeById } from "@/lib/bot/templates";
 import { captionBoxAt, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
-import { bucketsFitting, claimSeen, factNumbersOf, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
+import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 
 /*
@@ -10,7 +10,8 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  * simple enough to be worth a model's time. They are the authority on everything measurable: a model may fix or drop a clip
  * that fails a gate, never keep it. Gates (each with a message key and its values, like the Playbook score's ScoreReason):
  *
- *  G1 motionEarly – the first impact within 1 s of the plan's run; after a render, the measured first motion within 1.5 s.
+ *  G1 motionEarly – the first impact within 1 s of the plan's run; after a render, the measured first impact within 1.5 s: the
+ *     export's first motion or its first sound, the earlier (the Playbook score's own reading of the file, clip.ts).
  *  G2 payoffLands – resolved: the payoff between 60 % and 97 % of the clip with at least 0.8 s shown after it; cliffhanger: the
  *     cut 0–3 s before the payoff and a closing question on screen at the end.
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
@@ -71,7 +72,7 @@ export interface Gate {
 export interface Clarity {
   /** Every gate passes. */
   pass: boolean;
-  /** Before a render, or after one (G8 then, and the measured first motion). */
+  /** Before a render, or after one (G8 then, and the measured first impact: motion or sound). */
   stage: "pre" | "post";
   gates: Gate[];
   simple: SimpleScore;
@@ -88,11 +89,11 @@ function gate(id: GateId, problems: { key: string; values?: Record<string, strin
   return { id, name, ok: false, key: `${name}${problems[0].key}`, values: problems[0].values ?? {}, problems: problems.map((p) => `${name}${p.key}`) };
 }
 
-/** G1: motion in the first second (the plan's run), or within 1.5 s of the render. */
+/** G1: motion in the first second (the plan's run), or a first impact within 1.5 s of the render (its motion or its sound). */
 function motionGate(clip: CrewClip, post: boolean): Gate {
   const impact = clip.timing.firstImpactSec;
   if (post && clip.measured?.features) {
-    const first = clip.measured.features.firstMotionSec;
+    const first = measuredFirstImpactSec(clip.measured.features);
     if (first === null) return gate("G1", [{ key: "None" }], "Ok");
     if (first > CLARITY.measuredFirstMotionSec + EPS) return gate("G1", [{ key: "MeasuredLate", values: { sec: r1(first) } }], "Ok");
     return gate("G1", [], "Ok", { sec: r1(first) });

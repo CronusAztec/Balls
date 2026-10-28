@@ -1,0 +1,4544 @@
+{
+ "v": 1,
+ "name": "claude-opus-5-5-2026-10-28-step6",
+ "model": "claude-opus-5-5",
+ "date": "2026-10-28",
+ "who": "claude",
+ "separation": "sameContext",
+ "corpusHash": "8e1c1023a7b609a9",
+ "current": true,
+ "answers": {
+  "ec1fff3b29f07ab8": {
+   "role": "viewer",
+   "item": "f01",
+   "replies": [
+    {
+     "whatHappens": "beat",
+     "understood": "Balls fall through pegs and every peg plays a note",
+     "waitingFor": "the final chord",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "b56bb80dd9bbca34": {
+   "role": "viewer",
+   "item": "f02",
+   "replies": [
+    {
+     "whatHappens": "break",
+     "understood": "Gerald drops onto glass floors: does the glass hold or break?",
+     "waitingFor": "whether the last floor breaks",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "4cc5f1212417043d": {
+   "role": "viewer",
+   "item": "f03",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald breaks out of three spinning rings",
+     "waitingFor": "the last ring to open",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "c34b0e53131493da": {
+   "role": "viewer",
+   "item": "f04",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Nine squares fight until one survives; pick one",
+     "waitingFor": "which square is last",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "63b459b6b26cc483": {
+   "role": "viewer",
+   "item": "f05",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Two teams of squares fight over the board",
+     "waitingFor": "which colour takes the board",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "9fbbcc3237adae2d": {
+   "role": "viewer",
+   "item": "f06",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape four spinning rings in time",
+     "waitingFor": "whether it gets out by 19 s",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "479651b8b834ca3b": {
+   "role": "viewer",
+   "item": "f08",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Each escape adds four balls, so the count keeps growing",
+     "waitingFor": "how many balls by the end",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "41ea41dd2fc17fd7": {
+   "role": "viewer",
+   "item": "f10",
+   "replies": [
+    {
+     "whatHappens": "beat",
+     "understood": "Balls fall through pegs, each peg a note, lots of effects",
+     "waitingFor": "the final chord",
+     "clearBySec": 3,
+     "distractions": [
+      "effects",
+      "hud"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "ae275a51019c2aa2": {
+   "role": "viewer",
+   "item": "f11",
+   "replies": [
+    {
+     "whatHappens": "full",
+     "understood": "A ball grows on every bounce until it fills the ring",
+     "waitingFor": "the moment it fills the ring",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "7755fad1ba9a3da3": {
+   "role": "viewer",
+   "item": "f13",
+   "replies": [
+    {
+     "whatHappens": "full",
+     "understood": "A small ball grows with every bounce until the ring is full",
+     "waitingFor": "the ring full",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "473625254f400f6e": {
+   "role": "viewer",
+   "item": "f16",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "Pendulums swing out of step, then line up again",
+     "waitingFor": "them lining up",
+     "clearBySec": 4,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "feb8ed3b3cf67cb9": {
+   "role": "viewer",
+   "item": "f17",
+   "replies": [
+    {
+     "whatHappens": "beat",
+     "understood": "Twelve balls fall through pegs, each peg a note",
+     "waitingFor": "the final chord",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "a03dcc0853bd73c6": {
+   "role": "viewer",
+   "item": "f18",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald smashes down through glass floors and gets home",
+     "waitingFor": "him reaching home",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "de71c79902d4b727": {
+   "role": "viewer",
+   "item": "f19",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Balls on strings fight; the line-up talk does not fit",
+     "waitingFor": "who survives",
+     "clearBySec": 6,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "9cecc63a9232b5af": {
+   "role": "viewer",
+   "item": "f20",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "Fourteen dots at different speeds, waiting for them to meet",
+     "waitingFor": "all dots together",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "95dac65f00a1bd7e": {
+   "role": "viewer",
+   "item": "f21",
+   "replies": [
+    {
+     "whatHappens": "break",
+     "understood": "The count doubles until something breaks",
+     "waitingFor": "the break",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "74b54180d6041ef5": {
+   "role": "viewer",
+   "item": "f23",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "Dots at different speeds; it asks about a race, then they line up",
+     "waitingFor": "them all together",
+     "clearBySec": 5,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "94cd5809013ee784": {
+   "role": "viewer",
+   "item": "f24",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to break out of three spinning rings",
+     "waitingFor": "whether it escapes in 17 s",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "d64ca327d124fabd": {
+   "role": "viewer",
+   "item": "f25",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Every escape spawns four more balls",
+     "waitingFor": "how many balls at the end",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "72e3dc4f1d7ea40f": {
+   "role": "viewer",
+   "item": "f26",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Two teams of three squares fight for the board",
+     "waitingFor": "the colour that takes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "e9b3c67b23b3ffca": {
+   "role": "viewer",
+   "item": "f27",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape four rings in 28 seconds",
+     "waitingFor": "whether it gets out",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "be73fa5d40f78c0c": {
+   "role": "viewer",
+   "item": "f29",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape two spinning rings in 15 s",
+     "waitingFor": "the escape",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "402860f80f100716": {
+   "role": "viewer",
+   "item": "f30",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball breaks out of three rings before time runs out",
+     "waitingFor": "the escape",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "33bd5c8b78cdd7b9": {
+   "role": "viewer",
+   "item": "f32",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Four balls on strings, four lives each, last one wins",
+     "waitingFor": "who survives",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "7244f0b5845bf33b": {
+   "role": "viewer",
+   "item": "f33",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald in rings; a colour question first, then will he make it",
+     "waitingFor": "Gerald getting out",
+     "clearBySec": 10,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "0455d6909e133f93": {
+   "role": "viewer",
+   "item": "f34",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Escapes spawn more balls; the end says smashed, unclear",
+     "waitingFor": "the count at the end",
+     "clearBySec": 4,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "1f77ddeee3ed7aa8": {
+   "role": "viewer",
+   "item": "f35",
+   "replies": [
+    {
+     "whatHappens": "beat",
+     "understood": "Nine balls drop through pegs, each peg a note",
+     "waitingFor": "the final chord",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "bb5cf5fb94c15f21": {
+   "role": "viewer",
+   "item": "f37",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald tries to escape five rings; will he make it?",
+     "waitingFor": "the answer to will he make it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "af8f153fcda4dffe": {
+   "role": "viewer",
+   "item": "f38",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Escapes spawn more balls, with flashing walls and shake",
+     "waitingFor": "the count at the end",
+     "clearBySec": 4,
+     "distractions": [
+      "effects",
+      "background",
+      "shake"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "6df53c94d5b6b6b2": {
+   "role": "viewer",
+   "item": "f39",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "Sixteen pendulums drift and come back in line",
+     "waitingFor": "the chord",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "76f1b70791f15420": {
+   "role": "viewer",
+   "item": "f40",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Two teams of squares fight to take the board",
+     "waitingFor": "which colour wins",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "7058a641a83c71cb": {
+   "role": "viewer",
+   "item": "f41",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Four balls on strings with four lives; one wins",
+     "waitingFor": "the winner",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "691fb5d5bd4310a6": {
+   "role": "viewer",
+   "item": "f42",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Every escape spawns four more balls",
+     "waitingFor": "how many by the end",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "041db33abfb7bae5": {
+   "role": "viewer",
+   "item": "f43",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape five rings in 27 s",
+     "waitingFor": "whether it makes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "845f7d346585b033": {
+   "role": "viewer",
+   "item": "f45",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "Twelve dots at different speeds; when do they meet?",
+     "waitingFor": "them meeting",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "900c01b2eafd6314": {
+   "role": "viewer",
+   "item": "f47",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald tries to get out of five spinning rings",
+     "waitingFor": "whether he makes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "5e27ac9413a423f4": {
+   "role": "viewer",
+   "item": "f49",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Nine squares fight in an arena; last one standing",
+     "waitingFor": "who is left",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "9ec89382115a6775": {
+   "role": "viewer",
+   "item": "f50",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape five rings in 22 seconds",
+     "waitingFor": "the escape",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "e2605a05d1fb2e40": {
+   "role": "viewer",
+   "item": "f51",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape in 16 s; the end says smashed",
+     "waitingFor": "whether it escaped",
+     "clearBySec": 3,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "fa81944e67aa549d": {
+   "role": "viewer",
+   "item": "f53",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald breaks out of two spinning rings",
+     "waitingFor": "him getting free",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "1305657f375a15fb": {
+   "role": "viewer",
+   "item": "f54",
+   "replies": [
+    {
+     "whatHappens": "winner",
+     "understood": "Two teams of squares fight for the board",
+     "waitingFor": "which colour takes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "732b5e0a054363e9": {
+   "role": "viewer",
+   "item": "f55",
+   "replies": [
+    {
+     "whatHappens": "full",
+     "understood": "A ball grows on every bounce until it fills the ring",
+     "waitingFor": "the ring full",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "b4e071883b4f3298": {
+   "role": "viewer",
+   "item": "f57",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball in two rings; it asks escape or who wins",
+     "waitingFor": "whether it gets out",
+     "clearBySec": 5,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "b6f6fc59ae56a2d5": {
+   "role": "viewer",
+   "item": "f58",
+   "replies": [
+    {
+     "whatHappens": "break",
+     "understood": "Three balls, the number doubles until something breaks",
+     "waitingFor": "the break",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "21ac183595c372b4": {
+   "role": "viewer",
+   "item": "f59",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball tries to escape two rings in 14 seconds",
+     "waitingFor": "the escape",
+     "clearBySec": 2,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "a0be2c2e5f4760c8": {
+   "role": "viewer",
+   "item": "f61",
+   "replies": [
+    {
+     "whatHappens": "count",
+     "understood": "Every escape spawns four more balls",
+     "waitingFor": "how many balls",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "0da6a91b51411c7e": {
+   "role": "viewer",
+   "item": "f62",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "A ball escaping rings under rainbow, shake and confetti",
+     "waitingFor": "the escape",
+     "clearBySec": 4,
+     "distractions": [
+      "effects",
+      "background",
+      "shake"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "9d114b2699444fd0": {
+   "role": "viewer",
+   "item": "f63",
+   "replies": [
+    {
+     "whatHappens": "full",
+     "understood": "It asks if it can fill the ring; rings with gaps",
+     "waitingFor": "the ring filling",
+     "clearBySec": 6,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "a85d75fa295304a4": {
+   "role": "viewer",
+   "item": "f64",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald tries to escape three spinning rings",
+     "waitingFor": "whether he makes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "e36468d883d10fa1": {
+   "role": "viewer",
+   "item": "f65",
+   "replies": [
+    {
+     "whatHappens": "full",
+     "understood": "A ball grows each bounce; the end says Bullseye",
+     "waitingFor": "the ring full",
+     "clearBySec": 3,
+     "distractions": [
+      "text"
+     ],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "7a09fd1fb8eec2c1": {
+   "role": "viewer",
+   "item": "f67",
+   "replies": [
+    {
+     "whatHappens": "out",
+     "understood": "Gerald tries to escape five spinning rings",
+     "waitingFor": "whether he makes it",
+     "clearBySec": 3,
+     "distractions": [],
+     "watchToEnd": "maybe"
+    }
+   ]
+  },
+  "b75a89303adf36db": {
+   "role": "skeptic",
+   "item": "f01",
+   "replies": [
+    {
+     "oneIdea": "Balls fall through pegs, each peg a note, ending on a chord",
+     "objections": []
+    }
+   ]
+  },
+  "862e2881a55f6839": {
+   "role": "skeptic",
+   "item": "f02",
+   "replies": [
+    {
+     "oneIdea": "Gerald drops through four glass floors: will the glass hold?",
+     "objections": []
+    }
+   ]
+  },
+  "ad7edb946cba0b94": {
+   "role": "skeptic",
+   "item": "f03",
+   "replies": [
+    {
+     "oneIdea": "Gerald escapes three spinning rings",
+     "objections": []
+    }
+   ]
+  },
+  "61e29d3d36067de0": {
+   "role": "skeptic",
+   "item": "f04",
+   "replies": [
+    {
+     "oneIdea": "Nine squares battle until one survives",
+     "objections": []
+    }
+   ]
+  },
+  "b403f6e005628ef6": {
+   "role": "skeptic",
+   "item": "f05",
+   "replies": [
+    {
+     "oneIdea": "Two teams fight for the board; one colour takes it",
+     "objections": []
+    }
+   ]
+  },
+  "ca1a376743d1e4d7": {
+   "role": "skeptic",
+   "item": "f06",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the rings before 19 s?",
+     "objections": []
+    }
+   ]
+  },
+  "d837d1969319b00a": {
+   "role": "skeptic",
+   "item": "f08",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills the screen",
+     "objections": []
+    }
+   ]
+  },
+  "da4880e4544f16e9": {
+   "role": "skeptic",
+   "item": "f10",
+   "replies": [
+    {
+     "oneIdea": "Balls fall through pegs, each peg a note",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "tooBusy",
+       "evidence": [
+        "score.simple",
+        "look.effects",
+        "text.atOnce"
+       ],
+       "severity": "major",
+       "note": "Simple 62: rainbow ball, thick trails, confetti and a loop HUD crowd a simple peg-music idea"
+      }
+     ]
+    }
+   ]
+  },
+  "9ce27aa2cd69dd09": {
+   "role": "skeptic",
+   "item": "f11",
+   "replies": [
+    {
+     "oneIdea": "A ball grows every bounce until it fills the ring",
+     "objections": []
+    }
+   ]
+  },
+  "8db3f4786c757fdc": {
+   "role": "skeptic",
+   "item": "f13",
+   "replies": [
+    {
+     "oneIdea": "A ball grows every bounce until it fills the ring",
+     "objections": []
+    }
+   ]
+  },
+  "e16cc55ed3c8f237": {
+   "role": "skeptic",
+   "item": "f16",
+   "replies": [
+    {
+     "oneIdea": "Pendulums drift apart and line up again",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "twoIdeas",
+       "evidence": [
+        "words.hook"
+       ],
+       "severity": "major",
+       "note": "The hook asks two questions, sync or escape; nothing escapes in a pendulum wave"
+      },
+      {
+       "id": "o2",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "run.escape"
+       ],
+       "severity": "major",
+       "note": "'who escapes' promises an escape the run never has"
+      }
+     ]
+    }
+   ]
+  },
+  "9eafdc09ebe33fac": {
+   "role": "skeptic",
+   "item": "f17",
+   "replies": [
+    {
+     "oneIdea": "Twelve balls fall through pegs, each peg a note",
+     "objections": []
+    }
+   ]
+  },
+  "825257ed477a0410": {
+   "role": "skeptic",
+   "item": "f18",
+   "replies": [
+    {
+     "oneIdea": "Gerald smashes through three glass floors to get home",
+     "objections": []
+    }
+   ]
+  },
+  "673ad33ee371fa68": {
+   "role": "skeptic",
+   "item": "f19",
+   "replies": [
+    {
+     "oneIdea": "Four balls on strings fight until one survives",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "clip.claim"
+       ],
+       "severity": "major",
+       "note": "'Wait for them to line up' fits a sync clip, not a battle with lives and a survivor"
+      }
+     ]
+    }
+   ]
+  },
+  "806bd256ea01bf3e": {
+   "role": "skeptic",
+   "item": "f20",
+   "replies": [
+    {
+     "oneIdea": "Fourteen rhythms drift and meet again",
+     "objections": []
+    }
+   ]
+  },
+  "180d23350a7fedbf": {
+   "role": "skeptic",
+   "item": "f21",
+   "replies": [
+    {
+     "oneIdea": "Balls multiply through gates until the count peaks",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "words.payoff",
+        "clip.claim"
+       ],
+       "severity": "minor",
+       "note": "Hook and payoff speak of breaking while the clip is a count"
+      }
+     ]
+    }
+   ]
+  },
+  "68aa0b80c5f5eec5": {
+   "role": "skeptic",
+   "item": "f22",
+   "replies": [
+    {
+     "oneIdea": "Twenty-two pendulums drift and come back in line",
+     "objections": []
+    }
+   ]
+  },
+  "61d5f52f1943cc7b": {
+   "role": "skeptic",
+   "item": "f23",
+   "replies": [
+    {
+     "oneIdea": "Twelve rhythms drift and line up again",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "twoIdeas",
+       "evidence": [
+        "words.hook"
+       ],
+       "severity": "major",
+       "note": "Two questions in one hook: line up, or race to win; nothing races"
+      }
+     ]
+    }
+   ]
+  },
+  "cff95fac3b39970f": {
+   "role": "skeptic",
+   "item": "f24",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape three rings before 17 s?",
+     "objections": []
+    }
+   ]
+  },
+  "214a4f55bdd7354b": {
+   "role": "skeptic",
+   "item": "f25",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills up",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "payoffLate",
+       "evidence": [
+        "beats.payoff",
+        "beats.end"
+       ],
+       "severity": "major",
+       "note": "The fill lands at 94% with 1.5 s left: the payoff is rushed at the very end"
+      }
+     ]
+    }
+   ]
+  },
+  "26ca07b34cf2bcee": {
+   "role": "skeptic",
+   "item": "f26",
+   "replies": [
+    {
+     "oneIdea": "Two teams fight for the board; one colour takes it",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "payoffLate",
+       "evidence": [
+        "beats.payoff",
+        "beats.end"
+       ],
+       "severity": "major",
+       "note": "The board flips at 95%, only 1.3 s before the end"
+      }
+     ]
+    }
+   ]
+  },
+  "5b8368fc92c85184": {
+   "role": "skeptic",
+   "item": "f27",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the portal rings in 28 s?",
+     "objections": []
+    }
+   ]
+  },
+  "4e8662f482757c63": {
+   "role": "skeptic",
+   "item": "f29",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape two rings in 15 s?",
+     "objections": []
+    }
+   ]
+  },
+  "179e23a45522fef8": {
+   "role": "skeptic",
+   "item": "f30",
+   "replies": [
+    {
+     "oneIdea": "The ball escapes three rings before 16 s",
+     "objections": []
+    }
+   ]
+  },
+  "700d5ceaa0f237ea": {
+   "role": "skeptic",
+   "item": "f31",
+   "replies": [
+    {
+     "oneIdea": "Each hit doubles the power against a huge layer stack",
+     "objections": []
+    }
+   ]
+  },
+  "351606e2a13f07f8": {
+   "role": "skeptic",
+   "item": "f32",
+   "replies": [
+    {
+     "oneIdea": "Four balls on strings, four lives each, last one survives",
+     "objections": []
+    }
+   ]
+  },
+  "ec293cd6ae41a2b1": {
+   "role": "skeptic",
+   "item": "f33",
+   "replies": [
+    {
+     "oneIdea": "Gerald tries to escape the rings in time",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "clip.claim",
+        "run.winner"
+       ],
+       "severity": "major",
+       "note": "'Which colour wins?' with one ball and no winner in the run; the clip is about Gerald getting out"
+      }
+     ]
+    }
+   ]
+  },
+  "36f10e83898dc1ac": {
+   "role": "skeptic",
+   "item": "f34",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills up",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "endingConfusing",
+       "evidence": [
+        "words.payoff",
+        "clip.claim"
+       ],
+       "severity": "major",
+       "note": "'Smashed.' ends a counting clip where nothing is smashed"
+      }
+     ]
+    }
+   ]
+  },
+  "b8743df824451e28": {
+   "role": "skeptic",
+   "item": "f35",
+   "replies": [
+    {
+     "oneIdea": "Nine balls fall through pegs, each peg a note",
+     "objections": []
+    }
+   ]
+  },
+  "10dc5b6c4db9f933": {
+   "role": "skeptic",
+   "item": "f37",
+   "replies": [
+    {
+     "oneIdea": "Will Gerald escape the portal rings this time?",
+     "objections": []
+    }
+   ]
+  },
+  "dcea776d4d724f5f": {
+   "role": "skeptic",
+   "item": "f38",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills up",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "tooBusy",
+       "evidence": [
+        "score.simple",
+        "look.effects"
+       ],
+       "severity": "major",
+       "note": "Simple 78: glowing and rainbow walls, colour trails, pulsing background and shake fight the count"
+      }
+     ]
+    }
+   ]
+  },
+  "e38cfe9e05990ff4": {
+   "role": "skeptic",
+   "item": "f39",
+   "replies": [
+    {
+     "oneIdea": "Sixteen pendulums drift and come back in line",
+     "objections": []
+    }
+   ]
+  },
+  "0a59f65c18eea916": {
+   "role": "skeptic",
+   "item": "f40",
+   "replies": [
+    {
+     "oneIdea": "Two teams fight for the board; one colour takes it",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "payoffLate",
+       "evidence": [
+        "beats.payoff",
+        "beats.end"
+       ],
+       "severity": "major",
+       "note": "The flip lands at 93% with 1.6 s left"
+      }
+     ]
+    }
+   ]
+  },
+  "af40937e279de678": {
+   "role": "skeptic",
+   "item": "f41",
+   "replies": [
+    {
+     "oneIdea": "Four balls on strings fight; Volt wins",
+     "objections": []
+    }
+   ]
+  },
+  "db4ab462a0946d5a": {
+   "role": "skeptic",
+   "item": "f42",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills up",
+     "objections": []
+    }
+   ]
+  },
+  "be5c081935a61017": {
+   "role": "skeptic",
+   "item": "f43",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the rings in 27 s?",
+     "objections": []
+    }
+   ]
+  },
+  "fe730dc582e22053": {
+   "role": "skeptic",
+   "item": "f45",
+   "replies": [
+    {
+     "oneIdea": "Twelve rhythms drift and meet again",
+     "objections": []
+    }
+   ]
+  },
+  "76d6b7221b92b2d9": {
+   "role": "skeptic",
+   "item": "f47",
+   "replies": [
+    {
+     "oneIdea": "Will Gerald escape the portal rings?",
+     "objections": []
+    }
+   ]
+  },
+  "b9f4e1e21330cb1c": {
+   "role": "skeptic",
+   "item": "f49",
+   "replies": [
+    {
+     "oneIdea": "Nine squares battle; who is left?",
+     "objections": []
+    }
+   ]
+  },
+  "9fafd0e53ad80c53": {
+   "role": "skeptic",
+   "item": "f50",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the portal rings in 22 s?",
+     "objections": []
+    }
+   ]
+  },
+  "d2ac4ddd241f9eb2": {
+   "role": "skeptic",
+   "item": "f51",
+   "replies": [
+    {
+     "oneIdea": "The ball escapes three rings before 16 s",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "endingConfusing",
+       "evidence": [
+        "words.payoff",
+        "clip.claim"
+       ],
+       "severity": "major",
+       "note": "The hook asks about escaping, the payoff says 'Smashed.': the ending answers another question"
+      }
+     ]
+    }
+   ]
+  },
+  "fbe7570826dff156": {
+   "role": "skeptic",
+   "item": "f52",
+   "replies": [
+    {
+     "oneIdea": "Each hit doubles the power until the layers break",
+     "objections": []
+    }
+   ]
+  },
+  "f0a7275732cc01bb": {
+   "role": "skeptic",
+   "item": "f53",
+   "replies": [
+    {
+     "oneIdea": "Gerald escapes two spinning rings",
+     "objections": []
+    }
+   ]
+  },
+  "5c71ea06de6fd47c": {
+   "role": "skeptic",
+   "item": "f54",
+   "replies": [
+    {
+     "oneIdea": "Two teams fight for the board; one colour takes it",
+     "objections": []
+    }
+   ]
+  },
+  "1f5025e8ede82fbe": {
+   "role": "skeptic",
+   "item": "f55",
+   "replies": [
+    {
+     "oneIdea": "A ball grows every bounce until it fills the ring",
+     "objections": []
+    }
+   ]
+  },
+  "db2f50fa664fc117": {
+   "role": "skeptic",
+   "item": "f57",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape two rings in 15 s?",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "twoIdeas",
+       "evidence": [
+        "words.hook"
+       ],
+       "severity": "major",
+       "note": "'Escape first, or who wins?' asks two things; there is one ball and no winner"
+      }
+     ]
+    }
+   ]
+  },
+  "21577240b5279f96": {
+   "role": "skeptic",
+   "item": "f58",
+   "replies": [
+    {
+     "oneIdea": "Balls multiply through gates until the count peaks",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "words.payoff",
+        "clip.claim"
+       ],
+       "severity": "minor",
+       "note": "Hook and payoff speak of breaking while the clip is a count"
+      }
+     ]
+    }
+   ]
+  },
+  "24a85650807e738e": {
+   "role": "skeptic",
+   "item": "f59",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape two rings in 14 s?",
+     "objections": []
+    }
+   ]
+  },
+  "d0e0af654ba69eef": {
+   "role": "skeptic",
+   "item": "f61",
+   "replies": [
+    {
+     "oneIdea": "Each escape spawns four balls until the count fills up",
+     "objections": []
+    }
+   ]
+  },
+  "a6320f1c832a69f4": {
+   "role": "skeptic",
+   "item": "f62",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape three rings before 17 s?",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "tooBusy",
+       "evidence": [
+        "score.simple",
+        "look.effects"
+       ],
+       "severity": "major",
+       "note": "Simple 72: rainbow walls and ball, colour trails, pulsing background and shake bury the escape"
+      }
+     ]
+    }
+   ]
+  },
+  "dbf362e19c7673f0": {
+   "role": "skeptic",
+   "item": "f63",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the rings before 19 s?",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "hookMismatch",
+       "evidence": [
+        "words.hook",
+        "clip.claim"
+       ],
+       "severity": "major",
+       "note": "'Can it fill the whole ring?' but the clip is an escape: rings with gaps and a wall counter"
+      }
+     ]
+    }
+   ]
+  },
+  "0c7c8a884615dfee": {
+   "role": "skeptic",
+   "item": "f64",
+   "replies": [
+    {
+     "oneIdea": "Will Gerald escape three rings in time?",
+     "objections": []
+    }
+   ]
+  },
+  "9ef4a4645ff42186": {
+   "role": "skeptic",
+   "item": "f65",
+   "replies": [
+    {
+     "oneIdea": "A ball grows every bounce until it fills the ring",
+     "objections": [
+      {
+       "id": "o1",
+       "kind": "endingConfusing",
+       "evidence": [
+        "words.payoff",
+        "clip.claim"
+       ],
+       "severity": "major",
+       "note": "'Bullseye!' ends a clip about filling the ring; there is no target"
+      }
+     ]
+    }
+   ]
+  },
+  "b90da3cfad9136e6": {
+   "role": "skeptic",
+   "item": "f66",
+   "replies": [
+    {
+     "oneIdea": "Can the ball escape the rings in 27 s?",
+     "objections": []
+    }
+   ]
+  },
+  "f3c395071eae3c92": {
+   "role": "skeptic",
+   "item": "f67",
+   "replies": [
+    {
+     "oneIdea": "Will Gerald escape the portal rings?",
+     "objections": []
+    }
+   ]
+  },
+  "f626404737f1fe25": {
+   "role": "reviewer",
+   "item": "f10",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look: the rainbow ball, thick trails, confetti and loop HUD crowd a clear peg-music idea"
+    }
+   ]
+  },
+  "f4e5a3774b1f00cb": {
+   "role": "reviewer",
+   "item": "f16",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Wait for them to line up."
+       }
+      },
+      {
+       "objection": "o2",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Wait for them to line up."
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Wait for them to line up."
+      }
+     ],
+     "why": "One question only: the hook drops the escape it never shows"
+    }
+   ]
+  },
+  "4b1a9b5fbd97c7b6": {
+   "role": "reviewer",
+   "item": "f19",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Four balls. One survivor."
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Four balls. One survivor."
+      }
+     ],
+     "why": "The hook should promise the battle the clip shows, not a line-up"
+    }
+   ]
+  },
+  "28caf763b0327e12": {
+   "role": "reviewer",
+   "item": "f23",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "When do they all meet?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "When do they all meet?"
+      }
+     ],
+     "why": "One question: when the rhythms meet; no race"
+    }
+   ]
+  },
+  "e1f284e10a099657": {
+   "role": "reviewer",
+   "item": "f25",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "Give the fill room: move it to about 85% so it stays on screen"
+    }
+   ]
+  },
+  "c6ed0ec34909b4ee": {
+   "role": "reviewer",
+   "item": "f26",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The flip at 95% is rushed: retime it to about 85%"
+    }
+   ]
+  },
+  "a601dc055bb154b7": {
+   "role": "reviewer",
+   "item": "f33",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Gerald always escapes… right?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Gerald always escapes… right?"
+      }
+     ],
+     "why": "A colour question with one ball misleads: ask about Gerald's escape"
+    }
+   ]
+  },
+  "28ac7e2281e3c184": {
+   "role": "reviewer",
+   "item": "f34",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "low",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "switchEnding",
+        "ending": "cliffhanger"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "switchEnding",
+       "ending": "cliffhanger"
+      }
+     ],
+     "why": "The ending answers another question; end on the count's question instead"
+    },
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": null
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "The ending answers another question and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "6101a299ddabc1fb": {
+   "role": "reviewer",
+   "item": "f38",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look so the growing count is what people watch"
+    }
+   ]
+  },
+  "524bac42874316af": {
+   "role": "reviewer",
+   "item": "f40",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The flip at 93% leaves too little time: retime it to about 85%"
+    }
+   ]
+  },
+  "f9c8c77c0d09a826": {
+   "role": "reviewer",
+   "item": "f51",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "switchEnding",
+        "ending": "cliffhanger"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "switchEnding",
+       "ending": "cliffhanger"
+      }
+     ],
+     "why": "'Smashed.' answers another question: end on 'Did it make it?' instead"
+    }
+   ]
+  },
+  "dbe3185011685058": {
+   "role": "reviewer",
+   "item": "f57",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Can it escape in 15 seconds?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 15 seconds?"
+      }
+     ],
+     "why": "One question: the escape; there is no one to win"
+    }
+   ]
+  },
+  "fbd62e047d8218f7": {
+   "role": "reviewer",
+   "item": "f62",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look: rainbow, shake and pulsing background bury a simple escape"
+    }
+   ]
+  },
+  "0c170818938af892": {
+   "role": "reviewer",
+   "item": "f63",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Can it escape in 19 seconds?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 19 seconds?"
+      }
+     ],
+     "why": "The hook must ask about the escape the rings set up, not a fill"
+    }
+   ]
+  },
+  "ed97dd6b985312f9": {
+   "role": "reviewer",
+   "item": "f65",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "low",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "switchEnding",
+        "ending": "cliffhanger"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "switchEnding",
+       "ending": "cliffhanger"
+      }
+     ],
+     "why": "'Bullseye!' answers another question; end on a question about the fill"
+    },
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": null
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "The ending answers another question and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "c5e4e18ca3d325d3": {
+   "role": "reviewer",
+   "item": "f01",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "de58a495e8974ac1": {
+   "role": "reviewer",
+   "item": "f02",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": {
+      "accept": true,
+      "fix": {
+       "action": "rewriteHook",
+       "text": "Will Gerald make it home?"
+      }
+     },
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Will Gerald make it home?"
+      }
+     ],
+     "why": "The viewer read a glass-breaking clip: the hook should ask whether Gerald gets home"
+    }
+   ]
+  },
+  "9ff9d0e475c87081": {
+   "role": "reviewer",
+   "item": "f03",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "b97ed12d9a0968bf": {
+   "role": "reviewer",
+   "item": "f04",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "32c9ed9629c0f7d0": {
+   "role": "reviewer",
+   "item": "f05",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "f6eb2d533d2f2b4a": {
+   "role": "reviewer",
+   "item": "f06",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "0ededc306e20e04c": {
+   "role": "reviewer",
+   "item": "f08",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "807cf7c814fb4684": {
+   "role": "reviewer",
+   "item": "f10",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look: the viewer also named the effects and the HUD"
+    }
+   ]
+  },
+  "8219bfefb4dc2c7f": {
+   "role": "reviewer",
+   "item": "f11",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "97079cfd972d037a": {
+   "role": "reviewer",
+   "item": "f13",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "bc0f45fe3d8883a8": {
+   "role": "reviewer",
+   "item": "f16",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Wait for them to line up."
+       }
+      },
+      {
+       "objection": "o2",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Wait for them to line up."
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Wait for them to line up."
+      }
+     ],
+     "why": "One question only: the hook drops the escape it never shows"
+    }
+   ]
+  },
+  "223641b3bb88c4cd": {
+   "role": "reviewer",
+   "item": "f17",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "d597ff3caa80e72c": {
+   "role": "reviewer",
+   "item": "f18",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "9946c1f289328f3d": {
+   "role": "reviewer",
+   "item": "f19",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Four balls. One survivor."
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Four balls. One survivor."
+      }
+     ],
+     "why": "The hook should promise the battle; the viewer got it only at 6 s"
+    }
+   ]
+  },
+  "ee6e430f9d79c0f0": {
+   "role": "reviewer",
+   "item": "f20",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "cb8f8bc1402e8cf3": {
+   "role": "reviewer",
+   "item": "f21",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": {
+      "accept": true,
+      "fix": {
+       "action": "rewriteHook",
+       "text": "One ball. How many by the end?"
+      }
+     },
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "One ball. How many by the end?"
+      }
+     ],
+     "why": "The viewer read 'break', the clip is a count: the hook should promise the count"
+    }
+   ]
+  },
+  "3ef5180f643daf75": {
+   "role": "reviewer",
+   "item": "f23",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "When do they all meet?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "When do they all meet?"
+      }
+     ],
+     "why": "One question: when the rhythms meet; no race"
+    }
+   ]
+  },
+  "6398a2ccb72097a6": {
+   "role": "reviewer",
+   "item": "f24",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "8abe312af9cfdd8f": {
+   "role": "reviewer",
+   "item": "f25",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff is rushed at the very end: retime it to about 85%"
+    }
+   ]
+  },
+  "7f9de20f16cac14c": {
+   "role": "reviewer",
+   "item": "f26",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff is rushed at the very end: retime it to about 85%"
+    }
+   ]
+  },
+  "0da101c680c6894a": {
+   "role": "reviewer",
+   "item": "f27",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "feb1c24465d2984a": {
+   "role": "reviewer",
+   "item": "f29",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "1f53c2f4f2a46ec1": {
+   "role": "reviewer",
+   "item": "f30",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "789fe5d607b7dbd0": {
+   "role": "reviewer",
+   "item": "f32",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "292a10e510ff8986": {
+   "role": "reviewer",
+   "item": "f33",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Gerald always escapes… right?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Gerald always escapes… right?"
+      }
+     ],
+     "why": "A colour question with one ball misleads; the viewer only got it at 10 s"
+    }
+   ]
+  },
+  "b45c88988c6a75c5": {
+   "role": "reviewer",
+   "item": "f34",
+   "replies": [
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": null
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "The ending answers another question and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "c53c8b241a6d6c58": {
+   "role": "reviewer",
+   "item": "f35",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "fdd022d602db70cd": {
+   "role": "reviewer",
+   "item": "f37",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "74c226f02cfd58be": {
+   "role": "reviewer",
+   "item": "f38",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look: the viewer named the effects, the background and the shake"
+    }
+   ]
+  },
+  "0f4d1b8768badd8e": {
+   "role": "reviewer",
+   "item": "f39",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "91f631fb08e1037c": {
+   "role": "reviewer",
+   "item": "f40",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "retimePayoff",
+        "targetPos": 0.85
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff is rushed at the very end: retime it to about 85%"
+    }
+   ]
+  },
+  "ad5567824c3182dc": {
+   "role": "reviewer",
+   "item": "f41",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "90d7c4ef7aa30a52": {
+   "role": "reviewer",
+   "item": "f42",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "e11145cb32f8c8f9": {
+   "role": "reviewer",
+   "item": "f43",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "a09c06becb5532f3": {
+   "role": "reviewer",
+   "item": "f45",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "6a0ef88f45cc2c39": {
+   "role": "reviewer",
+   "item": "f47",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "0b3ed1d4e3958de1": {
+   "role": "reviewer",
+   "item": "f49",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "c03f6dc4827ad583": {
+   "role": "reviewer",
+   "item": "f50",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "2ac0bca6aa008d6a": {
+   "role": "reviewer",
+   "item": "f51",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "switchEnding",
+        "ending": "cliffhanger"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "switchEnding",
+       "ending": "cliffhanger"
+      }
+     ],
+     "why": "'Smashed.' answers another question: end on 'Did it make it?' instead"
+    }
+   ]
+  },
+  "4d842f832f87b302": {
+   "role": "reviewer",
+   "item": "f53",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "4914242b1bd27c95": {
+   "role": "reviewer",
+   "item": "f54",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "b13d16ad26c5b32c": {
+   "role": "reviewer",
+   "item": "f55",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "f2ee3464e5646c76": {
+   "role": "reviewer",
+   "item": "f57",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Can it escape in 15 seconds?"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 15 seconds?"
+      }
+     ],
+     "why": "One question: the escape; there is no one to win"
+    }
+   ]
+  },
+  "c532029ade3eb56b": {
+   "role": "reviewer",
+   "item": "f58",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": {
+      "accept": true,
+      "fix": {
+       "action": "rewriteHook",
+       "text": "One ball. How many by the end?"
+      }
+     },
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "One ball. How many by the end?"
+      }
+     ],
+     "why": "The viewer read 'break', the clip is a count: the hook should promise the count"
+    }
+   ]
+  },
+  "83c7ea08ea0d1d43": {
+   "role": "reviewer",
+   "item": "f59",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "57a38987561e25f5": {
+   "role": "reviewer",
+   "item": "f61",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "43991f78028c115e": {
+   "role": "reviewer",
+   "item": "f62",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "high",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "simplifyLook"
+       }
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Calm the look: the viewer named the effects, the background and the shake"
+    }
+   ]
+  },
+  "6c67fd66c8e4fccc": {
+   "role": "reviewer",
+   "item": "f63",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": {
+        "action": "rewriteHook",
+        "text": "Can it escape in 19 seconds?"
+       }
+      }
+     ],
+     "viewerAnswer": {
+      "accept": true,
+      "fix": {
+       "action": "rewriteHook",
+       "text": "Can it escape in 19 seconds?"
+      }
+     },
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 19 seconds?"
+      }
+     ],
+     "why": "The viewer read a fill: the hook must ask about the escape"
+    }
+   ]
+  },
+  "09d32c991e83af24": {
+   "role": "reviewer",
+   "item": "f64",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "0d507e00bb6a71b4": {
+   "role": "reviewer",
+   "item": "f65",
+   "replies": [
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [
+      {
+       "objection": "o1",
+       "accept": true,
+       "reason": null,
+       "fix": null
+      }
+     ],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "The ending answers another question and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "f686c5ad2eecca90": {
+   "role": "reviewer",
+   "item": "f66",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "2c58c7058d5d1a84": {
+   "role": "reviewer",
+   "item": "f67",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes, no objection stands and the viewer read it as meant"
+    }
+   ]
+  },
+  "d30574151e4f6517": {
+   "role": "reviewer",
+   "item": "f01",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "14dc0248aea2a965": {
+   "role": "reviewer",
+   "item": "f02",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "fb53ff292d9728ba": {
+   "role": "reviewer",
+   "item": "f03",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "8dc168444fcac358": {
+   "role": "reviewer",
+   "item": "f04",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "8b9d1de56fa125b0": {
+   "role": "reviewer",
+   "item": "f05",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "fa59b102b518050f": {
+   "role": "reviewer",
+   "item": "f06",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "22afafff5002f8c4": {
+   "role": "reviewer",
+   "item": "f08",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "f7347beefd38beb8": {
+   "role": "reviewer",
+   "item": "f10",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Simple 62: the effects and the loop HUD crowd the clip; calm the look"
+    }
+   ]
+  },
+  "81a7363ba35f2f47": {
+   "role": "reviewer",
+   "item": "f11",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "68fa1b1dd1c28d82": {
+   "role": "reviewer",
+   "item": "f13",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "ccfa9d4714605c3b": {
+   "role": "reviewer",
+   "item": "f16",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Wait for them to line up."
+      }
+     ],
+     "why": "The hook asks two questions and promises an escape a pendulum wave never has"
+    }
+   ]
+  },
+  "5c675810d1c2f6de": {
+   "role": "reviewer",
+   "item": "f17",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "bc06f0946754e6e0": {
+   "role": "reviewer",
+   "item": "f18",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "c6286ffb0171e68c": {
+   "role": "reviewer",
+   "item": "f19",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Four balls. One survivor."
+      }
+     ],
+     "why": "The hook promises a line-up, the clip is a battle with a survivor"
+    }
+   ]
+  },
+  "c655a4bf95f19b32": {
+   "role": "reviewer",
+   "item": "f20",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "ac731efcd3b68847": {
+   "role": "reviewer",
+   "item": "f21",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "07b86dc56875db05": {
+   "role": "reviewer",
+   "item": "f22",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "55ca0c8afa2f8be3": {
+   "role": "reviewer",
+   "item": "f23",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "When do they all meet?"
+      }
+     ],
+     "why": "The hook asks two questions; nothing races"
+    }
+   ]
+  },
+  "efcde881e1ce88eb": {
+   "role": "reviewer",
+   "item": "f24",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "3aa254dca9f57a03": {
+   "role": "reviewer",
+   "item": "f25",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff lands past 90% with little time after it: retime it to about 85%"
+    }
+   ]
+  },
+  "82d58c5e08f5f57a": {
+   "role": "reviewer",
+   "item": "f26",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff lands past 90% with little time after it: retime it to about 85%"
+    }
+   ]
+  },
+  "576d69b154e08e2c": {
+   "role": "reviewer",
+   "item": "f27",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "b398a0491985be1f": {
+   "role": "reviewer",
+   "item": "f29",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "e1bd3119456ce5c8": {
+   "role": "reviewer",
+   "item": "f30",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "32f65e7e5fd17726": {
+   "role": "reviewer",
+   "item": "f31",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "7e7e40271623da84": {
+   "role": "reviewer",
+   "item": "f32",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "24681b3f7ab5940f": {
+   "role": "reviewer",
+   "item": "f33",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Gerald always escapes… right?"
+      }
+     ],
+     "why": "A colour question with one ball misleads: ask about Gerald's escape"
+    }
+   ]
+  },
+  "5b12558e93da8abe": {
+   "role": "reviewer",
+   "item": "f34",
+   "replies": [
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "'Smashed.' ends a counting clip and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "6a22b89d284a5c18": {
+   "role": "reviewer",
+   "item": "f35",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "61ad964194ebe34f": {
+   "role": "reviewer",
+   "item": "f37",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "427dfab3765371f4": {
+   "role": "reviewer",
+   "item": "f38",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Simple 78: walls, trails, pulsing background and shake distract from the count"
+    }
+   ]
+  },
+  "3fd1e78752f36adc": {
+   "role": "reviewer",
+   "item": "f39",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "ea928dd1ffbb5030": {
+   "role": "reviewer",
+   "item": "f40",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "retimePayoff",
+       "targetPos": 0.85
+      }
+     ],
+     "why": "The payoff lands past 90% with little time after it: retime it to about 85%"
+    }
+   ]
+  },
+  "fa56673b24472fa5": {
+   "role": "reviewer",
+   "item": "f41",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "8cce98fb833be61e": {
+   "role": "reviewer",
+   "item": "f42",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "9136a480ccb57c21": {
+   "role": "reviewer",
+   "item": "f43",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "ef6be62c0b5780bb": {
+   "role": "reviewer",
+   "item": "f45",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "e1a16ebb26594b71": {
+   "role": "reviewer",
+   "item": "f47",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "add0fa7b0411b234": {
+   "role": "reviewer",
+   "item": "f49",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "b9dcc60c86f3126b": {
+   "role": "reviewer",
+   "item": "f50",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "60d754245a396690": {
+   "role": "reviewer",
+   "item": "f51",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "switchEnding",
+       "ending": "cliffhanger"
+      }
+     ],
+     "why": "'Smashed.' answers another question: end on 'Did it make it?' instead"
+    }
+   ]
+  },
+  "496219b46712c7c2": {
+   "role": "reviewer",
+   "item": "f52",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "dc3d3f929e3509d5": {
+   "role": "reviewer",
+   "item": "f53",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "54dec64f0f578efc": {
+   "role": "reviewer",
+   "item": "f54",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "0b37d72de09f8af8": {
+   "role": "reviewer",
+   "item": "f55",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "ba36831304ba7413": {
+   "role": "reviewer",
+   "item": "f57",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 15 seconds?"
+      }
+     ],
+     "why": "The hook asks two questions; there is one ball and no winner"
+    }
+   ]
+  },
+  "95648c855e02a290": {
+   "role": "reviewer",
+   "item": "f58",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "60a1abf56f3e0fc8": {
+   "role": "reviewer",
+   "item": "f59",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "6d82108c52fb2af9": {
+   "role": "reviewer",
+   "item": "f61",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "bb9d1804df62a392": {
+   "role": "reviewer",
+   "item": "f62",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "simplifyLook"
+      }
+     ],
+     "why": "Simple 72: rainbow, shake and pulsing background bury the escape"
+    }
+   ]
+  },
+  "f53eb068cd6ea368": {
+   "role": "reviewer",
+   "item": "f63",
+   "replies": [
+    {
+     "verdict": "fix",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [
+      {
+       "action": "rewriteHook",
+       "text": "Can it escape in 19 seconds?"
+      }
+     ],
+     "why": "The hook asks about a fill, the clip is an escape"
+    }
+   ]
+  },
+  "ed90388de1ed1e88": {
+   "role": "reviewer",
+   "item": "f64",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "f23875d9851a953a": {
+   "role": "reviewer",
+   "item": "f65",
+   "replies": [
+    {
+     "verdict": "drop",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "'Bullseye!' ends a fill clip and no listed fix rewrites the payoff words for this template"
+    }
+   ]
+  },
+  "70ef2d6a7cb1c274": {
+   "role": "reviewer",
+   "item": "f66",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "efa02de2c5dfa458": {
+   "role": "reviewer",
+   "item": "f67",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "medium",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "Every gate passes and the words, the timing and the look hold together"
+    }
+   ]
+  },
+  "9681f20fadd7f3f6": {
+   "role": "viewer",
+   "item": "f22",
+   "replies": [
+    {
+     "whatHappens": "inSync",
+     "understood": "22 pendulums swing out of step, then all line up again",
+     "waitingFor": "the moment they line up and the chord",
+     "clearBySec": 2.5,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "90fc861d4483d656": {
+   "role": "viewer",
+   "item": "f31",
+   "replies": [
+    {
+     "whatHappens": "break",
+     "understood": "A ball smashes down through the layers, hitting harder every bounce",
+     "waitingFor": "the last layers to break",
+     "clearBySec": 2.5,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "43a7ba8d48045a12": {
+   "role": "viewer",
+   "item": "f52",
+   "replies": [
+    {
+     "whatHappens": "break",
+     "understood": "A ball smashes down through the layers until it breaks free",
+     "waitingFor": "the ball to break through the last layer",
+     "clearBySec": 2.5,
+     "distractions": [],
+     "watchToEnd": "yes"
+    }
+   ]
+  },
+  "62ebcc836d129f56": {
+   "role": "reviewer",
+   "item": "f22",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "One idea, read right by the viewer: the pendulums drift apart and line up at 84%, every gate passes."
+    }
+   ]
+  },
+  "89a253ef29acfa07": {
+   "role": "reviewer",
+   "item": "f31",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "A clean cliffhanger: the cut lands 1 s before the break-out with one question, and the viewer read it right."
+    }
+   ]
+  },
+  "ddf63a7111c135a3": {
+   "role": "reviewer",
+   "item": "f52",
+   "replies": [
+    {
+     "verdict": "keep",
+     "confidence": "high",
+     "answers": [],
+     "viewerAnswer": null,
+     "fixes": [],
+     "why": "One idea, read right: the ball breaks free at 81% and the moment stays 2.3 s on screen; every gate passes."
+    }
+   ]
+  },
+  "2a8aa12b1b088957": {
+   "role": "brainstormer",
+   "item": "r1",
+   "replies": [
+    {
+     "ideas": [
+      {
+       "template": "get-out-classic",
+       "mode": "classic",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "One ball in spinning rings, one gap each: does it get out in time?",
+       "basis": "none"
+      },
+      {
+       "template": "fill-grow",
+       "mode": "grow",
+       "hook": "It grows on every bounce.",
+       "ending": "resolved",
+       "bucket": "short",
+       "angle": "A tiny ball grows with each bounce until it fills the ring",
+       "basis": "none"
+      },
+      {
+       "template": "on-the-beat-drop",
+       "mode": "drop",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "short",
+       "angle": "Balls fall through pegs and every peg plays a note",
+       "basis": "none"
+      },
+      {
+       "template": "line-up-pendulum",
+       "mode": "pendulum",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Pendulums drift apart and swing back into one line",
+       "basis": "none"
+      },
+      {
+       "template": "smash-power-layers",
+       "mode": "powerLayers",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Each bounce hits twice as hard until the ball breaks out",
+       "basis": "none"
+      },
+      {
+       "template": "count-multiply",
+       "mode": "multiply",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Every escape spawns more balls until the ring is packed",
+       "basis": "none"
+      }
+     ]
+    }
+   ]
+  },
+  "44e2991f7e8ea0a9": {
+   "role": "brainstormer",
+   "item": "r2",
+   "replies": [
+    {
+     "ideas": [
+      {
+       "template": "line-up-pendulum",
+       "mode": "pendulum",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "A soft pendulum wave that drifts apart and resolves into one chord",
+       "basis": "none"
+      },
+      {
+       "template": "line-up-polyrhythm",
+       "mode": "polyrhythm",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Dots ticking at their own tempos until they meet on one beat",
+       "basis": "none"
+      },
+      {
+       "template": "on-the-beat-drop",
+       "mode": "drop",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Balls drift down through pegs, each peg a gentle note",
+       "basis": "none"
+      },
+      {
+       "template": "get-out-glass",
+       "mode": "glass",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Every crack of glass is a piano note on the way home",
+       "basis": "none"
+      },
+      {
+       "template": "line-up-pendulum",
+       "mode": "pendulum",
+       "hook": "Sound on. Watch them line up.",
+       "ending": "resolved",
+       "bucket": "long",
+       "angle": "A longer, slower wave for people who watch to the end",
+       "basis": "none"
+      },
+      {
+       "template": "on-the-beat-drop",
+       "mode": "drop",
+       "hook": "Sound on. Every peg plays a note.",
+       "ending": "resolved",
+       "bucket": "short",
+       "angle": "A short, quiet drop with every note clear",
+       "basis": "none"
+      }
+     ]
+    }
+   ]
+  },
+  "a543978f0ccb5623": {
+   "role": "brainstormer",
+   "item": "r3",
+   "replies": [
+    {
+     "ideas": [
+      {
+       "template": "get-out-classic",
+       "mode": "classic",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "One ball, spinning rings with one gap each: the escape lands late",
+       "basis": "none"
+      },
+      {
+       "template": "smash-power-layers",
+       "mode": "powerLayers",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Each hit is twice as hard until the last layers shatter",
+       "basis": "none"
+      },
+      {
+       "template": "get-out-glass",
+       "mode": "glass",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "standard",
+       "angle": "Gerald smashes down through floors of glass to get home",
+       "basis": "none"
+      },
+      {
+       "template": "count-multipliers",
+       "mode": "multipliers",
+       "hook": "a",
+       "ending": "resolved",
+       "bucket": "short",
+       "angle": "Gates multiply the balls until the board gives way",
+       "basis": "none"
+      },
+      {
+       "template": "get-out-portal-gerald",
+       "mode": "portal",
+       "hook": "a",
+       "ending": "cliffhanger",
+       "bucket": "short",
+       "angle": "Gerald through the portals, cut just before he is out",
+       "basis": "none"
+      },
+      {
+       "template": "get-out-accumulation",
+       "mode": "accumulation",
+       "hook": "a",
+       "ending": "cliffhanger",
+       "bucket": "standard",
+       "angle": "Rings pile up; cut right before the last one breaks",
+       "basis": "none"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "metrics": {
+  "v": 1,
+  "corpus": {
+   "clean": 40,
+   "planted": 27,
+   "classes": 9
+  },
+  "configs": [
+   {
+    "config": "rules",
+    "asks": "no model: the rules alone",
+    "planted": {
+     "n": 27,
+     "caught": 12,
+     "flagged": 12
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 0,
+     "changed": 0
+    },
+    "fixes": {
+     "asked": 0,
+     "applied": 0,
+     "reverted": 0,
+     "refused": 0,
+     "needsSearch": 0
+    },
+    "calls": 0,
+    "retries": 0,
+    "kept": 55,
+    "callsPerKept": 0,
+    "missing": 0
+   },
+   {
+    "config": "skeptic",
+    "asks": "the skeptic; the rules decide",
+    "planted": {
+     "n": 27,
+     "caught": 18,
+     "flagged": 27
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 3
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 3
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 3
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 0,
+     "changed": 0
+    },
+    "fixes": {
+     "asked": 0,
+     "applied": 0,
+     "reverted": 0,
+     "refused": 0,
+     "needsSearch": 0
+    },
+    "calls": 55,
+    "retries": 0,
+    "kept": 49,
+    "callsPerKept": 1.12,
+    "missing": 0
+   },
+   {
+    "config": "viewer",
+    "asks": "the viewer; the rules decide",
+    "planted": {
+     "n": 27,
+     "caught": 12,
+     "flagged": 16
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 3
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 1
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 3,
+     "changed": 0
+    },
+    "fixes": {
+     "asked": 0,
+     "applied": 0,
+     "reverted": 0,
+     "refused": 0,
+     "needsSearch": 0
+    },
+    "calls": 55,
+    "retries": 0,
+    "kept": 55,
+    "callsPerKept": 1,
+    "missing": 0
+   },
+   {
+    "config": "reviewer",
+    "asks": "the reviewer alone",
+    "planted": {
+     "n": 27,
+     "caught": 23,
+     "flagged": 12
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 0,
+      "flagged": 0
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 0
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 0
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 0
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 2,
+      "flagged": 0
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 0,
+     "changed": 0
+    },
+    "fixes": {
+     "asked": 13,
+     "applied": 9,
+     "reverted": 4,
+     "refused": 0,
+     "needsSearch": 4
+    },
+    "calls": 55,
+    "retries": 0,
+    "kept": 53,
+    "callsPerKept": 1.04,
+    "missing": 0
+   },
+   {
+    "config": "quick",
+    "asks": "Quick: the skeptic, the reviewer where in doubt",
+    "planted": {
+     "n": 27,
+     "caught": 26,
+     "flagged": 27
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 2,
+      "flagged": 3
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 0,
+     "changed": 0
+    },
+    "fixes": {
+     "asked": 13,
+     "applied": 9,
+     "reverted": 4,
+     "refused": 0,
+     "needsSearch": 4
+    },
+    "calls": 72,
+    "retries": 2,
+    "kept": 50,
+    "callsPerKept": 1.44,
+    "missing": 0
+   },
+   {
+    "config": "all",
+    "asks": "Thorough: the viewer, the skeptic, the reviewer",
+    "planted": {
+     "n": 27,
+     "caught": 26,
+     "flagged": 27
+    },
+    "byClass": {
+     "slowStart": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffCut": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookUntrue": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "textUnreadable": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "payoffLate": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "tooBusy": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "hookMismatch": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "twoIdeas": {
+      "n": 3,
+      "caught": 3,
+      "flagged": 3
+     },
+     "endingConfusing": {
+      "n": 3,
+      "caught": 2,
+      "flagged": 3
+     }
+    },
+    "clean": {
+     "n": 40,
+     "dropped": 0,
+     "objected": 0,
+     "misread": 3,
+     "changed": 3
+    },
+    "fixes": {
+     "asked": 16,
+     "applied": 12,
+     "reverted": 4,
+     "refused": 0,
+     "needsSearch": 4
+    },
+    "calls": 165,
+    "retries": 0,
+    "kept": 50,
+    "callsPerKept": 3.3,
+    "missing": 0
+   }
+  ],
+  "brainstorm": [
+   {
+    "config": "rules",
+    "requests": 3,
+    "ideas": 18,
+    "planned": 18,
+    "passing": 15,
+    "formats": 6,
+    "calls": 0,
+    "retries": 0,
+    "firstTry": 0,
+    "missing": 0
+   },
+   {
+    "config": "brainstormer",
+    "requests": 3,
+    "ideas": 18,
+    "planned": 18,
+    "passing": 18,
+    "formats": 4,
+    "calls": 3,
+    "retries": 0,
+    "firstTry": 3,
+    "missing": 0
+   }
+  ]
+ }
+}

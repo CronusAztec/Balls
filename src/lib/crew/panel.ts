@@ -713,8 +713,8 @@ function brainstormUser(s: PanelState): string {
     `Request: ${JSON.stringify(r.text)}`,
     `Platform: ${r.platform}. Clip language: ${LANGUAGES[r.locale] ?? "English"}. Pitch ${k} ideas.`,
     `Research brief:\n${briefText(s.brief, BRIEF_CHARS.brainstormer)}`,
-    "Menu (template (format): modes; hook variants):",
-    ...s.menu.map((m) => `- ${m.template} (${m.format}): ${m.modes.join(", ")}; ${m.hooks.join(", ")}`),
+    "Menu (template (format): modes; hook variants, with their words where known):",
+    ...s.menu.map((m) => `- ${m.template} (${m.format}): ${m.modes.join(", ")}; ${m.hooks.map((h) => (m.hookWords?.[h] ? `${h} ${JSON.stringify(m.hookWords[h])}` : h)).join(", ")}`),
   ].join("\n");
 }
 

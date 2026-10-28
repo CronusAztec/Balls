@@ -11,7 +11,8 @@ import { BRIEF_POINT_IDS, type ResearchArea, type ResearchLever, type ResearchPo
  *  - the committed trend summary (src/content/trends.json, lib/trends.ts): its advice in our levers, tagged with what it rests
  *    on; marked stale from TRENDS_OLD_DAYS and left out from TRENDS_DROP_DAYS, as the app's other prompts do;
  *  - the playbook (docs/virality-playbook.md): lib/desktop/ai/playbookContext.ts selectPlaybookContext's excerpt (the recipe,
- *    §3, always in; the trend data's own section never);
+ *    §3, always in; the trend data's own section never), a source a line – its sentences, never a table's rows, which mean
+ *    nothing one by one (the studio's real run had read the head "| | Bot look | Simple look |" as a source);
  *  - lines the caller hands in: the owner's Library history (the app, a later step) and the local inspire dataset by theme (the
  *    toolbox). Other creators' titles and channel names never enter it: the trend summary carries none in its advice, and the
  *    caller's lines are its own aggregates.
@@ -125,7 +126,7 @@ export function researchDigest(input: DigestInput): ResearchDigest {
   const playbook = input.playbook ? selectPlaybookContext(input.playbook, input.query ?? "hook payoff countdown simple one idea", 700) : "";
   const playbookSources: ResearchSource[] = playbook
     .split("\n")
-    .filter((l) => l.trim() && !l.startsWith("## "))
+    .filter((l) => l.trim() && !l.startsWith("## ") && !/^\s*\|/.test(l))
     .map((l, i) => ({ id: `p${i + 1}`, kind: "playbook", text: cut(l, LINE_MAX) }));
   const own = (lines: readonly string[] | undefined, prefix: string, kind: ResearchSourceKind) => (lines ?? []).map((l) => flat(l)).filter(Boolean).map((l, i) => ({ id: `${prefix}${i + 1}`, kind, text: cut(l, LINE_MAX) }));
   const ordered = [

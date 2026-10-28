@@ -78,7 +78,7 @@ What the tables count:
 ### claude-opus-5-5-2026-10-28
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28 -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (239 replies, refused ones included). Corpus 8e1c1023a7b609a9.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (239 replies, refused ones included). Corpus 8e1c1023a7b609a9 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -143,3 +143,44 @@ proof that the loop works end to end. They do not settle which roles are worth t
 - The tooBusy line (two messages at once) confirms an objection on every template that keeps a HUD beside its hook, even at
   Simple 86-92. The corpus therefore counts that line as the template's own.
 - Who Wins: Race fails gate G1 on every plan seed tried (its first impact comes at 1.8 s), although its binding is proven.
+
+### claude-opus-5-5-2026-10-28-step6
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-step6 -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (239 replies, refused ones included). Corpus 8e1c1023a7b609a9.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.44 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 4 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-step6 -->
+
+**What this run is.** The run above, carried over to the briefs as step 6 of the studio's build left them. That step's real
+run (`docs/agents/STUDIO.md`, the worked example) changed nine briefs, and the same model answered those nine again, in one
+context: the cold viewer's three (a Power Layers scene now says the ball bounces on top of its layers, a pendulum ring is
+described as a ring), the Thorough reviewer's three that read those viewer answers, and the brainstormer's three (its menu now
+shows each hook's words). The other 228 answers are the earlier run's, to briefs that did not change by a byte: the eval keys
+every answer by its brief's hash, and the earlier run stays above as history. The numbers did not move.

@@ -22,13 +22,18 @@ import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions }
  *    "intent" or "payoff" outside the clip's own drawn words (tests/crewDossier.test.ts). The cold viewer reads it.
  *
  * Both views trim deterministically to their budgets: long quotes shorter first, then lists, then the drawn words to roles.
- * Pure: no clock, no randomness.
+ * The intent view keeps the clip's own words (words.*, the winner) whole at every level (WORDS_MAX each): the skeptic and the
+ * reviewer judge the hook by them, so the other candidates' hooks and the research are cut first (the studio's real run, with
+ * three other candidates and two research lines, had shown the hook "15 pendulums. Wait for the chord." as "15 pendulums.
+ * Wait …"). Pure: no clock, no randomness.
  */
 
 // --- crew ---
 
 export const INTENT_MAX = 1400;
 export const SCREEN_MAX = 1200;
+/** The longest quote of the clip's own words in the intent view, at every trim level (a hook has at most 42 characters). */
+export const WORDS_MAX = 64;
 
 /** The keys of the intent view, in its order: what the skeptic cites as evidence. */
 export const DOSSIER_KEYS = [
@@ -159,9 +164,10 @@ export function sceneOf(s: SimulatorSettings): string {
     case "multipliers":
       return `${plural(s.mpStartBalls, "ball", "balls")} above a board of ${plural(s.mpRows, "gate row", "gate rows")} marked with numbers`;
     case "powerLayers":
-      return `one ball under a stack of ${s.plLayers} coloured layers`;
+      // (the ball bounces between a ceiling and the top of the stack and drills down through it)
+      return `one ball bouncing on top of a stack of ${s.plLayers} coloured layers`;
     case "pendulum":
-      return `${s.pwCount} pendulums side by side, each a little longer than the last`;
+      return pendulumScene(s);
     case "polyrhythm":
       return `${s.prCount} dots moving at different speeds`;
     case "drop":
@@ -180,6 +186,29 @@ export function sceneOf(s: SimulatorSettings): string {
       return s.flMatch === "bracket" ? `${Math.round(s.flBracketSize)} fighter balls with weapons, two at a time` : s.flMatch === "boss" ? "one fighter ball with a weapon against a line of others" : "fighter balls with weapons in an arena";
     default:
       return s.teams.length > 1 ? `${s.teams.length} coloured balls in an arena` : "balls moving in an arena";
+  }
+}
+
+/** A pendulum set as its layout draws it (lib/physics/modes/pendulum.ts PENDULUM_LAYOUTS): a row, a ring, a wheel's spokes, rails, a floor. */
+function pendulumScene(s: SimulatorSettings): string {
+  const n = s.pwCount;
+  const spokes = (turning: boolean) => {
+    const shape = s.pwPolygon >= 3 ? `slowly turning ${s.pwPolygon}-sided shape` : turning ? "slowly turning wheel" : "wheel";
+    return `${n} balls on the spokes of a ${shape}, each swinging to and from the center along its spoke`;
+  };
+  switch (s.pwLayout) {
+    case "arc":
+      return `${n} pendulums hanging inward from a ring, each a little longer than the last`;
+    case "circle":
+      return spokes(false);
+    case "galaxy":
+      return spokes(true);
+    case "sliding":
+      return `${n} balls sliding left and right on stacked rails`;
+    case "bouncing":
+      return `${n} balls bouncing on a floor, each at its own pace`;
+    default:
+      return `${n} pendulums side by side, each a little longer than the last`;
   }
 }
 
@@ -251,23 +280,27 @@ export function intentView(clip: CrewClip, input: DossierInput = {}): IntentDoss
     research,
   };
 
-  // the text, at the first trim level that fits
-  const levels = [
-    { quote: 64, list: 8, timelineWords: 40 },
-    { quote: 40, list: 6, timelineWords: 24 },
-    { quote: 28, list: 4, timelineWords: 14 },
-    { quote: 20, list: 3, timelineWords: 0 },
+  // the text, at the first trim level that fits (the clip's own words whole at every level: the others' quotes go first)
+  const levels: TrimLevel[] = [
+    { words: WORDS_MAX, quote: 64, list: 8, timelineWords: 40 },
+    { words: WORDS_MAX, quote: 40, list: 6, timelineWords: 24 },
+    { words: WORDS_MAX, quote: 28, list: 4, timelineWords: 14 },
+    { words: WORDS_MAX, quote: 20, list: 3, timelineWords: 0 },
+    { words: WORDS_MAX, quote: 8, list: 2, timelineWords: 0 },
   ];
   let text = "";
   for (const level of levels) {
     text = renderIntent(clip, facts, overlays, level).join("\n");
     if (text.length <= INTENT_MAX) break;
   }
-  if (text.length > INTENT_MAX) text = clampLines(text, INTENT_MAX);
+  if (text.length > INTENT_MAX) text = clampLines(text, INTENT_MAX, (l) => l.startsWith("words.hook: ") || l.startsWith("words.aiHook: "));
   return { v: 1, facts, text };
 }
 
 interface TrimLevel {
+  /** The clip's own words (words.*, the run's winner). */
+  words: number;
+  /** Every other quote: the timeline's, the other candidates' (16 more), the research's (twice it). */
   quote: number;
   list: number;
   timelineWords: number;
@@ -278,7 +311,7 @@ const listOf = (items: readonly (string | number)[], max: number) => (items.leng
 
 function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, overlays: readonly Overlay[], t: TrimLevel): string[] {
   const p = clip.payoff;
-  const q = (v: DossierValue) => (typeof v === "string" ? quote(v, t.quote) : none);
+  const q = (v: DossierValue) => (typeof v === "string" ? quote(v, t.words) : none);
   const line = (key: DossierKey, value: string) => `${key}: ${value}`;
   // (the words of the first hook, payoff, question and edge lines are quoted under words.*: the timeline names them by kind)
   const quoted = new Set<string>();
@@ -298,6 +331,8 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
   const cut = f["beats.cut"] as { from: number; length: number; card: number } | null;
   const run = (v: DossierValue, label: string) => (clip.run === null ? "unknown (no run)" : v === -1 || v === null ? `no ${label} in the run` : typeof v === "number" ? `${label} at ${v} s` : String(v));
   const measured = (v: DossierValue, fmt: (x: number) => string) => (clip.measured === null ? "not rendered" : v === null ? "not measured" : typeof v === "number" ? fmt(v) : String(v));
+  const sound = clip.measured?.features?.firstSoundSec;
+  const firstSound = typeof sound === "number" && Number.isFinite(sound) && sound >= 0 ? r1(sound) : null;
   return [
     line("clip.template", f["clip.template"] === null ? none : String(f["clip.template"])),
     line("clip.claim", f["clip.claim"] === null ? none : String(f["clip.claim"])),
@@ -328,11 +363,12 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("score.simpleDeductions", listOf(f["score.simpleDeductions"] as string[], t.list)),
     line("score.playbook", String(f["score.playbook"])),
     line("score.playbookLost", listOf(f["score.playbookLost"] as string[], t.list)),
-    line("run.winner", clip.run === null ? "unknown (no run)" : f["run.winner"] === null ? "no winner" : quote(String(f["run.winner"]), t.quote)),
+    line("run.winner", clip.run === null ? "unknown (no run)" : f["run.winner"] === null ? "no winner" : quote(String(f["run.winner"]), t.words)),
     // (Glass Smash's ball reaching home is its way out; a fill is when the screen or the ring is full)
     line("run.escape", clip.run && clip.run.firstEscapeSec < 0 && clip.run.homeSec >= 0 ? `home at ${r1(clip.run.homeSec)} s` : run(f["run.escape"], "first escape")),
     line("run.finish", `${run(f["run.finish"], "finish")}${clip.run && clip.run.fillSec >= 0 ? `, filled at ${r1(clip.run.fillSec)} s` : ""}`),
-    line("measured.firstMotion", measured(f["measured.firstMotion"], (x) => (x < 0 ? "no motion" : `${x} s`))),
+    // (gate G1 reads the earlier of the two: a small ball on a dark background can move long before the picture says so)
+    line("measured.firstMotion", measured(f["measured.firstMotion"], (x) => `${x < 0 ? "no motion" : `${x} s`}${firstSound !== null ? ` (first sound ${firstSound} s)` : ""}`)),
     line("measured.peakMotion", measured(f["measured.peakMotion"], (x) => `${Math.round(100 * x)}% in`)),
     line("measured.lagged", measured(f["measured.lagged"], (x) => `${x}% of frames`)),
     line("measured.watermark", measured(f["measured.watermark"], (x) => String(x))),
@@ -341,11 +377,13 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
   ];
 }
 
-/** The last resort: every line cut to an equal share of the budget (deterministic). */
-function clampLines(text: string, max: number): string {
+/** The last resort: every line but the kept ones (the hooks: WORDS_MAX at most) cut to an equal share of the rest (deterministic). */
+function clampLines(text: string, max: number, keep: (line: string) => boolean = () => false): string {
   const lines = text.split("\n");
-  const share = Math.max(12, Math.floor((max - (lines.length - 1)) / lines.length));
-  const out = lines.map((l) => (l.length > share ? `${l.slice(0, share - 1)}…` : l)).join("\n");
+  const kept = lines.filter(keep);
+  const room = max - (lines.length - 1) - kept.reduce((n, l) => n + l.length, 0);
+  const share = Math.max(12, Math.floor(room / Math.max(1, lines.length - kept.length)));
+  const out = lines.map((l) => (keep(l) || l.length <= share ? l : `${l.slice(0, share - 1)}…`)).join("\n");
   return out.length <= max ? out : out.slice(0, max);
 }
 

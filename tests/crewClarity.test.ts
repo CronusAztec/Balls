@@ -4,7 +4,7 @@ import { recipeById, RECIPES } from "@/lib/bot/playbook";
 import { planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
 import { defaultCaption, type Caption } from "@/lib/captions";
 import type { SimulatorSettings } from "@/lib/settings";
-import { runSync } from "@/lib/insights/score";
+import { factsOfExport, runSync } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import {
   CLARITY,
@@ -44,7 +44,8 @@ const withRun = (plan: ClipPlan): CrewClip => crewClipOfPlan(plan, { run: runOf(
 const setCaptions = (clip: CrewClip, captions: Caption[], roles = clip.captionRoles): CrewClip => ({ ...clip, captions, captionRoles: roles, settings: { ...clip.settings, captions } });
 const failed = (clip: CrewClip) => failedGates(clarityOf(clip));
 const gateOf = (clip: CrewClip, id: GateId) => clarityOf(clip).gates.find((g) => g.id === id)!;
-const features = (first: number | null): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+/** A render's features, its first sound with its first motion (a bounce is heard when it is seen); `sound` apart from it. */
+const features = (first: number | null, sound: number | null = first): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: sound, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
 const rendered = (clip: CrewClip, m: Partial<CrewMeasured> = {}): CrewClip => ({ ...clip, measured: { features: features(0.4), durationSec: clip.timing.clipSec, laggedFrames: 3, frames: 1000, watermarked: true, free: true, ...m } });
 
 const resolvedPlan = calm(planClip(recipeById("ring-escape")!, 2, "reels", { copy, ending: "resolved", episode: 3 }));
@@ -122,6 +123,17 @@ describe("each gate's other problems", () => {
     expect(gateOf(rendered(late, { features: features(1.4) }), "G1").ok).toBe(true);
     expect(gateOf(rendered(clean, { features: features(1.6) }), "G1").key).toBe("motionEarlyMeasuredLate");
     expect(gateOf(rendered(clean, { features: features(null) }), "G1").key).toBe("motionEarlyNone");
+  });
+
+  it("G1 after a render reads the export's first impact as the Playbook score does: its first motion or its first sound, the earlier", () => {
+    // (the studio's real run: a small ball on the Simple look's dark background stays under the analyser's motion threshold for
+    // 7.5 s while its first bounce is heard at 0.83 s – the Playbook score of the same file read 0.8 s and gave the motion item)
+    expect(gateOf(rendered(clean, { features: features(7.5, 0.83) }), "G1")).toMatchObject({ ok: true, key: "motionEarlyOk", values: { sec: 0.8 } });
+    expect(factsOfExport(features(7.5, 0.83), clean.timing.clipSec).firstImpactSec).toBe(0.83);
+    expect(gateOf(rendered(clean, { features: features(null, 0.5) }), "G1").ok).toBe(true);
+    expect(gateOf(rendered(clean, { features: features(0.4, null) }), "G1").ok).toBe(true);
+    expect(gateOf(rendered(clean, { features: features(1.6, 1.7) }), "G1")).toMatchObject({ ok: false, key: "motionEarlyMeasuredLate", values: { sec: 1.6 } });
+    expect(gateOf(rendered(clean, { features: features(null, null) }), "G1").key).toBe("motionEarlyNone");
   });
 
   it("G2: a resolved payoff too late or not shown long enough; a cliffhanger cut too far or with no question at its end", () => {

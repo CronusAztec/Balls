@@ -220,12 +220,16 @@ describe("one case per deduction", () => {
   it("measured after a render: mean motion above twice the trends median 5, the first motion after 1.5 s 5 (soft, tagged)", () => {
     const ref = trendsMotionRef();
     expect(ref).not.toBeNull();
-    const features = (motion: number, first: number | null): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, ...Array.from({ length: 40 }, () => motion)], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.1, meanSat: 0.5, darkShare: 0.8, soundEventsPerSec: 3, firstSoundSec: 0.2, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
+    // (the first sound with the first motion: a bounce is heard when it is seen; `sound` apart from it)
+    const features = (motion: number, first: number | null, sound: number | null = first): ClipFeatures => ({ v: 1, sampleHz: 4, motion: [0, ...Array.from({ length: 40 }, () => motion)], firstMotionSec: first, peakMotionPos: 0.8, meanLuma: 0.1, meanSat: 0.5, darkShare: 0.8, soundEventsPerSec: 3, firstSoundSec: sound, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 });
     const measured = (f: ClipFeatures) => ({ ...clean, measured: { features: f, durationSec: clean.timing.clipSec, laggedFrames: 0, frames: 1000, watermarked: true, free: true } });
     expect(simpleScore(measured(features(ref!, 0.3))).deductions.filter((d) => d.measured)).toEqual([]);
     const busy = simpleScore(measured(features(3 * ref!, 2.5))).deductions.filter((d) => d.measured);
     expect(busy.map((d) => [d.id, d.points])).toEqual([["measuredMotion", 5], ["measuredFirstMotion", 5]]);
     expect(simpleScore(measured(features(3 * ref!, 0.3)), { motionRef: null }).deductions.some((d) => d.id === "measuredMotion")).toBe(false);
+    // the first motion is the export's first impact, as gate G1 reads it: the picture's motion or the first bounce heard
+    expect(simpleScore(measured(features(ref!, 7.5, 0.83))).deductions.filter((d) => d.measured)).toEqual([]);
+    expect(simpleScore(measured(features(ref!, 2.5, 1.9))).deductions.filter((d) => d.measured).map((d) => [d.id, d.values.sec])).toEqual([["measuredFirstMotion", 1.9]]);
     // not measured before a render
     expect(simpleScore(clean).deductions.some((d) => d.measured)).toBe(false);
   });

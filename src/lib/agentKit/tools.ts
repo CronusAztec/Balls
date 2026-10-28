@@ -564,6 +564,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         stage: { type: "string", enum: ["pre", "post"], description: "pre (default): before the render, on the studio's plans; post: after it, on its rendered clips." },
         depth: { type: "string", enum: [...STUDIO_DEPTHS], description: "quick (default: the reviewer only where something is in doubt), thorough (every role on every clip) or rules (no role at all)." },
         request: { type: "string", minLength: 1, maxLength: 400, description: `What to make, in words: without a plan.json the brainstormer pitches for it and the ideas are planned here (at most ${STUDIO_CLIPS_MAX}).` },
+        world: { ...world, description: "The world a request's ideas are planned in, kept for the whole panel (default 800 × 600, the finder's nominal world). The toolbox's render plays the page's 800 × 450: pass that, or the clip plays another run than the one the crew judged. Set when the panel starts." },
         wanted: { type: "integer", minimum: 1, maximum: STUDIO_CLIPS_MAX, description: "Clips to keep (default 3, at most the plans)." },
         platform,
         locale,
@@ -655,7 +656,7 @@ export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
   if (name === "review" && a.verdict !== undefined && a.role === undefined) return { ok: false, errors: ["A verdict needs its role (the brief's role, and its clip)"] };
   if (name === "review" && a.fixture === true) {
     // --- studio --- the role eval asks its own briefs: none of a studio panel's settings apply
-    const extra = ["stage", "depth", "request", "wanted", "platform", "locale", "family", "research"].filter((k) => a[k] !== undefined);
+    const extra = ["stage", "depth", "request", "wanted", "platform", "locale", "family", "research", "world"].filter((k) => a[k] !== undefined);
     if (extra.length) return { ok: false, errors: [`fixture runs the role eval on the fixture corpus: it takes studio, role, clip, verdict, separation and restart, not ${extra.join(", ")}`] };
   }
   return { ok: true, args: a };

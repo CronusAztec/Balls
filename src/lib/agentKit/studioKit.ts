@@ -215,10 +215,12 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
 }
 
 /** The brainstormer's menu: the ready templates of a family choice (each on its one mode; its recipe's endings and buckets). */
-export function templateMenu(family: BotFamilyChoice = "default"): MenuItem[] {
+export function templateMenu(family: BotFamilyChoice = "default", copy?: BotCopy): MenuItem[] {
   return readyTemplates(family).map((t) => {
     const recipe = templateRecipeById(t.id)!;
-    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(recipe.endings ? { endings: [...recipe.endings] } : {}), ...(recipe.buckets ? { buckets: [...recipe.buckets] } : {}) };
+    // --- studio --- the hook's words in the clip's language, so the brainstormer picks a variant by what it says
+    const hook = copy ? wordsOf(recipe, copy).hook : undefined;
+    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(hook ? { hookWords: { a: hook } } : {}), ...(recipe.endings ? { endings: [...recipe.endings] } : {}), ...(recipe.buckets ? { buckets: [...recipe.buckets] } : {}) };
   });
 }
 
@@ -332,6 +334,12 @@ export function studioPlan(input: StudioPlanInput, copy: BotCopy): { ok: true; r
 export function queryOf(settings: ClipPlan["settings"], seed: number, locale: BotLocale): string {
   return new URL(clipShareUrl(settings, seed, locale, "https://studio.invalid")).search;
 }
+
+/**
+ * The world the toolbox's render plays a clip in: the simulator page's canvas in scripts/agent/browser.mjs's fenced browser.
+ * The loop's texts (the make-video prompt, the skill) plan in it; render reports the page's own world, so a change shows.
+ */
+export const STUDIO_RENDER_WORLD: BotWorld = { width: 800, height: 450 };
 
 /** The longest clip the toolbox renders (s): scripts/agent/browser.mjs's limit, the page's LINK_RENDER_MAX_SEC. */
 export const RENDER_MAX_SEC = 60;
@@ -527,6 +535,8 @@ export interface StudioPanelFile {
   post: PanelState | null;
   /** A fix's seed search: the clip's new plan and run, by its id. */
   replans: Record<string, StudioPlanRecord>;
+  /** The world an open request's ideas are planned in (the review's `world` when the panel started; absent: the planner's own). */
+  world?: BotWorld;
   /** Every clip's review record (lib/crew/review.ts ClipReview), by stage and id: what the panel decided, role by role. */
   records: { pre: Record<string, ClipReview>; post: Record<string, ClipReview> };
 }
@@ -566,6 +576,8 @@ export interface StudioReviewInput {
   stage?: PanelStage;
   depth?: PanelDepth;
   request?: string;
+  /** The world an open request's ideas are planned in (kept for the panel: the later calls name none). */
+  world?: BotWorld;
   wanted?: number;
   platform?: BotPlatform;
   locale?: BotLocale;
@@ -616,8 +628,11 @@ function planOfClip(file: StudioPanelFile, plan: StudioPlanFile | null, id: stri
   return re && clip && clip.seed === re.plan.seed ? re : own;
 }
 
-/** The brainstormer's ideas (or the code's) planned: each a ready template on its mode, its ending and bucket, plan seed i + 1. */
-function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPlatform; locale: string }, copyOf: (l: string) => BotCopy): { records: StudioPlanRecord[]; candidates: PanelCandidate[]; notes: string[] } {
+/**
+ * The brainstormer's ideas (or the code's) planned: each a ready template on its mode, its ending and bucket, plan seed i + 1,
+ * in the request's world (default the planner's: the role eval's).
+ */
+function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPlatform; locale: string; world?: BotWorld }, copyOf: (l: string) => BotCopy): { records: StudioPlanRecord[]; candidates: PanelCandidate[]; notes: string[] } {
   const records: StudioPlanRecord[] = [];
   const candidates: PanelCandidate[] = [];
   const notes: string[] = [];
@@ -628,7 +643,7 @@ function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPla
       notes.push(`idea ${i + 1}: ${idea.template} is not a ready template: skipped`);
       return;
     }
-    const plan = drain(planTemplateSteps(info.id, i + 1, request.platform, { copy: copyOf(locale), locale, bucket: idea.bucket, ending: idea.ending, episode: 1, index: i + 1, date: null, world: DEFAULT_BOT_WORLD, look: "simple" }));
+    const plan = drain(planTemplateSteps(info.id, i + 1, request.platform, { copy: copyOf(locale), locale, bucket: idea.bucket, ending: idea.ending, episode: 1, index: i + 1, date: null, world: request.world ?? DEFAULT_BOT_WORLD, look: "simple" }));
     const run = runOfPlan(plan);
     records.push({ id: plan.id, plan, run });
     let clip = crewClipOfPlan(plan, { run });
@@ -720,7 +735,7 @@ function startStage(stage: PanelStage, input: StudioReviewInput, ctx: StudioRevi
     return { ok: true, state: createPanel({ stage: "pre", ...common, wanted, candidates, request: { text: input.request ?? "", open: false, namedTemplate: templates.size === 1, platform, locale } }) };
   }
   if (!input.request) return { ok: false, error: `No plan.json in .agent-out/studio/${ctx.studio}/: plan first (the plan tool with "studio":"${ctx.studio}"), or give request to have the brainstormer pitch` };
-  return { ok: true, state: createPanel({ stage: "pre", ...common, wanted: Math.max(1, Math.min(STUDIO_CLIPS_MAX, input.wanted ?? 3)), request: { text: input.request, open: true, platform, locale }, menu: templateMenu(input.family ?? "default") }) };
+  return { ok: true, state: createPanel({ stage: "pre", ...common, wanted: Math.max(1, Math.min(STUDIO_CLIPS_MAX, input.wanted ?? 3)), request: { text: input.request, open: true, platform, locale }, menu: templateMenu(input.family ?? "default", ctx.copyOf(locale)) }) };
 }
 
 /** Where the viewer's eyes are after a render: the rendered clip's sheets (Claude looks at them before it answers). */
@@ -750,8 +765,12 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     const started = startStage(stage, input, ctx);
     if (!started.ok) return { ok: false, error: started.error, panel: file, plan: null, post: null, result: { studio: ctx.studio, stage, error: started.error } };
     state = started.state;
+    // --- studio --- an open request's ideas are planned in the world it names, on a later call that names none: kept here
+    if (stage === "pre" && !ctx.plan?.plans.length && state.request?.open) file = { ...file, world: input.world ?? DEFAULT_BOT_WORLD };
     notes.push(`the ${stage === "pre" ? "pre-render" : "post-render"} panel starts: depth ${state.depth}, ${state.clips.length || "no"} candidates yet, ${state.wanted} wanted, roles ${state.separation === "contexts" ? "each in a context of its own" : "in one context (the record says so)"}`);
   } else if (input.depth !== undefined && input.depth !== state.depth) notes.push(`depth ${input.depth} applies when a stage starts: this panel runs at ${state.depth} (restart to change it)`);
+  if (input.world !== undefined && (stage !== "pre" || !!ctx.plan?.plans.length || !state.request?.open)) notes.push("world applies to an open request's ideas when its panel starts: these clips were planned in their own world (plan.json)");
+  else if (input.world !== undefined && file.world && (file.world.width !== input.world.width || file.world.height !== input.world.height)) notes.push(`world applies when the panel starts: its ideas are planned in ${file.world.width} × ${file.world.height} (restart to change it)`);
   let accepted: { role: string; clip: string | null; ok: boolean; errors: string[] } | null = null;
   if (input.verdict !== undefined && input.role !== undefined) {
     const r = applyVerdict(state, { role: input.role, clipId: input.clip ?? null, reply: input.verdict });
@@ -765,7 +784,7 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     state = n.state;
     step = n.step;
     if (step.type === "plan") {
-      const planned = planIdeas(step.ideas, { platform: state.request?.platform ?? "reels", locale: state.request?.locale ?? "en" }, ctx.copyOf);
+      const planned = planIdeas(step.ideas, { platform: state.request?.platform ?? "reels", locale: state.request?.locale ?? "en", world: file.world ?? DEFAULT_BOT_WORLD }, ctx.copyOf);
       notes.push(...planned.notes, `${planned.records.length} ideas planned`);
       plan = { v: 1, studio: ctx.studio, made: { by: "review", args: { request: state.request?.text ?? "", ideas: step.ideas } }, plans: planned.records };
       planChanged = true;
@@ -1052,7 +1071,7 @@ function makeVideoPrompt(args: Record<string, string>): string {
     "The loop (docs/agents/STUDIO.md has a worked example):",
     `1. ${toolCall("research", {})}: the research brief, at most five pieces of advice with their levers; a weak finding is weak. When the trend summary is stale you may run inspire on a template's theme words first.`,
     `2. ${toolCall("templates", {})}: the ready templates (the battle family only when asked for).`,
-    `3. ${toolCall("plan", { template: "<id>", count, platform, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count })}, and play the brainstormer first.`,
+    `3. ${toolCall("plan", { template: "<id>", count, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way in the page's world, where render plays the clip.`,
     `4. ${toolCall("review", { studio: "<name>" })}: play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
     `5. ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<a kept clip>" })} for each kept clip: watermarked, with its melody, with its frames' sheets.`,
     `6. Look at each clip's sheet.png and hook-sheet.png, then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks.`,
@@ -1162,7 +1181,7 @@ export function crewEvalCorpusFiles(copy: BotCopy): { clean: string; planted: st
 
 /** The brainstorm runs' menu and planner: the default family's ready templates, the ideas planned as the review tool plans an open request's. */
 export function crewEvalBrainstorm(copyOf: (locale: string) => BotCopy): { menu: MenuItem[]; plan: EvalPlanner } {
-  return { menu: templateMenu("default"), plan: (ideas) => planIdeas(ideas, { platform: "reels", locale: "en" }, copyOf).candidates };
+  return { menu: templateMenu("default", copyOf("en")), plan: (ideas) => planIdeas(ideas, { platform: "reels", locale: "en" }, copyOf).candidates };
 }
 
 /** eval.json: a role eval in progress, or done (the review tool's fixture mode). */
@@ -1418,8 +1437,8 @@ function skillFileText(): string {
     "",
     `1. ${cli("research", {})}: the research brief, at most five pieces of advice; a weak finding is weak. When the trend summary is stale, \`inspire\` on a template's theme words refreshes the evidence first.`,
     `2. ${cli("templates", {})}: the ready templates. The battle family (Fight League names third-party characters) only when the owner asks for it.`,
-    `3. ${cli("plan", { template: "<id>", count: 3, world: { width: 800, height: 450 }, studio: "<studio>" })}: plan in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
-    `4. ${cli("review", { studio: "<studio>", separation: "contexts" })} starts the panel (add \`"request"\` and \`"wanted"\` for an open request, \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
+    `3. ${cli("plan", { template: "<id>", count: 3, world: STUDIO_RENDER_WORLD, studio: "<studio>" })}: plan in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
+    `4. ${cli("review", { studio: "<studio>", separation: "contexts" })} starts the panel (add \`"request"\`, \`"wanted"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
     `5. ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<a kept clip>" })} for each clip the decision keeps: watermarked, with its melody and its sheets.`,
     `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree; their subagents get \`"stage":"post"\` in their arguments. The viewer looks at the clip's sheet.png and hook-sheet.png itself.`,
     "7. Hand over the studio folder: the clips, panel.json and post.txt; say which clips were kept or dropped and why, which fixes were applied or offered, and that the roles ran in separate contexts (or that they did not).",

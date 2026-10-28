@@ -265,6 +265,8 @@ export interface MenuItem {
   modes: readonly ModeId[];
   /** Its hook variants (of HOOK_VARIANTS). */
   hooks: readonly string[];
+  /** Each variant's words as the template writes them, its numbers still to fill ({count}, {seconds}): what a variant says. */
+  hookWords?: Readonly<Record<string, string>>;
   endings?: readonly EndingStyle[];
   buckets?: readonly LengthBucket[];
 }

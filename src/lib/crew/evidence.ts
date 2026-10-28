@@ -1,5 +1,5 @@
 import { CLARITY, type Clarity } from "./clarity";
-import { claimSeen, shownSecOf, type Claim, type CrewClip } from "./clip";
+import { claimSeen, measuredFirstImpactSec, shownSecOf, type Claim, type CrewClip } from "./clip";
 import { hasRingWalls } from "./hudFlags";
 import { crowding, overlaysOf, SIMPLE_BANDS } from "./simplicity";
 import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type ObjectionKind, type SkepticObjection, type ViewerRead } from "./roles";
@@ -18,7 +18,8 @@ import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type O
  * The thresholds (the plan's): payoffLate – the payoff past 90 % of the clip, or a cut more than 1 s before it, or too little
  * shown after it (gate G2's NotShown); payoffEarly – before 66 % (the reviewer's retime band starts there), or on a cliffhanger
  * the payoff shown before the cut; payoffMissing – no payoff in the run, or the run does not show the claim; slowStart – the
- * first impact after 1 s (after a render: the measured first motion after 1.5 s, or none); tooBusy – Simple below 80 or two
+ * first impact after 1 s (after a render: the measured first impact – the export's first motion or first sound, as gate G1
+ * reads it – after 1.5 s, or none); tooBusy – Simple below 80 or two
  * messages on screen at once; textUnreadable – gate G5 fails; hookUntrue – a number in the hook the clip does not have, or a
  * winner named that the run does not have (gate G4).
  *
@@ -88,8 +89,9 @@ function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity): { cross
     case "slowStart": {
       const f = clip.measured?.features ?? null;
       if (f) {
-        const first = f.firstMotionSec;
-        return { crossed: first === null || first > EVIDENCE.measuredSlowStartSec + 1e-9, basis: first === null ? "no motion measured" : `first motion measured at ${r1(first)} s` };
+        const first = measuredFirstImpactSec(f);
+        const sec = (x: number | null) => (x === null ? "none" : `${r1(x)} s`);
+        return { crossed: first === null || first > EVIDENCE.measuredSlowStartSec + 1e-9, basis: first === null ? "no motion or sound measured" : `first impact measured at ${r1(first)} s (motion ${sec(f.firstMotionSec)}, sound ${sec(f.firstSoundSec)})` };
       }
       const impact = clip.timing.firstImpactSec;
       if (impact === null) return { crossed: null, basis: "first impact unknown" };

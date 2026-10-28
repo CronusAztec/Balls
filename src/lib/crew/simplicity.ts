@@ -2,7 +2,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import type { CaptionRole } from "@/lib/bot/planner";
 import { TRENDS } from "@/content/trends";
 import { defaultKeptHuds, hasRingWalls, hudCounts, hudsOn } from "./hudFlags";
-import { shownSecOf, type CrewClip } from "./clip";
+import { measuredFirstImpactSec, shownSecOf, type CrewClip } from "./clip";
 
 /*
  * --- crew --- "Simple, not a lot of distractions", measured: the Simple score (0–100) of a clip and the overlay inventory it is
@@ -26,7 +26,7 @@ import { shownSecOf, type CrewClip } from "./clip";
  *  - HUDs: each mode HUD or badge flag that is on and that the clip does not keep: 5 (hudFlags.ts HUD_FLAGS; the ball names
  *    only past 4 names); a clip keeps, by default, the HUD that counts down when its countdown is the HUD's;
  *  - measured after a render (soft, tagged `measured`): mean motion above twice the trend summary's most viewed median 5,
- *    the first motion after 1.5 s 5.
+ *    the first motion after 1.5 s 5 (the export's first impact, its first motion or first sound, as gate G1 reads it).
  * Not counted: the watermark badge, which is fixed and protected (the captions keep out of its corner through the safe zone).
  *
  * Monotonic: adding a caption, a HUD flag or an effect never raises the score – every term only grows with more on screen –
@@ -306,7 +306,7 @@ export function simpleScore(clip: CrewClip, options: SimpleOptions = {}): Simple
       const mean = motion.slice(1).reduce((a, b) => a + b, 0) / (motion.length - 1);
       if (mean > W.measuredMotionFactor * ref + EPS) add({ id: "measuredMotion", points: W.measuredMotion, values: { mean: r3(mean), ref: r3(ref) }, measured: true });
     }
-    const first = features.firstMotionSec;
+    const first = measuredFirstImpactSec(features);
     if (first === null || first > W.measuredFirstMotionSec + EPS) add({ id: "measuredFirstMotion", points: W.measuredFirstMotion, values: { sec: first === null ? "none" : round1(first) }, measured: true });
   }
   const total = deductions.reduce((sum, d) => sum + d.points, 0);

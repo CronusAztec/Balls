@@ -6,7 +6,7 @@ import { recipeById, RECIPES } from "@/lib/bot/playbook";
 import { planClip, type CaptionRole, type ClipPlan } from "@/lib/bot/planner";
 import { defaultCaption, MAX_CAPTION_TEXT_LENGTH, type Caption } from "@/lib/captions";
 import { MODE_IDS } from "@/lib/physics/types";
-import { defaultSettings } from "@/lib/settings";
+import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { TRENDS } from "@/content/trends";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { genesOfSavedFile } from "@/lib/insights/genes";
@@ -19,6 +19,7 @@ import {
   SCREEN_MAX,
   crewClipOfPlan,
   crewClipOfSaved,
+  drawnHookText,
   intentView,
   isDossierKey,
   motionBuckets,
@@ -78,6 +79,26 @@ describe("budgets", () => {
       const text = intentView(heavy(tenCaptions(plan)), { others, research }).text;
       expect([plan.id, text.split("\n").map((l) => l.slice(0, l.indexOf(":")))]).toEqual([plan.id, [...DOSSIER_KEYS]]);
     }
+  });
+});
+
+describe("trims the others before the clip's own words", () => {
+  it("keeps the drawn hook whole at every trim level: the other candidates' hooks and the research are cut first", () => {
+    // (the studio's real run, with three other candidates and two research lines, showed the skeptic the hook
+    // "15 pendulums. Wait for the chord." as "15 pendulums. Wait …": the one line it judges a hook by)
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const plan of quickPlans(locale)) {
+        const clip = heavy(tenCaptions(plan));
+        const text = intentView(clip, { others, research }).text;
+        const hook = drawnHookText(clip).replace(/[\r\n\t]+/g, " ").replace(/"/g, "'").replace(/\s+/g, " ").trim();
+        expect([locale, plan.id, text.length <= INTENT_MAX, text.split("\n").find((l) => l.startsWith("words.hook: "))]).toEqual([locale, plan.id, true, `words.hook: "${hook}"`]);
+      }
+    }
+  });
+
+  it("shows a render's first sound beside its first motion: G1 reads the earlier", () => {
+    const plan = planClip(recipeById("ring-escape")!, 2, "reels", { copy, ending: "resolved", episode: 3 });
+    expect(intentView(heavy(crewClipOfPlan(plan))).text).toMatch(/^measured\.firstMotion: 0\.3 s \(first sound 0\.1 s\)$/m);
   });
 });
 
@@ -190,6 +211,19 @@ describe("the screen view holds no intent", () => {
       expect([mode, !!name && scene.includes(name.toLowerCase())]).toEqual([mode, false]);
       for (const claim of CLAIMS) expect([mode, claim, new RegExp(`\\b${claim}\\b`, "i").test(scene)]).toEqual([mode, claim, false]);
     }
+  });
+
+  it("draws the scene as the settings lay it out: a pendulum layout's shape, the layer stack under the ball", () => {
+    // (the studio's real run: a wheel of pendulums read "side by side", a ball bouncing on top of its layers read "under")
+    const pendulums = (pwLayout: SimulatorSettings["pwLayout"], pwPolygon = 0) => sceneOf({ ...defaultSettings("pendulum"), pwCount: 15, pwLayout, pwPolygon });
+    expect(pendulums("row")).toBe("15 pendulums side by side, each a little longer than the last");
+    expect(pendulums("arc")).toBe("15 pendulums hanging inward from a ring, each a little longer than the last");
+    expect(pendulums("circle")).toBe("15 balls on the spokes of a wheel, each swinging to and from the center along its spoke");
+    expect(pendulums("circle", 5)).toBe("15 balls on the spokes of a slowly turning 5-sided shape, each swinging to and from the center along its spoke");
+    expect(pendulums("galaxy")).toBe("15 balls on the spokes of a slowly turning wheel, each swinging to and from the center along its spoke");
+    expect(pendulums("sliding")).toBe("15 balls sliding left and right on stacked rails");
+    expect(pendulums("bouncing")).toBe("15 balls bouncing on a floor, each at its own pace");
+    expect(sceneOf({ ...defaultSettings("powerLayers"), plLayers: 700 })).toBe("one ball bouncing on top of a stack of 700 coloured layers");
   });
 
   it("shows what is drawn and heard: the texts with their seconds and place, the look, and after a render the motion in 8 parts", () => {
