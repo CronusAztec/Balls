@@ -59,18 +59,22 @@ argument.
    on a template's theme words refreshes the evidence first.
 2. `npm run -s agent -- templates --json '{}'`: the ready templates. The battle family (Fight League names third-party
    characters) only when the owner asks for it.
-3. `npm run -s agent -- plan --json '{"template":"get-out-classic","count":3,"studio":"rings"}'`. Plan in the page's own
-   world (the headless page is 800 × 450: pass `"world":{"width":800,"height":450}`), or the clip plays another run than
-   the one planned; render tells you when the worlds differ. For an open request, skip the plan and start the review with
-   `"request"` and the same `"world"`: the brainstormer pitches, and the review tool plans the ideas itself, in that world.
+3. `npm run -s agent -- plan --json '{"template":"get-out-classic","count":3,"world":{"width":800,"height":450},"studio":"rings"}'`.
+   Plan in the page's own world, as here (the headless page is 800 × 450), or the clip plays another run than the one
+   planned; render tells you when the worlds differ. Add `"platform"` (`reels`, `tiktok` or `shorts`; default reels) for
+   the platform asked for. The crew reviews 8 plans at most in one studio: plan more only to render them without it. For an
+   open request, skip the plan and start the review with `"request"`, the same `"world"` and `"platform"`: the brainstormer
+   pitches, and the review tool plans the ideas itself, in that world, for that platform.
 4. `npm run -s agent -- review --json '{"studio":"rings"}'`, then answer each brief with
    `{"studio":"rings","role":"…","clip":"…","verdict":{…}}` until the panel is done. Play each role in a context of its own
    where you can (in Claude Code, the `jbl-<role>` subagents of the `jbl-make-video` skill) and pass
    `"separation":"contexts"` when the panel starts; otherwise the record says the roles shared one context.
 5. `npm run -s agent -- render --json '{"plan":".agent-out/studio/rings/plan.json","clip":"…"}'` for each kept clip.
 6. Look at each clip's sheet.png and hook-sheet.png, then review again with `"stage":"post"`: the viewer reads the clip from
-   what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree. A keep rendered later,
-   or rendered again, joins the post-render panel on the next call and gets its own look.
+   what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree. The panel after the
+   render is its own, so every call of it keeps `"stage":"post"`, each next brief and each answer (a brief's `next.answer`
+   has it); a call without it reaches the finished panel before the render, and its result notes that the other one waits.
+   A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look.
 7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post.
 
 ## How the review holds you to the rules
@@ -83,7 +87,8 @@ argument.
   objections that still stand.
 - **Facts first.** Each objection is marked confirmed, refuted (dropped, with the fact that refutes it in the log) or
   opinion (half weight, never a blocker, standing only at major or fatal). A confirmed objection cannot be rejected, and a
-  clip that fails a gate is never kept.
+  clip that fails a gate is never kept. Nor can a viewer's misread (its makesSense no or partly): the reviewer accepts it,
+  with a new hook or the other ending before a render, or drops the clip.
 - **One fix round.** The fixes are compiled and measured again. A fix that makes a gate fail or lowers the pick score is
   reverted, and no role is asked again about that clip. A fix that needs a new seed or length runs the seed search here: the
   clip's template is planned again from its plan seed and five re-roll seeds until a plan meets the need. The planner keeps
@@ -143,7 +148,8 @@ Claude ask the same questions in the same words. A client that cannot read files
 result's 200 KB. The viewer needs both sheets of a rendered clip, one a call: the whole clip, `frames
 {"path":"<the clip>","image":true}`, then its opening seconds, the same with `"imageOf":"hook"`. The post-render brief's
 `look.pictures` holds the two calls for its clip, and the `crew-viewer`, `make-video` and `review-clip` prompts name them.
-Without subagents, one conversation plays every role, and panel.json says so.
+`crew-viewer` and `crew-reviewer` take `stage`: with `post` every call they name is the post-render panel's; without it
+they say how to reach that panel. Without subagents, one conversation plays every role, and panel.json says so.
 
 ## A worked example
 

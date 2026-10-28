@@ -140,12 +140,14 @@ export interface AgentPromptSpec {
 }
 const promptStudio = { name: "studio", description: "The studio folder's name (.agent-out/studio/<studio>/).", required: true } as const;
 const promptClip = { name: "clip", description: "One clip's id (default: whichever the panel asks for).", required: false } as const;
+/** --- studio --- The panel a viewer or reviewer answers: the one before the render, or the one after it (its own panel, its own calls). */
+const promptStage = { name: "stage", description: "pre (default: before the render) or post (after it: the rendered clips' panel, which every call then names).", required: false } as const;
 export const AGENT_PROMPTS: readonly AgentPromptSpec[] = [
   { name: "crew-researcher", title: "Crew: researcher", description: "Play the researcher in a fresh conversation: the research digest in at most five pieces of advice, each with its lever and its strength.", arguments: [promptStudio] },
   { name: "crew-brainstormer", title: "Crew: brainstormer", description: "Play the brainstormer: different clips for an open request, each a ready template on one of its modes.", arguments: [promptStudio] },
   { name: "crew-skeptic", title: "Crew: skeptic", description: "Play the skeptic: a clip's one idea and at most three objections, each citing the dossier's keys; never a fix.", arguments: [promptStudio, promptClip] },
-  { name: "crew-viewer", title: "Crew: viewer", description: "Play the cold viewer: what a stranger thinks a clip is about, from what is on screen alone.", arguments: [promptStudio, promptClip] },
-  { name: "crew-reviewer", title: "Crew: reviewer", description: "Play the reviewer: keep, fix or drop, every confirmed objection and misread answered, fixes from the fixed list.", arguments: [promptStudio, promptClip] },
+  { name: "crew-viewer", title: "Crew: viewer", description: "Play the cold viewer: what a stranger thinks a clip is about, from what is on screen alone.", arguments: [promptStudio, promptClip, promptStage] },
+  { name: "crew-reviewer", title: "Crew: reviewer", description: "Play the reviewer: keep, fix or drop, every confirmed objection and misread answered, fixes from the fixed list.", arguments: [promptStudio, promptClip, promptStage] },
   {
     name: "make-video",
     title: "Make videos",
@@ -516,7 +518,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         ending: { type: "string", enum: [...STUDIO_ENDINGS], description: "The ending (default auto: the bot alternates)." },
         look: { type: "string", enum: [...STUDIO_LOOKS], description: "simple (default: dark and calm, one text at a time, one counter) or bot (the daily bot's look)." },
         locale,
-        count: { type: "integer", minimum: 1, maximum: STUDIO_PLAN_MAX, description: `Clips planned (default 3; at most ${STUDIO_PLAN_MAX}). Clip i plans from planSeed + i.` },
+        count: { type: "integer", minimum: 1, maximum: STUDIO_PLAN_MAX, description: `Clips planned (default 3; at most ${STUDIO_PLAN_MAX}). Clip i plans from planSeed + i. The crew's review takes ${STUDIO_CLIPS_MAX} at most in one studio: plan more only to render them without it.` },
         planSeed: { type: "integer", minimum: 0, maximum: 4294967295, description: "The planner's seed (default 1): its settings draws and its seed search start from it." },
         world,
         family,

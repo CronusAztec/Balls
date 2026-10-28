@@ -6,7 +6,7 @@
  "who": "claude",
  "separation": "sameContext",
  "corpusHash": "1eb78cc0c5c16f05",
- "current": true,
+ "current": false,
  "answers": {
   "ec1fff3b29f07ab8": {
    "role": "viewer",

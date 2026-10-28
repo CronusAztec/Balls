@@ -386,10 +386,11 @@ export const ROLE_SPECS: Readonly<Record<CrewRole, RoleSpec>> = {
     role: "reviewer",
     task: "crew.reviewer",
     card: [
-      "Your role: the reviewer. Decide keep, fix or drop.",
-      "You get the skeptic's objections (each marked confirmed by the facts, or opinion) and a first-time viewer's read when one ran, as JSON.",
-      "Answer each objection, and the viewer's read when it missed: accept (with a fix when major or fatal) or reject with a reason (rulePasses, templateIntends, fixBreaksPayoff, notSupported). Never reject a confirmed one.",
-      "fix: up to 3 fixes, each answer's fix among them. keep only when every gate passes and no confirmed fatal stands; drop when no fix saves the idea.",
+      "Your role: the reviewer. Decide keep, fix or drop. You get the skeptic's objections and the viewer's read (JSON).",
+      "Answer each objection: accept (with a fix if major or fatal) or reject with a reason (rulePasses, templateIntends, fixBreaksPayoff, notSupported), never a confirmed one.",
+      // --- crew --- the viewer's read as checkReview takes it: a misread is accepted, never rejected (viewerAnswer has no reason)
+      `viewerAnswer: null unless makesSense is no or partly; then accept, never reject: with ${FIXES_FOR_MISREAD.join(" or ")} before a render, or drop.`,
+      "fix: up to 3, each answer's fix among them; keep only if all gates pass and no confirmed fatal stands, drop if no fix saves it.",
       `Fixes: ${FIX_LINE}.`,
     ].join("\n"),
     finalHint: '{"verdict":"keep|fix|drop","confidence":"low|medium|high","answers":[{"objection":"o1","accept":true,"reason":null,"fix":{"action":"<fix>"} or null}],"viewerAnswer":{"accept":true,"fix":null} or null,"fixes":[{"action":"<fix>"}],"why":"<at most 140 characters>"}',

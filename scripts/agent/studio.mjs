@@ -8,10 +8,11 @@
  *  - post.txt    the kept clips' words to post with the crew's lines;
  *  - <clip>/     a rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json;
  *  - eval.json   the role eval's answers (review with fixture), on the corpus it reads from tests/fixtures/crew/.
- * Every folder through paths.mjs outFolder (bare names, never a link out of .agent-out/), every file written under a fresh name
- * and renamed into place (writeFileSafe), every file read checked to lead inside .agent-out/ first. It reads the repository's
- * own messages (the clip's words), the committed trend summary and the playbook, and the local inspire dataset; it calls no
- * model, reads no key, opens no network and installs no licence.
+ * Every folder it writes through paths.mjs outFolder (bare names, never a link out of .agent-out/), made only once there is
+ * something to write: a studio it only reads is named the same way and never created (studioPath). Every file written under
+ * a fresh name and renamed into place (writeFileSafe), every file read checked to lead inside .agent-out/ first. It reads the
+ * repository's own messages (the clip's words), the committed trend summary and the playbook, and the local inspire dataset;
+ * it calls no model, reads no key, opens no network and installs no licence.
  */
 import fs from "fs";
 import path from "path";
@@ -33,8 +34,18 @@ export function copyOf(locale) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, "messages", `${l}.json`), "utf8")).ViralBot ?? {};
 }
 
-/** A studio's folder, .agent-out/studio/<name>/ (created). */
+/** A studio's folder, .agent-out/studio/<name>/ (created): for the tools that write one (plan, review). */
 export const studioDir = (name) => outFolder("studio", name);
+/**
+ * --- studio --- A studio's folder for reading, .agent-out/studio/<name>/, with nothing created: a bare name, and .agent-out/
+ * checked to lead inside the repository when it is there (readInside checks each file it reads). score is read-only, and a
+ * render or a review that fails leaves no empty studio behind.
+ */
+export function studioPath(name) {
+  if (typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes("..")) throw new PathError(`The folder name "${name}" must be a bare name (letters, digits, . _ -)`);
+  if (fs.existsSync(OUT_DIR) && !isInside(fs.realpathSync(ROOT), fs.realpathSync(OUT_DIR))) throw new PathError(".agent-out leads outside the repository (a symbolic link): remove it");
+  return path.join(OUT_DIR, "studio", name);
+}
 /** A rendered clip's folder parts under .agent-out/ (frames.mjs extractFrames' `folder`). */
 export const clipFolder = (name, clip) => ["studio", name, clip];
 /** A rendered clip's folder, .agent-out/studio/<name>/<clip>/ (created). */
@@ -64,10 +75,10 @@ const parse = (text, what) => {
 
 /**
  * A studio as its files hold it: the plan (and the hash of plan.json's very text), the panel when it reviews that plan (a
- * panel of an older plan is left for the review tool to start over), and the folder.
+ * panel of an older plan is left for the review tool to start over), and the folder (read, never created here).
  */
 export function loadStudio(kit, name) {
-  const dir = studioDir(name);
+  const dir = studioPath(name);
   const planText = readInside(path.join(dir, PLAN_FILE));
   const plan = parse(planText, `.agent-out/studio/${name}/${PLAN_FILE}`);
   const planHash = planText === null ? null : kit.studioHash(planText);
@@ -163,7 +174,8 @@ export async function planTool(kit, args) {
     planHash: kit.studioHash(text),
     count: made.records.length,
     plans: made.records.map((r) => kit.studioEntry(r, { others: kit.othersOf(made.records, r.id) })),
-    next: `review {"studio":"${name}"}: the crew judges these before any render (a plan written here starts that review over)`,
+    // --- studio --- the review, or (past the crew's limit of a studio) how to split the plans for it
+    next: kit.studioPlanNext(name, made.records.length, rest),
   };
 }
 
@@ -199,12 +211,11 @@ export function loadCorpus(kit) {
 
 /** The review tool's fixture mode: the role eval's next brief or a verdict for it, the run kept in .agent-out/studio/<studio>/eval.json. */
 async function evalTool(kit, args) {
-  const dir = studioDir(args.studio);
   const corpus = loadCorpus(kit);
-  const file = path.join(dir, EVAL_FILE);
-  const record = parse(readInside(file), `.agent-out/studio/${args.studio}/${EVAL_FILE}`);
+  const record = parse(readInside(path.join(studioPath(args.studio), EVAL_FILE)), `.agent-out/studio/${args.studio}/${EVAL_FILE}`);
   const outcome = kit.studioEval(args, { studio: args.studio, fixtures: corpus.fixtures, corpusHash: corpus.hash, record, copyOf });
   if (!outcome.ok) throw new Error(outcome.error);
+  const file = path.join(studioDir(args.studio), EVAL_FILE);
   writeFileSafe(file, kit.studioFileText(outcome.record));
   return { ...outcome.result, files: { eval: repoRelative(file) } };
 }
@@ -218,17 +229,18 @@ export async function reviewTool(kit, args) {
   const { digest } = kit.studioDigest(inputs);
   const outcome = kit.studioReview(args, { studio: loaded.name, plan: loaded.plan, planHash: loaded.planHash, panel: loaded.panelRaw, rendered: rendered.records, digest, copyOf });
   if (!outcome.ok) throw new Error(outcome.error);
+  const dir = studioDir(loaded.name); // (made here, once there is something to write)
   const files = {};
   if (outcome.plan) {
-    const planFile = path.join(loaded.dir, PLAN_FILE);
+    const planFile = path.join(dir, PLAN_FILE);
     writeFileSafe(planFile, kit.studioFileText(outcome.plan));
     files.plan = repoRelative(planFile);
   }
-  const panelFile = path.join(loaded.dir, PANEL_FILE);
+  const panelFile = path.join(dir, PANEL_FILE);
   writeFileSafe(panelFile, kit.studioFileText(outcome.panel));
   files.panel = repoRelative(panelFile);
   if (outcome.post) {
-    const postFile = path.join(loaded.dir, POST_FILE);
+    const postFile = path.join(dir, POST_FILE);
     writeFileSafe(postFile, outcome.post);
     files.post = repoRelative(postFile);
   }

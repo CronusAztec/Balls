@@ -233,7 +233,7 @@ now in all three runs that ask it (six refusals), so the reviewer alone costs 1.
 ### claude-opus-5-5-2026-10-28-round1b
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-round1b -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (244 replies, refused ones included). Corpus 1eb78cc0c5c16f05.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (244 replies, refused ones included). Corpus 1eb78cc0c5c16f05 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -273,3 +273,54 @@ pitched Gerald's Portal escape at the short length, which the menu no longer off
 the same model answered again with the standard length, the other five ideas unchanged: the brainstormer took 4 calls and was
 valid the first time on 2 of 3 requests. The other 233 briefs keep round 1's answers, to briefs that did not change by a byte,
 and round 1's run stays above as history. The numbers did not move otherwise.
+
+### claude-opus-5-5-2026-10-28-round1c
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-round1c -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 1eb78cc0c5c16f05.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 4 | 4 | 2 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-round1c -->
+
+**What this run is.** The round-1b run, carried over to the briefs as the round's findings 13 to 18 left them. The
+reviewer's card said a viewer's misread could be rejected with a reason, which the answer's schema (it has no reason field)
+and the rules (a misread is never rejected) both refuse. It now says what they take: viewerAnswer is null unless the read's
+makesSense is no or partly, and then it is accepted, with rewriteHook or switchEnding before a render, or the clip dropped.
+The card is part of every reviewer brief, so all 125 reviewer briefs changed, and the same model answered them again, in one
+context, having seen part of the first run's reviewer answers while it set the eval up. It answered them twice. The card's
+first wording named the read's values wrong ("notSure", the viewer's own word, where the reviewer's data says "partly"),
+and to that card 4 replies were refused: oneTextAtATime twice, on clips whose look has it on already, and switchEnding once
+on each of the two endingConfusing clips whose templates end resolved only. No brief of the corpus holds a "partly" read, so
+the corrected card asks the same of every clip, and this run is the second pass, given what the first had shown: no reply
+refused. The other 112 answers (the skeptic's 55, the viewer's 54, the brainstormer's 3) are round 1b's, to briefs that did
+not change by a byte, and round 1b's run stays above as history. The verdicts and the fixes are round 1b's, counted over the
+125 briefs: 77 keeps, 42 fixes (21 new hooks, 9 calmer looks, 9 retimed payoffs, 3 other endings) and 6 drops. Six of the
+eight new hooks have other words. The viewer's read is answered on the 4 misreads only, where round 1b also answered 9
+reads that were right. Without round 1b's 6 refused replies the calls per kept clip went down (the reviewer alone 1.08 to
+1.04, Quick 1.44 to 1.4, Thorough 3.34 to 3.3), and no other number moved.

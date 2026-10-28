@@ -333,6 +333,22 @@ export function studioPlan(input: StudioPlanInput, copy: BotCopy): { ok: true; r
   return { ok: true, records };
 }
 
+/**
+ * --- studio --- What the plan tool's result names as the next step: the crew's review of the studio, or – for more plans than
+ * the review takes in one studio (STUDIO_CLIPS_MAX; plan takes STUDIO_PLAN_MAX) – the calls that split them across two studios,
+ * and the render that takes a clip of this plan as it stands, without the crew. `args` are the plan call's, the studio left out.
+ */
+export function studioPlanNext(studio: string, count: number, args: Record<string, unknown>): string {
+  const plan = `.agent-out/studio/${studio}/plan.json`;
+  if (count <= STUDIO_CLIPS_MAX) return `review {"studio":"${studio}"}: the crew judges these before any render (a plan written here starts that review over)`;
+  const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== "count" && k !== "planSeed" && k !== "studio"));
+  const planSeed = args.planSeed;
+  const seed = typeof planSeed === "number" ? planSeed : 1;
+  const first = toolCall("plan", { ...rest, count: STUDIO_CLIPS_MAX, ...(planSeed !== undefined ? { planSeed } : {}), studio });
+  const second = toolCall("plan", { ...rest, count: count - STUDIO_CLIPS_MAX, planSeed: (seed + STUDIO_CLIPS_MAX) % 4294967296, studio: `${studio.slice(0, 78)}-2` });
+  return `The crew reviews ${STUDIO_CLIPS_MAX} plans at most in one studio, and this one holds ${count}: review refuses it. For the crew's review, plan ${STUDIO_CLIPS_MAX} here and the rest into another studio (${first}, then ${second}) and review each. Without the crew: ${toolCall("render", { plan, clip: "<id>" })} renders a clip of this plan as it stands.`;
+}
+
 /** The query a clip renders with (the simulator's own link of its settings and seed, without the site's address). */
 export function queryOf(settings: ClipPlan["settings"], seed: number, locale: BotLocale): string {
   return new URL(clipShareUrl(settings, seed, locale, "https://studio.invalid")).search;
@@ -873,6 +889,8 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     }
   }
   result.clips = state.clips.map(clipLine);
+  // --- studio --- a call that names no stage reaches the panel before the render: say so while the one after it waits for a brief
+  if (input.stage === undefined && file.post && nextStep(file.post).step.type !== "done") notes.push('the post-render panel is waiting for a brief: add "stage":"post" to fetch it and to answer it');
   if (notes.length) result.notes = notes;
   result.log = state.log.slice(-12);
   const post = file.pre && nextStep(file.pre).step.type === "done" ? studioPostText(file, plan) : null;
@@ -1098,10 +1116,19 @@ const PICTURE_CALLS = (() => {
   return `${c.sheet} for sheet.png, then ${c.hookSheet} for hook-sheet.png (the brief's \`look.pictures\`)`;
 })();
 
-/** A crew role's prompt: its rubric (the viewer's preamble), its card and protocol, and how to fetch and answer its brief. */
-function rolePrompt(role: CrewRole, studio: string, clip: string | null): string {
+/** --- studio --- The roles that play after the render too: on the post-render panel, its own state, which every call names. */
+const POST_ROLES: ReadonlySet<CrewRole> = new Set(["viewer", "reviewer"]);
+const POST_NOTE = 'after a render add "stage":"post" here and in your answer: the panel after the render is its own, and a call without it reaches the one before';
+
+/**
+ * A crew role's prompt: its rubric (the viewer's preamble), its card and protocol, and how to fetch and answer its brief – on
+ * the panel after the render when `stage` is post (every call says so), else the one before (the viewer and the reviewer are
+ * told how to reach the other).
+ */
+function rolePrompt(role: CrewRole, studio: string, clip: string | null, stage: PanelStage | null): string {
   const spec = ROLE_SPECS[role];
-  const stage = role === "viewer" ? ' (add "stage":"post" for a rendered clip)' : "";
+  const at = stage === "post" ? { stage: "post" } : {};
+  const note = stage === "post" ? " (the panel after the render)" : POST_ROLES.has(role) ? ` (${POST_NOTE})` : "";
   const lines = [
     `You are the ${role} of JumpingBallsLive's review crew. The same AI plays every member, each in a fresh conversation with one job of its own: this conversation is the ${role}'s alone, and you never answer for another role.`,
     "",
@@ -1113,8 +1140,8 @@ function rolePrompt(role: CrewRole, studio: string, clip: string | null): string
     ...(role === "reviewer" ? ["", "The fixed list of fixes:", ...Object.values(FIX_ACTIONS).map((f) => `- ${f.id}${f.params ? ` {${f.params}}` : ""}: ${f.what}`)] : []),
     "",
     `How to work, with the agent toolbox's review tool, in the studio "${studio}":`,
-    `1. Ask for your brief: ${toolCall("review", { studio })}${stage}. It names the role and the clip the panel asks for now and holds your data – ${ROLE_DATA[role]} – with the answer's JSON Schema and its shape. Answer only a brief for the ${role}${clip ? ` on the clip ${clip}` : ""}; when the panel asks for another role, stop and say which.`,
-    `2. Answer it: ${toolCall("review", { studio, role, ...(role === "skeptic" || role === "viewer" || role === "reviewer" ? { clip: clip ?? "<the brief's clip>" } : {}), verdict: "<your JSON object>" })}. A refused answer comes back with its errors: answer again, fixed (after 3 refusals the rules answer for you, labelled so).`,
+    `1. Ask for your brief: ${toolCall("review", { studio, ...at })}${note}. It names the role and the clip the panel asks for now and holds your data – ${ROLE_DATA[role]} – with the answer's JSON Schema and its shape. Answer only a brief for the ${role}${clip ? ` on the clip ${clip}` : ""}; when the panel asks for another role, stop and say which.`,
+    `2. Answer it with the brief's \`next.answer\`, \`verdict\` set to your JSON object: ${toolCall("review", { studio, ...at, role, ...(role === "skeptic" || role === "viewer" || role === "reviewer" ? { clip: clip ?? "<the brief's clip>" } : {}), verdict: "<your JSON object>" })}. A refused answer comes back with its errors: answer again, fixed (after 3 refusals the rules answer for you, labelled so).`,
     ...(role === "viewer" ? [`3. After a render the brief's \`look\` names the clip's sheet.png (the whole clip) and hook-sheet.png (its first seconds): look at both before you answer, and judge only what is on screen. If you cannot read files, ask for them as pictures: ${PICTURE_CALLS}.`] : []),
     ...(role === "skeptic" || role === "reviewer" || role === "viewer" ? [`${role === "viewer" ? "4" : "3"}. Then take the next brief while the panel asks for the ${role}.`] : []),
     "Never write files, render, edit the repository or answer for another role.",
@@ -1132,10 +1159,10 @@ function makeVideoPrompt(args: Record<string, string>): string {
     "The loop (docs/agents/STUDIO.md has a worked example):",
     `1. ${toolCall("research", {})}: the research brief, at most five pieces of advice with their levers; a weak finding is weak. When the trend summary is stale you may run inspire on a template's theme words first.`,
     `2. ${toolCall("templates", {})}: the ready templates (the battle family only when asked for).`,
-    `3. ${toolCall("plan", { template: "<id>", count, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way in the page's world, where render plays the clip.`,
+    `3. ${toolCall("plan", { template: "<id>", count, platform, world: STUDIO_RENDER_WORLD, studio: "<name>" })} – or, for an open request, ${toolCall("review", { studio: "<name>", request: request || "<the request>", wanted: count, platform, world: STUDIO_RENDER_WORLD })}, and play the brainstormer first. Either way for ${platform}, in the page's world, where render plays the clip.`,
     `4. ${toolCall("review", { studio: "<name>" })}: play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
     `5. ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<a kept clip>" })} for each kept clip: watermarked, with its melody, with its frames' sheets.`,
-    `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks.`,
+    `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks. The panel after the render is its own: every call of it, each next brief and each answer, keeps "stage":"post" (answer with the brief's \`next.answer\`).`,
     "7. Hand over .agent-out/studio/<name>/: the clips, panel.json (every role's verdict and the viewer's read) and post.txt (the words to post).",
     "",
     "Rules: every clip is a free visitor's render and carries the watermark – never install a licence or use the TEST key; write only under .agent-out/; a verdict never deletes a clip; never push and never post: the owner approves every post.",
@@ -1147,8 +1174,8 @@ function reviewClipPrompt(studio: string, clip: string | null): string {
     `Review ${clip ? `the clip ${clip}` : "the rendered clips"} of the studio "${studio}" after the render, as JumpingBallsLive's crew does for every saved clip.`,
     "",
     `1. A clip without its folder in .agent-out/studio/${studio}/ is not rendered yet: ${toolCall("render", { plan: `.agent-out/studio/${studio}/plan.json`, clip: clip ?? "<id>" })}.`,
-    `2. ${toolCall("review", { studio, stage: "post" })}: the viewer's brief comes first. Look at the clip's sheet.png and hook-sheet.png (the brief's \`look\`; a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then answer as a stranger on a phone from what is on screen alone (the crew-viewer prompt is that role's card).`,
-    "3. The reviewer only when the panel asks: the rules, the read or the facts disagree. After a render a fix is offered as a new version, never applied to the rendered clip.",
+    `2. ${toolCall("review", { studio, stage: "post" })}: the viewer's brief comes first. Look at the clip's sheet.png and hook-sheet.png (the brief's \`look\`; a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then answer as a stranger on a phone from what is on screen alone (the crew-viewer prompt with "stage":"post" is that role's card).`,
+    '3. The reviewer only when the panel asks: the rules, the read or the facts disagree (the crew-reviewer prompt with "stage":"post" is that role\'s card). Every call of this panel, each next brief and each answer, keeps "stage":"post": answer with the brief\'s `next.answer`. After a render a fix is offered as a new version, never applied to the rendered clip.',
     `4. Read .agent-out/studio/${studio}/post.txt and panel.json: the verdict, the viewer's read and the words to post. A clip the AI could not look at says "not reviewed"; it is never passed off as seen.`,
   ].join("\n");
 }
@@ -1167,8 +1194,9 @@ export function studioPrompt(name: string, args: Record<string, unknown> = {}): 
     strings[a.name] = String(v).slice(0, 400);
   }
   for (const k of ["studio", "clip"]) if (strings[k] !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(strings[k])) return { ok: false, error: `${k} must be a bare name (letters, digits, . _ -)` };
+  if (strings.stage !== undefined && strings.stage !== "pre" && strings.stage !== "post") return { ok: false, error: "stage is pre or post" };
   let text: string;
-  if (name.startsWith("crew-")) text = rolePrompt(name.slice(5) as CrewRole, strings.studio, strings.clip ?? null);
+  if (name.startsWith("crew-")) text = rolePrompt(name.slice(5) as CrewRole, strings.studio, strings.clip ?? null, strings.stage === "post" ? "post" : null);
   else if (name === "make-video") text = makeVideoPrompt(strings);
   else text = reviewClipPrompt(strings.studio, strings.clip ?? null);
   return { ok: true, prompt: { description: spec.description, messages: [{ role: "user", content: { type: "text", text } }] } };
@@ -1502,10 +1530,10 @@ function skillFileText(): string {
     "",
     `1. ${cli("research", {})}: the research brief, at most five pieces of advice; a weak finding is weak. When the trend summary is stale, \`inspire\` on a template's theme words refreshes the evidence first.`,
     `2. ${cli("templates", {})}: the ready templates. The battle family (Fight League names third-party characters) only when the owner asks for it.`,
-    `3. ${cli("plan", { template: "<id>", count: 3, world: STUDIO_RENDER_WORLD, studio: "<studio>" })}: plan in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
-    `4. ${cli("review", { studio: "<studio>", separation: "contexts" })} starts the panel (add \`"request"\`, \`"wanted"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
+    `3. ${cli("plan", { template: "<id>", count: 3, platform: "<reels|tiktok|shorts>", world: STUDIO_RENDER_WORLD, studio: "<studio>" })}: plan for the platform asked for (default reels), in the page's world. For an open request skip the plan: the review starts with \`"request"\` and the brainstormer pitches.`,
+    `4. ${cli("review", { studio: "<studio>", separation: "contexts" })} starts the panel (add \`"request"\`, \`"wanted"\`, \`"platform"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned for that platform in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
     `5. ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<a kept clip>" })} for each clip the decision keeps: watermarked, with its melody and its sheets.`,
-    `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree; their subagents get \`"stage":"post"\` in their arguments. The viewer looks at the clip's sheet.png and hook-sheet.png itself.`,
+    `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree. The panel after the render is its own: every call of it keeps \`"stage":"post"\`, your re-fetches for the next brief as well as the subagents' arguments (a call without it reaches the finished panel before the render). The viewer looks at the clip's sheet.png and hook-sheet.png itself.`,
     "7. Hand over the studio folder: the clips, panel.json and post.txt; say which clips were kept or dropped and why, which fixes were applied or offered, and that the roles ran in separate contexts (or that they did not).",
     "",
     "Without subagents (the MCP server not approved, or a client without them), play each role yourself through the CLI, one brief at a time, and leave `separation` at its default: the record then says the roles shared one context.",

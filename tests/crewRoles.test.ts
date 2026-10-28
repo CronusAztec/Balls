@@ -17,8 +17,10 @@ import {
   FIX_ACTIONS,
   FIX_IDS,
   FIXES_FOR_KIND,
+  FIXES_FOR_MISREAD,
   HUD_FLAGS,
   INTENT_MAX,
+  MAKES_SENSE,
   MEASURABLE_KINDS,
   OBJECTION_KINDS,
   REVIEW_FINAL,
@@ -300,6 +302,29 @@ describe("the checks beyond the schemas", () => {
     expect(checkReview(review({ verdict: "fix", viewerAnswer: { accept: true, fix: look }, fixes: [look] }), post)).toEqual([]);
     // no viewer ran: nothing to answer
     expect(checkReview(review({ viewerAnswer: { accept: true, fix: null } }), ctx()).some((e) => e.includes("no viewer"))).toBe(true);
+  });
+
+  it("the reviewer's card offers on a misread only what the schema and the rules take: accept it, never reject it, then fix or drop", () => {
+    const card = ROLE_SPECS.reviewer.card;
+    const line = card.split("\n").find((l) => l.startsWith("viewerAnswer:"))!;
+    expect(line).toMatch(/makesSense is no or partly; then accept, never reject/);
+    for (const v of MAKES_SENSE) if (v !== "yes") expect(line).toContain(v); // (the values the reviewer's data shows, not the viewer's own words)
+    for (const f of FIXES_FOR_MISREAD) expect(line).toContain(f);
+    // the reject reasons are the objections' alone: no line offers them for the viewer's read
+    expect(card).not.toMatch(/viewer's read[^\n]*reject with a reason/);
+    const schema = reviewFinal({ objections: [], viewer: "misread" });
+    const hook = fix("rewriteHook", { text: "Will the ball get out?" });
+    for (const stage of ["pre", "post"] as const) {
+      const c = ctx({ stage, viewer: { makesSense: "partly" } });
+      // what the card offers goes through, before and after the render
+      for (const r of [review({ verdict: "fix", viewerAnswer: { accept: true, fix: hook }, fixes: [hook] }), review({ verdict: "drop", viewerAnswer: { accept: true, fix: null } })]) {
+        expect(validateJson(schema, r), stage).toEqual([]);
+        expect(checkReview(r, c), stage).toEqual([]);
+      }
+      // what the card once offered is refused: a reason by the schema, a rejection by the rules
+      expect(validateJson(schema, { ...review({ verdict: "drop" }), viewerAnswer: { accept: false, reason: "templateIntends", fix: null } }).join(" "), stage).toMatch(/reason/);
+      expect(checkReview(review({ verdict: "drop", viewerAnswer: { accept: false, fix: null } }), c).some((e) => e.includes("cannot be rejected")), stage).toBe(true);
+    }
   });
 
   it("a rewritten hook of more than 7 words is refused, and the fix compiler's refusals come back", () => {

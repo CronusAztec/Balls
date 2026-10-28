@@ -10,10 +10,12 @@ import {
   inspireThemes,
   queryOf,
   renderSummary,
+  studioAgentFiles,
   studioClip,
   studioFileText,
   studioHash,
   studioPlan,
+  studioPlanNext,
   studioPrompt,
   studioRenderJob,
   studioRenderRecord,
@@ -177,6 +179,35 @@ describe("plan (--- studio ---)", () => {
     expect(studioTemplates({ family: "all", copy: false }, copy).templates.map((x) => x.id)).not.toContain("who-wins-race");
     expect(templateMenu("all").map((m) => m.template)).not.toContain("who-wins-race");
   });
+
+  it("points a plan past the crew's limit of a studio at two it can review, never at the review that refuses it", () => {
+    const world = { width: 800, height: 450 };
+    const args = { template: "get-out-classic", count: STUDIO_CLIPS_MAX + 2, planSeed: 4, maxSeeds: 1, world };
+    const records = planned(args);
+    expect(records).toHaveLength(STUDIO_CLIPS_MAX + 2);
+    expect(STUDIO_PLAN_MAX).toBeGreaterThan(STUDIO_CLIPS_MAX);
+    // the review refuses that many plans in one studio, so the plan's next step is not that review
+    expect(studio(records, "p10").call({})).toMatchObject({ ok: false, error: expect.stringMatching(new RegExp(`reviews ${STUDIO_CLIPS_MAX} at most`)) });
+    const next = studioPlanNext("p10", records.length, args);
+    expect(next).not.toMatch(/^review /);
+    expect(next).toContain(`The crew reviews ${STUDIO_CLIPS_MAX} plans at most in one studio, and this one holds ${STUDIO_CLIPS_MAX + 2}`);
+    // it names the two plan calls that split it, each a studio the review takes, and the render that needs no review
+    const rest = { template: "get-out-classic", maxSeeds: 1, world };
+    const first = { ...rest, count: STUDIO_CLIPS_MAX, planSeed: 4, studio: "p10" };
+    const second = { ...rest, count: 2, planSeed: 4 + STUDIO_CLIPS_MAX, studio: "p10-2" };
+    expect(next).toContain(`plan ${JSON.stringify(first)}`);
+    expect(next).toContain(`plan ${JSON.stringify(second)}`);
+    expect(next).toContain('render {"plan":".agent-out/studio/p10/plan.json","clip":"<id>"}');
+    for (const part of [first, second]) {
+      const out = studio(planned(part), part.studio).call({});
+      expect(out.ok, part.studio).toBe(true);
+      expect(nextOf(out).role, part.studio).toBe("skeptic");
+    }
+    // within the limit: the review itself, and the tool's own words name the limit
+    expect(studioPlanNext("p8", STUDIO_CLIPS_MAX, args)).toMatch(/^review \{"studio":"p8"\}: the crew judges these/);
+    const count = (AGENT_TOOLS.find((t) => t.name === "plan")!.input as { properties: Record<string, { description: string }> }).properties.count.description;
+    expect(count).toContain(`The crew's review takes ${STUDIO_CLIPS_MAX} at most in one studio`);
+  }, 120_000);
 });
 
 describe("review: Claude plays the roles, the rules hold it (--- studio ---)", () => {
@@ -383,6 +414,49 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     expect(bare.call({ stage: "post" })).toMatchObject({ ok: false, error: expect.stringMatching(/render the kept clips first/) });
   });
 
+  it("a reviewer asked after the render is reached with stage post: its prompt says so, and a call without it is told the panel waits", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const clip = recs[0].id;
+    const s = studio(recs);
+    expect(s.call({ depth: "rules" }).result.status).toBe("done");
+    const job = studioRenderJob(s.plan, s.panel(), undefined);
+    if (!job.ok) throw new Error(job.error);
+    s.setRendered([studioRenderRecord(job.job, { file: "f.webm", mp4: null, world: recs[0].plan.world, durationSec: job.job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features: features(0.3), melodyPlayed: job.job.melodyId, sheet: "s.png", hookSheet: "h.png" })]);
+    expect(nextOf(s.call({ stage: "post" })).role).toBe("viewer");
+    // a viewer who would not watch to the end: the panel after the render asks the reviewer
+    const asked = nextOf(s.call({ stage: "post", role: "viewer", clip, verdict: { whatHappens: "out", understood: "a ball escapes the rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "no" } }));
+    expect(asked).toMatchObject({ role: "reviewer", clip, answer: { studio: "t", stage: "post", role: "reviewer", clip } });
+    // without the stage the call reaches the panel before the render, which is done: the result says where the brief waits
+    const waiting = 'the post-render panel is waiting for a brief: add "stage":"post" to fetch it and to answer it';
+    const bare = s.call({});
+    expect(bare.result).toMatchObject({ stage: "pre", status: "done" });
+    expect(bare.result.notes).toContain(waiting);
+    const lost = s.call({ role: "reviewer", clip, verdict: KEEP });
+    expect(lost.result).toMatchObject({ accepted: { ok: false, errors: ["the panel is done"] } });
+    expect(lost.result.notes).toContain(waiting);
+    // the reviewer's and the viewer's prompts: with stage post every call names it, without it they say how to reach that panel
+    const promptText = (name: string, args: Record<string, unknown>) => {
+      const made = studioPrompt(name, args);
+      if (!made.ok) throw new Error(made.error);
+      return made.prompt.messages[0].content.text;
+    };
+    for (const role of ["reviewer", "viewer"] as const) {
+      const post = promptText(`crew-${role}`, { studio: "t", clip, stage: "post" });
+      expect(post, role).toContain(`1. Ask for your brief: review {"studio":"t","stage":"post"} (the panel after the render).`);
+      expect(post, role).toContain(`review {"studio":"t","stage":"post","role":"${role}","clip":"${clip}","verdict":"<your JSON object>"}`);
+      expect(post, role).toContain("next.answer");
+      const pre = promptText(`crew-${role}`, { studio: "t" });
+      expect(pre, role).toContain('after a render add "stage":"post" here and in your answer');
+    }
+    expect(promptText("crew-skeptic", { studio: "t", stage: "post" })).not.toContain('"stage":"post"'); // (the skeptic plays before the render only)
+    expect(studioPrompt("crew-reviewer", { studio: "t", stage: "later" })).toMatchObject({ ok: false, error: "stage is pre or post" });
+    for (const name of ["make-video", "review-clip"]) expect(promptText(name, { studio: "t" }), name).toMatch(/every call of (it|this panel), each next brief and each answer, keeps "stage":"post"/i);
+    // the answer the prompt names goes through
+    const done = s.call({ stage: "post", role: "reviewer", clip, verdict: KEEP });
+    expect(done.result).toMatchObject({ accepted: { ok: true }, status: "done" });
+    expect(s.call({}).result.notes ?? []).not.toContain(waiting);
+  });
+
   it("a keep rendered after the post-render panel began, or rendered again, joins it for its own look: never 'done' without one", () => {
     const recs = [...planned({ template: "get-out-classic", count: 1, planSeed: 2 }), ...planned({ template: "line-up-pendulum", count: 1, planSeed: 2 })];
     const [a, b] = recs.map((r) => r.id);
@@ -484,10 +558,40 @@ describe("research and the prompts (--- studio ---)", () => {
   });
 });
 
+describe("the loop as the guides, the skill and the prompts show it (--- studio ---)", () => {
+  it("plans in the page's world in every plan call they show, and for the platform asked for on both routes", () => {
+    const skill = studioAgentFiles().find((f) => f.path.endsWith("/SKILL.md"))!.text;
+    const texts: [string, string][] = [...["docs/agents/STUDIO.md", "docs/agents/CLI.md"].map((f) => [f, fs.readFileSync(path.join(ROOT, f), "utf8")] as [string, string]), ["SKILL.md", skill]];
+    let calls = 0;
+    for (const [file, text] of texts)
+      for (const m of text.matchAll(/agent -- plan --json '([^']*)'/g)) {
+        calls++;
+        expect(JSON.parse(m[1]).world, `${file}: ${m[0]}`).toEqual({ width: 800, height: 450 });
+      }
+    expect(calls).toBeGreaterThanOrEqual(2);
+    // the skill names the platform in its plan call and for an open request
+    const line = (text: string, n: number) => text.split("\n").find((l) => l.startsWith(`${n}. `)) ?? "";
+    expect(JSON.parse(/plan --json '([^']*)'/.exec(line(skill, 3))![1])).toMatchObject({ platform: "<reels|tiktok|shorts>" });
+    expect(line(skill, 4)).toContain('`"platform"`');
+    // the make-video prompt's platform reaches the plan call and the open request's review call alike
+    const make = studioPrompt("make-video", { request: "two clips that break", count: "2", platform: "tiktok" });
+    const step3 = line(make.ok ? make.prompt.messages[0].content.text : "", 3);
+    expect(step3.split('"platform":"tiktok"').length - 1).toBe(2);
+    expect(step3).toContain('review {"studio":"<name>","request":"two clips that break","wanted":2,"platform":"tiktok","world":{"width":800,"height":450}}');
+    expect(checkToolArgs("review", { studio: "x", request: "two clips that break", wanted: 2, platform: "tiktok", world: { width: 800, height: 450 } }).ok).toBe(true);
+    // that review call starts the brainstormer on the platform it names
+    const s = studio([], "open");
+    const brief = nextOf(s.call({ request: "two clips that break", wanted: 2, platform: "tiktok", world: { width: 800, height: 450 } }));
+    expect(brief.role).toBe("brainstormer");
+    expect(brief.messages.map((m) => m.content).join("\n")).toContain("Platform: tiktok");
+  });
+});
+
 describe("the studio tools through the CLI (--- studio ---)", () => {
   it("plans into .agent-out/studio/<studio>/ (the same JSON twice), reviews there, and prints a prompt; nothing else is written", () => {
     const name = `vitest-studio-${process.pid}`;
     const dir = path.join(ROOT, ".agent-out", "studio", name);
+    const none = `${dir}-none`;
     const gitStatus = () => spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: ROOT, encoding: "utf8" }).stdout;
     const before = gitStatus();
     try {
@@ -508,9 +612,15 @@ describe("the studio tools through the CLI (--- studio ---)", () => {
       const prompt = agent(["--prompt", "crew-viewer", "--json", JSON.stringify({ studio: name })]);
       expect(prompt.json).toMatchObject({ ok: true, prompt: "crew-viewer", result: { messages: [{ role: "user", content: { type: "text" } }] } });
       expect(agent(["--prompt", "crew-viewer", "--json", "{}"]).code).toBe(2);
+      // score writes nothing (MCP lists it read-only), and a refused review writes nothing: no empty studio is left behind
+      const missing = agent(["score", "--json", JSON.stringify({ studio: `${name}-none`, clip: "x" })]);
+      expect([missing.code, missing.json.error]).toEqual([1, expect.stringMatching(/No plan\.json/)]);
+      expect(agent(["review", "--json", JSON.stringify({ studio: `${name}-none` })]).code).toBe(1);
+      expect(fs.existsSync(none)).toBe(false);
       expect(gitStatus()).toBe(before);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(none, { recursive: true, force: true });
     }
   }, 240_000);
 
