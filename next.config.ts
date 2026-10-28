@@ -1,8 +1,27 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { createHash } from "crypto"; // --- react-hydration-replay ---
+import fs from "fs"; // --- react-hydration-replay ---
+import path from "path"; // --- react-hydration-replay ---
 import { nextEnv, resolveBuildInfo } from "./scripts/lib/build-info.cjs"; // --- build-identity ---
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+/**
+ * --- react-hydration-replay --- A digest of the react-dom client build Next bundles (the one `next dev` or `next build`
+ * loads), which scripts/patch-react-hydration-replay.mjs patches on install. Webpack trusts node_modules by package name and
+ * version (snapshot.managedPaths), so a .next/cache built before the patch (actions/cache restores one on CI, the VPS
+ * deployer's checkout keeps its own) went on shipping the unpatched React byte for byte; with the digest in the cache version
+ * such a cache is not reused. Delete it with the script, once Next bundles React 19.3 or later (Next 16.2+).
+ */
+function bundledReactDomDigest(dev: boolean): string {
+  try {
+    const file = path.join(path.dirname(require.resolve("next/package.json")), "dist", "compiled", "react-dom", "cjs", `react-dom-client.${dev ? "development" : "production"}.js`);
+    return createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, 16);
+  } catch {
+    return "unread";
+  }
+}
 
 /**
  * The site is a fully static export (`out/`), so it can be hosted on GitHub Pages or any
@@ -36,6 +55,12 @@ const nextConfig: NextConfig = {
   // and `npm run guard:browser`. Unset – `npm run build`, the VPS deployer – the build type-checks exactly as before.
   // tests/releaseWorkflows.test.ts pins where it may be set.
   typescript: { ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1" },
+  // --- react-hydration-replay --- the webpack cache version names the React that is bundled (bundledReactDomDigest above).
+  // next-intl's plugin wraps this hook and calls it.
+  webpack: (config, { dev }) => {
+    if (config.cache && typeof config.cache === "object") config.cache.version = `${config.cache.version ?? ""}|react-dom-client:${bundledReactDomDigest(dev)}`;
+    return config;
+  },
 };
 
 export default withNextIntl(nextConfig);
