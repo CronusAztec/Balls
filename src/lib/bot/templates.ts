@@ -3,7 +3,8 @@ import type { SimulatorSettings } from "@/lib/settings";
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, PAYOFF_STRATEGIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
+import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -15,19 +16,24 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, PAYOFF_STRATEGIES, recipeById, type
  *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion – a later
  *    step writes it), where its countdown comes from and the endings it takes.
  *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
- *    the recipe's does not show the format's payoff: Ball Drop's last note –, or – a later step – the bound finder outcome or
- *    the clip's end), the settings it plays its recipe with (`tune`: Pendulum Wave's chord where the hook promises one), the
- *    context flag that outcome needs, the length buckets it can fill, the HUD it keeps (only the one that shows the
- *    countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe, each variant one; the variants that plan
- *    pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (hidden from every menu). A proven
+ *    the recipe's does not show the format's payoff: Ball Drop's last note –, the bound finder outcome's moment ("outcome") or
+ *    the clip's last 1.5 s ("atEnd"): outcomeStrategy.ts), the settings it plays its recipe with (`tune`: Pendulum Wave's chord
+ *    where the hook promises one) – or, without a recipe, its own (`patch` on the mode's defaults, or a seeded `generate`), with
+ *    the context flag its outcome needs switched on (OUTCOME_FLAG_SETTINGS) –, the length buckets it can fill, the HUD it keeps
+ *    (only the one that shows the countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe, each variant
+ *    one; the variants that plan pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (the bindings
+ *    of the EXPERIMENTAL table, a shrink-only list: hidden from every menu until the planning acceptance passes them). A proven
  *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception:
  *    Fight League's boss rush (its hook), the square race (its count-in) and Ball Drop (its run fades out: review round 2,
  *    21). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden; the other 32 are declared and hidden until their strategies and copy land (docs/virality-playbook.md §5).
- *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe, or
- *    hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length buckets its seed search
- *    finds the payoff in. Its adapter (templateRecipe) is the recipe pinned to the binding's mode, buckets (the variant's where
+ *    hidden; the other 32 are declared, experimental and hidden until their settings, copy and planning acceptance land
+ *    (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its strategy can plan it.
+ *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
+ *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
+ *    buckets its seed search finds the payoff in. A variant without a recipe adapts its binding (ownRecipe: the format's family,
+ *    payoff, copy key and countdown, the binding's settings and strategy). Its adapter (templateRecipe; plannedRecipe whether it
+ *    is offered or not) is the recipe pinned to the binding's mode, buckets (the variant's where
  *    it narrows them), endings (the format's, narrowed by the binding's), the binding's strategy and tune, and the format's
  *    words (no payoff words where its payoff speaks for itself, a stake format's number kept in the Simple hook): planClipSteps
  *    plans it like any recipe
@@ -246,35 +252,69 @@ export interface TemplateFormat {
   payoffWords: boolean;
   /** --- templates --- Its hook's number is the stake (how many to break, to count): the Simple hook keeps the clause that states it. */
   stakeHook: boolean;
+  /**
+   * --- templates --- The series a binding of it without a recipe belongs to (a binding may name its own): the battles' who-wins
+   * stays in the battle family, which the daily bot and the default menus leave out unless it is asked for.
+   */
+  family: BotFamily;
+  /** --- templates --- The payoff a binding of it without a recipe shows (playbook.ts PAYOFF_TYPES). */
+  payoff: PayoffType;
 }
 
 export const TEMPLATE_FORMATS: Readonly<Record<TemplateFormatId, TemplateFormat>> = {
-  getOut: { id: "getOut", idea: "Something is trapped; will it get out, and the moment it does.", claim: "out", copyKey: "getOut", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
-  smash: { id: "smash", idea: "Every hit wears it down; which hit breaks it.", claim: "break", copyKey: "smash", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: true },
+  getOut: { id: "getOut", idea: "Something is trapped; will it get out, and the moment it does.", claim: "out", copyKey: "getOut", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "escape", payoff: "escape" },
+  smash: { id: "smash", idea: "Every hit wears it down; which hit breaks it.", claim: "break", copyKey: "smash", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: true, family: "escape", payoff: "shatter" },
   // (review round 2, 22: the ball filling its ring is the countdown; the caption bar counted the clip's seconds, not the fill)
-  fill: { id: "fill", idea: "It grows until it fills the space.", claim: "full", copyKey: "fill", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false },
-  count: { id: "count", idea: "One becomes many; how many by the end.", claim: "count", copyKey: "count", countdown: ["hud", "picture"], endings: ["resolved"], payoffWords: true, stakeHook: true },
-  whoWins: { id: "whoWins", idea: "Pick one before it starts; one of them wins.", claim: "winner", copyKey: "whoWins", countdown: ["hud", "picture"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
-  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
-  lineUp: { id: "lineUp", idea: "Out of step, then all in line at once.", claim: "inSync", copyKey: "lineUp", countdown: ["picture", "hud"], endings: ["resolved"], payoffWords: true, stakeHook: false },
+  fill: { id: "fill", idea: "It grows until it fills the space.", claim: "full", copyKey: "fill", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "escape", payoff: "fill" },
+  count: { id: "count", idea: "One becomes many; how many by the end.", claim: "count", copyKey: "count", countdown: ["hud", "picture"], endings: ["resolved"], payoffWords: true, stakeHook: true, family: "escape", payoff: "fill" },
+  whoWins: { id: "whoWins", idea: "Pick one before it starts; one of them wins.", claim: "winner", copyKey: "whoWins", countdown: ["hud", "picture"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "battle", payoff: "winner" },
+  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "escape", payoff: "escape" },
+  lineUp: { id: "lineUp", idea: "Out of step, then all in line at once.", claim: "inSync", copyKey: "lineUp", countdown: ["picture", "hud"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "rhythm", payoff: "flip" },
   // (the plan's onTheBeat payoff: "none: the drop or the last bar" – the last note is heard, and no words name a chord it is not)
-  onTheBeat: { id: "onTheBeat", idea: "Every bounce is a note; the drop or the last bar is the payoff.", claim: "beat", copyKey: "onTheBeat", countdown: ["picture"], endings: ["resolved"], payoffWords: false, stakeHook: false },
-  reveal: { id: "reveal", idea: "Lines pile up into a picture; guess it before it is done.", claim: "picture", copyKey: "reveal", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false },
-  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"], payoffWords: true, stakeHook: false },
+  onTheBeat: { id: "onTheBeat", idea: "Every bounce is a note; the drop or the last bar is the payoff.", claim: "beat", copyKey: "onTheBeat", countdown: ["picture"], endings: ["resolved"], payoffWords: false, stakeHook: false, family: "rhythm", payoff: "flip" },
+  reveal: { id: "reveal", idea: "Lines pile up into a picture; guess it before it is done.", claim: "picture", copyKey: "reveal", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "rhythm", payoff: "flip" },
+  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "escape", payoff: "escape" },
 };
 
 /* ------------------------------------------------------------------ the bindings */
 
-/** How a binding times its payoff: a playbook strategy, the bound finder outcome, or the clip's last 1.5 s (a later step). */
-export type TemplateStrategy = PayoffStrategy | "outcome" | "atEnd";
+/**
+ * How a binding times its payoff: a playbook strategy – its recipe's, Ball Drop's last note –, the bound finder outcome's moment
+ * ("outcome") or the clip's last 1.5 s ("atEnd"): --- templates --- the planner plans both (outcomeStrategy.ts).
+ */
+export type TemplateStrategy = PayoffStrategy;
 export type TemplateTier = "proven" | "trial" | "experimental";
-/** The finder context flags a bound outcome may need (lib/simulation/outcomes.ts OutcomeContext). */
+/**
+ * The finder context flags a bound outcome may need (lib/simulation/outcomes.ts OutcomeContext): on, but colourSortSettles,
+ * which its outcomes need off (a gate rule whose sort completes instead of settling).
+ */
 export type OutcomeFlag = keyof OutcomeContext & ("growFinish" | "dpFan" | "bmMarbles" | "vortexRings" | "pfPento" | "ringEscape" | "colourSortSettles");
+
+/**
+ * --- templates --- The settings that give a binding's outcome its context flag (lib/simulation/outcomeContext.ts reads them back):
+ * Grow's fill ends the run, the chaos fan, the marble xylophone, the vortex's ring waves, the pentomino rectangles, Classic's ring
+ * sounds (a Ring Escape option that leaves the rings as they are), and a Colour Sort rule whose sort completes (the default's).
+ * A binding's own settings take its flag's on top (ownSettingsOf), so its outcome is there to find whatever else they set.
+ */
+export const OUTCOME_FLAG_SETTINGS: Readonly<Record<OutcomeFlag, Partial<SimulatorSettings>>> = {
+  growFinish: { growOnFill: "finish" },
+  dpFan: { dpFan: true },
+  bmMarbles: { bmVariant: "marbles" },
+  vortexRings: { vxRelease: "rings" },
+  pfPento: { pfVariant: "pento" },
+  ringEscape: { ringSound: true },
+  colourSortSettles: { csRule: "outwardNotOwn" },
+};
+
+/** --- templates --- Whether a context has the flag an outcome needs: on – or, for colourSortSettles, off. */
+export function outcomeFlagHolds(flag: OutcomeFlag, ctx: OutcomeContext): boolean {
+  return flag === "colourSortSettles" ? !ctx.colourSortSettles : ctx[flag] === true;
+}
 
 export interface TemplateVariant {
   /** The template id: `<format>-<mode>` for the binding's first variant, `-<suffix>` after it for the others. */
   id: string;
-  /** The playbook recipe it wraps (null: the binding's own generator, a later step). */
+  /** The playbook recipe it wraps (null: the binding's own settings, ownSettingsOf). */
   recipe: string | null;
   /** Why a variant of a proven binding is hidden (it fails a clarity gate on every plan); absent: it plans with its binding. */
   hidden?: string;
@@ -295,8 +335,21 @@ export interface ModeBinding {
   variants: readonly TemplateVariant[];
   /** The finder outcome its payoff is (strategy "outcome"). */
   outcome?: FinderOutcomeKind;
-  /** The context flag the outcome needs: the binding's settings switch it on (a later step). */
+  /** The context flag the outcome needs: the binding's own settings switch it on (OUTCOME_FLAG_SETTINGS). */
   needs?: OutcomeFlag;
+  // --- templates --- a binding without a recipe: its own settings and what its recipe would say
+  /** Its settings on the mode's defaults (one of `patch` and `generate`; neither: the defaults), every value on its RANGES step. */
+  patch?: Partial<SimulatorSettings>;
+  /** Its settings drawn from the planner's seeded context (its `rng` only, every value on its RANGES step, never clamped). */
+  generate?: (ctx: RecipeContext) => Partial<SimulatorSettings>;
+  /** Its series where it is not its format's (TemplateFormat.family). */
+  family?: BotFamily;
+  /** Its countdown (a caption, the mode's HUD, or the picture); the picture by default. */
+  countdown?: { kind: CountdownKind; source: CountdownSource };
+  /** The values its hook and captions are filled with (none by default). */
+  hookVars?: (s: SimulatorSettings) => HookVars;
+  /** The mode's own notes are the melody: no melody on top (BotRecipe.musicFirst). */
+  musicFirst?: true;
   /** The length buckets the mode fills under this binding (all its recipe's by default). */
   buckets?: readonly LengthBucket[];
   /** The endings it takes (its format's and its recipe's by default). */
@@ -331,12 +384,24 @@ type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: st
 type BindingSpec = Omit<ModeBinding, "mode" | "variants" | "ready"> & { variants?: readonly VariantSpec[] };
 
 /**
+ * --- templates --- Whether a binding's strategy can plan it: every strategy but an outcome the outcome strategy has no moment
+ * for (outcomeStrategy.ts OUTCOME_MOMENTS: an outcome the finder searches over settings, not seeds).
+ */
+export function strategyCanPlan(binding: Pick<ModeBinding, "strategy" | "outcome">): boolean {
+  return binding.strategy !== "outcome" || outcomeStrategyPlans(binding.outcome);
+}
+
+/**
  * A binding from its spec: its variants' ids from the format and the mode; ready when proven and one of its variants plans
  * (wraps a recipe and is not hidden) – --- templates --- (review round 2, 14) never ready with nothing to plan, as the square race.
+ * --- templates --- A binding of the EXPERIMENTAL table is experimental, whatever its spec says, and never ready; a trial one is
+ * ready while one of its variants is not hidden and its strategy can plan it.
  */
 function bind(mode: ModeId, spec: BindingSpec): ModeBinding {
   const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}) }));
-  return { ...spec, mode, ready: spec.tier === "proven" && variants.some((v) => v.recipe !== null && !v.hidden), variants };
+  const tier: TemplateTier = spec.tier !== "proven" && EXPERIMENTAL[mode] !== undefined ? "experimental" : spec.tier;
+  const ready = tier === "proven" ? variants.some((v) => v.recipe !== null && !v.hidden) : tier === "trial" && variants.some((v) => !v.hidden) && strategyCanPlan(spec);
+  return { ...spec, tier, mode, ready, variants };
 }
 
 /** The run ends with the escape: a resolved clip would show it for the recorder's 0.5 s only, under the crew's G2 0.8 s. */
@@ -377,8 +442,55 @@ const COUNT_IN = "its 3-2-1-GO opens the gate at 1.8 s, so G1 (the first impact 
  */
 const FADES_OUT = "its run fades out: the last ball's last note is one faint tick over a board at rest (G2 Still), then silence until the SETTLED! banner, which the recorder shows for 0.5 s (G2 asks 0.8 s): no moment at 80–90 % of the clip lands";
 
-/** A hidden binding of a later step: a strategy of its own (outcome, atEnd) or the format's copy still to come. */
+/** A binding of a later step: no recipe – its own settings, its format's copy still to come –, trial once it leaves EXPERIMENTAL. */
 const later = (format: TemplateFormatId, strategy: TemplateStrategy, extra: Partial<BindingSpec> = {}): BindingSpec => ({ format, strategy, tier: "trial", keepHud: null, ...extra });
+
+// --- templates --- why a binding is in the experimental table
+/** Its strategy can plan it (the outcome's moment, the clip's end, the run's finish); it waits for the rest. */
+const AWAITS = "waits for its own settings, its format's copy and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
+/** Its outcome is found over settings, not seeds: the outcome strategy has no seed's moment for it (outcomeStrategy.ts). */
+const OWN_SEARCH = "its outcome is searched over settings by its own finder, not over seeds: the outcome strategy cannot plan it, and it waits for that search as well as its settings, its format's copy and the planning acceptance";
+
+/**
+ * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
+ * ready –, each with its reason. Shrink only: tests/botTemplates.test.ts pins it, so a binding leaves it when it passes (with its
+ * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin. All 32 bindings without
+ * a recipe start here.
+ */
+export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
+  shatter: AWAITS,
+  colorMatch: AWAITS,
+  journey: AWAITS,
+  target: AWAITS,
+  brickRebuild: OWN_SEARCH,
+  spiralGlass: AWAITS,
+  paint: AWAITS,
+  perfectFit: OWN_SEARCH,
+  conveyor: AWAITS,
+  mergeRing: AWAITS,
+  maze: AWAITS,
+  territory: AWAITS,
+  landClaim: AWAITS,
+  bullseye: AWAITS,
+  box: AWAITS,
+  paddle: AWAITS,
+  starChords: OWN_SEARCH,
+  ellipseFoci: OWN_SEARCH,
+  hoops: AWAITS,
+  orbGrid: AWAITS,
+  colourSort: AWAITS,
+  doublePendulum: AWAITS,
+  beatDrop: AWAITS,
+  beatMachine: OWN_SEARCH,
+  runner: AWAITS,
+  vortex: OWN_SEARCH,
+  collide: AWAITS,
+  waveTank: AWAITS,
+  lines: AWAITS,
+  drawingMachine: AWAITS,
+  illusion: AWAITS,
+  blueprint: AWAITS,
+};
 
 /**
  * Every mode's binding (the plan's coverage: getOut 7, smash 4, fill 3, count 4, whoWins 8, aim 3, lineUp 8, onTheBeat 7,
@@ -462,18 +574,23 @@ export interface TemplateInfo {
   format: TemplateFormat;
   binding: ModeBinding;
   recipe: BotRecipe | null;
-  /** The family of the recipe it wraps (null: none yet). */
+  /** The family of the recipe it wraps, or – --- templates --- a variant without one – its binding's (null: its recipe is unknown). */
   family: BotFamily | null;
   ready: boolean;
   /** The length buckets it fills when narrower than its recipe's: its variant's, else its binding's. */
   buckets?: readonly LengthBucket[];
 }
 
+/** --- templates --- The series of a binding without a recipe: its own, else its format's. */
+const familyOfBinding = (binding: ModeBinding): BotFamily => binding.family ?? TEMPLATE_FORMATS[binding.format].family;
+
 const INFOS: readonly TemplateInfo[] = BINDINGS.flatMap((binding) =>
   binding.variants.map((v) => {
     const recipe = v.recipe ? (recipeById(v.recipe) ?? null) : null;
     const buckets = v.buckets ?? binding.buckets;
-    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family: recipe?.family ?? null, ready: binding.ready && !!recipe && !v.hidden, ...(buckets ? { buckets } : {}) };
+    // (--- templates --- a variant without a recipe plans its binding's own settings)
+    const family = v.recipe === null ? familyOfBinding(binding) : (recipe?.family ?? null);
+    return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family, ready: binding.ready && !v.hidden && (v.recipe === null || !!recipe), ...(buckets ? { buckets } : {}) };
   }),
 );
 const INFO_BY_ID = new Map(INFOS.map((t) => [t.id, t]));
@@ -517,16 +634,31 @@ function pinnedSettings(recipe: BotRecipe, mode: ModeId): BotRecipe["settings"] 
   };
 }
 
-const isPayoffStrategy = (s: TemplateStrategy): s is PayoffStrategy => (PAYOFF_STRATEGIES as readonly string[]).includes(s);
+/**
+ * A template's recipe, the one the planner plans while it is offered (ready): its wrapped recipe's adapter or its binding's own
+ * (plannedRecipe); null for a hidden template.
+ */
+export function templateRecipe(info: TemplateInfo): BotRecipe | null {
+  return info.ready ? plannedRecipe(info) : null;
+}
 
 /**
- * A template's recipe: the wrapped recipe pinned to the binding's mode, its buckets (the variant's) and the format's endings,
+ * --- templates --- A template's recipe whether it is offered or not, as the planning acceptance plans a binding before it is ready
+ * (tests/botTemplates.test.ts): the wrapped recipe's adapter (wrappedRecipe), or – a variant without a recipe – its binding's own
+ * (ownRecipe). Null where there is nothing to plan: an unknown recipe, or an outcome the outcome strategy has no moment for.
+ */
+export function plannedRecipe(info: TemplateInfo): BotRecipe | null {
+  const own = info.binding.variants.find((v) => v.id === info.id);
+  if (own?.recipe === null) return ownRecipe(info);
+  return info.recipe ? wrappedRecipe(info, info.recipe) : null;
+}
+
+/**
+ * A wrapped recipe's adapter: the recipe pinned to the binding's mode, its buckets (the variant's) and the format's endings,
  * under the template id – timed by the binding's strategy, played with its tune, and drawn with the format's words (no payoff
  * words where its payoff speaks for itself; a stake format's number kept in the Simple hook).
  */
-export function templateRecipe(info: TemplateInfo): BotRecipe | null {
-  const recipe = info.recipe;
-  if (!info.ready || !recipe) return null;
+function wrappedRecipe(info: TemplateInfo, recipe: BotRecipe): BotRecipe {
   const narrow = info.buckets;
   const buckets = narrow ? (recipe.buckets ?? narrow).filter((b) => narrow.includes(b)) : recipe.buckets;
   const ownEndings = recipe.endings ?? (["resolved", "cliffhanger"] as const);
@@ -538,7 +670,7 @@ export function templateRecipe(info: TemplateInfo): BotRecipe | null {
     id: info.id,
     modes: [info.mode],
     settings: tune ? (ctx: RecipeContext) => ({ ...pinned(ctx), ...tune, mode: info.mode }) : pinned,
-    strategy: isPayoffStrategy(info.binding.strategy) ? info.binding.strategy : recipe.strategy,
+    strategy: info.binding.strategy,
     ...(buckets && buckets.length ? { buckets } : {}),
     endings: endings.length ? endings : ownEndings,
     wraps: recipe.id,
@@ -546,6 +678,58 @@ export function templateRecipe(info: TemplateInfo): BotRecipe | null {
     ...(info.format.stakeHook ? { stakeHook: true as const } : {}),
     ...(info.binding.hookAsk ? { hookAsk: info.binding.hookAsk } : {}),
     countdownFrom: info.format.countdown,
+  };
+}
+
+/**
+ * --- templates --- A binding's own settings (a binding without a recipe): its seeded `generate`, else its `patch`, with the flag
+ * its outcome needs on top (OUTCOME_FLAG_SETTINGS), its `tune`, and – atEnd – the clip's length drawn from the payoff target
+ * (outcomeStrategy.ts atEndRecordingSec), in its mode. The planner lays them over the mode's defaults (planner.ts recipeSettings).
+ */
+export function ownSettingsOf(binding: ModeBinding): BotRecipe["settings"] {
+  const flag = binding.needs ? OUTCOME_FLAG_SETTINGS[binding.needs] : {};
+  return (ctx: RecipeContext) => ({
+    ...(binding.generate ? binding.generate(ctx) : { ...(binding.patch ?? {}) }),
+    ...flag,
+    ...(binding.tune ?? {}),
+    ...(binding.strategy === "atEnd" ? { recordingDuration: atEndRecordingSec(ctx.payoffTarget) } : {}),
+    mode: binding.mode,
+  });
+}
+
+/**
+ * --- templates --- A binding's own recipe (a variant without one): its format's family (or its own), payoff, copy key, endings and
+ * countdown sources, its own settings (ownSettingsOf), strategy, outcome, countdown and hook values, under the template id – and
+ * the format's words as a wrapped recipe has them. An atEnd binding ends resolved only (no event comes to cut before) and fills
+ * the buckets whose payoff lands in the planner's band (AT_END_BUCKETS). Its copy is its format's (`ViralBot.formats.<id>`, a
+ * later step): until it lands the clip draws no words. Null for an outcome the outcome strategy has no moment for.
+ */
+function ownRecipe(info: TemplateInfo): BotRecipe | null {
+  const b = info.binding;
+  const f = info.format;
+  if (!strategyCanPlan(b)) return null;
+  const atEnd = b.strategy === "atEnd";
+  const endings = atEnd ? (["resolved"] as const) : f.endings.filter((e) => !b.endings || b.endings.includes(e));
+  const narrow = info.buckets;
+  const buckets = atEnd ? AT_END_BUCKETS.filter((x) => !narrow || narrow.includes(x)) : narrow;
+  return {
+    id: info.id,
+    copyKey: f.copyKey,
+    family: familyOfBinding(b),
+    modes: [b.mode],
+    payoff: f.payoff,
+    countdown: b.countdown ?? { kind: "timer", source: "picture" },
+    strategy: b.strategy,
+    ...(b.outcome ? { outcome: b.outcome } : {}),
+    ...(b.musicFirst ? { musicFirst: true } : {}),
+    endings: endings.length ? endings : f.endings,
+    ...(buckets && buckets.length ? { buckets } : {}),
+    settings: ownSettingsOf(b),
+    hookVars: b.hookVars ?? (() => ({})),
+    ...(f.payoffWords ? {} : { payoffWords: false as const }),
+    ...(f.stakeHook ? { stakeHook: true as const } : {}),
+    ...(b.hookAsk ? { hookAsk: b.hookAsk } : {}),
+    countdownFrom: f.countdown,
   };
 }
 

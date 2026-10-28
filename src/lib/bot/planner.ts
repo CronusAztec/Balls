@@ -13,6 +13,7 @@ import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipe
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
 import { actionSampleSec, actionTrackSteps, actionUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
 import { askHookText, botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
+import { atEndPayoffSec, outcomeRunOf, payoffWindow, strategyOutcome, type OutcomeRunFacts } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
@@ -671,6 +672,11 @@ export interface RunFacts {
   // --- templates ---
   /** The last sound of the run (s; −1 none): followed for the `lastNote` strategy only, absent otherwise. */
   lastSoundSec?: number;
+  /**
+   * --- templates --- The bound finder outcome's run (the `outcome` strategy only, outcomeStrategy.ts): its moment, whether it met
+   * the window the planner asked for, the winner it crowned and where the run ended on its own; absent otherwise.
+   */
+  outcomeRun?: OutcomeRunFacts;
   // --- crew ---
   /** What the run does around its payoff (lib/insights/score.ts payoffMomentSync): the crew's runs carry it, the bot's never. */
   moment?: PayoffMoment;
@@ -727,8 +733,11 @@ export const MULTIPLY_FILL_BALLS = 40;
 /** The share of its ring a Grow ball fills at the payoff. */
 export const GROW_FILL_SHARE = 0.95;
 
+/** What a run's facts need of its recipe: its strategy and – --- templates --- for the `outcome` strategy – its bound outcome. */
+export type FactsRecipe = Pick<BotRecipe, "strategy"> & Partial<Pick<BotRecipe, "outcome">>;
+
 /** Simulates one seed the way the page's export engine plays it, collecting what the payoff timing needs. */
-export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick<BotRecipe, "strategy">, horizonSec: number): RunFacts {
+export function simulateFacts(request: FinderRequest, seed: number, recipe: FactsRecipe, horizonSec: number): RunFacts {
   return drain(simulateFactsSteps(request, seed, recipe, horizonSec));
 }
 
@@ -740,7 +749,7 @@ export const FACTS_SLICE_STEPS = 60;
  * simulateFacts() as a generator: the same run and the same facts, with a pause (it yields the playback ms so far) every
  * FACTS_SLICE_STEPS steps, so the page can follow a heavy run in slices (lib/insights/score.ts) – drain() takes none.
  */
-export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe: Pick<BotRecipe, "strategy">, horizonSec: number): Generator<number, RunFacts> {
+export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe: FactsRecipe, horizonSec: number): Generator<number, RunFacts> {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
   const horizonMs = horizonSec * 1000;
@@ -761,7 +770,8 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
       ...(doubleKo !== undefined ? { doubleKo } : {}),
     };
   };
-  const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed";
+  // (--- templates --- atEnd: the payoff is the clip's end; outcome: the finder's own run of the seed below times it)
+  const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed" || recipe.strategy === "atEnd" || recipe.strategy === "outcome";
   let elapsed = 0;
   let atEscape: RunSummary | null = null;
   let steps = 0; // --- insights --- (the pauses)
@@ -821,6 +831,15 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
     const v = engine.getFightLeagueView();
     facts.summary = { ...facts.summary, fl: flRunSummary(v, facts.bothLowSec !== undefined && facts.bothLowSec >= 0 ? 1000 * facts.bothLowSec : -1), ...(facts.finishSec >= 0 ? { doubleKo: v.doubleKo } : {}) };
   }
+  // --- templates --- the bound outcome (outcomeStrategy.ts): the finder's own run of the seed – its moment, its end, its verdict
+  if (recipe.strategy === "outcome" && recipe.outcome) {
+    const { summary, facts: outcomeRun } = outcomeRunOf(request, seed, recipe.outcome, horizonSec);
+    facts.summary = summary;
+    facts.finishSec = summary.finished ? summary.durationMs / 1000 : -1;
+    facts.firstEscapeSec = summary.firstEscapeMs >= 0 ? summary.firstEscapeMs / 1000 : -1;
+    facts.winnerIndex = outcomeRun.winner;
+    facts.outcomeRun = outcomeRun;
+  }
   return facts;
 }
 
@@ -831,6 +850,8 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
       return settings.mode === "polyrhythm" ? polyrhythmCycleSeconds(polyrhythmSettingsOf(settings)) : settings.pwCycleSeconds;
     case "fixed":
       return powerLayersPayoffSec(settings.plLayers, settings.plSequence, settings.plSpeed);
+    case "atEnd": // --- templates --- the clip's last 1.5 s (outcomeStrategy.ts)
+      return atEndPayoffSec(settings.recordingDuration);
     default:
       break;
   }
@@ -848,13 +869,17 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
   else if (recipe.strategy === "fill") sec = facts.fillSec;
   // --- templates --- the last note of a run that ended on its own (before its end it may not be the last)
   else if (recipe.strategy === "lastNote") sec = facts.finishSec >= 0 ? (facts.lastSoundSec ?? -1) : -1;
+  // --- templates --- the bound outcome's moment in the finder's own run (outcomeStrategy.ts)
+  else if (recipe.strategy === "outcome") sec = facts.outcomeRun?.atSec ?? -1;
   return sec >= 0 ? sec : null;
 }
 
 /** When the run ends on its own after the payoff (s), or null when it does not within the clip (endless modes, analytic ones). */
 function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSettings, facts: RunFacts | null, payoff: number): number | null {
   if (recipe.strategy === "fixed") return payoff + 1.8; // Power Layers: the freedom celebration, then the end
-  if (recipe.strategy === "cycle" || recipe.strategy === "fill") return null;
+  if (recipe.strategy === "cycle" || recipe.strategy === "fill" || recipe.strategy === "atEnd" /* --- templates --- */) return null;
+  // --- templates --- the bound outcome's run: where it ended on its own, or closed its loop (outcomeClipSec)
+  if (recipe.strategy === "outcome") return facts?.outcomeRun?.endSec ?? null;
   if (!facts || facts.finishSec < 0) return null;
   // A square race goes on after its winner crosses (the others finish, then the podium): the clip is cut at the payoff's
   // 85 % mark instead – unless the run is over (podium included) before that anyway.
@@ -886,6 +911,14 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
     // No payoff within the run followed: a cut clip of the bucket's length that never shows one (never-escapes).
     const d = clampInt((range.min + range.max) / 2, Math.max(R_DUR.min, range.min), Math.min(R_DUR.max, range.max));
     return { payoffSec: null, recordingDuration: d, clipSec: d, position: null, cutGapSec: null, accepted: false };
+  }
+  // --- templates --- atEnd (outcomeStrategy.ts): the clip is the length its settings record, its payoff the last 1.5 s of it –
+  // resolved only, as nothing comes after it to cut before
+  if (recipe.strategy === "atEnd") {
+    const recordingDuration = settings.recordingDuration;
+    const position = payoff / recordingDuration;
+    const ok = ending === "resolved" && position >= PAYOFF_BAND.from - 1e-9 && position <= PAYOFF_BAND.accept + 1e-9 && recordingDuration >= range.min - 0.5 && recordingDuration <= range.max + 0.5;
+    return { payoffSec: payoff, recordingDuration, clipSec: recordingDuration, position, cutGapSec: null, accepted: ok };
   }
   if (ending === "cliffhanger") {
     const d = Math.floor(payoff - CLIFF_GAP_SEC.min + 1e-9);
@@ -923,6 +956,9 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
  */
 export function passesFinderPredicates(recipe: Pick<BotRecipe, "strategy" | "outcome">, facts: RunFacts | null, timing: ClipTiming, ending: EndingStyle, teamCount: number): { ok: boolean; winner: number } {
   let winner = -1;
+  // --- templates --- the bound outcome (outcomeStrategy.ts): its moment in the window the planner asked the finder for, and the
+  // clip around it (a cut one ends before it)
+  if (recipe.strategy === "outcome") return { ok: timing.accepted && facts?.outcomeRun?.matched === true, winner: facts?.outcomeRun?.winner ?? -1 };
   // --- fl-overhaul --- (Stage 6) a fight: its own predicates (the KO in the clip, the recipe's outcome, the cliffhanger's both-low-at)
   if (facts && facts.summary.mode === "fightLeague") return { ok: fightPredicates(recipe, facts, timing, ending), winner: facts.winnerIndex };
   if (facts && recipe.strategy === "winner" && teamCount >= 2) {
@@ -1224,7 +1260,7 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
   let bestAccepted = false;
   let accepted = 0;
   let tested = 0;
-  const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed";
+  const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed" || recipe.strategy === "atEnd"; // --- templates --- (atEnd: the clip's end)
   const seedsPerVariant = analytic || !search ? 1 : SEEDS_PER_VARIANT;
   for (let variant = 0; tested < maxSeeds; variant++) {
     const rng = seededRandom(hashString(`${planSeed}|${recipe.id}|${platform}|${bucket}|${ending}|v${variant}`));
@@ -1239,7 +1275,9 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
     const hookEndSec = look === "simple" ? SIMPLE_TEXT.hookEndSec : drawnHookEnd; // --- templates --- (the draw is made either way: the same generator after it)
     // The simulation runs a little past where the latest acceptable payoff could come.
     const horizon = Math.min(R_DUR.max + 5, (ending === "cliffhanger" ? range.max + 2 : range.max / PAYOFF_BAND.from) + 2);
-    const request = finderRequestOfSettings({ ...built.settings, recordingDuration: Math.min(R_DUR.max, Math.ceil(horizon)) }, world, horizon, recipe.outcome ? { kind: recipe.outcome, clipSec: horizon } : undefined /* --- fl-overhaul --- (Stage 6) */);
+    // --- templates --- the outcome strategy asks the finder for its outcome around the payoff target (outcomeStrategy.ts)
+    const outcome: FinderOutcome | undefined = recipe.strategy === "outcome" && recipe.outcome ? strategyOutcome(recipe.outcome, horizon, payoffWindow(payoffTarget, bucket, ending)) : recipe.outcome ? { kind: recipe.outcome, clipSec: horizon } /* --- fl-overhaul --- (Stage 6) */ : undefined;
+    const request = finderRequestOfSettings({ ...built.settings, recordingDuration: Math.min(R_DUR.max, Math.ceil(horizon)) }, world, horizon, outcome);
     for (let k = 0; k < seedsPerVariant && tested < maxSeeds; k++) {
       const seed = candidateSeed(planSeed, recipe.id, tested);
       tested++;

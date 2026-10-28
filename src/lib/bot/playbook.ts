@@ -67,9 +67,13 @@ export type CountdownSource = "caption" | "hud" | "picture";
  * - `cycle`: the pattern realigns at the end of its cycle (Pendulum Wave, Polyrhythm) – analytic;
  * - `fill`: a measured moment – the ball fills its ring (Grow) or the balls fill the screen (Multiply);
  * - `lastNote`: --- templates --- the last sound of a run that ends on its own (Ball Drop: the last ball's last note, not the
- *   board's settle a second or more of silence later) – a template's own timing (templates.ts), never a playbook recipe's.
+ *   board's settle a second or more of silence later) – a template's own timing (templates.ts), never a playbook recipe's;
+ * - `outcome`: --- templates --- the moment of the recipe's finder `outcome` (outcomes.ts), asked of the finder around the payoff
+ *   target and read off its own run of the seed (outcomeStrategy.ts) – a template's own timing, never a playbook recipe's;
+ * - `atEnd`: --- templates --- the clip's last 1.5 s, for a run that loops or has no moment to search – analytic, a template's
+ *   own timing (outcomeStrategy.ts), never a playbook recipe's.
  */
-export const PAYOFF_STRATEGIES = ["escape", "winner", "finish", "fixed", "cycle", "fill", "lastNote"] as const;
+export const PAYOFF_STRATEGIES = ["escape", "winner", "finish", "fixed", "cycle", "fill", "lastNote", "outcome", "atEnd"] as const;
 export type PayoffStrategy = (typeof PAYOFF_STRATEGIES)[number];
 
 /** A platform's defaults: the bucket that suits it, the ones that fit at all, its own tag and the times to post (local). */
@@ -224,7 +228,10 @@ export interface BotRecipe {
    * matchup – the series label "Thor vs Loki #3" (`ViralBot.recipes.<copyKey>.seriesMatchup`) – over the series' days.
    */
   matchup?: (planSeed: number) => { key: string };
-  /** A finder outcome a resolved clip must also show (outcomes.ts – fight-upset: "upset"). */
+  /**
+   * A finder outcome a resolved clip must also show (outcomes.ts – fight-upset: "upset"). --- templates --- With the `outcome`
+   * strategy (a template's), the outcome whose moment is the payoff (outcomeStrategy.ts).
+   */
   outcome?: FinderOutcomeKind;
   // --- end fl-overhaul ---
   /**

@@ -1,5 +1,5 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
-import { captionBaseFont, captionWordsOf, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { captionBaseFont, captionWordsOf, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type FactsRecipe, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { createEngineForSettings, stepPlaybackMs } from "@/lib/simulation/finder"; // --- crew --- (the payoff's moment)
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
@@ -315,8 +315,14 @@ export function mergeFacts(run: ScoreFacts, measured: Pick<ScoreFacts, "firstImp
   return { firstImpactSec: run.firstImpactSec ?? measured?.firstImpactSec ?? null, payoffSec: run.payoffSec, clipSec: measured?.clipSec ?? run.clipSec };
 }
 
-/** The strategy the score times a clip's payoff with: its recipe's (the plan's while it plays the mode), else the run's own end. */
-const strategyOf = (mode: SimulatorSettings["mode"], recipe?: string | null): Pick<BotRecipe, "strategy"> => ({ strategy: scoreRecipeFor(mode, recipe)?.strategy ?? "finish" });
+/**
+ * The strategy the score times a clip's payoff with: its recipe's (the plan's while it plays the mode), else the run's own end.
+ * --- templates --- With a template's `outcome` strategy, its bound outcome too (lib/bot/outcomeStrategy.ts): the run's moment of it.
+ */
+const strategyOf = (mode: SimulatorSettings["mode"], recipe?: string | null): FactsRecipe => {
+  const own = scoreRecipeFor(mode, recipe);
+  return own?.strategy === "outcome" && own.outcome ? { strategy: own.strategy, outcome: own.outcome } : { strategy: own?.strategy ?? "finish" };
+};
 
 /** The planner's simulation of a clip's seed (the finder's request for the settings in `world`), followed SCORE_RUN_MARGIN_SEC past its length. */
 function runSteps(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, clipSec?: number | null, recipe?: string | null) {

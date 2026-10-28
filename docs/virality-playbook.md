@@ -219,8 +219,15 @@ checks (G4).
 - **Ready now:** 14 of the 16 modes a recipe plays, as 18 templates. Classic and Portal also have a Gerald variant, and Fight
   League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode. Gerald's Portal escape
   takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time on about half the plans.
-- **Hidden for now:** the other 32 modes are bound but wait for their own payoff timing and copy. So does Fight League's boss
-  rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
+- **Hidden for now:** the other 32 modes are bound but wait for their own settings, copy and planning acceptance. They sit in
+  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Their
+  payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
+  binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
+  of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
+  in the short and standard lengths. A binding's own settings switch on the option its outcome needs, such as the chaos fan
+  for the Double Pendulum's split. The finder searches six outcomes over settings, not seeds: Chord Stars, Focus Shot, Beat
+  Machines, the vortex's ring waves, Brick Smash and Perfect Fit. Their bindings wait for that search too. So does Fight
+  League's boss rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
   hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. So is Ball Drop's:
   its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
   shows for 0.5 s, so no plan's payoff lands (G2). A template that fails a gate on every plan is hidden with its reason, never

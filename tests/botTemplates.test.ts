@@ -5,9 +5,9 @@ import pl from "../messages/pl.json";
 import { MAX_CAPTIONS, sanitizeCaption } from "@/lib/captions";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
-import { RANGES, presetToSettings, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
-import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, LENGTH_BUCKETS, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, CLIFF_GAP_SEC, LENGTH_BUCKETS, PAYOFF_BAND, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
 import {
   ACTION_GAIN_SEC,
   BOT_PLAN_VERSION,
@@ -16,11 +16,13 @@ import {
   captionMessagesOf,
   captionsAtEdge,
   captionWordsOf,
+  clipTiming,
   drain,
   evenCaptionLines,
   hashString,
   inReadingOrder,
   matchupEpisode,
+  payoffSecOf,
   placeSimpleTexts,
   planClip,
   planDay,
@@ -52,7 +54,18 @@ import {
   stakeNumbersOf,
   templateById,
   templateRecipeById,
+  EXPERIMENTAL,
+  OUTCOME_FLAG_SETTINGS,
+  outcomeFlagHolds,
+  ownSettingsOf,
+  plannedRecipe,
+  strategyCanPlan,
+  type OutcomeFlag,
 } from "@/lib/bot/templates";
+import { AT_END_BUCKETS, AT_END_SEC, OUTCOME_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
+import { availableOutcomes } from "@/lib/simulation/outcomes";
+import { simulateOutcomeRun } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
@@ -863,5 +876,187 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
     expect(actionTrackSync(plan.settings, plan.seed, plan.world, 5)).toEqual(track);
     expect([actionCellsOf("0"), actionCellsOf("zz!x")]).toEqual([[], []]);
     expect(actionUnder(track, 0, { left: 0, top: 0, right: 1, bottom: 1 })).toBe(actionCellsOf(track.samples[0]).length > 0);
+  });
+});
+
+// --- templates --- (AI studio step 2, its foundations) the two strategies no playbook recipe uses (lib/bot/outcomeStrategy.ts), a
+// binding's own settings with its outcome's context flag on, and the shrink-only experimental table – each strategy proven on one
+// binding the planner plans while it is not yet offered
+describe("the outcome and atEnd strategies, a binding's own settings and the experimental table", () => {
+  /**
+   * The experimental table as this release has it: the 32 bindings without a recipe. Shrink only – a binding leaves the table
+   * (and may leave this list) when its planning acceptance passes; one that joins the table fails here.
+   */
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["shatter", "colorMatch", "journey", "target", "brickRebuild", "spiralGlass", "paint", "perfectFit", "conveyor", "mergeRing", "maze", "territory", "landClaim", "bullseye", "box", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
+  /** A seeded context as the planner hands a recipe one. */
+  const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
+
+  it("keeps the experimental table shrink-only: hidden, never ready, with its reason; an outcome only its own search finds keeps a binding in it", () => {
+    const table = Object.keys(EXPERIMENTAL) as ModeId[];
+    for (const mode of table) expect(EXPERIMENTAL_PINNED, `${mode} joined the experimental table`).toContain(mode);
+    for (const b of BINDINGS) {
+      const reason = EXPERIMENTAL[b.mode];
+      if (reason === undefined) {
+        expect([b.mode, b.tier === "experimental"]).toEqual([b.mode, false]);
+        continue;
+      }
+      expect([b.mode, b.tier, b.ready, reason.length > 20]).toEqual([b.mode, "experimental", false, true]);
+      for (const v of b.variants) {
+        expect([v.id, templateById(v.id)!.ready, templateRecipeById(v.id)]).toEqual([v.id, false, undefined]);
+        expect(() => planTemplate(v.id, 1, "reels", { copy, search: false }), v.id).toThrow(/ready template/);
+      }
+    }
+    expect(BINDINGS.filter((b) => b.tier === "proven").every((b) => EXPERIMENTAL[b.mode] === undefined)).toBe(true);
+    expect(readyTemplates("all").every((t) => EXPERIMENTAL[t.mode] === undefined)).toBe(true);
+    // the six outcomes the finder searches over settings, not seeds: the outcome strategy has no moment for them
+    const ownSearch = BINDINGS.filter((b) => !strategyCanPlan(b));
+    expect(ownSearch.map((b) => b.mode).sort()).toEqual(["beatMachine", "brickRebuild", "ellipseFoci", "perfectFit", "starChords", "vortex"]);
+    for (const b of ownSearch) expect([b.mode, EXPERIMENTAL[b.mode] !== undefined, outcomeStrategyPlans(b.outcome)]).toEqual([b.mode, true, false]);
+    // every other bound outcome has its seed's moment
+    for (const b of BINDINGS.filter((x) => x.strategy === "outcome" && strategyCanPlan(x))) expect([b.mode, OUTCOME_MOMENTS[b.outcome!] !== undefined]).toEqual([b.mode, true]);
+    // no playbook recipe times its payoff with a template's own strategy
+    for (const r of RECIPES) expect(["lastNote", "outcome", "atEnd"], r.id).not.toContain(r.strategy);
+  });
+
+  it("switches on the context flag every bound outcome needs: each outcome is there to find on its binding's own settings, never on the defaults alone", () => {
+    const FLAG_MODES: Record<OutcomeFlag, ModeId> = { growFinish: "grow", dpFan: "doublePendulum", bmMarbles: "beatMachine", vortexRings: "vortex", pfPento: "perfectFit", ringEscape: "classic", colourSortSettles: "colourSort" };
+    for (const [flag, mode] of Object.entries(FLAG_MODES) as [OutcomeFlag, ModeId][]) {
+      const on = outcomeContextOfSettings({ ...defaultSettings(mode), ...OUTCOME_FLAG_SETTINGS[flag] } as SimulatorSettings);
+      expect([flag, outcomeFlagHolds(flag, on)]).toEqual([flag, true]);
+    }
+    // the ones the defaults leave off
+    for (const flag of ["growFinish", "dpFan", "vortexRings", "ringEscape"] as const) expect([flag, outcomeFlagHolds(flag, outcomeContextOfSettings(defaultSettings(FLAG_MODES[flag])))]).toEqual([flag, false]);
+    expect(outcomeFlagHolds("colourSortSettles", outcomeContextOfSettings({ ...defaultSettings("colourSort"), csRule: "bothWaysNotOwn" }))).toBe(false);
+    const bound = BINDINGS.filter((b) => b.outcome);
+    expect(bound.length).toBe(15);
+    for (const b of bound) {
+      for (const seed of [1, 2, 3, 4]) {
+        const s = { ...defaultSettings(b.mode), ...ownSettingsOf(b)(ctxOf(seed)) } as SimulatorSettings;
+        const context = outcomeContextOfSettings(s);
+        expect([b.mode, seed, availableOutcomes(b.mode, context).includes(b.outcome!)]).toEqual([b.mode, seed, true]);
+        if (b.needs) expect([b.mode, outcomeFlagHolds(b.needs, context)]).toEqual([b.mode, true]);
+      }
+    }
+    // (the chaos fan's split, Grow's fill and the ring waves' bar line are not there on the defaults)
+    expect(availableOutcomes("doublePendulum", outcomeContextOfSettings(defaultSettings("doublePendulum")))).not.toContain("diverges-at");
+    expect(availableOutcomes("vortex", outcomeContextOfSettings(defaultSettings("vortex")))).not.toContain("ring-on-bar");
+  });
+
+  it("lays a binding's own settings out in order: its seeded generator (else its patch), its outcome's flag on top, its tune, an atEnd clip's length, its mode", () => {
+    const fan = { ...MODE_TEMPLATES.doublePendulum, patch: { dpFan: false, dpFanCount: 9 } };
+    expect(ownSettingsOf(fan)(ctxOf(1))).toEqual({ dpFan: true, dpFanCount: 9, mode: "doublePendulum" });
+    const drawn = { ...MODE_TEMPLATES.conveyor, patch: { cvMaxBalls: 99 }, generate: (ctx: RecipeContext) => ({ cvMaxBalls: 20 + 10 * Math.floor(ctx.rng() * 3) }) };
+    const a = ownSettingsOf(drawn)(ctxOf(5, 17));
+    expect(a).toEqual(ownSettingsOf(drawn)(ctxOf(5, 17)));
+    expect([a.mode, a.recordingDuration, [20, 30, 40].includes(a.cvMaxBalls as number)]).toEqual(["conveyor", 20, true]);
+    expect(ownSettingsOf({ ...MODE_TEMPLATES.shatter, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "shatter" });
+    // the defaults, where a binding has neither
+    expect(ownSettingsOf(MODE_TEMPLATES.shatter)(ctxOf(1))).toEqual({ mode: "shatter" });
+  });
+
+  it("adapts a binding without a recipe: its own settings inside RANGES and canonical, its mode, its strategy and outcome, its format's family and copy key", () => {
+    const own = allTemplates().filter((t) => t.binding.variants.find((v) => v.id === t.id)!.recipe === null);
+    expect(own.length).toBe(32);
+    for (const t of own) {
+      const r = plannedRecipe(t);
+      expect([t.id, r === null]).toEqual([t.id, !strategyCanPlan(t.binding)]);
+      expect([t.id, t.family]).toEqual([t.id, t.binding.family ?? t.format.family]);
+      if (!r) continue;
+      expect([r.id, r.modes, r.strategy, r.outcome, r.copyKey, r.family, r.wraps]).toEqual([t.id, [t.mode], t.binding.strategy, t.binding.outcome, t.format.copyKey, t.family, undefined]);
+      expect([t.id, r.endings!.every((e) => t.format.endings.includes(e))]).toEqual([t.id, true]);
+      if (r.strategy === "atEnd") expect([t.id, r.endings, r.buckets]).toEqual([t.id, ["resolved"], AT_END_BUCKETS]);
+      for (const bucket of LENGTH_BUCKETS) {
+        for (const seed of [1, 2]) {
+          const plan = planClip(r, seed * 7919 + bucket.length, "reels", { copy, bucket, search: false, look: "simple", template: t.id });
+          const s = plan.settings;
+          const where = `${t.id}/${bucket}/${seed}`;
+          expect(rangeViolations(s), where).toEqual([]);
+          expect([where, s.mode, plan.template, plan.recipe]).toEqual([where, t.mode, t.id, t.id]);
+          expect(sameSettings(presetToSettings(s), s), where).toBe(true);
+          for (const c of s.captions) expect(sanitizeCaption(c), where).toEqual(c);
+          if (t.binding.needs) expect([where, outcomeFlagHolds(t.binding.needs, outcomeContextOfSettings(s))]).toEqual([where, true]);
+        }
+      }
+    }
+    // a wrapped recipe's template adapts as before, whatever is offered: the same plan as the offered template's
+    const classic = plannedRecipe(templateById("get-out-classic")!)!;
+    expect(JSON.stringify(planClip(classic, 3, "reels", { copy, search: false, look: "simple", template: "get-out-classic" }))).toBe(JSON.stringify(planTemplate("get-out-classic", 3, "reels", { copy, search: false })));
+    expect(plannedRecipe(templateById("who-wins-race")!)!.wraps).toBe("square-race");
+  });
+
+  it("proves the outcome strategy on Shatter's binding (escapes-at; planned, not yet offered): the payoff is the run's first escape, inside the band or 0.5-1 s after the cut, on 3 of 4 plan seeds", async () => {
+    const t = templateById("get-out-shatter")!;
+    expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
+    const r = plannedRecipe(t)!;
+    expect([r.strategy, r.outcome, r.endings]).toEqual(["outcome", "escapes-at", ["resolved", "cliffhanger"]]);
+    let found = 0;
+    const endings = new Set<string>();
+    for (const seed of [1, 2, 3, 4]) {
+      const options = { copy, look: "simple" as const, template: t.id, episode: 3, index: seed };
+      const plan = planClip(r, seed, "shorts", options);
+      const where = `shatter/${seed}`;
+      expect(JSON.stringify(planClip(r, seed, "shorts", options)), where).toBe(JSON.stringify(plan));
+      // the finder's own run of the seed, followed over its whole horizon: its first escape is the payoff
+      const horizon = 25;
+      const request = finderRequestOfSettings(plan.settings, plan.world, horizon);
+      const run = simulateOutcomeRun(plan.seed, request, strategyOutcome("escapes-at", horizon));
+      expect([where, run.firstEscapeMs >= 0]).toEqual([where, true]);
+      expect(plan.payoff.atSec, where).toBeCloseTo(run.firstEscapeMs / 1000, 9);
+      // the score's run reads the same moment (lib/insights/score.ts: the strategy with its outcome)
+      const facts = simulateFacts(request, plan.seed, { strategy: "outcome", outcome: "escapes-at" }, horizon);
+      expect([where, facts.outcomeRun!.kind, facts.firstEscapeSec]).toEqual([where, "escapes-at", run.firstEscapeMs / 1000]);
+      expect(payoffSecOf(r, plan.settings, facts), where).toBeCloseTo(plan.payoff.atSec!, 9);
+      if (!plan.timing.found) continue;
+      found++;
+      endings.add(plan.ending);
+      if (plan.ending === "resolved") {
+        expect([where, plan.payoff.position! >= PAYOFF_BAND.from - 1e-9 && plan.payoff.position! <= PAYOFF_BAND.accept + 1e-9]).toEqual([where, true]);
+      } else {
+        // a cut clip ends before the escape, 0.5-1 s before it
+        expect([where, plan.payoff.cutGapSec! >= CLIFF_GAP_SEC.min - 1e-9 && plan.payoff.cutGapSec! <= CLIFF_GAP_SEC.max + 1e-9, plan.payoff.atSec! > plan.timing.recordingDuration]).toEqual([where, true, true]);
+      }
+      await breathe();
+    }
+    expect(found).toBeGreaterThanOrEqual(3);
+    expect(endings).toEqual(new Set(["resolved", "cliffhanger"]));
+    // the finder is asked for the outcome around the payoff target, as far either way as the bucket's payoffs reach
+    const w = payoffWindow(10, "short", "resolved");
+    const reach = bucketPayoffSec("short", "resolved");
+    expect([w.atSec, w.atSec - w.toleranceSec <= reach.fromSec + 1e-9, w.atSec + w.toleranceSec >= reach.toSec - 1e-9]).toEqual([10, true, true]);
+    expect(strategyOutcome("escapes-at", 20, w)).toEqual({ kind: "escapes-at", clipSec: 20, atSec: 10, toleranceSec: w.toleranceSec });
+    expect(strategyOutcome("sorted-by", 20, w)).toEqual({ kind: "sorted-by", clipSec: 20, atSec: 10 + w.toleranceSec });
+    expect(strategyOutcome("winner", 20, w)).toEqual({ kind: "winner", clipSec: 20 });
+    // a winner's moment: a battle's verdict at its end, else the team out first
+    expect(OUTCOME_MOMENTS.winner!.ms({ mode: "territory", durationMs: 30000, finished: true, firstEscapeMs: -1, teams: [] })).toBe(30000);
+    expect(OUTCOME_MOMENTS.winner!.ms({ mode: "classic", durationMs: 30000, finished: true, firstEscapeMs: 8000, teams: [] })).toBe(8000);
+  });
+
+  it("proves the atEnd strategy on Conveyor's binding (planned, not yet offered): the payoff is the clip's last 1.5 s, resolved, in the short and standard lengths", () => {
+    const t = templateById("count-conveyor")!;
+    expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
+    const r = plannedRecipe(t)!;
+    expect([r.strategy, r.endings, r.buckets]).toEqual(["atEnd", ["resolved"], ["short", "standard"]]);
+    for (const platform of ["reels", "shorts"] as const) {
+      for (const seed of [1, 2, 3, 4]) {
+        const plan = planClip(r, seed, platform, { copy, look: "simple", template: t.id, episode: 3, index: seed, ending: seed % 2 ? "cliffhanger" : "auto" });
+        const where = `conveyor/${platform}/${seed}`;
+        expect([where, plan.ending, plan.timing.found, AT_END_BUCKETS.includes(plan.bucket)]).toEqual([where, "resolved", true, true]);
+        expect([where, plan.timing.clipSec, plan.settings.recordingDuration]).toEqual([where, plan.timing.recordingDuration, plan.timing.recordingDuration]);
+        expect(plan.payoff.atSec, where).toBeCloseTo(plan.timing.recordingDuration - AT_END_SEC, 9);
+        expect([where, plan.payoff.position! >= PAYOFF_BAND.from - 1e-9 && plan.payoff.position! <= PAYOFF_BAND.accept + 1e-9]).toEqual([where, true]);
+        // analytic: one seed a settings draw, the run followed to its first sound only
+        expect(plan.timing.seedsTested, where).toBeLessThanOrEqual(3);
+        const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, 20), plan.seed, { strategy: "atEnd" }, 20);
+        expect([where, facts.finishSec, payoffSecOf(r, plan.settings, facts)]).toEqual([where, -1, plan.payoff.atSec]);
+      }
+    }
+    // a long clip is never asked of it: its payoff would come at 97.5 % and later, past the band
+    expect(planClip(r, 1, "reels", { copy, bucket: "long", search: false, look: "simple", template: t.id }).bucket).not.toBe("long");
+    const s = defaultSettings("conveyor");
+    expect(clipTiming(r, { ...s, recordingDuration: 60 }, null, "resolved", "long")).toMatchObject({ payoffSec: 58.5, clipSec: 60, accepted: false });
+    expect(clipTiming(r, { ...s, recordingDuration: 15 }, null, "resolved", "short")).toMatchObject({ payoffSec: 13.5, clipSec: 15, accepted: true });
+    expect(clipTiming(r, { ...s, recordingDuration: 15 }, null, "cliffhanger", "short").accepted).toBe(false);
+    // the clip's length comes from the payoff target: the clip it is 85 % of, whole seconds, the recording's least at least
+    expect([atEndRecordingSec(12.75), atEndRecordingSec(17), atEndRecordingSec(1)]).toEqual([15, 20, RANGES.recordingDuration.min]);
   });
 });

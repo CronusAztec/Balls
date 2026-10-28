@@ -67,15 +67,16 @@ import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs, slowMoStretchOf } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 import { exitSplatCarryOver, exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
-import { ringEscapeActive, ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
+import { ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
 import type { RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 // --- rigged ---
 import FinderOutcomeFields, { FinderOutcomeSelect, divergeTargetUnreachable, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
-import { BATTLE_WINNER_MODES, forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
+import { BATTLE_WINNER_MODES, forcedWinnerApplies, neverEscapeApplies, riggedConfigOf } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import { availableOutcomes, effectiveOutcome, type FinderOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
+import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext"; // --- outcome-context ---
 // --- timeline ---
 import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
@@ -88,7 +89,7 @@ import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- 
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
 import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
-import { growFillSettingsOf, growRunFinishes } from "@/lib/physics/growFill";
+import { growFillSettingsOf } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
 import { isLightColor, loopHudCount, loopHudFrame, loopHudModeText, type LoopHudSpec } from "@/lib/loop/hud"; // (--- low-findings-2 --- the words by the page: loopHudModeText())
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
@@ -154,7 +155,7 @@ import { BLUEPRINT_CATALOG_IDS } from "@/lib/blueprint/catalog"; // --- blueprin
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
-import { orbGridNeverSettles, orbGridSettingsOf, type OrbGridFields } from "@/lib/physics/modes/orbGrid";
+import { orbGridSettingsOf, type OrbGridFields } from "@/lib/physics/modes/orbGrid";
 import { RHYTHM_RATIOS, beatClock } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- (the metronome's clock moves the cycle)
 import { respawnConfigOf } from "@/lib/physics/respawn";
 import { growthCapConfigOf, growthCapLivePatch } from "@/lib/physics/growthCaps"; // --- unlimited-sizes --- (the swarm's and the run's ball ceilings)
@@ -164,8 +165,7 @@ import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 // --- fl-overhaul --- (Stage 3) the verdict's card comes in the KO finale or after TIME!: the holds count from the finale's end or the card
 import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
-import { flShowHorizonMs, flShowKind, flSideCount } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
-import { flBestOfGames } from "@/lib/physics/modes/fightLeagueShow";
+import { flShowHorizonMs, flShowKind } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 // --- fl-overhaul --- (Stage 6) Make a clip
 import { flClipCaptions, flClipKoFraction, flClipNamesOf, flClipRecordingSec, flClipTopText, isFlClipCaption, planFlClip, type FlClipPlan } from "@/lib/physics/modes/fightLeagueClip";
@@ -2057,11 +2057,8 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */, hoops: hoopsSettingsOf(s) /* --- bead-hoops --- (the return loops forever) */, landClaim: landClaimSettingsOf(s) /* --- land-claim-pyramid --- (a looping pyramid never ends) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
-  // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
-  const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */, ringEscape: s.mode === "classic" && ringEscapeActive(s) /* --- ring-escape --- */, pfPento: s.mode === "perfectFit" && s.pfVariant === "pento" /* --- perfect-fit --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, outcomeContextOfSettings(s, { paintPicture: !!paintPicture })); // --- outcome-context --- (lib/simulation/outcomeContext.ts: the bot's templates read the same context)
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   // --- low-findings-2 --- the chaos fan run backwards only splits on its forward run: a later "Splits at" is said, never searched
   const divergeLatestSec = s.mode === "doublePendulum" && s.dpFan ? fanSplitLatestSec(s, ESCAPE_AT_TOLERANCE_SEC) : null;

@@ -1,0 +1,156 @@
+import { RANGES } from "@/lib/settings";
+import { simulateOutcomeRun, type FinderRequest } from "@/lib/simulation/finder";
+import { ESCAPE_AT_TOLERANCE_SEC, outcomeClipSec, outcomeMatches, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "@/lib/simulation/outcomes";
+import { BUCKET_SECONDS, CLIFF_GAP_SEC, PAYOFF_BAND, snapStep, type EndingStyle, type LengthBucket } from "./playbook";
+
+/*
+ * --- templates --- The two payoff strategies of the viral templates that no playbook recipe uses (lib/bot/templates.ts binds
+ * them, lib/bot/planner.ts plans them):
+ *
+ *  - **outcome**: the payoff is a finder outcome's moment (lib/simulation/outcomes.ts). The planner asks the seed finder for the
+ *    binding's outcome around its payoff target – the window strategyOutcome() makes of payoffWindow() – and reads the moment off
+ *    the finder's own run of the seed (simulateOutcomeRun, finder.ts): the first escape for escapes-at, the field's first resolve
+ *    for resolves-at, the fill, the split, the sort, the verdict at the run's end for winner. outcomeMatches() says whether the
+ *    run met the window, outcomeClipSec() where a run that ends on its own (or closes its loop) ends. Only the outcomes whose
+ *    moment a seed's run shows plan this way (OUTCOME_MOMENTS); the ones the finder searches over settings instead of seeds –
+ *    Chord Stars' star sets, Focus Shot's transit, Beat Machines' phrases, the vortex's ring waves, Brick Smash's first smash,
+ *    Perfect Fit's solution seeds – have their own searches (outcomeStrategyPlans() is false for them).
+ *  - **atEnd**: the payoff is the clip's last AT_END_SEC – for a mode whose run loops or has no moment to search (Conveyor, Merge
+ *    Ring, Collide, Wave Tank, Lines, Drawing Machine, Illusion). Analytic: the clip's length is drawn from the payoff target
+ *    (atEndRecordingSec), the seed changes nothing about the timing, and its hook promises no event, so it ends resolved only and
+ *    fills the buckets whose payoff then lands inside the planner's band (AT_END_BUCKETS).
+ *
+ * The playbook's own strategies and every recipe's plan are untouched: these run only for a template whose binding names them.
+ * Imports only from the finder (finder.ts, outcomes.ts): nothing there changes. Pure and deterministic: no clock, no randomness.
+ */
+
+// --- templates ---
+
+/** How an outcome's window is put to the finder: `at` a target ± a tolerance, `by` a limit (the window's end), `end` none (its verdict at the run's end). */
+export type OutcomeWindowKind = "at" | "by" | "end";
+
+/** The run's moment of an outcome (ms of real time, −1 when it never came in the run followed). */
+type MomentOf = (run: RunSummary) => number;
+
+/** The moment of a winner: a battle's at its end (its verdict, winnerNeedsEnd), else the first escape – the team out first – or the run's end. */
+function winnerMomentMs(run: RunSummary): number {
+  if (winnerNeedsEnd({ kind: "winner" }, run.mode)) return run.finished ? run.durationMs : -1;
+  return run.firstEscapeMs >= 0 ? run.firstEscapeMs : run.finished ? run.durationMs : -1;
+}
+
+/**
+ * The outcomes the "outcome" strategy plans, each with its window and the moment simulateOutcomeRun() records for it. The others
+ * are no payoff moment of a seed's run: never-escapes and never-settles hold for the whole clip, lift-order and the Fight League
+ * stories have no second, the bar-line ones time a song, and star-set, converge-on-beat, longest-collapse, no-tube-conflict,
+ * most-in-flight, ring-on-bar, bricks-cleared-by, last-brick-on-bar, final-balls, most-on-floor and landings-on-beat are searched
+ * over settings by their own finders.
+ */
+export const OUTCOME_MOMENTS: Readonly<Partial<Record<FinderOutcomeKind, { window: OutcomeWindowKind; ms: MomentOf }>>> = {
+  "escapes-at": { window: "at", ms: (r) => r.firstEscapeMs },
+  "resolves-at": { window: "at", ms: (r) => r.firstResolveMs ?? -1 }, // --- orb-grid ---
+  "diverges-at": { window: "at", ms: (r) => r.divergeMs ?? -1 }, // --- chaos-fan ---
+  "ring-at": { window: "at", ms: (r) => r.firstRingMs ?? -1 }, // --- ring-escape ---
+  "fills-by": { window: "by", ms: (r) => r.firstFillMs ?? -1 }, // --- loop-foundation ---
+  "all-up-by": { window: "by", ms: (r) => r.allUpMs ?? -1 }, // --- bead-hoops ---
+  "sorted-by": { window: "by", ms: (r) => r.sortedMs ?? -1 }, // --- colour-sort ---
+  winner: { window: "end", ms: winnerMomentMs },
+  close: { window: "end", ms: (r) => (r.finished ? r.durationMs : -1) }, // --- land-claim ---
+  "summit-last": { window: "end", ms: (r) => r.summitMs ?? -1 }, // --- land-claim-pyramid ---
+};
+
+/** Whether the "outcome" strategy can plan this outcome: its moment is a seed's run's (OUTCOME_MOMENTS). */
+export function outcomeStrategyPlans(kind: FinderOutcomeKind | undefined): kind is FinderOutcomeKind {
+  return kind !== undefined && OUTCOME_MOMENTS[kind] !== undefined;
+}
+
+/**
+ * The seconds a payoff of a clip in `bucket` can come at: a resolved clip's inside the planner's band (80–97 %) of a clip of the
+ * bucket's length (its half second of slack each way), a cut one's 0.5–1 s after a cut at the recorder's least (10 s) or the
+ * bucket's least, and at its most.
+ */
+export function bucketPayoffSec(bucket: LengthBucket, ending: EndingStyle): { fromSec: number; toSec: number } {
+  const range = BUCKET_SECONDS[bucket];
+  if (ending === "cliffhanger") return { fromSec: Math.max(RANGES.recordingDuration.min, range.min) + CLIFF_GAP_SEC.min, toSec: range.max + CLIFF_GAP_SEC.max };
+  return { fromSec: PAYOFF_BAND.from * (range.min - 0.5), toSec: PAYOFF_BAND.accept * (range.max + 0.5) };
+}
+
+/**
+ * Where the planner asks the finder for the outcome: at its payoff target (s), as far either way as the bucket's payoffs reach
+ * (bucketPayoffSec), so the finder refuses only a moment no clip of the bucket could show – the clip around a moment it takes in
+ * is the planner's own timing's to accept (planner.ts clipTiming), as for every strategy.
+ */
+export function payoffWindow(payoffTarget: number, bucket: LengthBucket, ending: EndingStyle): { atSec: number; toleranceSec: number } {
+  const reach = bucketPayoffSec(bucket, ending);
+  return { atSec: payoffTarget, toleranceSec: Math.max(ESCAPE_AT_TOLERANCE_SEC, payoffTarget - reach.fromSec, reach.toSec - payoffTarget) };
+}
+
+/**
+ * The finder outcome the planner asks for: `kind` in the window (`at`: the target ± the tolerance; `by`: by the window's end;
+ * `end`: no window, the verdict at the run's end), followed at most `horizonSec`. Without a window (a clip scored after the fact,
+ * lib/insights/score.ts) the window is the whole run followed, so its moment is read wherever it comes.
+ */
+export function strategyOutcome(kind: FinderOutcomeKind, horizonSec: number, window?: { atSec: number; toleranceSec: number }): FinderOutcome {
+  const w = window ?? { atSec: horizonSec / 2, toleranceSec: horizonSec / 2 };
+  switch (OUTCOME_MOMENTS[kind]?.window) {
+    case "at":
+      return { kind, clipSec: horizonSec, atSec: w.atSec, toleranceSec: w.toleranceSec };
+    case "by":
+      return { kind, clipSec: horizonSec, atSec: w.atSec + w.toleranceSec };
+    default:
+      return { kind, clipSec: horizonSec };
+  }
+}
+
+/** What the bound outcome's run of one seed showed (RunFacts.outcomeRun). */
+export interface OutcomeRunFacts {
+  kind: FinderOutcomeKind;
+  /** The outcome's moment (s of the clip; −1: it never came in the run followed). */
+  atSec: number;
+  /** The run met the outcome the finder was asked for (a winner: some team won). */
+  matched: boolean;
+  /** The team a winner outcome crowned (−1: none, or not a winner outcome). */
+  winner: number;
+  /** Where the run ended on its own, or closed its loop (outcomeClipSec, s); null: it went on past the run followed. */
+  endSec: number | null;
+}
+
+/**
+ * One seed's run for the bound outcome (the finder's own simulateOutcomeRun on `request`): the run's summary as the finder sums
+ * it up and the outcome's facts – its moment, the match, the winner, the run's own end. `outcome`: the one the planner asked for
+ * (the request's), else (scoring a clip after the fact) a window over the whole run followed.
+ */
+export function outcomeRunOf(request: FinderRequest, seed: number, kind: FinderOutcomeKind, horizonSec: number): { summary: RunSummary; facts: OutcomeRunFacts } {
+  const outcome = request.outcome && request.outcome.kind === kind ? request.outcome : strategyOutcome(kind, horizonSec);
+  const summary = simulateOutcomeRun(seed, request, outcome);
+  const ms = OUTCOME_MOMENTS[kind]?.ms(summary) ?? -1;
+  let winner = -1;
+  if (kind === "winner") for (let team = 0; team < summary.teams.length; team++) if (outcomeMatches({ ...outcome, team }, summary)) winner = team;
+  const matched = kind === "winner" ? winner >= 0 : outcomeMatches(outcome, summary);
+  const closes = summary.finished || (summary.cycleMs ?? 0) > 0;
+  return { summary, facts: { kind, atSec: ms >= 0 ? ms / 1000 : -1, matched, winner, endSec: closes ? outcomeClipSec(outcome, summary) : null } };
+}
+
+/* ------------------------------------------------------------------ atEnd */
+
+/** The atEnd payoff: the clip's last this many seconds. */
+export const AT_END_SEC = 1.5;
+
+/**
+ * The buckets an atEnd binding fills: its payoff, the clip's last AT_END_SEC, lands inside the planner's band (at most 97 % of the
+ * clip) in a clip of 50 s or less – the short and the standard length, never the long one (60–90 s: 97.5 % and later).
+ */
+export const AT_END_BUCKETS: readonly LengthBucket[] = ["short", "standard"];
+
+/** The payoff second of an atEnd clip `recordingDuration` long. */
+export function atEndPayoffSec(recordingDuration: number): number {
+  return recordingDuration - AT_END_SEC;
+}
+
+/**
+ * The length (whole seconds, on the recording's step, from its least up) an atEnd clip takes for the planner's payoff target: the
+ * clip the target is 85 % of, the middle of the planner's band, as for every resolved clip. Never capped.
+ */
+export function atEndRecordingSec(payoffTarget: number): number {
+  return snapStep(Math.round(payoffTarget / ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2)), RANGES.recordingDuration);
+}
+// --- end templates ---
