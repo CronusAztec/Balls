@@ -12,7 +12,7 @@ import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
 import { actionSampleSec, actionTrackSteps, actionUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
-import { botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
+import { askHookText, botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
@@ -697,6 +697,21 @@ export interface PayoffMoment {
   /** The balls' mean speed in the window and the median of the run's before it (px a second, the world's); null: no balls. */
   motion: number | null;
   motionMedian: number | null;
+  /**
+   * --- crew --- (the studio's second review round, 21) The median of the sound events in the run's windows of the moment's length
+   * before it, from the first second on (null: none to count): how much a moment of this run usually plays.
+   */
+  soundsMedian?: number | null;
+  /**
+   * --- crew --- (review round 2, 20) The accented events outside the moment, to the clip's end when it was given: [second, notes],
+   * in time order, at most MOMENT_ACCENTS_MAX (the largest kept) – where else the mode plays the chord and flash it accents.
+   */
+  accents?: [number, number][];
+  /**
+   * --- crew --- (review round 2, 21) The seconds the clip ends on with no sound and the balls still (at most a quarter of their
+   * median motion), after the payoff; absent: the clip's end was not given.
+   */
+  quietTailSec?: number;
 }
 
 /** --- fl-overhaul --- (Stage 6) Whether settings play one Fight League match (not a series, a bracket or a boss rush). */
@@ -1120,21 +1135,31 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     settings.bottomText = sanitizeCaptionText(label, 60);
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
-  const fullHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
-  // --- templates --- (at most 7 words on the clip, a stake format's number kept; the whole hook in the post)
-  const hook = simple ? simpleHookText(fullHook, recipe.stakeHook ? stakeNumbersOf(recipe.hookVars(settings)) : undefined) : fullHook;
+  const ownHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
+  // --- templates --- (review round 2, 20) a template that asks rather than promise a chord its run plays elsewhere too
+  const fullHook = recipe.hookAsk ? askHookText(ownHook, recipeText(copy, recipe, recipe.hookAsk, vars)) : ownHook;
+  // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the
+  // countdown), where the format's countdown is the picture, or where the counter would count the clip's seconds (review round 2, 22)
+  const counter = simple ? simpleCountdownSource(recipe, settings) : recipe.countdown.source;
+  const textRecipe: BotRecipe = counter !== recipe.countdown.source ? { ...recipe, countdown: { ...recipe.countdown, source: counter } } : recipe;
+  // --- templates --- (at most 7 words on the clip; the whole hook in the post) a stake format's number kept where nothing else
+  // shows it – (review round 2, 23) where the mode's own HUD counts it down from the first frame ("layers left: 250"), the hook
+  // keeps the clause the picture cannot show instead: Power Layers' rule, which a cliffhanger's "One more hit?" hangs on
+  const stakeOnScreen = counter === "hud" && hudShowsCountdown(settings);
+  const hook = simple ? simpleHookText(fullHook, recipe.stakeHook && !stakeOnScreen ? stakeNumbersOf(recipe.hookVars(settings)) : undefined) : fullHook;
   const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
   const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
   const payoffText = recipe.payoffWords === false ? "" : recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" }); // --- templates --- (none drawn)
-  // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the countdown)
-  const textRecipe: BotRecipe = simple && recipe.countdown.source === "caption" && hudShowsCountdown(settings) ? { ...recipe, countdown: { ...recipe.countdown, source: "hud" } } : recipe;
   const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];
   const bucketLabel = copyString(copy, `buckets.${bucket}`) || bucket;
   const answer = ending === "cliffhanger" ? (winnerName ?? (timing.payoffSec !== null ? payoffText : "")) : "";
-  const post = postCopy(copy, { recipe, platform, ending, hook: fullHook, episode, vars, postingTime: time, bucketLabel, answer, ...(simple ? { series: label } : {}) /* --- templates --- */ });
+  // --- templates --- (review round 2, 23) a Simple cliffhanger's post asks the question the clip ends on, so the comments answer
+  // what the clip asked (Power Layers drew "One more hit?" over a post asking "How many hits to break through?")
+  const asked = simple && ending === "cliffhanger" ? captionWordsOf(captions, roles.flatMap((r, i) => (r === "question" ? [i] : []))) : "";
+  const post = postCopy(copy, { recipe, platform, ending, hook: fullHook, episode, vars, postingTime: time, bucketLabel, answer, ...(simple ? { series: label } : {}), ...(asked ? { question: asked } : {}) /* --- templates --- */ });
   const plan: ClipPlan = {
     version: BOT_PLAN_VERSION,
     id,
@@ -1289,6 +1314,21 @@ export function planTemplate(templateId: string, planSeed: number, platform: Bot
   return drain(planTemplateSteps(templateId, planSeed, platform, options));
 }
 // --- end templates ---
+
+/**
+ * --- templates --- (review round 2, 22) Where the Simple look's countdown comes from: the mode's HUD where one on screen counts
+ * down; a caption only where the format takes one (BotRecipe.countdownFrom: a recipe planned without a template takes its own)
+ * and the counter counts what happens – the walls broken; a bar or a timer counts the clip's seconds (lib/captions.ts
+ * progressFraction, countdownSeconds: to the recording's end), so one text at a time takes it off at the payoff short of its
+ * 100 % or 0:00 ("84 %" the moment the pendulums line up, "0:04" as Ball Drop's last ball lands): the picture counts there.
+ */
+export function simpleCountdownSource(recipe: Pick<BotRecipe, "countdown" | "countdownFrom">, settings: SimulatorSettings): CountdownSource {
+  const own = recipe.countdown.source;
+  if (own !== "caption") return own;
+  if (hudShowsCountdown(settings)) return "hud";
+  const takesCaption = !recipe.countdownFrom || recipe.countdownFrom.includes("caption");
+  return takesCaption && recipe.countdown.kind === "walls" ? "caption" : "picture";
+}
 
 /* ------------------------------------------------------------------ scoreClip */
 

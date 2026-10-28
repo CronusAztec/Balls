@@ -284,8 +284,9 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
           if (role === "hook") {
             captions.push(c.end > c.start ? c : { ...c, end: hookEnd });
           } else if (role === "countdown") {
-            // (a HUD that counts down already counts: no caption beside it)
-            if (counts) return;
+            // (a HUD that counts down already counts: no caption beside it; --- crew --- review round 2, 22: nor a bar or a timer,
+            // which count the clip's seconds and would leave at the payoff short of their 100 % or 0:00 – clarity.ts CounterCut)
+            if (counts || c.type === "progress" || c.type === "countdown") return;
             const end = firstAfter !== undefined && firstAfter > hookEnd + EPS ? firstAfter : 0;
             captions.push({ ...c, start: Math.max(c.start, hookEnd), end });
           } else captions.push(c.start < hookEnd - EPS ? { ...c, start: hookEnd } : c);

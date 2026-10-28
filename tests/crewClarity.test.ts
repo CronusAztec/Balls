@@ -183,13 +183,78 @@ describe("each gate's other problems", () => {
     expect([drop.payoff.text, drop.run!.moment!.sounds, gateOf(drop, "G2").problems]).toEqual(["Final chord. 🎹", 0, ["payoffLandsUnheard", "payoffLandsStill"]]);
     const pendulum = runWithMoment(planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, look: "simple" }));
     expect([pendulum.settings.pwSoundOn, pendulum.run!.moment!.accent, gateOf(pendulum, "G2").problems]).toEqual(["center", false, ["payoffLandsNoChord"]]);
-    // the templates that wrap them: the last note, and every bob at once
-    for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
+    // the template that wraps Pendulum Wave: every bob at once (--- crew --- review round 2, 21: Ball Drop's template, timed by
+    // its last note, is hidden – its plans fail G2 below)
+    for (const id of ["line-up-pendulum"]) {
       for (const seed of [1, 2]) {
         const clip = runWithMoment(planTemplate(id, seed, "reels", { copy }));
         expect([id, seed, clip.run!.moment!.sounds > 0, gateOf(clip, "G2").problems]).toEqual([id, seed, true, []]);
         if (id === "line-up-pendulum") expect(clip.run!.moment!.accent).toBe(true);
       }
+    }
+  });
+
+  // --- crew --- (the studio's second review round, 20 and 21) the payoff against the rest of the run: a promised chord heard as
+  // large before or after it, a beat's last note no louder than a tick over a board at rest, and dead air at the end
+  it("G2 against the rest of the run: a promised chord played as large elsewhere, a beat's lone faint note over a still board, a quiet end with nothing to read", () => {
+    const at = clean.payoff.atSec!;
+    const hookEnd = Math.max(...clean.captions.filter((_, i) => clean.captionRoles[i] === "hook").map((c) => c.end));
+    const moment = (m: Partial<PayoffMoment>, clip: CrewClip = clean): CrewClip => ({ ...clip, run: { ...clip.run!, moment: { atSec: at, sounds: 3, notes: 3, chordMax: 1, accent: false, motion: 200, motionMedian: 250, ...m } } });
+    const hooked = (clip: CrewClip, hook: string): CrewClip => {
+      const lines = clip.captions.flatMap((c, i) => (clip.captionRoles[i] === "hook" ? [i] : []));
+      return setCaptions(clip, clip.captions.map((c, i) => (i === lines[0] ? { ...c, text: hook } : lines.includes(i) ? { ...c, text: "" } : c)));
+    };
+    const chord = { sounds: 6, notes: 21, chordMax: 16, accent: true };
+    // Outdone: a hook that promises a chord, and an accented event as large after the hook – before the payoff or after it
+    const promised = hooked(moment({ ...chord, accents: [[0.03, 16], [at - 10, 16]] }), "Wait for the chord.");
+    expect(gateOf(promised, "G2").problems).toEqual(["payoffLandsOutdone"]);
+    expect(gateOf(promised, "G2").values).toMatchObject({ notes: 16, payoffNotes: 16 });
+    expect(gateOf(hooked(moment({ ...chord, accents: [[at + 0.9, 20]] }), "Wait for the chord."), "G2").problems).toEqual(["payoffLandsOutdone"]);
+    // …not one during the hook (the release), a smaller one, one past the clip's end, or a hook that promises none
+    expect(gateOf(hooked(moment({ ...chord, accents: [[hookEnd - 0.5, 16], [at - 5, 11], [clean.timing.clipSec + 2, 16]] }), "Wait for the chord."), "G2").ok).toBe(true);
+    expect(gateOf(hooked(moment({ ...chord, accents: [[at - 10, 16]] }), "Do they line up?"), "G2").ok).toBe(true);
+    // Still, for a beat (its payoff is heard): a few lone notes, fewer than the run's usual moment, none accented, over a board at rest
+    const beat = (m: Partial<PayoffMoment>): CrewClip => ({ ...moment(m), claim: "beat" });
+    expect(gateOf(beat({ sounds: 2, notes: 2, motion: 3, motionMedian: 100, soundsMedian: 11 }), "G2").problems).toEqual(["payoffLandsStill"]);
+    expect(gateOf(beat({ sounds: 12, notes: 12, motion: 3, motionMedian: 100, soundsMedian: 11 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 2, notes: 2, accent: true, motion: 3, motionMedian: 100, soundsMedian: 11 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 2, notes: 8, chordMax: 4, motion: 3, motionMedian: 100, soundsMedian: 11 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 2, notes: 2, motion: 60, motionMedian: 100, soundsMedian: 11 }), "G2").ok).toBe(true);
+    // (a payoff the picture carries – a break, an escape – may be drawn beyond the balls: only silence counts there; and a record
+    // without the windows' count keeps the old reading)
+    expect(gateOf(moment({ sounds: 2, notes: 2, motion: 3, motionMedian: 100, soundsMedian: 11 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 2, notes: 2, motion: 3, motionMedian: 100 }), "G2").ok).toBe(true);
+    // DeadTail: a clip that ends without words, on more than 1.5 s of silence over still balls
+    const wordless = setCaptions(clean, clean.captions.filter((_, i) => clean.captionRoles[i] !== "payoff"), clean.captionRoles.filter((r) => r !== "payoff"));
+    expect(gateOf(moment({ quietTailSec: 2.4 }, wordless), "G2").problems).toEqual(["payoffLandsDeadTail"]);
+    expect(gateOf(moment({ quietTailSec: 1.4 }, wordless), "G2").ok).toBe(true);
+    expect(gateOf(moment({ quietTailSec: 2.4 }), "G2").ok).toBe(true);
+    expect(CLARITY.quietTailMaxSec).toBe(1.5);
+  });
+
+  it("G2 on the real runs (review round 2, 20 and 21): the pendulum template's chord plays at half its cycle too; Ball Drop's last note fades out", { timeout: 60_000 }, () => {
+    const runWithMoment = (plan: ClipPlan) => crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
+    for (const seed of [1, 2]) {
+      const clip = runWithMoment(planTemplate("line-up-pendulum", seed, "reels", { copy }));
+      const m = clip.run!.moment!;
+      // the same chord, as large, at the release and half a cycle later: no sound setting plays it at the realignment alone
+      const hookEnd = Math.max(...clip.captions.filter((_, i) => clip.captionRoles[i] === "hook").map((c) => c.end));
+      expect(m.accents!.some(([sec, notes]) => sec > hookEnd && sec < clip.payoff.atSec! && notes >= m.chordMax), `seed ${seed}`).toBe(true);
+      // so the template's hook asks the question the line answers, and the gate passes; the recipe's own promise would not
+      expect(/chord/i.test(clip.hook!), `seed ${seed}`).toBe(false);
+      expect(gateOf(clip, "G2").ok, `seed ${seed}`).toBe(true);
+      const lines = clip.captions.flatMap((c, i) => (clip.captionRoles[i] === "hook" ? [i] : []));
+      const promised = setCaptions(clip, clip.captions.map((c, i) => (i === lines[0] ? { ...c, text: "Wait for the chord." } : lines.includes(i) ? { ...c, text: "" } : c)));
+      expect(gateOf(promised, "G2").problems, `seed ${seed}`).toContain("payoffLandsOutdone");
+    }
+    // Ball Drop timed by its last note (the hidden template's strategy, no words over it): a lone faint note over a board at
+    // rest, and the silence after it until the clip ends
+    for (const seed of [1, 3]) {
+      const plan = planClip({ ...recipeById("drop-symphony")!, strategy: "lastNote", payoffWords: false }, seed, "reels", { copy, look: "simple", ending: "resolved" });
+      const clip = runWithMoment(plan);
+      const m = clip.run!.moment!;
+      expect([seed, m.chordMax, m.accent, m.sounds < m.soundsMedian!, m.motion! <= CLARITY.stillShareMax * m.motionMedian!]).toEqual([seed, 1, false, true, true]);
+      expect(gateOf(clip, "G2").problems, `seed ${seed}`).toEqual(["payoffLandsStill", "payoffLandsDeadTail"]);
     }
   });
 
@@ -226,6 +291,27 @@ describe("each gate's other problems", () => {
     const liar = sb.settings.teams.find((t) => t.name !== sbWinner)!.name;
     const lying = setCaptions({ ...sb, payoff: { ...sb.payoff, winner: null } }, sb.captions.map((c, i) => (i === pIdx ? { ...c, text: c.text.replace(sbWinner, liar) } : c)));
     expect(gateOf(lying, "G4").key).toBe("wordsMatchPictureWrongWinner");
+  });
+
+  // --- crew --- (the studio's second review round, 22) a bar and a timer count the recording's seconds (lib/captions.ts): one
+  // taken off at the payoff stops short ("84 %", "0:04"), and a viewer told to wait for 100 % never sees it
+  it("G4: a counter of the clip's seconds that leaves before its end; the wall counter, which counts walls, may leave", () => {
+    const total = clean.settings.recordingDuration;
+    const at = clean.payoff.atSec!;
+    const counter = clean.captionRoles.indexOf("countdown");
+    expect(clean.captions[counter].type).toBe("wallCounter");
+    const as = (type: Caption["type"], end: number): CrewClip => setCaptions(clean, clean.captions.map((c, i) => (i === counter ? { ...c, type, text: type === "progress" ? "[pct]" : type === "countdown" ? "⏱ [time]" : c.text, end } : c)));
+    // the wall counter cut at the payoff, as the Simple look draws it: a count of walls, true when it leaves
+    expect(gateOf(as("wallCounter", Math.floor(at)), "G4").ok).toBe(true);
+    // a bar and a timer cut at the payoff
+    const bar = gateOf(as("progress", Math.floor(at)), "G4");
+    expect([bar.problems, bar.values]).toEqual([["wordsMatchPictureCounterCut"], { reads: `${Math.round((100 * Math.floor(at)) / total)}%` }]);
+    const timer = gateOf(as("countdown", total - 4), "G4");
+    expect([timer.problems, timer.values]).toEqual([["wordsMatchPictureCounterCut"], { reads: "0:04" }]);
+    // to the end (open-ended, the bot look's), or within a second of it: 100 % or 0:00 on screen
+    expect(gateOf(as("progress", 0), "G4").ok).toBe(true);
+    expect(gateOf(as("countdown", total - 0.9), "G4").ok).toBe(true);
+    expect(CLARITY.counterEndSec).toBe(1);
   });
 
   it("G5: a caption out of the safe zone, a Top Text over an arena's band, three lines, a long hook, a hurried line", () => {

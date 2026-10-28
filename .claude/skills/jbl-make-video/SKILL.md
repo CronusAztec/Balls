@@ -12,7 +12,7 @@ You get watermarked clips in `.agent-out/studio/<studio>/`, each with the crew's
 ## The rules
 
 - Every clip is a free visitor's render and carries the watermark. Never install or use a licence, never the TEST key: a clip the page reports clean is refused.
-- The tools write only under `.agent-out/`. You write no file and edit nothing in the repository for a video.
+- The tools write their results only under `.agent-out/`; `render` also builds the site's export in the agent cache (`~/.cache/jbl-agent`, or `JBL_AGENT_CACHE`), outside the repository, as AGENTS.md says. You write no file and edit nothing in the repository for a video.
 - The rules overrule every role, you included: a clip that fails a gate is never kept, evidence is the dossier's keys, fixes come from the fixed list, one fix round and never a second.
 - A verdict never deletes a clip. Never push and never post: the owner approves every post.
 - Other creators' titles and names never go into a brief, a verdict or a post.

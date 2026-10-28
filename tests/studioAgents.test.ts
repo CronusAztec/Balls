@@ -103,6 +103,13 @@ describe("the Claude Code subagents and the make-video skill (--- studio ---)", 
     expect(body.split("\n").find((l) => l.startsWith("4. "))).toMatch(/"request"[^\n]*"world":\{"width":800,"height":450\}/);
     // the rules: the watermark, no licence, .agent-out only, one fix round, never push or post
     for (const rule of ["carries the watermark", "Never install or use a licence", "only under `.agent-out/`", "one fix round and never a second", "Never push and never post"]) expect(body).toContain(rule);
+    // --- studio --- (review round 2, 19) and where else they write: render's export in the agent cache (scripts/agent/paths.mjs
+    // cacheDirFor), as AGENTS.md says – a session that read "only under .agent-out/" told the owner nothing was written elsewhere
+    const writes = body.split("\n").find((l) => l.includes("only under `.agent-out/`"))!;
+    expect(writes).toContain("results only under `.agent-out/`");
+    for (const where of ["`~/.cache/jbl-agent`", "`JBL_AGENT_CACHE`", "`render`"]) expect(writes).toContain(where);
+    expect(read("scripts/agent/paths.mjs")).toMatch(/env\.JBL_AGENT_CACHE[\s\S]*"jbl-agent"/);
+    expect(read("AGENTS.md")).toContain("`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides");
   });
 
   it("are protected paths (owner review), and git keeps them (no ignore rule hides them)", () => {

@@ -1,7 +1,9 @@
 import type { ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
-import { botRecipeById } from "@/lib/bot/templates";
+import { botRecipeById, CHORD_WORDS } from "@/lib/bot/templates";
 import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
+import { STILL_MOTION_SHARE } from "@/lib/insights/score";
+import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
 import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 
@@ -16,13 +18,18 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *     the run's payoff moment is known (RunFacts.moment, lib/insights/score.ts payoffMomentSync) – a payoff that happens: a
  *     sound at it where the clip promises one (a beat, or words that name a chord), a chord where the words name one (the
  *     mode's own: an accented event, Pendulum Wave's every bob at once – a cluster of a few notes is not the chord promised),
- *     and a sound or motion at it whatever it claims (never silent and still: a quarter of the run's median motion or less);
+ *     the only one of its size after a hook that promises it (no accented event as large plays after the hook, before or
+ *     after the payoff), and a sound or motion at it whatever it claims (never still and quiet: the balls at a quarter of the
+ *     run's median motion or less, with no sound – or, for a beat, only a few lone notes: fewer than the run's usual moment
+ *     plays, none accented, no chord), and – a clip that ends without words – no quiet end longer than 1.5 s after it (no
+ *     sound, the balls still: dead air);
  *     cliffhanger: the cut 0–3 s before the payoff and a closing question on screen at the end.
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
  *     never both).
  *  G4 wordsMatchPicture – the drawn hook is the hook the clip's words say it has; every number in it is one of the clip's
  *     facts; a winner the payoff names is the run's; the recipe (or the template) that wrote the hook plays this mode; the
- *     run shows the claim.
+ *     run shows the claim; a counter of the clip's seconds (a bar, a timer) reaches its end on screen – 100 % or 0:00, within
+ *     a second of it – rather than leaving at "84 %" (the studio's second review round, 22).
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band.
  *  G6 notTooBusy – Simple at least 60 (simplicity.ts).
@@ -61,12 +68,16 @@ export const CLARITY = {
   secPerLine: 1.2,
   simpleMin: SIMPLE_BANDS.aBitBusy,
   laggedShareMax: 0.02,
-  /** --- crew --- A still payoff: the balls' motion at it at most this share of the run's median, with no sound. */
-  stillShareMax: 0.25,
+  /**
+   * --- crew --- A still payoff: the balls' motion at it at most this share of the run's median (lib/insights/score.ts
+   * STILL_MOTION_SHARE), with no sound or – the studio's second review round, 21 – only a few lone notes.
+   */
+  stillShareMax: STILL_MOTION_SHARE,
+  /** --- crew --- (review round 2, 21) The longest quiet end (no sound, the balls still) a clip that ends without words may have. */
+  quietTailMaxSec: 1.5,
+  /** --- crew --- (review round 2, 22) A bar or a timer leaves the screen at most this long before its end (100 %, 0:00). */
+  counterEndSec: 1,
 } as const;
-
-/** --- crew --- Words that promise a chord (en, pl, es, and the notes' emoji): the payoff must play one. */
-const CHORD_WORDS = /chord|akord|acorde|🎼|🎹/iu;
 
 /** --- templates --- The indices of a clip's captions of one role, in the list's order. */
 const rolesAt = (clip: Pick<CrewClip, "captions" | "captionRoles">, role: string): number[] => clip.captions.map((_, i) => (clip.captionRoles[i] === role ? i : -1)).filter((i) => i >= 0);
@@ -142,22 +153,52 @@ function payoffGate(clip: CrewClip): Gate {
   return gate("G2", problems, "Ok", { pct: pct(position), sec: r1(atSec) });
 }
 
+/** --- crew --- (review round 2, 20) When a clip's hook leaves the screen (s): its latest line's end, the clip's end for one that stays. */
+function hookEndSecOf(clip: CrewClip): number {
+  const hooks = rolesAt(clip, "hook").map((i) => clip.captions[i]);
+  if (hooks.length === 0) return 0;
+  return Math.max(...hooks.map((c) => (c.end > c.start ? c.end : clip.timing.clipSec)));
+}
+
 /**
  * --- crew --- What the run does at a resolved payoff, against what the clip promises (the run's moment around the payoff the
  * clip times; none known, or read around another second: nothing to judge by). Unheard: a beat, or words that name a chord,
  * and not one sound there. NoChord: words that name a chord, and no chord the mode plays as one there – an accented event (a
  * Pendulum Wave sounding at its centre crossings has clusters of up to 7 of its 21 notes around the realignment and never the
- * chord). Still: no sound and the balls' motion at most a quarter of the run's median – the board has stopped.
+ * chord). Outdone (the studio's second review round, 20): a hook that promises a chord, and an accented event as large as the
+ * payoff's played after the hook, before or after it – the promised chord heard before it comes, or again after it (a
+ * Pendulum Wave sounding at its turning points plays every bob at once at half a cycle too). Still: the balls' motion at most
+ * a quarter of the run's median, and no sound or – review round 2, 21, a beat's payoff, which is heard – only lone notes,
+ * fewer than the run's usual moment plays (its windows' median), none accented and no chord: Ball Drop's last note, one faint
+ * tick over a board at rest, is no payoff (a payoff the picture carries – Power Layers' break, its banner and its shards –
+ * may be drawn beyond the balls' motion, so only silence counts there). DeadTail (review round 2, 21): a clip that ends
+ * without words (no payoff's words on screen at its end) and ends on a quiet stretch longer than 1.5 s after its payoff – no
+ * sound, the balls still: dead air where nothing is left to read.
  */
 function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: Record<string, string | number> }[] {
   const m = clip.run?.moment;
   if (!m || Math.abs(m.atSec - atSec) > 0.01) return [];
-  const words = [drawnHookText(clip), captionWordsOf(clip.captions, rolesAt(clip, "payoff"))].join(" ");
+  const hook = drawnHookText(clip);
+  const words = [hook, captionWordsOf(clip.captions, rolesAt(clip, "payoff"))].join(" ");
   const chordPromised = CHORD_WORDS.test(words);
   const out: { key: string; values?: Record<string, string | number> }[] = [];
   if (m.sounds === 0 && (clip.claim === "beat" || chordPromised)) out.push({ key: "Unheard", values: { sec: r1(atSec) } });
   else if (chordPromised && !m.accent) out.push({ key: "NoChord", values: { sec: r1(atSec), notes: m.chordMax } });
-  if (m.sounds === 0 && m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 && m.motion <= CLARITY.stillShareMax * m.motionMedian + EPS) out.push({ key: "Still", values: { sec: r1(atSec), pct: pct(m.motion / m.motionMedian) } });
+  else if (CHORD_WORDS.test(hook) && m.accent) {
+    // --- crew --- (review round 2, 20) the promised chord, as large, after the hook and away from the payoff
+    const hookEnd = hookEndSecOf(clip);
+    const rival = (m.accents ?? []).find(([sec, notes]) => sec >= hookEnd - EPS && sec <= clip.timing.clipSec + EPS && notes >= m.chordMax);
+    if (rival) out.push({ key: "Outdone", values: { sec: r1(rival[0]), notes: rival[1], payoffNotes: m.chordMax } });
+  }
+  // (a beat's payoff is heard, so a few lone notes are as quiet as none there: fewer than the run's usual moment, none
+  // accented, no chord – a payoff the picture carries, a layer stack's break or an escape, may be drawn beyond the balls' motion,
+  // so only silence counts there; a run without the windows' count, an older record, keeps the old reading: no sound at all)
+  const quiet = m.sounds === 0 || (clip.claim === "beat" && !m.accent && m.chordMax <= 1 && typeof m.soundsMedian === "number" && m.sounds < m.soundsMedian);
+  if (quiet && m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 && m.motion <= CLARITY.stillShareMax * m.motionMedian + EPS) out.push({ key: "Still", values: { sec: r1(atSec), pct: pct(m.motion / m.motionMedian), sounds: m.sounds } });
+  // --- crew --- (review round 2, 21) dead air at the end of a clip with no words left to read
+  const end = clip.timing.clipSec;
+  const wordsAtEnd = rolesAt(clip, "payoff").some((i) => clip.captions[i].start < end - EPS && (clip.captions[i].end <= clip.captions[i].start || clip.captions[i].end >= end - 1e-6));
+  if (!wordsAtEnd && typeof m.quietTailSec === "number" && m.quietTailSec > CLARITY.quietTailMaxSec + EPS) out.push({ key: "DeadTail", values: { sec: r1(m.quietTailSec) } });
   return out;
 }
 
@@ -173,6 +214,24 @@ function oneIdeaGate(clip: CrewClip): Gate {
   // (two endings: the payoff's words and a closing question, or two questions; more texts after the hook cost Simple points)
   if (questions > 1 || (payoffs > 0 && questions > 0)) problems.push({ key: "TwoEndings", values: { payoffs, questions } });
   return gate("G3", problems, "Ok");
+}
+
+/**
+ * --- crew --- (review round 2, 22) A counter of the clip's seconds that leaves the screen short of its end: what it reads as it
+ * goes (a bar's share, a timer's time left), or null. A bar and a timer count to the recording's end (lib/captions.ts
+ * progressFraction, countdownSeconds), so one taken off at the payoff stops at "84 %" or "0:04": a viewer told to wait for
+ * 100 % never sees it. The wall counter counts the walls broken, not time: it may leave at any moment.
+ */
+export function counterCutReading(clip: Pick<CrewClip, "captions" | "settings" | "timing">): string | null {
+  const total = clip.settings.recordingDuration;
+  if (!(total > 0)) return null;
+  for (const c of clip.captions) {
+    if (c.type !== "progress" && c.type !== "countdown") continue;
+    const until = Math.min(c.end > c.start ? c.end : Infinity, clip.timing.clipSec);
+    if (c.start >= until - EPS) continue;
+    if (total - until > CLARITY.counterEndSec + EPS) return c.type === "progress" ? `${Math.round(100 * progressFraction(total, until))}%` : formatClock(countdownSeconds(total, until));
+  }
+  return null;
 }
 
 /** G4: the words match the picture. */
@@ -200,6 +259,8 @@ function wordsGate(clip: CrewClip): Gate {
   const seen = claimSeen(clip);
   if (clip.claim && seen === false) problems.push({ key: "ClaimUnseen", values: { claim: clip.claim } });
   if (clip.claim && seen === null) problems.push({ key: "ClaimUnmeasured", values: { claim: clip.claim } });
+  const cut = counterCutReading(clip); // --- crew --- (review round 2, 22)
+  if (cut !== null) problems.push({ key: "CounterCut", values: { reads: cut } });
   return gate("G4", problems, "Ok");
 }
 

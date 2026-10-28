@@ -155,7 +155,7 @@ export function hudCounts(s: SimulatorSettings): boolean {
 }
 
 /** The HUD flag ids a clip keeps by default: the ones that count down, when its countdown is the HUD's. */
-export function defaultKeptHuds(s: SimulatorSettings, countdownSource: "caption" | "hud" | null): string[] {
+export function defaultKeptHuds(s: SimulatorSettings, countdownSource: "caption" | "hud" | "picture" | null): string[] {
   return countdownSource === "hud" ? hudsOn(s).filter((h) => h.flag && h.counts).map((h) => h.id) : [];
 }
 // --- end crew ---

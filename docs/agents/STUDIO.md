@@ -13,7 +13,9 @@ run), the templates (`src/lib/bot/templates.ts`) and render v3 (the page's bot h
 
 ## What a studio holds
 
-Everything lands in `.agent-out/studio/<studio>/`, which git ignores:
+Everything lands in `.agent-out/studio/<studio>/`, which git ignores. Outside the repository, `render` builds the site's
+export in the agent cache (`~/.cache/jbl-agent`, or `JBL_AGENT_CACHE`: several hundred MB) and the studio's tools keep their
+bundle there, as AGENTS.md says.
 
 | File | What it is |
 | --- | --- |
@@ -149,7 +151,8 @@ needs the owner's review.
   fetches one brief, answers it and stops. The caller starts a fresh one for the next brief, so no clip is judged in another
   clip's context.
 - `.claude/skills/jbl-make-video/SKILL.md`: the whole loop, which subagent plays which role, the rules (the watermark, no
-  licence, `.agent-out/` only, one fix round, never push or post), and the role eval.
+  licence, results under `.agent-out/` and render's export in the agent cache, one fix round, never push or post), and the
+  role eval.
 
 The subagents need the MCP server approved in Claude Code (`/mcp`). Without it, one conversation plays every role through
 the CLI, and the record says so.
@@ -287,10 +290,34 @@ its export without the site's domain, with share links to localhost in plan.json
   Simple score charges a text that hides the action where the other edge would not (textOverAction), the viewer's "text"
   distraction counts as confirmed then, and the oneTextAtATime fix places the texts the same way.
 
-Rendered again after these changes (plan seed 1 of each template, in the page's world): the pendulum clip's loudest moment
-is its payoff, the accented chord at 21.05 s after 0.2 s of quiet as every bob reaches its turning point; the Ball Drop
-clip's last note sounds at its payoff, 18.7 s, and the board settles in the 2.4 s after it. Both watermarks read
-jumpingballslive.com, and every gate passed after both renders.
+Rendered again after these changes (plan seed 1 of each template, in the page's world): the pendulum clip plays its
+accented chord at its payoff, 21.05 s, after 0.2 s of quiet as every bob reaches its turning point – but not as its loudest
+moment, as this guide first said: the same chord, as loud and as bright, plays at the release and at half a cycle (10.5 s),
+and the steady stream of notes peaks above it. The Ball Drop clip's last note sounds at its payoff, 18.7 s: one faint note,
+then 2.4 s of silence over a board at rest, and the mode's SETTLED! banner for the recorder's last 0.5 s. Both watermarks
+read jumpingballslive.com, and every gate passed after both renders. Review round 2 (below) changed both templates.
+
+**What review round 2 changed** (findings 19-23):
+
+- The make-video skill says where the tools write: their results under `.agent-out/`, and `render`'s build of the site's
+  export in the agent cache (`~/.cache/jbl-agent`, or `JBL_AGENT_CACHE`), outside the repository.
+- The pendulum template's hook no longer promises a chord its run plays three times. No sound setting plays it at the
+  realignment alone, so the hook asks the question the line answers, from the recipe's own copy in every language: "22
+  pendulums. Do they line up?" (`hookAsk`). Gate G2 fails a hook that promises a chord when an accented event as large plays
+  after the hook, before or after the payoff (Outdone: `run.payoffMoment` keeps the run's other accented events).
+- Ball Drop's template is hidden, with its reason: its run fades out. Its last note is a lone faint tick over a board at rest,
+  then silence until a SETTLED! banner the recorder shows for 0.5 s, and no moment at 80–90 % of the clip lands. G2 now judges
+  a beat's payoff still when the balls barely move and it plays only lone notes, fewer than the run's usual moment (not only
+  silence). A clip that ends without words fails G2 when it ends on more than 1.5 s of silence over still balls (DeadTail).
+- The Simple look draws a counter caption only where the format takes one and it counts what happens: the walls broken. A bar or
+  a timer counts the recording's seconds, so one text at a time took it off at the payoff ("84 %" as the pendulums line up,
+  "0:04" as Ball Drop's last ball lands). Pendulum Wave, Polyrhythm, Grow and Clone per pass now let the picture count, and give
+  up the checklist's 10 countdown points. The format table (`countdown`) is what the planner reads, and the oneTextAtATime fix
+  drops a bar or a timer instead of cutting it short. G4 fails one that leaves more than 1 s before its end (CounterCut).
+- Power Layers' Simple hook keeps its rule, "Every hit doubles the power.". The mode's own counter shows the layers left from
+  the first frame, while +1, Fibonacci and doubling all start with hits of a layer or two. A cliffhanger's "One more hit?"
+  hangs on that rule. Only where no HUD counts the stake down does a smash or count hook keep its number. A Simple
+  cliffhanger's post asks the question the clip ends on.
 
 **What the run showed, and what this step fixed** (a first pass, in `.agent-out/studio/s6-run/`, ran on the code before
 these fixes):
@@ -318,23 +345,27 @@ were answered again, and the numbers did not move.
 - **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s". The template's
   payoff caption ("FREEDOM 🌈") shows beside it. Neither the Simple score nor the screen view knows these banners. A fix would
   change the plans or the Simple scores of every such template, and with them the role eval's corpus and its recorded run.
-  The owner should first choose which of the two stays. (Ball Drop's template draws no payoff words, and its clip ends
-  before or with the mode's "SETTLED!".)
-- **The pendulum's other chords.** With every bob sounding at its turning points, the chord the hook promises also sounds
-  at the release and at half a cycle; only the realignment has the line. A hook of the lineUp format's own (a later step)
-  could say "line up" instead of "chord".
+  The owner should first choose which of the two stays. (Ball Drop's template, which drew no payoff words, is hidden.)
+- **The pendulum's other chords.** With every bob sounding at its turning points, the realignment's chord also sounds, as
+  loud and as bright, at the release and at half a cycle, and half of it at each quarter. Only the realignment has the line.
+  The hook promises the line, never the chord; the payoff's "🎼" names the music, and G2 asks it to play an accented chord
+  there, which it does.
 - **Payoffs the settings time.** Power Layers, Pendulum Wave and Polyrhythm time their payoff from the settings, so the
   planner stops simulating after the first impact. Their dossier then says "no first escape in the run" and "no finish in
   the run" beside a payoff at 16.7 s. The evidence check refutes a payoffMissing on them, but a model reads the two lines as a
   contradiction. The run's payoff moment (`run.payoffMoment`) is read on its own run to the payoff, so it shows what they play
   and how they move there.
-- **Texts inside the square.** The canvas draws every caption inside the exported square, so a Simple text can take only its
-  top or its bottom edge. Where the action fills the square, some text still hides some of it: Ball Drop's countdown, while
-  the balls enter at the top and pile up at the bottom. The free band above the square (22 % of a 9:16 frame when there is no
-  Top Text) would hide nothing, but drawing captions there is a renderer change in hub files (Canvas.tsx, the recorder's
-  frame, the fast export) that needs tier 2. The owner should decide it.
-- **A countdown that is not to the payoff.** Ball Drop's timer counts down the recording, so it reads 0:03 when the payoff
-  replaces it. This is the bot recipe's own countdown, and tests/bot.test.ts pins the bot's plans.
+- **Texts inside the square.** The canvas draws every caption inside the exported square, so a Simple text can take only its top
+  or its bottom edge. Where the action fills the square, some text still hides some of it: Ball Drop's texts (its recipe in the
+  Simple look), while the balls enter at the top and pile up at the bottom. The free band above the square (22 % of a 9:16 frame
+  when there is no Top Text) would hide nothing, but drawing captions there is a renderer change in hub files (Canvas.tsx, the
+  recorder's frame, the fast export) that needs tier 2. The owner should decide it.
+- **A countdown to the payoff.** A bar or a timer counts the recording's seconds (lib/captions.ts), so the Simple look draws
+  none: the picture or the mode's HUD counts instead, and the picture gives up the checklist's 10 countdown points. A counter
+  that ends at the payoff would change the caption's link form and the renderer (settings.ts, the hub files), which needs tier
+  2: the owner should decide it. The bot look keeps its counters, on to the clip's end, as tests/bot.test.ts pins its plans.
+- **Ball Drop.** Its template is hidden until a payoff that lands. The beat format has no ready template in this release;
+  the later bindings (Beat Drop, Beat Machine, Vortex) are its candidates.
 - **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its
   slow motion moves the run in several modes.
 - **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world,

@@ -344,7 +344,7 @@ export function runFactsSync(settings: SimulatorSettings, seed: number, world?: 
  */
 export function runSync(settings: SimulatorSettings, seed: number, world?: BotWorld | null, recipe?: string | null, clipSec?: number | null, payoffSec?: number | null): RunFacts {
   const run = drain(runSteps(settings, seed, world, clipSec, recipe));
-  const withMoment = finite(payoffSec) && payoffSec >= 0 ? { ...run, moment: payoffMomentSync(settings, seed, world, payoffSec) } : run;
+  const withMoment = finite(payoffSec) && payoffSec >= 0 ? { ...run, moment: payoffMomentSync(settings, seed, world, payoffSec, clipSec) } : run;
   return finite(clipSec) && clipSec > 0 ? { ...withMoment, action: actionTrackSync(settings, seed, world, clipSec) } : withMoment; // --- templates ---
 }
 
@@ -354,6 +354,13 @@ export const MOMENT_BEFORE_SEC = 0.25;
 export const MOMENT_AFTER_SEC = 0.5;
 /** The motion is sampled this often (s of the clip): a quarter second, as the export's own motion samples. */
 const MOTION_STEP_SEC = 0.25;
+/**
+ * --- crew --- (the studio's second review round, 21) Balls at most this share of the run's median motion are still: the crew's
+ * gate G2 reads a payoff (and a clip's end) still at it (lib/crew/clarity.ts CLARITY.stillShareMax).
+ */
+export const STILL_MOTION_SHARE = 0.25;
+/** --- crew --- (review round 2, 20) The accented events kept outside the payoff's moment, the largest first: PayoffMoment.accents. */
+export const MOMENT_ACCENTS_MAX = 24;
 
 /**
  * The run around its payoff second (PayoffMoment): the seed played again from the start, in the finder's engine and in the
@@ -363,11 +370,19 @@ const MOTION_STEP_SEC = 0.25;
  * by its id) in the window, and the median of the samples before it from the first second on. The sound the export plays is
  * these very events (the tone generator voices them), so this reads what the clip plays at its payoff, deterministically,
  * before any render; a mode with no balls has no motion (null). The crew's gate G2 reads it (lib/crew/clarity.ts).
+ *
+ * --- crew --- (the studio's second review round, 20 and 21) It also counts the sound events of the run's windows of the same
+ * length before the payoff, from the first second on (their median: soundsMedian – how much a moment of this run usually
+ * plays), and, with `clipSec` (the clip's end, past the moment), follows the run to it: the accented events outside the moment
+ * (accents: where else the mode plays its chord and flash) and the quiet stretch the clip ends on (quietTailSec: no sound, the
+ * balls at most STILL_MOTION_SHARE of their median).
  */
-export function payoffMomentSync(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number): PayoffMoment {
+export function payoffMomentSync(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number, clipSec?: number | null): PayoffMoment {
   const from = payoffSec - MOMENT_BEFORE_SEC;
   const to = payoffSec + MOMENT_AFTER_SEC;
-  const request = finderRequestOfSettings(settings, world ?? DEFAULT_BOT_WORLD, to + 1);
+  const clipEnd = finite(clipSec) && clipSec > 0 ? clipSec : null; // --- crew --- (review round 2, 20 and 21)
+  const until = Math.max(to, clipEnd ?? 0);
+  const request = finderRequestOfSettings(settings, world ?? DEFAULT_BOT_WORLD, until + 1);
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
   let elapsed = 0;
@@ -379,12 +394,19 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
   const before: number[] = [];
   const inside: number[] = [];
   let anyBalls = false;
-  while (elapsed / 1000 < to - 1e-9) {
+  // --- crew --- (review round 2, 20 and 21) the windows before the moment, the accents outside it, the clip's end
+  const windowSec = MOMENT_BEFORE_SEC + MOMENT_AFTER_SEC;
+  const windows: number[] = [];
+  const accents: [number, number][] = [];
+  let lastSoundSec = -1;
+  const after: { sec: number; speed: number }[] = [];
+  while (elapsed / 1000 < until - 1e-9) {
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step);
     const sec = elapsed / 1000;
     const events = engine.consumeSoundEvents();
-    if (sec >= from - 1e-9 && sec <= to + 1e-9) {
+    const inMoment = sec >= from - 1e-9 && sec <= to + 1e-9;
+    if (inMoment) {
       for (const e of events) {
         const n = e.chord && e.chord.length > 0 ? e.chord.length : 1;
         sounds++;
@@ -392,7 +414,17 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
         chordMax = Math.max(chordMax, n);
         if (e.accent) accent = true;
       }
+    } else if (sec <= until + 1e-9) {
+      if (sec >= 1 - 1e-9 && sec < from - 1e-9) {
+        const w = Math.floor((sec - 1) / windowSec + 1e-9);
+        if ((w + 1) * windowSec + 1 <= from + 1e-9) {
+          while (windows.length <= w) windows.push(0);
+          windows[w] += events.length;
+        }
+      }
+      for (const e of events) if (e.accent) accents.push([Math.round(sec * 100) / 100, e.chord && e.chord.length > 0 ? e.chord.length : 1]);
     }
+    if (events.length > 0 && (clipEnd === null || sec <= clipEnd + 1e-9)) lastSoundSec = sec;
     if (!last || sec - last.sec >= MOTION_STEP_SEC - 1e-9 || engine.isSimulationFinished()) {
       const at = new Map<number, { x: number; y: number }>();
       for (const b of engine.getBalls()) at.set(b.id, { x: b.x, y: b.y });
@@ -409,6 +441,7 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
         const speed = count > 0 ? sum / count / (sec - last.sec) : 0;
         if (sec > from - 1e-9 && last.sec < to + 1e-9) inside.push(speed);
         else if (sec < from && last.sec >= 1 - 1e-9) before.push(speed);
+        if (last.sec >= payoffSec - 1e-9 && clipEnd !== null && sec <= clipEnd + 1e-9) after.push({ sec, speed }); // --- crew --- (the clip's end, after its payoff)
       }
       last = { sec, at };
     }
@@ -422,7 +455,30 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   };
   const r2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100);
-  return { atSec: Math.round(payoffSec * 1000) / 1000, sounds, notes, chordMax, accent, motion: anyBalls ? r2(mean(inside) ?? 0) : null, motionMedian: anyBalls ? r2(median(before)) : null };
+  const motionMedian = anyBalls ? median(before) : null;
+  // --- crew --- (review round 2, 21) the clip's quiet end: from its last sound, or the payoff, while every sample is still
+  let quietTailSec: number | null = null;
+  if (clipEnd !== null && clipEnd > payoffSec) {
+    let stillFrom = clipEnd;
+    if (motionMedian === null || motionMedian <= 0) stillFrom = payoffSec;
+    else for (let i = after.length - 1; i >= 0 && after[i].speed <= STILL_MOTION_SHARE * motionMedian + 1e-9; i--) stillFrom = Math.max(payoffSec, after[i].sec - MOTION_STEP_SEC);
+    // (a run that ended before the clip's end stands still from its end on)
+    if (engine.isSimulationFinished() && elapsed / 1000 < clipEnd) stillFrom = Math.min(stillFrom, Math.max(payoffSec, elapsed / 1000));
+    quietTailSec = Math.round(Math.max(0, clipEnd - Math.max(stillFrom, lastSoundSec, payoffSec)) * 100) / 100;
+  }
+  const largest = [...accents].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, MOMENT_ACCENTS_MAX).sort((a, b) => a[0] - b[0]);
+  return {
+    atSec: Math.round(payoffSec * 1000) / 1000,
+    sounds,
+    notes,
+    chordMax,
+    accent,
+    motion: anyBalls ? r2(mean(inside) ?? 0) : null,
+    motionMedian: r2(motionMedian),
+    soundsMedian: windows.length ? median(windows) : null,
+    accents: largest,
+    ...(quietTailSec !== null ? { quietTailSec } : {}),
+  };
 }
 
 /**

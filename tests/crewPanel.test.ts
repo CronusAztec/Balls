@@ -153,8 +153,9 @@ describe("the measure step", () => {
     const grow = clip(s, "c5");
     expect([grow.verdict, grow.dropWhy, grow.status]).toEqual(["drop", "gate:G5", "done"]);
     expect(failedGates(grow.clarity)).toEqual(["G5", "G7"]);
-    // the review order: the rules-only pick score, ties by plan order
-    expect(s.clips.map((c) => c.id)).toEqual(["c1", "c2", "c4", "c3", "c5"]);
+    // the review order: the rules-only pick score, ties by plan order (--- crew --- review round 2, 22: the pendulum's rule fix
+    // takes its bar off – a count of the clip's seconds would leave at the payoff short of 100 % – so it ranks below the cut escape)
+    expect(s.clips.map((c) => c.id)).toEqual(["c1", "c4", "c2", "c3", "c5"]);
   });
 
   it("an empty batch of plans ends at once, with no idea pitched and nothing to queue", () => {
@@ -168,7 +169,7 @@ describe("the role order", () => {
   it("Quick: one skeptic call a clip in rank order, no reviewer on a clean clip, then the producer", async () => {
     const { state, seq } = await run({ stage: "pre", wanted: 3, candidates: batch() });
     // c4 is a second ring escape: the picker keeps one of a template in a batch of three, so the run goes on to c3
-    expect(seq()).toEqual(["skeptic c1", "skeptic c2", "skeptic c4", "skeptic c3", "producer"]);
+    expect(seq()).toEqual(["skeptic c1", "skeptic c4", "skeptic c2", "skeptic c3", "producer"]);
     const d = done(state);
     expect(d.keeps.map((k) => [k.id, k.reason])).toEqual([["c1", "reviewed"], ["c2", "reviewed"], ["c3", "reviewed"]]);
     expect(d.left.map((k) => [k.id, k.reason])).toEqual([["c4", "sameTemplate"]]);
@@ -178,7 +179,7 @@ describe("the role order", () => {
 
   it("Thorough: the viewer, the skeptic and the reviewer on each clip, back to back", async () => {
     const { state, seq } = await run({ stage: "pre", depth: "thorough", wanted: 2, candidates: batch() });
-    expect(seq()).toEqual(["viewer c1", "skeptic c1", "reviewer c1", "viewer c2", "skeptic c2", "reviewer c2", "producer"]);
+    expect(seq()).toEqual(["viewer c1", "skeptic c1", "reviewer c1", "viewer c4", "skeptic c4", "reviewer c4", "viewer c2", "skeptic c2", "reviewer c2", "producer"]);
     expect(done(state).keeps.map((k) => k.id)).toEqual(["c1", "c2"]);
     expect(clip(state, "c3").notReviewed).toBe("enough");
   });
@@ -227,7 +228,7 @@ describe("the evidence check and the reviewer", () => {
       return { ...NOTHING, objections: [{ id: "o1", kind: "payoffEarly", evidence: ["beats.payoff"], severity: "major", note: "" }] };
     };
     const { state, seq } = await run({ stage: "pre", wanted: 3, candidates: batch() }, script);
-    expect(seq()).toEqual(["skeptic c1", "skeptic c2", "reviewer c2", "skeptic c4", "skeptic c3", "producer"]);
+    expect(seq()).toEqual(["skeptic c1", "skeptic c4", "skeptic c2", "reviewer c2", "skeptic c3", "producer"]);
     expect([clip(state, "c4").marks.map((m) => m.mark), clip(state, "c3").marks.map((m) => m.mark)]).toEqual([["refuted"], ["refuted"]]);
     expect(state.log).toContain(`skeptic c4: o1 payoffEarly major refuted – not supported by the run: the clip ends ${Math.round(CLIPS.ringCliff.payoff.cutGapSec! * 10) / 10} s before the payoff`);
   });
@@ -426,11 +427,12 @@ describe("the caps and the fallbacks", () => {
   it("every call and every retry counts; the clips past the budget are not reviewed and the template writes the words", async () => {
     const script: Script = (brief, attempt) => (brief.role === "skeptic" && brief.clipId === "c1" && attempt === 1 ? { oneIdea: "x", objections: [{ id: "o1", kind: "boring" }] } : defaults(brief, attempt, []));
     const { state, seq } = await run({ stage: "pre", wanted: 3, candidates: batch(), caps: { maxCalls: 3 } }, script);
-    expect(seq()).toEqual(["skeptic c1", "skeptic c1", "skeptic c2"]);
+    expect(seq()).toEqual(["skeptic c1", "skeptic c1", "skeptic c4"]);
     expect(state.spent).toMatchObject({ calls: 3, retries: 1 });
-    expect(["c4", "c3"].map((id) => clip(state, id).notReviewed)).toEqual(["budget", "budget"]);
+    expect(["c2", "c3"].map((id) => clip(state, id).notReviewed)).toEqual(["budget", "budget"]);
     const d = done(state);
-    expect(d.keeps.map((k) => [k.id, k.reason])).toEqual([["c1", "reviewed"], ["c2", "reviewed"], ["c3", "notReviewed"]]);
+    // (c4, reviewed, is a second ring escape: the picker leaves it, and the two past the budget fill the batch, not reviewed)
+    expect(d.keeps.map((k) => [k.id, k.reason])).toEqual([["c1", "reviewed"], ["c2", "notReviewed"], ["c3", "notReviewed"]]);
     expect(d.copy?.source).toBe("template");
     expect(state.producer).toMatchObject({ source: "rules", why: "budget" });
   });
@@ -445,12 +447,12 @@ describe("the caps and the fallbacks", () => {
       },
       clock: () => now,
     });
-    expect(timed.seq()).toEqual(["skeptic c1", "skeptic c2", "skeptic c4"]);
+    expect(timed.seq()).toEqual(["skeptic c1", "skeptic c4", "skeptic c2"]);
     expect(byTime.spent.ms).toBe(18 * 60_000);
     expect(clip(byTime, "c3").notReviewed).toBe("budget");
     const priced = scripted(defaults, { usd: 0.6 });
     const byCost = await runPanel(createPanel({ stage: "pre", wanted: 3, candidates: batch(), caps: { maxUsd: 1.5 } }), { model: priced.model });
-    expect(priced.seq()).toEqual(["skeptic c1", "skeptic c2", "skeptic c4"]);
+    expect(priced.seq()).toEqual(["skeptic c1", "skeptic c4", "skeptic c2"]);
     expect(byCost.spent.usd).toBeCloseTo(1.8, 9);
   });
 
@@ -496,9 +498,9 @@ describe("the caps and the fallbacks", () => {
     const { state, seq } = await run({ stage: "pre", wanted: 1, candidates: batch() }, script);
     // (c1: a model's skeptic looked, so the rules' keep stands, but with no confidence it does not stop the run)
     expect([clip(state, "c1").verdict, clip(state, "c1").confidence, clip(state, "c1").reviewer.why]).toEqual(["keep", null, "broken"]);
-    expect(seq()).toEqual(["skeptic c1", "reviewer c1", "reviewer c1", "reviewer c1", "reviewer c1", "skeptic c2", "producer"]);
-    expect([clip(state, "c2").verdict, clip(state, "c2").confidence]).toEqual(["keep", "medium"]);
-    expect(clip(state, "c4").notReviewed).toBe("enough");
+    expect(seq()).toEqual(["skeptic c1", "reviewer c1", "reviewer c1", "reviewer c1", "reviewer c1", "skeptic c4", "producer"]);
+    expect([clip(state, "c4").verdict, clip(state, "c4").confidence]).toEqual(["keep", "medium"]);
+    expect(clip(state, "c2").notReviewed).toBe("enough");
   });
 
   it("Rules only makes no model call, and every record says so", async () => {
@@ -528,10 +530,10 @@ describe("the caps and the fallbacks", () => {
       },
       signal: control.signal,
     });
-    expect(m.seq()).toEqual(["skeptic c1", "skeptic c2"]);
+    expect(m.seq()).toEqual(["skeptic c1", "skeptic c4"]);
     const d = done(state);
     expect([d.cancelled, d.keeps, d.copy]).toEqual([true, [], null]);
-    expect(["c4", "c3"].map((id) => clip(state, id).notReviewed)).toEqual(["cancelled", "cancelled"]);
+    expect(["c2", "c3"].map((id) => clip(state, id).notReviewed)).toEqual(["cancelled", "cancelled"]);
     expect(nextStep(cancelPanel(createPanel({ stage: "pre", wanted: 1, candidates: batch() }))).step.type).toBe("done");
   });
 

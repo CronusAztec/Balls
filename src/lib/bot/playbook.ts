@@ -51,7 +51,12 @@ export type PayoffType = (typeof PAYOFF_TYPES)[number];
 /** §3.3: the countdown you can feel – shown by a caption, or by the mode's own HUD / picture. */
 export const COUNTDOWN_KINDS = ["walls", "lives", "layers", "percent", "timer", "hp" /* --- fl-overhaul --- (Stage 6) Fight League's HP bars (the HUD) */] as const;
 export type CountdownKind = (typeof COUNTDOWN_KINDS)[number];
-export type CountdownSource = "caption" | "hud";
+/**
+ * Where a clip's countdown comes from: a caption, the mode's HUD, or – --- templates --- (review round 2, 22) – the picture
+ * alone: a template's Simple look that draws no counter (its format's countdown is the run itself, or its counter would count
+ * the clip's seconds and leave before it reached its end). The playbook's recipes use the first two.
+ */
+export type CountdownSource = "caption" | "hud" | "picture";
 
 /**
  * How the planner times the payoff (planner.ts):
@@ -230,10 +235,22 @@ export interface BotRecipe {
   /** --- templates --- false: the clip draws no payoff words (a template whose format's payoff speaks for itself: the last note). */
   payoffWords?: false;
   /**
-   * --- templates --- The Simple look's hook keeps the clause that states the clip's own number (its hook values: Power Layers'
-   * "700 layers to go."), not the rule before it: a smash or count format's stake (templates.ts simpleHookText).
+   * --- templates --- The Simple look's hook keeps the clause that states the clip's own number (its hook values), not the rule
+   * before it, where nothing else on screen shows that number: a smash or count format's stake (templates.ts simpleHookText;
+   * review round 2, 23: a HUD that counts it down shows it, so Power Layers' hook keeps its rule).
    */
   stakeHook?: true;
+  /**
+   * --- templates --- (review round 2, 20) The copy key of a question its hook asks in place of the clauses that name a chord
+   * (templates.ts askHookText): a template whose run plays its chord elsewhere too – Pendulum Wave's "22 pendulums. Do they
+   * line up?", never "Wait for the chord.".
+   */
+  hookAsk?: string;
+  /**
+   * --- templates --- (review round 2, 22) Where its format's countdown may come from (templates.ts TemplateFormat.countdown):
+   * the Simple look draws a counter caption only where it lists "caption".
+   */
+  countdownFrom?: readonly CountdownSource[];
 }
 
 /* seeded helpers ---------------------------------------------------------- */

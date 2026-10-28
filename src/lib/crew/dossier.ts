@@ -365,7 +365,8 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("clip.seed", f["clip.seed"] === null ? none : String(f["clip.seed"])),
     line("beats.firstImpact", f["beats.firstImpact"] === null ? "unknown" : `${f["beats.firstImpact"]} s`),
     line("beats.hook", hook ? `${hook.from}-${hook.to} s` : none),
-    line("beats.countdown", countdown ? `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}` : none),
+    // (--- templates --- review round 2, 22: a Simple clip whose picture is its countdown draws no counter)
+    line("beats.countdown", countdown ? (countdown.source === "picture" ? "no counter drawn: the picture alone" : `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}`) : none),
     line("beats.payoff", payoff ? `${payoff.what ?? "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the clip ends` : ""}` : p.atSec === null ? "none in the run" : none),
     line("beats.cut", cut ? `from ${cut.from} s for ${cut.length} s, end card ${cut.card} s` : none),
     line("beats.end", `${end.sec} s${end.afterPayoff === null ? "" : end.afterPayoff >= 0 ? `, ${end.afterPayoff} s after the payoff` : `, ${r1(-end.afterPayoff)} s before the payoff`}`),

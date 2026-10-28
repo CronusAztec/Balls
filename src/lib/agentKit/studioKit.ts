@@ -1,7 +1,7 @@
 import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
-import { BINDINGS, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
+import { askHookText, BINDINGS, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -163,13 +163,17 @@ export interface StudioTemplatesInput {
 
 const COPY_FIELDS = ["name", "series", "hook", "cliffHook", "payoff", "cliffQuestion", "postQuestion", "hashtags"] as const;
 
-/** A ready template's words in the locale's copy (its recipe's, with their `{name}` placeholders): the fields it has. */
-function wordsOf(recipe: Pick<BotRecipe, "copyKey">, copy: BotCopy): Record<string, string> {
+/**
+ * A ready template's words in the locale's copy (its recipe's, with their `{name}` placeholders): the fields it has – its hook
+ * as the template draws it (--- templates --- review round 2, 20: a question in place of a chord its run plays elsewhere too).
+ */
+function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk">, copy: BotCopy): Record<string, string> {
   const out: Record<string, string> = {};
   for (const f of COPY_FIELDS) {
     const text = copyString(copy, `recipes.${recipe.copyKey}.${f}`);
     if (text) out[f] = text;
   }
+  if (recipe.hookAsk && out.hook) out.hook = askHookText(out.hook, copyString(copy, `recipes.${recipe.copyKey}.${recipe.hookAsk}`));
   return out;
 }
 
@@ -1169,7 +1173,7 @@ export function studioRenderRecord(job: StudioRenderJob, out: StudioRenderOut): 
   const like = planLikeFromSettings(settings, facts, { platform: job.base.platform, episode: job.base.episode, melody: job.melodyId, recipe: job.recipe, bucket: job.base.bucket, bucketSec: settings.recordingDuration, ending: job.base.ending });
   // --- crew --- the payoff's moment where the page's run puts the payoff (gate G2 after the render)
   const played = like.payoff.atSec;
-  const withMoment: RunFacts = played !== null ? { ...run, moment: payoffMomentSync(settings, job.seed, world, played) } : run;
+  const withMoment: RunFacts = played !== null ? { ...run, moment: payoffMomentSync(settings, job.seed, world, played, like.timing.clipSec) } : run;
   const crew: CrewClip = {
     ...job.base,
     run: withMoment,
@@ -1364,8 +1368,9 @@ export const CREW_FIXTURE_SEEDS = 12;
  * The role eval's corpus (docs/agents/CREW-EVAL.md, lib/crew/eval.ts): the clean clips – the ready templates of every family
  * but Fight League's (its fighters are third-party characters) planned in the Simple look from plan seed 1 up, each kept when it passes every gate and crosses no evidence threshold
  * (softClean), taken round robin over the templates until there are CLEAN_COUNT – and the planted ones: for each defect
- * class, PLANTED_PER_CLASS clean clips (each used once) with that defect planted (plantDefect) where it holds exactly
- * (defectHolds). The ids (f01…) follow a hash of each fixture's source, so their order says nothing of the defect.
+ * class, PLANTED_PER_CLASS clean clips (each used once, the scarcest variant choosing first) with that defect planted
+ * (plantDefect) where it holds exactly (defectHolds). The ids (f01…) follow a hash of each fixture's source, so their order
+ * says nothing of the defect.
  * Deterministic: the same code gives the same corpus, byte for byte.
  */
 export function crewEvalCorpus(copy: BotCopy): { clean: EvalFixture[]; planted: EvalFixture[]; notes: string[] } {
@@ -1394,23 +1399,32 @@ export function crewEvalCorpus(copy: BotCopy): { clean: EvalFixture[]; planted: 
   const sources: { source: string; clip: CrewClip }[] = [];
   for (let round = 0; sources.length < CLEAN_COUNT && perTemplate.some((list) => list.length > round); round++) for (const list of perTemplate) if (list[round] && sources.length < CLEAN_COUNT) sources.push(list[round]);
   if (sources.length < CLEAN_COUNT) notes.push(`${sources.length} clean clips of ${CLEAN_COUNT}`);
-  const used = new Set<number>();
-  const planted: Omit<EvalFixture, "id">[] = [];
-  DEFECT_CLASSES.forEach((defect, ci) => {
-    for (let k = 0; k < PLANTED_PER_CLASS; k++) {
-      let done = false;
-      for (let j = 0; j < sources.length && !done; j++) {
+  // --- crew --- (the studio's second review round, 21) each class's variants take their clean clips in a fixed order of their own,
+  // the scarcest first: a variant few clips take (tooBusy's 66, which only Ball Drop and Clone per pass reached before Ball Drop's
+  // template was hidden) picks before the ones many take, so a change of the clean clips never leaves one with none
+  const slots = DEFECT_CLASSES.flatMap((defect, ci) =>
+    Array.from({ length: PLANTED_PER_CLASS }, (_, k) => {
+      const takers: { at: number; clip: CrewClip }[] = [];
+      for (let j = 0; j < sources.length; j++) {
         const at = (ci * 7 + k * 13 + j) % sources.length;
-        if (used.has(at)) continue;
         const clip = plantDefect(sources[at].clip, defect, k);
-        if (!clip || !defectHolds(clip, defect)) continue;
-        used.add(at);
-        planted.push({ source: sources[at].source, defect, variant: k, clip });
-        done = true;
+        if (clip && defectHolds(clip, defect)) takers.push({ at, clip });
       }
-      if (!done) notes.push(`${defect} variant ${k}: no clean clip takes it`);
+      return { defect, k, order: ci * PLANTED_PER_CLASS + k, takers };
+    }),
+  );
+  const used = new Set<number>();
+  const taken = new Map<number, Omit<EvalFixture, "id">>();
+  for (const slot of [...slots].sort((a, b) => a.takers.length - b.takers.length || a.order - b.order)) {
+    const pick = slot.takers.find((t) => !used.has(t.at));
+    if (!pick) {
+      notes.push(`${slot.defect} variant ${slot.k}: no clean clip takes it`);
+      continue;
     }
-  });
+    used.add(pick.at);
+    taken.set(slot.order, { source: sources[pick.at].source, defect: slot.defect, variant: slot.k, clip: pick.clip });
+  }
+  const planted = slots.flatMap((slot) => (taken.has(slot.order) ? [taken.get(slot.order)!] : []));
   const all: Omit<EvalFixture, "id">[] = [...sources.map((s) => ({ source: s.source, defect: null, variant: 0, clip: s.clip })), ...planted];
   const keyed = all.map((f) => ({ f, key: promptHash(`${f.source}|${f.defect ?? "clean"}|${f.variant}`) })).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   const fixtures: EvalFixture[] = keyed.map(({ f }, i) => ({ id: `f${String(i + 1).padStart(2, "0")}`, ...f }));
@@ -1664,7 +1678,8 @@ function skillFileText(): string {
     "## The rules",
     "",
     "- Every clip is a free visitor's render and carries the watermark. Never install or use a licence, never the TEST key: a clip the page reports clean is refused.",
-    "- The tools write only under `.agent-out/`. You write no file and edit nothing in the repository for a video.",
+    // --- studio --- (review round 2, 19) where the tools write: their results under .agent-out/, and render's build in the agent cache
+    "- The tools write their results only under `.agent-out/`; `render` also builds the site's export in the agent cache (`~/.cache/jbl-agent`, or `JBL_AGENT_CACHE`), outside the repository, as AGENTS.md says. You write no file and edit nothing in the repository for a video.",
     "- The rules overrule every role, you included: a clip that fails a gate is never kept, evidence is the dossier's keys, fixes come from the fixed list, one fix round and never a second.",
     "- A verdict never deletes a clip. Never push and never post: the owner approves every post.",
     "- Other creators' titles and names never go into a brief, a verdict or a post.",

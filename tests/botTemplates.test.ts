@@ -27,9 +27,11 @@ import {
   planTemplate,
   rerollClipSteps,
   seededRandom,
+  simulateFacts,
   splitCaptionLines,
   type ClipPlan,
 } from "@/lib/bot/planner";
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { ACTION_GRID, ACTION_STEP_SEC, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
@@ -43,6 +45,8 @@ import {
   allTemplates,
   botRecipeById,
   readyTemplates,
+  askHookText,
+  CHORD_WORDS,
   simpleHookText,
   simplePayoffText,
   stakeNumbersOf,
@@ -51,16 +55,16 @@ import {
 } from "@/lib/bot/templates";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
-import { CLARITY, clarityOf } from "@/lib/crew/clarity";
+import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, hudsOn } from "@/lib/crew/hudFlags";
 import { crowding, drawnHookText, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
- * formats, the 16 proven bindings (15 ready: the square race's one variant is hidden) and the other 32 hidden, the adapter the
- * planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights score), the bot's own
- * look byte-identical to before, and the Simple look measured – one text at a time, Simple 80 or more, the checklist's look
- * item kept, the run untouched.
+ * formats, the 16 proven bindings (14 ready: the square race's and Ball Drop's one variant each is hidden) and the other 32
+ * hidden, the adapter the planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights
+ * score), the bot's own look byte-identical to before, and the Simple look measured – one text at a time, Simple 80 or more,
+ * the checklist's look item kept, the run untouched.
  */
 
 // Planning simulates physics seed by seed: a busy machine can take many times the usual couple of seconds per test.
@@ -77,13 +81,24 @@ const SITE = "https://example.test";
 
 /** The 16 modes a playbook recipe plays: the proven bindings. */
 const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass", "powerLayers", "grow", "multiply", "multipliers", "race", "ctf", "battle", "stringBattle", "fightLeague", "pendulum", "polyrhythm", "drop"];
-/** --- templates --- (review round 2, 14) The proven bindings that plan: all but the square race, whose one variant is hidden. */
-const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race");
+/**
+ * --- templates --- (review round 2, 14 and 21) The proven bindings that plan: all but the square race and Ball Drop, whose one
+ * variant each is hidden.
+ */
+const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !== "drop");
 /**
  * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
- * words of G5, and the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s).
+ * words of G5, the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s), and Ball Drop's run fades
+ * out – a lone faint note over a board at rest, then silence (G2: review round 2, 21).
  */
-const HIDDEN_VARIANTS = ["who-wins-race", "who-wins-fight-league-boss"];
+const HIDDEN_VARIANTS = ["on-the-beat-drop", "who-wins-race", "who-wins-fight-league-boss"];
+/**
+ * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its template is
+ * hidden, and the Simple look's placement and line breaks are the look's, whoever planned the clip.
+ */
+const dropPlan = (seed: number, options: Partial<Parameters<typeof planClip>[3]> = {}) => planClip(recipeById("drop-symphony")!, seed, "reels", { copy, look: "simple", ...options });
+/** --- templates --- (review round 2, 21) The hidden Ball Drop template's recipe, as its binding would play it: timed by its last note, no words. */
+const lastNoteDrop = () => ({ ...recipeById("drop-symphony")!, strategy: "lastNote" as const, payoffWords: false as const });
 
 /** Every numeric setting that has a range is inside it and on its step (as tests/bot.test.ts checks the recipes). */
 function rangeViolations(s: SimulatorSettings): string[] {
@@ -163,7 +178,7 @@ describe("the bindings", () => {
     expect(allTemplates().filter((t) => t.binding.tier === "proven" && !t.ready).map((t) => t.id)).toEqual(HIDDEN_VARIANTS);
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
     expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(33);
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
@@ -178,6 +193,25 @@ describe("the bindings", () => {
       const plan = planClip(recipeById("square-race")!, seed, "reels", { copy, episode: 3, index: seed, look: "simple" });
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
       expect(clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id), `square-race/${seed}`).toContain("G1");
+    }
+  });
+
+  // --- templates --- (review round 2, 21) the studio's plans of Ball Drop ended on a faint tick, then 1.7-3.6 s of silence
+  it("hides Ball Drop's template, with its reason: its run fades out, so its last note is a lone faint tick over a board at rest, then silence", { timeout: 120_000 }, () => {
+    const drop = templateById("on-the-beat-drop")!;
+    expect([drop.binding.tier, drop.binding.ready, drop.ready, drop.binding.strategy]).toEqual(["proven", false, false, "lastNote"]);
+    expect(drop.binding.variants.find((v) => v.id === drop.id)!.hidden).toMatch(/fades out.*G2 Still.*SETTLED/);
+    expect(templateRecipeById(drop.id)).toBeUndefined();
+    expect(() => planTemplate(drop.id, 1, "reels", { copy, search: false })).toThrow(/ready template/);
+    // the onTheBeat format has no ready template in this release
+    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat")).toEqual([]);
+    // the reason still holds: timed by its last note, every plan fails G2 – a lone note fewer than the run's usual moment over
+    // a board at rest, and the clip ends on silence (when they no longer do, it may be shown again)
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planClip(lastNoteDrop(), seed, "reels", { copy, episode: 3, index: seed, look: "simple", ending: "resolved" });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const g2 = clarityOf(crewClipOfPlan(plan, { run })).gates.find((g) => g.id === "G2")!;
+      expect([seed, g2.ok, g2.problems.includes("payoffLandsStill")]).toEqual([seed, false, true]);
     }
   });
 
@@ -461,7 +495,7 @@ describe("the Simple look", () => {
   // with the seed search on (DEFAULT_MAX_SEEDS), on every platform a template is offered on: the search ranks and stops on the
   // bot look's score, so the Simple look's 4 series points never send it on to other seeds and other numbers
   for (const platform of BOT_PLATFORMS) {
-    it(`leaves the run alone with the seed search on, on ${platform}: the bot look's seed, numbers, payoff and run, 4 series points apart`, { timeout: 180_000 }, async () => {
+    it(`leaves the run alone with the seed search on, on ${platform}: the bot look's seed, numbers, payoff and run, 4 series points apart (and a time counter's 10)`, { timeout: 180_000 }, async () => {
       const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
       expect(offered.length).toBeGreaterThan(0);
       for (const t of offered) {
@@ -474,9 +508,13 @@ describe("the Simple look", () => {
           const changed = Object.keys(simple.settings).filter((k) => JSON.stringify((simple.settings as unknown as Record<string, unknown>)[k]) !== JSON.stringify((bot.settings as unknown as Record<string, unknown>)[k]));
           expect(changed.filter((k) => !LOOK_KEYS.has(k)), where).toEqual([]);
           expect(runFactsSync(simple.settings, simple.seed, simple.world, simple.recipe), where).toEqual(runFactsSync(bot.settings, bot.seed, bot.world, bot.recipe));
-          // the checklist: the series label's 4 points apart, every other item the same
+          // the checklist: the series label's 4 points apart, every other item the same – but the countdown's 10 where the Simple
+          // look draws no counter: the bot look's bar or timer counts the clip's seconds, which one text at a time would cut short
+          // at the payoff (--- templates --- review round 2, 22)
           const moved = bot.reasons.filter((r) => simple.reasons.find((x) => x.id === r.id)?.points !== r.points).map((r) => r.id);
-          expect([moved, bot.score - simple.score], where).toEqual([["series"], 4]);
+          const counted = simple.countdown.source === "picture";
+          if (counted) expect([where, bot.settings.captions[bot.captionRoles.indexOf("countdown")]?.type]).toEqual([where, expect.stringMatching(/^(progress|countdown)$/)]);
+          expect([moved, bot.score - simple.score], where).toEqual(counted ? [["countdown", "series"], 14] : [["series"], 4]);
         }
         await breathe();
       }
@@ -555,6 +593,36 @@ describe("the Simple look", () => {
     expect(bot.payoff.text).toBe("Znów w jednej linii. 🎼");
   });
 
+  // --- templates --- (review round 2, 22) a bar and a timer count the recording's seconds: one text at a time took them off at the
+  // payoff, the pendulum's bar at 84 % and Ball Drop's timer at 0:04 – and the templates tool said those formats draw none
+  it("draws a counter caption only where the format takes one and it counts what happens: never a bar or a timer cut short at the payoff", () => {
+    expect([TEMPLATE_FORMATS.lineUp.countdown, TEMPLATE_FORMATS.fill.countdown, TEMPLATE_FORMATS.count.countdown]).toEqual([["picture", "hud"], ["picture"], ["hud", "picture"]]);
+    for (const t of ready) expect([t.id, templateRecipeById(t.id)!.countdownFrom]).toEqual([t.id, t.format.countdown]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const t of ready) {
+        for (const seed of [1, 2]) {
+          const plan = planTemplate(t.id, seed, "reels", { copy: COPY[locale], locale, search: false });
+          const where = `${locale}/${t.id}/${seed}`;
+          const counters = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "countdown");
+          // a caption counts the walls, in a format that takes a caption; else the HUD or the picture counts
+          expect([where, counters.map((c) => c.type)]).toEqual([where, plan.countdown.source === "caption" ? ["wallCounter"] : []]);
+          if (plan.countdown.source === "caption") expect(t.format.countdown, where).toContain("caption");
+          expect([where, counterCutReading(crewClipOfPlan(plan))]).toEqual([where, null]);
+        }
+      }
+    }
+    // the ones the review found: the pendulum's bar, Grow's and Clone's time, gone; the picture counts
+    for (const id of ["line-up-pendulum", "line-up-polyrhythm", "fill-grow", "count-multiply"]) {
+      const plan = planTemplate(id, 1, "reels", { copy, search: false });
+      expect([id, plan.countdown.source, plan.captionRoles.includes("countdown")]).toEqual([id, "picture", false]);
+      expect([id, reason(plan, "countdown").key]).toEqual([id, "countdownMissing"]);
+    }
+    // the bot look keeps its own counter, on from the start to the clip's end: it reaches 100 %
+    const bot = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false, look: "bot" });
+    const bar = bot.settings.captions[bot.captionRoles.indexOf("countdown")];
+    expect([bar.type, bar.start, bar.end, counterCutReading(crewClipOfPlan(bot))]).toEqual(["progress", 0, 0, null]);
+  });
+
   it("templates' ids and claims reach the crew from a plan that records them", () => {
     const plan = planTemplate("smash-power-layers", 4, "reels", { copy, search: false });
     expect(templateById(plan.template)?.format.claim).toBe("break");
@@ -577,7 +645,7 @@ describe("a template keeps its format's promise where its recipe's own would bre
     expect([MODE_TEMPLATES.drop.strategy, recipeById("drop-symphony")!.strategy]).toEqual(["lastNote", "finish"]);
   });
 
-  it("plays Pendulum Wave's chord where the hook promises one: every bob sounds at its turning points, the pendulums in a row", () => {
+  it("plays Pendulum Wave's chord at the realignment: every bob sounds at its turning points, the pendulums in a row", () => {
     expect(MODE_TEMPLATES.pendulum.tune).toEqual({ pwSoundOn: "extremes", pwLayout: "row" });
     const recipe = recipeById("pendulum-wave")!;
     const tpl = templateRecipeById("line-up-pendulum")!;
@@ -596,13 +664,36 @@ describe("a template keeps its format's promise where its recipe's own would bre
     }
   });
 
-  it("times Ball Drop's payoff at the last ball's last note, not the silent settle after it, and draws no words over it", () => {
+  // --- templates --- (review round 2, 20) the chord the realignment plays, it plays at the release and half a cycle on too: the
+  // template's hook asks the question the line answers and promises no chord
+  it("asks whether the pendulums line up, never promises the chord its run plays at half a cycle too, in every language and look", () => {
+    expect(MODE_TEMPLATES.pendulum.hookAsk).toBe("cliffQuestion");
+    expect(templateRecipeById("line-up-pendulum")!.hookAsk).toBe("cliffQuestion");
+    expect(askHookText("22 pendulums. Wait for the chord.", "Do they line up? 👇")).toBe("22 pendulums. Do they line up?");
+    expect(askHookText("Wahadła: 22. Czekaj na akord.", "Ustawią się w linii? 👇")).toBe("Wahadła: 22. Ustawią się w linii?");
+    expect(askHookText("22 pendulums. Wait for the chord.", "")).toBe("22 pendulums. Wait for the chord.");
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const look of ["simple", "bot"] as const) {
+        const plan = planTemplate("line-up-pendulum", 1, "reels", { copy: COPY[locale], locale, look, search: false });
+        const where = `${locale}/${look}`;
+        const own = (COPY[locale].recipes as Record<string, Record<string, string>>).pendulumWave;
+        expect([where, CHORD_WORDS.test(own.hook), CHORD_WORDS.test(plan.hook), plan.hook]).toEqual([where, true, false, askHookText(own.hook.replace("{count}", String(plan.settings.pwCount)), own.cliffQuestion)]);
+        expect(plan.post.caption.startsWith(plan.hook), where).toBe(true);
+      }
+    }
+    // the bot's own Pendulum Wave keeps its hook (its plans are byte-identical: see above)
+    expect(planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, search: false }).hook).toMatch(/Wait for the chord\.$/);
+  });
+
+  it("times Ball Drop's payoff at the last ball's last note, not the silent settle after it, and draws no words over it (its hidden template's strategy)", () => {
     for (const seed of [1, 2, 3]) {
-      const plan = planTemplate("on-the-beat-drop", seed, "reels", { copy });
+      const plan = planClip(lastNoteDrop(), seed, "reels", { copy, look: "simple", ending: "resolved" });
+      const horizon = plan.settings.recordingDuration + 5;
+      const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "lastNote" }, horizon);
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
-      const where = `on-the-beat-drop/${seed}`;
-      expect([where, plan.timing.found, run.lastSoundSec !== undefined && run.lastSoundSec > 0, run.finishSec > plan.payoff.atSec!]).toEqual([where, true, true, true]);
-      expect(plan.payoff.atSec, where).toBeCloseTo(run.lastSoundSec!, 6);
+      const where = `drop-lastNote/${seed}`;
+      expect([where, plan.timing.found, facts.lastSoundSec !== undefined && facts.lastSoundSec > 0, facts.finishSec > plan.payoff.atSec!]).toEqual([where, true, true, true]);
+      expect(plan.payoff.atSec, where).toBeCloseTo(facts.lastSoundSec!, 6);
       expect([where, plan.payoff.text, plan.captionRoles.includes("payoff")]).toEqual([where, "", false]);
       expect([where, run.moment!.sounds > 0]).toEqual([where, true]);
     }
@@ -611,29 +702,46 @@ describe("a template keeps its format's promise where its recipe's own would bre
     expect([bot.payoff.text.length > 0, bot.captionRoles.includes("payoff")]).toEqual([true, true]);
   });
 
-  it("keeps Power Layers' goal in the Simple hook: the clause with the clip's own number, in en and es (pl fits whole)", () => {
+  // --- templates --- (review round 2, 23) the rule, not the goal: Power Layers' own HUD counts the layers down from the first
+  // frame ("layers left: 250"), while +1, Fibonacci and doubling all open on hits of a layer or two – and a cliffhanger's "One more
+  // hit?" hangs on the rule
+  it("keeps Power Layers' rule in the Simple hook where its HUD counts the layers, in every language; the goal stays in the post", () => {
     expect(TEMPLATE_FORMATS.smash.stakeHook && TEMPLATE_FORMATS.count.stakeHook).toBe(true);
     expect(TEMPLATE_FORMAT_IDS.filter((f) => TEMPLATE_FORMATS[f].stakeHook)).toEqual(["smash", "count"]);
+    // simpleHookText keeps a stake it is given (the planner gives it only where nothing else on screen shows it)
     expect(simpleHookText("Every hit doubles the power. 700 layers to go.", [700])).toBe("700 layers to go.");
     expect(simpleHookText("Every hit adds +1 power. 700 layers to go.", [700])).toBe("700 layers to go.");
     expect(simpleHookText("Cada golpe duplica el poder. Quedan 700 capas.", [700])).toBe("Quedan 700 capas.");
+    expect(simpleHookText("Every hit doubles the power. 700 layers to go.")).toBe("Every hit doubles the power.");
     // a question still comes first, and without the clip's number the rule clause stays
     expect(simpleHookText("Every hit doubles the power. Can it break 700?", [700])).toBe("Can it break 700?");
     expect(simpleHookText("Every hit doubles the power. 400 layers to go.", [700])).toBe("Every hit doubles the power.");
     expect(stakeNumbersOf({ layers: 700, sequence: "double", one: 1, text: "12" })).toEqual([700, 12]);
     for (const locale of ["en", "pl", "es"] as const) {
-      for (const seed of [1, 2, 3]) {
-        const plan = planTemplate("smash-power-layers", seed, "reels", { copy: COPY[locale], locale, search: false });
+      for (const seed of [1, 2, 3, 4]) {
+        const plan = planTemplate("smash-power-layers", seed, "reels", { copy: COPY[locale], locale, search: false, index: seed });
         const where = `${locale}/${seed}`;
-        expect([where, plan.hook.includes(String(plan.settings.plLayers))]).toEqual([where, true]);
+        const rule = (COPY[locale].plRules as Record<string, string>)[plan.settings.plSequence];
+        // the rule the run plays by, on screen in the hook; the layers on screen in the mode's own counter
+        expect([where, plan.hook.includes(rule), plan.countdown.source, plan.settings.plBadge, plan.settings.plPills]).toEqual([where, true, "hud", "none", false]);
         expect(wordCount(plan.hook), where).toBeLessThanOrEqual(SIMPLE_TEXT.hookWordsMax);
-        // the whole hook, the rule with it, is in the post
+        // the whole hook, the goal with it, is in the post
         expect(plan.post.caption, where).toContain(String(plan.settings.plLayers));
+        // a cliffhanger's post asks the question the clip ends on ("One more hit?"), not another one
+        if (plan.ending === "cliffhanger") {
+          const asked = captionWordsOf(plan.settings.captions, plan.captionRoles.flatMap((r, i) => (r === "question" ? [i] : [])));
+          expect([where, plan.post.question, plan.post.caption.includes(asked)]).toEqual([where, asked, true]);
+        }
       }
     }
-    // the bot's look draws the recipe's whole hook, as before
-    const bot = planTemplate("smash-power-layers", 1, "reels", { copy, search: false, look: "bot" });
+    // (the four seeds play more than one rule, and end both ways)
+    const plans = [1, 2, 3, 4].map((seed) => planTemplate("smash-power-layers", seed, "reels", { copy, search: false, index: seed }));
+    expect(new Set(plans.map((p) => p.settings.plSequence)).size).toBeGreaterThan(1);
+    expect(new Set(plans.map((p) => p.ending))).toEqual(new Set(["resolved", "cliffhanger"]));
+    // the bot's look draws the recipe's whole hook and its own post question, as before
+    const bot = planTemplate("smash-power-layers", 2, "reels", { copy, search: false, look: "bot", index: 2 });
     expect(bot.hook.split(". ").length).toBe(2);
+    expect(bot.post.question).toBe((COPY.en.recipes as Record<string, Record<string, string>>).powerLayers[bot.ending === "cliffhanger" ? "cliffPostQuestion" : "postQuestion"].replace("{layers}", String(bot.settings.plLayers)));
   });
 });
 
@@ -667,8 +775,9 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
 
   it("draws the Simple look's hooks so, in every language, and leaves the bot look's as they were", () => {
     for (const locale of ["en", "pl", "es"] as const) {
-      for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
-        const plan = planTemplate(id, 1, "reels", { copy: COPY[locale], locale, search: false });
+      // (--- templates --- review round 2, 21: Ball Drop's template is hidden; its recipe in the Simple look breaks its hook so)
+      for (const id of ["drop-symphony", "line-up-pendulum"]) {
+        const plan = id === "drop-symphony" ? dropPlan(1, { copy: COPY[locale], locale, search: false }) : planTemplate(id, 1, "reels", { copy: COPY[locale], locale, search: false });
         const hook = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "hook");
         const lines = hook.map((c) => c.text);
         expect([locale, id, lines]).toEqual([locale, id, evenCaptionLines(plan.hook, hook[0].style.size)]);
@@ -684,9 +793,10 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
   });
 
   it("puts each text of a searched plan at the edge of the square its run leaves clear: Ball Drop's and Pendulum Wave's hooks at the bottom", { timeout: 120_000 }, async () => {
-    for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
+    // (--- templates --- review round 2, 21: Ball Drop's template is hidden; its recipe in the Simple look is placed the same way)
+    for (const id of ["drop-symphony", "line-up-pendulum"]) {
       for (const seed of [1, 2]) {
-        const plan = planTemplate(id, seed, "reels", { copy, episode: 3, index: seed });
+        const plan = id === "drop-symphony" ? dropPlan(seed, { episode: 3, index: seed }) : planTemplate(id, seed, "reels", { copy, episode: 3, index: seed });
         const where = `${id}/${seed}`;
         const hook = plan.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
         expect([where, hook.map((i) => plan.settings.captions[i].position)]).toEqual([where, hook.map(() => "bottom")]);
@@ -701,7 +811,10 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
         const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
         const clip = crewClipOfPlan(plan, { run });
         const clarity = clarityOf(clip);
-        expect([where, clarity.gates.filter((g) => !g.ok).map((g) => g.id), textOverActionSec(clip), drawnHookText(clip)]).toEqual([where, [], 0, plan.hook]);
+        // (the recipe's own Ball Drop, resolved, ends on its silent settle, which G2 refuses – why its template is hidden – and
+        // nothing else; its cliffhanger is cut before it)
+        const refused = id === "drop-symphony" && plan.ending === "resolved" ? ["G2"] : [];
+        expect([where, clarity.gates.filter((g) => !g.ok).map((g) => g.id), textOverActionSec(clip), drawnHookText(clip)]).toEqual([where, refused, 0, plan.hook]);
         // and the same clip with its texts back at the top owes the Simple score for the action they hide
         const atTop = captionMessagesOf(plan.captionRoles).reduce((caps, m) => captionsAtEdge(caps, m, "top"), plan.settings.captions);
         const back = crewClipOfPlan({ ...plan, settings: { ...plan.settings, captions: atTop } }, { run });
@@ -713,10 +826,10 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
       await breathe();
     }
     // a plan without the search has no run to read: its texts stay at the top, the bot look's place
-    const unsearched = planTemplate("on-the-beat-drop", 1, "reels", { copy, search: false });
+    const unsearched = dropPlan(1, { search: false });
     expect(unsearched.settings.captions.every((c) => c.position === "top")).toBe(true);
     // the bot look never moves a text
-    const bot = planTemplate("on-the-beat-drop", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
+    const bot = planClip(recipeById("drop-symphony")!, 1, "reels", { copy, episode: 3, index: 1 });
     expect(bot.settings.captions.every((c) => c.position === "top")).toBe(true);
   });
 
@@ -724,7 +837,7 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
     // (balls moving in the middle of the square's third row, under the hook, the whole clip: cells 49 and 50 of the 20 × 20)
     const track: ActionTrack = { stepSec: 0.5, grid: 20, samples: Array.from({ length: 40 }, () => "1d1e") };
     expect(actionCellsOf("1d1e")).toEqual([49, 50]);
-    const plan = planTemplate("on-the-beat-drop", 1, "reels", { copy, search: false });
+    const plan = dropPlan(1, { search: false });
     // (the hook moves to the bottom where the bottom is free)
     expect(placeSimpleTexts(plan.settings.captions, plan.captionRoles, track, plan.settings, 20).filter((c) => c.position === "bottom").length).toBeGreaterThan(0);
     for (const s of [{ ...plan.settings, mode: "fightLeague" as const }, { ...plan.settings, mode: "multipliers" as const }, { ...plan.settings, loopHud: true }, { ...plan.settings, mode: "classic" as const, ringTimer: true }]) {

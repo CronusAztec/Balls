@@ -106,6 +106,11 @@ export interface PostCopyInput {
   answer?: string;
   /** --- templates --- The series line of the caption, when it is not the day's label (the Simple look's: the clip's own label, which it does not draw). */
   series?: string;
+  /**
+   * --- templates --- (review round 2, 23) The caption's question, when it is not the recipe's post question: the Simple look's
+   * cliffhanger asks the question its clip ends on.
+   */
+  question?: string;
 }
 
 export interface PostCopy {
@@ -123,7 +128,7 @@ export interface PostCopy {
 /** The post: caption (§3.10), hashtags and the posting note (§3.12), in the copy's language. */
 export function postCopy(copy: BotCopy, input: PostCopyInput): PostCopy {
   const { recipe, platform, ending, hook, episode, vars } = input;
-  const question = recipeText(copy, recipe, ending === "cliffhanger" ? "cliffPostQuestion" : "postQuestion", vars);
+  const question = input.question?.trim() || recipeText(copy, recipe, ending === "cliffhanger" ? "cliffPostQuestion" : "postQuestion", vars);
   const keywords = recipeText(copy, recipe, "keywords", vars);
   const hashtags = clipHashtags(copy, recipe, platform, vars);
   const series = input.series ?? seriesLabel(copy, recipe, episode);

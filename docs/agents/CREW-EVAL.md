@@ -16,9 +16,11 @@ This file holds the corpus's design, how to run the eval, and every recorded run
   hook is clean too. The clips are taken round robin over 16 templates. Fight League's
   templates are left out, because their fighters are third-party characters. Who Wins: Race is hidden, because none of its
   plans passes gate G1: its first impact comes at 1.8 s. It keeps its place in the turn order and gives no clip, as it gave
-  none before it was hidden.
+  none before it was hidden. On the Beat: Ball Drop is hidden too (review round 2, 21: its run fades out, and every plan
+  fails G2), so it keeps its place and gives no clip either.
 - **27 planted clips** (`tests/fixtures/crew/planted.json`): clean clips, each used once, with one defect planted by a named
-  transform (`src/lib/crew/eval.ts` `plantDefect`). There are nine classes, three clips each:
+  transform (`src/lib/crew/eval.ts` `plantDefect`). The variant that the fewest clean clips take picks its clip first, so a
+  change of the clean clips never leaves a variant with none. There are nine classes, three clips each:
 
 | Class | Gate it fails | What was planted |
 | --- | --- | --- |
@@ -376,7 +378,7 @@ as the board goes still) as a minor opinion, which counts nowhere. No number mov
 ### claude-opus-5-5-2026-10-28-round1e
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-round1e -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 8e7a5ba73072f11e.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 8e7a5ba73072f11e (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -418,3 +420,50 @@ The same model answered those again in one context, with the same reads. On the 
 shares the bottom with the loop HUD's counter, it also named the text, which a measure confirms, and that changed one
 reviewer brief (all:f25), answered again with the same fix: the calm look, which takes the loop HUD off. The other 224
 answers are round 1d's, to briefs that did not change by a byte, and round 1d's run stays above as history. No number moved.
+
+### claude-opus-5-5-2026-10-28-round2e
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-28-round2e -->
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (238 replies, refused ones included). Corpus 403f7108a837b3c6.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 5 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 17 of 18 (94%) | 3.33 | 4 | 2 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-28-round2e -->
+
+Review round 2's findings 20-23 changed the corpus. Ball Drop's template is hidden, so its three clean clips gave way to a
+Glass, a Pendulum Wave and a Polyrhythm clip. Pendulum Wave's hook asks "Do they line up?" instead of promising a chord.
+Pendulum Wave, Polyrhythm, Grow and Clone per pass draw no bar or timer: those count the clip's seconds and would stop short
+at the payoff. Power Layers' hook keeps its rule. Every run's payoff moment also carries the run's usual sound, its other
+accented events and its quiet end. With the clean clips changed, most clips took another planted defect. The variant that
+fewest clips take now picks first: tooBusy's Simple 66 had been reached only by a Ball Drop clip. 25 viewer, 30 skeptic, 71
+reviewer and 3 brainstormer briefs changed. The same model answered them again in one context, the reviewer's after the
+skeptic's and the viewer's. The other 108 answers are round 1e's, to briefs that did not change by a byte, and round 1e's run
+stays above as history. No catch rate, misread or call count moved. Three numbers did, all in the ideas for open requests, with Ball Drop gone from the menu: the code's
+ideas mix 5 formats a request instead of 6, and the brainstormer's 3.33 instead of 4. One of the brainstormer's ideas, a Grow
+clip on plan seed 3, found no fill in time, so 17 of 18 passed every gate (18 before). Its first reply to the calm request put
+a Grow clip in the long bucket, which the template does not take, and was refused once.

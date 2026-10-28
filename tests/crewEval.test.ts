@@ -349,18 +349,23 @@ describe("the recorded runs (--- crew --- tests/fixtures/crew/runs/)", () => {
   }, 240_000);
 });
 
-/** The scripted trio's tables (pinned: a change to the crew's rules or the corpus moves them, on purpose or not). */
+/**
+ * The scripted trio's tables (pinned: a change to the crew's rules or the corpus moves them, on purpose or not). --- crew ---
+ * (review round 2, 21) Ball Drop's hidden template took its three clean clips and its format out of the menu: a third Glass
+ * clip, whose hook has no word of its claim, draws the scripted skeptic's hookMismatch and the viewer's misread, three Ball
+ * Drop hooks the viewer read as a count are gone, and the scripted brainstormer's first template of each format gives 5 ideas.
+ */
 const SCRIPTED_TABLES = [
   "Corpus: 40 clean clips, 27 planted (9 classes).",
   "",
   "| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |",
   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   "| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |",
-  "| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 4 of 40 (10%) | 0 of 40 (0%) | none asked | 1.12 |",
-  "| viewer | the viewer; the rules decide | 12 of 27 (44%) | 21 of 27 (78%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 10 of 40 (25%) | none asked | 1 |",
+  "| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 5 of 40 (13%) | 0 of 40 (0%) | none asked | 1.12 |",
+  "| viewer | the viewer; the rules decide | 12 of 27 (44%) | 21 of 27 (78%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 8 of 40 (20%) | none asked | 1 |",
   "| reviewer | the reviewer alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1 |",
-  "| quick | Quick: the skeptic, the reviewer where in doubt | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 4 of 40 (10%) | 4 of 40 (10%) | 0 of 40 (0%) | 16 / 19 (3 need the seed search) | 1.42 |",
-  "| all | Thorough: the viewer, the skeptic, the reviewer | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 10 of 40 (25%) | 4 of 40 (10%) | 10 of 40 (25%) | 22 / 25 (3 need the seed search) | 3.17 |",
+  "| quick | Quick: the skeptic, the reviewer where in doubt | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 5 of 40 (13%) | 5 of 40 (13%) | 0 of 40 (0%) | 17 / 20 (3 need the seed search) | 1.44 |",
+  "| all | Thorough: the viewer, the skeptic, the reviewer | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 8 of 40 (20%) | 5 of 40 (13%) | 8 of 40 (20%) | 20 / 23 (3 need the seed search) | 3.17 |",
   "",
   "| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |",
   "| --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -376,6 +381,6 @@ const SCRIPTED_TABLES = [
   "",
   "| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |",
   "| --- | --- | --- | --- | --- | --- | --- | --- |",
-  "| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 0 | - |",
-  "| the brainstormer | 3 | 18 | 18 | 15 of 18 (83%) | 6 | 3 | 3 of 3 |",
+  "| by code (ideasByCode) | 3 | 18 | 18 | 15 of 18 (83%) | 5 | 0 | - |",
+  "| the brainstormer | 3 | 15 | 15 | 12 of 15 (80%) | 5 | 3 | 3 of 3 |",
 ].join("\n");

@@ -155,9 +155,9 @@ timeline. It is 100 minus:
 | Gate | Passes when |
 | --- | --- |
 | G1 motion early | The first impact comes within 1 s (after a render: the measured first impact, the first motion or the first sound, within 1.5 s). |
-| G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. A shown payoff happens in the run: a sound there where the clip promises one (a beat, or words that name a chord), the mode's own chord where the words name one, and never silence with the balls at a quarter of their usual motion or less. |
+| G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. A shown payoff happens in the run: a sound there where the clip promises one (a beat, or words that name a chord), the mode's own chord where the words name one, no chord as large after a hook that promises one, and never silence with the balls at a quarter of their usual motion or less (on a beat, never only a few lone notes, fewer than the run's usual moment plays). A clip that ends without words never ends on more than 1.5 s of silence over still balls. |
 | G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
-| G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim. |
+| G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim, and a bar or a timer of the clip's seconds stays on screen to within 1 s of its end. |
 | G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band. |
 | G6 not too busy | Simple is 60 or more. |
 | G7 length fits | The length is in a bucket the platform takes. |
@@ -216,14 +216,16 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 15 of the 16 modes a recipe plays, as 19 templates. Classic and Portal also have a Gerald variant, and Fight
+- **Ready now:** 14 of the 16 modes a recipe plays, as 18 templates. Classic and Portal also have a Gerald variant, and Fight
   League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode. Gerald's Portal escape
   takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time on about half the plans.
 - **Hidden for now:** the other 32 modes are bound but wait for their own payoff timing and copy. So does Fight League's boss
   rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
-  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. A template that fails
-  a gate on every plan is hidden with its reason, never kept by an exception. A binding is ready only while one of its
-  templates is, so the race's binding is not ready either, though it wraps a recipe.
+  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. So is Ball Drop's:
+  its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
+  shows for 0.5 s, so no plan's payoff lands (G2). A template that fails a gate on every plan is hidden with its reason, never
+  kept by an exception. A binding is ready only while one of its templates is, so the race's and Ball Drop's bindings are not
+  ready either, though each wraps a recipe, and the beat format has no ready template.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
 
@@ -234,7 +236,10 @@ checks (G4).
 - no wall glow, colour trail, rainbow walls, rainbow ball, reactive background, shake or confetti: a wall breaks into shards;
 - every HUD switched off but the one that counts down (String Battle's panel, Fight League's HP bars), and no name label;
 - one text at a time: the hook for 2.5 s, then the countdown caption until the next text, then the payoff's words or the
-  closing question. No countdown caption appears where a HUD on screen counts down already;
+  closing question. No countdown caption appears where a HUD on screen counts down already. The caption counts walls only,
+  where the format takes one: a bar or a timer counts the clip's seconds and would leave at the payoff short of its 100 % or
+  0:00, so Grow, Clone per pass, Pendulum Wave and Polyrhythm let the picture count and give up the checklist's 10 countdown
+  points;
 - each text at the edge of the square its run leaves clear: the top, or the bottom where the text would hide the moving
   balls there for at least 1 s less (Ball Drop's hook while the balls enter at the top, Pendulum Wave's texts over the short
   pendulums). Never the bottom where the mode draws something of its own there (Fight League's boxes, Multipliers' counter,
@@ -242,7 +247,9 @@ checks (G4).
 - a text of two lines broken where a reader breaks it: at its clause ("15 pendulums." / "Wait for the chord."), a size step
   or two smaller where only that fits, else evenly, never with a last line of one or two words;
 - a hook of at most 7 words. A longer one keeps its own whole clauses ("Pick a side: which colour takes the board?" becomes
-  "Which colour takes the board?");
+  "Which colour takes the board?"). Pendulum Wave's asks its question instead of promising a chord ("22 pendulums. Do they
+  line up?"): its run plays the same chord at the release and at half a cycle. Power Layers' keeps the rule it plays by, as
+  the mode's own counter shows the layers left;
 - a payoff cut the same way toward 3 words ("FREE! Gerald made it 🎉" becomes "FREE!"). A payoff of one clause keeps its
   words ("Thor is the champion! 🏆", "Znów w jednej linii. 🎼"). It gets 1.2 s a line: where the seconds after it are too
   short for two lines, as on Shorts, it takes one line, without its closing emoji and a size smaller if need be. The closing
@@ -261,27 +268,27 @@ each look]**:
 | --- | --- | --- |
 | Simple score, median (range) | 44 (15–56) | 91 (85–97) |
 | Simple score with the run read, median (range) | 35 (8–56) | 91 (85–97) |
-| Checklist score, median | 100 | 96 |
+| Checklist score, median | 100 | 94 |
 | Plans that pass every clarity gate | 0 | 179 |
 
-- Both looks pick the same seed. The checklist loses the series item's label points alone: 4 on every plan. The look item
-  stays at 5 on every plan.
+- Both looks pick the same seed. The checklist loses the series item's label points, 4 on every plan, and the countdown's 10
+  on the 60 plans of Grow, Clone per pass, Pendulum Wave, Polyrhythm and Drop Symphony, whose bar counts the clip's seconds.
+  The look item stays at 5 on every plan.
 - The Simple score still charges every plan 3 for the cinematic camera. 132 plans show two messages at once for a while: a
   mode's own HUD (an arena's band, the layer count, the stage dots) beside a text.
 - 49 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
   hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. The bot look's 7 G2 misses stay,
   on the same seeds, and the 4 of them that show their payoff for 0.5 s give its one line under 1.2 s (G5). A payoff of two
   lines whose clip ends too soon for both is drawn on one line (above). 12 Drop Symphony and Pendulum Wave plans fail G2's
-  reading of the payoff's moment: "Final chord. 🎹" over a silent board, and a realignment that plays no chord. Their
-  templates fix both (below).
+  reading of the payoff's moment: "Final chord. 🎹" over a silent board, and a realignment that plays no chord. Pendulum
+  Wave's template asks whether they line up instead, and Ball Drop's is hidden (below).
 
-**The 19 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 224 plans]** have a median Simple
-of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, G2's reading of the payoff's moment included,
+**The 18 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 212 plans]** have a median Simple
+of 97 (86–97) and a median checklist score of 96. 208 plans pass every gate, G2's reading of the payoff's moment included,
 and every template passes on at least 3 of 4 plan seeds on each platform it is offered on, in English, Polish and Spanish
-alike (220 of the 224 plans in each; a test checks it). Ball Drop's template times its payoff at the last ball's last note
-and Pendulum Wave's sounds its chord at the realignment; the bot's
-own Drop Symphony and Pendulum Wave fail G2 there (a silent, settled board under "Final chord. 🎹"; a realignment with no
-chord):
+alike (208 of the 212 plans in each; a test checks it). Pendulum Wave's template sounds its chord at the realignment and asks
+whether the pendulums line up, where the bot's own Pendulum Wave fails G2 (a realignment with no chord). The four templates
+whose counter would count the clip's seconds score 82–84 on the checklist: the picture counts instead.
 
 | Template | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- |
@@ -292,8 +299,8 @@ chord):
 | get-out-portal-gerald | 97 | 96 | 12/12 |
 | get-out-glass | 89 | 96 | 11/12 |
 | smash-power-layers | 89.5 | 96 | 12/12 |
-| fill-grow | 97 | 92 | 10/12 |
-| count-multiply | 97 | 92 | 12/12 |
+| fill-grow | 97 | 82 | 10/12 |
+| count-multiply | 97 | 82 | 12/12 |
 | count-multipliers | 89 | 96 | 12/12 |
 | who-wins-ctf | 90 | 96 | 12/12 |
 | who-wins-battle | 89.5 | 96 | 12/12 |
@@ -301,12 +308,11 @@ chord):
 | who-wins-fight-league | 89 | 96 | 12/12 |
 | who-wins-fight-league-upset | 90 | 96 | 12/12 |
 | who-wins-fight-league-bracket | 92 | 90 | 8/8 |
-| line-up-pendulum | 97 | 92 | 12/12 |
-| line-up-polyrhythm | 97 | 94 | 12/12 |
-| on-the-beat-drop | 97 | 92 | 12/12 |
+| line-up-pendulum | 97 | 82 | 12/12 |
+| line-up-polyrhythm | 97 | 84 | 12/12 |
 
 - The square race is not in the table: it failed G1 on every plan (0 of 12), as the bot's own race clips do, so it is hidden
-  (above).
+  (above). Nor is Ball Drop: timed at its last note, every plan fails G2, so it is hidden too.
 - Portal and Accumulation end the run with the escape. A resolved clip would show it for the recorder's 0.5 s only, under
   G2's 0.8 s, so their templates take the cliffhanger ending and cut before it.
 - The other misses are seeds the search could not fit: no fill found in time, a length outside the bucket, a cut too far
