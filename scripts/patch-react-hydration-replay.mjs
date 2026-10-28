@@ -1,6 +1,9 @@
 /**
  * --- react-hydration-replay --- Patches the React that Next 15 bundles (node_modules/next/dist/compiled/react-dom*) with
- * React 19.3's fix for a hydration mismatch, on every install ("postinstall" in package.json).
+ * React 19.3's fix for a hydration mismatch, on every plain install ("postinstall" in package.json; package-lock.json's root
+ * entry records it as "hasInstallScript": true). npm runs it only for a plain `npm install` or `npm ci`: `npm install
+ * <package>` (a bump of next included), `npm update`, `npm audit fix` and `--ignore-scripts` skip it, and a next they
+ * reinstall is unpatched until `npm install` or this script runs (tests/hydrationReplay.test.ts fails until then).
  *
  * The bug: Next 15.5.26 bundles React 19.2.0-canary-0bdb9206-20250818. When a host element (a <div>) suspends on a lazy
  * child (a server-component row still streaming in) during hydration, and the row resolves during React's yield, React
@@ -32,8 +35,8 @@
  * unless every build can be patched.
  *
  * When to delete it: once `next` bundles React 19.3 or later (Next 16.2 and later). Delete this file, the "postinstall" entry in
- * package.json, the webpack hook of next.config.ts, the checks of this script in tests/hydrationReplay.test.ts and the note in
- * README.md ("Dependencies").
+ * package.json and with it the root "hasInstallScript" of package-lock.json (a plain `npm install` drops it), the webpack hook
+ * of next.config.ts, the checks of this script in tests/hydrationReplay.test.ts and the note in README.md ("Dependencies").
  *
  * Usage: node scripts/patch-react-hydration-replay.mjs [--next-dir <the next package folder>]
  * (default: the `next` this repository resolves; --next-dir is for the tests, which patch a copy). Pure Node, no dependency.

@@ -29,11 +29,13 @@ const COMPILED = path.join(NEXT, "dist", "compiled");
 const SCRIPT = path.join(ROOT, "scripts", "patch-react-hydration-replay.mjs");
 const read = (file: string) => fs.readFileSync(file, "utf8");
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Why a build of Next's React can lack the patch, and what to run: npm runs the postinstall only for a plain install. */
+const NOT_PATCHED = "Next's bundled React is not patched: npm runs the postinstall only for a plain `npm install` or `npm ci`, and `npm install <package>`, `npm update`, `npm audit fix` and --ignore-scripts skip it. Run `npm install` or `node scripts/patch-react-hydration-replay.mjs`";
 
 /** A build as Next ships it: the patch only inserts lines, so taking them out again gives the original. */
 function withoutPatch(text: string): string {
   const m = new RegExp(`^([ \\t]*)${escapeRegExp(MARKER)}\\n[ \\t]*var fiber = ([A-Za-z_$][\\w$]*);\\n`, "m").exec(text);
-  if (!m) throw new Error("the build carries no patch to take out");
+  if (!m) throw new Error(`the build carries no patch to take out. ${NOT_PATCHED}`);
   const block = fixLines(m[2], m[1]);
   if (text.slice(m.index, m.index + block.length) !== block) throw new Error("the patched lines differ from the script's");
   return text.slice(0, m.index) + text.slice(m.index + block.length);
@@ -60,7 +62,7 @@ describe("the hydration replay patch of Next's bundled React", () => {
     ]));
     for (const file of builds) {
       const text = read(file);
-      expect(patchSource(text, file).status, file).toBe("already-patched");
+      expect(patchSource(text, file).status, `${file}: ${NOT_PATCHED}`).toBe("already-patched");
       expect(text.split(MARKER).length - 1, file).toBe(1);
       expect(case5(text)[2], file).toBe(MARKER.trim()); // right after case 5: and resetHooksOnUnwind(...)
     }
