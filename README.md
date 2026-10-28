@@ -231,6 +231,20 @@ npm run -s agent -- trending --json '{"query":"ball simulation","maxDurationSec"
 npm run -s agent -- inspire --json '{"query":"ball simulation"}'                         # --- inspiration --- fetch, measure and frame the top ones: a report in our own levers
 ```
 
+### Dependencies
+
+--- react-hydration-replay --- `npm install` and `npm ci` end with `node scripts/patch-react-hydration-replay.mjs` (the
+`postinstall` script; CI, the Windows app's workflow and the VPS deployer all run it). It patches the React that Next 15.5.26
+bundles (19.2.0-canary, `node_modules/next/dist/compiled/react-dom*`) with React 19.3's fix for a hydration bug: an element
+that waited for a part of the page still streaming in was matched against its own first child, "Minified React error #418
+(args HTML)", about one page load in a thousand (it failed a smoke shard on CI), and React then rendered the page again on the
+client. The script prints one line per file, does nothing on a second run, and stops the install, naming the file, when Next's
+React no longer looks as it expects. `next.config.ts` puts a digest of that React into webpack's cache version, because webpack
+trusts `node_modules` by package version and a `.next/cache` from before the patch went on shipping the old code.
+`tests/hydrationReplay.test.ts` reproduces the bug in Chromium. An install with `--ignore-scripts` skips the patch: run the
+script by hand. Remove the script, its `postinstall` entry, the webpack hook in `next.config.ts` and the script's checks in
+the test once `next` bundles React 19.3 or later (Next 16.2+).
+
 ## Deploying (Cloudflare, jumpingballslive.com)
 
 GitHub only keeps the code and runs the builds, so the repository can be private. The live site at
