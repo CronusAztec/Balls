@@ -16,6 +16,7 @@ import {
   checkReview,
   checkSkeptic,
   checkViewer,
+  CREW_ROLES,
   effortOf,
   normaliseProducer,
   normaliseResearch,
@@ -78,7 +79,10 @@ import {
  * refuted objection is dropped before the reviewer sees it, a confirmed one must be accepted with a fix or the clip dropped.
  * A role whose replies stay invalid (more than maxRetries in a row), or that the budget no longer covers, falls back to the
  * rules for that step, labelled so ("rules only"). Every call and every retry counts against the caps; the time and the cost are
- * the caller's to report (the panel has no clock). A cancel ends the run at the next step and queues nothing.
+ * the caller's to report (the panel has no clock). A cancel ends the run at the next step and queues nothing. A run may leave
+ * roles out (`off`: the role eval measures each role against the rules alone, eval.ts): an off role is never asked – the
+ * skeptic and the viewer are skipped, the reviewer's place, the producer's, the researcher's and the brainstormer's are the
+ * rules', each labelled "off".
  *
  * Roles exchange validated JSON only: the reviewer reads the skeptic's objections and the viewer's read as data (never their
  * notes), the skeptic never sees an idea's angle or the producer's words, and the viewer reads the screen view alone.
@@ -206,6 +210,8 @@ export interface PanelState {
   caps: PanelCaps;
   who: "app" | "claude";
   separation: "contexts" | "sameContext";
+  /** The roles this run leaves to the rules (never asked; absent: none – a panel saved before the field had none). */
+  off?: CrewRole[];
   request: PanelRequest | null;
   menu: MenuItem[];
   liveResearch: boolean;
@@ -244,6 +250,8 @@ export interface PanelInput {
   caps?: Partial<PanelCaps>;
   who?: "app" | "claude";
   separation?: "contexts" | "sameContext";
+  /** Roles this run never asks (see the header). */
+  off?: readonly CrewRole[];
 }
 
 /** A role's brief: everything a model needs for one call, the same on every route. */
@@ -361,6 +369,7 @@ export function createPanel(input: PanelInput): PanelState {
     caps,
     who: input.who ?? "app",
     separation: input.separation ?? "contexts",
+    ...(input.off?.length ? { off: CREW_ROLES.filter((r) => input.off!.includes(r)) } : {}),
     request,
     menu: [...(input.menu ?? recipeMenu())],
     liveResearch: !!input.liveResearch,
@@ -388,6 +397,8 @@ export function createPanel(input: PanelInput): PanelState {
 /* ------------------------------------------------------------------ helpers */
 
 const log = (s: PanelState, line: string): PanelState => ({ ...s, log: [...s.log, line] });
+/** The run leaves this role to the rules (PanelInput.off). */
+const roleOff = (s: PanelState, role: CrewRole) => !!s.off?.includes(role);
 const clipOf = (s: PanelState, id: string | null) => s.clips.find((c) => c.id === id) ?? null;
 function withClip(s: PanelState, id: string, change: (c: PanelClip) => PanelClip): PanelState {
   return { ...s, clips: s.clips.map((c) => (c.id === id ? change(c) : c)) };
@@ -530,6 +541,7 @@ function reviewStep(s: PanelState): PanelState {
   const pre = s.stage === "pre";
   // the viewer: after a render always, before one at Thorough (first: the skeptic and the reviewer share their prefix)
   if (c.viewer.source === null) {
+    if (roleOff(s, "viewer")) return withClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "skipped", why: "off" } }));
     if (!pre || s.depth === "thorough") {
       if (canCall(s)) return call(s, "viewer", c.id);
       if (!pre) return finishClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "rules", why: "budget" }, verdict: "notReviewed", notReviewed: "budget" }));
@@ -538,12 +550,14 @@ function reviewStep(s: PanelState): PanelState {
     return withClip(s, c.id, (x) => ({ ...x, viewer: { ...x.viewer, source: "skipped", why: "quick" } }));
   }
   if (pre && c.skeptic.source === null) {
+    if (roleOff(s, "skeptic")) return withClip(s, c.id, (x) => ({ ...x, skeptic: { ...x.skeptic, source: "skipped", why: "off" } }));
     if (canCall(s)) return call(s, "skeptic", c.id);
     return withClip(s, c.id, (x) => ({ ...x, skeptic: { ...x.skeptic, source: "rules", why: "budget" } }));
   }
   if (!pre && c.skeptic.source === null) return withClip(s, c.id, (x) => ({ ...x, skeptic: { ...x.skeptic, source: "skipped", why: "post" } }));
   if (c.reviewer.source === null) {
     if (!reviewerNeeded(s, c)) return finishClip(s, c.id, (x) => ({ ...x, reviewer: { ...x.reviewer, source: "skipped", why: "quick" }, verdict: "keep", confidence: "medium" }));
+    if (roleOff(s, "reviewer")) return finishClip(s, c.id, (x) => rulesVerdict(s, x, "off"));
     if (canCall(s)) return call(s, "reviewer", c.id);
     return finishClip(s, c.id, (x) => rulesVerdict(s, x, "budget"));
   }
@@ -579,8 +593,8 @@ function produceStep(s: PanelState): PanelState {
   let next: PanelState = { ...s, picked };
   if (picked.keeps.length === 0) return { ...next, phase: "done" };
   if (next.producer.source === null) {
-    if (canCall(next)) return call(next, "producer", null);
-    next = { ...next, producer: { ...next.producer, source: "rules", why: next.depth === "rules" ? "depth" : next.cancelled ? "cancelled" : "budget" } };
+    if (canCall(next) && !roleOff(next, "producer")) return call(next, "producer", null);
+    next = { ...next, producer: { ...next.producer, source: "rules", why: next.depth === "rules" ? "depth" : next.cancelled ? "cancelled" : roleOff(next, "producer") ? "off" : "budget" } };
   }
   if (!next.copy) next = { ...next, copy: { source: "template", clips: picked.keeps.map((k) => templateCopyOf(next, k.id)) } };
   return { ...next, phase: "done" };
@@ -619,8 +633,8 @@ function advance(start: PanelState): PanelState {
     switch (s.phase) {
       case "research": {
         if (s.researcher.source === null) {
-          if (s.liveResearch && s.digest && s.digest.sources.length && canCall(s)) return call(s, "researcher", null);
-          s = { ...s, researcher: { ...s.researcher, source: s.liveResearch ? "rules" : "skipped", why: s.depth === "rules" ? "depth" : s.liveResearch ? "budget" : "notLive" } };
+          if (s.liveResearch && s.digest && s.digest.sources.length && canCall(s) && !roleOff(s, "researcher")) return call(s, "researcher", null);
+          s = { ...s, researcher: { ...s.researcher, source: s.liveResearch ? "rules" : "skipped", why: s.depth === "rules" ? "depth" : !s.liveResearch ? "notLive" : roleOff(s, "researcher") ? "off" : "budget" } };
         }
         if (!s.brief && s.digest) s = { ...s, brief: researchBriefOf(s.digest) };
         s = { ...s, phase: "ideas" };
@@ -632,8 +646,8 @@ function advance(start: PanelState): PanelState {
           break;
         }
         if (s.brainstormer.source === null) {
-          if (s.request?.open && s.menu.length && canCall(s)) return call(s, "brainstormer", null);
-          s = { ...s, brainstormer: { ...s.brainstormer, source: s.request?.open ? "rules" : "skipped", why: s.depth === "rules" ? "depth" : s.request?.open ? "budget" : "notOpen" } };
+          if (s.request?.open && s.menu.length && canCall(s) && !roleOff(s, "brainstormer")) return call(s, "brainstormer", null);
+          s = { ...s, brainstormer: { ...s.brainstormer, source: s.request?.open ? "rules" : "skipped", why: s.depth === "rules" ? "depth" : !s.request?.open ? "notOpen" : roleOff(s, "brainstormer") ? "off" : "budget" } };
         }
         if (s.ideas.length === 0) s = { ...s, ideas: ideasByCode(s.menu, s.request?.open ? ideasWanted(s.wanted) : s.wanted, s.request?.platform ?? "reels") };
         s = { ...s, phase: "plan" };

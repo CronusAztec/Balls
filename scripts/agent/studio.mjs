@@ -6,7 +6,8 @@
  *  - plan.json   the plans (the plan tool, or the brainstormer's ideas planned by the review tool), with their runs;
  *  - panel.json  the crew's panel before and after the render (the app's own state machine's state), every role's verdict;
  *  - post.txt    the kept clips' words to post with the crew's lines;
- *  - <clip>/     a rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json.
+ *  - <clip>/     a rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json;
+ *  - eval.json   the role eval's answers (review with fixture), on the corpus it reads from tests/fixtures/crew/.
  * Every folder through paths.mjs outFolder (bare names, never a link out of .agent-out/), every file written under a fresh name
  * and renamed into place (writeFileSafe), every file read checked to lead inside .agent-out/ first. It reads the repository's
  * own messages (the clip's words), the committed trend summary and the playbook, and the local inspire dataset; it calls no
@@ -17,6 +18,10 @@ import path from "path";
 import { OUT_DIR, PathError, ROOT, defaultOutName, isInside, outFolder, repoRelative, resolveInputFile, writeFileSafe } from "./paths.mjs";
 
 export const PLAN_FILE = "plan.json";
+// --- studio --- the role eval (docs/agents/CREW-EVAL.md): its corpus as committed, and a run's answers in the studio folder
+export const CORPUS_DIR = path.join(ROOT, "tests", "fixtures", "crew");
+export const CORPUS_FILES = ["clean.json", "planted.json"];
+export const EVAL_FILE = "eval.json";
 export const PANEL_FILE = "panel.json";
 export const POST_FILE = "post.txt";
 export const RENDER_FILE = "render.json";
@@ -182,7 +187,30 @@ export async function researchTool(kit, args) {
   return { ...kit.studioResearch(inputs), dataset: inputs.datasetFile };
 }
 
+/** The role eval's fixture corpus as committed (tests/fixtures/crew/clean.json and planted.json): its fixtures in id order and its hash. */
+export function loadCorpus(kit) {
+  const [clean, planted] = CORPUS_FILES.map((name) => fs.readFileSync(path.join(CORPUS_DIR, name), "utf8"));
+  const fixtures = [clean, planted]
+    .flatMap((text, i) => parse(text, `tests/fixtures/crew/${CORPUS_FILES[i]}`).fixtures)
+    .map((json) => kit.fixtureOfJson(json))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { fixtures, hash: kit.corpusHash(clean, planted) };
+}
+
+/** The review tool's fixture mode: the role eval's next brief or a verdict for it, the run kept in .agent-out/studio/<studio>/eval.json. */
+async function evalTool(kit, args) {
+  const dir = studioDir(args.studio);
+  const corpus = loadCorpus(kit);
+  const file = path.join(dir, EVAL_FILE);
+  const record = parse(readInside(file), `.agent-out/studio/${args.studio}/${EVAL_FILE}`);
+  const outcome = kit.studioEval(args, { studio: args.studio, fixtures: corpus.fixtures, corpusHash: corpus.hash, record, copyOf });
+  if (!outcome.ok) throw new Error(outcome.error);
+  writeFileSafe(file, kit.studioFileText(outcome.record));
+  return { ...outcome.result, files: { eval: repoRelative(file) } };
+}
+
 export async function reviewTool(kit, args) {
+  if (args.fixture === true) return evalTool(kit, args);
   const loaded = loadStudio(kit, args.studio);
   const stage = args.stage ?? "pre";
   const rendered = stage === "post" && loaded.plan ? renderedClips(kit, loaded) : { records: [], stale: [] };

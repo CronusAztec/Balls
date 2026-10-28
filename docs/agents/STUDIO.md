@@ -65,8 +65,8 @@ argument.
    `"request"`: the brainstormer pitches, and the review tool plans the ideas itself.
 4. `npm run -s agent -- review --json '{"studio":"rings"}'`, then answer each brief with
    `{"studio":"rings","role":"…","clip":"…","verdict":{…}}` until the panel is done. Play each role in a context of its own
-   where you can (in Claude Code, a subagent per role) and pass `"separation":"contexts"` when the panel starts; otherwise
-   the record says the roles shared one context.
+   where you can (in Claude Code, the `jbl-<role>` subagents of the `jbl-make-video` skill) and pass
+   `"separation":"contexts"` when the panel starts; otherwise the record says the roles shared one context.
 5. `npm run -s agent -- render --json '{"plan":".agent-out/studio/rings/plan.json","clip":"…"}'` for each kept clip.
 6. Look at each clip's sheet.png and hook-sheet.png, then review again with `"stage":"post"`: the viewer reads the clip from
    what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree.
@@ -99,6 +99,30 @@ through the page's own fast export, at most 60 s. A clip the page reports as cle
 result has the page's world, the payoff planned and played, the clip's length planned and rendered, the melody planned and
 played, the measured features and lagged frames, the sheets, and the clip's gates and scores after the render. render.json
 keeps it all for the post-render review, which reviews only clips rendered from the clip as it stands now.
+
+## In Claude Code: a subagent per role, and the make-video skill
+
+`npm run studio:agents` (`scripts/studio-agents.mjs`) writes the Claude Code files from the crew's roles, so they never
+drift from what the app asks. `tests/studioAgents.test.ts` fails while one is stale. The files are protected paths: a change
+needs the owner's review.
+
+- `.claude/agents/jbl-<role>.md`: one subagent for each of the six roles (researcher, brainstormer, skeptic, viewer,
+  reviewer, producer). Each runs on the session's own model, in a context of its own. Each carries its role's card and answer
+  shape word for word, and may call only the review tool of the project's MCP server
+  (`mcp__jumpingballs-agent__review`). The viewer may also Read, for the two sheets it looks at after a render. A subagent
+  fetches one brief, answers it and stops. The caller starts a fresh one for the next brief, so no clip is judged in another
+  clip's context.
+- `.claude/skills/jbl-make-video/SKILL.md`: the whole loop, which subagent plays which role, the rules (the watermark, no
+  licence, `.agent-out/` only, one fix round, never push or post), and the role eval.
+
+The subagents need the MCP server approved in Claude Code (`/mcp`). Without it, one conversation plays every role through
+the CLI, and the record says so.
+
+## The role eval
+
+`review` with `"fixture":true` runs the crew's role eval on a generated corpus of clean and planted clips. It asks every
+run's briefs, the cold viewer's first, and once every brief is answered it gives the numbers. `docs/agents/CREW-EVAL.md`
+explains the corpus and the runs, and holds every recorded run.
 
 ## Claude Desktop and other MCP clients
 
@@ -185,4 +209,5 @@ All three clips read as planned, and all three fail G1 after the render: the fir
 - **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world.
 - **Lengths.** The planner estimates a clip's length; the page's own end of the run can differ (a Ball Drop clip rendered
   17 s against 18 s planned). render reports both.
-- **Not yet.** The generated Claude Code subagents and the make-video skill come next; the role eval later.
+- **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
+  The studio's own review runs that search.

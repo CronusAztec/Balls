@@ -4,7 +4,8 @@
  * (simplicity.ts), the clarity gates (clarity.ts) and the clip dossier with its intent and screen views (dossier.ts). Then the
  * roles as data (roles.ts: cards, schemas, checks), the evidence check (evidence.ts), the fix compiler (fixes.ts), the picker
  * (pick.ts), the research digest and brief (research.ts), the review record (review.ts) and the panel that runs them
- * (panel.ts) – model-agnostic: a model is a function the caller passes.
+ * (panel.ts) – model-agnostic: a model is a function the caller passes. The role eval (eval.ts) measures which roles earn
+ * their cost on a corpus of clean and planted clips.
  * Pure and deterministic: no clock, no randomness, no engine (a run is simulated by lib/insights/score.ts and handed in).
  */
 
@@ -21,4 +22,5 @@ export * from "./pick";
 export * from "./research";
 export * from "./review";
 export * from "./panel";
+export * from "./eval";
 // --- end crew ---

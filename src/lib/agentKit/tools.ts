@@ -121,6 +121,8 @@ export const STUDIO_ROLES = ["researcher", "brainstormer", "skeptic", "viewer", 
 export const STUDIO_DEPTHS = ["quick", "thorough", "rules"] as const;
 /** The tools that plan, score or review a studio clip: the studio kit (bundle.mjs loadStudioKit), not the engine's toolbox. */
 export const STUDIO_TOOLS: ReadonlySet<string> = new Set(["templates", "plan", "score", "review", "research"]);
+/** The MCP server's name in the project's .mcp.json: Claude Code calls its tools mcp__<name>__<tool> (the generated subagents do). */
+export const MCP_SERVER_NAME = "jumpingballs-agent";
 const studioId: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A studio folder's name: .agent-out/studio/<studio>/ (the plan tool's `studio` in its result)." };
 const clipId: JsonSchema = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A clip's id in the studio's plan.json (its plan id, as the plan tool lists it)." };
 const locale: JsonSchema = { type: "string", enum: [...STUDIO_LOCALES], description: "The clip's language (default en)." };
@@ -572,6 +574,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         clip: clipId,
         verdict: { type: "object", description: "Your answer as the role: ONE JSON object in the brief's shape." },
         restart: { type: "boolean", description: "Start this stage's panel over." },
+        fixture: { type: "boolean", description: "Run the role eval (docs/agents/CREW-EVAL.md) instead of the studio's plans: the briefs of every eval run on the fixture corpus (tests/fixtures/crew/), the cold viewer's first; your answers kept in .agent-out/studio/<studio>/eval.json; once every brief is answered, the eval's numbers. Takes studio, role, clip, verdict, separation and restart only." },
       },
     },
     writes: ".agent-out",
@@ -650,5 +653,10 @@ export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
   if (name === "render" && a.plan !== undefined && given("link", "mode", "seed", "seconds").length) return { ok: false, errors: ["A plan renders as planned: give plan and clip, without link, mode, seed or seconds"] };
   if (name === "render" && a.clip !== undefined && a.plan === undefined) return { ok: false, errors: ["clip names a planned clip: give plan (the studio's plan.json) too"] };
   if (name === "review" && a.verdict !== undefined && a.role === undefined) return { ok: false, errors: ["A verdict needs its role (the brief's role, and its clip)"] };
+  if (name === "review" && a.fixture === true) {
+    // --- studio --- the role eval asks its own briefs: none of a studio panel's settings apply
+    const extra = ["stage", "depth", "request", "wanted", "platform", "locale", "family", "research"].filter((k) => a[k] !== undefined);
+    if (extra.length) return { ok: false, errors: [`fixture runs the role eval on the fixture corpus: it takes studio, role, clip, verdict, separation and restart, not ${extra.join(", ")}`] };
+  }
   return { ok: true, args: a };
 }
