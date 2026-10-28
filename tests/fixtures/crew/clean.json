@@ -12,8 +12,7 @@
     "captionRoles": [
      "hook",
      "hook",
-     "countdown",
-     "payoff"
+     "countdown"
     ],
     "mode": "drop",
     "recipe": "on-the-beat-drop",
@@ -27,15 +26,15 @@
     "hook": "11 balls. Every peg is a note.",
     "payoff": {
      "type": "fill",
-     "atSec": 12.133333333333214,
-     "position": 0.8899755501222484,
+     "atSec": 10.633333333333304,
+     "position": 0.8179487179487157,
      "cutGapSec": null,
-     "text": "Final chord. 🎹",
+     "text": "",
      "winner": null
     },
     "timing": {
-     "clipSec": 13.633333333333214,
-     "recordingDuration": 14,
+     "clipSec": 13,
+     "recordingDuration": 13,
      "firstImpactSec": 0.916666666666666
     },
     "countdown": {
@@ -64,6 +63,16 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "lastSoundSec": 10.633333333333304,
+     "moment": {
+      "atSec": 10.633,
+      "sounds": 3,
+      "notes": 3,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 11.33,
+      "motionMedian": 148.42
      }
     },
     "measured": null,
@@ -104,8 +113,8 @@
        "max": 20,
        "key": "payoffOk",
        "values": {
-        "sec": "12.1",
-        "pct": 89
+        "sec": "10.6",
+        "pct": 82
        }
       },
       {
@@ -114,7 +123,7 @@
        "max": 10,
        "key": "lengthOk",
        "values": {
-        "sec": "13.6",
+        "sec": "13.0",
         "min": 8,
         "max": 15
        }
@@ -134,7 +143,7 @@
        "max": 10,
        "key": "endingLoop",
        "values": {
-        "tail": "1.5"
+        "tail": "2.4"
        }
       },
       {
@@ -179,7 +188,7 @@
      "lineColor": "#00f0ff",
      "dropBallCount": 11,
      "dropSizeVariation": 0.65,
-     "recordingDuration": 14,
+     "recordingDuration": 13,
      "instrument": "marimba",
      "melodyInstrument": "marimba",
      "scale": "pentatonic",
@@ -220,24 +229,10 @@
        "answer": "",
        "position": "top",
        "start": 2.5,
-       "end": 12,
+       "end": 10.5,
        "animation": "pop",
        "style": {
         "size": 1,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Final chord. 🎹",
-       "answer": "",
-       "position": "top",
-       "start": 12,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
         "color": "#93d119",
         "background": "#000000"
        }
@@ -247,7 +242,7 @@
    }
   },
   {
-   "id": "f02",
+   "id": "f03",
    "source": "get-out-glass#2",
    "defect": null,
    "variant": 0,
@@ -307,6 +302,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 15.9,
+      "sounds": 2,
+      "notes": 5,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 212.75,
+      "motionMedian": 177.53
      }
     },
     "measured": null,
@@ -476,7 +480,7 @@
    }
   },
   {
-   "id": "f03",
+   "id": "f04",
    "source": "get-out-classic-gerald#3",
    "defect": null,
    "variant": 0,
@@ -537,6 +541,15 @@
         "firstEscapeMs": 14349.999999999836
        }
       ]
+     },
+     "moment": {
+      "atSec": 14.35,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 570.46,
+      "motionMedian": 341.15
      }
     },
     "measured": null,
@@ -727,7 +740,7 @@
    }
   },
   {
-   "id": "f04",
+   "id": "f05",
    "source": "who-wins-battle#1",
    "defect": null,
    "variant": 0,
@@ -787,6 +800,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 20.733,
+      "sounds": 4,
+      "notes": 9,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 325,
+      "motionMedian": 287.38
      }
     },
     "measured": null,
@@ -993,7 +1015,7 @@
    }
   },
   {
-   "id": "f05",
+   "id": "f06",
    "source": "who-wins-ctf#2",
    "defect": null,
    "variant": 0,
@@ -1053,6 +1075,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 20.9,
+      "sounds": 2,
+      "notes": 7,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 282.04,
+      "motionMedian": 305.76
      }
     },
     "measured": null,
@@ -1234,7 +1265,7 @@
    }
   },
   {
-   "id": "f06",
+   "id": "f07",
    "source": "get-out-accumulation#1",
    "defect": null,
    "variant": 0,
@@ -1295,6 +1326,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 19.8,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 548.96,
+      "motionMedian": 470.73
      }
     },
     "measured": null,
@@ -1478,7 +1518,7 @@
    }
   },
   {
-   "id": "f08",
+   "id": "f09",
    "source": "count-multiply#1",
    "defect": null,
    "variant": 0,
@@ -1539,6 +1579,15 @@
         "firstEscapeMs": 10399.99999999998
        }
       ]
+     },
+     "moment": {
+      "atSec": 23.133,
+      "sounds": 38,
+      "notes": 38,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 320.24,
+      "motionMedian": 339.43
      }
     },
     "measured": null,
@@ -1783,6 +1832,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 20.117,
+      "sounds": 23,
+      "notes": 23,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 21.99,
+      "motionMedian": 263.36
      }
     },
     "measured": null,
@@ -2012,6 +2070,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 8.867,
+      "sounds": 26,
+      "notes": 26,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 9.12,
+      "motionMedian": 141.9
      }
     },
     "measured": null,
@@ -2182,251 +2249,6 @@
   },
   {
    "id": "f17",
-   "source": "on-the-beat-drop#10",
-   "defect": null,
-   "variant": 0,
-   "clip": {
-    "from": "plan",
-    "captionRoles": [
-     "hook",
-     "hook",
-     "countdown",
-     "payoff"
-    ],
-    "mode": "drop",
-    "recipe": "on-the-beat-drop",
-    "template": "on-the-beat-drop",
-    "claim": "beat",
-    "platform": "shorts",
-    "bucket": "short",
-    "ending": "resolved",
-    "seed": 776877277,
-    "episode": 1,
-    "hook": "12 balls. Every peg is a note.",
-    "payoff": {
-     "type": "fill",
-     "atSec": 13.466666666666498,
-     "position": 0.8997772828507784,
-     "cutGapSec": null,
-     "text": "Final chord. 🎹",
-     "winner": null
-    },
-    "timing": {
-     "clipSec": 14.966666666666498,
-     "recordingDuration": 15,
-     "firstImpactSec": 0.8833333333333326
-    },
-    "countdown": {
-     "kind": "timer",
-     "source": "caption"
-    },
-    "simulated": true,
-    "run": {
-     "firstImpactSec": 0.8833333333333326,
-     "firstEscapeSec": -1,
-     "finishSec": 14.466666666666498,
-     "homeSec": -1,
-     "fillSec": -1,
-     "winSec": -1,
-     "winnerIndex": -1,
-     "summary": {
-      "mode": "drop",
-      "durationMs": 14466.666666666499,
-      "finished": true,
-      "firstEscapeMs": -1,
-      "teams": [
-       {
-        "bounces": 0,
-        "walls": 0,
-        "escapes": 0,
-        "firstEscapeMs": -1
-       }
-      ]
-     }
-    },
-    "measured": null,
-    "cut": null,
-    "playbook": {
-     "score": 96,
-     "reasons": [
-      {
-       "id": "motion",
-       "points": 10,
-       "max": 10,
-       "key": "motionOk",
-       "values": {
-        "sec": "0.9"
-       }
-      },
-      {
-       "id": "hook",
-       "points": 15,
-       "max": 15,
-       "key": "hookOk",
-       "values": {
-        "text": "12 balls. Every peg is a note."
-       }
-      },
-      {
-       "id": "countdown",
-       "points": 10,
-       "max": 10,
-       "key": "countdownCaption",
-       "values": {
-        "kind": "timer"
-       }
-      },
-      {
-       "id": "payoff",
-       "points": 20,
-       "max": 20,
-       "key": "payoffOk",
-       "values": {
-        "sec": "13.5",
-        "pct": 90
-       }
-      },
-      {
-       "id": "length",
-       "points": 10,
-       "max": 10,
-       "key": "lengthOk",
-       "values": {
-        "sec": "15.0",
-        "min": 8,
-        "max": 15
-       }
-      },
-      {
-       "id": "sound",
-       "points": 10,
-       "max": 10,
-       "key": "soundOk",
-       "values": {
-        "melody": ""
-       }
-      },
-      {
-       "id": "ending",
-       "points": 10,
-       "max": 10,
-       "key": "endingLoop",
-       "values": {
-        "tail": "1.5"
-       }
-      },
-      {
-       "id": "series",
-       "points": 6,
-       "max": 10,
-       "key": "seriesWeak",
-       "values": {
-        "label": ""
-       }
-      },
-      {
-       "id": "look",
-       "points": 5,
-       "max": 5,
-       "key": "lookOk",
-       "values": {}
-      }
-     ]
-    },
-    "settingsPatch": {
-     "mode": "drop",
-     "ballColor": "#00f0ff",
-     "ballColor2": "#faff00",
-     "circleColor": "#ff00e6",
-     "rainbowWalls": false,
-     "showGlow": true,
-     "showWallGlow": false,
-     "colorTrail": false,
-     "wallBreakStyle": "shatter",
-     "themeId": "neon",
-     "backgroundType": "gradient",
-     "backgroundColors": [
-      "#05070a",
-      "#141a24"
-     ],
-     "particleStyle": "sparks",
-     "trailColors": [
-      "#00f0ff",
-      "#ff00e6"
-     ],
-     "lineColor": "#00f0ff",
-     "dropSizeVariation": 0.65,
-     "dropGravityVariation": 0.4,
-     "dropSpawnInterval": 0.3,
-     "recordingDuration": 15,
-     "instrument": "marimba",
-     "melodyInstrument": "marimba",
-     "scale": "pentatonic",
-     "rootNote": 5,
-     "nameLabel": false,
-     "captions": [
-      {
-       "type": "text",
-       "text": "12 balls. Every peg is",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "a note.",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "countdown",
-       "text": "⏱ [time]",
-       "answer": "",
-       "position": "top",
-       "start": 2.5,
-       "end": 13,
-       "animation": "pop",
-       "style": {
-        "size": 1,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Final chord. 🎹",
-       "answer": "",
-       "position": "top",
-       "start": 13,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "f18",
    "source": "get-out-glass#1",
    "defect": null,
    "variant": 0,
@@ -2486,6 +2308,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 9.317,
+      "sounds": 2,
+      "notes": 5,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 168.76,
+      "motionMedian": 216.54
      }
     },
     "measured": null,
@@ -2659,7 +2490,7 @@
    }
   },
   {
-   "id": "f20",
+   "id": "f19",
    "source": "line-up-polyrhythm#2",
    "defect": null,
    "variant": 0,
@@ -2720,6 +2551,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 12,
+      "sounds": 1,
+      "notes": 14,
+      "chordMax": 14,
+      "accent": true,
+      "motion": 233.4,
+      "motionMedian": 223.43
      }
     },
     "measured": null,
@@ -2904,7 +2744,7 @@
    }
   },
   {
-   "id": "f21",
+   "id": "f20",
    "source": "count-multipliers#1",
    "defect": null,
    "variant": 0,
@@ -2964,6 +2804,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 16.133,
+      "sounds": 3,
+      "notes": 3,
+      "chordMax": 1,
+      "accent": true,
+      "motion": 249.55,
+      "motionMedian": 370.35
      }
     },
     "measured": null,
@@ -3131,7 +2980,7 @@
    }
   },
   {
-   "id": "f22",
+   "id": "f21",
    "source": "line-up-pendulum#1",
    "defect": null,
    "variant": 0,
@@ -3164,7 +3013,7 @@
     "timing": {
      "clipSec": 25,
      "recordingDuration": 25,
-     "firstImpactSec": 0.16666666666666666
+     "firstImpactSec": 0.03333333333333333
     },
     "countdown": {
      "kind": "percent",
@@ -3172,7 +3021,7 @@
     },
     "simulated": true,
     "run": {
-     "firstImpactSec": 0.16666666666666666,
+     "firstImpactSec": 0.03333333333333333,
      "firstEscapeSec": -1,
      "finishSec": -1,
      "homeSec": -1,
@@ -3181,7 +3030,7 @@
      "winnerIndex": -1,
      "summary": {
       "mode": "pendulum",
-      "durationMs": 166.66666666666666,
+      "durationMs": 33.333333333333336,
       "finished": false,
       "firstEscapeMs": -1,
       "teams": [
@@ -3192,6 +3041,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 21,
+      "sounds": 9,
+      "notes": 33,
+      "chordMax": 16,
+      "accent": true,
+      "motion": 344.43,
+      "motionMedian": 305.96
      }
     },
     "measured": null,
@@ -3205,7 +3063,7 @@
        "max": 10,
        "key": "motionOk",
        "values": {
-        "sec": "0.2"
+        "sec": "0.0"
        }
       },
       {
@@ -3309,8 +3167,8 @@
      "pwBaseOscillations": 17,
      "pwCycleSeconds": 21,
      "pwAmplitude": 38,
-     "pwLayout": "arc",
      "pwTrails": 0.4,
+     "pwSoundOn": "extremes",
      "pwCycles": 0,
      "recordingDuration": 25,
      "melodyInstrument": "pluck",
@@ -3379,7 +3237,7 @@
    }
   },
   {
-   "id": "f24",
+   "id": "f23",
    "source": "get-out-classic#4",
    "defect": null,
    "variant": 0,
@@ -3440,6 +3298,15 @@
         "firstEscapeMs": 17516.66666666651
        }
       ]
+     },
+     "moment": {
+      "atSec": 17.517,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 600.25,
+      "motionMedian": 430.28
      }
     },
     "measured": null,
@@ -3685,6 +3552,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 28.517,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 445.74,
+      "motionMedian": 442.76
      }
     },
     "measured": null,
@@ -3926,6 +3802,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 15.6,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 729.57,
+      "motionMedian": 535.57
      }
     },
     "measured": null,
@@ -4168,6 +4053,15 @@
         "firstEscapeMs": 12883.333333333223
        }
       ]
+     },
+     "moment": {
+      "atSec": 12.883,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 436.91,
+      "motionMedian": 420.88
      }
     },
     "measured": null,
@@ -4361,7 +4255,6 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
      "question"
     ],
     "mode": "powerLayers",
@@ -4373,7 +4266,7 @@
     "ending": "cliffhanger",
     "seed": 996499192,
     "episode": 1,
-    "hook": "Every hit doubles the power.",
+    "hook": "250 layers to go.",
     "payoff": {
      "type": "escape",
      "atSec": 16,
@@ -4413,6 +4306,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 16,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 70.35,
+      "motionMedian": 141.31
      }
     },
     "measured": null,
@@ -4435,7 +4337,7 @@
        "max": 15,
        "key": "hookOk",
        "values": {
-        "text": "Every hit doubles the power."
+        "text": "250 layers to go."
        }
       },
       {
@@ -4531,21 +4433,7 @@
      "captions": [
       {
        "type": "text",
-       "text": "Every hit doubles the",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "power.",
+       "text": "250 layers to go.",
        "answer": "",
        "position": "top",
        "start": 0,
@@ -4582,6 +4470,246 @@
   },
   {
    "id": "f32",
+   "source": "on-the-beat-drop#2",
+   "defect": null,
+   "variant": 0,
+   "clip": {
+    "from": "plan",
+    "captionRoles": [
+     "hook",
+     "hook",
+     "countdown"
+    ],
+    "mode": "drop",
+    "recipe": "on-the-beat-drop",
+    "template": "on-the-beat-drop",
+    "claim": "beat",
+    "platform": "reels",
+    "bucket": "standard",
+    "ending": "resolved",
+    "seed": 1940817837,
+    "episode": 1,
+    "hook": "20 balls. Every peg is a note.",
+    "payoff": {
+     "type": "fill",
+     "atSec": 17.716666666666526,
+     "position": 0.843650793650787,
+     "cutGapSec": null,
+     "text": "",
+     "winner": null
+    },
+    "timing": {
+     "clipSec": 21,
+     "recordingDuration": 21,
+     "firstImpactSec": 0.7166666666666665
+    },
+    "countdown": {
+     "kind": "timer",
+     "source": "caption"
+    },
+    "simulated": true,
+    "run": {
+     "firstImpactSec": 0.7166666666666665,
+     "firstEscapeSec": -1,
+     "finishSec": 20.800000000000082,
+     "homeSec": -1,
+     "fillSec": -1,
+     "winSec": -1,
+     "winnerIndex": -1,
+     "summary": {
+      "mode": "drop",
+      "durationMs": 20800.000000000084,
+      "finished": true,
+      "firstEscapeMs": -1,
+      "teams": [
+       {
+        "bounces": 0,
+        "walls": 0,
+        "escapes": 0,
+        "firstEscapeMs": -1
+       }
+      ]
+     },
+     "lastSoundSec": 17.716666666666526,
+     "moment": {
+      "atSec": 17.717,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 6.93,
+      "motionMedian": 90.68
+     }
+    },
+    "measured": null,
+    "cut": null,
+    "playbook": {
+     "score": 92,
+     "reasons": [
+      {
+       "id": "motion",
+       "points": 10,
+       "max": 10,
+       "key": "motionOk",
+       "values": {
+        "sec": "0.7"
+       }
+      },
+      {
+       "id": "hook",
+       "points": 15,
+       "max": 15,
+       "key": "hookOk",
+       "values": {
+        "text": "20 balls. Every peg is a note."
+       }
+      },
+      {
+       "id": "countdown",
+       "points": 10,
+       "max": 10,
+       "key": "countdownCaption",
+       "values": {
+        "kind": "timer"
+       }
+      },
+      {
+       "id": "payoff",
+       "points": 20,
+       "max": 20,
+       "key": "payoffOk",
+       "values": {
+        "sec": "17.7",
+        "pct": 84
+       }
+      },
+      {
+       "id": "length",
+       "points": 10,
+       "max": 10,
+       "key": "lengthOk",
+       "values": {
+        "sec": "21.0",
+        "min": 15,
+        "max": 30
+       }
+      },
+      {
+       "id": "sound",
+       "points": 10,
+       "max": 10,
+       "key": "soundOk",
+       "values": {
+        "melody": ""
+       }
+      },
+      {
+       "id": "ending",
+       "points": 6,
+       "max": 10,
+       "key": "endingLoop",
+       "values": {
+        "tail": "3.3"
+       }
+      },
+      {
+       "id": "series",
+       "points": 6,
+       "max": 10,
+       "key": "seriesWeak",
+       "values": {
+        "label": ""
+       }
+      },
+      {
+       "id": "look",
+       "points": 5,
+       "max": 5,
+       "key": "lookOk",
+       "values": {}
+      }
+     ]
+    },
+    "settingsPatch": {
+     "mode": "drop",
+     "ballColor": "#00f0ff",
+     "ballColor2": "#faff00",
+     "circleColor": "#ff00e6",
+     "rainbowWalls": false,
+     "showGlow": true,
+     "showWallGlow": false,
+     "colorTrail": false,
+     "wallBreakStyle": "shatter",
+     "themeId": "neon",
+     "backgroundType": "gradient",
+     "backgroundColors": [
+      "#05070a",
+      "#141a24"
+     ],
+     "particleStyle": "sparks",
+     "trailColors": [
+      "#00f0ff",
+      "#ff00e6"
+     ],
+     "lineColor": "#00f0ff",
+     "dropBallCount": 20,
+     "dropSizeVariation": 0.8,
+     "dropGravityVariation": 0.35,
+     "dropRows": 10,
+     "recordingDuration": 21,
+     "melodyInstrument": "pluck",
+     "scale": "major",
+     "rootNote": 5,
+     "nameLabel": false,
+     "captions": [
+      {
+       "type": "text",
+       "text": "20 balls. Every peg is",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "text",
+       "text": "a note.",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "countdown",
+       "text": "⏱ [time]",
+       "answer": "",
+       "position": "top",
+       "start": 2.5,
+       "end": 17.5,
+       "animation": "pop",
+       "style": {
+        "size": 1,
+        "color": "#93d119",
+        "background": "#000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "f33",
    "source": "who-wins-string-battle#2",
    "defect": null,
    "variant": 0,
@@ -4659,6 +4787,15 @@
        }
       ],
       "doubleKo": false
+     },
+     "moment": {
+      "atSec": 15.817,
+      "sounds": 4,
+      "notes": 4,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 167.73,
+      "motionMedian": 158.49
      }
     },
     "measured": null,
@@ -4834,251 +4971,6 @@
    }
   },
   {
-   "id": "f35",
-   "source": "on-the-beat-drop#7",
-   "defect": null,
-   "variant": 0,
-   "clip": {
-    "from": "plan",
-    "captionRoles": [
-     "hook",
-     "hook",
-     "countdown",
-     "payoff"
-    ],
-    "mode": "drop",
-    "recipe": "on-the-beat-drop",
-    "template": "on-the-beat-drop",
-    "claim": "beat",
-    "platform": "shorts",
-    "bucket": "short",
-    "ending": "resolved",
-    "seed": 1422978898,
-    "episode": 1,
-    "hook": "9 balls. Every peg is a note.",
-    "payoff": {
-     "type": "fill",
-     "atSec": 10.316666666666613,
-     "position": 0.8730606488011278,
-     "cutGapSec": null,
-     "text": "Final chord. 🎹",
-     "winner": null
-    },
-    "timing": {
-     "clipSec": 11.816666666666613,
-     "recordingDuration": 12,
-     "firstImpactSec": 0.6833333333333331
-    },
-    "countdown": {
-     "kind": "timer",
-     "source": "caption"
-    },
-    "simulated": true,
-    "run": {
-     "firstImpactSec": 0.6833333333333331,
-     "firstEscapeSec": -1,
-     "finishSec": 11.316666666666613,
-     "homeSec": -1,
-     "fillSec": -1,
-     "winSec": -1,
-     "winnerIndex": -1,
-     "summary": {
-      "mode": "drop",
-      "durationMs": 11316.666666666613,
-      "finished": true,
-      "firstEscapeMs": -1,
-      "teams": [
-       {
-        "bounces": 0,
-        "walls": 0,
-        "escapes": 0,
-        "firstEscapeMs": -1
-       }
-      ]
-     }
-    },
-    "measured": null,
-    "cut": null,
-    "playbook": {
-     "score": 96,
-     "reasons": [
-      {
-       "id": "motion",
-       "points": 10,
-       "max": 10,
-       "key": "motionOk",
-       "values": {
-        "sec": "0.7"
-       }
-      },
-      {
-       "id": "hook",
-       "points": 15,
-       "max": 15,
-       "key": "hookOk",
-       "values": {
-        "text": "9 balls. Every peg is a note."
-       }
-      },
-      {
-       "id": "countdown",
-       "points": 10,
-       "max": 10,
-       "key": "countdownCaption",
-       "values": {
-        "kind": "timer"
-       }
-      },
-      {
-       "id": "payoff",
-       "points": 20,
-       "max": 20,
-       "key": "payoffOk",
-       "values": {
-        "sec": "10.3",
-        "pct": 87
-       }
-      },
-      {
-       "id": "length",
-       "points": 10,
-       "max": 10,
-       "key": "lengthOk",
-       "values": {
-        "sec": "11.8",
-        "min": 8,
-        "max": 15
-       }
-      },
-      {
-       "id": "sound",
-       "points": 10,
-       "max": 10,
-       "key": "soundOk",
-       "values": {
-        "melody": ""
-       }
-      },
-      {
-       "id": "ending",
-       "points": 10,
-       "max": 10,
-       "key": "endingLoop",
-       "values": {
-        "tail": "1.5"
-       }
-      },
-      {
-       "id": "series",
-       "points": 6,
-       "max": 10,
-       "key": "seriesWeak",
-       "values": {
-        "label": ""
-       }
-      },
-      {
-       "id": "look",
-       "points": 5,
-       "max": 5,
-       "key": "lookOk",
-       "values": {}
-      }
-     ]
-    },
-    "settingsPatch": {
-     "mode": "drop",
-     "ballColor": "#00f0ff",
-     "ballColor2": "#faff00",
-     "circleColor": "#ff00e6",
-     "rainbowWalls": false,
-     "showGlow": true,
-     "showWallGlow": false,
-     "colorTrail": false,
-     "wallBreakStyle": "shatter",
-     "themeId": "neon",
-     "backgroundType": "gradient",
-     "backgroundColors": [
-      "#05070a",
-      "#141a24"
-     ],
-     "particleStyle": "sparks",
-     "trailColors": [
-      "#00f0ff",
-      "#ff00e6"
-     ],
-     "lineColor": "#00f0ff",
-     "dropBallCount": 9,
-     "dropGravityVariation": 0.25,
-     "dropRows": 8,
-     "recordingDuration": 12,
-     "instrument": "marimba",
-     "melodyInstrument": "marimba",
-     "scale": "pentatonic",
-     "rootNote": 5,
-     "nameLabel": false,
-     "captions": [
-      {
-       "type": "text",
-       "text": "9 balls. Every peg is a",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "note.",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "countdown",
-       "text": "⏱ [time]",
-       "answer": "",
-       "position": "top",
-       "start": 2.5,
-       "end": 10,
-       "animation": "pop",
-       "style": {
-        "size": 1,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Final chord. 🎹",
-       "answer": "",
-       "position": "top",
-       "start": 10,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      }
-     ]
-    }
-   }
-  },
-  {
    "id": "f38",
    "source": "line-up-pendulum#2",
    "defect": null,
@@ -5112,7 +5004,7 @@
     "timing": {
      "clipSec": 21,
      "recordingDuration": 21,
-     "firstImpactSec": 0.16666666666666666
+     "firstImpactSec": 0.03333333333333333
     },
     "countdown": {
      "kind": "percent",
@@ -5120,7 +5012,7 @@
     },
     "simulated": true,
     "run": {
-     "firstImpactSec": 0.16666666666666666,
+     "firstImpactSec": 0.03333333333333333,
      "firstEscapeSec": -1,
      "finishSec": -1,
      "homeSec": -1,
@@ -5129,7 +5021,7 @@
      "winnerIndex": -1,
      "summary": {
       "mode": "pendulum",
-      "durationMs": 166.66666666666666,
+      "durationMs": 33.333333333333336,
       "finished": false,
       "firstEscapeMs": -1,
       "teams": [
@@ -5140,6 +5032,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 18,
+      "sounds": 9,
+      "notes": 31,
+      "chordMax": 16,
+      "accent": true,
+      "motion": 440.3,
+      "motionMedian": 392.9
      }
     },
     "measured": null,
@@ -5153,7 +5054,7 @@
        "max": 10,
        "key": "motionOk",
        "values": {
-        "sec": "0.2"
+        "sec": "0.0"
        }
       },
       {
@@ -5258,6 +5159,7 @@
      "pwCycleSeconds": 18,
      "pwAmplitude": 31,
      "pwTrails": 0.4,
+     "pwSoundOn": "extremes",
      "pwCycles": 0,
      "recordingDuration": 21,
      "melodyInstrument": "pluck",
@@ -5325,7 +5227,248 @@
    }
   },
   {
-   "id": "f40",
+   "id": "f39",
+   "source": "on-the-beat-drop#1",
+   "defect": null,
+   "variant": 0,
+   "clip": {
+    "from": "plan",
+    "captionRoles": [
+     "hook",
+     "hook",
+     "countdown"
+    ],
+    "mode": "drop",
+    "recipe": "on-the-beat-drop",
+    "template": "on-the-beat-drop",
+    "claim": "beat",
+    "platform": "shorts",
+    "bucket": "short",
+    "ending": "resolved",
+    "seed": 1205252838,
+    "episode": 1,
+    "hook": "10 balls. Every peg is a note.",
+    "payoff": {
+     "type": "fill",
+     "atSec": 13.083333333333215,
+     "position": 0.8722222222222143,
+     "cutGapSec": null,
+     "text": "",
+     "winner": null
+    },
+    "timing": {
+     "clipSec": 15,
+     "recordingDuration": 15,
+     "firstImpactSec": 0.7833333333333329
+    },
+    "countdown": {
+     "kind": "timer",
+     "source": "caption"
+    },
+    "simulated": true,
+    "run": {
+     "firstImpactSec": 0.7833333333333329,
+     "firstEscapeSec": -1,
+     "finishSec": 14.999999999999813,
+     "homeSec": -1,
+     "fillSec": -1,
+     "winSec": -1,
+     "winnerIndex": -1,
+     "summary": {
+      "mode": "drop",
+      "durationMs": 14999.999999999813,
+      "finished": true,
+      "firstEscapeMs": -1,
+      "teams": [
+       {
+        "bounces": 0,
+        "walls": 0,
+        "escapes": 0,
+        "firstEscapeMs": -1
+       }
+      ]
+     },
+     "lastSoundSec": 13.083333333333215,
+     "moment": {
+      "atSec": 13.083,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 4.98,
+      "motionMedian": 107.55
+     }
+    },
+    "measured": null,
+    "cut": null,
+    "playbook": {
+     "score": 96,
+     "reasons": [
+      {
+       "id": "motion",
+       "points": 10,
+       "max": 10,
+       "key": "motionOk",
+       "values": {
+        "sec": "0.8"
+       }
+      },
+      {
+       "id": "hook",
+       "points": 15,
+       "max": 15,
+       "key": "hookOk",
+       "values": {
+        "text": "10 balls. Every peg is a note."
+       }
+      },
+      {
+       "id": "countdown",
+       "points": 10,
+       "max": 10,
+       "key": "countdownCaption",
+       "values": {
+        "kind": "timer"
+       }
+      },
+      {
+       "id": "payoff",
+       "points": 20,
+       "max": 20,
+       "key": "payoffOk",
+       "values": {
+        "sec": "13.1",
+        "pct": 87
+       }
+      },
+      {
+       "id": "length",
+       "points": 10,
+       "max": 10,
+       "key": "lengthOk",
+       "values": {
+        "sec": "15.0",
+        "min": 8,
+        "max": 15
+       }
+      },
+      {
+       "id": "sound",
+       "points": 10,
+       "max": 10,
+       "key": "soundOk",
+       "values": {
+        "melody": ""
+       }
+      },
+      {
+       "id": "ending",
+       "points": 10,
+       "max": 10,
+       "key": "endingLoop",
+       "values": {
+        "tail": "1.9"
+       }
+      },
+      {
+       "id": "series",
+       "points": 6,
+       "max": 10,
+       "key": "seriesWeak",
+       "values": {
+        "label": ""
+       }
+      },
+      {
+       "id": "look",
+       "points": 5,
+       "max": 5,
+       "key": "lookOk",
+       "values": {}
+      }
+     ]
+    },
+    "settingsPatch": {
+     "mode": "drop",
+     "ballColor": "#00f0ff",
+     "ballColor2": "#faff00",
+     "circleColor": "#ff00e6",
+     "rainbowWalls": false,
+     "showGlow": true,
+     "showWallGlow": false,
+     "colorTrail": false,
+     "wallBreakStyle": "shatter",
+     "themeId": "neon",
+     "backgroundType": "gradient",
+     "backgroundColors": [
+      "#05070a",
+      "#141a24"
+     ],
+     "particleStyle": "sparks",
+     "trailColors": [
+      "#00f0ff",
+      "#ff00e6"
+     ],
+     "lineColor": "#00f0ff",
+     "dropBallCount": 10,
+     "dropSizeVariation": 0.8,
+     "dropGravityVariation": 0.6,
+     "dropSpawnInterval": 0.2,
+     "recordingDuration": 15,
+     "instrument": "marimba",
+     "melodyInstrument": "marimba",
+     "scale": "pentatonic",
+     "rootNote": 5,
+     "nameLabel": false,
+     "captions": [
+      {
+       "type": "text",
+       "text": "10 balls. Every peg is",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "text",
+       "text": "a note.",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "countdown",
+       "text": "⏱ [time]",
+       "answer": "",
+       "position": "top",
+       "start": 2.5,
+       "end": 13,
+       "animation": "pop",
+       "style": {
+        "size": 1,
+        "color": "#93d119",
+        "background": "#000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "f41",
    "source": "who-wins-string-battle#1",
    "defect": null,
    "variant": 0,
@@ -5403,6 +5546,15 @@
        }
       ],
       "doubleKo": false
+     },
+     "moment": {
+      "atSec": 14.8,
+      "sounds": 4,
+      "notes": 4,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 285.94,
+      "motionMedian": 158.54
      }
     },
     "measured": null,
@@ -5583,7 +5735,7 @@
    }
   },
   {
-   "id": "f41",
+   "id": "f42",
    "source": "count-multiply#3",
    "defect": null,
    "variant": 0,
@@ -5644,6 +5796,15 @@
         "firstEscapeMs": 15633.333333333123
        }
       ]
+     },
+     "moment": {
+      "atSec": 24.017,
+      "sounds": 37,
+      "notes": 37,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 428.94,
+      "motionMedian": 424.19
      }
     },
     "measured": null,
@@ -5828,7 +5989,7 @@
    }
   },
   {
-   "id": "f42",
+   "id": "f43",
    "source": "get-out-accumulation#4",
    "defect": null,
    "variant": 0,
@@ -5889,6 +6050,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 27.817,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 633.74,
+      "motionMedian": 441.69
      }
     },
     "measured": null,
@@ -6071,7 +6241,7 @@
    }
   },
   {
-   "id": "f44",
+   "id": "f45",
    "source": "line-up-polyrhythm#1",
    "defect": null,
    "variant": 0,
@@ -6132,6 +6302,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 16,
+      "sounds": 1,
+      "notes": 12,
+      "chordMax": 12,
+      "accent": true,
+      "motion": 150.34,
+      "motionMedian": 149.78
      }
     },
     "measured": null,
@@ -6379,6 +6558,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 19.65,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 489.23,
+      "motionMedian": 464.89
      }
     },
     "measured": null,
@@ -6622,6 +6810,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 15.667,
+      "sounds": 5,
+      "notes": 10,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 258.93,
+      "motionMedian": 271.19
      }
     },
     "measured": null,
@@ -6884,6 +7081,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 28.583,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 530.97,
+      "motionMedian": 502.82
      }
     },
     "measured": null,
@@ -7130,6 +7336,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 22.55,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 648.7,
+      "motionMedian": 432.93
      }
     },
     "measured": null,
@@ -7319,7 +7534,6 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
      "payoff"
     ],
     "mode": "powerLayers",
@@ -7331,7 +7545,7 @@
     "ending": "resolved",
     "seed": 782769453,
     "episode": 1,
-    "hook": "Every hit doubles the power.",
+    "hook": "260 layers to go.",
     "payoff": {
      "type": "escape",
      "atSec": 10,
@@ -7371,6 +7585,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 10,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 16.61,
+      "motionMedian": 198.43
      }
     },
     "measured": null,
@@ -7393,7 +7616,7 @@
        "max": 15,
        "key": "hookOk",
        "values": {
-        "text": "Every hit doubles the power."
+        "text": "260 layers to go."
        }
       },
       {
@@ -7493,21 +7716,7 @@
      "captions": [
       {
        "type": "text",
-       "text": "Every hit doubles the",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "power.",
+       "text": "260 layers to go.",
        "answer": "",
        "position": "top",
        "start": 0,
@@ -7604,6 +7813,15 @@
         "firstEscapeMs": 8800.000000000038
        }
       ]
+     },
+     "moment": {
+      "atSec": 8.8,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 526.5,
+      "motionMedian": 423.9
      }
     },
     "measured": null,
@@ -7853,6 +8071,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 24.117,
+      "sounds": 3,
+      "notes": 8,
+      "chordMax": 4,
+      "accent": true,
+      "motion": 270.63,
+      "motionMedian": 277.22
      }
     },
     "measured": null,
@@ -8096,6 +8323,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 10.783,
+      "sounds": 20,
+      "notes": 20,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 30.18,
+      "motionMedian": 80.93
      }
     },
     "measured": null,
@@ -8325,6 +8561,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 13.9,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 256.01,
+      "motionMedian": 303.5
      }
     },
     "measured": null,
@@ -8555,6 +8800,15 @@
         "firstEscapeMs": 14533.333333333163
        }
       ]
+     },
+     "moment": {
+      "atSec": 14.533,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 522.51,
+      "motionMedian": 406.59
      }
     },
     "measured": null,
@@ -8797,6 +9051,15 @@
         "firstEscapeMs": 483.33333333333354
        }
       ]
+     },
+     "moment": {
+      "atSec": 9.4,
+      "sounds": 30,
+      "notes": 30,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 404.13,
+      "motionMedian": 401.06
      }
     },
     "measured": null,
@@ -9041,6 +9304,15 @@
         "firstEscapeMs": 20883.333333333423
        }
       ]
+     },
+     "moment": {
+      "atSec": 20.883,
+      "sounds": 0,
+      "notes": 0,
+      "chordMax": 0,
+      "accent": false,
+      "motion": 205.94,
+      "motionMedian": 349.46
      }
     },
     "measured": null,
@@ -9288,6 +9560,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 27.667,
+      "sounds": 1,
+      "notes": 1,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 791.42,
+      "motionMedian": 434.31
      }
     },
     "measured": null,
@@ -9532,6 +9813,15 @@
         "firstEscapeMs": -1
        }
       ]
+     },
+     "moment": {
+      "atSec": 29.933,
+      "sounds": 2,
+      "notes": 2,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 490.2,
+      "motionMedian": 477.56
      }
     },
     "measured": null,

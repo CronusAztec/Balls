@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import { recipeById, RECIPES } from "@/lib/bot/playbook";
-import { planClip, type ClipPlan, type RunFacts } from "@/lib/bot/planner";
+import { planClip, planTemplate, type ClipPlan, type PayoffMoment, type RunFacts } from "@/lib/bot/planner";
 import { defaultCaption, type Caption } from "@/lib/captions";
 import type { SimulatorSettings } from "@/lib/settings";
 import { factsOfExport, runSync } from "@/lib/insights/score";
@@ -16,6 +16,7 @@ import {
   factNumbersOf,
   failedGates,
   numbersIn,
+  publicDomain,
   runWinnerOf,
   simpleScore,
   type CrewClip,
@@ -147,6 +148,49 @@ describe("each gate's other problems", () => {
     expect(gateOf(noQuestion, "G2").problems).toEqual(["payoffLandsNoQuestion"]);
   });
 
+  // --- crew --- the run's payoff moment (RunFacts.moment, lib/insights/score.ts payoffMomentSync): the studio's real run kept a
+  // Ball Drop clip whose "Final chord. 🎹" came over a silent, settled board and a Pendulum Wave whose realignment was its quietest
+  // moment, both at Playbook 94-96 with every gate passed
+  it("G2 at the payoff's moment: a beat or a promised chord with no sound there, a chord promised and not played, a payoff silent and still", () => {
+    const at = clean.payoff.atSec!;
+    const moment = (m: Partial<PayoffMoment>): CrewClip => ({ ...clean, run: { ...clean.run!, moment: { atSec: at, sounds: 3, notes: 3, chordMax: 1, accent: false, motion: 200, motionMedian: 250, ...m } } });
+    const words = (clip: CrewClip, payoff: string): CrewClip => setCaptions(clip, clip.captions.map((c, i) => (clip.captionRoles[i] === "payoff" ? { ...c, text: payoff } : c)));
+    expect(gateOf(moment({}), "G2").ok).toBe(true);
+    // a beat must be heard
+    expect(gateOf({ ...moment({ sounds: 0, notes: 0, chordMax: 0 }), claim: "beat" }, "G2").problems).toEqual(["payoffLandsUnheard"]);
+    // words that name a chord: heard, and the mode's own chord (an accented event), never a cluster of a few notes
+    expect(gateOf(words(moment({ sounds: 0, notes: 0, chordMax: 0 }), "Final chord. 🎹"), "G2").problems).toEqual(["payoffLandsUnheard"]);
+    expect(gateOf(words(moment({ sounds: 6, notes: 21, chordMax: 7 }), "Back in line. 🎼"), "G2").problems).toEqual(["payoffLandsNoChord"]);
+    expect(gateOf(words(moment({ sounds: 6, notes: 21, chordMax: 16, accent: true }), "Back in line. 🎼"), "G2").ok).toBe(true);
+    expect(gateOf(words(moment({ chordMax: 1 }), "Acorde final."), "G2").problems).toEqual(["payoffLandsNoChord"]);
+    // whatever it claims: never silent and still (a quarter of the run's median motion or less)
+    expect(gateOf(moment({ sounds: 0, notes: 0, chordMax: 0, motion: 2, motionMedian: 100 }), "G2").problems).toEqual(["payoffLandsStill"]);
+    expect(gateOf(moment({ sounds: 0, notes: 0, chordMax: 0, motion: 40, motionMedian: 100 }), "G2").ok).toBe(true);
+    expect(gateOf(moment({ sounds: 1, notes: 1, motion: 2, motionMedian: 100 }), "G2").ok).toBe(true);
+    // no balls to move, or a moment read around another second (a fix moved the payoff): nothing to judge by
+    expect(gateOf(moment({ sounds: 0, notes: 0, chordMax: 0, motion: null, motionMedian: null }), "G2").ok).toBe(true);
+    expect(gateOf({ ...moment({ sounds: 0, notes: 0, chordMax: 0, motion: 0 }), claim: "beat", run: { ...clean.run!, moment: { atSec: at + 1, sounds: 0, notes: 0, chordMax: 0, accent: false, motion: 0, motionMedian: 100 } } }, "G2").ok).toBe(true);
+    // a cliffhanger's payoff is not shown: its moment is not judged
+    expect(gateOf({ ...cleanCliff, claim: "beat", run: { ...cleanCliff.run!, moment: { atSec: cleanCliff.payoff.atSec!, sounds: 0, notes: 0, chordMax: 0, accent: false, motion: 0, motionMedian: 100 } } }, "G2").ok).toBe(true);
+  });
+
+  it("G2 on the real runs: the bot's Ball Drop ends on a silent, settled board and its Pendulum Wave plays no chord at the realignment; the templates' payoffs land", { timeout: 60_000 }, () => {
+    const runWithMoment = (plan: ClipPlan) => crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
+    // the bot's recipes, as the Simple look draws them (the daily bot's own plans are unchanged: tests/bot.test.ts)
+    const drop = runWithMoment(planClip(recipeById("drop-symphony")!, 1, "reels", { copy, look: "simple" }));
+    expect([drop.payoff.text, drop.run!.moment!.sounds, gateOf(drop, "G2").problems]).toEqual(["Final chord. 🎹", 0, ["payoffLandsUnheard", "payoffLandsStill"]]);
+    const pendulum = runWithMoment(planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, look: "simple" }));
+    expect([pendulum.settings.pwSoundOn, pendulum.run!.moment!.accent, gateOf(pendulum, "G2").problems]).toEqual(["center", false, ["payoffLandsNoChord"]]);
+    // the templates that wrap them: the last note, and every bob at once
+    for (const id of ["on-the-beat-drop", "line-up-pendulum"]) {
+      for (const seed of [1, 2]) {
+        const clip = runWithMoment(planTemplate(id, seed, "reels", { copy }));
+        expect([id, seed, clip.run!.moment!.sounds > 0, gateOf(clip, "G2").problems]).toEqual([id, seed, true, []]);
+        if (id === "line-up-pendulum") expect(clip.run!.moment!.accent).toBe(true);
+      }
+    }
+  });
+
   it("G3: two hook messages, or a payoff and a closing question in one clip", () => {
     const twoHooks = setCaptions(clean, [...clean.captions, { ...defaultCaption("text", { text: "Watch" }), start: 0.5, end: 2.6, position: "bottom" }], [...clean.captionRoles, "hook"]);
     expect(gateOf(twoHooks, "G3").problems).toEqual(["oneIdeaTwoHooks"]);
@@ -207,6 +251,17 @@ describe("each gate's other problems", () => {
     expect(gateOf(rendered(clean, { watermarked: null }), "G8").problems).toEqual(["renderedWatermarkUnknown"]);
     expect(gateOf(rendered(clean, { watermarked: false, free: false }), "G8").ok).toBe(true);
     expect(gateOf(rendered(clean, { laggedFrames: 20, frames: 1000 }), "G8").ok).toBe(true); // 2 % exactly
+  });
+
+  // --- crew --- the toolbox's export once drew "localhost:3000" in every frame of the studio's clips, handed over to be posted
+  it("G8: a free render whose watermark draws an address no viewer can open fails; the site's domain, or none known, passes", () => {
+    expect(gateOf(rendered(clean, { watermarkDomain: "localhost:3000" }), "G8").problems).toEqual(["renderedWatermarkLocal"]);
+    expect(gateOf(rendered(clean, { watermarkDomain: "localhost:3000" }), "G8").values).toEqual({ domain: "localhost:3000" });
+    expect(gateOf(rendered(clean, { watermarkDomain: "jumpingballslive.com" }), "G8").ok).toBe(true);
+    expect(gateOf(rendered(clean, { watermarkDomain: null }), "G8").ok).toBe(true);
+    expect(gateOf(rendered(clean, { watermarkDomain: "localhost:3000", free: false }), "G8").ok).toBe(true);
+    for (const d of ["jumpingballslive.com", "www.jumpingballslive.com", "example.org", "JumpingBallsLive.com."]) expect([d, publicDomain(d)]).toEqual([d, true]);
+    for (const d of ["localhost:3000", "localhost", "127.0.0.1", "10.0.0.2", "studio.local", "site.test", "a.localhost", "jumpingballslive.com:443", "https://jumpingballslive.com", "jumpingballslive.com/smoke", "", "-a.com", "[::1]"]) expect([d, publicDomain(d)]).toEqual([d, false]);
   });
 
   it("G6: the threshold is the Simple band's 60", () => {

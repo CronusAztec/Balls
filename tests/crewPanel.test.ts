@@ -207,7 +207,7 @@ describe("the evidence check and the reviewer", () => {
     const { state, seq } = await run({ stage: "pre", wanted: 3, candidates: batch() }, script);
     expect(seq()).toEqual(["skeptic c1", "skeptic c2", "reviewer c2", "skeptic c4", "skeptic c3", "producer"]);
     expect([clip(state, "c4").marks.map((m) => m.mark), clip(state, "c3").marks.map((m) => m.mark)]).toEqual([["refuted"], ["refuted"]]);
-    expect(state.log).toContain(`skeptic c4: o1 payoffEarly major refuted – not supported by the run: cut ${Math.round(CLIPS.ringCliff.payoff.cutGapSec! * 10) / 10} s before the payoff`);
+    expect(state.log).toContain(`skeptic c4: o1 payoffEarly major refuted – not supported by the run: the clip ends ${Math.round(CLIPS.ringCliff.payoff.cutGapSec! * 10) / 10} s before the payoff`);
   });
 
   it("a confirmed objection must be answered and accepted with a fix that answers it; the fix round applies it, once", async () => {

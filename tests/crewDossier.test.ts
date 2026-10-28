@@ -144,6 +144,44 @@ describe("the intent view", () => {
     expect((d.facts.others as string[]).length).toBe(4);
     expect((d.facts.research as string[]).length).toBe(2);
   });
+
+  // --- crew --- a cliffhanger's dossier said "0.7 s after the cut" beside "beats.cut: none": "the cut" is the Clip editor's cut
+  it("says a cliffhanger's payoff comes after the clip ends, never 'after the cut' beside a clip with no cut", () => {
+    const cliff = planClip(recipeById("ring-escape")!, 1, "reels", { copy, ending: "cliffhanger", episode: 3 });
+    const c = crewClipOfPlan(cliff, { run: runSync(cliff.settings, cliff.seed, cliff.world, cliff.recipe, cliff.timing.clipSec) });
+    expect(c.cut).toBeNull();
+    const text = intentView(c).text;
+    const gap = Math.round(cliff.payoff.cutGapSec! * 10) / 10;
+    expect(text).toMatch(new RegExp(`^beats\\.payoff: .* ${gap.toString().replace(".", "\\.")} s after the clip ends$`, "m"));
+    expect(text).toMatch(/^beats\.cut: none$/m);
+    expect(text).not.toContain("after the cut");
+    // a clip shown as a Clip editor cut names that cut, and its payoff still comes after the clip ends
+    const shown = intentView({ ...c, cut: { startSec: 2, lengthSec: 9, hook: "", url: "", cardSec: 1.5 } }).text;
+    expect([/^beats\.cut: from 2 s for 9 s, end card 1\.5 s$/m.test(shown), shown.includes("after the cut")]).toEqual([true, false]);
+  });
+
+  // --- crew --- gate G2's reading of the payoff, so the skeptic and the reviewer see what plays and moves there
+  it("shows the run's payoff moment: what sounds there and how the balls move against the run's median", () => {
+    const at = plan.payoff.atSec!;
+    const withMoment = crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, at) });
+    const d = intentView(withMoment);
+    const m = withMoment.run!.moment!;
+    expect(d.facts["run.payoffMoment"]).toMatchObject({ sec: Math.round(at * 10) / 10, sounds: m.sounds, notes: m.notes, chordMax: m.chordMax, accent: m.accent });
+    expect(d.text).toMatch(/^run\.payoffMoment: [\d.]+ s: (no sound|\d+ sounds?, \d+ notes? at most at once(, accented)?); (no balls to move|motion \d+% of the run's median)$/m);
+    // not read: before a run, or around another second than the clip's payoff
+    expect(intentView(clip).text).toMatch(/^run\.payoffMoment: not read$/m);
+    expect(intentView({ ...withMoment, payoff: { ...withMoment.payoff, atSec: at + 2 } }).facts["run.payoffMoment"]).toBeNull();
+    expect(intentView(crewClipOfPlan(plan)).text).toMatch(/^run\.payoffMoment: unknown \(no run\)$/m);
+    // a silent, still payoff in words
+    const silent = { ...withMoment, run: { ...withMoment.run!, moment: { ...m, sounds: 0, notes: 0, chordMax: 0, accent: false, motion: 1, motionMedian: 100 } } };
+    expect(intentView(silent).text).toMatch(/^run\.payoffMoment: [\d.]+ s: no sound; motion 1% of the run's median$/m);
+  });
+
+  it("names the address a render's watermark draws", () => {
+    const r = heavy(clip);
+    expect(intentView({ ...r, measured: { ...r.measured!, watermarkDomain: "localhost:3000" } }).text).toMatch(/^measured\.watermark: true, draws "localhost:3000"$/m);
+    expect(intentView(r).text).toMatch(/^measured\.watermark: true$/m);
+  });
 });
 
 describe("built from a saved clip's genes, settings and facts", () => {

@@ -92,11 +92,14 @@ into the agent cache. It then runs `next build --no-lint` and `scripts/postexpor
 on 4 CPUs.
 
 - The build runs at the root path in test mode, with no statistics script and no `NEXT_PUBLIC_*` setting from the shell.
-  Next's telemetry is off and obfuscation is skipped.
+  Next's telemetry is off and obfuscation is skipped. It sets one: `NEXT_PUBLIC_SITE_DOMAIN` to the live site's domain,
+  jumpingballslive.com (the default of `.github/actions/site-url`), the text the watermark and a clip's address line draw.
+  It is text in the export, not a host anything reaches. Every tool's `build` says which domain the export draws
+  (`siteDomain`), and render's planned clip records it as `watermarkDomain`.
 - Next's own type check is skipped through the guard's `JBL_BUILD_SKIP_TYPECHECK=1` knob in the build's environment; the
   repository's `next.config.ts` is not touched. Types are `npm run typecheck`'s and the guard's job.
-- `build: "auto"` (the default) rebuilds when HEAD or any changed site file differs from the last build. `reuse` takes the
-  last build as it is, and `force` always rebuilds.
+- `build: "auto"` (the default) rebuilds when HEAD, any changed site file or the domain differs from the last build. `reuse`
+  takes the last build as it is, and `force` always rebuilds.
 - `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so. A planned
   clip (`plan`) needs version 3, whose `renderLink` plays the clip's melody and reports the page's world and the melody it
   played.

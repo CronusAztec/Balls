@@ -11,7 +11,7 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
-import { botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
+import { botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
@@ -454,6 +454,30 @@ export interface RunFacts {
   bothLowSec?: number;
   /** Fight League: the winner the mode names (the side's names, a bracket's champion), null without one. */
   winnerName?: string | null;
+  // --- templates ---
+  /** The last sound of the run (s; −1 none): followed for the `lastNote` strategy only, absent otherwise. */
+  lastSoundSec?: number;
+  // --- crew ---
+  /** What the run does around its payoff (lib/insights/score.ts payoffMomentSync): the crew's runs carry it, the bot's never. */
+  moment?: PayoffMoment;
+}
+
+/**
+ * --- crew --- The run around its payoff, from the payoff MOMENT_BEFORE_SEC before to MOMENT_AFTER_SEC after (the clip's own
+ * seconds): the sound events the mode plays there and the balls' motion against the run's, so the crew's gate G2 can tell a
+ * payoff that lands from a silent or a still one (lib/crew/clarity.ts).
+ */
+export interface PayoffMoment {
+  /** The payoff second it was read around. */
+  atSec: number;
+  /** Sound events in the window, the notes they play (a chord's each), the most in one event, one the mode accents. */
+  sounds: number;
+  notes: number;
+  chordMax: number;
+  accent: boolean;
+  /** The balls' mean speed in the window and the median of the run's before it (px a second, the world's); null: no balls. */
+  motion: number | null;
+  motionMedian: number | null;
 }
 
 /** --- fl-overhaul --- (Stage 6) Whether settings play one Fight League match (not a series, a bracket or a boss rush). */
@@ -486,7 +510,7 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
   const horizonMs = horizonSec * 1000;
-  const facts: RunFacts = { firstImpactSec: -1, firstEscapeSec: -1, finishSec: -1, homeSec: -1, fillSec: -1, winSec: -1, winnerIndex: -1, summary: { mode: request.mode, durationMs: 0, finished: false, firstEscapeMs: -1, teams: [] } };
+  const facts: RunFacts = { firstImpactSec: -1, firstEscapeSec: -1, finishSec: -1, homeSec: -1, fillSec: -1, winSec: -1, winnerIndex: -1, summary: { mode: request.mode, durationMs: 0, finished: false, firstEscapeMs: -1, teams: [] }, ...(recipe.strategy === "lastNote" ? { lastSoundSec: -1 } : {}) /* --- templates --- */ };
   const teamCount = () => (request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode));
   // --- low-findings --- a finished battle that ended with nobody standing (its last balls fell in the same step), as
   // simulateOutcomeRun() reports it: the mode's verdict shares the win, the finder's winner predicate takes it for nobody's
@@ -514,6 +538,7 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
     const sec = elapsed / 1000;
     // (a race's 3-2-1 beeps come before anything moves: its first impact counts from the start)
     if (facts.firstImpactSec < 0 && events.length > 0 && !(request.mode === "race" && engine.getRaceProgress().phase === "countdown")) facts.firstImpactSec = sec;
+    if (facts.lastSoundSec !== undefined && events.length > 0) facts.lastSoundSec = sec; // --- templates --- (lastNote)
     if (analytic && (facts.firstImpactSec >= 0 || sec >= 2)) break; // the timing is known: only the first impact is measured
     if (facts.firstEscapeSec < 0 && engine.getFirstEscapeMs() >= 0) {
       facts.firstEscapeSec = sec;
@@ -587,6 +612,8 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
     else sec = facts.finishSec;
   }
   else if (recipe.strategy === "fill") sec = facts.fillSec;
+  // --- templates --- the last note of a run that ended on its own (before its end it may not be the last)
+  else if (recipe.strategy === "lastNote") sec = facts.finishSec >= 0 ? (facts.lastSoundSec ?? -1) : -1;
   return sec >= 0 ? sec : null;
 }
 
@@ -598,6 +625,9 @@ function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSetti
   // A square race goes on after its winner crosses (the others finish, then the podium): the clip is cut at the payoff's
   // 85 % mark instead – unless the run is over (podium included) before that anyway.
   if (settings.mode === "race") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  // --- templates --- after the last note the board only settles, silent: the clip is cut at the payoff's 85 % mark, or played
+  // to the run's own end when that comes first
+  if (recipe.strategy === "lastNote") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
   return facts.finishSec;
 }
 
@@ -803,7 +833,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   }
   if (q) {
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
-  } else if (payoffStart !== null) {
+  } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
     const p = captionLines(oneLine ? simplePayoffText(words) : words, 1.3, 2); // --- templates ---
     for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: payoffStart, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
@@ -868,10 +898,11 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
   const fullHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
-  const hook = simple ? simpleHookText(fullHook) : fullHook; // --- templates --- (at most 7 words on the clip; the whole hook in the post)
+  // --- templates --- (at most 7 words on the clip, a stake format's number kept; the whole hook in the post)
+  const hook = simple ? simpleHookText(fullHook, recipe.stakeHook ? stakeNumbersOf(recipe.hookVars(settings)) : undefined) : fullHook;
   const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
   const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
-  const payoffText = recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" });
+  const payoffText = recipe.payoffWords === false ? "" : recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" }); // --- templates --- (none drawn)
   // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the countdown)
   const textRecipe: BotRecipe = simple && recipe.countdown.source === "caption" && hudShowsCountdown(settings) ? { ...recipe, countdown: { ...recipe.countdown, source: "hud" } } : recipe;
   const { captions, roles } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");

@@ -7,8 +7,9 @@ import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
-import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, LENGTH_BUCKETS, PLATFORMS, RECIPES, recipeById, type BotPlatform } from "@/lib/bot/playbook";
-import { BOT_PLAN_VERSION, drain, hashString, matchupEpisode, planClip, planDay, planTemplate, rerollClipSteps, type ClipPlan } from "@/lib/bot/planner";
+import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, LENGTH_BUCKETS, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
+import { BOT_PLAN_VERSION, drain, hashString, matchupEpisode, planClip, planDay, planTemplate, rerollClipSteps, seededRandom, type ClipPlan } from "@/lib/bot/planner";
+import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
 import {
   BINDINGS,
@@ -22,6 +23,7 @@ import {
   readyTemplates,
   simpleHookText,
   simplePayoffText,
+  stakeNumbersOf,
   templateById,
   templateRecipeById,
 } from "@/lib/bot/templates";
@@ -499,5 +501,80 @@ describe("the Simple look", () => {
     const plan = planTemplate("smash-power-layers", 4, "reels", { copy, search: false });
     expect(templateById(plan.template)?.format.claim).toBe("break");
     expect(crewClipOfPlan(plan).claim).toBe("break");
+  });
+});
+
+// --- templates --- what the studio's real run showed (review round 1, 21, 22 and 24): a chord promised at the quietest moment
+// of a pendulum wave, a "Final chord" over a silent, settled board, and a Power Layers hook cut down to its rule without its goal
+describe("a template keeps its format's promise where its recipe's own would break it", () => {
+  /** A recipe's draw for a seeded context (the planner's own RecipeContext). */
+  const ctxOf = (seed: number): RecipeContext => ({ rng: seededRandom(seed), bucket: "standard", ending: "resolved", payoffTarget: 16, roster: SERIES_ROSTER, planSeed: seed });
+
+  it("times every ready template by its binding's strategy (its recipe's, but where it has one of its own)", () => {
+    for (const t of ready) {
+      const r = templateRecipeById(t.id)!;
+      expect([t.id, (PAYOFF_STRATEGIES as readonly string[]).includes(t.binding.strategy), r.strategy]).toEqual([t.id, true, t.binding.strategy]);
+      if (t.mode !== "drop") expect([t.id, r.strategy]).toEqual([t.id, t.recipe!.strategy]);
+    }
+    expect([MODE_TEMPLATES.drop.strategy, recipeById("drop-symphony")!.strategy]).toEqual(["lastNote", "finish"]);
+  });
+
+  it("plays Pendulum Wave's chord where the hook promises one: every bob sounds at its turning points, the pendulums in a row", () => {
+    expect(MODE_TEMPLATES.pendulum.tune).toEqual({ pwSoundOn: "extremes", pwLayout: "row" });
+    const recipe = recipeById("pendulum-wave")!;
+    const tpl = templateRecipeById("line-up-pendulum")!;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const own = recipe.settings(ctxOf(seed));
+      const played = tpl.settings(ctxOf(seed));
+      // the tune is set over the recipe's draw: every other number is the recipe's, and the bot's recipe keeps its own sound
+      expect({ ...played, pwSoundOn: own.pwSoundOn, pwLayout: own.pwLayout }).toEqual(own);
+      expect([own.pwSoundOn, played.pwSoundOn, played.pwLayout]).toEqual(["center", "extremes", "row"]);
+    }
+    for (const look of ["simple", "bot"] as const) {
+      const plan = planTemplate("line-up-pendulum", 2, "reels", { copy, look });
+      const moment = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec).moment!;
+      // every bob at once at the realignment, the mode's accented chord (lib/physics/modes/pendulum.ts ACCENT_CHORD_FRACTION)
+      expect([look, moment.accent, moment.chordMax]).toEqual([look, true, Math.min(16, plan.settings.pwCount)]);
+    }
+  });
+
+  it("times Ball Drop's payoff at the last ball's last note, not the silent settle after it, and draws no words over it", () => {
+    for (const seed of [1, 2, 3]) {
+      const plan = planTemplate("on-the-beat-drop", seed, "reels", { copy });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const where = `on-the-beat-drop/${seed}`;
+      expect([where, plan.timing.found, run.lastSoundSec !== undefined && run.lastSoundSec > 0, run.finishSec > plan.payoff.atSec!]).toEqual([where, true, true, true]);
+      expect(plan.payoff.atSec, where).toBeCloseTo(run.lastSoundSec!, 6);
+      expect([where, plan.payoff.text, plan.captionRoles.includes("payoff")]).toEqual([where, "", false]);
+      expect([where, run.moment!.sounds > 0]).toEqual([where, true]);
+    }
+    // the bot's own Drop Symphony still ends on its settle and says its words (its plans are byte-identical: see above)
+    const bot = planClip(recipeById("drop-symphony")!, 1, "reels", { copy });
+    expect([bot.payoff.text.length > 0, bot.captionRoles.includes("payoff")]).toEqual([true, true]);
+  });
+
+  it("keeps Power Layers' goal in the Simple hook: the clause with the clip's own number, in en and es (pl fits whole)", () => {
+    expect(TEMPLATE_FORMATS.smash.stakeHook && TEMPLATE_FORMATS.count.stakeHook).toBe(true);
+    expect(TEMPLATE_FORMAT_IDS.filter((f) => TEMPLATE_FORMATS[f].stakeHook)).toEqual(["smash", "count"]);
+    expect(simpleHookText("Every hit doubles the power. 700 layers to go.", [700])).toBe("700 layers to go.");
+    expect(simpleHookText("Every hit adds +1 power. 700 layers to go.", [700])).toBe("700 layers to go.");
+    expect(simpleHookText("Cada golpe duplica el poder. Quedan 700 capas.", [700])).toBe("Quedan 700 capas.");
+    // a question still comes first, and without the clip's number the rule clause stays
+    expect(simpleHookText("Every hit doubles the power. Can it break 700?", [700])).toBe("Can it break 700?");
+    expect(simpleHookText("Every hit doubles the power. 400 layers to go.", [700])).toBe("Every hit doubles the power.");
+    expect(stakeNumbersOf({ layers: 700, sequence: "double", one: 1, text: "12" })).toEqual([700, 12]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const seed of [1, 2, 3]) {
+        const plan = planTemplate("smash-power-layers", seed, "reels", { copy: COPY[locale], locale, search: false });
+        const where = `${locale}/${seed}`;
+        expect([where, plan.hook.includes(String(plan.settings.plLayers))]).toEqual([where, true]);
+        expect(wordCount(plan.hook), where).toBeLessThanOrEqual(SIMPLE_TEXT.hookWordsMax);
+        // the whole hook, the rule with it, is in the post
+        expect(plan.post.caption, where).toContain(String(plan.settings.plLayers));
+      }
+    }
+    // the bot's look draws the recipe's whole hook, as before
+    const bot = planTemplate("smash-power-layers", 1, "reels", { copy, search: false, look: "bot" });
+    expect(bot.hook.split(". ").length).toBe(2);
   });
 });

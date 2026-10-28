@@ -19,7 +19,9 @@ import { factsOfExport, planLikeFromSettings, scorePlanLike, scoreRecipeFor, typ
  *    reads it so (hookedSettings) – the score's own reading, so the crew and the Playbook score never disagree on a role.
  *  - The beats are the plan's (the planner's run) or the score's (the clip's run with the export's measurement).
  *  - `run` is the run itself (RunFacts: the winner, the first escape, the finish): handed in, since a plan does not keep it –
- *    lib/insights/score.ts runSync() simulates a plan's seed, scoreSavedClipWithFacts() keeps a saved clip's.
+ *    lib/insights/score.ts runSync() simulates a plan's seed, scoreSavedClipWithFacts() keeps a saved clip's. With the payoff's
+ *    second, runSync() adds what the run plays and how it moves there (RunFacts.moment: gate G2 and the dossier read it).
+ *  - `measured.watermarkDomain`: the address the render's watermark draws (gate G8 refuses a local one).
  *  - `measured` is what the render measured (after a render only): the export's features, its lagged frames, the watermark.
  *  - `cut`: the TikTok cut the clip is shown as (the Clip editor's window, its hook pill, its address line and its end card).
  *
@@ -69,6 +71,8 @@ export interface CrewMeasured {
   frames: number | null;
   /** The watermark is on every frame (the render's own check); null: not known. */
   watermarked: boolean | null;
+  /** The domain the watermark draws (the export's); null or absent: not known. */
+  watermarkDomain?: string | null;
   /** A free run: it must carry the watermark. */
   free: boolean;
 }

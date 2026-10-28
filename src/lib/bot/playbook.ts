@@ -60,9 +60,11 @@ export type CountdownSource = "caption" | "hud";
  * - `finish`: the mode's own end (the finder's duration search) – or, for Glass Smash, the moment the ball reaches HOME;
  * - `fixed`: the run length is fixed by the settings (the finder's `fixedRunDurationSec()` – Power Layers);
  * - `cycle`: the pattern realigns at the end of its cycle (Pendulum Wave, Polyrhythm) – analytic;
- * - `fill`: a measured moment – the ball fills its ring (Grow) or the balls fill the screen (Multiply).
+ * - `fill`: a measured moment – the ball fills its ring (Grow) or the balls fill the screen (Multiply);
+ * - `lastNote`: --- templates --- the last sound of a run that ends on its own (Ball Drop: the last ball's last note, not the
+ *   board's settle a second or more of silence later) – a template's own timing (templates.ts), never a playbook recipe's.
  */
-export const PAYOFF_STRATEGIES = ["escape", "winner", "finish", "fixed", "cycle", "fill"] as const;
+export const PAYOFF_STRATEGIES = ["escape", "winner", "finish", "fixed", "cycle", "fill", "lastNote"] as const;
 export type PayoffStrategy = (typeof PAYOFF_STRATEGIES)[number];
 
 /** A platform's defaults: the bucket that suits it, the ones that fit at all, its own tag and the times to post (local). */
@@ -225,6 +227,13 @@ export interface BotRecipe {
    * running episode counts that recipe's days (planner.ts matchupEpisode). The playbook's own recipes have none.
    */
   wraps?: string;
+  /** --- templates --- false: the clip draws no payoff words (a template whose format's payoff speaks for itself: the last note). */
+  payoffWords?: false;
+  /**
+   * --- templates --- The Simple look's hook keeps the clause that states the clip's own number (its hook values: Power Layers'
+   * "700 layers to go."), not the rule before it: a smash or count format's stake (templates.ts simpleHookText).
+   */
+  stakeHook?: true;
 }
 
 /* seeded helpers ---------------------------------------------------------- */

@@ -15,9 +15,9 @@ import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type O
  *    or a measurable one whose fact is not known (no run, nothing measured) – it counts at half weight, is never a blocker and
  *    stands only at major or fatal.
  *
- * The thresholds (the plan's): payoffLate – the payoff past 90 % of the clip, or a cut more than 1 s before it, or too little
- * shown after it (gate G2's NotShown); payoffEarly – before 66 % (the reviewer's retime band starts there), or on a cliffhanger
- * the payoff shown before the cut; payoffMissing – no payoff in the run, or the run does not show the claim; slowStart – the
+ * The thresholds (the plan's): payoffLate – the payoff past 90 % of the clip, or a clip that ends more than 1 s before it, or too
+ * little shown after it (gate G2's NotShown); payoffEarly – before 66 % (the reviewer's retime band starts there), or on a
+ * cliffhanger the payoff shown before the clip ends; payoffMissing – no payoff in the run, or the run does not show the claim; slowStart – the
  * first impact after 1 s (after a render: the measured first impact – the export's first motion or first sound, as gate G1
  * reads it – after 1.5 s, or none); tooBusy – Simple below 80 or two
  * messages on screen at once; textUnreadable – gate G5 fails; hookUntrue – a number in the hook the clip does not have, or a
@@ -68,20 +68,20 @@ function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity): { cross
   switch (kind) {
     case "payoffLate": {
       if (p.atSec === null) return { crossed: false, basis: "no payoff in the run to be late" };
-      if (cliff) return p.cutGapSec === null ? { crossed: null, basis: "cut gap unknown" } : { crossed: p.cutGapSec > EVIDENCE.cutGapLateSec + 1e-9, basis: `cut ${r1(p.cutGapSec)} s before the payoff` };
+      if (cliff) return p.cutGapSec === null ? { crossed: null, basis: "cut gap unknown" } : { crossed: p.cutGapSec > EVIDENCE.cutGapLateSec + 1e-9, basis: `the clip ends ${r1(p.cutGapSec)} s before the payoff` };
       const notShown = gate(clarity, "G2")?.problems.includes("payoffLandsNotShown") ?? false;
       if (p.position === null) return { crossed: null, basis: "payoff position unknown" };
       return { crossed: p.position > EVIDENCE.payoffLateFrom + 1e-9 || notShown, basis: notShown ? `payoff at ${pct(p.position)}, too little shown after it` : `payoff at ${pct(p.position)}` };
     }
     case "payoffEarly": {
       if (p.atSec === null) return { crossed: false, basis: "no payoff in the run to be early" };
-      if (cliff) return p.cutGapSec === null ? { crossed: null, basis: "cut gap unknown" } : { crossed: p.cutGapSec < -1e-9, basis: p.cutGapSec < 0 ? "the payoff is shown before the cut" : `cut ${r1(p.cutGapSec)} s before the payoff` };
+      if (cliff) return p.cutGapSec === null ? { crossed: null, basis: "cut gap unknown" } : { crossed: p.cutGapSec < -1e-9, basis: p.cutGapSec < 0 ? "the payoff is shown before the clip ends" : `the clip ends ${r1(p.cutGapSec)} s before the payoff` };
       if (p.position === null) return { crossed: null, basis: "payoff position unknown" };
       return { crossed: p.position < EVIDENCE.payoffEarlyBelow - 1e-9, basis: `payoff at ${pct(p.position)}` };
     }
     case "payoffMissing": {
       if (p.atSec === null) return { crossed: clip.simulated ? true : null, basis: clip.simulated ? "no payoff within the run" : "the run was not simulated" };
-      if (cliff) return { crossed: false, basis: `payoff ${p.cutGapSec !== null ? `${r1(p.cutGapSec)} s ` : ""}after the cut, as a cliffhanger wants` };
+      if (cliff) return { crossed: false, basis: `payoff ${p.cutGapSec !== null ? `${r1(p.cutGapSec)} s ` : ""}after the clip ends, as a cliffhanger wants` };
       const seen = claimSeen(clip);
       if (seen === null) return { crossed: null, basis: "the run's facts are not known" };
       return { crossed: !seen, basis: seen ? `payoff at ${r1(p.atSec)} s, the run shows it` : "the run does not show the claim" };

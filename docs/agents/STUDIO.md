@@ -75,7 +75,9 @@ argument.
    render is its own, so every call of it keeps `"stage":"post"`, each next brief and each answer (a brief's `next.answer`
    has it); a call without it reaches the finished panel before the render, and its result notes that the other one waits.
    A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look.
-7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post.
+7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post. Every clip's watermark
+   draws the live site's domain, jumpingballslive.com (the toolbox builds its export with it), and every plan's share link
+   opens the live site; gate G8 refuses a render whose watermark draws an address no viewer can open, such as localhost.
 
 ## How the review holds you to the rules
 
@@ -220,19 +222,45 @@ Crew after the render: keep, the viewer read "break" (makes sense: yes), would w
 
 How the clips came out, judged plainly:
 
-- **Pendulum wave**, the best of the three. A wheel of balls drifts apart, a progress bar counts up, and at 14 s every ball
-  meets in the center on a chord, with "Back in line." under it. One text at a time; a stranger gets "wait for them to
-  line up" by 3 s. Weak spots: the hook says "15 pendulums" over a wheel of balls with no strings, and the camera's zoom
-  shows the canvas's lighter box for a moment.
+- **Pendulum wave.** A wheel of balls drifts apart, a progress bar counts up, and at 14 s every ball meets in the center,
+  with "Back in line." under it. One text at a time; a stranger gets "wait for them to line up" by 3 s. But the hook's
+  chord never comes: the recipe sounds a bob as it crosses the centre, and at the realignment every bob is at a turning
+  point, so 14 s is the quietest moment of the clip (a 0.15 s dropout, then the same notes as before). The hook also says
+  "15 pendulums" over a wheel of balls with no strings, and "Back in line." is a clump at the hub.
 - **Ball drop.** Ten balls fall through pegs and every peg plays a note; it is the calmest clip on screen (Simple 97). Its
-  payoff is the weakest: the balls just come to rest. The timer counts down the recording, not the payoff, so "Final
-  chord." replaces it at 0:03. The last 1.5 s show two texts, "Final chord." and the mode's own "SETTLED!".
-- **Power layers.** The hook, the layer counter and the break-out at 16.7 s make sense together. The first 7 s barely move
-  (700 to 685 layers): doubling starts slow, and many viewers would scroll before it gets going. The end shows "FREEDOM"
+  payoff does not land: the last note sounds at 9.8 s, the audio is silent from 10.35 s to the end at 12.3 s, and "Final
+  chord." appears at 10.5 s over a board that has stopped – the planner timed the payoff a second before the board counted
+  as settled, but one ball rolled on, silent, for two more.
+- **Power layers.** The hook, the layer counter and the break-out at 16.7 s make sense together, but the Simple look cut
+  the hook to its rule, "Every hit doubles the power.", and dropped its goal, "700 layers to go.": after 2.5 s the only
+  stake on screen is the mode's 16 px counter. The first 7 s barely move (700 to 685 layers), and the end shows "FREEDOM"
   twice, the caption and the mode's own banner.
 
-All three make sense and are simple on screen; none is a sure share. The crew kept them for the right reasons and named
-their weak spots. What it could not fix comes from the modes and the templates themselves (see Known gaps).
+None is a sure share. The crew kept all three, and every gate passed: no rule looked at the payoff's moment, and no role
+hears a clip. And every frame of the three clips carried a watermark that read "localhost:3000", since the toolbox built
+its export without the site's domain, with share links to localhost in plan.json.
+
+**What review round 1 changed after this run** (findings 19-24; the clips above were made before it):
+
+- The pendulum template sounds every bob at its turning points (`pwSoundOn` "extremes"), so all of them play one accented
+  chord, with the mode's flash, at the realignment, and it hangs the pendulums in a row, so "Back in line." is a line. The
+  same chord also sounds at the release and at half a cycle, when the bobs stand in two rows. The bot's own recipe is
+  unchanged.
+- The Ball Drop template times its payoff at the last ball's last note (the `lastNote` strategy) and cuts the clip at 85 %
+  of it or at the run's own end, and its format draws no payoff words: the plan's onTheBeat payoff is "the drop or the last
+  bar", and no words name a chord the mode never plays.
+- The Simple look keeps the stake in a smash or count template's hook: Power Layers draws "700 layers to go.", the clause
+  with the clip's own number, and the whole hook stays in the post.
+- Gate G2 reads the run's payoff moment (`run.payoffMoment` in the dossier): a beat, or words that name a chord, need a
+  sound there; words that name a chord need the mode's own chord; and no payoff may be silent and still. The bot's Drop
+  Symphony and Pendulum Wave, as this run played them, now fail G2.
+- The toolbox's export draws the live site's domain, studio plans link to the live site, and G8 refuses a watermark that
+  draws a local address. render.json records the domain.
+
+Rendered again after these changes (plan seed 1 of each template, in the page's world): the pendulum clip's loudest moment
+is its payoff, the accented chord at 21.05 s after 0.2 s of quiet as every bob reaches its turning point; the Ball Drop
+clip's last note sounds at its payoff, 18.7 s, and the board settles in the 2.4 s after it. Both watermarks read
+jumpingballslive.com, and every gate passed after both renders.
 
 **What the run showed, and what this step fixed** (a first pass, in `.agent-out/studio/s6-run/`, ran on the code before
 these fixes):
@@ -257,14 +285,19 @@ were answered again, and the numbers did not move.
 
 ## Known gaps
 
-- **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s" and Ball Drop's
-  "SETTLED! All 10 balls at rest". The template's payoff caption ("FREEDOM 🌈", "Final chord. 🎹") shows beside it. Neither
-  the Simple score nor the screen view knows these banners. A fix would change the plans or the Simple scores of every such
-  template, and with them the role eval's corpus and its recorded run. The owner should first choose which of the two stays.
+- **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s". The template's
+  payoff caption ("FREEDOM 🌈") shows beside it. Neither the Simple score nor the screen view knows these banners. A fix would
+  change the plans or the Simple scores of every such template, and with them the role eval's corpus and its recorded run.
+  The owner should first choose which of the two stays. (Ball Drop's template draws no payoff words, and its clip ends
+  before or with the mode's "SETTLED!".)
+- **The pendulum's other chords.** With every bob sounding at its turning points, the chord the hook promises also sounds
+  at the release and at half a cycle; only the realignment has the line. A hook of the lineUp format's own (a later step)
+  could say "line up" instead of "chord".
 - **Payoffs the settings time.** Power Layers, Pendulum Wave and Polyrhythm time their payoff from the settings, so the
   planner stops simulating after the first impact. Their dossier then says "no first escape in the run" and "no finish in
   the run" beside a payoff at 16.7 s. The evidence check refutes a payoffMissing on them, but a model reads the two lines as a
-  contradiction.
+  contradiction. The run's payoff moment (`run.payoffMoment`) is read on its own run to the payoff, so it shows what they play
+  and how they move there.
 - **A countdown that is not to the payoff.** Ball Drop's timer counts down the recording, so it reads 0:03 when the payoff
   replaces it. This is the bot recipe's own countdown, and tests/bot.test.ts pins the bot's plans.
 - **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its

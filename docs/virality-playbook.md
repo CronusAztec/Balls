@@ -152,13 +152,13 @@ timeline. It is 100 minus:
 | Gate | Passes when |
 | --- | --- |
 | G1 motion early | The first impact comes within 1 s (after a render: the measured first impact, the first motion or the first sound, within 1.5 s). |
-| G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. |
+| G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. A shown payoff happens in the run: a sound there where the clip promises one (a beat, or words that name a chord), the mode's own chord where the words name one, and never silence with the balls at a quarter of their usual motion or less. |
 | G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
 | G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim. |
 | G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band. |
 | G6 not too busy | Simple is 60 or more. |
 | G7 length fits | The length is in a bucket the platform takes. |
-| G8 rendered | At most 2 % lagged frames, and the watermark on every free clip. |
+| G8 rendered | At most 2 % lagged frames, and the watermark on every free clip, drawing an address a viewer can open (never localhost). |
 
 **Today's bot clips are busy** **[observed in our own planner: 19 recipes × 3 platforms × 4 plan seeds, 228 plans, the bot's
 look]**. Their median Simple is 44 (15–56), while their median checklist score is 100.
@@ -253,8 +253,11 @@ each look]**:
   on the same seeds, and 5 payoff lines stay under 1.2 s a line (G5).
 
 **The 19 ready templates** **[observed: each on the platforms its buckets fit, 4 plan seeds, 224 plans]** have a median Simple
-of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, and every template passes on at least 3 of 4
-plan seeds on each platform it is offered on (a test checks it):
+of 97 (86–97) and a median checklist score of 96. 220 plans pass every gate, G2's reading of the payoff's moment included,
+and every template passes on at least 3 of 4 plan seeds on each platform it is offered on (a test checks it). Ball Drop's
+template times its payoff at the last ball's last note and Pendulum Wave's sounds its chord at the realignment; the bot's
+own Drop Symphony and Pendulum Wave fail G2 there (a silent, settled board under "Final chord. 🎹"; a realignment with no
+chord):
 
 | Template | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- |

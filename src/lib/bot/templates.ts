@@ -3,7 +3,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type EndingStyle, type LengthBucket, type PayoffStrategy, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, PAYOFF_STRATEGIES, recipeById, type BotFamily, type BotFamilyChoice, type BotRecipe, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type RecipeContext } from "./playbook";
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -14,9 +14,11 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type Bo
  *  - A format: its idea in one sentence, its claim (what the run must visibly do: the crew's G4 and the viewer check it), its
  *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion – a later
  *    step writes it), where its countdown comes from and the endings it takes.
- *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy, or – a later step – the bound finder
- *    outcome or the clip's end), the context flag that outcome needs, the length buckets it can fill, the HUD it keeps (only
- *    the one that shows the countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe and passes every
+ *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
+ *    the recipe's does not show the format's payoff: Ball Drop's last note –, or – a later step – the bound finder outcome or
+ *    the clip's end), the settings it plays its recipe with (`tune`: Pendulum Wave's chord where the hook promises one), the
+ *    context flag that outcome needs, the length buckets it can fill, the HUD it keeps (only the one that shows the
+ *    countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe and passes every
  *    clarity gate at Simple 80+ and Playbook 75+), trial and experimental (hidden from every menu). Only ready bindings plan:
  *    in this release the 16 proven ones, each variant wrapping one recipe; the other 32 are declared and hidden until their
  *    strategies and copy land (docs/virality-playbook.md §5). A proven binding's variant whose plans fail a gate on every
@@ -25,7 +27,9 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, recipeById, type BotFamily, type Bo
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe, or
  *    hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length buckets its seed search
  *    finds the payoff in. Its adapter (templateRecipe) is the recipe pinned to the binding's mode, buckets (the variant's where
- *    it narrows them) and endings (the format's, narrowed by the binding's): planClipSteps plans it like any recipe
+ *    it narrows them), endings (the format's, narrowed by the binding's), the binding's strategy and tune, and the format's
+ *    words (no payoff words where its payoff speaks for itself, a stake format's number kept in the Simple hook): planClipSteps
+ *    plans it like any recipe
  *    (seed search, payoff band, captions, share link, post copy) and the plan carries the template id as its recipe, which the
  *    planner's scoreClip and re-roll, and the Insights score (scoreRecipeFor), resolve back here.
  *
@@ -134,7 +138,7 @@ const wordsOf = (text: string) => text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/
  * takes the board?"). A text none of whose runs fits stays as it is. Only the text's own words: nothing is added, so its
  * numbers and names stay the clip's.
  */
-function shortenByClauses(text: string, max: number, min: number, preferQuestion: boolean): string {
+function shortenByClauses(text: string, max: number, min: number, preferQuestion: boolean, stake: readonly string[] = []): string {
   const t = text.trim();
   if (wordsOf(t) <= max) return t;
   // clauses: each ends with its own punctuation (". ", "! ", "? ", "… ", ": ")
@@ -149,16 +153,33 @@ function shortenByClauses(text: string, max: number, min: number, preferQuestion
   }
   if (runs.length === 0) return t;
   const asks = preferQuestion ? runs.filter((r) => /[?？]/u.test(r)) : [];
+  // --- templates --- a stake format's number: the runs that state one of the clip's own numbers ("700 layers to go.")
+  const stated = stake.length ? runs.filter((r) => (r.match(/\d+/gu) ?? []).some((d) => stake.includes(d))) : [];
   const fromStart = runs.filter((r) => r.startsWith(clauses[0]));
-  const pool = asks.length ? asks : fromStart.length ? fromStart : runs;
+  const pool = asks.length ? asks : stated.length ? stated : fromStart.length ? fromStart : runs;
   const pick = pool.reduce((a, b) => (wordsOf(b) > wordsOf(a) ? b : a)).replace(/:$/u, ".");
   // its first letter in capitals (after an opening ¿ or ¡)
   return pick.replace(/^([¿¡"“]*)(\p{Ll})/u, (_, lead: string, first: string) => `${lead}${first.toLocaleUpperCase()}`);
 }
 
-/** The hook the Simple look draws: the recipe's own, cut to at most 7 words by whole clauses (shortenByClauses), its question first. */
-export function simpleHookText(hook: string): string {
-  return shortenByClauses(hook, SIMPLE_TEXT.hookWordsMax, 2, true);
+/**
+ * The hook the Simple look draws: the recipe's own, cut to at most 7 words by whole clauses (shortenByClauses), its question
+ * first, then – a stake format's (`stake`: the clip's own numbers, stakeNumbersOf) – the clause that states one: "Every hit
+ * doubles the power. 700 layers to go." keeps "700 layers to go.", the goal the clip counts down to, which the picture alone
+ * shows only in the mode's small counter (the doubling shows in the chunks the stack loses).
+ */
+export function simpleHookText(hook: string, stake?: readonly number[]): string {
+  return shortenByClauses(hook, SIMPLE_TEXT.hookWordsMax, 2, true, (stake ?? []).filter((n) => Number.isInteger(n) && n > 1).map((n) => String(n)));
+}
+
+/** --- templates --- The clip's own numbers among a recipe's hook values (whole numbers above one): a stake format's stake. */
+export function stakeNumbersOf(vars: HookVars): number[] {
+  const out: number[] = [];
+  for (const v of Object.values(vars)) {
+    const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v) : NaN;
+    if (Number.isInteger(n) && n > 1 && !out.includes(n)) out.push(n);
+  }
+  return out;
 }
 
 /** The payoff's words the Simple look draws: the recipe's own, cut to at most 3 words by whole clauses ("FREE! Gerald made it 🎉" → "FREE!"). */
@@ -184,19 +205,24 @@ export interface TemplateFormat {
   copyKey: string;
   countdown: readonly CountdownFrom[];
   endings: readonly EndingStyle[];
+  /** --- templates --- Its payoff is drawn in words (false: the moment speaks for itself – the last note of a beat). */
+  payoffWords: boolean;
+  /** --- templates --- Its hook's number is the stake (how many to break, to count): the Simple hook keeps the clause that states it. */
+  stakeHook: boolean;
 }
 
 export const TEMPLATE_FORMATS: Readonly<Record<TemplateFormatId, TemplateFormat>> = {
-  getOut: { id: "getOut", idea: "Something is trapped; will it get out, and the moment it does.", claim: "out", copyKey: "getOut", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"] },
-  smash: { id: "smash", idea: "Every hit wears it down; which hit breaks it.", claim: "break", copyKey: "smash", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"] },
-  fill: { id: "fill", idea: "It grows until it fills the space.", claim: "full", copyKey: "fill", countdown: ["caption"], endings: ["resolved"] },
-  count: { id: "count", idea: "One becomes many; how many by the end.", claim: "count", copyKey: "count", countdown: ["hud", "picture"], endings: ["resolved"] },
-  whoWins: { id: "whoWins", idea: "Pick one before it starts; one of them wins.", claim: "winner", copyKey: "whoWins", countdown: ["hud", "picture"], endings: ["resolved", "cliffhanger"] },
-  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"] },
-  lineUp: { id: "lineUp", idea: "Out of step, then all in line at once.", claim: "inSync", copyKey: "lineUp", countdown: ["picture", "hud"], endings: ["resolved"] },
-  onTheBeat: { id: "onTheBeat", idea: "Every bounce is a note; the drop or the last bar is the payoff.", claim: "beat", copyKey: "onTheBeat", countdown: ["picture"], endings: ["resolved"] },
-  reveal: { id: "reveal", idea: "Lines pile up into a picture; guess it before it is done.", claim: "picture", copyKey: "reveal", countdown: ["picture"], endings: ["resolved"] },
-  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"] },
+  getOut: { id: "getOut", idea: "Something is trapped; will it get out, and the moment it does.", claim: "out", copyKey: "getOut", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
+  smash: { id: "smash", idea: "Every hit wears it down; which hit breaks it.", claim: "break", copyKey: "smash", countdown: ["hud", "caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: true },
+  fill: { id: "fill", idea: "It grows until it fills the space.", claim: "full", copyKey: "fill", countdown: ["caption"], endings: ["resolved"], payoffWords: true, stakeHook: false },
+  count: { id: "count", idea: "One becomes many; how many by the end.", claim: "count", copyKey: "count", countdown: ["hud", "picture"], endings: ["resolved"], payoffWords: true, stakeHook: true },
+  whoWins: { id: "whoWins", idea: "Pick one before it starts; one of them wins.", claim: "winner", copyKey: "whoWins", countdown: ["hud", "picture"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
+  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false },
+  lineUp: { id: "lineUp", idea: "Out of step, then all in line at once.", claim: "inSync", copyKey: "lineUp", countdown: ["picture", "hud"], endings: ["resolved"], payoffWords: true, stakeHook: false },
+  // (the plan's onTheBeat payoff: "none: the drop or the last bar" – the last note is heard, and no words name a chord it is not)
+  onTheBeat: { id: "onTheBeat", idea: "Every bounce is a note; the drop or the last bar is the payoff.", claim: "beat", copyKey: "onTheBeat", countdown: ["picture"], endings: ["resolved"], payoffWords: false, stakeHook: false },
+  reveal: { id: "reveal", idea: "Lines pile up into a picture; guess it before it is done.", claim: "picture", copyKey: "reveal", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false },
+  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"], payoffWords: true, stakeHook: false },
 };
 
 /* ------------------------------------------------------------------ the bindings */
@@ -236,6 +262,11 @@ export interface ModeBinding {
   endings?: readonly EndingStyle[];
   /** The HUD flag it keeps on (crew/hudFlags.ts HUD_FLAGS), only one that shows the countdown; null: none. */
   keepHud: string | null;
+  /**
+   * --- templates --- Settings it plays its recipe with, set over the recipe's draw (after every seeded choice, so the draw is
+   * the recipe's): where the recipe's own would break the format's promise. Both looks play them.
+   */
+  tune?: Partial<SimulatorSettings>;
   /** The viewer's scene line where the dossier's own (crew/dossier.ts sceneOf) does not describe the mode (a later step). */
   scene?: (s: SimulatorSettings) => string;
   /** Why it is bound this way, or what it waits for. */
@@ -267,6 +298,16 @@ const ENDS_AT_ESCAPE = "the run ends with the escape (a resolved clip shows it f
  * in time on about half the plans (3 or 4 of 8 pass every gate, on every platform), in the standard one 7 or 8 of 8 do.
  */
 const GERALD_PORTAL_BUCKETS: readonly LengthBucket[] = ["standard"];
+
+/**
+ * --- templates --- Pendulum Wave as its template plays it. The recipe sounds a bob as it crosses the centre: at the realignment
+ * every bob is at a turning point, so the moment the hook's "Wait for the chord." points at was the quietest of the clip (the
+ * crossings after it spread over 0.1 s, never one chord). Sounding at the turning points instead, every bob plays at once there
+ * – one accented chord (the mode's ACCENT_CHORD_FRACTION) with its flash, as at the release and at the two rows of half a
+ * cycle. The pendulums hang in a row (the recipe draws a row, an arc or a circle of bobs without strings), so "Back in line."
+ * is a line. Sound and layout only: the motion, the cycle and the payoff's second are the recipe's.
+ */
+const PENDULUM_TUNE: Partial<SimulatorSettings> = { pwSoundOn: "extremes", pwLayout: "row" };
 
 /** The square race's count-in: no plan passes G1, and no setting skips it (docs/virality-playbook.md §5). */
 const COUNT_IN = "its 3-2-1-GO opens the gate at 1.8 s, so G1 (the first impact within 1 s) fails on every plan, and no setting skips the count";
@@ -322,7 +363,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   box: bind("box", later("aim", "finish", { note: "the countdown hook until the run's facts carry the corner hit" })),
   paddle: bind("paddle", later("aim", "finish", { note: "'How long can it last?'" })),
   // lineUp
-  pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]] }),
+  pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]], tune: PENDULUM_TUNE, note: "the hook promises a chord: every bob sounds at its turning points, so all of them sound as one accented chord at the realignment; pendulums in a row, so 'back in line' is a line" }),
   polyrhythm: bind("polyrhythm", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["polyrhythm"]] }),
   starChords: bind("starChords", later("lineUp", "outcome", { outcome: "star-set" })),
   ellipseFoci: bind("ellipseFoci", later("lineUp", "outcome", { outcome: "converge-on-beat" })),
@@ -331,7 +372,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", note: "a gate rule whose sort does not only settle" })),
   doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", note: "hook b: 'Same start. Watch them split.'" })),
   // onTheBeat
-  drop: bind("drop", { format: "onTheBeat", strategy: "finish", tier: "proven", keepHud: null, variants: [["drop-symphony"]] }),
+  drop: bind("drop", { format: "onTheBeat", strategy: "lastNote", tier: "proven", keepHud: null, variants: [["drop-symphony"]], note: "the payoff is the last ball's last note: the board settles in silence a second or more later" }),
   beatDrop: bind("beatDrop", later("onTheBeat", "finish")),
   beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles" })),
   runner: bind("runner", later("onTheBeat", "finish")),
@@ -411,7 +452,13 @@ function pinnedSettings(recipe: BotRecipe, mode: ModeId): BotRecipe["settings"] 
   };
 }
 
-/** A template's recipe: the wrapped recipe pinned to the binding's mode, its buckets (the variant's) and the format's endings, under the template id. */
+const isPayoffStrategy = (s: TemplateStrategy): s is PayoffStrategy => (PAYOFF_STRATEGIES as readonly string[]).includes(s);
+
+/**
+ * A template's recipe: the wrapped recipe pinned to the binding's mode, its buckets (the variant's) and the format's endings,
+ * under the template id – timed by the binding's strategy, played with its tune, and drawn with the format's words (no payoff
+ * words where its payoff speaks for itself; a stake format's number kept in the Simple hook).
+ */
 export function templateRecipe(info: TemplateInfo): BotRecipe | null {
   const recipe = info.recipe;
   if (!info.ready || !recipe) return null;
@@ -419,14 +466,19 @@ export function templateRecipe(info: TemplateInfo): BotRecipe | null {
   const buckets = narrow ? (recipe.buckets ?? narrow).filter((b) => narrow.includes(b)) : recipe.buckets;
   const ownEndings = recipe.endings ?? (["resolved", "cliffhanger"] as const);
   const endings = ownEndings.filter((e) => info.format.endings.includes(e) && (!info.binding.endings || info.binding.endings.includes(e)));
+  const pinned = pinnedSettings(recipe, info.mode);
+  const tune = info.binding.tune;
   return {
     ...recipe,
     id: info.id,
     modes: [info.mode],
-    settings: pinnedSettings(recipe, info.mode),
+    settings: tune ? (ctx: RecipeContext) => ({ ...pinned(ctx), ...tune, mode: info.mode }) : pinned,
+    strategy: isPayoffStrategy(info.binding.strategy) ? info.binding.strategy : recipe.strategy,
     ...(buckets && buckets.length ? { buckets } : {}),
     endings: endings.length ? endings : ownEndings,
     wraps: recipe.id,
+    ...(info.format.payoffWords ? {} : { payoffWords: false as const }),
+    ...(info.format.stakeHook ? { stakeHook: true as const } : {}),
   };
 }
 

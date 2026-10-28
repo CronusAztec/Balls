@@ -1,5 +1,6 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
-import { captionBaseFont, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { captionBaseFont, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { createEngineForSettings, stepPlaybackMs } from "@/lib/simulation/finder"; // --- crew --- (the payoff's moment)
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
 import { botRecipeById } from "@/lib/bot/templates"; // --- templates --- (a plan's recipe may be a template's)
@@ -336,10 +337,88 @@ export function runFactsSync(settings: SimulatorSettings, seed: number, world?: 
 /**
  * The run itself (the planner's RunFacts: the winner, the first escape, the finish – what the score's facts leave out), in one
  * go: the run runFactsSync() reads, followed past `clipSec` when given (the file's length). The crew's rules and dossier read it
- * (lib/crew/clip.ts).
+ * (lib/crew/clip.ts). With `payoffSec` (the clip's payoff) it carries the payoff's moment too (payoffMomentSync: RunFacts.moment).
  */
-export function runSync(settings: SimulatorSettings, seed: number, world?: BotWorld | null, recipe?: string | null, clipSec?: number | null): RunFacts {
-  return drain(runSteps(settings, seed, world, clipSec, recipe));
+export function runSync(settings: SimulatorSettings, seed: number, world?: BotWorld | null, recipe?: string | null, clipSec?: number | null, payoffSec?: number | null): RunFacts {
+  const run = drain(runSteps(settings, seed, world, clipSec, recipe));
+  return finite(payoffSec) && payoffSec >= 0 ? { ...run, moment: payoffMomentSync(settings, seed, world, payoffSec) } : run;
+}
+
+/** The payoff's moment: from this long before the payoff (s)… */
+export const MOMENT_BEFORE_SEC = 0.25;
+/** …to this long after it (s): a beat to land in, and the second a viewer takes to see it. */
+export const MOMENT_AFTER_SEC = 0.5;
+/** The motion is sampled this often (s of the clip): a quarter second, as the export's own motion samples. */
+const MOTION_STEP_SEC = 0.25;
+
+/**
+ * The run around its payoff second (PayoffMoment): the seed played again from the start, in the finder's engine and in the
+ * world the page plays it in, to MOMENT_AFTER_SEC past the payoff. It counts the sound events from MOMENT_BEFORE_SEC before the
+ * payoff to MOMENT_AFTER_SEC after it – their notes (a chord's each), the most in one, whether the mode accents one (Pendulum
+ * Wave's full chord) – and samples the balls every MOTION_STEP_SEC: their mean speed (each ball's way since the sample before,
+ * by its id) in the window, and the median of the samples before it from the first second on. The sound the export plays is
+ * these very events (the tone generator voices them), so this reads what the clip plays at its payoff, deterministically,
+ * before any render; a mode with no balls has no motion (null). The crew's gate G2 reads it (lib/crew/clarity.ts).
+ */
+export function payoffMomentSync(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number): PayoffMoment {
+  const from = payoffSec - MOMENT_BEFORE_SEC;
+  const to = payoffSec + MOMENT_AFTER_SEC;
+  const request = finderRequestOfSettings(settings, world ?? DEFAULT_BOT_WORLD, to + 1);
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  let sounds = 0;
+  let notes = 0;
+  let chordMax = 0;
+  let accent = false;
+  let last: { sec: number; at: Map<number, { x: number; y: number }> } | null = null;
+  const before: number[] = [];
+  const inside: number[] = [];
+  let anyBalls = false;
+  while (elapsed / 1000 < to - 1e-9) {
+    engine.update(step, 0);
+    elapsed += stepPlaybackMs(engine, step);
+    const sec = elapsed / 1000;
+    const events = engine.consumeSoundEvents();
+    if (sec >= from - 1e-9 && sec <= to + 1e-9) {
+      for (const e of events) {
+        const n = e.chord && e.chord.length > 0 ? e.chord.length : 1;
+        sounds++;
+        notes += n;
+        chordMax = Math.max(chordMax, n);
+        if (e.accent) accent = true;
+      }
+    }
+    if (!last || sec - last.sec >= MOTION_STEP_SEC - 1e-9 || engine.isSimulationFinished()) {
+      const at = new Map<number, { x: number; y: number }>();
+      for (const b of engine.getBalls()) at.set(b.id, { x: b.x, y: b.y });
+      if (at.size > 0) anyBalls = true;
+      if (last && sec > last.sec) {
+        let sum = 0;
+        let count = 0;
+        for (const [id, p] of at) {
+          const q = last.at.get(id);
+          if (!q) continue;
+          sum += Math.hypot(p.x - q.x, p.y - q.y);
+          count++;
+        }
+        const speed = count > 0 ? sum / count / (sec - last.sec) : 0;
+        if (sec > from - 1e-9 && last.sec < to + 1e-9) inside.push(speed);
+        else if (sec < from && last.sec >= 1 - 1e-9) before.push(speed);
+      }
+      last = { sec, at };
+    }
+    if (engine.isSimulationFinished()) break;
+  }
+  const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const median = (xs: readonly number[]) => {
+    if (!xs.length) return null;
+    const sorted = [...xs].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  const r2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100);
+  return { atSec: Math.round(payoffSec * 1000) / 1000, sounds, notes, chordMax, accent, motion: anyBalls ? r2(mean(inside) ?? 0) : null, motionMedian: anyBalls ? r2(median(before)) : null };
 }
 
 /** The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. */

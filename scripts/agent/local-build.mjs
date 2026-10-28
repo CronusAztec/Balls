@@ -7,10 +7,11 @@
  *     which the site does not build from (SKIPPED) –
  *     and node_modules is linked in;
  *  2. `next build --no-lint` runs there with a clean environment: no NEXT_PUBLIC_* or analytics variables from the shell (a
- *     test-mode build at the root path, no statistics script), Next's telemetry off, and Next's own type check skipped through
- *     the guard's JBL_BUILD_SKIP_TYPECHECK knob (`npm run typecheck` / the guard check types; this build is for looking);
+ *     test-mode build at the root path, no statistics script) but the site's domain (TOOLBOX_SITE_DOMAIN: the text the
+ *     watermark and a clip's address line draw), Next's telemetry off, and Next's own type check skipped through the guard's
+ *     JBL_BUILD_SKIP_TYPECHECK knob (`npm run typecheck` / the guard check types; this build is for looking);
  *  3. scripts/postexport.mjs finishes the export there with OBFUSCATE=0.
- * The build's key is HEAD plus the content of every changed or new file; `auto` rebuilds only when it differs from the last
+ * The build's key is HEAD plus the content of every changed or new file and the domain; `auto` rebuilds only when it differs from the last
  * build's (<cache>/site/stamp.json), `reuse` takes the last build as it is, `force` always rebuilds. One build at a time
  * (a lock folder naming the CLI's pid and its build steps'); the build's output goes to <cache>/site/build.log, never to the
  * CLI's stdout.
@@ -27,6 +28,17 @@ import { ROOT, cacheDir } from "./paths.mjs";
  */
 const SKIPPED = ["desktop/", "billing/", "relay/", "tests/", ".github/", "deploy/", "docs/", "scripts/agent/", "scripts/smoke/", "scripts/smoke-test.mjs", "scripts/smoke-timing.json", "scripts/release/", "README.md", "CHANGELOG.md", "AGENTS.md", "CLAUDE.md", ".mcp.json"];
 const KEPT_IN_SKIPPED = new Set(["desktop/package.json"]);
+
+/**
+ * --- studio --- The live site's domain (.github/actions/site-url: its default, the address deploy.yml builds the site for): the
+ * text the export's watermark badge and tiles and a clip's address line draw (lib/site.ts SITE_DOMAIN, through its
+ * NEXT_PUBLIC_SITE_DOMAIN override, which changes nothing else). Without it a clip of the toolbox's would advertise
+ * "localhost:3000", an address no viewer can open. Text in the export, not a network host: the export is served on
+ * 127.0.0.1 only, and the fenced browser reaches nothing else.
+ */
+export const TOOLBOX_SITE_DOMAIN = "jumpingballslive.com";
+/** The domain lib/site.ts draws when none is set (its localhost fallback): an export built before the domain was. */
+export const LOCAL_SITE_DOMAIN = "localhost:3000";
 const BUILD_TIMEOUT_MS = 15 * 60_000;
 const LOCK_WAIT_MS = 20 * 60_000;
 
@@ -59,7 +71,7 @@ export function siteFiles() {
 /** HEAD plus the content of every changed, deleted or new site file: equal keys build equal exports. */
 export function workingTreeKey() {
   const head = git(["rev-parse", "HEAD"]).toString().trim();
-  const hash = crypto.createHash("sha256").update(`head ${head}\n`);
+  const hash = crypto.createHash("sha256").update(`head ${head}\n`).update(`domain ${TOOLBOX_SITE_DOMAIN}\n`); // --- studio --- (the watermark's text)
   const changed = new Set();
   // porcelain v1 -z: "XY path\0" (a rename adds "\0orig"); every changed or untracked path, not ignored ones
   const entries = nulList(git(["status", "--porcelain=v1", "-z", "--untracked-files=all"]));
@@ -176,8 +188,9 @@ export function patchNextConfig(source) {
 }
 
 /**
- * The build's environment: the shell's, minus the site's public and statistics settings; a test-mode build at "/", without
- * Next's own type check (the guard's knob, next.config.ts: types are npm run typecheck's and the guard's lane A's job).
+ * The build's environment: the shell's, minus the site's public and statistics settings; a test-mode build at "/" that draws
+ * the live site's domain (--- studio --- TOOLBOX_SITE_DOMAIN), without Next's own type check (the guard's knob,
+ * next.config.ts: types are npm run typecheck's and the guard's lane A's job).
  */
 export function buildEnv(env, head) {
   const out = {};
@@ -185,7 +198,7 @@ export function buildEnv(env, head) {
     if (k.startsWith("NEXT_PUBLIC_") || k.startsWith("JBL_ANALYTICS_") || k === "BASE_URL") continue;
     out[k] = v;
   }
-  return { ...out, NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: head, NODE_ENV: "production" };
+  return { ...out, NEXT_PUBLIC_BASE_PATH: "", NEXT_PUBLIC_SITE_DOMAIN: TOOLBOX_SITE_DOMAIN, NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: head, NODE_ENV: "production" };
 }
 
 function run(file, args, { cwd, env, log, hold }) {
@@ -218,7 +231,8 @@ const tail = (file, lines = 30) => {
 };
 
 /**
- * The local export, built if needed: { dir (the export: serve it), key, head, dirty, rebuilt, buildSec? }.
+ * The local export, built if needed: { dir (the export: serve it), key, head, dirty, rebuilt, buildSec?, siteDomain (the domain
+ * its watermark draws: the stamp's, LOCAL_SITE_DOMAIN for an export built before the toolbox set one) }.
  * `mode`: "auto" (default) | "reuse" | "force". Throws when the build fails (with the end of its log).
  */
 export async function ensureLocalExport(mode = "auto", note = (m) => process.stderr.write(`${m}\n`)) {
@@ -233,11 +247,12 @@ export async function ensureLocalExport(mode = "auto", note = (m) => process.std
     return stamp && ready() ? stamp : null;
   };
   const have = current();
-  if (mode === "reuse" && have) return { dir: outDir, key: have.key, head: have.head, dirty: have.dirty, rebuilt: false };
-  if (mode !== "force" && have && have.key === key) return { dir: outDir, key, head, dirty, rebuilt: false };
+  const domainOf = (stamp) => (typeof stamp.siteDomain === "string" && stamp.siteDomain ? stamp.siteDomain : LOCAL_SITE_DOMAIN); // --- studio ---
+  if (mode === "reuse" && have) return { dir: outDir, key: have.key, head: have.head, dirty: have.dirty, rebuilt: false, siteDomain: domainOf(have) };
+  if (mode !== "force" && have && have.key === key) return { dir: outDir, key, head, dirty, rebuilt: false, siteDomain: domainOf(have) };
   return withLock(site, async (hold) => {
     const again = current(); // a parallel call may have built it while this one waited
-    if (mode !== "force" && again && again.key === key) return { dir: outDir, key, head, dirty, rebuilt: false };
+    if (mode !== "force" && again && again.key === key) return { dir: outDir, key, head, dirty, rebuilt: false, siteDomain: domainOf(again) };
     const started = Date.now();
     const log = path.join(site, "build.log");
     fs.writeFileSync(log, `--- agent-cli local export of ${head}${dirty ? " + working-tree changes" : ""} (key ${key})\n`);
@@ -255,8 +270,8 @@ export async function ensureLocalExport(mode = "auto", note = (m) => process.std
     const postCode = await run(process.execPath, [path.join(tree, "scripts", "postexport.mjs")], { cwd: tree, env, log, hold });
     if (postCode !== 0 || !ready()) throw new Error(`The local export did not finish (postexport exit ${postCode}). The end of ${log}:\n${tail(log)}`);
     const buildSec = Math.round((Date.now() - started) / 1000);
-    fs.writeFileSync(stampFile, JSON.stringify({ key, head, dirty, files: count, buildSec }));
+    fs.writeFileSync(stampFile, JSON.stringify({ key, head, dirty, files: count, buildSec, siteDomain: env.NEXT_PUBLIC_SITE_DOMAIN }));
     note(`agent: local export ready in ${buildSec} s`);
-    return { dir: outDir, key, head, dirty, rebuilt: true, buildSec };
+    return { dir: outDir, key, head, dirty, rebuilt: true, buildSec, siteDomain: env.NEXT_PUBLIC_SITE_DOMAIN };
   });
 }

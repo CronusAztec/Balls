@@ -11,7 +11,8 @@ import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions }
  *    template, its claim, the mode, platform, bucket, ending, length and seed; the beats (first impact, the hook's window, the
  *    countdown, the payoff and what it is, the cut, the end); the words (the drawn hook, the AI's own hook, the payoff, the
  *    question, the Top and Bottom Text); the text timeline; effects and HUDs; the gates; both scores with their reasons; the
- *    run's facts (winner, escape, finish); what a render measured; the other candidates' template and hook; a two-line
+ *    run's facts (winner, escape, finish, and what it plays and how it moves at the payoff – gate G2's reading); what a render
+ *    measured (the watermark's address too); the other candidates' template and hook; a two-line
  *    research gap. One `key: value` line per DOSSIER_KEYS key, always in that order, so the same clip gives the same bytes on
  *    every run (the skeptic's and the reviewer's prompts share it, and a model's cache reuses it). The skeptic cites these keys
  *    as its evidence; `facts` holds each key's value as data for the evidence check.
@@ -69,6 +70,7 @@ export const DOSSIER_KEYS = [
   "run.winner",
   "run.escape",
   "run.finish",
+  "run.payoffMoment",
   "measured.firstMotion",
   "measured.peakMotion",
   "measured.lagged",
@@ -272,6 +274,8 @@ export function intentView(clip: CrewClip, input: DossierInput = {}): IntentDoss
     "run.winner": run ? winner : null,
     "run.escape": run ? (run.firstEscapeSec >= 0 ? r1(run.firstEscapeSec) : run.homeSec >= 0 ? r1(run.homeSec) : -1) : null,
     "run.finish": run ? (run.finishSec >= 0 ? r1(run.finishSec) : -1) : null,
+    // --- crew --- (gate G2's reading of the payoff: what sounds there, how the balls move against the run's median)
+    "run.payoffMoment": momentFact(clip),
     "measured.firstMotion": f ? (f.firstMotionSec === null ? -1 : r1(f.firstMotionSec)) : null,
     "measured.peakMotion": f && f.peakMotionPos !== null ? Math.round(f.peakMotionPos * 100) / 100 : null,
     "measured.lagged": m && m.laggedFrames !== null && m.frames ? r1((100 * m.laggedFrames) / m.frames) : null,
@@ -295,6 +299,23 @@ export function intentView(clip: CrewClip, input: DossierInput = {}): IntentDoss
   }
   if (text.length > INTENT_MAX) text = clampLines(text, INTENT_MAX, (l) => l.startsWith("words.hook: ") || l.startsWith("words.aiHook: "));
   return { v: 1, facts, text };
+}
+
+/** --- crew --- The run's payoff moment as data (null: not read, or read around another second than the clip's payoff). */
+function momentFact(clip: CrewClip): DossierValue {
+  const m = clip.run?.moment;
+  if (!m || clip.payoff.atSec === null || Math.abs(m.atSec - clip.payoff.atSec) > 0.01) return null;
+  return { sec: r1(m.atSec), sounds: m.sounds, notes: m.notes, chordMax: m.chordMax, accent: m.accent, motionPct: m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 ? pct(m.motion / m.motionMedian) : null };
+}
+
+/** --- crew --- The moment in words: "14 s: 1 sound, 15 notes at most at once, accented; motion 92% of the run's median". */
+function momentLine(clip: CrewClip, v: DossierValue): string {
+  if (clip.run === null) return "unknown (no run)";
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return clip.payoff.atSec === null ? "no payoff in the run" : "not read";
+  const m = v as { sec: number; sounds: number; notes: number; chordMax: number; accent: boolean; motionPct: number | null };
+  const when = clip.ending === "cliffhanger" ? `${m.sec} s (after the clip ends)` : `${m.sec} s`;
+  const sound = m.sounds === 0 ? "no sound" : `${m.sounds} sound${m.sounds === 1 ? "" : "s"}, ${m.chordMax} note${m.chordMax === 1 ? "" : "s"} at most at once${m.accent ? ", accented" : ""}`;
+  return `${when}: ${sound}; ${m.motionPct === null ? "no balls to move" : `motion ${m.motionPct}% of the run's median`}`;
 }
 
 interface TrimLevel {
@@ -345,7 +366,7 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("beats.firstImpact", f["beats.firstImpact"] === null ? "unknown" : `${f["beats.firstImpact"]} s`),
     line("beats.hook", hook ? `${hook.from}-${hook.to} s` : none),
     line("beats.countdown", countdown ? `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}` : none),
-    line("beats.payoff", payoff ? `${payoff.what ?? "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the cut` : ""}` : p.atSec === null ? "none in the run" : none),
+    line("beats.payoff", payoff ? `${payoff.what ?? "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the clip ends` : ""}` : p.atSec === null ? "none in the run" : none),
     line("beats.cut", cut ? `from ${cut.from} s for ${cut.length} s, end card ${cut.card} s` : none),
     line("beats.end", `${end.sec} s${end.afterPayoff === null ? "" : end.afterPayoff >= 0 ? `, ${end.afterPayoff} s after the payoff` : `, ${r1(-end.afterPayoff)} s before the payoff`}`),
     line("words.hook", q(f["words.hook"])),
@@ -367,11 +388,13 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     // (Glass Smash's ball reaching home is its way out; a fill is when the screen or the ring is full)
     line("run.escape", clip.run && clip.run.firstEscapeSec < 0 && clip.run.homeSec >= 0 ? `home at ${r1(clip.run.homeSec)} s` : run(f["run.escape"], "first escape")),
     line("run.finish", `${run(f["run.finish"], "finish")}${clip.run && clip.run.fillSec >= 0 ? `, filled at ${r1(clip.run.fillSec)} s` : ""}`),
+    line("run.payoffMoment", momentLine(clip, f["run.payoffMoment"])),
     // (gate G1 reads the earlier of the two: a small ball on a dark background can move long before the picture says so)
     line("measured.firstMotion", measured(f["measured.firstMotion"], (x) => `${x < 0 ? "no motion" : `${x} s`}${firstSound !== null ? ` (first sound ${firstSound} s)` : ""}`)),
     line("measured.peakMotion", measured(f["measured.peakMotion"], (x) => `${Math.round(100 * x)}% in`)),
     line("measured.lagged", measured(f["measured.lagged"], (x) => `${x}% of frames`)),
-    line("measured.watermark", measured(f["measured.watermark"], (x) => String(x))),
+    // (--- crew --- the address it draws: gate G8 refuses a local build's)
+    line("measured.watermark", clip.measured && typeof clip.measured.watermarkDomain === "string" && f["measured.watermark"] !== null ? `${String(f["measured.watermark"])}, draws ${quote(clip.measured.watermarkDomain, 40)}` : measured(f["measured.watermark"], (x) => String(x))),
     line("others", (f.others as string[]).length ? (f.others as string[]).slice(0, t.list).map((o) => quote(o, t.quote + 16)).join("; ") : none),
     line("research", (f.research as string[]).length ? (f.research as string[]).map((r) => quote(r, t.quote * 2)).join(" / ") : none),
   ];

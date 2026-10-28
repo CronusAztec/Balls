@@ -6,7 +6,9 @@ import en from "../messages/en.json";
 import { STUDIO_TOOLS as CLI_STUDIO_TOOLS } from "../scripts/agent/cli.mjs";
 import { IMAGE_MAX_BYTES as MCP_IMAGE_MAX_BYTES } from "../scripts/agent/mcp.mjs";
 import { AGENT_PROMPTS, AGENT_TOOLS, IMAGE_MAX_BYTES, STUDIO_BUCKETS, STUDIO_CLIPS_MAX, STUDIO_DEPTHS, STUDIO_ENDINGS, STUDIO_FAMILIES, STUDIO_FORMATS, STUDIO_LOCALES, STUDIO_LOOKS, STUDIO_PLAN_MAX, STUDIO_PLATFORMS, STUDIO_ROLES, STUDIO_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
+import { TOOLBOX_SITE_DOMAIN } from "../scripts/agent/local-build.mjs";
 import {
+  STUDIO_SITE_URL,
   inspireThemes,
   queryOf,
   renderSummary,
@@ -162,6 +164,15 @@ describe("plan (--- studio ---)", () => {
     // the family's templates, formats mixed: no two of the first ones share a format
     const mixed = planned({ count: 3 });
     expect(new Set(mixed.map((r) => r.plan.template)).size).toBe(3);
+  });
+
+  // --- studio --- the studio's plan.json once held share links to http://localhost:3000, the build's fallback
+  it("links every plan to the live site, the domain its clips' watermark draws, and runs each plan to its payoff's moment", () => {
+    expect(STUDIO_SITE_URL).toBe(`https://${TOOLBOX_SITE_DOMAIN}`);
+    for (const r of planned({ template: "line-up-pendulum", count: 2, planSeed: 3 })) {
+      expect(r.plan.shareUrl.startsWith(`${STUDIO_SITE_URL}/en/simulator/?`)).toBe(true);
+      expect(r.run.moment).toMatchObject({ atSec: Math.round(r.plan.payoff.atSec! * 1000) / 1000, accent: true });
+    }
   });
 
   it("refuses an unknown or hidden template, and a mode without a ready one, naming the ready ones", () => {
@@ -376,6 +387,13 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     expect(summary.after.gates.find((g) => g.id === "G8")?.ok).toBe(true);
     // a clean frame fails G8 (the watermark on every free run)
     expect(renderSummary(studioRenderRecord(job.job, { ...record, world: record.world, laggedFrames: 0, watermarked: false, melodyPlayed: null, sheet: null, hookSheet: null })).after.failed).toContain("G8");
+    // --- studio --- the domain the export's watermark draws is recorded; a local build's fails G8, the site's passes
+    const local = studioRenderRecord(job.job, { ...record, world: record.world, laggedFrames: 0, watermarkDomain: "localhost:3000", melodyPlayed: null, sheet: null, hookSheet: null });
+    expect([local.watermarkDomain, renderSummary(local).watermarkDomain, renderSummary(local).after.failed]).toEqual(["localhost:3000", "localhost:3000", ["G8"]]);
+    const live = studioRenderRecord(job.job, { ...record, world: record.world, laggedFrames: 0, watermarkDomain: TOOLBOX_SITE_DOMAIN, melodyPlayed: null, sheet: null, hookSheet: null });
+    expect([live.crew.measured?.watermarkDomain, renderSummary(live).after.failed]).toEqual([TOOLBOX_SITE_DOMAIN, []]);
+    // the payoff's moment, read where the page's run puts the payoff (G2 after the render)
+    expect(record.crew.run?.moment?.atSec).toBe(Math.round(record.crew.payoff.atSec! * 1000) / 1000);
     // a long clip is not the toolbox's to render
     const long = planned({ template: "who-wins-fight-league-bracket", count: 1, family: "all", bucket: "long" });
     const longJob = studioRenderJob({ ...plan, plans: long }, null, undefined);

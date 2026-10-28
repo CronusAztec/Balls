@@ -3,7 +3,7 @@ import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIP
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
 import { BINDINGS, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, type BotCopy, type BotLocale } from "@/lib/bot/copy";
-import { factsOfExport, factsOfRun, mergeFacts, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
+import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { parseTrends } from "@/lib/trends";
 import { isModeId } from "@/lib/physics/types";
@@ -123,6 +123,13 @@ export { AGENT_PROMPTS, STUDIO_CLIPS_MAX, STUDIO_PLAN_MAX };
 // --- studio --- the role eval's codec, for scripts/agent/studio.mjs and scripts/crew-fixtures.mjs (the bundle's exports are this file's)
 export { corpusHash, fixtureOfJson, renderEvalTables };
 export { DEFAULT_BOT_WORLD, isBotLocale };
+
+/**
+ * The live site's address a studio plan's share link opens (.github/actions/site-url: its default domain, as
+ * scripts/agent/local-build.mjs TOOLBOX_SITE_DOMAIN draws it in the watermark): never the build's localhost fallback, which no
+ * viewer can open (tests/agentStudio.test.ts holds the three to one domain).
+ */
+export const STUDIO_SITE_URL = "https://jumpingballslive.com";
 
 /** A number to three decimals (seconds, shares, scores), null for none. */
 const r3 = (n: number | null | undefined): number | null => (typeof n === "number" && Number.isFinite(n) ? Math.round(n * 1000) / 1000 + 0 : null);
@@ -302,8 +309,8 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
   return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
 }
 
-/** The run of a plan's seed in its world, followed past its clip (lib/insights/score.ts runSync: the crew's facts). */
-const runOfPlan = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
+/** The run of a plan's seed in its world, followed past its clip, with its payoff's moment (lib/insights/score.ts runSync: the crew's facts). */
+const runOfPlan = (plan: ClipPlan): RunFacts => runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
 
 /** The plan tool's plans (see the header). Clip i plans from planSeed + i; the planner yields between seeds, drained here. */
 export function studioPlan(input: StudioPlanInput, copy: BotCopy): { ok: true; records: StudioPlanRecord[] } | { ok: false; error: string } {
@@ -325,6 +332,7 @@ export function studioPlan(input: StudioPlanInput, copy: BotCopy): { ok: true; r
       date: null,
       world: input.world ?? DEFAULT_BOT_WORLD,
       look: input.look ?? "simple",
+      siteUrl: STUDIO_SITE_URL,
       ...(input.maxSeeds !== undefined ? { maxSeeds: input.maxSeeds } : {}),
     };
     const plan = s.kind === "template" ? drain(planTemplateSteps(s.info.id, planSeed, platform, options)) : drain(planClipSteps(s.recipe, planSeed, platform, options));
@@ -578,6 +586,8 @@ export interface StudioRenderRecord {
   frames: number | null;
   laggedFrames: number;
   watermarked: boolean;
+  /** The domain the export's watermark draws (scripts/agent/local-build.mjs; null: not known). */
+  watermarkDomain: string | null;
   digest: string | null;
   features: ClipFeatures | null;
   sheet: string | null;
@@ -698,7 +708,7 @@ export function studioReplan(record: StudioPlanRecord, need: FinderNeed, copy: B
   let planSeed = plan.planSeed;
   for (let k = 0; k < REPLAN_TRIES; k++, planSeed = rerollSeed(planSeed)) {
     if (k === 0 && same) continue; // (the same plan again)
-    const options: PlanOptions = { copy, locale: plan.locale, bucket: need.bucket, ending: need.ending, episode: plan.episode, index: plan.index, date: plan.date, world: plan.world, look: plan.look ?? "bot", ...(plan.template ? { template: plan.template } : {}) };
+    const options: PlanOptions = { copy, locale: plan.locale, bucket: need.bucket, ending: need.ending, episode: plan.episode, index: plan.index, date: plan.date, world: plan.world, look: plan.look ?? "bot", siteUrl: STUDIO_SITE_URL, ...(plan.template ? { template: plan.template } : {}) };
     const next = drain(planClipSteps(recipe, planSeed, plan.platform, options));
     if (!next.timing.found) continue;
     if (need.firstImpactMaxSec !== null && !(next.timing.firstImpactSec !== null && next.timing.firstImpactSec <= need.firstImpactMaxSec)) continue;
@@ -1013,6 +1023,8 @@ export interface StudioRenderOut {
   frames: number | null;
   laggedFrames?: number | null;
   watermarked: boolean;
+  /** The domain the export's watermark draws (the local build's; null or absent: not known). */
+  watermarkDomain?: string | null;
   digest: string | null;
   features: ClipFeatures | null;
   melodyPlayed: string | null;
@@ -1030,12 +1042,16 @@ export function studioRenderRecord(job: StudioRenderJob, out: StudioRenderOut): 
   const world = out.world ?? job.plannedWorld;
   const run = runSync(settings, job.seed, world, job.recipe, out.durationSec ?? job.base.timing.clipSec);
   const strategy = { strategy: scoreRecipeFor(settings.mode, job.recipe)?.strategy ?? "finish" };
-  const measured: CrewMeasured = { features: out.features, durationSec: out.durationSec, laggedFrames: typeof out.laggedFrames === "number" ? out.laggedFrames : 0, frames: out.frames, watermarked: out.watermarked, free: true };
+  const watermarkDomain = typeof out.watermarkDomain === "string" && out.watermarkDomain ? out.watermarkDomain : null;
+  const measured: CrewMeasured = { features: out.features, durationSec: out.durationSec, laggedFrames: typeof out.laggedFrames === "number" ? out.laggedFrames : 0, frames: out.frames, watermarked: out.watermarked, watermarkDomain, free: true };
   const facts = mergeFacts(factsOfRun(settings, run, strategy), factsOfExport(out.features, out.durationSec));
   const like = planLikeFromSettings(settings, facts, { platform: job.base.platform, episode: job.base.episode, melody: job.melodyId, recipe: job.recipe, bucket: job.base.bucket, bucketSec: settings.recordingDuration, ending: job.base.ending });
+  // --- crew --- the payoff's moment where the page's run puts the payoff (gate G2 after the render)
+  const played = like.payoff.atSec;
+  const withMoment: RunFacts = played !== null ? { ...run, moment: payoffMomentSync(settings, job.seed, world, played) } : run;
   const crew: CrewClip = {
     ...job.base,
-    run,
+    run: withMoment,
     measured,
     simulated: true,
     payoff: { ...job.base.payoff, atSec: like.payoff.atSec, position: like.payoff.position, cutGapSec: like.payoff.cutGapSec },
@@ -1043,7 +1059,7 @@ export function studioRenderRecord(job: StudioRenderJob, out: StudioRenderOut): 
     playbook: scorePlanLike(like),
   };
   const planned = job.base.payoff.atSec;
-  const played = payoffSecOf(strategy, settings, run);
+  const playedSec = payoffSecOf(strategy, settings, run);
   return {
     v: 1,
     studio: job.studio,
@@ -1060,12 +1076,13 @@ export function studioRenderRecord(job: StudioRenderJob, out: StudioRenderOut): 
     frames: out.frames,
     laggedFrames: measured.laggedFrames ?? 0,
     watermarked: out.watermarked,
+    watermarkDomain,
     digest: out.digest,
     features: out.features,
     sheet: out.sheet,
     hookSheet: out.hookSheet,
-    run,
-    payoff: { plannedSec: r3(planned), renderedSec: r3(played), deltaSec: planned !== null && played !== null ? r3(played - planned) : null },
+    run: withMoment,
+    payoff: { plannedSec: r3(planned), renderedSec: r3(playedSec), deltaSec: planned !== null && playedSec !== null ? r3(playedSec - planned) : null },
     length: { plannedSec: r3(job.base.timing.clipSec), renderedSec: r3(out.durationSec), deltaSec: out.durationSec !== null ? r3(out.durationSec - job.base.timing.clipSec) : null },
     crew,
   };
@@ -1086,6 +1103,7 @@ export function renderSummary(record: StudioRenderRecord) {
     melodyId: record.melodyId,
     melodyPlayed: record.melodyPlayed,
     watermarked: record.watermarked,
+    watermarkDomain: record.watermarkDomain ?? null,
     durationSec: r3(record.durationSec),
     frames: record.frames,
     laggedFrames: record.laggedFrames,

@@ -12,8 +12,12 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *
  *  G1 motionEarly – the first impact within 1 s of the plan's run; after a render, the measured first impact within 1.5 s: the
  *     export's first motion or its first sound, the earlier (the Playbook score's own reading of the file, clip.ts).
- *  G2 payoffLands – resolved: the payoff between 60 % and 97 % of the clip with at least 0.8 s shown after it; cliffhanger: the
- *     cut 0–3 s before the payoff and a closing question on screen at the end.
+ *  G2 payoffLands – resolved: the payoff between 60 % and 97 % of the clip with at least 0.8 s shown after it, and – where
+ *     the run's payoff moment is known (RunFacts.moment, lib/insights/score.ts payoffMomentSync) – a payoff that happens: a
+ *     sound at it where the clip promises one (a beat, or words that name a chord), a chord where the words name one (the
+ *     mode's own: an accented event, Pendulum Wave's every bob at once – a cluster of a few notes is not the chord promised),
+ *     and a sound or motion at it whatever it claims (never silent and still: a quarter of the run's median motion or less);
+ *     cliffhanger: the cut 0–3 s before the payoff and a closing question on screen at the end.
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
  *     never both).
  *  G4 wordsMatchPicture – the drawn hook is the hook the clip's words say it has; every number in it is one of the clip's
@@ -23,7 +27,8 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band.
  *  G6 notTooBusy – Simple at least 60 (simplicity.ts).
  *  G7 lengthFits – the clip's length inside a bucket its platform takes.
- *  G8 rendered (after a render only) – at most 2 % lagged frames, the watermark on every free run.
+ *  G8 rendered (after a render only) – at most 2 % lagged frames, the watermark on every free run, drawing an address a viewer
+ *     can open (a public domain: never localhost, an IP or a reserved name – a clip of a local build would advertise one).
  *
  * Pure and deterministic: it reads the clip (clip.ts) and nothing else.
  */
@@ -56,7 +61,12 @@ export const CLARITY = {
   secPerLine: 1.2,
   simpleMin: SIMPLE_BANDS.aBitBusy,
   laggedShareMax: 0.02,
+  /** --- crew --- A still payoff: the balls' motion at it at most this share of the run's median, with no sound. */
+  stillShareMax: 0.25,
 } as const;
+
+/** --- crew --- Words that promise a chord (en, pl, es, and the notes' emoji): the payoff must play one. */
+const CHORD_WORDS = /chord|akord|acorde|🎼|🎹/iu;
 
 export interface Gate {
   id: GateId;
@@ -125,7 +135,27 @@ function payoffGate(clip: CrewClip): Gate {
   if (position < CLARITY.payoffFrom - EPS) problems.push({ key: "Early", values: { pct: pct(position), sec: r1(atSec) } });
   else if (position > CLARITY.payoffTo + EPS) problems.push({ key: "Late", values: { pct: pct(position), sec: r1(atSec) } });
   if (clipSec - atSec < CLARITY.shownAfterPayoffSec - EPS) problems.push({ key: "NotShown", values: { after: r1(Math.max(0, clipSec - atSec)) } });
+  problems.push(...momentProblems(clip, atSec));
   return gate("G2", problems, "Ok", { pct: pct(position), sec: r1(atSec) });
+}
+
+/**
+ * --- crew --- What the run does at a resolved payoff, against what the clip promises (the run's moment around the payoff the
+ * clip times; none known, or read around another second: nothing to judge by). Unheard: a beat, or words that name a chord,
+ * and not one sound there. NoChord: words that name a chord, and no chord the mode plays as one there – an accented event (a
+ * Pendulum Wave sounding at its centre crossings has clusters of up to 7 of its 21 notes around the realignment and never the
+ * chord). Still: no sound and the balls' motion at most a quarter of the run's median – the board has stopped.
+ */
+function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: Record<string, string | number> }[] {
+  const m = clip.run?.moment;
+  if (!m || Math.abs(m.atSec - atSec) > 0.01) return [];
+  const words = [drawnHookText(clip), ...clip.captions.filter((_, i) => clip.captionRoles[i] === "payoff").map((c) => c.text)].join(" ");
+  const chordPromised = CHORD_WORDS.test(words);
+  const out: { key: string; values?: Record<string, string | number> }[] = [];
+  if (m.sounds === 0 && (clip.claim === "beat" || chordPromised)) out.push({ key: "Unheard", values: { sec: r1(atSec) } });
+  else if (chordPromised && !m.accent) out.push({ key: "NoChord", values: { sec: r1(atSec), notes: m.chordMax } });
+  if (m.sounds === 0 && m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 && m.motion <= CLARITY.stillShareMax * m.motionMedian + EPS) out.push({ key: "Still", values: { sec: r1(atSec), pct: pct(m.motion / m.motionMedian) } });
+  return out;
 }
 
 /** G3: one idea – no mode switch, one hook message, one ending's words. */
@@ -213,12 +243,31 @@ function lengthGate(clip: CrewClip): Gate {
   return fits.length ? gate("G7", [], "Ok", { sec: r1(sec), bucket: fits[0] }) : gate("G7", [{ key: "Out", values: { sec: r1(sec), platform: clip.platform } }], "Ok");
 }
 
-/** G8: the render kept up and carries the watermark (a free run). */
+/** The top-level names no viewer's address ends in (RFC 6761 and 2606, mDNS, home networks). */
+const RESERVED_TLDS = new Set(["localhost", "local", "test", "invalid", "example", "internal", "lan", "home", "arpa"]);
+
+/**
+ * --- crew --- Whether a watermark's domain is an address a viewer can open: a host name of two labels or more with a
+ * letters-only top level, no port, path or scheme, never localhost, an IP address or a reserved name ("localhost:3000",
+ * "127.0.0.1", "studio.local" are not; "jumpingballslive.com" is).
+ */
+export function publicDomain(domain: string): boolean {
+  const d = domain.trim().toLowerCase().replace(/\.$/, "");
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return false;
+  const labels = d.split(".");
+  if (labels.some((l) => !l || l.startsWith("-") || l.endsWith("-"))) return false;
+  const tld = labels[labels.length - 1];
+  return /^[a-z]{2,}$/.test(tld) && !RESERVED_TLDS.has(tld) && !labels.includes("localhost");
+}
+
+/** G8: the render kept up and carries the watermark (a free run), with an address a viewer can open. */
 function renderGate(clip: CrewClip): Gate {
   const m = clip.measured!;
   const problems: { key: string; values?: Record<string, string | number> }[] = [];
   if (m.laggedFrames !== null && m.frames !== null && m.frames > 0 && m.laggedFrames / m.frames > CLARITY.laggedShareMax + EPS) problems.push({ key: "Lagged", values: { pct: r1((100 * m.laggedFrames) / m.frames) } });
   if (m.free && m.watermarked !== true) problems.push({ key: m.watermarked === false ? "NoWatermark" : "WatermarkUnknown" });
+  // --- crew --- a local build's watermark: the clip would advertise an address nobody can open
+  else if (m.free && typeof m.watermarkDomain === "string" && !publicDomain(m.watermarkDomain)) problems.push({ key: "WatermarkLocal", values: { domain: m.watermarkDomain } });
   return gate("G8", problems, "Ok");
 }
 

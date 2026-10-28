@@ -8,7 +8,7 @@ import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import { CACHE_DIR, PathError, cacheDirFor, defaultOutName, hasScheme, isInside, isMainModule, outputDir, resolveInputFile, untrustedCacheReason, userCacheBase, writeFileSafe } from "../scripts/agent/paths.mjs";
 import { SETTLE_MS, STUDIOKIT_ENTRY, TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, settled, toolboxListing } from "../scripts/agent/bundle.mjs";
 import os from "os";
-import { buildEnv, lockPids, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
+import { buildEnv, LOCAL_SITE_DOMAIN, lockPids, patchNextConfig, siteFile, TOOLBOX_SITE_DOMAIN } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
 import { postizProbeTool } from "../scripts/agent/postiz-probe.mjs";
 import * as toolbox from "@/lib/agentKit/toolbox";
@@ -333,7 +333,21 @@ describe("the local export (--- agent-cli ---)", () => {
     expect(siteFile("desktop/package.json")).toBe(true);
     for (const f of ["desktop/src/main.ts", "tests/x.test.ts", "scripts/agent/cli.mjs", "docs/a.md", "README.md", "billing/src/app.ts"]) expect(siteFile(f), f).toBe(false);
     const env = buildEnv({ PATH: "/bin", NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: "https://stats.example/s.js", NEXT_PUBLIC_LICENSE_PUBLIC_KEY: "k", JBL_ANALYTICS_SITE_ID: "x", NEXT_PUBLIC_BASE_PATH: "/Balls" }, "abc");
-    expect(env).toEqual({ PATH: "/bin", NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: "abc", NODE_ENV: "production" });
+    expect(env).toEqual({ PATH: "/bin", NEXT_PUBLIC_BASE_PATH: "", NEXT_PUBLIC_SITE_DOMAIN: TOOLBOX_SITE_DOMAIN, NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: "abc", NODE_ENV: "production" });
+  });
+
+  it("draws the live site's domain in its watermark, never the localhost fallback: the shell's domain or address changes nothing (--- studio ---)", () => {
+    // the action that names the address every deploy builds for: its default domain is the toolbox's
+    const action = fs.readFileSync(path.join(ROOT, ".github", "actions", "site-url", "action.yml"), "utf8");
+    expect(action).toContain(`domain="${TOOLBOX_SITE_DOMAIN}"`);
+    expect(TOOLBOX_SITE_DOMAIN).not.toBe(LOCAL_SITE_DOMAIN);
+    // only the domain text: the site's address (canonical links, the share links the page builds) stays the build's own
+    const env = buildEnv({ PATH: "/bin", NEXT_PUBLIC_SITE_DOMAIN: "elsewhere.example", NEXT_PUBLIC_SITE_URL: "https://elsewhere.example" }, "abc");
+    expect([env.NEXT_PUBLIC_SITE_DOMAIN, "NEXT_PUBLIC_SITE_URL" in env]).toEqual([TOOLBOX_SITE_DOMAIN, false]);
+    // the build's key names the domain (a change rebuilds), and the stamp records what the export draws
+    const src = fs.readFileSync(path.join(ROOT, "scripts", "agent", "local-build.mjs"), "utf8");
+    expect(src).toContain(".update(`domain ${TOOLBOX_SITE_DOMAIN}\\n`)");
+    expect(src).toContain("siteDomain: env.NEXT_PUBLIC_SITE_DOMAIN");
   });
 
   it("skips Next's own type check in its own build only (the guard's knob in its environment; the repository's file is the real one)", () => {

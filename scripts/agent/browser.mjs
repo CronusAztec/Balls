@@ -150,7 +150,7 @@ async function withLocalSite(build, fn) {
   }
   const server = await startStaticServer(site.dir);
   try {
-    return await fn(server.origin, { key: site.key, head: site.head.slice(0, 12), dirty: site.dirty, rebuilt: site.rebuilt });
+    return await fn(server.origin, { key: site.key, head: site.head.slice(0, 12), dirty: site.dirty, rebuilt: site.rebuilt, siteDomain: site.siteDomain });
   } finally {
     await server.close();
   }
@@ -376,8 +376,9 @@ export async function renderTool(tb, args) {
  * folder, the studio kit picks the clip): its settings and seed through the same fenced free page and fast export, its melody
  * loaded (handle version 3), into .agent-out/studio/<studio>/<clip>/ – clip.<ext> (and clip.mp4), the frames' sheet.png and
  * hook-sheet.png when ffmpeg is there, and render.json, the record the crew's look after the render reads: the page's world,
- * what the export measured (its features, lagged frames, the watermark), the payoff planned and played, and the clip's Simple
- * and Playbook scores and gates after the render. At most 60 s; a clip without the watermark is refused, nothing written.
+ * what the export measured (its features, lagged frames, the watermark and the domain it draws), the payoff planned and played,
+ * and the clip's Simple and Playbook scores and gates after the render. At most 60 s; a clip without the watermark is refused,
+ * nothing written.
  */
 async function renderPlanTool(tb, args) {
   const studio = await import("./studio.mjs");
@@ -421,6 +422,7 @@ async function renderPlanTool(tb, args) {
     frames: typeof result.frames === "number" ? result.frames : null,
     laggedFrames: typeof result.laggedFrames === "number" ? result.laggedFrames : null,
     watermarked: result.watermarked === true,
+    watermarkDomain: rendered.build.siteDomain ?? null, // --- studio --- (the domain the export's watermark draws)
     digest: result.digest ?? null,
     features: result.features ?? null,
     melodyPlayed: out.melodyId ?? null,
