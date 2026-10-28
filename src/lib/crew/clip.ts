@@ -3,7 +3,8 @@ import { outcomeMatches } from "@/lib/simulation/outcomes";
 import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
 import type { CaptionRole, ClipPlan, RunFacts, ScoreReason } from "@/lib/bot/planner";
-import { BUCKET_SECONDS, PLATFORMS, recipeById, type BotPlatform, type CountdownKind, type CountdownSource, type EndingStyle, type LengthBucket, type PayoffType } from "@/lib/bot/playbook";
+import { BUCKET_SECONDS, PLATFORMS, type BotPlatform, type CountdownKind, type CountdownSource, type EndingStyle, type LengthBucket, type PayoffType } from "@/lib/bot/playbook";
+import { botRecipeById, templateClaimOf } from "@/lib/bot/templates";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import type { ClipGenes, ClipGenesFeatures } from "@/lib/insights/genes";
 import { planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } from "@/lib/insights/score";
@@ -22,8 +23,8 @@ import { planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } 
  *  - `measured` is what the render measured (after a render only): the export's features, its lagged frames, the watermark.
  *  - `cut`: the TikTok cut the clip is shown as (the Clip editor's window, its hook pill, its address line and its end card).
  *
- * The claim (what the run must visibly do, the template's word for its payoff) comes from the recipe until the templates
- * (lib/bot/templates.ts, a later step) bind every mode to one: CLAIM_OF_RECIPE.
+ * The claim (what the run must visibly do, the template's word for its payoff) comes from the recipe (CLAIM_OF_RECIPE: the
+ * format each playbook recipe belongs to) or from the template the clip was planned from (lib/bot/templates.ts: its format's).
  *
  * Pure: no clock, no randomness, nothing simulated here.
  */
@@ -97,7 +98,7 @@ export interface CrewClip {
   mode: ModeId;
   /** A RECIPES id, or null. */
   recipe: string | null;
-  /** --- crew --- The template (lib/bot/templates.ts, a later step); null until then. */
+  /** --- crew --- The template it was planned from (lib/bot/templates.ts), null: none. */
   template: string | null;
   claim: Claim | null;
   platform: BotPlatform;
@@ -136,15 +137,15 @@ export interface CrewExtras {
   cut?: CrewCut | null;
   /** The AI's own (meta) hook, when it is not the plan's. */
   hook?: string | null;
-  /** The template the clip was planned from (a later step). */
+  /** The template the clip was planned from, when the plan does not say (a plan records its own). */
   template?: string | null;
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-/** The claim of a recipe (null: no recipe, or one without a claim). */
+/** The claim of a recipe – a playbook recipe's, or a template's format's (null: no recipe, or one without a claim). */
 export function claimOfRecipe(recipe: string | null | undefined): Claim | null {
-  return recipe && Object.prototype.hasOwnProperty.call(CLAIM_OF_RECIPE, recipe) ? CLAIM_OF_RECIPE[recipe] : null;
+  return recipe && Object.prototype.hasOwnProperty.call(CLAIM_OF_RECIPE, recipe) ? CLAIM_OF_RECIPE[recipe] : templateClaimOf(recipe);
 }
 
 /** The clip a bot plan describes (its own fields), with what it does not carry. */
@@ -159,8 +160,8 @@ export function crewClipOfPlan(plan: ClipPlan, extras: CrewExtras = {}): CrewCli
     bottomText: s.bottomText,
     mode: plan.mode,
     recipe: plan.recipe,
-    template: extras.template ?? null,
-    claim: claimOfRecipe(plan.recipe),
+    template: extras.template ?? plan.template ?? null,
+    claim: claimOfRecipe(plan.recipe) ?? templateClaimOf(extras.template ?? plan.template),
     platform: plan.platform,
     bucket: plan.bucket,
     ending: plan.ending,
@@ -230,7 +231,7 @@ export function crewClipOfSaved(input: SavedCrewInput): CrewClip {
     seed: input.seed ?? null,
     episode: like.episode,
     hook: input.hook ?? null,
-    payoff: { type: recipeById(recipe)?.payoff ?? null, atSec: like.payoff.atSec, position: like.payoff.position, cutGapSec: like.payoff.cutGapSec, text: payoffWords.length ? payoffWords.join(" ") : null, winner: null },
+    payoff: { type: botRecipeById(recipe)?.payoff ?? null, atSec: like.payoff.atSec, position: like.payoff.position, cutGapSec: like.payoff.cutGapSec, text: payoffWords.length ? payoffWords.join(" ") : null, winner: null },
     timing: { clipSec: like.timing.clipSec, recordingDuration: input.settings.recordingDuration, firstImpactSec: like.timing.firstImpactSec },
     countdown: { ...like.countdown },
     simulated: !!input.run || input.facts.firstImpactSec !== null || input.facts.payoffSec !== null,
@@ -286,7 +287,7 @@ export function claimSeen(clip: CrewClip): boolean | null {
 export function factNumbersOf(clip: Pick<CrewClip, "recipe" | "settings" | "timing" | "episode" | "mode">): number[] {
   const out = new Set<number>([1, clip.timing.recordingDuration, Math.floor(clip.timing.clipSec), Math.round(clip.timing.clipSec), Math.ceil(clip.timing.clipSec)]);
   if (clip.episode >= 1) out.add(clip.episode);
-  const recipe = recipeById(clip.recipe) ?? scoreRecipeFor(clip.settings.mode, clip.recipe) ?? null;
+  const recipe = botRecipeById(clip.recipe) ?? scoreRecipeFor(clip.settings.mode, clip.recipe) ?? null;
   if (recipe) {
     try {
       for (const v of Object.values(recipe.hookVars(clip.settings))) {

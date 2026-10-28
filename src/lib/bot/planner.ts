@@ -11,6 +11,7 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
+import { botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
@@ -30,7 +31,6 @@ import {
   MASCOT,
   PAYOFF_BAND,
   PLATFORMS,
-  RECIPES,
   RISING_MELODIES,
   SAFE_ZONE,
   SERIES_ROSTER,
@@ -353,6 +353,10 @@ export interface ClipPlan {
   post: { caption: string; question: string; hashtags: string[]; keywords: string; note: string; time: string };
   series: { name: string; label: string; episode: number; roster: string[] };
   world: BotWorld;
+  /** --- templates --- The template it was planned from (templates.ts; its id is the plan's `recipe` too); absent: a playbook recipe's plan. */
+  template?: string;
+  /** --- templates --- The look it is drawn in when it is not the bot's own: "simple" (SIMPLE_LOOK and one text at a time). */
+  look?: BotLookId;
 }
 
 export interface PlanOptions {
@@ -377,6 +381,13 @@ export interface PlanOptions {
   siteUrl?: string;
   /** "HH:MM" to post at; the platform's slot for the clip's place by default. */
   postingTime?: string;
+  /**
+   * --- templates --- The look: "bot" (today's, the default) or "simple" – the Simple look (templates.ts SIMPLE_LOOK) and its text
+   * plan: one text on screen at a time, a hook of at most 7 words, the series label in the post caption instead of on the clip.
+   */
+  look?: BotLookId;
+  /** --- templates --- The template the clip is planned from (planTemplateSteps sets it): the plan records it. */
+  template?: string;
 }
 
 export interface PlanProgress {
@@ -697,11 +708,12 @@ export const MATCHUP_DAY_COUNT = 3;
  * The running episode of a recipe's matchup on day `episode` (1 = BOT_EPOCH): one more than the days before it whose daily plan
  * (MATCHUP_DAY_COUNT clips, every family) played the same matchup – "Thor vs Loki #3". 1 for a recipe without matchups.
  */
-export function matchupEpisode(recipe: Pick<BotRecipe, "id" | "matchup">, key: string, episode: number): number {
+export function matchupEpisode(recipe: Pick<BotRecipe, "id" | "matchup" | "wraps">, key: string, episode: number): number {
   if (!recipe.matchup) return 1;
+  const series = recipe.wraps ?? recipe.id; // --- templates --- (a template's matchups count its recipe's days)
   let n = 1;
   for (let day = 0; day < episode - 1; day++) {
-    for (const slot of daySlots(day, MATCHUP_DAY_COUNT)) if (slot.recipe.id === recipe.id && recipe.matchup(slot.planSeed).key === key) n++;
+    for (const slot of daySlots(day, MATCHUP_DAY_COUNT)) if (slot.recipe.id === series && recipe.matchup(slot.planSeed).key === key) n++;
   }
   return n;
 }
@@ -715,8 +727,12 @@ interface BuiltSettings {
   preset: InstrumentPreset;
 }
 
-/** The settings of a recipe for one variant: the mode's defaults, the bot's look and sound, the recipe's numbers. */
-export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext): BuiltSettings {
+/**
+ * The settings of a recipe for one variant: the mode's defaults, the bot's look and sound, the recipe's numbers – and, for the
+ * Simple look (--- templates ---), SIMPLE_LOOK over them: look fields only, drawn after every seeded choice, so the numbers, the
+ * sound and the run are the bot look's.
+ */
+export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext, look: BotLookId = "bot"): BuiltSettings {
   const patch = recipe.settings(ctx);
   let s: SimulatorSettings = defaultSettings(patch.mode);
   // §3.9 neon on black, glow and trails
@@ -744,17 +760,24 @@ export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext): BuiltSett
     s.ballColor = MASCOT.color;
   }
   Object.assign(s, patch);
+  if (look === "simple") Object.assign(s, simpleLookPatch(s, recipe.countdown.source)); // --- templates ---
   return { settings: s, melodyId, preset };
 }
 
 const hookStyle = { size: 1.2, color: "#ffffff", background: "#000000" };
 const LIME = "#93d119";
 
+/** --- templates --- How a clip's texts follow each other: stacked (the bot's: the countdown on from the start) or one at a time. */
+export type TextPlan = "stack" | "oneLine";
+
 /**
  * The captions of a clip (§3.2–3.5) and what each is for: the hook, the countdown, the payoff text or the closing question.
  * --- low-findings --- `payoffKey`: the recipe's copy of the payoff (`payoffKeyOf()`: a double KO's own words).
+ * --- templates --- `textPlan` "oneLine" (the Simple look): one text at a time – the countdown caption comes after the hook and
+ * leaves when the payoff's words or the closing question come, so no two texts are on screen together – and the payoff's words
+ * cut to at most 3 (templates.ts simplePayoffText).
  */
-export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff"): { captions: Caption[]; roles: CaptionRole[] } {
+export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack"): { captions: Caption[]; roles: CaptionRole[] } {
   const captions: Caption[] = [];
   const roles: CaptionRole[] = [];
   const add = (caption: Caption, role: CaptionRole) => {
@@ -763,21 +786,27 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   };
   const hookParts = captionLines(hook, hookStyle.size, 2);
   for (const line of hookParts.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: 0, end: hookEndSec, animation: "pop", style: { ...hookStyle, size: hookParts.size } }, "hook");
+  const clip = timing.recordingDuration;
+  const oneLine = textPlan === "oneLine"; // --- templates ---
+  // when the closing question and the payoff's words come in (--- templates --- one text at a time: a question of two lines
+  // gets 2.5 s, 1.25 s a line)
+  const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2) : null;
+  const questionStart = half(Math.max(hookEndSec + 0.5, clip - (oneLine && q && q.lines.length > 1 ? 2.5 : 2)));
+  const payoffStart = timing.payoffSec !== null ? half(Math.max(hookEndSec + 0.5, Math.floor(timing.payoffSec * 2) / 2)) : null;
   if (recipe.countdown.source === "caption") {
     const label = copyString(copy, `countdown.${recipe.countdown.kind}`);
     const type = recipe.countdown.kind === "walls" ? "wallCounter" : recipe.countdown.kind === "percent" ? "progress" : "countdown";
     const base = defaultCaption(type, { text: label });
-    add({ ...base, position: "top", start: 0, end: 0, style: { ...base.style, size: 1, color: LIME, background: type === "progress" ? "#27272a" : "#000000" } }, "countdown");
+    // --- templates --- (one text at a time: from the hook's end to the next text, or to the clip's end without one)
+    const window = oneLine ? { start: hookEndSec, end: ending === "cliffhanger" ? questionStart : (payoffStart ?? 0) } : { start: 0, end: 0 };
+    add({ ...base, position: "top", start: window.start, end: window.end, style: { ...base.style, size: 1, color: LIME, background: type === "progress" ? "#27272a" : "#000000" } }, "countdown");
   }
-  const clip = timing.recordingDuration;
-  if (ending === "cliffhanger") {
-    const q = captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2);
-    const start = half(Math.max(hookEndSec + 0.5, clip - 2));
-    for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
-  } else if (timing.payoffSec !== null) {
-    const p = captionLines(recipeText(copy, recipe, payoffKey, vars), 1.3, 2);
-    const start = half(Math.max(hookEndSec + 0.5, Math.floor(timing.payoffSec * 2) / 2));
-    for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
+  if (q) {
+    for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
+  } else if (payoffStart !== null) {
+    const words = recipeText(copy, recipe, payoffKey, vars);
+    const p = captionLines(oneLine ? simplePayoffText(words) : words, 1.3, 2); // --- templates ---
+    for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: payoffStart, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
   }
   return { captions, roles };
 }
@@ -823,27 +852,35 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const episode = options.episode ?? 1;
   const index = options.index ?? 1;
   const settings: SimulatorSettings = { ...built.settings, recordingDuration: timing.recordingDuration };
+  const simple = options.look === "simple"; // --- templates --- (the Simple look's text plan)
   // --- fl-overhaul --- (Stage 6) a matchup's series label: "Thor vs Loki #3" (its running episode), else the day's
   const matchupVars = recipe.matchup ? { ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), ep: matchupEpisode(recipe, recipe.matchup(planSeed).key, episode) } : null;
   const label = matchupVars && copyString(copy, `recipes.${recipe.copyKey}.seriesMatchup`) ? recipeText(copy, recipe, "seriesMatchup", matchupVars) : seriesLabel(copy, recipe, episode);
   // The series label is the Top Text – but an arena game's scoreboard band is where the recorder draws that line, so there
-  // it is the Bottom Text (still above the bottom 20 % of the frame).
-  if (hasTopHud(settings.mode)) {
+  // it is the Bottom Text (still above the bottom 20 % of the frame). --- templates --- The Simple look draws neither: the
+  // label goes in the post caption.
+  if (simple) {
+    settings.topText = "";
+    settings.bottomText = "";
+  } else if (hasTopHud(settings.mode)) {
     settings.topText = "";
     settings.bottomText = sanitizeCaptionText(label, 60);
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
-  const hook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
+  const fullHook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
+  const hook = simple ? simpleHookText(fullHook) : fullHook; // --- templates --- (at most 7 words on the clip; the whole hook in the post)
   const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
   const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
   const payoffText = recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" });
-  const { captions, roles } = clipCaptions(recipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey);
+  // --- templates --- one text at a time: no countdown caption where a HUD on screen counts down already (the HUD is the countdown)
+  const textRecipe: BotRecipe = simple && recipe.countdown.source === "caption" && hudShowsCountdown(settings) ? { ...recipe, countdown: { ...recipe.countdown, source: "hud" } } : recipe;
+  const { captions, roles } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];
   const bucketLabel = copyString(copy, `buckets.${bucket}`) || bucket;
   const answer = ending === "cliffhanger" ? (winnerName ?? (timing.payoffSec !== null ? payoffText : "")) : "";
-  const post = postCopy(copy, { recipe, platform, ending, hook, episode, vars, postingTime: time, bucketLabel, answer });
+  const post = postCopy(copy, { recipe, platform, ending, hook: fullHook, episode, vars, postingTime: time, bucketLabel, answer, ...(simple ? { series: label } : {}) /* --- templates --- */ });
   const plan: ClipPlan = {
     version: BOT_PLAN_VERSION,
     id,
@@ -866,8 +903,8 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     instrumentPreset: built.preset,
     captionRoles: roles,
     hook,
-    countdown: { ...recipe.countdown },
-    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: payoffText, winner: winnerName },
+    countdown: { ...textRecipe.countdown },
+    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: simple ? simplePayoffText(payoffText) : payoffText /* --- templates --- (the words it draws) */, winner: winnerName },
     timing: { recordingDuration: timing.recordingDuration, clipSec: timing.clipSec, firstImpactSec: facts && facts.firstImpactSec >= 0 ? facts.firstImpactSec : null, found, seedsTested },
     score: 0,
     reasons: [],
@@ -875,6 +912,8 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     post: { caption: post.caption, question: post.question, hashtags: post.hashtags, keywords: post.keywords, note: post.note, time },
     series: { name: recipeText(copy, recipe, "series"), label, episode, roster: recipe.teams ? settings.teams.map((t) => t.name) : recipe.character ? [MASCOT.name] : [] },
     world: options.world ?? DEFAULT_BOT_WORLD,
+    ...(options.template ? { template: options.template } : {}), // --- templates ---
+    ...(simple ? { look: "simple" as const } : {}),
   };
   const scored = scoreClip(plan);
   plan.score = scored.score;
@@ -893,6 +932,7 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
   const index = options.index ?? 1;
   const ending = resolveEnding(options.ending, episode, index, recipe.endings);
   const world = options.world ?? DEFAULT_BOT_WORLD;
+  const look: BotLookId = options.look ?? "bot"; // --- templates ---
   const maxSeeds = Math.max(1, Math.round(options.maxSeeds ?? DEFAULT_MAX_SEEDS));
   const search = options.search !== false;
   const range = BUCKET_SECONDS[bucket];
@@ -908,8 +948,9 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
     const clipTarget = Math.max(ending === "cliffhanger" ? R_DUR.min : range.min, range.min + rng() * (range.max - range.min));
     const payoffTarget = ending === "cliffhanger" ? Math.floor(clipTarget) + (CLIFF_GAP_SEC.min + CLIFF_GAP_SEC.max) / 2 : clipTarget * ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2);
     const ctx: RecipeContext = { rng, bucket, ending, payoffTarget, roster: SERIES_ROSTER, planSeed /* --- fl-overhaul --- (Stage 6) */ };
-    const built = recipeSettings(recipe, ctx);
-    const hookEndSec = rng() < 0.5 ? HOOK_SEC.min + 0.5 : HOOK_SEC.max;
+    const built = recipeSettings(recipe, ctx, look);
+    const drawnHookEnd = rng() < 0.5 ? HOOK_SEC.min + 0.5 : HOOK_SEC.max;
+    const hookEndSec = look === "simple" ? SIMPLE_TEXT.hookEndSec : drawnHookEnd; // --- templates --- (the draw is made either way: the same generator after it)
     // The simulation runs a little past where the latest acceptable payoff could come.
     const horizon = Math.min(R_DUR.max + 5, (ending === "cliffhanger" ? range.max + 2 : range.max / PAYOFF_BAND.from) + 2);
     const request = finderRequestOfSettings({ ...built.settings, recordingDuration: Math.min(R_DUR.max, Math.ceil(horizon)) }, world, horizon, recipe.outcome ? { kind: recipe.outcome, clipSec: horizon } : undefined /* --- fl-overhaul --- (Stage 6) */);
@@ -943,6 +984,23 @@ export function planClip(recipe: BotRecipe, planSeed: number, platform: BotPlatf
   return drain(planClipSteps(recipe, planSeed, platform, options));
 }
 
+// --- templates ---
+/**
+ * Plans one clip of a ready template (templates.ts): its recipe – the wrapped one pinned to the template's mode, buckets and
+ * endings – planned like any other, in the template's look (Simple) unless `options.look` names another; the plan records the
+ * template. Throws for a hidden or unknown template.
+ */
+export function* planTemplateSteps(templateId: string, planSeed: number, platform: BotPlatform, options: PlanOptions): Generator<PlanProgress, ClipPlan> {
+  const recipe = templateRecipeById(templateId);
+  if (!recipe) throw new Error(`Not a ready template: ${templateId}`);
+  return yield* planClipSteps(recipe, planSeed, platform, { ...options, look: options.look ?? TEMPLATE_LOOK, template: templateId });
+}
+
+export function planTemplate(templateId: string, planSeed: number, platform: BotPlatform, options: PlanOptions): ClipPlan {
+  return drain(planTemplateSteps(templateId, planSeed, platform, options));
+}
+// --- end templates ---
+
 /* ------------------------------------------------------------------ scoreClip */
 
 const hudShowsCountdown = (s: SimulatorSettings): boolean => {
@@ -966,7 +1024,7 @@ const luminance = (hex: string) => {
  */
 export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason[] } {
   const s = plan.settings;
-  const recipe = RECIPES.find((r) => r.id === plan.recipe);
+  const recipe = botRecipeById(plan.recipe); // --- templates --- (a playbook recipe, or a template's: its sound and its cast)
   const reasons: ScoreReason[] = [];
   const max = (id: ChecklistId) => CHECKLIST.find((c) => c.id === id)!.points;
   const add = (id: ChecklistId, points: number, key: string, values: Record<string, string | number> = {}) => reasons.push({ id, points: Math.max(0, Math.min(max(id), points)), max: max(id), key, values });
@@ -1146,9 +1204,12 @@ export function rerollSeed(planSeed: number): number {
   return hashString(`reroll|${planSeed}`);
 }
 
-/** Plans the clip again with the next plan seed – new settings and a new physics seed, the same place, day and ending choice. */
+/**
+ * Plans the clip again with the next plan seed – new settings and a new physics seed, the same place, day and ending choice.
+ * --- templates --- A template's plan is re-planned from its template, in its own look.
+ */
 export function* rerollClipSteps(plan: ClipPlan, options: Omit<PlanOptions, "episode" | "index" | "date">): Generator<PlanProgress, ClipPlan> {
-  const recipe = RECIPES.find((r) => r.id === plan.recipe);
+  const recipe = botRecipeById(plan.recipe);
   if (!recipe) throw new Error(`Unknown recipe ${plan.recipe}`);
   return yield* planClipSteps(recipe, rerollSeed(plan.planSeed), plan.platform, {
     ...options,
@@ -1158,6 +1219,8 @@ export function* rerollClipSteps(plan: ClipPlan, options: Omit<PlanOptions, "epi
     index: plan.index,
     date: plan.date,
     postingTime: plan.post.time,
+    look: plan.look ?? "bot", // --- templates ---
+    template: plan.template,
   });
 }
 

@@ -220,6 +220,11 @@ export interface BotRecipe {
   /** A finder outcome a resolved clip must also show (outcomes.ts – fight-upset: "upset"). */
   outcome?: FinderOutcomeKind;
   // --- end fl-overhaul ---
+  /**
+   * --- templates --- A template's recipe (templates.ts): the playbook recipe it wraps, whose series it belongs to – a matchup's
+   * running episode counts that recipe's days (planner.ts matchupEpisode). The playbook's own recipes have none.
+   */
+  wraps?: string;
 }
 
 /* seeded helpers ---------------------------------------------------------- */

@@ -1,5 +1,6 @@
 import { sanitizeCaptionText, type Caption } from "@/lib/captions";
-import { BOT_FRAME, HOOK_SEC, PLATFORMS, recipeById, TOP_HUD_MODES, type BotRecipe, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
+import { BOT_FRAME, HOOK_SEC, PLATFORMS, TOP_HUD_MODES, type BotRecipe, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
+import { botRecipeById } from "@/lib/bot/templates";
 import { captionBoxAt, clipCaptions, inSafeZone, scoreClip, type CaptionRole, type ClipPlan, type ClipTiming, type ScoreReason } from "@/lib/bot/planner";
 import { scorePlanLike, type ScorePlan } from "@/lib/insights/score";
 import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
@@ -168,7 +169,7 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
     clip = { ...clip, settings: { ...clip.settings, ...look }, topText: typeof look.topText === "string" ? look.topText : clip.topText, bottomText: typeof look.bottomText === "string" ? look.bottomText : clip.bottomText };
   };
   const needOf = (): FinderNeed => (need ??= { ending: clip.ending, bucket: clip.bucket, targetPos: null, firstImpactMaxSec: null, settings: {}, actions: [] });
-  const recipe = recipeById(clip.recipe) ?? null;
+  const recipe = botRecipeById(clip.recipe) ?? null;
 
   for (const a of actions) {
     switch (a.action) {

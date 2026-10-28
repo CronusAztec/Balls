@@ -2,6 +2,7 @@ import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
 import { captionBaseFont, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
+import { botRecipeById } from "@/lib/bot/templates"; // --- templates --- (a plan's recipe may be a template's)
 import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { recordingTextLayout } from "@/lib/recording/recorder";
@@ -158,9 +159,13 @@ export function scoreRecipeOf(mode: SimulatorSettings["mode"]): BotRecipe | null
   return RECIPES.find((r) => r.modes.includes(mode)) ?? null;
 }
 
-/** The recipe a clip is scored with: the plan's (`id`) while it plays the mode (the AI may have changed the mode), else the mode's own. */
+/**
+ * The recipe a clip is scored with: the plan's (`id`) while it plays the mode (the AI may have changed the mode), else the mode's own.
+ * --- templates --- The plan's id may be a template's (lib/bot/templates.ts): its recipe, the wrapped one pinned to its mode.
+ */
 export function scoreRecipeFor(mode: SimulatorSettings["mode"], id?: string | null): BotRecipe | null {
-  return (id ? RECIPES.find((r) => r.id === id && r.modes.includes(mode)) : undefined) ?? scoreRecipeOf(mode);
+  const own = id ? botRecipeById(id) : undefined;
+  return (own && own.modes.includes(mode) ? own : undefined) ?? scoreRecipeOf(mode);
 }
 
 /**

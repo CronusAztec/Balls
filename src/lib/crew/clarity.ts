@@ -1,5 +1,6 @@
 import type { ScoreReason } from "@/lib/bot/planner";
-import { BOT_FRAME, FIRST_IMPACT_SEC, recipeById, TOP_HUD_MODES } from "@/lib/bot/playbook";
+import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
+import { botRecipeById } from "@/lib/bot/templates";
 import { captionBoxAt, edgeTextBox, inSafeZone } from "@/lib/bot/planner";
 import { bucketsFitting, claimSeen, factNumbersOf, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
@@ -15,7 +16,7 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
  *     never both).
  *  G4 wordsMatchPicture – the drawn hook is the hook the clip's words say it has; every number in it is one of the clip's
- *     facts; a winner the payoff names is the run's; the recipe (later: the template) that wrote the hook plays this mode; the
+ *     facts; a winner the payoff names is the run's; the recipe (or the template) that wrote the hook plays this mode; the
  *     run shows the claim.
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band.
@@ -160,7 +161,7 @@ function wordsGate(clip: CrewClip): Gate {
     if (other && !problems.some((p) => p.key === "WrongWinner" || p.key === "NoWinner")) problems.push({ key: runWinner === null ? "NoWinner" : "WrongWinner", values: runWinner === null ? { said: other } : { said: other, run: runWinner } });
   }
   // the hook's author plays this mode
-  const recipe = recipeById(clip.recipe);
+  const recipe = botRecipeById(clip.recipe);
   if (clip.recipe && recipe && !recipe.modes.includes(clip.mode)) problems.push({ key: "HookElsewhere", values: { mode: clip.mode } });
   const seen = claimSeen(clip);
   if (clip.claim && seen === false) problems.push({ key: "ClaimUnseen", values: { claim: clip.claim } });
