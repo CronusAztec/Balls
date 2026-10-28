@@ -21,6 +21,7 @@ import {
   overlaysOf,
   playbookOf,
   shownSecOf,
+  visibleText,
   type CrewClip,
   type FixAction,
 } from "@/lib/crew";
@@ -79,10 +80,30 @@ describe("the look and labels: a patch the settings validator takes", () => {
     expect(compileFixes(busy, [fix("turnOff", { key: "gravity" })]).errors).toEqual(["turnOff: gravity is not an effect, HUD or label"]);
     expect(apply(busy, [fix("turnOff", { key: "topText" })]).compiled.patch).toEqual({ topText: "" });
     // every key that is on has its off value, and the validator takes it
-    for (const key of clutterOn(busy.settings)) {
+    for (const key of clutterOn(busy)) {
       expect([key, CLUTTER_KEYS.includes(key)]).toEqual([key, true]);
       expect([key, validateSettingsPatch(busy.settings, { [key]: offValueOf(key, busy.settings) }).ok]).toEqual([key, true]);
     }
+  });
+
+  it("turnOff names only what this clip draws: another mode's HUD, a wall effect with no ring walls, an unseen trail or label changes nothing and is refused", () => {
+    // (a Ring Escape plan has every mode's HUD flag on in its settings: the String Battle panel, Power Layers' badge…)
+    for (const key of ["sbHud", "tyHud", "flHud", "plBadge", "showScoreboard", "nameLabel"]) expect([key, offValueOf(key, busy.settings) !== null]).toEqual([key, true]);
+    expect(clutterOn(busy)).toEqual(["showWallGlow", "colorTrail", "screenShake", "cinematicEnabled", "wallBreakStyle", "topText"]);
+    expect(compileFixes(busy, [fix("turnOff", { key: "sbHud" })]).errors).toEqual(["turnOff: sbHud changes nothing on screen in this clip"]);
+    // (the name label with no name to show)
+    expect(busy.settings.ballName.trim()).toBe("");
+    expect(compileFixes(busy, [fix("turnOff", { key: "nameLabel" })]).errors).toEqual(["turnOff: nameLabel changes nothing on screen in this clip"]);
+    // the same settings in Power Layers: its own badge and labels are drawn, the wall effects are not (no ring walls)
+    const layers: CrewClip = { ...busy, settings: { ...busy.settings, mode: "powerLayers" } };
+    expect(clutterOn(layers)).toEqual(["colorTrail", "cinematicEnabled", "plBadge", "plPills", "topText"]);
+    expect(compileFixes(layers, [fix("turnOff", { key: "showWallGlow" })]).errors).toEqual(["turnOff: showWallGlow changes nothing on screen in this clip"]);
+    expect(compileFixes(layers, [fix("turnOff", { key: "plBadge" })]).patch).toEqual({ plBadge: "none" });
+    // a colour trail with no trails drawn
+    const noTrails: CrewClip = { ...busy, settings: { ...busy.settings, showTrails: false } };
+    expect([clutterOn(noTrails).includes("colorTrail"), compileFixes(noTrails, [fix("turnOff", { key: "colorTrail" })]).ok]).toEqual([false, false]);
+    // every key listed changes what the rules see when it goes off
+    for (const clip of [busy, layers, noTrails]) for (const key of clutterOn(clip)) expect([key, compileFixes(clip, [fix("turnOff", { key })]).errors]).toEqual([key, []]);
   });
 
   it("turnOff of the cinematic camera, which moves the run, asks the seed search to run it again", () => {
@@ -146,6 +167,39 @@ describe("the text", () => {
     expect(compileFixes(busy, [fix("rewriteHook", { text: "x".repeat(FIX_BOUNDS.hookChars + 5) })]).errors).toContain(`rewriteHook: at most ${FIX_BOUNDS.hookChars} characters`);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "W".repeat(FIX_BOUNDS.hookChars) })]).errors).toEqual(["rewriteHook: a line of it falls outside the safe zone"]);
     expect(compileFixes(busy, [fix("rewriteHook", { text: "   " })]).errors).toEqual(["rewriteHook: an empty hook"]);
+  });
+
+  it("rewriteHook takes no invisible hook: format characters out (an emoji's joiner kept), and a hook with no word is refused", () => {
+    // zero-width space, word joiners, soft hyphen: nothing to read
+    for (const text of ["\u200b", "\u2060\u2060", "\u00ad", "\u200b\u200c\u200d", "🔥🔥"]) {
+      expect([JSON.stringify(text), compileFixes(busy, [fix("rewriteHook", { text })]).ok]).toEqual([JSON.stringify(text), false]);
+    }
+    expect(compileFixes(busy, [fix("rewriteHook", { text: "\u200b" })]).errors).toEqual(["rewriteHook: an empty hook"]);
+    expect(compileFixes(busy, [fix("rewriteHook", { text: "🔥🔥" })]).errors).toEqual(["rewriteHook: no word to read (a hook needs a letter or a digit)"]);
+    // a right-to-left override that would draw the line backwards, a zero-width space inside: taken out, the words drawn as written
+    const n = busy.timing.recordingDuration;
+    for (const text of [`\u202eOut in ${n} seconds?`, `Out in\u200b ${n} seconds?`, `Out\u2066 in ${n}\u2069 seconds?`]) {
+      const { compiled, clip } = apply(busy, [fix("rewriteHook", { text })]);
+      expect([compiled.hook, drawnHookText(clip), clip.hook]).toEqual([`Out in ${n} seconds?`, `Out in ${n} seconds?`, `Out in ${n} seconds?`]);
+    }
+    // an emoji built with a zero-width joiner keeps it
+    expect(visibleText("Can 👩\u200d🚀 get out?")).toBe("Can 👩\u200d🚀 get out?");
+    expect(visibleText("Can\u200d it?")).toBe("Can it?");
+  });
+
+  it("rewriteHook reads a thousands separator as one: '1,000 rings' is a thousand, refused on a clip with none and taken where the run has it", () => {
+    // (one is always a fact: '1,000' read as 1 passed every check, and the skeptic's hookUntrue was refuted)
+    expect(factNumbersOf(busy)).toContain(1);
+    for (const text of ["1,000 rings. Can it escape?", "1.000 rings. Can it escape?", "1 000 rings. Can it escape?"]) {
+      expect(compileFixes(busy, [fix("rewriteHook", { text })]).errors[0]).toMatch(/^rewriteHook: 1000 is not a number this clip has/);
+    }
+    // the same words where the clip has a thousand: taken, drawn, and gate G4 passes
+    const long: CrewClip = { ...busy, timing: { ...busy.timing, recordingDuration: 1000 } };
+    expect(factNumbersOf(long)).toContain(1000);
+    const { clip } = apply(long, [fix("rewriteHook", { text: "1,000 seconds. Can it escape?" })]);
+    expect(clarityOf(clip).gates.find((g) => g.id === "G4")!.ok).toBe(true);
+    // and the drawn "1,000" on a clip whose run has no thousand fails G4 (read as 1, it passed)
+    expect(clarityOf({ ...clip, timing: busy.timing }).gates.find((g) => g.id === "G4")!.ok).toBe(false);
   });
 });
 

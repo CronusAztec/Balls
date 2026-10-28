@@ -8,7 +8,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import { CLARITY } from "./clarity";
 import { factNumbersOf, numbersIn, type CrewClip } from "./clip";
 import { defaultKeptHuds, hudCounts, hudsOn } from "./hudFlags";
-import { SIMPLE_TRAIL_THICKNESS, wordCount, type SimpleOptions } from "./simplicity";
+import { overlaysOf, SIMPLE_TRAIL_THICKNESS, simpleScore, wordCount, type SimpleOptions } from "./simplicity";
 import { CLUTTER_KEYS, FIX_ACTIONS, FIX_BOUNDS, RUN_MOVING_KEYS, type FixAction, type FixId } from "./roles";
 
 /*
@@ -18,9 +18,10 @@ import { CLUTTER_KEYS, FIX_ACTIONS, FIX_BOUNDS, RUN_MOVING_KEYS, type FixAction,
  *  - Look and labels (simplifyLook, turnOff): a settings patch, checked by the AI assistant's own validator
  *    (lib/desktop/ai/settingsPatch.ts validateSettingsPatch: known settings, valid values, the settings loader's last word).
  *  - Text (oneTextAtATime, dropCountdownCaption, rewriteHook): the captions rebuilt. A new hook is drawn through the planner's
- *    own caption builder (lib/bot/planner.ts clipCaptions: its line split and its hook style), refused when it has more than
- *    7 words or 42 characters, a number the clip does not have (clip.ts factNumbersOf), or a line outside the safe zone; the
- *    clip's meta hook becomes the drawn one, so the words and the picture agree (gate G4).
+ *    own caption builder (lib/bot/planner.ts clipCaptions: its line split and its hook style), its invisible format characters
+ *    out (visibleText), refused when it has no word to read, more than 7 words or 42 characters, a number the clip does not
+ *    have (clip.ts factNumbersOf), or a line outside the safe zone; the clip's meta hook becomes the drawn one, so the words and
+ *    the picture agree (gate G4).
  *  - Seed and length (retimePayoff, reseedEarlyMotion, switchEnding, changeLength, and turnOff of a setting that moves the run,
  *    roles.ts RUN_MOVING_KEYS): a FinderNeed the caller hands to the planner's seed search – the crew runs no engine – and the
  *    look and text part is applied to the clip the search returns (applyCompiledFix).
@@ -72,6 +73,16 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const HOOK_END_SEC = (HOOK_SEC.min + HOOK_SEC.max) / 2;
 
 /**
+ * The format characters a hook may not carry (Unicode Cf: zero-width spaces, word joiners, soft hyphens, bidi overrides and
+ * isolates…): drawn, they show nothing, or turn the line around. A zero-width joiner between two emoji stays (it builds one).
+ */
+const INVISIBLE = /(?<![\p{Extended_Pictographic}\p{Emoji_Modifier}\ufe0f])\u200d|\u200d(?!\p{Extended_Pictographic})|(?!\u200d)\p{Cf}/gu;
+/** A text as a viewer reads it: the invisible format characters out (INVISIBLE), the spaces collapsed. */
+export function visibleText(text: string): string {
+  return text.replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
+}
+
+/**
  * The value that switches a clutter setting off, or null when it is off already: a flag false, the shake 0, trails thin,
  * sparks for confetti, a shatter for a confetti wall break, no Power Layers badge, an empty label line.
  */
@@ -96,9 +107,27 @@ export function offValueOf(key: string, s: SimulatorSettings): unknown {
   }
 }
 
-/** The clutter keys that are on in these settings (what turnOff may name for this clip). */
-export function clutterOn(s: SimulatorSettings): (keyof SimulatorSettings & string)[] {
-  return CLUTTER_KEYS.filter((k) => offValueOf(k, s) !== null);
+/** A clip with one clutter setting switched to `value` (the Top and Bottom Text in the clip's copy too). */
+function withSetting(clip: CrewClip, key: string, value: unknown): CrewClip {
+  return { ...clip, settings: { ...clip.settings, [key]: value }, topText: key === "topText" && typeof value === "string" ? value : clip.topText, bottomText: key === "bottomText" && typeof value === "string" ? value : clip.bottomText };
+}
+
+/** What the rules see of a clip's clutter: its Simple deductions and the messages on screen (simplicity.ts). */
+function clutterSeen(clip: CrewClip, simple: SimpleOptions = {}): string {
+  return JSON.stringify([simpleScore(clip, simple).deductions, overlaysOf(clip)]);
+}
+
+/**
+ * The clutter keys this clip draws (what turnOff may name for it): on in its settings, and drawn – switched off, they change the
+ * messages on screen or the Simple score. So a HUD flag counts only in its own modes and while its own rule shows it (hudsOn),
+ * a wall effect only where the mode has ring walls, a trail effect only with trails on, a label line only with words in it.
+ */
+export function clutterOn(clip: CrewClip, options: FixOptions = {}): (keyof SimulatorSettings & string)[] {
+  const seen = clutterSeen(clip, options.simple);
+  return CLUTTER_KEYS.filter((k) => {
+    const off = offValueOf(k, clip.settings);
+    return off !== null && clutterSeen(withSetting(clip, k, off), options.simple) !== seen;
+  });
 }
 
 /** The calm look of simplifyLook: every charged effect off, thin trails, and the HUD flags the clip does not keep. */
@@ -189,6 +218,11 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
           errors.push(`turnOff: ${a.key} is off already`);
           break;
         }
+        // (on in the settings, but not drawn here: another mode's HUD, a wall effect without ring walls – a fix that changes nothing)
+        if (clutterSeen(withSetting(clip, a.key, off), options.simple) === clutterSeen(clip, options.simple)) {
+          errors.push(`turnOff: ${a.key} changes nothing on screen in this clip`);
+          break;
+        }
         if (RUN_MOVING_KEYS.includes(a.key)) {
           // (it moves the run: the seed is run again with it off, before the rest applies)
           if (collectNeed) {
@@ -245,9 +279,13 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
         break;
       }
       case "rewriteHook": {
-        const text = sanitizeCaptionText(a.text, FIX_BOUNDS.hookChars + 1);
+        const text = visibleText(sanitizeCaptionText(a.text, FIX_BOUNDS.hookChars + 1));
         if (!text) {
           errors.push("rewriteHook: an empty hook");
+          break;
+        }
+        if (wordCount(text) < 1) {
+          errors.push("rewriteHook: no word to read (a hook needs a letter or a digit)");
           break;
         }
         if (Array.from(text).length > FIX_BOUNDS.hookChars) errors.push(`rewriteHook: at most ${FIX_BOUNDS.hookChars} characters`);

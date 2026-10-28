@@ -58,8 +58,11 @@ export const REVIEW_FIXES = ["simplifyLook", "oneTextAtATime", "dropCountdownCap
 /** What became of the fixes: applied (the clip kept is the fixed one), reverted (it made things worse), offered (after a render: "Make the fixed version"), refused (they did not compile). */
 export const REVIEW_FIX_STATES = ["applied", "reverted", "offered", "refused"] as const;
 export type ReviewFixState = (typeof REVIEW_FIX_STATES)[number];
-/** Why a clip was not reviewed: the budget ran out, enough clips were kept, the cap on reviewed candidates, a cancel. */
-export const REVIEW_NOT_REVIEWED = ["budget", "enough", "cap", "cancelled"] as const;
+/**
+ * Why a clip was not reviewed: the budget ran out, enough clips were kept, the cap on reviewed candidates, a cancel, or a model
+ * whose replies stayed invalid (broken: the rules alone looked, and found nothing to drop it for).
+ */
+export const REVIEW_NOT_REVIEWED = ["budget", "enough", "cap", "cancelled", "broken"] as const;
 export type ReviewNotReviewed = (typeof REVIEW_NOT_REVIEWED)[number];
 export const REVIEW_ROLES = ["skeptic", "viewer", "reviewer"] as const;
 export type ReviewRole = (typeof REVIEW_ROLES)[number];

@@ -68,8 +68,9 @@ import {
  *     the screen view), the skeptic, the evidence check (code), the reviewer – at Quick only where something is in doubt (a
  *     confirmed objection, a major opinion, Playbook or Simple below 80) – and one fix round (code: fixes.ts; a fix that makes a
  *     gate fail or lowers the pick score is reverted, and no model is asked again);
- *  5. the stop rule: no new candidate once N are kept with medium confidence or more, or 5 were reviewed, or the budget is
- *     spent – the rest are "not reviewed" (the picker takes them only to fill the N, never as seen);
+ *  5. the stop rule: no new candidate once N are kept with medium confidence or more (a model's: a keep the rules alone
+ *     weighed never counts), or 5 were reviewed, or the budget is spent – the rest are "not reviewed" (the picker takes them
+ *     only to fill the N, never as seen);
  *  6. pick (code: pick.ts), then the producer's words for the kept clips (or the template's own, "copy from the template").
  * After a render (stage "post"), per saved clip: the rules again on what the render measured, the viewer's look, makesSense
  * by code, and the reviewer only when the rules, the read or the facts disagree (always at Thorough). A fix is offered there
@@ -78,11 +79,13 @@ import {
  * The rules are never overruled: a failed gate cannot be kept (checkReview refuses the reply, the picker never picks it), a
  * refuted objection is dropped before the reviewer sees it, a confirmed one must be accepted with a fix or the clip dropped.
  * A role whose replies stay invalid (more than maxRetries in a row), or that the budget no longer covers, falls back to the
- * rules for that step, labelled so ("rules only"). Every call and every retry counts against the caps; the time and the cost are
- * the caller's to report (the panel has no clock). A cancel ends the run at the next step and queues nothing. A run may leave
- * roles out (`off`: the role eval measures each role against the rules alone, eval.ts): an off role is never asked – the
- * skeptic and the viewer are skipped, the reviewer's place, the producer's, the researcher's and the brainstormer's are the
- * rules', each labelled "off".
+ * rules for that step, labelled so ("rules only"). When no model answered any of a clip's roles that way – a broken skeptic
+ * before a render, a broken or out-of-budget viewer after one – a keep by the rules is "not reviewed" ("broken", "budget"),
+ * like a clip the budget never reached: never passed off as seen (a drop by the rules stands). Every call and every retry
+ * counts against the caps; the time and the cost are the caller's to report (the panel has no clock). A cancel ends the run at
+ * the next step and queues nothing. A run may leave roles out (`off`: the role eval measures each role against the rules
+ * alone, eval.ts): an off role is never asked – the skeptic and the viewer are skipped, the reviewer's place, the producer's,
+ * the researcher's and the brainstormer's are the rules', each labelled "off".
  *
  * Roles exchange validated JSON only: the reviewer reads the skeptic's objections and the viewer's read as data (never their
  * notes), the skeptic never sees an idea's angle or the producer's words, and the viewer reads the screen view alone.
@@ -419,6 +422,25 @@ const templateOf = (clip: CrewClip) => clip.template ?? clip.recipe ?? clip.mode
 /** A clip the crew keeps: a keep, or a fix (applied, or reverted with nothing major left standing). */
 const kept = (c: PanelClip) => c.verdict === "keep" || c.verdict === "fix";
 
+type RuleFix = PanelClip["ruleFix"][number];
+/** The measure step's rule fix (a failed G5 or G6): the calm look, then one text at a time. */
+const RULE_FIXES: readonly RuleFix[] = ["simplifyLook", "oneTextAtATime"];
+
+/** The rule fix's actions applied to a clip in order; one that does not apply there (a look calm already) is left out. */
+function withRuleFix(start: CrewClip, actions: readonly RuleFix[], simple: SimpleOptions): { clip: CrewClip; applied: RuleFix[] } {
+  let clip = start;
+  const applied: RuleFix[] = [];
+  for (const action of actions) {
+    const compiled = compileFixes(clip, [{ action }], { simple });
+    const fixed = compiled.ok ? applyCompiledFix(clip, compiled, { simple }) : null;
+    if (fixed) {
+      clip = fixed;
+      applied.push(action);
+    }
+  }
+  return { clip, applied };
+}
+
 /** The candidates measured (step 3): the rule fix where G5 or G6 fails, a drop on any other failure (before a render), ranked. */
 function measured(s: PanelState, candidates: readonly PanelCandidate[]): PanelState {
   let clips = candidates.map(candidateClip);
@@ -428,16 +450,7 @@ function measured(s: PanelState, candidates: readonly PanelCandidate[]): PanelSt
       let c = pc;
       const failing = failedGates(c.clarity);
       if (failing.some((g) => g === "G5" || g === "G6")) {
-        const applied: ("simplifyLook" | "oneTextAtATime")[] = [];
-        let clip = c.clip;
-        for (const action of ["simplifyLook", "oneTextAtATime"] as const) {
-          const compiled = compileFixes(clip, [{ action }], { simple: c.simple });
-          const fixed = compiled.ok ? applyCompiledFix(clip, compiled, { simple: c.simple }) : null;
-          if (fixed) {
-            clip = fixed;
-            applied.push(action);
-          }
-        }
+        const { clip, applied } = withRuleFix(c.clip, RULE_FIXES, c.simple);
         if (applied.length) {
           c = { ...c, clip, original: c.clip, clarity: clarityOf(clip, c.simple), ruleFix: applied };
           next = log(next, `measure ${c.id}: rule fix ${applied.join(" + ")}`);
@@ -457,6 +470,24 @@ function measured(s: PanelState, candidates: readonly PanelCandidate[]): PanelSt
   return { ...next, clips };
 }
 
+/**
+ * Why no model looked at a clip although the run asked one to: the first of its roles the rules answered for because its replies
+ * stayed invalid, the budget ran out or the run was cancelled during its retries; null when a model answered one of its roles,
+ * or the run left them to the rules on purpose (Rules only, roles off).
+ */
+function unseenWhy(c: PanelClip): ReviewNotReviewed | null {
+  const runs = [c.skeptic, c.viewer, c.reviewer];
+  if (runs.some((r) => r.source === "model")) return null;
+  for (const r of runs) if (r.source === "rules" && (r.why === "broken" || r.why === "budget" || r.why === "cancelled")) return r.why;
+  return null;
+}
+
+/** A keep no model looked at (unseenWhy) is "not reviewed": the picker takes it only to fill the N, never as seen. A drop stands. */
+function unlessUnseen(c: PanelClip): PanelClip {
+  const why = c.verdict === "keep" ? unseenWhy(c) : null;
+  return why ? { ...c, verdict: "notReviewed", notReviewed: why, confidence: null } : c;
+}
+
 /** The rules' verdict where no reviewer answered (see the header): a gate, a standing confirmed major objection, a misread after a render. */
 function rulesVerdict(s: PanelState, c: PanelClip, why: string): PanelClip {
   const fails = failedGates(c.clarity);
@@ -464,7 +495,7 @@ function rulesVerdict(s: PanelState, c: PanelClip, why: string): PanelClip {
   if (fails.length) return { ...c, verdict: "drop", dropWhy: `gate:${fails[0]}`, confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
   if (confirmed) return { ...c, verdict: "drop", dropWhy: `objection:${confirmed.kind}`, confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
   if (s.stage === "post" && c.makesSense === "no") return { ...c, verdict: "drop", dropWhy: "misread", confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
-  return { ...c, verdict: "keep", confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } };
+  return unlessUnseen({ ...c, verdict: "keep", confidence: null, reviewer: { ...c.reviewer, source: c.reviewer.source ?? "rules", why: c.reviewer.why ?? why } });
 }
 
 /** Whether a clip needs the reviewer at this depth (see the header). */
@@ -556,7 +587,8 @@ function reviewStep(s: PanelState): PanelState {
   }
   if (!pre && c.skeptic.source === null) return withClip(s, c.id, (x) => ({ ...x, skeptic: { ...x.skeptic, source: "skipped", why: "post" } }));
   if (c.reviewer.source === null) {
-    if (!reviewerNeeded(s, c)) return finishClip(s, c.id, (x) => ({ ...x, reviewer: { ...x.reviewer, source: "skipped", why: "quick" }, verdict: "keep", confidence: "medium" }));
+    // (nothing in doubt: a keep – unless no model looked at all, its skeptic or its viewer broken or out of budget)
+    if (!reviewerNeeded(s, c)) return finishClip(s, c.id, (x) => unlessUnseen({ ...x, reviewer: { ...x.reviewer, source: "skipped", why: "quick" }, verdict: "keep", confidence: "medium" }));
     if (roleOff(s, "reviewer")) return finishClip(s, c.id, (x) => rulesVerdict(s, x, "off"));
     if (canCall(s)) return call(s, "reviewer", c.id);
     return finishClip(s, c.id, (x) => rulesVerdict(s, x, "budget"));
@@ -578,8 +610,9 @@ function stopWhy(s: PanelState): ReviewNotReviewed | null {
   if (s.cancelled) return "cancelled";
   if (s.depth === "rules") return null;
   if (s.stage === "pre") {
-    // (the keeps the picker can take: two of one template count once in a small batch)
-    const confident = s.clips.filter((c) => c.status === "done" && kept(c) && c.confidence !== "low").map(pickCandidateOf);
+    // (the keeps the picker can take: two of one template count once in a small batch; a keep only the rules weighed is no
+    // confident one – medium confidence or more, from a model)
+    const confident = s.clips.filter((c) => c.status === "done" && kept(c) && (c.confidence === "medium" || c.confidence === "high")).map(pickCandidateOf);
     if (pick(confident, s.wanted, { namedTemplate: !!s.request?.namedTemplate }).keeps.length >= s.wanted) return "enough";
     const reviewed = s.clips.filter((c) => c.status !== "waiting" && c.verdict !== "notReviewed" && c.dossier !== null).length;
     if (reviewed >= s.caps.maxCandidates) return "cap";
@@ -690,7 +723,7 @@ const SKEPTIC_USER = "Judge the clip in the dossier.";
 
 function reviewShape(c: PanelClip): ReviewShape {
   const st = standing(c.marks);
-  return { objections: st.map((m) => m.id), viewer: c.viewer.source !== "model" || !c.viewer.result ? "none" : c.makesSense !== "yes" ? "misread" : "read", clutter: clutterOn(c.clip.settings) };
+  return { objections: st.map((m) => m.id), viewer: c.viewer.source !== "model" || !c.viewer.result ? "none" : c.makesSense !== "yes" ? "misread" : "read", clutter: clutterOn(c.clip, { simple: c.simple }) };
 }
 
 function reviewerUser(s: PanelState, c: PanelClip): string {
@@ -702,7 +735,7 @@ function reviewerUser(s: PanelState, c: PanelClip): string {
     `The viewer's read (JSON): ${viewer ? JSON.stringify(viewer) : "none (no viewer looked)"}`,
     `Stage: ${s.stage === "pre" ? "before the render (a fix is applied and measured again)" : "after the render (a fix is offered as a new version)"}.`,
     `Research: ${briefText(s.brief, BRIEF_CHARS.reviewer)}`,
-    `turnOff may name: ${clutterOn(c.clip.settings).join(", ") || "nothing (all off)"}.`,
+    `turnOff may name: ${clutterOn(c.clip, { simple: c.simple }).join(", ") || "nothing (all off)"}.`,
   ].join("\n");
 }
 
@@ -954,7 +987,11 @@ export function applyCandidates(state: PanelState, candidates: readonly PanelCan
   return measured({ ...s, pending: null, phase: "review" }, candidates);
 }
 
-/** The seed search's clip for a fix (null: it found none): the fix's look and text applied to it, then judged by the rules. */
+/**
+ * The seed search's clip for a fix (null: it found none): the measure step's rule fix again (the search plans in the template's
+ * own look, so the clip comes back as the reviewed one stood before its rule fix), then the fix's look and text, then judged by
+ * the rules – against the clip the reviewer saw, never against a look it did not have.
+ */
 export function applyReplan(state: PanelState, clipId: string, clip: CrewClip | null): PanelState {
   const s = advance(state);
   if (s.pending?.kind !== "replan" || s.pending.clipId !== clipId) return s;
@@ -962,7 +999,29 @@ export function applyReplan(state: PanelState, clipId: string, clip: CrewClip | 
   const fix = c.fix!;
   const next = { ...s, pending: null };
   if (!clip) return judged(next, clipId, null, { ...fix, state: "applied" });
-  return judged(next, clipId, applyCompiledFix(clip, fix.compiled!, { simple: c.simple }), { ...fix, state: "applied" });
+  const base = c.ruleFix.length ? withRuleFix(clip, c.ruleFix, c.simple).clip : clip;
+  return judged(next, clipId, applyCompiledFix(base, fix.compiled!, { simple: c.simple }), { ...fix, state: "applied" });
+}
+
+/**
+ * Clips rendered after a post-render panel began (stage "post"): one with a new id joins as a candidate, one rendered again (a
+ * new clip under an id the panel has) starts over in its place, and each brings its own calls (defaultCalls). The clips the
+ * panel looked at keep their look; a panel that was done takes the review up again. Before a render it changes nothing.
+ */
+export function joinCandidates(state: PanelState, candidates: readonly PanelCandidate[]): PanelState {
+  if (state.stage !== "post" || candidates.length === 0) return state;
+  const fresh = measured({ ...state, clips: [] }, candidates.map((c, i) => ({ ...c, order: c.order ?? state.clips.length + i }))).clips;
+  const ids = new Set(fresh.map((c) => c.id));
+  const stale = state.current !== null && ids.has(state.current);
+  const next: PanelState = {
+    ...state,
+    clips: [...state.clips.filter((c) => !ids.has(c.id)), ...fresh],
+    caps: { ...state.caps, maxCalls: state.caps.maxCalls + defaultCalls("post", state.depth, fresh.length) },
+    current: stale ? null : state.current,
+    pending: stale || (state.pending?.kind === "call" && state.pending.clipId !== null && ids.has(state.pending.clipId)) ? null : state.pending,
+    phase: state.phase === "done" ? "review" : state.phase,
+  };
+  return log(next, `joined after the render: ${fresh.map((c) => c.id).join(", ")}`);
 }
 
 /** Cancels the run: it ends at the next step and queues nothing. */

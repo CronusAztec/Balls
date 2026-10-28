@@ -273,6 +273,48 @@ describe("the evidence check and the reviewer", () => {
     expect(needs[0]).toEqual({ ending: "resolved", bucket: late.bucket, targetPos: 0.85, firstImpactMaxSec: null, settings: {}, actions: ["retimePayoff"] });
   });
 
+  it("turnOff may name only what the clip draws: another mode's HUD never answers a confirmed objection", () => {
+    // (a calm ring escape with a few effects back: Simple below 80, and every mode's HUD flag on in its settings)
+    const busyish = fresh({ ...calmRing, settings: { ...calmRing.settings, screenShake: 0.3, showWallGlow: true, colorTrail: true, rainbowWalls: true, rainbowBall: true, reactiveBackground: true } });
+    expect([busyish.settings.sbHud, busyish.settings.flHud]).toEqual([true, true]);
+    let s = createPanel({ stage: "pre", wanted: 1, candidates: [{ id: "b1", clip: busyish }] });
+    s = applyVerdict(nextStep(s).state, { role: "skeptic", clipId: "b1", reply: { ...NOTHING, objections: [{ id: "o1", kind: "tooBusy", evidence: ["score.simple"], severity: "major", note: "" }] } }).state;
+    expect(clip(s, "b1").marks[0].mark).toBe("confirmed");
+    const step = nextStep(s);
+    const brief = (step.step as { brief: RoleBrief }).brief;
+    expect(brief.role).toBe("reviewer");
+    const drawn = "showWallGlow, colorTrail, rainbowWalls, rainbowBall, reactiveBackground, screenShake, cinematicEnabled";
+    expect(brief.user).toContain(`turnOff may name: ${drawn}.`);
+    const turnOff = (key: string) => ({ verdict: "fix", confidence: "high", answers: [{ objection: "o1", accept: true, reason: null, fix: { action: "turnOff", key } }], viewerAnswer: null, fixes: [], why: "one thing less" });
+    const noop = applyVerdict(step.state, { role: "reviewer", clipId: "b1", reply: turnOff("sbHud") });
+    expect(noop.ok).toBe(false);
+    expect(noop.errors.join(" ")).toMatch(/sbHud|must be one of/);
+    // a key the clip draws answers it, and the fix round applies it
+    const real = applyVerdict(noop.state, { role: "reviewer", clipId: "b1", reply: turnOff("reactiveBackground") });
+    expect(real.ok).toBe(true);
+    const b = clip(nextStep(real.state).state, "b1");
+    expect([b.verdict, b.fix?.state, b.clip.settings.reactiveBackground]).toEqual(["fix", "applied", false]);
+  });
+
+  it("a seed-search fix on a clip the measure step fixed comes back in the template's look: the rule fix again, then judged on its merits", async () => {
+    // the bot's busy look fails G6 and gets the rule fix; the seed search plans in that same busy look
+    expect(failedGates(clarityOf(CLIPS.ring))).toEqual(["G6"]);
+    const script: Script = (brief) => (brief.role === "reviewer" ? { verdict: "fix", confidence: "high", answers: [], viewerAnswer: null, fixes: [{ action: "changeLength", bucket: "short" }], why: "shorter" } : defaults(brief, 1, []));
+    const input: PanelInput = { stage: "pre", depth: "thorough", wanted: 1, candidates: [{ id: "c1", clip: CLIPS.ring }] };
+    // the search hands back the clip's own plan in the busy look: with the rule fix again it is the reviewed clip, so it stands
+    const same = await run(input, script, { replan: () => CLIPS.ring });
+    const a = clip(same.state, "c1");
+    expect([a.ruleFix, a.fix?.state, a.fix?.why, a.clarity.pass]).toEqual([["simplifyLook", "oneTextAtATime"], "applied", null, true]);
+    expect(a.clip).toEqual(createPanel(input).clips[0].clip);
+    // another seed in the busy look: judged by its own scores (here the pick score), never by the look the search planned in
+    const short = withRun(planClip(recipeById("ring-escape")!, 3, "reels", { copy, ending: "resolved", bucket: "short", episode: 3 }));
+    expect(failedGates(clarityOf(short))).toEqual(["G6"]);
+    const other = await run(input, script, { replan: () => short });
+    const b = clip(other.state, "c1");
+    expect([b.fix?.state, b.fix?.why]).toEqual(["reverted", expect.stringMatching(/^pick \d/)]);
+    expect(other.state.log.join("\n")).not.toMatch(/G6 fails/);
+  });
+
   it("a refuted objection never reaches the reviewer, and the reviewer cannot answer it", () => {
     let s = createPanel({ stage: "pre", wanted: 1, candidates: [{ id: "r1", clip: calmRing }], depth: "thorough" });
     let step = nextStep(s);
@@ -339,8 +381,11 @@ describe("the caps and the fallbacks", () => {
     const r = clip(state, "r1");
     expect([r.skeptic.source, r.skeptic.why, r.skeptic.attempts]).toEqual(["rules", "broken", 4]);
     expect(state.log).toContain("skeptic r1: rules only (broken)");
-    expect(r.verdict).toBe("keep");
+    // (no model looked at the clip: the rules find nothing to drop it for, and it is "not reviewed", never a keep)
+    expect([r.verdict, r.notReviewed, r.confidence]).toEqual(["notReviewed", "broken", null]);
+    expect(done(state).keeps).toEqual([{ id: "r1", score: expect.any(Number), reason: "notReviewed" }]);
     const record = clipReviewOf(state, "r1")!;
+    expect([record.verdict, record.notReviewed, record.confidence]).toEqual(["notReviewed", "broken", null]);
     expect(record.roles[0]).toEqual({ role: "skeptic", source: "rules", verdict: null, note: "broken" });
     // a broken reviewer: the rules decide, and say so
     const script: Script = (brief) => (brief.role === "skeptic" ? { ...NOTHING, objections: [{ id: "o1", kind: "notShareable", evidence: ["words.payoff"], severity: "major", note: "" }] } : brief.role === "reviewer" ? "{ not json" : defaults(brief, 1, []));
@@ -348,6 +393,20 @@ describe("the caps and the fallbacks", () => {
     expect(second.seq().filter((x) => x === "reviewer r1").length).toBe(4);
     expect(clip(second.state, "r1").reviewer).toMatchObject({ source: "rules", why: "broken" });
     expect(clip(second.state, "r1").verdict).toBe("keep");
+  });
+
+  it("a keep only the rules weighed (its reviewer broken) is no confident keep: the run goes on to the next candidate", async () => {
+    const script: Script = (brief) => {
+      if (brief.role === "skeptic" && brief.clipId === "c1") return { ...NOTHING, objections: [{ id: "o1", kind: "notShareable", evidence: ["words.payoff"], severity: "major", note: "" }] };
+      if (brief.role === "reviewer") return "{ not json";
+      return defaults(brief, 1, []);
+    };
+    const { state, seq } = await run({ stage: "pre", wanted: 1, candidates: batch() }, script);
+    // (c1: a model's skeptic looked, so the rules' keep stands, but with no confidence it does not stop the run)
+    expect([clip(state, "c1").verdict, clip(state, "c1").confidence, clip(state, "c1").reviewer.why]).toEqual(["keep", null, "broken"]);
+    expect(seq()).toEqual(["skeptic c1", "reviewer c1", "reviewer c1", "reviewer c1", "reviewer c1", "skeptic c2", "producer"]);
+    expect([clip(state, "c2").verdict, clip(state, "c2").confidence]).toEqual(["keep", "medium"]);
+    expect(clip(state, "c4").notReviewed).toBe("enough");
   });
 
   it("Rules only makes no model call, and every record says so", async () => {
@@ -424,6 +483,24 @@ describe("after a render", () => {
     expect(keeps.map((k) => k.id).sort()).toEqual(["s1", "s2"]);
     expect(keeps[0].score).toBeGreaterThanOrEqual(keeps[1].score);
     expect(done(state).drops.map((k) => k.id)).toEqual(["s3"]);
+  });
+
+  it("a viewer whose replies stay invalid until the budget ends, or until it is broken, leaves the clip not reviewed: no model looked", async () => {
+    const script: Script = (brief, attempt) => (brief.role === "viewer" ? "not json at all" : defaults(brief, attempt, []));
+    // the default budget after a render (two calls a clip) ends during the viewer's retries
+    const short = await run({ stage: "post", candidates: [{ id: "s1", clip: rendered(calmRing) }] }, script);
+    expect(short.seq()).toEqual(["viewer s1", "viewer s1"]);
+    const s1 = clip(short.state, "s1");
+    expect([s1.viewer.source, s1.viewer.why, s1.verdict, s1.notReviewed, s1.confidence]).toEqual(["rules", "budget", "notReviewed", "budget", null]);
+    expect(done(short.state).keeps).toEqual([{ id: "s1", score: expect.any(Number), reason: "notReviewed" }]);
+    expect(clipReviewOf(short.state, "s1")).toMatchObject({ verdict: "notReviewed", notReviewed: "budget", confidence: null });
+    // the same as a clip the budget never reached (s2)
+    const two = await run({ stage: "post", candidates: [{ id: "s1", clip: rendered(calmRing) }, { id: "s2", clip: rendered(calmRing) }], caps: { maxCalls: 4 } }, script);
+    expect(two.seq()).toEqual(["viewer s1", "viewer s1", "viewer s1", "viewer s1"]);
+    expect(["s1", "s2"].map((id) => [clip(two.state, id).verdict, clip(two.state, id).notReviewed])).toEqual([["notReviewed", "broken"], ["notReviewed", "budget"]]);
+    // a failed gate still drops the clip on the rules alone
+    const late = await run({ stage: "post", candidates: [{ id: "s3", clip: rendered(calmRing, { features: features(2.2) }) }], caps: { maxCalls: 10 } }, script);
+    expect([clip(late.state, "s3").verdict, clip(late.state, "s3").dropWhy]).toEqual(["drop", "gate:G1"]);
   });
 
   it("a clip the budget does not reach is not reviewed, never passed off as seen", async () => {

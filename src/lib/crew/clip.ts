@@ -313,14 +313,26 @@ export function factNumbersOf(clip: Pick<CrewClip, "recipe" | "settings" | "timi
 }
 
 /**
- * The numbers a text states: digits, with a decimal point or comma. A number glued to a letter before it ("x2", "ep12") or
+ * A number as a text writes it: digits in groups of three with one separator throughout ("1,000", "1.000", "2 500" with a
+ * space, a no-break or a thin space, "1'000") and a decimal part after them in the other mark ("12,345.6", "1.234,5"); else
+ * digits with a decimal point or comma ("1,5", "2.5"); then a glued k or M ("10k", "2.5M") that multiplies it.
+ * (lead) (grouped: first group, separator, the rest; its decimal mark and digits) (plain) (suffix)
+ */
+const NUMBER_RE = /(^|[^\p{L}\p{N}.,])(?:([1-9]\d{0,2}([,.'\u2019\u00a0\u202f\u2009 ])\d{3}(?:\3\d{3})*)(?:(?!\3)[.,](\d+))?|(\d+(?:[.,]\d+)?))(?!\p{N})([kKM](?![\p{L}\p{N}]))?/gu;
+const MAGNITUDE: Readonly<Record<string, number>> = { k: 1e3, K: 1e3, M: 1e6 };
+
+/**
+ * The numbers a text states, as a reader reads them: "1,000", "1.000" and "1 000" are a thousand, "2,500" is 2500, "1,5" and
+ * "1.5" are one and a half, "10k" is ten thousand (see NUMBER_RE). A number glued to a letter before it ("x2", "ep12") or
  * after a multiplication sign ("×4") is a label, not a count, and is left out.
  */
 export function numbersIn(text: string): number[] {
   const out: number[] = [];
-  for (const m of text.matchAll(/(^|[^\p{L}\p{N}.,])(\d+(?:[.,]\d+)?)/gu)) {
+  for (const m of text.matchAll(NUMBER_RE)) {
     if (m[1] === "×") continue;
-    out.push(Number(m[2].replace(",", ".")));
+    const n = m[2] !== undefined ? Number(`${m[2].replace(/\D/g, "")}${m[4] !== undefined ? `.${m[4]}` : ""}`) : Number(m[5].replace(",", "."));
+    const value = m[6] ? n * MAGNITUDE[m[6]] : n;
+    if (finite(value)) out.push(Math.round(value * 1e6) / 1e6);
   }
   return out;
 }

@@ -46,6 +46,7 @@ import {
   failedGates,
   fixtureOfJson,
   intentView,
+  joinCandidates,
   nextEvalAsk,
   nextStep,
   panelDecision,
@@ -355,7 +356,7 @@ export function scoreOfCrewClip(clip: CrewClip) {
     simple: { score: c.simple.score, band: bandOf(c.simple.score), deductions: c.simple.deductions },
     playbook: { score: c.playbook.score, reasons: c.playbook.reasons.map((r) => ({ id: r.id, points: r.points, max: r.max, key: r.key, values: r.values })) },
     pick: r3(pickScore(c.playbook.score, c.simple.score, null)),
-    clutter: clutterOn(clip.settings),
+    clutter: clutterOn(clip),
   };
 }
 
@@ -768,7 +769,21 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     // --- studio --- an open request's ideas are planned in the world it names, on a later call that names none: kept here
     if (stage === "pre" && !ctx.plan?.plans.length && state.request?.open) file = { ...file, world: input.world ?? DEFAULT_BOT_WORLD };
     notes.push(`the ${stage === "pre" ? "pre-render" : "post-render"} panel starts: depth ${state.depth}, ${state.clips.length || "no"} candidates yet, ${state.wanted} wanted, roles ${state.separation === "contexts" ? "each in a context of its own" : "in one context (the record says so)"}`);
-  } else if (input.depth !== undefined && input.depth !== state.depth) notes.push(`depth ${input.depth} applies when a stage starts: this panel runs at ${state.depth} (restart to change it)`);
+  } else {
+    if (input.depth !== undefined && input.depth !== state.depth) notes.push(`depth ${input.depth} applies when a stage starts: this panel runs at ${state.depth} (restart to change it)`);
+    // --- studio --- a kept clip rendered after the post-render panel began, or rendered again since, joins it for its own look
+    if (stage === "post") {
+      const looked = state;
+      const late = ctx.rendered.filter((r) => {
+        const pc = looked.clips.find((c) => c.id === r.clip);
+        return !pc || JSON.stringify(pc.clip) !== JSON.stringify(r.crew);
+      });
+      if (late.length) {
+        state = joinCandidates(state, late.map((r) => ({ id: r.clip, clip: r.crew, post: null, order: ctx.rendered.indexOf(r) })));
+        notes.push(`rendered since the post-render panel began: ${late.map((r) => r.clip).join(", ")} (each gets its own look now)`);
+      }
+    }
+  }
   if (input.world !== undefined && (stage !== "pre" || !!ctx.plan?.plans.length || !state.request?.open)) notes.push("world applies to an open request's ideas when its panel starts: these clips were planned in their own world (plan.json)");
   else if (input.world !== undefined && file.world && (file.world.width !== input.world.width || file.world.height !== input.world.height)) notes.push(`world applies when the panel starts: its ideas are planned in ${file.world.width} × ${file.world.height} (restart to change it)`);
   let accepted: { role: string; clip: string | null; ok: boolean; errors: string[] } | null = null;
@@ -830,7 +845,13 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     }
     file = { ...file, records: { ...file.records, [stage]: records } };
     if (stage === "pre") result.render = d.keeps.map((k) => ({ clip: k.id, call: { plan: `.agent-out/studio/${ctx.studio}/plan.json`, clip: k.id } }));
-    else result.after = "Every rendered clip has its look: post.txt has the words and the crew's lines; panel.json every role's verdict.";
+    else {
+      // (only what is true: a clip no model looked at is named, never counted among the looked-at ones)
+      const unseen = state.clips.filter((c) => c.verdict === "notReviewed");
+      result.after = unseen.length
+        ? `${state.clips.length - unseen.length} of ${state.clips.length} rendered clips have their look; not reviewed: ${unseen.map((c) => `${c.id} (${c.notReviewed ?? "budget"})`).join(", ")}. post.txt says so; review again with "restart":true to try once more.`
+        : "Every rendered clip has its look: post.txt has the words and the crew's lines; panel.json every role's verdict.";
+    }
   }
   result.clips = state.clips.map(clipLine);
   if (notes.length) result.notes = notes;
@@ -842,6 +863,22 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
 /* ------------------------------------------------------------------ post.txt */
 
 const fmtScore = (c: PanelClip) => `Simple ${c.clarity.simple.score}, Playbook ${c.clarity.playbook.score}`;
+
+/** Why a clip was not reviewed, in words (lib/crew/review.ts REVIEW_NOT_REVIEWED). */
+const NOT_REVIEWED_WORDS: Readonly<Record<NonNullable<PanelClip["notReviewed"]>, string>> = {
+  budget: "the budget ran out",
+  enough: "enough clips were kept",
+  cap: "the cap on reviewed clips",
+  cancelled: "cancelled",
+  broken: "the model's replies stayed invalid",
+};
+
+/** A clip's verdict in post.txt: "not reviewed" with why, and "rules only" when no model answered any of its roles. */
+function verdictWords(c: PanelClip, confidence: boolean): string {
+  if (c.verdict === null) return "not yet";
+  const verdict = c.verdict === "notReviewed" ? `not reviewed (${NOT_REVIEWED_WORDS[c.notReviewed ?? "budget"]})` : `${c.verdict}${confidence && c.confidence ? ` (${c.confidence})` : ""}`;
+  return [c.skeptic, c.viewer, c.reviewer].some((r) => r.source === "model") ? verdict : `${verdict}, rules only: no model looked at it`;
+}
 
 /** post.txt: the kept clips' words to post (the producer's, or the template's) with the crew's lines before and after the render. */
 export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | null): string {
@@ -866,11 +903,11 @@ export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | nul
     if (words) {
       lines.push(`File name: ${words.name}`, `Title: ${words.title}`, `Caption: ${words.caption}`, `Hashtags: ${words.hashtags.join(" ")}`);
     } else if (c.post) lines.push(`Title: ${c.post.title}`, `Caption: ${c.post.caption}`, `Hashtags: ${c.post.hashtags.join(" ")}`);
-    lines.push(`Crew before the render: ${c.verdict}${c.confidence ? ` (${c.confidence})` : ""}${c.fix ? `, fix ${c.fix.state} (${c.fix.actions.map((a) => a.action).join(", ")})` : ""}, ${fmtScore(c)}`);
+    lines.push(`Crew before the render: ${verdictWords(c, true)}${c.fix ? `, fix ${c.fix.state} (${c.fix.actions.map((a) => a.action).join(", ")})` : ""}, ${fmtScore(c)}`);
     const pc = post?.clips.find((x) => x.id === k.id);
     if (pc) {
       const v = pc.viewer.result;
-      lines.push(`Crew after the render: ${pc.verdict ?? "not yet"}${pc.notReviewed ? ` (not reviewed: ${pc.notReviewed})` : ""}${v ? `, the viewer read "${v.whatHappens}" (makes sense: ${pc.makesSense}), would watch to the end: ${v.watchToEnd}` : ""}${pc.fix ? `, fix offered (${pc.fix.actions.map((a) => a.action).join(", ")}): plan it again to make the fixed version` : ""}, ${fmtScore(pc)}`);
+      lines.push(`Crew after the render: ${verdictWords(pc, false)}${v ? `, the viewer read "${v.whatHappens}" (makes sense: ${pc.makesSense}), would watch to the end: ${v.watchToEnd}` : ""}${pc.fix ? `, fix offered (${pc.fix.actions.map((a) => a.action).join(", ")}): plan it again to make the fixed version` : ""}, ${fmtScore(pc)}`);
       lines.push(`Video: .agent-out/studio/${file.studio}/${k.id}/`);
     } else lines.push(`Not rendered yet: render {"plan":".agent-out/studio/${file.studio}/plan.json","clip":"${k.id}"}`);
     lines.push("");

@@ -69,15 +69,18 @@ argument.
    `"separation":"contexts"` when the panel starts; otherwise the record says the roles shared one context.
 5. `npm run -s agent -- render --json '{"plan":".agent-out/studio/rings/plan.json","clip":"…"}'` for each kept clip.
 6. Look at each clip's sheet.png and hook-sheet.png, then review again with `"stage":"post"`: the viewer reads the clip from
-   what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree.
+   what is on screen alone, and the reviewer steps in where the rules, the read or the facts disagree. A keep rendered later,
+   or rendered again, joins the post-render panel on the next call and gets its own look.
 7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post.
 
 ## How the review holds you to the rules
 
 - **One brief at a time, in the panel's order.** An answer for another role or clip is refused and changes nothing.
 - **The schema is the clip's.** Evidence is dossier keys only, written exactly. Fixes come only from the fixed list of nine,
-  inside their bounds (a new hook has at most 7 words and 42 characters and only numbers the clip has). The reviewer may
-  answer only the objections that still stand.
+  inside their bounds (a new hook has a word to read, at most 7 words and 42 characters, and only numbers the clip has, read
+  as a viewer reads them: "1,000" is a thousand; invisible format characters are taken out). turnOff names only an effect,
+  HUD or label the clip draws, and one that changes nothing on screen is refused. The reviewer may answer only the
+  objections that still stand.
 - **Facts first.** Each objection is marked confirmed, refuted (dropped, with the fact that refutes it in the log) or
   opinion (half weight, never a blocker, standing only at major or fatal). A confirmed objection cannot be rejected, and a
   clip that fails a gate is never kept.
@@ -87,8 +90,9 @@ argument.
   its own payoff band, so a payoff target outside it is rarely met, and the fix is then reverted.
 - **Retries count.** A refused answer comes back with its errors. After 3 refusals in a row the rules answer for that role,
   labelled so. Every answer, a refused one too, spends a call of the app's budget (after a render two a clip), and once it
-  is spent the rules answer the rest. At most 8 clips a studio; the panel stops once enough are kept and marks the rest
-  "not reviewed".
+  is spent the rules answer the rest. A clip no model answered for (its skeptic, or after the render its viewer, refused
+  until the budget ended or the role broke) is "not reviewed", rules only, never kept as seen. At most 8 clips a studio; the
+  panel stops once enough are kept with a model's medium confidence or more, and marks the rest "not reviewed".
 - **Depth.** `quick` (the default) asks the reviewer only where something is in doubt; `thorough` asks every role about
   every clip; `rules` asks no role at all.
 
@@ -248,9 +252,6 @@ were answered again, and the numbers did not move.
   "SETTLED! All 10 balls at rest". The template's payoff caption ("FREEDOM 🌈", "Final chord. 🎹") shows beside it. Neither
   the Simple score nor the screen view knows these banners. A fix would change the plans or the Simple scores of every such
   template, and with them the role eval's corpus and its recorded run. The owner should first choose which of the two stays.
-- **Every mode's HUD flags under turnOff.** The reviewer's "turnOff may name" lists every HUD flag that is on in the settings
-  (sbHud, tyHud …), even on a clip whose mode draws none of them. A turnOff on one of those changes nothing, so this is noise,
-  not harm. Narrowing it would change the reviewer's brief on every eval clip (125 recorded answers).
 - **Payoffs the settings time.** Power Layers, Pendulum Wave and Polyrhythm time their payoff from the settings, so the
   planner stops simulating after the first impact. Their dossier then says "no first escape in the run" and "no finish in
   the run" beside a payoff at 16.7 s. The evidence check refutes a payoffMissing on them, but a model reads the two lines as a

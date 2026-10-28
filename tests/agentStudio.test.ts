@@ -364,6 +364,56 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     const bare = studio(recs, "u");
     expect(bare.call({ stage: "post" })).toMatchObject({ ok: false, error: expect.stringMatching(/render the kept clips first/) });
   });
+
+  it("a keep rendered after the post-render panel began, or rendered again, joins it for its own look: never 'done' without one", () => {
+    const recs = [...planned({ template: "get-out-classic", count: 1, planSeed: 2 }), ...planned({ template: "line-up-pendulum", count: 1, planSeed: 2 })];
+    const [a, b] = recs.map((r) => r.id);
+    const s = studio(recs);
+    expect(s.call({ depth: "rules", wanted: 2 }).result.status).toBe("done");
+    const rec = (id: string, first = 0.3) => {
+      const job = studioRenderJob(s.plan, s.panel(), id);
+      if (!job.ok) throw new Error(job.error);
+      return studioRenderRecord(job.job, { file: `${id}/clip.webm`, mp4: null, world: job.job.plannedWorld, durationSec: job.job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features: features(first), melodyPlayed: job.job.melodyId, sheet: `${id}/sheet.png`, hookSheet: `${id}/hook-sheet.png` });
+    };
+    const read = (id: string) => ({ stage: "post" as const, role: "viewer" as const, clip: id, verdict: { whatHappens: id === a ? "out" : "inSync", understood: "x", waitingFor: "y", clearBySec: 1, distractions: [], watchToEnd: "yes" } });
+    s.setRendered([rec(a)]);
+    expect(nextOf(s.call({ stage: "post" })).clip).toBe(a);
+    expect(s.call(read(a)).result).toMatchObject({ status: "done", after: expect.stringMatching(/^Every rendered clip has its look/) });
+    // the second keep rendered later: the panel asks the viewer about it, and the first keeps its look
+    s.setRendered([rec(a), rec(b)]);
+    const late = s.call({ stage: "post" });
+    expect(late.result.status).toBe("call");
+    expect(nextOf(late)).toMatchObject({ role: "viewer", clip: b });
+    expect(late.result.notes).toContain(`rendered since the post-render panel began: ${b} (each gets its own look now)`);
+    const both = s.call(read(b));
+    expect(both.result).toMatchObject({ status: "done", after: expect.stringMatching(/^Every rendered clip has its look/) });
+    expect(Object.keys(s.panel()!.records.post).sort()).toEqual([a, b].sort());
+    expect(both.post).not.toMatch(/Not rendered yet/);
+    expect(both.post).toMatch(/the viewer read "inSync"/);
+    // a clip rendered again (another measurement under the same id) gets a new look; nothing new: still done, no call
+    s.setRendered([rec(a), rec(b, 0.5)]);
+    expect(nextOf(s.call({ stage: "post" }))).toMatchObject({ role: "viewer", clip: b });
+    expect(s.call(read(b)).result.status).toBe("done");
+    expect(s.call({ stage: "post" }).result).toMatchObject({ status: "done" });
+    // before the render the rules alone looked: post.txt says so
+    expect(both.post).toMatch(/Crew before the render: keep, rules only: no model looked at it/);
+  });
+
+  it("a viewer whose replies stay invalid until the budget ends leaves the clip 'not reviewed': the tool and post.txt say so", () => {
+    const recs = planned({ template: "get-out-classic", count: 1, planSeed: 2 });
+    const s = studio(recs);
+    s.call({ depth: "rules" });
+    const job = studioRenderJob(s.plan, s.panel(), undefined);
+    if (!job.ok) throw new Error(job.error);
+    s.setRendered([studioRenderRecord(job.job, { file: "f.webm", mp4: null, world: recs[0].plan.world, durationSec: job.job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features: features(0.3), melodyPlayed: job.job.melodyId, sheet: "s.png", hookSheet: "h.png" })]);
+    s.call({ stage: "post" });
+    // (two calls a clip after a render: two invalid replies spend them)
+    expect(s.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: "not json" }).result.status).toBe("call");
+    const out = s.call({ stage: "post", role: "viewer", clip: recs[0].id, verdict: "still not json" });
+    expect(out.result).toMatchObject({ status: "done", after: `0 of 1 rendered clips have their look; not reviewed: ${recs[0].id} (budget). post.txt says so; review again with "restart":true to try once more.` });
+    expect(s.panel()!.records.post[recs[0].id]).toMatchObject({ verdict: "notReviewed", notReviewed: "budget", confidence: null });
+    expect(out.post).toMatch(/Crew after the render: not reviewed \(the budget ran out\), rules only: no model looked at it/);
+  });
 });
 
 describe("research and the prompts (--- studio ---)", () => {

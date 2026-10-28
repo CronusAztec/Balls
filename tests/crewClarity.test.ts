@@ -223,6 +223,20 @@ describe("the facts a hook may state", () => {
     expect(numbersIn("×4 in 1,5 s, ep12 #3 and 37%")).toEqual([1.5, 3, 37]);
   });
 
+  it("reads a thousands separator as one, not as a decimal point: '1,000' is a thousand, never one (always a fact)", () => {
+    expect(numbersIn("Can 1,000 balls escape?")).toEqual([1000]);
+    expect(numbersIn("1.000 kul")).toEqual([1000]);
+    expect(numbersIn("2,500 rings")).toEqual([2500]);
+    expect(numbersIn("2,000,000 rings")).toEqual([2000000]);
+    // the spaces Polish groups with: a plain one, a no-break one, a narrow no-break one
+    expect(["1 000 kul", "1\u00a0000 kul", "1\u202f000 kul"].map(numbersIn)).toEqual([[1000], [1000], [1000]]);
+    expect([numbersIn("12,345.5"), numbersIn("1.234,5")]).toEqual([[12345.5], [1234.5]]);
+    // a decimal stays a decimal: not three digits after the mark, or a leading zero
+    expect([numbersIn("1,5"), numbersIn("2.5"), numbersIn("3,14"), numbersIn("0,500"), numbersIn("1234,567")]).toEqual([[1.5], [2.5], [3.14], [0.5], [1234.567]]);
+    // a glued k or M multiplies
+    expect([numbersIn("10k balls"), numbersIn("2.5M views"), numbersIn("10km")]).toEqual([[10000], [2500000], [10]]);
+  });
+
   it("knows the recipe's hook values, the clip's length and the day", () => {
     const f = factNumbersOf(clean);
     expect(f).toEqual(expect.arrayContaining([1, clean.timing.recordingDuration, clean.settings.wallCount, clean.episode]));
