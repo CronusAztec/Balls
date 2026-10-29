@@ -1523,8 +1523,21 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   melody) and downloads `jumpingballslive-bot-<date>.zip` with the videos (`<episode>-<recipe>-<seed>.mp4|webm`), a caption
   `.txt` each, `manifest.json` and `posting-schedule.md` (`output.ts`). The last plan is kept in localStorage (`store.ts`,
   `jumpingballslive_viral_bot`). Plans are timed for the canvas size they were made in: after a resize the block asks to plan again.
+  --- bot-templates --- (AI studio step 7) Two more controls. **Template** lists the ready viral templates
+  (`src/lib/bot/templates.ts`) of the chosen series as "{Mode name} · {Format name}", grouped by format – the battle family's
+  only under All series and Battle, where the bot already offers them; **Plan clips** then plans that template's clips
+  (`planDaySteps` with `template`: a plan seed per place, `templateDaySlots()`), and **Auto** (the default) keeps the daily
+  rotation exactly. The **Simple look** switch (off by default here; the app, the autopilot and Claude use the Simple look)
+  draws the clips of both buttons in the Simple look. **Why this clip** adds the clip's Simple score and the crew's seven
+  clarity lines (G1–G7, a failed one saying why: `src/lib/bot/clarityLines.ts`, the studio's `clarityOf` on the plan and the
+  run of its seed, followed in slices and loaded only when the lines are opened). Only the panel's two new options join the
+  stored state, and only when they differ from the defaults; an older stored state and its version-1 plan load as they were.
 - **CLI** – `node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
   [--bucket standard] [--ending resolved] [--locale pl] [--dry-run] [--post | --post-only]` (also `npm run bot -- …`). Without `--family` the plan holds escape and rhythm clips only (`--family default`); `--family all` and `--family battle` are the only ways to plan Fight League clips (the legal audit).
+  --- bot-templates --- `--dry-run --template get-out-classic [--look simple]` plans one ready template's clips instead of the
+  rotation, in the look asked for (the template's own Simple look without `--look`; a battle template only with `--family all`
+  or `battle`). Both go with `--dry-run` only: a render plans in the page, the rotation in the bot look, and the licence path
+  is untouched.
   --- fl-overhaul --- (Stage 6) `--plan --date 2026-10-05` prints the recipe rotation of the 7 days from the date (the
   planner's `daySlots()`: no simulation, nothing written). With the
   exported site served (`BASE_URL`), it opens the simulator in headless Chromium, plans through `window.__jumpingBallsBot` in
@@ -1564,9 +1577,13 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   before its first finisher, Power Layers' hook vs its sequence, the series label and the arena scoreboard, the daily rotation,
   the score item by item, the safe zone, captions and hashtags per locale, the manifest, caption files and schedule),
   `tests/instagram.test.ts` (the request builders and the publishing flow with a mocked `fetch`), `tests/botCli.test.ts` (the
-  options, a real `--dry-run` in Node and the WebM → MP4 conversion with a stand-in ffmpeg); the smoke test plans three clips
+  options, a real `--dry-run` in Node and the WebM → MP4 conversion with a stand-in ffmpeg), `tests/botSection.test.ts` (Auto
+  unchanged, a template's day plan, the stored state of an older release, the clarity lines equal to the studio's, their copy
+  in three languages, `--template` and `--look`); the smoke test plans three clips
   in the Bot block, opens their share links (the canvas' `data-seed` is the planned seed), reloads, opens one, keeps an arena
-  game's captions below its scoreboard band, and renders a one-clip short plan into a ZIP it reads back.
+  game's captions below its scoreboard band, and renders a one-clip short plan into a ZIP it reads back; --- bot-templates ---
+  it reads the clarity lines of a clip, and a free visitor picks a template and the Simple switch by keyboard, plans a Simple
+  template clip that keeps both through a reload, and renders it watermarked.
 
 ### Journey
 Feature gerald-journey: a Gerald-family mode in a family of its own (`MODE_CATEGORIES.journey`, the "Journey modes" heading) that strings the other modes' mechanics into one run. The mode is `src/lib/physics/modes/journey.ts`; the stages live in `src/lib/physics/journey/`, one adapter per kind around code that already exists – nothing is simulated twice.

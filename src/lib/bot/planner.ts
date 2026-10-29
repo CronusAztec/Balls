@@ -1634,13 +1634,56 @@ export interface DayOptions extends Omit<PlanOptions, "episode" | "index" | "dat
   family?: BotFamilyChoice;
   /** Anything but "" plans a different set of clips for the same day (the panel's "Plan clips"; "Today's plan" has none). */
   salt?: string;
+  /**
+   * --- bot-templates --- A ready template (templates.ts) whose clips fill the day instead of the rotation (the Bot section's
+   * Template choice, the CLI's --template): every clip of it, at its own place's plan seed (templateDaySlots), in `look` – the
+   * template's own (Simple) when none is named. Absent (Auto): the rotation of daySlots(), exactly as before.
+   */
+  template?: string;
 }
+
+// --- bot-templates ---
+/** One clip of a template's day: its place and its plan seed. */
+export interface TemplateDaySlot {
+  template: string;
+  /** 1-based place in the day. */
+  index: number;
+  planSeed: number;
+}
+
+/**
+ * The plan seeds of `count` clips of one template on day `dayIndex` (pure, no simulation): one per place, drawn as daySlots()
+ * draws a recipe's – the same day, place, template and salt give the same seed, so the same request plans the same clips and a
+ * salt (the panel's "Plan clips") a fresh set.
+ */
+export function templateDaySlots(dayIndex: number, count: number, template: string, salt = ""): TemplateDaySlot[] {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => ({ template, index: i + 1, planSeed: hashString(`day|${dayIndex}|${i}|${template}${salt ? `|${salt}` : ""}`) }));
+}
+// --- end bot-templates ---
 
 /** Plans day `date` ("YYYY-MM-DD", or a Date's local day): the same date gives the same plan. A generator, like planClipSteps. */
 export function* planDaySteps(date: string | Date, platform: BotPlatform, count: number, options: DayOptions): Generator<PlanProgress & { clip: number; clips: number }, DayPlan> {
   const iso = typeof date === "string" ? date.trim() : localIsoDate(date);
   const dayIndex = dayIndexOf(iso);
   const episode = Math.max(1, dayIndex + 1);
+  // --- bot-templates --- a template's clips (its plan seeds, its look); Auto goes on below with the rotation, exactly as before
+  if (options.template) {
+    const template = options.template;
+    const picks = templateDaySlots(dayIndex, clampInt(count, 1, 50), template, options.salt ?? "");
+    const planned: ClipPlan[] = [];
+    for (const slot of picks) {
+      const steps = planTemplateSteps(template, slot.planSeed, platform, { ...options, episode, index: slot.index, date: iso, postingTime: postingTimeFor(platform, slot.index, picks.length) });
+      for (;;) {
+        const next = steps.next();
+        if (next.done) {
+          planned.push(next.value);
+          break;
+        }
+        yield { ...next.value, clip: slot.index, clips: picks.length };
+      }
+    }
+    return { version: BOT_PLAN_VERSION, date: iso, dayIndex, episode, platform, clips: planned };
+  }
   const slots = daySlots(dayIndex, clampInt(count, 1, 50), options.family, options.salt ?? "", resolveBucket(platform, options.bucket));
   const clips: ClipPlan[] = [];
   for (const slot of slots) {

@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useId, useState } from "react";
+import { useMessages, useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, SliderTrack, offBtn, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack)
 import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide track of a clip count ends at its ceiling)
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById, type BotFamily, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE } from "@/lib/bot/store";
-import { reasonValues } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
+import { BOT_COUNT_RANGE, chosenTemplate, templateChoices } from "@/lib/bot/store";
+import { reasonValues, type BotCopy } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
+import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { ModeId } from "@/lib/physics/types";
-import type { BotPanelProps } from "../useViralBot";
+import type { BotClarity, BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
 import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: everyone renders, watermarked without Pro)
@@ -23,6 +24,12 @@ export type { BotPanelProps } from "../useViralBot";
  * the scheduled job make); the planned clips with their recipe, hook, mode, seed, length, ending and score, "why this
  * clip", Open in simulator, Re-roll and Copy caption; "Render all" through the batch renderer into a ZIP. The page side
  * is components/simulator/useViralBot.ts, the planner lib/bot/planner.ts.
+ *
+ * --- bot-templates --- Two more controls: the Template choice ("Plan clips" plans one ready template, lib/bot/templates.ts,
+ * listed as "{Mode name} · {Format name}" and grouped by format, the series' own – the battle family's only under All series
+ * and Battle, where the bot offers it; Auto keeps the daily rotation exactly) and the Simple switch (off by default here: the
+ * Simple look for the clips of both buttons). "Why this clip" adds the clip's Simple score and the crew's clarity lines
+ * (lib/bot/clarityLines.ts), checked when it is opened and kept in memory only.
  */
 
 /** Search keys of the block (added to SECTION_KEYS.recording in Controls.tsx; the label is in the Controls namespace). */
@@ -35,10 +42,45 @@ function modeLabel(t: Translate, mode: ModeId): string {
 
 const scoreTone = (score: number) => (score >= 90 ? "bg-accent text-accent-ink" : score >= 75 ? "bg-warn text-accent-ink" : "bg-danger text-ink");
 
-function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Translate; bot: BotPanelProps }) {
+// --- bot-templates --- the clarity lines of "Why this clip": the Simple score, then each gate (a failed one says why)
+function ClarityLines({ lines, b }: { lines: BotClarity | null; b: Translate }) {
+  const state = lines === null || lines === "checking" ? "checking" : lines === "failed" ? "failed" : "done";
+  return (
+    <div className="mt-1.5 border-t border-line-strong/30 pt-1.5" data-bot-clarity={state} data-bot-simple={typeof lines === "object" && lines ? lines.simple : undefined}>
+      {/* (one status line: "Checking…", then the Simple score – what a screen reader hears when the check ends) */}
+      <p role="status" className={`text-xs tabular-nums ${state === "done" ? "font-medium text-ink-2" : state === "failed" ? "text-warn" : "text-ink-3"}`}>
+        {typeof lines === "object" && lines ? b("crew.simple", { score: lines.simple, band: b(`crew.bands.${lines.band}`) }) : b(state === "failed" ? "crew.failed" : "crew.checking")}
+      </p>
+      {typeof lines === "object" && lines && (
+        <>
+          <ul className="mt-1 space-y-0.5">
+            {lines.gates.map((g) => {
+              const why = !g.ok && b.has(`crew.problems.${g.key}`) ? b(`crew.problems.${g.key}`, g.values) : "";
+              return (
+                <li key={g.id} className="flex gap-1.5 text-xs leading-snug" data-bot-gate={g.id} data-bot-gate-ok={g.ok ? "1" : "0"}>
+                  <span aria-hidden="true" className={g.ok ? "text-accent" : "text-danger"}>
+                    {g.ok ? "✓" : "✕"}
+                  </span>
+                  <span className="sr-only">{b(g.ok ? "crew.ok" : "crew.notOk")}:</span>
+                  <span className="flex-1 text-ink-2">
+                    {why ? <span className="text-ink-3">{b(`crew.gates.${g.name}`)}:</span> : b(`crew.gates.${g.name}`)} {why && <span data-bot-gate-why="">{why}</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+// --- end bot-templates ---
+
+function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b: Translate; bot: BotPanelProps; botCopy: BotCopy }) {
   const [copied, setCopied] = useState(false);
   const recipe = recipeById(clip.recipe);
-  const name = recipe ? b(`recipes.${recipe.copyKey}.name`) : clip.recipe;
+  const template = templateById(clip.template); // --- bot-templates --- ("{Mode name} · {Format name}": its mode named already)
+  const name = template ? templateNameOf(template, botCopy, modeLabel(t, template.mode)) : recipe ? b(`recipes.${recipe.copyKey}.name`) : clip.recipe;
   const busy = !!bot.planning || !!bot.rerolling || bot.render.status === "running";
   const copy = async () => {
     try {
@@ -50,12 +92,12 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
     }
   };
   return (
-    <li className="rounded-lg bg-surface-2/50 border border-line-strong/40 px-2.5 py-2 text-xs space-y-1.5" data-bot-clip={clip.id} data-bot-recipe={clip.recipe} data-bot-score={clip.score} data-bot-ending={clip.ending} data-bot-seed={clip.seed}>
+    <li className="rounded-lg bg-surface-2/50 border border-line-strong/40 px-2.5 py-2 text-xs space-y-1.5" data-bot-clip={clip.id} data-bot-recipe={clip.recipe} data-bot-score={clip.score} data-bot-ending={clip.ending} data-bot-seed={clip.seed} data-bot-template={clip.template} data-bot-look={clip.look ?? "bot"}>
       <div className="flex items-start gap-2">
         <span className="text-ink-3 tabular-nums w-5 shrink-0">{clip.index}.</span>
         <div className="flex-1 min-w-0">
-          <div className="text-ink font-medium truncate">
-            {name} <span className="text-ink-3 font-normal">· {modeLabel(t, clip.mode)}</span>
+          <div className="text-ink font-medium truncate" title={name}>
+            {name} {!template && <span className="text-ink-3 font-normal">· {modeLabel(t, clip.mode)}</span>}
           </div>
           <div className="text-ink-2 italic truncate" title={clip.hook}>
             “{clip.hook}”
@@ -73,11 +115,11 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
         {clip.post.time && <span>· {clip.post.time}</span>}
       </div>
       {!clip.timing.found && <p className="pl-7 text-xs text-warn">{b("closest")}</p>}
-      <details className="pl-7">
+      <details className="pl-7" onToggle={(e) => e.currentTarget.open && bot.onClarity(clip.id) /* --- bot-templates --- */}>
         <summary className="cursor-pointer text-xs text-accent select-none">{b("why")}</summary>
         <ul className="mt-1 space-y-0.5">
           {clip.reasons.map((r) => (
-            <li key={r.id} className="flex gap-1.5 text-xs leading-snug">
+            <li key={r.id} className="flex gap-1.5 text-xs leading-snug" data-bot-reason={r.id}>
               <span aria-hidden="true" className={r.points === r.max ? "text-accent" : r.points > 0 ? "text-warn" : "text-danger"}>
                 {r.points === r.max ? "✓" : r.points > 0 ? "◐" : "✕"}
               </span>
@@ -90,6 +132,7 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
             </li>
           ))}
         </ul>
+        <ClarityLines lines={bot.clarity(clip)} b={b} /* --- bot-templates --- */ />
       </details>
       <div className="pl-7 flex flex-wrap gap-1.5">
         <button type="button" onClick={() => bot.onOpen(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
@@ -108,7 +151,10 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
 
 export default function BotSection({ t, search, matches, bot }: { t: Translate; search: string; matches: Matcher; bot: BotPanelProps }) {
   const b = useTranslations("ViralBot");
+  const botCopy = (useMessages() as Record<string, unknown>).ViralBot as BotCopy; // --- bot-templates --- (the templates' names, as the studio writes them)
+  const simpleIds = { label: useId(), line: useId() }; // --- bot-templates ---
   const o = bot.options;
+  const simple = o.look === "simple"; // --- bot-templates ---
   const plan = bot.plan;
   const rendering = bot.render.status === "running";
   const busy = !!bot.planning || !!bot.rerolling || rendering;
@@ -117,7 +163,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
 
   return (
     <Searchable search={search} matches={matches} labelKey="viralBot">
-      <div className="space-y-3 border-t border-line pt-3" data-bot={status} data-bot-clips={plan?.clips.length ?? 0} data-bot-rendered={bot.render.done}>
+      <div className="space-y-3 border-t border-line pt-3" data-bot={status} data-bot-clips={plan?.clips.length ?? 0} data-bot-rendered={bot.render.done} data-bot-watermarked={bot.render.watermarked /* --- bot-templates --- the last render's watermarked clips */}>
         <span className="text-sm font-medium text-ink-2 flex items-center">
           {t("viralBot")}
           <Tooltip text={t("viralBotTip")} />
@@ -176,6 +222,60 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
           </label>
         </div>
 
+        {/* --- bot-templates --- the Template choice (its series' ready templates, by format) and the Simple switch */}
+        <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-template">
+          {b("template")}
+          <select id="bot-template" value={chosenTemplate(o) ?? "auto"} disabled={busy} onChange={(e) => bot.setOptions({ template: e.target.value === "auto" ? undefined : e.target.value })} className={`${selectClass} text-xs px-2 w-full min-w-0`}>
+            <option value="auto">{b("templateAuto")}</option>
+            {TEMPLATE_FORMAT_IDS.map((f) => {
+              const list = templateChoices(o.family).filter((x) => x.format.id === f);
+              return list.length === 0 ? null : (
+                <optgroup key={f} label={b(`formats.${TEMPLATE_FORMATS[f].copyKey}.name`)}>
+                  {list.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {templateNameOf(x, botCopy, modeLabel(t, x.mode))}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </label>
+        <div className="flex items-center justify-between gap-3">
+          <span className="min-w-0 text-xs leading-snug">
+            <span id={simpleIds.label} className="block text-ink-2">
+              {b("simpleLook")}
+            </span>
+            <span id={simpleIds.line} className="block text-ink-3">
+              {b("looks.simple.line")}
+            </span>
+          </span>
+          {/* the panel's switch (ControlPrimitives' Toggle): a track and a knob in a button the panel's hit targets size, ON / OFF beside */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={simple}
+            aria-labelledby={simpleIds.label}
+            aria-describedby={simpleIds.line}
+            disabled={busy}
+            onClick={() => bot.setOptions({ look: simple ? undefined : "simple" })}
+            // Space toggles a focused switch (the page's own Space, pause and resume, waits on the window for any other key)
+            onKeyDown={(e) => {
+              if (e.key === " ") e.stopPropagation();
+            }}
+            data-bot-simple-switch=""
+            className="group/sw inline-flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 [@media(pointer:coarse)]:min-h-11"
+          >
+            <span aria-hidden="true" className={`num text-xs tracking-[0.08em] ${simple ? "text-ink" : "text-ink-3"}`}>
+              {t(simple ? "onText" : "offText")}
+            </span>
+            <span aria-hidden="true" className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 ${simple ? onBtn : "bg-surface-3 group-hover/sw:bg-[rgb(242_242_237/0.16)]"}`}>
+              <span className={`absolute left-0.5 h-4 w-4 rounded-full shadow-sm transition-transform duration-150 ${simple ? "translate-x-4 bg-accent-ink" : "bg-ink-2"}`} />
+            </span>
+          </button>
+        </div>
+        {/* --- end bot-templates --- */}
+
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={bot.onPlan} disabled={busy} className="px-3 py-2.5 rounded-xl font-bold text-sm cursor-pointer bg-accent text-accent-ink hover:bg-accent-strong disabled:opacity-40 disabled:cursor-not-allowed">
             {b("planClips")}
@@ -207,7 +307,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             {bot.worldChanged && <p className="text-xs text-warn leading-snug">{b("worldChanged")}</p>}
             <ol className="space-y-1.5 max-h-[28rem] overflow-y-auto pr-1 custom-scrollbar" aria-label={b("title")}>
               {plan.clips.map((clip) => (
-                <ClipRow key={clip.id} clip={clip} t={t} b={b} bot={bot} />
+                <ClipRow key={clip.id} clip={clip} t={t} b={b} bot={bot} botCopy={botCopy} />
               ))}
             </ol>
             <p className="text-xs text-ink-3 leading-snug">{b("notes")}</p>

@@ -1,5 +1,5 @@
 import { defaultCaption, isOpenEnded, type Caption } from "@/lib/captions";
-import { captionBaseFont, captionWordsOf, drain, endHoldsSec, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type FactsRecipe, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
+import { captionBaseFont, captionWordsOf, drain, endHoldsSec, FACTS_SLICE_STEPS, hasTopHud, payoffSecOf, scoreClip, simulateFactsSteps, type CaptionRole, type ClipPlan, type FactsRecipe, type PayoffMoment, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { createEngineForSettings, stepPlaybackMs } from "@/lib/simulation/finder"; // --- crew --- (the payoff's moment)
 import { BOT_FRAME, BOT_PLATFORMS, HOOK_SEC, PLATFORMS, RECIPES, type BotPlatform, type BotRecipe, type CountdownKind, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "@/lib/bot/finderRequest";
@@ -384,6 +384,15 @@ export const MOMENT_ACCENTS_MAX = 24;
  * balls at most STILL_MOTION_SHARE of their median).
  */
 export function payoffMomentSync(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number, clipSec?: number | null): PayoffMoment {
+  return drain(payoffMomentSteps(settings, seed, world, payoffSec, clipSec));
+}
+
+/**
+ * --- bot-templates --- payoffMomentSync() as a generator: the same run and the same moment, with a pause (it yields the playback
+ * ms so far) every FACTS_SLICE_STEPS steps, so the page follows it in slices (runOf with `payoffSec`: the Bot section's clarity
+ * lines). The pauses never change the run.
+ */
+export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number, clipSec?: number | null): Generator<number, PayoffMoment> {
   const from = payoffSec - MOMENT_BEFORE_SEC;
   const to = payoffSec + MOMENT_AFTER_SEC;
   const clipEnd = finite(clipSec) && clipSec > 0 ? clipSec : null; // --- crew --- (review round 2, 20 and 21)
@@ -406,6 +415,7 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
   const accents: [number, number][] = [];
   let lastSoundSec = -1;
   const after: { sec: number; speed: number }[] = [];
+  let stepsRun = 0; // --- bot-templates ---
   while (elapsed / 1000 < until - 1e-9) {
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step);
@@ -452,6 +462,7 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
       last = { sec, at };
     }
     if (engine.isSimulationFinished()) break;
+    if (++stepsRun % FACTS_SLICE_STEPS === 0) yield elapsed; // --- bot-templates --- (a pause between whole steps: the run is the same)
   }
   const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
   const median = (xs: readonly number[]) => {
@@ -489,7 +500,8 @@ export function payoffMomentSync(settings: SimulatorSettings, seed: number, worl
 
 /**
  * The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. With `clipSec`,
- * --- templates --- where the run moves over the clip too (RunFacts.action), as runSync() reads it.
+ * --- templates --- where the run moves over the clip too (RunFacts.action), as runSync() reads it. --- bot-templates --- With
+ * `payoffSec`, the payoff's moment too (RunFacts.moment): the very run runSync() gives for the same arguments, in slices.
  */
 export async function runOf(settings: SimulatorSettings, seed: number, options: RunFactsOptions = {}): Promise<RunFacts | null> {
   const now = options.now ?? clock;
@@ -507,8 +519,17 @@ export async function runOf(settings: SimulatorSettings, seed: number, options: 
       }
     }
   }
-  const run = await drained(runSteps(settings, seed, options.world, options.clipSec, options.recipe));
-  if (!run || !(finite(options.clipSec) && options.clipSec > 0)) return run;
+  const facts = await drained(runSteps(settings, seed, options.world, options.clipSec, options.recipe));
+  if (!facts) return null;
+  // --- bot-templates --- the payoff's moment, as runSync() reads it (RunFacts.moment)
+  const payoffSec = options.payoffSec;
+  let run: RunFacts = facts;
+  if (finite(payoffSec) && payoffSec >= 0) {
+    const moment = await drained(payoffMomentSteps(settings, seed, options.world, payoffSec, options.clipSec));
+    if (!moment) return null;
+    run = { ...run, moment };
+  }
+  if (!(finite(options.clipSec) && options.clipSec > 0)) return run;
   // --- templates --- where the run moves over the clip, as runSync() reads it (RunFacts.action)
   const action = await drained(actionTrackSteps(settings, seed, options.world, options.clipSec));
   return action ? { ...run, action } : null;
@@ -522,6 +543,8 @@ export interface RunFactsOptions {
   clipSec?: number | null;
   /** The plan's recipe (ScoreContext.recipe): the payoff is timed by its strategy while it plays the mode. */
   recipe?: string | null;
+  /** --- bot-templates --- The clip's payoff (s): runOf() reads its moment too (RunFacts.moment), as runSync() does. */
+  payoffSec?: number | null;
   /** Stops the run when it reads true (an AbortSignal, or the queue's own cancel). */
   signal?: { readonly aborted: boolean };
   /** The clock that times the slices and the pause between them (injectable for tests). */

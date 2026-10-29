@@ -1,6 +1,7 @@
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "./playbook";
 import { BOT_PLAN_VERSION, type ClipPlan } from "./planner";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
+import { isBotLook, readyTemplates, templateById, type BotLookId, type TemplateInfo } from "./templates"; // --- bot-templates ---
 
 /*
  * --- viral-bot --- The Bot section's options and its last plan, kept in this browser's localStorage (a convenience: every
@@ -17,6 +18,13 @@ export interface BotOptions {
   family: BotFamily | "all";
   bucket: LengthBucket | "auto";
   ending: EndingChoice;
+  /**
+   * --- bot-templates --- The Template choice: a ready template's id (templates.ts) that "Plan clips" plans instead of the
+   * rotation; absent: Auto, the rotation as before.
+   */
+  template?: string;
+  /** --- bot-templates --- The Simple switch: "simple" draws the clips in the Simple look; absent: today's bot look. */
+  look?: BotLookId;
 }
 
 export interface BotStoredPlan {
@@ -37,6 +45,28 @@ export function defaultBotOptions(): BotOptions {
   return { platform: "reels", count: 3, family: "all", bucket: "auto", ending: "auto" };
 }
 
+/**
+ * --- bot-templates --- A stored Template choice that still plans: a ready template's id, else undefined (Auto) – an unknown id,
+ * or one a later release hid, falls back to the rotation.
+ */
+export function storedTemplate(value: unknown): string | undefined {
+  return typeof value === "string" && templateById(value)?.ready ? value : undefined;
+}
+
+/**
+ * --- bot-templates --- The templates the Template choice lists for the panel's series: the ready ones of that series – "all"
+ * (the panel's All series) every one, the battle family's too, which the bot offers there today; a series its own.
+ */
+export function templateChoices(family: BotOptions["family"]): TemplateInfo[] {
+  return readyTemplates(family);
+}
+
+/** --- bot-templates --- The template "Plan clips" plans: the choice while it is one its series lists, else undefined (Auto). */
+export function chosenTemplate(options: Pick<BotOptions, "template" | "family">): string | undefined {
+  const id = storedTemplate(options.template);
+  return id && templateChoices(options.family).some((t) => t.id === id) ? id : undefined;
+}
+
 /** Stored options, validated: unknown values fall back to the defaults, the count is clamped. */
 export function parseBotOptions(raw: unknown): BotOptions {
   const d = defaultBotOptions();
@@ -49,6 +79,9 @@ export function parseBotOptions(raw: unknown): BotOptions {
     family: r.family === "all" || isBotFamily(r.family) ? r.family : d.family,
     bucket: r.bucket === "auto" || isLengthBucket(r.bucket) ? r.bucket : d.bucket,
     ending: isEndingChoice(r.ending) ? r.ending : d.ending,
+    // --- bot-templates --- kept only when they differ from the defaults (Auto, the bot look): an older state reads as before
+    ...(storedTemplate(r.template) ? { template: storedTemplate(r.template) } : {}),
+    ...(isBotLook(r.look) && r.look !== "bot" ? { look: r.look } : {}),
   };
 }
 

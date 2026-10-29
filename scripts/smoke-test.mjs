@@ -6846,7 +6846,10 @@ await smokeBlock("viral-bot", async () => {
 // the schedule), "Open in simulator" puts a clip on the page, and a one-clip short plan starts "Render all": the batch
 // renderer renders it and the ZIP holds the video as <episode>-<recipe>-<seed>, its caption file, manifest.json and
 // posting-schedule.md. Without WebCodecs the block says so. Every planned clip's share link opens with its planned seed, and
-// in the arena games the captions keep below the mode's scoreboard band.
+// in the arena games the captions keep below the mode's scoreboard band. --- bot-templates --- "Why this clip" adds the clip's
+// Simple score and the crew's seven clarity lines; a free visitor picks a template (listed by format, the battle family's only
+// under All series and Battle) and the Simple switch by keyboard, plans a Simple template clip that keeps both through a reload,
+// and Render all renders it watermarked.
 {
   const BOT_KEY = "jumpingballslive_viral_bot";
   const botStatus = () => page.locator("[data-bot]").getAttribute("data-bot").catch(() => null);
@@ -6869,13 +6872,27 @@ await smokeBlock("viral-bot", async () => {
   const planMs = Date.now() - t0;
   const rows = await botRows();
   await bot.locator("details summary").first().click().catch(() => {});
-  const reasons = await bot.locator("details").first().locator("li").count();
+  const reasons = await bot.locator("details").first().locator("[data-bot-reason]").count(); // --- bot-templates --- (the checklist's nine; the clarity lines follow them)
   const hooks = await bot.locator("[data-bot-clip] .italic").allInnerTexts();
   check(
     "viral bot: Today's plan lists three clips with recipe, hook, seed, ending and a score with its reasons",
     planned && rows.length === 3 && rows.every((r) => r.recipe && r.score > 0 && r.score <= 100 && /^(resolved|cliffhanger)$/.test(r.ending) && /^\d+$/.test(r.seed) && /^ep\d{3}-\d+-[a-z-]+-\d+$/.test(r.id)) && reasons === 9 && hooks.every((h) => h.length > 4),
     `(${JSON.stringify(rows)}; ${reasons} reasons; ${planMs} ms)`,
   );
+  // --- bot-templates --- the clarity lines under the checklist: checked when opened, the Simple score and seven gates, a failed
+  // gate saying why
+  {
+    const why = bot.locator("details").first();
+    const done = await why.locator("[data-bot-clarity='done']").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+    const simple = Number(await why.locator("[data-bot-clarity]").getAttribute("data-bot-simple").catch(() => null));
+    const gates = await why.locator("[data-bot-gate]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-gate"), ok: e.getAttribute("data-bot-gate-ok") === "1", text: (e.textContent ?? "").trim(), why: (e.querySelector("[data-bot-gate-why]")?.textContent ?? "").trim() })));
+    const line = (await why.locator("[data-bot-clarity] p").first().innerText().catch(() => "")).trim();
+    check(
+      "viral bot: Why this clip adds the clip's Simple score and the crew's seven clarity lines, a failed one saying why",
+      done && Number.isFinite(simple) && simple >= 0 && simple <= 100 && line.includes(`Simple score ${simple}/100`) && gates.map((g) => g.id).join() === "G1,G2,G3,G4,G5,G6,G7" && gates.every((g) => g.text.length > 4 && (g.ok ? g.why === "" : g.why.length > 8)),
+      `(${line}; ${JSON.stringify(gates).slice(0, 400)})`,
+    );
+  }
   // 2. The CLI's handle and the text files of the plan.
   const files = await page.evaluate(() => (window.__jumpingBallsBot ? window.__jumpingBallsBot.textFiles().map((f) => ({ name: f.name, size: f.text.length })) : null));
   const manifest = await page.evaluate(() => JSON.parse(window.__jumpingBallsBot?.textFiles().find((f) => f.name === "manifest.json")?.text ?? "null"));
@@ -6945,6 +6962,113 @@ await smokeBlock("viral-bot", async () => {
     const note = await bot.getByText(/Rendering needs WebCodecs/).first().isVisible().catch(() => false);
     check("viral bot: without WebCodecs the Bot block plans but says rendering needs WebCodecs", one && disabled && note, `(disabled=${disabled}, note=${note})`);
   }
+  // --- bot-templates --- a free visitor's Simple template clip: the Template choice by format (the battle family's under All
+  // series and Battle only), the Simple switch by keyboard, the plan keeps both through a reload, "Why this clip" reads Simple,
+  // and Render all renders it watermarked (the fast export's own seal: data-bot-watermarked)
+  {
+    const TEMPLATE = "fill-grow";
+    const fc = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, license: null });
+    const fp = await fc.newPage();
+    try {
+      await fp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      await fp.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
+      await fp.reload({ waitUntil: "networkidle" });
+      const openFree = async () => {
+        await fp.getByRole("button", { name: /Recording/ }).click();
+        await fp.locator("[data-bot]").waitFor({ timeout: 10000 });
+        return fp.locator("[data-bot]");
+      };
+      let fbot = await openFree();
+      const keysBefore = await fp.evaluate(() => Object.keys(localStorage));
+      const listed = () => fp.locator("#bot-template").evaluate((el) => ({ value: el.value, groups: [...el.querySelectorAll("optgroup")].map((g) => g.label), options: [...el.querySelectorAll("option")].map((o) => ({ value: o.value, text: (o.textContent ?? "").trim() })) }));
+      const before = await listed();
+      await fp.locator("#bot-family").selectOption("escape");
+      const escape = await listed();
+      await fp.locator("#bot-family").selectOption("battle");
+      const battle = await listed();
+      await fp.locator("#bot-family").selectOption("all");
+      const all = await listed();
+      const battleIds = battle.options.map((o) => o.value).filter((v) => v !== "auto");
+      check(
+        "viral bot: the Template choice starts on Auto and lists the ready templates by format as \"{Mode} · {Format}\", the battle family's only under All series and Battle",
+        before.value === "auto" && all.groups.length >= 8 && all.groups.includes("Get out") && all.options.some((o) => o.value === TEMPLATE && o.text === "Grow · Fill it") && battleIds.length > 0 && battleIds.every((id) => all.options.some((o) => o.value === id) && !escape.options.some((o) => o.value === id)) && all.options.every((o) => o.value === "auto" || / · /.test(o.text)),
+        `(groups ${all.groups.join(", ")}; ${all.options.length} options; battle ${battleIds.join(", ")})`,
+      );
+      await fp.locator("#bot-template").selectOption(TEMPLATE);
+      const sw = fbot.getByRole("switch", { name: "Simple look" });
+      const off = await sw.getAttribute("aria-checked");
+      await sw.focus();
+      await fp.keyboard.press("Space");
+      const on = await sw.getAttribute("aria-checked");
+      await fbot.getByRole("button", { name: "Shorts", exact: true }).click();
+      await fp.locator("#bot-count").evaluate(setRangeValue, "1");
+      await fp.locator("#bot-bucket").selectOption("short");
+      await fbot.getByRole("button", { name: /Plan clips/ }).click();
+      const planned = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "planned" && document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === "1", null, { timeout: 180000 }).then(() => true).catch(() => false);
+      const rowOf = () => fp.locator("[data-bot-clip]").first().evaluate((e) => ({ id: e.getAttribute("data-bot-clip"), recipe: e.getAttribute("data-bot-recipe"), template: e.getAttribute("data-bot-template"), look: e.getAttribute("data-bot-look"), name: (e.querySelector(".font-medium")?.textContent ?? "").trim() })).catch(() => null);
+      const row = await rowOf();
+      await fbot.locator("details summary").first().click().catch(() => {});
+      const clear = await fbot.locator("details").first().locator("[data-bot-clarity='done']").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+      const simple = Number(await fbot.locator("details").first().locator("[data-bot-clarity]").getAttribute("data-bot-simple").catch(() => null));
+      const passed = await fbot.locator("details").first().locator("[data-bot-gate-ok='1']").count();
+      check(
+        "viral bot: the Simple switch works by keyboard, and Plan clips plans the template in the Simple look, Simple 80 or more with every clarity line passing",
+        off === "false" && on === "true" && planned && !!row && row.recipe === TEMPLATE && row.template === TEMPLATE && row.look === "simple" && row.name === "Grow · Fill it" && new RegExp(`^ep\\d{3}-1-${TEMPLATE}-\\d+$`).test(row.id ?? "") && clear && simple >= 80 && passed === 7,
+        `(${off}→${on}; ${JSON.stringify(row)}; Simple ${simple}; ${passed}/7 gates)`,
+      );
+      // the choice and the plan survive a reload (the per-viewer bot state, nothing else stored)
+      await fp.reload({ waitUntil: "networkidle" });
+      fbot = await openFree();
+      const kept = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const keptRow = await rowOf();
+      const keptChoice = { template: await fp.locator("#bot-template").inputValue().catch(() => null), simple: await fbot.getByRole("switch", { name: "Simple look" }).getAttribute("aria-checked").catch(() => null) };
+      const storedKeys = await fp.evaluate((before) => Object.keys(localStorage).filter((k) => !before.includes(k)), keysBefore);
+      check(
+        "viral bot: the Template choice, the Simple switch and the template's plan survive a reload, in the bot's own storage only",
+        kept && JSON.stringify(keptRow) === JSON.stringify(row) && keptChoice.template === TEMPLATE && keptChoice.simple === "true" && storedKeys.length === 1 && storedKeys[0] === BOT_KEY,
+        `(${JSON.stringify(keptChoice)}; ${JSON.stringify(storedKeys)})`,
+      );
+      const freeCodecs = await fp.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+      if (freeCodecs) {
+        const zipWait = fp.waitForEvent("download", { timeout: 480000 }).catch(() => null);
+        const tag = await fbot.getByRole("button", { name: /Render all/ }).locator("[data-watermark-tag]").count();
+        await fbot.getByRole("button", { name: /Render all/ }).click();
+        const zip = await zipWait;
+        const done = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "done", null, { timeout: 60000 }).then(() => true).catch(() => false);
+        const marked = await fbot.getAttribute("data-bot-watermarked");
+        let video = null;
+        if (zip) {
+          const out = path.join(outDir, `bot-template-${zip.suggestedFilename()}`);
+          await zip.saveAs(out);
+          const buf = fs.readFileSync(out);
+          const end = buf.length - 22;
+          if (end > 0 && buf.readUInt32LE(end) === 0x06054b50) {
+            let at = buf.readUInt32LE(end + 16);
+            for (let i = 0; i < buf.readUInt16LE(end + 10); i++) {
+              const size = buf.readUInt32LE(at + 24);
+              const nameLength = buf.readUInt16LE(at + 28);
+              const skip = buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+              const name = buf.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+              if (/\.(mp4|webm)$/.test(name)) video = { name, size };
+              at += 46 + nameLength + skip;
+            }
+          }
+        }
+        check(
+          "viral bot: a free visitor's Simple template clip renders through Render all, watermarked",
+          tag > 0 && !!zip && done && marked === "1" && !!video && video.size > 10000 && video.name.startsWith(`${row?.id}.`),
+          `(tag=${tag}, watermarked=${marked}, ${zip?.suggestedFilename() ?? "no ZIP"}: ${JSON.stringify(video)})`,
+        );
+      } else {
+        check("viral bot: without WebCodecs the free visitor's template plan says rendering needs WebCodecs", await fbot.getByRole("button", { name: /Render all/ }).isDisabled(), "(no WebCodecs)");
+      }
+    } catch (err) {
+      check("viral bot: the Template choice and Simple switch checks run to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+    } finally {
+      await fc.close();
+    }
+  }
+  // --- end bot-templates ---
   // --- split-screen --- in a race Render all is off and says why (the fast export draws one arena); opening a clip ends the race
   await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2`, { waitUntil: "networkidle" });
   bot = await openBot();

@@ -5,11 +5,16 @@
  *
  *   node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]  (no --family: escape and rhythm, never Fight League)
  *                              [--bucket standard] [--ending resolved] [--locale en] [--max-seeds 24] [--dry-run] [--post]
+ *                              [--template get-out-classic] [--look simple]  (--- bot-templates --- dry runs only)
  *
  * Rendering needs the exported site served (BASE_URL, default http://localhost:3000 plus NEXT_PUBLIC_BASE_PATH; see
  * `npm start`) and Playwright's Chromium: the page plans with its own canvas size (so a planned seed plays exactly as
  * planned) and renders through its batch renderer (window.__jumpingBallsBot). --dry-run plans in Node instead – the same
  * planner, bundled from src/lib/bot with esbuild – and writes only the text files; no browser, no site needed.
+ *
+ * --- bot-templates --- --template and --look go with --dry-run only: the day's clips of one ready template (lib/bot/templates.ts,
+ * the website Bot section's Template choice) instead of the rotation, and the look they are drawn in – the Simple look, or the
+ * bot's. A render plans in the page, which plans the rotation in the bot look as before; the licence path is untouched.
  *
  * Instagram takes MP4 (H.264 + AAC). A Chromium without H.264 + AAC encoders – Playwright's Chromium on Linux, and Google
  * Chrome on Linux has no AAC encoder either – renders WebM; the CLI then converts every WebM clip to MP4 with ffmpeg (on
@@ -52,6 +57,9 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --locale L         en | pl | es (captions and hashtags; default en)
   --max-seeds N      seeds searched per clip (default 24)
   --dry-run          plan only (in Node, no browser): captions, manifest.json, posting-schedule.md
+  --template ID      with --dry-run: plan one ready template's clips instead of the rotation (the templates tool
+                     lists them: npm run -s agent -- templates); a battle one needs --family all or battle
+  --look L           with --dry-run: bot | simple (default: the bot look, a template's own Simple look)
   --plan             print the recipe rotation of the 7 days from --date (no simulation, nothing written)
   --post             publish the rendered clips to Instagram (needs IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL)
   --post-only        publish the clips an earlier run rendered into --out (its manifest.json) – after you uploaded
@@ -71,7 +79,7 @@ class UsageError extends Error {}
 
 /** Parses the command line (exported for the tests). */
 export function parseArgs(argv) {
-  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "default", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */, plan: false /* --- fl-overhaul --- (Stage 6) */ };
+  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "default", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */, plan: false /* --- fl-overhaul --- (Stage 6) */, template: null, look: null /* --- bot-templates --- */ };
   const value = (i, name) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${name} needs a value`);
@@ -129,6 +137,15 @@ export function parseArgs(argv) {
       case "--dry-run":
         opts.dryRun = true;
         break;
+      // --- bot-templates --- a template's clips, and the look, for a dry run
+      case "--template":
+        opts.template = take();
+        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(opts.template)) throw new UsageError("--template must be a template id (kebab-case, as the templates tool lists them)");
+        break;
+      case "--look":
+        opts.look = take();
+        if (!["bot", "simple"].includes(opts.look)) throw new UsageError("--look must be bot or simple");
+        break;
       // --- fl-overhaul --- (Stage 6) the week's rotation
       case "--plan":
         opts.plan = true;
@@ -164,6 +181,7 @@ export function parseArgs(argv) {
   if (opts.dryRun && (opts.post || opts.postOnly)) throw new UsageError("--dry-run renders nothing, so there is nothing to post");
   if (opts.plan && (opts.post || opts.postOnly || opts.dryRun || opts.relay)) throw new UsageError("--plan only prints the rotation: it goes with --date, --count, --family, --platform and --bucket"); // --- fl-overhaul --- (Stage 6)
   if (opts.post && opts.postOnly) throw new UsageError("--post renders and posts; --post-only posts what was rendered – pick one");
+  if ((opts.template || opts.look) && !opts.dryRun) throw new UsageError("--template and --look plan dry runs only: add --dry-run (a render plans in the page, the rotation in the bot look)"); // --- bot-templates ---
   // --- social-publish ---
   if (opts.relay && opts.dryRun) throw new UsageError("--dry-run renders nothing, so there is nothing to send to the relay");
   if (opts.relay && opts.accounts.length === 0) throw new UsageError("--relay needs --accounts (relay account ids, comma-separated, or all)");
@@ -227,6 +245,22 @@ function isoParts(iso) {
   return [y, m - 1, d];
 }
 // --- end fl-overhaul ---
+
+// --- bot-templates ---
+/**
+ * Why a dry run's --template cannot plan (null: it can): an unknown or hidden template, or one of a series --family leaves out –
+ * the battle family's only with --family all or battle (the legal opt-in), as the website's Bot section lists them.
+ */
+export function templateRefusal(planner, opts) {
+  if (!opts.template) return null;
+  const info = planner.templateById(opts.template);
+  const ready = planner.readyTemplates(opts.family).map((t) => t.id);
+  if (ready.includes(opts.template)) return null;
+  if (!info) return `There is no template ${opts.template}. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
+  if (!info.ready) return `The template ${opts.template} is not ready yet. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
+  return `The template ${opts.template} is in the ${info.family} series, which --family ${opts.family} leaves out: add --family ${info.family === "battle" ? "all or --family battle" : `all or --family ${info.family}`}.`;
+}
+// --- end bot-templates ---
 
 function printPlan(plans) {
   for (const p of plans) {
@@ -601,8 +635,15 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   if (opts.dryRun) {
-    console.log(`Dry run: planning ${opts.count} ${opts.platform} clip${opts.count === 1 ? "" : "s"} for ${opts.date} in Node (world ${planner.DEFAULT_BOT_WORLD.width}×${planner.DEFAULT_BOT_WORLD.height}; the render plans again in the page's own world)…`);
-    const day = planner.planDay(opts.date, opts.platform, opts.count, { copy, locale: opts.locale, family: opts.family, bucket: opts.bucket, ending: opts.ending, maxSeeds: opts.maxSeeds, siteUrl: process.env.NEXT_PUBLIC_SITE_URL || undefined });
+    // --- bot-templates --- a template the family offers (a battle one only with --family all or battle, as the website's Bot section)
+    const refused = templateRefusal(planner, opts);
+    if (refused) {
+      console.error(`${refused}\n\n${USAGE}`);
+      return 2;
+    }
+    const what = opts.template ? `clip${opts.count === 1 ? "" : "s"} of the template ${opts.template}` : `clip${opts.count === 1 ? "" : "s"}`;
+    console.log(`Dry run: planning ${opts.count} ${opts.platform} ${what}${opts.look ? ` in the ${opts.look} look` : ""} for ${opts.date} in Node (world ${planner.DEFAULT_BOT_WORLD.width}×${planner.DEFAULT_BOT_WORLD.height}; the render plans again in the page's own world)…`);
+    const day = planner.planDay(opts.date, opts.platform, opts.count, { copy, locale: opts.locale, family: opts.family, bucket: opts.bucket, ending: opts.ending, maxSeeds: opts.maxSeeds, siteUrl: process.env.NEXT_PUBLIC_SITE_URL || undefined, ...(opts.template ? { template: opts.template } : {}), ...(opts.look ? { look: opts.look } : {}) /* --- bot-templates --- */ });
     printPlan(day.clips);
     writeTextFiles(out, planner.batchTextFiles(day.clips, copy, { date: day.date, platform: opts.platform, locale: opts.locale }));
     console.log(`\nWrote ${day.clips.length} caption file${day.clips.length === 1 ? "" : "s"}, ${planner.MANIFEST_FILE} and ${planner.SCHEDULE_FILE} to ${out}. Nothing rendered, nothing posted.`);

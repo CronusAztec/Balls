@@ -1,0 +1,243 @@
+import { execFileSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { describe, expect, it } from "vitest";
+import en from "../messages/en.json";
+import es from "../messages/es.json";
+import pl from "../messages/pl.json";
+import type { BotCopy } from "@/lib/bot/copy";
+import { BOT_PLAN_VERSION, planDay, planDaySteps, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
+import { chosenTemplate, defaultBotOptions, parseBotOptions, parseBotState, storedTemplate, templateChoices } from "@/lib/bot/store";
+import { allTemplates, readyTemplates, templateById } from "@/lib/bot/templates";
+import { planClarity, planClarityOf } from "@/lib/bot/clarityLines";
+import { clarityOf, GATES } from "@/lib/crew/clarity";
+import { crewClipOfPlan } from "@/lib/crew/clip";
+import { payoffMomentSteps, payoffMomentSync, runOf, runSync } from "@/lib/insights/score";
+import { parseArgs, templateRefusal } from "../scripts/viral-bot.mjs";
+
+/**
+ * --- bot-templates --- The website Bot section's Template choice and Simple switch (sections/BotSection.tsx, useViralBot.ts):
+ * Auto plans the rotation exactly as before and a template its own clips, deterministically; the options keep only what differs
+ * from the defaults, so a stored state of an older release – its options and its version-1 plan – loads as it was; the clarity
+ * lines of "Why this clip" are the studio's for the same plan, their run followed in slices; every line a plan can show has its
+ * words in en, pl and es; and the CLI plans a template's clips in a dry run only.
+ */
+
+const copy = en.ViralBot as unknown as BotCopy;
+const world = { width: 800, height: 450 };
+const DATE = "2026-10-29";
+const json = (v: unknown) => JSON.stringify(v);
+const noPause = { pause: () => Promise.resolve(), now: () => 0 };
+
+describe("the Template choice and the Simple switch plan as asked", () => {
+  it("keeps Auto exactly the rotation: no template asked plans what the planner planned before", () => {
+    const options = { copy, locale: "en" as const, family: "all" as const, bucket: "auto" as const, ending: "auto" as const, world, search: false };
+    const before = planDay(DATE, "reels", 3, options);
+    expect(json(planDay(DATE, "reels", 3, { ...options, template: undefined }))).toBe(json(before));
+    expect(json(planDay(DATE, "reels", 3, { ...options, template: "" }))).toBe(json(before));
+    for (const clip of before.clips) {
+      expect("template" in clip).toBe(false);
+      expect("look" in clip).toBe(false);
+    }
+  });
+
+  it("plans a template's clips at their own places' seeds, in the look asked for, the same for the same request", () => {
+    const id = "get-out-classic";
+    const base = { copy, locale: "en" as const, world, maxSeeds: 4, salt: "a" };
+    const simple = planDay(DATE, "reels", 3, { ...base, template: id, look: "simple" });
+    expect(simple.version).toBe(BOT_PLAN_VERSION);
+    expect(simple.clips).toHaveLength(3);
+    const seeds = templateDaySlots(dayIndexOf(DATE), 3, id, "a").map((s) => s.planSeed);
+    expect(simple.clips.map((c) => c.planSeed)).toEqual(seeds);
+    expect(new Set(seeds).size).toBe(3);
+    simple.clips.forEach((c, i) => {
+      expect(c.recipe).toBe(id);
+      expect(c.template).toBe(id);
+      expect(c.look).toBe("simple");
+      expect(c.index).toBe(i + 1);
+      expect(c.date).toBe(DATE);
+    });
+    expect(json(planDay(DATE, "reels", 3, { ...base, template: id, look: "simple" }))).toBe(json(simple));
+    // another salt ("Plan clips" again): other seeds; the bot look: the template's clips without the Simple look
+    expect(templateDaySlots(dayIndexOf(DATE), 3, id, "b").map((s) => s.planSeed)).not.toEqual(seeds);
+    const bot = planDay(DATE, "reels", 1, { ...base, template: id, look: "bot", search: false });
+    expect(bot.clips[0].template).toBe(id);
+    expect("look" in bot.clips[0]).toBe(false);
+    // the planner yields between seeds, as the page's slices need, with the clip it is on
+    const steps = [...(function* () {
+      const g = planDaySteps(DATE, "reels", 2, { ...base, template: id, look: "simple" });
+      for (let n = g.next(); !n.done; n = g.next()) yield n.value;
+    })()];
+    expect(steps.length).toBeGreaterThan(1);
+    expect(steps.every((s) => s.clips === 2 && (s.clip === 1 || s.clip === 2))).toBe(true);
+  });
+
+  it("refuses a template that is not ready, as planTemplate does", () => {
+    const hidden = allTemplates().find((t) => !t.ready)!;
+    expect(hidden).toBeDefined();
+    expect(() => planDay(DATE, "reels", 1, { copy, template: hidden.id, search: false })).toThrow(/Not a ready template/);
+    expect(() => planDay(DATE, "reels", 1, { copy, template: "no-such-template", search: false })).toThrow(/Not a ready template/);
+  });
+
+  it("lists the battle family's templates only under All series and Battle, where the bot offers them", () => {
+    const battle = readyTemplates("battle");
+    expect(battle.length).toBeGreaterThan(0);
+    const ids = (family: Parameters<typeof templateChoices>[0]) => templateChoices(family).map((t) => t.id);
+    for (const t of battle) {
+      expect(ids("all")).toContain(t.id);
+      expect(ids("battle")).toContain(t.id);
+      expect(ids("escape")).not.toContain(t.id);
+      expect(ids("rhythm")).not.toContain(t.id);
+      expect(chosenTemplate({ family: "escape", template: t.id })).toBeUndefined();
+      expect(chosenTemplate({ family: "all", template: t.id })).toBe(t.id);
+    }
+    expect(templateChoices("all").every((t) => t.ready)).toBe(true);
+    expect(templateChoices("all")).toHaveLength(readyTemplates("all").length);
+  });
+});
+
+describe("the panel's stored state", () => {
+  const options = { copy, locale: "en" as const, family: "all" as const, bucket: "auto" as const, ending: "auto" as const, world, search: false };
+
+  it("loads an older release's state as it was: its options without the new ones, its version-1 plan whole", () => {
+    // as this release's panel stored it before the Template choice (the bot look's plans are byte-identical: tests/bot.test.ts)
+    const day = planDay(DATE, "reels", 3, options);
+    const stored = JSON.parse(json({ options: { platform: "tiktok", count: 4, family: "rhythm", bucket: "short", ending: "resolved" }, plan: { date: day.date, platform: "reels", kind: "today", clips: day.clips } }));
+    const state = parseBotState(stored);
+    expect(Object.keys(state.options).sort()).toEqual(["bucket", "count", "ending", "family", "platform"]);
+    expect(state.options).toEqual({ platform: "tiktok", count: 4, family: "rhythm", bucket: "short", ending: "resolved" });
+    expect(state.plan?.kind).toBe("today");
+    expect(json(state.plan?.clips)).toBe(json(day.clips));
+    expect(state.plan!.clips.every((c) => c.version === 1)).toBe(true);
+    expect(Object.keys(defaultBotOptions()).sort()).toEqual(["bucket", "count", "ending", "family", "platform"]);
+  });
+
+  it("keeps a template and the Simple look only while they plan, and a template plan round-trips", () => {
+    const ready = readyTemplates("default")[0];
+    const hidden = allTemplates().find((t) => !t.ready)!;
+    expect(parseBotOptions({ template: ready.id, look: "simple" })).toMatchObject({ template: ready.id, look: "simple" });
+    for (const raw of [{ template: hidden.id }, { template: "nope" }, { template: 7 }, { look: "bot" }, { look: "neon" }]) {
+      const o = parseBotOptions(raw);
+      expect("template" in o).toBe(false);
+      expect("look" in o).toBe(false);
+    }
+    expect(storedTemplate(ready.id)).toBe(ready.id);
+    expect(storedTemplate(hidden.id)).toBeUndefined();
+    const day = planDay(DATE, "shorts", 1, { ...options, template: ready.id, look: "simple" });
+    const state = parseBotState(JSON.parse(json({ options: { template: ready.id, look: "simple", family: "all" }, plan: { date: DATE, platform: "shorts", kind: "custom", clips: day.clips } })));
+    expect(state.options.template).toBe(ready.id);
+    expect(state.options.look).toBe("simple");
+    expect(json(state.plan?.clips)).toBe(json(day.clips));
+    expect(state.plan!.clips[0].template).toBe(ready.id);
+  });
+});
+
+describe("the clarity lines of Why this clip", () => {
+  const plans: ClipPlan[] = [
+    ...planDay(DATE, "reels", 2, { copy, locale: "en", family: "all", world, maxSeeds: 3 }).clips,
+    ...planDay(DATE, "tiktok", 2, { copy, locale: "en", family: "all", world, maxSeeds: 3, look: "simple" }).clips,
+    ...planDay(DATE, "shorts", 1, { copy, locale: "en", world, maxSeeds: 3, template: "get-out-classic", look: "simple" }).clips,
+  ];
+
+  it("follows runSync's run in slices: the same facts, the payoff's moment and the action track included", async () => {
+    for (const p of plans.slice(0, 3)) {
+      const sync = runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec, p.payoff.atSec);
+      const sliced = await runOf(p.settings, p.seed, { ...noPause, world: p.world, recipe: p.recipe, clipSec: p.timing.clipSec, payoffSec: p.payoff.atSec });
+      expect(json(sliced)).toBe(json(sync));
+      if (p.payoff.atSec !== null) expect(sliced?.moment).toBeDefined();
+    }
+    const p = plans[0];
+    const steps = payoffMomentSteps(p.settings, p.seed, p.world, p.timing.clipSec * 0.8, p.timing.clipSec);
+    let yields = 0;
+    let next = steps.next();
+    for (; !next.done; next = steps.next()) yields++;
+    expect(yields).toBeGreaterThan(0);
+    expect(json(next.value)).toBe(json(payoffMomentSync(p.settings, p.seed, p.world, p.timing.clipSec * 0.8, p.timing.clipSec)));
+    // aborted: nothing
+    expect(await planClarity(p, { ...noPause, signal: { aborted: true } })).toBeNull();
+  });
+
+  it("are the studio's lines for the same plan: its Simple score, its band and its seven gates before a render", async () => {
+    for (const p of plans) {
+      const run = runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec, p.payoff.atSec);
+      const studio = clarityOf(crewClipOfPlan(p, { run }));
+      const lines = (await planClarity(p, noPause))!;
+      expect(lines).toEqual(planClarityOf(p, run));
+      expect(lines.simple).toBe(studio.simple.score);
+      expect(lines.band).toBe(studio.simple.band);
+      expect(lines.pass).toBe(studio.pass);
+      expect(lines.gates.map((g) => g.id)).toEqual(GATES.slice(0, 7).map((g) => g.id));
+      expect(lines.gates.map((g) => [g.ok, g.key])).toEqual(studio.gates.map((g) => [g.ok, g.key]));
+    }
+    // a Simple template clip reads Simple
+    const simple = planClarityOf(plans[4], runSync(plans[4].settings, plans[4].seed, plans[4].world, plans[4].recipe, plans[4].timing.clipSec, plans[4].payoff.atSec));
+    expect(simple.simple).toBeGreaterThanOrEqual(80);
+    expect(simple.band).toBe("simple");
+  }, 60_000);
+
+  it("say every gate and every verdict a plan can show in en, pl and es, with the same arguments", () => {
+    const crew = (m: unknown) => (m as { ViralBot: { crew: Record<string, Record<string, string>> } }).ViralBot.crew;
+    const args = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort();
+    for (const g of GATES.slice(0, 7)) for (const m of [en, pl, es]) expect(crew(m).gates[g.name], `${g.name}`).toBeTruthy();
+    for (const band of ["simple", "aBitBusy", "busy"]) for (const m of [en, pl, es]) expect(crew(m).bands[band]).toBeTruthy();
+    // every verdict key the clarity check writes (its source), but a render's (G8, the measured first motion)
+    const source = fs.readFileSync(path.join(__dirname, "../src/lib/crew/clarity.ts"), "utf8");
+    const verdicts = new Set([...source.matchAll(/key: "([A-Z][A-Za-z]+)"/g)].map((x) => x[1]));
+    const renderOnly = new Set(["Lagged", "WatermarkLocal", "MeasuredLate", "None"]);
+    const problems = Object.keys(crew(en).problems);
+    for (const v of verdicts) {
+      if (renderOnly.has(v)) continue;
+      expect(problems.some((k) => GATES.some((g) => k === `${g.name}${v}`)), v).toBe(true);
+    }
+    for (const key of problems) {
+      expect(GATES.some((g) => key.startsWith(g.name)), key).toBe(true);
+      for (const m of [pl, es]) {
+        expect(crew(m).problems[key], key).toBeTruthy();
+        expect(args(crew(m).problems[key]), key).toEqual(args(crew(en).problems[key]));
+      }
+    }
+    // and what the plans above show
+    for (const p of plans) {
+      const lines = planClarityOf(p, runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec, p.payoff.atSec));
+      for (const g of lines.gates.filter((x) => !x.ok)) expect(problems, g.key).toContain(g.key);
+    }
+  }, 60_000);
+});
+
+describe("viral-bot CLI --template and --look", () => {
+  it("plans a template's clips and the look in a dry run only", () => {
+    expect(parseArgs(["--dry-run", "--template", "get-out-classic", "--look", "simple"])).toMatchObject({ dryRun: true, template: "get-out-classic", look: "simple" });
+    expect(parseArgs(["--dry-run", "--look=bot"])).toMatchObject({ look: "bot", template: null });
+    expect(parseArgs([])).toMatchObject({ template: null, look: null });
+    for (const bad of [["--template", "get-out-classic"], ["--look", "simple"], ["--dry-run", "--look", "neon"], ["--dry-run", "--template", "Get Out"], ["--plan", "--template", "get-out-classic"], ["--dry-run", "--template"]]) expect(() => parseArgs(bad), bad.join(" ")).toThrow();
+  });
+
+  it("refuses a template that is unknown, hidden, or of a series --family leaves out (the battle family only with all or battle)", () => {
+    const planner = { templateById, readyTemplates };
+    const battle = readyTemplates("battle")[0];
+    const hidden = allTemplates().find((t) => !t.ready)!;
+    expect(templateRefusal(planner, { template: null, family: "default" })).toBeNull();
+    expect(templateRefusal(planner, { template: "get-out-classic", family: "default" })).toBeNull();
+    expect(templateRefusal(planner, { template: battle.id, family: "default" })).toMatch(/--family all or --family battle/);
+    expect(templateRefusal(planner, { template: battle.id, family: "all" })).toBeNull();
+    expect(templateRefusal(planner, { template: battle.id, family: "battle" })).toBeNull();
+    expect(templateRefusal(planner, { template: hidden.id, family: "all" })).toMatch(/not ready/);
+    expect(templateRefusal(planner, { template: "nope", family: "all" })).toMatch(/no template nope/);
+  });
+
+  it("writes a template's clips in a dry run, the very plans of the planner", () => {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "bot-template-"));
+    try {
+      const env = { ...process.env, NEXT_PUBLIC_SITE_URL: "https://example.com/Balls", IG_ACCESS_TOKEN: "", IG_USER_ID: "" };
+      const log = execFileSync(process.execPath, [path.join(__dirname, "../scripts/viral-bot.mjs"), "--dry-run", "--template", "get-out-classic", "--look", "simple", "--count", "2", "--max-seeds", "4", "--date", DATE, "--out", out], { cwd: path.join(__dirname, ".."), env, encoding: "utf8" });
+      expect(log).toContain("of the template get-out-classic in the simple look");
+      const manifest = JSON.parse(fs.readFileSync(path.join(out, "manifest.json"), "utf8"));
+      const day = planDay(DATE, "reels", 2, { copy, locale: "en", family: "default", bucket: "auto", ending: "auto", maxSeeds: 4, siteUrl: "https://example.com/Balls", template: "get-out-classic", look: "simple" });
+      expect(manifest.clips.map((c: { recipe: string; seed: number }) => [c.recipe, c.seed])).toEqual(day.clips.map((c) => [c.recipe, c.seed]));
+      expect(manifest.clips.every((c: { status: string }) => c.status === "planned")).toBe(true);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  }, 120_000);
+});

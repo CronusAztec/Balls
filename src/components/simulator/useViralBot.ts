@@ -10,7 +10,9 @@ import type { BotWorld } from "@/lib/bot/finderRequest";
 import { batchTextFiles, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
+import { BOT_COUNT_RANGE, chosenTemplate, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
+import type { BotLookId } from "@/lib/bot/templates"; // --- bot-templates ---
+import type { PlanClarity } from "@/lib/bot/clarityLines"; // --- bot-templates --- (a type only: the module loads when a clip's lines are opened)
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
@@ -31,7 +33,10 @@ import type { FastRenderResult } from "@/lib/recording/fastRender"; // --- agent
  */
 
 export type BotPlanning = { current: number; total: number; seeds: number } | null;
-export type BotRenderState = { status: "idle" | "running" | "done" | "failed"; total: number; done: number; zip: boolean };
+/** --- bot-templates --- `watermarked`: the clips of the last render whose frames carry the watermark (the fast export's own seal). */
+export type BotRenderState = { status: "idle" | "running" | "done" | "failed"; total: number; done: number; zip: boolean; watermarked: number };
+/** --- bot-templates --- A clip's clarity lines in "Why this clip": being checked, checked, or not to be had (the run failed). */
+export type BotClarity = PlanClarity | "checking" | "failed";
 
 export interface BotPanelProps {
   options: BotOptions;
@@ -58,6 +63,9 @@ export interface BotPanelProps {
   onRenderAll: () => void;
   onStop: () => void;
   onClear: () => void;
+  /** --- bot-templates --- A clip's clarity lines (null: not asked for yet); `onClarity` asks for them (its "Why this clip" opened). */
+  clarity: (clip: ClipPlan) => BotClarity | null;
+  onClarity: (id: string) => void;
 }
 
 export interface UseViralBotOptions {
@@ -225,13 +233,19 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       const family = request?.family !== undefined ? (isBotFamily(request.family) || request.family === "default" ? request.family : "all") : custom ? opts.family : "all"; // --- legal-audit --- "default": the CLI without --family (no Fight League clips)
       const bucket = request?.bucket !== undefined ? (isLengthBucket(request.bucket) ? request.bucket : "auto") : custom ? opts.bucket : "auto";
       const ending = request?.ending !== undefined ? (isEndingChoice(request.ending) ? request.ending : "auto") : custom ? opts.ending : "auto";
+      // --- bot-templates --- the panel's Template choice ("Plan clips", like its other filters; Auto: the rotation) and its Simple
+      // switch (both buttons); the CLI's handle plans the rotation in the bot look, as before. A template plans in the look the
+      // switch says (planTemplateSteps' own is Simple); the bot look is passed to the rotation as before: not at all.
+      const template = !request && custom ? chosenTemplate(opts) : undefined;
+      const look: BotLookId = !request && opts.look === "simple" ? "simple" : "bot";
+      const lookAndTemplate: Pick<PlanOptions, "look" | "template"> = template ? { template, look } : look === "simple" ? { look } : {};
       setPlanning({ current: 1, total: count, seeds: 0 });
       // The progress re-renders the page: at most a few times a second, and whenever the next clip starts.
       let shownAt = 0;
       let shownClip = 1;
       try {
         const day = await runSliced(
-          planDaySteps(date, platform, count, { ...baseOptions(), family, bucket, ending, maxSeeds: request?.maxSeeds, salt }),
+          planDaySteps(date, platform, count, { ...baseOptions(), family, bucket, ending, maxSeeds: request?.maxSeeds, salt, ...lookAndTemplate /* --- bot-templates --- */ }),
           (p) => {
             const now = performance.now();
             if (p.clip === shownClip && now - shownAt < PROGRESS_MS) return;
@@ -305,7 +319,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
   );
 
   /* ---------------------------------------------------------- render all */
-  const [render, setRender] = useState<BotRenderState>({ status: "idle", total: 0, done: 0, zip: true });
+  const [render, setRender] = useState<BotRenderState>({ status: "idle", total: 0, done: 0, zip: true, watermarked: 0 });
   const lastRendered = useRef<RenderedClip[]>([]);
   const renderAll = useCallback(async (download: "each" | "zip"): Promise<RenderedClip[]> => {
     const plan = stateRef.current.plan;
@@ -314,7 +328,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     // --- free-watermark --- (was paywall-gate: the bot's record step is no longer refused – watermarked without Pro)
     const clips = plan.clips;
     const melodyBefore = l.currentMelody;
-    setRender({ status: "running", total: clips.length, done: 0, zip: download === "zip" });
+    setRender({ status: "running", total: clips.length, done: 0, zip: download === "zip", watermarked: 0 });
     let files: CustomBatchFile[] = [];
     try {
       files = await l.runJobs(clips.map((c) => ({ seed: c.seed, settings: c.settings, name: c.id, download: download === "each", prepare: async () => void (await latest.current.selectMelody(c.melodyId)) })));
@@ -331,7 +345,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       const zip = await zipBlobs([...files.map((f) => ({ name: f.name, blob: f.blob })), ...texts.map((t) => ({ name: t.name, blob: new Blob([t.text], { type: "text/plain;charset=utf-8" }) }))]);
       downloadExport(zip, "zip", `${SITE_SLUG}-bot-${plan.date}`);
     }
-    setRender({ status: files.length > 0 ? "done" : "failed", total: clips.length, done: files.length, zip: download === "zip" });
+    setRender({ status: files.length > 0 ? "done" : "failed", total: clips.length, done: files.length, zip: download === "zip", watermarked: files.filter((f) => f.result?.watermarked === true).length /* --- bot-templates --- */ });
     return results;
   }, []);
   const onRenderAll = useCallback(() => void renderAll("zip"), [renderAll]);
@@ -363,6 +377,28 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     const result = f.result ? (Object.fromEntries(Object.entries(f.result).filter(([key]) => key !== "blob")) as Omit<FastRenderResult, "blob">) : null;
     return { status: "done", file: f.name, blob: f.blob, durationSec: f.durationSec, seed, mode: settings.mode, result, world: latest.current.getWorld(), melodyId: played };
   }, []);
+
+  /* ---------------------------------------------------------- --- bot-templates --- the clarity lines of "Why this clip" */
+  // Checked when a clip's lines are first opened (lib/bot/clarityLines.ts loads then, its run followed in slices) and kept in
+  // memory by the clip itself: nothing is stored, and a clip planned again (a re-roll, a new plan, a reload) is checked again.
+  const clarityRef = useRef(new WeakMap<ClipPlan, BotClarity>());
+  const [, setClarityTick] = useState(0);
+  const onClarity = useCallback(async (id: string) => {
+    const clip = stateRef.current.plan?.clips.find((c) => c.id === id);
+    if (!clip || clarityRef.current.has(clip)) return;
+    clarityRef.current.set(clip, "checking");
+    setClarityTick((n) => n + 1);
+    let lines: BotClarity = "failed";
+    try {
+      const { planClarity } = await import("@/lib/bot/clarityLines");
+      lines = (await planClarity(clip)) ?? "failed";
+    } catch {
+      lines = "failed";
+    }
+    clarityRef.current.set(clip, lines);
+    setClarityTick((n) => n + 1);
+  }, []);
+  // --- end bot-templates ---
 
   /* ---------------------------------------------------------- the CLI's handle */
   useEffect(() => {
@@ -416,5 +452,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     onRenderAll,
     onStop,
     onClear,
+    clarity: (clip) => clarityRef.current.get(clip) ?? null, // --- bot-templates ---
+    onClarity: (id) => void onClarity(id),
   };
 }
