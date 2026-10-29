@@ -4183,13 +4183,24 @@
     },
     "variants": {
       "ring": "Un anillo",
-      "fills": "Llenar hasta el final"
+      "fills": "Llenar hasta el final",
+      "ringBreaker": "Rompeanillos",
+      "conquer": "Conquista de colores",
+      "tierClimb": "Escalada de niveles",
+      "plinkoRace": "Carrera entre clavos",
+      "growEscape": "Crece o escapa"
     },
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
       "box": "Se para en cero.",
       "spiralGlass": "¿Se multiplicará la bola?",
-      "doublePendulum": "Mismo inicio. Mira cómo se separan."
+      "doublePendulum": "Mismo inicio. Mira cómo se separan.",
+      "hatchery": "Cada cristal roto hace nacer una bola.",
+      "ringBreaker": "Cada anillo roto duplica las bolas.",
+      "conquer": "Un choque convierte. Gana el último color.",
+      "tierClimb": "Bolas iguales se funden en una mayor.",
+      "plinkoRace": "Entre clavos. Gana la primera en salir.",
+      "growEscape": "Más grande en cada rebote. ¿Aún cabe?"
     },
     "ownPayoffs": {
       "journey": "¡En casa! 🏠"

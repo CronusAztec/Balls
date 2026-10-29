@@ -216,8 +216,9 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 37 modes as 42 templates. 15 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
-  Gerald variant, and Fight League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
+- **Ready now:** 39 modes as 49 templates. 15 of the 16 modes a recipe plays give 20 of them: Classic and Portal also have a
+  Gerald variant, and Fight League has the duel, the upset, the bracket and, since AI studio step 6, the boss rush. A template
+  plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
   on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
   Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
@@ -225,12 +226,15 @@ checks (G4).
   and Bouncing Shapes. Two more since step 4b: the Journey and Spiral Glass, each with a setting that switches its own overlay
   off. Nine more since step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp
   line up, and Beat Machines, Collision Playground and Wave Tank play on the beat. Ball Drop's template is ready again since
-  step 5, its rain looped. Their numbers are in the tables of steps 3, 4, 4b and 5 below.
-- **Hidden for now:** the other 11 modes are bound but wait. Ten sit in the experimental table (`EXPERIMENTAL`), which a
-  test lets only shrink: a binding leaves it when its plans pass. Six of them were planned and measured and stay with the
-  reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4, Beat Drop, Beat Runner and the Sound Vortex in step 5
-  (below). Lines, Drawing Machine, Illusion and the Mode Lab wait for their own settings and planning acceptance. The Journey
-  and Spiral Glass, hidden in step 3, left the table in step 4b. The payoff timing of every binding is in place
+  step 5, its rain looped. Two more since step 6: the Drawing Machine reveals its flower, and the Mode Lab plays five of its
+  six built-in games, a template each. Their numbers are in the tables of steps 3, 4, 4b, 5 and 6 below, and the whole table's
+  counts and medians per format after them.
+- **Hidden for now:** the other 9 modes are bound but wait, each with its reason. Eight sit in the experimental table
+  (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Each was planned and measured and
+  stays with the reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4, Beat Drop, Beat Runner and the Sound
+  Vortex in step 5, Lines and Circle Illusion in step 6 (below). The ninth is the square race, a recipe's binding whose one
+  variant is hidden (below). The Journey and Spiral Glass, hidden in step 3, left the table in step 4b, and the Drawing Machine
+  and the Mode Lab in step 6. The payoff timing of every binding is in place
   (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
   of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
@@ -239,9 +243,9 @@ checks (G4).
   Machines, the vortex's ring waves, Brick Smash and Perfect Fit. Each of the six plans from a run of its own instead: the
   template's settings draw what the finder would search (a star set, a transit, a phrase, a wave interval), and the planner
   plays the seed's run with them and reads the moment off it, such as the last brick of the picture or the last piece landed
-  (`OWN_RUN_MOMENTS`). Fight League's boss rush is hidden: its hook names the boss and the division in one clause of 8–9
-  words, more than the 7 G5 allows. The square race is
-  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count (step 4 tried 96
+  (`OWN_RUN_MOMENTS`). Fight League's boss rush was hidden until step 6: its recipe's hook names the boss and the division in
+  one clause of 8–9 words, more than the 7 G5 allows, so its template now draws its format's own (below). The square race is
+  hidden: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count (step 4 tried 96
   seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). Ball Drop's was hidden until step 5:
   its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
   shows for 0.5 s, so no plan timed by that note lands (G2). Its template now loops the rain (below). A template that fails a
@@ -258,9 +262,12 @@ checks (G4).
   at most 7 words on 2 lines, broken at its clause, at most 42 characters in English and 52 in Polish and Spanish. A number
   the planner cannot fill yet (a count format's "{count}!") leaves the text out, never a brace. A template is named "{Mode
   name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
-  Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
+  Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring", and since step 6 a Mode
+  Lab game's name: "Mode Lab · Lab game · Ring Breaker"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
   A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
-  Bouncing Shapes', Spiral Glass's, the Double Pendulum's) or a payoff (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠").
+  Bouncing Shapes', Spiral Glass's, the Double Pendulum's, and since step 6 each Mode Lab game's rule) or a payoff
+  (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠"). A variant that wraps a recipe may draw one of its format's hooks
+  instead of the recipe's (step 6: Fight League's boss rush, "Pick one before it starts.").
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
 
@@ -533,6 +540,97 @@ Hidden after measuring in step 5 (`EXPERIMENTAL`):
   setting switches off: the hook stacks over it.
 - **Beat Runner** passed none of 12. Its square runs a second before its first take-off, so its first note comes 1.5 s in on
   every plan (G1 asks 1 s), and its LEVEL COMPLETE comes 0.5 s before the clip's end (G2).
+
+**AI studio step 6's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
+the same counts in each]**. The last group: the reveal format's first ready template, the Mode Lab's built-in games, and
+Fight League's boss rush. Each passed its watch: one clip of each rendered watermarked and its hook and contact sheets looked
+at, Glass Hatchery's three times.
+
+| Template | Its own settings and words | Simple (median) | Checklist (median) | Pass every gate |
+| --- | --- | --- | --- | --- |
+| reveal-drawing-machine | the orbits machine: Earth and Venus over 8 years, a line between them every few days, so a five-petal flower and its pentagram come out of the lines; the years' pace on its slider's step so the flower is done 0.25–0.65 s into the clip's last 1.5 s (atEnd), the hold past the clip's end; hook "Guess what it draws." | 97 | 82 | 12/12 |
+| lab-game-blueprint | Glass Hatchery, the Mode Lab's default game; standard only; its own hook "Every broken tile hatches a new ball." | 92 | 82 | 12/12 |
+| lab-game-blueprint-ring-breaker | Ring Breaker; short only; "Every broken ring doubles the balls." | 87.5 | 84 | 12/12 |
+| lab-game-blueprint-tier-climb | Tier Climb; standard only; "Matching orbs merge into a bigger one." | 91.5 | 82 | 12/12 |
+| lab-game-blueprint-plinko-race | Peg Race; short only; "Through the pegs. First one out wins." | 87.5 | 84 | 12/12 |
+| lab-game-blueprint-grow-escape | Grow or Go; short only; "Bigger every bounce. Will it still fit?" | 89 | 84 | 12/12 |
+| who-wins-fight-league-boss | the boss rush recipe, with its format's hook b "Pick one before it starts." | 89.5 | 96 | 12/12 |
+
+- Their runs are the bot look's: the seed and every run fact are the same in both looks, on all 84 plans.
+- The Drawing Machine draws its orbits: its default harmonograph draws a figure no viewer could name (watched), and the
+  format's hooks ask to guess a picture. Its last lines are drawn as the payoff comes. Measured first with a pace that closed
+  the flower by the payoff, it was done 0–0.4 s before it on 3 of 12 plans, which failed G2: a still, quiet moment, the bed playing on and the
+  last conjunction's pluck 1.6 years before the flower closes. Its cycle of drawing, hold and rewind is longer than
+  the clip, which the page's whole-loop export records at its set length (rendered 21 s of 21 planned).
+- A Mode Lab template per built-in game that bp-check calls playable (all six are; Colour Conquest's is hidden, below). Its
+  hook is the game's rule (`ViralBot.ownHooks`, in English, Polish and Spanish), its series the game's own family, its words
+  the variant's name ("Mode Lab · Lab game · Ring Breaker"). Its payoff is the moment its finish rule fires, read off the run
+  (`MARK_MODES`), and the game's end banner, with its result and its time, holds 1.5 s before the run ends: the clip's one
+  ending (`MODE_END_BANNERS`), with no payoff words beside it.
+- The lengths a game fills: Glass Hatchery's shell is cleared about 17 s in and Tier Climb's top tier about 25 s in, so their
+  seed search found no seed in a short clip (0 of 4 Shorts plans each): standard only. Ring Breaker, Peg Race and Grow or Go
+  end 8–14 s in, and in a standard clip their seed search took the seeds that drag (four balls waiting 8 s for the last
+  rings, the racers resting 10 s on the bowl's floor, watched): short only. Glass Hatchery's payoff lands at 93 % of its
+  clip, past the checklist's 90 %, and Tier Climb's at 90–93 %.
+- A game draws its title block at the top left of the square: its name and counters. Watched, the first hook at the top
+  covered it, so the block is a banner on the run's action track (`labTitleBox` in `src/lib/bot/actionTrack.ts`): the
+  Simple look puts each game's hook at the bottom, and G5 fails a text over the block.
+- The boss rush's hook in the recipe names the boss and the division in one clause of 8–9 words, over G5's 7. Its template
+  draws its format's hook b instead ("Wybierz, zanim ruszy.", "Elige antes de que empiece."): a variant may take one of its
+  format's hooks (`hookKey`), and the bot's own Boss rush keeps its words. It stays in the battle family.
+- In the bot look none of them passes: the Mode Lab's hooks sit at the top over the game's title (G5), and all are busy
+  (G6: Simple 30–41). The Simple look is what makes them ready.
+
+Hidden after measuring in step 6:
+
+- **Colour Conquest** (`lab-game-blueprint-conquer`, a variant hidden with its reason; its game is a battle) passed every gate on 12
+  of 12 plans. Its 24 balls collide and convert each other, and the page's run parted from the planner's: rendered twice,
+  its run ended 0.8 s after the planned finish once, and had two colours left at the clip's end the other time (13 s, the
+  plan's last colour standing 11 s in), so its ending never came (watched). Glass Hatchery's page run parts by less: rendered
+  three times, it ended 0.13 s before and 0.18 and 0.58 s after the planned length, with its SHELL CLEARED shown inside the
+  clip each time (watched), so it stays ready (docs/agents/STUDIO.md, known gaps).
+- **Lines** (`EXPERIMENTAL`) passed every gate on 12 of 12 plans, the clip's last 1.5 s its payoff. Watched, its strings run from every
+  bounce point to the moving ball, so they make a fan that follows the ball and never a picture, and the reveal format's
+  hooks ask to guess one.
+- **Circle Illusion** (`EXPERIMENTAL`) runs a fixed length, whole cycles that cover the clip. Its lines and rings types passed every gate
+  on 12 of 12 plans but show no picture to guess (watched): the rolling circle the lines make is there from the first second,
+  and the rings line up every cycle, a line-up rather than a reveal. Its white-spaces type hides a picture and reveals it as
+  its run ends, shown for the recorder's 0.5 s only: 0 of 12 plans passed (G2), as Paint's fill.
+
+**The whole table after AI studio step 6** **[observed: every ready template, 4 plan seeds × 3 platforms, on the platforms
+its buckets fit: 584 plans in the Simple look in each of English, Polish and Spanish, and 584 in the bot look in English]**.
+48 of 48 modes are bound. 39 are ready, as 49 templates. The other 9 are not ready, each with its reason: the 8 bindings of
+the experimental table and the square race, a recipe's binding whose one variant is hidden. Three variants of ready bindings
+are hidden with theirs: Grow's fill that ends the run, Colour Conquest and the square race's. A test pins the counts per
+format (`tests/botTemplates.test.ts`).
+
+| Format | Bindings ready | Not ready, and why | Templates ready | Pass every gate (each language) | Simple median (range) | Checklist median |
+| --- | --- | --- | --- | --- | --- | --- |
+| get out | 7 | – | 10 | 118/120 | 97 (84–97) | 94 |
+| smash | 4 | – | 4 | 48/48 | 97 (86–100) | 86 |
+| fill | 2 | Paint: its run ends at its fill, shown 0.5 s | 2 | 22/24 | 97 (97–97) | 82 |
+| count | 3 | Merge Ring: its own question under the ring | 3 | 36/36 | 91 (87–97) | 85 |
+| who wins | 7 | the square race: its count-in opens the gate at 1.8 s (G1) | 10 | 114/116 | 90 (87–97) | 94 |
+| aim | 2 | Paddle Keep-Up: its score band under the hook | 2 | 24/24 | 94 (87–97) | 86 |
+| line up | 8 | – | 8 | 96/96 | 97 (97–100) | 84 |
+| on the beat | 4 | Beat Drop and the Sound Vortex: their own HUD or title under the hook; Beat Runner: its first note at 1.5 s (G1) | 4 | 48/48 | 97 (97–97) | 82 |
+| reveal | 1 | Lines and Circle Illusion: no picture to guess | 1 | 12/12 | 97 (97–97) | 82 |
+| Mode Lab game | 1 | – | 5 | 60/60 | 89 (86–92) | 84 |
+| **All** | **39** | **9** | **49** | **578/584** | **97 (84–100)** | **86** |
+
+- The ranges are the English plans'. Polish and Spanish pass the same 578 plans, miss the same 6 and have the same medians
+  per format. A template's Simple median moves by half a point at most, and a lowest plan by one (Glass's lowest Spanish
+  plan scores 83, Power Layers' lowest Polish one 85).
+- Every ready template passes every gate on at least 3 of its 4 plan seeds on every platform it is offered on, at Simple 80
+  or more and a checklist score of 75 or more, in each language. Its runs are the bot look's: the seed and every run fact are
+  the same in both looks, on all 584 English plans.
+- The 6 misses are the ones the tables above name: Classic's one ring and Glass on one Shorts plan each, Grow until it fills
+  on two, a Land Claim plan of 42 s past Reels' lengths, and one String Battle whose first hit comes at 1.4 s.
+- The lowest checklist score of a passing plan is the Maze's 76; the lowest Simple score is Glass's 84.
+- In the bot look 95 of the 584 plans pass every gate (median Simple 36): the Simple look is what makes most templates ready.
+- Each format has at least one ready template. Who wins holds the battle family: its 10 templates, Fight League's among them,
+  are offered only where that family is asked for (`readyTemplates("battle")` or `"all"`, and the `templates` tool's
+  `family`). The default menus offer the other 39, as the daily bot leaves its battles out.
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

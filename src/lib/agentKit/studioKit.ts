@@ -187,6 +187,8 @@ function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | 
     if (text) out[f] = text;
   }
   if (recipe.hookAsk && out.hook) out.hook = askHookText(out.hook, copyString(copy, `recipes.${recipe.copyKey}.${recipe.hookAsk}`));
+  // --- templates --- (AI studio step 6) a recipe's template that draws one of its format's hooks (Fight League's boss rush)
+  if (recipe.hookKey) out.hook = recipeText(copy, recipe, recipe.hookKey) || out.hook;
   return out;
 }
 

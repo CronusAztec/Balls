@@ -162,8 +162,8 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     const own = allTemplates().filter((t) => t.recipe === null);
     const wrapped = allTemplates().filter((t) => t.recipe !== null);
     // (--- templates --- AI studio step 3: and two variants of proven bindings that play their own way, Classic's one ring and Grow's
-    // fill that ends the run)
-    expect([own.length, wrapped.length]).toEqual([34, 21]);
+    // fill that ends the run; step 6: and Mode Lab's games after its first, a variant each)
+    expect([own.length, wrapped.length]).toEqual([39, 21]);
     for (const t of wrapped) {
       const r = plannedRecipe(t)!;
       expect([t.id, r.formatCopy, recipeCopyPath(r)]).toEqual([t.id, undefined, `recipes.${t.recipe!.copyKey}`]);
@@ -242,9 +242,12 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     expect([en("get-out-shatter"), en("get-out-classic"), en("get-out-classic-gerald"), en("who-wins-fight-league-upset")]).toEqual(["Shatter · Get out", "Classic · Get out", "Classic · Get out · Gerald escapes", "Fight League · Who wins · Fight upset"]);
     // --- templates --- (AI studio step 3) the variants without a recipe, by their own names, in every locale
     expect([en("get-out-classic-ring"), en("fill-grow-fills")]).toEqual(["Classic · Get out · One ring", "Grow · Fill it · Fill to finish"]);
+    // (--- templates --- AI studio step 6: a Mode Lab game's template by its game's name, as Mode Lab lists it)
+    expect([en("lab-game-blueprint"), en("lab-game-blueprint-ring-breaker")]).toEqual(["Mode Lab · Lab game", "Mode Lab · Lab game · Ring Breaker"]);
     for (const locale of LOCALES) {
       const variants = (MESSAGES[locale].ViralBot as unknown as { variants: Record<string, string> }).variants;
-      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills"]]);
+      // (--- templates --- AI studio step 6: and Mode Lab's games after its first, by their own names)
+      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape"]]);
       for (const name of Object.values(variants)) expect([locale, name, wordCount(name) <= 4, /[{}]/.test(name)]).toEqual([locale, name, true, false]);
     }
     expect(templateName(COPY.pl, "Rozbicie", "getOut")).toBe("Rozbicie · Ucieczka");

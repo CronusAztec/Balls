@@ -180,7 +180,8 @@ describe("plan (--- studio ---)", () => {
   });
 
   it("refuses an unknown or hidden template, and a mode without a ready one, naming the ready ones", () => {
-    for (const input of [{ template: "get-out-nowhere" }, { template: "who-wins-fight-league-boss" }, { mode: "lines" }, { recipe: "no-such-recipe" }]) {
+    // --- templates --- (AI studio step 6) the hidden template is Colour Conquest's: the boss rush's draws its format's hook and plans
+    for (const input of [{ template: "get-out-nowhere" }, { template: "lab-game-blueprint-conquer" }, { mode: "lines" }, { recipe: "no-such-recipe" }]) {
       const p = studioPlan(input, copy);
       expect(p.ok, JSON.stringify(input)).toBe(false);
       expect(!p.ok && p.error, JSON.stringify(input)).toMatch(/ready|recipes/);

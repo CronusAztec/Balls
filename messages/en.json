@@ -4183,13 +4183,24 @@
     },
     "variants": {
       "ring": "One ring",
-      "fills": "Fill to finish"
+      "fills": "Fill to finish",
+      "ringBreaker": "Ring Breaker",
+      "conquer": "Colour Conquest",
+      "tierClimb": "Tier Climb",
+      "plinkoRace": "Peg Race",
+      "growEscape": "Grow or Go"
     },
     "ownHooks": {
       "mergeRing": "How far can it merge?",
       "box": "It stops at zero.",
       "spiralGlass": "Will the ball multiply?",
-      "doublePendulum": "Same start. Watch them split."
+      "doublePendulum": "Same start. Watch them split.",
+      "hatchery": "Every broken tile hatches a new ball.",
+      "ringBreaker": "Every broken ring doubles the balls.",
+      "conquer": "One hit converts. Last colour wins.",
+      "tierClimb": "Matching orbs merge into a bigger one.",
+      "plinkoRace": "Through the pegs. First one out wins.",
+      "growEscape": "Bigger every bounce. Will it still fit?"
     },
     "ownPayoffs": {
       "journey": "Home! 🏠"

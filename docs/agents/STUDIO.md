@@ -389,8 +389,10 @@ What the run showed:
   records where a mode's own banner shows, every half second: Glass's "STAGE n" and the Journey's stage banner, with the
   camera these modes scroll. G5 fails a caption over such a banner (`readableOverBanner`), and the Simple look places a text
   at the edge where it covers the banner for less time, before it weighs the balls. Glass's hooks moved to the bottom of the
-  square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). The banners the track knows
-  are these two: a mode's other texts of its own are not in it (below).
+  square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). Since AI studio step 6 the track
+  also knows the Mode Lab's title block, the game's name and counters at the top left of the square (`labTitleBox`): watched,
+  a game's first hook at the top covered it, so the Simple look puts each game's hook at the bottom. The banners the track
+  knows are these three: a mode's other texts of its own are not in it (below).
 - **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Merge Ring (AI studio step 4) asks
   "Will it merge into its final form?" under its ring for the whole run, beside its title, its merge count and its ladder of
   sizes. Its template passed every gate and was hidden after the render was watched (docs/virality-playbook.md §5). Spiral
@@ -460,7 +462,20 @@ What the run showed:
   0.8–1.1 s before the plan's second, so the payoff's words came over the remix), so its template turns contacts off, and both
   runs then sort on the same frame. Another mode with many touching bodies could part the same way. render reports the
   payoff's second from the planner's run, not from the page's, so only the sheets show it (page stills at the plan's seconds,
-  the `preview` tool, settle it). A check that reads the page's own moment is the owner's call.
+  the `preview` tool, settle it). A check that reads the page's own moment is the owner's call. The Mode Lab's Colour Conquest
+  (AI studio step 6) parted the same way: its 24 balls collide and convert each other, and rendered twice, its run ended 0.8 s
+  after the plan's finish once and had two colours left at the clip's end the other time, so its ending never came. Its
+  template is hidden with that reason. Glass Hatchery parts by less: rendered three times, its run ended 0.13 s before and 0.18
+  and 0.58 s after the planned length, its SHELL CLEARED banner shown inside the clip each time (watched), so its template
+  stays ready.
+- **A reveal without a picture** (AI studio step 6). The reveal format's hooks ask a viewer to guess a picture. The Drawing
+  Machine's orbits draw one (Earth and Venus's five-petal flower), and its template is ready; its default harmonograph draws a
+  figure no viewer could name, so the template draws the orbits. Lines strokes a string from every bounce point to the moving
+  ball, so its strings make a fan that follows the ball, never a picture, and Circle Illusion's lines and rings show their
+  circle from the first second and line up every cycle. Both pass every gate and are hidden for it (watched). Illusion's
+  white-spaces type hides a picture but shows it for the recorder's 0.5 s only, as its run ends. A Lines setting that keeps
+  the strings between the bounce points, or an Illusion reveal held past the run's end, is a change of the mode (its
+  fingerprint) and the canvas: the owner's call.
 - **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its
   slow motion moves the run in several modes.
 - **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world,

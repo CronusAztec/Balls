@@ -127,6 +127,9 @@ export const MODE_HUDS: readonly ModeHud[] = [
   { mode: "bullseye", counts: false, words: "a title, the shot counter and the running total" },
   { mode: "paddle", counts: false, words: "the score, the lives and the streak" },
   { mode: "mergeRing", counts: false, words: "a title, the merges, the top size, a ladder of the sizes and a question under the ring" },
+  // --- crew --- (AI studio step 6) a Mode Lab game's own HUD (blueprintRenderer.ts drawOverlay: its title block in the square's top
+  // left corner, which no setting switches off)
+  { mode: "blueprint", counts: false, words: "the game's name and its counters in the top left corner" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings
@@ -196,6 +199,8 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "pendulum", at: "finish", words: "a banner: every pendulum back in line" },
   { mode: "polyrhythm", at: "finish", words: "a banner: every dot aligned" },
   { mode: "illusion", at: "finish", words: "a COMPLETE! banner with the cycles" },
+  // --- crew --- (AI studio step 6) a Mode Lab game's end banner as its finish rule fires, held END_HOLD_SEC before its run ends (modes/blueprint.ts)
+  { mode: "blueprint", at: "finish", leadSec: 1.5, words: "a banner across the middle with the game's result and its time" },
   { mode: "any", at: "finish", when: (s) => rosterPlays(s), words: "the winning team's banner" },
 ];
 

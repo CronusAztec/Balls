@@ -4,13 +4,15 @@ import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcome
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, intBetween, pick, recipeById, snapStep, stepBetween, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
-import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
-import { templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name)
+import { AT_END_BUCKETS, AT_END_SEC, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
+import { FORMAT_FIELD, OWN_HOOK_FIELD, templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name; AI studio step 6: a variant's format hook)
 import { modeSettingsOfSettings } from "./finderRequest"; // --- templates --- (Perfect Fit's solution seed: the finder's own search)
 import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- templates ---
 import { randomStarSet, seededRandom as starRandom, serializeStars, starSetScore } from "@/lib/physics/starChords"; // --- templates --- (AI studio step 5: Chord Stars' sets, the finder's own kind)
 import { transitOnBeat } from "@/lib/simulation/ellipseFociFinder"; // --- templates --- (Focus Shot's transit on the beat)
 import { ceilSteps, funnelDescentSteps } from "@/lib/physics/funnelSpin"; // --- templates --- (the vortex's last ring on a bar line)
+import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, type BlueprintCatalogId } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6: Mode Lab's games)
+import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- templates --- (AI studio step 6: the illusion's fixed run length)
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -31,17 +33,21 @@ import { ceilSteps, funnelDescentSteps } from "@/lib/physics/funnelSpin"; // ---
  *    (only the one that shows the countdown), its tier and its variants. Tiers: proven (wraps a playbook recipe, each variant
  *    one; the variants that plan pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (the bindings
  *    of the EXPERIMENTAL table, a shrink-only list: hidden from every menu until the planning acceptance passes them). A proven
- *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception:
- *    Fight League's boss rush (its hook), the square race (its count-in) and Grow's fill that ends the run (AI studio step 3:
- *    shown 0.5 s); Ball Drop's, hidden while its run faded out (review round 2, 21), plays its rain looped since AI studio
- *    step 5 (DROP_RAIN: the beat format's payoff the clip's last 1.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
- *    this release 15 of the 16 proven ones, the square race's binding not ready since its one variant is hidden, and 22 trial
+ *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception: the
+ *    square race (its count-in) and Grow's fill that ends the run (AI studio step 3: shown 0.5 s); Ball Drop's, hidden while its
+ *    run faded out (review round 2, 21), plays its rain looped since AI studio step 5 (DROP_RAIN: the beat format's payoff the
+ *    clip's last 1.5 s), and Fight League's boss rush, hidden for its hook of 8–9 words, draws its format's own since step 6
+ *    ("Pick one before it starts.": a variant's own `hookKey`, wrappedRecipe). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
+ *    this release 15 of the 16 proven ones, the square race's binding not ready since its one variant is hidden, and 24 trial
  *    ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the conveyor, the Maze,
  *    Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey and Spiral Glass,
  *    their own overlays switched off – `journeyHud`, `sgHud`; step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs,
- *    Colour Sort and the Double Pendulum Harp lined up, Beat Machines, Collision Playground and Wave Tank on the beat); the
- *    other 10 are declared, experimental and hidden until their settings and planning acceptance land, or with the measured
- *    reason no setting answers yet – their format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
+ *    Colour Sort and the Double Pendulum Harp lined up, Beat Machines, Collision Playground and Wave Tank on the beat; step 6: the
+ *    Drawing Machine's flower revealed, and Mode Lab, a variant per catalog game bp-check calls playable – Colour Conquest's hidden,
+ *    its page's run parting from the planner's, watched); the other 8 are
+ *    declared, experimental and hidden with the reason measured and watched – no setting answers it yet, their format's copy is
+ *    written – (docs/virality-playbook.md §5). 48 of 48 are bound: every binding is ready, or experimental with its reason, or
+ *    (the square race) proven with its one variant hidden with its reason. A trial binding plans once it leaves the table, where its
  *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
  *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
@@ -337,12 +343,17 @@ export interface TemplateVariant {
   /**
    * --- templates --- (AI studio step 3) A variant without a recipe that plays its own way: what it sets over its binding (its
    * strategy, outcome, context flag, settings, endings, hook…) – Classic's one ring timed by ring-at, Grow's fill that ends the run.
+   * --- templates --- (AI studio step 6) A variant that wraps a recipe sets its hook only (`hookKey`: one of its format's own three,
+   * wrappedRecipe), where the recipe's own breaks a gate on every plan: Fight League's boss rush.
    */
   own?: VariantOwn;
 }
 
-/** --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). */
-export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "payoffKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "note">>;
+/**
+ * --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). --- templates --- (AI
+ * studio step 6) Its series too (`family`): a Mode Lab game's own (Colour Conquest is a battle).
+ */
+export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "payoffKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "family" | "musicFirst" | "note">>;
 
 export interface ModeBinding {
   mode: ModeId;
@@ -418,7 +429,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum"}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -805,6 +816,86 @@ function collideSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 const DROP_RAIN: Partial<SimulatorSettings> = { dropLoop: true };
 // --- end of group C's settings
 
+// --- templates --- (AI studio step 6) group D's own settings: seeded from the planner's context (its rng only), every value on its
+// RANGES step (from the slider's least up, never to its most), no mode default changed
+/** `value` on its slider's step, at least `value`. */
+function stepAtLeast(value: number, range: { min: number; max: number; step: number }): number {
+  const v = snapStep(value, range);
+  return v < value - 1e-9 ? snapStep(v + range.step, range) : v;
+}
+
+/** The years Earth and Venus draw their five-petal flower in: 8 (13 Venus years), the pentagram's five conjunctions (the default). */
+const DM_FLOWER_YEARS = 8;
+/** The drawing's hold past the clip's end (s): the rewind, which un-draws it, never starts inside the clip. */
+const DM_HOLD_PAST_SEC = 0.5;
+/**
+ * How far into the payoff (s, at least) the planets still draw: the crew's G2 reads the moment from 0.25 s before the payoff to 0.5 s
+ * after it (lib/insights/score.ts MOMENT_BEFORE_SEC, MOMENT_AFTER_SEC), and a hold from before it is a still, silent moment there –
+ * the bed plays on, but no pluck: the last conjunction's comes 1.6 years before the flower closes (measured: 3 of 12 plans failed
+ * G2 with the drawing done 0–0.4 s before the payoff).
+ */
+const DM_DRAW_INTO_PAYOFF_SEC = 0.25;
+
+/**
+ * Drawing Machines' orbits (the harmonograph's figure is no picture a viewer could name: watched): Earth and Venus over their 8
+ * years, a line between them every few days, so a five-petal flower and its pentagram come out of the lines – the picture the hook
+ * asks to guess. The years' pace on its slider's step, up, so the last lines are drawn as the clip's last 1.5 s begin (atEnd, the
+ * payoff) and the flower is done 0.25–0.65 s into them; the hold on its step, up, past the clip's end, so the rewind that un-draws it
+ * comes after the clip. Its cycle (draw, hold, rewind) is then longer than the clip, which Export whole loops records at its set
+ * length.
+ */
+function drawingMachineSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const clip = clipOfTarget(ctx.payoffTarget);
+  const dmSecPerYear = stepAtLeast((clip - AT_END_SEC + DM_DRAW_INTO_PAYOFF_SEC) / DM_FLOWER_YEARS, RANGES.dmSecPerYear);
+  const dmHold = stepAtLeast(clip - DM_FLOWER_YEARS * dmSecPerYear + DM_HOLD_PAST_SEC, RANGES.dmHold);
+  return { dmMachine: "orbits", dmYears: DM_FLOWER_YEARS, dmSecPerYear, dmHold };
+}
+
+/**
+ * Circle Illusion's lines, its run a fixed length: whole cycles of the rolling circle (4 s each at its default tempo), as many as
+ * cover the clip, so its COMPLETE! banner comes after the clip (illusion.ts illusionFixedDurationSec). Experimental: no picture to
+ * guess (EXPERIMENTAL.illusion).
+ */
+function illusionSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const cycle = illusionCycleSeconds({ type: "lines", speed: defaultSettings("illusion").ilSpeed });
+  return { ilType: "lines", ilCycles: Math.max(1, Math.ceil(clipOfTarget(ctx.payoffTarget) / cycle - 1e-9)) };
+}
+
+/**
+ * A Mode Lab game as its template plays it: the catalog's entry (`blPreset`), with its own sliders as the catalog sets them. Each
+ * is one variant of the Mode Lab's binding (MODE_TEMPLATES.blueprint), its hook the game's own rule (`ViralBot.ownHooks.<id>`), its
+ * series the game's own (Colour Conquest is a battle), its payoff the moment its finish rule fires (planner.ts MARK_MODES: the
+ * game's end banner, held 1.5 s before its run ends).
+ */
+const labGameVariant = (id: BlueprintCatalogId): VariantOwn => ({ patch: { blPreset: id }, family: catalogBlueprint(id).meta.family, hookKey: `own.${id}`, scene: () => LAB_GAME_SCENES[id] });
+/**
+ * The length each game fills, from when its finish rule fires (bp-check's medians): Glass Hatchery's shell is cleared about 17 s in
+ * and Tier Climb's tier 8 about 25 s in, so their seed search found no seed in a short clip (0 of 4 Shorts plans each) – the standard
+ * length; Ring Breaker's rings are down about 8 s in, Colour Conquest's last colour stands about 8 s in, Peg Race's first ball is out
+ * about 9 s in and Grow or Go ends about 14 s in, so a standard clip took the seeds that drag – four balls waiting 8 s for the last
+ * rings, the racers resting 10 s on the bowl's floor for the exit, a ball 4 bounces big after 17 s (watched) – the short length.
+ */
+const LAB_GAME_BUCKETS: Readonly<Record<BlueprintCatalogId, readonly LengthBucket[]>> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
+/**
+ * The games hidden after they were watched, each with its reason: Colour Conquest's 24 balls collide and convert each other, and the
+ * page's run of them parted from the planner's – rendered twice, its run ended 0.8 s after the plan's finish once, and the other time
+ * had two colours left at the clip's end (13 s, the plan's last colour standing 11 s in), so its ending never came (watched). The
+ * planner times a payoff on its own run of the seed (docs/agents/STUDIO.md, known gaps: the page's run and the planner's).
+ */
+const LAB_GAME_HIDDEN: Readonly<Partial<Record<BlueprintCatalogId, string>>> = {
+  conquer: "its 24 balls collide and convert each other, and the page's run parted from the planner's: rendered twice, it ended 0.8 s after the planned finish once and had two colours left at the clip's end the other time (13 s; planned to end 11 s in), so its ending never came (watched)",
+};
+/** What the viewer's screen view sees of each game, in neutral words. */
+const LAB_GAME_SCENES: Readonly<Record<BlueprintCatalogId, string>> = {
+  hatchery: "one ball inside a round shell of glass tiles, six layers deep",
+  ringBreaker: "one ball inside eight spinning rings, each with one gap",
+  conquer: "balls in four colours bouncing inside a circle",
+  tierClimb: "small orbs raining into a round bowl",
+  plinkoRace: "four balls in four colours dropping through pegs into a bowl with one turning exit",
+  growEscape: "one ball inside a turning rim with one gap",
+};
+// --- end of group D's settings
+
 // --- templates --- why a binding is in the experimental table
 /**
  * --- templates --- (AI studio step 3) Paint's run ends the moment 95 % is painted (picturePaint.ts COVERAGE_DONE): a resolved clip
@@ -870,8 +961,20 @@ const BEAT_DROP_OWN_HUD = "it draws a HUD of its own at the top left of the squa
  */
 const VORTEX_OWN_TITLE = "it writes a title of its own at the top left of the square for the whole run (the ring release's \"why marbles speed up in a funnel\"; with the loop HUD off the funnel draws it itself), which no setting switches off: the hook stacks over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
 
-/** Its strategy can plan it (the outcome's moment, the clip's end, the run's finish); it waits for the rest. */
-const AWAITS = "waits for its own settings and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
+/**
+ * --- templates --- (AI studio step 6) Lines plans (12 of 12, the clip's last 1.5 s its payoff), but its string art is tied to the ball:
+ * the canvas strokes a string from every bounce point to the moving ball, so the strings make a fan that follows it and never a
+ * picture (watched: a ball and its fan at 1 s, a denser fan at 20 s). The reveal format's hooks ask to guess a picture ("Guess what it
+ * draws."), and the run has none to show.
+ */
+const LINES_NO_PICTURE = "its plans pass every gate (12 of 12, the clip's last 1.5 s), but its strings run from every bounce point to the moving ball, so they make a fan that follows the ball and never a picture (watched: 1-20 s); the reveal format's hooks ask to guess a picture it never draws";
+/**
+ * --- templates --- (AI studio step 6) Circle Illusion. Its lines and rings types run a fixed length (its cycles), and plan (12 of 12 at
+ * the clip's end), but draw no picture to guess (watched): the rolling circle the lines make is there from the first second, and the
+ * rings line up every cycle – a line-up, not a reveal. The white-spaces type hides a picture (a heart, a star) and reveals it as its
+ * run ends, shown for the recorder's 0.5 s only (G2 asks 0.8 s), and the reveal format ends resolved only – as Paint's fill.
+ */
+const ILLUSION_NO_REVEAL = "its lines and rings types run a fixed length and plan (12 of 12 at the clip's end), but show no picture to guess (watched: the rolling circle is there from the first second, the rings line up every cycle, a line-up); its white-spaces type's hidden picture is revealed as its run ends, shown for the recorder's 0.5 s only (G2 asks 0.8 s): 0 of 12 plans passed, as Paint's fill";
 
 /**
  * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
@@ -882,7 +985,8 @@ const AWAITS = "waits for its own settings and the planning acceptance (every bi
  * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs; step 4b passed the Journey and Spiral Glass, once a setting
  * switched off what they draw of their own (their reasons, which no setting could answer then, are their notes now); step 5
  * passed nine (Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort, the Double Pendulum Harp, Beat Machines,
- * Collision Playground, Wave Tank) and gave Beat Drop, Beat Runner and the Sound Vortex theirs.
+ * Collision Playground, Wave Tank) and gave Beat Drop, Beat Runner and the Sound Vortex theirs; step 6 passed the Drawing Machine
+ * and Mode Lab, and gave Lines and Circle Illusion theirs – every binding is now ready or here with what was measured and watched.
  */
 export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   paint: PAINT_ENDS_AT_FILL,
@@ -891,10 +995,8 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   beatDrop: BEAT_DROP_OWN_HUD,
   runner: RUNNER_LEAD_IN,
   vortex: VORTEX_OWN_TITLE,
-  lines: AWAITS,
-  drawingMachine: AWAITS,
-  illusion: AWAITS,
-  blueprint: AWAITS,
+  lines: LINES_NO_PICTURE,
+  illusion: ILLUSION_NO_REVEAL,
 };
 
 /**
@@ -942,7 +1044,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
     strategy: "winner",
     tier: "proven",
     keepHud: "flHud",
-    variants: [["fight-duel"], ["fight-upset", "upset"], ["fight-bracket", "bracket"], ["fight-boss", "boss", "its hook names the boss and the division in one clause, 8–9 words, over the Simple look's 7 (G5): it waits for the format's own hook"]],
+    variants: [["fight-duel"], ["fight-upset", "upset"], ["fight-bracket", "bracket"], ["fight-boss", "boss", undefined, undefined, { hookKey: "hookB" }]],
     note: "third-party names: the battle family's legal opt-in",
   }),
   maze: bind("maze", later("whoWins", "outcome", { outcome: "winner", generate: mazeSettings, buckets: ["short", "standard"], hookKey: "hook", note: "first one out (outcomeStrategy.ts OWN_RUN_MODE_MOMENTS)", scene: (s) => `${s.mzBalls} balls in ${s.mzBalls} colours dropping into a glowing green maze, an exit at the bottom` })),
@@ -970,12 +1072,13 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings", generate: vortexSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "two rings, the last one swallowed on a bar line (a run of its own), the final banner a second later", scene: () => "rings of balls spiralling down a whirlpool towards a hole in its middle" })),
   collide: bind("collide", later("onTheBeat", "atEnd", { generate: collideSettings, musicFirst: true, hookKey: "hookB", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
   waveTank: bind("waveTank", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hook", scene: () => "water waves rolling through gaps in a wall, a row of bells along the far side" })),
-  // reveal
+  // reveal (--- templates --- AI studio step 6: the picture the hook asks to guess, the clip's last 1.5 s)
   lines: bind("lines", later("reveal", "atEnd")),
-  drawingMachine: bind("drawingMachine", later("reveal", "atEnd")),
-  illusion: bind("illusion", later("reveal", "atEnd", { note: "fixed run length" })),
-  // labGame
-  blueprint: bind("blueprint", later("labGame", "finish", { note: "one variant per built-in Mode Lab game that bp-check calls playable" })),
+  drawingMachine: bind("drawingMachine", later("reveal", "atEnd", { generate: drawingMachineSettings, musicFirst: true, hookKey: "hook", note: "Earth and Venus's five-petal flower, done as the clip's last 1.5 s begin and held past its end", scene: () => "a sun with two small planets circling it, a line drawn between them every few days" })),
+  illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
+  // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
+  // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)
+  blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: BLUEPRINT_CATALOG_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id)]) })),
 };
 
 /** Every binding, in MODE_IDS order. */
@@ -1002,8 +1105,8 @@ const INFOS: readonly TemplateInfo[] = BINDINGS.flatMap((binding) =>
   binding.variants.map((v) => {
     const recipe = v.recipe ? (recipeById(v.recipe) ?? null) : null;
     const buckets = v.buckets ?? v.own?.buckets ?? binding.buckets;
-    // (--- templates --- a variant without a recipe plans its binding's own settings)
-    const family = v.recipe === null ? familyOfBinding(binding) : (recipe?.family ?? null);
+    // (--- templates --- a variant without a recipe plans its binding's own settings; AI studio step 6: in its own series where it names one)
+    const family = v.recipe === null ? familyOfBinding(variantBinding(binding, v)) : (recipe?.family ?? null);
     // (--- templates --- a variant without a recipe plans while its own way can: AI studio step 3)
     return { id: v.id, mode: binding.mode, format: TEMPLATE_FORMATS[binding.format], binding, recipe, family, ready: binding.ready && !v.hidden && (v.recipe === null ? strategyCanPlan(variantBinding(binding, v)) : !!recipe), ...(buckets ? { buckets } : {}) };
   }),
@@ -1042,10 +1145,15 @@ export function templateNameOf(info: TemplateInfo, copy: BotCopy, modeName: stri
   return templateName(copy, modeName, info.format.id, first ? null : info.recipe ?? { variant: variantKeyOf(info) });
 }
 
-/** --- templates --- (AI studio step 3) A further variant's key: its id's suffix after its binding's first id ("ring" of get-out-classic-ring). */
+/**
+ * --- templates --- (AI studio step 3) A further variant's key: its id's suffix after its binding's first id ("ring" of
+ * get-out-classic-ring) – --- templates --- (AI studio step 6) in camelCase, as the copy's keys are ("ringBreaker" of
+ * lab-game-blueprint-ring-breaker, `ViralBot.variants.ringBreaker`).
+ */
 export function variantKeyOf(info: Pick<TemplateInfo, "id" | "binding">): string {
   const base = info.binding.variants[0]?.id ?? "";
-  return info.id.startsWith(`${base}-`) ? info.id.slice(base.length + 1) : info.id;
+  const suffix = info.id.startsWith(`${base}-`) ? info.id.slice(base.length + 1) : info.id;
+  return suffix.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 /* ------------------------------------------------------------------ the adapter */
@@ -1104,6 +1212,8 @@ function wrappedRecipe(info: TemplateInfo, recipe: BotRecipe): BotRecipe {
   const played = tune || atEnd ? (ctx: RecipeContext) => ({ ...pinned(ctx), ...(tune ?? {}), ...(atEnd ? { recordingDuration: atEndRecordingSec(ctx.payoffTarget) } : {}), mode: info.mode }) : pinned;
   const fills = atEnd ? (buckets ?? AT_END_BUCKETS).filter((b) => AT_END_BUCKETS.includes(b)) : buckets;
   const ends = atEnd ? (["resolved"] as const) : endings;
+  // --- templates --- (AI studio step 6) a variant's own hook: one of its format's three, in place of the recipe's (copy.ts FORMAT_FIELD)
+  const formatHook = info.binding.variants.find((v) => v.id === info.id)?.own?.hookKey;
   return {
     ...recipe,
     id: info.id,
@@ -1116,6 +1226,7 @@ function wrappedRecipe(info: TemplateInfo, recipe: BotRecipe): BotRecipe {
     ...(info.format.payoffWords ? {} : { payoffWords: false as const }),
     ...(info.format.stakeHook ? { stakeHook: true as const } : {}),
     ...(info.binding.hookAsk ? { hookAsk: info.binding.hookAsk } : {}),
+    ...(formatHook && !formatHook.startsWith(OWN_HOOK_FIELD) ? { hookKey: `${FORMAT_FIELD}${info.format.copyKey}.${formatHook}` } : {}),
     countdownFrom: info.format.countdown,
   };
 }

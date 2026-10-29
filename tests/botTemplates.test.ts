@@ -74,6 +74,8 @@ import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan } from "@/lib/crew/c
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { screenView } from "@/lib/crew/dossier";
+import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6)
+import { END_HOLD_SEC as LAB_END_HOLD_SEC } from "@/lib/physics/modes/blueprint";
 import { OWN_HOOK_FIELD, OWN_PAYOFF_FIELD } from "@/lib/bot/copy";
 import { crowding, drawnHookText, endBannersShown, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
@@ -127,21 +129,29 @@ const OVERLAY_READY: readonly ModeId[] = ["journey", "spiralGlass"];
  */
 const GROUP_C_READY: readonly ModeId[] = ["starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatMachine", "collide", "waveTank"];
 /**
+ * --- templates --- (AI studio step 6) The trial bindings group D readied, measured and watched as the groups' before: the Drawing
+ * Machine (Earth and Venus's five-petal flower, revealed) and Mode Lab (one variant per catalog game bp-check calls playable, each
+ * timed by its finish rule). Lines and Circle Illusion stay experimental: no picture to guess in their runs (watched), and the white
+ * spaces' hidden picture ends its run as it is revealed (G2).
+ */
+const GROUP_D_READY: readonly ModeId[] = ["drawingMachine", "blueprint"];
+/**
  * --- templates --- (AI studio step 3) The trial bindings readied with their own settings (group A): each planned on 4 plan seeds
  * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
  * mini-map and clock crowd the screen (both watched in the render).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
- * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
- * words of G5 and the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s). (--- templates --- AI studio
- * step 5: Ball Drop's, hidden in review round 2 for its run fading out, plays its rain looped on the beat.)
+ * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the square race's 3-2-1-GO opens the
+ * gate at 1.8 s (G1, the first impact within 1 s). (--- templates --- AI studio step 5: Ball Drop's, hidden in review round 2 for
+ * its run fading out, plays its rain looped on the beat; step 6: the boss rush's, whose hook was over the 7 words of G5, draws its
+ * format's own hook.)
  */
-const HIDDEN_VARIANTS = ["fill-grow-fills", "who-wins-race", "who-wins-fight-league-boss"];
+const HIDDEN_VARIANTS = ["fill-grow-fills", "who-wins-race"];
 /**
  * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its run fades out
  * (its template plays the rain looped since AI studio step 5), and the Simple look's placement and line breaks are the look's,
@@ -170,6 +180,13 @@ const median = (xs: number[]) => {
 };
 const reason = (plan: ClipPlan, id: string) => plan.reasons.find((r) => r.id === id)!;
 const ready = readyTemplates("all");
+/**
+ * --- templates --- (AI studio step 6) The ready templates whose plans take seconds each – Glass Hatchery's shell, up to 121 balls and
+ * 120 tiles a run, about 6 s a plan with the seed search –, sampled where every ready template is planned with the seed search on
+ * every platform: one platform a seed, rotating, in group D's tests (measured on the full grid, in en, pl and es:
+ * docs/virality-playbook.md §5).
+ */
+const SAMPLED = ["lab-game-blueprint"];
 /** The platforms a template's buckets fit. */
 const platformsOf = (id: string): BotPlatform[] => {
   const r = templateRecipeById(id)!;
@@ -229,7 +246,8 @@ describe("the bindings", () => {
           expect(templateRecipeById(v.id) !== undefined, v.id).toBe(!v.hidden);
         } else {
           expect(v.recipe, v.id).toBeNull();
-          expect(templateRecipeById(v.id) !== undefined, v.id).toBe(b.ready);
+          // (--- templates --- AI studio step 6: a trial binding's variant may be hidden with its reason, Colour Conquest's)
+          expect(templateRecipeById(v.id) !== undefined, v.id).toBe(b.ready && !v.hidden);
         }
       }
     }
@@ -363,7 +381,8 @@ describe("the adapter", () => {
     const b = planTemplate("get-out-classic", 5, "reels", { copy, maxSeeds: 6, siteUrl: SITE });
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(planTemplate("get-out-classic", 6, "reels", { copy, maxSeeds: 6, siteUrl: SITE }))).not.toBe(JSON.stringify(a));
-    expect(() => planTemplate("who-wins-fight-league-boss", 1, "reels", { copy, search: false })).toThrow();
+    // (--- templates --- AI studio step 6: the boss rush draws its format's hook and plans; Colour Conquest's game is hidden)
+    expect(() => planTemplate("lab-game-blueprint-conquer", 1, "reels", { copy, search: false })).toThrow();
     expect(() => planTemplate("fill-paint", 1, "reels", { copy, search: false })).toThrow(); // (--- templates --- AI studio step 3: Target is offered now)
     expect(() => planTemplate("ring-escape", 1, "reels", { copy, search: false })).toThrow();
     // the bot's own look on request
@@ -597,7 +616,7 @@ describe("the Simple look", () => {
   // bot look's score, so the Simple look's 4 series points never send it on to other seeds and other numbers
   for (const platform of BOT_PLATFORMS) {
     it(`leaves the run alone with the seed search on, on ${platform}: the bot look's seed, numbers, payoff and run, 4 series points apart (and a time counter's 10)`, { timeout: 180_000 }, async () => {
-      const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
+      const offered = ready.filter((t) => platformsOf(t.id).includes(platform) && !SAMPLED.includes(t.id));
       expect(offered.length).toBeGreaterThan(0);
       for (const t of offered) {
         for (const seed of [1, 2]) {
@@ -645,7 +664,7 @@ describe("the Simple look", () => {
   for (const locale of ["en", "pl", "es"] as const)
   for (const platform of BOT_PLATFORMS) {
     it(`every ready template offered on ${platform} passes every clarity gate on 3 of 4 plan seeds at Playbook 75+, each plan at Simple 80+ (${locale})`, { timeout: 240_000 }, async () => {
-      const offered = ready.filter((t) => platformsOf(t.id).includes(platform));
+      const offered = ready.filter((t) => platformsOf(t.id).includes(platform) && !SAMPLED.includes(t.id));
       expect(offered.length).toBeGreaterThan(0);
       for (const t of offered) {
         let passed = 0;
@@ -987,7 +1006,9 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // (--- templates --- AI studio step 4b: the Journey and Spiral Glass left it, their own overlays switched off in the Simple look)
   // (--- templates --- AI studio step 5: nine of group C left it, planned on 3 of 4 seeds on every platform and watched; Beat Runner
   // stays, its first note 1.5 s in, and Beat Drop and the Sound Vortex, a HUD and a title of their own under the hook)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "drawingMachine", "illusion", "blueprint"];
+  // (--- templates --- AI studio step 6: the Drawing Machine and Mode Lab left it, planned on 3 of 4 seeds on every platform and
+  // watched; Lines and Circle Illusion stay, with what was measured and watched)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "illusion"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -1069,13 +1090,15 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
 
   it("adapts a binding without a recipe: its own settings inside RANGES and canonical, its mode, its strategy and outcome, its format's family and copy key", () => {
     const own = allTemplates().filter((t) => t.binding.variants.find((v) => v.id === t.id)!.recipe === null);
-    // (the 32 bindings without a recipe and – --- templates --- AI studio step 3 – two variants of proven ones that play their own way)
-    expect(own.length).toBe(32 + OWN_VARIANTS.length);
+    // (the 32 bindings without a recipe and – --- templates --- AI studio step 3 – two variants of proven ones that play their own way;
+    // --- templates --- AI studio step 6: Mode Lab's binding has a variant per catalog game)
+    expect(own.length).toBe(32 + (BLUEPRINT_CATALOG_IDS.length - 1) + OWN_VARIANTS.length);
     for (const t of own) {
       const b = variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id));
       const r = plannedRecipe(t);
       expect([t.id, r === null]).toEqual([t.id, !strategyCanPlan(b)]);
-      expect([t.id, t.family]).toEqual([t.id, t.binding.family ?? t.format.family]);
+      // (--- templates --- AI studio step 6: a variant's own family wins – a Mode Lab game's series is the game's)
+      expect([t.id, t.family]).toEqual([t.id, b.family ?? t.format.family]);
       if (!r) continue;
       expect([r.id, r.modes, r.strategy, r.outcome, r.copyKey, r.family, r.wraps]).toEqual([t.id, [t.mode], b.strategy, b.outcome, t.format.copyKey, t.family, undefined]);
       expect([t.id, r.endings!.every((e) => t.format.endings.includes(e))]).toEqual([t.id, true]);
@@ -1268,7 +1291,8 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
       expect([where, clarityOf(atTop).gates.find((g) => g.id === "G5")!.problems]).toEqual([where, ["readableOverBanner"]]);
     }
     // only the modes that draw a banner of their own text keep the banners: every other mode's track is as it was
-    expect([...BANNER_MODES]).toEqual(["glass", "journey"]);
+    // (--- templates --- AI studio step 6: and Mode Lab's title block, the game's name and counters the whole run)
+    expect([...BANNER_MODES]).toEqual(["glass", "journey", "blueprint"]);
     const pendulum = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false });
     expect("banners" in actionTrackSync(pendulum.settings, pendulum.seed, pendulum.world, 3)).toBe(false);
     expect([isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [1] }), isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [""] })]).toEqual([false, true]);
@@ -1306,7 +1330,8 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
   });
 
   it("times each by its run's own moment: the first bullseye, the first shape at zero, GAME OVER and the last ball out, and the maze's first one out", () => {
-    expect([...MARK_MODES]).toEqual(["bullseye", "box", "mergeRing", "paddle", "conveyor"]);
+    // (--- templates --- AI studio step 6: and a Mode Lab game's finish rule, group D's tests below)
+    expect([...MARK_MODES]).toEqual(["bullseye", "box", "mergeRing", "paddle", "conveyor", "blueprint"]);
     // the run's end after its mark (s): GAME OVER and the last ball out end the run; a bullseye and a shape at zero leave it going on
     const holds: Record<string, number | null> = { "aim-bullseye": null, "aim-box": null, "aim-paddle": 2.2, "count-conveyor": 1.5 };
     for (const [id, hold] of Object.entries(holds)) {
@@ -1367,11 +1392,12 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
 
   it("speaks with a hook of its own where its format's three do not say what its run does: ViralBot.ownHooks in en, pl and es", () => {
     const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
-    // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked; step 5: the chaos fan's, the plan's hook b)
-    expect(own.sort()).toEqual(["own.box", "own.doublePendulum", "own.mergeRing", "own.spiralGlass"]);
+    // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked; step 5: the chaos fan's, the plan's hook b;
+    // step 6: each Mode Lab game's rule)
+    expect(own.sort()).toEqual(["own.box", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "doublePendulum"]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
@@ -1511,9 +1537,13 @@ describe("group C: line up and on the beat", () => {
   /** A group C template's plan on reels (Shorts for Chord Stars, short only), resolved. */
   const planOf = (id: string, seed = 1) => planTemplate(id, seed, platformsOf(id).includes("reels") && id !== "line-up-star-chords" ? "reels" : "shorts", { copy, episode: 3, index: seed });
 
-  it("offers every one of them in its format's words or a hook of its own, its mode's notes the music, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
-    expect(GROUP_C.map((id) => templateById(id)!.mode)).toEqual([...GROUP_C_READY]);
-    for (const id of GROUP_C) {
+  /**
+   * Each group C template offered in its format's words, planned twice on 4 plan seeds (one platform a seed, rotating). --- templates ---
+   * (AI studio step 6) Run in the two tests below, the chaos fan's in a test of its own: the nine in one test took 57-59 s of its 60 s,
+   * 36 s of them the chaos fan's eight plans, and timed out once the guard ran it beside two other workers.
+   */
+  async function offersEachOf(ids: readonly string[]) {
+    for (const id of ids) {
       const t = templateById(id)!;
       const r = templateRecipeById(id)!;
       expect([id, t.ready, t.binding.tier, r.formatCopy, r.wraps, r.musicFirst, r.endings]).toEqual([id, true, "trial", true, undefined, true, ["resolved"]]);
@@ -1531,9 +1561,18 @@ describe("group C: line up and on the beat", () => {
       }
       await breathe();
     }
+  }
+
+  it("offers every one in its format's words or a hook of its own, its mode's notes the music, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating; the chaos fan in the test after)", async () => {
+    expect(GROUP_C.map((id) => templateById(id)!.mode)).toEqual([...GROUP_C_READY]);
+    await offersEachOf(GROUP_C.filter((id) => id !== "line-up-double-pendulum"));
     // none is in the battle family: every one is offered by default, and none plays a recipe's mode
     expect(readyTemplates().map((x) => x.id).filter((id) => GROUP_C.includes(id)).sort()).toEqual([...GROUP_C].sort());
     expect(GROUP_C.filter((id) => RECIPES.some((r) => r.modes.includes(templateById(id)!.mode)))).toEqual([]);
+  });
+
+  it("offers the chaos fan the same way, its plans the slowest of the nine, and in its own hook", async () => {
+    await offersEachOf(["line-up-double-pendulum"]);
     // the chaos fan says what it does in its own hook, in en, pl and es (the plan's hook b)
     for (const locale of ["en", "pl", "es"] as const) {
       const plan = planTemplate("line-up-double-pendulum", 1, "reels", { copy: COPY[locale], locale, search: false });
@@ -1636,5 +1675,175 @@ describe("group C: line up and on the beat", () => {
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
       expect([seed, plan.timing.firstImpactSec! > 1, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([seed, true, expect.arrayContaining(["G1"])]);
     }
+  });
+});
+
+// --- templates --- (AI studio step 6) group D: the reveal and Mode Lab bindings, Fight League's boss rush in its format's own hook,
+// Lines and Circle Illusion kept hidden with what was measured and watched, and the whole table: 48 of 48 bound
+describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush's hook and the whole table", () => {
+  const LAB = allTemplates().filter((t) => t.mode === "blueprint");
+  const kebabOf = (id: string) => id.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+  /** A template's plan on its first platform, resolved. */
+  const planOn = (id: string, seed = 1) => planTemplate(id, seed, platformsOf(id)[0], { copy, episode: 3, index: seed });
+
+  it("offers a Mode Lab template per catalog game, each in its game's rule and series, on the length its finish fills; the same inputs plan the same JSON (one platform a seed, rotating; Glass Hatchery in its sampled test below)", async () => {
+    // one variant per built-in game (tests/blueprintCheck.test.ts holds every one 'playable' on the check's seeds), in Mode Lab's
+    // order, the first the mode's own default (Glass Hatchery)
+    expect(LAB.map((t) => t.id)).toEqual(BLUEPRINT_CATALOG_IDS.map((id, i) => (i === 0 ? "lab-game-blueprint" : `lab-game-blueprint-${kebabOf(id)}`)));
+    expect(defaultSettings("blueprint").blPreset).toBe(BLUEPRINT_CATALOG_IDS[0]);
+    const lengths: Record<string, string[]> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
+    for (const [i, t] of LAB.entries()) {
+      const game = BLUEPRINT_CATALOG_IDS[i];
+      const hidden = t.binding.variants.find((v) => v.id === t.id)!.hidden;
+      // Colour Conquest hidden after it was watched: the page's run parts from the planner's (its reason holds the two renders)
+      expect([t.id, hidden === undefined]).toEqual([t.id, game !== "conquer"]);
+      expect([t.id, t.ready, templateRecipeById(t.id) === undefined]).toEqual([t.id, !hidden, !!hidden]);
+      const r = plannedRecipe(t)!;
+      expect([t.id, t.binding.tier, t.family, r.formatCopy, r.musicFirst, r.strategy, r.endings, r.buckets, r.hookKey]).toEqual([t.id, "trial", catalogBlueprint(game).meta.family, true, true, "finish", ["resolved"], lengths[game], `own.${game}`]);
+      if (hidden) {
+        expect(hidden).toMatch(/page's run parted from the planner's.*watched/);
+        continue;
+      }
+      const platforms = platformsOf(t.id);
+      // (Glass Hatchery's plans take seconds each: its sampled test below plans it, the same checks included)
+      for (const seed of game === "hatchery" ? [] : [1, 2, 3, 4]) {
+        const platform = platforms[(seed - 1) % platforms.length];
+        const options = { copy, episode: 3, index: seed };
+        const plan = planTemplate(t.id, seed, platform, options);
+        const where = `${t.id}/${platform}/${seed}`;
+        expect(JSON.stringify(planTemplate(t.id, seed, platform, options)), where).toBe(JSON.stringify(plan));
+        expect([where, plan.settings.blPreset, plan.settings.blSpec, plan.settings.blParams, plan.hook]).toEqual([where, game, "", "", (COPY.en as unknown as { ownHooks: Record<string, string> }).ownHooks[game]]);
+        // the game's own notes are the music
+        expect([where, plan.melodyId, reason(plan, "sound").points]).toEqual([where, null, 10]);
+      }
+      await breathe();
+    }
+    // the others are offered by default; Colour Conquest is a battle, as its catalog entry says – offered, once it is shown again, only
+    // where the battle family is asked for
+    expect(readyTemplates().filter((t) => t.mode === "blueprint").map((t) => t.id)).toEqual(LAB.filter((t) => t.ready).map((t) => t.id));
+    expect([templateById("lab-game-blueprint-conquer")!.family, readyTemplates("battle").filter((t) => t.mode === "blueprint")]).toEqual(["battle", []]);
+  });
+
+  it("readies Glass Hatchery's template as the others (sampled: one platform a seed, rotating, en; its game, rule and notes; the same inputs plan the same JSON; the seed of the bot look's and the run untouched)", { timeout: 180_000 }, async () => {
+    expect(SAMPLED).toEqual(["lab-game-blueprint"]);
+    let passed = 0;
+    for (const seed of [1, 2, 3, 4]) {
+      const platform = BOT_PLATFORMS[(seed - 1) % BOT_PLATFORMS.length];
+      const options = { copy, episode: 3, index: seed };
+      const plan = planTemplate("lab-game-blueprint", seed, platform, options);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
+      const clarity = clarityOf(crewClipOfPlan(plan, { run }));
+      const where = `${platform}/${seed}`;
+      // the game, its rule as the hook and its own notes as the music, as the other games' (the test above)
+      expect([where, plan.settings.blPreset, plan.settings.blSpec, plan.settings.blParams, plan.hook, plan.melodyId, reason(plan, "sound").points]).toEqual([where, "hatchery", "", "", (COPY.en as unknown as { ownHooks: Record<string, string> }).ownHooks.hatchery, null, 10]);
+      if (seed === 1) expect(JSON.stringify(planTemplate("lab-game-blueprint", seed, platform, options)), where).toBe(JSON.stringify(plan));
+      expect(clarity.simple.score, where).toBeGreaterThanOrEqual(80);
+      if (clarity.gates.every((g) => g.ok)) {
+        passed++;
+        expect(plan.score, where).toBeGreaterThanOrEqual(75);
+      }
+      if (seed <= 2) {
+        const bot = planTemplate("lab-game-blueprint", seed, platform, { ...options, look: "bot" });
+        expect([where, plan.seed, plan.payoff.atSec]).toEqual([where, bot.seed, bot.payoff.atSec]);
+        expect(runFactsSync(plan.settings, plan.seed, plan.world, plan.recipe), where).toEqual(runFactsSync(bot.settings, bot.seed, bot.world, bot.recipe));
+      }
+      await breathe();
+    }
+    expect(passed).toBeGreaterThanOrEqual(3);
+  });
+
+  it("times each game by the moment its finish rule fires, never its timeout: its end banner the one ending, the run over END_HOLD_SEC later, its title block clear of every text", () => {
+    for (const t of LAB.filter((x) => x.ready && x.id !== "lab-game-blueprint")) {
+      const plan = planOn(t.id);
+      const where = t.id;
+      const horizon = plan.timing.clipSec + 2;
+      const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "finish" }, horizon);
+      // the rule fires at the payoff (MARK_MODES), the run ends with its banner's hold, and the recorder's 0.5 s ends the clip
+      expect([where, MARK_MODES.includes("blueprint"), facts.markSec]).toEqual([where, true, plan.payoff.atSec]);
+      expect(facts.finishSec - facts.markSec!, where).toBeCloseTo(LAB_END_HOLD_SEC, 1);
+      expect(plan.timing.clipSec - plan.payoff.atSec!, where).toBeCloseTo(LAB_END_HOLD_SEC + 0.5, 1);
+      // one ending: the game's own banner, no payoff words of the Simple look's beside it
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clip = crewClipOfPlan(plan, { run });
+      expect([where, plan.captionRoles.includes("payoff"), plan.payoff.text, endBannersShown(clip).map((b) => b.start)]).toEqual([where, false, "", [expect.closeTo(plan.payoff.atSec!, 1)]]);
+      // its title block (the game's name and counters, the square's top left) is a banner of its own text the whole run: the hook
+      // takes the bottom, and the crew's G5 passes
+      expect([where, run.action!.banners!.every((b) => b.length > 0)]).toEqual([where, true]);
+      const hook = plan.captionRoles.flatMap((r, i) => (r === "hook" ? [i] : []));
+      expect([where, hook.map((i) => plan.settings.captions[i].position)]).toEqual([where, hook.map(() => "bottom")]);
+      expect([where, clarityOf(clip).pass]).toEqual([where, true]);
+      // a text at the top would sit over it: G5 fails it
+      const top = { ...plan, settings: { ...plan.settings, captions: captionsAtEdge(plan.settings.captions, hook, "top") } };
+      expect([where, clarityOf(crewClipOfPlan(top, { run })).gates.find((g) => g.id === "G5")!.problems]).toEqual([where, expect.arrayContaining(["readableOverBanner"])]);
+    }
+  });
+
+  it("reveals Earth and Venus's five-petal flower: drawn into the clip's last 1.5 s, held past its end, the harmonograph's figure never drawn", () => {
+    const t = templateById("reveal-drawing-machine")!;
+    expect([t.ready, t.binding.tier, t.binding.strategy, templateRecipeById(t.id)!.musicFirst]).toEqual([true, "trial", "atEnd", true]);
+    for (const seed of [1, 2, 3, 4]) {
+      const platform = BOT_PLATFORMS[(seed - 1) % BOT_PLATFORMS.length];
+      const plan = planTemplate(t.id, seed, platform, { copy, episode: 3, index: seed });
+      const s = plan.settings;
+      const where = `${platform}/${seed}`;
+      const drawn = s.dmYears * s.dmSecPerYear;
+      expect([where, s.dmMachine, s.dmYears, rangeViolations(s)]).toEqual([where, "orbits", 8, []]);
+      // the last lines drawn 0.25–0.65 s into the payoff (sound and motion there: G2), the flower held to the clip's end, its rewind after
+      expect([where, drawn - plan.payoff.atSec! >= 0.25 - 1e-9 && drawn - plan.payoff.atSec! <= 0.65 + 1e-9, drawn + s.dmHold > plan.timing.clipSec]).toEqual([where, true, true]);
+      // its cycle is longer than the clip, which Export whole loops records at its set length
+      expect(drawn + s.dmHold + s.dmRewind, where).toBeGreaterThan(plan.timing.clipSec);
+      const run = runSync(s, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      expect([where, clarityOf(crewClipOfPlan(plan, { run })).pass, plan.hook]).toEqual([where, true, "Guess what it draws."]);
+    }
+  });
+
+  it("draws the boss rush's hook from its format, 'Pick one before it starts.', in en, pl and es, where its recipe's names the boss and the division in one clause over G5's 7 words", () => {
+    const boss = templateById("who-wins-fight-league-boss")!;
+    expect([boss.ready, boss.family, boss.binding.variants.find((v) => v.id === boss.id)!.hidden]).toEqual([true, "battle", undefined]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const plan = planTemplate(boss.id, 1, "reels", { copy: COPY[locale], locale, episode: 3, index: 1 });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clarity = clarityOf(crewClipOfPlan(plan, { run }));
+      expect([locale, plan.hook, clarity.gates.find((g) => g.id === "G5")!.ok]).toEqual([locale, (COPY[locale] as unknown as { formats: { whoWins: { hookB: string } } }).formats.whoWins.hookB, true]);
+    }
+    // the reason it was hidden still holds for its recipe's own hook: one clause of 8 words or more, which no clause cut shortens
+    const own = planClip(recipeById("fight-boss")!, 1, "reels", { copy, episode: 3, index: 1, look: "simple" });
+    expect(wordCount(own.hook)).toBeGreaterThan(SIMPLE_TEXT.hookWordsMax);
+    // the bot's own Boss rush keeps its words; the template is offered only where the battle family is asked for
+    expect(readyTemplates().map((x) => x.id)).not.toContain(boss.id);
+    expect(readyTemplates("battle").map((x) => x.id)).toContain(boss.id);
+  });
+
+  it("keeps Lines and Circle Illusion experimental with what was measured and watched: no picture to guess, and the white spaces' revealed as its run ends", () => {
+    expect(EXPERIMENTAL.lines).toMatch(/12 of 12.*fan.*never a picture.*watched/);
+    expect(EXPERIMENTAL.illusion).toMatch(/fixed length.*no picture.*watched.*0\.5 s.*G2.*0 of 12/);
+    // Circle Illusion's run is its fixed length, whole cycles that cover the clip
+    const illusion = plannedRecipe(templateById("reveal-illusion")!)!;
+    const plan = planClip(illusion, 1, "reels", { copy, look: "simple", template: "reveal-illusion", episode: 3, index: 1 });
+    expect([plan.settings.ilType, plan.settings.ilCycles * 4 >= plan.timing.clipSec, plan.settings.ilCycles * 4 < plan.timing.clipSec + 4]).toEqual(["lines", true, true]);
+    // the white spaces' picture, timed by its reveal: the run ends there, so the clip shows it for the recorder's 0.5 s (G2)
+    const reveal = { ...illusion, strategy: "finish" as const, settings: (ctx: RecipeContext) => ({ ...illusion.settings(ctx), ilType: "whitespace" as const }) };
+    for (const seed of [1, 2]) {
+      const p = planClip(reveal, seed, "reels", { copy, look: "simple", template: "reveal-illusion", episode: 3, index: seed });
+      const run = runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec, p.payoff.atSec);
+      expect([seed, clarityOf(crewClipOfPlan(p, { run })).gates.find((g) => g.id === "G2")!.problems]).toEqual([seed, expect.arrayContaining(["payoffLandsNotShown"])]);
+    }
+  });
+
+  it("binds 48 of 48: every binding ready, or experimental with its reason, or – the square race – proven with its one variant hidden with its reason", () => {
+    expect(BINDINGS).toHaveLength(MODE_IDS.length);
+    const perFormat: Record<string, [number, number, number]> = {};
+    for (const b of BINDINGS) {
+      const row = (perFormat[b.format] ??= [0, 0, 0]);
+      if (b.ready) row[0]++;
+      else if (b.tier === "experimental") row[1]++;
+      else row[2]++;
+      if (b.tier === "experimental") expect([b.mode, (EXPERIMENTAL[b.mode] ?? "").length > 80, /waits for/.test(EXPERIMENTAL[b.mode] ?? "")]).toEqual([b.mode, true, false]);
+      if (!b.ready && b.tier !== "experimental") expect([b.mode, b.variants.every((v) => (v.hidden ?? "").length > 20)]).toEqual([b.mode, true]);
+    }
+    // [ready, experimental, proven with every variant hidden]
+    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [2, 1, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [2, 1, 0], lineUp: [8, 0, 0], onTheBeat: [4, 3, 0], reveal: [1, 2, 0], labGame: [1, 0, 0] });
+    // 39 modes as 49 templates
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([39, 49]);
   });
 });

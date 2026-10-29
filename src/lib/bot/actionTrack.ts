@@ -104,8 +104,11 @@ export function actionUnder(track: ActionTrack, k: number, box: SquareBox): bool
 }
 
 // --- templates --- (AI studio step 3) the modes' own banners and cameras
-/** The modes that draw a banner of their own text over the square (modeBannerBox): Glass Smash's stages, the Journey's. */
-export const BANNER_MODES: readonly SimulatorSettings["mode"][] = ["glass", "journey"];
+/**
+ * The modes that draw a banner of their own text over the square (modeBannerBox): Glass Smash's stages, the Journey's – --- templates
+ * --- (AI studio step 6) and Mode Lab's title block, its game's name and counters in the square's top left corner the whole run.
+ */
+export const BANNER_MODES: readonly SimulatorSettings["mode"][] = ["glass", "journey", "blueprint"];
 
 /**
  * --- templates --- (AI studio step 4b) Whether these settings draw the mode's own banners: a banner mode's, but the Journey's only
@@ -135,6 +138,7 @@ const BANNER_HALF_EM = 0.6;
  * (journeyRenderer.ts drawOverlay), each for its BANNER_SHOWS_MS from the moment a stage begins and never once HOME is reached.
  */
 export function modeBannerBox(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"]): { left: number; top: number; right: number; bottom: number } | null {
+  if (mode === "blueprint") return labTitleBox(engine); // --- templates --- (AI studio step 6)
   if (mode !== "glass" && mode !== "journey") return null;
   const view = mode === "glass" ? engine.getGlassView() : engine.getJourneyView();
   const f = mode === "glass" ? engine.getGlassView().level?.field : engine.getJourneyView().field;
@@ -145,6 +149,31 @@ export function modeBannerBox(engine: ReturnType<typeof createEngineForSettings>
   const y = f.top + (mode === "glass" ? 0.15 : 0.2) * f.height;
   const half = mode === "glass" ? (BANNER_EM_PER_CHAR * fs * GLASS_BANNER_CHARS) / 2 : 0.45 * f.height;
   return { left: f.cx - half, top: y - BANNER_HALF_EM * fs, right: f.cx + half, bottom: y + BANNER_HALF_EM * fs };
+}
+
+// --- templates --- (AI studio step 6) Mode Lab's title block
+/**
+ * The widest a Mode Lab title block is taken to be, as a share of the square's side: its longest line – the game's name in capitals
+ * at 0.9 of the block's font, or a counter ("COLOURS LEFT 4") – is about a third of the side in English, more in Polish ("WSPINACZKA
+ * POZIOMÓW"); the renderer's own cap is 0.6 (blueprintRenderer.ts overlayPlacement), which no catalog game's comes near.
+ */
+const LAB_TITLE_SHARE = 0.4;
+
+/**
+ * --- templates --- (AI studio step 6) The box of Mode Lab's title block in a recorded frame, in world pixels (blueprintRenderer.ts
+ * drawOverlay: in the square's top left corner, 4 % of its side in and 3 % down, a line for the game's name and one for each HUD
+ * counter at 1.1 × a font of 3 % of the side, at most LAB_TITLE_SHARE wide): the whole run, as the page draws it.
+ */
+function labTitleBox(engine: ReturnType<typeof createEngineForSettings>): { left: number; top: number; right: number; bottom: number } | null {
+  const view = engine.getBlueprintView();
+  const w = view.world;
+  if (!view.bp || !w || !(w.width > 0) || !(w.height > 0)) return null;
+  const side = Math.min(w.width, w.height);
+  const x0 = (w.width - side) / 2;
+  const y0 = (w.height - side) / 2;
+  const fs = Math.max(11, 0.03 * side);
+  const lines = 1 + (view.catalogId === "" ? 1 : 0) + view.hud.length;
+  return { left: x0, top: y0, right: x0 + (0.04 + LAB_TITLE_SHARE) * side, bottom: y0 + 0.03 * side + (lines + 0.5) * 1.1 * fs };
 }
 
 /** --- templates --- (AI studio step 3) The camera a mode scrolls its world by (screen y = world y − this): Glass Smash's, the Journey's. */

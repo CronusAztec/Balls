@@ -54,6 +54,11 @@ export function reasonValues(values: Readonly<Record<string, string | number>>, 
  */
 export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, field: string, vars: Record<string, string | number> = {}): string {
   if (recipe.formatCopy) return formatText(copy, recipe.copyKey, field, vars); // --- templates ---
+  // --- templates --- (AI studio step 6) a recipe's template that speaks one of its format's words (FORMAT_FIELD: the boss rush's hook)
+  if (field.startsWith(FORMAT_FIELD)) {
+    const [format, ...rest] = field.slice(FORMAT_FIELD.length).split(".");
+    return formatText(copy, format, rest.join("."), vars);
+  }
   return fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.${field}`), vars).trim();
 }
 
@@ -86,6 +91,13 @@ export const FORMAT_PLACEHOLDERS = ["thing", "count", "seconds", "name", "winner
  * it merge?", "It stops at zero."), for a binding whose run its format's three hooks do not describe (templates.ts hookKey).
  */
 export const OWN_HOOK_FIELD = "own.";
+
+/**
+ * --- templates --- (AI studio step 6) The field of a format's own words in a recipe's copy: `format.<format>.<field>` reads
+ * `ViralBot.formats.<format>.<field>` (formatText), for a template that wraps a recipe but draws its format's hook – Fight League's
+ * boss rush, whose own hook names the boss and the division in one clause over the Simple look's 7 words (templates.ts wrappedRecipe).
+ */
+export const FORMAT_FIELD = "format.";
 
 /**
  * --- templates --- (AI studio step 4b) The field of a binding's own payoff: `ownPayoff.<key>` reads `ViralBot.ownPayoffs.<key>`

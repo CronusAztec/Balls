@@ -4183,13 +4183,24 @@
     },
     "variants": {
       "ring": "Jeden pierścień",
-      "fills": "Wypełnij do końca"
+      "fills": "Wypełnij do końca",
+      "ringBreaker": "Łamacz pierścieni",
+      "conquer": "Podbój kolorów",
+      "tierClimb": "Wspinaczka poziomów",
+      "plinkoRace": "Wyścig przez kołki",
+      "growEscape": "Rośnij albo uciekaj"
     },
     "ownHooks": {
       "mergeRing": "Do którego poziomu się połączą?",
       "box": "Zatrzyma się na zerze.",
       "spiralGlass": "Czy kulka się pomnoży?",
-      "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą."
+      "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą.",
+      "hatchery": "Każda rozbita płytka wykluwa nową kulkę.",
+      "ringBreaker": "Każdy rozbity pierścień podwaja kulki.",
+      "conquer": "Zderzenie przejmuje. Wygrywa ostatni kolor.",
+      "tierClimb": "Takie same kulki łączą się w większą.",
+      "plinkoRace": "Przez kołki. Pierwsza na zewnątrz wygrywa.",
+      "growEscape": "Rośnie z każdym odbiciem. Zmieści się?"
     },
     "ownPayoffs": {
       "journey": "W domu! 🏠"
