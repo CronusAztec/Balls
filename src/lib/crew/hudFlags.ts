@@ -161,7 +161,8 @@ export const BANNER_WITH_PAYOFF_SEC = 1;
 /**
  * The end banners (see ModeEndBanner). The holds are the modes' own: Bullseye's final banner 2.5 s before its end (FINAL_HOLD_MS),
  * Merge Ring's and Spiral Glass's 2 s, the conveyor's 1.5 s, the paddle's GAME OVER 2.2 s, the vortex's 1 s, Bouncing Orbs' 1.5 s,
- * the runner's LEVEL COMPLETE 1.6 s and Beat Drop's 0.6 s; every other comes in as the run ends (the page's holds after it).
+ * the runner's LEVEL COMPLETE 1.6 s and Beat Drop's 0.6 s; every other comes in as the run ends (the page's holds after it). ---
+ * crew --- (AI studio step 5) A rhythm field of Bouncing Orbs calls IN PHASE as its orbs land together, for 1.8 s.
  */
 export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "accumulation", at: "payoff", words: "an ESCAPED! banner with the frozen balls" },
@@ -179,6 +180,8 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
   { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },
   { mode: "orbGrid", at: "finish", leadSec: 1.5, words: "a banner: every orb at rest" },
+  // --- crew --- (AI studio step 5) a rhythm field's IN PHASE callout as the orbs land together, for IN_PHASE_HOLD_MS (modes/orbRhythm.ts)
+  { mode: "orbGrid", at: "payoff", forSec: 1.8, when: (s) => s.ogModel === "rhythm", words: "an IN PHASE banner: how many orbs land together, and at which second" },
   { mode: "runner", at: "finish", leadSec: 1.6, words: "a LEVEL COMPLETE! banner" },
   { mode: "beatDrop", at: "finish", leadSec: 0.6, words: "a banner on the last landing" },
   { mode: "multipliers", at: "finish", words: "a MADE IT HOME banner with the balls home" },

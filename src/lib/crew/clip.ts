@@ -291,8 +291,16 @@ export function claimSeen(clip: CrewClip): boolean | null {
       return run.fillSec >= 0;
     case "count":
       return run.fillSec >= 0 || run.finishSec >= 0;
-    case "beat":
-      return run.finishSec >= 0;
+    case "beat": {
+      // (--- crew --- AI studio step 5: a run that goes on past its clip – a loop, a rain, a machine – shows the beat where its
+      // payoff's moment plays notes: the moment read around the clip's own payoff, RunFacts.moment; where no moment was read – the
+      // bot's own runs, as for the payoffs the settings fix below – where the run sounds before its payoff, its first impact a note)
+      if (run.finishSec >= 0) return true;
+      const at = clip.payoff.atSec;
+      if (at === null) return false;
+      if (run.moment && Math.abs(run.moment.atSec - at) <= 0.01) return run.moment.sounds > 0;
+      return !run.moment && run.firstImpactSec >= 0 && run.firstImpactSec <= at;
+    }
     case "winner":
       return runWinnerOf(clip) !== null;
     default:

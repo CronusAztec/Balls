@@ -70,7 +70,7 @@ import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { simulateOutcomeRun } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
-import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
+import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan } from "@/lib/crew/clip";
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { screenView } from "@/lib/crew/dossier";
@@ -79,8 +79,9 @@ import { crowding, drawnHookText, endBannersShown, overlaysOf, SIMPLE_TRAIL_THIC
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
- * formats, the 16 proven bindings (14 ready: the square race's and Ball Drop's one variant each is hidden), the trial bindings
- * AI studio step 3 readied with their own settings (TRIAL_READY) and the rest hidden, the adapter the planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights
+ * formats, the 16 proven bindings (15 ready: the square race's one variant is hidden; --- templates --- AI studio step 5: Ball Drop's
+ * plays on the beat, its rain looped), the trial bindings AI studio steps 3 to 5 readied with their own settings (TRIAL_READY) and
+ * the rest hidden, the adapter the planner plans like a recipe, the template-aware recipe lookups (scoreClip, the re-roll, the Insights
  * score), the bot's own look byte-identical to before, and the Simple look measured – one text at a time, Simple 80 or more,
  * the checklist's look item kept, the run untouched.
  */
@@ -100,10 +101,10 @@ const SITE = "https://example.test";
 /** The 16 modes a playbook recipe plays: the proven bindings. */
 const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass", "powerLayers", "grow", "multiply", "multipliers", "race", "ctf", "battle", "stringBattle", "fightLeague", "pendulum", "polyrhythm", "drop"];
 /**
- * --- templates --- (review round 2, 14 and 21) The proven bindings that plan: all but the square race and Ball Drop, whose one
- * variant each is hidden.
+ * --- templates --- (review round 2, 14 and 21) The proven bindings that plan: all but the square race, whose one variant is
+ * hidden (--- templates --- AI studio step 5: and Ball Drop's, hidden in review round 2 for its fading run, plays its rain looped).
  */
-const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !== "drop");
+const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race");
 /**
  * --- templates --- (AI studio step 4) The trial bindings group B readied with their own settings, measured and watched as group A's:
  * the conveyor (its last ball out), the Maze (its first one out), Territory and Land Claim (cut before their verdict), Bullseye (its
@@ -118,27 +119,36 @@ const GROUP_B_READY: readonly ModeId[] = ["conveyor", "maze", "territory", "land
  */
 const OVERLAY_READY: readonly ModeId[] = ["journey", "spiralGlass"];
 /**
+ * --- templates --- (AI studio step 5) The trial bindings group C readied with their own settings, measured and watched as the
+ * groups' before: line up (Chord Stars' close, Focus Shot's convergence, Spinning Hoops' beads all up, Bouncing Orbs in phase,
+ * Colour Sort's sort, the chaos fan's split) and on the beat (Beat Machines' phrase, Collision Playground and the Wave Tank to the
+ * clip's end). Beat Runner stays experimental, its first note 1.5 s in (G1), and Beat Drop and the Sound Vortex, which plan but draw
+ * a HUD or a title of their own under the hook (watched in the render).
+ */
+const GROUP_C_READY: readonly ModeId[] = ["starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatMachine", "collide", "waveTank"];
+/**
  * --- templates --- (AI studio step 3) The trial bindings readied with their own settings (group A): each planned on 4 plan seeds
  * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
  * mini-map and clock crowd the screen (both watched in the render).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
  * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the boss rush's hook is over the 7
- * words of G5, the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s), and Ball Drop's run fades
- * out – a lone faint note over a board at rest, then silence (G2: review round 2, 21).
+ * words of G5 and the square race's 3-2-1-GO opens the gate at 1.8 s (G1, the first impact within 1 s). (--- templates --- AI studio
+ * step 5: Ball Drop's, hidden in review round 2 for its run fading out, plays its rain looped on the beat.)
  */
-const HIDDEN_VARIANTS = ["fill-grow-fills", "on-the-beat-drop", "who-wins-race", "who-wins-fight-league-boss"];
+const HIDDEN_VARIANTS = ["fill-grow-fills", "who-wins-race", "who-wins-fight-league-boss"];
 /**
- * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its template is
- * hidden, and the Simple look's placement and line breaks are the look's, whoever planned the clip.
+ * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its run fades out
+ * (its template plays the rain looped since AI studio step 5), and the Simple look's placement and line breaks are the look's,
+ * whoever planned the clip.
  */
 const dropPlan = (seed: number, options: Partial<Parameters<typeof planClip>[3]> = {}) => planClip(recipeById("drop-symphony")!, seed, "reels", { copy, look: "simple", ...options });
-/** --- templates --- (review round 2, 21) The hidden Ball Drop template's recipe, as its binding would play it: timed by its last note, no words. */
+/** --- templates --- (review round 2, 21) Ball Drop's recipe as its template played it until AI studio step 5: timed by its last note, no words. */
 const lastNoteDrop = () => ({ ...recipeById("drop-symphony")!, strategy: "lastNote" as const, payoffWords: false as const });
 
 /** Every numeric setting that has a range is inside it and on its step (as tests/bot.test.ts checks the recipes). */
@@ -227,7 +237,8 @@ describe("the bindings", () => {
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
     expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
     expect(BINDINGS.filter((b) => b.tier === "trial").map((b) => b.mode).sort()).toEqual([...TRIAL_READY].sort());
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34 - TRIAL_READY.length);
+    // (--- templates --- AI studio step 5: the square race the one proven binding not ready, Ball Drop's ready on the beat)
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(33 - TRIAL_READY.length);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
@@ -245,17 +256,31 @@ describe("the bindings", () => {
     }
   });
 
-  // --- templates --- (review round 2, 21) the studio's plans of Ball Drop ended on a faint tick, then 1.7-3.6 s of silence
-  it("hides Ball Drop's template, with its reason: its run fades out, so its last note is a lone faint tick over a board at rest, then silence", { timeout: 120_000 }, () => {
+  // --- templates --- (review round 2, 21) the studio's plans of Ball Drop ended on a faint tick, then 1.7-3.6 s of silence; (AI studio
+  // step 5) its template plays the rain looped, so the beat format's payoff, the clip's end, lands on a full board
+  it("plays Ball Drop's template on the beat, its rain looped to the clip's end, where its recipe's run fades out to a lone faint tick, then silence", { timeout: 120_000 }, () => {
     const drop = templateById("on-the-beat-drop")!;
-    expect([drop.binding.tier, drop.binding.ready, drop.ready, drop.binding.strategy]).toEqual(["proven", false, false, "lastNote"]);
-    expect(drop.binding.variants.find((v) => v.id === drop.id)!.hidden).toMatch(/fades out.*G2 Still.*SETTLED/);
-    expect(templateRecipeById(drop.id)).toBeUndefined();
-    expect(() => planTemplate(drop.id, 1, "reels", { copy, search: false })).toThrow(/ready template/);
-    // the onTheBeat format has no ready template in this release
-    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat")).toEqual([]);
-    // the reason still holds: timed by its last note, every plan fails G2 – a lone note fewer than the run's usual moment over
-    // a board at rest, and the clip ends on silence (when they no longer do, it may be shown again)
+    expect([drop.binding.tier, drop.binding.ready, drop.ready, drop.binding.strategy, drop.binding.tune]).toEqual(["proven", true, true, "atEnd", { dropLoop: true }]);
+    expect(drop.binding.variants.find((v) => v.id === drop.id)!.hidden).toBeUndefined();
+    const r = templateRecipeById(drop.id)!;
+    expect([r.wraps, r.strategy, r.endings, r.buckets, r.payoffWords]).toEqual(["drop-symphony", "atEnd", ["resolved"], ["short", "standard"], false]);
+    // the recipe's draw, the rain looped over it and the clip's length from the payoff target (the bot's own Drop Symphony keeps its own)
+    const ctx: RecipeContext = { rng: seededRandom(3), bucket: "short", ending: "resolved", payoffTarget: 12.75, roster: SERIES_ROSTER, planSeed: 3 };
+    const own = recipeById("drop-symphony")!.settings({ ...ctx, rng: seededRandom(3) });
+    expect(r.settings(ctx)).toEqual({ ...own, dropLoop: true, recordingDuration: atEndRecordingSec(12.75), mode: "drop" });
+    expect(own.dropLoop).toBe(false);
+    for (const seed of [1, 2]) {
+      const plan = planTemplate(drop.id, seed, "reels", { copy, episode: 3, index: seed });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clarity = clarityOf(crewClipOfPlan(plan, { run }));
+      // heard at its payoff, the clip's last 1.5 s: many notes, no quiet end
+      expect([seed, plan.ending, plan.settings.dropLoop, plan.payoff.atSec, clarity.pass]).toEqual([seed, "resolved", true, plan.timing.recordingDuration - AT_END_SEC, true]);
+      expect([seed, run.moment!.sounds >= 3, (run.moment!.quietTailSec ?? 0) < 0.5]).toEqual([seed, true, true]);
+    }
+    // the beat format has ready templates now, its first Ball Drop's
+    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat").map((t) => t.id)).toContain(drop.id);
+    // the reason it was hidden still holds for its recipe's run: timed by its last note, every plan fails G2 – a lone note fewer than
+    // the run's usual moment over a board at rest, and the clip ends on silence
     for (const seed of [1, 2, 3, 4]) {
       const plan = planClip(lastNoteDrop(), seed, "reels", { copy, episode: 3, index: seed, look: "simple", ending: "resolved" });
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
@@ -721,7 +746,8 @@ describe("a template keeps its format's promise where its recipe's own would bre
       expect([t.id, (PAYOFF_STRATEGIES as readonly string[]).includes(b.strategy), r.strategy]).toEqual([t.id, true, b.strategy]);
       if (t.mode !== "drop" && t.recipe) expect([t.id, r.strategy]).toEqual([t.id, t.recipe.strategy]);
     }
-    expect([MODE_TEMPLATES.drop.strategy, recipeById("drop-symphony")!.strategy]).toEqual(["lastNote", "finish"]);
+    // (--- templates --- AI studio step 5: Ball Drop's template plays to the clip's end, its rain looped; its recipe ends on its settle)
+    expect([MODE_TEMPLATES.drop.strategy, recipeById("drop-symphony")!.strategy]).toEqual(["atEnd", "finish"]);
   });
 
   it("plays Pendulum Wave's chord at the realignment: every bob sounds at its turning points, the pendulums in a row", () => {
@@ -764,7 +790,7 @@ describe("a template keeps its format's promise where its recipe's own would bre
     expect(planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, search: false }).hook).toMatch(/Wait for the chord\.$/);
   });
 
-  it("times Ball Drop's payoff at the last ball's last note, not the silent settle after it, and draws no words over it (its hidden template's strategy)", () => {
+  it("times Ball Drop's payoff at the last ball's last note, not the silent settle after it, and draws no words over it (the strategy its template had until AI studio step 5)", () => {
     for (const seed of [1, 2, 3]) {
       const plan = planClip(lastNoteDrop(), seed, "reels", { copy, look: "simple", ending: "resolved" });
       const horizon = plan.settings.recordingDuration + 5;
@@ -959,7 +985,9 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // (--- templates --- AI studio step 4: seven of group B left it, planned on 3 of 4 seeds on every platform and watched; Merge Ring
   // stays, with its own question under the ring)
   // (--- templates --- AI studio step 4b: the Journey and Spiral Glass left it, their own overlays switched off in the Simple look)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
+  // (--- templates --- AI studio step 5: nine of group C left it, planned on 3 of 4 seeds on every platform and watched; Beat Runner
+  // stays, its first note 1.5 s in, and Beat Drop and the Sound Vortex, a HUD and a title of their own under the hook)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "drawingMachine", "illusion", "blueprint"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -980,14 +1008,15 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     }
     expect(BINDINGS.filter((b) => b.tier === "proven").every((b) => EXPERIMENTAL[b.mode] === undefined)).toBe(true);
     expect(readyTemplates("all").every((t) => EXPERIMENTAL[t.mode] === undefined)).toBe(true);
-    // the four outcomes the finder searches over settings, not seeds: the outcome strategy has no moment for them (--- templates ---
-    // AI studio step 3: Brick Smash's first smash and Perfect Fit's first box full have a seed's moment, read off a run of their own)
+    // the outcomes the finder searches over settings, not seeds: each bound one has a seed's moment, read off a run of its own (---
+    // templates --- AI studio step 3: Brick Smash's first smash and Perfect Fit's first box full; step 5: Chord Stars' close, Focus
+    // Shot's convergence, Beat Machines' phrase and the vortex's last ring, their settings drawn as the finder would search them)
     const ownSearch = BINDINGS.filter((b) => !strategyCanPlan(b));
-    expect(ownSearch.map((b) => b.mode).sort()).toEqual(["beatMachine", "ellipseFoci", "starChords", "vortex"]);
-    for (const b of ownSearch) expect([b.mode, EXPERIMENTAL[b.mode] !== undefined, outcomeStrategyPlans(b.outcome)]).toEqual([b.mode, true, false]);
+    expect(ownSearch.map((b) => b.mode)).toEqual([]);
+    for (const mode of ["beatMachine", "ellipseFoci", "starChords", "vortex"] as const) expect([mode, outcomeStrategyPlans(MODE_TEMPLATES[mode].outcome), OWN_RUN_MOMENTS[MODE_TEMPLATES[mode].outcome!] !== undefined]).toEqual([mode, true, true]);
     // every other bound outcome has its seed's moment: the finder's own run's, or a run of its own
     for (const b of BINDINGS.filter((x) => x.strategy === "outcome" && strategyCanPlan(x))) expect([b.mode, OUTCOME_MOMENTS[b.outcome!] !== undefined || OWN_RUN_MOMENTS[b.outcome!] !== undefined]).toEqual([b.mode, true]);
-    expect(Object.keys(OWN_RUN_MOMENTS).sort()).toEqual(["bricks-cleared-by", "most-on-floor"]);
+    expect(Object.keys(OWN_RUN_MOMENTS).sort()).toEqual(["bricks-cleared-by", "converge-on-beat", "most-on-floor", "no-tube-conflict", "ring-on-bar", "star-set"]);
     // no playbook recipe times its payoff with a template's own strategy
     for (const r of RECIPES) expect(["lastNote", "outcome", "atEnd"], r.id).not.toContain(r.strategy);
   });
@@ -1020,17 +1049,19 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   });
 
   it("lays a binding's own settings out in order: its seeded generator (else its patch), its outcome's flag on top, its tune, an atEnd clip's length, its mode", () => {
-    const fan = { ...MODE_TEMPLATES.doublePendulum, patch: { dpFan: false, dpFanCount: 9 } };
+    // (--- templates --- AI studio step 5: the chaos fan draws its own settings now; without its generator its patch lays them out)
+    const fan = { ...MODE_TEMPLATES.doublePendulum, generate: undefined, patch: { dpFan: false, dpFanCount: 9 } };
     expect(ownSettingsOf(fan)(ctxOf(1))).toEqual({ dpFan: true, dpFanCount: 9, mode: "doublePendulum" });
     // (--- templates --- AI studio step 4: the Wave Tank's atEnd binding, the conveyor's ends on its own run's end now)
     const drawn = { ...MODE_TEMPLATES.waveTank, patch: { wtSpacing: 99 }, generate: (ctx: RecipeContext) => ({ wtSpacing: 20 + 10 * Math.floor(ctx.rng() * 3) }) };
     const a = ownSettingsOf(drawn)(ctxOf(5, 17));
     expect(a).toEqual(ownSettingsOf(drawn)(ctxOf(5, 17)));
     expect([a.mode, a.recordingDuration, [20, 30, 40].includes(a.wtSpacing as number)]).toEqual(["waveTank", 20, true]);
-    // (--- templates --- AI studio step 3: Shatter draws its own settings now; --- AI studio step 4: the Maze too, Spinning Hoops has neither yet)
-    expect(ownSettingsOf({ ...MODE_TEMPLATES.hoops, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "hoops" });
+    // (--- templates --- AI studio step 3: Shatter draws its own settings now; --- AI studio step 4: the Maze too; step 5: Spinning
+    // Hoops too, Beat Runner has neither)
+    expect(ownSettingsOf({ ...MODE_TEMPLATES.runner, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "runner" });
     // the defaults, where a binding has neither
-    expect(ownSettingsOf(MODE_TEMPLATES.hoops)(ctxOf(1))).toEqual({ mode: "hoops" });
+    expect(ownSettingsOf(MODE_TEMPLATES.runner)(ctxOf(1))).toEqual({ mode: "runner" });
     // a seeded generator draws under its tune: the tune's value wins, every other number is the draw's
     const shatter = ownSettingsOf(MODE_TEMPLATES.shatter)(ctxOf(1));
     expect(ownSettingsOf({ ...MODE_TEMPLATES.shatter, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ...shatter, ballSpeed: 450 });
@@ -1336,11 +1367,11 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
 
   it("speaks with a hook of its own where its format's three do not say what its run does: ViralBot.ownHooks in en, pl and es", () => {
     const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
-    // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked)
-    expect(own.sort()).toEqual(["own.box", "own.mergeRing", "own.spiralGlass"]);
+    // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked; step 5: the chaos fan's, the plan's hook b)
+    expect(own.sort()).toEqual(["own.box", "own.doublePendulum", "own.mergeRing", "own.spiralGlass"]);
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass"]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "doublePendulum"]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
@@ -1468,5 +1499,142 @@ describe("the overlay switches: the Journey and Spiral Glass in the Simple look"
     expect([modeBannersDrawn(bot.settings), "banners" in actionTrackSync(bot.settings, bot.seed, bot.world, 4)]).toEqual([true, true]);
     const hook = plan.captionRoles.flatMap((r, i) => (r === "hook" ? [i] : []));
     expect(hook.map((i) => plan.settings.captions[i].position)).toEqual(hook.map(() => "top"));
+  });
+});
+
+// --- templates --- (AI studio step 5) group C: the line-up and on-the-beat bindings with their own settings, each timed by its run's
+// own moment or the clip's end, every one its mode's own notes the music; Beat Runner kept hidden with what was measured
+describe("group C: line up and on the beat", () => {
+  const GROUP_C = ["line-up-star-chords", "line-up-ellipse-foci", "line-up-hoops", "line-up-orb-grid", "line-up-colour-sort", "line-up-double-pendulum", "on-the-beat-beat-machine", "on-the-beat-collide", "on-the-beat-wave-tank"];
+  /** A hidden group C template's plan from its binding's recipe, as the tests above plan Paddle Keep-Up's. */
+  const hiddenPlanOf = (id: string, seed = 1) => planClip(plannedRecipe(templateById(id)!)!, seed, "reels", { copy, look: "simple", template: id, episode: 3, index: seed });
+  /** A group C template's plan on reels (Shorts for Chord Stars, short only), resolved. */
+  const planOf = (id: string, seed = 1) => planTemplate(id, seed, platformsOf(id).includes("reels") && id !== "line-up-star-chords" ? "reels" : "shorts", { copy, episode: 3, index: seed });
+
+  it("offers every one of them in its format's words or a hook of its own, its mode's notes the music, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
+    expect(GROUP_C.map((id) => templateById(id)!.mode)).toEqual([...GROUP_C_READY]);
+    for (const id of GROUP_C) {
+      const t = templateById(id)!;
+      const r = templateRecipeById(id)!;
+      expect([id, t.ready, t.binding.tier, r.formatCopy, r.wraps, r.musicFirst, r.endings]).toEqual([id, true, "trial", true, undefined, true, ["resolved"]]);
+      const platforms = platformsOf(id);
+      for (const seed of [1, 2, 3, 4]) {
+        const platform = platforms[(seed - 1) % platforms.length];
+        const options = { copy, episode: 3, index: seed };
+        const plan = planTemplate(id, seed, platform, options);
+        const where = `${id}/${platform}/${seed}`;
+        expect(JSON.stringify(planTemplate(id, seed, platform, options)), where).toBe(JSON.stringify(plan));
+        expect(rangeViolations(plan.settings), where).toEqual([]);
+        // the mode's own notes are the melody: none on top, and the checklist's sound item counts them
+        expect([where, plan.melodyId, reason(plan, "sound").points]).toEqual([where, null, 10]);
+        if (t.binding.outcome) expect([where, availableOutcomes(t.mode, outcomeContextOfSettings(plan.settings)).includes(t.binding.outcome)]).toEqual([where, true]);
+      }
+      await breathe();
+    }
+    // none is in the battle family: every one is offered by default, and none plays a recipe's mode
+    expect(readyTemplates().map((x) => x.id).filter((id) => GROUP_C.includes(id)).sort()).toEqual([...GROUP_C].sort());
+    expect(GROUP_C.filter((id) => RECIPES.some((r) => r.modes.includes(templateById(id)!.mode)))).toEqual([]);
+    // the chaos fan says what it does in its own hook, in en, pl and es (the plan's hook b)
+    for (const locale of ["en", "pl", "es"] as const) {
+      const plan = planTemplate("line-up-double-pendulum", 1, "reels", { copy: COPY[locale], locale, search: false });
+      expect([locale, plan.hook]).toEqual([locale, (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks.doublePendulum]);
+    }
+    expect(planTemplate("line-up-double-pendulum", 1, "reels", { copy, search: false }).hook).toBe("Same start. Watch them split.");
+  });
+
+  it("reads each payoff off its run: the stars' close on its loop's seam, the volley's landing, every bead up, the orbs in phase, the sort, the split", () => {
+    // Chord Stars: every star closes 85 % in, and the clip ends on its loop's seam (the hold and the fade after the close)
+    const stars = planOf("line-up-star-chords");
+    const s = stars.settings;
+    expect([stars.payoff.atSec, stars.timing.clipSec, stars.payoff.position! >= PAYOFF_BAND.from && stars.payoff.position! <= PAYOFF_BAND.to]).toEqual([expect.closeTo(s.scCycle, 1), expect.closeTo(s.scCycle + s.scHold + s.scFade, 6), true]);
+    // (a star of as many points as the drawing has seconds: the first bounce inside G1's first second)
+    expect(stars.timing.firstImpactSec!).toBeLessThanOrEqual(1);
+    // Focus Shot: its transit whole bars of its bed (2 s at 120 bpm), the volley landing on the other focus at once at the payoff,
+    // two passes a loop so its seam comes after the clip; short clips only, whose transit stays on its slider (20 s at most)
+    expect(templateRecipeById("line-up-ellipse-foci")!.buckets).toEqual(["short"]);
+    const foci = planOf("line-up-ellipse-foci");
+    expect([foci.settings.efTransit % 2, foci.settings.efPasses, foci.payoff.atSec]).toEqual([0, 2, expect.closeTo(foci.settings.efTransit, 1)]);
+    expect(foci.timing.clipSec).toBeLessThan(2 * foci.settings.efTransit);
+    // Spinning Hoops, Bouncing Orbs, Colour Sort and the chaos fan: the finder's own run of the seed reads each moment
+    for (const [id, outcome] of [["line-up-hoops", "all-up-by"], ["line-up-orb-grid", "resolves-at"], ["line-up-colour-sort", "sorted-by"], ["line-up-double-pendulum", "diverges-at"]] as const) {
+      const plan = planOf(id);
+      const horizon = plan.timing.clipSec + 2;
+      const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "outcome", outcome }, horizon);
+      expect([id, plan.timing.found, facts.outcomeRun!.kind, facts.outcomeRun!.matched]).toEqual([id, true, outcome, true]);
+      expect(plan.payoff.atSec, id).toBeCloseTo(facts.outcomeRun!.atSec, 9);
+    }
+    // Bouncing Orbs land in phase at their cycle, with the field's accented chord
+    const orbs = planOf("line-up-orb-grid");
+    expect(orbs.payoff.atSec).toBeCloseTo(orbs.settings.ogCycle, 1);
+    expect(runSync(orbs.settings, orbs.seed, orbs.world, orbs.recipe, orbs.timing.clipSec, orbs.payoff.atSec).moment!.accent).toBe(true);
+    // the chaos fan plays forward for the whole clip: it splits once and never comes back together in it
+    const fan = planOf("line-up-double-pendulum");
+    expect([fan.settings.dpFan, fan.settings.dpForwardSec >= fan.timing.clipSec]).toEqual([true, true]);
+  });
+
+  it("reads each beat off its run: Beat Machines' phrase with no spare marble over one loop, the vortex's last ring on a bar line, the clip's end where the rest play on", () => {
+    // Beat Machines: one loop a clip, ending on its seam; the seed's phrase needs no spare marble, the payoff one of its notes
+    const bm = planOf("on-the-beat-beat-machine");
+    const request = finderRequestOfSettings(bm.settings, bm.world, bm.timing.clipSec + 2);
+    const machine = outcomeRunOf(request, bm.seed, "no-tube-conflict", bm.timing.clipSec + 2);
+    expect([bm.settings.bmLoopBeats / 2, bm.timing.clipSec, machine.facts.matched, machine.facts.seam]).toEqual([bm.timing.recordingDuration, bm.timing.recordingDuration, true, true]);
+    expect(machine.facts.atSec).toBeCloseTo(bm.payoff.atSec!, 9);
+    // a seed whose phrase needs a spare has no moment: the search moves on
+    let spare = -1;
+    for (let seed = 1; seed < 40 && spare < 0; seed++) if (outcomeRunOf(request, seed, "no-tube-conflict", 30).facts.atSec < 0) spare = seed;
+    expect(spare).toBeGreaterThan(0);
+    // the vortex (hidden: its own title): its last ring swallowed at the payoff, on a bar line of its 120 bpm bed (within the
+    // finder's 20 ms), the run's end a second later
+    const vx = hiddenPlanOf("on-the-beat-vortex");
+    const ring = outcomeRunOf(finderRequestOfSettings(vx.settings, vx.world, vx.timing.clipSec + 2), vx.seed, "ring-on-bar", vx.timing.clipSec + 2);
+    expect([vx.settings.vxRelease, ring.facts.matched, ring.facts.endSec! - ring.facts.atSec]).toEqual(["rings", true, expect.closeTo(1, 1)]);
+    expect(Math.abs(vx.payoff.atSec! / 2 - Math.round(vx.payoff.atSec! / 2)) * 2).toBeLessThanOrEqual(0.02 + 1e-9);
+    // Collision Playground and the Wave Tank play on – and Beat Drop (hidden: its own HUD) to its recording's end: the clip's last
+    // 1.5 s are the payoff, and the beat is heard there
+    for (const id of ["on-the-beat-beat-drop", "on-the-beat-collide", "on-the-beat-wave-tank"]) {
+      const plan = id === "on-the-beat-beat-drop" ? hiddenPlanOf(id) : planOf(id);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clip = crewClipOfPlan(plan, { run });
+      // (Beat Drop's run ends with its recording, a moment after the clip's payoff: its facts read no finish while it is hidden,
+      // as the score reads a mode without a ready template by its own run)
+      expect([id, plan.payoff.atSec, run.moment!.sounds > 0, claimSeen(clip), clarityOf(clip).pass]).toEqual([id, plan.timing.recordingDuration - AT_END_SEC, true, true, true]);
+    }
+  });
+
+  it("sees the beat claim where the run plays notes at the clip's own payoff, never where it is silent or read around another second", () => {
+    const plan = planOf("on-the-beat-collide");
+    const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+    expect(claimSeen(crewClipOfPlan(plan, { run }))).toBe(true);
+    expect(claimSeen(crewClipOfPlan(plan, { run: { ...run, moment: { ...run.moment!, sounds: 0, notes: 0 } } }))).toBe(false);
+    expect(claimSeen(crewClipOfPlan(plan, { run: { ...run, moment: { ...run.moment!, atSec: run.moment!.atSec - 1 } } }))).toBe(false);
+    // a run read without its moment (the bot's own, runSync without the payoff's second) shows it where it sounds before the
+    // payoff, and never where it is silent
+    expect(claimSeen(crewClipOfPlan(plan, { run: { ...run, moment: undefined } }))).toBe(true);
+    expect(claimSeen(crewClipOfPlan(plan, { run: { ...run, moment: undefined, firstImpactSec: -1 } }))).toBe(false);
+    expect(claimSeen(crewClipOfPlan(plan, { run: { ...run, moment: undefined, firstImpactSec: plan.payoff.atSec! + 0.5 } }))).toBe(false);
+    // a run that ends on its own shows it as before (Ball Drop's recipe settles)
+    const settle = dropPlan(1, { ending: "resolved" });
+    expect(claimSeen(crewClipOfPlan(settle, { run: runSync(settle.settings, settle.seed, settle.world, settle.recipe, settle.timing.clipSec) }))).toBe(true);
+  });
+
+  it("keeps Beat Drop and the Sound Vortex experimental, though they plan: a HUD and a title of their own under the hook (watched)", () => {
+    expect(EXPERIMENTAL.beatDrop).toMatch(/HUD of its own.*no setting switches off.*watched/);
+    expect(EXPERIMENTAL.vortex).toMatch(/title of its own.*no setting switches off.*watched/);
+    for (const id of ["on-the-beat-beat-drop", "on-the-beat-vortex"]) {
+      const plan = hiddenPlanOf(id);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      expect([id, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).pass, plan.captionRoles.includes("hook")]).toEqual([id, true, true, true]);
+      expect(() => planTemplate(id, 1, "reels", { copy, search: false }), id).toThrow(/ready template/);
+    }
+  });
+
+  it("keeps Beat Runner experimental, with its reason: its first note comes 1.5 s in, after a second of running, on every plan", () => {
+    expect(EXPERIMENTAL.runner).toMatch(/LEAD_IN_SEC.*1\.5 s.*G1/);
+    const runner = plannedRecipe(templateById("on-the-beat-runner")!)!;
+    for (const seed of [1, 2]) {
+      const plan = planClip(runner, seed, "reels", { copy, look: "simple", template: "on-the-beat-runner", episode: 3, index: seed });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      expect([seed, plan.timing.firstImpactSec! > 1, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([seed, true, expect.arrayContaining(["G1"])]);
+    }
   });
 });

@@ -1,13 +1,16 @@
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
-import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, intBetween, pick, recipeById, stepBetween, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, intBetween, pick, recipeById, snapStep, stepBetween, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
 import { AT_END_BUCKETS, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 import { templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name)
 import { modeSettingsOfSettings } from "./finderRequest"; // --- templates --- (Perfect Fit's solution seed: the finder's own search)
 import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- templates ---
+import { randomStarSet, seededRandom as starRandom, serializeStars, starSetScore } from "@/lib/physics/starChords"; // --- templates --- (AI studio step 5: Chord Stars' sets, the finder's own kind)
+import { transitOnBeat } from "@/lib/simulation/ellipseFociFinder"; // --- templates --- (Focus Shot's transit on the beat)
+import { ceilSteps, funnelDescentSteps } from "@/lib/physics/funnelSpin"; // --- templates --- (the vortex's last ring on a bar line)
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
@@ -29,14 +32,16 @@ import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- te
  *    one; the variants that plan pass every clarity gate at Simple 80+ and Playbook 75+), trial and experimental (the bindings
  *    of the EXPERIMENTAL table, a shrink-only list: hidden from every menu until the planning acceptance passes them). A proven
  *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception:
- *    Fight League's boss rush (its hook), the square race (its count-in), Ball Drop (its run fades out: review round 2, 21)
- *    and Grow's fill that ends the run (AI studio step 3: shown 0.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
- *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden, and 13 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the
- *    conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey
- *    and Spiral Glass, their own overlays switched off – `journeyHud`, `sgHud`); the other 21 are
- *    declared, experimental and hidden until their settings and planning acceptance land – their
- *    format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
+ *    Fight League's boss rush (its hook), the square race (its count-in) and Grow's fill that ends the run (AI studio step 3:
+ *    shown 0.5 s); Ball Drop's, hidden while its run faded out (review round 2, 21), plays its rain looped since AI studio
+ *    step 5 (DROP_RAIN: the beat format's payoff the clip's last 1.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
+ *    this release 15 of the 16 proven ones, the square race's binding not ready since its one variant is hidden, and 22 trial
+ *    ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the conveyor, the Maze,
+ *    Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey and Spiral Glass,
+ *    their own overlays switched off – `journeyHud`, `sgHud`; step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs,
+ *    Colour Sort and the Double Pendulum Harp lined up, Beat Machines, Collision Playground and Wave Tank on the beat); the
+ *    other 10 are declared, experimental and hidden until their settings and planning acceptance land, or with the measured
+ *    reason no setting answers yet – their format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
  *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
  *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
@@ -413,7 +418,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass"}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum"}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -492,13 +497,15 @@ const PENDULUM_TUNE: Partial<SimulatorSettings> = { pwSoundOn: "extremes", pwLay
 const COUNT_IN = "its 3-2-1-GO opens the gate at 1.8 s, so G1 (the first impact within 1 s) fails on every plan, and no setting skips the count";
 
 /**
- * --- templates --- (review round 2, 21) Ball Drop's run fades out: its notes thin from the middle of the run on, its last ball's
- * last note is one faint tick over a board at rest (G2 Still: the balls at 6–14 % of their median motion, fewer notes than the
- * run's usual moment, none accented), then silence until the SETTLED! banner and its burst, which the recorder shows for its
- * 0.5 s only (G2 asks 0.8 s after a payoff). No moment at 80–90 % of the clip lands, so the variant is hidden until a payoff
- * that does (the drop of a beat format, a later step).
+ * --- templates --- (review round 2, 21; AI studio step 5) Ball Drop's run fades out: its notes thin from the middle of the run on,
+ * its last ball's last note is one faint tick over a board at rest (G2 Still: the balls at 6–14 % of their median motion, fewer
+ * notes than the run's usual moment, none accented), then silence until the SETTLED! banner and its burst, which the recorder
+ * shows for its 0.5 s only (G2 asks 0.8 s after a payoff). So no moment of the recipe's run lands at 80–90 % of the clip, and its
+ * template was hidden (the `lastNote` strategy, timed by that last tick, fails G2 on every plan). The beat format's own payoff is
+ * the music, not an event: with the rain looped (DROP_RAIN, the recipe's draw kept) the balls fall through the board and in
+ * again, so its notes never thin out and the clip's last 1.5 s (atEnd) land on a full board, heard.
  */
-const FADES_OUT = "its run fades out: the last ball's last note is one faint tick over a board at rest (G2 Still), then silence until the SETTLED! banner, which the recorder shows for 0.5 s (G2 asks 0.8 s): no moment at 80–90 % of the clip lands";
+const DROP_FADES = "the payoff of the recipe's own run would be the last ball's last note, a faint tick before a silent settle; looped, the rain plays to the clip's end, its last 1.5 s the payoff";
 
 /** A binding of a later step: no recipe – its own settings and its format's copy –, trial once it leaves EXPERIMENTAL. */
 const later = (format: TemplateFormatId, strategy: TemplateStrategy, extra: Partial<BindingSpec> = {}): BindingSpec => ({ format, strategy, tier: "trial", keepHud: null, ...extra });
@@ -671,6 +678,133 @@ function paddleSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 }
 // --- end of group B's settings
 
+// --- templates --- (AI studio step 5) group C's own settings: seeded from the planner's context (its rng only), every value on its
+// RANGES step (snapStep: from the slider's least up, never to its most), no mode default changed
+/** A clip of whole seconds whose payoff target is 85 % of it, the planner's band's middle (outcomeStrategy.ts atEndRecordingSec). */
+const clipOfTarget = (payoffTarget: number) => atEndRecordingSec(payoffTarget);
+
+/**
+ * Chord Stars as one loop: the stars drawn in 85 % of the clip, every one closing on the same frame (star-set's moment, the
+ * close), then the hold and the fade in the rest, so the clip ends on the loop's seam. The star set is the finder's own kind (a
+ * random set of distinct point counts, scored by starSetScore: physics/starChords.ts), of 4–6 balls, with one star of as many
+ * points as the drawing has seconds: a ball's first bounce comes a drawing's 1/n in, inside G1's first second (the set's best
+ * that has one, of 40 drawn from the context's rng; the page's own set where none does).
+ */
+function starChordsSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const clip = clipOfTarget(ctx.payoffTarget);
+  const scCycle = snapStep(0.85 * clip, RANGES.scCycle);
+  const rest = Math.round(10 * (clip - scCycle)) / 10;
+  const scHold = snapStep(0.4 * rest, RANGES.scHold);
+  const scFade = Math.round(10 * (rest - scHold)) / 10;
+  const scBalls = intBetween(ctx.rng, 4, 6);
+  const base = intBetween(ctx.rng, 1, 0x7fffffff);
+  let best: { stars: string; score: number } | null = null;
+  for (let i = 0; i < SC_TRIES; i++) {
+    const set = randomStarSet(scBalls, starRandom((base + Math.imul(0x9e3779b1, i)) | 0));
+    const score = starSetScore(set);
+    if (Math.max(...set.map((s) => s.n)) >= scCycle && (!best || score > best.score)) best = { stars: serializeStars(set), score };
+  }
+  return { scBalls, scCycle, scHold, scFade, ...(best ? { scStars: best.stars } : {}) };
+}
+/** The star sets a Chord Stars clip draws from (the finder searches up to SC_FINDER_TRIES; a template keeps its plan quick). */
+const SC_TRIES = 40;
+
+/**
+ * Focus Shot: one volley a clip, its transit the payoff target in whole bars of its bed (transitOnBeat: converge-on-beat, the bed's
+ * tempo is the transit's own), so the balls fired from one focus all land on the other at once 85 % in; two passes a loop, so the
+ * loop's seam (its refire) comes after the clip (Export whole loops keeps the clip's length). Short clips only: a standard clip's
+ * target (up to 25.5 s) asks a transit past the slider's 20 s.
+ */
+function ellipseFociSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const efTransit = snapStep(transitOnBeat(ctx.payoffTarget, EF_TEMPLATE_BAR_SEC).transitSec, RANGES.efTransit);
+  return { efTransit, efPasses: 2, efCount: stepBetween(ctx.rng, 36, 72, 12) };
+}
+/** The bar a Focus Shot template's transit is whole bars of (s): four beats at 120 bpm. */
+const EF_TEMPLATE_BAR_SEC = 2;
+
+/** Spinning Hoops: the spin's ramp that brings every bead up at the payoff target (every bead up 0.92 × the ramp + 0.8 s in: measured). */
+function hoopsSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { hpRamp: snapStep((ctx.payoffTarget - 0.8) / 0.92, RANGES.hpRamp) };
+}
+
+/**
+ * Bouncing Orbs: the field resolves in phase at its cycle (resolves-at: the accented chord and the mode's IN PHASE banner), the
+ * payoff target on the cycle's step; a field of 21 × 21 orbs, calmer than the default 33 × 33 (whose motion the render measured
+ * at three times the Simple score's reference: watched).
+ */
+function orbGridSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { ogColumns: 21, ogRows: 21, ogCycle: snapStep(ctx.payoffTarget, RANGES.ogCycle) };
+}
+
+/**
+ * Colour Sort: 40 balls a colour, nearly twice the default size, so a viewer sees each ball reach its band (at the default 90 small
+ * ones the sort is a haze: watched), the balls' speed that sorts them about the payoff target in (the first sort about 3500 / speed
+ * s in, ±25 % by seed: measured). The remix after it pulls every ball back to its start: the clip ends on that loop's seam.
+ * The balls pass through each other (`csContacts` off): with contacts the browser's run of 160 touching balls parts from the
+ * planner's Node run within seconds, and the page sorted 0.8–1.1 s before the plan's second, so the payoff's words came over the
+ * remix (watched: page stills at the plan's seconds); without them both runs sort on the same frame (12.37 s on the seed watched).
+ */
+function colourSortSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { csPerColour: 40, csSize: 8, csContacts: false, csSpeed: snapStep(3500 / ctx.payoffTarget, RANGES.csSpeed) };
+}
+
+/**
+ * The Double Pendulum's chaos fan: the fan's start spread that splits it about the payoff target in (a short clip's 10⁻⁵°: 7–24 s;
+ * a standard one's 10⁻⁶°: 9–24 s, by seed: measured), played forward the whole clip (no palindrome back inside it).
+ */
+function doublePendulumSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { dpSpreadDeg: ctx.bucket === "short" ? 0.00001 : 0.000001, dpForwardSec: RANGES.dpForwardSec.max };
+}
+
+/**
+ * Beat Machines: one loop a clip, so the clip ends on the loop's seam and loops back to its first frame: a loop of the clip's
+ * whole seconds at 120 bpm (two beats a second), the marble xylophone's seeded phrase (no-tube-conflict: outcomeStrategy.ts) with
+ * five marbles a tube, so about every other seed's phrase needs no spare (at the auto one a tube, none of 40 seeds: measured).
+ */
+function beatMachineSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { bmBpm: 120, bmLoopBeats: 2 * clipOfTarget(ctx.payoffTarget), bmPerTube: 5 };
+}
+
+/**
+ * The Sound Vortex's ring release: two rings (6 and 12 balls), the last one swallowed at the payoff target on a bar line of its
+ * 120 bpm bed (ring-on-bar: the finder's own sum, funnelSpinFinder.ts, on the sliders' steps – the wave interval's 0.1 s, the
+ * friction's 0.001): the friction that takes about half the target to descend, the interval the rest.
+ */
+function vortexSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const waves = "6, 12";
+  const hole = defaultSettings("vortex").vxHoleSize;
+  const firstLap = defaultSettings("vortex").vxFirstLap;
+  const bar = (4 * 60) / defaultSettings("vortex").bpm;
+  const bars = Math.max(1, Math.round(ctx.payoffTarget / bar));
+  const want = bars * bar;
+  const step = 1 / 60;
+  let best: { interval: number; friction: number; off: number } | null = null;
+  const k0 = snapStep(0.25 / (0.5 * want), RANGES.vxSpinFriction);
+  for (let j = -15; j <= 15; j++) {
+    const friction = Math.round(1000 * (k0 + 0.001 * j)) / 1000;
+    if (!(friction > 0)) continue;
+    const descent = funnelDescentSteps(hole, friction, firstLap, step) * step;
+    if (!Number.isFinite(descent) || descent >= want) continue;
+    const interval = snapStep(want - descent, RANGES.vxWaveInterval);
+    const off = Math.abs(ceilSteps(interval, step) + descent - want);
+    if (!best || off < best.off - 1e-9) best = { interval, friction, off };
+  }
+  return { vxWaves: waves, ...(best ? { vxWaveInterval: best.interval, vxSpinFriction: best.friction } : {}) };
+}
+
+/**
+ * Collision Playground: 100–140 orbs, a third to a half of the default 300 (watched: at 300 a mass of small orbs, no one bump to
+ * follow; the orbs grow as they get fewer, so the circle stays full and its measured motion stays past the Simple score's
+ * reference, its 5 points charged); every collision still a note.
+ */
+function collideSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { cpCount: stepBetween(ctx.rng, 100, 140, 20) };
+}
+
+/** Ball Drop's rain, looped: the balls fall through the board and in again at the top, so its notes never thin out (the atEnd payoff lands on a full board). */
+const DROP_RAIN: Partial<SimulatorSettings> = { dropLoop: true };
+// --- end of group C's settings
+
 // --- templates --- why a binding is in the experimental table
 /**
  * --- templates --- (AI studio step 3) Paint's run ends the moment 95 % is painted (picturePaint.ts COVERAGE_DONE): a resolved clip
@@ -714,10 +848,30 @@ const PADDLE_OWN_HUD = "its score, lives and streak sit in a band over its ceili
 /** --- templates --- (AI studio step 3) A run that ends with its payoff (the escape, the last segment, the glass cleared): cut before it. */
 const ENDS_AT_FINISH = "the run ends with its payoff (a resolved clip shows it for 0.5 s, G2 asks 0.8 s): the template cuts before it";
 
+/**
+ * --- templates --- (AI studio step 5) Beat Runner's first note: its square runs a second before its first take-off (runner.ts
+ * LEAD_IN_SEC), then flies to a beat, so its first landing, its first note, comes 1.5 s in on every seed and setting – G1 asks a
+ * first impact within 1 s, as the square race's count-in fails it. Its level is also its recording: LEVEL COMPLETE comes 0.5 s
+ * before the clip's last frame (measured: 0 of 12 plans pass, each failing G1 and G2).
+ */
+const RUNNER_LEAD_IN = "its square runs a second before its first take-off (runner.ts LEAD_IN_SEC) and lands on a beat after it, so its first note, the plan's first impact, comes 1.5 s in on every plan and no setting moves it (G1 asks 1 s); its level is its recording, so LEVEL COMPLETE comes 0.5 s before the clip's end (G2): 0 of 12 plans passed";
+
+/**
+ * --- templates --- (AI studio step 5) Beat Drop plans (12 of 12, the clip's end its payoff: its run is its recording), but it draws a
+ * HUD of its own at the top left of the square – its title, the tempo, the landings on the beat and the bar's four dots –, which no
+ * setting switches off and the canvas does not start the top captions below: the hook covers its title for 2.5 s (watched), as
+ * Paddle Keep-Up's score band (step 4).
+ */
+const BEAT_DROP_OWN_HUD = "it draws a HUD of its own at the top left of the square (BEAT DROP, the tempo, the landings on the beat and the bar's dots), which no setting switches off and the canvas does not start the top captions below: the hook covers its title for 2.5 s (watched in the render; its plans pass every gate, 12 of 12 a language)";
+/**
+ * --- templates --- (AI studio step 5) The Sound Vortex's ring release plans (12 of 12, its last ring swallowed on a bar line), but it
+ * writes its own title in the corner – "why marbles speed up in a funnel", and the stagger release its own –, which no setting
+ * switches off (with the loop HUD off the funnel draws it itself): the hook stacks over it (watched).
+ */
+const VORTEX_OWN_TITLE = "it writes a title of its own at the top left of the square for the whole run (the ring release's \"why marbles speed up in a funnel\"; with the loop HUD off the funnel draws it itself), which no setting switches off: the hook stacks over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
+
 /** Its strategy can plan it (the outcome's moment, the clip's end, the run's finish); it waits for the rest. */
 const AWAITS = "waits for its own settings and the planning acceptance (every binding planned at DEFAULT_MAX_SEEDS for 4 plan seeds, accepted on 3)";
-/** Its outcome is found over settings, not seeds: the outcome strategy has no seed's moment for it (outcomeStrategy.ts). */
-const OWN_SEARCH = "its outcome is searched over settings by its own finder, not over seeds: the outcome strategy cannot plan it, and it waits for that search as well as its settings and the planning acceptance";
 
 /**
  * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
@@ -726,24 +880,17 @@ const OWN_SEARCH = "its outcome is searched over settings by its own finder, not
  * a recipe started here; AI studio step 3 passed five (Shatter, Color Match, Target, Brick Smash, Perfect Fit) and gave Journey,
  * Paint and Spiral Glass their measured reasons; step 4 passed six (the conveyor, the Maze, Territory, Land Claim, Bullseye,
  * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs; step 4b passed the Journey and Spiral Glass, once a setting
- * switched off what they draw of their own (their reasons, which no setting could answer then, are their notes now).
+ * switched off what they draw of their own (their reasons, which no setting could answer then, are their notes now); step 5
+ * passed nine (Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort, the Double Pendulum Harp, Beat Machines,
+ * Collision Playground, Wave Tank) and gave Beat Drop, Beat Runner and the Sound Vortex theirs.
  */
 export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   paint: PAINT_ENDS_AT_FILL,
   mergeRing: MERGE_RING_OWN_TEXT,
   paddle: PADDLE_OWN_HUD,
-  starChords: OWN_SEARCH,
-  ellipseFoci: OWN_SEARCH,
-  hoops: AWAITS,
-  orbGrid: AWAITS,
-  colourSort: AWAITS,
-  doublePendulum: AWAITS,
-  beatDrop: AWAITS,
-  beatMachine: OWN_SEARCH,
-  runner: AWAITS,
-  vortex: OWN_SEARCH,
-  collide: AWAITS,
-  waveTank: AWAITS,
+  beatDrop: BEAT_DROP_OWN_HUD,
+  runner: RUNNER_LEAD_IN,
+  vortex: VORTEX_OWN_TITLE,
   lines: AWAITS,
   drawingMachine: AWAITS,
   illusion: AWAITS,
@@ -808,20 +955,21 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // lineUp
   pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]], tune: PENDULUM_TUNE, hookAsk: "cliffQuestion", note: "the hook asks whether they line up (its chord plays at the release and every half cycle too, so it promises none); every bob sounds at its turning points, so the realignment is one accented chord; pendulums in a row, so 'back in line' is a line" }),
   polyrhythm: bind("polyrhythm", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["polyrhythm"]] }),
-  starChords: bind("starChords", later("lineUp", "outcome", { outcome: "star-set" })),
-  ellipseFoci: bind("ellipseFoci", later("lineUp", "outcome", { outcome: "converge-on-beat" })),
-  hoops: bind("hoops", later("lineUp", "outcome", { outcome: "all-up-by" })),
-  orbGrid: bind("orbGrid", later("lineUp", "outcome", { outcome: "resolves-at" })),
-  colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", note: "a gate rule whose sort does not only settle" })),
-  doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", note: "hook b: 'Same start. Watch them split.'" })),
-  // onTheBeat
-  drop: bind("drop", { format: "onTheBeat", strategy: "lastNote", tier: "proven", keepHud: null, variants: [["drop-symphony", undefined, FADES_OUT]], note: "the payoff would be the last ball's last note, a faint tick before a silent settle: hidden until a payoff that lands" }),
-  beatDrop: bind("beatDrop", later("onTheBeat", "finish")),
-  beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles" })),
-  runner: bind("runner", later("onTheBeat", "finish")),
-  vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings" })),
-  collide: bind("collide", later("onTheBeat", "atEnd")),
-  waveTank: bind("waveTank", later("onTheBeat", "atEnd")),
+  // (--- templates --- AI studio step 5: group C, each its mode's own notes the music – musicFirst –, timed by its run's moment)
+  starChords: bind("starChords", later("lineUp", "outcome", { outcome: "star-set", generate: starChordsSettings, musicFirst: true, buckets: ["short"], endings: ["resolved"], hookKey: "hookC", note: "one loop a clip: every star closes on the same frame 85 % in, then the hold and the fade to the loop's seam (star-set's close, a run of its own)", scene: (s) => `${s.scBalls} small balls inside one circle, each drawing a star of straight lines` })),
+  ellipseFoci: bind("ellipseFoci", later("lineUp", "outcome", { outcome: "converge-on-beat", generate: ellipseFociSettings, musicFirst: true, buckets: ["short"], endings: ["resolved"], hookKey: "hook", note: "one volley: fired from one focus, every ball lands on the other at once, its transit whole bars of its bed (a run of its own)", scene: (s) => `${s.efCount} small balls at one point inside an oval, fired outwards all at once` })),
+  hoops: bind("hoops", later("lineUp", "outcome", { outcome: "all-up-by", generate: hoopsSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "the spin ramps up until every bead has climbed (all-up-by)", scene: (s) => `${s.hpCount} hoops of different sizes spinning slowly, a bead resting at the bottom of each` })),
+  orbGrid: bind("orbGrid", later("lineUp", "outcome", { outcome: "resolves-at", generate: orbGridSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", note: "the field bounces out of step until it lands in phase at its cycle (resolves-at, the accented chord)", scene: () => "a large square field of small orbs, each bouncing on its own spot" })),
+  colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", generate: colourSortSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "a gate rule whose sort completes (the default's), timed by the balls' speed", scene: (s) => `${s.csColours * s.csPerColour} balls of ${s.csColours} colours mixed together inside rings with gaps` })),
+  doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", generate: doublePendulumSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.doublePendulum", note: "its own hook, the plan's hook b: 'Same start. Watch them split.' (the chaos fan, played forward)", scene: (s) => `${s.dpFanCount} double pendulums started on top of one another, swinging over a row of strings` })),
+  // onTheBeat (--- templates --- AI studio step 5: Ball Drop's rain loops, so its notes never thin out; the clip's end is its payoff)
+  drop: bind("drop", { format: "onTheBeat", strategy: "atEnd", tier: "proven", keepHud: null, variants: [["drop-symphony"]], tune: DROP_RAIN, note: DROP_FADES }),
+  beatDrop: bind("beatDrop", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hookB", note: "its run is its recording: the last landing a second before the clip's end, its banner on it (atEnd: the plan's 'finish' never comes before the clip does)", scene: () => "one ball bouncing down from platform to platform as each flies in" })),
+  beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles", generate: beatMachineSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "one loop a clip, its seeded phrase one no tube needs a spare marble for (a run of its own: a note of its last bars)", scene: () => "marbles dropping from tubes onto a row of tuned bars and rolling back" })),
+  runner: bind("runner", later("onTheBeat", "finish", { musicFirst: true, note: "LEVEL COMPLETE 1.6 s before its run's end" })),
+  vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings", generate: vortexSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "two rings, the last one swallowed on a bar line (a run of its own), the final banner a second later", scene: () => "rings of balls spiralling down a whirlpool towards a hole in its middle" })),
+  collide: bind("collide", later("onTheBeat", "atEnd", { generate: collideSettings, musicFirst: true, hookKey: "hookB", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
+  waveTank: bind("waveTank", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hook", scene: () => "water waves rolling through gaps in a wall, a row of bells along the far side" })),
   // reveal
   lines: bind("lines", later("reveal", "atEnd")),
   drawingMachine: bind("drawingMachine", later("reveal", "atEnd")),
@@ -950,14 +1098,20 @@ function wrappedRecipe(info: TemplateInfo, recipe: BotRecipe): BotRecipe {
   const endings = ownEndings.filter((e) => info.format.endings.includes(e) && (!info.binding.endings || info.binding.endings.includes(e)));
   const pinned = pinnedSettings(recipe, info.mode);
   const tune = info.binding.tune;
+  // --- templates --- (AI studio step 5) a recipe timed by the clip's end (Ball Drop's rain): its clip's length drawn from the payoff
+  // target, resolved only, in the buckets whose payoff lands in the band (outcomeStrategy.ts), as a binding's own atEnd recipe has them
+  const atEnd = info.binding.strategy === "atEnd";
+  const played = tune || atEnd ? (ctx: RecipeContext) => ({ ...pinned(ctx), ...(tune ?? {}), ...(atEnd ? { recordingDuration: atEndRecordingSec(ctx.payoffTarget) } : {}), mode: info.mode }) : pinned;
+  const fills = atEnd ? (buckets ?? AT_END_BUCKETS).filter((b) => AT_END_BUCKETS.includes(b)) : buckets;
+  const ends = atEnd ? (["resolved"] as const) : endings;
   return {
     ...recipe,
     id: info.id,
     modes: [info.mode],
-    settings: tune ? (ctx: RecipeContext) => ({ ...pinned(ctx), ...tune, mode: info.mode }) : pinned,
+    settings: played,
     strategy: info.binding.strategy,
-    ...(buckets && buckets.length ? { buckets } : {}),
-    endings: endings.length ? endings : ownEndings,
+    ...(fills && fills.length ? { buckets: fills } : {}),
+    endings: ends.length ? ends : ownEndings,
     wraps: recipe.id,
     ...(info.format.payoffWords ? {} : { payoffWords: false as const }),
     ...(info.format.stakeHook ? { stakeHook: true as const } : {}),

@@ -4188,7 +4188,8 @@
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
       "box": "Se para en cero.",
-      "spiralGlass": "¿Se multiplicará la bola?"
+      "spiralGlass": "¿Se multiplicará la bola?",
+      "doublePendulum": "Mismo inicio. Mira cómo se separan."
     },
     "ownPayoffs": {
       "journey": "¡En casa! 🏠"

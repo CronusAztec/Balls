@@ -401,7 +401,8 @@ What the run showed:
   only: the canvas reads them, the engine never sees them, so the run and every fingerprint are the same either way. Their
   templates are ready: Spiral Glass's hook asks the question its overlay asked and ends on its GLASS CLEARED, the Journey's
   asks "Will Gerald make it home?" and its payoff's own words say "Home! 🏠" where the card did. Merge Ring could get the same
-  switch. Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
+  switch, and so could the Sound Vortex (AI studio step 5): it writes a title of its own in the corner for the whole run ("why
+  marbles speed up in a funnel"), and its template, which passes every gate, is hidden for it. Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
   score nor the screen view sees it: its hook sits at the top, over the tray of pieces that wait still, never over the label.
   The Maze's banner keeps its deadpan line ("who else thought that was blood") under the winner's name though its template
   colours each ball's trail its own (watched: the line is the mode's, and the trail it jokes about is red only by default).
@@ -410,6 +411,8 @@ What the run showed:
   Canvas.tsx; Paddle reports none). The Simple hook covers the score for its 2.5 s (watched in AI studio step 4), and at the
   bottom it would cover the paddle, so its template is hidden though its plans pass every gate. Reporting Paddle's band is a
   change of the hub file Canvas.tsx, with the planner's caption boxes (`captionBoxAt`'s `topHud`) to match: the owner's call.
+  Beat Drop (AI studio step 5) is hidden the same way: its HUD at the top left of the square (BEAT DROP, the tempo, the
+  landings on the beat, the bar's dots) sits under the hook for its 2.5 s, and no setting switches it off.
 - **A loop's last second.** Perfect Fit fills its box, bursts it and starts again, and its page records whole loops, so its
   clip ends on the loop's seam (watched at 5 frames a second): the box is full and flashes at the payoff, bursts 0.2 s later,
   and its last 0.5 s show the empty box and the next loop's tray coming in, all under the payoff's "Full!", as every Simple
@@ -448,13 +451,23 @@ What the run showed:
   none: the picture or the mode's HUD counts instead, and the picture gives up the checklist's 10 countdown points. A counter
   that ends at the payoff would change the caption's link form and the renderer (settings.ts, the hub files), which needs tier
   2: the owner should decide it. The bot look keeps its counters, on to the clip's end, as tests/bot.test.ts pins its plans.
-- **Ball Drop.** Its template is hidden until a payoff that lands. The beat format has no ready template in this release;
-  the later bindings (Beat Drop, Beat Machine, Vortex) are its candidates.
+- **Ball Drop** (answered in AI studio step 5). Its template loops the rain (`dropLoop`), so its notes never thin out and the
+  clip's last 1.5 s, on a full board, are its payoff. The beat format has four ready templates: Ball Drop, Beat Machines,
+  Collision Playground and Wave Tank. Beat Drop and the Sound Vortex wait for a switch for their own HUD and title (above),
+  Beat Runner for a first note inside the first second: it runs a second before its first take-off.
+- **The page's run and the planner's.** The planner times a payoff on a Node run of the seed, and the page plays the same seed
+  in the browser. Colour Sort's 160 touching balls parted between the two within seconds (AI studio step 5: the page sorted
+  0.8–1.1 s before the plan's second, so the payoff's words came over the remix), so its template turns contacts off, and both
+  runs then sort on the same frame. Another mode with many touching bodies could part the same way. render reports the
+  payoff's second from the planner's run, not from the page's, so only the sheets show it (page stills at the plan's seconds,
+  the `preview` tool, settle it). A check that reads the page's own moment is the owner's call.
 - **The cinematic camera.** Its zoom shows the canvas's lighter box for a moment. The Simple look keeps the camera because its
   slow motion moves the run in several modes.
 - **The page's world.** The headless page is 800 × 450; the planner's default world is 800 × 600. Plan in the page's world,
   on both routes (`plan`'s and an open request's `world`). render reports the page's world and says when they differ.
 - **Lengths.** The planner estimates a clip's length; the page's own end of the run can differ (a Ball Drop clip rendered
-  17 s against 18 s planned). render reports both.
+  17 s against 18 s planned). render reports both. A loop that closes inside the clip ends it on its seam, as the page's
+  whole-loop export does (Perfect Fit since AI studio step 3; Chord Stars, Colour Sort and Beat Machines since step 5): their
+  rendered lengths are the planned ones.
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
   The studio's own review runs that search.

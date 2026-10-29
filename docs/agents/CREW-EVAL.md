@@ -572,7 +572,7 @@ fill in time, so 17 of 18 passed every gate, as before.
 ### claude-opus-5-5-2026-10-29-step4b
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-step4b -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -610,3 +610,49 @@ Spiral Glass among its satisfying clips, in the conveyor's place, and the Journe
 something gets out or breaks, in place of Shatter and Brick Smash (Shatter's hook would have opened with the same three words
 as Spiral Glass's), and kept its six calm ideas. The other 234 answers are step 4's, and step 4's run stays above as history.
 No number moved: 17 of 18 of its ideas passed every gate, as before, in 3 formats a request.
+
+### claude-opus-5-5-2026-10-29-step5
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-step5 -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 884d91a65835d962.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 1 of 40 (3%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 1 of 40 (3%) | 0 of 40 (0%) | 1 of 40 (3%) | 10 / 14 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 2.33 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-step5 -->
+
+AI studio step 5 readied Ball Drop's template again (its rain looped, the clip's end its payoff), so the corpus of the proven
+templates' clips takes it back: its round robin moved (three Ball Drop clips in place of the third Glass, Pendulum Wave and
+Polyrhythm ones), and 29 clean and 25 planted clips differ from step 4b's. 197 of the 237
+briefs were word for word ones an earlier run of the same model had answered (the corpus is close again to the one of round 1
+and round 2, before Ball Drop's template was hidden), and those answers stand. The same model answered the other 40 in one
+context: the briefs of 8 clips (three clean Ball Drop clips; five planted ones, three hooks that ask two questions, a busy
+Portal and a battle royale whose winner comes at 95 %) and the brainstormer's three, whose menu gained the line-up and beat
+templates. No catch rate, objection, misread or fix count moved from step 4b's. The brainstormer pitched Colour Sort, Chord
+Stars, Spinning Hoops and Ball Drop among its satisfying clips, and Ball Drop, Beat Machines and Wave Tank beside the pendulum,
+the polyrhythm and Chord Stars for its calm ones, so it mixed 2.33 formats a request (3), and all 18 of its ideas passed every
+gate (17 of 18). Step 4b's run stays above as history.

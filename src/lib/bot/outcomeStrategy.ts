@@ -15,7 +15,8 @@ import type { ModeId } from "@/lib/physics/types";
  *    run met the window, outcomeClipSec() where a run that ends on its own (or closes its loop) ends. Only the outcomes whose
  *    moment a seed's run shows plan this way (OUTCOME_MOMENTS); the ones the finder searches over settings instead of seeds –
  *    Chord Stars' star sets, Focus Shot's transit, Beat Machines' phrases, the vortex's ring waves, Brick Smash's first smash,
- *    Perfect Fit's solution seeds – have their own searches (outcomeStrategyPlans() is false for them). --- templates --- (AI
+ *    Perfect Fit's solution seeds – have their own searches, and plan where a run of its own reads a seed's moment once the
+ *    binding's settings drew what the finder would search (OWN_RUN_MOMENTS: AI studio steps 3 and 5). --- templates --- (AI
  *    studio step 4) A mode may read an outcome with a run of its own too: the Maze's winner, the first one out (OWN_RUN_MODE_MOMENTS).
  *  - **atEnd**: the payoff is the clip's last AT_END_SEC – for a mode whose run loops or has no moment to search (Conveyor, Merge
  *    Ring, Collide, Wave Tank, Lines, Drawing Machine, Illusion). Analytic: the clip's length is drawn from the payoff target
@@ -45,7 +46,7 @@ function winnerMomentMs(run: RunSummary): number {
  * are no payoff moment of a seed's run: never-escapes and never-settles hold for the whole clip, lift-order and the Fight League
  * stories have no second, the bar-line ones time a song, and star-set, converge-on-beat, longest-collapse, no-tube-conflict,
  * most-in-flight, ring-on-bar, bricks-cleared-by, last-brick-on-bar, final-balls, most-on-floor and landings-on-beat are searched
- * over settings by their own finders.
+ * over settings by their own finders (six of them read with a run of their own: OWN_RUN_MOMENTS).
  */
 export const OUTCOME_MOMENTS: Readonly<Partial<Record<FinderOutcomeKind, { window: OutcomeWindowKind; ms: MomentOf }>>> = {
   "escapes-at": { window: "at", ms: (r) => r.firstEscapeMs },
@@ -155,6 +156,69 @@ function mazeWinnerRun(request: FinderRequest, seed: number, horizonSec: number)
   return { summary, ms: verdictMs, endMs: finished ? elapsed : null, winner };
 }
 
+// --- templates --- (AI studio step 5) the four outcomes the finder searches over settings, each with the seed's moment a run of its
+// own reads (the binding's settings draw what the finder would search: lib/bot/templates.ts)
+/** A summary of a run that ends at most at `endMs` (null: it goes on) and has no escape or teams of its own. */
+const plainSummary = (mode: ModeId, durationMs: number, finished: boolean): RunSummary => ({ mode, durationMs, finished, firstEscapeMs: -1, teams: [] });
+
+/**
+ * Chord Stars' close (star-set: the finder fits the star set's drawing time to the clip, starChordsFinder.ts): the moment every star
+ * closes on the same frame, its chord, and the end of its loop – the hold and the fade after the close –, its seam: the page's
+ * whole-loop export ends the clip there.
+ */
+function starChordsRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  let periodMs = -1;
+  const { elapsedMs, reached } = stepOwnRun(request, seed, horizonSec, (engine) => {
+    const view = engine.getStarChordsView();
+    periodMs = 1000 * view.periodSec;
+    return view.closings >= 1;
+  });
+  const seam = reached && periodMs > 0;
+  return { summary: plainSummary(request.mode, elapsedMs, false), ms: reached ? elapsedMs : -1, endMs: seam ? periodMs : null, ...(seam ? { seam: true as const } : {}) };
+}
+
+/**
+ * Focus Shot's first convergence (converge-on-beat: the transit whole bars of the bed's tempo, ellipseFociFinder.ts): the moment the
+ * volley fired from one focus lands on the other, all at once. The loop goes on (the next pass, the refire): no end of its own.
+ */
+function ellipseFociRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  const { elapsedMs, reached } = stepOwnRun(request, seed, horizonSec, (engine) => engine.getEllipseFociView().convergences >= 1);
+  return { summary: plainSummary(request.mode, elapsedMs, false), ms: reached ? elapsedMs : -1, endMs: null };
+}
+
+/**
+ * Beat Machines' phrase (no-tube-conflict: the seed writes the marbles' phrase, beatMachineFinder.ts, a plan per seed): a seed whose
+ * phrase no tube needs a spare marble for has its moment at the note of its loop's last bars nearest 85 % of the loop (the band's
+ * middle), the loop's end its seam; a seed that needs a spare has none. Nothing is simulated: the plan is the run's.
+ */
+function beatMachineRun(request: FinderRequest, seed: number): OwnRun {
+  const plan = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed).getBeatMachineView().plan;
+  const loopMs = 1000 * plan.loopSec;
+  const aim = ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2) * loopMs;
+  let ms = -1;
+  for (const note of plan.notes) {
+    const at = 1000 * note.beat * plan.beatSec;
+    if (at > 0 && at < loopMs && (ms < 0 || Math.abs(at - aim) < Math.abs(ms - aim))) ms = at;
+  }
+  const ok = plan.spares === 0 && ms >= 0 && loopMs > 0;
+  return { summary: plainSummary(request.mode, loopMs, false), ms: ok ? ms : -1, endMs: loopMs > 0 ? loopMs : null, ...(loopMs > 0 ? { seam: true as const } : {}) };
+}
+
+/**
+ * The Sound Vortex's last ring (ring-on-bar: the wave interval and the friction that put it on a bar line, funnelSpinFinder.ts): the
+ * moment its last ball is swallowed, the run followed to its end – its final banner, a second later.
+ */
+function vortexRingRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  let lastMs = -1;
+  const { elapsedMs, reached } = stepOwnRun(request, seed, horizonSec, (engine) => {
+    const view = engine.getVortexView();
+    lastMs = view.lastSwallowMs ?? -1;
+    return view.finished;
+  });
+  return { summary: plainSummary(request.mode, elapsedMs, reached), ms: reached && lastMs >= 0 ? lastMs : -1, endMs: reached ? elapsedMs : null };
+}
+// --- end of the four
+
 /**
  * --- templates --- (AI studio step 4) The outcomes a mode's own run reads for that mode only (ownRunOf): the Maze's winner, the
  * first one out (mazeWinnerRun).
@@ -170,6 +234,11 @@ export const OWN_RUN_MODE_MOMENTS: Readonly<Partial<Record<ModeId, Partial<Recor
 export const OWN_RUN_MOMENTS: Readonly<Partial<Record<FinderOutcomeKind, { window: OutcomeWindowKind; run: (request: FinderRequest, seed: number, horizonSec: number) => OwnRun }>>> = {
   "bricks-cleared-by": { window: "by", run: brickSmashRun }, // --- brick-rebuild ---
   "most-on-floor": { window: "at", run: perfectFitRun }, // --- perfect-fit ---
+  // --- templates --- (AI studio step 5)
+  "star-set": { window: "at", run: starChordsRun }, // --- chord-stars ---
+  "converge-on-beat": { window: "at", run: ellipseFociRun }, // --- ellipse-foci ---
+  "no-tube-conflict": { window: "at", run: beatMachineRun }, // --- beat-machine ---
+  "ring-on-bar": { window: "at", run: vortexRingRun }, // --- funnel-spin ---
 };
 
 /** --- templates --- (AI studio step 3) The outcomes whose moment is a fill (Grow's ring filled, Perfect Fit's first box full): a fill's fact. */
@@ -284,7 +353,10 @@ export function outcomeRunOf(request: FinderRequest, seed: number, kind: FinderO
   if (kind === "winner") for (let team = 0; team < summary.teams.length; team++) if (outcomeMatches({ ...outcome, team }, summary)) winner = team;
   const matched = kind === "winner" ? winner >= 0 : outcomeMatches(outcome, summary);
   const closes = summary.finished || (summary.cycleMs ?? 0) > 0;
-  return { summary, facts: { kind, atSec: ms >= 0 ? ms / 1000 : -1, matched, winner, endSec: closes ? outcomeClipSec(outcome, summary) : null } };
+  // --- templates --- (AI studio step 5) a run that closes its loop without finishing (Colour Sort: the sort, the chord's hold, the
+  // remix) ends the clip on that loop's seam: the page's whole-loop export cuts it there, with no stop after it (clipTiming)
+  const seam = !summary.finished && (summary.cycleMs ?? 0) > 0;
+  return { summary, facts: { kind, atSec: ms >= 0 ? ms / 1000 : -1, matched, winner, endSec: closes ? outcomeClipSec(outcome, summary) : null, ...(seam ? { seam: true as const } : {}) } };
 }
 
 /* ------------------------------------------------------------------ atEnd */

@@ -4188,7 +4188,8 @@
     "ownHooks": {
       "mergeRing": "Do którego poziomu się połączą?",
       "box": "Zatrzyma się na zerze.",
-      "spiralGlass": "Czy kulka się pomnoży?"
+      "spiralGlass": "Czy kulka się pomnoży?",
+      "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą."
     },
     "ownPayoffs": {
       "journey": "W domu! 🏠"

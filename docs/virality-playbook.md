@@ -216,33 +216,37 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 27 modes as 32 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
+- **Ready now:** 37 modes as 42 templates. 15 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
   on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
   Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
   ("Classic · Get out · One ring"). Six more do since AI studio step 4: the conveyor, the Maze, Territory, Land Claim, Bullseye
   and Bouncing Shapes. Two more since step 4b: the Journey and Spiral Glass, each with a setting that switches its own overlay
-  off. Their numbers are in the tables of steps 3, 4 and 4b below.
-- **Hidden for now:** the other 21 modes are bound but wait for their own settings and planning acceptance. They sit in
-  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Three of
-  them were planned and measured and stay with the reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4
-  (below). The Journey and Spiral Glass, hidden in step 3, left the table in step 4b. Their
-  payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
+  off. Nine more since step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp
+  line up, and Beat Machines, Collision Playground and Wave Tank play on the beat. Ball Drop's template is ready again since
+  step 5, its rain looped. Their numbers are in the tables of steps 3, 4, 4b and 5 below.
+- **Hidden for now:** the other 11 modes are bound but wait. Ten sit in the experimental table (`EXPERIMENTAL`), which a
+  test lets only shrink: a binding leaves it when its plans pass. Six of them were planned and measured and stay with the
+  reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4, Beat Drop, Beat Runner and the Sound Vortex in step 5
+  (below). Lines, Drawing Machine, Illusion and the Mode Lab wait for their own settings and planning acceptance. The Journey
+  and Spiral Glass, hidden in step 3, left the table in step 4b. The payoff timing of every binding is in place
+  (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
   of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
   in the short and standard lengths. A binding's own settings switch on the option its outcome needs, such as the chaos fan
   for the Double Pendulum's split. The finder searches six outcomes over settings, not seeds: Chord Stars, Focus Shot, Beat
-  Machines, the vortex's ring waves, Brick Smash and Perfect Fit. The first four bindings wait for that search too. Brick Smash
-  and Perfect Fit plan from a run of their own instead: the planner plays the seed's run with the template's settings and reads
-  the moment off it, the last brick of the picture or the last piece landed (`OWN_RUN_MOMENTS`). So does Fight
-  League's boss rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
+  Machines, the vortex's ring waves, Brick Smash and Perfect Fit. Each of the six plans from a run of its own instead: the
+  template's settings draw what the finder would search (a star set, a transit, a phrase, a wave interval), and the planner
+  plays the seed's run with them and reads the moment off it, such as the last brick of the picture or the last piece landed
+  (`OWN_RUN_MOMENTS`). Fight League's boss rush is hidden: its hook names the boss and the division in one clause of 8–9
+  words, more than the 7 G5 allows. The square race is
   hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count (step 4 tried 96
-  seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). So is Ball Drop's:
+  seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). Ball Drop's was hidden until step 5:
   its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
-  shows for 0.5 s, so no plan's payoff lands (G2). A template that fails a gate on every plan is hidden with its reason, never
-  kept by an exception. A binding is ready only while one of its templates is, so the race's and Ball Drop's bindings are not
-  ready either, though each wraps a recipe, and the beat format has no ready template.
+  shows for 0.5 s, so no plan timed by that note lands (G2). Its template now loops the rain (below). A template that fails a
+  gate on every plan is hidden with its reason, never kept by an exception. A binding is ready only while one of its templates
+  is, so the race's binding is not ready either, though it wraps a recipe.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
 - **Words:** a template that wraps a recipe speaks with the recipe's words. The 32 bindings without one speak with their format's, written
@@ -256,7 +260,7 @@ checks (G4).
   name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
   Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
   A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
-  Bouncing Shapes', Spiral Glass's) or a payoff (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠").
+  Bouncing Shapes', Spiral Glass's, the Double Pendulum's) or a payoff (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠").
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
 
@@ -352,7 +356,8 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
 | line-up-polyrhythm | 97 | 84 | 12/12 |
 
 - The square race is not in the table: it failed G1 on every plan (0 of 12), as the bot's own race clips do, so it is hidden
-  (above). Nor is Ball Drop: timed at its last note, every plan fails G2, so it is hidden too.
+  (above). Nor is Ball Drop: timed at its last note, every plan fails G2, so that template stayed hidden. Its template of
+  step 5 loops the rain and is timed by the clip's end (below).
 - Portal and Accumulation end the run with the escape. A resolved clip would show it for the recorder's 0.5 s only, under
   G2's 0.8 s, so their templates take the cliffhanger ending and cut before it.
 - The other misses are seeds the search could not fit: no fill found in time, a length outside the bucket, a cut too far
@@ -473,6 +478,61 @@ looked at.
   hook. Step 3 had planned both endings: the Journey then missed one Shorts cliffhanger, whose seed search fit no cut.
 - In the bot look they keep their overlays and are busy (G6: Simple 9 and 24), as Glass is: the Simple look is what makes them
   ready. The bot look also draws the Journey's hook over its stage banner (G5).
+
+**AI studio step 5's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
+the same counts in each]**. Nine more modes play settings of their own, six that line up and three on the beat, and Ball
+Drop's template plays its recipe with the rain looped. Each is timed by its outcome's moment (the **outcome** strategy) or by
+the clip's last 1.5 s (**atEnd**). Each passed its watch: one clip of each rendered watermarked, its payoff heard (the render's
+notes) and its hook and contact sheets looked at.
+
+| Template | Its own settings | Simple (median) | Checklist (median) | Pass every gate |
+| --- | --- | --- | --- | --- |
+| line-up-star-chords | 4–6 balls, each drawing a star of a set (the best of 40 drawn, one star with as many points as the drawing has seconds) that closes 85 % into the clip, then its hold and fade; the clip ends on the loop's seam; short only | 97 | 84 | 12/12 |
+| line-up-ellipse-foci | a volley of 36–72 balls fired from one focus, its transit whole 2 s bars nearest the target, so every ball lands on the other focus at once; two passes a loop; short only (a standard clip's target asks a transit past the slider's 20 s) | 97 | 84 | 12/12 |
+| line-up-hoops | the spin's ramp that brings every bead up by the target | 97 | 86 | 12/12 |
+| line-up-orb-grid | 21 × 21 orbs (the default 33 × 33 was busy when watched), their cycle on the target; the mode's IN PHASE banner the one ending | 97 | 82 | 12/12 |
+| line-up-colour-sort | 40 balls a colour at size 8, passing through each other, the speed that sorts them about the target; the clip ends on the loop's seam after the remix | 100 | 82 | 12/12 |
+| line-up-double-pendulum | the chaos fan 10⁻⁵° apart (short) or 10⁻⁶° (standard), played forward; its own hook "Same start. Watch them split." | 97 | 86 | 12/12 |
+| on-the-beat-drop | Drop Symphony's draw with the rain looped; the clip's last 1.5 s | 97 | 82 | 12/12 |
+| on-the-beat-beat-machine | 120 bpm, one loop the clip's length, 5 marbles a tube; a seed whose phrase needs no spare marble, the note nearest 85 % of the loop its payoff; the clip ends on the loop's seam | 97 | 86 | 12/12 |
+| on-the-beat-collide | 100–140 orbs; the clip's last 1.5 s | 97 | 82 | 12/12 |
+| on-the-beat-wave-tank | the mode's own double slit; the clip's last 1.5 s | 97 | 82 | 12/12 |
+
+- Their runs are the bot look's: the seed and every run fact are the same in both looks, on all 156 plans measured (the ten
+  above and the three hidden below).
+- The beat format has its first ready templates. Ball Drop's run fades out (above), so its template loops the rain
+  (`dropLoop`): the balls fall through the board and in again, its notes never thin out, and the clip's last 1.5 s land on a
+  full board, heard (a test checks two plans: at least 3 notes at the payoff and under 0.5 s of quiet after it). The words
+  are the recipe's.
+- Four of the six outcomes the finder searches over settings plan this way since step 5 (`OWN_RUN_MOMENTS`): the template draws
+  Chord Stars' star set, Focus Shot's transit, Beat Machines' tempo and loop, and the vortex's wave interval and friction as
+  the finder would, and the planner reads the seed's moment off its run. A Beat Machines seed writes its own phrase: at five
+  marbles a tube about every other seed's needs no spare, at the default auto count none of 40 did.
+- Chord Stars, Colour Sort and Beat Machines end on their loop's seam. The page exports whole loops, so the plan ends the clip
+  where the loop closes and holds nothing after it: each rendered length is the planned one, to the frame.
+- Colour Sort's balls pass through each other (`csContacts` off). With contacts, the page's run of 160 touching balls parted
+  from the planner's run within seconds: the page sorted 0.8–1.1 s before the plan's second, so "There it is." came over the
+  remix (watched, then checked with page stills at the plan's seconds). Without contacts both runs sort on the same frame.
+- Bouncing Orbs draws its own IN PHASE banner as the field lands together ("441 orbs land together at 19.0s"): a row of
+  `MODE_END_BANNERS` now, so the Simple look draws no payoff words beside it.
+- The Double Pendulum's hook is its own (`ViralBot.ownHooks`: "Ten sam start. Patrz, jak się rozchodzą.", "Mismo inicio. Mira
+  cómo se separan."): the format's hooks promise a line-up, and its fan splits.
+- A beat format's claim is a beat heard at the payoff. The crew's claim check (`claimSeen`) now takes the run's moment with its
+  sounds at the payoff where the run has no finish of its own, and, where no moment was read (the bot's own runs), a run that
+  sounds before its payoff.
+- In the bot look, Spinning Hoops, the Double Pendulum and Collision Playground pass every gate (Simple 85–89). The others are
+  busy there (G6: Simple 30–46), as Glass is: the Simple look is what makes them ready.
+
+Hidden after measuring in step 5 (`EXPERIMENTAL`):
+
+- **Beat Drop** passed every gate on 12 of 12 plans in each language, the clip's end its payoff (its run is its recording).
+  Watched, it draws a HUD of its own at the top left of the square, with BEAT DROP, the tempo, the landings on the beat and
+  the bar's four dots. No setting switches it off, and the hook covers its title for 2.5 s, as with Paddle Keep-Up's score band.
+- **The Sound Vortex** passed every gate on 12 of 12 plans, its last ring swallowed on a bar line of its bed (0 ms off).
+  Watched, it writes a title of its own in the corner for the whole run ("why marbles speed up in a funnel"), which no
+  setting switches off: the hook stacks over it.
+- **Beat Runner** passed none of 12. Its square runs a second before its first take-off, so its first note comes 1.5 s in on
+  every plan (G1 asks 1 s), and its LEVEL COMPLETE comes 0.5 s before the clip's end (G2).
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

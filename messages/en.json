@@ -4188,7 +4188,8 @@
     "ownHooks": {
       "mergeRing": "How far can it merge?",
       "box": "It stops at zero.",
-      "spiralGlass": "Will the ball multiply?"
+      "spiralGlass": "Will the ball multiply?",
+      "doublePendulum": "Same start. Watch them split."
     },
     "ownPayoffs": {
       "journey": "Home! 🏠"
