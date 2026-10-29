@@ -10,7 +10,9 @@ import { SETTLE_MS, STUDIOKIT_ENTRY, TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, settl
 import os from "os";
 import { buildEnv, LOCAL_SITE_DOMAIN, lockPids, patchNextConfig, siteFile, TOOLBOX_SITE_DOMAIN } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
-import { postizProbeTool } from "../scripts/agent/postiz-probe.mjs";
+import { ROUTE_CHECK_ID, postizProbeTool } from "../scripts/agent/postiz-probe.mjs";
+import { POST_NOTES } from "../scripts/agent/owner-stats.mjs";
+import * as postizClientModule from "../desktop/src/social/postiz";
 import * as toolbox from "@/lib/agentKit/toolbox";
 import { parseBaselineLiteral } from "@/lib/agentKit/fingerprint";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
@@ -473,14 +475,176 @@ describe("owner-run commands (--- agent-cli ---)", () => {
         throw new Error("rate limited for SECRET-KEY");
       },
     };
-    const out = await postizProbeTool(toolbox, { posts: 5 }, { env: { POSTIZ_URL: "https://postiz.example.com", POSTIZ_API_KEY: "SECRET-KEY" }, client });
+    const out = await postizProbeTool(toolbox, { posts: 5 }, { env: { POSTIZ_URL: "https://postiz.example.com", POSTIZ_API_KEY: "SECRET-KEY" }, client, now: Date.parse("2026-10-03T10:00:00Z") });
     expect(out).toEqual({
       configured: true,
       host: "postiz.example.com",
       days: 30,
       channels: [{ index: 0, platform: "tiktok", disabled: false, series: [{ label: "Views", points: 2 }] }],
-      posts: [{ index: 0, platform: "tiktok", error: "rate limited for [key]" }],
+      postRoute: { answers: "unknown", meaning: "no call to it succeeded (unknown): run the probe again later", checkedWith: "the recent posts below" },
+      posts: [{ index: 0, platform: "tiktok", ageHours: 24, trialReel: "unknown", answer: "error", error: { kind: "unknown", status: null, meaning: "Postiz answered unexpectedly" } }],
+      notes: [...POST_NOTES],
     });
     expect(JSON.stringify(out)).not.toMatch(/999|500|My Channel|SECRET/);
+  });
+
+  // --- insights --- The owner's pilot (C10): the probe through the Windows app's own client (desktop/src/social/postiz.ts) on
+  // answers shaped like Postiz 2.18's (gitroomhq/postiz-app at 64f00fd6: public.integrations.controller.ts, posts.repository.ts
+  // getPosts, posts.service.ts checkPostAnalytics, instagram.provider.ts postAnalytics). Every number, name, text, address
+  // and id below is one the output must never hold.
+  const KEY = "SECRET-KEY-7f3a";
+  const NOW = Date.parse("2026-10-30T12:00:00Z");
+  const IG = { id: "ig-chan-77", providerIdentifier: "instagram", name: "Jumping Balls Live", picture: "https://cdn.example.net/face.jpg" };
+  const TT = { id: "tt-chan-88", providerIdentifier: "tiktok", name: "Bouncy Account", picture: null };
+  const series = (pairs: [string, number][]) => pairs.map(([label, value]) => ({ label, percentageChange: 0, data: [{ total: String(value), date: "2026-10-30" }] }));
+  const post = (id: string, publishDate: string, integration: typeof IG | typeof TT, settings: Record<string, unknown> | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    content: `<p>Secret caption of ${id}</p>`,
+    publishDate,
+    releaseURL: `https://www.instagram.com/reel/REL${id}/`,
+    releaseId: `1789${id.length}0042`,
+    state: "PUBLISHED",
+    error: null,
+    intervalInDays: null,
+    group: `group-${id}`,
+    creationMethod: "WEB",
+    settings: settings === null ? null : JSON.stringify(settings),
+    tags: [],
+    integration,
+    ...extra,
+  });
+  const POSTS = [
+    post("trial-1", "2026-10-29T12:00:00.000Z", IG, { __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL", collaborators: [] }),
+    post("normal-1", "2026-10-29T10:30:00.000Z", IG, { __type: "instagram", post_type: "post", collaborators: [] }),
+    post("zero-1", "2026-10-27T12:00:00.000Z", IG, { __type: "instagram", post_type: "post", is_trial_reel: "true", graduation_strategy: "SS_PERFORMANCE" }),
+    post("lost-1", "2026-10-26T12:00:00.000Z", IG, { __type: "instagram", post_type: "post" }, { releaseId: "missing" }),
+    post("tiktok-1", "2026-10-25T12:00:00.000Z", TT, { __type: "tiktok", privacy_level: "PUBLIC_TO_EVERYONE" }),
+    post("failed-1", "2026-10-29T13:00:00.000Z", IG, { __type: "instagram", post_type: "post", is_trial_reel: true }, { state: "ERROR", error: "This account doesn't support Trial Reels" }),
+    post("queued-1", "2026-10-31T09:00:00.000Z", IG, null, { state: "QUEUE" }),
+  ];
+  const NUMBERS: Record<string, unknown> = {
+    "trial-1": series([["Views", 48213], ["Reach", 39107], ["Saves", 0], ["Likes", 917], ["Comments", 0], ["Shares", 66]]),
+    "normal-1": series([["Views", 15021], ["Reach", 12034], ["Saves", 31], ["Likes", 402], ["Comments", 18], ["Shares", 25]]),
+    "zero-1": series([["Views", 0], ["Reach", 0], ["Saves", 0], ["Likes", 0], ["Comments", 0], ["Shares", 0]]),
+    "lost-1": { missing: true },
+    "tiktok-1": [],
+  };
+  const NEVER = /48213|39107|917|15021|12034|402|4321|Jumping Balls|Bouncy|jumpingballs_official|Secret caption|cdn\.example|instagram\.com\/reel|REL|17890042|1789\d+0042|group-|trial-1|normal-1|zero-1|lost-1|tiktok-1|ig-chan|tt-chan|SECRET|Cannot GET|Too Many|doesn't support/;
+
+  /** A Postiz 2.18 (or, with `older`, one before 2.18: no per-post route) on the stand-in network: the answers by path. */
+  function postiz(options: { older?: boolean; posts?: unknown[]; postAnswer?: (id: string) => Response | null; channelAnswer?: () => Response } = {}) {
+    const calls: string[] = [];
+    const json = (value: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json", ...headers } });
+    const fetchImpl = async (url: string, init: { headers: Record<string, string> }) => {
+      const u = new URL(url);
+      calls.push(u.pathname);
+      if (init.headers.Authorization !== KEY) return json({ message: "Unauthorized" }, 401);
+      const route = u.pathname.replace(/^\/public\/v1/, "");
+      if (route === "/integrations") return json([IG, TT].map((c) => ({ id: c.id, name: c.name, identifier: c.providerIdentifier, picture: c.picture, disabled: false, profile: "jumpingballs_official", customer: undefined })));
+      if (route === `/analytics/${IG.id}` || route === `/analytics/${TT.id}`) return options.channelAnswer?.() ?? json(series([["Followers", 4321], ["Reach", 39107]]));
+      if (route === "/posts" && u.searchParams.get("startDate") && u.searchParams.get("endDate")) return json({ posts: options.posts ?? POSTS });
+      const m = /^\/analytics\/post\/([^/]+)$/.exec(route);
+      if (m && !options.older) {
+        const id = decodeURIComponent(m[1]);
+        return options.postAnswer?.(id) ?? json(NUMBERS[id] ?? []); // (an unknown post: Postiz answers [])
+      }
+      return json({ message: `Cannot GET ${u.pathname}${u.search}`, error: "Not Found", statusCode: 404 }, 404); // Nest's own 404
+    };
+    return { calls, fetchImpl, perPost: () => calls.filter((c) => c.includes("/analytics/post/")).length };
+  }
+  const env = { POSTIZ_URL: "https://postiz.example.com", POSTIZ_API_KEY: KEY };
+  // (any: the output is checked field by field below)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const probe = (server: ReturnType<typeof postiz>, args: { days?: number; posts?: number } = { posts: 10 }): Promise<any> => postizProbeTool(toolbox, args, { env, fetchImpl: server.fetchImpl, now: NOW, clientModule: postizClientModule });
+
+  /** Every leaf of the output: a number only as an index, a count, an age, the period or a status; a yes/no field only yes, no or unknown. */
+  function onlyCountsAgesAndYesNo(out: unknown) {
+    const NUMBER_KEYS = new Set(["index", "points", "ageHours", "days", "status"]);
+    const walk = (v: unknown, key: string) => {
+      if (Array.isArray(v)) return v.forEach((x) => walk(x, key));
+      if (v && typeof v === "object") return Object.entries(v).forEach(([k, x]) => walk(x, k));
+      if (typeof v === "number") expect(NUMBER_KEYS.has(key), `a number under "${key}"`).toBe(true);
+      if (key === "aboveZero" || key === "trialReel") expect(["yes", "no", "unknown"]).toContain(v);
+      if (key === "graduation") expect(["MANUAL", "SS_PERFORMANCE", "not set", "other"]).toContain(v);
+    };
+    walk(out, "");
+    expect(JSON.stringify(out)).not.toMatch(NEVER);
+  }
+
+  it("postiz-probe on Postiz 2.18's answers: per post its age, the trial it asked for and yes or no above zero, never a value", async () => {
+    const server = postiz();
+    const out = await probe(server);
+    expect(out.postRoute).toEqual({ answers: "yes", meaning: "GET /public/v1/analytics/post/:id answers: Postiz 2.18.0 or newer", checkedWith: "the recent posts below" });
+    const sixLabels = (aboveZero: ("yes" | "no")[]) => ["Views", "Reach", "Saves", "Likes", "Comments", "Shares"].map((label, i) => ({ label, points: 1, aboveZero: aboveZero[i] }));
+    expect(out.posts).toEqual([
+      // the trial reel, read at 24 h: its Views and Reach came through
+      { index: 0, platform: "instagram", ageHours: 24, trialReel: "yes", graduation: "MANUAL", answer: "series", series: sixLabels(["yes", "yes", "no", "yes", "no", "yes"]) },
+      // the normal reel of the same day
+      { index: 1, platform: "instagram", ageHours: 25, trialReel: "no", answer: "series", series: sixLabels(["yes", "yes", "yes", "yes", "yes", "yes"]) },
+      // a post whose every series is zero (a trial with automatic sharing, "true" as text: what was asked, said as asked)
+      { index: 2, platform: "instagram", ageHours: 72, trialReel: "yes", graduation: "SS_PERFORMANCE", answer: "series", series: sixLabels(["no", "no", "no", "no", "no", "no"]) },
+      // Postiz lost the post's id on the platform ({missing: true}), told apart from "no numbers yet"
+      { index: 3, platform: "instagram", ageHours: 96, trialReel: "no", answer: "missing" },
+      { index: 4, platform: "tiktok", ageHours: 120, trialReel: "no", answer: "empty" },
+    ]);
+    // the failed and the queued post are not read; the channels keep their labels and point counts
+    expect(server.perPost()).toBe(5);
+    expect(out.channels).toEqual([0, 1].map((index) => ({ index, platform: index ? "tiktok" : "instagram", disabled: false, series: [{ label: "Followers", points: 1 }, { label: "Reach", points: 1 }] })));
+    expect(out.notes.join(" ")).toMatch(/not proof that Instagram treated it so/);
+    onlyCountsAgesAndYesNo(out);
+  });
+
+  it("postiz-probe keeps one platform's recent posts when asked (the pilot's two reels on a busy account)", async () => {
+    const server = postiz();
+    const out = await probe(server, { days: 7, posts: 2, platform: "instagram" });
+    expect(out.posts.map((p: { platform: string; ageHours: number; trialReel: string }) => [p.platform, p.ageHours, p.trialReel])).toEqual([["instagram", 24, "yes"], ["instagram", 25, "no"]]);
+    const tiktok = await probe(postiz(), { posts: 5, platform: "tiktok" });
+    expect(tiktok.posts).toEqual([{ index: 0, platform: "tiktok", ageHours: 120, trialReel: "no", answer: "empty" }]);
+    const youtube = postiz();
+    expect((await probe(youtube, { posts: 5, platform: "youtube" })).postRoute.checkedWith).toBe("a made-up post id (no published youtube post in the period)");
+    onlyCountsAgesAndYesNo(out);
+  });
+
+  it("postiz-probe on a Postiz older than 2.18 (404 on the per-post route): says so, asks once, never prints Postiz's message", async () => {
+    const server = postiz({ older: true });
+    const out = await probe(server);
+    expect(out.postRoute).toEqual({ answers: "no", meaning: "your Postiz is older than 2.18: no per-post numbers", checkedWith: "the recent posts below" });
+    expect(out.posts[0]).toEqual({ index: 0, platform: "instagram", ageHours: 24, trialReel: "yes", graduation: "MANUAL", answer: "error", error: { kind: "notFound", status: 404, meaning: "your Postiz is older than 2.18: no per-post numbers" } });
+    expect(out.posts.slice(1).map((p: { answer: string }) => p.answer)).toEqual(["skipped", "skipped", "skipped", "skipped"]);
+    expect(server.perPost()).toBe(1);
+    onlyCountsAgesAndYesNo(out);
+  });
+
+  it("postiz-probe checks the per-post route with a made-up id when no post was published in the period", async () => {
+    const recent = postiz({ posts: [] });
+    expect((await probe(recent)).postRoute).toEqual({ answers: "yes", meaning: "GET /public/v1/analytics/post/:id answers: Postiz 2.18.0 or newer", checkedWith: "a made-up post id (no published post in the period)" });
+    expect(recent.calls.filter((c) => c.includes("/analytics/post/"))).toEqual([`/public/v1/analytics/post/${ROUTE_CHECK_ID}`]);
+    const older = postiz({ posts: [], older: true });
+    const out = await probe(older);
+    expect(out.postRoute).toEqual({ answers: "no", meaning: "your Postiz is older than 2.18: no per-post numbers", checkedWith: "a made-up post id (no published post in the period)" });
+    expect(out.posts).toEqual([]);
+    const none = postiz();
+    expect((await probe(none, { posts: 0 })).postRoute).toEqual({ answers: "not asked", meaning: "no per-post call was made", checkedWith: "not asked (posts is 0)" });
+    expect(none.perPost()).toBe(0);
+  });
+
+  it("postiz-probe names other errors by kind: a 429 stops the per-post calls; a key in a channel's error is cut out", async () => {
+    const server = postiz({
+      postAnswer: (id) => (id === "trial-1" ? new Response(JSON.stringify({ message: `Too Many Requests for ${KEY}` }), { status: 429, headers: { "retry-after": "3600" } }) : null),
+      channelAnswer: () => new Response(JSON.stringify({ message: `token for ${KEY} expired` }), { status: 500 }),
+    });
+    const out = await probe(server);
+    expect(out.posts[0]).toMatchObject({ index: 0, answer: "error", error: { kind: "rateLimited", status: 429, meaning: expect.stringMatching(/pause/) } });
+    expect(out.posts.slice(1).map((p: { answer: string }) => p.answer)).toEqual(["skipped", "skipped", "skipped", "skipped"]);
+    expect(server.perPost()).toBe(1);
+    expect(out.postRoute).toMatchObject({ answers: "unknown" });
+    expect(out.channels[0]).toEqual({ index: 0, platform: "instagram", disabled: false, error: "server: token for *** expired" }); // (the client cuts the key out first)
+    const server502 = postiz({ postAnswer: (id) => (id === "normal-1" ? new Response("<html>bad gateway</html>", { status: 502 }) : null) });
+    const out502 = await probe(server502);
+    expect(out502.posts[1]).toMatchObject({ answer: "error", error: { kind: "server", status: 502 } });
+    expect(out502.posts[2]).toMatchObject({ answer: "series" });
+    expect(out502.postRoute).toMatchObject({ answers: "yes" });
+    expect(JSON.stringify(out502)).not.toMatch(/bad gateway/);
+    for (const o of [out, out502]) expect(JSON.stringify(o)).not.toMatch(NEVER);
   });
 });

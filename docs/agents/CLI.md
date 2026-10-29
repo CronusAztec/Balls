@@ -44,7 +44,7 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `review` | The crew's panel with you playing each role; no model is called. Without `verdict`: the next role's brief. With it: your answer checked (the role order, the schema, the evidence keys, the fixes and their bounds), marked by the facts, its fixes compiled and measured again, and the next brief or the decision. `stage` post after the render, on every call of that panel (its own: a call without it reaches the one before, and says when the other waits). An open `request` (no plan.json) plans the brainstormer's ideas in `world` and for `platform`, kept for the whole panel: pass the page's 800 × 450, where `render` plays them. `wanted` (the clips to keep), `depth` and `separation` are set by a stage's first call, on a plan as on a request; the panel after the render keeps the separation of the one before unless its first call names one. With `fixture`: the role eval's briefs on the fixture corpus instead, kept in `.agent-out/studio/<studio>/eval.json`, and its numbers once every brief is answered (`docs/agents/CREW-EVAL.md`). | `{"studio":"rings","wanted":3}`, `{"studio":"three","request":"three calm clips","platform":"tiktok","world":{"width":800,"height":450}}`, `{"studio":"rings","role":"skeptic","clip":"…","verdict":{…}}`, `{"studio":"eval-1","fixture":true}` |
 | `research` | The research digest offline: the committed trend summary and the playbook as at most five pieces of advice with their levers and strengths, and the local inspire dataset by the searches that made it. | `{"theme":"ball escape"}` |
 | `site-stats` | Owner-run. Aggregate website numbers from the owner's own Plausible or Umami. | `{"days":30}` |
-| `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
+| `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts, no numbers. Per recent post also its age in hours, the Trial Reel it asked for and whether each series' total is above zero (yes or no), and whether the per-post route answers (Postiz 2.18.0 or newer). `platform` keeps one platform's posts. | `{"days":7,"posts":20,"platform":"instagram"}` |
 
 A run is named by `link` (a share link, a `?c=` short link or just its query string; it is read, never fetched) or by `mode`
 (its defaults). The seed is the call's `seed`, else the link's `seed=`, else 1. A link may be 20,000 characters long, so
@@ -340,11 +340,64 @@ git-ignored `.env` files. Without a key they print `not configured` and exit 0. 
     Umami Cloud at `https://api.umami.is/v1`. It sends `GET …/websites/<id>/stats` and `…/metrics?type=event`.
   - It prints totals and event counts only, never a visitor, a page address or a referrer.
 - **`postiz-probe`** needs `POSTIZ_URL` and `POSTIZ_API_KEY`. It goes through the Windows app's own Postiz client and calls
-  `GET /public/v1/integrations`, `/analytics/<channel>`, `/posts` and `/analytics/post/<post>`. It prints series labels and
-  point counts only, never values, channel names or post text. Run it before the Insights work is built, to see what your
-  providers really return, and record its output in docs/SOCIAL-AUTOPILOT.md, section 6, where that work reads it.
+  `GET /public/v1/integrations`, `/analytics/<channel>`, `/posts` and `/analytics/post/<post>`. It takes `days` (7, 30 or
+  90), `posts` (0 to 20: the most recent published posts it reads) and `platform` (only that platform's posts; `instagram`
+  also takes `instagram-standalone`). It prints:
+  - per channel: the platform, whether it is disabled, and each series' label with its point count;
+  - per recent post: the platform; `ageHours`, whole hours since its publishDate; `trialReel` and, for a trial,
+    `graduation`; `answer` (`series`, `empty`, `missing`, `error` or `skipped`); and each series' label, point count and
+    `aboveZero` (`yes` or `no`, never the total). `trialReel` and `graduation` are what the post asked Postiz for (its
+    settings `is_trial_reel` and `graduation_strategy`), not proof that Instagram treated it so: the output says so too;
+  - `postRoute`: whether `GET /public/v1/analytics/post/:id` answers. Postiz has that route since 2.18.0. A 404 prints "your
+    Postiz is older than 2.18: no per-post numbers", and after it (or after a 429) the other posts are not asked. Other
+    errors are printed by kind (`rateLimited`, `unauthorized`, `server` and so on), never with Postiz's message. With no
+    published post in the period it checks the route once with a made-up post id.
+
+  It never prints a value, a channel name, a post text or the key. Run it before the Insights work is built, to see what
+  your providers really return, and record its output in docs/SOCIAL-AUTOPILOT.md, section 6, where that work reads it.
 
 The keys never appear in any output.
+
+### The Trial Reel pilot (before the measuring release)
+
+The pilot answers one question before any Trial Reel code is built: do a Trial Reel's numbers come through your Postiz? It
+takes about 10 minutes over 3 days. Write what you see in the pilot table of docs/SOCIAL-AUTOPILOT.md, section 6.
+
+1. **Day 0, before you post.** Put `POSTIZ_URL` and `POSTIZ_API_KEY` in the git-ignored `.env.local`, as section 6 of
+   docs/SOCIAL-AUTOPILOT.md shows. Run the probe:
+   ```sh
+   npm run -s agent -- postiz-probe --json '{"days":7,"posts":20,"platform":"instagram"}'
+   ```
+   Look at `postRoute.answers`. It must be `yes`. With `no` ("your Postiz is older than 2.18"), update Postiz first: the
+   pilot cannot pass on it. With `unknown`, run it again in an hour.
+2. **Day 0, in the Instagram app.** Open Trial settings and turn "Share to everyone automatically" off. Instagram applies
+   that setting to every trial reel you share after it.
+3. **Day 0, in Postiz's own post editor**, on the same Instagram channel and the same day (the Windows app cannot post a
+   Trial Reel yet):
+   - the trial: one new MP4 clip, post type Post, "Trial Reel (share only to non-followers first)" on, and Graduation
+     Strategy Manual, which is "I share it myself";
+   - the normal Reel: another new MP4 clip, post type Post, Trial Reel off.
+
+   Use two clips you have never posted. Instagram may limit a trial's reach when it has seen the content before.
+4. **About 24 h later**, run the same command. Find the two Instagram rows by `ageHours` (about 24). The trial has
+   `trialReel` `yes` and `graduation` `MANUAL`. The normal Reel has `trialReel` `no`. For each, write down `answer` and the
+   `aboveZero` of `Views` and `Reach`.
+5. **About 72 h later**, run it again and write down the same (`ageHours` about 72). Then look in the Instagram app. The
+   trial is still a trial: it is not on your profile grid, and its insights still offer "Share to everyone". "Share to
+   everyone automatically" is still off in Trial settings. Do not share the trial to everyone before this read.
+
+The pilot passes when all of these hold:
+
+- `postRoute.answers` is `yes` at every run;
+- the trial's row has `answer` `series`, with `Views` and `Reach` at `aboveZero` `yes`, at the 24 h read and at the 72 h
+  read;
+- at 72 h the Instagram app still shows the reel as a trial;
+- "Share to everyone automatically" is off.
+
+The normal Reel is the control. If it has Views and Reach above zero while the trial has none (`empty`, or `aboveZero`
+`no`), a trial's numbers do not come through Postiz: write that down, and the Trial Reel part waits. If the trial is missing
+from the rows and Postiz shows an error on it ("This account doesn't support Trial Reels"), this account cannot post trials
+yet. Postiz Cloud's docs allow 30 per-post reads an hour, so run the probe at most once an hour.
 
 ## MCP
 
