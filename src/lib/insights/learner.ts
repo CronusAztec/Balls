@@ -40,8 +40,8 @@ import type { LearnerSettings } from "./learnerSettings";
 /*
  * --- learner --- The learner core: it reads the post record (which channel got which post, in which lane, for which test), the
  * clips' rendered facts, the raw reads (lib/insights/stats.ts) and the decision log, and returns what it learned (message keys
- * with numbers, never text) and the next pass's plan (`learnPass`). It holds no model between passes: each dial's best is
- * today's default followed by the log's kept, went-back and undone entries.
+ * with numbers, never text) and the next pass's plan (`learnPass`, which opens the test or block `nextTest` chooses). It holds
+ * no model between passes: each dial's best is today's default followed by the log's kept, went-back and undone entries.
  *
  * The normal lane makes one change at a time: every dial at its best and exactly one different on a test clip, 1 clip in 3
  * (1 in 5 for a newcomer or format test without Trial Reels), one test or check at a time (a newcomer test's best arm, its
@@ -790,18 +790,37 @@ export function levelCombos(k: number): Level[][] {
   });
 }
 
-interface Chosen {
+/** What nextTest reads besides the order and the bests. */
+export interface NextTestContext {
+  catalog: readonly LearnerTemplate[];
+  log: readonly LearnerDecision[];
+  now: number;
+  /** The question keys the owner skipped. */
+  skipped: ReadonlySet<string>;
+  /** The dials no question may come from: fixed by the owner, or held by an open test, block or check. */
+  locked: ReadonlySet<DialId>;
+  /** The arms planned so far, by armKey. */
+  feasibility: ReadonlyMap<string, FeasibilityResult>;
+  /** The format challengers' order (formatOrder). */
+  formats: readonly string[];
+}
+
+/** The next test's or block's questions, and the arms still to plan before it may open (none: it opens with `questions`). */
+export interface NextTestChoice {
   questions: Question[];
   needed: ArmSetting[];
 }
 
 /**
  * Picks the questions of the next test (`max` 1) or block (`max` up to 3) from `order`: the first question of each dial in
- * turn whose every arm is possible on paper and planned feasible; a dial that cannot share the block (the newcomer and the
- * format both choose the template), or whose arms fail their plans, is swapped for the next. Arms not planned yet are
- * returned as `needed`, and nothing opens until they are.
+ * turn, not resting, skipped or locked, whose every arm is possible on paper and planned feasible. A dial that cannot share
+ * the block (the newcomer and the format both choose the template), or whose arms are impossible or fail their plans, is
+ * swapped for the next question, then the next dial. The first arms not planned yet stop the choice: they come back as
+ * `needed`, with the questions chosen before them, and nothing opens until they are planned. The post time is free (nothing
+ * to plan). With `max` 1 a choice holds questions or needed arms, never both; learnPass opens a block only once nothing is
+ * needed.
  */
-function chooseQuestions(order: readonly DialId[], max: number, bests: Bests, ctx: { catalog: readonly LearnerTemplate[]; log: readonly LearnerDecision[]; now: number; skipped: ReadonlySet<string>; locked: ReadonlySet<DialId>; feasibility: ReadonlyMap<string, FeasibilityResult>; formats: readonly string[] }): Chosen {
+export function nextTest(order: readonly DialId[], max: number, bests: Bests, ctx: NextTestContext): NextTestChoice {
   const chosen: Question[] = [];
   const base = bestSetting(bests);
   for (const dial of order) {
@@ -1111,7 +1130,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
       normalTest = parseTestId(testIdOf("check", seqOf("normal"), [], checks[0].source));
     } else if (usualReady.size) {
       const order = (trialLane ? TEST_ORDER.normal : TEST_ORDER.normalWithoutTrials).filter((d) => dials.has(d) && DIALS[d].lanes.includes("normal"));
-      const pick = chooseQuestions(order, 1, bests, { ...ctxBase, locked: new Set([...fixedDials, ...lockedBy(block)]) });
+      const pick = nextTest(order, 1, bests, { ...ctxBase, locked: new Set([...fixedDials, ...lockedBy(block)]) });
       needed.push(...pick.needed);
       if (pick.questions.length) normalTest = parseTestId(testIdOf("normal", seqOf("normal"), pick.questions));
     }
@@ -1119,7 +1138,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   if (!block && trialLane) {
     const order = TEST_ORDER.trialReel.filter((d) => dials.has(d) && DIALS[d].lanes.includes("trialReel"));
     const locked = new Set<DialId>([...fixedDials, ...lockedBy(normalTest), ...pendingChecks().flatMap((c) => c.kept.map((q) => q.dial))]);
-    const pick = chooseQuestions(order, BLOCK_DIALS_MAX, bests, { ...ctxBase, locked });
+    const pick = nextTest(order, BLOCK_DIALS_MAX, bests, { ...ctxBase, locked });
     needed.push(...pick.needed);
     if (pick.questions.length && !pick.needed.length) block = parseTestId(testIdOf("block", seqOf("trialReel"), pick.questions));
   }

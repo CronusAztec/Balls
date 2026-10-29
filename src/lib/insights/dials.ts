@@ -22,8 +22,9 @@ import type { InsightLane } from "./stats";
  * The look is not a dial: the crew's gate G6 (a Simple score of at least 60) already keeps every clip Simple. Physics, mode
  * code, the seed, the watermark, the words of captions and hashtags, and TikTok's privacy choices are never dials.
  *
- * Types only are imported, and the lists that mirror the planner's (LENGTH_BUCKETS, ENDING_STYLES, TEMPLATE_FORMAT_IDS) are
- * kept equal by tests/insightsDials.test.ts, so the app's main process can bundle this file to sanitise the decision log.
+ * Types only are imported (tests/insightsDials.test.ts reads its imports and bundles it), and the lists that mirror the
+ * planner's (LENGTH_BUCKETS, ENDING_STYLES, TEMPLATE_FORMAT_IDS) are kept equal by the same tests, so the app's main process
+ * can bundle this file to sanitise the decision log.
  */
 
 // --- learner ---

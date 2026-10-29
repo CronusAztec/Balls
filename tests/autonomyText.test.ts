@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { numbersIn } from "@/lib/crew/clip";
 import { FL_ROSTER } from "@/lib/physics/modes/fightLeagueRoster";
 import { TEXT_PROBLEM_KEYS, YOUTUBE_TITLE_CHARS, languageScores, otherLanguageOf, textPasses, textProblems, type TextFacts, type TextGateChannel, type TextLanguage, type TextProblemKey } from "@/lib/desktop/autonomyText";
+import { importsOf, mainBundleInputs } from "./mainBundle";
 
 /*
  * --- autonomy --- The word check for posts nobody reads before they go out (lib/desktop/autonomyText.ts): a fixture of bad
@@ -208,6 +209,14 @@ describe("the text gate: words nobody reads", () => {
     }
     const keys = new Set<TextProblemKey>(all.map((p) => p.key));
     for (const k of ["link", "mention", "bait", "claim", "name", "number", "winner", "youtubeTitle"] as TextProblemKey[]) expect(keys, k).toContain(k);
+  });
+});
+
+describe("what the main process bundles", () => {
+  // the crew's number reader and the fighters' names come in as arguments: the file itself imports nothing
+  it("imports nothing, so the app's main process bundles the file alone", async () => {
+    expect(importsOf("src/lib/desktop/autonomyText.ts")).toEqual([]);
+    expect(await mainBundleInputs("src/lib/desktop/autonomyText.ts")).toEqual(["src/lib/desktop/autonomyText.ts"]);
   });
 });
 

@@ -28,6 +28,7 @@ import {
 import { GROWTH_PRIOR, INSIGHT_ROWS_MAX, NO_ANSWER_TRIES, SCORE_CLIP, SCORE_RULE, USUAL_MIN_POSTS, USUAL_POSTS } from "@/lib/insights/learnerRules";
 import { hashString, seededRandom } from "@/lib/bot/planner";
 import { familyOf } from "@/lib/desktop/socialCard";
+import { importsOf, mainBundleInputs, valueImportsOutside } from "./mainBundle";
 
 /*
  * --- learner --- The numbers on the PC (lib/insights/stats.ts): Postiz's labels, the rows as the app stores them, when a post
@@ -324,6 +325,15 @@ describe("the usual and the score", () => {
     expect(p10Restarted).toMatchObject({ state: "unscored", why: "fewPosts", n: 4 });
     // the rows themselves hold raw reads only
     for (const r of rows) expect(Object.keys(r).some((k) => /score|usual/i.test(k))).toBe(false);
+  });
+});
+
+describe("what the app's main process bundles", () => {
+  // the main process keeps the rows (social-insights.json): the score's rules come along, nothing of the page
+  it("stats.ts loads values only from the learner's rules, and the rules import nothing", async () => {
+    expect(valueImportsOutside("src/lib/insights/stats.ts", ["./learnerRules"])).toEqual([]);
+    expect(await mainBundleInputs("src/lib/insights/stats.ts")).toEqual(["src/lib/insights/learnerRules.ts", "src/lib/insights/stats.ts"]);
+    expect(importsOf("src/lib/insights/learnerRules.ts")).toEqual([]);
   });
 });
 

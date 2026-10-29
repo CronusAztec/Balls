@@ -8,6 +8,7 @@ import { clarityOf } from "@/lib/crew/clarity";
 import { pickScore } from "@/lib/crew/pick";
 import { runSync } from "@/lib/insights/score";
 import type { ArmPlanner, LearnerTemplate } from "./feasibility";
+import { FORMAT_IDS } from "./dials";
 
 /*
  * --- learner --- The page's side of feasibility (lib/insights/feasibility.ts): the learner's catalog of the ready templates
@@ -22,12 +23,16 @@ import type { ArmPlanner, LearnerTemplate } from "./feasibility";
 
 // --- learner ---
 
-/** The learner's catalog of the ready templates (lib/bot/templates.ts): each one's format, mode, family, buckets and endings. */
+/**
+ * The learner's catalog of the ready templates (lib/bot/templates.ts): each one's format, mode, family, buckets and endings.
+ * A template of a format the dials do not know (dials.ts FORMAT_IDS) is left out: no dial's arm can name it, so the learner
+ * neither tests it nor plans it.
+ */
 export function learnerCatalog(templates: readonly TemplateInfo[]): LearnerTemplate[] {
   const out: LearnerTemplate[] = [];
   for (const t of templates) {
     const recipe = t.ready ? templateRecipe(t) : null;
-    if (!recipe) continue;
+    if (!recipe || !(FORMAT_IDS as readonly string[]).includes(t.format.id)) continue;
     out.push({ id: t.id, format: t.format.id, mode: t.mode, family: t.family, buckets: recipe.buckets ?? LENGTH_BUCKETS, endings: recipe.endings ?? ["resolved", "cliffhanger"] });
   }
   return out;

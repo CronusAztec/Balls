@@ -109,6 +109,26 @@ describe("fold-over patterns", () => {
     expect(nextPatterns(used, 3, 3)).toEqual([1, 0, 1]);
   });
 
+  // the header said every dial's contrasts sum to 0 over a turn: true of three dials only, and the wiring relies on it
+  it("one- and two-dial blocks: the first dial's challenger is always arm B, so only the coin keeps the order out of the fit", () => {
+    for (const k of [1, 2]) {
+      const xs = nextPatterns([], k, BLOCK_PAIRS).map((p) => {
+        const { a, b } = armsOfPattern(k, p);
+        return { a, x: contrastOf(a, b) };
+      });
+      expect(xs.every(({ a, x }) => a[0] === 0 && x[0] === 1), `${k} dials`).toBe(true);
+      expect(xs.reduce((s, { x }) => s + x[0], 0), `${k} dials`).toBe(BLOCK_PAIRS);
+    }
+    // three dials: every dial's contrasts sum to 0, the first's included
+    const three = nextPatterns([], 3, BLOCK_PAIRS).map((p) => contrastOf(armsOfPattern(3, p).a, armsOfPattern(3, p).b));
+    for (let j = 0; j < 3; j++) expect(three.reduce((s, x) => s + x[j], 0), `dial ${j}`).toBe(0);
+    // arm A goes out first on about half the pairs of one block, whatever its pattern
+    const firsts = Array.from({ length: BLOCK_PAIRS * 25 }, (_, i) => aFirst("t0.newcomer.get-out-journey", "2026-11-03", i));
+    const share = firsts.filter(Boolean).length / firsts.length;
+    expect(share).toBeGreaterThan(0.4);
+    expect(share).toBeLessThan(0.6);
+  });
+
   it("the order inside a pair is a seeded coin, about half and half, the same every time", () => {
     const firsts = Array.from({ length: 400 }, (_, i) => aFirst("t0.length.standard.short", "2026-11-02", i));
     expect(firsts).toEqual(Array.from({ length: 400 }, (_, i) => aFirst("t0.length.standard.short", "2026-11-02", i)));

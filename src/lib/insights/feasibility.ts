@@ -87,11 +87,18 @@ export const isNewcomer = (t: Pick<LearnerTemplate, "id" | "newcomer">): boolean
 /** A template that can play a bucket and an ending, in a family the learner plans. */
 const takes = (t: LearnerTemplate, bucket: LengthBucket, ending: EndingStyle) => t.buckets.includes(bucket) && t.endings.includes(ending) && (t.family === null || LEARNER_FAMILIES.includes(t.family));
 
-/** Formats first: the first template of each format in FORMAT_IDS order, then the second of each, and so on. */
+/**
+ * Formats first: the first template of each format in FORMAT_IDS order, then the second of each, and so on. A format FORMAT_IDS
+ * does not know (a stand-in catalog, or a format templates.ts names before dials.ts follows) comes after them, in the order
+ * it first appears, so every template is listed once and the rounds end with the longest format's.
+ */
 function interleaved(list: readonly LearnerTemplate[]): LearnerTemplate[] {
-  const byFormat = FORMAT_IDS.map((f) => list.filter((t) => t.format === f));
+  const formats: string[] = [...FORMAT_IDS];
+  for (const t of list) if (!formats.includes(t.format)) formats.push(t.format);
+  const byFormat = formats.map((f) => list.filter((t) => t.format === f));
+  const rounds = Math.max(0, ...byFormat.map((g) => g.length));
   const out: LearnerTemplate[] = [];
-  for (let round = 0; out.length < list.length; round++) for (const group of byFormat) if (round < group.length) out.push(group[round]);
+  for (let round = 0; round < rounds; round++) for (const group of byFormat) if (round < group.length) out.push(group[round]);
   return out;
 }
 

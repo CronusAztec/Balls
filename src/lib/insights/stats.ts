@@ -41,7 +41,8 @@ import {
  * posts and a median of 10 views. YouTube is read and shown, never scored. Nothing here leaves the PC.
  *
  * Pure and deterministic: no clock (the caller passes `now`), no randomness of its own, no imports but types and the rules, so
- * the main process can bundle it (like lib/insights/genes.ts). Every number it reads comes through `sanitizeInsightRow`.
+ * the main process can bundle it (like lib/insights/genes.ts; tests/insightsStats.test.ts reads its imports and bundles it).
+ * Every number it reads comes through `sanitizeInsightRow`.
  */
 
 // --- learner ---

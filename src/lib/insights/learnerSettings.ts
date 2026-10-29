@@ -17,7 +17,8 @@ import { DIAL_IDS, isDialArm, type DialId } from "./dials";
  *  - fixed: a dial held at an arm (Fix, or Undo's lock); skipped: the questions the owner skipped (their question keys).
  *
  * Pure, like lib/desktop/autopilot.ts sanitizeAutopilot: a patch keeps only valid values, and stored settings fall back to the
- * defaults field by field.
+ * defaults field by field. Values only from the learner's rules and the dials, so the app's main process can bundle it for its
+ * block (tests/insightsDials.test.ts reads its imports and bundles it).
  */
 
 // --- learner ---

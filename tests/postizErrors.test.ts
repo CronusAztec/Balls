@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_HEALTH_KINDS, POSTIZ_ERRORS, POSTIZ_ERRORS_POSTIZ, POSTIZ_ERROR_KINDS, classifyPostizError, isAccountHealth, postizErrorKind } from "@/lib/desktop/postizErrors";
+import { ACCOUNT_HEALTH_KINDS, POSTIZ_ERRORS, POSTIZ_ERRORS_POSTIZ, POSTIZ_ERROR_KINDS, classifyPostizError, familyOfPlatform, isAccountHealth, postizErrorKind } from "@/lib/desktop/postizErrors";
+import { familyOf } from "@/lib/desktop/socialCard";
+import { importsOf, mainBundleInputs } from "./mainBundle";
 
 /*
  * --- autonomy --- Postiz's own error sentences (lib/desktop/postizErrors.ts): the literal strings of Postiz v2.25.3's
@@ -87,6 +89,26 @@ describe("Postiz's error table", () => {
     for (const text of [null, undefined, "", "   ", "Unknown Error", "Something odd happened", "TikTok rejected the video"]) expect(postizErrorKind(text as string | null | undefined)).toBe("unknown");
     expect(classifyPostizError("Something odd happened")).toEqual({ kind: "unknown", entry: null, by: null });
     expect(isAccountHealth("unknown")).toBe(false);
+  });
+});
+
+describe("what the main process bundles", () => {
+  // the provider identifiers of Postiz 2.25.3 (libraries/nestjs-libraries/src/integrations/social/*.provider.ts), and a stray one
+  const POSTIZ_IDENTIFIERS = ["bluesky", "devto", "discord", "dribbble", "facebook", "gmb", "hashnode", "instagram", "instagram-standalone", "kick", "lemmy", "linkedin", "linkedin-page", "listmonk", "mastodon", "mastodon-custom", "medium", "mewe", "moltbook", "nostr", "pinterest", "reddit", "skool", "slack", "telegram", "threads", "tiktok", "tiktok-business", "tumblr", "twitch", "vk", "whop", "wordpress", "wrapcast", "x", "youtube", "Instagram", ""];
+
+  // its own copy of the card's familyOf (the file imports nothing): a family the card learns, or loses, fails here first
+  it("reads Postiz's provider identifiers as the approval card does, for the two families its markers belong to", () => {
+    for (const id of POSTIZ_IDENTIFIERS) {
+      const card = familyOf(id);
+      expect(familyOfPlatform(id), id).toBe(card === "instagram" || card === "youtube" ? card : null);
+    }
+    expect(familyOfPlatform(null)).toBeNull();
+    expect(familyOfPlatform(undefined)).toBeNull();
+  });
+
+  it("imports nothing, so the app's main process bundles the file alone", async () => {
+    expect(importsOf("src/lib/desktop/postizErrors.ts")).toEqual([]);
+    expect(await mainBundleInputs("src/lib/desktop/postizErrors.ts")).toEqual(["src/lib/desktop/postizErrors.ts"]);
   });
 });
 

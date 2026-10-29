@@ -8,9 +8,11 @@ import {
   dayOfDate,
   decisionTime,
   findingsOf,
+  formatOrder,
   learnPass,
   learnerRuns,
   localDay,
+  nextTest,
   parseTestId,
   postOutcome,
   rarelyPasses,
@@ -23,6 +25,8 @@ import {
   type LearnerDecision,
   type LearnerInput,
   type LearnerPost,
+  type NextTestChoice,
+  type NextTestContext,
   type Question,
 } from "@/lib/insights/learner";
 import { dialCall } from "@/lib/insights/lab";
@@ -31,7 +35,8 @@ import { inQuietMinutes } from "@/lib/desktop/autopilot";
 import { DEFAULT_LEARNER } from "@/lib/insights/learnerSettings";
 import type { PostMeasure } from "@/lib/insights/stats";
 import { CATALOG, DAY, H, IG, ON, TT, YT, iso, normals, passAll, runWorld } from "./learnerWorld";
-import { checkArms } from "@/lib/insights/feasibility";
+import { armKey, checkArms, type ArmPlanner, type FeasibilityResult } from "@/lib/insights/feasibility";
+import { activeDials, questionKey, TEST_ORDER, type DialId } from "@/lib/insights/dials";
 
 /*
  * --- learner --- The learner core (lib/insights/learner.ts): learnPass and what it decides, on seeded worlds. The decision
@@ -742,6 +747,79 @@ describe("the day's slots", () => {
     expect(plan.feasibilityNeeded.length).toBeGreaterThan(0);
     expect(plan.slots.every((s) => s.role === "best")).toBe(true);
     expect(dayOfDate(plan.date)).toBe(Math.floor(input.now / DAY));
+  });
+});
+
+describe("choosing the next test or block (nextTest)", () => {
+  const T = Date.parse("2026-11-02T09:00:00Z");
+  const BLOCK_ORDER = TEST_ORDER.trialReel.filter((d) => (activeDials() as readonly DialId[]).includes(d));
+  const bests = () => bestsOf([], { fixed: {} }, CATALOG);
+  const ctxOf = (known: readonly FeasibilityResult[] = [], over: Partial<NextTestContext> = {}): NextTestContext => ({ catalog: CATALOG, log: [], now: T, skipped: new Set(), locked: new Set(), feasibility: new Map(known.map((r) => [r.key, r])), formats: formatOrder(CATALOG), ...over });
+  /** As the app runs it: the arms it asks for are planned with `planner`, and it is asked again until it needs none. */
+  const settle = (order: readonly DialId[], max: number, planner: ArmPlanner = passAll, over: Partial<NextTestContext> = {}): NextTestChoice & { known: FeasibilityResult[] } => {
+    let known: FeasibilityResult[] = [];
+    for (let i = 0; i < 20; i++) {
+      const pick = nextTest(order, max, bests(), ctxOf(known, over));
+      if (!pick.needed.length) return { ...pick, known };
+      known = [...known, ...checkArms(pick.needed, CATALOG, bests().joined, planner, known)];
+    }
+    throw new Error("nextTest never stopped asking");
+  };
+  const asked = (c: NextTestChoice) => c.questions.map((q) => `${q.dial}:${q.subject ?? q.challenger}`);
+
+  it("asks for the arms it has not planned, with the questions chosen before them, and opens nothing until they are", () => {
+    const first = nextTest(BLOCK_ORDER, 3, bests(), ctxOf());
+    expect(first.questions).toEqual([]);
+    expect(first.needed.map(armKey)).toEqual(["getOut|get-out-journey:rotation|standard|resolved", "getOut|get-out-journey:newcomer|standard|resolved"]);
+    // the newcomer's arms planned: it is chosen, and the length's arms with it are asked for next
+    const known = checkArms(first.needed, CATALOG, bests().joined, passAll);
+    const second = nextTest(BLOCK_ORDER, 3, bests(), ctxOf(known));
+    expect(asked(second)).toEqual(["newcomer:get-out-journey"]);
+    expect(second.needed.map(armKey)).toEqual(["getOut|get-out-journey:newcomer|short|resolved", "getOut|get-out-journey:rotation|short|resolved"]);
+    // a test of one question asks or chooses, never both
+    const one = nextTest(["length"], 1, bests(), ctxOf());
+    expect([one.questions.length, one.needed.length > 0]).toEqual([0, true]);
+  });
+
+  it("never puts the format and the newcomer in one block: both choose the template", () => {
+    expect(asked(settle(["newcomer", "format"], 3))).toEqual(["newcomer:get-out-journey"]);
+    expect(asked(settle(["format", "newcomer"], 3))).toEqual([`format:${formatOrder(CATALOG).filter((f) => f !== "mix")[0]}`]);
+    // either alone opens
+    expect(asked(settle(["format"], 3))).toHaveLength(1);
+    // block 1 of the Trial Reel order: the Journey and the length; the format waits, and the ending cannot play the Journey
+    expect(asked(settle(BLOCK_ORDER, 3))).toEqual(["newcomer:get-out-journey", "length:short"]);
+  });
+
+  it("swaps a dial whose arms no template plays on paper for the next one", () => {
+    // the Journey is resolved only: no ending question can share its block, and nothing of the ending is planned
+    const withJourney = settle(["newcomer", "ending"], 3);
+    expect(asked(withJourney)).toEqual(["newcomer:get-out-journey"]);
+    expect(withJourney.known.some((r) => r.key.includes("cliffhanger"))).toBe(false);
+    expect(asked(settle(["ending"], 3))).toEqual(["ending:cliffhanger"]);
+    // the Journey takes no long clip: of the length's challengers, short is chosen beside it, never long
+    expect(asked(settle(["newcomer", "length"], 3))).toEqual(["newcomer:get-out-journey", "length:short"]);
+    expect(asked(settle(["newcomer", "length"], 3, passAll, { skipped: new Set([questionKey("length", "standard", "short", null)]) }))).toEqual(["newcomer:get-out-journey"]);
+  });
+
+  it("swaps a question whose arms fail their plans for the next, then the dial for the next dial", () => {
+    // the Journey's plans fail: Spiral Glass is the newcomer tried instead
+    const noJourney: ArmPlanner = (p) => ({ pass: p.template !== "get-out-journey", pick: 70 });
+    expect(asked(settle(["newcomer"], 1, noJourney))).toEqual(["newcomer:smash-spiral-glass"]);
+    // short clips fail their plans: the length tries long instead
+    const noShort: ArmPlanner = (p) => ({ pass: p.bucket !== "short", pick: 70 });
+    expect(asked(settle(["length"], 1, noShort))).toEqual(["length:long"]);
+    // every other length fails: the dial is swapped for the ending
+    const standardOnly: ArmPlanner = (p) => ({ pass: p.bucket === "standard", pick: 70 });
+    expect(asked(settle(["length", "ending"], 1, standardOnly))).toEqual(["ending:cliffhanger"]);
+  });
+
+  it("skips locked dials, takes the post time with nothing to plan, and stops at its most", () => {
+    expect(nextTest(["postTime", "length"], 1, bests(), ctxOf())).toMatchObject({ needed: [] });
+    expect(asked(nextTest(["postTime", "length"], 1, bests(), ctxOf()))).toHaveLength(1);
+    expect(asked(nextTest(["postTime", "length"], 1, bests(), ctxOf()))[0]).toMatch(/^postTime:/);
+    expect(asked(settle(["postTime", "length"], 1, passAll, { locked: new Set<DialId>(["postTime"]) }))).toEqual(["length:short"]);
+    expect(asked(settle(["length", "ending", "format"], 2))).toEqual(["length:short", "ending:cliffhanger"]);
+    expect(asked(settle(["length"], 3, passAll, { locked: new Set<DialId>(["length"]) }))).toEqual([]);
   });
 });
 

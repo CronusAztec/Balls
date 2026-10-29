@@ -23,7 +23,8 @@
  * It is a heuristic and errs towards waiting: an unusual word may hold a clip for the person more often than needed.
  *
  * Pure, with no imports: the app's main process bundles it, and the number reader comes in as a function, so the crew's
- * module (which loads the page's recipes) stays out of the main bundle.
+ * module (which loads the page's recipes) stays out of the main bundle (tests/autonomyText.test.ts reads its imports and
+ * bundles it).
  */
 
 // --- autonomy ---

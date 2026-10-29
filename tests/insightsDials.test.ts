@@ -23,6 +23,7 @@ import { PAIRS_PER_DAY_DEFAULT, PAIRS_PER_DAY_MAX } from "@/lib/insights/learner
 import { ENDING_STYLES, LENGTH_BUCKETS } from "@/lib/bot/playbook";
 import { TEMPLATE_FORMAT_IDS, allTemplates } from "@/lib/bot/templates";
 import type { PlanOptions } from "@/lib/bot/planner";
+import { mainBundleInputs, valueImportsOutside } from "./mainBundle";
 
 /*
  * --- learner --- The dials (lib/insights/dials.ts): a closed table of plan options the learner may pick, the test order and
@@ -133,6 +134,19 @@ describe("the learner's settings", () => {
     expect(stored).toEqual({ ...DEFAULT_LEARNER, learn: true });
     expect(resolveLearner(undefined)).toEqual(DEFAULT_LEARNER);
     expect(resolveLearner(undefined).fixed).not.toBe(DEFAULT_LEARNER.fixed); // never the shared default object
+  });
+});
+
+describe("what the app's main process bundles", () => {
+  // both files say the main process bundles them: a value import of the planner kept every test green before these
+  it("dials.ts imports types only, so it bundles alone", async () => {
+    expect(valueImportsOutside("src/lib/insights/dials.ts", [])).toEqual([]);
+    expect(await mainBundleInputs("src/lib/insights/dials.ts")).toEqual(["src/lib/insights/dials.ts"]);
+  });
+
+  it("learnerSettings.ts loads values only from the learner's rules and the dials", async () => {
+    expect(valueImportsOutside("src/lib/insights/learnerSettings.ts", ["./learnerRules", "./dials"])).toEqual([]);
+    expect(await mainBundleInputs("src/lib/insights/learnerSettings.ts")).toEqual(["src/lib/insights/dials.ts", "src/lib/insights/learnerRules.ts", "src/lib/insights/learnerSettings.ts"]);
   });
 });
 

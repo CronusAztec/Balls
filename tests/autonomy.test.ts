@@ -8,6 +8,7 @@ import {
   AUTONOMY_HEALTH_COOLDOWN_MS,
   AUTONOMY_LEAD_MS,
   AUTONOMY_MAX_LEAD_MS,
+  AUTONOMY_PAIR_GAP_MS,
   AUTONOMY_PLATFORMS,
   AUTONOMY_REASONS,
   DEFAULT_AUTONOMY,
@@ -44,6 +45,9 @@ import {
   type AutonomyState,
   type ItemOutcome,
 } from "@/lib/desktop/autonomy";
+import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
+import { resolveLearner } from "@/lib/insights/learnerSettings";
+import { mainBundleInputs, valueImportsOutside } from "./mainBundle";
 
 /*
  * --- autonomy --- "Fully autonomous" as pure rules (lib/desktop/autonomy.ts, the learner plan's C11). Every "never" of C11 is
@@ -1097,6 +1101,47 @@ describe("the stored block and the consent screen", () => {
     for (const [k, v] of Object.entries(AUTONOMY_REASONS)) expect(typeof v, k).toBe("boolean");
     expect(AUTONOMY_REASONS.paused).toBe(false);
     expect(AUTONOMY_REASONS.missedTime).toBe(true);
+  });
+});
+
+describe("the limits it shares with the learner, and what the main process bundles", () => {
+  // the consent's most Trial Reel pairs and the pair's gap were copies of learnerRules.ts's numbers: raising the learner's
+  // most to 3 kept every test green while a consent naming 3 pairs was refused and, stored, dropped its account
+  it("lets a consent name every number of Trial Reel pairs the learner's settings hold, and no more", () => {
+    const most = resolveLearner({ pairsPerDay: 99 }).pairsPerDay;
+    expect(most).toBe(PAIRS_PER_DAY_MAX);
+    const ctx = { ...baseCtx(), cooldown: null };
+    const ig = (trialPairs: number) => ({ channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs, youtube: null });
+    for (let pairs = 0; pairs <= most; pairs++) {
+      const draft = { accounts: [ig(pairs)], understood: true, practise: true };
+      expect(consentProblems(draft, ctx), `${pairs} pairs`).toEqual([]);
+      const made = makeConsent(draft, ctx);
+      expect(made?.accounts[0].trialPairs, `${pairs} pairs`).toBe(pairs);
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent, `${pairs} pairs`).toEqual(made);
+    }
+    expect(consentProblems({ accounts: [ig(most + 1)], understood: true, practise: true }, ctx)).toEqual(["trialPairs"]);
+  });
+
+  it("keeps the learner's own gap inside a Trial Reel pair: a sibling exactly that far off leaves the planned time as it is", () => {
+    expect(AUTONOMY_PAIR_GAP_MS).toBe(PAIR_GAP_H * H);
+    const pairA = (w: World, siblingAt: number) => {
+      w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: "block:2", pair: 1 } });
+      w.ctx.posts = [post({ channelId: "ig-1", at: iso(siblingAt), by: "app", state: "PUBLISHED", lane: "trialReel", testId: "block:2", pair: 1, clipId: "clip-b" })];
+    };
+    const planned = NOW + 75 * MIN;
+    const apart = world((w) => pairA(w, planned - PAIR_GAP_H * H));
+    expect(scheduleFor(apart.item, apart.state, apart.ctx, NOW)).toEqual({ kind: "at", at: planned });
+    const close = world((w) => pairA(w, planned - PAIR_GAP_H * H + MIN));
+    expect(scheduleFor(close.item, close.state, close.ctx, NOW)).toEqual({ kind: "at", at: planned + MIN });
+  });
+
+  // its header says the main process bundles it: values only from the light modules, and nothing heavier comes along
+  it("loads values only from the autopilot's and the card's rules, the error table, the text gate and the learner's rules", async () => {
+    expect(valueImportsOutside("src/lib/desktop/autonomy.ts", ["./autopilot", "./socialCard", "./postizErrors", "./autonomyText", "@/lib/insights/learnerRules"])).toEqual([]);
+    const light = ["autonomy", "autopilot", "contract", "socialCard", "publish", "postizErrors", "autonomyText"].map((f) => `src/lib/desktop/${f}.ts`).concat(["src/lib/publish/platforms.ts", "src/lib/insights/learnerRules.ts"]);
+    const inputs = await mainBundleInputs("src/lib/desktop/autonomy.ts");
+    expect(inputs).toContain("src/lib/insights/learnerRules.ts");
+    expect(inputs.filter((f) => !light.includes(f))).toEqual([]);
   });
 });
 

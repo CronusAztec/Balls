@@ -6,7 +6,12 @@ import { hashText, normalCdf, seededDraws } from "./stats";
  * challenger (level 1). A pair is the day's two reels of a block on one Instagram channel: arm A follows the block's pattern
  * and arm B is its complement, so every pair differs in every dial of its block and the day's luck cancels inside it.
  *  - Patterns: three dials rotate 000, 011, 101 and 110; two dials 00 and 01; one dial 0. Over 8 pairs each dial gets 8
- *    balanced contrasts (x = B - A in {-1, +1}, summing to 0 over the patterns of a turn).
+ *    contrasts (x = B - A in {-1, +1}), and the dials' contrasts are orthogonal over a turn of the patterns, so each effect is
+ *    read on its own. Only a three-dial block is balanced as well (each dial's contrasts sum to 0 over a turn). With one or
+ *    two dials arm A holds the first dial's best in every pattern: its contrast is +1 in every pair, and arm B always shows
+ *    its challenger (block 1, the Journey and the length: the Journey is always the B reel). The fit has no intercept, so
+ *    anything that favoured arm B as such would read as that dial's effect: which reel goes out first is the seeded coin
+ *    below, never the arm, and the app's wiring (L2) must tie nothing else to the arm either.
  *  - A broken pair (a reel dropped, failed, shared before its read or not measured) is made again with its own pattern, so
  *    the balance holds: the next pattern is the one with the fewest clean or pending pairs.
  *  - Which reel of a pair goes out first is a seeded coin, so a throttled second reel of the day is noise, not bias

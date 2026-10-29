@@ -18,7 +18,7 @@
  * number. Postiz's catch-all "Unknown Error" is not in the table on purpose: a text the table does not know is "unknown", and
  * Fully autonomous pauses on it (fail closed). A later Postiz that rewords a sentence does the same until the table follows.
  *
- * Pure, no imports: the app's main process bundles it.
+ * Pure, no imports: the app's main process bundles it (tests/postizErrors.test.ts reads its imports and bundles it).
  */
 
 // --- autonomy ---
@@ -187,8 +187,12 @@ function hasMarker(text: string, marker: string): boolean {
   }
 }
 
-/** The provider family of a Postiz identifier, for the markers (a sentence matches whatever the platform). */
-function familyOfPlatform(platform: string | null | undefined): "instagram" | "youtube" | null {
+/**
+ * The provider family of a Postiz identifier, for the markers (a sentence matches whatever the platform). It is the approval
+ * card's familyOf (lib/desktop/socialCard.ts) for the two families the table knows, null for the rest: a copy, as this file
+ * imports nothing, which tests/postizErrors.test.ts keeps equal across Postiz's provider identifiers.
+ */
+export function familyOfPlatform(platform: string | null | undefined): "instagram" | "youtube" | null {
   if (platform === "instagram" || platform === "instagram-standalone") return "instagram";
   if (platform === "youtube") return "youtube";
   return null;

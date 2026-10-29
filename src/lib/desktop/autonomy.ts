@@ -6,6 +6,7 @@ import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN, inQuietMinutes } from "./
 import { YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, type CardChannel, type CardProblem, type YouTubeVisibility } from "./socialCard";
 import { classifyPostizError, isAccountHealth } from "./postizErrors";
 import { textProblems, type TextFacts, type TextLanguage, type TextProblem } from "./autonomyText";
+import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
 
 /*
  * --- autonomy --- "Fully autonomous" as pure rules (the learner plan's C11): with the owner's switch on, the app approves and
@@ -48,7 +49,8 @@ import { textProblems, type TextFacts, type TextLanguage, type TextProblem } fro
  *
  * Pure and deterministic: no clock (the PC's time and Postiz's come in), no randomness, no file. The hash function, the
  * crew's number reader and the PC's UTC offset at a moment (DST) are passed in. It imports only light modules the main process
- * can bundle (the contract and the autopilot's rules, the card's rules, the error table and the text gate) and types.
+ * can bundle (the autopilot's rules, the card's rules, the error table, the text gate and the learner's rules) and types
+ * (tests/autonomy.test.ts reads its imports).
  */
 
 // --- autonomy ---
@@ -84,14 +86,18 @@ export const AUTONOMY_GAP_MS = 48 * HOUR_MS;
 export const AUTONOMY_CLOCK_SKEW_MS = 5 * MINUTE_MS;
 /** The practice day: every check runs, nothing is sent, and its items are never sent later. */
 export const AUTONOMY_PRACTICE_MS = 24 * HOUR_MS;
-/** One post per account every 20 minutes, on both sides of every post (desktop/src/social/audit.ts CHANNEL_COOLDOWN_MS, C7). */
+/**
+ * One post per account every 20 minutes, on both sides of every post (C7). The same number as desktop/src/social/audit.ts
+ * CHANNEL_COOLDOWN_MS, which this file cannot import (it is the app's own code): desktop/tests/autonomyRules.test.ts keeps
+ * them equal.
+ */
 export const AUTONOMY_SPACING_MS = 20 * MINUTE_MS;
-/** The two reels of a Trial Reel pair go out at least this far apart. */
-export const AUTONOMY_PAIR_GAP_MS = 2 * HOUR_MS;
-/** Create calls an hour from one key the app stays under (desktop/src/social/audit.ts CREATE_CALLS_PER_HOUR). */
+/** The two reels of a Trial Reel pair go out at least this far apart (the learner's own gap, learnerRules.ts PAIR_GAP_H). */
+export const AUTONOMY_PAIR_GAP_MS = PAIR_GAP_H * HOUR_MS;
+/** Create calls an hour from one key the app stays under: audit.ts CREATE_CALLS_PER_HOUR, kept equal by the same test. */
 export const AUTONOMY_CREATES_PER_HOUR = 60;
-/** Trial Reel pairs a day the consent may name on an Instagram account (lib/insights/learnerRules.ts PAIRS_PER_DAY_MAX). */
-export const AUTONOMY_TRIAL_PAIRS_MAX = 2;
+/** Trial Reel pairs a day the consent may name on an Instagram account: the learner's own most (learnerRules.ts). */
+export const AUTONOMY_TRIAL_PAIRS_MAX = PAIRS_PER_DAY_MAX;
 /** Accounts one consent may name. */
 export const AUTONOMY_ACCOUNTS_MAX = 20;
 

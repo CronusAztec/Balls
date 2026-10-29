@@ -1,3 +1,5 @@
+import path from "path";
+import vm from "vm";
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import {
@@ -17,7 +19,7 @@ import { learnerCatalog, ruleGatePlanner } from "@/lib/insights/feasibilityPlann
 import { BOT_DEFAULT_FAMILIES } from "@/lib/bot/playbook";
 import { learnPass } from "@/lib/insights/learner";
 import { FEASIBILITY_PASS, FEASIBILITY_PLANS } from "@/lib/insights/learnerRules";
-import { readyTemplates, templateRecipe } from "@/lib/bot/templates";
+import { readyTemplates, templateRecipe, type TemplateInfo } from "@/lib/bot/templates";
 import { CATALOG, IG, ON, TT, passAll, runWorld } from "./learnerWorld";
 
 /*
@@ -30,6 +32,20 @@ import { CATALOG, IG, ON, TT, passAll, runWorld } from "./learnerWorld";
 
 const S = (over: Partial<ArmSetting> = {}): ArmSetting => ({ format: "mix", newcomer: null, bucket: "standard", ending: "resolved", ...over });
 const none = new Set<string>();
+
+/**
+ * Calls `body` on a module of src/lib, bundled alone and run in a fresh context that is stopped after 10 s, and returns what
+ * it returns (through JSON): a loop that never ends fails the test instead of hanging the whole run.
+ */
+async function bounded<T>(module: string, body: string): Promise<T> {
+  const esbuild = await import("esbuild");
+  const root = path.join(__dirname, "..");
+  const contents = `import * as m from "${module}"; globalThis.__out = JSON.stringify((${body})(m));`;
+  const built = await esbuild.build({ stdin: { contents, resolveDir: root, loader: "ts" }, bundle: true, write: false, format: "iife", platform: "neutral", alias: { "@": path.join(root, "src") }, logLevel: "error" });
+  const sandbox: { __out?: string } = {};
+  vm.runInNewContext(built.outputFiles[0].text, sandbox, { timeout: 10_000 });
+  return JSON.parse(sandbox.__out ?? "null") as T;
+}
 
 describe("the templates an arm can play", () => {
   it("the mix: every format's rotation, formats first, without the newcomers that have not joined and without the battle family", () => {
@@ -52,6 +68,23 @@ describe("the templates an arm can play", () => {
     expect(isNewcomer({ id: "get-out-journey" })).toBe(true);
     expect(isNewcomer({ id: "get-out-classic" })).toBe(false);
     expect(isNewcomer({ id: "get-out-classic", newcomer: true })).toBe(true);
+  });
+
+  // the mix's interleave looped while it had fewer templates than the list, and pushed only FORMAT_IDS' formats: one template
+  // of any other format (a stand-in catalog, or a format templates.ts names before dials.ts follows) and it never returned
+  it("lists a template of a format the dials do not know once, after the known formats of its round, and returns", async () => {
+    const stray = { id: "a-x", format: "newFormat", mode: "classic", family: "escape" as const, buckets: ["short", "standard", "long"] as const, endings: ["resolved", "cliffhanger"] as const };
+    const catalog = [stray, ...CATALOG, { ...stray, id: "a-y" }, { ...stray, id: "b-z", format: "otherFormat" }];
+    const ids = await bounded<string[]>("@/lib/insights/feasibility", `(f) => f.candidatesFor(${JSON.stringify(S())}, ${JSON.stringify(catalog)}, new Set()).map((t) => t.id)`);
+    // round 1: the first of each known format, then the first of each other format; round 2: the second of each
+    expect(ids).toEqual(["get-out-classic", "smash-power-layers", "fill-grow", "count-multiply", "line-up-pendulum", "a-x", "b-z", "get-out-glass", "a-y"]);
+    expect(candidatesFor(S(), catalog, none).map((t) => t.id)).toEqual(ids);
+    expect(await bounded<boolean>("@/lib/insights/feasibility", `(f) => f.armPossible(${JSON.stringify(S())}, ${JSON.stringify([stray])}, new Set())`)).toBe(true);
+    // the learner's pass, which reaches it through the mix, returns as well
+    const r = runWorld({ seed: 5, channels: [IG, TT], settings: ON, effect: () => 0, planner: passAll, days: 1 });
+    const input = { ...r.input, catalog: [...r.input.catalog, stray] };
+    const plan = await bounded<{ slots: unknown[] } | null>("@/lib/insights/learner", `(l) => l.learnPass(${JSON.stringify(input)})`);
+    expect(plan?.slots.length).toBeGreaterThan(0);
   });
 
   it("a Simple-only, resolved-only newcomer cannot take a cliffhanger, or a long clip, on paper", () => {
@@ -141,6 +174,10 @@ describe("the app's port: the real planner and the real gates", () => {
     // the battle family is ready but never planned by the learner
     expect(catalog.some((t) => t.family === "battle")).toBe(true);
     expect(candidatesFor(S({ format: "whoWins" }), catalog, none)).toEqual([]);
+    // a ready template of a format the dials do not know is left out: no dial's arm can name it
+    const stray: TemplateInfo = { ...ready[0], id: "stray-format", format: { ...ready[0].format, id: "newFormat" as TemplateInfo["format"]["id"] } };
+    expect(templateRecipe(stray)).not.toBeNull();
+    expect(learnerCatalog([...ready, stray]).map((t) => t.id)).toEqual(ready.map((t) => t.id));
   });
 
   // the port's contract, not the catalog's tuning: which plans pass moves with every template or clarity retune (AI studio

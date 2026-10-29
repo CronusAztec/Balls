@@ -11,7 +11,7 @@
  * owner's real spread is unknown until about 60 measured clips.
  *
  * Once tuned on the owner's numbers this file joins scripts/agent/protected.json, so a later change is the owner's decision.
- * Pure data: no imports, so the app's main process can bundle it.
+ * Pure data: no imports, so the app's main process can bundle it (tests/insightsStats.test.ts checks).
  */
 
 // --- learner ---
