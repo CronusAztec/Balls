@@ -123,7 +123,8 @@ What the simulator taught us while building it **[observed in our own planner ru
   a 60–90 s clip. The series label is the matchup itself with its running episode ("Thor vs Loki #3").
 
 Next: feed each clip's average watch time, sends per reach, saves and first-hour comments back into the checklist weights, and
-compare the resolved and cliffhanger clips the bot alternates.
+compare the resolved and cliffhanger clips the bot alternates, and the Simple look against the bot look, template by template
+(below).
 
 ### The Simple score and the clarity gates
 
@@ -631,6 +632,22 @@ format (`tests/botTemplates.test.ts`).
 - Each format has at least one ready template. Who wins holds the battle family: its 10 templates, Fight League's among them,
   are offered only where that family is asked for (`readyTemplates("battle")` or `"all"`, and the `templates` tool's
   `family`). The default menus offer the other 39, as the daily bot leaves its battles out.
+
+**Where the templates are offered** (AI studio steps 7 and 8):
+
+- **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
+  by format, as "{Mode name} · {Format name}"; the battle family's only under All series and Battle. Auto, the default, keeps
+  the rotation and its pinned days exactly. A Simple look switch, off by default there, draws the clips of both buttons in
+  the Simple look, and Why this clip shows the clip's Simple score and the clarity lines G1–G7. `scripts/viral-bot.mjs` plans
+  one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names.
+- **Claude's studio** (docs/agents/STUDIO.md). The `templates` and `plan` tools cover every ready template, in the Simple
+  look, and a binding that waits says why. The crew judges each clip before its render and again after it, and a fix offered
+  after the render is a second version of the same clip: the owner picks one.
+- **The app's crew and the autopilot** are to plan from the templates in the Simple look once their own steps land (the
+  owner's answer). Today the app's AI plans the recipes in the bot look.
+- **Measuring what works.** A template clip's plan id, `<episode>-<template>-<seed>`, names its video, its caption file and
+  its manifest entry, so its watch time, sends, saves and comments can be read back per template and per look. Until those
+  numbers exist, the tiers and medians above are our own planner's, not the platforms' (§4).
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

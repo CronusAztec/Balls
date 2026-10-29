@@ -3,8 +3,10 @@ import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
+import pl from "../messages/pl.json";
+import es from "../messages/es.json";
 import { STUDIO_TOOLS as CLI_STUDIO_TOOLS } from "../scripts/agent/cli.mjs";
-import { IMAGE_MAX_BYTES as MCP_IMAGE_MAX_BYTES } from "../scripts/agent/mcp.mjs";
+import { IMAGE_MAX_BYTES as MCP_IMAGE_MAX_BYTES, MAX_RESULT_CHARS, resultChars, toolResult } from "../scripts/agent/mcp.mjs";
 import { AGENT_PROMPTS, AGENT_TOOLS, IMAGE_MAX_BYTES, STUDIO_BUCKETS, STUDIO_CLIPS_MAX, STUDIO_DEPTHS, STUDIO_ENDINGS, STUDIO_FAMILIES, STUDIO_FORMATS, STUDIO_LOCALES, STUDIO_LOOKS, STUDIO_PLAN_MAX, STUDIO_PLATFORMS, STUDIO_ROLES, STUDIO_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 import { TOOLBOX_SITE_DOMAIN } from "../scripts/agent/local-build.mjs";
 import {
@@ -12,10 +14,14 @@ import {
   STUDIO_SITE_URL,
   fixedIdOf,
   inspireThemes,
+  othersOf,
+  planSources,
+  postCount,
   queryOf,
   renderSummary,
   studioAgentFiles,
   studioClip,
+  studioEntry,
   studioFileText,
   studioHash,
   studioPlan,
@@ -35,9 +41,9 @@ import {
   type StudioRenderRecord,
   type StudioReviewInput,
 } from "@/lib/agentKit/studioKit";
-import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS } from "@/lib/bot/playbook";
+import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, PLATFORMS } from "@/lib/bot/playbook";
 import { BOT_LOCALES } from "@/lib/bot/copy";
-import { BOT_LOOKS, TEMPLATE_FORMAT_IDS } from "@/lib/bot/templates";
+import { BINDINGS, BOT_LOOKS, EXPERIMENTAL, TEMPLATE_FORMAT_IDS, allTemplates, readyTemplates, templateRecipeById } from "@/lib/bot/templates";
 import { settingsFromSearchParams } from "@/lib/settings";
 import { TRENDS } from "@/content/trends";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -1025,5 +1031,134 @@ describe("the studio tools through the CLI (--- studio ---)", () => {
     const bot = fs.readFileSync(path.join(ROOT, "src", "components", "simulator", "useViralBot.ts"), "utf8");
     expect(bot).toMatch(/version: 3,/);
     expect(bot).toMatch(/world: latest\.current\.getWorld\(\), melodyId: played/);
+  });
+});
+
+describe("AI studio step 8: every ready template, the MCP's size and a fixed version counted once (--- studio ---)", () => {
+  const WORLD = { width: 800, height: 450 };
+  const COPIES = { en, pl, es } as unknown as Record<string, { ViralBot: Record<string, unknown> }>;
+  const ready = readyTemplates("all");
+  /** The first platform a template's buckets fit (the one the whole table measured it on first). */
+  const platformOf = (id: string) => BOT_PLATFORMS.find((p) => { const r = templateRecipeById(id)!; return !r.buckets || r.buckets.some((b) => PLATFORMS[p].buckets.includes(b)); })!;
+  /** A tool result as the MCP server hands it on: every content block counted, the text never cut. */
+  const fitsMcp = (result: unknown, where: string) => {
+    const out = toolResult({ ok: true, result: JSON.parse(JSON.stringify(result)) });
+    expect(resultChars(out), where).toBeLessThanOrEqual(MAX_RESULT_CHARS);
+    expect((out.content[0] as { text: string }).text, where).toBe(JSON.stringify(result));
+    return resultChars(out);
+  };
+  const records = new Map<string, StudioPlanFile["plans"][number]>();
+
+  it("the templates tool lists every ready template with its words in en, pl and es, the menu offers each, and a mode names its own", () => {
+    const ids = ready.map((t) => t.id);
+    expect(ids).toEqual(allTemplates().filter((t) => t.ready).map((t) => t.id));
+    for (const locale of BOT_LOCALES) {
+      const listed = studioTemplates({ family: "all" }, COPIES[locale].ViralBot);
+      expect(listed.templates.map((x) => x.id), locale).toEqual(ids);
+      for (const x of listed.templates) {
+        const words = (x as { words?: Record<string, string> }).words;
+        expect([locale, x.id, typeof words?.name, typeof words?.hook]).toEqual([locale, x.id, "string", "string"]);
+        expect(words!.hook.trim().length, `${locale} ${x.id}`).toBeGreaterThan(0);
+      }
+    }
+    expect(templateMenu("all").map((m) => m.template)).toEqual(ids);
+    // the default menus leave the battle family out, as the daily bot does; asked for, it is all there
+    expect(templateMenu().map((m) => m.template)).toEqual(readyTemplates().map((t) => t.id));
+    expect(studioTemplates({ family: "battle", copy: false }, copy).templates.map((x) => x.id)).toEqual(readyTemplates("battle").map((t) => t.id));
+    // the mode route: each mode's ready templates and nothing else, in the tool's listing and in the plan's sources
+    for (const mode of new Set(ids.map((id) => ready.find((t) => t.id === id)!.mode))) {
+      const own = ready.filter((t) => t.mode === mode).map((t) => t.id);
+      expect([mode, studioTemplates({ family: "all", mode, copy: false }, copy).templates.map((x) => x.id)]).toEqual([mode, own]);
+      const src = planSources({ mode });
+      expect([mode, src.ok && src.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id))]).toEqual([mode, own]);
+    }
+    // every binding that waits says why: its measured reason, in the listing and in the plan's refusal
+    const listed = studioTemplates({ family: "all", copy: false }, copy).bindings;
+    for (const b of BINDINGS.filter((x) => EXPERIMENTAL[x.mode])) {
+      expect(listed.find((x) => x.mode === b.mode)).toMatchObject({ tier: "experimental", ready: false, waits: EXPERIMENTAL[b.mode] });
+      const refused = studioPlan({ mode: b.mode }, copy);
+      expect(!refused.ok && refused.error, b.mode).toContain(EXPERIMENTAL[b.mode]!);
+    }
+    expect(listed.filter((x) => "waits" in x).map((x) => x.mode)).toEqual(BINDINGS.filter((x) => EXPERIMENTAL[x.mode]).map((x) => x.mode));
+  });
+
+  it("plans every ready template by its id, in the page's world on a platform it fits, in the Simple look and linked to the live site", { timeout: 240_000 }, () => {
+    for (const t of ready) {
+      const [r] = planned({ template: t.id, count: 1, planSeed: 1, maxSeeds: 1, world: WORLD, platform: platformOf(t.id), family: "all" });
+      expect([t.id, r.plan.template, r.plan.mode, r.plan.look, r.plan.world]).toEqual([t.id, t.id, t.mode, "simple", WORLD]);
+      expect(r.plan.shareUrl.startsWith(`${STUDIO_SITE_URL}/en/simulator/?`), t.id).toBe(true);
+      records.set(t.id, r);
+    }
+    expect(records.size).toBe(ready.length);
+  });
+
+  it("keeps every studio result within the MCP's 200 KB counted after base64: the templates of every family and locale, the largest plan, the brainstormer's brief", () => {
+    let largest = 0;
+    for (const family of ["default", "all", ...BOT_FAMILIES] as const) for (const locale of BOT_LOCALES) largest = Math.max(largest, fitsMcp(studioTemplates({ family }, COPIES[locale].ViralBot), `templates ${family} ${locale}`));
+    // the templates listing has room to grow: under half the cap with every template's words
+    expect(largest).toBeLessThan(MAX_RESULT_CHARS / 2);
+    // the plan tool's result for its most plans (STUDIO_PLAN_MAX), made of the largest plans of every ready template
+    expect(records.size, "the plans of the test above").toBe(ready.length);
+    const size = (r: StudioPlanFile["plans"][number]) => JSON.stringify(studioEntry(r)).length;
+    const top = [...records.values()].sort((a, b) => size(b) - size(a)).slice(0, STUDIO_PLAN_MAX);
+    fitsMcp({ studio: "size", planFile: ".agent-out/studio/size/plan.json", planHash: "0".repeat(16), count: top.length, plans: top.map((r) => studioEntry(r, { others: othersOf(top, r.id) })), next: studioPlanNext("size", top.length, {}) }, "plan");
+    // the brainstormer's brief: the menu of every ready template with its hook's words
+    const brief = studio([], "menu").call({ request: "three clips of every kind", family: "all", world: WORLD });
+    expect(nextOf(brief).role).toBe("brainstormer");
+    fitsMcp(brief.result, "brainstormer");
+  });
+
+  it("counts a clip and its fixed version as one keep after the render: the decision, its after line and post.txt say the owner picks one", () => {
+    const features: ClipFeatures = { v: 1, sampleHz: 4, motion: [0, 0.004, 0.006, 0.005, 0.004], firstMotionSec: 0.3, peakMotionPos: 0.8, meanLuma: 0.08, meanSat: 0.5, darkShare: 0.85, soundEventsPerSec: 3, firstSoundSec: 0.1, gapEvents: 4, loopSeamDiff: 0.01, lufs: -14 };
+    const render = (job: StudioRenderJob) => studioRenderRecord(job, { file: `${job.clip}/clip.webm`, mp4: null, world: job.plannedWorld, durationSec: job.base.timing.clipSec, frames: 900, laggedFrames: 0, watermarked: true, digest: "d", features, melodyPlayed: job.melodyId, sheet: `${job.clip}/sheet.png`, hookSheet: `${job.clip}/hook-sheet.png` });
+    const read = (whatHappens: string) => ({ whatHappens, understood: "a ball and rings", waitingFor: "the end", clearBySec: 1, distractions: [], watchToEnd: "yes" });
+    const recs = [...planned({ template: "get-out-classic", count: 1, planSeed: 2 }), ...planned({ template: "line-up-pendulum", count: 1, planSeed: 2 })];
+    const [id, other] = recs.map((r) => r.id);
+    const s = studio(recs);
+    s.call({ depth: "rules", wanted: 2 });
+    const jobOf = (clip: string, fixed = false) => {
+      const made = studioRenderJob(s.plan, s.panel(), clip, fixed ? { fixed: true, copyOf } : {});
+      if (!made.ok) throw new Error(made.error);
+      return made.job;
+    };
+    const first = [render(jobOf(id)), render(jobOf(other))];
+    s.setRendered(first);
+    s.call({ stage: "post" });
+    // the first clip is misread, and the reviewer offers a new hook: made as its fixed version, which the viewer reads right
+    s.call({ stage: "post", role: "viewer", clip: id, verdict: { ...read("nothing"), watchToEnd: "maybe" } });
+    const hook = { action: "rewriteHook", text: "Watch it break out" };
+    s.call({ stage: "post", role: "reviewer", clip: id, verdict: { verdict: "fix", confidence: "medium", answers: [], viewerAnswer: { accept: true, fix: hook }, fixes: [hook], why: "say what to watch" } });
+    s.call({ stage: "post", role: "viewer", clip: other, verdict: read("inSync") });
+    s.setRendered([...first, render(jobOf(id, true))]);
+    const done = s.call({ stage: "post", role: "viewer", clip: fixedIdOf(id), verdict: read("out") });
+    expect(done.result.status).toBe("done");
+    // the panel's own pick keeps all three renders; the studio counts two clips, one of them in two versions
+    const panelKeeps = panelDecision(s.panel()!.post!).keeps.map((k) => k.id).sort();
+    expect(panelKeeps).toEqual([id, fixedIdOf(id), other].sort());
+    const decision = done.result.decision as { keeps: { id: string; versions?: string[] }[]; clips: number; renders: number; versions: { clip: string; fixed: string; kept: string[] }[] };
+    expect(decision.keeps).toHaveLength(2);
+    expect(decision.keeps.filter((k) => k.versions).map((k) => k.versions)).toEqual([[id, fixedIdOf(id)]]);
+    expect(decision.keeps.map((k) => k.id)).toContain(other);
+    expect([decision.clips, decision.renders, decision.versions]).toEqual([2, 3, [{ clip: id, fixed: fixedIdOf(id), kept: [id, fixedIdOf(id)] }]]);
+    expect(postCount(s.panel()!.post!)).toMatchObject({ clips: 2, renders: 3 });
+    expect(done.result.after).toMatch(/^Every rendered clip has its look/);
+    expect(done.result.after).toContain(`2 kept of 2 clips (3 renders), a clip and its fixed version counted as one: ${id} or its fixed version ${fixedIdOf(id)}, the owner picks one.`);
+    expect(done.post).toContain(`After the render: 2 kept of 2 rendered clips (quick; roles in one context); a model looked at all 3 renders. A clip and its fixed version count as one: ${id} or its fixed version ${fixedIdOf(id)}, the owner picks one.`);
+    expect(done.post).not.toMatch(/3 kept of 3/);
+    expect(done.post).toContain(`Pick one: ${id} or ${fixedIdOf(id)}. Both versions are kept and count as one clip.`);
+    // the hand-over says so too: the make-video prompt and the skill
+    const make = studioPrompt("make-video", {});
+    const skill = studioAgentFiles().find((f) => f.path.endsWith("/SKILL.md"))!.text;
+    for (const text of [make.ok ? make.prompt.messages[0].content.text : "", skill]) expect(text).toContain("A clip with its fixed version beside it is one clip in two versions: count it once, as post.txt does; the owner picks the version.");
+  });
+
+  it("docs/agents/STUDIO.md names every ready template and every binding that waits", () => {
+    const doc = fs.readFileSync(path.join(ROOT, "docs", "agents", "STUDIO.md"), "utf8");
+    for (const t of ready) expect(doc, t.id).toContain(`\`${t.id}\``);
+    for (const t of allTemplates().filter((x) => !x.ready)) expect(doc, t.id).toContain(`\`${t.id}\``);
+    // and no template id it names is unknown
+    const known = new Set(allTemplates().map((t) => t.id));
+    const named = [...doc.matchAll(/`((?:get-out|smash|fill|count|who-wins|aim|line-up|on-the-beat|reveal|lab-game)-[a-z0-9-]+)`/g)].map((m) => m[1]);
+    expect(named.filter((id) => !known.has(id))).toEqual([]);
   });
 });

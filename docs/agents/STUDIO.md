@@ -21,7 +21,7 @@ bundle there, as AGENTS.md says.
 | --- | --- |
 | plan.json | The plans (the plan tool's, or the brainstormer's ideas planned by the review tool), each with its run |
 | panel.json | The crew's panel before and after the render: every role's answer, the evidence marks, fixes, verdicts and records |
-| post.txt | The kept clips' words to post (title, caption, hashtags) with the crew's lines before and after the render |
+| post.txt | The kept clips' words to post (title, caption, hashtags) with the crew's lines before and after the render; a clip and its fixed version count as one keep there |
 | `<clip>/` | A rendered clip: clip.mp4 (or .webm), sheet.png, hook-sheet.png and render.json |
 
 ## The crew
@@ -45,8 +45,8 @@ plain code.
 | Tool | Use it to |
 | --- | --- |
 | `research` | Read the research brief, offline: the trend summary, the playbook and the local inspire dataset by its searches |
-| `templates` | See the ten formats, all 48 modes' bindings and tiers, the ready templates with their words, the Simple look |
-| `plan` | Plan clips with the bot's planner, deterministically, into a studio's plan.json |
+| `templates` | See the ten formats, all 48 modes' bindings and tiers (a binding that waits says why: `waits`), the ready templates with their words, the Simple look |
+| `plan` | Plan clips with the bot's planner, deterministically, into a studio's plan.json: a template by its id, a mode's ready templates, or one of each format first |
 | `review` | Play the crew's roles: take the next brief, answer it, get the next one or the decision |
 | `render` | With `plan` and `clip`: render a planned clip as the crew left it, watermarked, with its melody and sheets |
 | `score` | Score a link, or a studio clip as the crew left it (and as its render measured it) |
@@ -84,9 +84,111 @@ argument.
    A keep rendered later, or rendered again, joins the post-render panel on the next call and gets its own look. A fix the
    reviewer offers there is never applied to the rendered clip: `render` with `"fixed":true` (the review's `fixed` lists the
    calls) makes it as a clip of its own, `<clip>-fixed`, and the next post-render call looks at it like any rendered clip.
+   The clip and its fixed version are one clip in two versions: the review's decision keeps them as one (`versions` names
+   both) and post.txt counts them once, so the owner picks the version to post.
 7. Hand over the studio folder: the clips, panel.json and post.txt. The owner approves every post. Every clip's watermark
    draws the live site's domain, jumpingballslive.com (the toolbox builds its export with it), and every plan's share link
    opens the live site; gate G8 refuses a render whose watermark draws an address no viewer can open, such as localhost.
+
+## Every mode's templates
+
+`src/lib/bot/templates.ts` binds each of the 48 modes to one of ten formats. A format promises one thing the run must
+visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
+and Mode Lab game. 39 of the 48 bindings are ready, as 49 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
+first. The `templates` tool has each template's words in one locale; a binding that waits has its measured reason
+(`waits`), and `plan` refuses its mode with that reason.
+
+Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
+templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
+it. The default menus offer the other 39 templates, as the daily bot leaves its battles out.
+
+| Format | Mode | The payoff | Ready templates | Waits, and why |
+| --- | --- | --- | --- | --- |
+| get out | Classic | the first escape; the one ring's first ring (`outcome` ring-at) | `get-out-classic`, `get-out-classic-gerald`, `get-out-classic-ring` | |
+| | Accumulation | the first escape, cut before it | `get-out-accumulation` | |
+| | Portal | the first escape, cut before it | `get-out-portal`, `get-out-portal-gerald` | |
+| | Shatter | the first escape (`outcome` escapes-at), cut before it | `get-out-shatter` | |
+| | Color Match | the first escape (`outcome` escapes-at), cut before it | `get-out-color-match` | |
+| | Glass Smash | Gerald home | `get-out-glass` | |
+| | Journey | HOME, its overlay off (`journeyHud`) | `get-out-journey` | |
+| smash | Target | the last segment, cut before it | `smash-target` | |
+| | Power Layers | the break-out the settings time | `smash-power-layers` | |
+| | Brick Smash | the picture's last brick (`outcome`, a run of its own) | `smash-brick-rebuild` | |
+| | Spiral Glass | GLASS CLEARED, its overlay off (`sgHud`) | `smash-spiral-glass` | |
+| fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
+| | Grow | the measured fill | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
+| | Perfect Fit | the box full (`outcome`, a run of its own) | `fill-perfect-fit` | |
+| count | Multiply | the measured fill | `count-multiply` | |
+| | Multipliers | the run's finish | `count-multipliers` | |
+| | Conveyor Belt | ALL OUT!, the last ball out (its mark) | `count-conveyor` | |
+| | Merge Ring | | | `count-merge-ring`: its own question under the ring for the whole run |
+| who wins (battle family) | String Battle | the winner | `who-wins-string-battle` | |
+| | Square Racing Grand Prix | | | `who-wins-race`: its 3-2-1-GO opens the gate at 1.8 s (G1) |
+| | Square Battle Royale | the last one standing | `who-wins-battle` | |
+| | Capture the Flag | the board's verdict | `who-wins-ctf` | |
+| | Territory | the winner (`outcome`), cut before the verdict | `who-wins-territory` | |
+| | Maze Escape | the first one out (`outcome`, a run of its own) | `who-wins-maze` | |
+| | Fight League | the KO, or the champion | `who-wins-fight-league`, `who-wins-fight-league-upset`, `who-wins-fight-league-bracket`, `who-wins-fight-league-boss` | |
+| | Land Claim | the winner (`outcome`), cut before the verdict | `who-wins-land-claim` | |
+| aim | Bouncing Shapes | the first shape at zero (its mark) | `aim-box` | |
+| | Paddle Keep-Up | | | `aim-paddle`: its score band sits under the hook |
+| | Bullseye | the first BULLSEYE! (its mark) | `aim-bullseye` | |
+| line up | Pendulum Wave | the realignment | `line-up-pendulum` | |
+| | Metronomes & Polyrhythms | all meet | `line-up-polyrhythm` | |
+| | Double Pendulum Harp | the split (`outcome` diverges-at) | `line-up-double-pendulum` | |
+| | Bouncing Orbs | IN PHASE (`outcome` resolves-at) | `line-up-orb-grid` | |
+| | Colour Sort | sorted (`outcome` sorted-by) | `line-up-colour-sort` | |
+| | Chord Stars | every star closed (`outcome`, a run of its own) | `line-up-star-chords` | |
+| | Spinning Hoops | every bead up (`outcome` all-up-by) | `line-up-hoops` | |
+| | Focus Shot | every ball on the other focus (`outcome`, a run of its own) | `line-up-ellipse-foci` | |
+| on the beat | Ball Drop | the clip's last 1.5 s, its rain looped (`atEnd`) | `on-the-beat-drop` | |
+| | Collision Playground | the clip's last 1.5 s (`atEnd`) | `on-the-beat-collide` | |
+| | Beat Runner | | | `on-the-beat-runner`: its first note at 1.5 s (G1) |
+| | Sound Vortex | | | `on-the-beat-vortex`: its own title in the corner for the whole run |
+| | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
+| | Beat Machines | a note of its last bars (`outcome`, a run of its own) | `on-the-beat-beat-machine` | |
+| | Wave Tank | the clip's last 1.5 s (`atEnd`) | `on-the-beat-wave-tank` | |
+| reveal | Lines | | | `reveal-lines`: its strings never make a picture |
+| | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
+| | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |
+| Mode Lab game | Mode Lab | the game's finish rule (its mark) | `lab-game-blueprint` (Glass Hatchery), `lab-game-blueprint-ring-breaker`, `lab-game-blueprint-tier-climb`, `lab-game-blueprint-plinko-race`, `lab-game-blueprint-grow-escape` | `lab-game-blueprint-conquer`: the page's run parts from the planner's |
+
+A template that wraps a playbook recipe speaks with the recipe's words; the others speak with their format's
+(`ViralBot.formats`, `{thing}` the mode's noun), or with words of their own where the format's do not describe the run
+(`ViralBot.ownHooks`, `ViralBot.ownPayoffs`). docs/virality-playbook.md §5 has every template's measured numbers and the
+reason each hidden one waits.
+
+### How a template times its payoff
+
+The planner (`src/lib/bot/planner.ts`) times a payoff by its binding's strategy. Its seed search keeps a run whose payoff
+lands at 80-90 % of the clip (up to 97 % for a run that ends a second after it), or cuts the clip before the payoff where
+the run ends with it:
+
+- The recipes' own: `escape` (the first escape), `winner` (the run's winner), `finish` (the run's own finish, or the moment a
+  mode marks: Bullseye's first BULLSEYE!, the first shape at zero, the last ball out, a Mode Lab game's finish rule;
+  `MARK_MODES`), `fixed` (Power Layers' break-out, from its settings), `cycle` (the realignment Pendulum Wave's and
+  Polyrhythm's settings time) and `fill` (the fill measured on the run).
+- `outcome`: the seed finder's outcome around the payoff target, its moment read off the finder's own run of the seed
+  (`src/lib/bot/outcomeStrategy.ts`). Six outcomes the finder searches over settings, not seeds, plan from a run of their own
+  (`OWN_RUN_MOMENTS`): the template draws what the finder would search (Chord Stars' star set, Focus Shot's transit, Beat
+  Machines' phrase, the vortex's waves, Brick Smash's picture, Perfect Fit's box), and the planner reads the seed's moment off
+  its run. The Maze reads its first one out the same way. A binding's own settings switch on the option its outcome needs,
+  such as the Double Pendulum's chaos fan (`OUTCOME_FLAG_SETTINGS`).
+- `atEnd`: the clip's last 1.5 s, for a run that loops or has no moment to search. The seed changes nothing about the timing,
+  the hook promises no event, and the clip ends resolved.
+
+### On the website
+
+The Bot section (`src/components/simulator/sections/BotSection.tsx`) plans with the same templates and the same planner.
+Its **Template** choice lists the chosen series' ready templates as "{Mode name} · {Format name}", grouped by format; the
+battle family's appear only under All series and Battle. **Auto**, the default, keeps the daily rotation exactly, so the
+daily bot's plans and its pinned days do not move. The **Simple look** switch is off there by default. The studio's
+`plan` uses the Simple look unless `look` is `bot`. The app's crew and the autopilot are to use it too (the owner's answer),
+once their own steps land; today the app's AI plans the playbook's recipes in the bot look
+(`src/components/simulator/desktop/studioPorts.ts`). **Why this clip** shows the clip's Simple score and the crew's clarity
+lines G1-G7, the studio's own `clarityOf` on the plan and its run. `node scripts/viral-bot.mjs --dry-run --template <id> [--look
+simple]` plans one template's clips in Node, a battle template only with the family all or battle.
 
 ## How the review holds you to the rules
 
@@ -132,7 +234,12 @@ The fixed version. After the render the reviewer's fix is offered, never applied
 `"fixed":true` applies the offered fix to the clip as rendered (its look and words; for a new seed, ending or length the seed
 search runs first, then the clip's rule fix and its fix before the render again) and renders it into `<clip>-fixed/`, with its
 own sheets and render.json. The panel after the render looks at it on its next call, and post.txt lists it under its clip.
-One fixed version a clip; a render of an offer the panel no longer makes is left out as stale.
+One fixed version a clip; a render of an offer the panel no longer makes is left out as stale. The clip and its fixed version
+are one clip in two versions, and the owner picks between them. The panel's own pick keeps both renders, so the studio
+counts by clip (`postCount` in the studio kit): the review's decision keeps the pair as one entry naming both
+(`versions`), adds `clips`, `renders` and `versions`, and its `after` line says so. post.txt counts the same way ("After
+the render: 3 kept of 3 rendered clips … a model looked at all 4 renders. A clip and its fixed version count as one: … or
+its fixed version …, the owner picks one."), and under the clip it adds "Pick one: … or …".
 
 After the render, gate G1 reads the clip's first impact as the Playbook score reads the same file: its first motion or its
 first sound, the earlier. The picture alone misses a small ball on the Simple look's dark background. The export measures
@@ -380,34 +487,22 @@ What the run showed:
   escape in 29 seconds?". It also listed 29 among the clip's numbers. A re-planned clip now takes its plan's words with it.
 - **Known gaps** (below), noted and not fixed:
   - Glass's hook is drawn over the mode's STAGE banner (fixed in AI studio step 3: below).
-  - post.txt counts a clip whose fix is offered among the keeps, beside its fixed version ("4 kept of 4 rendered").
+  - post.txt counts a clip whose fix is offered among the keeps, beside its fixed version ("4 kept of 4 rendered"). Fixed
+    in AI studio step 8: below.
   - The fixed version keeps the producer's title that was written for the clip before its fix.
 
 ## Known gaps
 
-- **Text over a mode's own banner** (fixed in AI studio step 3). The run's action track (`src/lib/bot/actionTrack.ts`) now
-  records where a mode's own banner shows, every half second: Glass's "STAGE n" and the Journey's stage banner, with the
-  camera these modes scroll. G5 fails a caption over such a banner (`readableOverBanner`), and the Simple look places a text
-  at the edge where it covers the banner for less time, before it weighs the balls. Glass's hooks moved to the bottom of the
-  square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). Since AI studio step 6 the track
-  also knows the Mode Lab's title block, the game's name and counters at the top left of the square (`labTitleBox`): watched,
-  a game's first hook at the top covered it, so the Simple look puts each game's hook at the bottom. The banners the track
-  knows are these three: a mode's other texts of its own are not in it (below).
 - **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Merge Ring (AI studio step 4) asks
   "Will it merge into its final form?" under its ring for the whole run, beside its title, its merge count and its ladder of
-  sizes. Its template passed every gate and was hidden after the render was watched (docs/virality-playbook.md §5). Spiral
-  Glass and the Journey were hidden for the same reason in step 3. Since AI studio step 4b a setting switches each one's own
-  overlay off (`sgHud`, link `sghud=0`: its question over the spiral, its title, tiles left and progress ring; `journeyHud`,
-  link `jshud=0`: the stage banners and names, the mini-map, the clock and the HOME! card). Both are HUD flags
-  (`HUD_FLAGS` in `src/lib/crew/hudFlags.ts`), so the Simple look turns them off as it does the others, and both are drawn
-  only: the canvas reads them, the engine never sees them, so the run and every fingerprint are the same either way. Their
-  templates are ready: Spiral Glass's hook asks the question its overlay asked and ends on its GLASS CLEARED, the Journey's
-  asks "Will Gerald make it home?" and its payoff's own words say "Home! 🏠" where the card did. Merge Ring could get the same
-  switch, and so could the Sound Vortex (AI studio step 5): it writes a title of its own in the corner for the whole run ("why
-  marbles speed up in a funnel"), and its template, which passes every gate, is hidden for it. Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
-  score nor the screen view sees it: its hook sits at the top, over the tray of pieces that wait still, never over the label.
-  The Maze's banner keeps its deadpan line ("who else thought that was blood") under the winner's name though its template
-  colours each ball's trail its own (watched: the line is the mode's, and the trail it jokes about is red only by default).
+  sizes. Its template passed every gate and was hidden after the render was watched (docs/virality-playbook.md §5). The
+  Sound Vortex (AI studio step 5) writes a title of its own in the corner for the whole run ("why marbles speed up in a
+  funnel"), and its template, which passes every gate, is hidden for it. Each could get a switch like the Journey's and
+  Spiral Glass's (below, closed in step 4b): a drawn-only setting, so no run and no fingerprint moves. Perfect Fit labels its
+  box ("4 × 15 / one of 368 ways") under it, where neither the Simple score nor the screen view sees it: its hook sits at the
+  top, over the tray of pieces that wait still, never over the label. The Maze's banner keeps its deadpan line ("who else
+  thought that was blood") under the winner's name though its template colours each ball's trail its own (watched: the line
+  is the mode's, and the trail it jokes about is red only by default).
 - **A HUD under the hook.** Paddle Keep-Up draws its score, lives and streak in a band over its ceiling, at the top of the
   square, and the canvas starts the top captions below a mode's top HUD only where the mode reports one (`modeTopHud` in
   Canvas.tsx; Paddle reports none). The Simple hook covers the score for its 2.5 s (watched in AI studio step 4), and at the
@@ -420,21 +515,9 @@ What the run showed:
   and its last 0.5 s show the empty box and the next loop's tray coming in, all under the payoff's "Full!", as every Simple
   payoff's words stay to the end. A clip that loops back to its start may want that; the owner should decide whether the
   payoff's words leave with the burst, a change of the payoff caption's end for every template.
-- **A fix offered after the render.** The clip as rendered keeps its place among the keeps beside its fixed version: post.txt
-  lists both, with the viewer's read of each, and the owner picks. The producer does not run after a render, so the fixed
-  version keeps the title and caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it.
-- **Two endings at once** (fixed in AI studio step 4). Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits
-  · 16.7s". The template's payoff caption ("FREEDOM 🌈") showed beside it. Now the mode's banner stays and the Simple look draws
-  no payoff words of its own beside it: one ending, one text. The banners are a table (`MODE_END_BANNERS` in
-  `src/lib/crew/hudFlags.ts`): each mode's, when it shows (from the payoff, as Power Layers' FREEDOM!, or a set time before
-  the run ends, as Fight League's champion card) and in words. `endBannersIn` times them on a plan; the planner leaves the
-  payoff's words out where one comes in with the payoff, within 1 s (`ownEnding` in `assemblePlan`,
-  `BANNER_WITH_PAYOFF_SEC`), the Simple score counts it as a text on screen (a "banner" overlay, never one the crew can
-  remove), the screen view names it ("drawn on screen at the end"), and G2 reads it as words to end on where it covers the
-  clip's quiet end (Ball Drop's SETTLED!, after seconds of silence, does not). The bot look keeps its payoff caption as
-  before. Of the ready templates, Multipliers' Simple
-  median moved from 89 to 90 and Fight League's from 89 to 89.5; the others kept theirs (docs/virality-playbook.md §5). The
-  role eval's corpus changed with them (`docs/agents/CREW-EVAL.md`, run step4).
+- **A fix offered after the render.** The producer does not run after a render, so the fixed version keeps the title and
+  caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it. (How the two versions are
+  counted was fixed in AI studio step 8: below.)
 - **The pendulum's other chords.** With every bob sounding at its turning points, the realignment's chord also sounds, as
   loud and as bright, at the release and at half a cycle, and half of it at each quarter. Only the realignment has the line.
   The hook promises the line, never the chord; the payoff's "🎼" names the music, and G2 asks it to play an accented chord
@@ -453,10 +536,6 @@ What the run showed:
   none: the picture or the mode's HUD counts instead, and the picture gives up the checklist's 10 countdown points. A counter
   that ends at the payoff would change the caption's link form and the renderer (settings.ts, the hub files), which needs tier
   2: the owner should decide it. The bot look keeps its counters, on to the clip's end, as tests/bot.test.ts pins its plans.
-- **Ball Drop** (answered in AI studio step 5). Its template loops the rain (`dropLoop`), so its notes never thin out and the
-  clip's last 1.5 s, on a full board, are its payoff. The beat format has four ready templates: Ball Drop, Beat Machines,
-  Collision Playground and Wave Tank. Beat Drop and the Sound Vortex wait for a switch for their own HUD and title (above),
-  Beat Runner for a first note inside the first second: it runs a second before its first take-off.
 - **The page's run and the planner's.** The planner times a payoff on a Node run of the seed, and the page plays the same seed
   in the browser. Colour Sort's 160 touching balls parted between the two within seconds (AI studio step 5: the page sorted
   0.8–1.1 s before the plan's second, so the payoff's words came over the remix), so its template turns contacts off, and both
@@ -486,3 +565,42 @@ What the run showed:
   rendered lengths are the planned ones.
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
   The studio's own review runs that search.
+
+## Gaps closed in AI studio steps 3 to 8
+
+- **Text over a mode's own banner** (AI studio step 3). The run's action track (`src/lib/bot/actionTrack.ts`) now
+  records where a mode's own banner shows, every half second: Glass's "STAGE n" and the Journey's stage banner, with the
+  camera these modes scroll. G5 fails a caption over such a banner (`readableOverBanner`), and the Simple look places a text
+  at the edge where it covers the banner for less time, before it weighs the balls. Glass's hooks moved to the bottom of the
+  square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). Since AI studio step 6 the track
+  also knows the Mode Lab's title block, the game's name and counters at the top left of the square (`labTitleBox`): watched,
+  a game's first hook at the top covered it, so the Simple look puts each game's hook at the bottom. The banners the track
+  knows are these three: a mode's other texts of its own are not in it (Known gaps, above).
+- **The Journey's and Spiral Glass's own texts** (AI studio step 4b). Both were hidden in step 3 for what they draw of their
+  own. A setting now switches each one's overlay off (`sgHud`, link `sghud=0`: its question over the spiral, its title, tiles
+  left and progress ring; `journeyHud`, link `jshud=0`: the stage banners and names, the mini-map, the clock and the HOME!
+  card), a switch in its mode's panel, on by default. Both are HUD flags (`HUD_FLAGS` in `src/lib/crew/hudFlags.ts`), so the
+  Simple look turns them off as it does the others, and both are drawn only: the canvas reads them, the engine never sees
+  them, so the run and every fingerprint are the same either way. Their templates are ready: Spiral Glass's hook asks the
+  question its overlay asked and ends on its GLASS CLEARED, the Journey's asks "Will Gerald make it home?" and its payoff's own
+  words say "Home! 🏠" where the card did.
+- **Two endings at once** (AI studio step 4). Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits
+  · 16.7s". The template's payoff caption ("FREEDOM 🌈") showed beside it. Now the mode's banner stays and the Simple look draws
+  no payoff words of its own beside it: one ending, one text. The banners are a table (`MODE_END_BANNERS` in
+  `src/lib/crew/hudFlags.ts`): each mode's, when it shows (from the payoff, as Power Layers' FREEDOM!, or a set time before
+  the run ends, as Fight League's champion card) and in words. `endBannersIn` times them on a plan; the planner leaves the
+  payoff's words out where one comes in with the payoff, within 1 s (`ownEnding` in `assemblePlan`,
+  `BANNER_WITH_PAYOFF_SEC`), the Simple score counts it as a text on screen (a "banner" overlay, never one the crew can
+  remove), the screen view names it ("drawn on screen at the end"), and G2 reads it as words to end on where it covers the
+  clip's quiet end (Ball Drop's SETTLED!, after seconds of silence, does not). The bot look keeps its payoff caption as
+  before. Of the ready templates, Multipliers' Simple
+  median moved from 89 to 90 and Fight League's from 89 to 89.5; the others kept theirs (docs/virality-playbook.md §5). The
+  role eval's corpus changed with them (`docs/agents/CREW-EVAL.md`, run step4).
+- **Ball Drop's faded run** (AI studio step 5). Its template loops the rain (`dropLoop`), so its notes never thin out and the
+  clip's last 1.5 s, on a full board, are its payoff. The beat format has four ready templates: Ball Drop, Beat Machines,
+  Collision Playground and Wave Tank. Beat Drop and the Sound Vortex wait for a switch for their own HUD and title (Known gaps),
+  Beat Runner for a first note inside the first second: it runs a second before its first take-off.
+- **A fix offered after the render, counted twice** (AI studio step 8). post.txt counted the clip as rendered among the keeps
+  beside its fixed version ("4 kept of 4 rendered" for three clips). The clip and its fixed version are now one clip in two
+  versions: post.txt says "3 kept of 3 rendered clips" with the 4 renders and names the pair, the review's decision keeps
+  the pair as one entry naming both (`versions`), and the owner picks the version to post (After the render, above).

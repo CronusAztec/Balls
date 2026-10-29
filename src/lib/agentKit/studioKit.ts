@@ -1,7 +1,7 @@
 import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
-import { askHookText, BINDINGS, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
+import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, recipeCopyVars, recipeText, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -83,6 +83,7 @@ import {
   type OtherCandidate,
   type PanelCandidate,
   type PanelClip,
+  type PanelDecision,
   type PanelDepth,
   type PanelStage,
   type PanelState,
@@ -220,6 +221,8 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
       ...(b.buckets ? { buckets: [...b.buckets] } : {}),
       ...(b.endings ? { endings: [...b.endings] } : {}),
       ...(b.note ? { note: b.note } : {}),
+      // --- studio --- (AI studio step 8) why an experimental binding waits: its measured reason (templates.ts EXPERIMENTAL)
+      ...(EXPERIMENTAL[b.mode] ? { waits: EXPERIMENTAL[b.mode] } : {}),
       variants: b.variants.map((v) => {
         const info = templateById(v.id);
         return { id: v.id, recipe: v.recipe, ready: !!info?.ready, family: info?.family ?? null, ...(v.hidden ? { hidden: v.hidden } : {}), ...(v.buckets ? { buckets: [...v.buckets] } : {}) };
@@ -326,7 +329,9 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
       const modes = [...new Set(allTemplates().filter((t) => t.ready).map((t) => t.mode))];
       // --- studio --- a proven binding whose every variant is hidden says why (the square race: its count-in)
       const hidden = b.tier === "proven" ? b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`) : [];
-      return { ok: false, error: `The mode ${input.mode} has no ready template yet (${hidden.length ? `hidden: ${hidden.join("; ")}` : `its binding: ${b.format}, ${b.tier}${b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
+      // --- studio --- (AI studio step 8) an experimental binding says why it waits: its measured reason
+      const waits = EXPERIMENTAL[b.mode];
+      return { ok: false, error: `The mode ${input.mode} has no ready template yet (${hidden.length ? `hidden: ${hidden.join("; ")}` : `its binding: ${b.format}, ${b.tier}${waits ? `: ${waits}` : b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
     }
     return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
   }
@@ -915,7 +920,9 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
     };
   } else if (step.type === "done") {
     const d = step.decision;
-    result.decision = { keeps: d.keeps, left: d.left, drops: d.drops, cancelled: d.cancelled, copy: d.copy, spent: d.spent };
+    // --- studio --- (AI studio step 8) after the render a clip and its fixed version are one keep, both versions named
+    const count = stage === "post" ? postCount(state, d) : null;
+    result.decision = { keeps: count ? count.keeps : d.keeps, left: d.left, drops: d.drops, cancelled: d.cancelled, copy: d.copy, spent: d.spent, ...(count?.versions.length ? { clips: count.clips, renders: count.renders, versions: count.versions } : {}) };
     const records: Record<string, ClipReview> = {};
     for (const c of state.clips) {
       const rec = clipReviewOf(state, c.id, { model: "claude", date: null });
@@ -933,6 +940,8 @@ export function studioReview(input: StudioReviewInput, ctx: StudioReviewContext)
         unseen.length || rulesOnly.length
           ? `${state.clips.length - unseen.length - rulesOnly.length} of ${state.clips.length} rendered clips have their look${rulesOnly.length ? `; rules only, no model looked: ${rulesOnly.map((c) => `${c.id} (${c.verdict})`).join(", ")}` : ""}${unseen.length ? `; not reviewed: ${unseen.map((c) => `${c.id} (${c.notReviewed ?? "budget"})`).join(", ")}` : ""}. post.txt says so; ${again}.`
           : "Every rendered clip has its look: post.txt has the words and the crew's lines; panel.json every role's verdict.";
+      // --- studio --- (AI studio step 8) a clip with its fixed version beside it: one keep, and the owner picks the version
+      if (count?.versions.length) result.after = `${result.after} ${versionsLine(count)}`;
       // --- studio --- (the studio's second review round, finding 11) a fix offered after the render: how to make it
       const offered = state.clips.filter((c) => c.fix?.state === "offered" && !c.id.endsWith(FIXED_SUFFIX) && !state.clips.some((x) => x.id === fixedIdOf(c.id)));
       if (offered.length) result.fixed = offered.map((c) => ({ clip: c.id, fix: fixWords(c.fix!.actions), call: { plan: `.agent-out/studio/${ctx.studio}/plan.json`, clip: c.id, fixed: true } }));
@@ -998,18 +1007,58 @@ function postFixWords(file: StudioPanelFile, c: PanelClip): string {
   return `, fix offered (${fixWords(c.fix.actions)}): make the fixed version with render ${JSON.stringify({ plan: `.agent-out/studio/${file.studio}/plan.json`, clip: c.id, fixed: true })}, then review with "stage":"post" for its look`;
 }
 
+/**
+ * --- studio --- (AI studio step 8) After the render a clip and its fixed version (`<clip>-fixed`: the fix offered after its
+ * render, made as a clip of its own) are one clip in two versions, and the owner picks between them. The panel's own pick
+ * (lib/crew panelDecision) keeps every render it may, so the two were counted as two keeps ("4 kept of 4 rendered" for three
+ * clips). Counted here by clip instead: a pair whose versions are both kept is one keep naming both (`versions`), the one the
+ * panel ranks first carrying it; `clips` counts each pair once, `renders` every render.
+ */
+export interface StudioPostCount {
+  keeps: (PanelDecision["keeps"][number] & { versions?: [string, string] })[];
+  clips: number;
+  renders: number;
+  versions: { clip: string; fixed: string; kept: string[] }[];
+}
+
+export function postCount(post: PanelState, decision: PanelDecision = panelDecision(post)): StudioPostCount {
+  const ids = new Set(post.clips.map((c) => c.id));
+  const kept = new Set(decision.keeps.map((k) => k.id));
+  const versions = post.clips
+    .filter((c) => !c.id.endsWith(FIXED_SUFFIX) && ids.has(fixedIdOf(c.id)))
+    .map((c) => ({ clip: c.id, fixed: fixedIdOf(c.id), kept: [c.id, fixedIdOf(c.id)].filter((id) => kept.has(id)) }));
+  const keeps: StudioPostCount["keeps"] = [];
+  for (const k of decision.keeps) {
+    const pair = versions.find((v) => v.clip === k.id || v.fixed === k.id);
+    if (!pair || pair.kept.length < 2) keeps.push(k);
+    else if (!keeps.some((x) => x.versions?.[0] === pair.clip)) keeps.push({ ...k, versions: [pair.clip, pair.fixed] });
+  }
+  return { keeps, clips: post.clips.length - versions.length, renders: post.clips.length, versions };
+}
+
+/** --- studio --- (AI studio step 8) The pairs of a post count in words: which clip has two versions, and who picks. */
+const versionsWords = (count: StudioPostCount): string =>
+  count.versions.map((v) => (v.kept.length === 2 ? `${v.clip} or its fixed version ${v.fixed}, the owner picks one` : `${v.clip} and its fixed version ${v.fixed}, ${v.kept.length ? `the crew kept ${v.kept[0]}` : "neither kept"}`)).join("; ");
+const counted = (n: number, what: string) => `${n} ${what}${n === 1 ? "" : "s"}`;
+/** --- studio --- (AI studio step 8) The review's line for a post count with pairs (its `after`). */
+const versionsLine = (count: StudioPostCount): string => `${count.keeps.length} kept of ${counted(count.clips, "clip")} (${counted(count.renders, "render")}), a clip and its fixed version counted as one: ${versionsWords(count)}.`;
+
 /** post.txt: the kept clips' words to post (the producer's, or the template's) with the crew's lines before and after the render. */
 export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | null): string {
   const pre = file.pre;
   if (!pre) return "";
   const d = panelDecision(pre);
   const post = file.post;
+  const pd = post ? panelDecision(post) : null;
   const lines: string[] = [`# ${file.studio}: the crew's picks`, "", `Before the render: ${d.keeps.length} kept of ${pre.clips.length} (${pre.depth}; roles ${pre.separation === "contexts" ? "each in a context of its own" : "in one context"}).${d.copy ? ` Words: ${d.copy.source === "producer" ? "the producer's" : "copy from the template"}.` : ""}`];
-  if (post) {
-    const pd = panelDecision(post);
+  if (post && pd) {
     // --- studio --- (the studio's second review round, finding 7) a clip only the rules weighed is not "looked at"
     const looked = post.clips.filter(lookedAt).length;
-    lines.push(`After the render: ${pd.keeps.length} kept of ${post.clips.length} rendered (${post.depth}; roles ${post.separation === "contexts" ? "each in a context of its own" : "in one context"}); a model looked at ${looked === post.clips.length ? "every one" : `${looked} of them`}.`);
+    const roles = `${post.depth}; roles ${post.separation === "contexts" ? "each in a context of its own" : "in one context"}`;
+    // --- studio --- (AI studio step 8) a clip and its fixed version count as one keep: the owner picks between them
+    const count = postCount(post, pd);
+    if (!count.versions.length) lines.push(`After the render: ${pd.keeps.length} kept of ${post.clips.length} rendered (${roles}); a model looked at ${looked === post.clips.length ? "every one" : `${looked} of them`}.`);
+    else lines.push(`After the render: ${count.keeps.length} kept of ${counted(count.clips, "rendered clip")} (${roles}); a model looked at ${looked === count.renders ? (count.renders === 2 ? "both renders" : `all ${count.renders} renders`) : `${looked} of the ${count.renders} renders`}. A clip and its fixed version count as one: ${versionsWords(count)}.`);
   }
   lines.push("Every clip carries the watermark (a free visitor's render). The owner approves every post.", "");
   d.keeps.forEach((k, i) => {
@@ -1035,6 +1084,8 @@ export function studioPostText(file: StudioPanelFile, plan: StudioPlanFile | nul
         lines.push(`Fixed version: ${fx.id} · hook on screen: ${oneLine(drawnHookText(fx.clip) || fx.clip.hook || "(none)")} · seed ${fx.clip.seed ?? "?"}`);
         lines.push(`Crew after the render (the fixed version): ${verdictWords(fx, false)}${fv ? `, the viewer read "${fv.whatHappens}" (makes sense: ${fx.makesSense}), would watch to the end: ${fv.watchToEnd}` : ""}${postFixWords(file, fx)}, ${fmtScore(fx)}`);
         lines.push(`Video: .agent-out/studio/${file.studio}/${fx.id}/`);
+        // --- studio --- (AI studio step 8) both versions kept: one clip, and the owner picks the version to post
+        if (pd && pd.keeps.some((x) => x.id === k.id) && pd.keeps.some((x) => x.id === fx.id)) lines.push(`Pick one: ${k.id} or ${fx.id}. Both versions are kept and count as one clip.`);
       }
     } else lines.push(`Not rendered yet: render {"plan":".agent-out/studio/${file.studio}/plan.json","clip":"${k.id}"}`);
     lines.push("");
@@ -1336,7 +1387,8 @@ function makeVideoPrompt(args: Record<string, string>): string {
     `4. ${toolCall("review", { studio: "<name>", wanted: count })}: its first call starts the panel and fixes how many clips it keeps (on the plan route this call; an open request's step 3), so keep "wanted":${count} there. Then play each role the panel asks for, in turn. Where you can, play each in a context of its own (in Claude Code a subagent per role, with only the review tool) and pass "separation":"contexts" when the panel starts; otherwise the record says "same context". Answer only the brief's role and clip; one fix round, never a second.`,
     `5. ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<a kept clip>" })} for each kept clip: watermarked, with its melody, with its frames' sheets.`,
     `6. Look at each clip's sheet.png and hook-sheet.png (a client that cannot read files asks for them as pictures: ${PICTURE_CALLS}), then ${toolCall("review", { studio: "<name>", stage: "post" })}: the viewer's read from what is on screen alone, the reviewer where the panel asks. The panel after the render is its own: every call of it, each next brief and each answer, keeps "stage":"post" (answer with the brief's \`next.answer\`); it plays its roles as the panel before the render did (its separation) unless its first call names another. A fix the reviewer offers there is made as a clip of its own with ${toolCall("render", { plan: ".agent-out/studio/<name>/plan.json", clip: "<the clip>", fixed: true })} (the review's \`fixed\` lists the calls); review with "stage":"post" again for its look.`,
-    "7. Hand over .agent-out/studio/<name>/: the clips, panel.json (every role's verdict and the viewer's read) and post.txt (the words to post).",
+    // --- studio --- (AI studio step 8) a clip and its fixed version: one clip, and the owner picks the version
+    "7. Hand over .agent-out/studio/<name>/: the clips, panel.json (every role's verdict and the viewer's read) and post.txt (the words to post). A clip with its fixed version beside it is one clip in two versions: count it once, as post.txt does; the owner picks the version.",
     "",
     "Rules: every clip is a free visitor's render and carries the watermark – never install a licence or use the TEST key; write only under .agent-out/; a verdict never deletes a clip; never push and never post: the owner approves every post.",
   ].join("\n");
@@ -1718,7 +1770,8 @@ function skillFileText(): string {
     `4. ${cli("review", { studio: "<studio>", wanted: 3, separation: "contexts" })} starts the panel: \`"wanted"\` is the clips asked for (default 3), on the plan route as on an open request, since the panel's first call fixes it (add \`"request"\`, \`"platform"\` and \`"world":${JSON.stringify(STUDIO_RENDER_WORLD)}\` for an open request, so its ideas are planned for that platform in the page's world; \`"depth":"thorough"\` to ask every role). While its \`status\` is "call": hand \`next.role\`'s subagent the arguments \`{"studio":"<studio>"}\` and \`next.clip\`, then call ${cli("review", { studio: "<studio>" })} again for the next brief. Never answer a brief yourself while the subagents run.`,
     `5. ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<a kept clip>" })} for each clip the decision keeps: watermarked, with its melody and its sheets.`,
     `6. ${cli("review", { studio: "<studio>", stage: "post" })}: the viewer's look at each rendered clip and the reviewer where the read, the rules or the facts disagree. The panel after the render is its own: every call of it keeps \`"stage":"post"\`, your re-fetches for the next brief as well as the subagents' arguments (a call without it reaches the finished panel before the render). It keeps the separation the panel before the render started with, so its record says the subagents played it too. The viewer looks at the clip's sheet.png and hook-sheet.png itself. A fix the reviewer offers there: ${cli("render", { plan: ".agent-out/studio/<studio>/plan.json", clip: "<the clip>", fixed: true })} makes it as a clip of its own (\`<clip>-fixed\`; the review's \`fixed\` lists the calls), and the panel after the render looks at it on its next call.`,
-    "7. Hand over the studio folder: the clips, panel.json and post.txt; say which clips were kept or dropped and why, which fixes were applied or offered, and that the roles ran in separate contexts (or that they did not).",
+    // --- studio --- (AI studio step 8) a clip and its fixed version: one clip, and the owner picks the version
+    "7. Hand over the studio folder: the clips, panel.json and post.txt; say which clips were kept or dropped and why, which fixes were applied or offered, and that the roles ran in separate contexts (or that they did not). A clip with its fixed version beside it is one clip in two versions: count it once, as post.txt does; the owner picks the version.",
     "",
     "Without subagents (the MCP server not approved, or a client without them), play each role yourself through the CLI, one brief at a time, and leave `separation` at its default: the record then says the roles shared one context.",
     "",
