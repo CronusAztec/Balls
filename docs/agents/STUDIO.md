@@ -188,7 +188,8 @@ the run ends with it:
 ### On the website
 
 The Bot section (`src/components/simulator/sections/BotSection.tsx`) plans with the same templates and the same planner.
-Its **Template** choice lists the chosen series' ready templates as "{Mode name} · {Format name}", grouped by format; the
+Its **Template** choice lists the chosen series' ready templates as "{Mode name} · {Format name}", grouped by format, a
+further variant with its own name after it and each Mode Lab game with its game's ("Mode Lab · Lab game · Glass Hatchery"); the
 battle family's appear only under All series and Battle. **Auto**, the default, keeps the daily rotation exactly, so the
 daily bot's plans and its pinned days do not move. The **Simple look** switch is off there by default. The studio's
 `plan` uses the Simple look unless `look` is `bot`. The app's crew and the autopilot are to use it too (the owner's answer),

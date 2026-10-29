@@ -24,7 +24,8 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion and its own
  *    hashtags, in en, pl and es: copy.ts formatText, its `{thing}` the mode's noun under `ViralBot.things`), where its
  *    countdown comes from and the endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf); a
- *    further variant adds its recipe's name, or without one its own (`ViralBot.variants`: "Classic · Get out · One ring").
+ *    further variant adds its recipe's name, or without one its own (`ViralBot.variants`: "Classic · Get out · One ring"), and a
+ *    variant that names itself (`nameKey`: each Mode Lab game, its first too) its own ("Mode Lab · Lab game · Glass Hatchery").
  *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
  *    the recipe's does not show the format's payoff: Ball Drop's last note –, the bound finder outcome's moment ("outcome") or
  *    the clip's last 1.5 s ("atEnd"): outcomeStrategy.ts), the settings it plays its recipe with (`tune`: Pendulum Wave's chord
@@ -355,6 +356,12 @@ export interface TemplateVariant {
   /** The length buckets this variant fills, narrower than its binding's: the ones its seed search finds the payoff in. */
   buckets?: readonly LengthBucket[];
   /**
+   * --- templates --- (step 2's review round 1, 25) Its own name's key under `ViralBot.variants`, which its template's name adds
+   * even as its binding's first variant: a Mode Lab game's, each a game of its own ("Mode Lab · Lab game · Glass Hatchery", not a
+   * bare "Mode Lab · Lab game" beside four named games). Absent: a further variant is named by its recipe or its id's suffix.
+   */
+  nameKey?: string;
+  /**
    * --- templates --- (AI studio step 3) A variant without a recipe that plays its own way: what it sets over its binding (its
    * strategy, outcome, context flag, settings, endings, hook…) – Classic's one ring timed by ring-at, Grow's fill that ends the run.
    * --- templates --- (AI studio step 6) A variant that wraps a recipe sets its hook only (`hookKey`: one of its format's own three,
@@ -464,7 +471,7 @@ export function templateIdOf(format: TemplateFormatId, mode: ModeId, suffix?: st
  * A variant's spec: the recipe it wraps, its id's suffix, why it is hidden, the buckets it narrows its binding's to and – --- templates
  * --- a variant without a recipe that plays its own way – what it sets over its binding.
  */
-type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[], own?: VariantOwn];
+type VariantSpec = readonly [recipe: string | null, suffix?: string, hidden?: string, buckets?: readonly LengthBucket[], own?: VariantOwn, nameKey?: string /* --- templates --- (step 2's review round 1, 25) */];
 type BindingSpec = Omit<ModeBinding, "mode" | "variants" | "ready"> & { variants?: readonly VariantSpec[] };
 
 /**
@@ -482,7 +489,7 @@ export function strategyCanPlan(binding: Pick<ModeBinding, "strategy" | "outcome
  * ready while one of its variants is not hidden and its strategy can plan it.
  */
 function bind(mode: ModeId, spec: BindingSpec): ModeBinding {
-  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets, own]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}), ...(own ? { own } : {}) }));
+  const variants = (spec.variants ?? [[null]]).map(([recipe, suffix, hidden, buckets, own, nameKey]): TemplateVariant => ({ id: templateIdOf(spec.format, mode, suffix), recipe, ...(hidden ? { hidden } : {}), ...(buckets ? { buckets } : {}), ...(nameKey ? { nameKey } : {}), ...(own ? { own } : {}) }));
   const tier: TemplateTier = spec.tier !== "proven" && EXPERIMENTAL[mode] !== undefined ? "experimental" : spec.tier;
   // (--- templates --- a proven binding's variant without a recipe plans its own way: AI studio step 3)
   const ready = tier === "proven" ? variants.some((v) => !v.hidden && (v.recipe !== null || strategyCanPlan({ ...spec, ...(v.own ?? {}) }))) : tier === "trial" && variants.some((v) => !v.hidden) && strategyCanPlan(spec);
@@ -1171,7 +1178,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
   // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
   // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)
-  blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: BLUEPRINT_CATALOG_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id)]) })),
+  blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: BLUEPRINT_CATALOG_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id), id]) })),
 };
 
 /** Every binding, in MODE_IDS order. */
@@ -1230,20 +1237,26 @@ export function thingKeyOf(mode: ModeId): string {
  * --- templates --- A template's name in the copy's language (copy.ts templateName): "{Mode name} · {Format name}" ("Shatter · Get
  * out"), and for a binding's further variant the name of the recipe it wraps after it ("Classic · Get out · Gerald escapes").
  * `modeName`: the site's name of its mode (`Modes.<id>.name`), which the caller reads. --- templates --- (AI studio step 3) A further
- * variant without a recipe adds its own name ("Classic · Get out · One ring": `ViralBot.variants`).
+ * variant without a recipe adds its own name ("Classic · Get out · One ring": `ViralBot.variants`). --- templates --- (step 2's
+ * review round 1, 25) A variant that names itself (`nameKey`) adds its name even as its binding's first: every Mode Lab game is
+ * named by its game, Glass Hatchery too, as Mode Lab lists them.
  */
 export function templateNameOf(info: TemplateInfo, copy: BotCopy, modeName: string): string {
+  const named = !!info.binding.variants.find((v) => v.id === info.id)?.nameKey;
   const first = info.binding.variants[0]?.id === info.id;
   // (--- templates --- AI studio step 3: a further variant without a recipe is named by its own key, its id's suffix)
-  return templateName(copy, modeName, info.format.id, first ? null : info.recipe ?? { variant: variantKeyOf(info) });
+  return templateName(copy, modeName, info.format.id, named ? { variant: variantKeyOf(info) } : first ? null : info.recipe ?? { variant: variantKeyOf(info) });
 }
 
 /**
  * --- templates --- (AI studio step 3) A further variant's key: its id's suffix after its binding's first id ("ring" of
  * get-out-classic-ring) – --- templates --- (AI studio step 6) in camelCase, as the copy's keys are ("ringBreaker" of
- * lab-game-blueprint-ring-breaker, `ViralBot.variants.ringBreaker`).
+ * lab-game-blueprint-ring-breaker, `ViralBot.variants.ringBreaker`). --- templates --- (step 2's review round 1, 25) A variant that
+ * names itself, its `nameKey` ("hatchery" of lab-game-blueprint).
  */
 export function variantKeyOf(info: Pick<TemplateInfo, "id" | "binding">): string {
+  const own = info.binding.variants.find((v) => v.id === info.id)?.nameKey;
+  if (own) return own;
   const base = info.binding.variants[0]?.id ?? "";
   const suffix = info.id.startsWith(`${base}-`) ? info.id.slice(base.length + 1) : info.id;
   return suffix.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());

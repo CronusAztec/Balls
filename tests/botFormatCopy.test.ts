@@ -290,21 +290,41 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
       for (const [i, t] of allTemplates().entries()) {
         const base = `${modes[t.mode].name} · ${formatText(COPY[locale], t.format.id, "name")}`;
         // (--- templates --- AI studio step 3: a further variant without a recipe adds its own name, ViralBot.variants)
-        const variantName = t.recipe ? recipeText(COPY[locale], t.recipe, "name") : String(copyPath(COPY[locale], `variants.${variantKeyOf(t)}`));
-        expect(names[i], `${locale} ${t.id}`).toBe(t.binding.variants[0].id === t.id ? base : `${base} · ${variantName}`);
+        // (--- templates --- step 2's review round 1, 25: a variant that names itself does so even as its binding's first)
+        const named = !!t.binding.variants.find((v) => v.id === t.id)?.nameKey;
+        const variantName = t.recipe && !named ? recipeText(COPY[locale], t.recipe, "name") : String(copyPath(COPY[locale], `variants.${variantKeyOf(t)}`));
+        expect(names[i], `${locale} ${t.id}`).toBe(t.binding.variants[0].id === t.id && !named ? base : `${base} · ${variantName}`);
       }
     }
     const en = (id: string) => templateNameOf(templateById(id)!, COPY.en, (MESSAGES.en.Modes as unknown as Record<string, { name: string }>)[templateById(id)!.mode].name);
     expect([en("get-out-shatter"), en("get-out-classic"), en("get-out-classic-gerald"), en("who-wins-fight-league-upset")]).toEqual(["Shatter · Get out", "Classic · Get out", "Classic · Get out · Gerald escapes", "Fight League · Who wins · Fight upset"]);
     // --- templates --- (AI studio step 3) the variants without a recipe, by their own names, in every locale
     expect([en("get-out-classic-ring"), en("fill-grow-fills")]).toEqual(["Classic · Get out · One ring", "Grow · Fill it · Fill to finish"]);
-    // (--- templates --- AI studio step 6: a Mode Lab game's template by its game's name, as Mode Lab lists it)
-    expect([en("lab-game-blueprint"), en("lab-game-blueprint-ring-breaker")]).toEqual(["Mode Lab · Lab game", "Mode Lab · Lab game · Ring Breaker"]);
+    // (--- templates --- AI studio step 6: a Mode Lab game's template by its game's name, as Mode Lab lists it; step 2's review
+    // round 1, 25: the first game's too, Glass Hatchery, so the Template choice lists no bare Mode Lab entry beside four named games)
+    expect([en("lab-game-blueprint"), en("lab-game-blueprint-ring-breaker")]).toEqual(["Mode Lab · Lab game · Glass Hatchery", "Mode Lab · Lab game · Ring Breaker"]);
     for (const locale of LOCALES) {
       const variants = (MESSAGES[locale].ViralBot as unknown as { variants: Record<string, string> }).variants;
-      // (--- templates --- AI studio step 6: and Mode Lab's games after its first, by their own names)
-      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape"]]);
+      // (--- templates --- AI studio step 6: and Mode Lab's games, by their own names; step 2's review round 1, 25: all six)
+      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills", "hatchery", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape"]]);
       for (const name of Object.values(variants)) expect([locale, name, wordCount(name) <= 4, /[{}]/.test(name)]).toEqual([locale, name, true, false]);
+    }
+    // --- templates --- (step 2's review round 1, 25) every Mode Lab game's template ends with its game's name as Mode Lab lists it
+    // (`Blueprints.<id>.name`), in every locale: no two of them share a name, and none is the bare "{Mode name} · {Format name}"
+    const labGames = allTemplates().filter((t) => t.mode === "blueprint");
+    expect(labGames.length).toBe(6);
+    for (const locale of LOCALES) {
+      const modeName = (MESSAGES[locale].Modes as unknown as Record<string, { name: string }>).blueprint.name;
+      const base = `${modeName} · ${formatText(COPY[locale], "labGame", "name")}`;
+      const games = MESSAGES[locale].Blueprints as unknown as Record<string, { name: string }>;
+      for (const t of labGames) {
+        const game = t.binding.variants.find((v) => v.id === t.id)?.own?.patch?.blPreset;
+        expect([locale, t.id, typeof game === "string" && !!games[game]?.name]).toEqual([locale, t.id, true]);
+        expect([locale, t.id, templateNameOf(t, COPY[locale], modeName)]).toEqual([locale, t.id, `${base} · ${games[game as string].name}`]);
+      }
+      // the Template choice's "Lab game" group: the ready games, each named
+      const ready = labGames.filter((t) => t.ready).map((t) => templateNameOf(t, COPY[locale], modeName));
+      expect([locale, ready.length >= 5, new Set(ready).size === ready.length, ready.includes(base)]).toEqual([locale, true, true, false]);
     }
     expect(templateName(COPY.pl, "Rozbicie", "getOut")).toBe("Rozbicie · Ucieczka");
     expect(templateName(COPY.es, " ", "lineUp")).toBe("En línea");

@@ -268,7 +268,8 @@ checks (G4).
   the planner cannot fill yet (a count format's "{count}!") leaves the text out, never a brace. A template is named "{Mode
   name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
   Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring", and since step 6 a Mode
-  Lab game's name: "Mode Lab · Lab game · Ring Breaker"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
+  Lab game's name: "Mode Lab · Lab game · Ring Breaker"). Since step 2's first review round every Mode Lab game is named by
+  its game, the first one too ("Mode Lab · Lab game · Glass Hatchery"), so the Template choice lists no bare Mode Lab entry. The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
   A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
   Bouncing Shapes', Spiral Glass's, the Double Pendulum's, since step 6 each Mode Lab game's rule, and since the first review
   round the conveyor's, with its count) or a payoff
