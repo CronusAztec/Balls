@@ -118,14 +118,14 @@ leave it out (the mode route plans Fight League's other three).
 | | Journey | HOME, its overlay off in both looks (`journeyHud`) | `get-out-journey` | |
 | smash | Target | the last segment, cut before it | `smash-target` | |
 | | Power Layers | the break-out the settings time | `smash-power-layers` | |
-| | Brick Smash | the picture's last brick (`outcome`, a run of its own) | `smash-brick-rebuild` | |
+| | Brick Smash | the picture's last brick (`outcome`, a run of its own); its settle held past the clip's end, so the picture never flies back in under its words | `smash-brick-rebuild` | |
 | | Spiral Glass | GLASS CLEARED, its overlay off in both looks (`sgHud`); its hook asks what the banner answers | `smash-spiral-glass` | |
 | fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
 | | Grow | the measured fill, in the short length only (a standard clip often found no fill in time) | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
 | | Perfect Fit | | | `fill-perfect-fit`: its box is full for its 0.15 s flash only, then bursts (G2) |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
-| | Conveyor Belt | ALL OUT!, the last ball out (its mark); its hook states its own count | `count-conveyor` | |
+| | Conveyor Belt | ALL OUT! and its chord, the last ball out (its mark); its hook states its own count, its post asks whether they all got out | `count-conveyor` | |
 | | Merge Ring | | | `count-merge-ring`: its own question under the ring for the whole run |
 | who wins (battle family) | String Battle | the winner | `who-wins-string-battle` | |
 | | Square Racing Grand Prix | | | `who-wins-race`: its 3-2-1-GO opens the gate at 1.8 s (G1) |
@@ -134,20 +134,20 @@ leave it out (the mode route plans Fight League's other three).
 | | Territory | the winner (`outcome`), cut before the verdict | `who-wins-territory` | |
 | | Maze Escape | the first one out (`outcome`, a run of its own) | `who-wins-maze` | |
 | | Fight League | the KO, or the champion | `who-wins-fight-league`, `who-wins-fight-league-upset`, `who-wins-fight-league-bracket` (the website's only: long, past render's 60 s), `who-wins-fight-league-boss` | |
-| | Land Claim | the winner (`outcome`), cut before the verdict | `who-wins-land-claim` | |
-| aim | Bouncing Shapes | the first shape at zero (its mark) | `aim-box` | |
+| | Land Claim | the winner (`outcome`) of two sides, cut before the verdict where one leads by a tenth of the land | `who-wins-land-claim` | |
+| aim | Bouncing Shapes | the first shape at zero (its mark); its post asks which one stops first | `aim-box` | |
 | | Paddle Keep-Up | | | `aim-paddle`: its score band sits under the hook |
 | | Bullseye | the first BULLSEYE! (its mark) | `aim-bullseye` | |
 | line up | Pendulum Wave | the realignment | `line-up-pendulum` | |
 | | Metronomes & Polyrhythms | all meet | `line-up-polyrhythm` | |
-| | Double Pendulum Harp | the split (`outcome` diverges-at) | `line-up-double-pendulum` | |
+| | Double Pendulum Harp | the split (`outcome` diverges-at); its post asks when they split | `line-up-double-pendulum` | |
 | | Bouncing Orbs | IN PHASE (`outcome` resolves-at) | `line-up-orb-grid` | |
 | | Colour Sort | sorted (`outcome` sorted-by) | `line-up-colour-sort` | |
 | | Chord Stars | every star closed (`outcome`, a run of its own) | `line-up-star-chords` | |
 | | Spinning Hoops | every bead up (`outcome` all-up-by) | `line-up-hoops` | |
 | | Focus Shot | every ball on the other focus (`outcome`, a run of its own) | `line-up-ellipse-foci` | |
 | on the beat | Ball Drop | | | `on-the-beat-drop`: its looped rain's last 1.5 s play what the whole rain did (G2) |
-| | Collision Playground | its anti-collision drop, at its setting's second (`fixed`) | `on-the-beat-collide` | |
+| | Collision Playground | its anti-collision drop, at its setting's second (`fixed`); ten orbs, a bump a note, and a hook that says they will pass through | `on-the-beat-collide` | |
 | | Beat Runner | | | `on-the-beat-runner`: its first note at 1.5 s (G1) |
 | | Sound Vortex | | | `on-the-beat-vortex`: its own title in the corner for the whole run |
 | | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
@@ -156,11 +156,12 @@ leave it out (the mode route plans Fight League's other three).
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |
-| Mode Lab game | Mode Lab | the game's finish rule (its mark) | `lab-game-blueprint` (Glass Hatchery), `lab-game-blueprint-ring-breaker`, `lab-game-blueprint-tier-climb`, `lab-game-blueprint-plinko-race`, `lab-game-blueprint-grow-escape` | `lab-game-blueprint-conquer`: the page's run parts from the planner's |
+| Mode Lab game | Mode Lab | the game's finish rule (its mark) | `lab-game-blueprint` (Glass Hatchery), `lab-game-blueprint-ring-breaker`, `lab-game-blueprint-plinko-race`, `lab-game-blueprint-grow-escape` | `lab-game-blueprint-conquer`: the page's run parts from the planner's; `lab-game-blueprint-tier-climb`: no edge of the square is clear for its hook (G5) |
 
 A template that wraps a playbook recipe speaks with the recipe's words; the others speak with their format's
 (`ViralBot.formats`, `{thing}` the mode's noun), or with words of their own where the format's do not describe the run
-(`ViralBot.ownHooks`, `ViralBot.ownPayoffs`). docs/virality-playbook.md §5 has every template's measured numbers and the
+(`ViralBot.ownHooks`, `ViralBot.ownPayoffs`), and a post of their own where the format's asks about something else
+(`ViralBot.ownPosts`: its question and its hashtags). docs/virality-playbook.md §5 has every template's measured numbers and the
 reason each hidden one waits.
 
 ### How a template times its payoff
@@ -556,7 +557,10 @@ What the run showed:
   and how they move there.
 - **Texts inside the square.** The canvas draws every caption inside the exported square, so a Simple text can take only its top
   or its bottom edge. Where the action fills the square, some text still hides some of it: Ball Drop's texts (its recipe in the
-  Simple look), while the balls enter at the top and pile up at the bottom. The free band above the square (22 % of a 9:16 frame
+  Simple look), while the balls enter at the top and pile up at the bottom. Tier Climb's hook (the studio2 review's second round,
+  8) had no edge at all: the game's title block takes the top, where the rain falls and the first orbs merge, and at the bottom
+  it hid the merges into 3 and 4 it describes. G5 now fails a hook the mode's own text pushes onto the action for more than half
+  its samples (`hookPushedOverAction`), and the template is hidden. The free band above the square (22 % of a 9:16 frame
   when there is no Top Text) would hide nothing, but drawing captions there is a renderer change in hub files (Canvas.tsx, the
   recorder's frame, the fast export) that needs tier 2. The owner should decide it.
 - **A countdown to the payoff.** A bar or a timer counts the recording's seconds (lib/captions.ts), so the Simple look draws
@@ -595,6 +599,12 @@ What the run showed:
   rendered lengths are the planned ones.
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
   The studio's own review runs that search.
+- **A silent hold after the payoff** (the studio2 review's second round, 12). A mode's own end banner holds 1.5-4.7 s before its run
+  ends (Spiral Glass's GLASS CLEARED and Merge Ring's FINAL FORM 2 s, the conveyor's ALL OUT! 1.5 s, an arena's champion
+  3 s), and its chord decays in well under a second, so these clips end on 1.5-4.7 s of silence under the banner. G2 accepts
+  it where the payoff is heard and the banner gives the end words to read, and fails a payoff that plays nothing with silence
+  after it (`payoffLandsSilentEnd`: the conveyor's ALL OUT! until it got its chord). A bed under the end, or a chord that rings
+  through the hold, is a change of the tone generator and of the modes' sound: the owner's call.
 - **A bracket longer than render** (step 2's review round 1, 20). Fight League's bracket plays seven bouts and fills the long
   length only: its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s in, and render
   plays 60 s at most (the page's `LINK_RENDER_MAX_SEC`). The studio leaves it out, and render's advice for a clip past 60 s
@@ -651,3 +661,14 @@ What the run showed:
   beside its fixed version ("4 kept of 4 rendered" for three clips). The clip and its fixed version are now one clip in two
   versions: post.txt says "3 kept of 3 rendered clips" with the 4 renders and names the pair, the review's decision keeps
   the pair as one entry naming both (`versions`), and the owner picks the version to post (After the render, above).
+- **What the second review round of step 2 watched** (findings 7-12). Brick Smash's resolved clips ended inside its rebuild, the
+  picture flying back in under "Smashed. 💥": its template holds the settle past the clip's end (`brickSettleSec`), G4 fails
+  payoff words over a rebuild (`payoffUndone`), and the screen view names it and the bricks' counter under the box. Tier Climb's
+  hook hid the merges it describes and is hidden (above). Collision Playground's 140 orbs played the sound's ceiling under "Every
+  bounce is a note.": ten orbs now play 9-15 notes a second, its own hook says the switch is coming ("Bumps play notes. Then they
+  slip through."), and G4 fails a beat played faster than 40 notes a second (`beatWashPerSec`). Land Claim asked "Who wins? 👇"
+  over four sides level to 1-3 points: two sides that snowball now, cut only where one leads by a tenth of the land
+  (`LC_LEAD_MIN`). Bouncing Shapes was posted as a trick shot, the conveyor's stated count asked for as a guess and the chaos fan's
+  split tagged as a sync: their posts are their own (`ViralBot.ownPosts`), and the templates listing shows no payoff words where
+  none are drawn. The conveyor's ALL OUT! came in silent: it plays its chord, and G2 fails a silent payoff the clip then ends on
+  in silence. docs/virality-playbook.md §5 has the numbers.

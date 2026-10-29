@@ -343,16 +343,27 @@ export function payoffHoldSec(clip: Pick<CrewClip, "settings" | "payoff" | "timi
  * the planner knows it: the second it starts to (s) and what the picture does from it, in neutral words. Colour Sort's sort
  * (sorted-by): the bullseye holds CS_HOLD_SEC after it completes, then the remix pulls every ball back to its start until the clip
  * ends on the loop's seam – payoff words still on screen there name a state the picture has left ("There it is. ✨" over the mixed
- * balls for the clip's last 2.8 s, watched). null: none known, or the clip ends before it.
+ * balls for the clip's last 2.8 s, watched). --- crew --- (studio2 review round 2, 7) Brick Smash's first smash (bricks-cleared-by):
+ * the balls settle for `brSettle` after the last brick falls, then the rebuild flies every brick of the picture back in from outside
+ * the box ("Smashed. 💥" over the picture rebuilding for the clip's last 2.8 s at the mode's 1 s settle, watched). null: none known,
+ * or the clip ends before it.
  */
 export function payoffUndone(clip: Pick<CrewClip, "settings" | "payoff" | "timing" | "ending" | "recipe">): { sec: number; words: string } | null {
   const at = clip.payoff.atSec;
-  if (clip.ending !== "resolved" || at === null || clip.settings.mode !== "colourSort") return null;
+  if (clip.ending !== "resolved" || at === null) return null;
+  const undone = UNDONE_BY[clip.settings.mode];
+  if (!undone) return null;
   const recipe = botRecipeById(clip.recipe);
-  if (recipe?.strategy !== "outcome" || recipe.outcome !== "sorted-by") return null;
-  const sec = at + CS_HOLD_SEC;
-  return sec < clip.timing.clipSec - 1e-6 ? { sec, words: "every ball is pulled back to where it started, the colours mixed again" } : null;
+  if (recipe?.strategy !== "outcome" || recipe.outcome !== undone.outcome) return null;
+  const sec = at + undone.afterSec(clip.settings);
+  return sec < clip.timing.clipSec - 1e-6 ? { sec, words: undone.words } : null;
 }
+
+/** --- crew --- (studio2 review round 2, 6 and 7) The runs that undo their payoff's state: the outcome, how long after it, what the picture does then. */
+const UNDONE_BY: Readonly<Partial<Record<ModeId, { outcome: string; afterSec: (s: SimulatorSettings) => number; words: string }>>> = {
+  colourSort: { outcome: "sorted-by", afterSec: () => CS_HOLD_SEC, words: "every ball is pulled back to where it started, the colours mixed again" },
+  brickRebuild: { outcome: "bricks-cleared-by", afterSec: (s) => Math.max(0, s.brSettle), words: "the bricks fly back in from outside the box and build the picture again" },
+};
 // --- end of the payoff's hold
 
 /** The numbers a hook may state truthfully: the recipe's own hook values, the clip's length, the day, and one. */

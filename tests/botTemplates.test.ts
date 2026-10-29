@@ -7,7 +7,7 @@ import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
-import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, CLIFF_GAP_SEC, LENGTH_BUCKETS, PAYOFF_BAND, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, BUCKET_SECONDS, CLIFF_GAP_SEC, LENGTH_BUCKETS, PAYOFF_BAND, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
 import {
   ACTION_GAIN_SEC,
   BOT_PLAN_VERSION,
@@ -65,19 +65,21 @@ import {
   plannedRecipe,
   strategyCanPlan,
   variantBinding,
+  brickSettleSec, // --- templates --- (studio2 review round 2, 7)
+  BR_SETTLE_PAST_SEC,
   type OutcomeFlag,
 } from "@/lib/bot/templates";
-import { AT_END_BUCKETS, AT_END_SEC, CS_STALL_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, colourSortStallSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { AT_END_BUCKETS, AT_END_SEC, CS_STALL_SEC, FILL_OUTCOMES, LC_LEAD_MIN, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, colourSortStallSec, landClaimLeadAt, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
 import { CS_HOLD_SEC } from "@/lib/physics/modes/colourSort"; // --- templates --- (studio2 review round 2, 6)
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
-import { simulateOutcomeRun } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateOutcomeRun, stepPlaybackMs } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
-import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan, payoffHoldSec } from "@/lib/crew/clip";
-import { CLARITY, beatStandsOut, clarityOf, counterCutReading } from "@/lib/crew/clarity";
+import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan, payoffHoldSec, payoffUndone } from "@/lib/crew/clip";
+import { CLARITY, beatStandsOut, beatWashPerSec, clarityOf, counterCutReading, hookPushedOverAction } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
-import { screenView } from "@/lib/crew/dossier";
-import { STUDIO_RENDER_WORLD } from "@/lib/agentKit/studioKit"; // --- templates --- (studio round 1, 1)
+import { intentView, screenView } from "@/lib/crew/dossier";
+import { STUDIO_RENDER_WORLD, studioTemplates } from "@/lib/agentKit/studioKit"; // --- templates --- (studio round 1, 1)
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6)
 import { END_HOLD_SEC as LAB_END_HOLD_SEC } from "@/lib/physics/modes/blueprint";
 import { OWN_HOOK_FIELD, OWN_PAYOFF_FIELD } from "@/lib/bot/copy";
@@ -1588,11 +1590,12 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
     const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
     // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked; step 5: the chaos fan's, the plan's hook b;
     // step 6: each Mode Lab game's rule)
-    // (--- templates --- studio round 1, 12: and the conveyor's, its own count)
-    expect(own.sort()).toEqual(["own.box", "own.conveyor", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
+    // (--- templates --- studio round 1, 12: and the conveyor's, its own count; studio2 review round 2, 9: and Collision Playground's,
+    // which says the switch is coming)
+    expect(own.sort()).toEqual(["own.box", "own.collide", "own.conveyor", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "conveyor", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "conveyor", "collide", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
@@ -2021,13 +2024,14 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     for (const [i, t] of LAB.entries()) {
       const game = BLUEPRINT_CATALOG_IDS[i];
       const hidden = t.binding.variants.find((v) => v.id === t.id)!.hidden;
-      // Colour Conquest hidden after it was watched: the page's run parts from the planner's (its reason holds the two renders)
-      expect([t.id, hidden === undefined]).toEqual([t.id, game !== "conquer"]);
+      // Colour Conquest hidden after it was watched: the page's run parts from the planner's (its reason holds the two renders);
+      // --- templates --- (studio2 review round 2, 8) and Tier Climb: no edge of the square is clear for its hook
+      expect([t.id, hidden === undefined]).toEqual([t.id, game !== "conquer" && game !== "tierClimb"]);
       expect([t.id, t.ready, templateRecipeById(t.id) === undefined]).toEqual([t.id, !hidden, !!hidden]);
       const r = plannedRecipe(t)!;
       expect([t.id, t.binding.tier, t.family, r.formatCopy, r.musicFirst, r.strategy, r.endings, r.buckets, r.hookKey]).toEqual([t.id, "trial", catalogBlueprint(game).meta.family, true, true, "finish", ["resolved"], lengths[game], `own.${game}`]);
       if (hidden) {
-        expect(hidden).toMatch(/page's run parted from the planner's.*watched/);
+        expect(hidden).toMatch(game === "tierClimb" ? /no edge of the square is clear.*watched/ : /page's run parted from the planner's.*watched/);
         continue;
       }
       const platforms = platformsOf(t.id);
@@ -2175,7 +2179,195 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // (--- templates --- studio round 1, 10 and 11: Perfect Fit, Beat Machines and the Wave Tank experimental, Ball Drop's one variant
     // hidden; Collision Playground ready, timed by its drop)
     expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [2, 1, 0], lineUp: [8, 0, 0], onTheBeat: [1, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
-    // 35 modes as 45 templates
-    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 45]);
+    // 35 modes as 44 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden)
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 44]);
+  });
+});
+
+// --- templates --- (studio2 review round 2, 7-12) what the second review round watched in the renders, measured and fixed at the root
+describe("the second review round, findings 7-12: the clip's end, the hook's edge, a beat to hear, a leader to back, the post's words, a climax heard", () => {
+  /** A template's plan on its platforms, rotating by seed. */
+  const planAt = (id: string, seed: number, options: Partial<Parameters<typeof planTemplate>[3]> = {}) => {
+    const platforms = platformsOf(id);
+    return planTemplate(id, seed, platforms[(seed - 1) % platforms.length], { copy, episode: 3, index: seed, ...options });
+  };
+  const gateOf = (plan: ClipPlan, run: ReturnType<typeof runSync>, id: string) => clarityOf(crewClipOfPlan(plan, { run })).gates.find((g) => g.id === id)!;
+
+  it("settles Brick Smash past the clip's end, so the picture never flies back in under 'Smashed.'; the rebuild, where a clip shows it, fails G4 and is named in the screen view", async () => {
+    for (const bucket of ["short", "standard"] as const) {
+      const sec = brickSettleSec(bucket);
+      expect([bucket, rangeViolations({ ...defaultSettings("brickRebuild"), brSettle: sec })]).toEqual([bucket, []]);
+      // a resolved clip's payoff comes at 80 % of it or later, so it runs on at most a fifth of its bucket's longest clip after it
+      expect(sec).toBeGreaterThanOrEqual((1 - PAYOFF_BAND.from) * (BUCKET_SECONDS[bucket].max + 0.5) + BR_SETTLE_PAST_SEC - 1e-9);
+    }
+    // the mode's own settle is as it was
+    expect(defaultSettings("brickRebuild").brSettle).toBe(1);
+    let resolved = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const plan = planAt("smash-brick-rebuild", seed);
+      const where = `${plan.platform}/${seed}`;
+      expect([where, plan.settings.brSettle]).toEqual([where, brickSettleSec(plan.bucket)]);
+      if (plan.ending !== "resolved") continue;
+      resolved++;
+      const clip = crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
+      expect([where, payoffUndone(clip), clip.timing.clipSec - plan.payoff.atSec! + BR_SETTLE_PAST_SEC <= plan.settings.brSettle + 1e-9]).toEqual([where, null, true]);
+      // the run itself: still settling, not rebuilding, at the clip's last frame
+      const request = finderRequestOfSettings(plan.settings, plan.world, plan.timing.clipSec + 1);
+      const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, plan.seed);
+      let elapsed = 0;
+      while (elapsed < 1000 * plan.timing.clipSec - 1e-6) {
+        engine.update(1000 / 60, 0);
+        elapsed += stepPlaybackMs(engine, 1000 / 60);
+        engine.consumeSoundEvents();
+      }
+      expect([where, engine.getBrickRebuildView().phase]).toEqual([where, "settle"]);
+      // at the mode's 1 s settle the rebuild comes a second after the payoff, under its words: G4 fails it, and the screen view says so
+      const oneSec = crewClipOfPlan({ ...plan, settings: { ...plan.settings, brSettle: 1 } }, { run: clip.run! });
+      expect([where, payoffUndone(oneSec)?.sec]).toEqual([where, expect.closeTo(plan.payoff.atSec! + 1, 6)]);
+      expect([where, clarityOf(oneSec).gates.find((g) => g.id === "G4")!.problems]).toEqual([where, expect.arrayContaining(["wordsMatchPictureOverUndone"])]);
+      expect(screenView(oneSec).text, where).toMatch(/to the end: the bricks fly back in from outside the box and build the picture again/);
+      await breathe();
+    }
+    expect(resolved).toBeGreaterThan(0);
+    // its count of bricks under the box, which the renderer draws whenever the loop HUD is off (the Simple look's), is on screen in
+    // both views: never "nothing else" beside it, never "no counter drawn"
+    const plan = planAt("smash-brick-rebuild", 1);
+    expect([plan.settings.loopHud, hudsOn(plan.settings).map((h) => h.id)]).toEqual([false, ["mode:brickRebuild"]]);
+    expect(hudsOn({ ...plan.settings, loopHud: true }).map((h) => h.id)).not.toContain("mode:brickRebuild");
+    const clip = crewClipOfPlan(plan);
+    expect(screenView(clip).text).toContain("also on screen: a count of the bricks left, under the box");
+    expect(intentView(clip).text).toMatch(/beats\.countdown: no counter caption: the picture, and the mode draws its own: a count of the bricks left, under the box/);
+  });
+
+  it("hides Tier Climb: its hook, pushed off the game's title block, sat over the merges it describes; no ready template's hook sits so (G5)", async () => {
+    const t = templateById("lab-game-blueprint-tier-climb")!;
+    expect([t.ready, templateRecipeById(t.id), t.binding.variants.find((v) => v.id === t.id)!.hidden]).toEqual([false, undefined, expect.stringMatching(/no edge of the square is clear.*merges into 3 and 4.*watched/)]);
+    // planned all the same (its recipe as the studio would plan it), its hook takes the bottom and hides the orbs there on most plans
+    const recipe = plannedRecipe(t)!;
+    let pushed = 0;
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planClip(recipe, seed, "reels", { copy, look: "simple", template: t.id, episode: 3, index: seed });
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const over = hookPushedOverAction(crewClipOfPlan(plan, { run }));
+      if (over) {
+        pushed++;
+        expect([seed, over.sec > 1, gateOf(plan, run, "G5").problems]).toEqual([seed, true, expect.arrayContaining(["readableHookOverAction"])]);
+      }
+      await breathe();
+    }
+    expect(pushed).toBeGreaterThanOrEqual(3);
+    // the hooks the same title block (and Glass Smash's STAGE banners) push to the bottom elsewhere hide half their samples at most
+    for (const id of ["lab-game-blueprint-ring-breaker", "lab-game-blueprint-plinko-race", "lab-game-blueprint-grow-escape", "get-out-glass"]) {
+      for (const seed of [1, 2]) {
+        const plan = planAt(id, seed);
+        const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+        expect([id, seed, hookPushedOverAction(crewClipOfPlan(plan, { run }))]).toEqual([id, seed, null]);
+      }
+      await breathe();
+    }
+  });
+
+  it("gives Collision Playground ten orbs, a bump a note a viewer hears, and a hook that says the switch is coming; a wash of notes fails G4", async () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planAt("on-the-beat-collide", seed);
+      const where = `${plan.platform}/${seed}`;
+      expect([where, plan.settings.cpCount, plan.settings.ballRadius, plan.settings.ballSpeed >= 200 && plan.settings.ballSpeed <= 240, rangeViolations(plan.settings)]).toEqual([where, 10, 4, true, []]);
+      expect([where, plan.hook]).toEqual([where, (COPY.en as unknown as { ownHooks: Record<string, string> }).ownHooks.collide]);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clip = crewClipOfPlan(plan, { run });
+      expect([where, beatWashPerSec(clip), run.moment!.soundsMedian! / 0.75 <= CLARITY.beatNotesPerSecMax]).toEqual([where, null, true]);
+      // the 100-140 orbs it had played the sound's ceiling: a wash, which G4 now fails
+      if (seed === 1) {
+        const crowd = { ...plan.settings, cpCount: 140, ballRadius: defaultSettings("collide").ballRadius, ballSpeed: defaultSettings("collide").ballSpeed };
+        const washRun = runSync(crowd, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+        const wash = crewClipOfPlan({ ...plan, settings: crowd }, { run: washRun });
+        expect([beatWashPerSec(wash)! > 300, clarityOf(wash).gates.find((g) => g.id === "G4")!.problems]).toEqual([true, expect.arrayContaining(["wordsMatchPictureBeatWash"])]);
+      }
+      await breathe();
+    }
+    // its own hook, in every language: at most 7 words, its two clauses the two lines a reader breaks them at
+    for (const locale of ["en", "pl", "es"] as const) {
+      const hook = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks.collide;
+      expect([locale, wordCount(hook) <= SIMPLE_TEXT.hookWordsMax, hook.length <= (locale === "en" ? 42 : 52), (hook.match(/[.!?]/g) ?? []).length]).toEqual([locale, true, true, 2]);
+    }
+  });
+
+  it("cuts Land Claim where one of its two sides leads by a tenth of the land, so 'Who wins?' has a leader to back", async () => {
+    expect(LC_LEAD_MIN).toBe(0.1);
+    let refusedSeen = false;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const plan = planAt("who-wins-land-claim", seed);
+      const where = `${plan.platform}/${seed}`;
+      expect([where, plan.settings.lcTeams, plan.settings.lcRule, plan.ending, plan.timing.found, rangeViolations(plan.settings)]).toEqual([where, 2, "claim", "cliffhanger", true, []]);
+      const request = finderRequestOfSettings(plan.settings, plan.world, plan.timing.clipSec + 3);
+      expect([where, landClaimLeadAt(request, plan.seed, plan.timing.clipSec) >= LC_LEAD_MIN - 1e-9]).toEqual([where, true]);
+      // a seed whose two sides are level at its cut is refused by the outcome it would otherwise meet
+      if (!refusedSeen) {
+        for (let k = 1; k <= 40 && !refusedSeen; k++) {
+          const facts = outcomeRunOf(request, k, "winner", plan.timing.clipSec + 3).facts;
+          if (facts.atSec < 0 || facts.winner < 0) continue;
+          const lead = landClaimLeadAt(request, k, Math.floor(facts.atSec - CLIFF_GAP_SEC.min + 1e-9));
+          if (lead < LC_LEAD_MIN) {
+            expect([k, facts.matched]).toEqual([k, false]);
+            refusedSeen = true;
+          }
+        }
+      }
+      await breathe();
+    }
+    expect(refusedSeen).toBe(true);
+  });
+
+  it("posts the question and the hashtags a template's own hook asks for, never its format's that ask about something else, in en, pl and es", () => {
+    const own: Record<string, { hook: RegExp; not: RegExp }> = {
+      "aim-box": { hook: /zero/i, not: /bullseye|trickshot|willithit/i },
+      "count-conveyor": { hook: /\d/, not: /guessthenumber|guess before/i },
+      "line-up-double-pendulum": { hook: /split/i, not: /perfectsync/i },
+    };
+    for (const [id, words] of Object.entries(own)) {
+      const r = templateRecipeById(id)!;
+      expect([id, r.postKey]).toEqual([id, `ownPost.${r.modes[0]}`]);
+      for (const locale of ["en", "pl", "es"] as const) {
+        const posts = (COPY[locale] as unknown as { ownPosts: Record<string, { postQuestion: string; hashtags: string }> }).ownPosts[r.modes[0]];
+        const plan = planTemplate(id, 1, platformsOf(id)[0], { copy: COPY[locale], locale, episode: 3, index: 1, search: false });
+        const where = `${id}/${locale}`;
+        expect([where, plan.post.question, posts.postQuestion.trim().endsWith("?")]).toEqual([where, posts.postQuestion, true]);
+        for (const tag of posts.hashtags.split(/\s+/)) expect([where, plan.post.hashtags]).toEqual([where, expect.arrayContaining([tag])]);
+        if (locale === "en") {
+          expect([where, words.hook.test(plan.hook), words.not.test(plan.post.caption)]).toEqual([where, true, false]);
+          // the studio's listing (the brainstormer's and the producer's) has its own post, and no payoff words where none are drawn
+          const listed = studioTemplates({ family: "all" }, COPY.en).templates.find((x) => x.id === id)!.words!;
+          expect([where, listed.postQuestion, listed.hashtags, "payoff" in listed]).toEqual([where, posts.postQuestion, posts.hashtags, r.payoffWords !== false]);
+        }
+      }
+    }
+    // every own post exists in the three languages, each with its question and 2-4 tags
+    const keys = Object.keys((COPY.en as unknown as { ownPosts: Record<string, unknown> }).ownPosts).sort();
+    expect(keys).toEqual(["box", "conveyor", "doublePendulum"]);
+    for (const locale of ["pl", "es"] as const) expect(Object.keys((COPY[locale] as unknown as { ownPosts: Record<string, unknown> }).ownPosts).sort()).toEqual(keys);
+    for (const locale of ["en", "pl", "es"] as const)
+      for (const k of keys) {
+        const p = (COPY[locale] as unknown as { ownPosts: Record<string, { postQuestion: string; hashtags: string }> }).ownPosts[k];
+        const tags = p.hashtags.split(/\s+/);
+        expect([locale, k, tags.length >= 2 && tags.length <= 4, tags.every((t) => /^#[\p{Ll}\p{N}]+$/u.test(t))]).toEqual([locale, k, true, true]);
+      }
+  });
+
+  it("plays the conveyor's ALL OUT! with its chord, and G2 fails a silent payoff the clip then ends on in silence, words on screen or not", async () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planAt("count-conveyor", seed);
+      const where = `${plan.platform}/${seed}`;
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const m = run.moment!;
+      expect([where, m.sounds >= 1, m.accent, m.chordMax >= 4]).toEqual([where, true, true, true]);
+      const g2 = gateOf(plan, run, "G2");
+      expect([where, g2.ok]).toEqual([where, true]);
+      // the same clip before the chord: nothing heard at ALL OUT!, then silence to the end under its banner – G2 fails it now
+      const silent = { ...run, moment: { ...m, sounds: 0, notes: 0, chordMax: 0, accent: false, silentTailSec: 2.3 } };
+      expect([where, gateOf(plan, silent, "G2").problems]).toEqual([where, expect.arrayContaining(["payoffLandsSilentEnd"])]);
+      // a payoff heard, with the same silent hold after it (Spiral Glass's GLASS CLEARED, Merge Ring's FINAL FORM, every arena's champion): not this
+      expect([where, gateOf(plan, { ...run, moment: { ...m, silentTailSec: 2.3 } }, "G2").problems]).not.toContain("payoffLandsSilentEnd");
+      await breathe();
+    }
   });
 });

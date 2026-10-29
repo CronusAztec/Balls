@@ -768,6 +768,11 @@ export interface PayoffMoment {
    * median motion), after the payoff; absent: the clip's end was not given.
    */
   quietTailSec?: number;
+  /**
+   * --- crew --- (studio2 review round 2, 12) The seconds the clip ends on with no sound at all, whatever moves, after the payoff (from
+   * its last sound or the payoff, the later); absent: the clip's end was not given, or an older record.
+   */
+  silentTailSec?: number;
 }
 
 /** --- fl-overhaul --- (Stage 6) Whether settings play one Fight League match (not a series, a bracket or a boss rush). */

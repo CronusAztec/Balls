@@ -573,6 +573,18 @@ export function conveyorPassPitch(ring: number, scale: ScaleId, rootNote: number
   return midiToFrequency(degreeMidi(72, 2 * Math.max(0, ring), scale, rootNote));
 }
 
+/**
+ * --- conveyor --- (studio2 review round 2, 12) The chord the final banner comes in with (ALL OUT!, and the bowl's and the pegs' own):
+ * the scale's root, its third and fifth degrees and the octave from C5, accented, as Spiral Glass's GLASS CLEARED, Merge Ring's FINAL
+ * FORM and Paddle Keep-Up's GAME OVER play theirs. The banner came in silent before: the last ball's way out was heard about 0.6 s
+ * earlier, then nothing to the run's end – the studio's clip ended on 2.3 s of silence under ALL OUT! (watched and measured). TIME'S
+ * UP, the safety net's end, plays none. Sound only: the run, its timing and its fingerprint are as they were.
+ */
+export function conveyorFinishChord(scale: ScaleId, rootNote: number): number[] {
+  const octave = conveyorScale(scale).length;
+  return [0, 2, 4, octave].map((degree) => midiToFrequency(degreeMidi(72, degree, scale, rootNote)));
+}
+
 /** Pitch (Hz) of a ball hitting a frozen one: a high tick. */
 export function conveyorFrozenPitch(scale: ScaleId, rootNote: number): number {
   return midiToFrequency(degreeMidi(84, 4, scale, rootNote));
@@ -1688,6 +1700,11 @@ export class ConveyorMode implements GameMode {
         v.timedOut = active > 0;
         v.doneAtMs = this.clockMs;
         ctx.spawnConfetti(L.cx, L.top + 0.4 * L.fieldHeight);
+        // --- conveyor --- (studio2 review round 2, 12) the final banner comes in with its chord (TIME'S UP plays none)
+        if (!v.timedOut) {
+          const chord = conveyorFinishChord(s.scale, s.rootNote);
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
+        }
       }
     }
     if (v.allDone && !v.finished && this.clockMs >= v.doneAtMs + FINAL_HOLD_MS - 1e-6) {

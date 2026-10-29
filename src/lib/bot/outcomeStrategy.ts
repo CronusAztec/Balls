@@ -399,12 +399,43 @@ export function colourSortStallSec(request: FinderRequest, seed: number, sortedM
   return longest / 1000;
 }
 
+// --- templates --- (studio2 review round 2, 10)
+/**
+ * The least lead a cut Land Claim clip shows at its cut: the leader's land over the runner-up's, as a share of all the blocks. Its
+ * template cuts before the verdict and asks "Who wins? 👇" with the HUD off, so who leads must be there to see in the wall's colours:
+ * 55 % against 45 % of two sides. Four sides with no new balls ended within 1–3 points of each other on 10 of 12 plans (watched: a
+ * level mosaic, a question a stranger could not judge).
+ */
+export const LC_LEAD_MIN = 0.1;
+
+/**
+ * Land Claim's lead at second `cutSec` of the seed's run, stepped as the page plays it: the most land a side holds less the runner-up's,
+ * as a share of the wall's blocks (0 for a level top or a run of one side).
+ */
+export function landClaimLeadAt(request: FinderRequest, seed: number, cutSec: number): number {
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  while (elapsed < 1000 * cutSec - 1e-6 && !engine.isSimulationFinished()) {
+    engine.update(step, 0);
+    elapsed += stepPlaybackMs(engine, step);
+    engine.consumeSoundEvents();
+  }
+  const v = engine.getLandClaimView();
+  const land = Array.from(v.land.slice(0, v.teams)).sort((a, b) => b - a);
+  return v.total > 0 && land.length >= 2 ? (land[0] - land[1]) / v.total : 0;
+}
+// --- end templates ---
+
 /**
  * --- templates --- (studio2 review round 2, 6) The runs a mode refuses although they meet its outcome (a seed of them never plans
- * when another does): Colour Sort's first sort that stalls before its last ball longer than CS_STALL_SEC.
+ * when another does): Colour Sort's first sort that stalls before its last ball longer than CS_STALL_SEC. --- templates --- (studio2
+ * review round 2, 10) And a Land Claim whose sides are level at a cliffhanger's cut (its template ends cut only: its verdict comes as
+ * its run ends) – less than LC_LEAD_MIN apart at the whole second before the verdict that a cut clip ends on (planner.ts clipTiming).
  */
 const OUTCOME_REFUSALS: Readonly<Partial<Record<ModeId, Partial<Record<FinderOutcomeKind, (request: FinderRequest, seed: number, ms: number) => boolean>>>>> = {
   colourSort: { "sorted-by": (request, seed, ms) => ms >= 0 && colourSortStallSec(request, seed, ms) > CS_STALL_SEC + 1e-9 },
+  landClaim: { winner: (request, seed, ms) => ms >= 0 && landClaimLeadAt(request, seed, Math.floor(ms / 1000 - CLIFF_GAP_SEC.min + 1e-9)) < LC_LEAD_MIN - 1e-9 },
 };
 // --- end templates ---
 

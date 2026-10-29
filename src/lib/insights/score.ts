@@ -381,7 +381,8 @@ export const MOMENT_ACCENTS_MAX = 24;
  * length before the payoff, from the first second on (their median: soundsMedian – how much a moment of this run usually
  * plays), and, with `clipSec` (the clip's end, past the moment), follows the run to it: the accented events outside the moment
  * (accents: where else the mode plays its chord and flash) and the quiet stretch the clip ends on (quietTailSec: no sound, the
- * balls at most STILL_MOTION_SHARE of their median).
+ * balls at most STILL_MOTION_SHARE of their median) – --- crew --- (studio2 review round 2, 12) and the silent one, whatever moves
+ * (silentTailSec: no sound from the payoff or its last sound to the clip's end).
  *
  * --- crew --- (studio round 1, 11) And what the run played before the moment at its most: the busiest of those windows (soundsMax)
  * and the largest chord (chordBefore), so the crew's gate G2 can tell a beat's payoff that stands out from one more bar of the same.
@@ -488,6 +489,8 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
     if (engine.isSimulationFinished() && elapsed / 1000 < clipEnd) stillFrom = Math.min(stillFrom, Math.max(payoffSec, elapsed / 1000));
     quietTailSec = Math.round(Math.max(0, clipEnd - Math.max(stillFrom, lastSoundSec, payoffSec)) * 100) / 100;
   }
+  // --- crew --- (studio2 review round 2, 12) the clip's silent end, whatever moves: from its last sound, or the payoff
+  const silentTailSec = clipEnd !== null && clipEnd > payoffSec ? Math.round(Math.max(0, clipEnd - Math.max(lastSoundSec, payoffSec)) * 100) / 100 : null;
   const largest = [...accents].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, MOMENT_ACCENTS_MAX).sort((a, b) => a[0] - b[0]);
   return {
     atSec: Math.round(payoffSec * 1000) / 1000,
@@ -503,6 +506,7 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
     chordBefore,
     accents: largest,
     ...(quietTailSec !== null ? { quietTailSec } : {}),
+    ...(silentTailSec !== null ? { silentTailSec } : {}), // --- crew --- (studio2 review round 2, 12)
   };
 }
 

@@ -1,9 +1,9 @@
 import type { ScoreReason } from "@/lib/bot/planner";
 import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
 import { botRecipeById, CHORD_WORDS } from "@/lib/bot/templates";
-import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } from "@/lib/bot/planner";
+import { actionCoverSec, bannerCoverSec, captionBoxAt, captionsAtEdge, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } from "@/lib/bot/planner";
 import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTrack"; // --- crew --- (AI studio step 3) the modes' banners
-import { MOMENT_BEFORE_SEC, STILL_MOTION_SHARE } from "@/lib/insights/score";
+import { MOMENT_AFTER_SEC, MOMENT_BEFORE_SEC, STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
 import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, payoffHoldSec, payoffUndone, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
@@ -24,7 +24,9 @@ import { hudsOn } from "./hudFlags"; // --- crew --- (studio round 1, 9) a mode'
  *     after the payoff), and a sound or motion at it whatever it claims (never still and quiet: the balls at a quarter of the
  *     run's median motion or less, with no sound – or, for a beat, only a few lone notes: fewer than the run's usual moment
  *     plays, none accented, no chord), and – a clip that ends without words (neither the payoff's nor, --- crew --- AI studio
- *     step 4, the mode's own end banner) – no quiet end longer than 1.5 s after it (no sound, the balls still: dead air); ---
+ *     step 4, the mode's own end banner) – no quiet end longer than 1.5 s after it (no sound, the balls still: dead air), nor –
+ *     --- crew --- (studio2 review round 2, 12) words or not – a payoff that plays no sound with no sound after it for more than
+ *     1.5 s to the clip's end (the conveyor's ALL OUT!, silent, then silence under it); ---
  *     crew --- (studio round 1, 10 and 11) the payoff's state held at least 0.8 s (Perfect Fit's full box bursts a flash after it
  *     fills), and a beat's payoff that stands out from the run before it (beatStandsOut: busier than its busiest moment, a larger
  *     chord, or an accent none before matched);
@@ -35,12 +37,16 @@ import { hudsOn } from "./hudFlags"; // --- crew --- (studio round 1, 9) a mode'
  *     facts; a winner the payoff names is the run's; the recipe (or the template) that wrote the hook plays this mode; the
  *     run shows the claim; a counter of the clip's seconds (a bar, a timer) reaches its end on screen – 100 % or 0:00, within
  *     a second of it – rather than leaving at "84 %" (the studio's second review round, 22); --- crew --- (studio2 review round
- *     2, 6) and the payoff's words leave before the run undoes what they name (clip.ts payoffUndone: Colour Sort's remix).
+ *     2, 6) and the payoff's words leave before the run undoes what they name (clip.ts payoffUndone: Colour Sort's remix, --- crew
+ *     --- 7: Brick Smash's rebuild); --- crew --- (studio2 review round 2, 9) and a beat clip's run plays its notes slowly enough
+ *     to hear each as a note, at most 40 a second at its usual moment (beatWashPerSec).
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band, and – --- crew
  *     --- (AI studio step 3) – no caption over a banner of the mode's own text while it shows (the run's action track:
  *     Glass Smash's "STAGE n", the Journey's stage banner), which would stack two texts; --- crew --- (studio round 1, 9) no Top
- *     Text on the line where the mode writes its own words for the whole run (Spiral Glass's question while its overlay shows).
+ *     Text on the line where the mode writes its own words for the whole run (Spiral Glass's question while its overlay shows);
+ *     --- crew --- (studio2 review round 2, 8) and no hook the mode's own text pushed onto the action, hiding the moving balls on
+ *     more than half its samples (hookPushedOverAction: Tier Climb's merges).
  *  G6 notTooBusy – Simple at least 60 (simplicity.ts).
  *  G7 lengthFits – the clip's length inside a bucket its platform takes.
  *  G8 rendered (after a render only) – at most 2 % lagged frames, the watermark on every free run, drawing an address a viewer
@@ -93,6 +99,14 @@ export const CLARITY = {
    * a few more events there (552 against 540, measured).
    */
   beatStandOutShare: 1.25,
+  /**
+   * --- crew --- (studio2 review round 2, 9) The most notes a second a beat clip's run may play before its payoff (the median moment's,
+   * PayoffMoment.soundsMedian over its window) for its bounces to be heard as notes, a glissando's pace. Measured on the beat runs a
+   * viewer hears note by note: Ball Drop's peg cascade 8–23 a second (its looped rain 20–32), the Sound Vortex's rings 19, Collision
+   * Playground's ten orbs 13–15. Past it the notes run together into one texture – its 140 orbs played the sound's ceiling, 720 a
+   * second (the render measured 644), under "Every bounce is a note."
+   */
+  beatNotesPerSecMax: 40,
 } as const;
 
 /** --- templates --- The indices of a clip's captions of one role, in the list's order. */
@@ -176,7 +190,7 @@ function payoffGate(clip: CrewClip): Gate {
 }
 
 /** --- crew --- (review round 2, 20) When a clip's hook leaves the screen (s): its latest line's end, the clip's end for one that stays. */
-function hookEndSecOf(clip: CrewClip): number {
+function hookEndSecOf(clip: Pick<CrewClip, "captions" | "captionRoles" | "timing">): number {
   const hooks = rolesAt(clip, "hook").map((i) => clip.captions[i]);
   if (hooks.length === 0) return 0;
   return Math.max(...hooks.map((c) => (c.end > c.start ? c.end : clip.timing.clipSec)));
@@ -195,7 +209,10 @@ function hookEndSecOf(clip: CrewClip): number {
  * tick over a board at rest, is no payoff (a payoff the picture carries – Power Layers' break, its banner and its shards –
  * may be drawn beyond the balls' motion, so only silence counts there). DeadTail (review round 2, 21): a clip that ends
  * without words (no payoff's words on screen at its end) and ends on a quiet stretch longer than 1.5 s after its payoff – no
- * sound, the balls still: dead air where nothing is left to read.
+ * sound, the balls still: dead air where nothing is left to read. --- crew --- (studio2 review round 2, 12) SilentEnd: a payoff
+ * that plays no sound, after which the clip ends on more than 1.5 s with no sound at all, whatever moves and whatever words are
+ * on screen (PayoffMoment.silentTailSec): its climax unheard, then nothing to hear (a clip that ends without words and still is
+ * DeadTail's already).
  */
 function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: Record<string, string | number> }[] {
   const m = clip.run?.moment;
@@ -227,6 +244,10 @@ function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: 
   const tailFrom = typeof m.quietTailSec === "number" ? end - m.quietTailSec + CLARITY.quietTailMaxSec : end;
   const wordsAtEnd = rolesAt(clip, "payoff").some((i) => clip.captions[i].start < end - EPS && (clip.captions[i].end <= clip.captions[i].start || clip.captions[i].end >= end - 1e-6)) || endBannersShown(clip).some((b) => b.end >= end - 1e-6 && b.start <= tailFrom + EPS);
   if (!wordsAtEnd && typeof m.quietTailSec === "number" && m.quietTailSec > CLARITY.quietTailMaxSec + EPS) out.push({ key: "DeadTail", values: { sec: r1(m.quietTailSec) } });
+  // --- crew --- (studio2 review round 2, 12) a payoff that plays no sound, and a clip that ends on silence after it, words on screen or
+  // not: the conveyor's ALL OUT! came in silent and its clip ended on 2.3 s of silence under it (watched and measured) – a banner is
+  // words to read, but a climax a viewer with the sound on hears nothing at, then nothing more, is no payoff heard
+  else if (m.sounds === 0 && typeof m.silentTailSec === "number" && m.silentTailSec > CLARITY.quietTailMaxSec + EPS) out.push({ key: "SilentEnd", values: { sec: r1(atSec), tail: r1(m.silentTailSec) } });
   return out;
 }
 
@@ -242,6 +263,18 @@ export function beatStandsOut(m: Pick<NonNullable<NonNullable<CrewClip["run"]>["
   if (m.chordMax >= 2 && m.chordMax > (m.chordBefore ?? 0)) return true;
   const before = (m.accents ?? []).filter(([sec]) => sec < m.atSec - MOMENT_BEFORE_SEC - EPS);
   return m.accent && !before.some(([, notes]) => notes >= m.chordMax);
+}
+
+/**
+ * --- crew --- (studio2 review round 2, 9) The notes a second a beat clip's run plays at its usual moment before the payoff, where that is
+ * more than a viewer hears as notes (CLARITY.beatNotesPerSecMax); null: not a beat clip, no moment read around its payoff, an older
+ * record without the windows' count, or few enough. The moment's windows are MOMENT_BEFORE_SEC + MOMENT_AFTER_SEC long.
+ */
+export function beatWashPerSec(clip: Pick<CrewClip, "claim" | "run" | "payoff">): number | null {
+  const m = clip.run?.moment;
+  if (clip.claim !== "beat" || !m || clip.payoff.atSec === null || Math.abs(m.atSec - clip.payoff.atSec) > 0.01 || typeof m.soundsMedian !== "number") return null;
+  const perSec = m.soundsMedian / (MOMENT_BEFORE_SEC + MOMENT_AFTER_SEC);
+  return perSec > CLARITY.beatNotesPerSecMax + EPS ? perSec : null;
 }
 
 /** G3: one idea – no mode switch, one hook message, one ending's words. */
@@ -301,6 +334,10 @@ function wordsGate(clip: CrewClip): Gate {
   if (clip.recipe && recipe && !recipe.modes.includes(clip.mode)) problems.push({ key: "HookElsewhere", values: { mode: clip.mode } });
   const seen = claimSeen(clip);
   if (clip.claim && seen === false) problems.push({ key: "ClaimUnseen", values: { claim: clip.claim } });
+  // --- crew --- (studio2 review round 2, 9) a beat whose bounces are too many to hear as notes: the run's usual moment before the payoff
+  // plays more than CLARITY.beatNotesPerSecMax a second (a run read without the windows' count, an older record, keeps the old reading)
+  const wash = beatWashPerSec(clip);
+  if (wash !== null) problems.push({ key: "BeatWash", values: { perSec: Math.round(wash) } });
   if (clip.claim && seen === null) problems.push({ key: "ClaimUnmeasured", values: { claim: clip.claim } });
   const cut = counterCutReading(clip); // --- crew --- (review round 2, 22)
   if (cut !== null) problems.push({ key: "CounterCut", values: { reads: cut } });
@@ -338,6 +375,33 @@ function captionOverBanner(clip: CrewClip, topText: boolean, topHud: boolean): {
   return null;
 }
 
+/**
+ * --- crew --- (studio2 review round 2, 8) A hook the mode's own text pushed onto the action: the mode draws a banner of its own at the
+ * other edge of the square while the hook is up (ActionTrack.banners: Mode Lab's title block in the top left corner), so the Simple look
+ * put the hook at this edge (planner.ts placeSimpleTexts), and here it hides the run's moving balls on more than half of its samples –
+ * Tier Climb's "Matching orbs merge into a bigger one." over the bottom of its bowl, where the orbs merge into 3 and 4 behind it
+ * (watched). Neither edge is clear there: the other one has the mode's text (and, at Tier Climb's top, the rain and its first merge).
+ * The seconds it hides them, or null – no run read, no banner at the other edge, or half its samples or fewer (Glass Smash's hooks
+ * under its STAGE banners hide its falling ball for 0.5–1 s of their 2: measured on every plan).
+ */
+export function hookPushedOverAction(clip: Pick<CrewClip, "run" | "captions" | "captionRoles" | "timing" | "topText" | "settings">): { sec: number } | null {
+  const track = clip.run?.action;
+  if (!track || !isActionTrack(track) || !track.banners) return null;
+  const hook = rolesAt(clip, "hook");
+  if (hook.length === 0) return null;
+  const edge = clip.captions[hook[0]].position;
+  if (edge !== "top" && edge !== "bottom") return null;
+  const until = Math.min(hookEndSecOf(clip), clip.timing.clipSec);
+  const topText = !!clip.topText.trim();
+  const topHud = TOP_HUD_MODES.includes(clip.settings.mode);
+  const other = captionsAtEdge(clip.captions, hook, edge === "top" ? "bottom" : "top");
+  if (bannerCoverSec(other, hook, track, until, topText, topHud) <= EPS) return null;
+  let samples = 0;
+  while (actionSampleSec(track, samples) < until - 1e-9) samples++;
+  const hidden = actionCoverSec(clip.captions, hook, track, until, topText, topHud);
+  return samples > 0 && hidden > 0.5 * samples * track.stepSec + EPS ? { sec: r1(hidden) } : null;
+}
+
 /** G5: readable – safe zone, lines, hook words, time per line, no Top Text over a scoreboard band, no caption over a mode's banner. */
 function readableGate(clip: CrewClip): Gate {
   const problems: { key: string; values?: Record<string, string | number> }[] = [];
@@ -369,6 +433,8 @@ function readableGate(clip: CrewClip): Gate {
   if (hurried) problems.push({ key: "Hurried", values: { sec: r1((hurried.end - hurried.start) / hurried.lines), lines: hurried.lines } });
   const banner = captionOverBanner(clip, topText, topHud); // --- crew --- (AI studio step 3)
   if (banner) problems.push({ key: "OverBanner", values: banner });
+  const pushed = hookPushedOverAction(clip); // --- crew --- (studio2 review round 2, 8)
+  if (pushed) problems.push({ key: "HookOverAction", values: pushed });
   return gate("G5", problems, "Ok");
 }
 

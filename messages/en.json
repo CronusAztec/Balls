@@ -3804,6 +3804,7 @@
         "payoffLandsDeadTail": "The clip ends on {sec} s of silence with nothing moving.",
         "payoffLandsBrief": "The payoff stays on screen only {held} s. It needs 0.8 s.",
         "payoffLandsPlain": "Nothing stands out at the payoff at {sec} s. The run played as much before it.",
+        "payoffLandsSilentEnd": "Nothing is heard at the payoff at {sec} s, and the clip ends on {tail} s of silence.",
         "oneIdeaTwoHooks": "More than one hook on screen.",
         "oneIdeaTwoEndings": "The clip ends twice, with the payoff's words and a question.",
         "oneIdeaModeSwitched": "The mode changed after the plan.",
@@ -3816,6 +3817,7 @@
         "wordsMatchPictureClaimUnmeasured": "The run could not be checked against the hook.",
         "wordsMatchPictureCounterCut": "The counter leaves at {reads}, before its end.",
         "wordsMatchPictureOverUndone": "The payoff's words stay on screen after {sec} s, when the picture no longer shows it.",
+        "wordsMatchPictureBeatWash": "The run plays {perSec} notes a second, too many to hear each bounce.",
         "readableUnsafe": "A caption runs outside the safe zone.",
         "readableEdgeUnsafe": "The top or bottom text runs outside the safe zone.",
         "readableOverBand": "The top text sits on the mode's scoreboard.",
@@ -3824,6 +3826,7 @@
         "readableHurried": "A line stays only {sec} s. It needs 1.2 s to read.",
         "readableOverBanner": "A caption covers the mode's own text at {sec} s.",
         "readableOverModeText": "The top text sits on the mode's own words.",
+        "readableHookOverAction": "The hook covers the action for {sec} s. The mode's own text takes the other edge.",
         "notTooBusyBusy": "It needs a Simple score of 60 or more.",
         "lengthFitsOut": "{sec} s fits none of this platform's lengths."
       }
@@ -4277,6 +4280,7 @@
       "box": "It stops at zero.",
       "spiralGlass": "Can it clear all the glass?",
       "conveyor": "{count} balls. Will they all get out?",
+      "collide": "Bumps play notes. Then they slip through.",
       "doublePendulum": "Same start. Watch them split.",
       "hatchery": "Every broken tile hatches a new ball.",
       "ringBreaker": "Every broken ring doubles the balls.",
@@ -4287,6 +4291,20 @@
     },
     "ownPayoffs": {
       "journey": "Home! 🏠"
+    },
+    "ownPosts": {
+      "box": {
+        "postQuestion": "Which square did you think would stop first?",
+        "hashtags": "#countdown #bouncingsquares #whichfirst"
+      },
+      "conveyor": {
+        "postQuestion": "Did you think they would all get out?",
+        "hashtags": "#conveyorbelt #ballescape #willtheyescape"
+      },
+      "doublePendulum": {
+        "postQuestion": "At what second did you see them split?",
+        "hashtags": "#chaostheory #doublependulum #butterflyeffect"
+      }
     },
     "cover": {
       "label": "Cover",

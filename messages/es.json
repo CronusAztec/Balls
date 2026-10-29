@@ -3804,6 +3804,7 @@
         "payoffLandsDeadTail": "El clip termina con {sec} s de silencio sin nada en movimiento.",
         "payoffLandsBrief": "El desenlace dura en pantalla solo {held} s. Necesita 0,8 s.",
         "payoffLandsPlain": "En el desenlace, a los {sec} s, nada destaca. Antes sonaba lo mismo.",
+        "payoffLandsSilentEnd": "En el desenlace, a los {sec} s, no suena nada, y el clip termina con {tail} s de silencio.",
         "oneIdeaTwoHooks": "Hay más de un gancho en pantalla.",
         "oneIdeaTwoEndings": "El clip termina dos veces, con el desenlace y una pregunta.",
         "oneIdeaModeSwitched": "El modo cambió después del plan.",
@@ -3816,6 +3817,7 @@
         "wordsMatchPictureClaimUnmeasured": "No se pudo comprobar la partida con el gancho.",
         "wordsMatchPictureCounterCut": "El contador desaparece en {reads}, antes de terminar.",
         "wordsMatchPictureOverUndone": "El texto del desenlace sigue en pantalla tras {sec} s, cuando la imagen ya no lo muestra.",
+        "wordsMatchPictureBeatWash": "La partida toca {perSec} notas por segundo, demasiadas para oír cada rebote.",
         "readableUnsafe": "Un texto se sale de la zona segura.",
         "readableEdgeUnsafe": "El texto superior o inferior se sale de la zona segura.",
         "readableOverBand": "El texto superior tapa el marcador del modo.",
@@ -3824,6 +3826,7 @@
         "readableHurried": "Una línea dura solo {sec} s. Hacen falta 1,2 s para leerla.",
         "readableOverBanner": "A los {sec} s un texto tapa el del propio modo.",
         "readableOverModeText": "El texto superior tapa las palabras del propio modo.",
+        "readableHookOverAction": "El gancho tapa la acción durante {sec} s. El otro borde lo ocupa el texto del propio modo.",
         "notTooBusyBusy": "Necesita una sencillez de 60 o más.",
         "lengthFitsOut": "{sec} s no encaja en ninguna duración de esta plataforma."
       }
@@ -4277,6 +4280,7 @@
       "box": "Se para en cero.",
       "spiralGlass": "¿Romperá todo el cristal?",
       "conveyor": "{count} pelotas. ¿Saldrán todas?",
+      "collide": "Cada choque suena. Luego se atraviesan.",
       "doublePendulum": "Mismo inicio. Mira cómo se separan.",
       "hatchery": "Cada cristal roto hace nacer una bola.",
       "ringBreaker": "Cada anillo roto duplica las bolas.",
@@ -4287,6 +4291,20 @@
     },
     "ownPayoffs": {
       "journey": "¡En casa! 🏠"
+    },
+    "ownPosts": {
+      "box": {
+        "postQuestion": "¿Qué cuadrado creías que pararía primero?",
+        "hashtags": "#cuentaatras #cuadrados #cualprimero"
+      },
+      "conveyor": {
+        "postQuestion": "¿Creías que saldrían todas?",
+        "hashtags": "#cintatransportadora #escape #saldrantodas"
+      },
+      "doublePendulum": {
+        "postQuestion": "¿En qué segundo viste que se separaban?",
+        "hashtags": "#teoriadelcaos #doblependulo #efectomariposa"
+      }
     },
     "cover": {
       "label": "Portada",

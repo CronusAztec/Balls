@@ -52,7 +52,9 @@ export function reasonValues(values: Readonly<Record<string, string | number>>, 
  * A copy string of the recipe, filled (`field`: name, hook, cliffHook, payoff, cliffQuestion, postQuestion…). --- templates ---
  * A template's own recipe (BotRecipe.formatCopy) speaks with its format's words (formatText).
  */
-export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, field: string, vars: Record<string, string | number> = {}, keep: KeepUnfilled = false): string {
+export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy"> & Partial<Pick<BotRecipe, "postKey">>, field: string, vars: Record<string, string | number> = {}, keep: KeepUnfilled = false): string {
+  // --- templates --- (studio2 review round 2, 11) a binding's own post question and hashtags, where its format's do not fit its hook
+  if (recipe.postKey && (OWN_POST_FIELDS as readonly string[]).includes(field)) return fillSentences(copyString(copy, `ownPosts.${recipe.postKey.slice(OWN_POST_FIELD.length)}.${field}`), vars, keep);
   if (recipe.formatCopy) return formatText(copy, recipe.copyKey, field, vars, keep); // --- templates ---
   // --- templates --- (AI studio step 6) a recipe's template that speaks one of its format's words (FORMAT_FIELD: the boss rush's hook)
   if (field.startsWith(FORMAT_FIELD)) {
@@ -106,6 +108,16 @@ export const FORMAT_FIELD = "format.";
  * marked HOME, where the get-out format says "Out!").
  */
 export const OWN_PAYOFF_FIELD = "ownPayoff.";
+
+/**
+ * --- templates --- (studio2 review round 2, 11) The field of a binding's own post: `ownPost.<key>` (BotRecipe.postKey) reads
+ * `ViralBot.ownPosts.<key>.postQuestion` and `.hashtags` in place of its format's, for a binding whose own hook its format's post
+ * does not fit – Bouncing Shapes' countdown ("It stops at zero.") was posted as "Did you think it would hit?" with "#bullseye
+ * #trickshot #willithit", the conveyor's "7 balls. Will they all get out?" asked "What was your guess before the end?".
+ */
+export const OWN_POST_FIELD = "ownPost.";
+/** The fields a binding's own post holds (OWN_POST_FIELD): every other field is its format's. */
+export const OWN_POST_FIELDS = ["postQuestion", "hashtags"] as const;
 
 /** A recipe's field a format's copy does not have, and the one that stands in for it: its name is its series, its closing question a cliffhanger's post question. */
 const FORMAT_STAND_INS: Readonly<Record<string, FormatCopyField>> = { series: "name", cliffPostQuestion: "cliffQuestion" };
@@ -204,8 +216,10 @@ export function recipeCopyVars(copy: BotCopy, recipe: Pick<BotRecipe, "copyVars"
  * posts its format's own tags (`ViralBot.formats.<format>.hashtags`) and not its series': the escape series' "#escape" on a
  * target smashed, a conveyor counted or a bullseye shot was a claim the clip never made.
  */
-export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy">, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
-  const own = parseHashtags(fillTemplate(copyString(copy, `${recipeCopyPath(recipe)}.hashtags`), vars));
+export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy"> & Partial<Pick<BotRecipe, "postKey">>, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
+  // (--- templates --- studio2 review round 2, 11: a binding's own post tags, where its format's do not fit its hook)
+  const ownPath = recipe.postKey ? `ownPosts.${recipe.postKey.slice(OWN_POST_FIELD.length)}.hashtags` : `${recipeCopyPath(recipe)}.hashtags`;
+  const own = parseHashtags(fillTemplate(copyString(copy, ownPath), vars));
   const family = recipe.formatCopy ? [] : parseHashtags(copyString(copy, `hashtags.${recipe.family}`));
   const common = parseHashtags(copyString(copy, "hashtags.common"));
   const out: string[] = [];
@@ -225,7 +239,7 @@ export function seriesLabel(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "
 }
 
 export interface PostCopyInput {
-  recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy">;
+  recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy"> & Partial<Pick<BotRecipe, "postKey">>;
   platform: BotPlatform;
   ending: EndingStyle;
   hook: string;

@@ -3804,6 +3804,7 @@
         "payoffLandsDeadTail": "Klip kończy się {sec} s ciszy, w której nic się nie rusza.",
         "payoffLandsBrief": "Finał zostaje na ekranie tylko {held} s. Potrzeba 0,8 s.",
         "payoffLandsPlain": "W finale po {sec} s nic się nie wyróżnia. Wcześniej grało tyle samo.",
+        "payoffLandsSilentEnd": "W finale po {sec} s nic nie słychać, a klip kończy się {tail} s ciszy.",
         "oneIdeaTwoHooks": "Na ekranie jest więcej niż jeden hook.",
         "oneIdeaTwoEndings": "Klip ma dwa zakończenia, słowa finału i pytanie.",
         "oneIdeaModeSwitched": "Tryb zmienił się po zaplanowaniu.",
@@ -3816,6 +3817,7 @@
         "wordsMatchPictureClaimUnmeasured": "Nie udało się sprawdzić przebiegu z hookiem.",
         "wordsMatchPictureCounterCut": "Licznik znika przy {reads}, przed końcem.",
         "wordsMatchPictureOverUndone": "Tekst finału zostaje na ekranie po {sec} s, gdy obraz już go nie pokazuje.",
+        "wordsMatchPictureBeatWash": "Przebieg gra {perSec} nut na sekundę, za dużo, by usłyszeć każde odbicie.",
         "readableUnsafe": "Napis wychodzi poza bezpieczną strefę.",
         "readableEdgeUnsafe": "Górny lub dolny tekst wychodzi poza bezpieczną strefę.",
         "readableOverBand": "Górny tekst zasłania tablicę wyników trybu.",
@@ -3824,6 +3826,7 @@
         "readableHurried": "Linijka zostaje tylko {sec} s. Na przeczytanie trzeba 1,2 s.",
         "readableOverBanner": "Po {sec} s napis zasłania tekst samego trybu.",
         "readableOverModeText": "Górny tekst zasłania napis samego trybu.",
+        "readableHookOverAction": "Hook zasłania akcję przez {sec} s. Drugą krawędź zajmuje napis samego trybu.",
         "notTooBusyBusy": "Potrzeba prostoty co najmniej 60.",
         "lengthFitsOut": "{sec} s nie pasuje do żadnej długości tej platformy."
       }
@@ -4277,6 +4280,7 @@
       "box": "Zatrzyma się na zerze.",
       "spiralGlass": "Czy zbije całe szkło?",
       "conveyor": "Piłki: {count}. Czy wszystkie uciekną?",
+      "collide": "Zderzenia grają nuty. Potem się przenikają.",
       "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą.",
       "hatchery": "Każda rozbita płytka wykluwa nową kulkę.",
       "ringBreaker": "Każdy rozbity pierścień podwaja kulki.",
@@ -4287,6 +4291,20 @@
     },
     "ownPayoffs": {
       "journey": "W domu! 🏠"
+    },
+    "ownPosts": {
+      "box": {
+        "postQuestion": "Który kwadrat według ciebie stanie pierwszy?",
+        "hashtags": "#odliczanie #kwadraty #ktopierwszy"
+      },
+      "conveyor": {
+        "postQuestion": "Myślałeś, że wszystkie uciekną?",
+        "hashtags": "#tasmociag #ucieczka #czyuciekna"
+      },
+      "doublePendulum": {
+        "postQuestion": "W której sekundzie zobaczyłeś, że się rozchodzą?",
+        "hashtags": "#teoriachaosu #wahadlopodwojne #efektmotyla"
+      }
     },
     "cover": {
       "label": "Okładka",

@@ -117,6 +117,8 @@ export interface ModeHud {
   /** It shows the countdown to the payoff. */
   counts: boolean;
   words: string;
+  /** --- crew --- (studio2 review round 2, 7) Only with these settings (Brick Smash's counter under its box: the loop HUD off). */
+  when?: (s: SimulatorSettings) => boolean;
 }
 
 /** The HUDs a mode always draws: no setting switches them off (the planner's countdown HUDs without a flag). */
@@ -135,6 +137,9 @@ export const MODE_HUDS: readonly ModeHud[] = [
   // --- crew --- (AI studio step 6) a Mode Lab game's own HUD (blueprintRenderer.ts drawOverlay: its title block in the square's top
   // left corner, which no setting switches off)
   { mode: "blueprint", counts: false, words: "the game's name and its counters in the top left corner" },
+  // --- crew --- (studio2 review round 2, 7) Brick Smash's count of its bricks under the box, which its renderer draws whenever the
+  // loop HUD is off (brickRebuildRenderer.ts drawCounters: the HUD's own counter line takes its place when it is on), the Simple look's too
+  { mode: "brickRebuild", counts: false, when: (s) => !s.loopHud, words: "a count of the bricks left, under the box" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings
@@ -281,7 +286,7 @@ const applies = (flag: HudFlag, mode: ModeId) => flag.modes === "any" || flag.mo
 /** The HUDs these settings draw, the mode's own first, then the flags in HUD_FLAGS order. */
 export function hudsOn(s: SimulatorSettings): HudOn[] {
   const out: HudOn[] = [];
-  for (const h of MODE_HUDS) if (h.mode === s.mode) out.push({ id: `mode:${h.mode}`, kind: "hud", flag: false, costs: false, texts: 1, counts: h.counts, words: h.words });
+  for (const h of MODE_HUDS) if (h.mode === s.mode && (!h.when || h.when(s))) out.push({ id: `mode:${h.mode}`, kind: "hud", flag: false, costs: false, texts: 1, counts: h.counts, words: h.words });
   for (const f of HUD_FLAGS) {
     if (!applies(f, s.mode) || !f.on(s)) continue;
     out.push({ id: f.key, kind: f.kind, flag: true, costs: f.costs ? f.costs(s) : true, texts: f.texts(s), counts: f.counts, words: f.words, ...(f.topCentre ? { topCentre: true as const } : {}) });

@@ -390,8 +390,9 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("clip.seed", f["clip.seed"] === null ? none : String(f["clip.seed"])),
     line("beats.firstImpact", f["beats.firstImpact"] === null ? "unknown" : `${f["beats.firstImpact"]} s`),
     line("beats.hook", hook ? `${hook.from}-${hook.to} s` : none),
-    // (--- templates --- review round 2, 22: a Simple clip whose picture is its countdown draws no counter)
-    line("beats.countdown", countdown ? (countdown.source === "picture" ? "no counter drawn: the picture alone" : `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}`) : none),
+    // (--- templates --- review round 2, 22: a Simple clip whose picture is its countdown draws no counter; --- crew --- studio2 review
+    // round 2, 7: where the mode draws a counter of its own all the same – Brick Smash's bricks under the box –, the view says so)
+    line("beats.countdown", countdown ? (countdown.source === "picture" ? pictureCountdown(clip.settings) : `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}`) : none),
     line("beats.payoff", payoff ? `${payoff.what ? String(payoff.what).replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase() /* (gameOver: "game over") */ : "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the clip ends` : ""}` : p.atSec === null ? "none in the run" : none),
     line("beats.cut", cut ? `from ${cut.from} s for ${cut.length} s, end card ${cut.card} s` : none),
     line("beats.end", `${end.sec} s${end.afterPayoff === null ? "" : end.afterPayoff >= 0 ? `, ${end.afterPayoff} s after the payoff` : `, ${r1(-end.afterPayoff)} s before the payoff`}`),
@@ -474,6 +475,16 @@ export function screenView(clip: CrewClip, options: { scene?: string } = {}): Sc
   }
   if (text.length > SCREEN_MAX) text = clampLines(text, SCREEN_MAX);
   return { v: 1, text };
+}
+
+/**
+ * --- crew --- (studio2 review round 2, 7) The intent view's countdown where the picture counts: no caption counter, and – where the
+ * mode draws a HUD of its own that no setting switches off (hudFlags.ts MODE_HUDS: Brick Smash's count of its bricks under the box)
+ * – that HUD, which the screen view lists too, so the two views never disagree on what is drawn.
+ */
+function pictureCountdown(s: SimulatorSettings): string {
+  const own = hudsOn(s).filter((h) => !h.flag);
+  return own.length ? `no counter caption: the picture, and the mode draws its own: ${own.map((h) => h.words).join("; ")}` : "no counter drawn: the picture alone";
 }
 
 function renderScreen(clip: CrewClip, scene: string | undefined, t: { quote: number; list: number }): string[] {

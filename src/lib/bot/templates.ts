@@ -3,7 +3,7 @@ import { RANGES, defaultSettings, type SimulatorSettings } from "@/lib/settings"
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, intBetween, pick, recipeById, snapStep, stepBetween, supportsBucket, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type CountdownKind, type CountdownSource, type EndingChoice, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, BUCKET_SECONDS, ENDING_STYLES, LENGTH_BUCKETS, PAYOFF_BAND, PLATFORMS, intBetween, pick, recipeById, snapStep, stepBetween, supportsBucket, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type CountdownKind, type CountdownSource, type EndingChoice, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
 import { AT_END_BUCKETS, AT_END_SEC, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 import { FORMAT_FIELD, OWN_HOOK_FIELD, templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name; AI studio step 6: a variant's format hook)
 import { modeSettingsOfSettings } from "./finderRequest"; // --- templates --- (Perfect Fit's solution seed: the finder's own search)
@@ -47,7 +47,8 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp lined up, and Collision Playground on the
  *    beat, timed by its anti-collision drop since the first review round; step 6: the Drawing Machine's flower revealed, and Mode
  *    Lab, a variant per catalog game bp-check calls playable – Colour Conquest's hidden, its page's run parting from the
- *    planner's, watched); the other 11 are declared, experimental and hidden with the reason measured and watched – no setting
+ *    planner's, watched, and since the studio2 review's second round Tier Climb's, its hook with no clear edge (LAB_GAME_HIDDEN));
+ *    the other 11 are declared, experimental and hidden with the reason measured and watched – no setting
  *    answers it yet, their format's copy is written – (docs/virality-playbook.md §5): Perfect Fit, Beat Machines and the Wave Tank
  *    joined them in the studio's first review round (10 and 11). 48 of 48 are bound: every binding is ready, or experimental with
  *    its reason, or (the square race, Ball Drop) proven with its one variant hidden with its reason. A trial binding plans once it
@@ -374,7 +375,7 @@ export interface TemplateVariant {
  * --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). --- templates --- (AI
  * studio step 6) Its series too (`family`): a Mode Lab game's own (Colour Conquest is a battle).
  */
-export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "payoffKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "family" | "musicFirst" | "note">>;
+export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "payoffKey" | "postKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "family" | "musicFirst" | "note">>;
 
 export interface ModeBinding {
   mode: ModeId;
@@ -436,6 +437,11 @@ export interface ModeBinding {
    */
   payoffKey?: OwnPayoffKey;
   /**
+   * --- templates --- (studio2 review round 2, 11) Its post's own question and hashtags, where its format's do not fit its own hook (copy.ts
+   * OWN_POST_FIELD: `ViralBot.ownPosts.<key>`): Bouncing Shapes' countdown, the conveyor's stated count, the chaos fan's split.
+   */
+  postKey?: OwnPostKey;
+  /**
    * --- templates --- (studio2 review round 1, 19) The payoff it shows where its format's is not its run's (playbook.ts PAYOFF_TYPES):
    * Paddle Keep-Up's GAME OVER under the aim format, whose payoff is a hit.
    */
@@ -455,10 +461,16 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
+
+/**
+ * --- templates --- (studio2 review round 2, 11) A binding's own post (copy.ts OWN_POST_FIELD: `ViralBot.ownPosts.<key>`, its question and
+ * hashtags): where its own hook says what its run does and its format's post asks about something else.
+ */
+export type OwnPostKey = `ownPost.${"box" | "conveyor" | "doublePendulum"}`;
 
 const kebab = (id: string) => id.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
@@ -583,10 +595,34 @@ function targetSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 /**
  * Brick Smash's first smash: a new ball every `brEvery` bricks sets its pace – the last brick falls about 5 s a brick of it in
  * (2: 7–9 s, 4: 19–21 s, 6: 28–34 s) –, so it is drawn from the payoff target, with the balls' speed for the rest.
+ * --- templates --- (studio2 review round 2, 7) And its settle, held past the clip's end (brickSettleSec): the rebuild never starts
+ * inside the clip.
  */
 function brickSmashSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { brEvery: Math.max(1, Math.round(ctx.payoffTarget / 5)), brSpeed: stepBetween(ctx.rng, 420, 520, 10) };
+  return { brEvery: Math.max(1, Math.round(ctx.payoffTarget / 5)), brSpeed: stepBetween(ctx.rng, 420, 520, 10), brSettle: brickSettleSec(ctx.bucket) };
 }
+
+// --- templates --- (studio2 review round 2, 7) Brick Smash's settle past the clip's end
+/** How far past the clip's end Brick Smash's settle reaches (s): its rebuild, which flies the picture back in, never starts inside the clip. */
+export const BR_SETTLE_PAST_SEC = 0.5;
+/**
+ * Brick Smash's settle (s, `brSettle` on its slider's step, up): the balls fall to the floor of the empty box from the last brick on,
+ * then the rebuild flies every brick of the picture back in from outside the box (4 s) and the next smash starts. At the mode's 1 s
+ * settle the rebuild began 1 s after the payoff of every resolved clip – 2.8 s of bricks flying back under "Smashed. 💥" on the
+ * review's 27 s clip (155 bricks back at 25.5 s, 564 at its end: watched), 3.8 s on a 29 s one. A resolved clip's payoff comes at 80 %
+ * of it or later (PAYOFF_BAND.from), so it runs on at most a fifth of the bucket's longest clip after it: the settle covers that and
+ * BR_SETTLE_PAST_SEC more, as the Drawing Machine holds its flower past the clip's end (DM_HOLD_PAST_SEC). A setting of the binding:
+ * the mode's own 1 s and the smash before it are as they were.
+ */
+export function brickSettleSec(bucket: LengthBucket): number {
+  return stepAtLeast((1 - PAYOFF_BAND.from) * (BUCKET_SECONDS[bucket].max + 0.5) + BR_SETTLE_PAST_SEC, RANGES.brSettle);
+}
+/** What the viewer's screen view sees of Brick Smash, in neutral words: its balls, the wall, and – the balls multiply – the new ball a few bricks bring. */
+function brickSmashScene(s: SimulatorSettings): string {
+  const more = s.brEvery > 1 ? `, a new ball for every ${s.brEvery} bricks broken` : s.brEvery === 1 ? ", a new ball for every brick broken" : "";
+  return `${s.brBalls} small balls under a wall of bricks that draws a picture${more}`;
+}
+// --- end of Brick Smash's settle
 
 /** Perfect Fit's boxes of the twelve pentominoes, one a clip (W × H = 60): the 10 × 6, the 12 × 5 or the 15 × 4. */
 const PF_ONE_BOX = ["10×6", "12×5", "15×4"] as const;
@@ -696,13 +732,20 @@ function territorySettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 
 /**
  * Land Claim's battle under its claim rule, each block recoloured in its hitter's colour: the land a side holds is there to see
- * with its HUD off (the knock rule's walls stay white, and who leads is a blind guess: watched). Two balls a side over 12–20 rows
- * in a short clip (its verdict 10–11 s in), no new balls in a standard one (22–31 s in, 2 or 3 a side): the default's verdict
- * comes before a clip cut before it can start (the recorder's 10 s).
+ * with its HUD off (the knock rule's walls stay white, and who leads is a blind guess: watched).
+ * --- templates --- (studio2 review round 2, 10) Two sides, the mode's own claim2v2, each adding a ball of its colour for every few blocks
+ * it claims, so the side ahead pulls further ahead: four sides with no new balls ended level – every block is claimed once, so the
+ * shares close on a quarter each: 22/23/28/26 % at 10 s, 25/25/26/24 % at the cut, no leader to back under "Who wins? 👇" (watched; 10
+ * of 12 plans 3.8 points apart or less). Two balls a side over 10–14 rows, a ball every 8 blocks, in a short clip (its verdict 13–16 s
+ * in); one a side in a standard one, the run's length from the payoff target – a ball every 8 blocks over 16 rows (verdict 19–22 s in),
+ * every 10 over 18 (23–27 s), every 12 over 20 (28–31 s). The seed search keeps a seed only where one side holds LC_LEAD_MIN of the land
+ * more than the other at the cut (outcomeStrategy.ts OUTCOME_REFUSALS): about half the seeds do (measured).
  */
 function landClaimSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  const rule = { lcRule: "claim" as const };
-  return ctx.bucket === "short" ? { ...rule, lcBalls: 2, lcRows: intBetween(ctx.rng, 12, 20) } : { ...rule, lcEvery: 0, lcBalls: intBetween(ctx.rng, 2, 3), lcRows: intBetween(ctx.rng, 12, 16) };
+  const two = { lcRule: "claim" as const, lcTeams: 2 };
+  if (ctx.bucket === "short") return { ...two, lcBalls: 2, lcEvery: 8, lcRows: intBetween(ctx.rng, 10, 14) };
+  const [lcEvery, lcRows] = ctx.payoffTarget < 21 ? [8, 16] : ctx.payoffTarget < 26 ? [10, 18] : [12, 20];
+  return { ...two, lcBalls: 1, lcEvery, lcRows };
 }
 
 /**
@@ -868,18 +911,24 @@ function vortexSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 }
 
 /**
- * Collision Playground: 100–140 orbs, a third to a half of the default 300 (watched: at 300 a mass of small orbs, no one bump to
- * follow; the orbs grow as they get fewer, so the circle stays full and its measured motion stays past the Simple score's
- * reference, its 5 points charged); every collision still a note.
+ * Collision Playground: --- templates --- (studio2 review round 2, 9) ten orbs, the slider's least, at the least Ball Size (4: the orbs
+ * grow as they get fewer, and this keeps the circle a quarter as full as the default size would), falling under the mode's own
+ * gravity at 200–240 px/s, so every bump is a note a viewer hears as one: about 10–12 notes a second at the run's usual moment
+ * (measured; at 220–280 px/s one plan of 12 played 17 a second). The 100–140 orbs it had played the sound's ceiling, 12 a frame (the render measured 644 a second): one wash
+ * with no bump to hear under "Every bounce is a note." (watched). The crew's G4 now fails a beat clip whose run plays notes faster
+ * than a viewer hears them as notes, 40 a second (crew/clarity.ts CLARITY.beatNotesPerSecMax): 20 orbs would pass it (30–36), and
+ * ten keep each bump apart.
  * --- templates --- (studio round 1, 11) The drop: its anti-collision switch at the payoff target's whole second (the setting's step),
  * where every orb turns a new colour and stops colliding, the screen flashes, ANTI-COLLISION comes up and an accented chord plays
  * (modes/collide.ts switchToAntiCollision): the one moment of its run that stands out, timed by the "fixed" strategy (planner.ts
- * payoffSecOf). Until then a bump is a note, as many a moment as the sound takes; the clip's last 1.5 s played what every moment
- * before them had (552 events against the run's busiest 540: 0 of 12 plans stood out).
+ * payoffSecOf). --- templates --- (studio2 review round 2, 9) Its hook says it is coming ("Bumps play notes. Then they slip
+ * through.": `own.collide`), so the switch and its label are the moment the hook promised, not a word a stranger never heard of.
  */
 function collideSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { cpCount: stepBetween(ctx.rng, 100, 140, 20), cpAntiCollisionAt: Math.max(1, Math.round(ctx.payoffTarget)) };
+  return { cpCount: COLLIDE_ORBS, ballRadius: RANGES.ballRadius.min, ballSpeed: stepBetween(ctx.rng, 200, 240, 10), cpAntiCollisionAt: Math.max(1, Math.round(ctx.payoffTarget)) };
 }
+/** --- templates --- (studio2 review round 2, 9) Collision Playground's orbs: the slider's least, ten, so a bump is a note a viewer hears. */
+const COLLIDE_ORBS = RANGES.cpCount.min;
 
 /** Ball Drop's rain, looped: the balls fall through the board and in again at the top, so its notes never thin out (the atEnd payoff lands on a full board). */
 const DROP_RAIN: Partial<SimulatorSettings> = { dropLoop: true };
@@ -956,6 +1005,8 @@ const LAB_GAME_BUCKETS: Readonly<Record<BlueprintCatalogId, readonly LengthBucke
  */
 const LAB_GAME_HIDDEN: Readonly<Partial<Record<BlueprintCatalogId, string>>> = {
   conquer: "its 24 balls collide and convert each other, and the page's run parted from the planner's: rendered twice, it ended 0.8 s after the planned finish once and had two colours left at the clip's end the other time (13 s; planned to end 11 s in), so its ending never came (watched)",
+  // --- templates --- (studio2 review round 2, 8)
+  tierClimb: "no edge of the square is clear for its hook: the game's title block takes the top (G5), where the rain also falls and the first orbs merge into a 2 about 1 s in, and at the bottom the hook hid the moving orbs on 3 of its 4 samples on 9 of 12 plans (1.5 s of its 2; 1 s on the other 3), the merges into 3 and 4 behind \"into a bigger one.\" at 1.6-2.4 s (watched): the hook covers the very thing it describes (crew/clarity.ts hookPushedOverAction)",
 };
 /** What the viewer's screen view sees of each game, in neutral words. */
 const LAB_GAME_SCENES: Readonly<Record<BlueprintCatalogId, string>> = {
@@ -1141,7 +1192,8 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // smash
   powerLayers: bind("powerLayers", { format: "smash", strategy: "fixed", tier: "proven", keepHud: null, variants: [["power-layers"]], note: "the layer count is the mode's own HUD" }),
   target: bind("target", later("smash", "finish", { generate: targetSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookVars: (s) => ({ count: s.targetCount }), note: ENDS_AT_FINISH, scene: (s) => `one ball inside a ring of ${s.targetCount} numbered segments, a big number in the middle` })),
-  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'", scene: () => "a few small balls under a wall of bricks that draws a picture" })),
+  // (--- templates --- studio2 review round 2, 7: its settle held past the clip's end, so the rebuild never starts inside it; the scene says the balls multiply)
+  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'; its settle held past the clip's end, so the picture never flies back in inside it (brickSettleSec)", scene: brickSmashScene })),
   spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, tune: SPIRAL_OVERLAY_OFF, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", payoffWords: false, note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
   // fill
   grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill", undefined, undefined, GROW_FILL_BUCKETS], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
@@ -1152,7 +1204,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   multipliers: bind("multipliers", { format: "count", strategy: "finish", tier: "proven", keepHud: null, variants: [["multipliers-board"]], note: "the ball counter at home is the mode's own HUD" }),
   // (--- templates --- AI studio step 4: the plan had both on atEnd, as loops; the code's both end – the conveyor once its last ball is
   // out, Merge Ring 2 s after its final form or an overflow –, so each is timed by its own moment, its run's end inside the clip)
-  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookKey: "own.conveyor", payoffWords: false, hookVars: (s) => ({ count: s.cvMaxBalls }), note: CONVEYOR_OWN_COUNT, scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
+  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookKey: "own.conveyor", postKey: "ownPost.conveyor", payoffWords: false, hookVars: (s) => ({ count: s.cvMaxBalls }), note: CONVEYOR_OWN_COUNT, scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
   mergeRing: bind("mergeRing", later("count", "finish", { generate: mergeRingSettings, buckets: ["short", "standard"], hookKey: "own.mergeRing", note: "its run ends 2 s after its final form (FINAL FORM): the payoff, not a loop's end; hook 'How far can it merge?'", scene: () => "balls of numbered sizes dropping through a chute into a ring, where two of a size fuse into a bigger one" })),
   // whoWins (the battle family: offered only where the battle family is asked for, as the daily bot's BOT_DEFAULT_FAMILIES)
   race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race", undefined, COUNT_IN]], note: "it waits for a race whose gate opens within the first second" }),
@@ -1169,10 +1221,11 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   }),
   maze: bind("maze", later("whoWins", "outcome", { outcome: "winner", generate: mazeSettings, buckets: ["short", "standard"], hookKey: "hook", note: "first one out (outcomeStrategy.ts OWN_RUN_MODE_MOMENTS)", scene: (s) => `${s.mzBalls} balls in ${s.mzBalls} colours dropping into a glowing green maze, an exit at the bottom` })),
   territory: bind("territory", later("whoWins", "outcome", { outcome: "winner", generate: territorySettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: `its board's verdict comes as its countdown ends; ${ENDS_AT_FINISH}`, scene: (s) => `a board of tiles in ${s.tyTeams} colours, balls of each colour bouncing over it and painting it` })),
-  landClaim: bind("landClaim", later("whoWins", "outcome", { outcome: "winner", generate: landClaimSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: `or close; ${ENDS_AT_FINISH}`, scene: (s) => `columns of white blocks around an arena, balls in ${s.lcTeams} colours painting each block they hit in their colour` })),
+  // (--- templates --- studio2 review round 2, 10: two sides that snowball, and a seed only where one leads at the cut)
+  landClaim: bind("landClaim", later("whoWins", "outcome", { outcome: "winner", generate: landClaimSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: `two sides, a ball more for every few blocks a side claims, cut where one side leads by LC_LEAD_MIN of the land or more; ${ENDS_AT_FINISH}`, scene: (s) => `columns of white blocks around an arena, balls in ${s.lcTeams} colours painting each block they hit in their colour, a new ball of a colour for every ${s.lcEvery} blocks it paints` })),
   // aim (--- templates --- AI studio step 4: each timed by its run's own moment, planner.ts MARK_MODES)
   bullseye: bind("bullseye", later("aim", "finish", { generate: bullseyeSettings, buckets: ["short", "standard"], hookKey: "hookB", note: "'Will one hit the bullseye?': the first bullseye, its BULLSEYE! callout", scene: () => "balls fired from the top, one after another, through a few pegs onto a dartboard lying at the bottom" })),
-  box: bind("box", later("aim", "finish", { generate: boxCountdownSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.box", payoffWords: false, hookVars: (s) => ({ count: s.boxCountdown, zero: 0 }), note: "the countdown hook ('It stops at zero.'): the first shape at zero (planner.ts MARK_MODES); its corner comes too soon for any length", scene: (s) => `${s.boxShapeCount} squares gliding in straight lines inside a tall box, each showing a number` })),
+  box: bind("box", later("aim", "finish", { generate: boxCountdownSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.box", postKey: "ownPost.box", payoffWords: false, hookVars: (s) => ({ count: s.boxCountdown, zero: 0 }), note: "the countdown hook ('It stops at zero.'): the first shape at zero (planner.ts MARK_MODES); its corner comes too soon for any length", scene: (s) => `${s.boxShapeCount} squares gliding in straight lines inside a tall box, each showing a number` })),
   paddle: bind("paddle", later("aim", "finish", { generate: paddleSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", payoffWords: false, payoffType: "gameOver", note: "'How long can it last?': one life, its GAME OVER", scene: () => "one ball bouncing on a platform near the bottom that slides left and right to catch it" })),
   // lineUp
   pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]], tune: PENDULUM_TUNE, hookAsk: "cliffQuestion", note: "the hook asks whether they line up (its chord plays at the release and every half cycle too, so it promises none); every bob sounds at its turning points, so the realignment is one accented chord; pendulums in a row, so 'back in line' is a line" }),
@@ -1184,14 +1237,15 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   orbGrid: bind("orbGrid", later("lineUp", "outcome", { outcome: "resolves-at", generate: orbGridSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", note: "the field bounces out of step until it lands in phase at its cycle (resolves-at, the accented chord)", scene: () => "a large square field of small orbs, each bouncing on its own spot" })),
   // (--- templates --- studio2 review round 2, 6: no words over the remix, standard clips only, a sort that never stalls – CS_WORDS)
   colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", generate: colourSortSettings, musicFirst: true, buckets: ["standard"], endings: ["resolved"], hookKey: "hook", payoffWords: false, note: CS_WORDS, scene: (s) => `${s.csColours * s.csPerColour} balls of ${s.csColours} colours mixed together inside rings with gaps` })),
-  doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", generate: doublePendulumSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.doublePendulum", note: "its own hook, the plan's hook b: 'Same start. Watch them split.' (the chaos fan, played forward)", scene: (s) => `${s.dpFanCount} double pendulums started on top of one another, swinging over a row of strings` })),
+  doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", generate: doublePendulumSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.doublePendulum", postKey: "ownPost.doublePendulum", note: "its own hook, the plan's hook b: 'Same start. Watch them split.' (the chaos fan, played forward); its own post asks when they split, never the line-up format's sync", scene: (s) => `${s.dpFanCount} double pendulums started on top of one another, swinging over a row of strings` })),
   // onTheBeat (--- templates --- AI studio step 5: Ball Drop's rain loops, so its notes never thin out; the clip's end is its payoff)
   drop: bind("drop", { format: "onTheBeat", strategy: "atEnd", tier: "proven", keepHud: null, variants: [["drop-symphony", undefined, DROP_PLAIN]], tune: DROP_RAIN, note: DROP_FADES }),
   beatDrop: bind("beatDrop", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hookB", note: "its run is its recording: the last landing a second before the clip's end, its banner on it (atEnd: the plan's 'finish' never comes before the clip does)", scene: () => "one ball bouncing down from platform to platform as each flies in" })),
   beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles", generate: beatMachineSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "one loop a clip, its seeded phrase one no tube needs a spare marble for (a run of its own: a note of its last bars)", scene: () => "marbles dropping from tubes onto a row of tuned bars and rolling back" })),
   runner: bind("runner", later("onTheBeat", "finish", { musicFirst: true, note: "LEVEL COMPLETE 1.6 s before its run's end" })),
   vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings", generate: vortexSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "two rings, the last one swallowed on a bar line (a run of its own), the final banner a second later", scene: () => "rings of balls spiralling down a whirlpool towards a hole in its middle" })),
-  collide: bind("collide", later("onTheBeat", "fixed", { generate: collideSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookB", note: "the drop: its anti-collision switch at the payoff, every orb a new colour, a flash, ANTI-COLLISION and an accented chord (studio round 1, 11: its clip's end had played what the whole run did)", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
+  // (--- templates --- studio2 review round 2, 9: ten orbs, a bump a note a viewer hears, and a hook of its own that says the switch is coming)
+  collide: bind("collide", later("onTheBeat", "fixed", { generate: collideSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.collide", note: "the drop: its anti-collision switch at the payoff, every orb a new colour, a flash, ANTI-COLLISION and an accented chord (studio round 1, 11: its clip's end had played what the whole run did); ten orbs, so every bump is a note a viewer hears, and its own hook says they will pass through (studio2 review round 2, 9)", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
   waveTank: bind("waveTank", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hook", scene: () => "water waves rolling through gaps in a wall, a row of bells along the far side" })),
   // reveal (--- templates --- AI studio step 6: the picture the hook asks to guess, the clip's last 1.5 s)
   lines: bind("lines", later("reveal", "atEnd")),
@@ -1406,6 +1460,7 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     hookVars: b.hookVars ?? (() => ({})),
     ...(b.hookKey ? { hookKey: b.hookKey } : {}), // --- templates --- (AI studio step 3) its hook variant, in either ending
     ...(b.payoffKey ? { payoffKey: b.payoffKey } : {}), // --- templates --- (AI studio step 4b) its own payoff's words
+    ...(b.postKey ? { postKey: b.postKey } : {}), // --- templates --- (studio2 review round 2, 11) its own post's question and hashtags
     ...(b.character ? { character: true } : {}),
     formatCopy: true, // --- templates --- (its format's words, its mode's noun)
     copyVars: () => ({ thing: thingKeyOf(b.mode) }),

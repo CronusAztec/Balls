@@ -21,6 +21,7 @@ import {
   conveyorBallScale,
   conveyorBowlHalfWidth,
   conveyorDropMs,
+  conveyorFinishChord, // --- conveyor --- (studio2 review round 2, 12)
   conveyorHitFrequency,
   conveyorLoadMs,
   conveyorMaxScale,
@@ -465,6 +466,24 @@ describe("a run", () => {
     // The counter and the banner.
     expect(conveyorCounter(v, DEFAULT_CONVEYOR_LABELS)).toBe("Loaded 8 / Escaped 8");
     expect(conveyorBanner(v, DEFAULT_CONVEYOR_LABELS)).toEqual({ title: "ALL OUT!", sub: "Loaded 8 / Escaped 8" });
+  });
+
+  // --- conveyor --- (studio2 review round 2, 12)
+  it("the final banner comes in with its chord: accented, once, the scale's root to its octave, as the other modes' finishes play theirs", () => {
+    const engine = conveyorEngine({ maxBalls: 3, interval: 1 }, 9);
+    const v = engine.getConveyorView();
+    const { events } = run(engine, 90);
+    const chords = events.filter((e) => e.ev.chord && e.ev.accent);
+    expect(chords).toHaveLength(1);
+    const [finale] = chords;
+    expect(v).toMatchObject({ allDone: true, timedOut: false, finished: true });
+    expect(Math.abs(1000 * finale.t - v.doneAtMs)).toBeLessThanOrEqual(STEP + 1e-6);
+    expect([finale.ev.type, finale.ev.melody, finale.ev.chord!.length, finale.ev.frequency]).toEqual(["hit", false, 4, finale.ev.chord![0]]);
+    expect(finale.ev.chord!.every((f, i, all) => i === 0 || f > all[i - 1])).toBe(true);
+    expect(finale.ev.chord![3] / finale.ev.chord![0]).toBeCloseTo(2, 6);
+    expect(finale.ev.chord).toEqual(conveyorFinishChord(v.settings.scale, v.settings.rootNote));
+    // nothing after it: the hold that follows is the banner's
+    expect(events.filter((e) => e.t > finale.t + 1e-9 && e.ev.type === "hit" && !e.ev.conveyor)).toEqual([]);
   });
 
   it("the director gets every ball out, even through narrow gaps on fast rings – after a patience that differs from ball to ball", () => {

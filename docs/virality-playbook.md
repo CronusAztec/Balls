@@ -217,7 +217,7 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 35 modes as 45 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
+- **Ready now:** 35 modes as 44 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset, the bracket and, since AI studio step 6, the boss rush. A template
   plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
@@ -228,8 +228,8 @@ checks (G4).
   off. Nine more since step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp
   line up, and Beat Machines, Collision Playground and Wave Tank play on the beat. Ball Drop's template was ready again in
   step 5, its rain looped. The first review round hid Beat Machines', the Wave Tank's and Ball Drop's again, as nothing at their
-  payoff stands out from the run before it, and timed Collision Playground's by its anti-collision drop (below). Two more since step 6: the Drawing Machine reveals its flower, and the Mode Lab plays five of its
-  six built-in games, a template each. Their numbers are in the tables of steps 3, 4, 4b, 5 and 6 and the first review round
+  payoff stands out from the run before it, and timed Collision Playground's by its anti-collision drop (below). Two more since step 6: the Drawing Machine reveals its flower, and the Mode Lab plays four of its
+  six built-in games, a template each (five until the second review round hid Tier Climb's: its hook had no clear edge, below). Their numbers are in the tables of steps 3, 4, 4b, 5 and 6 and the first review round
   below, and the whole table's counts and medians per format after them.
 - **Hidden for now:** the other 13 modes are bound but wait, each with its reason. Eleven sit in the experimental table
   (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass, and joins it only by a deliberate
@@ -273,7 +273,9 @@ checks (G4).
   A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
   Bouncing Shapes', Spiral Glass's, the Double Pendulum's, since step 6 each Mode Lab game's rule, and since the first review
   round the conveyor's, with its count) or a payoff
-  (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠"). A variant that wraps a recipe may draw one of its format's hooks
+  (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠"), or a post (`ViralBot.ownPosts`, since the second review round:
+  the question and the hashtags of Bouncing Shapes, the conveyor and the chaos fan, whose format's asked about something else).
+  A variant that wraps a recipe may draw one of its format's hooks
   instead of the recipe's (step 6: Fight League's boss rush, "Pick one before it starts.").
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
@@ -399,7 +401,7 @@ rendered watermarked through the page's own fast export, and its hook and contac
 | get-out-shatter | 8–12 rings of glass (short) or 16–20 (standard), ball speed 380–440; cut before the escape | 97 | 86 | 12/12 |
 | get-out-color-match | one ring of 12 segments in 2 colours, ball speed 600–800; standard only, cut before the escape | 97 | 86 | 12/12 |
 | smash-target | 5 numbered segments (short) or 6–7 (standard), ball speed 600–720, no gravity; cut before the last | 97 | 86 | 12/12 |
-| smash-brick-rebuild | a new ball every max(1, target ÷ 5) bricks, ball speed 420–520; the last brick of the picture | 100 | 86 | 12/12 |
+| smash-brick-rebuild | a new ball every max(1, target ÷ 5) bricks, ball speed 420–520; the last brick of the picture (since the second review round its settle held past the clip's end, and its bricks' counter counted: below) | 100 | 86 | 12/12 |
 | fill-perfect-fit | the 12 pentominoes in a 10 × 6, 12 × 5 or 15 × 4 box, timed to fill at the target; the tiling with the most pieces on the floor | 97 | 82 | 12/12 |
 | get-out-classic-ring | one ring with a 15–25 % gap, ball speed 420–560, spin 0.8–1.6, ball 8–11 | 97 | 86 | 11/12 |
 
@@ -440,10 +442,10 @@ passed its watch: one clip of each rendered watermarked and its hook and contact
 
 | Template | Its own settings | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- | --- |
-| count-conveyor | a ball every 2–3 s up to as many as fill the clip; standard only; ALL OUT!, 1.5 s before the run ends | 91 | 82 | 12/12 |
+| count-conveyor | a ball every 2–3 s up to as many as fill the clip; standard only; ALL OUT!, 1.5 s before the run ends (with its chord since the second review round: below) | 91 | 82 | 12/12 |
 | who-wins-maze | 8–10 columns (short) or 11–13 (standard), 3–4 balls, each trail in its ball's colour; the first one out | 97 | 86 | 12/12 |
 | who-wins-territory | its countdown on its 5 s step at or past the target; cut before the verdict | 97 | 86 | 12/12 |
-| who-wins-land-claim | the claim rule (a block takes its hitter's colour), 2 balls a side over 12–20 rows (short) or 2–3 a side, no new balls, 12–16 rows (standard); cut before the verdict | 97 | 86 | 11/12 |
+| who-wins-land-claim | the claim rule (a block takes its hitter's colour), 2 balls a side over 12–20 rows (short) or 2–3 a side, no new balls, 12–16 rows (standard); cut before the verdict (two sides that snowball since the second review round, cut where one leads: below) | 97 | 86 | 11/12 |
 | aim-bullseye | 4–5 rings (short) or 6–7 (standard), most pegs in play (chaos 0.6–0.75), 16 or 20 shots; the first BULLSEYE! | 90 | 86 | 12/12 |
 | aim-box | two squares at speeds 2 : 3, each counting down from twice the target; the first one at zero | 97 | 82 | 12/12 |
 
@@ -522,7 +524,7 @@ notes) and its hook and contact sheets looked at.
 | line-up-double-pendulum | the chaos fan 10⁻⁵° apart (short) or 10⁻⁶° (standard), played forward; its own hook "Same start. Watch them split." | 97 | 86 | 12/12 |
 | on-the-beat-drop | Drop Symphony's draw with the rain looped; the clip's last 1.5 s | 97 | 82 | 12/12 |
 | on-the-beat-beat-machine | 120 bpm, one loop the clip's length, 5 marbles a tube; a seed whose phrase needs no spare marble, the note nearest 85 % of the loop its payoff; the clip ends on the loop's seam | 97 | 86 | 12/12 |
-| on-the-beat-collide | 100–140 orbs; the clip's last 1.5 s | 97 | 82 | 12/12 |
+| on-the-beat-collide | 100–140 orbs; the clip's last 1.5 s (ten orbs and its own hook since the second review round: below) | 97 | 82 | 12/12 |
 | on-the-beat-wave-tank | the mode's own double slit; the clip's last 1.5 s | 97 | 82 | 12/12 |
 
 - Their runs are the bot look's: the seed and every run fact are the same in both looks, on all 156 plans measured (the ten
@@ -574,7 +576,7 @@ at, Glass Hatchery's three times.
 | reveal-drawing-machine | the orbits machine: Earth and Venus over 8 years, a line between them every few days, so a five-petal flower comes out of the lines, its five conjunction marks left unjoined (no five-pointed star since the first review round); the years' pace on its slider's step so the flower is done 0.25–0.65 s into the clip's last 1.5 s (atEnd), the hold past the clip's end; hook "Guess what it draws." | 97 | 82 | 12/12 |
 | lab-game-blueprint | Glass Hatchery, the Mode Lab's default game; standard only; its own hook "Every broken tile hatches a new ball." | 92 | 82 | 12/12 |
 | lab-game-blueprint-ring-breaker | Ring Breaker; short only; "Every broken ring doubles the balls." | 87.5 | 84 | 12/12 |
-| lab-game-blueprint-tier-climb | Tier Climb; standard only; "Matching orbs merge into a bigger one." | 91.5 | 82 | 12/12 |
+| lab-game-blueprint-tier-climb | Tier Climb; standard only; "Matching orbs merge into a bigger one." (hidden since the second review round: its hook covered the merges, below) | 91.5 | 82 | 12/12 |
 | lab-game-blueprint-plinko-race | Peg Race; short only; "Through the pegs. First one out wins." | 87.5 | 84 | 12/12 |
 | lab-game-blueprint-grow-escape | Grow or Go; short only; "Bigger every bounce. Will it still fit?" | 89 | 84 | 12/12 |
 | who-wins-fight-league-boss | the boss rush recipe, with its format's hook b "Pick one before it starts." | 89.5 | 96 | 12/12 |
@@ -732,6 +734,31 @@ section, one in a clip:
   the same, and the fingerprints are unchanged.
 - The panel's intro still says the rotation's endings alternate. It describes Auto, the default; beside a chosen template the
   Ending select and its one line say what that template plays.
+
+**The second review round, findings 7–12** **[observed: every ready template's 4 plan seeds × 3 platforms in the Simple look in
+English, before and after; the changed ones in Polish and Spanish too, on plan seeds 5–8 in the studio's 800×450 world, and in the
+bot look; one clip of each changed template rendered watermarked and watched, two of Land Claim's]**. The review watched the
+renders and found six things a stranger would not get, or hear. Each is fixed at its root, or its template is hidden:
+
+| Finding | What a viewer saw or heard | What changed | Measured since |
+| --- | --- | --- | --- |
+| Brick Smash's end | the picture flying back in under "Smashed. 💥": the rebuild began 1 s after the payoff, 155 bricks back at 25.5 s of 27 | the template holds the settle past the clip's end (`brickSettleSec`: a fifth of its length's longest clip and 0.5 s, 3.6 s short, 6.6 s standard; the mode's own 1 s unchanged); G4 fails payoff words over a rebuild (`payoffUndone`) and the screen view names it, and the bricks' counter under the box, which no view had named | 12/12 in each language, 12/12 on plan seeds 5–8 at 800×450; Simple 92.5 (90–95; 100 before, the counter now counted on screen), checklist 86; the render ends on the balls at rest on an empty box |
+| Tier Climb's hook | "Matching orbs merge into a bigger one." over the bottom of the bowl, the merges into 3 and 4 behind it | no edge was clear: the game's title block takes the top, where the rain and the first merge are. G5 fails a hook the mode's own text pushes onto the action for more than half its samples (`hookPushedOverAction`) | hidden (9 of 12 plans hid the orbs 1.5 s of the hook's 2); the other games' and Glass's hooks hide 0–1 s |
+| Collision Playground's notes | 140 orbs playing the sound's ceiling (644 events a second), then an unexplained ANTI-COLLISION | ten orbs at Ball Size 4, 200–240 px/s, and its own hook "Bumps play notes. Then they slip through." ("Zderzenia grają nuty. Potem się przenikają.", "Cada choque suena. Luego se atraviesan."); G4 fails a beat played faster than 40 notes a second (`beatWashPerSec`: Ball Drop's cascade plays 8–32) | 12/12 in each language, 24/24 on plan seeds 1–8 at 800×450; 9–17 notes a second, the render 15; the drop 12 dB above the run; Simple 97, checklist 86; the bot look 12/12 |
+| Land Claim's cut | "Who wins? 👇" over four sides level to 1–3 points, the HUD off | two sides, a ball more for every 8–12 blocks a side claims, so the leader pulls ahead; a seed is kept only where one side leads by a tenth of the land at the cut (`LC_LEAD_MIN`, `OUTCOME_REFUSALS`) | 12/12 in each language (11/12 before: a 42 s plan), 12/12 on plan seeds 5–8 at 800×450; Simple 97, checklist 86; the two renders cut with 58/42 % and 73/26 % of the two colours on screen |
+| The posts' words | Bouncing Shapes posted with "Did you think it would hit?" and "#bullseye #trickshot"; the conveyor's stated count asked for as a guess; the chaos fan's split tagged "#perfectsync" | a binding's own post (`ViralBot.ownPosts`: its question and hashtags) in en, pl and es, read by the post, the producer's brief and the templates listing, which shows no payoff words where none are drawn | a test reads each one's post in the three languages |
+| The conveyor's climax | ALL OUT! came in silent, then 2.3 s of digital silence | the mode plays a chord with its final banner (`conveyorFinishChord`; TIME'S UP none), as Spiral Glass, Merge Ring and Paddle Keep-Up do; G2 fails a payoff that plays nothing with more than 1.5 s of silence after it (`payoffLandsSilentEnd`) | 12/12 in each language, 12/12 on plan seeds 5–8 at 800×450; the chord the loudest moment of the render (-2 dB peak), then 1.45 s of silence under the banner |
+
+- The whole table after the round: 35 ready bindings as 44 templates (the Mode Lab's four), 521 of 524 English plans passing
+  every gate (the same three misses as before: Classic's one ring and Glass on one Shorts plan each, a String Battle's first hit
+  at 1.4 s), and every other template's plans the same as before, byte for byte in what they draw.
+- Spiral Glass's silent hold after GLASS CLEARED is the house's end banner: every mode's own banner holds 1.5–4.7 s in silence
+  after a payoff that is heard (Merge Ring's FINAL FORM, an arena's champion, the conveyor's ALL OUT! now). G2 accepts it there,
+  and a bed or a chord that rings through the hold is the owner's call (docs/agents/STUDIO.md, known gaps).
+- Bouncing Shapes' silent stretch after its first shape stops (0.65 s) was under G2's 1.5 s, and sound comes back: no change.
+- The conveyor's chord changes its mode for every user, the website's too: the run, its timing and its fingerprint are as they
+  were, and its end is heard.
+- The role eval's corpus moved with the payoff moment's silent end and the menu (docs/agents/CREW-EVAL.md, run round2b).
 
 **Where the templates are offered** (AI studio steps 7 and 8):
 

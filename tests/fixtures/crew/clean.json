@@ -484,7 +484,8 @@
       "soundsMax": 2,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0.5
+      "quietTailSec": 0.5,
+      "silentTailSec": 1.78
      },
      "action": {
       "stepSec": 0.5,
@@ -869,7 +870,8 @@
         1
        ]
       ],
-      "quietTailSec": 3.5
+      "quietTailSec": 3.5,
+      "silentTailSec": 3.5
      },
      "action": {
       "stepSec": 0.5,
@@ -1278,7 +1280,8 @@
         1
        ]
       ],
-      "quietTailSec": 3.5
+      "quietTailSec": 3.5,
+      "silentTailSec": 3.5
      },
      "action": {
       "stepSec": 0.5,
@@ -1867,7 +1870,8 @@
       "soundsMax": 25,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -2258,7 +2262,8 @@
         1
        ]
       ],
-      "quietTailSec": 2.12
+      "quietTailSec": 2.12,
+      "silentTailSec": 2.32
      },
      "action": {
       "stepSec": 0.5,
@@ -2562,7 +2567,8 @@
         14
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.15
      },
      "action": {
       "stepSec": 0.5,
@@ -2843,7 +2849,8 @@
         10
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.15
      },
      "action": {
       "stepSec": 0.5,
@@ -3241,7 +3248,8 @@
         1
        ]
       ],
-      "quietTailSec": 2.5
+      "quietTailSec": 2.5,
+      "silentTailSec": 2.5
      },
      "action": {
       "stepSec": 0.5,
@@ -3523,7 +3531,8 @@
         11
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -4121,7 +4130,8 @@
       "soundsMax": 20,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -4991,7 +5001,8 @@
       "soundsMax": 3,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0.5
+      "quietTailSec": 0.5,
+      "silentTailSec": 2.23
      },
      "action": {
       "stepSec": 0.5,
@@ -5898,7 +5909,8 @@
         8
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.08
      },
      "action": {
       "stepSec": 0.5,
@@ -6207,7 +6219,8 @@
       "soundsMax": 6,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 3.5
+      "quietTailSec": 3.5,
+      "silentTailSec": 3.5
      },
      "action": {
       "stepSec": 0.5,
@@ -6482,7 +6495,8 @@
       "soundsMax": 27,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -7107,7 +7121,8 @@
         12
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.08
      },
      "action": {
       "stepSec": 0.5,
@@ -8728,7 +8743,8 @@
       "soundsMax": 18,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -9081,7 +9097,8 @@
         1
        ]
       ],
-      "quietTailSec": 2.12
+      "quietTailSec": 2.12,
+      "silentTailSec": 2.32
      },
      "action": {
       "stepSec": 0.5,
@@ -9420,7 +9437,8 @@
         4
        ]
       ],
-      "quietTailSec": 2.28
+      "quietTailSec": 2.28,
+      "silentTailSec": 2.3
      },
      "action": {
       "stepSec": 0.5,
@@ -9682,7 +9700,8 @@
       "soundsMax": 2,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0.5
+      "quietTailSec": 0.5,
+      "silentTailSec": 1.87
      },
      "action": {
       "stepSec": 0.5,
@@ -10067,7 +10086,8 @@
         4
        ]
       ],
-      "quietTailSec": 3.5
+      "quietTailSec": 3.5,
+      "silentTailSec": 3.5
      },
      "action": {
       "stepSec": 0.5,
@@ -10363,7 +10383,8 @@
       "soundsMax": 16,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0
      },
      "action": {
       "stepSec": 0.5,
@@ -10718,7 +10739,8 @@
         1
        ]
       ],
-      "quietTailSec": 2.5
+      "quietTailSec": 2.5,
+      "silentTailSec": 2.5
      },
      "action": {
       "stepSec": 0.5,
@@ -11269,7 +11291,8 @@
       "soundsMax": 19,
       "chordBefore": 1,
       "accents": [],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.02
      },
      "action": {
       "stepSec": 0.5,
@@ -11853,7 +11876,8 @@
         16
        ]
       ],
-      "quietTailSec": 0
+      "quietTailSec": 0,
+      "silentTailSec": 0.03
      },
      "action": {
       "stepSec": 0.5,

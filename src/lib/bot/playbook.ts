@@ -279,6 +279,12 @@ export interface BotRecipe {
    * Without it the payoff speaks its copy's `payoff` (planner.ts payoffKeyOf).
    */
   payoffKey?: string;
+  /**
+   * --- templates --- (studio2 review round 2, 11) The key of its post's own question and hashtags where its format's do not fit its own
+   * hook (copy.ts OWN_POST_FIELD: `ViralBot.ownPosts.<key>`): Bouncing Shapes' countdown posted as "Did you think it would hit?" with
+   * "#bullseye #trickshot", the conveyor's stated count asked for as a guess. Without it the post speaks its copy's.
+   */
+  postKey?: string;
 }
 
 /* seeded helpers ---------------------------------------------------------- */
