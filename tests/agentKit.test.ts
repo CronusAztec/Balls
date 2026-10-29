@@ -8,7 +8,7 @@ import { commonPrefix, linkChecks, modeCatalog, modeDetail, type LinkIo } from "
 import { explainFailure, testFilesIn, textReadsOf } from "@/lib/agentKit/explain";
 import { AGENT_TOOLS, checkToolArgs, toolSpec } from "@/lib/agentKit/tools";
 import { DEFAULT_SEED, normaliseLink, resolveRun } from "@/lib/agentKit/runRequest";
-import { POST_ROUTE_OLDER, ageHours, errorKind, platformMatches, postAnswerKind, postRouteOf, postizConfigFromEnv, rawRouteOf, seriesFacts, seriesShapes, settingsById, statsConfigFromEnv, statsOrigin, statsPeriod, statsRequests, statsSummary, trialAsked, withoutSecret } from "../scripts/agent/owner-stats.mjs";
+import { POST_LIST_OLDER, POST_LIST_SETTINGS, POST_ROUTE_OLDER, ageHours, errorKind, labelOf, platformMatches, platformOf, postAnswerKind, postRouteOf, postizConfigFromEnv, rawRouteOf, seriesFacts, seriesShapes, settingsById, settingsListedOf, statsConfigFromEnv, statsOrigin, statsPeriod, statsRequests, statsSummary, trialAsked, withoutSecret, withoutSecretDeep } from "../scripts/agent/owner-stats.mjs";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { simulateSeed } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
@@ -405,5 +405,43 @@ describe("owner-run commands' pure halves (--- agent-cli ---)", () => {
     expect(checkToolArgs("postiz-probe", { days: 7, posts: 20, platform: "instagram" }).ok).toBe(true);
     expect(checkToolArgs("postiz-probe", { platform: "My Channel" }).ok).toBe(false);
     expect(checkToolArgs("postiz-probe", { posts: 21 }).ok).toBe(false);
+  });
+
+  it("prints a label only as plain words and a platform only as an identifier: a value, a name or a long text never comes through", () => {
+    // Postiz's own labels (instagram.provider.ts setTitle, youtube.provider.ts, gmb.provider.ts's metric names) pass as they are
+    for (const label of ["Views", "Reach", "Total Likes", "Average View Duration", "Pin click rate", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "Page Views"]) expect(labelOf(label)).toBe(label);
+    expect(["48213", "Views 48213", "Jumping Balls Live reach 39107", "Views SECRET-KEY-7f3a", "Likes: 917", "x".repeat(61), "@jumpingballs", "Ünïcode"].map((label) => labelOf(label))).toEqual(Array(8).fill("(odd label)"));
+    expect([undefined, null, "", "   ", 48213, { label: "Views" }].map((label) => labelOf(label))).toEqual(Array(6).fill("(no label)"));
+    // plain words that hold a channel's name (as Postiz lists it, any case) are not echoed; a name under 3 letters is no name
+    expect(labelOf("Reach of Bouncy Account", ["Jumping Balls Live", "Bouncy Account"])).toBe("(odd label)");
+    expect(labelOf("JUMPING BALLS LIVE views", ["Jumping Balls Live"])).toBe("(odd label)");
+    expect(labelOf("Views", ["Jumping Balls Live", "", "ab", "  "])).toBe("Views");
+    expect(seriesFacts([{ label: "Bouncy Account likes", data: [{ total: "0" }] }, { label: "Likes", data: [] }], ["Bouncy Account"]).map((f) => f.label)).toEqual(["(odd label)", "Likes"]);
+    expect(seriesShapes([{ label: "Views 48213", data: [{ total: 1 }] }, { label: 917, data: [] }])).toEqual([{ label: "(odd label)", points: 1 }, { label: "(no label)", points: 0 }]);
+    expect(seriesFacts([{ label: "Reach of Jumping Balls 39107", data: [{ total: "39107" }] }])).toEqual([{ label: "(odd label)", points: 1, aboveZero: "yes" }]);
+    for (const platform of ["instagram", "instagram-standalone", "tiktok", "x", "linkedin-page"]) expect(platformOf(platform)).toBe(platform);
+    expect(["Jumping Balls Live", "48213", "Instagram", "instagram standalone", `a${"b".repeat(40)}`, "insta_gram"].map((p) => platformOf(p))).toEqual(Array(6).fill("(other)"));
+    expect([undefined, null, "", 48213].map((p) => platformOf(p))).toEqual([null, null, null, null]);
+  });
+
+  it("cuts the key out of every string of a result, as typed and URL-encoded, keys included", () => {
+    const key = "k3y/with+odd=chars";
+    expect(withoutSecret(`a ${key} b ${encodeURIComponent(key)}`, key)).toBe("a [key] b [key]");
+    expect(withoutSecret("nothing here", "")).toBe("nothing here");
+    const out = withoutSecretDeep({ host: `${key}.example.com`, list: [`x ${key}`, 3, null, true, { [`label ${key}`]: [`y ${encodeURIComponent(key)}`] }], n: 48 }, key);
+    expect(out).toEqual({ host: "[key].example.com", list: ["x [key]", 3, null, true, { "label [key]": ["y [key]"] }], n: 48 });
+    expect(JSON.stringify(out)).not.toContain("k3y");
+  });
+
+  it("tells whether the post list carries each post's settings: Postiz 2.24.0 or newer, else every trial is unknown", () => {
+    // 2.24 and newer: getPosts selects settings (null for a post created without any)
+    expect(settingsListedOf({ posts: [{ id: "a", settings: null }, { id: "b", settings: '{"is_trial_reel":true}' }] })).toEqual({ settings: "yes", meaning: POST_LIST_SETTINGS });
+    // 2.18 to 2.23: the same list without the field
+    expect(settingsListedOf({ posts: [{ id: "a", content: "x", publishDate: "2026-10-29T12:00:00Z" }, { id: "b" }] })).toEqual({ settings: "no", meaning: POST_LIST_OLDER });
+    expect(POST_LIST_OLDER).toMatch(/older than 2\.24/);
+    expect(settingsListedOf([{ id: "a", settings: "{}" }]).settings).toBe("yes");
+    expect(settingsListedOf({ posts: [] })).toMatchObject({ settings: "unknown", meaning: expect.stringMatching(/no post was listed/) });
+    expect(settingsListedOf(null).settings).toBe("unknown");
+    expect(settingsListedOf({ posts: ["a", 3, null] }).settings).toBe("unknown");
   });
 });

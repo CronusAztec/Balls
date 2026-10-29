@@ -13,7 +13,9 @@
  *   Only totals come back – no visitor, page address or referrer list.
  *  postiz-probe – which analytics series the owner's Postiz returns: series labels and point counts, never the numbers; per
  *   recent post also its age in hours, whether it asked to be a Trial Reel, whether each series' total is above zero (yes or
- *   no) and whether the per-post route answers (Postiz 2.18.0 or newer).
+ *   no) and whether the per-post route answers (Postiz 2.18.0 or newer); whether the post list carries each post's settings
+ *   (Postiz 2.24.0 or newer). Errors by kind only; a platform that is not a plain identifier, and a label that is not plain
+ *   words or holds a channel's name, are never echoed.
  *
  * Without a key either prints "not configured" and exits 0. A key never appears in a request summary or a message.
  * Kept in scripts/, not src/: the site's code names no statistics vendor and no vendor host (tests/analytics.test.ts).
@@ -171,12 +173,41 @@ export function statsSummary(provider, answers) {
 /* ------------------------------------------------------------------ postiz-probe */
 
 /**
- * The shape of analytics series – each label and how many points it has – and nothing of their values.
+ * A series label as printed: Postiz's labels are plain words ("Views", "Total Likes", "Average View Duration",
+ * BUSINESS_IMPRESSIONS_DESKTOP_MAPS), so a label that is not – one with a digit (a value), a name with a number, anything
+ * longer than 60 characters – or that holds one of `names` (the channels' names as Postiz lists them, compared without
+ * case) prints as "(odd label)" and is never echoed; none at all is "(no label)".
+ * @param {unknown} label
+ * @param {readonly string[]} [names]
+ * @returns {string}
+ */
+export function labelOf(label, names = []) {
+  if (typeof label !== "string" || !label.trim()) return "(no label)";
+  const lower = label.toLowerCase();
+  const named = names.some((n) => typeof n === "string" && n.trim().length >= 3 && lower.includes(n.trim().toLowerCase()));
+  return /^[A-Za-z][A-Za-z ()/_.-]{0,59}$/.test(label) && !named ? label : "(odd label)";
+}
+
+/**
+ * A platform as printed: Postiz's own identifier ("instagram", "instagram-standalone", "tiktok"), the same pattern the
+ * probe's `platform` argument takes; anything else – a name, a number – prints as "(other)" and is never echoed. None: null.
+ * @param {unknown} platform
+ * @returns {string | null}
+ */
+export function platformOf(platform) {
+  if (typeof platform !== "string" || !platform) return null;
+  return /^[a-z][a-z0-9-]{0,39}$/.test(platform) ? platform : "(other)";
+}
+
+/**
+ * The shape of analytics series – each label (labelOf, with the channels' `names`) and how many points it has – and nothing
+ * of their values.
  * @param {readonly { label?: unknown, data?: unknown }[]} series
+ * @param {readonly string[]} [names]
  * @returns {{ label: string, points: number }[]}
  */
-export function seriesShapes(series) {
-  return series.map((s) => ({ label: typeof s.label === "string" ? s.label.slice(0, 60) : "(no label)", points: Array.isArray(s.data) ? s.data.length : 0 }));
+export function seriesShapes(series, names = []) {
+  return series.map((s) => ({ label: labelOf(s.label, names), points: Array.isArray(s.data) ? s.data.length : 0 }));
 }
 
 /**
@@ -192,24 +223,47 @@ export function postizConfigFromEnv(env) {
 }
 
 /**
- * A message with every occurrence of the key cut out.
+ * A message with every occurrence of the key cut out, as typed and as it reads in an address (URL-encoded).
  * @param {string} text
  * @param {string} secret
  * @returns {string}
  */
 export function withoutSecret(text, secret) {
-  return secret ? text.split(secret).join("[key]") : text;
+  if (!secret) return text;
+  const cut = text.split(secret).join("[key]");
+  const encoded = encodeURIComponent(secret);
+  return encoded === secret ? cut : cut.split(encoded).join("[key]");
+}
+
+/**
+ * Every string of a result – its values and its keys, however deep – with the key cut out (withoutSecret): the probe's last
+ * guard before it prints.
+ * @template T
+ * @param {T} value
+ * @param {string} secret
+ * @returns {T}
+ */
+export function withoutSecretDeep(value, secret) {
+  const walk = (/** @type {unknown} */ v) => {
+    if (typeof v === "string") return withoutSecret(v, secret);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [withoutSecret(k, secret), walk(x)]));
+    return v;
+  };
+  return /** @type {T} */ (walk(value));
 }
 
 /* ------------------------------------------------------------------ postiz-probe: the pilot's per-post facts (C10) */
 // --- insights --- The owner's pilot (L0): what it needs from each recent post (docs/agents/CLI.md, "Owner-run commands"; docs/
 // SOCIAL-AUTOPILOT.md, section 6): its age, whether it asked to be a Trial Reel, and whether each of its series' totals is
-// above zero – yes or no, never the total – plus whether the per-post route answers at all (Postiz 2.18.0 or newer). The
-// shapes are Postiz's own (gitroomhq/postiz-app, read at 64f00fd6): GET /public/v1/posts answers {posts: [...]} with each
-// post's `settings` as the JSON text it was created with; GET /public/v1/analytics/post/:id answers
+// above zero – yes or no, never the total – plus whether the per-post route answers at all (Postiz 2.18.0 or newer) and
+// whether the post list carries each post's settings (Postiz 2.24.0 or newer). The shapes are Postiz's own
+// (gitroomhq/postiz-app, read at 64f00fd6 and at its tags): GET /public/v1/posts answers {posts: [...]}, from 2.24.0 with
+// each post's `settings` as the JSON text it was created with (posts.repository.ts getPosts selects it since 80f74750; before
+// it a post's trial cannot be read: "unknown"); GET /public/v1/analytics/post/:id answers
 // [{label, percentageChange, data: [{total: "<text>", date}]}], [] (no numbers yet, the platform withholds them, or Postiz
-// could not read them) or {missing: true} (Postiz lost the post's id on the platform); a Postiz older than 2.18.0 has no
-// such route and answers 404.
+// could not read them) or {missing: true} (Postiz lost the post's id on the platform); a Postiz older than 2.18.0 has
+// neither this route nor GET /analytics/:integration (both came in ecb1b55c) and answers both with Nest's 404.
 
 /** What a 404 on the per-post route means. */
 export const POST_ROUTE_OLDER = "your Postiz is older than 2.18: no per-post numbers";
@@ -294,10 +348,11 @@ export function trialAsked(settings) {
  * The facts of a post's series: each label, how many points it has, and whether its total is above zero ("yes" or "no",
  * never the total). The total is the series' own, else the sum of its points (Postiz sends each point's total as text).
  * @param {readonly { label?: unknown, total?: unknown, data?: unknown, [key: string]: unknown }[]} series (Postiz's own fields, percentageChange among them, are let through and never read)
+ * @param {readonly string[]} [names] the channels' names (labelOf)
  * @returns {{ label: string, points: number, aboveZero: "yes" | "no" }[]}
  */
-export function seriesFacts(series) {
-  return seriesShapes(series).map((shape, i) => {
+export function seriesFacts(series, names = []) {
+  return seriesShapes(series, names).map((shape, i) => {
     const s = series[i];
     const points = Array.isArray(s.data) ? s.data : [];
     const own = s.total;
@@ -347,18 +402,45 @@ export function rawRouteOf(url) {
 }
 
 /**
+ * The posts of a raw answer of GET /posts ({posts: [...]}, or a bare list): its entries that are objects.
+ * @param {unknown} raw
+ * @returns {Record<string, unknown>[]}
+ */
+function postsOfList(raw) {
+  const r = /** @type {Record<string, unknown> | null} */ (raw && typeof raw === "object" ? raw : null);
+  const list = Array.isArray(raw) ? raw : r && Array.isArray(r.posts) ? r.posts : [];
+  return list.filter((p) => p && typeof p === "object" && !Array.isArray(p));
+}
+
+/**
  * Each post's settings by its id, from the raw answer of GET /posts ({posts: [...]}, or a bare list). A post without the
  * field is left out (its trial is then "unknown").
  * @param {unknown} raw
  * @returns {Map<string, unknown>}
  */
 export function settingsById(raw) {
-  const r = /** @type {Record<string, unknown> | null} */ (raw && typeof raw === "object" ? raw : null);
-  const list = Array.isArray(raw) ? raw : r && Array.isArray(r.posts) ? r.posts : [];
   /** @type {Map<string, unknown>} */
   const out = new Map();
-  for (const p of list) if (p && typeof p === "object" && typeof p.id === "string" && Object.hasOwn(p, "settings")) out.set(p.id, p.settings);
+  for (const p of postsOfList(raw)) if (typeof p.id === "string" && Object.hasOwn(p, "settings")) out.set(p.id, p.settings);
   return out;
+}
+
+/** What a post list that carries each post's settings means. */
+export const POST_LIST_SETTINGS = "GET /public/v1/posts lists each post's settings: Postiz 2.24.0 or newer, so trialReel reads";
+/** What a post list without any post's settings means. */
+export const POST_LIST_OLDER = "your Postiz is older than 2.24: its post list carries no post's settings, so trialReel is unknown on every post";
+
+/**
+ * Whether the post list carries each post's settings – Postiz lists them from 2.24.0; before it every trialReel is
+ * "unknown" – from the raw answer of GET /posts: "yes" when a listed post has the field (null included: a 2.24 lists it for
+ * every post), "no" when posts were listed and none has it, "unknown" when no post was listed in the period.
+ * @param {unknown} raw
+ * @returns {{ settings: "yes" | "no" | "unknown", meaning: string }}
+ */
+export function settingsListedOf(raw) {
+  const posts = postsOfList(raw);
+  if (!posts.length) return { settings: "unknown", meaning: 'no post was listed in the period, so it cannot tell whether the list carries settings (Postiz 2.24.0 or newer): run it with "days":90' };
+  return posts.some((p) => Object.hasOwn(p, "settings")) ? { settings: "yes", meaning: POST_LIST_SETTINGS } : { settings: "no", meaning: POST_LIST_OLDER };
 }
 
 /**
@@ -390,8 +472,10 @@ export function platformMatches(platform, wanted) {
 /** What the probe's per-post facts mean, printed with them. */
 export const POST_NOTES = Object.freeze([
   "trialReel and graduation are what each post asked Postiz for (its settings is_trial_reel and graduation_strategy), not proof that Instagram treated it so: check the reel in the Instagram app",
+  "trialReel unknown: the post list carried no settings for the post; Postiz lists a post's settings from 2.24.0 (postList.settings), so on 2.18 to 2.23 every trialReel is unknown",
   "graduation MANUAL is 'I share it myself'; SS_PERFORMANCE is Instagram's automatic sharing; 'not set' means Postiz sends MANUAL",
   "aboveZero says only whether a series' total is above zero: no value is printed",
   "ageHours counts whole hours from the post's publishDate",
   "answer: series (numbers came back), empty (none yet, the platform withholds them, or Postiz could not read them), missing (Postiz lost the post's id on the platform), error (by kind), skipped (not asked: the route is missing, or Postiz asked for a pause)",
+  "errors are printed by kind, HTTP status and meaning, never with Postiz's message; a platform that is not a plain identifier prints as (other), and a label that is not plain words, or holds a channel's name, as (odd label)",
 ]);

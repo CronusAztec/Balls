@@ -620,7 +620,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "postiz-probe",
     title: "Postiz analytics probe (owner-run)",
-    description: "Which analytics series the owner's Postiz returns per channel and for recent posts: labels and point counts, no numbers. Per post also its age in hours, whether it asked to be a Trial Reel, and whether each series' total is above zero (yes or no); and whether the per-post route answers (Postiz 2.18.0 or newer). Never a value, a channel name or a post text. POSTIZ_URL and POSTIZ_API_KEY from the environment; without them: 'not configured'.",
+    description: "Which analytics series the owner's Postiz returns per channel and for recent posts: labels and point counts, no numbers. Per post also its age in hours, whether it asked to be a Trial Reel, and whether each series' total is above zero (yes or no); whether the per-post route answers (Postiz 2.18.0 or newer) and whether the post list carries each post's settings (Postiz 2.24.0 or newer). Errors by kind only. Never a value, a channel name or a post text. POSTIZ_URL and POSTIZ_API_KEY from the environment; without them: 'not configured'.",
     input: { type: "object", additionalProperties: false, properties: { days: { type: "integer", enum: [7, 30, 90], description: "The period (default 30)." }, posts: { type: "integer", minimum: 0, maximum: 20, description: "Recent posts probed (default 5)." }, platform: { type: "string", pattern: "^[a-z][a-z0-9-]{0,39}$", description: "Only the recent posts of this platform, by its Postiz identifier (instagram also takes instagram-standalone)." } } },
     writes: "none",
     network: "owner",
