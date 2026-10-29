@@ -12,6 +12,7 @@ import {
   measuredCounts,
   median,
   metricOfLabel,
+  noAnswerAt3Days,
   normalCdf,
   platformFamily,
   pruneInsightRows,
@@ -309,6 +310,24 @@ describe("the usual and the score", () => {
     expect(m.get("fresh")).toMatchObject({ state: "pending" });
     expect(m.get("old")).toMatchObject({ state: "excluded", why: "beforeBreak" }); // before Instagram's plays became views
     expect(measuredCounts([...m.values()]).get("ig1|normal")).toBe(7);
+  });
+
+  // Postiz answers [] for a post it has no numbers for (no answer, never zero). That was known only at 168 h ("not measured"),
+  // so the lab's check of its numbers paused on zeros at the 3-day read but on no answer 4 days later
+  it("knows at the 3-day read that a post's numbers will not come: its tries spent, or the row's no answer past 96 h", () => {
+    const spent = { window: "day3" as const, n: NO_ANSWER_TRIES, lastAt: iso(T0 + 64 * H) };
+    expect(noAnswerAt3Days({ state: "noAnswer", reads: [], tries: spent }, 64)).toBe(true);
+    expect(noAnswerAt3Days({ state: "noAnswer", reads: [], tries: { ...spent, n: NO_ANSWER_TRIES - 1 } }, 70)).toBe(false); // a try is left
+    expect(noAnswerAt3Days({ state: "noAnswer", reads: [], tries: { window: "early", n: NO_ANSWER_TRIES, lastAt: iso(T0 + 22 * H) } }, 90)).toBe(false); // the 3-day read can still come
+    expect(noAnswerAt3Days({ state: "noAnswer", reads: [], tries: null }, 97)).toBe(true);
+    expect(noAnswerAt3Days({ state: "ok", reads: [], tries: null }, 97)).toBe(false); // not read yet (the app was closed): not known
+    expect(noAnswerAt3Days({ state: "noAnswer", reads: [read(70, 500)], tries: spent }, 100)).toBe(false); // its 3-day read came
+    expect(noAnswerAt3Days({ state: "excluded", reads: [], tries: spent }, 100)).toBe(false);
+    // a measure carries it while pending, and "no answer" stays the reason after 168 h, as before
+    const quiet = row({ postId: "quiet", state: "noAnswer", tries: spent });
+    expect(measureRows([quiet], T0 + 70 * H)[0]).toMatchObject({ state: "pending", noAnswer: true });
+    expect(measureRows([quiet], T0 + 170 * H)[0]).toMatchObject({ state: "excluded", why: "noAnswer" });
+    expect(measureRows([row({ postId: "fresh" })], T0 + 70 * H)[0]).toEqual({ postId: "fresh", channelId: "ig1", platform: "instagram", lane: "normal", publishedAt: T0, state: "pending" });
   });
 
   it("scores are worked out on load: the same stored rows score anew under a restart, nothing is frozen in a row", () => {

@@ -18,7 +18,7 @@ import {
   isDialArm,
   questionKey,
 } from "@/lib/insights/dials";
-import { DEFAULT_LEARNER, resolveLearner, sanitizeLearner } from "@/lib/insights/learnerSettings";
+import { DEFAULT_LEARNER, GENERATION_MAX, resolveLearner, sanitizeLearner } from "@/lib/insights/learnerSettings";
 import { PAIRS_PER_DAY_DEFAULT, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
 import { ENDING_STYLES, LENGTH_BUCKETS } from "@/lib/bot/playbook";
 import { TEMPLATE_FORMAT_IDS, allTemplates } from "@/lib/bot/templates";
@@ -134,6 +134,16 @@ describe("the learner's settings", () => {
     expect(stored).toEqual({ ...DEFAULT_LEARNER, learn: true });
     expect(resolveLearner(undefined)).toEqual(DEFAULT_LEARNER);
     expect(resolveLearner(undefined).fixed).not.toBe(DEFAULT_LEARNER.fixed); // never the shared default object
+  });
+
+  it("the owner's 'Try Trial Reels again' is a time, and 'Forget my numbers' a generation that starts at 0", () => {
+    expect([DEFAULT_LEARNER.trialRetryAt, DEFAULT_LEARNER.generation]).toEqual([null, 0]);
+    expect(sanitizeLearner({ trialRetryAt: "2026-11-11T08:00:00.000Z", generation: 2 })).toEqual({ trialRetryAt: "2026-11-11T08:00:00.000Z", generation: 2 });
+    expect(sanitizeLearner({ trialRetryAt: null })).toEqual({ trialRetryAt: null });
+    expect(sanitizeLearner({ trialRetryAt: "soon", generation: -1 })).toEqual({});
+    expect(sanitizeLearner({ trialRetryAt: 5, generation: 1.5 })).toEqual({});
+    expect(sanitizeLearner({ generation: GENERATION_MAX + 1 })).toEqual({});
+    expect(resolveLearner({ generation: 3 }).generation).toBe(3);
   });
 });
 

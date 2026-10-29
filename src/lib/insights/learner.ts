@@ -11,6 +11,7 @@ import {
   NEWCOMER_ROTATION_CLIPS,
   NEWCOMER_TEST_EVERY,
   NORMAL_BEST_MIN,
+  NORMAL_HORIZON_TIMES,
   NORMAL_TEST_CLIPS,
   PAIR_GAP_H,
   PAIRS_PER_DAY_MAX,
@@ -22,6 +23,7 @@ import {
   SCORE_RULE,
   TEMPLATE_SHARE_MAX,
   TEST_EVERY,
+  TRIAL_PAUSE_DAYS,
   TRIAL_WINDOWS,
   TRIAL_WINDOW_MIN,
   USUAL_MIN_POSTS,
@@ -54,9 +56,19 @@ import type { LearnerSettings } from "./learnerSettings";
  * runs the lab's blocks (lib/insights/lab.ts).
  *
  * After any kept change the combined check runs on the next CHECK_POSTS normal posts: CHECK_OLD keep the old combination
- * (every change of that test or block undone together), the rest the new one, in a seeded order; the old one ahead with
- * CHECK_BACK_P sends every change back together ("wentBack"), else they hold ("held"). A losing question rests REST_DAYS
- * (REST_TWICE_DAYS after two losses in a row); Undo locks it.
+ * (every change of that test or block undone together), the rest the new one, in a seeded order with at most one old clip a
+ * day; the old one ahead with CHECK_BACK_P sends every change back together ("wentBack"), else they hold ("held"). A losing
+ * question rests REST_DAYS (REST_TWICE_DAYS after two losses in a row); Undo locks it.
+ *
+ * Nothing waits for ever. A normal test or check not decided within NORMAL_HORIZON_TIMES its horizon closes as "not enough
+ * clips", and a block not done in BLOCK_MAX_DAYS as "not enough clean pairs": each rests its question in its own lane only.
+ * A test that can no longer be made (Trial Reels switched off, a template no longer ready, quiet hours over a post-time
+ * window, a checked change no longer in use) closes at once as "stopped", resting nothing. Post-time arms are only windows
+ * that start outside quiet hours. The lab checks its own numbers: once its newest pair got none, its block closes and it
+ * pauses TRIAL_PAUSE_DAYS (or until the owner asks again), while the normal lane runs the whole list.
+ *
+ * "Forget my numbers" starts a new generation (LearnerSettings.generation): test ids carry it, and the audit's older test
+ * memberships belong to no test, so nothing forgotten is read, closed or continued.
  *
  * Who sees what (lanes per channel): a trial arm goes only to its Instagram channel as a Trial Reel; a test clip, a check's
  * old clip or a newcomer test's rotation clip only to the scored channels (Instagram normal Reels and TikTok) whose usual is
@@ -134,9 +146,18 @@ export interface LearnerChannel {
   trialReels: boolean;
 }
 
-/** The verdicts a test can end with, written once to the decision log. */
-export const VERDICTS = ["kept", "notKept", "noClearDifference", "notEnoughPairs", "rarelyPasses", "wentBack", "undone", "held"] as const;
+/**
+ * The verdicts a test can end with, written once to the decision log. Two say only that a test ran out of time without its
+ * numbers: "notEnoughPairs" (a block: not 8 clean pairs within BLOCK_MAX_DAYS, or its pairs got no numbers) and
+ * "notEnoughClips" (a normal test or check: not decided within NORMAL_HORIZON_TIMES its horizon); each rests its question in
+ * its own lane only. "stopped" closes a test that could not go on for a reason outside its numbers (Trial Reels switched off
+ * or with no channel, an arm no template or open window can make any more, a checked change no longer in use): it rests
+ * nothing, and its question is asked again when it can be.
+ */
+export const VERDICTS = ["kept", "notKept", "noClearDifference", "notEnoughPairs", "notEnoughClips", "rarelyPasses", "wentBack", "undone", "held", "stopped"] as const;
 export type Verdict = (typeof VERDICTS)[number];
+/** The verdicts of a test that ran out of time without its numbers: they rest a question in their own lane only. */
+const NO_EVIDENCE: readonly Verdict[] = ["notEnoughPairs", "notEnoughClips"];
 
 /** One verdict of the decision log: one question of a test (a block writes one per dial). */
 export interface LearnerDecision {
@@ -214,6 +235,8 @@ export interface ParsedTest {
   id: string;
   kind: TestKind;
   seq: number;
+  /** The learner's generation ("Forget my numbers" adds one: LearnerSettings.generation); 0 writes no mark. */
+  generation: number;
   questions: Question[];
   /** A check's test. */
   source?: ParsedTest;
@@ -231,28 +254,33 @@ function parseQuestion(text: string): Question | null {
   return subject === undefined ? { dial, best, challenger, subject: null } : null;
 }
 
-/** The id of a normal-lane test, a block or a check: its kind, its place in its lane and its questions, so it parses back. */
-export function testIdOf(kind: TestKind, seq: number, questions: readonly Question[], sourceId?: string): string {
-  if (kind === "check") return `c${seq}.${sourceId}`;
-  return `${kind === "normal" ? "n" : "t"}${seq}.${questions.map(questionText).join("~")}`;
+/**
+ * The id of a normal-lane test, a block or a check: its kind, its place in its lane, its generation after a "Forget my
+ * numbers" ("n0g1."; none before the first) and its questions, so it parses back. A check carries its test's id.
+ */
+export function testIdOf(kind: TestKind, seq: number, questions: readonly Question[], sourceId?: string, generation: number = 0): string {
+  const g = generation > 0 ? `g${generation}` : "";
+  if (kind === "check") return `c${seq}${g}.${sourceId}`;
+  return `${kind === "normal" ? "n" : "t"}${seq}${g}.${questions.map(questionText).join("~")}`;
 }
 
 /** A test id parsed back (null: not one the learner writes). */
 export function parseTestId(id: unknown): ParsedTest | null {
   if (typeof id !== "string" || id.length > TEST_ID_MAX) return null;
-  const m = /^([ntc])(\d{1,6})\.(.+)$/.exec(id);
+  const m = /^([ntc])(\d{1,6})(?:g([1-9]\d{0,3}))?\.(.+)$/.exec(id);
   if (!m) return null;
   const seq = Number(m[2]);
+  const generation = m[3] ? Number(m[3]) : 0;
   if (m[1] === "c") {
-    const source = parseTestId(m[3]);
-    return source && source.kind !== "check" ? { id, kind: "check", seq, questions: source.questions, source } : null;
+    const source = parseTestId(m[4]);
+    return source && source.kind !== "check" && source.generation === generation ? { id, kind: "check", seq, generation, questions: source.questions, source } : null;
   }
-  const questions = m[3].split("~").map(parseQuestion);
+  const questions = m[4].split("~").map(parseQuestion);
   if (!questions.length || questions.some((q) => !q) || questions.length > BLOCK_DIALS_MAX) return null;
   const qs = questions as Question[];
   if (new Set(qs.map((q) => q.dial)).size !== qs.length) return null;
   if (m[1] === "n" && qs.length !== 1) return null;
-  return { id, kind: m[1] === "n" ? "normal" : "block", seq, questions: qs };
+  return { id, kind: m[1] === "n" ? "normal" : "block", seq, generation, questions: qs };
 }
 
 const keyOf = (q: Pick<Question, "dial" | "best" | "challenger" | "subject">) => questionKey(q.dial, q.best, q.challenger, q.subject);
@@ -358,7 +386,7 @@ export interface Bests {
   joined: Set<string>;
 }
 
-export function bestsOf(log: readonly LearnerDecision[], settings: Pick<LearnerSettings, "fixed">, catalog: readonly LearnerTemplate[] = []): Bests {
+export function bestsOf(log: readonly LearnerDecision[], settings: Pick<LearnerSettings, "fixed">, catalog: readonly LearnerTemplate[] = [], quiet?: LearnerInput["quiet"]): Bests {
   const arms = Object.fromEntries(Object.values(DIALS).map((d) => [d.id, d.defaultArm])) as Record<DialId, string>;
   const joined = new Set<string>();
   for (const e of log) {
@@ -377,15 +405,21 @@ export function bestsOf(log: readonly LearnerDecision[], settings: Pick<LearnerS
   }
   // a format with nothing ready to play goes back to today's mix
   if (arms.format !== "mix" && catalog.length && !catalog.some((t) => t.format === arms.format)) arms.format = "mix";
+  // a post time whose window quiet hours took goes back to today's spread: nothing can go out in it
+  if (!postTimeOpen(arms.postTime, quiet)) arms.postTime = "spread";
   return { arms, joined };
 }
 
 const LOSSES: readonly Verdict[] = ["notKept", "rarelyPasses", "wentBack"];
 
-/** Until when (ms) a question rests: never asked (0), after a verdict (REST_DAYS, or REST_TWICE_DAYS after two losses), Undo forever. */
-export function restsUntil(q: Pick<Question, "dial" | "best" | "challenger" | "subject">, log: readonly LearnerDecision[]): number {
+/**
+ * Until when (ms) a question rests: never asked (0), after a verdict (REST_DAYS, or REST_TWICE_DAYS after two losses), Undo
+ * forever. Asked for one lane (`lane`), a verdict of no evidence from the other lane ("not enough clean pairs" in the lab, "not
+ * enough clips" in the normal lane) does not rest it, and "stopped" rests it in neither: neither read an answer.
+ */
+export function restsUntil(q: Pick<Question, "dial" | "best" | "challenger" | "subject">, log: readonly LearnerDecision[], lane?: InsightLane): number {
   const key = keyOf(q);
-  const entries = log.filter((e) => keyOf(e) === key);
+  const entries = log.filter((e) => keyOf(e) === key && e.verdict !== "stopped" && !(lane && e.lane !== lane && NO_EVIDENCE.includes(e.verdict)));
   const last = entries[entries.length - 1];
   if (!last) return 0;
   const at = parseIso(last.decidedAt) ?? 0;
@@ -450,6 +484,17 @@ export function spreadWindows(day: number, quiet: LearnerInput["quiet"]): PostWi
   const run = Math.floor(day / n);
   const first = shuffled(list, seededDraws(hashText(`spread|${list.join(",")}|${run}`)))[day - run * n];
   return [first, ...shuffled(list.filter((w) => w !== first), seededDraws(hashText(`spread|${list.join(",")}|day|${day}`)))];
+}
+
+/**
+ * Whether a post-time arm can go out: its window (POST_WINDOWS) starts outside quiet hours, where its clips are planned, as
+ * spreadWindows and trialPairWindows keep theirs. "spread" always can: it walks the windows that start outside them. A clip
+ * planned inside quiet hours could not go out in its window (C11 refuses it as "missed its time", and the autopilot moves it
+ * out of its window), so its test would never close.
+ */
+export function postTimeOpen(arm: string, quiet: LearnerInput["quiet"]): boolean {
+  if (arm !== "noon" && arm !== "evening" && arm !== "night") return true;
+  return !inQuiet(minutesOf(POST_WINDOWS[arm][0]), quiet);
 }
 
 /** The local window of a slot: a post-time arm's own, else ("spread") the day's order at the slot's place. */
@@ -652,11 +697,16 @@ export function readNormalTest(test: ParsedTest, posts: readonly LearnerPost[], 
   return read;
 }
 
-/** A check at `now`: its old and new clips, and once CHECK_OLD old and the rest new are scored, wentBack or held for each change. */
+/**
+ * A check at `now`: its old and new clips, and once CHECK_OLD old and the rest new are scored, wentBack or held for each
+ * change. It reads exactly CHECK_OLD old against CHECK_POSTS - CHECK_OLD new clips, the first scored of each by when they went
+ * out, as the rates were simulated (sim/l0.py 3): the clips the check makes while it waits for its reads count for nothing.
+ */
 export function readCheck(check: ParsedTest, kept: readonly Question[], posts: readonly LearnerPost[], measures: ReadonlyMap<string, PostMeasure>, catalog: readonly LearnerTemplate[], now: number, offsetMinAt: OffsetAt = UTC): NormalRead {
   const clips = normalClips({ ...check, questions: kept as Question[] }, posts, measures, catalog, offsetMinAt);
-  const old = clips.filter((c) => c.arm === "old" && c.state === "scored").map((c) => c.score!);
-  const fresh = clips.filter((c) => c.arm === "new" && c.state === "scored").map((c) => c.score!);
+  const inOrder = (arm: "old" | "new") => clips.filter((c) => c.arm === arm && c.state === "scored").sort((a, b) => (a.publishedAt ?? 0) - (b.publishedAt ?? 0) || byString(a.clipId, b.clipId));
+  const old = inOrder("old").slice(0, CHECK_OLD).map((c) => c.score!);
+  const fresh = inOrder("new").slice(0, CHECK_POSTS - CHECK_OLD).map((c) => c.score!);
   const read: NormalRead = { clips, nTest: fresh.length, nBest: old.length, pending: clips.filter((c) => c.state === "pending").length, verdicts: [] };
   if (old.length < CHECK_OLD || fresh.length < CHECK_POSTS - CHECK_OLD) return read;
   const { m, sd } = shrunkDifference(old, fresh);
@@ -681,13 +731,19 @@ export interface BlockRead {
 }
 
 /**
- * Whether a reel's numbers came: at least one view at 72 h (true), none or no answer at its 3-day read (false; reads of 0
- * projected to 72 h stay under one view), not known yet (null).
+ * Whether a reel's numbers came, from its measure alone: at least one view at 72 h (true), none or no answer at its 3-day read
+ * (false; reads of 0 projected to 72 h stay under one view, and no answer counts once its 3-day read is past, stats.ts
+ * noAnswerAt3Days, not only at MEASURED_UNTIL_H), not known yet (null).
  */
-function numbersOf(o: PostOutcome): boolean | null {
-  if (o.kind === "scored" || o.kind === "measured") return o.views72 >= 1;
-  return o.kind === "excluded" && (o.why === "noAnswer" || o.why === "notMeasured") ? false : null;
+export function numbersOf(m: PostMeasure | undefined): boolean | null {
+  if (!m) return null;
+  if (m.state === "scored" || m.state === "unscored") return m.views72 >= 1;
+  if (m.state === "excluded") return m.why === "noAnswer" || m.why === "notMeasured" ? false : null;
+  return m.noAnswer ? false : null;
 }
+
+/** Whether a pair's numbers came: one reel with a view (true), both without (false), else not known yet (null). */
+const pairNumbers = (known: readonly (boolean | null)[]): boolean | null => (known.some((n) => n === true) ? true : known.length === 2 && known.every((n) => n === false) ? false : null);
 
 /**
  * A Trial Reel block at `now`: its reels paired, each pair's difference s_B - s_A (the reels' scores against the trial usual
@@ -703,15 +759,16 @@ export function readBlockTest(block: ParsedTest, posts: readonly LearnerPost[], 
   const today = localDay(now, offsetMinAt);
   const openedAt = mine.length ? Math.min(...mine.map((p) => parseIso(p.approvedAt) ?? Number.POSITIVE_INFINITY)) : now;
   const openedDay = localDay(openedAt, offsetMinAt);
-  const reels: { pair: number; role: "trialA" | "trialB"; levels: Level[]; day: number; outcome: PostOutcome }[] = [];
+  const reels: { pair: number; role: "trialA" | "trialB"; levels: Level[]; day: number; outcome: PostOutcome; numbers: boolean | null }[] = [];
   for (const p of [...mine].sort((a, b) => byString(a.postId, b.postId))) {
     const levels = levelsOf(p.test!.arm, k);
     const day = localDay(parseIso(p.approvedAt) ?? now, offsetMinAt);
+    const measure = measures.get(`${p.postId}|${p.channelId}`);
     if (!levels) {
-      reels.push({ pair: p.test!.pair!, role: p.test!.role as "trialA" | "trialB", levels: new Array(k).fill(0), day, outcome: { kind: "excluded", why: "offPlan" } });
+      reels.push({ pair: p.test!.pair!, role: p.test!.role as "trialA" | "trialB", levels: new Array(k).fill(0), day, outcome: { kind: "excluded", why: "offPlan" }, numbers: numbersOf(measure) });
       continue;
     }
-    reels.push({ pair: p.test!.pair!, role: p.test!.role as "trialA" | "trialB", levels, day, outcome: postOutcome(p, measures.get(`${p.postId}|${p.channelId}`), { questions: block.questions, levels, openedAt, catalog, offsetMinAt }) });
+    reels.push({ pair: p.test!.pair!, role: p.test!.role as "trialA" | "trialB", levels, day, outcome: postOutcome(p, measure, { questions: block.questions, levels, openedAt, catalog, offsetMinAt }), numbers: numbersOf(measure) });
   }
   const labReels: LabReel[] = [];
   const byPair = new Map<number, typeof reels>();
@@ -730,10 +787,7 @@ export function readBlockTest(block: ParsedTest, posts: readonly LearnerPost[], 
   }
   const pairs = assemblePairs(labReels, k, today);
   const status = labStatus(pairs, openedDay, today);
-  const numbers = (pair: number) => {
-    const known = (byPair.get(pair) ?? []).map((r) => numbersOf(r.outcome));
-    return known.some((n) => n === true) ? true : known.length === 2 && known.every((n) => n === false) ? false : null;
-  };
+  const numbers = (pair: number) => pairNumbers((byPair.get(pair) ?? []).map((r) => r.numbers));
   const read: BlockRead = { clean: status.clean, pending: status.pending, broken: status.broken, openedDay, verdicts: [], pairs: pairs.map((p) => ({ pair: p.pair, pattern: p.pattern, state: p.state, a: p.a, numbers: numbers(p.pair) })) };
   // the crew-drop rule, dial by dial: the challenger's level against the best's, over the block's arms
   const dropped = block.questions.map((_, j) => {
@@ -753,6 +807,27 @@ export function readBlockTest(block: ParsedTest, posts: readonly LearnerPost[], 
   return read;
 }
 
+/**
+ * The lab's newest pair whose numbers are known, over every block of the posts given (lib/insights/learner.ts passes this
+ * generation's), and when its reels were approved: what the lab's check of its numbers reads (learnPass). A pair is newer by
+ * its number (its day), then by its approval.
+ */
+export function newestTrialNumbers(posts: readonly LearnerPost[], measures: ReadonlyMap<string, PostMeasure>): { numbers: boolean; at: number } | null {
+  const pairs = new Map<string, { pair: number; id: string; at: number; known: (boolean | null)[] }>();
+  for (const p of posts) {
+    const t = p.test;
+    if (p.lane !== "trialReel" || !t || (t.role !== "trialA" && t.role !== "trialB") || typeof t.pair !== "number") continue;
+    const key = `${t.id}|${t.pair}`;
+    const e = pairs.get(key) ?? { pair: t.pair, id: t.id, at: Number.NEGATIVE_INFINITY, known: [] };
+    e.at = Math.max(e.at, parseIso(p.approvedAt) ?? Number.NEGATIVE_INFINITY);
+    e.known.push(numbersOf(measures.get(`${p.postId}|${p.channelId}`)));
+    pairs.set(key, e);
+  }
+  const known = [...pairs.values()].map((e) => ({ ...e, numbers: pairNumbers(e.known) })).filter((e): e is typeof e & { numbers: boolean } => e.numbers !== null);
+  known.sort((a, b) => b.pair - a.pair || b.at - a.at || byString(b.id, a.id));
+  return known.length ? { numbers: known[0].numbers, at: known[0].at } : null;
+}
+
 /* ------------------------------------------------------------------ choosing the next test */
 
 /** The format challengers' order: by the mean pick score of each format's ready templates, best first, then FORMAT_IDS order. */
@@ -766,8 +841,11 @@ export function formatOrder(catalog: readonly LearnerTemplate[], feasibility: re
   return [...FORMAT_IDS].filter((f) => catalog.some((t) => t.format === f)).sort((a, b) => score(b) - score(a) || FORMAT_IDS.indexOf(a as (typeof FORMAT_IDS)[number]) - FORMAT_IDS.indexOf(b as (typeof FORMAT_IDS)[number]));
 }
 
-/** The questions of a dial, in the order they are asked, that are not resting, skipped or locked. */
-function questionsOf(dial: DialId, bests: Bests, ctx: { catalog: readonly LearnerTemplate[]; log: readonly LearnerDecision[]; now: number; skipped: ReadonlySet<string>; formats: readonly string[] }): Question[] {
+/**
+ * The questions of a dial, in the order they are asked, that are not resting (in `ctx.lane`), skipped or locked, and for the
+ * post time only the windows that start outside quiet hours (postTimeOpen).
+ */
+function questionsOf(dial: DialId, bests: Bests, ctx: { catalog: readonly LearnerTemplate[]; log: readonly LearnerDecision[]; now: number; skipped: ReadonlySet<string>; formats: readonly string[]; quiet?: LearnerInput["quiet"]; lane?: InsightLane }): Question[] {
   let qs: Question[];
   if (dial === "newcomer") {
     const listed = ctx.catalog.filter(isNewcomer).filter((t) => !bests.joined.has(t.id));
@@ -779,7 +857,7 @@ function questionsOf(dial: DialId, bests: Bests, ctx: { catalog: readonly Learne
   } else {
     qs = challengersOf(dial, bests.arms[dial], dial === "format" ? ctx.formats : undefined).map((c) => ({ dial, best: bests.arms[dial], challenger: c, subject: null }));
   }
-  return qs.filter((q) => !ctx.skipped.has(keyOf(q)) && restsUntil(q, ctx.log) <= ctx.now);
+  return qs.filter((q) => !ctx.skipped.has(keyOf(q)) && restsUntil(q, ctx.log, ctx.lane) <= ctx.now && postTimeOpen(q.best, ctx.quiet) && postTimeOpen(q.challenger, ctx.quiet));
 }
 
 /** Every combination of a block's (or test's) levels its pairs (or clips) use: each pattern's arm A and arm B. */
@@ -803,6 +881,10 @@ export interface NextTestContext {
   feasibility: ReadonlyMap<string, FeasibilityResult>;
   /** The format challengers' order (formatOrder). */
   formats: readonly string[];
+  /** Quiet hours: no post-time question whose window starts inside them. */
+  quiet?: LearnerInput["quiet"];
+  /** The lane asking: a verdict of no evidence from the other lane does not rest a question here (restsUntil). Absent: any. */
+  lane?: InsightLane;
 }
 
 /** The next test's or block's questions, and the arms still to plan before it may open (none: it opens with `questions`). */
@@ -934,10 +1016,14 @@ export interface PassPlan {
   feasibilityNeeded: ArmSetting[];
 }
 
-/** The findings of a decision log, newest (last written) first: each verdict's dial sentence with its counts and its shrunken ratio. */
+/**
+ * The findings of a decision log, newest (last written) first: each verdict's dial sentence with its counts and its shrunken
+ * ratio. A "stopped" test found nothing and says nothing.
+ */
 export function findingsOf(log: readonly LearnerDecision[]): Finding[] {
   return [...log]
     .reverse()
+    .filter((e) => e.verdict !== "stopped") // a test that could not go on found nothing; the log keeps it
     .map((e) => ({
       key: `${DIALS[e.dial].finding}.${e.verdict}`,
       values: { from: e.best, to: e.challenger, ...(e.subject ? { template: e.subject } : {}), ...(e.ratio !== null ? { ratio: round(e.ratio, 1) } : {}), nTest: e.nTest, nBest: e.nBest },
@@ -1012,9 +1098,13 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   const offset: OffsetAt = input.offsetMinAt ?? UTC;
   const today = dayOfDate(input.date);
   const catalog = [...input.catalog].sort((a, b) => byString(a.id, b.id));
-  const posts = [...input.posts].sort((a, b) => byString(a.postId, b.postId) || byString(a.channelId, b.channelId));
-  const channels = [...input.channels].sort((a, b) => byString(a.id, b.id));
   const settings = input.settings;
+  // "Forget my numbers" starts a new generation: a test membership of an earlier one belongs to no test now (its test is
+  // forgotten with the numbers: never read, closed or continued), and the post still counts for the variety caps
+  const generation = Number.isInteger(settings.generation) && settings.generation > 0 ? settings.generation : 0;
+  const ofThisGeneration = (id: string | undefined) => parseTestId(id)?.generation === generation;
+  const posts = input.posts.map((p) => (p.test && !ofThisGeneration(p.test.id) ? { ...p, test: null } : p)).sort((a, b) => byString(a.postId, b.postId) || byString(a.channelId, b.channelId));
+  const channels = [...input.channels].sort((a, b) => byString(a.id, b.id));
   const dials = new Set(activeDials(input.l3 ?? false));
   const feasibility = new Map((input.feasibility ?? []).map((r) => [r.key, r]));
   const skipped = new Set(settings.skipped);
@@ -1047,7 +1137,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   const pairsPerDay = Math.min(trialPairs.length, Math.max(0, Math.min(PAIRS_PER_DAY_MAX, Math.round(settings.pairsPerDay))));
   const trialOn = settings.trialReels && pairsPerDay > 0 && settings.autoShareOff && !!trialChannel;
   const perDay = Math.max(0, Math.round(input.perDay));
-  const seqOf = (lane: "normal" | "trialReel") => new Set(log.filter((e) => (lane === "trialReel" ? e.testId.startsWith("t") : !e.testId.startsWith("t"))).map((e) => e.testId)).size;
+  const seqOf = (lane: "normal" | "trialReel") => new Set(log.filter((e) => ofThisGeneration(e.testId) && (lane === "trialReel" ? e.testId.startsWith("t") : !e.testId.startsWith("t"))).map((e) => e.testId)).size;
   const closed = (id: string) => log.some((e) => e.testId === id);
   const ids = [...new Set(posts.map((p) => p.test?.id).filter((x): x is string => !!x))].sort(byString);
   const openOf = (lane: "normal" | "trialReel") => {
@@ -1062,10 +1152,11 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   // the kept changes still waiting for their check (oldest first), without the ones undone since. A newcomer that joined is not
   // checked: it is one template of its format's rotation, so 4 old clips against 12 new would mostly compare the rotation with
   // itself; it stays as long as the rotation does not clearly beat it.
+  // A check that stopped (what it checks was out of use for a while) checked nothing: it runs again once it can.
   const pendingChecks = () => {
-    const sources = [...new Set(log.filter((e) => e.verdict === "kept").map((e) => e.testId))];
-    const checked = new Set(log.map((e) => parseTestId(e.testId)).filter((t): t is ParsedTest => !!t && t.kind === "check").map((t) => t.source!.id));
-    const bests = bestsOf(log, settings, catalog);
+    const sources = [...new Set(log.filter((e) => e.verdict === "kept" && ofThisGeneration(e.testId)).map((e) => e.testId))];
+    const checked = new Set(log.filter((e) => e.verdict !== "stopped").map((e) => parseTestId(e.testId)).filter((t): t is ParsedTest => !!t && t.kind === "check").map((t) => t.source!.id));
+    const bests = bestsOf(log, settings, catalog, input.quiet);
     return sources
       .filter((s) => !checked.has(s))
       .map((s) => ({ source: s, kept: log.filter((e) => e.testId === s && e.verdict === "kept").map((e) => ({ dial: e.dial, best: e.best, challenger: e.challenger, subject: e.subject })) }))
@@ -1073,26 +1164,53 @@ export function learnPass(input: LearnerInput): PassPlan | null {
       .filter((c) => c.kept.length > 0);
   };
 
+  // --- what can still be made: every arm of these questions, at each of these levels, by some ready template (armPossible),
+  // and a post-time arm only in a window that starts outside quiet hours. A test whose arm cannot be made any more (a template
+  // no longer ready, quiet hours moved over its window) stops at once: its clips could never count
+  const armsPossible = (questions: readonly Question[], combos: readonly (readonly Level[])[], bests: Bests) => {
+    const base = bestSetting(bests);
+    const planned = questions.some((q) => q.dial !== "postTime");
+    return combos.every((levels) => questions.every((q, j) => q.dial !== "postTime" || postTimeOpen(levels[j] === 1 ? q.challenger : q.best, input.quiet)) && (!planned || armPossible(settingOf(base, questions, levels, catalog), catalog, bests.joined)));
+  };
+  const bothLevels = (questions: readonly Question[]): Level[][] => [questions.map(() => 0 as Level), questions.map(() => 1 as Level)];
+  // a normal test or check waits for its clips, but not for ever: NORMAL_HORIZON_TIMES its horizon at today's pace (its clips,
+  // then the 3-day read), from its first post, and it closes as "not enough clips"
+  const horizonDays = (t: ParsedTest) => (t.kind === "check" ? CHECK_POSTS : NORMAL_TEST_CLIPS * (t.questions[0].dial === "newcomer" || t.questions[0].dial === "format" ? NEWCOMER_TEST_EVERY : TEST_EVERY)) / Math.max(1, perDay) + SCORE_AGE_H / 24;
+  const expired = (t: ParsedTest) => now - Math.min(...posts.filter((p) => p.test?.id === t.id).map((p) => parseIso(p.approvedAt) ?? Number.POSITIVE_INFINITY)) > NORMAL_HORIZON_TIMES * horizonDays(t) * DAY_MS;
+  const none = { ratio: null, p: null, nTest: 0, nBest: 0 };
+
   // --- read what is open; a verdict closes it and the next opens in the same pass
   let normalTest: ParsedTest | null = openOf("normal");
   let normalRead: NormalRead | null = null;
   let checkKept: Question[] = [];
   for (let guard = 0; guard < 4 && normalTest; guard++) {
-    if (normalTest.kind === "check") {
-      const pc = pendingChecks().find((c) => c.source === normalTest!.source!.id);
+    const t: ParsedTest = normalTest;
+    const bestsNow = bestsOf(log, settings, catalog, input.quiet);
+    const closing = (questions: readonly Question[], verdict: (q: Question) => Verdict, nums: { nTest: number; nBest: number } = none): NormalRead => ({ clips: [], nTest: nums.nTest, nBest: nums.nBest, pending: 0, verdicts: questions.map((q) => decision(t.id, "normal", q, verdict(q), now, { ratio: null, p: null, ...nums })) });
+    if (t.kind === "check") {
+      const source = t.source!.id;
+      const pc = pendingChecks().find((c) => c.source === source);
       if (!pc) {
-        // every change it checks was undone since: nothing is left to check, and it closes so the normal lane moves on
-        const undone = log.filter((e) => e.testId === normalTest!.source!.id && e.verdict === "kept").map((e) => ({ dial: e.dial, best: e.best, challenger: e.challenger, subject: e.subject }));
-        normalRead = { clips: [], nTest: 0, nBest: 0, pending: 0, verdicts: (undone.length ? undone : normalTest.questions).map((q) => decision(normalTest!.id, "normal", q, "undone", now, { ratio: null, p: null, nTest: 0, nBest: 0 })) };
+        // nothing it checks is in use any more: the owner undid it ("undone"), or the owner's Fix, the catalog or quiet hours took
+        // it out of use for now ("stopped": it is checked again once it is back in use). It closes so the normal lane moves on
+        const kept = log.filter((e) => e.testId === source && e.verdict === "kept").map((e) => ({ dial: e.dial, best: e.best, challenger: e.challenger, subject: e.subject }));
+        const undid = (q: Question) => log.some((e) => e.testId === source && e.verdict === "undone" && e.dial === q.dial);
+        normalRead = closing(kept.length ? kept : t.questions, (q) => (undid(q) ? "undone" : "stopped"));
+      } else if (!armsPossible(pc.kept, bothLevels(pc.kept), bestsNow)) {
+        normalRead = closing(pc.kept, () => "stopped");
       } else {
         checkKept = pc.kept;
-        normalRead = readCheck(normalTest, checkKept, posts, measures, catalog, now, offset);
+        normalRead = readCheck(t, checkKept, posts, measures, catalog, now, offset);
+        if (!normalRead.verdicts.length && expired(t)) normalRead = { ...normalRead, verdicts: closing(checkKept, () => "notEnoughClips", normalRead).verdicts };
       }
+    } else if (!armsPossible(t.questions, bothLevels(t.questions), bestsNow)) {
+      normalRead = closing(t.questions, () => "stopped");
     } else {
-      normalRead = readNormalTest(normalTest, posts, measures, catalog, now, offset);
-      const q = normalTest.questions[0];
-      const att = (arm: string) => (input.attempts ?? []).filter((a) => a.testId === normalTest!.id && a.arm === arm).reduce((s, a) => ({ tries: s.tries + a.tries, passed: s.passed + a.passed }), { tries: 0, passed: 0 });
-      if (!normalRead.verdicts.length && rarelyPasses(att(q.challenger), att(q.best))) normalRead.verdicts = [decision(normalTest.id, "normal", q, "rarelyPasses", now, { ratio: null, p: null, nTest: normalRead.nTest, nBest: normalRead.nBest })];
+      normalRead = readNormalTest(t, posts, measures, catalog, now, offset);
+      const q = t.questions[0];
+      const att = (arm: string) => (input.attempts ?? []).filter((a) => a.testId === t.id && a.arm === arm).reduce((s, a) => ({ tries: s.tries + a.tries, passed: s.passed + a.passed }), { tries: 0, passed: 0 });
+      if (!normalRead.verdicts.length && rarelyPasses(att(q.challenger), att(q.best))) normalRead.verdicts = [decision(t.id, "normal", q, "rarelyPasses", now, { ratio: null, p: null, nTest: normalRead.nTest, nBest: normalRead.nBest })];
+      if (!normalRead.verdicts.length && expired(t)) normalRead.verdicts = closing(t.questions, () => "notEnoughClips", normalRead).verdicts;
     }
     if (!normalRead.verdicts.length) break;
     write(normalRead.verdicts);
@@ -1106,41 +1224,55 @@ export function learnPass(input: LearnerInput): PassPlan | null {
     block = null;
     blockRead = null;
   }
-  // the lab's own check of its numbers (the plan: "the app's first pair is its own check"): when the newest pair of the open
-  // block whose numbers are known got none (both reels 0 views, or no answer, at their 3-day read), no new pair is made while
-  // that block stays open. It closes as "not enough clean pairs" after BLOCK_MAX_DAYS, and the next block tries one pair
-  // again. The normal lane runs the whole list meanwhile.
-  const newestKnown = blockRead ? [...blockRead.pairs].sort((a, b) => b.pair - a.pair).find((p) => p.numbers !== null) : undefined;
-  const trialNoNumbers = trialOn && newestKnown?.numbers === false;
+  // the lab's own check of its numbers (the plan: "the app's first pair is its own check"): once the lab's newest pair whose
+  // numbers are known got none (both reels 0 views, or no answer, at their 3-day read), the lab pauses: its open block closes
+  // at once as "not enough clean pairs" (resting its questions in the lab only), and no block opens for TRIAL_PAUSE_DAYS after
+  // that pair, or until the owner asks for Trial Reels again (settings.trialRetryAt). Then one block tries again. The normal
+  // lane runs the whole list meanwhile, with nothing of the lab's locked.
+  const newestKnown = newestTrialNumbers(posts, measures);
+  const retryAt = parseIso(settings.trialRetryAt);
+  const trialNoNumbers = trialOn && newestKnown?.numbers === false && now < newestKnown.at + TRIAL_PAUSE_DAYS * DAY_MS && !(retryAt !== null && retryAt > newestKnown.at);
+  // a block that can no longer make its pairs closes at once rather than holding its dials until BLOCK_MAX_DAYS: Trial Reels
+  // switched off (or no Instagram channel, no confirmed automatic sharing, no pair outside quiet hours) or an arm no template
+  // can play any more ("stopped", resting nothing), or the lab's pause above
+  if (block && blockRead) {
+    const b: ParsedTest = block;
+    const verdict: Verdict | null = !trialOn ? "stopped" : trialNoNumbers ? "notEnoughPairs" : !armsPossible(b.questions, levelCombos(b.questions.length), bestsOf(log, settings, catalog, input.quiet)) ? "stopped" : null;
+    if (verdict) {
+      write(b.questions.map((q) => decision(b.id, "trialReel", q, verdict, now, { ratio: null, p: null, nTest: blockRead!.clean, nBest: blockRead!.clean })));
+      block = null;
+      blockRead = null;
+    }
+  }
   const trialLane = trialOn && !trialNoNumbers;
   const channelNumbers = [...measures.values()].some((m) => m.channelId === trialChannel && m.lane === "normal" && (m.state === "scored" || m.state === "unscored") && m.views72 >= 1);
   const trialPause: LearnerStatus["trialPause"] = trialNoNumbers ? (channelNumbers ? "noTrialNumbers" : "noNumbers") : null;
 
   // --- the bests after this pass's verdicts, and what opens next
-  const bests = bestsOf(log, settings, catalog);
+  const bests = bestsOf(log, settings, catalog, input.quiet);
   const formats = formatOrder(catalog, input.feasibility ?? []);
   const needed: ArmSetting[] = [];
   const lockedBy = (t: ParsedTest | null) => new Set<DialId>(t ? (t.kind === "check" ? checkKept : t.questions).map((q) => q.dial) : []);
   const fixedDials = new Set((Object.keys(settings.fixed) as DialId[]).filter((d) => settings.fixed[d]));
-  const ctxBase = { catalog, log, now, skipped, feasibility, formats };
+  const ctxBase = { catalog, log, now, skipped, feasibility, formats, quiet: input.quiet };
   if (!normalTest) {
-    const checks = pendingChecks().filter((c) => !block || !c.kept.some((q) => lockedBy(block).has(q.dial)));
+    const checks = pendingChecks().filter((c) => (!block || !c.kept.some((q) => lockedBy(block).has(q.dial))) && armsPossible(c.kept, bothLevels(c.kept), bests));
     if (checks.length) {
       checkKept = checks[0].kept;
-      normalTest = parseTestId(testIdOf("check", seqOf("normal"), [], checks[0].source));
+      normalTest = parseTestId(testIdOf("check", seqOf("normal"), [], checks[0].source, generation));
     } else if (usualReady.size) {
       const order = (trialLane ? TEST_ORDER.normal : TEST_ORDER.normalWithoutTrials).filter((d) => dials.has(d) && DIALS[d].lanes.includes("normal"));
-      const pick = nextTest(order, 1, bests, { ...ctxBase, locked: new Set([...fixedDials, ...lockedBy(block)]) });
+      const pick = nextTest(order, 1, bests, { ...ctxBase, lane: "normal", locked: new Set([...fixedDials, ...lockedBy(block)]) });
       needed.push(...pick.needed);
-      if (pick.questions.length) normalTest = parseTestId(testIdOf("normal", seqOf("normal"), pick.questions));
+      if (pick.questions.length) normalTest = parseTestId(testIdOf("normal", seqOf("normal"), pick.questions, undefined, generation));
     }
   }
   if (!block && trialLane) {
     const order = TEST_ORDER.trialReel.filter((d) => dials.has(d) && DIALS[d].lanes.includes("trialReel"));
     const locked = new Set<DialId>([...fixedDials, ...lockedBy(normalTest), ...pendingChecks().flatMap((c) => c.kept.map((q) => q.dial))]);
-    const pick = nextTest(order, BLOCK_DIALS_MAX, bests, { ...ctxBase, locked });
+    const pick = nextTest(order, BLOCK_DIALS_MAX, bests, { ...ctxBase, lane: "trialReel", locked });
     needed.push(...pick.needed);
-    if (pick.questions.length && !pick.needed.length) block = parseTestId(testIdOf("block", seqOf("trialReel"), pick.questions));
+    if (pick.questions.length && !pick.needed.length) block = parseTestId(testIdOf("block", seqOf("trialReel"), pick.questions, undefined, generation));
   }
   if (normalTest && !normalRead) normalRead = normalTest.kind === "check" ? readCheck(normalTest, checkKept, posts, measures, catalog, now, offset) : readNormalTest(normalTest, posts, measures, catalog, now, offset);
   if (block && !blockRead) blockRead = readBlockTest(block, posts, measures, catalog, now, offset, input.attempts ?? []);
@@ -1154,7 +1286,15 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   const every = normalTest?.kind === "normal" && !trialLane && (normalTest.questions[0].dial === "newcomer" || normalTest.questions[0].dial === "format") ? NEWCOMER_TEST_EVERY : TEST_EVERY;
   const checkArms = normalTest?.kind === "check" ? checkOrder(normalTest.id) : [];
   const checkUsed = normalTest?.kind === "check" ? new Set(posts.filter((p) => p.test?.id === normalTest!.id).map((p) => p.clipId)).size : 0;
-  const oldLive = normalRead ? normalRead.clips.filter((c) => c.arm === "old" && c.state !== "excluded").length : 0;
+  // The check's old clips: CHECK_OLD among its CHECK_POSTS places, due where the seeded order puts them, but never two in one
+  // day. Clips of one day share its luck (the toy world's day effect, 30 % of the variance), and two old clips on one day
+  // (places 9 and 10 at 3 clips a day) raised the went-back rate of a change that does nothing to 0.13 in a toy check of
+  // 20000 worlds, against 0.10 with one old clip a day and l0.py's 0.106; learnPass's own worlds: 0.117 over 1000. An old
+  // clip that is due waits for the next day, and one left out (an error, no answer) is made again, so exactly CHECK_OLD are
+  // live or coming: never more, as readCheck reads the first CHECK_OLD.
+  let oldLive = normalRead ? normalRead.clips.filter((c) => c.arm === "old" && c.state !== "excluded").length : 0;
+  let oldToday = normalTest?.kind === "check" && posts.some((p) => p.test?.id === normalTest!.id && p.test.arm === "old" && localDay(parseIso(p.approvedAt) ?? Number.NEGATIVE_INFINITY, offset) === today);
+  const oldDue = (place: number) => (place < CHECK_POSTS ? checkArms.slice(0, place + 1).filter((a) => a === "old").length : CHECK_OLD);
   let checkPlace = checkUsed;
   // the day's test slots: as many as 1 clip in `every` gives today (counted over the days, so a week stays within one of it),
   // at places drawn per date (hash(date|test|slots)), so the test clip is not the same slot of the day every day
@@ -1187,7 +1327,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
     let windowArm = bests.arms.postTime;
     if (normalTest?.kind === "check") {
       role = "check";
-      arm = checkPlace < CHECK_POSTS ? checkArms[checkPlace] : oldLive < CHECK_OLD ? "old" : "new";
+      arm = !oldToday && oldDue(checkPlace) > oldLive ? "old" : "new";
       checkPlace++;
       if (arm === "old") setting = settingOf(base, checkKept.map((q) => ({ ...q })), checkKept.map(() => 0), catalog);
       if (arm === "old" && checkKept.some((q) => q.dial === "postTime")) windowArm = checkKept.find((q) => q.dial === "postTime")!.best;
@@ -1221,6 +1361,10 @@ export function learnPass(input: LearnerInput): PassPlan | null {
       placed = place(role, arm, { ...base });
     }
     if (!placed) continue;
+    if (role === "check" && arm === "old") {
+      oldLive++;
+      oldToday = true;
+    }
     setting = placed.setting;
     const { chs, pick } = placed;
     variety.record(pick.id, chs.map((c) => c.id));

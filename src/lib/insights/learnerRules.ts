@@ -102,6 +102,21 @@ export const NOISE_PRIOR_SD = 1.2;
 export const NOISE_PRIOR_PAIRS = 6;
 /** A block that cannot finish 8 clean pairs within 21 days closes as "not enough clean pairs". */
 export const BLOCK_MAX_DAYS = 21;
+/**
+ * The lab's own check of its numbers: once its newest pair got no numbers (both reels no views, or no answer, at their 3-day
+ * read), its block closes and no block opens for 30 days after that pair, unless the owner asks for Trial Reels again sooner.
+ * Then one block tries again: a few pairs, about 4 to 5 days until their reads say whether numbers come now. The normal lane
+ * runs the whole test list meanwhile.
+ */
+export const TRIAL_PAUSE_DAYS = 30;
+/**
+ * A normal-lane test or check has no fixed length (it waits for its clips), but one that has not decided within 3 times its
+ * horizon (its clips at today's pace, plus the 3-day read: 33 days for a test at 3 clips a day, 81 at 1 a day) closes as "not
+ * enough clips", so a lane whose clips cannot count (reads that never come, a channel that stops answering) moves on. l0.py:
+ * the 90th percentile is under 1.3 times the median (14.0 against 11.1 days at 3 a day; 34.8 against 28.8 at 1 a day with
+ * reads missed), so a test that can decide does long before 3 times its horizon. Its question rests in the normal lane only.
+ */
+export const NORMAL_HORIZON_TIMES = 3;
 /** A question that lost rests 60 days, because platforms drift... */
 export const REST_DAYS = 60;
 /** ...and a question that lost twice in a row rests 60 more. */

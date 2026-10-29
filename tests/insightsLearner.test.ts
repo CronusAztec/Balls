@@ -12,9 +12,12 @@ import {
   learnPass,
   learnerRuns,
   localDay,
+  newestTrialNumbers,
   nextTest,
+  numbersOf,
   parseTestId,
   postOutcome,
+  postTimeOpen,
   rarelyPasses,
   readBlockTest,
   restsUntil,
@@ -30,11 +33,11 @@ import {
   type Question,
 } from "@/lib/insights/learner";
 import { dialCall } from "@/lib/insights/lab";
-import { CHECK_OLD, CHECK_POSTS, KEEP_P, KEEP_RATIO, NORMAL_TEST_CLIPS, PAIR_GAP_H, REST_DAYS, REST_TWICE_DAYS, SCORE_CLIP, TEMPLATE_SHARE_MAX } from "@/lib/insights/learnerRules";
+import { CHECK_OLD, CHECK_POSTS, KEEP_P, KEEP_RATIO, NORMAL_HORIZON_TIMES, NORMAL_TEST_CLIPS, PAIR_GAP_H, REST_DAYS, REST_TWICE_DAYS, SCORE_CLIP, TEMPLATE_SHARE_MAX, TEST_EVERY, TRIAL_PAUSE_DAYS } from "@/lib/insights/learnerRules";
 import { inQuietMinutes } from "@/lib/desktop/autopilot";
 import { DEFAULT_LEARNER } from "@/lib/insights/learnerSettings";
-import type { PostMeasure } from "@/lib/insights/stats";
-import { CATALOG, DAY, H, IG, ON, TT, YT, iso, normals, passAll, runWorld } from "./learnerWorld";
+import { measureRows, type PostMeasure } from "@/lib/insights/stats";
+import { CATALOG, DAY, H, IG, ON, TT, YT, dateOf, iso, normals, passAll, runWorld, type WorldResult } from "./learnerWorld";
 import { armKey, checkArms, type ArmPlanner, type FeasibilityResult } from "@/lib/insights/feasibility";
 import { activeDials, questionKey, TEST_ORDER, type DialId } from "@/lib/insights/dials";
 
@@ -820,6 +823,290 @@ describe("choosing the next test or block (nextTest)", () => {
     expect(asked(settle(["postTime", "length"], 1, passAll, { locked: new Set<DialId>(["postTime"]) }))).toEqual(["length:short"]);
     expect(asked(settle(["length", "ending", "format"], 2))).toEqual(["length:short", "ending:cliffhanger"]);
     expect(asked(settle(["length"], 3, passAll, { locked: new Set<DialId>(["length"]) }))).toEqual([]);
+  });
+});
+
+/** The day each test or block first opened in a world's passes. */
+const openedOn = (r: WorldResult) => {
+  const m = new Map<string, string>();
+  for (const p of r.plans) for (const t of [p.test, p.block]) if (t && !m.has(t.id)) m.set(t.id, p.date);
+  return m;
+};
+const firstOpened = (r: WorldResult, re: RegExp) => [...openedOn(r)].find(([id]) => re.test(id))?.[1] ?? null;
+const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / DAY;
+
+// The plan: post time is "12-14, 17-19 or 20-22 local, never in quiet hours". The night arm was offered whatever the quiet
+// hours, so with quiet hours from 20:00 its test clips were planned inside them, could never go out in their window, and the
+// test never closed (open from 2026-11-23 to 2027-04-09 with no clip counted)
+describe("post time and quiet hours", () => {
+  const evening = { from: "20:00", to: "07:00" };
+  const minute = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+  const postTime = (challenger: string, best = "spread"): Question => ({ dial: "postTime", best, challenger, subject: null });
+
+  it("a post-time arm is a window that starts outside quiet hours; a best inside them goes back to spread", () => {
+    expect(postTimeOpen("night", evening)).toBe(false);
+    expect(postTimeOpen("night", { from: "19:30", to: "07:00" })).toBe(false);
+    expect(postTimeOpen("noon", { from: "22:00", to: "12:30" })).toBe(false);
+    expect(postTimeOpen("night", { from: "21:00", to: "07:00" })).toBe(true); // its clips go out at 20:00
+    expect(postTimeOpen("night", undefined)).toBe(true);
+    expect(postTimeOpen("spread", { from: "00:00", to: "23:59" })).toBe(true);
+    const night = verdict({ testId: "n0.postTime.spread.night", dial: "postTime", best: "spread", challenger: "night" });
+    expect(bestsOf([night], { fixed: {} }).arms.postTime).toBe("night");
+    expect(bestsOf([night], { fixed: {} }, CATALOG, evening).arms.postTime).toBe("spread");
+    expect(bestsOf([], { fixed: { postTime: "night" } }, CATALOG, evening).arms.postTime).toBe("spread");
+    // nextTest offers night only outside quiet hours
+    const ctx: NextTestContext = { catalog: CATALOG, log: [], now: T0, skipped: new Set([questionKey("postTime", "spread", "noon"), questionKey("postTime", "spread", "evening")]), locked: new Set(), feasibility: new Map(), formats: formatOrder(CATALOG) };
+    expect(nextTest(["postTime"], 1, bestsOf([], { fixed: {} }), ctx).questions).toEqual([postTime("night")]);
+    expect(nextTest(["postTime"], 1, bestsOf([], { fixed: {} }), { ...ctx, quiet: evening }).questions).toEqual([]);
+  });
+
+  it("with quiet hours over a window no test of it opens, no clip is planned inside them, and the post-time tests close", () => {
+    for (const quiet of [evening, { from: "19:30", to: "07:00" }, { from: "22:00", to: "12:30" }]) {
+      const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, quiet, effect: () => 0, days: 70 });
+      for (const s of r.plans.flatMap((p) => p.slots)) expect(inQuietMinutes(minute(s.window.from), quiet.from, quiet.to), `${quiet.from}: ${s.window.from}`).toBe(false);
+      const tests = [...openedOn(r).keys()].filter((id) => id.includes(".postTime."));
+      expect(tests.length, quiet.from).toBeGreaterThanOrEqual(2);
+      for (const id of tests) expect(postTimeOpen(parseTestId(id)!.questions[0].challenger, quiet), id).toBe(true);
+      const verdicts = r.decisions.filter((d) => d.dial === "postTime");
+      expect(verdicts.length, quiet.from).toBeGreaterThanOrEqual(2);
+      expect(verdicts.every((d) => d.verdict !== "stopped" && d.nTest === NORMAL_TEST_CLIPS)).toBe(true);
+    }
+  });
+
+  it("a night test open when quiet hours move over 20:00 stops at once, rests nothing, and plans no clip at night", () => {
+    const lost = (seq: number, challenger: string) => verdict({ testId: `n${seq}.postTime.spread.${challenger}`, dial: "postTime", best: "spread", challenger, verdict: "notKept", decidedAt: iso(T0 - 5 * DAY) });
+    const decisions = [lost(0, "noon"), lost(1, "evening")];
+    const r = runWorld({ seed: 81, channels: [IG, TT], settings: ON, decisions, effect: () => 0, days: 4 });
+    expect(r.plans[r.plans.length - 1].test?.id).toBe("n2.postTime.spread.night");
+    const plan = learnPass({ ...r.input, quiet: evening })!;
+    expect(plan.verdicts.map((v) => [v.testId, v.verdict])).toEqual([["n2.postTime.spread.night", "stopped"]]);
+    expect(plan.test).toBeNull(); // noon and evening rest, and night is shut out
+    for (const s of plan.slots) expect(inQuietMinutes(minute(s.window.from), evening.from, evening.to), s.window.from).toBe(false);
+    const log = [...r.input.decisions, ...plan.verdicts];
+    expect(restsUntil(postTime("night"), log, "normal")).toBe(0);
+    // the quiet hours move back: night is asked again at once, as a new test
+    const again = learnPass({ ...r.input, decisions: log })!;
+    expect(again.test?.id).toBe("n3.postTime.spread.night");
+  });
+});
+
+// A block that could not make its pairs (Trial Reels switched off, or no numbers coming) held its dials away from the normal
+// lane for 21 days, then rested them 60 days in both lanes, and a new block opened at once: with no Trial Reel numbers the
+// normal lane first tested short clips on 2027-01-22 and never the Journey in 150 days
+describe("a lab that cannot make its pairs", () => {
+  const short = /^n\d+\.length\.standard\.short$/;
+  const journey = /^n\d+\.newcomer\.rotation\.newcomer\.get-out-journey$/;
+
+  it("'not enough clean pairs' rests a question in the lab only, 'not enough clips' in the normal lane only, 'stopped' nowhere", () => {
+    const pairs = verdict({ testId: "t0.length.standard.short", lane: "trialReel", verdict: "notEnoughPairs" });
+    expect(restsUntil(length, [pairs], "trialReel")).toBe(T0 + REST_DAYS * DAY);
+    expect(restsUntil(length, [pairs], "normal")).toBe(0);
+    const clips = verdict({ verdict: "notEnoughClips" });
+    expect(restsUntil(length, [clips], "normal")).toBe(T0 + REST_DAYS * DAY);
+    expect(restsUntil(length, [clips], "trialReel")).toBe(0);
+    const stopped = verdict({ verdict: "stopped" });
+    expect(restsUntil(length, [stopped], "normal")).toBe(0);
+    expect(restsUntil(length, [stopped])).toBe(0);
+    // an earlier answer still rests it, and a stopped test says nothing on the card
+    const kept = verdict({ decidedAt: iso(T0 - DAY) });
+    expect(restsUntil(length, [kept, stopped], "normal")).toBe(T0 - DAY + REST_DAYS * DAY);
+    expect(findingsOf([kept, stopped]).map((f) => f.key)).toEqual(["Learner.findings.length.kept"]);
+  });
+
+  it("no Trial Reel numbers: the normal lane asks the whole list almost as soon as without Trial Reels", () => {
+    const off = runWorld({ seed: 8, channels: [IG, TT], settings: { ...ON, trialReels: false }, effect: () => 0, days: 50 });
+    const zeros = runWorld({ seed: 8, channels: [IG, TT], settings: ON, zeroTrials: true, effect: () => 0, days: 50 });
+    expect([firstOpened(off, short), firstOpened(off, journey)]).toEqual(["2026-11-01", "2026-12-04"]);
+    // with the lab running on day 0 the normal lane's first test is post time: one test later (11 days) it has the whole list
+    expect([firstOpened(zeros, short), firstOpened(zeros, journey)]).toEqual(["2026-11-12", "2026-12-15"]);
+    expect(daysBetween(firstOpened(off, short)!, firstOpened(zeros, short)!)).toBeLessThanOrEqual(14);
+    expect(daysBetween(firstOpened(off, journey)!, firstOpened(zeros, journey)!)).toBeLessThanOrEqual(14);
+  });
+
+  it("no Trial Reel numbers: block 1 closes the day it knows, and a block tries again only TRIAL_PAUSE_DAYS on", () => {
+    const zeros = runWorld({ seed: 8, channels: [IG, TT], settings: ON, zeroTrials: true, effect: () => 0, days: 106 });
+    const trial = zeros.decisions.filter((d) => d.lane === "trialReel");
+    expect(trial.every((d) => d.verdict === "notEnoughPairs")).toBe(true);
+    expect(trial[0].decidedAt.slice(0, 10)).toBe(zeros.plans.find((p) => p.status.trialPause)!.date);
+    const blocks = [...openedOn(zeros)].filter(([id]) => id.startsWith("t")).map(([, d]) => d);
+    expect(blocks).toEqual(["2026-11-01", "2026-12-05", "2027-01-08", "2027-02-11"]);
+    for (let i = 1; i < blocks.length; i++) expect(daysBetween(blocks[i - 1], blocks[i])).toBeGreaterThanOrEqual(TRIAL_PAUSE_DAYS);
+    // while it waits nothing of the lab's is open, locked or posted: a clip's locked dials are the normal lane's test's alone
+    const paused = zeros.plans.filter((p) => p.status.trialPause);
+    expect(paused.length).toBe(90);
+    for (const p of paused) {
+      expect([p.block, p.status.trialLane, p.slots.some((s) => s.lane === "trialReel")]).toEqual([null, false, false]);
+      expect(p.slots.every((s) => s.locked.every((d) => p.test?.questions.some((q) => q.dial === d)))).toBe(true);
+    }
+    expect(zeros.posts.filter((p) => p.lane === "trialReel").length).toBe(32); // 4 blocks of 4 pairs
+  });
+
+  it("the owner's 'Try Trial Reels again' lifts the pause at once, until the new block's own pair shows none", () => {
+    const at = Date.parse("2026-11-11T08:00:00Z");
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, zeroTrials: true, settingsAt: (d) => (d >= 10 ? { ...ON, trialRetryAt: iso(at) } : null), effect: () => 0, days: 20 });
+    expect([...openedOn(r)].filter(([id]) => id.startsWith("t")).map(([, d]) => d)).toEqual(["2026-11-01", "2026-11-11"]);
+    expect(r.plans.map((p) => (p.status.trialPause ? "P" : ".")).join("")).toBe("....PPPPPP....PPPPPP");
+  });
+
+  it("Trial Reels switched off mid-block: the block stops that day, rests nothing, and the normal lane asks the length next", () => {
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, settingsAt: (d) => (d >= 5 ? { ...ON, trialReels: false } : null), effect: () => 0, days: 30 });
+    const t0 = r.decisions.filter((d) => d.testId.startsWith("t0."));
+    expect(t0.map((d) => [d.dial, d.verdict, d.decidedAt.slice(0, 10)])).toEqual([
+      ["newcomer", "stopped", "2026-11-06"],
+      ["length", "stopped", "2026-11-06"],
+    ]);
+    const then = r.decisions.slice(0, r.decisions.indexOf(t0[1]) + 1);
+    for (const q of parseTestId(t0[0].testId)!.questions) for (const lane of ["normal", "trialReel"] as const) expect(restsUntil(q, then, lane), `${q.dial} ${lane}`).toBe(0);
+    expect(r.plans.filter((p) => p.date >= "2026-11-06").every((p) => p.block === null && p.slots.every((s) => s.lane === "normal"))).toBe(true);
+    // the post-time test opened while the lab ran closes, then the whole list: the length first
+    expect(r.decisions.filter((d) => d.lane === "normal").map((d) => d.testId).slice(0, 2)).toEqual(["n0.postTime.spread.noon", "n1.length.standard.short"]);
+  });
+});
+
+// Trial Reels that Postiz answers with [] counted as no numbers only at 168 h ("not measured"), so each block posted about 16
+// reels with no numbers (32 in 40 days) where zeros paused it after 8
+describe("Trial Reels with no answer", () => {
+  it("a reel with no answer at its 3-day read has no numbers, and the lab pauses as early as on zeros", () => {
+    const pending: PostMeasure = { postId: "a", channelId: "ig1", platform: "instagram", lane: "trialReel", publishedAt: T0, state: "pending" };
+    expect(numbersOf({ ...pending, noAnswer: true })).toBe(false);
+    expect(numbersOf(pending)).toBeNull();
+    expect(numbersOf(undefined)).toBeNull();
+    const world = (o: { zeroTrials?: boolean; noTrialAnswer?: boolean }) => runWorld({ seed: 8, channels: [IG, TT], settings: ON, ...o, effect: (p) => (p.lane === "trialReel" && p.template === "get-out-journey" ? Math.log(3) : 0), days: 40 });
+    const zeros = world({ zeroTrials: true });
+    const none = world({ noTrialAnswer: true });
+    const reels = (r: WorldResult) => r.posts.filter((p) => p.lane === "trialReel").length;
+    const firstPause = (r: WorldResult) => r.plans.find((p) => p.status.trialPause)!.date;
+    expect([reels(zeros), reels(none)]).toEqual([16, 12]);
+    expect(reels(none)).toBeLessThanOrEqual(20);
+    expect([firstPause(zeros), firstPause(none)]).toEqual(["2026-11-05", "2026-11-04"]);
+    expect(none.plans.filter((p) => p.status.trialPause).every((p) => p.status.trialPause === "noTrialNumbers")).toBe(true);
+    expect(none.decisions.filter((d) => d.lane === "trialReel").every((d) => d.verdict === "notEnoughPairs")).toBe(true);
+    expect(none.plans[none.plans.length - 1].joined).toEqual([]);
+    // the newest pair whose numbers are known decides, across blocks: here the last block's, with none
+    expect(newestTrialNumbers(none.posts, new Map())).toBeNull();
+    const measures = new Map(measureRows(none.input.rows, none.input.now).map((m) => [`${m.postId}|${m.channelId}`, m]));
+    const newest = newestTrialNumbers(none.posts, measures)!;
+    expect(newest.numbers).toBe(false);
+    expect(newest.at).toBe(Math.max(...none.posts.filter((p) => p.lane === "trialReel").map((p) => Date.parse(p.approvedAt)))); // the last pair made, before the pause
+  });
+});
+
+// A normal test or check decided only once its clips were scored, and nothing closed one that could not get there: a template
+// withdrawn mid-test, or reads that never come, held the normal lane for good
+describe("a normal test that cannot finish", () => {
+  it("a template withdrawn mid-test: its newcomer test stops that day and the next test opens", () => {
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: { ...ON, trialReels: false }, catalogAt: (d) => (d >= 36 ? CATALOG.filter((t) => t.id !== "get-out-journey") : CATALOG), effect: () => 0, days: 60 });
+    const journey = r.decisions.find((d) => d.subject === "get-out-journey")!;
+    expect([journey.testId, journey.verdict, journey.decidedAt.slice(0, 10)]).toEqual(["n3.newcomer.rotation.newcomer.get-out-journey", "stopped", "2026-12-07"]);
+    expect(openedOn(r).get("n4.newcomer.rotation.newcomer.smash-spiral-glass")).toBe("2026-12-07");
+    expect(r.decisions.find((d) => d.testId.startsWith("n4."))?.verdict).toBe("kept");
+  });
+
+  it("clips whose numbers never come: the test closes as 'not enough clips' after NORMAL_HORIZON_TIMES its horizon, and the next opens", () => {
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: { ...ON, trialReels: false }, effect: () => 0, days: 4 });
+    const open = r.plans[r.plans.length - 1].test!;
+    expect(open.id).toBe("n0.length.standard.short");
+    // the app is not opened again for weeks: no read after the 4th day, so its clips are never measured
+    const at = (days: number) => ({ ...r.input, now: r.input.now + days * DAY, date: dateOf(r.input.now + days * DAY) });
+    expect(NORMAL_HORIZON_TIMES * ((NORMAL_TEST_CLIPS * TEST_EVERY) / 3 + 3)).toBe(33); // days, at 3 clips a day, from its first clip on day 0
+    const still = learnPass(at(29))!;
+    expect([still.verdicts, still.test?.id]).toEqual([[], open.id]);
+    const closed = learnPass(at(31))!;
+    expect(closed.verdicts.map((v) => [v.testId, v.verdict])).toEqual([[open.id, "notEnoughClips"]]);
+    expect(restsUntil(length, closed.verdicts, "normal")).toBe(Date.parse(closed.verdicts[0].decidedAt) + REST_DAYS * DAY);
+    expect(restsUntil(length, closed.verdicts, "trialReel")).toBe(0);
+    const input = at(31);
+    const planned = checkArms(closed.feasibilityNeeded, CATALOG, new Set(closed.joined), passAll, input.feasibility);
+    const next = learnPass({ ...input, decisions: closed.verdicts, feasibility: [...(input.feasibility ?? []), ...planned] })!;
+    expect(next.test?.id).toBe("n1.length.standard.long");
+  });
+});
+
+// sim/l0.py 3 reads the check on exactly 4 old against 12 new clips. At 3 clips a day the fallback past the 16th place made
+// old clips from a count fixed for the pass, so 58 % of checks read 5 or 6 old clips, and two old clips on one day share its
+// luck: a change that does nothing went back 0.157 of the time against l0's 0.106 (300 worlds)
+describe("the combined check at 3 clips a day", () => {
+  const kept = verdict({ testId: "t0.length.standard.short", lane: "trialReel", decidedAt: iso(T0 - DAY) });
+  const check = (seed: number, ratio: number) => runWorld({ seed, perDay: 3, settings: { ...ON, trialReels: false }, decisions: [kept], until: (v) => v.testId.startsWith("c"), days: 40, effect: (p) => (p.lane === "normal" && p.bucket === "short" ? Math.log(ratio) : 0) });
+
+  it("makes exactly 4 old clips, never two in a day, and reads 4 against 12", () => {
+    // its seeded order puts old clips at places 6, 9, 10 and 15: 9 and 10 fall on one day at 3 clips a day
+    expect(checkOrder("c0.t0.length.standard.short").map((a) => a[0]).join("")).toBe("nnnnnnonnoonnnno");
+    for (let w = 0; w < 6; w++) {
+      const r = check(60000 + w, 1);
+      const v = r.decisions.find((d) => d.testId.startsWith("c"))!;
+      expect([v.testId, v.nBest, v.nTest]).toEqual(["c0.t0.length.standard.short", CHECK_OLD, CHECK_POSTS - CHECK_OLD]);
+      const old = r.posts.filter((p) => p.test?.id === v.testId && p.test.arm === "old");
+      const days = new Map<string, Set<string>>();
+      for (const p of old) days.set(p.approvedAt.slice(0, 10), new Set([...(days.get(p.approvedAt.slice(0, 10)) ?? []), p.clipId]));
+      expect([...days.values()].map((s) => s.size)).toEqual([1, 1, 1, 1]);
+    }
+  });
+
+  // l0.py 3: x0.5 0.465, no difference 0.106, x2 0.011. A change that does nothing or truly wins goes back no more often (1000
+  // worlds: 0.117 and 0.003); a real loss goes back more often here (0.571), as each clip is the mean of two channels and old
+  // and new clips share their days. 150 worlds each
+  const W = 150;
+  const wentBack = (ratio: number) => Array.from({ length: W }, (_, w) => check(60000 + w, ratio).decisions.find((d) => d.testId.startsWith("c"))!.verdict).filter((v) => v === "wentBack").length;
+  it("a change that does nothing goes back as rarely as in l0.py", () => {
+    const back = wentBack(1);
+    expect(back).toBe(16);
+    expect(back / W).toBeLessThanOrEqual(0.106 + 0.05);
+  });
+
+  it("a change that truly wins almost never goes back", () => {
+    const back = wentBack(2);
+    expect(back).toBe(0);
+    expect(back / W).toBeLessThanOrEqual(0.011 + 0.02);
+  });
+
+  it("a change followers like half as much goes back at least as often as in l0.py", () => {
+    const back = wentBack(0.5);
+    expect(back).toBe(89);
+    expect(back / W).toBeGreaterThanOrEqual(0.465 - 0.05);
+  });
+});
+
+// "Forget my numbers" deletes the numbers and the decision log, but the audit keeps each post's test membership: with an empty
+// log the old ids matched again, and the next passes closed the forgotten tests as "not enough clean pairs", resting every
+// question 60 days, and a fresh block shared its id with an old one
+describe("after Forget my numbers", () => {
+  const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, effect: (p) => (p.lane === "trialReel" && p.template === "get-out-journey" ? Math.log(3) : 0), days: 60 });
+  const passes = (generation: number) => {
+    let decisions: LearnerDecision[] = [];
+    const plans = [];
+    for (let d = 1; d <= 4; d++) {
+      const now = r.input.now + d * DAY;
+      const plan = learnPass({ ...r.input, now, date: dateOf(now), decisions, settings: { ...r.input.settings, generation } })!;
+      decisions = [...decisions, ...plan.verdicts];
+      plans.push(plan);
+    }
+    return plans;
+  };
+
+  it("test ids carry the generation, and a check's its test's", () => {
+    const n = testIdOf("normal", 0, [length], undefined, 2);
+    expect(n).toBe("n0g2.length.standard.short");
+    expect(parseTestId(n)).toMatchObject({ kind: "normal", seq: 0, generation: 2, questions: [length] });
+    expect(parseTestId("n0.length.standard.short")?.generation).toBe(0);
+    const c = testIdOf("check", 3, [], n, 2);
+    expect(c).toBe("c3g2.n0g2.length.standard.short");
+    expect(parseTestId(c)).toMatchObject({ kind: "check", seq: 3, generation: 2, source: { id: n } });
+    for (const bad of ["c3.n0g2.length.standard.short", "c3g2.n0.length.standard.short", "n0g0.length.standard.short", "n0g12345.length.standard.short"]) expect(parseTestId(bad), bad).toBeNull();
+  });
+
+  it("the next passes write no verdict for a forgotten test and open the first tests anew from today's defaults", () => {
+    expect(r.decisions.length).toBeGreaterThan(10);
+    const plans = passes(1);
+    expect(plans.flatMap((p) => p.verdicts)).toEqual([]);
+    for (const p of plans) {
+      expect([p.test?.id, p.block?.id]).toEqual(["n0g1.postTime.spread.noon", "t0g1.newcomer.rotation.newcomer.get-out-journey~length.standard.short"]);
+      expect(p.best).toEqual({ length: "standard", ending: "resolved", format: "mix", newcomer: "rotation", postTime: "spread" });
+      expect(p.joined).toEqual([]);
+      expect([p.test?.nTest, p.test?.pending, p.block?.clean, p.block?.pending]).toEqual([0, 0, 0, 0]);
+    }
+    // without the new generation the old memberships came back: verdicts on forgotten tests
+    expect(passes(0).flatMap((p) => p.verdicts).length).toBeGreaterThan(0);
   });
 });
 

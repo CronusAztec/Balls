@@ -436,9 +436,22 @@ export type PostMeasure = {
 } & (
   | { state: "scored"; views72: number; via: "line" | "projected"; usual: number; score: number }
   | { state: "unscored"; views72: number; via: "line" | "projected"; why: "fewPosts" | "fewViews"; n: number }
-  | { state: "pending" }
+  | { state: "pending"; noAnswer?: true }
   | { state: "excluded"; why: PostExclusion; views72?: number }
 );
+
+/**
+ * Whether a post's numbers are known not to come in time for its score, before MEASURED_UNTIL_H says "not measured": no read
+ * between MEASURED_FROM_H and MEASURED_UNTIL_H, and either its 3-day read's tries are spent with no answer (dueReads asks
+ * that window no more) or the row says no answer once the 3-day window (DAY3_WINDOW_H) has passed. A pending measure carries
+ * it (`noAnswer`), so the lab's check of its numbers sees no answer at the 3-day read as it sees zeros, and pauses as early.
+ */
+export function noAnswerAt3Days(row: Pick<InsightRow, "state" | "reads" | "tries">, ageH: number): boolean {
+  if (row.state === "excluded") return false;
+  if (row.reads.some((r) => r.views !== null && r.ageH >= MEASURED_FROM_H && r.ageH <= MEASURED_UNTIL_H)) return false;
+  const spent = row.tries?.window === "day3" && row.tries.n >= NO_ANSWER_TRIES;
+  return spent || (row.state === "noAnswer" && ageH > DAY3_WINDOW_H.to);
+}
 
 /** The date a platform's numbers are comparable from (METRIC_BREAKS), as ms. */
 function breakOf(platform: string): number {
@@ -486,7 +499,7 @@ export function measureRows(rows: readonly InsightRow[], now: number, since: Rea
     else if (published < breakOf(row.platform)) out.push({ ...base, state: "excluded", why: "beforeBreak", ...shown });
     else if (!final) {
       const notMeasured = now - published > MEASURED_UNTIL_H * HOUR_MS;
-      out.push(notMeasured ? { ...base, state: "excluded", why: row.state === "noAnswer" ? "noAnswer" : "notMeasured" } : { ...base, state: "pending" });
+      out.push(notMeasured ? { ...base, state: "excluded", why: row.state === "noAnswer" ? "noAnswer" : "notMeasured" } : { ...base, state: "pending", ...(noAnswerAt3Days(row, (now - published) / HOUR_MS) ? { noAnswer: true as const } : {}) });
     } else {
       const restart = parseIso(since[row.channelId]) ?? Number.NEGATIVE_INFINITY;
       const usual = usualOf(points.get(`${row.channelId}|${row.lane}`) ?? [], published, restart);

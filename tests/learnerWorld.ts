@@ -3,7 +3,7 @@ import { checkArms, type ArmPlanner, type FeasibilityResult, type LearnerTemplat
 import { learnPass, type LearnerChannel, type LearnerDecision, type LearnerInput, type LearnerPost, type PassPlan } from "@/lib/insights/learner";
 import { DEFAULT_LEARNER, type LearnerSettings } from "@/lib/insights/learnerSettings";
 import { SCORE_CLIP } from "@/lib/insights/learnerRules";
-import { seededDraws, type InsightRead, type InsightRow } from "@/lib/insights/stats";
+import { seededDraws, type InsightRead, type InsightRow, type InsightTries } from "@/lib/insights/stats";
 
 /*
  * --- learner --- Seeded worlds for the learner's tests (tests/insightsLearner.test.ts, tests/insightsFeasibility.test.ts): a
@@ -86,6 +86,15 @@ export interface WorldOptions {
   quiet?: { from: string; to: string };
   /** The PC's UTC offset at a moment (minutes east): slots go out at their local window, and learnPass is given it. UTC when absent. */
   offsetMinAt?: (at: number) => number;
+  /**
+   * Postiz answers [] for every Trial Reel (no answer): no read ever comes, and the app's tries are spent as the main process
+   * spends them, three 2 hours apart in each window: the early window's by 22 h, the 3-day window's by 64 h.
+   */
+  noTrialAnswer?: boolean;
+  /** The owner's settings from a day on (null: `settings`). */
+  settingsAt?: (day: number) => LearnerSettings | null;
+  /** The ready templates on a day (an app update can take a template's readiness away). */
+  catalogAt?: (day: number) => LearnerTemplate[];
 }
 
 export interface WorldResult {
@@ -122,7 +131,15 @@ export function runWorld(o: WorldOptions): WorldResult {
   const excl = o.excl ?? 0;
   const start = o.start ?? Date.parse("2026-11-01T09:00:00Z");
   const usualViews = 500;
-  const allRows: { row: InsightRow; reads: InsightRead[] }[] = [];
+  const allRows: { row: InsightRow; reads: InsightRead[]; noAnswer?: boolean }[] = [];
+  /** A row as the app holds it at `now`: the reads taken by then, and an unanswered post's spent tries. */
+  const rowAt = ({ row, reads, noAnswer }: (typeof allRows)[number], now: number): InsightRow => {
+    if (!noAnswer) return { ...row, reads: reads.filter((r) => Date.parse(r.at) <= now) };
+    const published = Date.parse(row.publishedAt!);
+    const spent = (window: InsightTries["window"], h: number): InsightTries => ({ window, n: 3, lastAt: iso(published + h * H) });
+    const tries = now >= published + 64 * H ? spent("day3", 64) : now >= published + 22 * H ? spent("early", 22) : null;
+    return { ...row, reads: [], state: tries ? "noAnswer" : "ok", tries };
+  };
   const posts: LearnerPost[] = [];
   let decisions: LearnerDecision[] = [...(o.decisions ?? [])];
   let feasibility: FeasibilityResult[] = [];
@@ -140,8 +157,9 @@ export function runWorld(o: WorldOptions): WorldResult {
       const g = 0.35 + z() * 0.1;
       const left = u() < excl;
       posts.push({ postId, channelId: c.id, platform: ch.platform, lane: c.lane, clipId, approvedAt: iso(approvedAt), test: membership, facts: { template, bucket, ending, watermark: "sealed" }, privacy: ch.platform === "tiktok" ? "public" : null });
-      const reads = left ? [] : readsOf(at, v72, g, miss, u).map((r) => (o.zeroTrials && c.lane === "trialReel" ? { ...r, views: 0, reach: 0 } : r));
-      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads });
+      const noAnswer = !!o.noTrialAnswer && c.lane === "trialReel" && !left;
+      const reads = left || noAnswer ? [] : readsOf(at, v72, g, miss, u).map((r) => (o.zeroTrials && c.lane === "trialReel" ? { ...r, views: 0, reach: 0 } : r));
+      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads, noAnswer });
     }
   };
   // the history: best clips before learning, one a day per channel
@@ -151,8 +169,8 @@ export function runWorld(o: WorldOptions): WorldResult {
   let input: LearnerInput | null = null;
   for (let d = 0; d < (o.days ?? 40); d++) {
     const now = start + d * DAY;
-    const rows = allRows.map(({ row, reads }) => ({ ...row, reads: reads.filter((r) => Date.parse(r.at) <= now) }));
-    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings, rows, posts: [...posts], decisions, channels, catalog: CATALOG, perDay, quiet: o.quiet ?? { from: "23:00", to: "07:00" }, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}) });
+    const rows = allRows.map((r) => rowAt(r, now));
+    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings: o.settingsAt?.(d) ?? settings, rows, posts: [...posts], decisions, channels, catalog: o.catalogAt?.(d) ?? CATALOG, perDay, quiet: o.quiet ?? { from: "23:00", to: "07:00" }, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}) });
     input = make();
     let plan = learnPass(input);
     for (let tries = 0; plan && plan.feasibilityNeeded.length && tries < 6; tries++) {
@@ -178,7 +196,7 @@ export function runWorld(o: WorldOptions): WorldResult {
       post(now + slot.index * 60_000, at, slot.options.template, slot.options.bucket, slot.options.ending, slot.channels, slot.membership, dayEffect);
     }
   }
-  const rows = allRows.map(({ row, reads }) => ({ ...row, reads }));
+  const rows = allRows.map((r) => rowAt(r, Number.POSITIVE_INFINITY));
   return { decisions, days, plans, posts, rows, input: input! };
 }
 
