@@ -324,7 +324,8 @@ describe("today's bot clips", () => {
     const plan = planClip(recipeById("ring-escape")!, 7, "reels", { copy, ending: "resolved", episode: 3 });
     const s = simpleScore(withRun(plan));
     expect(s.band).toBe("busy");
-    expect(s.score).toBeGreaterThanOrEqual(35);
+    // (--- crew --- AI studio step 4: its roster's end banner is a text on screen now, beside its payoff caption: 32)
+    expect(s.score).toBeGreaterThanOrEqual(30);
     expect(s.score).toBeLessThanOrEqual(55);
     expect(s.deductions.map((d) => d.id)).toEqual(expect.arrayContaining(["textAtOnce", "busyShare", "persistent", "colorTrail", "screenShake"]));
   });

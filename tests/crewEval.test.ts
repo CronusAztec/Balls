@@ -372,6 +372,10 @@ describe("the recorded runs (--- crew --- tests/fixtures/crew/runs/)", () => {
  * --- templates --- (AI studio step 3) Target's template is the smash format's first in the menu now (Power Layers' before it): cut
  * before its last segment, every idea of it passes every gate, so the code's ideas pass 18 of 18 (15 before) and the scripted
  * brainstormer's – which takes each template's ending as its schema allows it – 15 of 15 (12). No catch rate moved.
+ * --- templates --- (AI studio step 4) The aim format joined the menu (Bouncing Shapes' and Bullseye's templates) with the
+ * conveyor's count: six formats now, so the code's ideas mix 6 a request (5) and the scripted brainstormer, the first template
+ * of each format, pitches 18 ideas (15), each passing every gate. The banners that end a clip (the mode's own, no payoff words
+ * beside them) moved no catch rate, misread or fix of the scripted trio.
  */
 const SCRIPTED_TABLES = [
   "Corpus: 40 clean clips, 27 planted (9 classes).",
@@ -399,6 +403,6 @@ const SCRIPTED_TABLES = [
   "",
   "| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |",
   "| --- | --- | --- | --- | --- | --- | --- | --- |",
-  "| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 5 | 0 | - |",
-  "| the brainstormer | 3 | 15 | 15 | 15 of 15 (100%) | 5 | 3 | 3 of 3 |",
+  "| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |",
+  "| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 3 | 3 of 3 |",
 ].join("\n");

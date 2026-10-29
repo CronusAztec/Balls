@@ -216,15 +216,17 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 19 modes as 24 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
+- **Ready now:** 25 modes as 30 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
   on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
   Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
-  ("Classic · Get out · One ring"). Their numbers are in the table of step 3 below.
-- **Hidden for now:** the other 27 modes are bound but wait for their own settings and planning acceptance. They sit in
-  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Three of
-  them were planned and measured in step 3 and stay with the reason found: Journey, Paint and Spiral Glass (below). Their
+  ("Classic · Get out · One ring"). Six more do since AI studio step 4: the conveyor, the Maze, Territory, Land Claim, Bullseye
+  and Bouncing Shapes. Their numbers are in the tables of steps 3 and 4 below.
+- **Hidden for now:** the other 23 modes are bound but wait for their own settings and planning acceptance. They sit in
+  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Five of
+  them were planned and measured and stay with the reason found: Journey, Paint and Spiral Glass in step 3, Merge Ring and
+  Paddle Keep-Up in step 4 (below). Their
   payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
   of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
@@ -234,7 +236,8 @@ checks (G4).
   and Perfect Fit plan from a run of their own instead: the planner plays the seed's run with the template's settings and reads
   the moment off it, the last brick of the picture or the last piece landed (`OWN_RUN_MOMENTS`). So does Fight
   League's boss rush: its hook names the boss and the division in one clause of 8–9 words, more than the 7 G5 allows. The square race is
-  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count. So is Ball Drop's:
+  hidden too: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count (step 4 tried 96
+  seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). So is Ball Drop's:
   its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
   shows for 0.5 s, so no plan's payoff lands (G2). A template that fails a gate on every plan is hidden with its reason, never
   kept by an exception. A binding is ready only while one of its templates is, so the race's and Ball Drop's bindings are not
@@ -274,6 +277,11 @@ checks (G4).
   "Which colour takes the board?"). Pendulum Wave's asks its question instead of promising a chord ("22 pendulums. Do they
   line up?"): its run plays the same chord at the release and at half a cycle. Power Layers' keeps the rule it plays by, as
   the mode's own counter shows the layers left;
+- one ending (AI studio step 4): where the mode draws its own finish banner as its payoff comes (Power Layers' "FREEDOM! 10
+  hits · 16.7s", a battle's winner card, Bullseye's BULLSEYE!), the banner stays and the look draws no payoff words beside
+  it. The banners and when they show are a table (`MODE_END_BANNERS` in `src/lib/crew/hudFlags.ts`); the Simple score counts
+  one as a text on screen, the crew's screen view names it, and G2 reads it as the words the clip ends on where it covers the
+  clip's quiet end;
 - a payoff cut the same way toward 3 words ("FREE! Gerald made it 🎉" becomes "FREE!"). A payoff of one clause keeps its
   words ("Thor is the champion! 🏆", "Znów w jednej linii. 🎼"). It gets 1.2 s a line: where the seconds after it are too
   short for two lines, as on Shorts, it takes one line, without its closing emoji and a size smaller if need be. The closing
@@ -290,16 +298,20 @@ each look]**:
 
 | | Bot look | Simple look |
 | --- | --- | --- |
-| Simple score, median (range) | 44 (15–56) | 91 (85–97) |
-| Simple score with the run read, median (range) | 35 (8–56) | 91 (85–97) |
+| Simple score, median (range) | 44 (15–56) | 92 (85–97) |
+| Simple score with the run read, median (range) | 34 (8–56) | 91 (84–97) |
 | Checklist score, median | 100 | 94 |
 | Plans that pass every clarity gate | 0 | 179 |
 
 - Both looks pick the same seed. The checklist loses the series item's label points, 4 on every plan, and the countdown's 10
   on the 60 plans of Grow, Clone per pass, Pendulum Wave, Polyrhythm and Drop Symphony, whose bar counts the clip's seconds.
   The look item stays at 5 on every plan.
-- The Simple score still charges every plan 3 for the cinematic camera. 132 plans show two messages at once for a while: a
-  mode's own HUD (an arena's band, the layer count, the stage dots) beside a text.
+- The Simple score still charges every plan 3 for the cinematic camera. 138 plans show two messages at once for a while: a
+  mode's own HUD (an arena's band, the layer count, the stage dots) beside a text, or its end banner beside the HUD.
+- AI studio step 4 measured the table again once the Simple score counted the modes' own end banners (above): the bot look's
+  median with the run read went from 35 to 34 (its payoff words stand beside the banner), the Simple look's from 91 to 92
+  without the run (no payoff words beside a banner) and its lowest with the run from 85 to 84; 132 plans had shown two messages
+  at once. The checklist and the gates did not move.
 - 49 plans still fail a gate. 12 square races fail G1: the 3-2-1-GO opens the gate at 1.8 s. 12 boss rushes fail G5 on their
   hook. 7 clips run outside their platform's buckets (G7), among them 4 brackets on Shorts. The bot look's 7 G2 misses stay,
   on the same seeds, and the 4 of them that show their payoff for 0.5 s give its one line under 1.2 s (G5). A payoff of two
@@ -325,11 +337,11 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
 | smash-power-layers | 89.5 | 96 | 12/12 |
 | fill-grow | 97 | 82 | 10/12 |
 | count-multiply | 97 | 82 | 12/12 |
-| count-multipliers | 89 | 96 | 12/12 |
+| count-multipliers | 90 | 96 | 12/12 |
 | who-wins-ctf | 90 | 96 | 12/12 |
 | who-wins-battle | 89.5 | 96 | 12/12 |
 | who-wins-string-battle | 89 | 96 | 11/12 |
-| who-wins-fight-league | 89 | 96 | 12/12 |
+| who-wins-fight-league | 89.5 | 96 | 12/12 |
 | who-wins-fight-league-upset | 90 | 96 | 12/12 |
 | who-wins-fight-league-bracket | 92 | 90 | 8/8 |
 | line-up-pendulum | 97 | 82 | 12/12 |
@@ -341,6 +353,9 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
   G2's 0.8 s, so their templates take the cliffhanger ending and cut before it.
 - The other misses are seeds the search could not fit: no fill found in time, a length outside the bucket, a cut too far
   from the payoff, and one String Battle whose first hit comes at 1.4 s.
+- Multipliers' and Fight League's rows are AI studio step 4's: their own end banner is the clip's one ending now, with no
+  payoff words beside it (above), and their Simple medians moved from 89 to 90 and 89.5. Power Layers, CTF, the battle royale,
+  String Battle, the upset and the bracket kept theirs; their counts did not move.
 - Glass's row is AI studio step 3's. Its hook moved to the bottom of the square, clear of the mode's "STAGE n" banner (G5,
   above), and its Simple score is 88.5 in English, 89 in Polish and 88 in Spanish (83–97 over its plans). Its one miss is a
   Shorts cliffhanger, the same in each language: its seed search found no seed that fits, and the cut comes 1 s after the
@@ -385,6 +400,48 @@ is not calm when watched, is hidden, never kept by an exception):
 - **Journey** passed every gate on 11 of 12 plans in each language, home as its way out. Watched, its own HUD (a banner as each
   stage begins, a mini-map, a clock, every stage's label) and its HOME! card beside the payoff's words put two or three texts
   on screen at once, and no setting switches them off.
+
+**AI studio step 4's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
+the same counts in each]**. Six more modes play settings of their own, and each is timed by a moment of its own run: the
+planner reads the moment the run marks it (`MARK_MODES` in `src/lib/bot/planner.ts`: the first bullseye, the first shape at
+zero, the last ball out) or, for the Maze, the moment its first ball leaves (`OWN_RUN_MODE_MOMENTS` in `outcomeStrategy.ts`). Each
+passed its watch: one clip of each rendered watermarked and its hook and contact sheets looked at.
+
+| Template | Its own settings | Simple (median) | Checklist (median) | Pass every gate |
+| --- | --- | --- | --- | --- |
+| count-conveyor | a ball every 2–3 s up to as many as fill the clip; standard only; ALL OUT!, 1.5 s before the run ends | 91 | 82 | 12/12 |
+| who-wins-maze | 8–10 columns (short) or 11–13 (standard), 3–4 balls, each trail in its ball's colour; the first one out | 97 | 86 | 12/12 |
+| who-wins-territory | its countdown on its 5 s step at or past the target; cut before the verdict | 97 | 86 | 12/12 |
+| who-wins-land-claim | the claim rule (a block takes its hitter's colour), 2 balls a side over 12–20 rows (short) or 2–3 a side, no new balls, 12–16 rows (standard); cut before the verdict | 97 | 86 | 11/12 |
+| aim-bullseye | 4–5 rings (short) or 6–7 (standard), most pegs in play (chaos 0.6–0.75), 16 or 20 shots; the first BULLSEYE! | 90 | 86 | 12/12 |
+| aim-box | two squares at speeds 2 : 3, each counting down from twice the target; the first one at zero | 97 | 82 | 12/12 |
+
+- Their runs are the bot look's: the seed and every run fact are the same in both looks, on every plan.
+- The plan said the conveyor and Merge Ring loop and should take the clip's last 1.5 s. The code says otherwise: both runs
+  end, the conveyor 1.5 s after its last ball is out (ALL OUT!), Merge Ring 2 s after its final form or its OVERFLOW. So they
+  take their own finish, as the code has it.
+- Territory and Land Claim end their run with the verdict, its banner shown for the recorder's 0.5 s: they cut before it and
+  ask, as Portal does. Land Claim's one miss is a standard plan of 42 s, past Reels' lengths. Its knock rule was watched first:
+  the walls stay white, and who leads is a blind guess; the claim rule colours each block its hitter's, so the land shows.
+- Bouncing Shapes' hook is its own, "It stops at zero." (`ViralBot.ownHooks`, in English, Polish and Spanish): its format's
+  three ask about a corner. The DVD logo's corner comes 1.4–6 s in at a speed whose first bounce is inside G1's first second,
+  too soon for any length; one shape counting down ends the run as it reaches zero (0.5 s shown). Two shapes leave the other
+  counting on. Merge Ring's hook is its own too, "How far can it merge?", though its template stays hidden (below).
+- Bullseye's pegs: at chaos 0.3–0.5 a short clip's first shot fell clear to the board in 1.3 s on 2 of 4 Shorts plans (G1);
+  with most pegs in play every first shot hits one within the first second.
+- The Maze names its winner by its colour ("AQUA", "SNOW"), as its banner does, in the plan, the payoff and the crew's run.
+- The battle family keeps the Maze, Territory and Land Claim: they are offered only when that family is asked for.
+
+Hidden after measuring in step 4 (`EXPERIMENTAL`):
+
+- **Merge Ring** passed every gate on 12 of 12 plans in each language, timed at its FINAL FORM. Watched, it asks "Will it
+  merge into its final form?" under its ring for the whole run, with its title, its merge count and its ladder of sizes, and
+  no setting switches them off: a template's hook stacks a second question over it, as Spiral Glass's.
+- **Paddle Keep-Up** passed every gate on 12 of 12 plans, timed at its GAME OVER. Watched, its score, lives and streak sit in a
+  band over its ceiling at the top of the square, which the hook covers for its 2.5 s, and the bottom is its paddle. The
+  canvas starts the top captions below a mode's top HUD only where the mode reports one, and Paddle reports none
+  (docs/agents/STUDIO.md, known gaps).
+- **The square race** stays hidden: its gate opens at 1.8 s on every seed searched.
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

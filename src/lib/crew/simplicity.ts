@@ -3,7 +3,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import { ACTION_GAIN_SEC, actionHiddenAt, bottomEdgeFree, captionMessagesOf, captionsAtEdge, captionWordsOf, hasTopHud, type CaptionRole } from "@/lib/bot/planner";
 import { actionSampleSec, isActionTrack } from "@/lib/bot/actionTrack"; // --- templates --- (where the run moves)
 import { TRENDS } from "@/content/trends";
-import { defaultKeptHuds, hasRingWalls, hudCounts, hudsOn } from "./hudFlags";
+import { defaultKeptHuds, endBannersIn, hasRingWalls, hudCounts, hudsOn } from "./hudFlags";
 import { measuredFirstImpactSec, shownSecOf, type CrewClip } from "./clip";
 
 /*
@@ -31,6 +31,8 @@ import { measuredFirstImpactSec, shownSecOf, type CrewClip } from "./clip";
  *    the first motion after 1.5 s 5 (the export's first impact, its first motion or first sound, as gate G1 reads it);
  *  - --- templates --- a text over the action, read on the run (RunFacts.action, where its balls move): 2 a second a text hides
  *    them for 1 s or more longer than it would at the square's other edge, 10 at most (textOverActionSec).
+ * --- crew --- (AI studio step 4) A mode's own end banner is a message on screen like any other, from the second it comes in
+ * (endBannersShown: Power Layers' FREEDOM!, an arena's winner), counted in the text at once and its share.
  * Not counted: the watermark badge, which is fixed and protected (the captions keep out of its corner through the safe zone).
  *
  * Monotonic: adding a caption, a HUD flag or an effect never raises the score – every term only grows with more on screen –
@@ -130,7 +132,8 @@ export interface SimpleScore {
   deductions: SimpleDeduction[];
 }
 
-export type OverlayKind = CaptionRole | "topText" | "bottomText" | "hud" | "nameLabel" | "cutHook" | "cutUrl" | "endCard";
+/** --- crew --- (AI studio step 4) "banner": a mode's own end banner (hudFlags.ts MODE_END_BANNERS), which no setting switches off. */
+export type OverlayKind = CaptionRole | "topText" | "bottomText" | "hud" | "nameLabel" | "cutHook" | "cutUrl" | "endCard" | "banner";
 
 /** One message on screen, in seconds of the clip as shown (a cut's: from its first frame). */
 export interface Overlay {
@@ -230,12 +233,28 @@ export function overlaysOf(clip: CrewClip): Overlay[] {
     for (const h of hudsOn(clip.settings)) for (let k = 0; k < h.texts; k++) out.push({ id: `hud:${h.id}#${k}`, kind: "hud", start: whole[0], end: whole[1], words: h.words, lines: 1, hud: h.id });
     if (clip.settings.nameLabel && clip.settings.ballName.trim()) out.push({ id: "nameLabel", kind: "nameLabel", start: whole[0], end: whole[1], words: clip.settings.ballName.trim(), lines: 1 });
   }
+  // --- crew --- (AI studio step 4) the mode's own end banner, from the second it comes in (endBannersShown: at the payoff, or
+  // before the run's own end – the run's, where it was read)
+  for (const b of endBannersShown(clip)) {
+    const window = shown(b.start, b.end);
+    if (window) out.push({ id: `banner@${r3(window[0])}`, kind: "banner", start: window[0], end: window[1], words: b.banner.words, lines: 1 });
+  }
   if (clip.cut && actionEnd > EPS) {
     if (clip.cut.hook.trim()) out.push({ id: "cutHook", kind: "cutHook", start: 0, end: actionEnd, words: clip.cut.hook.trim(), lines: 1 });
     if (clip.cut.url.trim()) out.push({ id: "cutUrl", kind: "cutUrl", start: 0, end: actionEnd, words: clip.cut.url.trim(), lines: 1 });
   }
   if (clip.cut && clip.cut.cardSec > EPS) out.push({ id: "endCard", kind: "endCard", start: actionEnd, end: actionEnd + clip.cut.cardSec, words: clip.cut.url.trim(), lines: 1 });
   return out;
+}
+
+/**
+ * --- crew --- (AI studio step 4) The end banners a clip shows (hudFlags.ts endBannersIn): a "payoff" one from a resolved clip's
+ * payoff, a "finish" one from before the run's own end where the clip's run was read and ends inside the clip (without the run
+ * that end is not known, and such a banner is not counted).
+ */
+export function endBannersShown(clip: Pick<CrewClip, "settings" | "ending" | "payoff" | "timing" | "run">): ReturnType<typeof endBannersIn> {
+  const runEnd = clip.run && typeof clip.run.finishSec === "number" && clip.run.finishSec >= 0 ? clip.run.finishSec : null;
+  return endBannersIn(clip.settings, { ending: clip.ending, payoffSec: clip.payoff.atSec, clipSec: clip.timing.clipSec, runEndSec: runEnd });
 }
 
 /**

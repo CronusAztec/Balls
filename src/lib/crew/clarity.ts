@@ -6,7 +6,7 @@ import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTra
 import { STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
 import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
-import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
+import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 
 /*
  * --- crew --- The clarity check: the rules that decide, for free and before any model is asked, whether a clip is clear and
@@ -22,8 +22,8 @@ import { drawnHookText, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCo
  *     the only one of its size after a hook that promises it (no accented event as large plays after the hook, before or
  *     after the payoff), and a sound or motion at it whatever it claims (never still and quiet: the balls at a quarter of the
  *     run's median motion or less, with no sound – or, for a beat, only a few lone notes: fewer than the run's usual moment
- *     plays, none accented, no chord), and – a clip that ends without words – no quiet end longer than 1.5 s after it (no
- *     sound, the balls still: dead air);
+ *     plays, none accented, no chord), and – a clip that ends without words (neither the payoff's nor, --- crew --- AI studio
+ *     step 4, the mode's own end banner) – no quiet end longer than 1.5 s after it (no sound, the balls still: dead air);
  *     cliffhanger: the cut 0–3 s before the payoff and a closing question on screen at the end.
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
  *     never both).
@@ -200,7 +200,10 @@ function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: 
   if (quiet && m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 && m.motion <= CLARITY.stillShareMax * m.motionMedian + EPS) out.push({ key: "Still", values: { sec: r1(atSec), pct: pct(m.motion / m.motionMedian), sounds: m.sounds } });
   // --- crew --- (review round 2, 21) dead air at the end of a clip with no words left to read
   const end = clip.timing.clipSec;
-  const wordsAtEnd = rolesAt(clip, "payoff").some((i) => clip.captions[i].start < end - EPS && (clip.captions[i].end <= clip.captions[i].start || clip.captions[i].end >= end - 1e-6));
+  // (--- crew --- AI studio step 4: the mode's own end banner on screen at the end is words to read, as the payoff's are, where
+  // it covers the quiet tail – one that comes after the silence, Ball Drop's SETTLED! in its last 0.5 s, leaves the dead air)
+  const tailFrom = typeof m.quietTailSec === "number" ? end - m.quietTailSec + CLARITY.quietTailMaxSec : end;
+  const wordsAtEnd = rolesAt(clip, "payoff").some((i) => clip.captions[i].start < end - EPS && (clip.captions[i].end <= clip.captions[i].start || clip.captions[i].end >= end - 1e-6)) || endBannersShown(clip).some((b) => b.end >= end - 1e-6 && b.start <= tailFrom + EPS);
   if (!wordsAtEnd && typeof m.quietTailSec === "number" && m.quietTailSec > CLARITY.quietTailMaxSec + EPS) out.push({ key: "DeadTail", values: { sec: r1(m.quietTailSec) } });
   return out;
 }

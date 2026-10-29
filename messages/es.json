@@ -4181,6 +4181,10 @@
       "ring": "Un anillo",
       "fills": "Llenar hasta el final"
     },
+    "ownHooks": {
+      "mergeRing": "¿Hasta dónde llegará la fusión?",
+      "box": "Se para en cero."
+    },
     "cover": {
       "label": "Portada",
       "at": "{sec} s – {why}",

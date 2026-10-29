@@ -4181,6 +4181,10 @@
       "ring": "One ring",
       "fills": "Fill to finish"
     },
+    "ownHooks": {
+      "mergeRing": "How far can it merge?",
+      "box": "It stops at zero."
+    },
     "cover": {
       "label": "Cover",
       "at": "{sec} s – {why}",

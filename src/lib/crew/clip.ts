@@ -1,6 +1,7 @@
 import type { Caption } from "@/lib/captions";
 import { outcomeMatches } from "@/lib/simulation/outcomes";
 import type { ModeId } from "@/lib/physics/types";
+import { mazeBallName } from "@/lib/physics/modes/maze"; // --- crew --- (AI studio step 4) the maze's balls go by their colours
 import type { SimulatorSettings } from "@/lib/settings";
 import { inReadingOrder, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BUCKET_SECONDS, PLATFORMS, type BotPlatform, type CountdownKind, type CountdownSource, type EndingStyle, type LengthBucket, type PayoffType } from "@/lib/bot/playbook";
@@ -270,7 +271,8 @@ export function runWinnerOf(clip: Pick<CrewClip, "run" | "settings" | "timing">)
   if (!run) return null;
   if (run.winnerName) return run.winnerName;
   const teams = clip.settings.teams;
-  if (run.winnerIndex >= 0) return teams[run.winnerIndex]?.name || `#${run.winnerIndex + 1}`;
+  // (--- crew --- AI studio step 4: a maze ball without a roster goes by its colour, as the maze's banner names it)
+  if (run.winnerIndex >= 0) return teams[run.winnerIndex]?.name || (clip.settings.mode === "maze" ? mazeBallName(run.winnerIndex) : `#${run.winnerIndex + 1}`);
   const count = run.summary.teams.length;
   if (count < 2) return null;
   for (let team = 0; team < count; team++) if (outcomeMatches({ kind: "winner", clipSec: clip.timing.clipSec, team }, run.summary)) return teams[team]?.name || `#${team + 1}`;

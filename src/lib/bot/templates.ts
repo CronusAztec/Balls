@@ -32,8 +32,9 @@ import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- te
  *    Fight League's boss rush (its hook), the square race (its count-in), Ball Drop (its run fades out: review round 2, 21)
  *    and Grow's fill that ends the run (AI studio step 3: shown 0.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden, and 5 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit, each with its own
- *    settings); the other 27 are declared, experimental and hidden until their settings and planning acceptance land – their
+ *    hidden, and 11 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the
+ *    conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings); the other 23 are
+ *    declared, experimental and hidden until their settings and planning acceptance land – their
  *    format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
  *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
@@ -335,7 +336,7 @@ export interface TemplateVariant {
 }
 
 /** --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). */
-export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "note">>;
+export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "note">>;
 
 export interface ModeBinding {
   mode: ModeId;
@@ -390,12 +391,23 @@ export interface ModeBinding {
    * --- templates --- (AI studio step 3) The hook it draws in either ending: its format's `hook`, `hookB` or `hookC`
    * (FORMAT_HOOK_FIELDS). Without one a cliffhanger draws its format's `cliffHook` ("{thing} vs the clock."), else its `hook`.
    */
-  hookKey?: "hook" | "hookB" | "hookC";
+  hookKey?: "hook" | "hookB" | "hookC" | OwnHookKey;
   /** --- templates --- (AI studio step 3) Gerald plays the ball (BotRecipe.character: his face and name; the Simple look draws no label). */
   character?: true;
+  /**
+   * --- templates --- (AI studio step 4) No payoff words of its format's, in either look: where they would name another moment than
+   * its run's ("Bullseye!" over a logo's corner, over a GAME OVER), the picture and the mode's own banner speak.
+   */
+  payoffWords?: false;
   /** Why it is bound this way, or what it waits for. */
   note?: string;
 }
+
+/**
+ * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
+ * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
+ */
+export type OwnHookKey = `own.${"box" | "mergeRing"}`;
 
 const kebab = (id: string) => id.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
@@ -573,6 +585,83 @@ function colorMatchSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 const PAINT_FAST: Partial<SimulatorSettings> = { ballRadius: 30, ballSpeed: 800, gravity: 0 };
 // --- end of group A's settings
 
+// --- templates --- (AI studio step 4) group B's own settings: seeded from the planner's context (its rng only), every value on its
+// RANGES step, never clamped, no mode default changed
+/**
+ * The conveyor's belt into Classic's rings: one ball every 2–3 s, as many as bring the last one out near the payoff target (the
+ * last ball is out about balls × interval + 6.5 s in, its ALL OUT! banner 1.5 s before the run ends: measured).
+ */
+function conveyorSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const cvInterval = stepBetween(ctx.rng, 2, 3, 0.5);
+  return { cvInterval, cvMaxBalls: Math.max(3, Math.round((ctx.payoffTarget - 6.5) / cvInterval)) };
+}
+
+/**
+ * Merge Ring's ladder: 5 tiers in a short clip, 6 in a standard one, the drop at the slider's strongest gravity (3: the first ball
+ * lands in 0.95 s – at the default 1, 1.6 s, after G1's first second), the spacing from the payoff target (its final form comes
+ * about 12.6 × the spacing in with 5 tiers, 30 × with 6: measured), a short clip's final form at 10.5 s at least so 2.5 s after it
+ * leave its payoff at 80 % or later.
+ */
+function mergeRingSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const short = ctx.bucket === "short";
+  const target = short ? Math.max(ctx.payoffTarget, 10.5) : ctx.payoffTarget;
+  return { mrTiers: short ? 5 : 6, mrGravity: 3, mrInterval: Math.round((10 * target) / (short ? 12.6 : 30)) / 10 };
+}
+
+/**
+ * The Maze: 3 or 4 balls, each painting its way in its own colour (the default paints every way red: watched, the balls are dots a
+ * viewer cannot pick a colour by), in a maze of 8–10 columns in a short clip, 11–13 in a standard one – few enough for balls a
+ * viewer can follow (the first one out 2–13 s in, 4–26 s: the seed search picks one whose exit the clip times).
+ */
+function mazeSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const cols = forBucket(ctx, { short: [8, 10], standard: [11, 13], long: [14, 16] });
+  return { mzCols: intBetween(ctx.rng, cols[0], cols[1]), mzBalls: intBetween(ctx.rng, 3, 4), mzTrailOwn: true };
+}
+
+/** Territory's countdown, on its 5 s step, at or after the payoff target: its board's verdict comes as it ends (a cut clip ends 1 s before). */
+function territorySettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { tyDuration: 5 * Math.ceil(ctx.payoffTarget / 5) };
+}
+
+/**
+ * Land Claim's battle under its claim rule, each block recoloured in its hitter's colour: the land a side holds is there to see
+ * with its HUD off (the knock rule's walls stay white, and who leads is a blind guess: watched). Two balls a side over 12–20 rows
+ * in a short clip (its verdict 10–11 s in), no new balls in a standard one (22–31 s in, 2 or 3 a side): the default's verdict
+ * comes before a clip cut before it can start (the recorder's 10 s).
+ */
+function landClaimSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const rule = { lcRule: "claim" as const };
+  return ctx.bucket === "short" ? { ...rule, lcBalls: 2, lcRows: intBetween(ctx.rng, 12, 20) } : { ...rule, lcEvery: 0, lcBalls: intBetween(ctx.rng, 2, 3), lcRows: intBetween(ctx.rng, 12, 16) };
+}
+
+/**
+ * Bullseye's board: a bigger bull (4–5 rings) in a short clip, a smaller one (6–7) in a standard one so the first bullseye comes
+ * later, most of the pegs in play (chaos 0.6–0.75: the first shot hits one within G1's first second; at 0.3–0.5 a short clip's
+ * first shot fell clear to the board in 1.3 s on 2 of 4 Shorts plans, measured), and 16 or 20 shots spaced to go on past a clip
+ * cut at its payoff's 85 % (the payoff target's clip and 4 s).
+ */
+function bullseyeSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  const rings = forBucket(ctx, { short: [4, 5], standard: [6, 7], long: [7, 8] });
+  const byShots = ctx.bucket === "short" ? 16 : 20;
+  return { byRings: intBetween(ctx.rng, rings[0], rings[1]), byChaos: stepBetween(ctx.rng, 0.6, 0.75, 0.05), byShots, byInterval: Math.round((10 * (ctx.payoffTarget / 0.85 + 4)) / byShots) / 10 };
+}
+
+/**
+ * Bouncing Shapes' countdown: two squares at speeds 2 : 3, each counting down a hit at a time from twice the payoff target (the
+ * faster one reaches zero, and stops still, about half its count's seconds in: measured), so the other counts on past the clip's
+ * end. One shape would reach zero as its run ends (COUNTED DOWN!), shown for the recorder's 0.5 s only (G2 asks 0.8 s); the DVD
+ * logo's corner comes 1.4–6 s in at a speed whose first bounce is within G1's first second (400 px/s), too soon for any length.
+ */
+function boxCountdownSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { boxShape: "square", boxShapeCount: 2, boxSpeedRatio: "2:3", boxCountdown: Math.round(2 * ctx.payoffTarget) };
+}
+
+/** Paddle Keep-Up's one life (no MISS! before the end): a weaker player in a short clip (GAME OVER 1–19 s in), a better one in a standard one (11–69 s). */
+function paddleSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
+  return { pdMisses: 0, pdSkill: ctx.bucket === "short" ? stepBetween(ctx.rng, 0.7, 0.75, 0.05) : stepBetween(ctx.rng, 0.85, 0.9, 0.05) };
+}
+// --- end of group B's settings
+
 // --- templates --- why a binding is in the experimental table
 /**
  * --- templates --- (AI studio step 3) Paint's run ends the moment 95 % is painted (picturePaint.ts COVERAGE_DONE): a resolved clip
@@ -593,6 +682,19 @@ const SPIRAL_OWN_TEXT = "it draws a question of its own over the spiral for the 
  * – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, the screen is not calm.
  */
 const JOURNEY_OWN_HUD = "its own HUD – a banner as each stage begins (\"Stage 3/5: Rings\"), a mini-map, a clock and every stage's label – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, two or three texts at once and the screen not calm (its plans pass every gate, 11 of 12 a language)";
+/**
+ * --- templates --- (AI studio step 4) Merge Ring plans (its final form the payoff, 12 of 12 a language), but it draws a question of
+ * its own under the ring for the whole run ("Will it merge into its final form?"), with its title, its merge count, its top size
+ * and its ladder of sizes, which no setting switches off: a template's hook stacks a second question over it, as Spiral Glass's.
+ */
+const MERGE_RING_OWN_TEXT = "it draws a question of its own under the ring for the whole run (\"Will it merge into its final form?\"), with its title, its merge count, its top size and its ladder of sizes, which no setting switches off: a template's hook stacks a second question over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
+/**
+ * --- templates --- (AI studio step 4) Paddle Keep-Up plans (its GAME OVER the payoff, 12 of 12 a language), but its score, lives
+ * and streak sit in a band over its ceiling, the top of the square, which no setting switches off and the canvas does not start
+ * the top captions below (Canvas.tsx modeTopHud: Paddle adds none): the hook covers the score for its 2.5 s (watched); at the bottom
+ * it would cover the paddle.
+ */
+const PADDLE_OWN_HUD = "its score, lives and streak sit in a band over its ceiling at the top of the square, which no setting switches off and the canvas does not start the top captions below (Canvas.tsx modeTopHud: Paddle adds none): the hook covers the score for its 2.5 s (watched in the render), and at the bottom it would cover the paddle (its plans pass every gate, 12 of 12 a language)";
 /** --- templates --- (AI studio step 3) A run that ends with its payoff (the escape, the last segment, the glass cleared): cut before it. */
 const ENDS_AT_FINISH = "the run ends with its payoff (a resolved clip shows it for 0.5 s, G2 asks 0.8 s): the template cuts before it";
 
@@ -606,20 +708,15 @@ const OWN_SEARCH = "its outcome is searched over settings by its own finder, not
  * ready –, each with its reason. Shrink only: tests/botTemplates.test.ts pins it, so a binding leaves it when it passes (with its
  * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin. All 32 bindings without
  * a recipe started here; AI studio step 3 passed five (Shatter, Color Match, Target, Brick Smash, Perfect Fit) and gave Journey,
- * Paint and Spiral Glass their measured reasons.
+ * Paint and Spiral Glass their measured reasons; step 4 passed six (the conveyor, the Maze, Territory, Land Claim, Bullseye,
+ * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs.
  */
 export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   journey: JOURNEY_OWN_HUD,
   paint: PAINT_ENDS_AT_FILL,
   spiralGlass: SPIRAL_OWN_TEXT,
-  conveyor: AWAITS,
-  mergeRing: AWAITS,
-  maze: AWAITS,
-  territory: AWAITS,
-  landClaim: AWAITS,
-  bullseye: AWAITS,
-  box: AWAITS,
-  paddle: AWAITS,
+  mergeRing: MERGE_RING_OWN_TEXT,
+  paddle: PADDLE_OWN_HUD,
   starChords: OWN_SEARCH,
   ellipseFoci: OWN_SEARCH,
   hoops: AWAITS,
@@ -669,8 +766,10 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // count
   multiply: bind("multiply", { format: "count", strategy: "fill", tier: "proven", keepHud: null, variants: [["clone-per-pass"]] }),
   multipliers: bind("multipliers", { format: "count", strategy: "finish", tier: "proven", keepHud: null, variants: [["multipliers-board"]], note: "the ball counter at home is the mode's own HUD" }),
-  conveyor: bind("conveyor", later("count", "atEnd", { note: "loops: never 'finish'" })),
-  mergeRing: bind("mergeRing", later("count", "atEnd", { note: "loops: never 'finish'; hook b 'How far can it merge?'" })),
+  // (--- templates --- AI studio step 4: the plan had both on atEnd, as loops; the code's both end – the conveyor once its last ball is
+  // out, Merge Ring 2 s after its final form or an overflow –, so each is timed by its own moment, its run's end inside the clip)
+  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookVars: (s) => ({ count: s.cvMaxBalls }), note: "its run ends 1.5 s after its last ball is out (ALL OUT!): the payoff, not a loop's end", scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
+  mergeRing: bind("mergeRing", later("count", "finish", { generate: mergeRingSettings, buckets: ["short", "standard"], hookKey: "own.mergeRing", note: "its run ends 2 s after its final form (FINAL FORM): the payoff, not a loop's end; hook 'How far can it merge?'", scene: () => "balls of numbered sizes dropping through a chute into a ring, where two of a size fuse into a bigger one" })),
   // whoWins (the battle family: offered only where the battle family is asked for, as the daily bot's BOT_DEFAULT_FAMILIES)
   race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race", undefined, COUNT_IN]], note: "it waits for a race whose gate opens within the first second" }),
   ctf: bind("ctf", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["territory"]] }),
@@ -684,13 +783,13 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
     variants: [["fight-duel"], ["fight-upset", "upset"], ["fight-bracket", "bracket"], ["fight-boss", "boss", "its hook names the boss and the division in one clause, 8–9 words, over the Simple look's 7 (G5): it waits for the format's own hook"]],
     note: "third-party names: the battle family's legal opt-in",
   }),
-  maze: bind("maze", later("whoWins", "outcome", { outcome: "winner", note: "first one out" })),
-  territory: bind("territory", later("whoWins", "outcome", { outcome: "winner" })),
-  landClaim: bind("landClaim", later("whoWins", "outcome", { outcome: "winner", note: "or close" })),
-  // aim
-  bullseye: bind("bullseye", later("aim", "finish", { note: "'Will one hit the bullseye?'" })),
-  box: bind("box", later("aim", "finish", { note: "the countdown hook until the run's facts carry the corner hit" })),
-  paddle: bind("paddle", later("aim", "finish", { note: "'How long can it last?'" })),
+  maze: bind("maze", later("whoWins", "outcome", { outcome: "winner", generate: mazeSettings, buckets: ["short", "standard"], hookKey: "hook", note: "first one out (outcomeStrategy.ts OWN_RUN_MODE_MOMENTS)", scene: (s) => `${s.mzBalls} balls in ${s.mzBalls} colours dropping into a glowing green maze, an exit at the bottom` })),
+  territory: bind("territory", later("whoWins", "outcome", { outcome: "winner", generate: territorySettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: `its board's verdict comes as its countdown ends; ${ENDS_AT_FINISH}`, scene: (s) => `a board of tiles in ${s.tyTeams} colours, balls of each colour bouncing over it and painting it` })),
+  landClaim: bind("landClaim", later("whoWins", "outcome", { outcome: "winner", generate: landClaimSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: `or close; ${ENDS_AT_FINISH}`, scene: (s) => `columns of white blocks around an arena, balls in ${s.lcTeams} colours painting each block they hit in their colour` })),
+  // aim (--- templates --- AI studio step 4: each timed by its run's own moment, planner.ts MARK_MODES)
+  bullseye: bind("bullseye", later("aim", "finish", { generate: bullseyeSettings, buckets: ["short", "standard"], hookKey: "hookB", note: "'Will one hit the bullseye?': the first bullseye, its BULLSEYE! callout", scene: () => "balls fired from the top, one after another, through a few pegs onto a dartboard lying at the bottom" })),
+  box: bind("box", later("aim", "finish", { generate: boxCountdownSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.box", payoffWords: false, hookVars: (s) => ({ count: s.boxCountdown, zero: 0 }), note: "the countdown hook ('It stops at zero.'): the first shape at zero (planner.ts MARK_MODES); its corner comes too soon for any length", scene: (s) => `${s.boxShapeCount} squares gliding in straight lines inside a tall box, each showing a number` })),
+  paddle: bind("paddle", later("aim", "finish", { generate: paddleSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", payoffWords: false, note: "'How long can it last?': one life, its GAME OVER", scene: () => "one ball bouncing on a platform near the bottom that slides left and right to catch it" })),
   // lineUp
   pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]], tune: PENDULUM_TUNE, hookAsk: "cliffQuestion", note: "the hook asks whether they line up (its chord plays at the release and every half cycle too, so it promises none); every bob sounds at its turning points, so the realignment is one accented chord; pendulums in a row, so 'back in line' is a line" }),
   polyrhythm: bind("polyrhythm", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["polyrhythm"]] }),
@@ -902,7 +1001,7 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     ...(b.character ? { character: true } : {}),
     formatCopy: true, // --- templates --- (its format's words, its mode's noun)
     copyVars: () => ({ thing: thingKeyOf(b.mode) }),
-    ...(f.payoffWords ? {} : { payoffWords: false as const }),
+    ...(f.payoffWords && b.payoffWords !== false /* --- templates --- (AI studio step 4) */ ? {} : { payoffWords: false as const }),
     ...(f.stakeHook ? { stakeHook: true as const } : {}),
     ...(b.hookAsk ? { hookAsk: b.hookAsk } : {}),
     countdownFrom: f.countdown,

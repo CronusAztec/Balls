@@ -4181,6 +4181,10 @@
       "ring": "Jeden pierścień",
       "fills": "Wypełnij do końca"
     },
+    "ownHooks": {
+      "mergeRing": "Do którego poziomu się połączą?",
+      "box": "Zatrzyma się na zerze."
+    },
     "cover": {
       "label": "Okładka",
       "at": "{sec} s – {why}",

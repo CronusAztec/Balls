@@ -22,6 +22,7 @@ import {
   evenCaptionLines,
   hashString,
   inReadingOrder,
+  MARK_MODES,
   matchupEpisode,
   payoffSecOf,
   placeSimpleTexts,
@@ -64,15 +65,17 @@ import {
   variantBinding,
   type OutcomeFlag,
 } from "@/lib/bot/templates";
-import { AT_END_BUCKETS, AT_END_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { AT_END_BUCKETS, AT_END_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { simulateOutcomeRun } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
-import { HUD_FLAGS, hudsOn } from "@/lib/crew/hudFlags";
-import { crowding, drawnHookText, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
+import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
+import { screenView } from "@/lib/crew/dossier";
+import { OWN_HOOK_FIELD } from "@/lib/bot/copy";
+import { crowding, drawnHookText, endBannersShown, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
  * --- templates --- The viral templates (lib/bot/templates.ts) and the Simple look: every mode bound once to one of the ten
@@ -102,13 +105,20 @@ const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass",
  */
 const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !== "drop");
 /**
+ * --- templates --- (AI studio step 4) The trial bindings group B readied with their own settings, measured and watched as group A's:
+ * the conveyor (its last ball out), the Maze (its first one out), Territory and Land Claim (cut before their verdict), Bullseye (its
+ * first bullseye), Bouncing Shapes (its first shape at zero) and Paddle Keep-Up (its GAME OVER). Merge Ring stays experimental: its
+ * own question under the ring for the whole run (watched in the render).
+ */
+const GROUP_B_READY: readonly ModeId[] = ["conveyor", "maze", "territory", "landClaim", "bullseye", "box"];
+/**
  * --- templates --- (AI studio step 3) The trial bindings readied with their own settings (group A): each planned on 4 plan seeds
  * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
  * mini-map and clock crowd the screen (both watched in the render).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit"];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
@@ -261,7 +271,13 @@ describe("the bindings", () => {
   });
 
   it("never binds a looping mode to 'finish', and keeps only a HUD that shows the countdown", () => {
-    for (const mode of ["conveyor", "mergeRing", "brickRebuild", "colourSort", "collide", "waveTank", "lines", "drawingMachine", "illusion"] as const) expect(MODE_TEMPLATES[mode].strategy, mode).not.toBe("finish");
+    for (const mode of ["brickRebuild", "colourSort", "collide", "waveTank", "lines", "drawingMachine", "illusion"] as const) expect(MODE_TEMPLATES[mode].strategy, mode).not.toBe("finish");
+    // --- templates --- (AI studio step 4) the conveyor and Merge Ring do not loop (the plan said so; the code does not): their runs
+    // end, ALL OUT! 1.5 s after the last ball is out, FINAL FORM 2 s after the final form (or OVERFLOW), so "finish" fires there
+    for (const mode of ["conveyor", "mergeRing"] as const) {
+      expect([mode, MODE_TEMPLATES[mode].strategy]).toEqual([mode, "finish"]);
+      expect([mode, simulateFacts(finderRequestOfSettings(defaultSettings(mode), undefined, 90), 1, { strategy: "finish" }, 90).finishSec > 0]).toEqual([mode, true]);
+    }
     for (const b of BINDINGS) {
       if (b.strategy === "outcome") expect(b.outcome, b.mode).toBeDefined();
       if (b.keepHud === null) continue;
@@ -914,7 +930,9 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // (--- templates --- AI studio step 3: five of group A's trial bindings left it, planned on 3 of 4 seeds on every platform and
   // watched; Paint stays, its run ending at its fill, Spiral Glass, its own question drawn over the spiral, and the Journey, its
   // own banners, mini-map and clock)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["journey", "paint", "spiralGlass", "conveyor", "mergeRing", "maze", "territory", "landClaim", "bullseye", "box", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
+  // (--- templates --- AI studio step 4: seven of group B left it, planned on 3 of 4 seeds on every platform and watched; Merge Ring
+  // stays, with its own question under the ring)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["journey", "paint", "spiralGlass", "mergeRing", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -977,14 +995,15 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   it("lays a binding's own settings out in order: its seeded generator (else its patch), its outcome's flag on top, its tune, an atEnd clip's length, its mode", () => {
     const fan = { ...MODE_TEMPLATES.doublePendulum, patch: { dpFan: false, dpFanCount: 9 } };
     expect(ownSettingsOf(fan)(ctxOf(1))).toEqual({ dpFan: true, dpFanCount: 9, mode: "doublePendulum" });
-    const drawn = { ...MODE_TEMPLATES.conveyor, patch: { cvMaxBalls: 99 }, generate: (ctx: RecipeContext) => ({ cvMaxBalls: 20 + 10 * Math.floor(ctx.rng() * 3) }) };
+    // (--- templates --- AI studio step 4: the Wave Tank's atEnd binding, the conveyor's ends on its own run's end now)
+    const drawn = { ...MODE_TEMPLATES.waveTank, patch: { wtSpacing: 99 }, generate: (ctx: RecipeContext) => ({ wtSpacing: 20 + 10 * Math.floor(ctx.rng() * 3) }) };
     const a = ownSettingsOf(drawn)(ctxOf(5, 17));
     expect(a).toEqual(ownSettingsOf(drawn)(ctxOf(5, 17)));
-    expect([a.mode, a.recordingDuration, [20, 30, 40].includes(a.cvMaxBalls as number)]).toEqual(["conveyor", 20, true]);
-    // (--- templates --- AI studio step 3: Shatter draws its own settings now; Maze has neither yet)
-    expect(ownSettingsOf({ ...MODE_TEMPLATES.maze, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "maze" });
+    expect([a.mode, a.recordingDuration, [20, 30, 40].includes(a.wtSpacing as number)]).toEqual(["waveTank", 20, true]);
+    // (--- templates --- AI studio step 3: Shatter draws its own settings now; --- AI studio step 4: the Maze too, Spinning Hoops has neither yet)
+    expect(ownSettingsOf({ ...MODE_TEMPLATES.hoops, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ballSpeed: 450, mode: "hoops" });
     // the defaults, where a binding has neither
-    expect(ownSettingsOf(MODE_TEMPLATES.maze)(ctxOf(1))).toEqual({ mode: "maze" });
+    expect(ownSettingsOf(MODE_TEMPLATES.hoops)(ctxOf(1))).toEqual({ mode: "hoops" });
     // a seeded generator draws under its tune: the tune's value wins, every other number is the draw's
     const shatter = ownSettingsOf(MODE_TEMPLATES.shatter)(ctxOf(1));
     expect(ownSettingsOf({ ...MODE_TEMPLATES.shatter, tune: { ballSpeed: 450 } })(ctxOf(1))).toEqual({ ...shatter, ballSpeed: 450 });
@@ -1071,15 +1090,15 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     expect(OUTCOME_MOMENTS.winner!.ms({ mode: "classic", durationMs: 30000, finished: true, firstEscapeMs: 8000, teams: [] })).toBe(8000);
   });
 
-  it("proves the atEnd strategy on Conveyor's binding (planned, not yet offered): the payoff is the clip's last 1.5 s, resolved, in the short and standard lengths", () => {
-    const t = templateById("count-conveyor")!;
+  it("proves the atEnd strategy on Lines' binding (planned, not yet offered: --- templates --- AI studio step 4, the conveyor ends on its own): the payoff is the clip's last 1.5 s, resolved, in the short and standard lengths", () => {
+    const t = templateById("reveal-lines")!;
     expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
     const r = plannedRecipe(t)!;
     expect([r.strategy, r.endings, r.buckets]).toEqual(["atEnd", ["resolved"], ["short", "standard"]]);
     for (const platform of ["reels", "shorts"] as const) {
       for (const seed of [1, 2, 3, 4]) {
         const plan = planClip(r, seed, platform, { copy, look: "simple", template: t.id, episode: 3, index: seed, ending: seed % 2 ? "cliffhanger" : "auto" });
-        const where = `conveyor/${platform}/${seed}`;
+        const where = `lines/${platform}/${seed}`;
         expect([where, plan.ending, plan.timing.found, AT_END_BUCKETS.includes(plan.bucket)]).toEqual([where, "resolved", true, true]);
         expect([where, plan.timing.clipSec, plan.settings.recordingDuration]).toEqual([where, plan.timing.recordingDuration, plan.timing.recordingDuration]);
         expect(plan.payoff.atSec, where).toBeCloseTo(plan.timing.recordingDuration - AT_END_SEC, 9);
@@ -1092,7 +1111,7 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     }
     // a long clip is never asked of it: its payoff would come at 97.5 % and later, past the band
     expect(planClip(r, 1, "reels", { copy, bucket: "long", search: false, look: "simple", template: t.id }).bucket).not.toBe("long");
-    const s = defaultSettings("conveyor");
+    const s = defaultSettings("lines");
     expect(clipTiming(r, { ...s, recordingDuration: 60 }, null, "resolved", "long")).toMatchObject({ payoffSec: 58.5, clipSec: 60, accepted: false });
     expect(clipTiming(r, { ...s, recordingDuration: 15 }, null, "resolved", "short")).toMatchObject({ payoffSec: 13.5, clipSec: 15, accepted: true });
     expect(clipTiming(r, { ...s, recordingDuration: 15 }, null, "cliffhanger", "short").accepted).toBe(false);
@@ -1194,5 +1213,158 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
     const pendulum = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false });
     expect("banners" in actionTrackSync(pendulum.settings, pendulum.seed, pendulum.world, 3)).toBe(false);
     expect([isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [1] }), isActionTrack({ stepSec: 0.5, grid: 20, samples: [""], banners: [""] })]).toEqual([false, true]);
+  });
+});
+
+// --- templates --- (AI studio step 4) group B: the count, who-wins and aim bindings with their own settings, each timed by its run's
+// own moment, and Merge Ring and the square race kept hidden with what was measured
+describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes", () => {
+  const GROUP_B = ["count-conveyor", "who-wins-maze", "who-wins-territory", "who-wins-land-claim", "aim-bullseye", "aim-box"];
+
+  it("offers every one of them, in its format's words or a hook of its own, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
+    expect(GROUP_B.map((id) => templateById(id)!.mode)).toEqual([...GROUP_B_READY]);
+    for (const id of GROUP_B) {
+      const t = templateById(id)!;
+      const r = templateRecipeById(id)!;
+      expect([id, t.ready, t.binding.tier, r.formatCopy, r.wraps]).toEqual([id, true, "trial", true, undefined]);
+      const platforms = platformsOf(id);
+      for (const seed of [1, 2, 3, 4]) {
+        const platform = platforms[(seed - 1) % platforms.length];
+        const options = { copy, episode: 3, index: seed };
+        const plan = planTemplate(id, seed, platform, options);
+        const where = `${id}/${platform}/${seed}`;
+        expect(JSON.stringify(planTemplate(id, seed, platform, options)), where).toBe(JSON.stringify(plan));
+        expect(rangeViolations(plan.settings), where).toEqual([]);
+        if (t.binding.outcome) expect([where, availableOutcomes(t.mode, outcomeContextOfSettings(plan.settings)).includes(t.binding.outcome)]).toEqual([where, true]);
+      }
+      await breathe();
+    }
+    // the who-wins ones stay in the battle family, out of the default menus as the daily bot's battles
+    expect(GROUP_B.filter((id) => templateById(id)!.family === "battle")).toEqual(["who-wins-maze", "who-wins-territory", "who-wins-land-claim"]);
+    expect(readyTemplates().map((t) => t.id).filter((id) => GROUP_B.includes(id)).sort()).toEqual(["aim-box", "aim-bullseye", "count-conveyor"]);
+    // the bot's own plans are untouched: no mode of group B is a recipe's (the maze race plays Classic)
+    expect(GROUP_B.filter((id) => RECIPES.some((r) => r.modes.includes(templateById(id)!.mode)))).toEqual([]);
+  });
+
+  it("times each by its run's own moment: the first bullseye, the first shape at zero, GAME OVER and the last ball out, and the maze's first one out", () => {
+    expect([...MARK_MODES]).toEqual(["bullseye", "box", "mergeRing", "paddle", "conveyor"]);
+    // the run's end after its mark (s): GAME OVER and the last ball out end the run; a bullseye and a shape at zero leave it going on
+    const holds: Record<string, number | null> = { "aim-bullseye": null, "aim-box": null, "aim-paddle": 2.2, "count-conveyor": 1.5 };
+    for (const [id, hold] of Object.entries(holds)) {
+      // Paddle's template is hidden (its own HUD under the hook): its plan comes from its binding's recipe, as the tests above
+      const plan = templateById(id)!.ready ? planTemplate(id, 2, "reels", { copy, episode: 3, index: 2, ending: "resolved" }) : planClip(plannedRecipe(templateById(id)!)!, 2, "reels", { copy, look: "simple", template: id, episode: 3, index: 2, ending: "resolved" });
+      const horizon = plan.timing.clipSec + 4;
+      const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "finish" }, horizon);
+      expect([id, plan.ending, (facts.markSec ?? -1) > 0]).toEqual([id, "resolved", true]);
+      expect(plan.payoff.atSec, id).toBeCloseTo(facts.markSec!, 9);
+      if (hold !== null) expect(facts.finishSec - facts.markSec!, id).toBeCloseTo(hold, 1);
+      else expect([id, facts.finishSec < 0 || facts.finishSec > plan.timing.clipSec]).toEqual([id, true]);
+    }
+    // the mark is read only where a finish binding plays a mark mode: every other run's facts are as they were
+    expect("markSec" in simulateFacts(finderRequestOfSettings(defaultSettings("classic"), undefined, 3), 1, { strategy: "finish" }, 3)).toBe(false);
+    expect("markSec" in simulateFacts(finderRequestOfSettings(defaultSettings("box"), undefined, 3), 1, { strategy: "atEnd" }, 3)).toBe(false);
+    // the Maze: its winner is the first ball out, named the moment it leaves – the finder's own run of a winner reads the run's end
+    expect(Object.keys(OWN_RUN_MODE_MOMENTS)).toEqual(["maze"]);
+    const maze = planTemplate("who-wins-maze", 1, "reels", { copy, episode: 3, index: 1, ending: "resolved" });
+    const own = outcomeRunOf(finderRequestOfSettings(maze.settings, maze.world, maze.timing.clipSec + 2), maze.seed, "winner", maze.timing.clipSec + 2);
+    expect([own.facts.winner >= 0, own.facts.atSec]).toEqual([true, maze.payoff.atSec]);
+    const run = runSync(maze.settings, maze.seed, maze.world, maze.recipe, maze.timing.clipSec, maze.payoff.atSec);
+    // a ball without a roster goes by its colour, as the maze's banner names it ("AQUA ESCAPED"), in the plan and the crew's run alike
+    expect(maze.payoff.winner).toMatch(/^[A-Z]+$/);
+    expect(crewClipOfPlan(maze, { run }).payoff.winner).toBe(maze.payoff.winner);
+    expect(clarityOf(crewClipOfPlan(maze, { run })).gates.find((g) => g.id === "G4")!.problems).toEqual([]);
+  });
+
+  it("cuts Territory and Land Claim before their verdict, which comes as their run ends and their banner shows for 0.5 s", () => {
+    for (const id of ["who-wins-territory", "who-wins-land-claim"]) {
+      expect([id, templateRecipeById(id)!.endings]).toEqual([id, ["cliffhanger"]]);
+      const plan = planTemplate(id, 1, "shorts", { copy, episode: 3, index: 1 });
+      expect([id, plan.ending, plan.timing.found, plan.payoff.cutGapSec! >= CLIFF_GAP_SEC.min - 1e-9 && plan.payoff.cutGapSec! <= CLIFF_GAP_SEC.max + 1e-9]).toEqual([id, "cliffhanger", true, true]);
+    }
+    // Territory's countdown is on its 5 s step, at or after the payoff target: the verdict comes as it ends
+    const t = planTemplate("who-wins-territory", 2, "reels", { copy, episode: 3, index: 2 });
+    expect(t.settings.tyDuration % 5).toBe(0);
+    expect(t.payoff.atSec).toBeCloseTo(t.settings.tyDuration, 6);
+  });
+
+  it("keeps Merge Ring and Paddle Keep-Up experimental, though they plan (Merge Ring's own question, Paddle's score under the hook), and the square race hidden: no seed opens its gate within the first second", () => {
+    expect(EXPERIMENTAL.mergeRing).toMatch(/Will it merge into its final form\?.*watched/);
+    expect(EXPERIMENTAL.paddle).toMatch(/score.*modeTopHud.*watched/);
+    const paddle = planClip(plannedRecipe(templateById("aim-paddle")!)!, 1, "shorts", { copy, look: "simple", template: "aim-paddle", episode: 3, index: 1 });
+    const paddleRun = runSync(paddle.settings, paddle.seed, paddle.world, paddle.recipe, paddle.timing.clipSec, paddle.payoff.atSec);
+    expect([paddle.hook, paddle.timing.found, clarityOf(crewClipOfPlan(paddle, { run: paddleRun })).pass, paddle.settings.captions.find((_, i) => paddle.captionRoles[i] === "hook")?.position]).toEqual(["How long can it last?", true, true, "top"]);
+    const merge = plannedRecipe(templateById("count-merge-ring")!)!;
+    const plan = planClip(merge, 1, "reels", { copy, look: "simple", template: "count-merge-ring", episode: 3, index: 1 });
+    const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+    expect([plan.hook, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).pass]).toEqual(["How far can it merge?", true, true]);
+    // the square race: its 3-2-1-GO opens the gate at 1.8 s on every seed the search may try (24 a plan), so its template stays hidden
+    const race = recipeById("square-race")!;
+    for (const planSeed of [1, 2]) {
+      const p = planClip(race, planSeed, "reels", { copy, look: "simple", search: false });
+      const request = finderRequestOfSettings(p.settings, p.world, 3);
+      for (let i = 0; i < 24; i++) expect([planSeed, i, simulateFacts(request, 1000 * planSeed + i, { strategy: "finish" }, 2.5).firstImpactSec]).toEqual([planSeed, i, expect.toSatisfy((x: number) => x < 0 || x >= 1.8 - 1e-9)]);
+    }
+  });
+
+  it("speaks with a hook of its own where its format's three do not say what its run does: ViralBot.ownHooks in en, pl and es", () => {
+    const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
+    expect(own.sort()).toEqual(["own.box", "own.mergeRing"]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box"]]);
+      for (const [key, text] of Object.entries(hooks)) {
+        const where = `${locale} ${key}: "${text}"`;
+        expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
+      }
+    }
+    expect(planTemplate("aim-box", 1, "reels", { copy: COPY.pl, locale: "pl", search: false }).hook).toBe("Zatrzyma się na zerze.");
+  });
+});
+
+// --- templates --- (AI studio step 4) the studio's known gap "Two endings at once": a mode that draws its own ending
+describe("one ending: a mode's own end banner", () => {
+  it("draws no payoff words of the Simple look's own beside a mode's end banner, and keeps the bot look's as they were", () => {
+    const simple = planTemplate("smash-power-layers", 1, "reels", { copy, episode: 3, index: 1 });
+    const bot = planTemplate("smash-power-layers", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
+    expect([simple.ending, simple.captionRoles.includes("payoff"), simple.payoff.text]).toEqual(["resolved", false, ""]);
+    expect([bot.captionRoles.includes("payoff"), bot.payoff.text.length > 0]).toEqual([true, true]);
+    // where the mode draws none, the Simple look draws its words (Classic's escape)
+    const classic = planTemplate("get-out-classic", 1, "reels", { copy, episode: 3, index: 1, ending: "resolved" });
+    expect([classic.captionRoles.includes("payoff"), classic.payoff.text.length > 0]).toEqual([true, true]);
+    // the Simple score and the screen view see the banner from the payoff on; the clip ends on words to read (no dead air)
+    const run = runSync(simple.settings, simple.seed, simple.world, simple.recipe, simple.timing.clipSec, simple.payoff.atSec);
+    const clip = crewClipOfPlan(simple, { run });
+    const banner = overlaysOf(clip).filter((o) => o.kind === "banner");
+    expect(banner.map((o) => [o.start, o.end, o.words])).toEqual([[simple.payoff.atSec, simple.timing.clipSec, "a FREEDOM! banner with the hits and the time"]]);
+    expect(screenView(clip).text).toContain("drawn on screen at the end");
+    expect(clarityOf(clip).gates.find((g) => g.id === "G2")!.problems).toEqual([]);
+  });
+
+  it("times a banner from the payoff or before the run's end, never in a clip cut before the payoff, one for two that come and go together", () => {
+    const s = (mode: SimulatorSettings["mode"]) => ({ ...defaultSettings(mode) }) as SimulatorSettings;
+    expect(endBannersIn(s("powerLayers"), { ending: "resolved", payoffSec: 10, clipSec: 12, runEndSec: 11.8 }).map((b) => [b.start, b.end])).toEqual([[10, 12]]);
+    expect(endBannersIn(s("powerLayers"), { ending: "cliffhanger", payoffSec: 10, clipSec: 9, runEndSec: null })).toEqual([]);
+    expect(endBannersIn(s("paddle"), { ending: "resolved", payoffSec: 10, clipSec: 12.7, runEndSec: 12.2 }).map((b) => [b.start, b.end])).toEqual([[10, 12.7]]);
+    expect(endBannersIn(s("paddle"), { ending: "resolved", payoffSec: 10, clipSec: 11.5, runEndSec: null })).toEqual([]);
+    // Bullseye's callout leaves, its final banner stays; a roster's banner at the same end as the mode's own is one
+    expect(endBannersIn(s("bullseye"), { ending: "resolved", payoffSec: 5, clipSec: 30.5, runEndSec: 30 }).map((b) => [b.start, b.end])).toEqual([[5, 6.5], [27.5, 30.5]]);
+    expect(endBannersIn({ ...s("territory"), teams: SERIES_ROSTER.slice(0, 2).map((r) => ({ ...r })) } as SimulatorSettings, { ending: "resolved", payoffSec: 20, clipSec: 21, runEndSec: 20 })).toHaveLength(1);
+    // Classic draws none (its escape has no banner)
+    expect(endBannersIn(s("classic"), { ending: "resolved", payoffSec: 10, clipSec: 12, runEndSec: 11 })).toEqual([]);
+    // in a stranger's words: no word of the intent, no claim's (the screen view holds no intent: tests/crewDossier.test.ts)
+    for (const b of MODE_END_BANNERS) expect([b.mode, b.words.length > 10, /payoff|template|intent|idea/i.test(b.words), CLAIMS.filter((c) => new RegExp(`\\b${c}\\b`, "i").test(b.words))]).toEqual([b.mode, true, false, []]);
+  });
+
+  it("matches the engine: the banner shows where the rule says on the ready templates' plans (Power Layers' FREEDOM!, Ball Drop's SETTLED!)", () => {
+    const freed = planTemplate("smash-power-layers", 2, "shorts", { copy, episode: 3, index: 2, ending: "resolved" });
+    const run = runSync(freed.settings, freed.seed, freed.world, freed.recipe, freed.timing.clipSec, freed.payoff.atSec);
+    const shown = endBannersShown(crewClipOfPlan(freed, { run }));
+    expect(shown.map((b) => b.start)).toEqual([freed.payoff.atSec]);
+    // Ball Drop's recipe in the Simple look (its template is hidden): SETTLED! as its run ends, a second after its payoff
+    const drop = dropPlan(2, { ending: "resolved" });
+    const dropRun = runSync(drop.settings, drop.seed, drop.world, drop.recipe, drop.timing.clipSec, drop.payoff.atSec);
+    const settled = endBannersShown(crewClipOfPlan(drop, { run: dropRun }));
+    expect([settled.length, settled[0]?.start]).toEqual([1, dropRun.finishSec]);
+    expect([drop.captionRoles.includes("payoff"), drop.payoff.text]).toEqual([false, ""]);
   });
 });

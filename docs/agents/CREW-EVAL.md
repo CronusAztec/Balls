@@ -471,7 +471,7 @@ a Grow clip in the long bucket, which the template does not take, and was refuse
 ### claude-opus-5-5-2026-10-28-step3
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-28-step3 -->
-Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus e5038a4fbafe84b8.
+Model: claude-opus-5-5. Date: 2026-10-28. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus e5038a4fbafe84b8 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -516,3 +516,55 @@ of Power Layers', and every idea of it, cut before its last segment, passes ever
 Fit, Brick Smash, Shatter and Target among its ideas and mixed 2.67 formats a request (3.33): its calm request took only
 Line up and Fill. All three of its replies were valid the first time (2 of 3), so it made 3 calls (4). Its Grow clip on plan
 seed 3 again found no fill in time, so 17 of 18 passed every gate, as before.
+
+### claude-opus-5-5-2026-10-29-step4
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-step4 -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 1 of 40 (3%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 1 of 40 (3%) | 0 of 40 (0%) | 1 of 40 (3%) | 10 / 14 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 17 of 18 (94%) | 3 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-step4 -->
+
+AI studio step 4 changed ten clips of the corpus, the ones whose mode draws its own end banner: Power Layers' FREEDOM!, the
+winner's banner of the battle royale, Capture the Flag and String Battle, and Multipliers' MADE IT HOME (f04, f05, f18, f40,
+f54, f56 and f58 clean, f25, f39 and f46 planted). The Simple look draws no payoff words beside such a banner now, and the
+dossier names the banner ("drawn on screen at the end"). Nine of the ten clips' briefs changed: 9 viewer, 9 skeptic
+and 20 reviewer briefs (f46's, a planted slow start, did not change by a byte). The step's new templates joined the
+brainstormer's menu: Bouncing Shapes', Bullseye's and the conveyor's (the Maze's, Territory's and Land Claim's are in the
+battle family, not on its menu), so its three briefs changed too. The same model answered those 41 briefs again in one
+context. The other 196 answers are step 3's, to briefs that did not change by a byte, and step 3's run stays above as
+history. No catch rate, objection or call count moved. The viewer read both Multipliers clips as a count (their run ends on
+MADE IT HOME, where the payoff's words had said "IT BROKE. 💥"), so the clean clips it misread fell from 3 to 1, and the
+thorough run changed 1 clean clip (3) and kept 10 of 14 fixes (12 of 16): the two rewritten hooks it no longer asked for.
+The banners' words name no claim ("the champion's banner", not the winner's: the screen view holds no intent). G2 reads a
+banner as words to end on only where it covers the clip's quiet end, so the payoffLate twin now trims its run's quiet end with
+the clip (lib/crew/eval.ts): a twin cut shorter keeps facts of its own length, and the CTF clips still take it.
+The code's ideas mix 6 formats a request (5) with the aim format on the menu; the brainstormer pitched Bouncing Shapes,
+Bullseye and the conveyor among its ideas and mixed 3 formats a request (2.67). Its Grow clip on plan seed 3 again found no
+fill in time, so 17 of 18 passed every gate, as before.

@@ -18,6 +18,8 @@ import { atEndPayoffSec, FILL_OUTCOMES, outcomeRunOf, payoffWindow, strategyOutc
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { CLEAR_HOLD_MS as SPIRAL_CLEAR_HOLD_MS } from "@/lib/physics/modes/spiralGlass"; // --- templates --- (AI studio step 3)
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
+import { BANNER_WITH_PAYOFF_SEC, endBannersIn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4) a mode's own ending
+import { mazeBallName } from "@/lib/physics/modes/maze"; // --- templates --- (AI studio step 4) the maze's balls go by their colours
 import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip";
 import {
   BOT_DEFAULT_FAMILIES,
@@ -702,6 +704,12 @@ export interface RunFacts {
    * the window the planner asked for, the winner it crowned and where the run ended on its own; absent otherwise.
    */
   outcomeRun?: OutcomeRunFacts;
+  /**
+   * --- templates --- (AI studio step 4) The mode's own moment a `finish` binding times its payoff by (MARK_MODES: Bullseye's first
+   * bullseye, Bouncing Shapes' first shape at zero, Merge Ring's final form, Paddle Keep-Up's GAME OVER, the conveyor's last ball out;
+   * s, −1 never); absent in every other mode and strategy.
+   */
+  markSec?: number;
   // --- crew ---
   /** What the run does around its payoff (lib/insights/score.ts payoffMomentSync): the crew's runs carry it, the bot's never. */
   moment?: PayoffMoment;
@@ -758,6 +766,36 @@ export const MULTIPLY_FILL_BALLS = 40;
 /** The share of its ring a Grow ball fills at the payoff. */
 export const GROW_FILL_SHARE = 0.95;
 
+// --- templates --- (AI studio step 4) the modes' own moments a finish binding reads
+/**
+ * The modes whose `finish` payoff is a moment of their own before their run's end (RunFacts.markSec), each read off the engine as
+ * the page draws it: Bullseye's first centre hit (its BULLSEYE! callout; the run goes on through the other shots), Bouncing
+ * Shapes' first shape at zero (it stops still there; the others count on), Merge Ring's final form (its FINAL FORM banner, the run ending
+ * FINAL_HOLD_MS later – an overflow is none), Paddle Keep-Up's GAME OVER (GAME_OVER_HOLD_SEC before its end) and the conveyor's
+ * last ball out (its final banner, FINAL_HOLD_MS before its end).
+ */
+export const MARK_MODES: readonly SimulatorSettings["mode"][] = ["bullseye", "box", "mergeRing", "paddle", "conveyor"];
+/** Whether the engine shows a mark mode's own moment now (MARK_MODES). */
+function markNow(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"]): boolean {
+  switch (mode) {
+    case "bullseye":
+      return engine.getBullseyeView().bullseyes > 0;
+    case "box":
+      return engine.getBoxProgress().done > 0;
+    case "mergeRing":
+      return engine.getMergeRingView().finalMs >= 0;
+    case "paddle":
+      return engine.getPaddleView().over;
+    case "conveyor":
+      return engine.getConveyorView().allDone;
+    default:
+      return false;
+  }
+}
+/** The mark modes whose run goes on after the mark (the other shots, the other shape): a clip around it is cut where the payoff lands at 85 %, as the race's. */
+const MARK_RUNS_ON: readonly SimulatorSettings["mode"][] = ["bullseye", "box"];
+// --- end of the modes' own moments
+
 /** What a run's facts need of its recipe: its strategy and – --- templates --- for the `outcome` strategy – its bound outcome. */
 export type FactsRecipe = Pick<BotRecipe, "strategy"> & Partial<Pick<BotRecipe, "outcome">>;
 
@@ -778,7 +816,8 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   const step = 1000 / 60;
   const horizonMs = horizonSec * 1000;
-  const facts: RunFacts = { firstImpactSec: -1, firstEscapeSec: -1, finishSec: -1, homeSec: -1, fillSec: -1, winSec: -1, winnerIndex: -1, summary: { mode: request.mode, durationMs: 0, finished: false, firstEscapeMs: -1, teams: [] }, ...(recipe.strategy === "lastNote" ? { lastSoundSec: -1 } : {}) /* --- templates --- */ };
+  const marks = recipe.strategy === "finish" && MARK_MODES.includes(request.mode); // --- templates --- (AI studio step 4)
+  const facts: RunFacts = { firstImpactSec: -1, firstEscapeSec: -1, finishSec: -1, homeSec: -1, fillSec: -1, winSec: -1, winnerIndex: -1, summary: { mode: request.mode, durationMs: 0, finished: false, firstEscapeMs: -1, teams: [] }, ...(recipe.strategy === "lastNote" ? { lastSoundSec: -1 } : {}) /* --- templates --- */, ...(marks ? { markSec: -1 } : {}) };
   const teamCount = () => (request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode));
   // --- low-findings --- a finished battle that ended with nobody standing (its last balls fell in the same step), as
   // simulateOutcomeRun() reports it: the mode's verdict shares the win, the finder's winner predicate takes it for nobody's
@@ -816,6 +855,8 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
     if (request.mode === "glass" && facts.homeSec < 0 && engine.getGlassProgress().home) facts.homeSec = sec;
     // --- templates --- (AI studio step 3) Journey's HOME, its way out (the crew's claim "out" reads it)
     if (request.mode === "journey" && facts.homeSec < 0 && engine.getJourneyView().homeReached) facts.homeSec = sec;
+    // --- templates --- (AI studio step 4) a mark mode's own moment (MARK_MODES)
+    if (marks && (facts.markSec ?? -1) < 0 && markNow(engine, request.mode)) facts.markSec = sec;
     // The race names its winner as the first racer crosses the line (race.ts finish(): the "winner" callout and the
     // fanfare) – that is the payoff, not the complete podium seconds later.
     if (request.mode === "race" && facts.winSec < 0) {
@@ -896,6 +937,8 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
     else if (settings.mode === "drop") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - DROP_REST_SEC) : -1;
     // --- templates --- (AI studio step 3) Spiral Glass ends CLEAR_HOLD_MS after its GLASS CLEARED (the flash, the chord): the clear is the payoff
     else if (settings.mode === "spiralGlass") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SPIRAL_CLEAR_HOLD_MS / 1000) : -1;
+    // --- templates --- (AI studio step 4) a mark mode's own moment (MARK_MODES: the first bullseye, the first shape at zero, the final form, GAME OVER, the last ball out)
+    else if (MARK_MODES.includes(settings.mode)) sec = facts.markSec ?? -1;
     else sec = facts.finishSec;
   }
   else if (recipe.strategy === "fill") sec = facts.fillSec;
@@ -919,6 +962,8 @@ function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSetti
   // --- templates --- after the last note the board only settles, silent: the clip is cut at the payoff's 85 % mark, or played
   // to the run's own end when that comes first
   if (recipe.strategy === "lastNote") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  // --- templates --- (AI studio step 4) a mark mode whose run goes on after its mark (the other shots, the other shape), as the race
+  if (recipe.strategy === "finish" && MARK_RUNS_ON.includes(settings.mode)) return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
   return facts.finishSec;
 }
 
@@ -1109,9 +1154,11 @@ export type TextPlan = "stack" | "oneLine";
  * --- templates --- `textPlan` "oneLine" (the Simple look): one text at a time – the countdown caption comes after the hook and
  * leaves when the payoff's words or the closing question come, so no two texts are on screen together – and the payoff's words
  * cut by whole clauses toward 3 (templates.ts simplePayoffText), on one line where the clip's tail after them is too short for
- * two at 1.2 s a line (simplePayoffLines). `payoffText`: the payoff's words as drawn (null: none drawn).
+ * two at 1.2 s a line (simplePayoffLines). `payoffText`: the payoff's words as drawn (null: none drawn). --- templates --- (AI
+ * studio step 4) `ownEnding`: the mode draws its own ending in the clip (its end banner: crew/hudFlags.ts endBannersIn), so no
+ * payoff words of the clip's own stand beside it – one ending.
  */
-export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack"): { captions: Caption[]; roles: CaptionRole[]; payoffText: string | null } {
+export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack", ownEnding = false): { captions: Caption[]; roles: CaptionRole[]; payoffText: string | null } {
   const captions: Caption[] = [];
   const roles: CaptionRole[] = [];
   const add = (caption: Caption, role: CaptionRole) => {
@@ -1138,7 +1185,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   }
   if (q) {
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
-  } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */) {
+  } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */ && !ownEnding /* --- templates --- (AI studio step 4) */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
     // --- templates --- (the Simple look: its words cut by clauses, on the lines the clip's tail after them has time for)
     const p = oneLine ? simplePayoffLines(simplePayoffText(words), Math.min(timing.clipSec, clip) - payoffStart) : { text: words, ...captionLines(words, 1.3, 2) };
@@ -1218,10 +1265,16 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   // keeps the clause the picture cannot show instead: Power Layers' rule, which a cliffhanger's "One more hit?" hangs on
   const stakeOnScreen = counter === "hud" && hudShowsCountdown(settings);
   const hook = simple ? simpleHookText(fullHook, recipe.stakeHook && !stakeOnScreen ? stakeNumbersOf(recipe.hookVars(settings)) : undefined) : fullHook;
-  const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
+  // (--- templates --- AI studio step 4: a maze ball without a roster goes by its colour, as the maze's banner names it: "AQUA ESCAPED")
+  const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? (settings.mode === "maze" ? mazeBallName(winner) : `#${winner + 1}`)) : null;
   const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
   const payoffText = recipe.payoffWords === false ? "" : recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" }); // --- templates --- (none drawn)
-  const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack");
+  // --- templates --- (AI studio step 4) one ending: where the mode draws its own end banner inside a resolved clip (Power Layers'
+  // "FREEDOM! 10 hits · 16.7s", an arena's winner, Bullseye's callout) as its payoff comes, the Simple look draws no payoff words
+  // beside it; a banner that comes later (Ball Drop's SETTLED!, seconds after its last note) leaves the payoff its words
+  const payoffSec = timing.payoffSec;
+  const ownEnding = simple && ending === "resolved" && payoffSec !== null && endBannersIn(settings, { ending, payoffSec, clipSec: timing.clipSec, runEndSec: runEndSec(recipe, settings, facts, payoffSec) }).some((b) => b.start <= payoffSec + BANNER_WITH_PAYOFF_SEC + 1e-9);
+  const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack", ownEnding);
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];
@@ -1254,7 +1307,7 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
     captionRoles: roles,
     hook,
     countdown: { ...textRecipe.countdown },
-    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: simple ? (drawnPayoff ?? simplePayoffText(payoffText)) : payoffText /* --- templates --- (the words it draws) */, winner: winnerName },
+    payoff: { type: recipe.payoff, atSec: timing.payoffSec, position: timing.position, cutGapSec: timing.cutGapSec, text: simple ? (ownEnding ? "" : (drawnPayoff ?? simplePayoffText(payoffText))) : payoffText /* --- templates --- (the words it draws; none beside the mode's own ending) */, winner: winnerName },
     timing: { recordingDuration: timing.recordingDuration, clipSec: timing.clipSec, firstImpactSec: facts && facts.firstImpactSec >= 0 ? facts.firstImpactSec : null, found, seedsTested },
     score: 0,
     reasons: [],

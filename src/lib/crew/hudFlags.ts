@@ -9,7 +9,11 @@ import { teamsPlayIn } from "@/lib/teams";
  *  - HUD_FLAGS: the ones a setting switches, per mode (a String Battle's WEB DOMINION panel, Power Layers' corner badge, the
  *    loop HUD in any mode…). Each that is on and that the clip does not keep costs the Simple score its HUD points;
  *  - MODE_HUDS: the ones a mode always draws (the arena games' scoreboard band, Power Layers' layer count…). They cost no HUD
- *    points (nothing switches them off), but their words are on screen like any other message.
+ *    points (nothing switches them off), but their words are on screen like any other message;
+ *  - --- crew --- (AI studio step 4) MODE_END_BANNERS: the banners a mode draws at its own ending ("FREEDOM!", an arena's
+ *    champion, Bullseye's callout). The Simple look draws no payoff words of its own beside one that comes in with the payoff
+ *    (BANNER_WITH_PAYOFF_SEC; lib/bot/planner.ts clipCaptions: one ending), the Simple score and the screen view count it on
+ *    screen from the second it comes in (endBannersIn), and G2 reads it as words to end on where it covers the quiet end.
  * A HUD "counts" when it shows the countdown to the payoff – exactly the modes the planner's scoreClip credits with a HUD
  * countdown (lib/bot/planner.ts hudShowsCountdown; tests/crewSimplicity.test.ts holds the two together).
  *
@@ -38,7 +42,7 @@ export interface HudFlag {
   texts: (s: SimulatorSettings) => number;
   /** It shows the countdown to the payoff. */
   counts: boolean;
-  /** What a viewer sees, in plain words (the screen view). */
+  /** What a viewer sees, in plain words (the screen view): no claim's word ("winner", "out"…), as the screen view holds no intent. */
   words: string;
 }
 
@@ -113,7 +117,120 @@ export const MODE_HUDS: readonly ModeHud[] = [
   { mode: "ctf", counts: true, words: "a band with the score and the clock" },
   { mode: "glass", counts: true, words: "the stage banner and the stage dots" },
   { mode: "multipliers", counts: true, words: "the ball counter at home" },
+  // --- crew --- (AI studio step 4) the HUDs of group B's modes, which no setting switches off (their renderers' drawOverlay)
+  { mode: "conveyor", counts: false, words: "a title and a counter of the balls loaded and out" },
+  { mode: "bullseye", counts: false, words: "a title, the shot counter and the running total" },
+  { mode: "paddle", counts: false, words: "the score, the lives and the streak" },
+  { mode: "mergeRing", counts: false, words: "a title, the merges, the top size, a ladder of the sizes and a question under the ring" },
 ];
+
+// --- crew --- (AI studio step 4) the modes' own endings
+/**
+ * A banner a mode draws over its square at its own ending, which no setting switches off (Canvas.tsx's end banners and the
+ * modes' renderers): Power Layers' "FREEDOM! 10 hits · 16.7s", an arena's winner, Bullseye's callout. It comes in either at
+ * the moment a clip times its payoff by ("payoff": the escape, the break, the first one out, the bullseye) or `leadSec` before
+ * the run's own end ("finish": the mode ends its run that long after it, its hold), and stays to the clip's end – or `forSec`,
+ * a callout that leaves. Measured against the engine on the ready templates' and the recipes' plans (AI studio step 4: the
+ * banner came in within 0.1 s of the moment named here). `when`: only with these settings (a roster's banner).
+ */
+export interface ModeEndBanner {
+  /** Its mode, or "any" (a roster's winner banner, wherever a roster plays). */
+  mode: ModeId | "any";
+  at: "payoff" | "finish";
+  /** "finish": it comes in this long before the run's own end (s). */
+  leadSec?: number;
+  /** A callout that leaves after this long (s); absent: it stays to the clip's end. */
+  forSec?: number;
+  when?: (s: SimulatorSettings) => boolean;
+  /** What a viewer sees, in plain words (the screen view): no claim's word ("winner", "out"…), as the screen view holds no intent. */
+  words: string;
+}
+
+/**
+ * --- crew --- (AI studio step 4) A banner that comes in within this of the payoff (s) is the payoff's own announcement: the
+ * Simple look draws no payoff words beside it (planner.ts assemblePlan, ownEnding). One that comes later – Ball Drop's SETTLED!,
+ * seconds after its last note – leaves the payoff its words.
+ */
+export const BANNER_WITH_PAYOFF_SEC = 1;
+
+/**
+ * The end banners (see ModeEndBanner). The holds are the modes' own: Bullseye's final banner 2.5 s before its end (FINAL_HOLD_MS),
+ * Merge Ring's and Spiral Glass's 2 s, the conveyor's 1.5 s, the paddle's GAME OVER 2.2 s, the vortex's 1 s, Bouncing Orbs' 1.5 s,
+ * the runner's LEVEL COMPLETE 1.6 s and Beat Drop's 0.6 s; every other comes in as the run ends (the page's holds after it).
+ */
+export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
+  { mode: "accumulation", at: "payoff", words: "an ESCAPED! banner with the frozen balls" },
+  { mode: "portal", at: "payoff", words: "an ESCAPED! banner with the teleports" },
+  { mode: "shatter", at: "payoff", words: "a SHATTERED! banner with the segments broken" },
+  { mode: "powerLayers", at: "payoff", words: "a FREEDOM! banner with the hits and the time" },
+  { mode: "journey", at: "payoff", words: "a HOME! card with the stages, the time and the score" },
+  { mode: "race", at: "payoff", words: "a callout naming the first across the line" },
+  { mode: "maze", at: "payoff", words: "a banner naming the first ball to leave, with its time and a line under it" },
+  { mode: "bullseye", at: "payoff", forSec: 1.5, words: "a big BULLSEYE! callout" },
+  { mode: "bullseye", at: "finish", leadSec: 2.5, words: "a final banner with the total and the best shot" },
+  { mode: "mergeRing", at: "finish", leadSec: 2, words: "a FINAL FORM banner with the merges and the time (or OVERFLOW)" },
+  { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the tiles and the time" },
+  { mode: "conveyor", at: "finish", leadSec: 1.5, words: "a final banner with the balls loaded and escaped" },
+  { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
+  { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },
+  { mode: "orbGrid", at: "finish", leadSec: 1.5, words: "a banner: every orb at rest" },
+  { mode: "runner", at: "finish", leadSec: 1.6, words: "a LEVEL COMPLETE! banner" },
+  { mode: "beatDrop", at: "finish", leadSec: 0.6, words: "a banner on the last landing" },
+  { mode: "multipliers", at: "finish", words: "a MADE IT HOME banner with the balls home" },
+  { mode: "battle", at: "finish", words: "the champion's banner" },
+  { mode: "ctf", at: "finish", words: "the champion's banner" },
+  { mode: "stringBattle", at: "finish", words: "the champion's banner" },
+  { mode: "fightLeague", at: "finish", words: "KO!, then the champion's banner and card" },
+  { mode: "territory", at: "finish", words: "the champion's banner with the share of the board" },
+  { mode: "landClaim", at: "finish", words: "the champion's banner with the land taken" },
+  { mode: "drop", at: "finish", words: "a SETTLED! banner with the balls at rest" },
+  { mode: "box", at: "finish", words: "a COUNTED DOWN! banner" },
+  { mode: "pendulum", at: "finish", words: "a banner: every pendulum back in line" },
+  { mode: "polyrhythm", at: "finish", words: "a banner: every dot aligned" },
+  { mode: "illusion", at: "finish", words: "a COMPLETE! banner with the cycles" },
+  { mode: "any", at: "finish", when: (s) => rosterPlays(s), words: "the winning team's banner" },
+];
+
+/** The end banners these settings draw (their mode's, and a roster's where one plays). */
+export function endBannersOf(s: SimulatorSettings): ModeEndBanner[] {
+  return MODE_END_BANNERS.filter((b) => (b.mode === s.mode || b.mode === "any") && (!b.when || b.when(s)));
+}
+
+/** A clip's timing as the end banners read it: its ending, its payoff, its end and the run's own end (s; null: past the clip). */
+export interface EndBannerTiming {
+  ending: "resolved" | "cliffhanger";
+  payoffSec: number | null;
+  clipSec: number;
+  /** Where the run ends on its own inside the clip (null: it goes on past the clip, or it is not known). */
+  runEndSec: number | null;
+}
+
+/** An end banner on screen: from `start` to `end` (s of the clip). */
+export interface EndBannerOn {
+  banner: ModeEndBanner;
+  start: number;
+  end: number;
+}
+
+/**
+ * The end banners a clip shows, each with its seconds: "payoff" ones from the payoff of a resolved clip (a cut one ends before
+ * it), "finish" ones from `leadSec` before the run's own end where that is inside the clip; two that come and go at the same
+ * seconds are one (a roster's banner where the mode's own comes in as well, at its end, is one ending).
+ */
+export function endBannersIn(s: SimulatorSettings, t: EndBannerTiming): EndBannerOn[] {
+  const out: EndBannerOn[] = [];
+  for (const banner of endBannersOf(s)) {
+    let start: number | null = null;
+    if (banner.at === "payoff") start = t.ending === "resolved" && t.payoffSec !== null ? t.payoffSec : null;
+    else if (t.runEndSec !== null) start = Math.max(0, t.runEndSec - (banner.leadSec ?? 0));
+    if (start === null || !(start < t.clipSec - 1e-9)) continue;
+    const end = banner.forSec !== undefined ? Math.min(t.clipSec, start + banner.forSec) : t.clipSec;
+    if (out.some((o) => Math.abs(o.start - start!) < 1e-6 && Math.abs(o.end - end) < 1e-6)) continue;
+    out.push({ banner, start, end });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+// --- end of the modes' own endings
 
 /** The modes whose engine builds circular walls: the wall effects are drawn only there. */
 export const RING_WALL_MODES: readonly ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "journey", "conveyor"];

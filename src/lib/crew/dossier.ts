@@ -19,8 +19,8 @@ import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions }
  *    as its evidence; `facts` holds each key's value as data for the evidence check.
  *  - The screen view (`screenView()`, at most SCREEN_MAX characters): only what is drawn and heard – a neutral line of the
  *    scene (from the settings' numbers, never the mode's name), the length, the look and the sound in words, every text with
- *    its seconds and place, the HUDs in words, a cut's extras, and after a render the motion in 8 parts and the sound events a
- *    second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
+ *    its seconds and place, the HUDs in words, --- crew --- (AI studio step 4) the banner the picture draws at its own ending
+ *    with its seconds, a cut's extras, and after a render the motion in 8 parts and the sound events a second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
  *    "intent" or "payoff" outside the clip's own drawn words (tests/crewDossier.test.ts). The cold viewer reads it.
  *
  * Both views trim deterministically to their budgets: long quotes shorter first, then lists, then the drawn words to roles.
@@ -469,6 +469,8 @@ function renderScreen(clip: CrewClip, scene: string | undefined, t: { quote: num
   if (s.nameLabel && s.ballName.trim()) lines.push(`a name under the ball: ${quote(s.ballName, t.quote)}`);
   const huds = hudsOn(s);
   lines.push(`also on screen: ${huds.length ? huds.slice(0, t.list).map((h) => h.words).join("; ") : "nothing else"}`);
+  // --- crew --- (AI studio step 4) the mode's own end banner, from the second it comes in (simplicity.ts endBannersShown)
+  for (const o of overlays.filter((x) => x.kind === "banner").slice(0, t.list)) lines.push(`drawn on screen at the end, ${o.end >= shown - 1e-6 ? `${r1(o.start)} s to the end` : `${r1(o.start)}-${r1(o.end)} s`}: ${o.words}`);
   if (clip.cut) {
     const c = clip.cut;
     const extras = [c.hook.trim() ? `a pill on top ${quote(c.hook, t.quote)}` : "", c.url.trim() ? `an address line ${quote(c.url, t.quote)}` : "", c.cardSec > 0 ? `then an end card for ${r1(c.cardSec)} s` : ""].filter(Boolean);

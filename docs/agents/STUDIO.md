@@ -392,10 +392,18 @@ What the run showed:
   square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). The banners the track knows
   are these two: a mode's other texts of its own are not in it (below).
 - **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Spiral Glass asks "Will the ball
-  multiply?" over its spiral for the whole run, and the Journey shows a mini-map, a clock and every stage's label. Their
-  templates passed every gate and were hidden after the render was watched (docs/virality-playbook.md §5). Perfect Fit labels
-  its box ("4 × 15 / one of 368 ways") under it, where neither the Simple score nor the screen view sees it: its hook sits at
-  the top, over the tray of pieces that wait still, never over the label.
+  multiply?" over its spiral for the whole run, and the Journey shows a mini-map, a clock and every stage's label. Merge Ring
+  (AI studio step 4) asks "Will it merge into its final form?" under its ring for the whole run, beside its title, its merge
+  count and its ladder of sizes. Their templates passed every gate and were hidden after the render was watched
+  (docs/virality-playbook.md §5). Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
+  score nor the screen view sees it: its hook sits at the top, over the tray of pieces that wait still, never over the label.
+  The Maze's banner keeps its deadpan line ("who else thought that was blood") under the winner's name though its template
+  colours each ball's trail its own (watched: the line is the mode's, and the trail it jokes about is red only by default).
+- **A HUD under the hook.** Paddle Keep-Up draws its score, lives and streak in a band over its ceiling, at the top of the
+  square, and the canvas starts the top captions below a mode's top HUD only where the mode reports one (`modeTopHud` in
+  Canvas.tsx; Paddle reports none). The Simple hook covers the score for its 2.5 s (watched in AI studio step 4), and at the
+  bottom it would cover the paddle, so its template is hidden though its plans pass every gate. Reporting Paddle's band is a
+  change of the hub file Canvas.tsx, with the planner's caption boxes (`captionBoxAt`'s `topHud`) to match: the owner's call.
 - **A loop's last second.** Perfect Fit fills its box, bursts it and starts again, and its page records whole loops, so its
   clip ends on the loop's seam (watched at 5 frames a second): the box is full and flashes at the payoff, bursts 0.2 s later,
   and its last 0.5 s show the empty box and the next loop's tray coming in, all under the payoff's "Full!", as every Simple
@@ -404,10 +412,18 @@ What the run showed:
 - **A fix offered after the render.** The clip as rendered keeps its place among the keeps beside its fixed version: post.txt
   lists both, with the viewer's read of each, and the owner picks. The producer does not run after a render, so the fixed
   version keeps the title and caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it.
-- **Two endings at once.** Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits · 16.7s". The template's
-  payoff caption ("FREEDOM 🌈") shows beside it. The Journey's HOME! card did the same, one reason its template is hidden. Neither the Simple score nor the screen view knows these banners. A fix would
-  change the plans or the Simple scores of every such template, and with them the role eval's corpus and its recorded run.
-  The owner should first choose which of the two stays. (Ball Drop's template, which drew no payoff words, is hidden.)
+- **Two endings at once** (fixed in AI studio step 4). Some modes draw their own finish banner: Power Layers' "FREEDOM! 10 hits
+  · 16.7s". The template's payoff caption ("FREEDOM 🌈") showed beside it. Now the mode's banner stays and the Simple look draws
+  no payoff words of its own beside it: one ending, one text. The banners are a table (`MODE_END_BANNERS` in
+  `src/lib/crew/hudFlags.ts`): each mode's, when it shows (from the payoff, as Power Layers' FREEDOM!, or a set time before
+  the run ends, as Fight League's champion card) and in words. `endBannersIn` times them on a plan; the planner leaves the
+  payoff's words out where one comes in with the payoff, within 1 s (`ownEnding` in `assemblePlan`,
+  `BANNER_WITH_PAYOFF_SEC`), the Simple score counts it as a text on screen (a "banner" overlay, never one the crew can
+  remove), the screen view names it ("drawn on screen at the end"), and G2 reads it as words to end on where it covers the
+  clip's quiet end (Ball Drop's SETTLED!, after seconds of silence, does not). The bot look keeps its payoff caption as
+  before. Of the ready templates, Multipliers' Simple
+  median moved from 89 to 90 and Fight League's from 89 to 89.5; the others kept theirs (docs/virality-playbook.md §5). The
+  role eval's corpus changed with them (`docs/agents/CREW-EVAL.md`, run step4).
 - **The pendulum's other chords.** With every bob sounding at its turning points, the realignment's chord also sounds, as
   loud and as bright, at the release and at half a cycle, and half of it at each quarter. Only the realignment has the line.
   The hook promises the line, never the chord; the payoff's "🎼" names the music, and G2 asks it to play an accented chord

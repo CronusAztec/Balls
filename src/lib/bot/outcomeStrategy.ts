@@ -2,6 +2,7 @@ import { RANGES } from "@/lib/settings";
 import { createEngineForSettings, simulateOutcomeRun, stepPlaybackMs, type FinderRequest } from "@/lib/simulation/finder";
 import { ESCAPE_AT_TOLERANCE_SEC, outcomeClipSec, outcomeMatches, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "@/lib/simulation/outcomes";
 import { BUCKET_SECONDS, CLIFF_GAP_SEC, PAYOFF_BAND, snapStep, type EndingStyle, type LengthBucket } from "./playbook";
+import type { ModeId } from "@/lib/physics/types";
 
 /*
  * --- templates --- The two payoff strategies of the viral templates that no playbook recipe uses (lib/bot/templates.ts binds
@@ -14,7 +15,8 @@ import { BUCKET_SECONDS, CLIFF_GAP_SEC, PAYOFF_BAND, snapStep, type EndingStyle,
  *    run met the window, outcomeClipSec() where a run that ends on its own (or closes its loop) ends. Only the outcomes whose
  *    moment a seed's run shows plan this way (OUTCOME_MOMENTS); the ones the finder searches over settings instead of seeds –
  *    Chord Stars' star sets, Focus Shot's transit, Beat Machines' phrases, the vortex's ring waves, Brick Smash's first smash,
- *    Perfect Fit's solution seeds – have their own searches (outcomeStrategyPlans() is false for them).
+ *    Perfect Fit's solution seeds – have their own searches (outcomeStrategyPlans() is false for them). --- templates --- (AI
+ *    studio step 4) A mode may read an outcome with a run of its own too: the Maze's winner, the first one out (OWN_RUN_MODE_MOMENTS).
  *  - **atEnd**: the payoff is the clip's last AT_END_SEC – for a mode whose run loops or has no moment to search (Conveyor, Merge
  *    Ring, Collide, Wave Tank, Lines, Drawing Machine, Illusion). Analytic: the clip's length is drawn from the payoff target
  *    (atEndRecordingSec), the seed changes nothing about the timing, and its hook promises no event, so it ends resolved only and
@@ -66,6 +68,8 @@ interface OwnRun {
   endMs: number | null;
   /** The end is a loop's seam: the page's whole-loop export ends the clip right there (Export whole loops). */
   seam?: true;
+  /** --- templates --- (AI studio step 4) The team a winner outcome's run crowned (−1 or absent: none). */
+  winner?: number;
 }
 
 /** The engine's view of a run of its own, stepped as the page plays it (stepPlaybackMs) until `done` says so or `horizonSec`. */
@@ -117,6 +121,49 @@ function perfectFitRun(request: FinderRequest, seed: number, horizonSec: number)
 }
 
 /**
+ * --- templates --- (AI studio step 4) The Maze's winner (winner: the first ball out of the exit – the maze names it there, its
+ * banner "AQUA ESCAPED", and the others go on): the moment its verdict comes, the run followed on as far as a clip around that
+ * moment reaches (the payoff at 85 %, PAYOFF_BAND) to learn whether it ends first – every ball out, then MZ_FINISH_HOLD_MS. The
+ * finder's own run of a winner reads the run's end instead (OUTCOME_MOMENTS: the first escape or the end), which in the maze
+ * comes when the last ball is out.
+ */
+function mazeWinnerRun(request: FinderRequest, seed: number, horizonSec: number): OwnRun {
+  let verdictMs = -1;
+  let winner = -1;
+  const reach = { ms: Infinity };
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  let finished = false;
+  while (elapsed < Math.min(1000 * horizonSec, reach.ms) - 1e-6) {
+    engine.update(step, 0);
+    elapsed += stepPlaybackMs(engine, step);
+    engine.consumeSoundEvents();
+    const view = engine.getMazeView();
+    if (verdictMs < 0 && view.verdict === "exit" && view.winner >= 0) {
+      verdictMs = elapsed;
+      winner = view.winner;
+      reach.ms = elapsed / ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2) + 1000;
+    }
+    if (engine.isSimulationFinished()) {
+      finished = true;
+      break;
+    }
+  }
+  const teams = engine.getMazeView().teamCount;
+  const summary: RunSummary = { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: -1, teams: engine.getTeamStats().slice(0, teams).map((t) => ({ ...t })) };
+  return { summary, ms: verdictMs, endMs: finished ? elapsed : null, winner };
+}
+
+/**
+ * --- templates --- (AI studio step 4) The outcomes a mode's own run reads for that mode only (ownRunOf): the Maze's winner, the
+ * first one out (mazeWinnerRun).
+ */
+export const OWN_RUN_MODE_MOMENTS: Readonly<Partial<Record<ModeId, Partial<Record<FinderOutcomeKind, { window: OutcomeWindowKind; run: (request: FinderRequest, seed: number, horizonSec: number) => OwnRun }>>>>> = {
+  maze: { winner: { window: "end", run: mazeWinnerRun } }, // --- odd-maze ---
+};
+
+/**
  * --- templates --- (AI studio step 3) The outcomes the finder searches with a run of their own (not simulateOutcomeRun's) that
  * still have a seed's moment, each with its window and the run that reads it.
  */
@@ -131,6 +178,11 @@ export const FILL_OUTCOMES: readonly FinderOutcomeKind[] = ["fills-by", "most-on
 /** The window kind of an outcome the strategy plans (OUTCOME_MOMENTS, else OWN_RUN_MOMENTS). */
 function windowOf(kind: FinderOutcomeKind): OutcomeWindowKind | undefined {
   return OUTCOME_MOMENTS[kind]?.window ?? OWN_RUN_MOMENTS[kind]?.window;
+}
+
+/** --- templates --- (AI studio step 4) The run of its own that reads an outcome in a mode: the mode's own (OWN_RUN_MODE_MOMENTS), else the outcome's. */
+function ownRunOf(kind: FinderOutcomeKind, mode: ModeId): (typeof OWN_RUN_MOMENTS)[FinderOutcomeKind] {
+  return OWN_RUN_MODE_MOMENTS[mode]?.[kind] ?? OWN_RUN_MOMENTS[kind];
 }
 
 /** Whether a run's moment (ms; −1: never) meets the outcome's window. */
@@ -219,11 +271,12 @@ export interface OutcomeRunFacts {
 export function outcomeRunOf(request: FinderRequest, seed: number, kind: FinderOutcomeKind, horizonSec: number): { summary: RunSummary; facts: OutcomeRunFacts } {
   const outcome = request.outcome && request.outcome.kind === kind ? request.outcome : strategyOutcome(kind, horizonSec);
   // --- templates --- (AI studio step 3) an outcome a run of its own reads: its moment, the window, a run that loops on
-  const own = OWN_RUN_MOMENTS[kind];
+  const own = ownRunOf(kind, request.mode); // (--- templates --- AI studio step 4: a mode's own first)
   if (own) {
     const run = own.run(request, seed, horizonSec);
     const endSec = run.endMs !== null && run.endMs >= 0 ? run.endMs / 1000 : null;
-    return { summary: run.summary, facts: { kind, atSec: run.ms >= 0 ? run.ms / 1000 : -1, matched: inWindow(outcome, run.ms), winner: -1, endSec, ...(run.seam && endSec !== null ? { seam: true as const } : {}) } };
+    const winner = run.winner ?? -1;
+    return { summary: run.summary, facts: { kind, atSec: run.ms >= 0 ? run.ms / 1000 : -1, matched: inWindow(outcome, run.ms) && (kind !== "winner" || winner >= 0), winner, endSec, ...(run.seam && endSec !== null ? { seam: true as const } : {}) } };
   }
   const summary = simulateOutcomeRun(seed, request, outcome);
   const ms = OUTCOME_MOMENTS[kind]?.ms(summary) ?? -1;

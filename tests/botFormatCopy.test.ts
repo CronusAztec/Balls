@@ -190,6 +190,7 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     // so the cliffhanger's own hook is proven on Shatter's adapter asked for both endings, and on Shatter as it is offered)
     const shatter = templateById("get-out-shatter")!;
     const conveyor = templateById("count-conveyor")!;
+    const mergeRing = templateById("count-merge-ring")!;
     const drawn = (plan: ClipPlan, role: string) => plan.captionRoles.flatMap((r, i) => (r === role ? [plan.settings.captions[i].text] : []));
     const { hookKey: _offered, ...asked } = plannedRecipe(shatter)!;
     const bothEndings = { ...asked, endings: ["resolved", "cliffhanger"] as const };
@@ -213,11 +214,15 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
         else expect([where, plan.post.question]).toEqual([where, formatText(copy, "getOut", "postQuestion")]);
         expect(JSON.stringify([plan.hook, plan.payoff.text, plan.post, plan.settings.captions]), where).not.toMatch(/\{\w+\}/);
       }
-      // a payoff whose number no binding fills yet ("{count}!") draws no words, never a brace
-      const count = planClip(plannedRecipe(conveyor)!, 1, "reels", { ...options, template: conveyor.id });
-      const where = `${locale} ${conveyor.id}`;
-      expect([where, count.hook, count.payoff.text, drawn(count, "payoff")]).toEqual([where, formatText(copy, "count", "hook"), "", []]);
+      // a payoff whose number no binding fills yet ("{count}!": Merge Ring's) draws no words, never a brace – in the bot look, where
+      // no banner of the mode's own stands in for the payoff's words (--- templates --- AI studio step 4: the conveyor's binding
+      // fills its count now, with the balls it loads)
+      const count = planClip(plannedRecipe(mergeRing)!, 1, "reels", { ...options, look: "bot", template: mergeRing.id });
+      const where = `${locale} ${mergeRing.id}`;
+      expect([where, count.hook, count.payoff.text, drawn(count, "payoff")]).toEqual([where, formatText(copy, "count", "own.mergeRing"), "", []]);
       expect(JSON.stringify([count.post, count.settings.captions]), where).not.toMatch(/\{\w+\}/);
+      const filled = planClip(plannedRecipe(conveyor)!, 1, "reels", { ...options, look: "bot", template: conveyor.id });
+      expect([locale, filled.hook, filled.payoff.text]).toEqual([locale, formatText(copy, "count", "hook"), formatText(copy, "count", "payoff", { count: filled.settings.cvMaxBalls })]);
     }
   });
 

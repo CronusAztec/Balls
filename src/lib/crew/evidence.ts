@@ -20,7 +20,7 @@ import { FIX_BOUNDS, MEASURABLE_KINDS, type Distraction, type MakesSense, type O
  * cliffhanger the payoff shown before the clip ends; payoffMissing – no payoff in the run, or the run does not show the claim; slowStart – the
  * first impact after 1 s (after a render: the measured first impact – the export's first motion or first sound, as gate G1
  * reads it – after 1.5 s, or none); tooBusy – Simple below 80 or two messages on screen at once that a listed fix can take
- * away (the HUDs the clip draws by design, the mode's own and the one it keeps, are left out: simplicity.ts ownHudIds);
+ * away (the HUDs the clip draws by design, the mode's own and the one it keeps, are left out: simplicity.ts ownHudIds, and – --- crew --- AI studio step 4 – the mode's own end banner);
  * textUnreadable – gate G5 fails; hookUntrue – a number in the hook the clip does not have, or a winner named that the run
  * does not have (gate G4).
  *
@@ -107,7 +107,7 @@ function measure(kind: ObjectionKind, clip: CrewClip, clarity: Clarity, options:
       // --- crew --- (the studio's second review round, finding 1) the messages a listed fix can take away: the HUDs the clip
       // draws by design – the mode's own, the one it keeps for its countdown – stay on screen whatever the reviewer picks
       const own = ownHudIds(clip, options);
-      const { most } = crowding(overlaysOf(clip).filter((o) => !(o.hud && own.has(o.hud))), shownSecOf(clip));
+      const { most } = crowding(overlaysOf(clip).filter((o) => !(o.hud && own.has(o.hud)) && o.kind !== "banner" /* --- crew --- (AI studio step 4) the mode's own ending */), shownSecOf(clip));
       const simple = clarity.simple.score;
       return { crossed: simple < EVIDENCE.busySimpleBelow || most >= EVIDENCE.busyAtOnce, basis: `Simple ${simple}, ${most} at once at most${own.size ? " beside the HUD the clip keeps" : ""}` };
     }

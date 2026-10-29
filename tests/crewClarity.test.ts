@@ -6,6 +6,8 @@ import { defaultCaption, type Caption } from "@/lib/captions";
 import type { SimulatorSettings } from "@/lib/settings";
 import { factsOfExport, runSync } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
+import { endBannersShown } from "@/lib/crew/simplicity"; // --- crew --- (AI studio step 4) a mode's own end banner
+import { BANNER_WITH_PAYOFF_SEC } from "@/lib/crew/hudFlags";
 import {
   CLARITY,
   GATES,
@@ -179,8 +181,12 @@ describe("each gate's other problems", () => {
   it("G2 on the real runs: the bot's Ball Drop ends on a silent, settled board and its Pendulum Wave plays no chord at the realignment; the templates' payoffs land", { timeout: 60_000 }, () => {
     const runWithMoment = (plan: ClipPlan) => crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
     // the bot's recipes, as the Simple look draws them (the daily bot's own plans are unchanged: tests/bot.test.ts)
+    // (--- crew --- AI studio step 4: its SETTLED! banner comes in as its run ends, 1 s after its payoff – with it, by the planner's
+    // measure (BANNER_WITH_PAYOFF_SEC) –, so the Simple look draws no "Final chord. 🎹" beside it: one ending, the gate's reading
+    // the same)
     const drop = runWithMoment(planClip(recipeById("drop-symphony")!, 1, "reels", { copy, look: "simple" }));
-    expect([drop.payoff.text, drop.run!.moment!.sounds, gateOf(drop, "G2").problems]).toEqual(["Final chord. 🎹", 0, ["payoffLandsUnheard", "payoffLandsStill"]]);
+    expect([drop.payoff.text, drop.run!.moment!.sounds, gateOf(drop, "G2").problems]).toEqual(["", 0, ["payoffLandsUnheard", "payoffLandsStill"]]);
+    expect(endBannersShown(drop).map((b) => b.start - drop.payoff.atSec!)).toEqual([expect.closeTo(BANNER_WITH_PAYOFF_SEC, 6)]);
     const pendulum = runWithMoment(planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, look: "simple" }));
     expect([pendulum.settings.pwSoundOn, pendulum.run!.moment!.accent, gateOf(pendulum, "G2").problems]).toEqual(["center", false, ["payoffLandsNoChord"]]);
     // the template that wraps Pendulum Wave: every bob at once (--- crew --- review round 2, 21: Ball Drop's template, timed by

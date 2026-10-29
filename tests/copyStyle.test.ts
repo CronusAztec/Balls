@@ -33,7 +33,7 @@ const SECTION_INTRO = /^Controls\.[A-Za-z]+Desc$/;
 const TIPS = ["boxSpeedRatioTip", "pwLayoutTip", "prLayoutTip", "glassGatesTip", "captionsTip", "captionTypeTip", "sbRuleTip", "batchRenderTip", "mzBrainTip", "exitBehaviorTip", "splatBarrierTip", "ogRhythmTip", "scStarPresetsTip", "flMakeClipTip"].map((k) => `Controls.${k}`).concat(["BatchRender.listHint", "ViralBot.manual.steps"]);
 const COLOUR_SORT_INTRO = "ColourSort.csDesc";
 /** --- templates --- The viral templates' words a clip and the Bot section show: the formats' copy, the modes' nouns and the looks. */
-const VIRAL_TEMPLATE_PREFIXES = ["ViralBot.formats.", "ViralBot.things.", "ViralBot.looks.", "ViralBot.variants." /* --- templates --- (AI studio step 3) a variant's own name */];
+const VIRAL_TEMPLATE_PREFIXES = ["ViralBot.formats.", "ViralBot.things.", "ViralBot.looks.", "ViralBot.variants." /* --- templates --- (AI studio step 3) a variant's own name */, "ViralBot.ownHooks." /* --- templates --- (AI studio step 4) a binding's own hook */];
 
 /** Is this key one a visitor reads (docs/COPY-STYLE.md's scope)? */
 function covered(key: string): boolean {

@@ -346,7 +346,10 @@ export function plantDefect(clip: CrewClip, defect: DefectClass, variant: number
       if (!resolved || p.atSec === null) return null;
       for (let j = k; j >= 0; j--) {
         const clipSec = r3(p.atSec / LATE_POSITIONS[j]);
-        if (clipSec - p.atSec >= 0.85 - EPS) return rescored({ ...clip, timing: { ...clip.timing, clipSec }, payoff: { ...p, position: r3(p.atSec / clipSec) } });
+        // --- crew --- (AI studio step 4) the run's quiet end is trimmed with the clip: a twin keeps facts of its own length
+        const m = clip.run?.moment;
+        const run = clip.run && m && typeof m.quietTailSec === "number" ? { ...clip.run, moment: { ...m, quietTailSec: r3(Math.max(0, m.quietTailSec - (clip.timing.clipSec - clipSec))) } } : clip.run;
+        if (clipSec - p.atSec >= 0.85 - EPS) return rescored({ ...clip, timing: { ...clip.timing, clipSec }, payoff: { ...p, position: r3(p.atSec / clipSec) }, run });
       }
       return null;
     }

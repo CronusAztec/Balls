@@ -716,8 +716,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "battle",
     "recipe": "who-wins-battle",
@@ -734,7 +733,7 @@
      "atSec": 20.733333333333412,
      "position": 0.8555708390646497,
      "cutGapSec": null,
-     "text": "Last one standing! 👑",
+     "text": "",
      "winner": "Nova"
     },
     "timing": {
@@ -1093,20 +1092,6 @@
         "color": "#ffffff",
         "background": "#000000"
        }
-      },
-      {
-       "type": "text",
-       "text": "Last one standing! 👑",
-       "answer": "",
-       "position": "top",
-       "start": 20.5,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
-        "background": "#000000"
-       }
       }
      ],
      "btCount": 9,
@@ -1126,8 +1111,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "ctf",
     "recipe": "who-wins-ctf",
@@ -1144,7 +1128,7 @@
      "atSec": 20.90000000000009,
      "position": 0.8565573770491809,
      "cutGapSec": null,
-     "text": "Board taken! 🏁",
+     "text": "",
      "winner": "Blaze"
     },
     "timing": {
@@ -1492,20 +1476,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Board taken! 🏁",
-       "answer": "",
-       "position": "top",
-       "start": 20.5,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }
@@ -3620,8 +3590,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "multipliers",
     "recipe": "count-multipliers",
@@ -3638,7 +3607,7 @@
      "atSec": 16.133333333333105,
      "position": 0.865831842576027,
      "cutGapSec": null,
-     "text": "IT BROKE. 💥",
+     "text": "",
      "winner": null
     },
     "timing": {
@@ -3964,20 +3933,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "IT BROKE. 💥",
-       "answer": "",
-       "position": "top",
-       "start": 16,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }
@@ -6400,8 +6355,7 @@
    "clip": {
     "from": "plan",
     "captionRoles": [
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "stringBattle",
     "recipe": "who-wins-string-battle",
@@ -6418,7 +6372,7 @@
      "atSec": 14.79999999999982,
      "position": 0.8087431693989052,
      "cutGapSec": null,
-     "text": "Volt wins! 🏆",
+     "text": "",
      "winner": "Volt"
     },
     "timing": {
@@ -6673,20 +6627,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Volt wins! 🏆",
-       "answer": "",
-       "position": "top",
-       "start": 14.5,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }
@@ -9353,8 +9293,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "powerLayers",
     "recipe": "smash-power-layers",
@@ -9371,7 +9310,7 @@
      "atSec": 10,
      "position": 0.8130081300813008,
      "cutGapSec": null,
-     "text": "FREEDOM 🌈",
+     "text": "",
      "winner": null
     },
     "timing": {
@@ -9612,20 +9551,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "FREEDOM 🌈",
-       "answer": "",
-       "position": "top",
-       "start": 10,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }
@@ -9935,8 +9860,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "ctf",
     "recipe": "who-wins-ctf",
@@ -9953,7 +9877,7 @@
      "atSec": 24.11666666666699,
      "position": 0.8732649366324698,
      "cutGapSec": null,
-     "text": "Board taken! 🏁",
+     "text": "",
      "winner": "Wave"
     },
     "timing": {
@@ -10310,20 +10234,6 @@
         "color": "#ffffff",
         "background": "#000000"
        }
-      },
-      {
-       "type": "text",
-       "text": "Board taken! 🏁",
-       "answer": "",
-       "position": "top",
-       "start": 24,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
-        "background": "#000000"
-       }
       }
      ],
      "ctfPerTeam": 3,
@@ -10597,8 +10507,7 @@
     "from": "plan",
     "captionRoles": [
      "hook",
-     "hook",
-     "payoff"
+     "hook"
     ],
     "mode": "multipliers",
     "recipe": "count-multipliers",
@@ -10615,7 +10524,7 @@
      "atSec": 13.899999999999853,
      "position": 0.8475609756097547,
      "cutGapSec": null,
-     "text": "IT BROKE. 💥",
+     "text": "",
      "winner": null
     },
     "timing": {
@@ -10938,20 +10847,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "IT BROKE. 💥",
-       "answer": "",
-       "position": "top",
-       "start": 13.5,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }
