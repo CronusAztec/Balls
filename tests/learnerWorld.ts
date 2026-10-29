@@ -59,8 +59,8 @@ export const passAll: ArmPlanner = () => ({ pass: true, pick: 70 });
 
 export interface WorldOptions {
   seed: number;
-  /** The true effect of each arm (a log ratio), by what the clip was rendered with. */
-  effect: (post: { bucket: LengthBucket; ending: EndingStyle; template: string; lane: "normal" | "trialReel" }) => number;
+  /** The true effect of each arm (a log ratio), by what the clip was rendered with and when it went out (`at`, ms). */
+  effect: (post: { bucket: LengthBucket; ending: EndingStyle; template: string; lane: "normal" | "trialReel"; at: number }) => number;
   channels?: LearnerChannel[];
   perDay?: number;
   settings?: LearnerSettings;
@@ -80,6 +80,12 @@ export interface WorldOptions {
   /** Days of history (best clips, before learning) per channel: their usual. */
   history?: number;
   start?: number;
+  /** Postiz answers 0 for every Trial Reel total (whether a Trial Reel's numbers come through Postiz is the plan's open question). */
+  zeroTrials?: boolean;
+  /** Quiet hours (the world's default: 23:00 to 07:00). */
+  quiet?: { from: string; to: string };
+  /** The PC's UTC offset at a moment (minutes east): slots go out at their local window, and learnPass is given it. UTC when absent. */
+  offsetMinAt?: (at: number) => number;
 }
 
 export interface WorldResult {
@@ -125,7 +131,7 @@ export function runWorld(o: WorldOptions): WorldResult {
   const post = (approvedAt: number, at: number, template: string, bucket: LengthBucket, ending: EndingStyle, chs: { id: string; lane: "normal" | "trialReel" }[], membership: LearnerPost["test"], dayEffect: number) => {
     const clipId = `c${String(clipN++).padStart(5, "0")}`;
     const lane = chs[0]?.lane ?? "normal";
-    const own = z() * Math.sqrt(0.7) + (u() < 0.01 ? Math.log(30) : 0) + o.effect({ bucket, ending, template, lane });
+    const own = z() * Math.sqrt(0.7) + (u() < 0.01 ? Math.log(30) : 0) + o.effect({ bucket, ending, template, lane, at });
     for (const c of chs) {
       const ch = channels.find((x) => x.id === c.id)!;
       const postId = `${clipId}-${c.id}`;
@@ -134,7 +140,8 @@ export function runWorld(o: WorldOptions): WorldResult {
       const g = 0.35 + z() * 0.1;
       const left = u() < excl;
       posts.push({ postId, channelId: c.id, platform: ch.platform, lane: c.lane, clipId, approvedAt: iso(approvedAt), test: membership, facts: { template, bucket, ending, watermark: "sealed" }, privacy: ch.platform === "tiktok" ? "public" : null });
-      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads: left ? [] : readsOf(at, v72, g, miss, u) });
+      const reads = left ? [] : readsOf(at, v72, g, miss, u).map((r) => (o.zeroTrials && c.lane === "trialReel" ? { ...r, views: 0, reach: 0 } : r));
+      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads });
     }
   };
   // the history: best clips before learning, one a day per channel
@@ -145,7 +152,7 @@ export function runWorld(o: WorldOptions): WorldResult {
   for (let d = 0; d < (o.days ?? 40); d++) {
     const now = start + d * DAY;
     const rows = allRows.map(({ row, reads }) => ({ ...row, reads: reads.filter((r) => Date.parse(r.at) <= now) }));
-    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings, rows, posts: [...posts], decisions, channels, catalog: CATALOG, perDay, quiet: { from: "23:00", to: "07:00" }, feasibility });
+    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings, rows, posts: [...posts], decisions, channels, catalog: CATALOG, perDay, quiet: o.quiet ?? { from: "23:00", to: "07:00" }, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}) });
     input = make();
     let plan = learnPass(input);
     for (let tries = 0; plan && plan.feasibilityNeeded.length && tries < 6; tries++) {
@@ -165,7 +172,8 @@ export function runWorld(o: WorldOptions): WorldResult {
     const dayEffect = z() * Math.sqrt(0.3);
     for (const slot of plan.slots) {
       const [hh, mm] = slot.window.from.split(":").map(Number);
-      const at = Date.parse(`${dateOf(now)}T00:00:00Z`) + (hh * 60 + mm + 30) * 60_000;
+      const utc = Date.parse(`${dateOf(now)}T00:00:00Z`) + (hh * 60 + mm + 30) * 60_000;
+      const at = utc - (o.offsetMinAt?.(utc) ?? 0) * 60_000; // the local window's time
       if (slot.membership && firstTestAt === null && slot.role !== "best") firstTestAt = at;
       post(now + slot.index * 60_000, at, slot.options.template, slot.options.bucket, slot.options.ending, slot.channels, slot.membership, dayEffect);
     }

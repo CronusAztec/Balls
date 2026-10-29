@@ -219,11 +219,38 @@ describe("views at exactly 72 h", () => {
     expect(viewsAt72([read(70, null)], 75)).toEqual({ state: "pending" }); // an unread total is no read
   });
 
-  it("the channel's growth: the prior until 5 posts have two reads, then their median slope", () => {
+  it("the channel's growth: the prior until 5 posts have two reads from 48 h on, then their median slope", () => {
     expect(growthOf([])).toBe(GROWTH_PRIOR);
-    const posts = [0.2, 0.3, 0.4, 0.5, 0.6].map((g) => ({ reads: [read(24, 99), read(72, Math.exp(Math.log(100) + g * Math.log(3)) - 1)] }));
+    const posts = [0.2, 0.3, 0.4, 0.5, 0.6].map((g) => ({ reads: [read(60, 99), read(180, Math.exp(Math.log(100) + g * Math.log(3)) - 1)] }));
     expect(growthOf(posts)).toBeCloseTo(0.4, 6);
     expect(growthOf(posts.slice(0, 4))).toBe(GROWTH_PRIOR);
+    // an early read and a 3-day read are one read the slope may use: still the prior
+    expect(growthOf([0.2, 0.3, 0.4, 0.5, 0.6].map((g) => ({ reads: [read(24, 99), read(72, Math.exp(Math.log(100) + g * Math.log(3)) - 1)] })))).toBe(GROWTH_PRIOR);
+  });
+
+  // Meta's numbers can lag up to 48 h, so the early read (18-36 h) is shown only: true views 1000 * (age / 72)^0.35, the early
+  // read half in at 24 h, as the review's probe had it
+  it("a lagged early read moves neither the views at 72 h nor the channel's growth", () => {
+    const truth = (ageH: number) => 1000 * Math.pow(ageH / 72, 0.35);
+    const lagged = read(24, Math.round(truth(24) * 0.5));
+    for (const day3 of [62, 72, 84, 96]) {
+      const without = viewsAt72([read(day3, truth(day3))], day3 + 1);
+      const withEarly = viewsAt72([lagged, read(day3, truth(day3))], day3 + 1);
+      expect(withEarly, `3-day read at ${day3} h`).toEqual(without);
+      expect(withEarly.state === "final" && Math.round(withEarly.views)).toBe(1000);
+    }
+    // a late 3-day read with a week read past it: no read from 48 h up to 72 h, so the 3-day read is projected, never joined to
+    // the early one by a line
+    const late = viewsAt72([lagged, read(90, truth(90)), read(150, truth(150))], 151);
+    expect(late).toMatchObject({ state: "final", via: "projected", ageH: 90 });
+    if (late.state === "final") expect(Math.round(late.views)).toBe(1000);
+    // the 3-day read caught up at 110 h: final at once (no read nearer 72 h can come), not held back for want of a read below
+    const caughtUp = viewsAt72([lagged, read(110, truth(110))], 111);
+    expect(caughtUp).toMatchObject({ state: "final", via: "projected", ageH: 110 });
+    if (caughtUp.state === "final") expect(Math.round(caughtUp.views)).toBe(1000);
+    const posts = Array.from({ length: 6 }, () => ({ reads: [read(24, Math.round(truth(24) * 0.5)), read(62, truth(62)), read(150, truth(150))] }));
+    expect(growthOf(posts)).toBeCloseTo(0.35, 3); // the lagged early reads alone gave 0.727 (the review's probe)
+    expect(growthOf(posts)).toBe(growthOf(posts.map((p) => ({ reads: p.reads.slice(1) }))));
   });
 });
 

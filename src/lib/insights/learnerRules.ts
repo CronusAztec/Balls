@@ -126,10 +126,16 @@ export const PAIRS_PER_DAY_DEFAULT = 1;
 export const PAIRS_PER_DAY_MAX = 2;
 /** The two reels of a pair go out at least 2 hours apart (the windows below are 2.5 h apart). */
 export const PAIR_GAP_H = 2;
-/** The Trial Reel windows (local, 30 minutes each): pair 1 takes the first two, pair 2 the last two. */
+/**
+ * The Trial Reel windows (local, 30 minutes each): pair 1 takes the first two that start outside quiet hours, pair 2 the next
+ * two; a pair that does not fit is not made that day (learner.ts trialPairWindows).
+ */
 export const TRIAL_WINDOWS = ["10:00", "12:30", "15:00", "17:30"] as const;
 export const TRIAL_WINDOW_MIN = 30;
-/** The post-time windows (local): noon, evening, night; "spread" walks them clip by clip as the bot's posting times do. */
+/**
+ * The post-time windows (local): noon, evening, night. "spread" walks them by date, never by a clip's role, so a test's clips
+ * and its best clips meet each window as often (learner.ts spreadWindows).
+ */
 export const POST_WINDOWS = { noon: ["12:00", "14:00"], evening: ["17:00", "19:00"], night: ["20:00", "22:00"] } as const;
 
 /* ------------------------------------------------------------------ variety (learner.ts) */

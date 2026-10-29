@@ -5,22 +5,28 @@ import {
   checkOrder,
   clipScore,
   dayOfDate,
+  decisionTime,
   findingsOf,
   learnPass,
   learnerRuns,
+  localDay,
   parseTestId,
   postOutcome,
   rarelyPasses,
+  readBlockTest,
   restsUntil,
   shrunkDifference,
+  spreadWindows,
   testIdOf,
+  trialPairWindows,
   type LearnerDecision,
   type LearnerInput,
   type LearnerPost,
   type Question,
 } from "@/lib/insights/learner";
 import { dialCall } from "@/lib/insights/lab";
-import { CHECK_OLD, CHECK_POSTS, KEEP_P, KEEP_RATIO, NORMAL_TEST_CLIPS, REST_DAYS, REST_TWICE_DAYS, SCORE_CLIP, TEMPLATE_SHARE_MAX } from "@/lib/insights/learnerRules";
+import { CHECK_OLD, CHECK_POSTS, KEEP_P, KEEP_RATIO, NORMAL_TEST_CLIPS, PAIR_GAP_H, REST_DAYS, REST_TWICE_DAYS, SCORE_CLIP, TEMPLATE_SHARE_MAX } from "@/lib/insights/learnerRules";
+import { inQuietMinutes } from "@/lib/desktop/autopilot";
 import { DEFAULT_LEARNER } from "@/lib/insights/learnerSettings";
 import type { PostMeasure } from "@/lib/insights/stats";
 import { CATALOG, DAY, H, IG, ON, TT, YT, iso, normals, passAll, runWorld } from "./learnerWorld";
@@ -123,6 +129,20 @@ describe("test ids, rests and the log", () => {
     expect(f[0]).toEqual({ key: "Learner.findings.length.kept", values: { from: "standard", to: "short", ratio: 2.1, nTest: 8, nBest: 16 } });
     expect(f[1].key).toBe("Learner.findings.length.notKept");
   });
+
+  // the PC's clock ran ahead when the change was kept, and was put right before its check (or the owner's Undo) wrote
+  it("the log is replayed in the order it was written: a went-back or an Undo stamped earlier still reverses the kept before it", () => {
+    const kept = verdict({ decidedAt: "2026-11-20T09:00:00.000Z" });
+    const back = verdict({ testId: "c1.n0.length.standard.short", verdict: "wentBack", decidedAt: "2026-11-19T09:00:00.000Z" });
+    const undone = verdict({ verdict: "undone", decidedAt: "2026-11-19T09:00:00.000Z" });
+    expect(bestsOf([kept, back], { fixed: {} }).arms.length).toBe("standard");
+    expect(bestsOf([kept, undone], { fixed: {} }).arms.length).toBe("standard");
+    expect(restsUntil(length, [kept, undone])).toBe(Number.POSITIVE_INFINITY);
+    expect(findingsOf([kept, back]).map((f) => f.key)).toEqual(["Learner.findings.length.wentBack", "Learner.findings.length.kept"]);
+    // a new verdict is stamped no earlier than the newest one in the log, so the log's times only go forward
+    expect(decisionTime([kept, back], Date.parse("2026-11-19T12:00:00Z"))).toBe(Date.parse("2026-11-20T09:00:00Z"));
+    expect(decisionTime([kept, back], Date.parse("2026-11-21T00:00:00Z"))).toBe(Date.parse("2026-11-21T00:00:00Z"));
+  });
 });
 
 describe("the decision rule", () => {
@@ -196,32 +216,61 @@ describe("the pipeline's worlds: learnPass day by day", () => {
 
   // 3 clips a day on Instagram and TikTok, the first test (short against standard) from day 0; with misses, 25 % of reads are
   // missed and 10 % of posts fail at publish time. sim/l0.py: 11.1 and 13.5 median days; kept 0.68 and 0.66 at 2x. 100
-  // worlds each (about 5 points of noise): the rates hold, and missed reads only make the result later.
+  // worlds each (about 5 points of noise): the rates hold, and missed reads only make the result later. The pins moved when
+  // the test slot and the "spread" windows were drawn by date (learner review round 1): over 400 other worlds (seeds 20000 on)
+  // 2x was kept 0.667 and 0.662 of the time, no difference 0.122 and 0.113, against 0.647, 0.618, 0.090 and 0.110 before.
   const N = 100;
+  /** The median days to the verdict with every read in: missed reads must only make it later. */
+  const ALL_IN_MEDIAN = 10.5;
   it("short clips that truly do 2x, every read in", () => {
     const o = worlds(2, 0, 0, N);
-    expect(o).toEqual({ kept: 58, undecided: 0, median: 10.9 });
+    expect(o).toEqual({ kept: 73, undecided: 0, median: ALL_IN_MEDIAN });
     expect(o.kept / N).toBeGreaterThanOrEqual(0.45);
   });
 
   it("short clips that do nothing, every read in", () => {
     const o = worlds(1, 0, 0, N);
-    expect(o).toEqual({ kept: 7, undecided: 0, median: 10.9 });
+    expect(o).toEqual({ kept: 10, undecided: 0, median: ALL_IN_MEDIAN });
     expect(o.kept / N).toBeLessThanOrEqual(0.16);
   });
 
   it("short clips that truly do 2x, 25 % of reads missed: kept as often, a day later", () => {
     const o = worlds(2, 0.25, 0.1, N);
-    expect(o).toEqual({ kept: 61, undecided: 0, median: 11.9 });
+    expect(o).toEqual({ kept: 76, undecided: 0, median: 11.5 });
     expect(o.kept / N).toBeGreaterThanOrEqual(0.45);
-    expect(o.median).toBeGreaterThan(10.9);
+    expect(o.median).toBeGreaterThan(ALL_IN_MEDIAN);
   });
 
   it("short clips that do nothing, 25 % of reads missed: no more false keeps than the rule allows, a day later", () => {
     const o = worlds(1, 0.25, 0.1, N);
-    expect(o).toEqual({ kept: 12, undecided: 0, median: 11.9 });
+    expect(o).toEqual({ kept: 9, undecided: 0, median: 11.5 });
     expect(o.kept / N).toBeLessThanOrEqual(0.16);
-    expect(o.median).toBeGreaterThan(10.9);
+    expect(o.median).toBeGreaterThan(ALL_IN_MEDIAN);
+  });
+
+  // the review's world: post time matters (noon posts x1.25 or x0.8) and short clips do nothing. With the test clip in one
+  // window every day, short was kept 0.258 or called worse 0.242 of the time (400 worlds); drawn by date, post time is noise
+  it("post time that matters does not leak into a length verdict", () => {
+    const rates = [1, 1.25, 0.8].map((noon) => {
+      let kept = 0;
+      let notKept = 0;
+      for (let w = 0; w < N; w++) {
+        const r = runWorld({ seed: 91000 + w, effect: (p) => (new Date(p.at).getUTCHours() >= 12 && new Date(p.at).getUTCHours() < 15 ? Math.log(noon) : 0), stopAt: "length", days: 45 });
+        const v = r.decisions.find((d) => d.dial === "length");
+        if (v?.verdict === "kept") kept++;
+        if (v?.verdict === "notKept") notKept++;
+      }
+      return [kept, notKept];
+    });
+    expect(rates).toEqual([
+      [5, 6],
+      [5, 6],
+      [6, 5],
+    ]);
+    for (const [kept, notKept] of rates) {
+      expect(kept / N).toBeLessThanOrEqual(0.16);
+      expect(notKept / N).toBeLessThanOrEqual(0.16);
+    }
   });
 });
 
@@ -261,6 +310,48 @@ describe("a Trial Reel world", () => {
     const later = r.plans.filter((p) => p.date > kept.decidedAt.slice(0, 10));
     expect(later.length).toBeGreaterThan(0);
     for (const p of later) expect(p.block?.questions.some((q) => q.dial === "format") ?? false).toBe(false);
+  });
+});
+
+// Whether a Trial Reel's numbers come through Postiz is the plan's open question; Postiz passes Meta's totals on unchanged, so
+// they may come as zeros rather than as no answer. Zeros once made clean pairs (D = 0): blocks completed on nothing, and the
+// Journey and Spiral Glass joined their rotations on no evidence.
+describe("Trial Reels that get no numbers", () => {
+  const block = parseTestId("t0.length.standard.short")!;
+  const reel = (postId: string, arm: "0" | "1", pair: number): LearnerPost => ({ postId, channelId: "ig1", platform: "instagram", lane: "trialReel", clipId: `c${postId}`, approvedAt: iso(T0), test: { id: block.id, arm, role: arm === "0" ? "trialA" : "trialB", pair }, facts: { template: "get-out-classic", bucket: arm === "0" ? "standard" : "short", ending: "resolved", watermark: "sealed" }, privacy: null });
+  const measured = (postId: string, views72: number): PostMeasure => ({ postId, channelId: "ig1", platform: "instagram", lane: "trialReel", publishedAt: T0 + 3 * H, state: "unscored", views72, via: "line", why: "fewViews", n: 0 });
+  const readPair = (va: number, vb: number) => {
+    const posts = [reel("a", "0", 7), reel("b", "1", 7)];
+    const measures = new Map([measured("a", va), measured("b", vb)].map((m) => [`${m.postId}|${m.channelId}`, m]));
+    return readBlockTest(block, posts, measures, CATALOG, T0 + 4 * DAY).pairs[0];
+  };
+
+  it("without a trial usual, a pair whose larger reel is under 10 views has nothing to compare: broken, never a clean difference of 0", () => {
+    expect(readPair(0, 0)).toMatchObject({ state: "broken", numbers: false });
+    expect(readPair(3, 5)).toMatchObject({ state: "broken", numbers: true });
+    expect(readPair(0, 40)).toMatchObject({ state: "clean", numbers: true }); // a reel with views against one without: a real difference
+    expect(readPair(800, 1200)).toMatchObject({ state: "clean", numbers: true });
+  });
+
+  it("the lab pauses once its newest pair gets no numbers while normal Reels do; no question is answered and no newcomer joins on zeros", () => {
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, zeroTrials: true, effect: (p) => (p.lane === "trialReel" && p.template === "get-out-journey" ? Math.log(3) : 0), days: 40 });
+    const trial = r.decisions.filter((d) => d.lane === "trialReel");
+    expect(trial.length).toBeGreaterThan(0);
+    expect(trial.every((d) => d.verdict === "notEnoughPairs")).toBe(true);
+    expect(r.plans[r.plans.length - 1].joined).toEqual([]);
+    const paused = r.plans.filter((p) => p.status.trialPause !== null);
+    expect(paused.length).toBeGreaterThan(20);
+    expect(paused.every((p) => p.status.trialPause === "noTrialNumbers" && !p.status.trialLane && p.slots.every((s) => s.lane === "normal"))).toBe(true);
+    // a few pairs per block, against 80 reels in 40 days without the check
+    expect(r.posts.filter((p) => p.lane === "trialReel").length).toBeLessThanOrEqual(20);
+    // the normal lane runs the whole list meanwhile, on numbers that do come
+    expect(r.decisions.some((d) => d.lane === "normal")).toBe(true);
+  });
+
+  it("the same world with Trial Reel numbers that come runs its blocks to answers", () => {
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, effect: (p) => (p.lane === "trialReel" && p.template === "get-out-journey" ? Math.log(3) : 0), days: 40 });
+    expect(r.plans.every((p) => p.status.trialPause === null)).toBe(true);
+    expect(r.decisions.some((d) => d.lane === "trialReel" && d.verdict !== "notEnoughPairs")).toBe(true);
   });
 });
 
@@ -305,21 +396,43 @@ describe("the combined check", () => {
     expect(first.slots.filter((s) => s.membership?.arm === "old").every((s) => s.options.bucket === "standard")).toBe(true);
     expect(first.slots.filter((s) => s.membership?.arm === "new").every((s) => s.options.bucket === "short" && s.options.template.startsWith("smash-"))).toBe(true);
     const back = r.decisions.filter((d) => d.testId.startsWith("c"));
+    // written in the order of the kept changes they check
     expect(back.map((d) => [d.dial, d.verdict])).toEqual([
-      ["format", "wentBack"],
       ["length", "wentBack"],
+      ["format", "wentBack"],
     ]);
     const after = bestsOf(r.decisions, { fixed: {} }, CATALOG).arms;
     expect([after.length, after.format]).toEqual(["standard", "mix"]);
     const at = Date.parse(back[0].decidedAt);
     expect(restsUntil({ dial: "length", best: "standard", challenger: "short", subject: null }, r.decisions)).toBe(at + REST_DAYS * DAY);
   });
+
+  it("kept while the PC's clock ran 40 days ahead: the check written after the clock was put right still sends both back, stamped after them", () => {
+    const block = "t0.length.standard.short~format.mix.smash";
+    const ahead = T0 - DAY + 40 * DAY;
+    const kept: LearnerDecision[] = [
+      verdict({ testId: block, lane: "trialReel", dial: "length", best: "standard", challenger: "short", decidedAt: iso(ahead) }),
+      verdict({ testId: block, lane: "trialReel", dial: "format", best: "mix", challenger: "smash", decidedAt: iso(ahead) }),
+    ];
+    const r = runWorld({ seed: 77, decisions: kept, effect: (p) => (p.bucket === "short" && p.template.startsWith("smash-") ? Math.log(0.2) : 0), until: (v) => v.verdict === "wentBack" || v.verdict === "held", days: 30 });
+    const back = r.decisions.filter((d) => d.testId.startsWith("c"));
+    expect(back.map((d) => [d.dial, d.verdict])).toEqual([
+      ["length", "wentBack"],
+      ["format", "wentBack"],
+    ]);
+    expect(back.every((d) => Date.parse(d.decidedAt) === ahead)).toBe(true); // not before the kept verdicts: the world's clock is still behind them
+    const after = bestsOf(r.decisions, { fixed: {} }, CATALOG).arms;
+    expect([after.length, after.format]).toEqual(["standard", "mix"]);
+    // the next pass plans from the old settings again: no clip of the short bucket while length is not under test
+    const next = learnPass({ ...r.input, decisions: r.decisions })!;
+    expect(next.best.length).toBe("standard");
+  });
 });
 
 describe("whether a post counts", () => {
   const post = (over: Partial<LearnerPost> = {}): LearnerPost => ({ postId: "p", channelId: "ig1", platform: "instagram", lane: "normal", clipId: "c", approvedAt: iso(T0), test: { id: "n0.length.standard.short", arm: "short", role: "test" }, facts: { template: "get-out-classic", bucket: "short", ending: "resolved", watermark: "sealed" }, privacy: null, ...over });
   const scored: PostMeasure = { postId: "p", channelId: "ig1", platform: "instagram", lane: "normal", publishedAt: T0 + 3 * H, state: "scored", views72: 900, via: "line", usual: 450, score: Math.log(901 / 451) };
-  const ctx = { questions: [length], levels: [1 as const], openedAt: T0, catalog: CATALOG, offsetMin: 0 };
+  const ctx = { questions: [length], levels: [1 as const], openedAt: T0, catalog: CATALOG, offsetMinAt: () => 0 };
 
   it("counts a sealed clip whose rendered facts match its arm", () => {
     expect(postOutcome(post(), scored, ctx)).toEqual({ kind: "scored", score: scored.state === "scored" ? scored.score : 0, views72: 900 });
@@ -352,6 +465,40 @@ describe("whether a post counts", () => {
     expect(clipScore("c", [{ outcome: { kind: "scored", score: 0.2, views72: 1 }, publishedAt: at }, { outcome: { kind: "pending" }, publishedAt: at }], "test", "short").state).toBe("pending");
     expect(clipScore("c", [{ outcome: { kind: "excluded", why: "self" }, publishedAt: at }], "test", "short")).toMatchObject({ state: "excluded", why: "self" });
     expect(clipScore("c", [{ outcome: { kind: "measured", views72: 5 }, publishedAt: at }], "test", "short")).toMatchObject({ state: "excluded", why: "noUsual" });
+  });
+
+  // Poland: CEST (+120) until 01:00 UTC on 25 Oct 2026, then CET (+60)
+  const changeAt = Date.parse("2026-10-25T01:00:00Z");
+  const warsaw = (at: number) => (at < changeAt ? 120 : 60);
+
+  it("reads each post at its own moment's UTC offset: a noon test post from before the clocks went back stays in its window", () => {
+    const noon: Question = { dial: "postTime", best: "spread", challenger: "noon", subject: null };
+    const c = { ...ctx, questions: [noon], openedAt: Date.parse("2026-10-19T00:00:00Z"), offsetMinAt: warsaw };
+    const p = post({ test: { id: "n0.postTime.spread.noon", arm: "noon", role: "test" } });
+    const summer: PostMeasure = { ...scored, publishedAt: Date.parse("2026-10-20T10:00:00Z") }; // 12:00 CEST
+    const winter: PostMeasure = { ...scored, publishedAt: Date.parse("2026-11-03T11:00:00Z") }; // 12:00 CET
+    expect(postOutcome(p, summer, c).kind).toBe("scored");
+    expect(postOutcome(p, winter, c).kind).toBe("scored");
+    // one offset for every post (today's, after the change) would have read the summer post as 11:00, off its window
+    expect(postOutcome(p, summer, { ...c, offsetMinAt: () => 60 })).toEqual({ kind: "excluded", why: "offPlan" });
+    // a Trial Reel approved at 00:30 local is that local day's, on either side of the change
+    expect(localDay(Date.parse("2026-10-24T22:30:00Z"), warsaw)).toBe(dayOfDate("2026-10-25"));
+    expect(localDay(Date.parse("2026-10-25T23:30:00Z"), warsaw)).toBe(dayOfDate("2026-10-26"));
+  });
+
+  it("learnPass takes the offset at each moment: a post-time test open across the change still counts its summer clips", () => {
+    // the lab runs, so the normal lane's first question is post time (noon against today's spread), one clip a day in Warsaw
+    const r = runWorld({ seed: 81, channels: [IG, TT], settings: ON, perDay: 1, offsetMinAt: warsaw, start: Date.parse("2026-10-12T09:00:00Z"), effect: () => 0, days: 20 });
+    const input = r.input;
+    expect(input.now).toBeGreaterThan(changeAt + 4 * DAY);
+    const plan = learnPass(input)!;
+    expect(plan.test?.id).toBe("n0.postTime.spread.noon");
+    const summer = r.posts.filter((p) => p.test?.id === plan.test!.id && p.test.role === "test" && Date.parse(p.approvedAt) < changeAt).length;
+    expect(summer).toBeGreaterThan(0);
+    // read at today's offset alone, its summer noon clips would leave their window and the test would count fewer
+    const oneOffset = learnPass({ ...input, offsetMinAt: () => 60 })!;
+    expect(oneOffset.test?.id).toBe(plan.test!.id);
+    expect(oneOffset.test!.nTest + oneOffset.test!.pending).toBeLessThan(plan.test!.nTest + plan.test!.pending);
   });
 });
 
@@ -446,6 +593,77 @@ describe("the day's slots", () => {
     expect(fixed.plans[0].test?.questions[0].dial).not.toBe("length");
     const skipped = runWorld({ seed: 61, settings: { ...ON, trialReels: false, skipped: ["length:short~standard"] }, effect: () => 0, days: 2 });
     expect(skipped.plans[0].test?.questions[0]).toEqual({ dial: "length", best: "standard", challenger: "long", subject: null });
+  });
+
+  // a test clip that always took the same slot of the day took the same post-time window too, so post time leaked into every
+  // verdict: at 3 clips a day the length test's clips all went out at noon, its best clips at 17:00 and 20:00
+  it("test and best clips meet every post-time window as often, at 3 and at 5 clips a day, and the test slot moves by date", () => {
+    const cases = [
+      { perDay: 3, settings: { ...ON, trialReels: false } },
+      // length and ending fixed: the newcomer test, 1 clip in 5
+      { perDay: 5, settings: { ...ON, trialReels: false, fixed: { length: "standard", ending: "resolved" } } },
+    ];
+    for (const { perDay, settings } of cases) {
+      const r = runWorld({ seed: 71, perDay, settings, effect: () => 0, days: 60 });
+      const count = { test: new Map<string, number>(), best: new Map<string, number>() };
+      const places = new Set<number>();
+      for (const plan of r.plans)
+        for (const s of plan.slots) {
+          if (s.lane !== "normal" || !s.membership?.id.startsWith("n") || s.membership.id.includes(".postTime.")) continue;
+          const role = s.role === "test" ? "test" : "best";
+          count[role].set(s.window.from, (count[role].get(s.window.from) ?? 0) + 1);
+          if (role === "test") places.add(s.index);
+        }
+      const total = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+      expect(total(count.test), `${perDay} a day`).toBeGreaterThanOrEqual(30);
+      for (const w of ["12:00", "17:00", "20:00"]) {
+        const test = (count.test.get(w) ?? 0) / total(count.test);
+        const best = (count.best.get(w) ?? 0) / total(count.best);
+        // the review's world had test 1.0 at noon against best 0; with ~40 test clips a share's noise is about 0.07
+        expect(Math.abs(test - best), `${perDay} a day, ${w}: test ${test.toFixed(2)} best ${best.toFixed(2)}`).toBeLessThan(0.2);
+        expect(test, `${perDay} a day, ${w}`).toBeGreaterThan(0.15);
+      }
+      expect(places.size, `${perDay} a day`).toBeGreaterThan(1);
+    }
+  });
+
+  it("\"spread\" walks noon, evening and night by date: at one clip a day, and around a post-time test's challenger", () => {
+    // every run of 3 days (from a day index that is a multiple of 3) starts its days in each window once
+    for (let run = 6919; run < 6929; run++) expect(new Set([0, 1, 2].map((i) => spreadWindows(3 * run + i, undefined)[0])).size).toBe(3);
+    // the day's windows are distinct; quiet hours over 20:00 leave two, walked by twos
+    expect(new Set(spreadWindows(20758, undefined)).size).toBe(3);
+    const twoLeft = { from: "19:00", to: "08:00" };
+    for (let run = 10379; run < 10389; run++) expect(new Set([0, 1].map((i) => spreadWindows(2 * run + i, twoLeft)[0]))).toEqual(new Set(["noon", "evening"]));
+    // the lab runs, so the normal lane asks post time first: noon against "spread", at one clip a day
+    const r = runWorld({ seed: 4, channels: [IG, TT], settings: ON, perDay: 1, effect: () => 0, days: 30 });
+    const slots = r.plans.flatMap((p) => p.slots).filter((s) => s.membership?.id === "n0.postTime.spread.noon");
+    const windowsOf = (arm: string) => new Set(slots.filter((s) => s.membership!.arm === arm).map((s) => s.window.from));
+    expect(windowsOf("noon")).toEqual(new Set(["12:00"]));
+    expect(windowsOf("spread")).toEqual(new Set(["12:00", "17:00", "20:00"]));
+  });
+
+  // with quiet hours that cover 10:00, the first pair's 10:00 reel could never go out (C11 refuses it as "missed its time"),
+  // so every pair broke, and every block closed as "not enough clean pairs"
+  it("Trial Reel pairs go out only outside quiet hours, at least 2 hours apart, and no pair is made where none fits", () => {
+    expect(trialPairWindows({ from: "23:00", to: "07:00" })).toEqual([
+      [{ from: "10:00", to: "10:30" }, { from: "12:30", to: "13:00" }],
+      [{ from: "15:00", to: "15:30" }, { from: "17:30", to: "18:00" }],
+    ]);
+    expect(trialPairWindows({ from: "23:00", to: "11:00" })).toEqual([[{ from: "12:30", to: "13:00" }, { from: "15:00", to: "15:30" }]]);
+    expect(trialPairWindows({ from: "13:00", to: "12:00" })).toEqual([]);
+    const minute = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+    const quiet = { from: "23:00", to: "11:00" };
+    const r = runWorld({ seed: 31, channels: [IG, TT], settings: { ...ON, pairsPerDay: 2 }, quiet, effect: () => 0, days: 6 });
+    const reels = r.plans.flatMap((p) => p.slots.filter((s) => s.lane === "trialReel"));
+    expect(reels.length).toBeGreaterThan(0);
+    for (const reel of reels) expect(inQuietMinutes(minute(reel.window.from), quiet.from, quiet.to), reel.window.from).toBe(false); // C11's own rule
+    for (const plan of r.plans) {
+      const day = plan.slots.filter((s) => s.lane === "trialReel");
+      expect(day.length).toBeLessThanOrEqual(2); // one pair fits the day, though two were asked for
+      if (day.length === 2) expect(Math.abs(minute(day[0].window.from) - minute(day[1].window.from))).toBeGreaterThanOrEqual(PAIR_GAP_H * 60);
+    }
+    const none = runWorld({ seed: 31, channels: [IG, TT], settings: ON, quiet: { from: "13:00", to: "12:00" }, effect: () => 0, days: 2 });
+    expect(none.plans.every((p) => !p.status.trialLane && p.block === null && p.slots.every((s) => s.lane === "normal"))).toBe(true);
   });
 
   it("asks for the arms to plan before a test opens, and opens it once they are planned", () => {

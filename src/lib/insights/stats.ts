@@ -347,18 +347,20 @@ const lnv = (v: number) => Math.log(v + 1);
 const fromLn = (y: number) => Math.max(0, Math.exp(y) - 1);
 
 /**
- * Views at exactly 72 h, from the reads up to 168 h old. A read either side of 72 h: the straight line on log(views + 1)
- * against log(age) through the two nearest. No read above 72 h yet but one in the 3-day window (60-96 h): that read projected
- * to 72 h with the channel's growth (views ~ age^growth). Otherwise, once the post is older than 168 h, the read between 48 h
- * and 168 h nearest 72 h projected the same way; until then pending. No read between 48 h and 168 h: not measured.
- * `postAgeH` is the post's age now.
+ * Views at exactly 72 h, from the reads between 48 h and 168 h old: the early read (18-36 h) is shown only, as Meta's numbers
+ * can still lag then, so it never anchors the line. A read either side of 72 h: the straight line on log(views + 1) against
+ * log(age) through the two nearest. Else a read in the 3-day window (60-96 h), or else the read past 72 h nearest it (a 3-day
+ * read caught up late: no read nearer 72 h can come), projected to 72 h with the channel's growth (views ~ age^growth).
+ * Otherwise, once the post is older than 168 h, the read nearest 72 h projected the same way; until then pending, as a nearer
+ * read can still come. No read between 48 h and 168 h: not measured. `postAgeH` is the post's age now.
  */
 export function viewsAt72(reads: readonly InsightRead[], postAgeH: number, growth: number = GROWTH_PRIOR): At72 {
-  const use = reads.filter((r) => r.views !== null && r.ageH > 0 && r.ageH <= MEASURED_UNTIL_H).sort((a, b) => a.ageH - b.ageH);
-  const inWindow = use.filter((r) => r.ageH >= MEASURED_FROM_H);
+  // only the reads a score may rest on (MEASURED_FROM_H to MEASURED_UNTIL_H): a lagged early read would pull the line down for
+  // a post whose 3-day read came late, by an amount that follows the hours the app was open
+  const inWindow = reads.filter((r) => r.views !== null && r.ageH >= MEASURED_FROM_H && r.ageH <= MEASURED_UNTIL_H).sort((a, b) => a.ageH - b.ageH);
   if (!inWindow.length) return postAgeH > MEASURED_UNTIL_H ? { state: "notMeasured" } : { state: "pending" };
-  const below = use.filter((r) => r.ageH <= SCORE_AGE_H);
-  const above = use.filter((r) => r.ageH >= SCORE_AGE_H);
+  const below = inWindow.filter((r) => r.ageH <= SCORE_AGE_H);
+  const above = inWindow.filter((r) => r.ageH >= SCORE_AGE_H);
   if (below.length && above.length) {
     const r0 = below[below.length - 1];
     const r1 = above[0];
@@ -368,19 +370,22 @@ export function viewsAt72(reads: readonly InsightRead[], postAgeH: number, growt
   }
   const nearest = (list: readonly InsightRead[]) => list.reduce((a, b) => (Math.abs(Math.log(b.ageH / SCORE_AGE_H)) < Math.abs(Math.log(a.ageH / SCORE_AGE_H)) ? b : a));
   const day3 = inWindow.filter((r) => inRange(r.ageH, DAY3_WINDOW_H));
-  const from = day3.length ? nearest(day3) : postAgeH > MEASURED_UNTIL_H ? nearest(inWindow) : null;
+  // a read past 72 h with none from 48 h up to 72 h is final at once: every later read is further from 72 h
+  const from = day3.length ? nearest(day3) : above.length ? above[0] : postAgeH > MEASURED_UNTIL_H ? nearest(inWindow) : null;
   if (!from) return { state: "pending" };
   return { state: "final", views: fromLn(lnv(from.views as number) + growth * Math.log(SCORE_AGE_H / from.ageH)), via: "projected", ageH: from.ageH };
 }
 
 /**
- * A channel's growth exponent: the median slope of log(views + 1) against log(age) between the first and last reads of its
- * posts with two reads, inside GROWTH_BOUNDS; GROWTH_PRIOR until GROWTH_MIN_POSTS posts have two reads.
+ * A channel's growth exponent: the median slope of log(views + 1) against log(age) between the first and last reads at or after
+ * MEASURED_FROM_H of its posts with two such reads (the 3-day and the week read), inside GROWTH_BOUNDS; GROWTH_PRIOR until
+ * GROWTH_MIN_POSTS posts have two. The early read is shown only: a lagged one would steepen the slope, and with it every lone
+ * read's projection to 72 h.
  */
 export function growthOf(rows: readonly Pick<InsightRow, "reads">[]): number {
   const slopes: number[] = [];
   for (const row of rows) {
-    const use = row.reads.filter((r) => r.views !== null && r.ageH > 0).sort((a, b) => a.ageH - b.ageH);
+    const use = row.reads.filter((r) => r.views !== null && r.ageH >= MEASURED_FROM_H).sort((a, b) => a.ageH - b.ageH);
     if (use.length < 2) continue;
     const a = use[0];
     const b = use[use.length - 1];
