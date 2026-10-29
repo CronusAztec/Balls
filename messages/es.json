@@ -3711,7 +3711,9 @@
       "shatter": "estallido",
       "winner": "ganador",
       "flip": "vuelco",
-      "cliffhanger": "cliffhanger"
+      "cliffhanger": "cliffhanger",
+      "hit": "acierto",
+      "gameOver": "fin del juego"
     },
     "reasons": {
       "motionOk": "Movimiento desde el primer fotograma – primer impacto a los {sec} s.",

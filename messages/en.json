@@ -3711,7 +3711,9 @@
       "shatter": "shatter",
       "winner": "winner",
       "flip": "flip",
-      "cliffhanger": "cliffhanger"
+      "cliffhanger": "cliffhanger",
+      "hit": "hit",
+      "gameOver": "game over"
     },
     "reasons": {
       "motionOk": "Moving from frame one – first impact at {sec} s.",

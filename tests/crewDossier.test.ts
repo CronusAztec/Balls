@@ -3,7 +3,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { recipeById, RECIPES } from "@/lib/bot/playbook";
-import { planClip, type CaptionRole, type ClipPlan } from "@/lib/bot/planner";
+import { MARK_MODES, MARK_WHAT, planClip, planTemplate, type CaptionRole, type ClipPlan } from "@/lib/bot/planner";
 import { defaultCaption, MAX_CAPTION_TEXT_LENGTH, type Caption } from "@/lib/captions";
 import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -176,6 +176,30 @@ describe("the intent view", () => {
     const silent = { ...withMoment, run: { ...withMoment.run!, moment: { ...m, sounds: 0, notes: 0, chordMax: 0, accent: false, motion: 1, motionMedian: 100 } } };
     expect(intentView(silent).text).toMatch(/^run\.payoffMoment: [\d.]+ s: no sound; motion 1% of the run's median$/m);
   });
+
+  // --- crew --- (studio2 review round 1, 19) a template timed by its mode's own mark said "escape at 14.6 s" beside "no first escape
+  // in the run" and "no finish in the run": its payoff is a hit or a game's end, and its run's finish is the mark
+  it("names a mark mode's own moment: its payoff is a hit or a game over, its finish the mark the payoff is timed by", () => {
+    expect(MARK_MODES.filter((m) => !MARK_WHAT[m])).toEqual([]);
+    for (const [id, what, type] of [
+      ["aim-bullseye", "first BULLSEYE!", "hit"],
+      ["aim-box", "first shape at zero", "hit"],
+      ["lab-game-blueprint", "game over (its finish rule)", "gameOver"],
+    ] as const) {
+      const p = planTemplate(id, 2, "reels", { copy, ending: "resolved", episode: 3 });
+      const c = crewClipOfPlan(p, { run: runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec) });
+      const d = intentView(c);
+      const at = Math.round(p.payoff.atSec! * 10) / 10;
+      expect([id, p.payoff.type, d.facts["beats.payoff"]]).toMatchObject([id, type, { what: type, sec: at }]);
+      expect([id, d.facts["run.finish"]]).toMatchObject([id, { what, at }]);
+      const line = d.text.split("\n").find((l) => l.startsWith("run.finish: "));
+      expect([id, line?.startsWith(`run.finish: ${what} at ${at} s`)]).toEqual([id, true]);
+      expect([id, /^beats\.payoff: escape /m.test(d.text)]).toEqual([id, false]);
+    }
+    // a run followed without its mark (another strategy's) keeps the run's own finish
+    const noMark = crewClipOfPlan(plan, { run: { ...clip.run!, markSec: undefined } });
+    expect(typeof intentView(noMark).facts["run.finish"]).toBe("number");
+  }, 120_000);
 
   it("names the address a render's watermark draws", () => {
     const r = heavy(clip);

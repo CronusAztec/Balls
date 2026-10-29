@@ -1545,13 +1545,17 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   (`src/lib/bot/templates.ts`) of the chosen series as "{Mode name} · {Format name}", grouped by format – the battle family's
   only under All series and Battle, where the bot already offers them; **Plan clips** then plans that template's clips
   (`planDaySteps` with `template`: a plan seed per place, `templateDaySlots()`), and **Auto** (the default) keeps the daily
-  rotation exactly. The **Simple look** switch (off by default here; Claude's studio plans in the Simple look, and the app's
-  crew and the autopilot are to once their own steps land) draws the clips of both buttons in the Simple look. **Why this clip** adds the clip's Simple score and the crew's seven
+  rotation exactly. The **Simple look** switch draws the clips of both buttons in the Simple look: off by default for Auto
+  (the rotation keeps today's look), and on by default once a template is chosen, the look its clarity gates were measured
+  in (`panelLook()` in `store.ts`: in the bot look the Journey's plans scored Simple 9 and failed G5 and G6); turned off, a
+  template's clips take the bot look. Claude's studio plans in the Simple look, and the app's crew and the autopilot are to
+  once their own steps land. **Why this clip** adds the clip's Simple score and the crew's seven
   clarity lines (G1–G7, a failed one saying why: `src/lib/bot/clarityLines.ts`, the studio's `clarityOf` on the plan and the
   run of its seed, followed in slices and loaded only when the lines are opened) for a clip in the Simple look, whose rules they
   are; a clip in the bot look gets one line that says so instead (`clarityJudges`: its glow, trails and longer hook read Busy
   by design). Only the panel's two new options join the
-  stored state, and only when they differ from the defaults; an older stored state and its version-1 plan load as they were.
+  stored state, and only when they differ from the defaults (the bot look only beside a template); an older stored state and
+  its version-1 plan load as they were.
 - **CLI** – `node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
   [--bucket standard] [--ending resolved] [--locale pl] [--dry-run] [--post | --post-only]` (also `npm run bot -- …`). Without `--family` the plan holds escape and rhythm clips only (`--family default`); `--family all` and `--family battle` are the only ways to plan Fight League clips (the legal audit).
   --- bot-templates --- `--dry-run --template get-out-classic [--look simple]` plans one ready template's clips instead of the

@@ -1,7 +1,7 @@
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "./playbook";
-import { BOT_PLAN_VERSION, type ClipPlan } from "./planner";
+import { BOT_PLAN_VERSION, type ClipPlan, type PlanOptions } from "./planner";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
-import { isBotLook, readyTemplates, templateById, type BotLookId, type TemplateInfo } from "./templates"; // --- bot-templates ---
+import { isBotLook, readyTemplates, templateById, TEMPLATE_LOOK, type BotLookId, type TemplateInfo } from "./templates"; // --- bot-templates ---
 
 /*
  * --- viral-bot --- The Bot section's options and its last plan, kept in this browser's localStorage (a convenience: every
@@ -23,7 +23,11 @@ export interface BotOptions {
    * rotation; absent: Auto, the rotation as before.
    */
   template?: string;
-  /** --- bot-templates --- The Simple switch: "simple" draws the clips in the Simple look; absent: today's bot look. */
+  /**
+   * --- bot-templates --- The Simple switch: "simple" draws the clips in the Simple look; "bot" (beside a chosen template only) its
+   * clips in today's bot look; absent – --- bot-templates --- (studio2 review round 1, 21) – the look of what the panel plans: a
+   * chosen template's own, the Simple look its clarity gates were measured in (TEMPLATE_LOOK), and Auto's today's bot look (panelLook).
+   */
   look?: BotLookId;
 }
 
@@ -67,6 +71,36 @@ export function chosenTemplate(options: Pick<BotOptions, "template" | "family">)
   return id && templateChoices(options.family).some((t) => t.id === id) ? id : undefined;
 }
 
+/**
+ * --- bot-templates --- (studio2 review round 1, 21) The look the panel plans in, for both of its buttons, and the one the Simple
+ * switch shows: the switch's choice, else a chosen template's own – the Simple look (TEMPLATE_LOOK): in the bot look its plans
+ * fail the clarity gates it was made ready on (the Journey's 9 and Spiral Glass's 24 of 100 there) – and Auto's today's bot look,
+ * as the owner asked for the rotation.
+ */
+export function panelLook(options: Pick<BotOptions, "template" | "family" | "look">): BotLookId {
+  return options.look ?? (chosenTemplate(options) ? TEMPLATE_LOOK : "bot");
+}
+
+/** --- bot-templates --- (studio2 review round 1, 21) What the Simple switch stores when pressed: "simple", or off – "bot" beside a template, else nothing (Auto's own). */
+export function lookSwitched(options: Pick<BotOptions, "template" | "family" | "look">): Pick<BotOptions, "look"> {
+  return { look: panelLook(options) === "simple" ? (chosenTemplate(options) ? "bot" : undefined) : "simple" };
+}
+
+/** --- bot-templates --- (studio2 review round 1, 21) What a new Template choice stores: the template, and no "bot" look beside Auto (its own already). */
+export function templateSwitched(options: Pick<BotOptions, "look">, template: string | undefined): Pick<BotOptions, "template" | "look"> {
+  return { template, look: !template && options.look === "bot" ? undefined : options.look };
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 1, 21) What the panel asks the planner for (useViralBot.ts): "Plan clips" a chosen
+ * template, both buttons the panel's look – nothing for the rotation in today's bot look, so its plans stay byte for byte as before.
+ */
+export function panelPlanChoice(options: Pick<BotOptions, "template" | "family" | "look">, custom: boolean): Pick<PlanOptions, "look" | "template"> {
+  const template = custom ? chosenTemplate(options) : undefined;
+  const look = panelLook(options);
+  return template ? { template, look } : look === "simple" ? { look } : {};
+}
+
 /** Stored options, validated: unknown values fall back to the defaults, the count is clamped. */
 export function parseBotOptions(raw: unknown): BotOptions {
   const d = defaultBotOptions();
@@ -81,7 +115,8 @@ export function parseBotOptions(raw: unknown): BotOptions {
     ending: isEndingChoice(r.ending) ? r.ending : d.ending,
     // --- bot-templates --- kept only when they differ from the defaults (Auto, the bot look): an older state reads as before
     ...(storedTemplate(r.template) ? { template: storedTemplate(r.template) } : {}),
-    ...(isBotLook(r.look) && r.look !== "bot" ? { look: r.look } : {}),
+    // (--- bot-templates --- studio2 review round 1, 21: the bot look stored only beside a template, whose own look is the Simple one)
+    ...(isBotLook(r.look) && (r.look !== "bot" || storedTemplate(r.template)) ? { look: r.look } : {}),
   };
 }
 

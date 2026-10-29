@@ -300,12 +300,14 @@ export const TEMPLATE_FORMATS: Readonly<Record<TemplateFormatId, TemplateFormat>
   fill: { id: "fill", idea: "It grows until it fills the space.", claim: "full", copyKey: "fill", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "escape", payoff: "fill" },
   count: { id: "count", idea: "One becomes many; how many by the end.", claim: "count", copyKey: "count", countdown: ["hud", "picture"], endings: ["resolved"], payoffWords: true, stakeHook: true, family: "escape", payoff: "fill" },
   whoWins: { id: "whoWins", idea: "Pick one before it starts; one of them wins.", claim: "winner", copyKey: "whoWins", countdown: ["hud", "picture"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "battle", payoff: "winner" },
-  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "escape", payoff: "escape" },
+  // (--- templates --- studio2 review round 1, 19: the aim and Mode Lab payoffs are their modes' own marks, planner.ts MARK_MODES – a
+  // hit and a game's end –, never an escape: the dossier wrote "escape at 14.6 s" beside "no first escape in the run")
+  aim: { id: "aim", idea: "One shot at a target; does it hit.", claim: "hit", copyKey: "aim", countdown: ["caption"], endings: ["resolved", "cliffhanger"], payoffWords: true, stakeHook: false, family: "escape", payoff: "hit" },
   lineUp: { id: "lineUp", idea: "Out of step, then all in line at once.", claim: "inSync", copyKey: "lineUp", countdown: ["picture", "hud"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "rhythm", payoff: "flip" },
   // (the plan's onTheBeat payoff: "none: the drop or the last bar" – the last note is heard, and no words name a chord it is not)
   onTheBeat: { id: "onTheBeat", idea: "Every bounce is a note; the drop or the last bar is the payoff.", claim: "beat", copyKey: "onTheBeat", countdown: ["picture"], endings: ["resolved"], payoffWords: false, stakeHook: false, family: "rhythm", payoff: "flip" },
   reveal: { id: "reveal", idea: "Lines pile up into a picture; guess it before it is done.", claim: "picture", copyKey: "reveal", countdown: ["picture"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "rhythm", payoff: "flip" },
-  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "escape", payoff: "escape" },
+  labGame: { id: "labGame", idea: "A Mode Lab game played to its own finish rule.", claim: "gameRule", copyKey: "labGame", countdown: ["hud"], endings: ["resolved"], payoffWords: true, stakeHook: false, family: "escape", payoff: "gameOver" },
 };
 
 /* ------------------------------------------------------------------ the bindings */
@@ -426,6 +428,11 @@ export interface ModeBinding {
    * OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's "Home! 🏠" at the door marked HOME, where get-out says "Out!".
    */
   payoffKey?: OwnPayoffKey;
+  /**
+   * --- templates --- (studio2 review round 1, 19) The payoff it shows where its format's is not its run's (playbook.ts PAYOFF_TYPES):
+   * Paddle Keep-Up's GAME OVER under the aim format, whose payoff is a hit.
+   */
+  payoffType?: PayoffType;
   /** --- templates --- (AI studio step 3) Gerald plays the ball (BotRecipe.character: his face and name; the Simple look draws no label). */
   character?: true;
   /**
@@ -1139,7 +1146,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // aim (--- templates --- AI studio step 4: each timed by its run's own moment, planner.ts MARK_MODES)
   bullseye: bind("bullseye", later("aim", "finish", { generate: bullseyeSettings, buckets: ["short", "standard"], hookKey: "hookB", note: "'Will one hit the bullseye?': the first bullseye, its BULLSEYE! callout", scene: () => "balls fired from the top, one after another, through a few pegs onto a dartboard lying at the bottom" })),
   box: bind("box", later("aim", "finish", { generate: boxCountdownSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.box", payoffWords: false, hookVars: (s) => ({ count: s.boxCountdown, zero: 0 }), note: "the countdown hook ('It stops at zero.'): the first shape at zero (planner.ts MARK_MODES); its corner comes too soon for any length", scene: (s) => `${s.boxShapeCount} squares gliding in straight lines inside a tall box, each showing a number` })),
-  paddle: bind("paddle", later("aim", "finish", { generate: paddleSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", payoffWords: false, note: "'How long can it last?': one life, its GAME OVER", scene: () => "one ball bouncing on a platform near the bottom that slides left and right to catch it" })),
+  paddle: bind("paddle", later("aim", "finish", { generate: paddleSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", payoffWords: false, payoffType: "gameOver", note: "'How long can it last?': one life, its GAME OVER", scene: () => "one ball bouncing on a platform near the bottom that slides left and right to catch it" })),
   // lineUp
   pendulum: bind("pendulum", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["pendulum-wave"]], tune: PENDULUM_TUNE, hookAsk: "cliffQuestion", note: "the hook asks whether they line up (its chord plays at the release and every half cycle too, so it promises none); every bob sounds at its turning points, so the realignment is one accented chord; pendulums in a row, so 'back in line' is a line" }),
   polyrhythm: bind("polyrhythm", { format: "lineUp", strategy: "cycle", tier: "proven", keepHud: null, variants: [["polyrhythm"]] }),
@@ -1354,7 +1361,7 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     copyKey: f.copyKey,
     family: familyOfBinding(b),
     modes: [b.mode],
-    payoff: f.payoff,
+    payoff: b.payoffType ?? f.payoff, // --- templates --- (studio2 review round 1, 19) a binding's own where its format's is not its run's
     countdown: b.countdown ?? { kind: "timer", source: "picture" },
     strategy: b.strategy,
     ...(b.outcome ? { outcome: b.outcome } : {}),

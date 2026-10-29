@@ -4,13 +4,13 @@ import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { FORMAT_COPY_FIELDS, FORMAT_HOOK_FIELDS, FORMAT_PLACEHOLDERS, clipHashtags, formatText, lookCopy, parseHashtags, recipeCopyPath, recipeCopyVars, recipeText, templateName, thingOf, type BotCopy, type BotLocale } from "@/lib/bot/copy";
-import { BOT_FAMILIES, BOT_PLATFORMS, HASHTAG_COUNT, PLATFORMS } from "@/lib/bot/playbook";
+import { BOT_FAMILIES, BOT_PLATFORMS, HASHTAG_COUNT, PAYOFF_TYPES, PLATFORMS } from "@/lib/bot/playbook";
 import { defaultSettings } from "@/lib/settings";
 import { evenCaptionLines, planClip, type ClipPlan } from "@/lib/bot/planner";
 import { HOOK_VARIANTS } from "@/lib/crew/roles";
 import { numbersIn } from "@/lib/crew/clip";
 import { wordCount } from "@/lib/crew/simplicity";
-import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMAT_IDS, allTemplates, plannedRecipe, simpleHookText, simplePayoffText, templateById, templateNameOf, templateRecipeById, thingKeyOf, variantKeyOf, type TemplateFormatId } from "@/lib/bot/templates";
+import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, plannedRecipe, simpleHookText, simplePayoffText, templateById, templateNameOf, templateRecipeById, thingKeyOf, variantKeyOf, type TemplateFormatId } from "@/lib/bot/templates";
 
 /*
  * --- templates --- The formats' words (AI studio step 2: messages/*.json ViralBot.formats, ViralBot.things, ViralBot.looks, read
@@ -134,6 +134,20 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
         expect([locale, format, wordCount(name) <= 3, chars(name) <= 24]).toEqual([locale, format, true, true]);
         expect(formatText(COPY[locale], format, "postQuestion"), `${locale} ${format}`).toMatch(/\?$/);
       }
+    }
+  });
+
+  // --- templates --- (studio2 review round 1, 19) the Bot section's clip card names its payoff (ViralBot.payoffTypes): a template's
+  // hit and game over too, never an aim or Mode Lab clip shown as an "escape"
+  it("names every payoff type in every locale, and each format's payoff is its run's: a hit and a game over where its mode marks one", () => {
+    for (const locale of LOCALES) {
+      const types = (MESSAGES[locale].ViralBot as { payoffTypes: Record<string, string> }).payoffTypes;
+      for (const t of PAYOFF_TYPES) expect([locale, t, typeof types[t] === "string" && types[t].trim().length > 0]).toEqual([locale, t, true]);
+    }
+    expect([TEMPLATE_FORMATS.aim.payoff, TEMPLATE_FORMATS.labGame.payoff]).toEqual(["hit", "gameOver"]);
+    for (const t of allTemplates().filter((x) => x.format.id === "aim" || x.format.id === "labGame")) {
+      const recipe = plannedRecipe(t);
+      if (recipe) expect([t.id, recipe.payoff]).toEqual([t.id, t.mode === "paddle" ? "gameOver" : TEMPLATE_FORMATS[t.format.id].payoff]);
     }
   });
 

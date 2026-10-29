@@ -8,7 +8,7 @@ import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import type { BotCopy } from "@/lib/bot/copy";
 import { BOT_PLAN_VERSION, planDay, planDaySteps, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
-import { chosenTemplate, defaultBotOptions, parseBotOptions, parseBotState, storedTemplate, templateChoices } from "@/lib/bot/store";
+import { chosenTemplate, defaultBotOptions, lookSwitched, panelLook, panelPlanChoice, parseBotOptions, parseBotState, storedTemplate, templateChoices, templateSwitched } from "@/lib/bot/store";
 import { allTemplates, clarityJudges, readyTemplates, templateById } from "@/lib/bot/templates";
 import { planClarity, planClarityOf } from "@/lib/bot/clarityLines";
 import { clarityOf, GATES } from "@/lib/crew/clarity";
@@ -109,6 +109,50 @@ describe("the Template choice and the Simple switch plan as asked", () => {
     expect(bot.clips.map((c) => c.look)).toEqual([undefined, undefined]);
     for (const m of [en, pl, es]) expect(m.ViralBot.empty).not.toMatch(/CLI/);
   }, 60_000);
+});
+
+// --- bot-templates --- (studio2 review round 1, 21) a template chosen with the switch as it came planned in the bot look, where its
+// plans failed the gates it was made ready on (the Journey's Simple 9, Spiral Glass's 24): a template plans in its own Simple look
+// unless the switch is turned off, and Auto keeps today's look
+describe("the Simple switch shows the look the panel plans in", () => {
+  const base = { copy, locale: "en" as const, bucket: "auto" as const, ending: "auto" as const, world };
+
+  it("is off for Auto and on for a chosen template, and pressing it turns the shown look over, for both buttons", () => {
+    const auto = defaultBotOptions();
+    expect([panelLook(auto), panelPlanChoice(auto, true), panelPlanChoice(auto, false)]).toEqual(["bot", {}, {}]);
+    const id = "get-out-journey";
+    const chosen = { ...auto, ...templateSwitched(auto, id) };
+    expect([panelLook(chosen), panelPlanChoice(chosen, true), panelPlanChoice(chosen, false)]).toEqual(["simple", { template: id, look: "simple" }, { look: "simple" }]);
+    // turned off beside a template: the bot look, kept (it differs from the template's own); on again: the Simple look
+    const off = { ...chosen, ...lookSwitched(chosen) };
+    expect([off.look, panelLook(off), panelPlanChoice(off, true)]).toEqual(["bot", "bot", { template: id, look: "bot" }]);
+    expect(parseBotOptions(JSON.parse(json(off)))).toMatchObject({ template: id, look: "bot" });
+    expect(panelLook({ ...off, ...lookSwitched(off) })).toBe("simple");
+    // back to Auto: no bot look kept beside it, so a template chosen later opens in its own look again
+    const back = { ...off, ...templateSwitched(off, undefined) };
+    expect([back.template, back.look, panelLook(back)]).toEqual([undefined, undefined, "bot"]);
+    expect(panelLook({ ...back, ...templateSwitched(back, id) })).toBe("simple");
+    // Auto with the switch on and off again: nothing kept, the rotation as before
+    const on = { ...auto, ...lookSwitched(auto) };
+    expect([on.look, panelLook(on), panelPlanChoice(on, true)]).toEqual(["simple", "simple", { look: "simple" }]);
+    expect({ ...on, ...lookSwitched(on) }.look).toBeUndefined();
+    // a template its series does not list plans Auto, in Auto's look
+    expect(panelLook({ ...auto, family: "escape", template: "who-wins-fight-league" })).toBe("bot");
+  });
+
+  it("plans a template chosen with the switch as it comes at Simple 80 or more, every clarity gate passing", () => {
+    for (const id of ["get-out-journey", "smash-spiral-glass", "fill-grow", "line-up-orb-grid", "lab-game-blueprint-ring-breaker"]) {
+      const options = parseBotOptions({ template: id, family: "all" });
+      expect([id, "look" in options, panelLook(options)]).toEqual([id, false, "simple"]);
+      const [plan] = planDay(DATE, "reels", 1, { ...base, family: "all", salt: "r", ...panelPlanChoice(options, true) }).clips;
+      expect([id, plan.template, plan.look]).toEqual([id, id, "simple"]);
+      // the overlays the owner asked to be able to hide, off (the Journey's stage banners and map, Spiral Glass's title and ring)
+      if (plan.mode === "journey") expect(plan.settings.journeyHud).toBe(false);
+      if (plan.mode === "spiralGlass") expect(plan.settings.sgHud).toBe(false);
+      const clarity = clarityOf(crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) }));
+      expect([id, clarity.simple.score >= 80, clarity.gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([id, true, []]);
+    }
+  }, 240_000);
 });
 
 describe("the panel's stored state", () => {

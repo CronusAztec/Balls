@@ -44,8 +44,13 @@ export type EndingStyle = (typeof ENDING_STYLES)[number];
 export const ENDING_CHOICES = ["auto", "resolved", "cliffhanger"] as const;
 export type EndingChoice = (typeof ENDING_CHOICES)[number];
 
-/** §3.4: the payoff someone would send to a friend. */
-export const PAYOFF_TYPES = ["escape", "fill", "shatter", "winner", "flip", "cliffhanger"] as const;
+/**
+ * §3.4: the payoff someone would send to a friend. --- templates --- (studio2 review round 1, 19) The two a template's mode marks
+ * itself (planner.ts MARK_MODES), never a playbook recipe's: "hit" – the aim format's shot on its target (Bullseye's first
+ * BULLSEYE!, Bouncing Shapes' first shape counted down to zero) – and "gameOver" – a game played to its end (a Mode Lab game's
+ * finish rule, Paddle Keep-Up's GAME OVER).
+ */
+export const PAYOFF_TYPES = ["escape", "fill", "shatter", "winner", "flip", "cliffhanger", "hit", "gameOver"] as const;
 export type PayoffType = (typeof PAYOFF_TYPES)[number];
 
 /** §3.3: the countdown you can feel – shown by a caption, or by the mode's own HUD / picture. */

@@ -1,11 +1,12 @@
 import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, BUCKET_SECONDS, ENDING_STYLES, LENGTH_BUCKETS, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
-import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type ModeBinding, type TemplateInfo } from "@/lib/bot/templates";
+import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, variantBinding, type BotLookId, type ModeBinding, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, recipeCopyVars, recipeText, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
-import { parseTrends } from "@/lib/trends";
+import { parseTrends, type TrendSummary } from "@/lib/trends";
+import { TRENDS } from "@/content/trends"; // --- studio --- (step 2's review round 1, 23) the committed trend summary ranks the menu
 import { isModeId } from "@/lib/physics/types";
 import { defaultSettings } from "@/lib/settings";
 import {
@@ -220,7 +221,7 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
   const ready = readyTemplates(family).filter((t) => fits(t.mode, t.format.id));
   const all = allTemplates();
   return {
-    counts: { formats: TEMPLATE_FORMAT_IDS.length, bindings: BINDINGS.length, templates: all.length, ready: all.filter((t) => t.ready).length, readyInFamily: readyTemplates(family).length },
+    counts: { formats: TEMPLATE_FORMAT_IDS.length, bindings: BINDINGS.length, templates: all.length, ready: all.filter((t) => t.ready).length, readyInFamily: readyTemplates(family).length, inStudio: studioTemplatesOf(family).length /* --- studio --- (step 2's review round 1, 20) */ },
     family: { asked: family, families: [...familiesOf(family)], note: "The battle family (Fight League names third-party characters) is offered only when asked for: family all or battle." },
     formats: TEMPLATE_FORMAT_IDS.filter((id) => input.format === undefined || input.format === id).map((id) => {
       const f = TEMPLATE_FORMATS[id];
@@ -258,6 +259,8 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
         strategy: recipe.strategy,
         buckets: [...(recipe.buckets ?? ["short", "standard", "long"])],
         endings: [...(recipe.endings ?? ["resolved", "cliffhanger"])],
+        // --- studio --- (step 2's review round 1, 20) ready for the website, but past the studio's render: why plan and the menu leave it out
+        ...((why) => (why ? { notInStudio: why } : {}))(studioRenderRefusal(recipe)),
         ...(input.copy === false ? {} : { words: wordsOf(recipe, copy) }),
       };
     }),
@@ -269,13 +272,42 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
   };
 }
 
-/** The brainstormer's menu: the ready templates of a family choice (each on its one mode; its recipe's endings and buckets). */
-export function templateMenu(family: BotFamilyChoice = "default", copy?: BotCopy): MenuItem[] {
-  return readyTemplates(family).map((t) => {
+// --- studio --- (step 2's review round 1, 23) the menu ranked: proven bindings first, then the ones the trend summary advises
+/**
+ * The advised theme of the trend summary a template plays (src/content/trends.json, lib/trends.ts: a theme marked `advised`
+ * that names its mode, or – a Mode Lab game – its built-in Blueprint), as its label ("escaping rings"); null: none. The summary
+ * is the committed one by default, so the same files give the same menu: trends advise the order and never gate a template.
+ */
+export function templateTrend(t: TemplateInfo, trends: TrendSummary | null = TRENDS): string | null {
+  if (!trends) return null;
+  const game = t.mode === "blueprint" ? variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).patch?.blPreset : undefined;
+  const theme = trends.themes.find((th) => th.advised && (typeof game === "string" ? th.blueprints.includes(game) : th.modes.includes(t.mode)));
+  return theme ? theme.label : null;
+}
+
+/**
+ * Ready templates in the menu's order: proven bindings first (each wraps a playbook recipe and passed every gate on the plan
+ * seeds measured), then the ones an advised trend theme names, each group in the bindings' own order (stable). The plan's word
+ * (risks: "the brainstormer prefers proven and trend-advised bindings"; templates.sources: the advised themes rank first).
+ */
+export function rankedTemplates(list: readonly TemplateInfo[], trends: TrendSummary | null = TRENDS): TemplateInfo[] {
+  const key = (t: TemplateInfo) => (t.binding.tier === "proven" ? 0 : 2) + (templateTrend(t, trends) ? 0 : 1);
+  return list.map((t, i) => ({ t, i, k: key(t) })).sort((a, b) => a.k - b.k || a.i - b.i).map((x) => x.t);
+}
+
+/**
+ * The brainstormer's menu: the ready templates of a family choice (each on its one mode; its recipe's endings and buckets), --- studio
+ * --- (step 2's review round 1, 23) ranked (rankedTemplates), each with its tier and the trend it follows, so a model sees which
+ * are proven and the code's own ideas (ideasByCode: the first of each format) take the proven and trending ones.
+ */
+export function templateMenu(family: BotFamilyChoice = "default", copy?: BotCopy, trends: TrendSummary | null = TRENDS): MenuItem[] {
+  // (--- studio --- step 2's review round 1, 20: only what the studio renders – a pitch it cannot render is no clip)
+  return rankedTemplates(studioTemplatesOf(family), trends).map((t) => {
     const recipe = templateRecipeById(t.id)!;
     // --- studio --- the hook's words in the clip's language, so the brainstormer picks a variant by what it says
     const hook = copy ? wordsOf(recipe, copy).hook : undefined;
-    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(hook ? { hookWords: { a: hook } } : {}), ...(recipe.endings ? { endings: [...recipe.endings] } : {}), ...(recipe.buckets ? { buckets: [...recipe.buckets] } : {}) };
+    const trend = templateTrend(t, trends);
+    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(hook ? { hookWords: { a: hook } } : {}), ...(recipe.endings ? { endings: [...recipe.endings] } : {}), ...(recipe.buckets ? { buckets: [...recipe.buckets] } : {}), tier: t.binding.tier === "proven" ? "proven" : "trial", ...(trend ? { trend } : {}) };
   });
 }
 
@@ -314,7 +346,7 @@ export interface StudioPlanFile {
 
 type Source = { kind: "template"; info: TemplateInfo } | { kind: "recipe"; recipe: BotRecipe };
 
-const readyIds = () => allTemplates().filter((t) => t.ready).map((t) => t.id);
+const readyIds = () => studioTemplatesOf("all").map((t) => t.id); // (--- studio --- step 2's review round 1, 20: the ones it renders)
 /** Formats first: one template of each format, then the rest, in their order (ideasByCode's mix). */
 function formatsFirst(list: readonly TemplateInfo[]): TemplateInfo[] {
   const firsts: TemplateInfo[] = [];
@@ -351,6 +383,9 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     }
     const refused = familyRefusal(`The template ${info.id}`, [info.family], family);
     if (refused) return { ok: false, error: refused };
+    // --- studio --- (step 2's review round 1, 20) a template whose every plan runs past the render: render could never take it
+    const long = studioRenderRefusal(templateRecipeById(info.id) ?? {});
+    if (long) return { ok: false, error: `The template ${info.id} is not planned here: ${long}. The ones the studio renders: ${readyIds().join(", ")}` };
     return { ok: true, sources: [{ kind: "template", info }] };
   }
   if (input.recipe !== undefined) {
@@ -358,6 +393,8 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     if (!recipe) return { ok: false, error: `Unknown recipe "${input.recipe}" (the recipes: ${RECIPES.map((r) => r.id).join(", ")})` };
     const refused = familyRefusal(`The recipe ${recipe.id}`, [recipe.family], family);
     if (refused) return { ok: false, error: refused };
+    const long = studioRenderRefusal(recipe); // --- studio --- (step 2's review round 1, 20)
+    if (long) return { ok: false, error: `The recipe ${recipe.id} is not planned here: ${long}` };
     return { ok: true, sources: [{ kind: "recipe", recipe }] };
   }
   if (input.mode !== undefined) {
@@ -374,9 +411,13 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     // --- studio --- (step 2's review round 1, 18) a mode's templates of the families asked for (the battle family's only when asked)
     const offered = list.filter((info) => info.family !== null && familiesOf(family).includes(info.family));
     if (!offered.length) return { ok: false, error: familyRefusal(`The mode ${input.mode}`, list.map((info) => info.family), family)! };
-    return { ok: true, sources: offered.map((info) => ({ kind: "template", info })) };
+    // --- studio --- (step 2's review round 1, 20) and only the ones its render plays (Fight League's bracket is long only)
+    const renders = offered.filter(inStudio);
+    if (!renders.length) return { ok: false, error: `The mode ${input.mode}'s templates are not planned here: ${offered.map((info) => `${info.id}: ${studioRenderRefusal(templateRecipeById(info.id) ?? {})}`).join("; ")}` };
+    return { ok: true, sources: renders.map((info) => ({ kind: "template", info })) };
   }
-  const list = formatsFirst(readyTemplates(family));
+  // (--- studio --- step 2's review round 1, 20: the ones its render plays; 23: ranked as the menu is, proven and trending first)
+  const list = formatsFirst(rankedTemplates(studioTemplatesOf(family)));
   if (!list.length) return { ok: false, error: `No ready template in the family ${input.family}` };
   return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
 }
@@ -443,6 +484,32 @@ export const STUDIO_RENDER_WORLD: BotWorld = { width: 800, height: 450 };
 
 /** The longest clip the toolbox renders (s): scripts/agent/browser.mjs's limit, the page's LINK_RENDER_MAX_SEC. */
 export const RENDER_MAX_SEC = 60;
+
+// --- studio --- (step 2's review round 1, 20) the templates whose clips the studio's render plays
+/** The length buckets whose clips the toolbox renders: those at most RENDER_MAX_SEC long (short and standard). */
+export const RENDER_BUCKETS: readonly LengthBucket[] = LENGTH_BUCKETS.filter((b) => BUCKET_SECONDS[b].max <= RENDER_MAX_SEC);
+
+/**
+ * Why the studio leaves out a recipe or a template whose every length runs past its render (null: its clips render): ready for
+ * the website's Bot section and viral-bot.mjs, which render long clips, but the toolbox plays RENDER_MAX_SEC at most, and the
+ * plan tool's `bucket` cannot ask for a length the recipe does not fill. Fight League's bracket fills the long bucket only
+ * (fightRecipes.ts: seven bouts): its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s
+ * in (measured), so the templates listing names it with this reason, and the brainstormer's menu and the plan tool leave it out.
+ */
+export function studioRenderRefusal(recipe: Pick<BotRecipe, "buckets">): string | null {
+  const buckets = recipe.buckets ?? LENGTH_BUCKETS;
+  if (buckets.some((b) => RENDER_BUCKETS.includes(b))) return null;
+  const from = Math.min(...buckets.map((b) => BUCKET_SECONDS[b].min));
+  const to = Math.max(...buckets.map((b) => BUCKET_SECONDS[b].max));
+  return `it fills the ${buckets.join(" and ")} length only (${from}–${to} s), past the toolbox's ${RENDER_MAX_SEC} s render, so the studio leaves it out: the website's Bot section and viral-bot.mjs plan and render it`;
+}
+
+/** Whether the studio plans a ready template (its clips render: studioRenderRefusal). */
+const inStudio = (t: TemplateInfo): boolean => studioRenderRefusal(templateRecipeById(t.id) ?? {}) === null;
+/** The ready templates of a family choice the studio plans and renders (readyTemplates, less the ones its render cannot play). */
+export function studioTemplatesOf(family: BotFamilyChoice = "default"): TemplateInfo[] {
+  return readyTemplates(family).filter(inStudio);
+}
 
 /** The scores of a clip by the app's rules: the gates, the Simple score, the Playbook checklist, the pick score, the clutter. */
 export function scoreOfCrewClip(clip: CrewClip) {
@@ -1223,7 +1290,13 @@ export function studioRenderJob(plan: StudioPlanFile, panel: StudioPanelFile | n
   if (pc?.verdict === "drop") notes.push(`The crew dropped this clip (${pc.dropWhy ?? "reviewer"}): rendered as asked; a verdict never blocks a person.`);
   if (pc && pc.original) notes.push(`Rendered as the crew left it: ${[...pc.ruleFix, ...(pc.fix?.state === "applied" ? pc.fix.actions.map((a) => a.action) : [])].join(", ") || "its own fix"}.`);
   const seconds = base.settings.recordingDuration;
-  if (!(seconds > 0) || seconds > RENDER_MAX_SEC) return { ok: false, error: `The clip ${id} is ${seconds} s long: the toolbox renders ${RENDER_MAX_SEC} s at most (plan a short or standard bucket)` };
+  if (!(seconds > 0) || seconds > RENDER_MAX_SEC) {
+    // --- studio --- (step 2's review round 1, 20) advice the plan tool can follow: a short or standard bucket where its recipe fills one
+    const recipe = botRecipeById(record.plan.recipe);
+    const long = recipe ? studioRenderRefusal(recipe) : null;
+    const fits = RENDER_BUCKETS.filter((b) => !recipe?.buckets || recipe.buckets.includes(b));
+    return { ok: false, error: `The clip ${id} is ${seconds} s long: the toolbox renders ${RENDER_MAX_SEC} s at most (${long ? `${record.plan.template ?? record.plan.recipe}: ${long}` : `plan it again with "bucket" ${fits.map((b) => `"${b}"`).join(" or ")}`})` };
+  }
   const seed = base.seed ?? record.plan.seed;
   return {
     ok: true,

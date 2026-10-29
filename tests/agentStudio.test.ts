@@ -33,7 +33,10 @@ import {
   studioReplan,
   studioResearch,
   studioReview,
+  rankedTemplates,
+  studioRenderRefusal,
   studioTemplates,
+  studioTemplatesOf,
   templateMenu,
   type StudioPanelFile,
   type StudioPlanFile,
@@ -43,11 +46,11 @@ import {
 } from "@/lib/agentKit/studioKit";
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, PLATFORMS } from "@/lib/bot/playbook";
 import { BOT_LOCALES } from "@/lib/bot/copy";
-import { BINDINGS, BOT_LOOKS, EXPERIMENTAL, TEMPLATE_FORMAT_IDS, allTemplates, readyTemplates, templateRecipeById } from "@/lib/bot/templates";
+import { BINDINGS, BOT_LOOKS, EXPERIMENTAL, TEMPLATE_FORMAT_IDS, allTemplates, readyTemplates, templateById, templateRecipeById } from "@/lib/bot/templates";
 import { settingsFromSearchParams } from "@/lib/settings";
 import { TRENDS } from "@/content/trends";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
-import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRules, clarityOf, clipSceneOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, sceneOf, screenView, templateSceneOf, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
+import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRules, ideasByCode, clarityOf, clipSceneOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, sceneOf, screenView, templateSceneOf, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
 
 /*
  * --- studio --- Claude's studio in the agent toolbox (docs/agents/STUDIO.md, C5 of the AI studio plan): the studio kit
@@ -138,6 +141,46 @@ describe("the studio's enums and tables (--- studio ---)", () => {
   });
 });
 
+// --- studio --- (step 2's review round 1, 23) the brainstormer's menu held the trial templates beside the proven ones, in the
+// bindings' order, with no tier and no trend: the plan's "the brainstormer prefers proven and trend-advised bindings" did not hold
+describe("the brainstormer's menu, ranked (--- studio ---)", () => {
+  it("lists the proven templates first, then those the trend summary's advised themes name, each with its tier and its trend", () => {
+    const menu = templateMenu("all", copy as never);
+    const tiers = menu.map((m) => m.tier);
+    expect(tiers.every((x) => x === "proven" || x === "trial")).toBe(true);
+    expect(tiers.indexOf("trial")).toBe(tiers.lastIndexOf("proven") + 1);
+    for (const m of menu) expect([m.template, m.tier]).toEqual([m.template, templateById(m.template)!.binding.tier]);
+    // within each tier the advised themes' templates first, the bindings' own order kept inside each group
+    const advised = new Map((TRENDS?.themes ?? []).filter((t) => t.advised).flatMap((t) => t.modes.map((mode) => [mode, t.label] as const)));
+    expect(advised.size).toBeGreaterThan(0);
+    for (const tier of ["proven", "trial"] as const) {
+      const group = menu.filter((m) => m.tier === tier);
+      const trending = group.map((m) => !!m.trend);
+      expect([tier, trending.indexOf(false) === -1 || trending.lastIndexOf(true) < trending.indexOf(false)]).toEqual([tier, true]);
+    }
+    expect(menu.find((m) => m.template === "get-out-classic")).toMatchObject({ tier: "proven", trend: advised.get("classic") });
+    expect(menu.find((m) => m.template === "lab-game-blueprint-ring-breaker")).toMatchObject({ tier: "trial", trend: "escaping rings" });
+    expect("trend" in menu.find((m) => m.template === "line-up-pendulum")!).toBe(false);
+    const order = (list: readonly { template: string }[]) => list.map((m) => allTemplates().findIndex((t) => t.id === m.template));
+    for (const group of [menu.filter((m) => m.tier === "proven" && m.trend), menu.filter((m) => m.tier === "trial" && !m.trend)]) expect(order(group)).toEqual([...order(group)].sort((a, b) => a - b));
+    // the order follows the summary it is given: none ranks by tier alone; a theme of its own moves its template up its tier
+    const plain = templateMenu("all", undefined, null);
+    expect(plain.some((m) => m.trend)).toBe(false);
+    expect(plain.map((m) => m.template)).toEqual(rankedTemplates(studioTemplatesOf("all"), null).map((t) => t.id));
+    const calm = { ...TRENDS!, themes: [{ ...TRENDS!.themes[0], id: "wave", label: "pendulums and waves", advised: true, modes: ["pendulum"], blueprints: [] }] };
+    expect(templateMenu("all", undefined, calm)[0]).toMatchObject({ template: "line-up-pendulum", tier: "proven", trend: "pendulums and waves" });
+    // the code's own ideas take the first of each format in that order: the proven and trending ones
+    const ideas = ideasByCode(templateMenu(), 6, "reels").map((i) => templateById(i.template)!);
+    expect(ideas.filter((t) => t.binding.tier === "proven").length).toBeGreaterThanOrEqual(5);
+    expect(ideas[0].id).toBe("get-out-classic");
+    // the brief says so, and every line names its tier
+    const out = studioReview({ request: "anything", wanted: 1 }, { studio: "m", plan: null, planHash: null, panel: null, rendered: [], digest: null, copyOf });
+    const user = nextOf(out).messages.find((m) => m.role === "user")!.content;
+    expect(user).toContain("Menu, proven and trending first (template (format, tier, the trend it follows): modes;");
+    expect(user.split("\n").filter((l) => l.startsWith("- ")).every((l) => /^- [a-z0-9-]+ \([a-zA-Z]+, (proven|trial)(, trending: [a-z ]+)?\): /.test(l))).toBe(true);
+  });
+});
+
 describe("templates (--- studio ---)", () => {
   it("lists the ten formats and all 48 bindings with their tiers; the ready templates with their words, the battle family only when asked", () => {
     const t = studioTemplates({}, copy);
@@ -154,7 +197,8 @@ describe("templates (--- studio ---)", () => {
     expect(all.templates.some((x) => x.family === "battle")).toBe(true);
     expect(all.templates.every((x) => !("words" in x))).toBe(true);
     expect(studioTemplates({ mode: "classic" }, copy).bindings.map((b) => b.mode)).toEqual(["classic"]);
-    expect(templateMenu().map((m) => m.template)).toEqual(t.templates.map((x) => x.id));
+    // --- studio --- (step 2's review round 1, 23) the menu is the listing's ready templates, ranked: proven first, then trending
+    expect(templateMenu().map((m) => m.template)).toEqual(rankedTemplates(t.templates.map((x) => templateById(x.id)!)).map((x) => x.id));
   });
 });
 
@@ -387,8 +431,9 @@ describe("review: Claude plays the roles, the rules hold it (--- studio ---)", (
     // (the studio's real run showed the menu as "smash-power-layers (smash): powerLayers; a": a letter, not a hook)
     const out = studioReview({ request: "something that breaks", wanted: 1 }, { studio: "m", plan: null, planHash: null, panel: null, rendered: [], digest: null, copyOf });
     const user = nextOf(out).messages.find((m) => m.role === "user")!.content;
-    expect(user).toContain('- smash-power-layers (smash): powerLayers; a "{rule}. {layers} layers to go."');
-    expect(user).toContain('- get-out-classic (getOut): classic; a "Can it escape in {seconds} seconds?"');
+    // (--- studio --- step 2's review round 1, 23: with its tier and the trend it follows)
+    expect(user).toContain('- smash-power-layers (smash, proven): powerLayers; a "{rule}. {layers} layers to go."');
+    expect(user).toContain('- get-out-classic (getOut, proven, trending: escaping rings): classic; a "Can it escape in {seconds} seconds?"');
     for (const item of templateMenu("default", copy as never)) expect([item.template, Object.keys(item.hookWords ?? {})]).toEqual([item.template, item.hooks]);
   });
 
@@ -489,7 +534,8 @@ describe("post-render review and render v3's clip (--- studio ---)", () => {
     // the payoff's moment, read where the page's run puts the payoff (G2 after the render)
     expect(record.crew.run?.moment?.atSec).toBe(Math.round(record.crew.payoff.atSec! * 1000) / 1000);
     // a long clip is not the toolbox's to render
-    const long = planned({ template: "who-wins-fight-league-bracket", count: 1, family: "all", bucket: "long" });
+    // (--- studio --- step 2's review round 1, 20: the bracket, long only, is not planned here any more; Classic's long one)
+    const long = planned({ template: "get-out-classic", count: 1, bucket: "long", platform: "tiktok" });
     const longJob = studioRenderJob({ ...plan, plans: long }, null, undefined);
     expect(!longJob.ok && longJob.error).toMatch(/60 s at most/);
   });
@@ -1088,6 +1134,11 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
   const WORLD = { width: 800, height: 450 };
   const COPIES = { en, pl, es } as unknown as Record<string, { ViralBot: Record<string, unknown> }>;
   const ready = readyTemplates("all");
+  /**
+   * --- studio --- (step 2's review round 1, 20) The ready templates the studio plans: all but the ones whose every length runs past
+   * its 60 s render (Fight League's bracket, long only), which the website's Bot section and viral-bot.mjs still plan.
+   */
+  const inStudio = studioTemplatesOf("all");
   /** The first platform a template's buckets fit (the one the whole table measured it on first). */
   const platformOf = (id: string) => BOT_PLATFORMS.find((p) => { const r = templateRecipeById(id)!; return !r.buckets || r.buckets.some((b) => PLATFORMS[p].buckets.includes(b)); })!;
   /** A tool result as the MCP server hands it on: every content block counted, the text never cut. */
@@ -1111,16 +1162,18 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
         expect(words!.hook.trim().length, `${locale} ${x.id}`).toBeGreaterThan(0);
       }
     }
-    expect(templateMenu("all").map((m) => m.template)).toEqual(ids);
+    // --- studio --- (step 2's review round 1, 20) the menu offers what the studio renders: every ready template but the bracket
+    expect(templateMenu("all").map((m) => m.template)).toEqual(rankedTemplates(inStudio).map((t) => t.id));
+    expect(ids.filter((id) => !inStudio.some((t) => t.id === id))).toEqual(["who-wins-fight-league-bracket"]);
     // the default menus leave the battle family out, as the daily bot does; asked for, it is all there
-    expect(templateMenu().map((m) => m.template)).toEqual(readyTemplates().map((t) => t.id));
+    expect(templateMenu().map((m) => m.template)).toEqual(rankedTemplates(readyTemplates()).map((t) => t.id));
     expect(studioTemplates({ family: "battle", copy: false }, copy).templates.map((x) => x.id)).toEqual(readyTemplates("battle").map((t) => t.id));
     // the mode route: each mode's ready templates and nothing else, in the tool's listing and in the plan's sources
     for (const mode of new Set(ids.map((id) => ready.find((t) => t.id === id)!.mode))) {
       const own = ready.filter((t) => t.mode === mode).map((t) => t.id);
       expect([mode, studioTemplates({ family: "all", mode, copy: false }, copy).templates.map((x) => x.id)]).toEqual([mode, own]);
       const src = planSources({ mode, family: "all" });
-      expect([mode, src.ok && src.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id))]).toEqual([mode, own]);
+      expect([mode, src.ok && src.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id))]).toEqual([mode, inStudio.filter((t) => t.mode === mode).map((t) => t.id)]);
       // --- studio --- (step 2's review round 1, 18) and without a family, the default one's: a battle mode's none, as the listing
       const offered = readyTemplates().filter((t) => t.mode === mode).map((t) => t.id);
       const plain = planSources({ mode });
@@ -1148,14 +1201,37 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
   });
 
   it("plans every ready template by its id, in the page's world on a platform it fits, in the Simple look and linked to the live site", { timeout: 240_000 }, () => {
-    for (const t of ready) {
+    for (const t of inStudio) {
       const [r] = planned({ template: t.id, count: 1, planSeed: 1, maxSeeds: 1, world: WORLD, platform: platformOf(t.id), family: "all" });
       expect([t.id, r.plan.template, r.plan.mode, r.plan.look, r.plan.world]).toEqual([t.id, t.id, t.mode, "simple", WORLD]);
       expect(r.plan.shareUrl.startsWith(`${STUDIO_SITE_URL}/en/simulator/?`), t.id).toBe(true);
       records.set(t.id, r);
     }
-    expect(records.size).toBe(ready.length);
+    expect(records.size).toBe(inStudio.length);
   });
+
+  // --- studio --- (step 2's review round 1, 20) Fight League's bracket fills the long length only: every plan of it ran past the
+  // render's 60 s (62–88 s at 800 × 450), and render asked for "a short or standard bucket" the plan tool could not give it
+  it("leaves out a ready template whose every plan runs past the render, with its reason in the listing, the plan's refusal and render's advice", () => {
+    const why = studioRenderRefusal(templateRecipeById("who-wins-fight-league-bracket")!);
+    expect(why).toMatch(/long length only \(60–90 s\), past the toolbox's 60 s render/);
+    for (const t of ready) expect([t.id, studioRenderRefusal(templateRecipeById(t.id)!) === null]).toEqual([t.id, inStudio.some((x) => x.id === t.id)]);
+    const listed = studioTemplates({ family: "all", copy: false }, copy);
+    expect(listed.templates.find((x) => x.id === "who-wins-fight-league-bracket")).toMatchObject({ notInStudio: why });
+    expect(listed.templates.filter((x) => "notInStudio" in x).map((x) => x.id)).toEqual(["who-wins-fight-league-bracket"]);
+    expect(listed.counts).toMatchObject({ readyInFamily: ready.length, inStudio: inStudio.length });
+    for (const input of [{ template: "who-wins-fight-league-bracket" }, { recipe: "fight-bracket" }]) {
+      const refused = studioPlan({ ...input, family: "all", bucket: "standard" }, copy);
+      expect([JSON.stringify(input), !refused.ok && refused.error.includes(why!)]).toEqual([JSON.stringify(input), true]);
+    }
+    // the mode route plans its other templates; render's advice names a length the plan tool can give
+    const fl = planSources({ mode: "fightLeague", family: "all" });
+    expect(fl.ok && fl.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id))).not.toContain("who-wins-fight-league-bracket");
+    const [long] = planned({ template: "get-out-classic", count: 1, planSeed: 1, maxSeeds: 1, bucket: "long", platform: "tiktok" });
+    expect(long.plan.settings.recordingDuration).toBeGreaterThan(60);
+    const job = studioRenderJob(studio([long]).plan, null, long.id);
+    expect(!job.ok && job.error).toMatch(/plan it again with "bucket" "short" or "standard"\)$/);
+  }, 120_000);
 
   it("keeps every studio result within the MCP's 200 KB counted after base64: the templates of every family and locale, the largest plan, the brainstormer's brief", () => {
     let largest = 0;
@@ -1163,7 +1239,7 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
     // the templates listing has room to grow: under half the cap with every template's words
     expect(largest).toBeLessThan(MAX_RESULT_CHARS / 2);
     // the plan tool's result for its most plans (STUDIO_PLAN_MAX), made of the largest plans of every ready template
-    expect(records.size, "the plans of the test above").toBe(ready.length);
+    expect(records.size, "the plans of the test above").toBe(inStudio.length);
     const size = (r: StudioPlanFile["plans"][number]) => JSON.stringify(studioEntry(r)).length;
     const top = [...records.values()].sort((a, b) => size(b) - size(a)).slice(0, STUDIO_PLAN_MAX);
     fitsMcp({ studio: "size", planFile: ".agent-out/studio/size/plan.json", planHash: "0".repeat(16), count: top.length, plans: top.map((r) => studioEntry(r, { others: othersOf(top, r.id) })), next: studioPlanNext("size", top.length, {}) }, "plan");

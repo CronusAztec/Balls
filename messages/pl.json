@@ -3711,7 +3711,9 @@
       "shatter": "roztrzaskanie",
       "winner": "zwycięzca",
       "flip": "przełom",
-      "cliffhanger": "cliffhanger"
+      "cliffhanger": "cliffhanger",
+      "hit": "trafienie",
+      "gameOver": "koniec gry"
     },
     "reasons": {
       "motionOk": "Ruch od pierwszej klatki – pierwsze uderzenie po {sec} s.",

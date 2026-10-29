@@ -6995,10 +6995,15 @@ await smokeBlock("viral-bot", async () => {
         before.value === "auto" && all.groups.length >= 8 && all.groups.includes("Get out") && all.options.some((o) => o.value === TEMPLATE && o.text === "Grow · Fill it") && battleIds.length > 0 && battleIds.every((id) => all.options.some((o) => o.value === id) && !escape.options.some((o) => o.value === id)) && all.options.every((o) => o.value === "auto" || / · /.test(o.text)),
         `(groups ${all.groups.join(", ")}; ${all.options.length} options; battle ${battleIds.join(", ")})`,
       );
-      await fp.locator("#bot-template").selectOption(TEMPLATE);
       const sw = fbot.getByRole("switch", { name: "Simple look" });
-      const off = await sw.getAttribute("aria-checked");
+      // --- bot-templates --- (studio2 review round 1, 21) off for Auto (today's look), on once a template is chosen: its own look,
+      // the one its clarity gates were measured in; the keyboard turns it off and on again
+      const autoLook = await sw.getAttribute("aria-checked");
+      await fp.locator("#bot-template").selectOption(TEMPLATE);
+      const ownLook = await sw.getAttribute("aria-checked");
       await sw.focus();
+      await fp.keyboard.press("Space");
+      const off = await sw.getAttribute("aria-checked");
       await fp.keyboard.press("Space");
       const on = await sw.getAttribute("aria-checked");
       await fbot.getByRole("button", { name: "Shorts", exact: true }).click();
@@ -7025,8 +7030,8 @@ await smokeBlock("viral-bot", async () => {
       );
       check(
         "viral bot: the Simple switch works by keyboard, and Plan clips plans the template in the Simple look, Simple 80 or more with every clarity line passing",
-        off === "false" && on === "true" && planned && !!row && row.recipe === TEMPLATE && row.template === TEMPLATE && row.look === "simple" && row.name === "Grow · Fill it" && new RegExp(`^ep\\d{3}-1-${TEMPLATE}-\\d+$`).test(row.id ?? "") && clear && simple >= 80 && passed === 7,
-        `(${off}→${on}; ${JSON.stringify(row)}; Simple ${simple}; ${passed}/7 gates)`,
+        autoLook === "false" && ownLook === "true" && off === "false" && on === "true" && planned && !!row && row.recipe === TEMPLATE && row.template === TEMPLATE && row.look === "simple" && row.name === "Grow · Fill it" && new RegExp(`^ep\\d{3}-1-${TEMPLATE}-\\d+$`).test(row.id ?? "") && clear && simple >= 80 && passed === 7,
+        `(Auto ${autoLook}, the template ${ownLook}, ${off}→${on}; ${JSON.stringify(row)}; Simple ${simple}; ${passed}/7 gates)`,
       );
       const wraps = await nameWraps();
       check("viral bot: a template clip's name wraps to a second line rather than being cut (a Mode Lab game's at phone width)", wraps, `(${wraps})`);

@@ -1,5 +1,6 @@
 import type { SimulatorSettings } from "@/lib/settings";
 import { templateById, variantBinding } from "@/lib/bot/templates"; // --- crew --- (AI studio step 3) a template's own scene line
+import { MARK_WHAT } from "@/lib/bot/planner"; // --- crew --- (studio2 review round 1, 19) a mark mode's own moment
 import { hasRingWalls, hudsOn } from "./hudFlags";
 import { runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { clarityOf, type Clarity } from "./clarity";
@@ -274,7 +275,9 @@ export function intentView(clip: CrewClip, input: DossierInput = {}): IntentDoss
     "score.playbookLost": lost.map((r) => `${r.id}-${r.max - r.points}:${r.key}`),
     "run.winner": run ? winner : null,
     "run.escape": run ? (run.firstEscapeSec >= 0 ? r1(run.firstEscapeSec) : run.homeSec >= 0 ? r1(run.homeSec) : -1) : null,
-    "run.finish": run ? (run.finishSec >= 0 ? r1(run.finishSec) : -1) : null,
+    // (--- crew --- studio2 review round 1, 19: a mark mode's run is finished by its own moment, the payoff its template times –
+    // "first BULLSEYE!", a game's finish rule –, its end a banner's hold later; markOf)
+    "run.finish": run ? (markOf(clip) ?? (run.finishSec >= 0 ? r1(run.finishSec) : -1)) : null,
     // --- crew --- (gate G2's reading of the payoff: what sounds there, how the balls move against the run's median)
     "run.payoffMoment": momentFact(clip),
     "measured.firstMotion": f ? (f.firstMotionSec === null ? -1 : r1(f.firstMotionSec)) : null,
@@ -300,6 +303,26 @@ export function intentView(clip: CrewClip, input: DossierInput = {}): IntentDoss
   }
   if (text.length > INTENT_MAX) text = clampLines(text, INTENT_MAX, (l) => l.startsWith("words.hook: ") || l.startsWith("words.aiHook: "));
   return { v: 1, facts, text };
+}
+
+/**
+ * --- crew --- (studio2 review round 1, 19) The finish of a mark mode's run (lib/bot/planner.ts MARK_MODES): its own moment – what it
+ * is, when (−1: never), and the run's end after it (−1: none followed) –, which the payoff of its template times; null for every other
+ * run, and for a run followed without its mark (another strategy's).
+ */
+function markOf(clip: CrewClip): DossierValue {
+  const run = clip.run;
+  const what = MARK_WHAT[clip.settings.mode];
+  if (!run || !what || typeof run.markSec !== "number") return null;
+  return { what, at: run.markSec >= 0 ? r1(run.markSec) : -1, end: run.finishSec >= 0 ? r1(run.finishSec) : -1 };
+}
+
+/** --- crew --- (studio2 review round 1, 19) The run.finish line of a mark (markOf): "first BULLSEYE! at 14.8 s, the run goes on after it". */
+function markLine(v: DossierValue): string | null {
+  if (!v || typeof v !== "object" || Array.isArray(v) || !("what" in v)) return null;
+  const m = v as { what: string; at: number; end: number };
+  if (m.at < 0) return `no ${m.what} in the run${m.end >= 0 ? `, the run ends at ${m.end} s` : ""}`;
+  return `${m.what} at ${m.at} s${m.end >= 0 ? `, the run ends at ${m.end} s` : ", the run goes on after it"}`;
 }
 
 /** --- crew --- The run's payoff moment as data (null: not read, or read around another second than the clip's payoff). */
@@ -368,7 +391,7 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("beats.hook", hook ? `${hook.from}-${hook.to} s` : none),
     // (--- templates --- review round 2, 22: a Simple clip whose picture is its countdown draws no counter)
     line("beats.countdown", countdown ? (countdown.source === "picture" ? "no counter drawn: the picture alone" : `${countdown.kind} by ${countdown.source}${countdown.from !== null ? ` from ${countdown.from} s` : ""}`) : none),
-    line("beats.payoff", payoff ? `${payoff.what ?? "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the clip ends` : ""}` : p.atSec === null ? "none in the run" : none),
+    line("beats.payoff", payoff ? `${payoff.what ? String(payoff.what).replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase() /* (gameOver: "game over") */ : "moment"} at ${payoff.sec} s${payoff.position !== null ? ` (${Math.round(100 * payoff.position)}%)` : ""}${payoff.cutGap !== null ? `, ${payoff.cutGap} s after the clip ends` : ""}` : p.atSec === null ? "none in the run" : none),
     line("beats.cut", cut ? `from ${cut.from} s for ${cut.length} s, end card ${cut.card} s` : none),
     line("beats.end", `${end.sec} s${end.afterPayoff === null ? "" : end.afterPayoff >= 0 ? `, ${end.afterPayoff} s after the payoff` : `, ${r1(-end.afterPayoff)} s before the payoff`}`),
     line("words.hook", q(f["words.hook"])),
@@ -389,7 +412,7 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
     line("run.winner", clip.run === null ? "unknown (no run)" : f["run.winner"] === null ? "no winner" : quote(String(f["run.winner"]), t.words)),
     // (Glass Smash's ball reaching home is its way out; a fill is when the screen or the ring is full)
     line("run.escape", clip.run && clip.run.firstEscapeSec < 0 && clip.run.homeSec >= 0 ? `home at ${r1(clip.run.homeSec)} s` : run(f["run.escape"], "first escape")),
-    line("run.finish", `${run(f["run.finish"], "finish")}${clip.run && clip.run.fillSec >= 0 ? `, filled at ${r1(clip.run.fillSec)} s` : ""}`),
+    line("run.finish", markLine(f["run.finish"]) ?? `${run(f["run.finish"], "finish")}${clip.run && clip.run.fillSec >= 0 ? `, filled at ${r1(clip.run.fillSec)} s` : ""}`),
     line("run.payoffMoment", momentLine(clip, f["run.payoffMoment"])),
     // (gate G1 reads the earlier of the two: a small ball on a dark background can move long before the picture says so)
     line("measured.firstMotion", measured(f["measured.firstMotion"], (x) => `${x < 0 ? "no motion" : `${x} s`}${firstSound !== null ? ` (first sound ${firstSound} s)` : ""}`)),

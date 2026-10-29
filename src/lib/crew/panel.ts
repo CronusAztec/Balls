@@ -824,8 +824,9 @@ function brainstormUser(s: PanelState): string {
     `Request: ${JSON.stringify(r.text)}`,
     `Platform: ${r.platform}. Clip language: ${LANGUAGES[r.locale] ?? "English"}. Pitch ${k} ideas.`,
     `Research brief:\n${briefText(s.brief, BRIEF_CHARS.brainstormer)}`,
-    "Menu (template (format): modes; hook variants, with their words where known):",
-    ...s.menu.map((m) => `- ${m.template} (${m.format}): ${m.modes.join(", ")}; ${m.hooks.map((h) => (m.hookWords?.[h] ? `${h} ${JSON.stringify(m.hookWords[h])}` : h)).join(", ")}`),
+    // (--- crew --- step 2's review round 1, 23: each template's tier and the trend it follows, the proven and trending first)
+    s.menu.some((m) => m.tier) ? "Menu, proven and trending first (template (format, tier, the trend it follows): modes; hook variants, with their words where known):" : "Menu (template (format): modes; hook variants, with their words where known):",
+    ...s.menu.map((m) => `- ${m.template} (${[m.format, ...(m.tier ? [m.tier] : []), ...(m.trend ? [`trending: ${m.trend}`] : [])].join(", ")}): ${m.modes.join(", ")}; ${m.hooks.map((h) => (m.hookWords?.[h] ? `${h} ${JSON.stringify(m.hookWords[h])}` : h)).join(", ")}`),
   ].join("\n");
 }
 

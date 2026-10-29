@@ -7,7 +7,7 @@ import { Searchable, SliderTrack, offBtn, onBtn, selectClass, type Matcher, type
 import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide track of a clip count ends at its ceiling)
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById, type BotFamily, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE, chosenTemplate, templateChoices } from "@/lib/bot/store";
+import { BOT_COUNT_RANGE, chosenTemplate, lookSwitched, panelLook, templateChoices, templateSwitched } from "@/lib/bot/store";
 import { reasonValues, type BotCopy } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
 import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, clarityJudges, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { ModeId } from "@/lib/physics/types";
@@ -28,8 +28,9 @@ export type { BotPanelProps } from "../useViralBot";
  *
  * --- bot-templates --- Two more controls: the Template choice ("Plan clips" plans one ready template, lib/bot/templates.ts,
  * listed as "{Mode name} · {Format name}" and grouped by format, the series' own – the battle family's only under All series
- * and Battle, where the bot offers it; Auto keeps the daily rotation exactly) and the Simple switch (off by default here: the
- * Simple look for the clips of both buttons). "Why this clip" adds the clip's Simple score and the crew's clarity lines
+ * and Battle, where the bot offers it; Auto keeps the daily rotation exactly) and the Simple switch (the Simple look for the
+ * clips of both buttons: off by default for Auto, today's look, and – --- bot-templates --- studio2 review round 1, 21 – on for a
+ * chosen template, whose own look it is: lib/bot/store.ts panelLook; turned off, a template's clips take the bot look). "Why this clip" adds the clip's Simple score and the crew's clarity lines
  * (lib/bot/clarityLines.ts), checked when it is opened and kept in memory only – for a clip in the Simple look, whose rules they
  * are; a clip in the bot's own look gets one line that says so (studio round 1, 3: every one of them read Busy beside its ticks).
  */
@@ -166,7 +167,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
   const botCopy = (useMessages() as Record<string, unknown>).ViralBot as BotCopy; // --- bot-templates --- (the templates' names, as the studio writes them)
   const simpleIds = { label: useId(), line: useId() }; // --- bot-templates ---
   const o = bot.options;
-  const simple = o.look === "simple"; // --- bot-templates ---
+  const simple = panelLook(o) === "simple"; // --- bot-templates --- (studio2 review round 1, 21: the look both buttons plan in; a template its own Simple one)
   const plan = bot.plan;
   const rendering = bot.render.status === "running";
   const busy = !!bot.planning || !!bot.rerolling || rendering;
@@ -237,7 +238,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
         {/* --- bot-templates --- the Template choice (its series' ready templates, by format) and the Simple switch */}
         <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-template">
           {b("template")}
-          <select id="bot-template" value={chosenTemplate(o) ?? "auto"} disabled={busy} onChange={(e) => bot.setOptions({ template: e.target.value === "auto" ? undefined : e.target.value })} className={`${selectClass} text-xs px-2 w-full min-w-0`}>
+          <select id="bot-template" value={chosenTemplate(o) ?? "auto"} disabled={busy} onChange={(e) => bot.setOptions(templateSwitched(o, e.target.value === "auto" ? undefined : e.target.value))} className={`${selectClass} text-xs px-2 w-full min-w-0`}>
             <option value="auto">{b("templateAuto")}</option>
             {TEMPLATE_FORMAT_IDS.map((f) => {
               const list = templateChoices(o.family).filter((x) => x.format.id === f);
@@ -270,7 +271,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             aria-labelledby={simpleIds.label}
             aria-describedby={simpleIds.line}
             disabled={busy}
-            onClick={() => bot.setOptions({ look: simple ? undefined : "simple" })}
+            onClick={() => bot.setOptions(lookSwitched(o))}
             // Space toggles a focused switch (the page's own Space, pause and resume, waits on the window for any other key)
             onKeyDown={(e) => {
               if (e.key === " ") e.stopPropagation();

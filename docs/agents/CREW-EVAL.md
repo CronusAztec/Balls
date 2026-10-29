@@ -795,7 +795,7 @@ history.
 ### claude-opus-5-5-2026-10-29-round1c
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-round1c -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus c1275a1f5f310167.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus c1275a1f5f310167 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -833,3 +833,47 @@ second, now sits at the bottom. Only its cold viewer's brief changed, as that br
 model answered it in one context, knowing it was a clean clip of the corpus, as round 1b had: Gerald trying to escape five
 spinning rings, clear by 3 s, maybe watched to the end. The other 349 answers are round 1b's, to briefs that did not change by
 a byte, and round 1b's run stays above as history. The numbers did not move.
+
+### claude-opus-5-5-2026-10-29-round1d
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-round1d -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 353 briefs answered (357 replies, refused ones included). Corpus c1275a1f5f310167.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 17 of 27 (63%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.1 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 18 of 27 (67%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.39 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.24 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 2/3 | 0/3 | 0/3 | 2/3 | 2/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 3.67 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-round1d -->
+
+The round-1c run, carried over to the menu as step 2's review round 1, finding 23, left it: the brainstormer's menu now ranks
+the proven templates first and, within each tier, the ones the trend summary's advised themes name ("escaping rings", "drops
+and piles"), and each line says its tier and the trend it follows. Only the brainstormer's three briefs changed, as they list
+the menu. The same model answered them in one context, as round 1c had: valid first time on 3 of 3, at 3 calls, all 18 ideas
+passing every gate. Its pitches moved toward the top of the menu (Grow, Multipliers, Classic's one ring, Pendulum Wave and
+Polyrhythm for the satisfying request; Classic, Gerald's Classic, Shatter, Power Layers, Spiral Glass and Ring Breaker for the
+one about getting out or breaking), in 3.67 formats a request (3). The code's ideas take the first of each format in the new
+order (Classic, Grow, Multipliers, Pendulum Wave, Power Layers, Ring Breaker) and still pass 18 of 18 in 6 formats. The other
+350 answers are round 1c's, to briefs that did not change by a byte, and round 1c's run stays above as history.

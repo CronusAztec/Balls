@@ -259,7 +259,8 @@ type IdeaSchema = { properties: { template: { const: string }; ending: { enum: s
 const allowedOf = (ask: EvalAsk, template: string) => (ask.brief.final as unknown as { properties: { ideas: { items: { oneOf: IdeaSchema[] } } } }).properties.ideas.items.oneOf.find((v) => v.properties.template.const === template)?.properties;
 
 const scriptedBrainstormer = (ask: EvalAsk) => {
-  const menu = [...ask.brief.user.matchAll(/^- ([a-z0-9-]+) \(([a-zA-Z]+)\): ([a-zA-Z]+);/gm)].map((m) => ({ template: m[1], format: m[2], mode: m[3] }));
+  // (--- crew --- step 2's review round 1, 23: a template's line carries its tier and the trend it follows after its format)
+  const menu = [...ask.brief.user.matchAll(/^- ([a-z0-9-]+) \(([a-zA-Z]+)(?:, [^)]*)?\): ([a-zA-Z]+);/gm)].map((m) => ({ template: m[1], format: m[2], mode: m[3] }));
   const firsts = menu.filter((m, i) => menu.findIndex((x) => x.format === m.format) === i);
   return {
     ideas: firsts.slice(0, 6).map((m, i) => {

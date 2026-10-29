@@ -793,6 +793,18 @@ export const GROW_FILL_SHARE = 0.95;
  * rule (its end banner, held END_HOLD_SEC before its run ends; a timeout is none).
  */
 export const MARK_MODES: readonly SimulatorSettings["mode"][] = ["bullseye", "box", "mergeRing", "paddle", "conveyor", "blueprint" /* --- templates --- (AI studio step 6) */];
+/**
+ * --- templates --- (studio2 review round 1, 19) What each mark mode's own moment is, in the crew dossier's words (lib/crew/dossier.ts
+ * run.finish): the payoff a mark times is that moment, not an escape or the run's end (its finish follows it, a banner's hold later).
+ */
+export const MARK_WHAT: Readonly<Partial<Record<SimulatorSettings["mode"], string>>> = {
+  bullseye: "first BULLSEYE!",
+  box: "first shape at zero",
+  mergeRing: "FINAL FORM",
+  paddle: "GAME OVER",
+  conveyor: "last ball out",
+  blueprint: "game over (its finish rule)",
+};
 /** Whether the engine shows a mark mode's own moment now (MARK_MODES). */
 function markNow(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"]): boolean {
   switch (mode) {

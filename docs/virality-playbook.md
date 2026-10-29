@@ -717,8 +717,9 @@ sees, one in what is posted, and three in what the crew and the studio's tools a
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
   by format, as "{Mode name} · {Format name}"; the battle family's only under All series and Battle. Auto, the default, keeps
-  the rotation and its pinned days exactly. A Simple look switch, off by default there, draws the clips of both buttons in
-  the Simple look, and Why this clip shows a Simple clip's score and the clarity lines G1–G7 (a clip in the bot look, busy by
+  the rotation and its pinned days exactly. A Simple look switch draws the clips of both buttons in the Simple look: off by
+  default for Auto, on by default for a chosen template (its own look: in the bot look its plans fail the gates it was made
+  ready on, step 2's review round 1, 21), and Why this clip shows a Simple clip's score and the clarity lines G1–G7 (a clip in the bot look, busy by
   design, gets one line saying the rules judge the Simple look). `scripts/viral-bot.mjs` plans
   one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names.
 - **Claude's studio** (docs/agents/STUDIO.md). The `templates` and `plan` tools cover every ready template, in the Simple

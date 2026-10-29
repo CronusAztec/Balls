@@ -102,7 +102,10 @@ experimental one's measured reason, a proven one's hidden variants with theirs),
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
 it: `plan` refuses one named by its id, its mode or its recipe without it, as `viral-bot.mjs --template` does. The default
-menus offer the other 35 templates, as the daily bot leaves its battles out.
+menus offer the other 35 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
+section and `viral-bot.mjs`, which render long clips, but not in the studio: it fills the long length only (60–90 s), and
+render plays 60 s at most. The listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan`
+leave it out (the mode route plans Fight League's other three).
 
 | Format | Mode | The payoff | Ready templates | Waits, and why |
 | --- | --- | --- | --- | --- |
@@ -130,7 +133,7 @@ menus offer the other 35 templates, as the daily bot leaves its battles out.
 | | Capture the Flag | the board's verdict | `who-wins-ctf` | |
 | | Territory | the winner (`outcome`), cut before the verdict | `who-wins-territory` | |
 | | Maze Escape | the first one out (`outcome`, a run of its own) | `who-wins-maze` | |
-| | Fight League | the KO, or the champion | `who-wins-fight-league`, `who-wins-fight-league-upset`, `who-wins-fight-league-bracket`, `who-wins-fight-league-boss` | |
+| | Fight League | the KO, or the champion | `who-wins-fight-league`, `who-wins-fight-league-upset`, `who-wins-fight-league-bracket` (the website's only: long, past render's 60 s), `who-wins-fight-league-boss` | |
 | | Land Claim | the winner (`outcome`), cut before the verdict | `who-wins-land-claim` | |
 | aim | Bouncing Shapes | the first shape at zero (its mark) | `aim-box` | |
 | | Paddle Keep-Up | | | `aim-paddle`: its score band sits under the hook |
@@ -168,7 +171,8 @@ the run ends with it:
 
 - The recipes' own: `escape` (the first escape), `winner` (the run's winner), `finish` (the run's own finish, or the moment a
   mode marks: Bullseye's first BULLSEYE!, the first shape at zero, the last ball out, a Mode Lab game's finish rule;
-  `MARK_MODES`), `fixed` (Power Layers' break-out, from its settings; since the studio's first review round Collision
+  `MARK_MODES`, its payoff a `hit` or a `gameOver`, and the dossier's `run.finish` the mark: "first BULLSEYE! at 14.8 s,
+  the run goes on after it"), `fixed` (Power Layers' break-out, from its settings; since the studio's first review round Collision
   Playground's anti-collision drop too), `cycle` (the realignment Pendulum Wave's and Polyrhythm's settings time) and `fill`
   (the fill measured on the run).
 - `outcome`: the seed finder's outcome around the payoff target, its moment read off the finder's own run of the seed
@@ -227,6 +231,12 @@ simple]` plans one template's clips in Node, a battle template only with the fam
   `rules`, its record names no model, and post.txt and the review's `after` say "rules only".
 - **Ideas.** An open request's brainstormer pitches up to 6 ideas, and at least one for each clip wanted (fewer when the menu
   has fewer templates): a reply with fewer is refused, since each idea is one candidate.
+- **The menu's order** (step 2's review round 1, 23). The brainstormer's menu lists the proven templates first, then, in
+  each tier, the ones whose mode (or Mode Lab game) an advised theme of the trend summary names (`src/content/trends.json`:
+  "escaping rings", "drops and piles" today), each line with its tier and that theme
+  (`get-out-classic (getOut, proven, trending: escaping rings)`). The code's own ideas, when no model pitches, take the first
+  template of each format in that order, and so does `plan` called with neither a template nor a mode. Trends advise the order and never gate a template; the owner's keep rates and post
+  statistics are to rank it once the app's later steps record them.
 
 ## After the render
 
@@ -584,6 +594,11 @@ What the run showed:
   rendered lengths are the planned ones.
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
   The studio's own review runs that search.
+- **A bracket longer than render** (step 2's review round 1, 20). Fight League's bracket plays seven bouts and fills the long
+  length only: its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s in, and render
+  plays 60 s at most (the page's `LINK_RENDER_MAX_SEC`). The studio leaves it out, and render's advice for a clip past 60 s
+  names the lengths its template fills. A bracket of four in a standard clip would be a template of its own, planned, measured
+  and watched like the others: not built yet.
 
 ## Gaps closed in AI studio steps 3 to 8 and the review round after them
 

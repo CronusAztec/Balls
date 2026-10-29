@@ -257,7 +257,10 @@ export interface ProducerResult {
   summary: string;
 }
 
-/** A template the brainstormer may pitch (the menu: lib/bot/templates.ts in a later step; today's recipes until then). */
+/**
+ * A template the brainstormer may pitch: the ready templates of lib/bot/templates.ts (the studio's templateMenu, ranked proven and
+ * trend-advised first), or a playbook recipe where no template menu is given (panel.ts recipeMenu).
+ */
 export interface MenuItem {
   template: string;
   /** Its format (what the diversity rule counts: two formats when four ideas or more). */
@@ -269,6 +272,13 @@ export interface MenuItem {
   hookWords?: Readonly<Record<string, string>>;
   endings?: readonly EndingStyle[];
   buckets?: readonly LengthBucket[];
+  /**
+   * --- crew --- (step 2's review round 1, 23) Its binding's tier: proven (it wraps a playbook recipe and passed every gate on the
+   * plan seeds measured) or trial; absent: a recipe's (recipeMenu).
+   */
+  tier?: "proven" | "trial";
+  /** --- crew --- (step 2's review round 1, 23) The advised theme of the trend summary it plays ("escaping rings"); absent: none. */
+  trend?: string;
 }
 
 /* ------------------------------------------------------------------ the prompts */

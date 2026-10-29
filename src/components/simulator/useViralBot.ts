@@ -10,8 +10,8 @@ import type { BotWorld } from "@/lib/bot/finderRequest";
 import { batchTextFiles, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE, chosenTemplate, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
-import { clarityJudges, type BotLookId } from "@/lib/bot/templates"; // --- bot-templates ---
+import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
+import { clarityJudges } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { PlanClarity } from "@/lib/bot/clarityLines"; // --- bot-templates --- (a type only: the module loads when a clip's lines are opened)
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
@@ -234,11 +234,10 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       const bucket = request?.bucket !== undefined ? (isLengthBucket(request.bucket) ? request.bucket : "auto") : custom ? opts.bucket : "auto";
       const ending = request?.ending !== undefined ? (isEndingChoice(request.ending) ? request.ending : "auto") : custom ? opts.ending : "auto";
       // --- bot-templates --- the panel's Template choice ("Plan clips", like its other filters; Auto: the rotation) and its Simple
-      // switch (both buttons); the CLI's handle plans the rotation in the bot look, as before. A template plans in the look the
-      // switch says (planTemplateSteps' own is Simple); the bot look is passed to the rotation as before: not at all.
-      const template = !request && custom ? chosenTemplate(opts) : undefined;
-      const look: BotLookId = !request && opts.look === "simple" ? "simple" : "bot";
-      const lookAndTemplate: Pick<PlanOptions, "look" | "template"> = template ? { template, look } : look === "simple" ? { look } : {};
+      // switch (both buttons); the CLI's handle plans the rotation in the bot look, as before. The bot look is passed to the
+      // rotation as before: not at all. --- bot-templates --- (studio2 review round 1, 21) A template plans in the look the switch
+      // shows, by default its own Simple one (store.ts panelLook): in the bot look its plans failed the gates it was made ready on.
+      const lookAndTemplate: Pick<PlanOptions, "look" | "template"> = request ? {} : panelPlanChoice(opts, custom);
       setPlanning({ current: 1, total: count, seeds: 0 });
       // The progress re-renders the page: at most a few times a second, and whenever the next clip starts.
       let shownAt = 0;
