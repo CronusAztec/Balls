@@ -10,11 +10,11 @@ import {
   checkArms,
   isFeasible,
   isNewcomer,
-  learnerCatalog,
-  ruleGatePlanner,
   type ArmPlanner,
   type ArmSetting,
 } from "@/lib/insights/feasibility";
+import { learnerCatalog, ruleGatePlanner } from "@/lib/insights/feasibilityPlanner";
+import { BOT_DEFAULT_FAMILIES } from "@/lib/bot/playbook";
 import { learnPass } from "@/lib/insights/learner";
 import { FEASIBILITY_PASS, FEASIBILITY_PLANS } from "@/lib/insights/learnerRules";
 import { readyTemplates, templateRecipe } from "@/lib/bot/templates";
@@ -36,6 +36,7 @@ describe("the templates an arm can play", () => {
     const ids = candidatesFor(S(), CATALOG, none).map((t) => t.id);
     expect(ids).toEqual(["get-out-classic", "smash-power-layers", "fill-grow", "count-multiply", "line-up-pendulum", "get-out-glass"]);
     expect(LEARNER_FAMILIES).not.toContain("battle");
+    expect([...LEARNER_FAMILIES]).toEqual([...BOT_DEFAULT_FAMILIES]); // a copy, so feasibility.ts loads no module of the page
     expect(candidatesFor(S(), CATALOG, new Set(["get-out-journey"])).map((t) => t.id)).toContain("get-out-journey");
   });
 
@@ -142,15 +143,31 @@ describe("the app's port: the real planner and the real gates", () => {
     expect(candidatesFor(S({ format: "whoWins" }), catalog, none)).toEqual([]);
   });
 
-  it("plans an arm with the seed search and the clarity gates, deterministically (Get Out, short, cliffhanger: 1 of 3 passes here)", () => {
+  // the port's contract, not the catalog's tuning: which plans pass moves with every template or clarity retune (AI studio
+  // step 2 passes 2 of these 3 where step 1 passed 1), and the stand-in planner above pins the numbers
+  it("plans an arm with the seed search and the clarity gates, deterministically, over the arm's own templates in turn", () => {
     const catalog = learnerCatalog(readyTemplates("all"));
     const planner = ruleGatePlanner(copy, { maxSeeds: 6 });
     const arm = S({ format: "getOut", bucket: "short", ending: "cliffhanger" });
     const result = checkArm(arm, catalog, none, planner);
-    expect(result).toEqual({ key: armKey(arm), plans: 3, passed: 1, pick: result.pick });
-    expect(isFeasible(result)).toBe(false); // so a short Get Out cliffhanger arm would be swapped
-    expect(armPlans(arm, catalog, none).map((p) => p.template)).toEqual(["get-out-classic", "get-out-classic-gerald", "get-out-accumulation"]);
-    expect(planner(armPlans(arm, catalog, none)[0])).toEqual(planner(armPlans(arm, catalog, none)[0]));
+    expect(result.key).toBe(armKey(arm));
+    expect(result.plans).toBe(FEASIBILITY_PLANS);
+    expect(Number.isInteger(result.passed) && result.passed >= 0 && result.passed <= result.plans).toBe(true);
+    expect(isFeasible(result)).toBe(result.passed >= FEASIBILITY_PASS); // an arm under 2 of 3 is swapped
+    expect(result.pick === null || (Number.isFinite(result.pick) && result.pick >= 0 && result.pick <= 100)).toBe(true);
+    expect(checkArm(arm, catalog, none, planner)).toEqual(result);
+    // its plans take the arm's own templates in rotation order, each with a seed from the arm's key
+    const cands = candidatesFor(arm, catalog, none).map((t) => t.id);
+    expect(cands.length).toBeGreaterThan(0);
+    const plans = armPlans(arm, catalog, none);
+    expect(plans.map((p) => p.template)).toEqual(Array.from({ length: FEASIBILITY_PLANS }, (_, i) => cands[i % cands.length]));
+    expect(plans.every((p) => p.bucket === "short" && p.ending === "cliffhanger")).toBe(true);
+    expect(planner(plans[0])).toEqual(planner(plans[0]));
+    // a plan its template cannot play never passes: a resolved-only template asked for a cliffhanger, or no template at all
+    const resolvedOnly = catalog.find((t) => !t.endings.includes("cliffhanger") && t.buckets.includes("short"));
+    expect(resolvedOnly).toBeDefined();
+    expect(planner({ template: resolvedOnly!.id, bucket: "short", ending: "cliffhanger", planSeed: 7 }).pass).toBe(false);
+    expect(planner({ template: "no-such-template", bucket: "short", ending: "resolved", planSeed: 7 })).toEqual({ pass: false, pick: null });
   });
 });
 

@@ -121,6 +121,13 @@ export const CHECK_BACK_P = 0.8;
 export const TEST_EVERY = 3;
 /** Without Trial Reels, a newcomer or format test takes at most 1 normal clip in 5 (it risks more with followers). */
 export const NEWCOMER_TEST_EVERY = 5;
+/**
+ * A newcomer test's best arm is its format's rotation, not the best settings, so only 2 clips per test clip take it (8 test
+ * clips against 16, as the decision rule's worlds): the day's other clips keep the best settings and count for no test, so a
+ * newcomer test never locks the whole lane, Shorts included, to one format, and the variety caps hold. At 1 test clip in 3
+ * it is 1 per test clip, so 1 clip in 3 keeps the best settings.
+ */
+export const NEWCOMER_ROTATION_CLIPS = 2;
 /** Trial Reel pairs a day: one by default (the owner's answer 1), at most two. */
 export const PAIRS_PER_DAY_DEFAULT = 1;
 export const PAIRS_PER_DAY_MAX = 2;

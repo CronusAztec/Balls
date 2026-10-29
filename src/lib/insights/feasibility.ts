@@ -1,12 +1,4 @@
-import { drain, planTemplateSteps, type PlanOptions } from "@/lib/bot/planner";
-import { BOT_DEFAULT_FAMILIES, LENGTH_BUCKETS, type BotFamily, type BotPlatform, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
-import { templateRecipe, type TemplateInfo } from "@/lib/bot/templates";
-import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
-import type { BotCopy, BotLocale } from "@/lib/bot/copy";
-import { crewClipOfPlan } from "@/lib/crew/clip";
-import { clarityOf } from "@/lib/crew/clarity";
-import { pickScore } from "@/lib/crew/pick";
-import { runSync } from "@/lib/insights/score";
+import type { BotFamily, EndingStyle, LengthBucket } from "@/lib/bot/playbook";
 import { FEASIBILITY_PASS, FEASIBILITY_PLANS } from "./learnerRules";
 import { FORMAT_IDS, NEWCOMER_TEMPLATES } from "./dials";
 import { hashText } from "./stats";
@@ -22,16 +14,20 @@ import { hashText } from "./stats";
  * plans take them in turn. A setting no template can play is impossible on paper (`armPossible`): the Journey is resolved
  * only, so it never shares a block with the ending dial.
  *
- * The planner is a port (`ArmPlanner`), so the logic is tested with stand-ins and the app plugs in `ruleGatePlanner`: the
- * planner's own template plan (lib/bot/planner.ts planTemplateSteps, its seed search included), the run followed past its
- * clip (lib/insights/score.ts runSync), the clip as the crew reads it (lib/crew/clip.ts crewClipOfPlan) and its clarity gates
- * (lib/crew/clarity.ts clarityOf), with the crew's pick score kept for the format challengers' order. Deterministic: the
+ * The planner is a port (`ArmPlanner`), so the logic is tested with stand-ins and the page plugs in `ruleGatePlanner`
+ * (lib/insights/feasibilityPlanner.ts): the planner's own template plan, its seed search included, the run followed past its
+ * clip, and the crew's rule gates on it, with the crew's pick score kept for the format challengers' order. Deterministic: the
  * plans' seeds come from the arm's key alone. The app runs it in slices while idle and hands the results to learnPass.
+ *
+ * This file imports types only from the page, and values only from the learner's own pure modules (learnerRules, dials,
+ * stats): lib/insights/learner.ts uses it, and the app's main process bundles learner.ts for the decision log's shapes, so it
+ * must not load the planner, the engine or the modes (the real planner and catalog live in feasibilityPlanner.ts).
+ * LEARNER_FAMILIES mirrors the playbook's BOT_DEFAULT_FAMILIES; tests/insightsFeasibility.test.ts keeps them equal.
  */
 
 // --- learner ---
 
-/** A ready template as the learner reads it (lib/bot/templates.ts TemplateInfo through `learnerCatalog`). */
+/** A ready template as the learner reads it (lib/bot/templates.ts TemplateInfo through feasibilityPlanner.ts `learnerCatalog`). */
 export interface LearnerTemplate {
   id: string;
   /** Its format id (dials.ts FORMAT_IDS). */
@@ -74,8 +70,11 @@ export interface FeasibilityResult {
 /** The planner the check runs: one plan of an arm, whether it passed every rule gate, and its pick score. */
 export type ArmPlanner = (plan: ArmPlan) => { pass: boolean; pick: number | null };
 
-/** The family the learner plans in: the default ones (the battle family's third-party names wait for the owner's switch). */
-export const LEARNER_FAMILIES: readonly BotFamily[] = BOT_DEFAULT_FAMILIES;
+/**
+ * The families the learner plans in: the default ones, the playbook's BOT_DEFAULT_FAMILIES (the battle family's third-party
+ * names wait for the owner's switch). A copy, so this file loads no module of the page; a test keeps them equal.
+ */
+export const LEARNER_FAMILIES: readonly BotFamily[] = ["escape", "rhythm"];
 
 /** The key of an arm setting (the feasibility results are keyed by it). */
 export function armKey(s: ArmSetting): string {
@@ -151,46 +150,6 @@ export function checkArms(settings: readonly ArmSetting[], catalog: readonly Lea
     out.push(checkArm(s, catalog, joined, planner));
   }
   return out;
-}
-
-/* ------------------------------------------------------------------ the app's port: the real planner and the real gates */
-
-/** The learner's catalog of the ready templates (lib/bot/templates.ts): each one's format, mode, family, buckets and endings. */
-export function learnerCatalog(templates: readonly TemplateInfo[]): LearnerTemplate[] {
-  const out: LearnerTemplate[] = [];
-  for (const t of templates) {
-    const recipe = t.ready ? templateRecipe(t) : null;
-    if (!recipe) continue;
-    out.push({ id: t.id, format: t.format.id, mode: t.mode, family: t.family, buckets: recipe.buckets ?? LENGTH_BUCKETS, endings: recipe.endings ?? ["resolved", "cliffhanger"] });
-  }
-  return out;
-}
-
-export interface RuleGatePlannerOptions {
-  platform?: BotPlatform;
-  locale?: BotLocale;
-  world?: BotWorld;
-  maxSeeds?: number;
-}
-
-/**
- * The planner the app plugs in: the template planned with its seed search (no model), its run followed past the clip, and the
- * crew's rule gates on the clip as planned (clarityOf at stage pre). Its pick score has no reviewer's confidence (the rules'
- * own, as the picker counts a keep no model weighed).
- */
-export function ruleGatePlanner(copy: BotCopy, options: RuleGatePlannerOptions = {}): ArmPlanner {
-  const platform = options.platform ?? "reels";
-  return (plan) => {
-    const planOptions: PlanOptions = { copy, locale: options.locale ?? "en", bucket: plan.bucket, ending: plan.ending, episode: 1, index: 1, date: null, world: options.world ?? DEFAULT_BOT_WORLD, ...(options.maxSeeds !== undefined ? { maxSeeds: options.maxSeeds } : {}) };
-    try {
-      const clip = drain(planTemplateSteps(plan.template, plan.planSeed, platform, planOptions));
-      const run = runSync(clip.settings, clip.seed, clip.world, clip.recipe, clip.timing.clipSec, clip.payoff.atSec);
-      const clarity = clarityOf(crewClipOfPlan(clip, { run }));
-      return { pass: clarity.pass && clip.bucket === plan.bucket && clip.ending === plan.ending, pick: pickScore(clarity.playbook.score, clarity.simple.score, null) };
-    } catch {
-      return { pass: false, pick: null };
-    }
-  };
 }
 
 // --- end learner ---

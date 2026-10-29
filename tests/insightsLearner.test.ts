@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   bestsOf,
@@ -587,6 +588,74 @@ describe("the day's slots", () => {
     expect(r.posts.some((p) => p.facts.template === "who-wins-battle")).toBe(false);
   });
 
+  // a newcomer test's best arm is its format's rotation: given to every best slot, it locked the whole lane, YouTube included,
+  // to one format for the test's weeks, and with two templates left the 40 % cap could not hold (43 % from one template)
+  it("a newcomer test without Trial Reels: only its comparison clips take the format, the caps hold, Shorts keeps the best settings", () => {
+    const lost = (testId: string, dial: "length" | "ending", best: string, challenger: string) => verdict({ testId, dial, best, challenger, verdict: "notKept", decidedAt: iso(T0 - 5 * DAY), ratio: 0.9, p: 0.3, nTest: 8, nBest: 8 });
+    // length (short and long) and the ending were asked and lost: the next normal tests without Trial Reels are the newcomers
+    const decisions = [lost("n0.length.standard.short", "length", "standard", "short"), lost("n1.length.standard.long", "length", "standard", "long"), lost("n2.ending.resolved.cliffhanger", "ending", "resolved", "cliffhanger")];
+    const formatOf = (id: string) => CATALOG.find((t) => t.id === id)!.format;
+    const worlds = [
+      { seed: 5, perDay: 3 },
+      { seed: 5, perDay: 5 },
+      { seed: 7, perDay: 3, start: Date.parse("2026-12-03T09:00:00Z") },
+    ];
+    for (const w of worlds) {
+      const name = JSON.stringify(w);
+      const r = runWorld({ ...w, channels: [IG, TT, YT], settings: { ...ON, trialReels: false }, effect: () => 0, days: 40, decisions });
+      const window = r.plans.filter((p) => p.test?.questions[0].dial === "newcomer");
+      const subjects = [...new Set(window.map((p) => p.test!.questions[0].subject ?? ""))];
+      expect(subjects, name).toEqual(["get-out-journey", "smash-spiral-glass"]);
+      for (const subject of subjects) {
+        const plans = window.filter((p) => p.test!.questions[0].subject === subject);
+        const test = plans[0].test!;
+        const slots = plans.flatMap((p) => p.slots);
+        expect(slots.some((s) => s.capsRelaxed), `${name} ${subject}`).toBe(false);
+        // 1 clip in 5 tests the newcomer, 2 per test clip are the rotation it is compared with (1 where the rotation has one
+        // template: Smash beside Spiral Glass), the rest keep the best settings and count for no test
+        const tests = slots.filter((s) => s.membership?.id === test.id && s.role === "test");
+        const rotation = slots.filter((s) => s.membership?.id === test.id && s.role === "best");
+        const perTest = subject === "get-out-journey" ? 2 : 1;
+        expect(tests.length, `${name} ${subject}`).toBeLessThanOrEqual(slots.length / 5 + 1);
+        expect(tests.length, `${name} ${subject}`).toBeGreaterThanOrEqual(slots.length / 5 - 2);
+        expect(Math.abs(rotation.length - perTest * tests.length), `${name} ${subject}`).toBeLessThanOrEqual(2); // a clip the caps refused went out with the best settings
+        expect(tests.every((s) => s.options.template === subject)).toBe(true);
+        expect(rotation.every((s) => formatOf(s.options.template) === formatOf(subject) && s.options.template !== subject)).toBe(true);
+        const rest = slots.filter((s) => !s.membership);
+        expect(rest.length).toBe(slots.length - tests.length - rotation.length);
+        expect(rest.every((s) => s.role === "best")).toBe(true);
+        expect(new Set(rest.map((s) => formatOf(s.options.template))).size, `${name} ${subject}`).toBeGreaterThanOrEqual(3);
+        // Shorts: the best settings only, never a test's arm, and every format
+        const shorts = slots.filter((s) => s.channels.some((c) => c.id === "yt1"));
+        expect(shorts.length).toBeGreaterThan(0);
+        expect(shorts.every((s) => !s.membership)).toBe(true);
+        expect(new Set(shorts.map((s) => formatOf(s.options.template))).size, `${name} ${subject}`).toBeGreaterThanOrEqual(3);
+        // the test still reads: 8 test clips against at least 8 of its rotation
+        const verdicts = r.decisions.filter((d) => d.testId === test.id);
+        expect(verdicts.length, `${name} ${subject}`).toBe(1);
+        expect(verdicts[0].nBest, `${name} ${subject}`).toBeGreaterThanOrEqual(8);
+      }
+      // the caps on every channel, pick by pick, over the 7 days before each pass
+      let checked = 0;
+      for (const plan of window) {
+        const now = Date.parse(`${plan.date}T09:00:00Z`);
+        for (const ch of ["ig1", "tt1", "yt1"]) {
+          const week = r.posts.filter((p) => p.channelId === ch && Date.parse(p.approvedAt) >= now - 7 * DAY && Date.parse(p.approvedAt) < now).sort((a, b) => Date.parse(a.approvedAt) - Date.parse(b.approvedAt)).map((p) => p.facts.template!);
+          for (const slot of plan.slots.filter((s) => s.channels.some((c) => c.id === ch))) {
+            const id = slot.options.template;
+            expect(id, `${name} ${ch} ${plan.date}`).not.toBe(week[week.length - 1]);
+            if (week.length >= 5) {
+              expect((week.filter((t) => t === id).length + 1) / (week.length + 1), `${name} ${ch} ${plan.date} ${id}`).toBeLessThanOrEqual(TEMPLATE_SHARE_MAX + 1e-9);
+              checked++;
+            }
+            week.push(id);
+          }
+        }
+      }
+      expect(checked, name).toBeGreaterThan(150);
+    }
+  });
+
   it("a fixed dial is never tested, and the owner's skip takes a question out", () => {
     const fixed = runWorld({ seed: 61, settings: { ...ON, trialReels: false, fixed: { length: "short" } }, effect: () => 0, days: 2 });
     expect(fixed.plans[0].best.length).toBe("short");
@@ -673,6 +742,21 @@ describe("the day's slots", () => {
     expect(plan.feasibilityNeeded.length).toBeGreaterThan(0);
     expect(plan.slots.every((s) => s.role === "best")).toBe(true);
     expect(dayOfDate(plan.date)).toBe(Math.floor(input.now / DAY));
+  });
+});
+
+describe("the app's main process", () => {
+  it("bundles learner.ts with none of the page: only the learner's own pure modules (the decision log's shapes live here)", async () => {
+    const esbuild = await import("esbuild");
+    const root = path.join(__dirname, "..");
+    // the main process's own settings (desktop/scripts/build.mjs)
+    const result = await esbuild.build({ entryPoints: [path.join(root, "src/lib/insights/learner.ts")], bundle: true, write: false, platform: "node", target: "node22", format: "esm", alias: { "@": path.join(root, "src") }, metafile: true, logLevel: "error" });
+    const inputs = Object.keys(result.metafile.inputs).map((f) => path.relative(root, path.resolve(root, f)).split(path.sep).join("/"));
+    expect(inputs).toContain("src/lib/insights/learner.ts");
+    expect(inputs).toContain("src/lib/insights/feasibility.ts");
+    expect(inputs.filter((f) => !f.startsWith("src/lib/insights/"))).toEqual([]);
+    expect(inputs).not.toContain("src/lib/insights/feasibilityPlanner.ts");
+    expect(inputs).not.toContain("src/lib/insights/score.ts");
   });
 });
 

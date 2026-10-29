@@ -8,6 +8,7 @@ import {
   DROP_GAP,
   DROP_GAP_Z,
   DROP_MIN_ATTEMPTS,
+  NEWCOMER_ROTATION_CLIPS,
   NEWCOMER_TEST_EVERY,
   NORMAL_BEST_MIN,
   NORMAL_TEST_CLIPS,
@@ -43,22 +44,25 @@ import type { LearnerSettings } from "./learnerSettings";
  * today's default followed by the log's kept, went-back and undone entries.
  *
  * The normal lane makes one change at a time: every dial at its best and exactly one different on a test clip, 1 clip in 3
- * (1 in 5 for a newcomer or format test without Trial Reels), one test or check at a time, Instagram normal Reels and public
- * TikTok pooled, each clip scored against its own channels' usual (the mean of its channel posts). It looks once, after 8
- * scored test clips against at least 8 best clips of the same window: d = mean(test) - mean(best), SE^2 = the pooled variance
- * x (1/n_test + 1/n_best), shrunk with the prior sd PRIOR_SD (w = (1/SE^2) / (1/SE^2 + 1/PRIOR_SD^2), m = w d,
- * sd = sqrt(1 / (1/SE^2 + 1/PRIOR_SD^2))), kept when Phi(m/sd) >= KEEP_P and e^m >= KEEP_RATIO. A newcomer joins unless its
- * format's rotation beats it with KEEP_P and KEEP_RATIO. The trial lane runs the lab's blocks (lib/insights/lab.ts).
+ * (1 in 5 for a newcomer or format test without Trial Reels), one test or check at a time (a newcomer test's best arm, its
+ * format's rotation, goes on NEWCOMER_ROTATION_CLIPS clips per test clip only; the rest keep the best settings), Instagram
+ * normal Reels and public TikTok pooled, each clip scored against its own channels' usual (the mean of its channel posts).
+ * It looks once, after 8 scored test clips against at least 8 best clips of the same window: d = mean(test) - mean(best),
+ * SE^2 = the pooled variance x (1/n_test + 1/n_best), shrunk with the prior sd PRIOR_SD
+ * (w = (1/SE^2) / (1/SE^2 + 1/PRIOR_SD^2), m = w d, sd = sqrt(1 / (1/SE^2 + 1/PRIOR_SD^2))), kept when Phi(m/sd) >= KEEP_P
+ * and e^m >= KEEP_RATIO. A newcomer joins unless its format's rotation beats it with KEEP_P and KEEP_RATIO. The trial lane
+ * runs the lab's blocks (lib/insights/lab.ts).
  *
  * After any kept change the combined check runs on the next CHECK_POSTS normal posts: CHECK_OLD keep the old combination
  * (every change of that test or block undone together), the rest the new one, in a seeded order; the old one ahead with
  * CHECK_BACK_P sends every change back together ("wentBack"), else they hold ("held"). A losing question rests REST_DAYS
  * (REST_TWICE_DAYS after two losses in a row); Undo locks it.
  *
- * Who sees what (lanes per channel): a trial arm goes only to its Instagram channel as a Trial Reel; a test clip or a check's
- * old clip only to the scored channels (Instagram normal Reels and TikTok) whose usual is ready; YouTube Shorts gets best
- * clips only, never long. Free (watermarked) clips, TikTok posts set to Only me, clips whose rendered facts left their arm
- * (offPlan), posts outside their test's window and Trial Reels shared before their read never count.
+ * Who sees what (lanes per channel): a trial arm goes only to its Instagram channel as a Trial Reel; a test clip, a check's
+ * old clip or a newcomer test's rotation clip only to the scored channels (Instagram normal Reels and TikTok) whose usual is
+ * ready; YouTube Shorts gets the best settings only, never long. Free (watermarked) clips, TikTok posts set to Only me, clips
+ * whose rendered facts left their arm (offPlan), posts outside their test's window and Trial Reels shared before their read
+ * never count.
  *
  * Variety caps, always on: at most TEMPLATE_SHARE_MAX of a channel's posts in VARIETY_DAYS from one template, never one
  * template twice in a row on a channel, at least VARIETY_MIN_TEMPLATES templates when that many are ready, modes rotating by
@@ -68,6 +72,10 @@ import type { LearnerSettings } from "./learnerSettings";
  * seededDraws(hashText(date|test|slot)) only, every input sorted before use but the decision log, which is replayed in the
  * order it was written, so the same inputs give the same PassPlan. With no numbers, without Pro, with learning off or paused,
  * learnPass returns null and today's code path runs unchanged. Imported by nothing until the plan's L2.
+ *
+ * It loads types only from the page, and values only from the learner's own pure modules (learnerRules, stats, dials, lab,
+ * feasibility), so the app's main process can bundle it for the decision log's shapes (VERDICTS, SLOT_ROLES, parseTestId);
+ * tests/insightsLearner.test.ts bundles it as the main process does. The page's planner port is feasibilityPlanner.ts.
  */
 
 // --- learner ---
@@ -176,7 +184,7 @@ export interface LearnerInput {
   /** The decision log in the order it was written, oldest first (the store appends): replayed as given, never by its times. */
   decisions: readonly LearnerDecision[];
   channels: readonly LearnerChannel[];
-  /** The ready templates (lib/insights/feasibility.ts learnerCatalog). */
+  /** The ready templates (lib/insights/feasibilityPlanner.ts learnerCatalog). */
   catalog: readonly LearnerTemplate[];
   /** Normal clips a day (the autopilot's posts a day). */
   perDay: number;
@@ -479,13 +487,14 @@ const scoredFamily = (platform: string) => {
 
 /**
  * The channels a slot's clip goes to, each with its lane. A trial reel: only its Instagram channel, as a Trial Reel. A test
- * clip or a check's old clip: only the scored channels whose usual is ready. A best clip or a check's new clip: every channel
- * that takes its bucket (never long on YouTube Shorts), as a normal post.
+ * clip, a check's old clip or a newcomer test's rotation clip (its best arm, which is not the best settings): only the scored
+ * channels whose usual is ready. A best clip or a check's new clip: every channel that takes its bucket (never long on YouTube
+ * Shorts), as a normal post.
  */
 export function channelsFor(role: SlotRole, arm: string | null, bucket: LengthBucket, channels: readonly LearnerChannel[], ctx: { trialChannel: string | null; usualReady: ReadonlySet<string> }): { id: string; lane: InsightLane }[] {
   if (role === "trialA" || role === "trialB") return ctx.trialChannel ? [{ id: ctx.trialChannel, lane: "trialReel" }] : [];
   const sorted = [...channels].sort((a, b) => byString(a.id, b.id));
-  if (role === "test" || (role === "check" && arm === "old")) return sorted.filter((c) => scoredFamily(c.platform) && ctx.usualReady.has(c.id)).map((c) => ({ id: c.id, lane: "normal" as const }));
+  if (role === "test" || (role === "check" && arm === "old") || (role === "best" && arm === "rotation")) return sorted.filter((c) => scoredFamily(c.platform) && ctx.usualReady.has(c.id)).map((c) => ({ id: c.id, lane: "normal" as const }));
   return sorted.filter((c) => !(platformFamily(c.platform) === "youtube" && bucket === "long")).map((c) => ({ id: c.id, lane: "normal" as const }));
 }
 
@@ -934,8 +943,11 @@ class Variety {
     }
     return true;
   }
-  /** The first candidate from `start` (the date's place in the rotation) the caps allow, `avoid` only when nothing else is left. */
-  choose(cands: readonly LearnerTemplate[], channels: readonly string[], start: number, avoid: string | null): { id: string; relaxed: boolean } {
+  /**
+   * The first candidate from `start` (the date's place in the rotation) the caps allow, `avoid` only when nothing else is left;
+   * relaxed when the caps allow none. Nothing is recorded (`record`).
+   */
+  peek(cands: readonly LearnerTemplate[], channels: readonly string[], start: number, avoid: string | null): { id: string; relaxed: boolean } {
     const n = cands.length;
     const order = Array.from({ length: n }, (_, i) => cands[(start + i) % n].id);
     const pickFrom = (list: readonly string[]) => list.find((id) => this.ok(id, channels, true, n)) ?? null;
@@ -946,8 +958,17 @@ class Variety {
       relaxed = true;
       id = preferred.find((x) => this.ok(x, channels, false, n)) ?? preferred[0];
     }
-    for (const c of channels) this.hist.set(c, [...(this.hist.get(c) ?? []), id]);
     return { id, relaxed };
+  }
+  /** A template posted next on these channels. */
+  record(id: string, channels: readonly string[]): void {
+    for (const c of channels) this.hist.set(c, [...(this.hist.get(c) ?? []), id]);
+  }
+  /** `peek`, then `record` its pick. */
+  choose(cands: readonly LearnerTemplate[], channels: readonly string[], start: number, avoid: string | null): { id: string; relaxed: boolean } {
+    const pick = this.peek(cands, channels, start, avoid);
+    this.record(pick.id, channels);
+    return pick;
   }
 }
 
@@ -1119,11 +1140,23 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   // the day's test slots: as many as 1 clip in `every` gives today (counted over the days, so a week stays within one of it),
   // at places drawn per date (hash(date|test|slots)), so the test clip is not the same slot of the day every day
   const testPlaces = new Set<number>();
+  // a newcomer test's best arm is its format's rotation, not the best settings: only NEWCOMER_ROTATION_CLIPS clips per test
+  // clip take it (the test's best clips), drawn with the test's; the day's other clips keep the best settings and count for
+  // no test, so the whole lane is not locked to one format and the variety caps hold
+  const rotationPlaces = new Set<number>();
+  const newcomerTest = normalTest?.kind === "normal" && normalTest.questions[0].dial === "newcomer";
   if (normalTest?.kind === "normal" && usualReady.size > 0) {
     const phase = hashText(normalTest.id) % every;
-    const count = Array.from({ length: perDay }, (_, j) => j).filter((j) => (today * perDay + j + phase) % every === 0).length;
-    const places = shuffled(Array.from({ length: perDay }, (_, j) => j), seededDraws(hashText(`${input.date}|${normalTest.id}|slots`)));
+    // one per test clip when the rotation has a single template (Smash's, beside Spiral Glass), so it alone never passes the cap
+    const rotationTemplates = newcomerTest ? candidatesFor(settingOf(base, normalTest.questions, [0], catalog), catalog, bests.joined).length : 0;
+    const rotations = newcomerTest ? Math.max(1, Math.min(NEWCOMER_ROTATION_CLIPS, every - 2, rotationTemplates)) : 0;
+    const placeInRun = (j: number) => (today * perDay + j + phase) % every;
+    const day = Array.from({ length: perDay }, (_, j) => j);
+    const count = day.filter((j) => placeInRun(j) === 0).length;
+    const rotationCount = day.filter((j) => placeInRun(j) >= 1 && placeInRun(j) <= rotations).length;
+    const places = shuffled(day, seededDraws(hashText(`${input.date}|${normalTest.id}|slots`)));
     for (const j of places.slice(0, count)) testPlaces.add(j);
+    for (const j of places.slice(count, count + rotationCount)) rotationPlaces.add(j);
   }
   // the day's windows for "spread", from the date alone (never from a slot's role)
   const spread = spreadWindows(today, input.quiet);
@@ -1140,7 +1173,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
       if (arm === "old") setting = settingOf(base, checkKept.map((q) => ({ ...q })), checkKept.map(() => 0), catalog);
       if (arm === "old" && checkKept.some((q) => q.dial === "postTime")) windowArm = checkKept.find((q) => q.dial === "postTime")!.best;
       membership = { id: normalTest.id, arm, role };
-    } else if (normalTest?.kind === "normal") {
+    } else if (normalTest?.kind === "normal" && (!newcomerTest || testPlaces.has(j) || rotationPlaces.has(j))) {
       const q = normalTest.questions[0];
       const isTest = testPlaces.has(j);
       role = isTest ? "test" : "best";
@@ -1152,12 +1185,26 @@ export function learnPass(input: LearnerInput): PassPlan | null {
     // the ending: a test's or the best's, else, while the ending is untested, 1 normal clip in CLIFF_EVERY a cliffhanger, drawn
     // apart from the test slots so both arms of a test get the same share
     const cliff = seededDraws(hashText(`${input.date}|cliff|${j}`))() < 1 / CLIFF_EVERY;
-    if (!endingTested && cliff && candidatesFor({ ...setting, ending: "cliffhanger" }, catalog, bests.joined).length) setting = { ...setting, ending: "cliffhanger" };
-    const chs = channelsFor(role, arm, setting.bucket, channels, { trialChannel, usualReady });
-    let cands = candidatesFor(setting, catalog, bests.joined);
-    if (!cands.length && role === "best") cands = candidatesFor({ ...setting, ending: base.ending }, catalog, bests.joined);
-    if (!cands.length || !chs.length) continue;
-    const pick = variety.choose(cands, chs.map((c) => c.id), today + j, null);
+    const place = (r: SlotRole, a: string | null, s: ArmSetting) => {
+      const set = !endingTested && cliff && candidatesFor({ ...s, ending: "cliffhanger" }, catalog, bests.joined).length ? { ...s, ending: "cliffhanger" as const } : s;
+      const chs = channelsFor(r, a, set.bucket, channels, { trialChannel, usualReady });
+      let cands = candidatesFor(set, catalog, bests.joined);
+      if (!cands.length && r === "best") cands = candidatesFor({ ...set, ending: base.ending }, catalog, bests.joined);
+      return cands.length && chs.length ? { setting: set, chs, pick: variety.peek(cands, chs.map((c) => c.id), today + j, null) } : null;
+    };
+    let placed = place(role, arm, setting);
+    // a newcomer test's arms have one or two templates each: a clip of one that the caps refuse today (the same template twice in
+    // a row on a channel, or over its share) keeps the best settings instead and counts for no test, so the caps always hold
+    if (newcomerTest && membership && (!placed || placed.pick.relaxed)) {
+      role = "best";
+      arm = null;
+      membership = null;
+      placed = place(role, arm, { ...base });
+    }
+    if (!placed) continue;
+    setting = placed.setting;
+    const { chs, pick } = placed;
+    variety.record(pick.id, chs.map((c) => c.id));
     const w = windowOf(windowArm, j, spread);
     const testId = membership?.id ?? null;
     slots.push({

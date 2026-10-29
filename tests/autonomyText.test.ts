@@ -41,6 +41,12 @@ describe("the text gate: words nobody reads", () => {
     for (const text of ["Full video at jumpingballslive.com", "https://example.org/clip", "Try it: www.balls.pl", "write to hi@balls.com", "more on youtu.be/abc"]) expect(keysOf(ig(text)), text).toContain("link");
   });
 
+  it("refuses a bare host before a path, and the link shorteners' domains", () => {
+    for (const text of ["More on linktr.ee/jumpingballs", "Try it: goo.gl/abc123", "Clip: is.gd/x1", "lnkd.in/abc", "see balls.anything/clip", "linktr.ee", "goo.gl"]) expect(keysOf(ig(text)), text).toContain("link");
+    // a decimal, a ratio, an abbreviation and an ellipsis are no address
+    for (const text of ["1.5x faster, 20 rings", "1/20 escapes", "Red, i.e. the first one.", "Wait for it... Red!"]) expect(keysOf(ig(text)), text).not.toContain("link");
+  });
+
   it("refuses @ names", () => {
     expect(keysOf(ig("Made with @someone"))).toContain("mention");
     expect(keysOf(ig("@ballfan look at this"))).toContain("mention");
@@ -61,6 +67,39 @@ describe("the text gate: words nobody reads", () => {
       ["Dale like si te gusta", "es"],
     ];
     for (const [text, language] of bait) expect(keysOf(ig(text), language), text).toContain("bait");
+  });
+
+  it("refuses bait with a few words between the ask and its condition, and the asks to send, leave or let know", () => {
+    const bait: [string, TextLanguage][] = [
+      ["Comment RED if you called it 🔴", "en"],
+      ["Comment the colour you picked below", "en"],
+      ["Drop a 🔴 if you think Red escapes first", "en"],
+      ["Drop your guess below", "en"],
+      ["Send this to a friend who needs it", "en"],
+      ["Send it to your best friend", "en"],
+      ["Leave a comment with your pick", "en"],
+      ["Let me know who wins", "en"],
+      ["Daj znać w komentarzu, czy Red ucieknie", "pl"],
+      ["Zostaw komentarz, jeśli zgadłeś", "pl"],
+      ["Dajcie znać, która ucieknie", "pl"],
+      ["Wyślij to znajomemu", "pl"],
+      ["Napisz poniżej, która wygra", "pl"],
+      ["Deja tu comentario si acertaste", "es"],
+      ["Déjame saber quién gana", "es"],
+      ["Dime qué bola gana", "es"],
+      ["Envía esto a un amigo", "es"],
+      ["Escríbelo en un comentario", "es"],
+    ];
+    for (const [text, language] of bait) expect(keysOf(ig(text), language), text).toContain("bait");
+    // the same verbs in a plain sentence are no ask
+    const plain: [string, TextLanguage][] = [
+      ["Balls drop if the floor opens", "en"],
+      ["The paddle sends it flying to the top", "en"],
+      ["Watch the balls drop one by one.", "en"],
+      ["Kulki spadają, gdy podłoga się otwiera.", "pl"],
+      ["La bola cae cuando el suelo se abre.", "es"],
+    ];
+    for (const [text, language] of plain) expect(keysOf(ig(text), language), text).not.toContain("bait");
   });
 
   it("refuses the claims docs/ADS.md bans: viral in any language, growth, earnings, best, number one, official", () => {
@@ -84,6 +123,23 @@ describe("the text gate: words nobody reads", () => {
       ["Oficjalny wyścig kulek", "pl"],
     ];
     for (const [text, language] of claims) expect(keysOf(ig(text), language), text).toContain("claim");
+  });
+
+  it("refuses odds and sizes no clip holds, which the number reader does not read", () => {
+    const claims: [string, TextLanguage][] = [
+      ["1 in a billion shot", "en"],
+      ["One in a million escape", "en"],
+      ["A billion bounces", "en"],
+      ["Trillions of balls", "en"],
+      ["Jeden na milion", "pl"],
+      ["Miliard odbić", "pl"],
+      ["Uno en un millón", "es"],
+      ["Mil millones de rebotes", "es"],
+      ["Un billón de bolas", "es"],
+    ];
+    for (const [text, language] of claims) expect(keysOf(ig(text), language), text).toContain("claim");
+    // a count the clip holds is no claim
+    expect(keysOf(ig("20 rings and one ball"))).not.toContain("claim");
   });
 
   it("refuses franchise, fighter and other creators' names", () => {

@@ -33,10 +33,10 @@ import { textProblems, type TextFacts, type TextLanguage, type TextProblem } fro
  *    size), rendered sealed (never free or sealedTest), never the battle family; words that pass the text gate
  *    (lib/desktop/autonomyText.ts); and the card's own rules for the request it builds itself.
  *  - Just in time: a post is created only when its time is 60 to 90 minutes away by Postiz's clock, picked just before each
- *    create attempt (scheduleFor), inside the slot's window, outside quiet hours, never after the licence's end, 20 minutes from
- *    every other post on the account on both sides, 2 hours from the other reel of a Trial Reel pair, within the day's cap
- *    over the local day and any 24 hours (counting every post on the account, whoever made it), and never the same video
- *    twice on an account.
+ *    create attempt (scheduleFor), inside the slot's window, outside quiet hours, strictly before the licence's end, 20
+ *    minutes from every other post on the account on both sides, 2 hours from the other reel of a Trial Reel pair, within
+ *    the day's cap over the local day and any 24 hours (counting every post on the account, whoever made it), and never the
+ *    same video twice on an account.
  *  - It pauses itself, and says why: on any failed post of its own, on any warning from the platform about a consented
  *    account (48 hours before Resume or a new consent, kept apart from the consent so Off does not end it, a warning from
  *    before the consent or the last Resume counted too, and its own still-scheduled posts on that account removed unless the
@@ -235,6 +235,17 @@ export function sanitizeAccount(raw: unknown): AutonomyAccount | null {
   return { channelId, platform, profile, perDay, trialPairs, youtube };
 }
 
+/**
+ * The Postiz workspace a consent is bound to: its address and its organisation id, both known (a key that moves to another
+ * workspace pauses). One rule for both sides: the consent screen refuses Turn on without it ("workspaceUnknown"), and a
+ * stored consent without it loads as none.
+ */
+export function consentWorkspace(postiz: { baseUrl?: unknown; organizationId?: unknown }): AutonomyConsent["postiz"] | null {
+  const baseUrl = boundedString(postiz.baseUrl, 500);
+  const organizationId = boundedString(postiz.organizationId, 511);
+  return baseUrl && organizationId ? { baseUrl, organizationId } : null;
+}
+
 /** A stored consent, or null: no date, no version, no workspace, or no valid account is no consent. */
 export function sanitizeConsent(raw: unknown): AutonomyConsent | null {
   if (!isObj(raw)) return null;
@@ -243,9 +254,9 @@ export function sanitizeConsent(raw: unknown): AutonomyConsent | null {
   const appVersion = boundedString(own(raw, "appVersion"), 40);
   const postiz = own(raw, "postiz");
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || !at || !appVersion || !/^\d+\.\d+\.\d+/.test(appVersion) || !isObj(postiz)) return null;
-  const baseUrl = boundedString(own(postiz, "baseUrl"), 500);
-  const organizationId = boundedString(own(postiz, "organizationId"), 511);
-  if (!baseUrl || !organizationId) return null;
+  const workspace = consentWorkspace({ baseUrl: own(postiz, "baseUrl"), organizationId: own(postiz, "organizationId") });
+  if (!workspace) return null;
+  const { baseUrl, organizationId } = workspace;
   const rawAccounts = own(raw, "accounts");
   const accounts: AutonomyAccount[] = [];
   if (Array.isArray(rawAccounts)) {
@@ -901,8 +912,8 @@ function siblingTime(item: AutonomyItem, ctx: AutonomyContext, posts: readonly A
 /**
  * The time an item goes out, picked just before each create attempt (the 429 retry included): its planned time when that is
  * at least 60 minutes away by Postiz's clock and fits; else the earliest minute at least 60 minutes away inside the slot's
- * window that fits (outside quiet hours, the spacing on both sides, the day's caps, 2 hours from its pair), never after the
- * licence's end. "at": create it now (the time is 60 to 90 minutes away); "later": a time fits but is more than 90 minutes
+ * window that fits (outside quiet hours, the spacing on both sides, the day's caps, 2 hours from its pair), strictly before
+ * the licence's end. "at": create it now (the time is 60 to 90 minutes away); "later": a time fits but is more than 90 minutes
  * away; "none": nothing fits any more ("Missed its time"), with what stopped the first time it tried.
  */
 export function scheduleFor(item: AutonomyItem, state: AutonomyState, ctx: AutonomyContext, postizNow: number, posts: readonly AccountPost[] = ctx.posts): Schedule {
@@ -912,24 +923,27 @@ export function scheduleFor(item: AutonomyItem, state: AutonomyState, ctx: Auton
   const from = item.pass?.window ? ms(item.pass.window.from) : planned;
   const windowTo = item.pass?.window ? ms(item.pass.window.to) : planned;
   const licenceEnd = ctx.licence?.expiresAt ? ms(ctx.licence.expiresAt) : Infinity;
-  const to = Math.min(windowTo, licenceEnd);
+  // The window's end is a time a post may take; the licence's end is not: at that very moment Pro has ended (pauseCheck,
+  // resumeProblems and consentProblems all count expiresAt <= now as ended), so a post's time stays strictly before it.
+  const inside = (at: number) => at >= from && at <= windowTo && at < licenceEnd;
   const earliest = Math.ceil((postizNow + AUTONOMY_LEAD_MS) / MINUTE_MS) * MINUTE_MS;
   const sibling = siblingTime(item, ctx, posts);
   const verdict = (at: number): Schedule => (at - postizNow <= AUTONOMY_MAX_LEAD_MS ? { kind: "at", at } : { kind: "later", at });
   let first: ScheduleBlock | null = null;
-  if (planned >= earliest && planned >= from && planned <= to) {
+  if (planned >= earliest && inside(planned)) {
     const block = blockAt(planned, item, consent, ctx, posts, sibling);
     if (!block) return verdict(planned);
     first = block;
   }
   const start = Math.max(earliest, Math.ceil(from / MINUTE_MS) * MINUTE_MS);
-  for (let at = start; at <= to && at <= start + DAY_MS; at += MINUTE_MS) {
+  for (let at = start; inside(at) && at <= start + DAY_MS; at += MINUTE_MS) {
     const block = blockAt(at, item, consent, ctx, posts, sibling);
     if (!block) return verdict(at);
     if (first === null) first = block;
   }
   if (first !== null) return { kind: "none", reason: first };
-  return { kind: "none", reason: licenceEnd < windowTo && start <= windowTo ? "licenceEnd" : "window" };
+  // nothing was tried: the window had passed, or the licence ends before its first minute that is an hour away
+  return { kind: "none", reason: start <= windowTo && start >= licenceEnd ? "licenceEnd" : "window" };
 }
 
 /* ------------------------------------------------------------------ pausing and the whole approver */
@@ -1207,15 +1221,24 @@ export interface ConsentDraft {
 }
 
 /** What the consent screen checks a draft against: the main process's context, and the stored block's account-health cooldown (cooldownOf). */
-export type ConsentScreenContext = Pick<AutonomyContext, "now" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomyState, "cooldown">;
+export type ConsentScreenContext = Pick<AutonomyContext, "now" | "appVersion" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomyState, "cooldown">;
 
-/** Why Turn on stays disabled (empty: it may turn on). A warning's 48 hours outlive Off, so a new consent waits them out. */
-export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ("cooldown" | "pro" | "testMode" | "noKey" | "learningOff" | "noAccount" | "accountNotAllowed" | "accountGone" | "accountDisabled" | "youtubeChoices" | "perDay" | "trialPairs" | "notUnderstood")[] {
+/** A value as JSON with its keys sorted, so two records compare by content alone. */
+const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => (isObj(x) ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]])) : x));
+
+/**
+ * Why Turn on stays disabled (empty: it may turn on). A warning's 48 hours outlive Off, so a new consent waits them out. The
+ * record makeConsent writes must be the one the next load reads back (sanitizeAutonomy), or the switch would turn Off with no
+ * reason said: a workspace Postiz did not name ("workspaceUnknown") or anything else the stored block cannot hold
+ * ("notRecordable") keeps it off.
+ */
+export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ("cooldown" | "pro" | "testMode" | "noKey" | "workspaceUnknown" | "learningOff" | "noAccount" | "accountNotAllowed" | "accountGone" | "accountDisabled" | "youtubeChoices" | "perDay" | "trialPairs" | "notUnderstood" | "notRecordable")[] {
   const out: ReturnType<typeof consentProblems> = [];
   if (ctx.cooldown && ms(ctx.cooldown.until) > ctx.now) out.push("cooldown");
   if (!ctx.realKey || ctx.licence?.testMode) out.push("testMode");
   if (!ctx.licence || !ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now)) out.push("pro");
   if (!ctx.postiz.configured) out.push("noKey");
+  else if (!consentWorkspace(ctx.postiz)) out.push("workspaceUnknown");
   if (!ctx.learner.learn) out.push("learningOff");
   if (draft.accounts.length === 0) out.push("noAccount");
   for (const a of draft.accounts) {
@@ -1228,6 +1251,10 @@ export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext):
     if (!Number.isInteger(a.trialPairs) || a.trialPairs < 0 || a.trialPairs > AUTONOMY_TRIAL_PAIRS_MAX || (a.trialPairs > 0 && familyOf(a.platform) !== "instagram")) out.push("trialPairs");
   }
   if (!draft.understood) out.push("notUnderstood");
+  if (!out.length) {
+    const made = makeConsent(draft, ctx);
+    if (!made || canonical(sanitizeConsent(JSON.parse(JSON.stringify(made)))) !== canonical(made)) out.push("notRecordable");
+  }
   return [...new Set(out)];
 }
 
@@ -1239,13 +1266,18 @@ export function tickableChannels(channels: readonly AutonomyLiveChannel[]): { ti
   return { tickable, waits };
 }
 
-/** The consent record of a draft the owner turned on (consentProblems was empty), with each account's profile as Postiz has it. */
-export function makeConsent(draft: ConsentDraft, ctx: Pick<AutonomyContext, "now" | "appVersion" | "postiz">): AutonomyConsent {
+/**
+ * The consent record of a draft the owner turned on (consentProblems was empty), with each account's profile as Postiz has it.
+ * Null without a known workspace (consentWorkspace): no record is made that the next load would drop.
+ */
+export function makeConsent(draft: ConsentDraft, ctx: Pick<AutonomyContext, "now" | "appVersion" | "postiz">): AutonomyConsent | null {
+  const workspace = consentWorkspace(ctx.postiz);
+  if (!workspace) return null;
   return {
     version: AUTONOMY_CONSENT_VERSION,
     at: new Date(ctx.now).toISOString(),
     appVersion: ctx.appVersion,
-    postiz: { baseUrl: ctx.postiz.baseUrl, organizationId: ctx.postiz.organizationId ?? "" },
+    postiz: workspace,
     accounts: draft.accounts.map((a) => ({ ...a, profile: ctx.postiz.channels.find((l) => l.id === a.channelId)?.profile ?? "", youtube: a.platform === "youtube" ? a.youtube : null, trialPairs: familyOf(a.platform) === "instagram" ? a.trialPairs : 0 })),
     practise: draft.practise,
   };

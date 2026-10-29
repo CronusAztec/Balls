@@ -5,11 +5,13 @@
  *
  * What it refuses, in the title and the text of every channel, in English, Polish and Spanish alike (a Spanish bait line in
  * an English caption is still bait):
- *  - a link or a web address, an e-mail address included;
+ *  - a link or a web address, an e-mail address included, and a bare host before a path ("linktr.ee/x", "goo.gl/x");
  *  - an @ name (no other account is named or tagged);
- *  - engagement bait: asking to follow, like, comment, share, tag, subscribe, save or turn on notifications, "link in bio";
+ *  - engagement bait: asking to follow, like, comment, share, send, tag, subscribe, save or turn on notifications, "link in
+ *    bio", "let me know", with a few words between the ask and its condition too ("Comment RED if you called it");
  *  - the claims docs/ADS.md section 2 bans: "viral" in any language, guaranteed views, followers, reach or growth, earnings,
- *    "best", "number one", "#1", "ultimate", "unlimited", "official" or "endorsed", PayPal;
+ *    "best", "number one", "#1", "ultimate", "unlimited", "official" or "endorsed", PayPal; and odds and sizes no clip holds,
+ *    "1 in a million", "a billion" (the number reader stops at a million, so they are claims, not numbers);
  *  - a franchise, fighter or other creator's name: the franchises ADS.md names, plus the names the caller passes (the Fight
  *    League roster's, other creators' handles);
  *  - a number the clip's own facts do not hold (read with the crew's number reader, src/lib/crew/clip.ts numbersIn, which
@@ -79,15 +81,22 @@ const LETTER_OR_DIGIT = "\\p{L}\\p{N}_";
 const word = (source: string) => new RegExp(`(?<![${LETTER_OR_DIGIT}])(?:${source})(?![${LETTER_OR_DIGIT}])`, "iu");
 const words = (sources: readonly string[]) => sources.map(word);
 
-/** Links and web addresses: a scheme, "www.", or a host with a common top-level domain. */
+/**
+ * Links and web addresses: a scheme, "www.", a host with a common top-level domain or any two-letter one (every country's,
+ * so the link shorteners' "linktr.ee", "goo.gl", "is.gd" and "lnkd.in" too), or any host before a path ("name.anything/x").
+ */
 export const LINK_PATTERNS: readonly RegExp[] = [
   /\b[a-z][a-z0-9+.-]*:\/\//i,
   /(?<![\p{L}\p{N}_])www\./iu,
-  new RegExp(`(?<![${LETTER_OR_DIGIT}.])[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)*\\.(?:com|net|org|io|co|app|gg|tv|me|ly|link|xyz|pl|es|uk|de|fr|it|eu|us|ca|mx|ar|cl|br|be|nl|to|sh|cc|so|fm|info|biz|site|online|store|shop|live|page|dev|ai|top|club|vip|fun|lol|bio)(?![${LETTER_OR_DIGIT}])`, "iu"),
+  new RegExp(`(?<![${LETTER_OR_DIGIT}.])[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)*\\.(?:[a-z]{2}|com|net|org|app|link|xyz|info|biz|site|online|store|shop|live|page|dev|top|club|vip|fun|lol|bio|click|art|blog|social|video|media|news|world|zone|tech|space|website|ink|one|tube)(?![${LETTER_OR_DIGIT}])`, "iu"),
+  new RegExp(`(?<![${LETTER_OR_DIGIT}.])[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}/`, "iu"),
 ];
 
 /** An @ name (an e-mail address is a link instead). */
 export const MENTION_PATTERN = /(?<![\p{L}\p{N}_.@])@[\p{L}\p{N}_.]{1,30}/u;
+
+/** Up to `n` words between an ask and what it asks, inside one sentence ("Comment RED if", "Drop a 🔴 if", "Zostaw komentarz"). */
+const gap = (n: number) => `(?:[^\\s.!?]+\\s+){0,${n}}`;
 
 /** Engagement bait, in the three languages (checked in every text whatever its language). */
 export const BAIT_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> = {
@@ -95,9 +104,15 @@ export const BAIT_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> = 
     "follow (?:me|us|for(?: more)?|to see|along|this account|the account)",
     "like (?:and|&) (?:share|follow|subscribe|comment)",
     "like (?:this|if|for)",
-    "comments? (?:below|down below|your|if|with|which|who|what)",
+    `comments? ${gap(4)}(?:below|down below|your|if|with|which|who|what)`,
     "in the comments",
     "drop a (?:comment|like)",
+    `drop (?:an? |your )${gap(1)}(?:if|below|in the comments)`,
+    "leave (?:a|your) (?:comment|like|heart)",
+    "send (?:this|it) to (?:a |an |your |that |every )?(?:\\p{L}+ )?(?:friends?|someone|somebody|bestie|buddy|mate|person|people)",
+    "send to (?:a|your) friends?",
+    "let (?:me|us) know",
+    "tell (?:me|us) (?:below|in the comments|which|who|what|if)",
     "tag (?:a |your |\\d+ |two |three )?(?:friends?|buddy|someone|bestie)",
     "share (?:this|it) with",
     "share with (?:a|your) friends?",
@@ -116,7 +131,13 @@ export const BAIT_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> = 
     "oznacz (?:znajom\\p{L}*|kogoś|przyjaci\\p{L}*)",
     "skomentuj\\p{L}*",
     "napisz w komentarz\\p{L}*",
+    `napisz\\p{L}* ${gap(2)}(?:komentarz\\p{L}*|pod spodem|niżej|poniżej)`,
     "w komentarzach",
+    "w komentarzu",
+    `zostaw\\p{L}* ${gap(2)}(?:komentarz\\p{L}*|serduszk\\p{L}*|serce|lajk\\p{L}*|like|łapk\\p{L}*)`,
+    "daj\\p{L}* znać",
+    "daj\\p{L}* (?:lajk\\p{L}*|serduszk\\p{L}*|suba|łapk\\p{L}*)",
+    `(?:wyślij|prześlij)\\p{L}* ${gap(2)}(?:znajom\\p{L}*|komuś|przyjaci\\p{L}*|kumpl\\p{L}*)`,
     "link w bio",
     "(?:za)?subskrybuj\\p{L}*",
     "zapisz (?:ten|to|na później)",
@@ -132,6 +153,12 @@ export const BAIT_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> = 
     "coment(?:a|ad|alo|en)",
     "déjalo en los comentarios",
     "en los comentarios",
+    "en (?:el |un |tu )?comentarios?",
+    `d[ée]ja(?:me|nos)? ${gap(2)}(?:comentario|like|me gusta|coraz[oó]n)\\p{L}*`,
+    "(?:d[ée]ja(?:me|nos)|h[áa]z(?:me|nos)) saber",
+    "d(?:ime|inos) (?:en|abajo|si|qu[ée]|qui[ée]n|cu[áa]l|c[óo]mo)",
+    "cu[ée]nta(?:me|nos)",
+    `(?:env[íi]a|m[áa]nda)(?:lo|la|selo|sela|le)? ${gap(2)}a (?:un|una|tu|tus) amig\\p{L}*`,
     "(?:link|enlace) en (?:la |mi )?bio",
     "suscr[íi]be(?:te|nos)",
     "guarda (?:esto|este|el video|el vídeo)",
@@ -166,6 +193,8 @@ export const CLAIM_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> =
       "approved by",
       "sponsored by",
       "paypal",
+      "(?:one|1) in (?:an? |one )?(?:hundred|thousand|million|billion|trillion|zillion|gazillion)",
+      "(?:b|tr|quadr|z|gaz|baj)illions?",
     ]),
     /#1(?!\d)/,
   ],
@@ -189,6 +218,10 @@ export const CLAIM_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> =
     "zatwierdzon\\p{L}* przez",
     "rekomendowan\\p{L}*",
     "popieran\\p{L}*",
+    "(?:jeden|jedna|jedno|raz|1) na (?:sto|tysiąc|milion|miliard|bilion)",
+    "miliard\\p{L}*",
+    "bilion\\p{L}*",
+    "trylion\\p{L}*",
   ]),
   es: words([
     "viraliz\\p{L}*",
@@ -207,6 +240,10 @@ export const CLAIM_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> =
     "respaldad\\p{L}*",
     "avalad\\p{L}*",
     "patrocinad\\p{L}*",
+    "(?:un[oa]?|1) (?:en|entre) (?:un |cien |mil )?(?:cien|mil|mill[oó]n|millones|bill[oó]n)",
+    "mil millones",
+    "bill[oó]n\\p{L}*",
+    "trill[oó]n\\p{L}*",
   ]),
 };
 

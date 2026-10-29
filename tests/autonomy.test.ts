@@ -870,6 +870,30 @@ describe("the time: just in time, picked before each attempt", () => {
     expect(outcomeOf(ends(50))).toMatchObject({ kind: "wait", reasons: ["missedTime"], block: "licenceEnd" });
   });
 
+  it("never takes the licence's end itself, the moment its own rules count Pro as ended", () => {
+    const ends = (minutes: number) => world((x) => (x.ctx.licence = { ...x.ctx.licence!, expiresAt: iso(NOW + minutes * MIN) }));
+    const endedAt = (w: World, at: number) => pauseCheck(w.state, { ...w.ctx, now: at, postizNow: at }).pause?.reason ?? null;
+    // the planned time (+75) is the licence's end, where Pro has ended: not taken, the earliest minute an hour ahead is
+    const atPlanned = ends(75);
+    expect(endedAt(atPlanned, NOW + 75 * MIN)).toBe("proEnded");
+    expect(endedAt(atPlanned, NOW + 75 * MIN - 1)).toBeNull();
+    expect(sched(atPlanned, NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+    expect(outcomeOf(atPlanned)).toMatchObject({ kind: "create", at: NOW + 60 * MIN });
+    // the first minute an hour ahead is the licence's end: nothing fits
+    const atEarliest = ends(60);
+    expect(sched(atEarliest, NOW)).toEqual({ kind: "none", reason: "licenceEnd" });
+    expect(outcomeOf(atEarliest)).toMatchObject({ kind: "wait", reasons: ["missedTime"], block: "licenceEnd" });
+    // a minute later, that minute is before the end and is taken
+    expect(sched(ends(61), NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+    // the search stops before the end too: a person's post at +49 keeps +60 to +68 free of posts, and +69 is the end
+    const spaced = world((x) => {
+      x.ctx.licence = { ...x.ctx.licence!, expiresAt: iso(NOW + 69 * MIN) };
+      x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW + 49 * MIN) })];
+    });
+    expect(sched(spaced, NOW)).toEqual({ kind: "none", reason: "spacing" });
+    expect(sched(ends(70), NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+  });
+
   it("keeps quiet hours", () => {
     // 22:30 local, its window 22:00 to 23:00: all quiet
     const quiet = world((x) => {
@@ -1017,6 +1041,33 @@ describe("the stored block and the consent screen", () => {
     const consent = makeConsent({ accounts: [ig], understood: true, practise: true }, { now: NOW, appVersion: "1.8.0", postiz: ctx.postiz });
     expect(consent).toEqual({ version: AUTONOMY_CONSENT_VERSION, at: iso(NOW), appVersion: "1.8.0", postiz: { baseUrl: "https://api.postiz.com", organizationId: "org-1" }, accounts: [{ ...ig, profile: "jbl.balls" }], practise: true });
     expect(sanitizeAutonomy({ consent }).consent).toEqual(consent);
+  });
+
+  // makeConsent stored an unknown workspace as "", which the loader refuses: Fully autonomous turned Off at the next load,
+  // with no pause reason, no audit line and no notice
+  it("records only a consent the next load reads back: Turn on waits while Postiz has not named the workspace", () => {
+    const ctx = { ...baseCtx(), cooldown: null };
+    const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
+    const draft = { accounts: [ig], understood: true, practise: true };
+    const roundTrip = (consent: ReturnType<typeof makeConsent>) => sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent }))).consent;
+    // the clean case: what is made is what loads
+    expect(consentProblems(draft, ctx)).toEqual([]);
+    const made = makeConsent(draft, ctx);
+    expect(made).not.toBeNull();
+    expect(roundTrip(made)).toEqual(made);
+    // no workspace from Postiz's /me (null or empty), or no address: Turn on waits, and nothing is made
+    for (const postiz of [{ ...ctx.postiz, organizationId: null }, { ...ctx.postiz, organizationId: "" }, { ...ctx.postiz, baseUrl: "" }]) {
+      expect(consentProblems(draft, { ...ctx, postiz }), JSON.stringify(postiz)).toEqual(["workspaceUnknown"]);
+      expect(makeConsent(draft, { ...ctx, postiz })).toBeNull();
+    }
+    // anything else the stored block cannot hold keeps it off too: an account ticked twice, a profile longer than it keeps
+    expect(consentProblems({ ...draft, accounts: [ig, ig] }, ctx)).toEqual(["notRecordable"]);
+    const longName = { ...ctx, postiz: { ...ctx.postiz, channels: ctx.postiz.channels.map((c) => (c.id === "ig-1" ? { ...c, profile: "x".repeat(201) } : c)) } };
+    expect(consentProblems(draft, longName)).toEqual(["notRecordable"]);
+    // once on, a /me answer without the workspace is unknown, not a change: it does not pause; another workspace does
+    const on = world();
+    expect(pauseCheck(on.state, { ...on.ctx, postiz: { ...on.ctx.postiz, organizationId: null } }).pause).toBeNull();
+    expect(pauseCheck(on.state, { ...on.ctx, postiz: { ...on.ctx.postiz, organizationId: "org-2" } }).pause?.reason).toBe("keyChanged");
   });
 
   it("asks again when the scope widens, never when it narrows", () => {
