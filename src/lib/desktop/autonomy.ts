@@ -22,11 +22,13 @@ import { textProblems, type TextFacts, type TextLanguage, type TextProblem } fro
  *    always wait for the person: TikTok asks for a preview and a choice on each post.
  *  - Only the learner's own proposals: stamped in the main process by social.queue.proposePass (origin "learnerPass", the
  *    pass, the role, the test, each channel's lane and a hash), unchanged since (the hash is taken again), not held, not
- *    edited, from the newest pass, at most 24 hours old, made after the consent and the last Resume and after the practice
- *    day, with their test still open and no verdict written since, and no other proposal of the same clip.
+ *    edited, from the newest pass, at most 24 hours old, made after the consent, the last Resume and the last time learning
+ *    was paused, turned off or switched back on, and after the practice day (the clocks' allowed difference counted as practice), with their
+ *    test still open and no verdict written since, and no other proposal of the same clip.
  *  - The lane rules: a Trial Reel has exactly one Instagram channel, a Reel (post_type "post"), is_trial_reel and MANUAL; a
  *    test or check clip goes only to scored channels (Instagram normal Reels; TikTok's part is split off); YouTube takes best
- *    clips only; a best clip carries no trial field.
+ *    clips only; a best clip carries no trial field; a test, check or Trial Reel carries its test or block, a Trial Reel its
+ *    pair; no account is listed twice.
  *  - Only clips the crew kept: a post-stage keep, quick or thorough, with no failed gate, on this very file (its SHA-256 and
  *    size), rendered sealed (never free or sealedTest), never the battle family; words that pass the text gate
  *    (lib/desktop/autonomyText.ts); and the card's own rules for the request it builds itself.
@@ -36,10 +38,12 @@ import { textProblems, type TextFacts, type TextLanguage, type TextProblem } fro
  *    over the local day and any 24 hours (counting every post on the account, whoever made it), and never the same video
  *    twice on an account.
  *  - It pauses itself, and says why: on any failed post of its own, on any warning from the platform about a consented
- *    account (48 hours before Resume, and its own still-scheduled posts on that account removed unless the owner chose "only
- *    tell me"), on an error text Postiz's table does not know (lib/desktop/postizErrors.ts, fail closed), on one of its posts
- *    deleted in Postiz, on a change the learner sent back, when Pro ends, when the key or an account changes, on a new consent
- *    version, and after more than 48 hours without running. An app older than the one that recorded the consent turns it
+ *    account (48 hours before Resume or a new consent, kept apart from the consent so Off does not end it, a warning from
+ *    before the consent or the last Resume counted too, and its own still-scheduled posts on that account removed unless the
+ *    owner chose "only tell me"), on an error text Postiz's table does not know (lib/desktop/postizErrors.ts, fail closed),
+ *    on one of its posts deleted in Postiz, on a change the learner sent back, when Pro ends, when the key or an account
+ *    changes, on a new consent version, and after more than 48 hours without running. What happens while it is paused is
+ *    noted on the pause, so the banner says it before Resume. An app older than the one that recorded the consent turns it
  *    Off.
  *
  * Pure and deterministic: no clock (the PC's time and Postiz's come in), no randomness, no file. The hash function, the
@@ -147,6 +151,14 @@ export const AUTONOMY_PAUSE_REASONS = [
 ] as const;
 export type AutonomyPauseReason = (typeof AUTONOMY_PAUSE_REASONS)[number];
 
+/** What else happened while paused: each is a banner line, a notification and an audit line, and Resume clears them all. */
+export interface AutonomyPauseNote {
+  reason: AutonomyPauseReason;
+  /** ISO time it was recorded. */
+  at: string;
+  channelId: string | null;
+}
+
 export interface AutonomyPause {
   reason: AutonomyPauseReason;
   /** ISO time it paused. */
@@ -154,6 +166,18 @@ export interface AutonomyPause {
   /** Resume waits until then (ISO), after a warning about an account; null: as soon as the cause is gone. */
   until: string | null;
   /** The account it concerns, when one. */
+  channelId: string | null;
+  /** What happened after it paused (a post of its own failed, an unknown error, one of its posts gone, a change sent back), and the pause a warning about an account replaced. Absent: nothing. */
+  also?: AutonomyPauseNote[];
+}
+
+/** The 48 hours after a warning about an account. Kept apart from the consent and the pause: Off and a new consent keep it. */
+export interface AutonomyCooldown {
+  /** ISO time it was last recorded: the warnings seen by then are counted. */
+  at: string;
+  /** ISO time it ends: no new consent, no Resume and no post of its own before then. */
+  until: string;
+  /** The account the latest warning was about. */
   channelId: string | null;
 }
 
@@ -168,9 +192,14 @@ export interface AutonomyState {
   deleteOnWarning: boolean;
   /** ISO time the approver last ran. */
   lastRunAt: string | null;
+  /** The account-health cooldown, if one was ever recorded (an ended one stays, harmless). */
+  cooldown: AutonomyCooldown | null;
 }
 
-export const DEFAULT_AUTONOMY: AutonomyState = { consent: null, pause: null, resumedAt: null, deleteOnWarning: true, lastRunAt: null };
+export const DEFAULT_AUTONOMY: AutonomyState = { consent: null, pause: null, resumedAt: null, deleteOnWarning: true, lastRunAt: null, cooldown: null };
+
+/** The most notes one pause keeps (the newest). */
+export const AUTONOMY_PAUSE_NOTES_MAX = 20;
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const own = (o: Record<string, unknown>, key: string): unknown => (Object.prototype.hasOwnProperty.call(o, key) ? o[key] : undefined);
@@ -230,6 +259,15 @@ export function sanitizeConsent(raw: unknown): AutonomyConsent | null {
   return { version, at, appVersion, postiz: { baseUrl, organizationId }, accounts, practise: practise !== false };
 }
 
+/** A stored pause note, or null. */
+function sanitizeNote(raw: unknown): AutonomyPauseNote | null {
+  if (!isObj(raw)) return null;
+  const reason = own(raw, "reason");
+  const at = isoOrNull(own(raw, "at"));
+  if (!(AUTONOMY_PAUSE_REASONS as readonly unknown[]).includes(reason) || !at) return null;
+  return { reason: reason as AutonomyPauseReason, at, channelId: boundedString(own(raw, "channelId"), 511) };
+}
+
 /** The stored block over the defaults: unknown keys dropped, a consent without a date or an account dropped (so: off). */
 export function sanitizeAutonomy(raw: unknown): AutonomyState {
   if (!isObj(raw)) return { ...DEFAULT_AUTONOMY };
@@ -237,12 +275,19 @@ export function sanitizeAutonomy(raw: unknown): AutonomyState {
   const p = own(raw, "pause");
   let pause: AutonomyPause | null = null;
   if (isObj(p)) {
-    const reason = own(p, "reason");
-    const at = isoOrNull(own(p, "at"));
-    if ((AUTONOMY_PAUSE_REASONS as readonly unknown[]).includes(reason) && at) {
-      const channelId = boundedString(own(p, "channelId"), 511);
-      pause = { reason: reason as AutonomyPauseReason, at, until: isoOrNull(own(p, "until")), channelId };
+    const head = sanitizeNote(p);
+    if (head) {
+      const rawAlso = own(p, "also");
+      const also = Array.isArray(rawAlso) ? rawAlso.map(sanitizeNote).filter((n): n is AutonomyPauseNote => n !== null).slice(-AUTONOMY_PAUSE_NOTES_MAX) : [];
+      pause = { reason: head.reason, at: head.at, until: isoOrNull(own(p, "until")), channelId: head.channelId, ...(also.length ? { also } : {}) };
     }
+  }
+  const c = own(raw, "cooldown");
+  let cooldown: AutonomyCooldown | null = null;
+  if (isObj(c)) {
+    const at = isoOrNull(own(c, "at"));
+    const until = isoOrNull(own(c, "until"));
+    if (at && until) cooldown = { at, until, channelId: boundedString(own(c, "channelId"), 511) };
   }
   return {
     consent,
@@ -251,7 +296,33 @@ export function sanitizeAutonomy(raw: unknown): AutonomyState {
     resumedAt: isoOrNull(own(raw, "resumedAt")),
     deleteOnWarning: own(raw, "deleteOnWarning") !== false,
     lastRunAt: isoOrNull(own(raw, "lastRunAt")),
+    // the cooldown outlives the consent; a warning's pause stored without one (an older block) still carries it
+    cooldown: laterCooldown(cooldown, healthCooldownOf(pause)),
   };
+}
+
+/** The cooldown an account-health pause carries (one stored without its end: 48 hours from it), or null. */
+function healthCooldownOf(pause: AutonomyPause | null): AutonomyCooldown | null {
+  if (!pause || pause.reason !== "accountHealth") return null;
+  return { at: pause.at, until: pause.until ?? new Date(ms(pause.at) + AUTONOMY_HEALTH_COOLDOWN_MS).toISOString(), channelId: pause.channelId };
+}
+
+/** Two cooldowns as one: recorded at the later time, ending at the later end, about the latest warning's account. */
+function laterCooldown(a: AutonomyCooldown | null, b: AutonomyCooldown | null): AutonomyCooldown | null {
+  if (!a || !b) return a ?? b;
+  const [older, newer] = ms(a.at) <= ms(b.at) ? [a, b] : [b, a];
+  return { at: newer.at, until: ms(older.until) > ms(newer.until) ? older.until : newer.until, channelId: newer.channelId };
+}
+
+/** The account-health cooldown as it stands: the stored one, and the pause's own when it is a warning's. */
+export function cooldownOf(state: Pick<AutonomyState, "cooldown" | "pause">): AutonomyCooldown | null {
+  return laterCooldown(state.cooldown, healthCooldownOf(state.pause));
+}
+
+/** Whether the account-health cooldown still runs at `now`. */
+export function coolingDown(state: Pick<AutonomyState, "cooldown" | "pause">, now: number): boolean {
+  const c = cooldownOf(state);
+  return !!c && ms(c.until) > now;
 }
 
 /* ------------------------------------------------------------------ what the main process hands in */
@@ -398,6 +469,11 @@ export interface AutonomyContext {
   learner: {
     learn: boolean;
     paused: boolean;
+    /**
+     * ISO time learning was last paused, turned off or switched back on (null: never): every item made before it waits for
+     * the person, those of a pass made before the stop at once and any made while it was stopped once it is back on.
+     */
+    switchedAt: string | null;
     /** The newest pass id the main process recorded. */
     newestPassId: string | null;
     decisions: readonly Pick<LearnerDecision, "testId" | "decidedAt" | "verdict">[];
@@ -461,7 +537,10 @@ export const AUTONOMY_REASONS = {
   olderPass: true, // the learner changed its plan since
   tooOld: true,
   beforeConsent: true, // proposed before the switch was turned on, or before the last Resume
+  learningStopped: true, // proposed before learning was last paused, turned off or switched back on
   practised: true, // proposed during the practice day
+  noTest: true, // a test, check or Trial Reel stamped without its test or block
+  noPair: true, // a Trial Reel stamped without its pair
   testClosed: true, // its test or block has a verdict
   planChanged: true, // a verdict was written after it was made
   otherProposal: true, // another proposal of the same clip is in the queue
@@ -493,6 +572,7 @@ export const AUTONOMY_REASONS = {
   cardRules: true, // the card's own rules for the request (caption length, hashtags, the YouTube title)
   // accounts
   noAccount: true, // no channel of the item may be posted on its own
+  repeatedAccount: true, // one account listed twice: two posts of one video at once
   platformNotAllowed: true,
   notConsented: true,
   accountGone: true,
@@ -590,6 +670,17 @@ export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyIte
   return [...out];
 }
 
+/**
+ * What the stamp itself must carry for its role: a test, check or Trial Reel its test or block (or its verdict could never
+ * close it), and a Trial Reel its pair (or the pair's 2 hours could never be kept).
+ */
+export function stampProblems(pass: Pick<AutonomyStamp, "role" | "testId" | "pair">): AutonomyReason[] {
+  const out: AutonomyReason[] = [];
+  if ((TEST_ROLES.includes(pass.role) || isTrialRole(pass.role)) && !pass.testId) out.push("noTest");
+  if (isTrialRole(pass.role) && (pass.pair === null || !Number.isInteger(pass.pair))) out.push("noPair");
+  return out;
+}
+
 /* ------------------------------------------------------------------ the item */
 
 /** Why an item is not the learner's own, unchanged, current proposal (empty: it is). */
@@ -606,13 +697,20 @@ export function eligibilityProblems(item: AutonomyItem, state: AutonomyState, ct
     return out;
   }
   if (ctx.digest(stampText(item)) !== item.pass.hash) out.push("hashChanged");
+  out.push(...stampProblems(item.pass));
   if (!ctx.learner.newestPassId || item.pass.passId !== ctx.learner.newestPassId) out.push("olderPass");
   const created = ms(item.createdAt);
   if (!Number.isFinite(created) || ctx.now - created > AUTONOMY_ITEM_MAX_AGE_MS) out.push("tooOld");
+  // Pause learning, or learning off, sends every item made before it back to the person for good, and so does switching it
+  // back on (an unreadable time: every item)
+  const switched = ms(ctx.learner.switchedAt);
+  if (ctx.learner.switchedAt !== null && !(created > switched)) out.push("learningStopped");
   if (consent) {
     const since = Math.max(ms(consent.at), Number.isFinite(ms(state.resumedAt)) ? ms(state.resumedAt) : -Infinity);
     if (!(created > since)) out.push("beforeConsent");
-    if (consent.practise && created < ms(consent.at) + AUTONOMY_PRACTICE_MS && !practising(state, ctx)) out.push("practised");
+    // the practice day ends on Postiz's clock, and the item's time is the PC's: the 5 minutes the two may differ count as
+    // practice too, so an item that could have been shown "Would go out at" is never sent later
+    if (consent.practise && created < ms(consent.at) + AUTONOMY_PRACTICE_MS + AUTONOMY_CLOCK_SKEW_MS && !practising(state, ctx)) out.push("practised");
   }
   const decisions = ctx.learner.decisions;
   if (item.pass.testId && decisions.some((d) => d.testId === item.pass!.testId)) out.push("testClosed");
@@ -650,6 +748,8 @@ export function clipProblems(clip: AutonomyClip | null | undefined): AutonomyRea
 export function accountProblems(item: Pick<AutonomyItem, "channels">, consent: AutonomyConsent, ctx: Pick<AutonomyContext, "postiz">): AutonomyReason[] {
   const out = new Set<AutonomyReason>();
   if (item.channels.length === 0) out.add("noAccount");
+  // as the card's own check (checkSocialPostRequest): Postiz would make two posts of one video on one account at once
+  if (new Set(item.channels.map((c) => c.integrationId)).size !== item.channels.length) out.add("repeatedAccount");
   for (const c of item.channels) {
     if (!isAutonomyPlatform(c.platform)) {
       out.add("platformNotAllowed");
@@ -772,12 +872,17 @@ function blockAt(at: number, item: AutonomyItem, consent: AutonomyConsent, ctx: 
 /**
  * The most posts of a list that share a day with `at`: its local day, and any 24 hours that hold it (every window that holds
  * `at` is checked, so posts before and after it count, across midnight and a DST change alike).
+ *
+ * The windows [s, s + 24 h) that hold `at` start in (at - 24 h, at]. As s moves forward a window only loses a post when s
+ * passes it, so its count is highest at the first start or where a later post comes in; moving such a start forward to the
+ * next post at or before `at`, or to `at` itself, loses nothing. So those starts are all there is to try: the first, every
+ * earlier post's, and `at`'s own (the window that holds the posts after `at`, on the next day too).
  */
 export function countOver(posts: readonly AccountPost[], at: number, ctx: Pick<AutonomyContext, "offsetMinAt">): number {
   const times = posts.map((p) => ms(p.at)).filter((t) => Number.isFinite(t));
   const day = localOf(at, ctx.offsetMinAt).day;
   const sameDay = times.filter((t) => localOf(t, ctx.offsetMinAt).day === day).length;
-  const starts = [at - DAY_MS + 1, ...times.filter((t) => t > at - DAY_MS && t <= at)];
+  const starts = [at - DAY_MS + 1, ...times.filter((t) => t > at - DAY_MS && t <= at), at];
   let rolling = 0;
   for (const s of starts) rolling = Math.max(rolling, times.filter((t) => t >= s && t < s + DAY_MS).length);
   return Math.max(sameDay, rolling);
@@ -852,11 +957,19 @@ function eventTime(p: AccountPost): number {
   return Number.isFinite(seen) ? seen : ms(p.at);
 }
 
+/** The events a pause records from the posts and the learner's log: each pauses, or is noted on the pause that is on. */
+const EVENT_REASONS: readonly AutonomyPauseReason[] = ["ownPostFailed", "unknownError", "ownPostDeleted", "wentBack"];
+const isEventReason = (r: AutonomyPauseReason) => EVENT_REASONS.includes(r);
+
 /**
  * Whether autonomy must turn Off or pause now, and why. Conditions (the licence, the key, the accounts, the consent version,
  * the gap) and events after the consent and the last Resume (failed posts, warnings about an account, its own posts gone, a
- * change sent back). While paused, only a warning about an account is recorded over the pause, so its cooldown and the
- * removal of its own scheduled posts still happen.
+ * change sent back).
+ *  - A warning about an account counts for 48 hours whenever it came, before the consent or the last Resume too, and over
+ *    any pause; the warnings seen when the cooldown was last recorded are counted already. While the stored cooldown runs
+ *    (a warning, then Off and on again), it pauses for the rest of it.
+ *  - While paused, an event comes back too, once: `paused` notes it on the pause, so the banner says it before Resume, and
+ *    the events the pause has recorded are not taken again.
  */
 export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): AutonomyCheck {
   const none: AutonomyCheck = { off: null, pause: null, deleteOwn: [] };
@@ -867,22 +980,38 @@ export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): Autonomy
   const pause = (reason: AutonomyPauseReason, channelId: string | null = null, until: number | null = null): AutonomyPause => ({ reason, at: nowIso, until: until === null ? null : new Date(until).toISOString(), channelId });
   const resumed = ms(state.resumedAt);
   const since = Math.max(ms(consent.at), Number.isFinite(resumed) ? resumed : -Infinity);
-  const after = state.pause ? Math.max(since, ms(state.pause.at)) : since;
   const consented = new Set(consent.accounts.map((a) => a.channelId));
+  const isHealth = (p: AccountPost) => consented.has(p.channelId) && p.state === "ERROR" && isAccountHealth(classifyPostizError(p.error, p.platform).kind);
+  const deleteOwnOn = (channelId: string) => (state.deleteOnWarning ? ctx.posts.filter((p) => p.channelId === channelId && p.by === "app" && p.state === "QUEUE" && !p.gone && p.postId && ms(p.at) > ctx.now).map((p) => ({ channelId: p.channelId, postId: p.postId! })) : []);
 
   // a warning about an account: on any post of a consented account, whoever made it, or the account off in Postiz
-  const healthPost = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && eventTime(p) > after && isAccountHealth(classifyPostizError(p.error, p.platform).kind));
+  const cooldown = cooldownOf(state);
+  const healthFrom = Math.max(Math.min(since, ctx.now - AUTONOMY_HEALTH_COOLDOWN_MS), cooldown ? ms(cooldown.at) : -Infinity);
+  const healthPost = ctx.posts.find((p) => isHealth(p) && eventTime(p) > healthFrom);
   const offChannel = consent.accounts.find((a) => {
     const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
     return !!live && (live.disabled || live.refreshNeeded);
   });
   const healthChannel = healthPost?.channelId ?? offChannel?.channelId ?? null;
-  const alreadyHealth = state.pause?.reason === "accountHealth" && state.pause.channelId === healthChannel && (healthPost === undefined || ms(state.pause.at) >= eventTime(healthPost));
-  if (healthChannel !== null && !alreadyHealth) {
-    const deleteOwn = state.deleteOnWarning ? ctx.posts.filter((p) => p.channelId === healthChannel && p.by === "app" && p.state === "QUEUE" && !p.gone && p.postId && ms(p.at) > ctx.now).map((p) => ({ channelId: p.channelId, postId: p.postId! })) : [];
-    return { off: null, pause: pause("accountHealth", healthChannel, ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS), deleteOwn };
-  }
-  if (state.pause) return none;
+  const alreadyHealth = healthPost === undefined && state.pause?.reason === "accountHealth" && state.pause.channelId === healthChannel;
+  if (healthChannel !== null && !alreadyHealth) return { off: null, pause: pause("accountHealth", healthChannel, ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS), deleteOwn: deleteOwnOn(healthChannel) };
+  if (!state.pause && cooldown && ms(cooldown.until) > ctx.now) return { off: null, pause: pause("accountHealth", cooldown.channelId, ms(cooldown.until)), deleteOwn: cooldown.channelId ? deleteOwnOn(cooldown.channelId) : [] };
+
+  // the events after the consent and the last Resume, and after those the pause on now has recorded
+  const recorded = state.pause ? [state.pause, ...(state.pause.also ?? [])].filter((n) => isEventReason(n.reason)).map((n) => ms(n.at)) : [];
+  const from = Math.max(since, ...recorded);
+  const event = ((): AutonomyPause | null => {
+    // a warning's own post is the warning's (above), not a failure of its own as well
+    const failed = ctx.posts.find((p) => p.by === "app" && p.state === "ERROR" && !isHealth(p) && eventTime(p) > from);
+    if (failed) return pause(classifyPostizError(failed.error, failed.platform).kind === "unknown" ? "unknownError" : "ownPostFailed", failed.channelId);
+    const unknown = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && eventTime(p) > from && classifyPostizError(p.error, p.platform).kind === "unknown");
+    if (unknown) return pause("unknownError", unknown.channelId);
+    const gone = ctx.posts.find((p) => p.by === "app" && p.gone && eventTime(p) > from);
+    if (gone) return pause("ownPostDeleted", gone.channelId);
+    if (ctx.learner.decisions.some((d) => d.verdict === "wentBack" && ms(d.decidedAt) > from)) return pause("wentBack");
+    return null;
+  })();
+  if (state.pause) return event ? { ...none, pause: event } : none;
 
   if (consent.version < AUTONOMY_CONSENT_VERSION) return { ...none, pause: pause("consentVersion") };
   if (!ctx.postiz.configured) return { ...none, pause: pause("keyRemoved") };
@@ -894,22 +1023,23 @@ export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): Autonomy
   if (ctx.licence && (!ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now))) return { ...none, pause: pause("proEnded") };
   const lastRun = Number.isFinite(ms(state.lastRunAt)) ? ms(state.lastRunAt) : ms(consent.at);
   if (ctx.now - lastRun > AUTONOMY_GAP_MS) return { ...none, pause: pause("gap") };
-  const failed = ctx.posts.find((p) => p.by === "app" && p.state === "ERROR" && eventTime(p) > since);
-  if (failed) return { ...none, pause: pause(classifyPostizError(failed.error, failed.platform).kind === "unknown" ? "unknownError" : "ownPostFailed", failed.channelId) };
-  const unknown = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && eventTime(p) > since && classifyPostizError(p.error, p.platform).kind === "unknown");
-  if (unknown) return { ...none, pause: pause("unknownError", unknown.channelId) };
-  const gone = ctx.posts.find((p) => p.by === "app" && p.gone && eventTime(p) > since);
-  if (gone) return { ...none, pause: pause("ownPostDeleted", gone.channelId) };
-  if (ctx.learner.decisions.some((d) => d.verdict === "wentBack" && ms(d.decidedAt) > since)) return { ...none, pause: pause("wentBack") };
-  return none;
+  return event ? { ...none, pause: event } : none;
 }
 
 /** Why Resume is not available yet (empty: one press resumes). */
-export function resumeProblems(state: AutonomyState, ctx: AutonomyContext): ("off" | "cooldown" | "consentVersion" | "appOlder" | "proEnded" | "testMode" | "keyRemoved" | "otherWorkspace" | "accountChanged" | "accountDisabled" | "learningOff")[] {
+export type ResumeProblem = "off" | "cooldown" | "consentVersion" | "appOlder" | "proEnded" | "testMode" | "keyRemoved" | "otherWorkspace" | "accountChanged" | "accountDisabled" | "learningOff" | "accountHealth" | "ownPostFailed" | "unknownError" | "ownPostDeleted" | "wentBack";
+
+/**
+ * Why Resume is not available yet (empty: one press resumes). A warning or an event the pause has not recorded yet comes
+ * back by its reason: recorded first (pauseCheck, then paused), it is on the banner before the press that clears it.
+ */
+export function resumeProblems(state: AutonomyState, ctx: AutonomyContext): ResumeProblem[] {
   const consent = state.consent;
   if (!consent) return ["off"];
-  const out: ReturnType<typeof resumeProblems> = [];
-  if (state.pause?.until && ms(state.pause.until) > ctx.now) out.push("cooldown");
+  const out: ResumeProblem[] = [];
+  if ((state.pause?.until && ms(state.pause.until) > ctx.now) || coolingDown(state, ctx.now)) out.push("cooldown");
+  const fresh = pauseCheck(state, ctx).pause;
+  if (state.pause && fresh && (fresh.reason === "accountHealth" || isEventReason(fresh.reason))) out.push(fresh.reason as ResumeProblem);
   if (consent.version < AUTONOMY_CONSENT_VERSION) out.push("consentVersion");
   if (compareVersions(ctx.appVersion, consent.appVersion) < 0) out.push("appOlder");
   if (!ctx.licence || !ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now)) out.push("proEnded");
@@ -925,20 +1055,35 @@ export function resumeProblems(state: AutonomyState, ctx: AutonomyContext): ("of
   return [...new Set(out)];
 }
 
-/** The state after Resume (the caller checked resumeProblems is empty): no pause, and items made before now never qualify. */
+/** The state after Resume (the caller checked resumeProblems is empty): no pause, and items made before now never qualify. The cooldown stays on record. */
 export function resumed(state: AutonomyState, now: number): AutonomyState {
-  return { ...state, pause: null, resumedAt: new Date(now).toISOString() };
+  return { ...state, pause: null, resumedAt: new Date(now).toISOString(), cooldown: cooldownOf(state) };
 }
 
-/** The state after a pause: an existing pause stays unless the new one is a warning about an account. */
+/**
+ * The state after a pause pauseCheck returned. A warning about an account replaces the pause that is on (which it keeps as
+ * a note) and records the cooldown; an event (a post of its own failed, an unknown error, one of its posts gone, a change
+ * sent back) is noted on the pause that is on; any other pause never replaces one.
+ */
 export function paused(state: AutonomyState, pause: AutonomyPause): AutonomyState {
-  if (state.pause && pause.reason !== "accountHealth") return state;
-  return { ...state, pause };
+  const note = (p: AutonomyPause): AutonomyPauseNote => ({ reason: p.reason, at: p.at, channelId: p.channelId });
+  const withNotes = (p: AutonomyPause, notes: AutonomyPauseNote[]): AutonomyPause => {
+    const kept = notes.slice(-AUTONOMY_PAUSE_NOTES_MAX);
+    const head: AutonomyPause = { reason: p.reason, at: p.at, until: p.until, channelId: p.channelId };
+    return kept.length ? { ...head, also: kept } : head;
+  };
+  if (pause.reason === "accountHealth") {
+    const cooldown = laterCooldown(cooldownOf(state), healthCooldownOf(pause));
+    return { ...state, pause: state.pause ? withNotes(pause, [...(state.pause.also ?? []), note(state.pause)]) : pause, cooldown };
+  }
+  if (!state.pause) return { ...state, pause };
+  if (isEventReason(pause.reason)) return { ...state, pause: withNotes(state.pause, [...(state.pause.also ?? []), note(pause)]) };
+  return state;
 }
 
-/** The state after Off: the consent cleared, so the next on asks again. The owner's "only tell me" choice stays. */
+/** The state after Off: the consent cleared, so the next on asks again. The owner's "only tell me" choice and the account-health cooldown stay. */
 export function turnedOff(state: AutonomyState): AutonomyState {
-  return { ...DEFAULT_AUTONOMY, deleteOnWarning: state.deleteOnWarning };
+  return { ...DEFAULT_AUTONOMY, deleteOnWarning: state.deleteOnWarning, cooldown: cooldownOf(state) };
 }
 
 /** What the approver does with one item this tick. */
@@ -1061,9 +1206,13 @@ export interface ConsentDraft {
   practise: boolean;
 }
 
-/** Why Turn on stays disabled (empty: it may turn on). */
-export function consentProblems(draft: ConsentDraft, ctx: Pick<AutonomyContext, "now" | "licence" | "realKey" | "postiz" | "learner">): ("pro" | "testMode" | "noKey" | "learningOff" | "noAccount" | "accountNotAllowed" | "accountGone" | "accountDisabled" | "youtubeChoices" | "perDay" | "trialPairs" | "notUnderstood")[] {
+/** What the consent screen checks a draft against: the main process's context, and the stored block's account-health cooldown (cooldownOf). */
+export type ConsentScreenContext = Pick<AutonomyContext, "now" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomyState, "cooldown">;
+
+/** Why Turn on stays disabled (empty: it may turn on). A warning's 48 hours outlive Off, so a new consent waits them out. */
+export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ("cooldown" | "pro" | "testMode" | "noKey" | "learningOff" | "noAccount" | "accountNotAllowed" | "accountGone" | "accountDisabled" | "youtubeChoices" | "perDay" | "trialPairs" | "notUnderstood")[] {
   const out: ReturnType<typeof consentProblems> = [];
+  if (ctx.cooldown && ms(ctx.cooldown.until) > ctx.now) out.push("cooldown");
   if (!ctx.realKey || ctx.licence?.testMode) out.push("testMode");
   if (!ctx.licence || !ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now)) out.push("pro");
   if (!ctx.postiz.configured) out.push("noKey");

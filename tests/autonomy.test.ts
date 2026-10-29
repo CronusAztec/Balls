@@ -29,6 +29,7 @@ import {
   sanitizeAutonomy,
   scheduleFor,
   splitChannels,
+  stampProblems,
   stampText,
   tickableChannels,
   turnedOff,
@@ -38,6 +39,7 @@ import {
   type AutonomyContext,
   type AutonomyItem,
   type AutonomyLiveChannel,
+  type AutonomyPauseReason,
   type AutonomyReason,
   type AutonomyState,
   type ItemOutcome,
@@ -90,6 +92,7 @@ function baseState(): AutonomyState {
     resumedAt: null,
     deleteOnWarning: true,
     lastRunAt: iso(NOW - 5 * MIN),
+    cooldown: null,
   };
 }
 
@@ -102,7 +105,7 @@ function baseCtx(): AutonomyContext {
     realKey: true,
     licence: { pro: true, testMode: false, expiresAt: iso(NOW + 30 * D) },
     postiz: { configured: true, baseUrl: "https://api.postiz.com", organizationId: "org-1", keySavedAt: iso(CONSENT_AT - D), postNumbers: true, trialRoute: true, channels: LIVE },
-    learner: { learn: true, paused: false, newestPassId: "pass-7", decisions: [] },
+    learner: { learn: true, paused: false, switchedAt: null, newestPassId: "pass-7", decisions: [] },
     autopilot: { quietFrom: "22:00", quietTo: "08:00", language: "en" },
     queue: [],
     posts: [],
@@ -301,6 +304,22 @@ describe("never: lanes", () => {
     expect(splitChannels(channels, null).auto).toEqual([]);
     expect([...AUTONOMY_PLATFORMS]).toEqual(["instagram", "instagram-standalone", "youtube"]);
   });
+
+  it("refuses a stamp without what its role needs, and one account listed twice", () => {
+    // a test or check without its test could never be closed by its verdict, and a Trial Reel without its pair never keeps
+    // its 2 hours: both reels of such a pair would go out 20 minutes apart
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: null } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "check", testId: "" } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: null, pair: null } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialB", testId: "block:2", pair: null } })), "noPair");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: null, pair: null } })), "noPair");
+    expect(stampProblems({ role: "best", testId: null, pair: null })).toEqual([]);
+    expect(stampProblems({ role: "test", testId: "normal:3:length~short", pair: null })).toEqual([]);
+    expect(stampProblems({ role: "trialA", testId: "block:2", pair: 1 })).toEqual([]);
+    // the same Instagram account twice: two Reels of one video at the same minute
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [w.item.channels[0], w.item.channels[0]] })), "repeatedAccount");
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: "normal:3:length~short" }, channels: [w.item.channels[0], { ...w.item.channels[0], text: "Red escapes first." }] })), "repeatedAccount");
+  });
 });
 
 describe("never: the crew's keep, the render, the words", () => {
@@ -430,6 +449,25 @@ describe("never: volume", () => {
     expect(outcomeOf({ ...dst, ctx: { ...dst.ctx, offsetMinAt: () => 60 } }).kind).toBe("create");
   });
 
+  it("counts the posts after the item's time too: the next day's posts fill the 24 hours from it", () => {
+    // UTC, no quiet hours; ig-1 takes 3 a day and 1 Trial Reel pair, 5 in all. The item is planned for 21:00 on 20 Nov, and
+    // the person's posts wait in Postiz on 21 Nov from 08:00, 2 hours apart: its local day is empty, its 24 hours are not.
+    const t = Date.parse("2026-11-20T21:00:00Z");
+    const nextDay = (n: number, shift = 0) => Array.from({ length: n }, (_, i) => post({ channelId: "ig-1", at: iso(Date.parse("2026-11-21T08:00:00Z") + i * 2 * H + shift), by: "user" }));
+    const withPosts = (posts: AccountPost[]) => world((w) => {
+      w.ctx = { ...w.ctx, now: t - 75 * MIN, postizNow: t - 75 * MIN, offsetMinAt: () => 0, autopilot: { ...w.ctx.autopilot, quietFrom: "03:00", quietTo: "03:00" }, posts };
+      w.state.lastRunAt = iso(t - 80 * MIN);
+      w.item = stamp({ ...w.item, createdAt: iso(t - 2 * H), when: iso(t), pass: { ...w.item.pass!, window: null } });
+    });
+    expect(countOver(nextDay(7), t, withPosts([]).ctx)).toBe(7);
+    // the 24 hours from 21:00 would hold 8: past the 7 a day on any account, whoever made them, and past the consent's 5
+    expect(outcomeOf(withPosts(nextDay(7)))).toMatchObject({ kind: "wait", reasons: ["missedTime"], final: true, block: "dayFull" });
+    expect(outcomeOf(withPosts(nextDay(5)))).toMatchObject({ kind: "wait", block: "dayFull" });
+    expect(outcomeOf(withPosts(nextDay(4))).kind).toBe("create");
+    // the same posts a day later are outside its 24 hours
+    expect(outcomeOf(withPosts(nextDay(7, D))).kind).toBe("create");
+  });
+
   it("never posts a video twice on an account: a master and its cut are one", () => {
     refuses((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * D), by: "user", state: "PUBLISHED", video: "job:j1", clipId: "clip-master" })]), "duplicate");
     refuses((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * D), by: "app", state: "ERROR", clipId: "clip-1", error: "Media expired, please upload again", seenAt: iso(NOW - 2 * D) })]), "duplicate");
@@ -492,6 +530,31 @@ describe("never: consent, clock and mode", () => {
     const unsettled = world((w) => (w.ctx.posts = [post({ channelId: "yt-1", at: iso(NOW + 2 * H), state: "intent", by: "app", postId: null })]));
     nothingCreated(unsettled, "unsettled");
     expect(countOver(unsettled.ctx.posts, NOW + 2 * H, unsettled.ctx)).toBe(1);
+  });
+
+  it("sends every item made before Pause learning, or learning off, back to the person for good", () => {
+    // pass-7's item was made at 14:00 Warsaw time; Pause learning at 14:30: it waits for the person at once
+    const during = world((w) => (w.ctx.learner = { ...w.ctx.learner, paused: true, switchedAt: iso(NOW - 30 * MIN) }));
+    expect(decide(during).wait).toBe("learningPaused");
+    expect(outcomeOf(during)).toMatchObject({ kind: "wait", final: true });
+    expect(reasonsOf(during)).toContain("learningStopped");
+    const off = world((w) => (w.ctx.learner = { ...w.ctx.learner, learn: false, switchedAt: iso(NOW - 30 * MIN) }));
+    expect(decide(off).wait).toBe("learningOff");
+    expect(outcomeOf(off)).toMatchObject({ kind: "wait", final: true });
+    // learning back on at 14:50: it stays waiting, and so does an item stamped while learning was paused
+    refuses((w) => (w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 10 * MIN) }), "learningStopped");
+    refuses((w) => {
+      w.item = stamp({ ...w.item, createdAt: iso(NOW - 20 * MIN) });
+      w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 10 * MIN) };
+    }, "learningStopped");
+    // a time that cannot be read: every item
+    refuses((w) => (w.ctx.learner = { ...w.ctx.learner, switchedAt: "yesterday" }), "learningStopped");
+    // an item the learner made after learning came back goes out
+    const fresh = world((w) => {
+      w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 25 * MIN) };
+      w.item = stamp({ ...w.item, createdAt: iso(NOW - 20 * MIN) });
+    });
+    expect(outcomeOf(fresh).kind).toBe("create");
   });
 
   it("pauses on an older consent version, and turns Off in an app older than the consent's", () => {
@@ -616,6 +679,122 @@ describe("pausing itself, and Resume", () => {
     expect(resumeProblems(w.state, { ...w.ctx, licence: null })).toContain("proEnded");
     expect(resumeProblems(w.state, { ...w.ctx, learner: { ...w.ctx.learner, learn: false } })).toContain("learningOff");
     expect(resumeProblems(turnedOff(w.state), w.ctx)).toEqual(["off"]);
+  });
+
+  it("keeps a warning's 48 hours through Off and on again, and counts a warning from before the consent", () => {
+    // ig-1's post turns ERROR "Instagram blocked your request", seen 5 minutes ago: paused for 48 hours from now
+    const warning = post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram blocked your request", platform: "instagram", seenAt: iso(NOW - 5 * MIN) });
+    const w = world((x) => (x.ctx.posts = [warning]));
+    const check = pauseCheck(w.state, w.ctx);
+    expect(check.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1", until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS) });
+    const warned = paused(w.state, check.pause!);
+    const cooldown = { at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "ig-1" };
+    expect(warned.cooldown).toEqual(cooldown);
+    expect(resumeProblems(warned, w.ctx)).toEqual(["cooldown"]);
+    // Off keeps it, the stored block keeps it with no consent, and Turn on waits it out
+    const off = turnedOff(warned);
+    expect(off.consent).toBeNull();
+    expect(off.cooldown).toEqual(cooldown);
+    expect(sanitizeAutonomy(JSON.parse(JSON.stringify(off))).cooldown).toEqual(cooldown);
+    expect(sanitizeAutonomy({ ...JSON.parse(JSON.stringify(warned)), cooldown: undefined }).cooldown).toEqual(cooldown); // an older block: the pause's own
+    const draft = { accounts: [baseState().consent!.accounts[0]], understood: true, practise: false };
+    expect(consentProblems(draft, { ...w.ctx, now: NOW + 50 * MIN, cooldown: off.cooldown })).toEqual(["cooldown"]);
+    expect(consentProblems(draft, { ...w.ctx, now: NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN, cooldown: off.cooldown })).toEqual([]);
+    // a consent recorded anyway, 50 minutes after the warning: paused for the rest of the 48 hours, nothing goes out
+    const tick = NOW + 55 * MIN;
+    const back = world((x) => {
+      x.state = { ...off, consent: makeConsent(draft, { now: NOW + 50 * MIN, appVersion: "1.8.0", postiz: x.ctx.postiz }), lastRunAt: iso(tick - 5 * MIN) };
+      x.ctx = { ...x.ctx, now: tick, postizNow: tick, posts: [warning] };
+      x.item = stamp({ ...x.item, createdAt: iso(NOW + 52 * MIN), when: iso(tick + 75 * MIN) });
+    });
+    expect(eligibilityProblems(back.item, back.state, back.ctx)).toEqual([]);
+    const d = decide(back);
+    expect(d.status).toBe("paused");
+    expect(d.check.pause).toEqual({ reason: "accountHealth", at: iso(tick), until: cooldown.until, channelId: "ig-1" });
+    expect(d.items.some((o) => o.kind === "create")).toBe(false);
+    expect(checkBeforeCreate("it-1", back.state, back.ctx, new Map([[back.clip.id, back.clip]])).outcome).toMatchObject({ kind: "wait", reasons: ["paused"] });
+
+    // a warning seen 10 minutes before the very first consent: nothing stored, and the 48 hours still hold
+    const first = world((x) => {
+      x.state.consent = { ...x.state.consent!, at: iso(NOW - 20 * MIN), practise: false };
+      x.ctx.posts = [{ ...warning, seenAt: iso(NOW - 30 * MIN) }];
+      x.item = stamp({ ...x.item, createdAt: iso(NOW - 15 * MIN) });
+    });
+    const fd = decide(first);
+    expect(fd.status).toBe("paused");
+    expect(fd.check.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1" });
+    expect(fd.items.some((o) => o.kind === "create")).toBe(false);
+    // after a Resume the warning it was paused for is counted already; one over 48 hours before the consent is over
+    const recorded = paused(first.state, fd.check.pause!);
+    expect(pauseCheck(recorded, { ...first.ctx, now: NOW + 5 * MIN }).pause).toBeNull();
+    const afterCooldown = NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN;
+    expect(pauseCheck({ ...resumed(recorded, afterCooldown), lastRunAt: iso(afterCooldown) }, { ...first.ctx, now: afterCooldown + MIN, postizNow: afterCooldown + MIN }).pause).toBeNull();
+    expect(pauseCheck(first.state, { ...first.ctx, posts: [{ ...warning, at: iso(NOW - 50 * H), seenAt: iso(NOW - 49 * H) }] }).pause).toBeNull();
+  });
+
+  it("notes what happens while paused on the pause, so the banner says it before the one press that resumes", () => {
+    const failure = (error: string | null) => post({ channelId: "ig-1", postId: "own-1", at: iso(NOW - 20 * MIN), by: "app", state: "ERROR", error, platform: "instagram", seenAt: iso(NOW - 5 * MIN) });
+    const pausedWith = (posts: AccountPost[], reason: AutonomyPauseReason = "user") => world((x) => {
+      x.state.pause = { reason, at: iso(NOW - 40 * MIN), until: null, channelId: null };
+      x.ctx.posts = posts;
+    });
+    const cases: [AccountPost, AutonomyPauseReason][] = [
+      [failure("Instagram could not process the video, please check the video format, duration and resolution and try again"), "ownPostFailed"],
+      [failure("Unknown Error"), "unknownError"],
+      [post({ channelId: "ig-1", postId: "own-2", at: iso(NOW + 30 * MIN), by: "app", state: "QUEUE", gone: true, seenAt: iso(NOW - 5 * MIN) }), "ownPostDeleted"],
+    ];
+    for (const [event, reason] of cases) {
+      for (const pausedFor of ["user", "gap"] as const) {
+        const w = pausedWith([event], pausedFor);
+        const check = pauseCheck(w.state, w.ctx);
+        expect(check.pause, `${reason} over ${pausedFor}`).toEqual({ reason, at: iso(NOW), until: null, channelId: "ig-1" });
+        expect(decide(w).items.some((o) => o.kind === "create")).toBe(false);
+        // not on the banner yet: Resume waits, and names it
+        expect(resumeProblems(w.state, w.ctx), reason).toEqual([reason]);
+        const noted = paused(w.state, check.pause!);
+        expect(noted.pause, reason).toEqual({ ...w.state.pause, also: [{ reason, at: iso(NOW), channelId: "ig-1" }] });
+        // noted once: the next tick takes it no more, and one press resumes
+        expect(pauseCheck(noted, { ...w.ctx, now: NOW + 5 * MIN }).pause, reason).toBeNull();
+        expect(resumeProblems(noted, w.ctx), reason).toEqual([]);
+      }
+    }
+    // a change the learner sent back while paused
+    const wentBack = world((x) => {
+      x.state.pause = { reason: "user", at: iso(NOW - 40 * MIN), until: null, channelId: null };
+      x.ctx.learner = { ...x.ctx.learner, decisions: [{ testId: "check:4", decidedAt: iso(NOW - 10 * MIN), verdict: "wentBack" }] };
+    });
+    expect(resumeProblems(wentBack.state, wentBack.ctx)).toEqual(["wentBack"]);
+
+    // after Resume the next item made goes out: the failure was said, and is forgotten
+    const w = pausedWith([cases[0][0]]);
+    const back = resumed(paused(w.state, pauseCheck(w.state, w.ctx).pause!), NOW);
+    const after = world((x) => {
+      x.state = { ...back, lastRunAt: iso(NOW + 5 * MIN) };
+      x.ctx = { ...x.ctx, now: NOW + 10 * MIN, postizNow: NOW + 10 * MIN, posts: [cases[0][0]] };
+      x.item = stamp({ ...x.item, createdAt: iso(NOW + 5 * MIN), when: iso(NOW + 85 * MIN) });
+    });
+    expect(decide(after).status).toBe("on");
+    expect(outcomeOf(after).kind).toBe("create");
+
+    // over a warning's pause the failure is noted too, and the warning's 48 hours stay
+    const health = world((x) => {
+      x.state.pause = { reason: "accountHealth", at: iso(NOW - 40 * MIN), until: iso(NOW - 40 * MIN + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "yt-1" };
+      x.ctx.posts = [cases[0][0]];
+    });
+    const hc = pauseCheck(health.state, health.ctx);
+    expect(hc.pause?.reason).toBe("ownPostFailed");
+    const hn = paused(health.state, hc.pause!);
+    expect(hn.pause).toMatchObject({ reason: "accountHealth", channelId: "yt-1", also: [{ reason: "ownPostFailed", channelId: "ig-1" }] });
+    expect(resumeProblems(hn, health.ctx)).toEqual(["cooldown"]);
+
+    // Pro ends and a post of its own fails in the same tick: the pause says the one, the next tick notes the other
+    const both = world((x) => {
+      x.ctx.licence = { ...x.ctx.licence!, pro: false };
+      x.ctx.posts = [cases[0][0]];
+    });
+    const firstPause = pauseCheck(both.state, both.ctx).pause!;
+    expect(firstPause.reason).toBe("proEnded");
+    expect(pauseCheck(paused(both.state, firstPause), { ...both.ctx, now: NOW + 5 * MIN }).pause?.reason).toBe("ownPostFailed");
   });
 
   it("checks Pause again just before each create attempt, the 429 retry included", () => {
@@ -770,6 +949,27 @@ describe("the practice day", () => {
     });
     expect(outcomeOf(none).kind).toBe("create");
   });
+
+  it("counts the clocks' allowed difference as practice: an item shown 'Would go out at' is never sent later", () => {
+    // the PC's clock runs 4 minutes ahead of Postiz's. The item is made at the PC's consent + 24 h 1 min, Postiz's 23 h 57 min.
+    const C = NOW - D;
+    const tickAt = (pc: number, created = C + D + MIN) => world((w) => {
+      w.state.consent!.at = iso(C);
+      w.state.lastRunAt = iso(pc - 5 * MIN);
+      w.ctx = { ...w.ctx, now: pc, postizNow: pc - 4 * MIN };
+      w.item = stamp({ ...w.item, createdAt: iso(created), when: iso(C + D + 73 * MIN), pass: { ...w.item.pass!, window: null } });
+    });
+    const shown = tickAt(C + D + 2 * MIN);
+    expect(decide(shown).status).toBe("practising");
+    expect(outcomeOf(shown)).toEqual({ itemId: "it-1", kind: "practise", at: C + D + 73 * MIN });
+    // two ticks on, Postiz's day is over: the same item waits for the person for good
+    const after = tickAt(C + D + 6 * MIN);
+    expect(decide(after).status).toBe("on");
+    expect(outcomeOf(after)).toMatchObject({ kind: "wait", final: true });
+    expect(reasonsOf(after)).toContain("practised");
+    // an item made after the day and those 5 minutes is no practice item
+    expect(outcomeOf(tickAt(C + D + 8 * MIN, C + D + 6 * MIN)).kind).toBe("create");
+  });
 });
 
 describe("the stored block and the consent screen", () => {
@@ -802,7 +1002,7 @@ describe("the stored block and the consent screen", () => {
     const { tickable, waits } = tickableChannels(LIVE);
     expect(tickable.map((c) => c.id)).toEqual(["ig-1", "yt-1", "ig-2"]);
     expect(waits.map((c) => c.id)).toEqual(["tt-1", "tb-1", "fb-1"]);
-    const ctx = baseCtx();
+    const ctx = { ...baseCtx(), cooldown: null };
     expect(consentProblems({ accounts: [], understood: false, practise: true }, ctx)).toEqual(["noAccount", "notUnderstood"]);
     const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
     const yt = { channelId: "yt-1", platform: "youtube" as const, profile: "", perDay: 1, trialPairs: 0, youtube: null };
