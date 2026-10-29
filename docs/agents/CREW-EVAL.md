@@ -744,7 +744,7 @@ that did not change by a byte, and step 6's run stays above as history. No catch
 ### claude-opus-5-5-2026-10-29-round1b
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-round1b -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus e588ddc5b93e647c.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus e588ddc5b93e647c (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -791,3 +791,45 @@ short-only Chord Stars); then the menu changed once more, as the conveyor's own 
 Will they all get out?") where it had shown none, and it answered the three new briefs knowing those refusals: valid first
 time on 3 of 3, at 3 calls. All 18 ideas passed every gate, in 3 formats a request (3.33). Round 1's run stays above as
 history.
+
+### claude-opus-5-5-2026-10-29-round1c
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-round1c -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus c1275a1f5f310167.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 17 of 27 (63%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.1 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 18 of 27 (67%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.39 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.24 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 2/3 | 0/3 | 0/3 | 2/3 | 2/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 3 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-round1c -->
+
+The round-1b run, carried over to the corpus as the round's findings 13 to 18 left it. The Simple look now moves a hook to
+the bottom of the square for any action it hides at the top where the bottom hides none (finding 13), so one clean clip
+changed: Gerald's Portal escape, whose hook "Gerald always escapes… right?" covered his first bounce near the top for half a
+second, now sits at the bottom. Only its cold viewer's brief changed, as that brief says where each text sits. The same
+model answered it in one context, knowing it was a clean clip of the corpus, as round 1b had: Gerald trying to escape five
+spinning rings, clear by 3 s, maybe watched to the end. The other 349 answers are round 1b's, to briefs that did not change by
+a byte, and round 1b's run stays above as history. The numbers did not move.

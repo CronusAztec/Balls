@@ -1,7 +1,7 @@
 import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
-import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type TemplateInfo } from "@/lib/bot/templates";
+import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, type BotLookId, type ModeBinding, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, recipeCopyVars, recipeText, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
@@ -196,6 +196,22 @@ function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | 
 
 const familiesOf = (choice: BotFamilyChoice): readonly BotFamily[] => (choice === "all" ? BOT_FAMILIES : choice === "default" ? BOT_DEFAULT_FAMILIES : [choice]);
 
+/**
+ * --- studio --- (step 2's review round 1, 17) Why a binding that plans nothing waits, as the templates listing (`waits`) and the plan
+ * tool's refusal both say it: an experimental binding's measured reason (templates.ts EXPERIMENTAL), else a proven one's hidden
+ * variants, each with its own (the square race: its count-in; Ball Drop: its rain's last 1.5 s); null for a ready binding.
+ */
+export function bindingWaits(b: Pick<ModeBinding, "mode" | "ready" | "variants">): { experimental: string } | { hidden: string[] } | null {
+  if (b.ready) return null;
+  const measured = EXPERIMENTAL[b.mode];
+  if (measured) return { experimental: measured };
+  const hidden = b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`);
+  return hidden.length ? { hidden } : null;
+}
+
+/** A binding's `waits` line (bindingWaits) in words: the measured reason, or "hidden: <variant>: <reason>; …". */
+const waitsText = (w: NonNullable<ReturnType<typeof bindingWaits>>): string => ("experimental" in w ? w.experimental : `hidden: ${w.hidden.join("; ")}`);
+
 /** The templates tool (see the header): everything a model picks a clip from. */
 export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
   const family = input.family ?? "default";
@@ -222,8 +238,9 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
       ...(b.buckets ? { buckets: [...b.buckets] } : {}),
       ...(b.endings ? { endings: [...b.endings] } : {}),
       ...(b.note ? { note: b.note } : {}),
-      // --- studio --- (AI studio step 8) why an experimental binding waits: its measured reason (templates.ts EXPERIMENTAL)
-      ...(EXPERIMENTAL[b.mode] ? { waits: EXPERIMENTAL[b.mode] } : {}),
+      // --- studio --- (AI studio step 8) why a binding waits: an experimental one's measured reason (templates.ts EXPERIMENTAL), --- studio ---
+      // (step 2's review round 1, 17) a proven one's hidden variants with theirs (the square race, Ball Drop): bindingWaits
+      ...((w) => (w ? { waits: waitsText(w) } : {}))(bindingWaits(b)),
       variants: b.variants.map((v) => {
         const info = templateById(v.id);
         return { id: v.id, recipe: v.recipe, ready: !!info?.ready, family: info?.family ?? null, ...(v.hidden ? { hidden: v.hidden } : {}), ...(v.buckets ? { buckets: [...v.buckets] } : {}) };
@@ -306,8 +323,25 @@ function formatsFirst(list: readonly TemplateInfo[]): TemplateInfo[] {
   return [...firsts, ...rest];
 }
 
-/** What a plan call plans from: the named template or recipe, a mode's ready templates, or the family's (formats mixed). */
+/**
+ * --- studio --- (step 2's review round 1, 18) Why a named template, recipe or mode of a series the family choice leaves out is not
+ * planned (null: it is offered) – the battle family's only with `family` all or battle, the legal opt-in (Fight League names
+ * third-party characters), as the templates listing, the brainstormer's menu and viral-bot.mjs --template apply it.
+ */
+function familyRefusal(what: string, families: readonly (BotFamily | null)[], choice: BotFamilyChoice): string | null {
+  const named = [...new Set(families.filter((f): f is BotFamily => f !== null))];
+  const out = named.filter((f) => !familiesOf(choice).includes(f));
+  if (!out.length || out.length < named.length) return null;
+  const why = out.includes("battle") ? " (its Fight League names third-party characters: planned only when asked for)" : "";
+  return `${what} is in the ${out.join(" and ")} series, which family ${choice} leaves out${why}: add "family":"all" or ${out.map((f) => `"family":"${f}"`).join(" or ")}`;
+}
+
+/**
+ * What a plan call plans from: the named template or recipe, a mode's ready templates, or the family's (formats mixed). A named
+ * one counts as asked for only inside the family choice (default: escape and rhythm), so the battle family's stays opt-in.
+ */
 export function planSources(input: StudioPlanInput): { ok: true; sources: Source[] } | { ok: false; error: string } {
+  const family = input.family ?? "default";
   if (input.template !== undefined) {
     const info = templateById(input.template);
     if (!info) return { ok: false, error: `Unknown template "${input.template}" (the ready ones: ${readyIds().join(", ")})` };
@@ -315,11 +349,15 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
       const v = info.binding.variants.find((x) => x.id === info.id);
       return { ok: false, error: `The template ${info.id} is not ready yet (${v?.hidden ?? `its binding is ${info.binding.tier}${info.binding.note ? `: ${info.binding.note}` : ""}`}). The ready ones: ${readyIds().join(", ")}` };
     }
+    const refused = familyRefusal(`The template ${info.id}`, [info.family], family);
+    if (refused) return { ok: false, error: refused };
     return { ok: true, sources: [{ kind: "template", info }] };
   }
   if (input.recipe !== undefined) {
     const recipe = recipeById(input.recipe);
     if (!recipe) return { ok: false, error: `Unknown recipe "${input.recipe}" (the recipes: ${RECIPES.map((r) => r.id).join(", ")})` };
+    const refused = familyRefusal(`The recipe ${recipe.id}`, [recipe.family], family);
+    if (refused) return { ok: false, error: refused };
     return { ok: true, sources: [{ kind: "recipe", recipe }] };
   }
   if (input.mode !== undefined) {
@@ -328,15 +366,17 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     if (!list.length) {
       const b = BINDINGS.find((x) => x.mode === input.mode)!;
       const modes = [...new Set(allTemplates().filter((t) => t.ready).map((t) => t.mode))];
-      // --- studio --- a proven binding whose every variant is hidden says why (the square race: its count-in)
-      const hidden = b.tier === "proven" ? b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`) : [];
-      // --- studio --- (AI studio step 8) an experimental binding says why it waits: its measured reason
-      const waits = EXPERIMENTAL[b.mode];
-      return { ok: false, error: `The mode ${input.mode} has no ready template yet (${hidden.length ? `hidden: ${hidden.join("; ")}` : `its binding: ${b.format}, ${b.tier}${waits ? `: ${waits}` : b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
+      // --- studio --- a proven binding whose every variant is hidden says why (the square race: its count-in); (AI studio step 8) an
+      // experimental binding its measured reason – the listing's `waits` (bindingWaits)
+      const waits = bindingWaits(b);
+      return { ok: false, error: `The mode ${input.mode} has no ready template yet (${waits && "hidden" in waits ? waitsText(waits) : `its binding: ${b.format}, ${b.tier}${waits ? `: ${waitsText(waits)}` : b.note ? `, ${b.note}` : ""}`}). The modes with one: ${modes.join(", ")}` };
     }
-    return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
+    // --- studio --- (step 2's review round 1, 18) a mode's templates of the families asked for (the battle family's only when asked)
+    const offered = list.filter((info) => info.family !== null && familiesOf(family).includes(info.family));
+    if (!offered.length) return { ok: false, error: familyRefusal(`The mode ${input.mode}`, list.map((info) => info.family), family)! };
+    return { ok: true, sources: offered.map((info) => ({ kind: "template", info })) };
   }
-  const list = formatsFirst(readyTemplates(input.family ?? "default"));
+  const list = formatsFirst(readyTemplates(family));
   if (!list.length) return { ok: false, error: `No ready template in the family ${input.family}` };
   return { ok: true, sources: list.map((info) => ({ kind: "template", info })) };
 }

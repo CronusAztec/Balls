@@ -425,9 +425,18 @@ export function templateSceneOf(clip: Pick<CrewClip, "template" | "settings">): 
   return binding.scene ? binding.scene(clip.settings) : undefined;
 }
 
-/** The screen view (see the header). `scene`: a binding's own scene line (default: the clip's template's, templateSceneOf, else sceneOf the settings). */
+/**
+ * --- crew --- (the studio's second review round of step 2, finding 15) The scene line every role is told is on screen: the clip's
+ * template's own (templateSceneOf), else the settings' (sceneOf). The viewer's screen view and the producer's brief both read it,
+ * so the producer is never told a vaguer scene than the viewer, nor refused a number the scene states (the hoops' count).
+ */
+export function clipSceneOf(clip: Pick<CrewClip, "template" | "settings">): string {
+  return templateSceneOf(clip) ?? sceneOf(clip.settings);
+}
+
+/** The screen view (see the header). `scene`: a binding's own scene line (default: the clip's, clipSceneOf: its template's, else sceneOf the settings). */
 export function screenView(clip: CrewClip, options: { scene?: string } = {}): ScreenView {
-  const scene = options.scene ?? templateSceneOf(clip); // --- crew --- (AI studio step 3)
+  const scene = options.scene ?? clipSceneOf(clip); // --- crew --- (AI studio step 3)
   const levels = [
     { quote: 64, list: 10 },
     { quote: 40, list: 8 },

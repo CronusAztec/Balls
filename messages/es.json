@@ -4092,7 +4092,8 @@
         "cliffHook": "{thing} contra el reloj.",
         "payoff": "¡Fuera! 🔓",
         "cliffQuestion": "¿Hubo salida? 👇",
-        "postQuestion": "¿Habrías apostado por el escape?"
+        "postQuestion": "¿Habrías apostado por el escape?",
+        "hashtags": "#escape #ballescape #podraescapar"
       },
       "smash": {
         "name": "Romper",
@@ -4102,7 +4103,8 @@
         "cliffHook": "Cada golpe cuenta. ¿Se romperá?",
         "payoff": "¡Se rompió! 💥",
         "cliffQuestion": "¿Un golpe más? 👇",
-        "postQuestion": "¿Cuántos golpes creías que harían falta?"
+        "postQuestion": "¿Cuántos golpes creías que harían falta?",
+        "hashtags": "#romper #cuantosgolpes #smash"
       },
       "fill": {
         "name": "Hasta arriba",
@@ -4112,7 +4114,8 @@
         "cliffHook": "{thing} contra el último hueco.",
         "payoff": "¡Lleno! 😮",
         "cliffQuestion": "¿Cabe? 👇",
-        "postQuestion": "¿Cuándo supiste que se llenaría?"
+        "postQuestion": "¿Cuándo supiste que se llenaría?",
+        "hashtags": "#llenar #encajaperfecto #hastaarriba"
       },
       "count": {
         "name": "Recuento",
@@ -4122,7 +4125,8 @@
         "cliffHook": "Sigue contando. ¿Cuántas van?",
         "payoff": "¡{count}! 🤯",
         "cliffQuestion": "¿Cuántas hay ya? 👇",
-        "postQuestion": "¿Cuál era tu apuesta antes del final?"
+        "postQuestion": "¿Cuál era tu apuesta antes del final?",
+        "hashtags": "#cuantoshay #adivina #contar"
       },
       "whoWins": {
         "name": "Quién gana",
@@ -4132,7 +4136,8 @@
         "cliffHook": "Elige un color antes del final.",
         "payoff": "¡{winner} gana! 🏆",
         "cliffQuestion": "¿Quién gana? 👇",
-        "postQuestion": "¿A quién elegiste antes de empezar?"
+        "postQuestion": "¿A quién elegiste antes de empezar?",
+        "hashtags": "#quiengana #batalla #eligebando"
       },
       "aim": {
         "name": "Puntería",
@@ -4142,7 +4147,8 @@
         "cliffHook": "Casi. ¿Acertará?",
         "payoff": "¡Diana! 🎯",
         "cliffQuestion": "¿Acierta o falla? 👇",
-        "postQuestion": "¿Pensabas que acertaría?"
+        "postQuestion": "¿Pensabas que acertaría?",
+        "hashtags": "#diana #trickshot #acertara"
       },
       "lineUp": {
         "name": "En línea",
@@ -4152,7 +4158,8 @@
         "cliffHook": "Casi en línea…",
         "payoff": "¡Ahí está! ✨",
         "cliffQuestion": "¿Se alinean? 👇",
-        "postQuestion": "¿En qué segundo lo viste venir?"
+        "postQuestion": "¿En qué segundo lo viste venir?",
+        "hashtags": "#sincronia #artefisico #patrones"
       },
       "onTheBeat": {
         "name": "Al ritmo",
@@ -4162,7 +4169,8 @@
         "cliffHook": "Sube el volumen. Espera el final.",
         "payoff": "Última nota. 🎹",
         "cliffQuestion": "¿Qué viene ahora? 👇",
-        "postQuestion": "¿Qué canción toca después?"
+        "postQuestion": "¿Qué canción toca después?",
+        "hashtags": "#musicafisica #subeelvolumen #ritmo"
       },
       "reveal": {
         "name": "Revelación",
@@ -4172,7 +4180,8 @@
         "cliffHook": "Casi listo. Adivina ya.",
         "payoff": "El dibujo completo. 🖼️",
         "cliffQuestion": "¿Qué es? 👇",
-        "postQuestion": "¿Qué creías que estaba dibujando?"
+        "postQuestion": "¿Qué creías que estaba dibujando?",
+        "hashtags": "#adivinaeldibujo #geometria #dibujo"
       },
       "labGame": {
         "name": "Juego del lab",
@@ -4182,7 +4191,8 @@
         "cliffHook": "¿Cómo acaba? Adivina ya.",
         "payoff": "¡Fin del juego! 🏁",
         "cliffQuestion": "¿Cómo acaba? 👇",
-        "postQuestion": "¿Qué regla probamos en el próximo juego?"
+        "postQuestion": "¿Qué regla probamos en el próximo juego?",
+        "hashtags": "#juegodefisica #simulador #quepasara"
       }
     },
     "things": {

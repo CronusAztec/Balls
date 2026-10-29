@@ -12636,9 +12636,9 @@
      "captions": [
       {
        "type": "text",
-       "text": "Gerald always escapes…",
+       "text": "right?",
        "answer": "",
-       "position": "top",
+       "position": "bottom",
        "start": 0,
        "end": 2.5,
        "animation": "pop",
@@ -12650,9 +12650,9 @@
       },
       {
        "type": "text",
-       "text": "right?",
+       "text": "Gerald always escapes…",
        "answer": "",
-       "position": "top",
+       "position": "bottom",
        "start": 0,
        "end": 2.5,
        "animation": "pop",

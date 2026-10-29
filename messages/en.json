@@ -4092,7 +4092,8 @@
         "cliffHook": "{thing} vs the clock.",
         "payoff": "Out! 🔓",
         "cliffQuestion": "Out or not? 👇",
-        "postQuestion": "Would you have bet on the escape?"
+        "postQuestion": "Would you have bet on the escape?",
+        "hashtags": "#ballescape #canitescape #escape"
       },
       "smash": {
         "name": "Smash",
@@ -4102,7 +4103,8 @@
         "cliffHook": "Every hit counts. Will it break?",
         "payoff": "Smashed. 💥",
         "cliffQuestion": "One more hit? 👇",
-        "postQuestion": "How many hits did you think it would take?"
+        "postQuestion": "How many hits did you think it would take?",
+        "hashtags": "#smash #satisfyingbreak #howmanyhits"
       },
       "fill": {
         "name": "Fill it",
@@ -4112,7 +4114,8 @@
         "cliffHook": "{thing} vs the last gap.",
         "payoff": "Full! 😮",
         "cliffQuestion": "Does it fit? 👇",
-        "postQuestion": "When did you know it would fill?"
+        "postQuestion": "When did you know it would fill?",
+        "hashtags": "#fillitup #willitfit #satisfyingfill"
       },
       "count": {
         "name": "Count",
@@ -4122,7 +4125,8 @@
         "cliffHook": "Keep counting. How many now?",
         "payoff": "{count}! 🤯",
         "cliffQuestion": "How many now? 👇",
-        "postQuestion": "What was your guess before the end?"
+        "postQuestion": "What was your guess before the end?",
+        "hashtags": "#howmany #guessthenumber #counting"
       },
       "whoWins": {
         "name": "Who wins",
@@ -4132,7 +4136,8 @@
         "cliffHook": "Pick a colour before the end.",
         "payoff": "{winner} wins! 🏆",
         "cliffQuestion": "Who wins? 👇",
-        "postQuestion": "Which one did you pick before it started?"
+        "postQuestion": "Which one did you pick before it started?",
+        "hashtags": "#whowins #ballbattle #pickaside"
       },
       "aim": {
         "name": "Aim",
@@ -4142,7 +4147,8 @@
         "cliffHook": "Almost there. Will it hit?",
         "payoff": "Bullseye! 🎯",
         "cliffQuestion": "Hit or miss? 👇",
-        "postQuestion": "Did you think it would hit?"
+        "postQuestion": "Did you think it would hit?",
+        "hashtags": "#bullseye #trickshot #willithit"
       },
       "lineUp": {
         "name": "Line up",
@@ -4152,7 +4158,8 @@
         "cliffHook": "Almost in line. Almost…",
         "payoff": "There it is. ✨",
         "cliffQuestion": "Do they line up? 👇",
-        "postQuestion": "At what second did you see it coming?"
+        "postQuestion": "At what second did you see it coming?",
+        "hashtags": "#perfectsync #physicsart #satisfyingpatterns"
       },
       "onTheBeat": {
         "name": "On the beat",
@@ -4162,7 +4169,8 @@
         "cliffHook": "Sound on. Wait for the drop.",
         "payoff": "Final note. 🎹",
         "cliffQuestion": "What comes next? 👇",
-        "postQuestion": "Which song should it play next?"
+        "postQuestion": "Which song should it play next?",
+        "hashtags": "#physicsmusic #soundon #rhythm"
       },
       "reveal": {
         "name": "Reveal",
@@ -4172,7 +4180,8 @@
         "cliffHook": "Almost done. Guess now.",
         "payoff": "The full picture. 🖼️",
         "cliffQuestion": "What is it? 👇",
-        "postQuestion": "What did you think it was drawing?"
+        "postQuestion": "What did you think it was drawing?",
+        "hashtags": "#guessthepicture #geometryart #satisfyingdrawing"
       },
       "labGame": {
         "name": "Lab game",
@@ -4182,7 +4191,8 @@
         "cliffHook": "How does it end? Guess now.",
         "payoff": "Game over! 🏁",
         "cliffQuestion": "How does it end? 👇",
-        "postQuestion": "What rule should the next game try?"
+        "postQuestion": "What rule should the next game try?",
+        "hashtags": "#physicsgame #simulationgame #whathappensnext"
       }
     },
     "things": {

@@ -127,7 +127,7 @@ const studioId: JsonSchema = { type: "string", minLength: 1, maxLength: 80, patt
 const clipId: JsonSchema = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A clip's id in the studio's plan.json (its plan id, as the plan tool lists it)." };
 const locale: JsonSchema = { type: "string", enum: [...STUDIO_LOCALES], description: "The clip's language (default en)." };
 const platform: JsonSchema = { type: "string", enum: [...STUDIO_PLATFORMS], description: "The platform it is for (default reels)." };
-const family: JsonSchema = { type: "string", enum: [...STUDIO_FAMILIES], description: "The template families drawn from when none is named: default (escape and rhythm: never the battle family, whose Fight League names third-party characters), all, or one family." };
+const family: JsonSchema = { type: "string", enum: [...STUDIO_FAMILIES], description: "The template families offered: default (escape and rhythm: never the battle family, whose Fight League names third-party characters), all, or one family. A template, recipe or mode named outside them is refused (a battle one needs all or battle)." };
 const templateId: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[a-z0-9][a-z0-9-]*$", description: "A ready template's id (see the templates tool), e.g. get-out-classic." };
 const image: JsonSchema = { type: "boolean", description: `Also return the sheet as one JPEG of at most ${IMAGE_MAX_BYTES} bytes (base64 in the result; an MCP image block), for a model that cannot read files (default false).` };
 

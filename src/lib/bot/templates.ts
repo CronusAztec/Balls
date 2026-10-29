@@ -21,10 +21,10 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  * (SIMPLE_LOOK, the one-line-at-a-time text plan) that keeps a clip calm.
  *
  *  - A format: its idea in one sentence, its claim (what the run must visibly do: the crew's G4 and the viewer check it), its
- *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion, in en, pl
- *    and es: copy.ts formatText, its `{thing}` the mode's noun under `ViralBot.things`), where its countdown comes from and the
- *    endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf); a further variant adds its recipe's
- *    name, or without one its own (`ViralBot.variants`: "Classic · Get out · One ring").
+ *    copy under `ViralBot.formats.<id>` (name, hook, hookB, hookC, cliffHook, payoff, cliffQuestion, postQuestion and its own
+ *    hashtags, in en, pl and es: copy.ts formatText, its `{thing}` the mode's noun under `ViralBot.things`), where its
+ *    countdown comes from and the endings it takes. A template is named "{Mode name} · {Format name}" (templateNameOf); a
+ *    further variant adds its recipe's name, or without one its own (`ViralBot.variants`: "Classic · Get out · One ring").
  *  - A binding: the mode's format, how the planner times its payoff (a playbook strategy – its recipe's, or one of its own where
  *    the recipe's does not show the format's payoff: Ball Drop's last note –, the bound finder outcome's moment ("outcome") or
  *    the clip's last 1.5 s ("atEnd"): outcomeStrategy.ts), the settings it plays its recipe with (`tune`: Pendulum Wave's chord
@@ -859,7 +859,7 @@ function stepAtLeast(value: number, range: { min: number; max: number; step: num
   return v < value - 1e-9 ? snapStep(v + range.step, range) : v;
 }
 
-/** The years Earth and Venus draw their five-petal flower in: 8 (13 Venus years), the pentagram's five conjunctions (the default). */
+/** The years Earth and Venus draw their five-petal flower in: 8 (13 Venus years), five conjunctions (the default). */
 const DM_FLOWER_YEARS = 8;
 /** The drawing's hold past the clip's end (s): the rewind, which un-draws it, never starts inside the clip. */
 const DM_HOLD_PAST_SEC = 0.5;
@@ -873,17 +873,20 @@ const DM_DRAW_INTO_PAYOFF_SEC = 0.25;
 
 /**
  * Drawing Machines' orbits (the harmonograph's figure is no picture a viewer could name: watched): Earth and Venus over their 8
- * years, a line between them every few days, so a five-petal flower and its pentagram come out of the lines – the picture the hook
- * asks to guess. The years' pace on its slider's step, up, so the last lines are drawn as the clip's last 1.5 s begin (atEnd, the
- * payoff) and the flower is done 0.25–0.65 s into them; the hold on its step, up, past the clip's end, so the rewind that un-draws it
- * comes after the clip. Its cycle (draw, hold, rewind) is then longer than the clip, which Export whole loops records at its set
- * length.
+ * years, a line between them every few days, so a five-petal flower comes out of the lines – the picture the hook asks to guess.
+ * The years' pace on its slider's step, up, so the last lines are drawn as the clip's last 1.5 s begin (atEnd, the payoff) and the
+ * flower is done 0.25–0.65 s into them; the hold on its step, up, past the clip's end, so the rewind that un-draws it comes after
+ * the clip. Its cycle (draw, hold, rewind) is then longer than the clip, which Export whole loops records at its set length.
+ * --- templates --- (step 2's review round 1, 14) Its "Join the marks" switch off (dmPentagram, a drawn-only setting: the run, its
+ * sounds and the mode's default stay as they were): on, five bright lines joined the conjunction marks into a five-pointed star in
+ * the orbit's circle, the picture a stranger saw first – a pentacle, which some read as an occult sign –, while the notes and the
+ * scene line named the flower. The marks stay; the flower is the reveal. Whether to post the star is the owner's call.
  */
 function drawingMachineSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const clip = clipOfTarget(ctx.payoffTarget);
   const dmSecPerYear = stepAtLeast((clip - AT_END_SEC + DM_DRAW_INTO_PAYOFF_SEC) / DM_FLOWER_YEARS, RANGES.dmSecPerYear);
   const dmHold = stepAtLeast(clip - DM_FLOWER_YEARS * dmSecPerYear + DM_HOLD_PAST_SEC, RANGES.dmHold);
-  return { dmMachine: "orbits", dmYears: DM_FLOWER_YEARS, dmSecPerYear, dmHold };
+  return { dmMachine: "orbits", dmYears: DM_FLOWER_YEARS, dmSecPerYear, dmHold, dmPentagram: false };
 }
 
 /**
@@ -1157,7 +1160,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   waveTank: bind("waveTank", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hook", scene: () => "water waves rolling through gaps in a wall, a row of bells along the far side" })),
   // reveal (--- templates --- AI studio step 6: the picture the hook asks to guess, the clip's last 1.5 s)
   lines: bind("lines", later("reveal", "atEnd")),
-  drawingMachine: bind("drawingMachine", later("reveal", "atEnd", { generate: drawingMachineSettings, musicFirst: true, hookKey: "hook", note: "Earth and Venus's five-petal flower, done as the clip's last 1.5 s begin and held past its end", scene: () => "a sun with two small planets circling it, a line drawn between them every few days" })),
+  drawingMachine: bind("drawingMachine", later("reveal", "atEnd", { generate: drawingMachineSettings, musicFirst: true, hookKey: "hook", note: "Earth and Venus's five-petal flower, its marks left unjoined (no five-pointed star over it), done as the clip's last 1.5 s begin and held past its end", scene: () => "a sun with two small planets circling it, a line drawn between them every few days and a dot where they pass closest" })),
   illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
   // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
   // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)

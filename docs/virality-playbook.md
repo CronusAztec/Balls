@@ -290,8 +290,9 @@ checks (G4).
   points;
 - each text at the edge of the square its run leaves clear: the top, or the bottom where the text would hide the moving
   balls there for at least 1 s less (Ball Drop's hook while the balls enter at the top, Pendulum Wave's texts over the short
-  pendulums). Never the bottom where the mode draws something of its own there (Fight League's boxes, Multipliers' counter,
-  the loop HUD's counter). A mode's own banner counts first: a text takes the edge where it covers the banner for less time, so
+  pendulums), and the hook wherever it hides any of them at the top and none at the bottom (the first review round, 13: the
+  conveyor's first ball on its belt). Never the bottom where the mode draws something of its own there (Fight League's
+  boxes, Multipliers' counter, the loop HUD's counter, Bullseye's dartboard). A mode's own banner counts first: a text takes the edge where it covers the banner for less time, so
   Glass's hooks sit at the bottom, clear of its "STAGE n" banner (G5);
 - a text of two lines broken where a reader breaks it: at its clause ("15 pendulums." / "Wait for the chord."), a size step
   or two smaller where only that fits, else evenly, never with a last line of one or two words;
@@ -569,7 +570,7 @@ at, Glass Hatchery's three times.
 
 | Template | Its own settings and words | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- | --- |
-| reveal-drawing-machine | the orbits machine: Earth and Venus over 8 years, a line between them every few days, so a five-petal flower and its pentagram come out of the lines; the years' pace on its slider's step so the flower is done 0.25–0.65 s into the clip's last 1.5 s (atEnd), the hold past the clip's end; hook "Guess what it draws." | 97 | 82 | 12/12 |
+| reveal-drawing-machine | the orbits machine: Earth and Venus over 8 years, a line between them every few days, so a five-petal flower comes out of the lines, its five conjunction marks left unjoined (no five-pointed star since the first review round); the years' pace on its slider's step so the flower is done 0.25–0.65 s into the clip's last 1.5 s (atEnd), the hold past the clip's end; hook "Guess what it draws." | 97 | 82 | 12/12 |
 | lab-game-blueprint | Glass Hatchery, the Mode Lab's default game; standard only; its own hook "Every broken tile hatches a new ball." | 92 | 82 | 12/12 |
 | lab-game-blueprint-ring-breaker | Ring Breaker; short only; "Every broken ring doubles the balls." | 87.5 | 84 | 12/12 |
 | lab-game-blueprint-tier-climb | Tier Climb; standard only; "Matching orbs merge into a bigger one." | 91.5 | 82 | 12/12 |
@@ -695,6 +696,22 @@ or its template is hidden with what was measured:
 - The beat format keeps one ready template, Collision Playground's. Its claim is a beat heard at the payoff, and only a payoff
   that stands out answers it: a run that sounds the same from its first second to its last asks nothing a viewer waits for.
 - The role eval's corpus moved with Ball Drop's template (docs/agents/CREW-EVAL.md, run round1b).
+
+**The first review round, findings 13–18** **[observed: the 14 templates whose plans moved, 4 plan seeds × 3 platforms, the
+Simple look, in English, Polish and Spanish; 14 clips rendered watermarked and watched]**. Two of the six are in what a viewer
+sees, one in what is posted, and three in what the crew and the studio's tools are told:
+
+| Finding | What a viewer saw | What changed | Measured since |
+| --- | --- | --- | --- |
+| The hook over the only action | the conveyor's first ball rode its belt under "One ball." for half a second while the bottom of the square stayed empty; the 1 s margin kept the hook at the top | the hook moves to the bottom wherever it hides any action at the top and none at the bottom (`placeSimpleTexts`); a later text keeps the second's margin. Bullseye's dartboard lies along the bottom, which a moved hook covered in the page's 800×450 world (watched), so Bullseye joins the modes whose bottom edge is taken (`bottomEdgeFree`) | the hook moved on 33 of the 536 English plans of every ready template (4 plan seeds on each platform it fits), all 12 of the conveyor's, none failing a gate it passed; every number in the tables above is unchanged in the three languages (conveyor 12/12, Simple 91, checklist 82; Bullseye 12/12, 90, 86) |
+| The Drawing Machine's star | five bright lines closed a five-pointed star in the orbit's circle over the flower: a pentacle, which some read as an occult sign, while the notes named a flower | the template leaves the conjunction marks unjoined (`dmPentagram` off, a drawn-only switch: the run and the mode's default unchanged); the flower is the reveal. Whether to post the star is the owner's call | 12/12, Simple 97, checklist 82; the run identical with the star on |
+| The posts' hashtags | "#escape #ballescape" on a target smashed, a conveyor counted and a bullseye shot; "#polyrhythm" on hoops | each format has hashtags of its own (`ViralBot.formats.<format>.hashtags`, en, pl and es), posted in place of its series' by a template without a recipe | a test checks every format's tags name only its own claim |
+
+- The crew's producer is told the scene the viewer is told, the template's own line where it has one, and its numbers: the
+  hoops' 8 is no longer refused. The studio's `templates` listing says why every binding that waits waits (the square race and
+  Ball Drop too: their hidden variants' reasons), and `plan` refuses a battle template, mode or recipe named without `family`
+  `all` or `battle`, as `viral-bot.mjs --template` and the listing do.
+- The role eval's corpus moved with one hook (Gerald's Portal escape, at the bottom now): docs/agents/CREW-EVAL.md, run round1c.
 
 **Where the templates are offered** (AI studio steps 7 and 8):
 

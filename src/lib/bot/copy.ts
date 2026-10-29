@@ -71,9 +71,10 @@ export function recipeCopyPath(recipe: Pick<BotRecipe, "copyKey" | "formatCopy">
 
 /**
  * The fields of a format's copy (`ViralBot.formats.<format>`, per format, not per template): its name, its hooks a, b and c, the
- * hook of a clip cut before its payoff, the payoff's words, the closing question and the post's question.
+ * hook of a clip cut before its payoff, the payoff's words, the closing question and the post's question – --- templates --- (step
+ * 2's review round 1, 16) and its own hashtags, which name its claim (clipHashtags posts them in place of its series').
  */
-export const FORMAT_COPY_FIELDS = ["name", "hook", "hookB", "hookC", "cliffHook", "payoff", "cliffQuestion", "postQuestion"] as const;
+export const FORMAT_COPY_FIELDS = ["name", "hook", "hookB", "hookC", "cliffHook", "payoff", "cliffQuestion", "postQuestion", "hashtags"] as const;
 export type FormatCopyField = (typeof FORMAT_COPY_FIELDS)[number];
 
 /** A format's hook variants (crew/roles.ts HOOK_VARIANTS) and the field of its copy each one is. */
@@ -141,7 +142,7 @@ export type KeepUnfilled = boolean;
 /**
  * A format's words for a field, filled (fillSentences: capitals at a sentence's start, "" while a placeholder is unfilled); a
  * recipe's field the format has none of reads the one that stands in for it (its name as the series, the closing question as
- * a cliffhanger's post question); "" for a field neither has (its keywords, its own hashtags).
+ * a cliffhanger's post question); "" for a field neither has (its keywords).
  */
 export function formatText(copy: BotCopy, format: string, field: string, vars: Readonly<Record<string, string | number>> = {}, keep: KeepUnfilled = false): string {
   // --- templates --- (AI studio step 4) a binding's own hook, where its format's three do not say what its run does (OWN_HOOK_FIELD)
@@ -199,11 +200,13 @@ export function recipeCopyVars(copy: BotCopy, recipe: Pick<BotRecipe, "copyVars"
 /**
  * 5–10 niche hashtags (§3.10): the recipe's own first (its list filled with `vars` – a tag that fills in empty is left
  * out), then the family's, the platform's tag and the locale's common ones – never more than HASHTAG_COUNT.max, and padded
- * from the common list to at least HASHTAG_COUNT.min.
+ * from the common list to at least HASHTAG_COUNT.min. --- templates --- (step 2's review round 1, 16) A template without a recipe
+ * posts its format's own tags (`ViralBot.formats.<format>.hashtags`) and not its series': the escape series' "#escape" on a
+ * target smashed, a conveyor counted or a bullseye shot was a claim the clip never made.
  */
 export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family" | "formatCopy">, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
-  const own = parseHashtags(fillTemplate(copyString(copy, `${recipeCopyPath(recipe)}.hashtags`), vars)); // --- templates --- (a format has none of its own)
-  const family = parseHashtags(copyString(copy, `hashtags.${recipe.family}`));
+  const own = parseHashtags(fillTemplate(copyString(copy, `${recipeCopyPath(recipe)}.hashtags`), vars));
+  const family = recipe.formatCopy ? [] : parseHashtags(copyString(copy, `hashtags.${recipe.family}`));
   const common = parseHashtags(copyString(copy, "hashtags.common"));
   const out: string[] = [];
   const add = (tag: string) => {

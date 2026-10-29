@@ -1039,6 +1039,62 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
     expect(bot.settings.captions.every((c) => c.position === "top")).toBe(true);
   });
 
+  // --- templates --- (step 2's review round 1, 13: the conveyor's first ball rode its belt under "One ball." for half a second)
+  it("moves the hook off any action it hides at the top where the bottom hides none; a later text needs a second's gain, as before", () => {
+    const plan = dropPlan(1, { search: false });
+    const roles = plan.captionRoles;
+    const hook = roles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+    const later = captionMessagesOf(roles).find((m) => roles[m[0]] !== "hook")!;
+    const until = plan.timing.clipSec;
+    expect([hook.length > 0, !!later]).toEqual([true, true]);
+    // balls moving across the square's second and third rows (under the top stack) in one sample, half a second: under ACTION_GAIN_SEC
+    const rows = Array.from({ length: 2 * ACTION_GRID }, (_, k) => ACTION_GRID + k);
+    const cells = rows.map((c) => c.toString(36).padStart(2, "0")).join("");
+    expect(actionCellsOf(cells)).toEqual(rows);
+    const once = (atSec: number): ActionTrack => ({ stepSec: ACTION_STEP_SEC, grid: ACTION_GRID, samples: Array.from({ length: Math.ceil(until / ACTION_STEP_SEC) }, (_, k) => (Math.abs((k + 1) * ACTION_STEP_SEC - atSec) < 1e-9 ? cells : "")) });
+    const underHook = once(1);
+    const atTop = actionCoverSec(captionsAtEdge(plan.settings.captions, hook, "top"), hook, underHook, until);
+    const atBottom = actionCoverSec(captionsAtEdge(plan.settings.captions, hook, "bottom"), hook, underHook, until);
+    expect([atTop, atBottom, atTop < ACTION_GAIN_SEC]).toEqual([ACTION_STEP_SEC, 0, true]);
+    const placed = placeSimpleTexts(plan.settings.captions, roles, underHook, plan.settings, until);
+    expect(hook.map((i) => placed[i].position)).toEqual(hook.map(() => "bottom"));
+    // read as before, and every other text where it was
+    expect([captionWordsOf(placed, hook), roles.flatMap((r, i) => (r === "hook" ? [] : [placed[i].position]))]).toEqual([captionWordsOf(plan.settings.captions, hook), roles.flatMap((r, i) => (r === "hook" ? [] : [plan.settings.captions[i].position]))]);
+    // the bottom hiding the action too: no edge is clear, and half a second is no gain
+    const low = Array.from({ length: 5 * ACTION_GRID }, (_, k) => 15 * ACTION_GRID + k);
+    const both = { ...underHook, samples: underHook.samples.map((x) => (x ? `${x}${low.map((c) => c.toString(36).padStart(2, "0")).join("")}` : x)) };
+    expect(actionCellsOf(both.samples[1])).toEqual([...rows, ...low]);
+    expect(actionCoverSec(captionsAtEdge(plan.settings.captions, hook, "bottom"), hook, both, until)).toBe(ACTION_STEP_SEC);
+    expect(placeSimpleTexts(plan.settings.captions, roles, both, plan.settings, until)).toEqual(plan.settings.captions);
+    // a later message hiding the same half second keeps the second's margin (one ball passing once moves no text from edge to edge)
+    const laterAt = (Math.floor(plan.settings.captions[later[0]].start / ACTION_STEP_SEC) + 1) * ACTION_STEP_SEC;
+    expect(laterAt).toBeLessThan(until);
+    const underLater = once(laterAt);
+    expect(actionCoverSec(captionsAtEdge(plan.settings.captions, later, "top"), later, underLater, until)).toBe(ACTION_STEP_SEC);
+    expect(placeSimpleTexts(plan.settings.captions, roles, underLater, plan.settings, until)).toEqual(plan.settings.captions);
+    // the crew's Simple score charges a text only from a second's gain: the hook owes it nothing at either edge
+    const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+    for (const captions of [placed, plan.settings.captions]) {
+      const clip = crewClipOfPlan({ ...plan, settings: { ...plan.settings, captions } }, { run });
+      expect(textOverActionSec({ ...clip, run: { ...clip.run!, action: underHook } })).toBe(0);
+    }
+  });
+
+  it("puts the conveyor's hook under its square, clear of its first ball on the belt, and never Bullseye's over its dartboard (the page's world, the first plans)", () => {
+    const rec = planTemplate("count-conveyor", 1, "reels", { copy, episode: 1, index: 1, world: { width: 800, height: 450 } });
+    const hook = rec.captionRoles.map((r, i) => (r === "hook" ? i : -1)).filter((i) => i >= 0);
+    const track = actionTrackSync(rec.settings, rec.seed, rec.world, rec.timing.clipSec);
+    const top = actionCoverSec(captionsAtEdge(rec.settings.captions, hook, "top"), hook, track, rec.timing.clipSec);
+    const bottom = actionCoverSec(rec.settings.captions, hook, track, rec.timing.clipSec);
+    expect([hook.map((i) => rec.settings.captions[i].position), top > 0, top < ACTION_GAIN_SEC, bottom]).toEqual([hook.map(() => "bottom"), true, true, 0]);
+    const run = runSync(rec.settings, rec.seed, rec.world, rec.recipe, rec.timing.clipSec, rec.payoff.atSec);
+    expect(clarityOf(crewClipOfPlan(rec, { run })).gates.filter((g) => !g.ok).map((g) => g.id)).toEqual([]);
+    // Bullseye's dartboard lies along the bottom of the square: the hook its run would move there covered it (watched), so its
+    // bottom edge is taken and every text stays at the top, over the launcher, as before
+    const aim = planTemplate("aim-bullseye", 1, "reels", { copy, episode: 1, index: 1, world: { width: 800, height: 450 } });
+    expect([bottomEdgeFree(aim.settings), aim.settings.captions.map((c) => c.position)]).toEqual([false, aim.settings.captions.map(() => "top")]);
+  });
+
   it("never moves a text where the mode draws something of its own along the bottom of the square", () => {
     // (balls moving in the middle of the square's third row, under the hook, the whole clip: cells 49 and 50 of the 20 × 20)
     const track: ActionTrack = { stepSec: 0.5, grid: 20, samples: Array.from({ length: 40 }, () => "1d1e") };
@@ -1997,6 +2053,10 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
       expect(drawn + s.dmHold + s.dmRewind, where).toBeGreaterThan(plan.timing.clipSec);
       const run = runSync(s, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
       expect([where, clarityOf(crewClipOfPlan(plan, { run })).pass, plan.hook]).toEqual([where, true, "Guess what it draws."]);
+      // --- templates --- (step 2's review round 1, 14) the marks left unjoined: no five-pointed star in the orbit's circle over the
+      // flower (the mode's default joins them); a drawn-only switch, so the run is the one the star's clip played
+      expect([where, s.dmPentagram, defaultSettings("drawingMachine").dmPentagram]).toEqual([where, false, true]);
+      if (seed === 1) expect(JSON.stringify(runSync({ ...s, dmPentagram: true }, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec))).toBe(JSON.stringify(run));
     }
   });
 

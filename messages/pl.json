@@ -4092,7 +4092,8 @@
         "cliffHook": "{thing} kontra czas.",
         "payoff": "Wolność! 🔓",
         "cliffQuestion": "Udało się? 👇",
-        "postQuestion": "Postawiłbyś na ucieczkę?"
+        "postQuestion": "Postawiłbyś na ucieczkę?",
+        "hashtags": "#ucieczka #ballescape #czyucieknie"
       },
       "smash": {
         "name": "Rozbijanie",
@@ -4102,7 +4103,8 @@
         "cliffHook": "Każdy cios się liczy. Pęknie?",
         "payoff": "Rozbite. 💥",
         "cliffQuestion": "Jeszcze jedno uderzenie? 👇",
-        "postQuestion": "Ile uderzeń według ciebie było trzeba?"
+        "postQuestion": "Ile uderzeń według ciebie było trzeba?",
+        "hashtags": "#rozbijanie #ileuderzen #smash"
       },
       "fill": {
         "name": "Do pełna",
@@ -4112,7 +4114,8 @@
         "cliffHook": "{thing} kontra ostatnia luka.",
         "payoff": "Pełne! 😮",
         "cliffQuestion": "Zmieści się? 👇",
-        "postQuestion": "Kiedy wiedziałeś, że się wypełni?"
+        "postQuestion": "Kiedy wiedziałeś, że się wypełni?",
+        "hashtags": "#wypelnianie #czysiezmiesci #dopelna"
       },
       "count": {
         "name": "Liczenie",
@@ -4122,7 +4125,8 @@
         "cliffHook": "Licz dalej. Ile już jest?",
         "payoff": "{count}! 🤯",
         "cliffQuestion": "Ile ich teraz? 👇",
-        "postQuestion": "Jaki był twój typ przed końcem?"
+        "postQuestion": "Jaki był twój typ przed końcem?",
+        "hashtags": "#ileich #zgadnij #liczenie"
       },
       "whoWins": {
         "name": "Kto wygra",
@@ -4132,7 +4136,8 @@
         "cliffHook": "Wybierz kolor przed końcem.",
         "payoff": "{winner} wygrywa! 🏆",
         "cliffQuestion": "Kto wygra? 👇",
-        "postQuestion": "Kogo wybrałeś przed startem?"
+        "postQuestion": "Kogo wybrałeś przed startem?",
+        "hashtags": "#ktowygra #bitwa #wybierzstrone"
       },
       "aim": {
         "name": "Celność",
@@ -4142,7 +4147,8 @@
         "cliffHook": "Już blisko. Trafi?",
         "payoff": "W dziesiątkę! 🎯",
         "cliffQuestion": "Trafi czy nie? 👇",
-        "postQuestion": "Myślałeś, że trafi?"
+        "postQuestion": "Myślałeś, że trafi?",
+        "hashtags": "#wdziesiatke #trickshot #czytrafi"
       },
       "lineUp": {
         "name": "W jednej linii",
@@ -4152,7 +4158,8 @@
         "cliffHook": "Prawie w jednej linii…",
         "payoff": "Jest! ✨",
         "cliffQuestion": "Ustawią się w linii? 👇",
-        "postQuestion": "W której sekundzie to przewidziałeś?"
+        "postQuestion": "W której sekundzie to przewidziałeś?",
+        "hashtags": "#synchronizacja #sztukafizyki #wzory"
       },
       "onTheBeat": {
         "name": "W rytm",
@@ -4162,7 +4169,8 @@
         "cliffHook": "Włącz dźwięk. Czekaj na finał.",
         "payoff": "Ostatnia nuta. 🎹",
         "cliffQuestion": "Co dalej? 👇",
-        "postQuestion": "Jaką piosenkę zagrać następną?"
+        "postQuestion": "Jaką piosenkę zagrać następną?",
+        "hashtags": "#muzykafizyki #wlaczdzwiek #rytm"
       },
       "reveal": {
         "name": "Odsłona",
@@ -4172,7 +4180,8 @@
         "cliffHook": "Prawie gotowe. Zgaduj teraz.",
         "payoff": "Cały obrazek. 🖼️",
         "cliffQuestion": "Co to jest? 👇",
-        "postQuestion": "Co twoim zdaniem powstawało?"
+        "postQuestion": "Co twoim zdaniem powstawało?",
+        "hashtags": "#zgadnijobrazek #geometria #rysowanie"
       },
       "labGame": {
         "name": "Gra z laboratorium",
@@ -4182,7 +4191,8 @@
         "cliffHook": "Jak się skończy? Zgaduj.",
         "payoff": "Koniec gry! 🏁",
         "cliffQuestion": "Jak się skończy? 👇",
-        "postQuestion": "Jaką zasadę sprawdzić w następnej grze?"
+        "postQuestion": "Jaką zasadę sprawdzić w następnej grze?",
+        "hashtags": "#grafizyczna #grasymulacja #cobedziedalej"
       }
     },
     "things": {

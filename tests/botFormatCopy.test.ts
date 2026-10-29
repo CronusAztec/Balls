@@ -3,7 +3,8 @@ import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
-import { FORMAT_COPY_FIELDS, FORMAT_HOOK_FIELDS, FORMAT_PLACEHOLDERS, formatText, lookCopy, recipeCopyPath, recipeCopyVars, recipeText, templateName, thingOf, type BotCopy, type BotLocale } from "@/lib/bot/copy";
+import { FORMAT_COPY_FIELDS, FORMAT_HOOK_FIELDS, FORMAT_PLACEHOLDERS, clipHashtags, formatText, lookCopy, parseHashtags, recipeCopyPath, recipeCopyVars, recipeText, templateName, thingOf, type BotCopy, type BotLocale } from "@/lib/bot/copy";
+import { BOT_FAMILIES, BOT_PLATFORMS, HASHTAG_COUNT, PLATFORMS } from "@/lib/bot/playbook";
 import { defaultSettings } from "@/lib/settings";
 import { evenCaptionLines, planClip, type ClipPlan } from "@/lib/bot/planner";
 import { HOOK_VARIANTS } from "@/lib/crew/roles";
@@ -13,8 +14,8 @@ import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMAT_IDS, allTemplates, pl
 
 /*
  * --- templates --- The formats' words (AI studio step 2: messages/*.json ViralBot.formats, ViralBot.things, ViralBot.looks, read
- * by lib/bot/copy.ts): every format's eight fields, a noun for each of the 48 modes and the two looks, in English, Polish and
- * Spanish; every hook of every format, on every mode bound to it and in every locale, inside the Simple look's lines (at most 7
+ * by lib/bot/copy.ts): every format's nine fields (its own hashtags among them since step 2's review round 1, 16), a noun for each
+ * of the 48 modes and the two looks, in English, Polish and Spanish; every hook of every format, on every mode bound to it and in every locale, inside the Simple look's lines (at most 7
  * words on at most 2 lines, 42 characters in English and 52 in Polish and Spanish, numbers the clip has); a template without a
  * recipe planned in its format's words, a template that wraps one in its recipe's; and a template's name, "{Mode name} ·
  * {Format name}".
@@ -55,7 +56,7 @@ const filled = (locale: BotLocale, format: TemplateFormatId, field: string, mode
 const chars = (text: string) => [...text].length;
 
 describe("the formats' words (ViralBot.formats, things and looks)", () => {
-  it("has every format's eight fields, a noun for each of the 48 modes and the two looks, in en, pl and es, with plain placeholders only", () => {
+  it("has every format's nine fields, a noun for each of the 48 modes and the two looks, in en, pl and es, with plain placeholders only", () => {
     for (const locale of LOCALES) {
       const formats = formatsOf(locale);
       expect([locale, Object.keys(formats)]).toEqual([locale, [...TEMPLATE_FORMAT_IDS]]);
@@ -153,8 +154,9 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     expect(formatText(COPY.en, "count", "payoff", { count: 120 })).toBe("120! 🤯");
     expect(formatText(COPY.pl, "whoWins", "payoff", { winner: "Blaze" })).toBe("Blaze wygrywa! 🏆");
     expect(formatText(COPY.es, "whoWins", "payoff", { winner: "Blaze" })).toBe("¡Blaze gana! 🏆");
-    // the recipe fields a format has none of: its name as the series, its closing question as a cliffhanger's post question
-    expect([formatText(COPY.en, "getOut", "series"), formatText(COPY.en, "getOut", "cliffPostQuestion"), formatText(COPY.en, "getOut", "keywords"), formatText(COPY.en, "getOut", "hashtags")]).toEqual(["Get out", "Out or not? 👇", "", ""]);
+    // the recipe fields a format has none of: its name as the series, its closing question as a cliffhanger's post question (and no
+    // keywords); --- templates --- (step 2's review round 1, 16) its hashtags are its own, which name its claim
+    expect([formatText(COPY.en, "getOut", "series"), formatText(COPY.en, "getOut", "cliffPostQuestion"), formatText(COPY.en, "getOut", "keywords"), formatText(COPY.en, "getOut", "hashtags")]).toEqual(["Get out", "Out or not? 👇", "", "#ballescape #canitescape #escape"]);
     expect(formatText(COPY.en, "nope", "hook", thing("en", "classic"))).toBe("");
   });
 
@@ -226,6 +228,44 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
       expect([locale, filled.hook, filled.payoff.text]).toEqual([locale, formatText(copy, "count", "own.conveyor", { count: filled.settings.cvMaxBalls }), ""]);
       expect([locale, filled.hook.includes(String(filled.settings.cvMaxBalls)), /\{\w+\}/.test(filled.hook)]).toEqual([locale, true, false]);
     }
+  });
+
+  // --- templates --- (step 2's review round 1, 16: "#escape #ballescape" posted on a target smashed, a conveyor counted, a bullseye shot)
+  it("posts a template without a recipe its format's own hashtags in place of its series': a series' tags only on the format whose claim they name", () => {
+    let checked = 0;
+    for (const locale of LOCALES) {
+      const copy = COPY[locale];
+      const seriesTags = (family: string) => parseHashtags(String(copyPath(copy, `hashtags.${family}`))).map((t) => t.toLowerCase());
+      // the escape series' tags only on get out, the battles' only on who wins, the rhythm series' (its polyrhythm) on none
+      const claimOf: Record<string, string | null> = { escape: "getOut", battle: "whoWins", rhythm: null };
+      expect(Object.keys(claimOf).sort()).toEqual([...BOT_FAMILIES].sort());
+      for (const format of TEMPLATE_FORMAT_IDS) {
+        const text = formatText(copy, format, "hashtags");
+        const tags = parseHashtags(text);
+        expect([locale, format, tags.join(" "), tags.length >= 2 && tags.length <= 4]).toEqual([locale, format, text, true]);
+        for (const family of BOT_FAMILIES) {
+          const named = tags.some((t) => seriesTags(family).includes(t.toLowerCase()));
+          expect([locale, format, family, named]).toEqual([locale, format, family, claimOf[family] === format]);
+        }
+      }
+      for (const t of allTemplates().filter((x) => x.recipe === null)) {
+        const r = plannedRecipe(t);
+        if (!r) continue;
+        const own = parseHashtags(formatText(copy, t.format.id, "hashtags"));
+        for (const platform of BOT_PLATFORMS) {
+          const posted = clipHashtags(copy, r, platform);
+          const allowed = new Set([...own, PLATFORMS[platform].tag, ...parseHashtags(String(copyPath(copy, "hashtags.common")))].map((x) => x.toLowerCase()));
+          const where = `${locale} ${t.id} ${platform}`;
+          expect([where, posted.slice(0, own.length), posted.filter((x) => !allowed.has(x.toLowerCase()))]).toEqual([where, own, []]);
+          expect([where, posted.length >= HASHTAG_COUNT.min && posted.length <= HASHTAG_COUNT.max]).toEqual([where, true]);
+          checked++;
+        }
+      }
+      // a template that wraps a recipe keeps its recipe's tags and its series' (the daily bot's post, unchanged)
+      const wrapped = allTemplates().find((x) => x.id === "get-out-classic")!;
+      expect(clipHashtags(copy, plannedRecipe(wrapped)!, "reels")).toEqual(clipHashtags(copy, wrapped.recipe!, "reels"));
+    }
+    expect(checked).toBeGreaterThanOrEqual(3 * 3 * 20);
   });
 
   it("names every template \"{Mode name} · {Format name}\" from the site's mode names, a further variant with its recipe's name, unique in every locale", () => {

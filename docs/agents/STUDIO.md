@@ -96,12 +96,13 @@ argument.
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
 and Mode Lab game. 35 of the 48 bindings are ready, as 45 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
-first. The `templates` tool has each template's words in one locale; a binding that waits has its measured reason
-(`waits`), and `plan` refuses its mode with that reason.
+first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
+experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode with it.
 
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
-it. The default menus offer the other 35 templates, as the daily bot leaves its battles out.
+it: `plan` refuses one named by its id, its mode or its recipe without it, as `viral-bot.mjs --template` does. The default
+menus offer the other 35 templates, as the daily bot leaves its battles out.
 
 | Format | Mode | The payoff | Ready templates | Waits, and why |
 | --- | --- | --- | --- | --- |
@@ -399,7 +400,9 @@ its export without the site's domain, with share links to localhost in plan.json
   "doubles the power."), never with a last line of one or two words. The bot look keeps its own breaks.
 - Each Simple text sits at the edge of the square its run leaves clear. The planner plays the chosen seed to the clip's end
   and notes where its balls move every half second (`run.action`, lib/bot/actionTrack.ts); a text moves to the bottom of the
-  square when it would hide them there for at least 1 s less than at the top. Ball Drop's hook goes to the bottom, while the
+  square when it would hide them there for at least 1 s less than at the top, and the hook for less: whenever it hides any of
+  them at the top and none at the bottom (the conveyor's first ball on its belt). Bullseye's dartboard lies along the bottom,
+  so its texts stay at the top. Ball Drop's hook goes to the bottom, while the
   balls enter the board at the top, and so do Pendulum Wave's texts, whose short pendulums swing under the top band. The
   Simple score charges a text that hides the action where the other edge would not (textOverAction), the viewer's "text"
   distraction counts as confirmed then, and the oneTextAtATime fix places the texts the same way.
@@ -562,7 +565,10 @@ What the run showed:
   stays ready.
 - **A reveal without a picture** (AI studio step 6). The reveal format's hooks ask a viewer to guess a picture. The Drawing
   Machine's orbits draw one (Earth and Venus's five-petal flower), and its template is ready; its default harmonograph draws a
-  figure no viewer could name, so the template draws the orbits. Lines strokes a string from every bounce point to the moving
+  figure no viewer could name, so the template draws the orbits. It leaves the conjunction marks unjoined (`dmPentagram`
+  off, a drawn-only switch): joined, five bright lines closed a five-pointed star in the orbit's circle over the flower, the
+  picture a stranger saw first, which some read as an occult sign (the first review round of step 2, 14). Whether to post
+  the star is the owner's call. Lines strokes a string from every bounce point to the moving
   ball, so its strings make a fan that follows the ball, never a picture, and Circle Illusion's lines and rings show their
   circle from the first second and line up every cycle. Both pass every gate and are hidden for it (watched). Illusion's
   white-spaces type hides a picture but shows it for the recorder's 0.5 s only, as its run ends. A Lines setting that keeps

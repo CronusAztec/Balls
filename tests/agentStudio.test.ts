@@ -47,7 +47,7 @@ import { BINDINGS, BOT_LOOKS, EXPERIMENTAL, TEMPLATE_FORMAT_IDS, allTemplates, r
 import { settingsFromSearchParams } from "@/lib/settings";
 import { TRENDS } from "@/content/trends";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
-import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRules, clarityOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
+import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRules, clarityOf, clipSceneOf, compileFixes, createPanel, crewClipOfPlan, drawnHookText, markObjection, panelDecision, runPanel, sceneOf, screenView, templateSceneOf, type CrewModel, type PanelCandidate, type RoleBrief } from "@/lib/crew";
 
 /*
  * --- studio --- Claude's studio in the agent toolbox (docs/agents/STUDIO.md, C5 of the AI studio plan): the studio kit
@@ -204,6 +204,25 @@ describe("plan (--- studio ---)", () => {
     const bindings = studioTemplates({ family: "all", copy: false }, copy).bindings;
     expect(bindings.find((b) => b.mode === "race")).toMatchObject({ tier: "proven", ready: false, variants: [{ id: "who-wins-race", ready: false }] });
     expect(bindings.filter((b) => b.ready !== b.variants.some((v) => v.ready)).map((b) => b.mode)).toEqual([]);
+  });
+
+  // --- studio --- (step 2's review round 1, 18: plan by template or mode planned Fight League with no family, viral-bot.mjs refused it)
+  it("plans a battle template, mode or recipe only when the family asks for it, as the listing and viral-bot.mjs --template do", () => {
+    const optIn = /in the battle series, which family (default|escape|rhythm) leaves out \(its Fight League names third-party characters: planned only when asked for\): add "family":"all" or "family":"battle"/;
+    for (const input of [{ template: "who-wins-fight-league" }, { template: "who-wins-battle" }, { mode: "fightLeague" }, { mode: "stringBattle", family: "default" as const }, { recipe: "fight-duel" }, { recipe: "string-battle", family: "escape" as const }]) {
+      const p = studioPlan({ ...input, count: 1 }, copy);
+      expect([JSON.stringify(input), p.ok]).toEqual([JSON.stringify(input), false]);
+      expect(!p.ok && p.error, JSON.stringify(input)).toMatch(optIn);
+    }
+    // asked for, each is offered (the sources only: a Fight League plan's seed search is the slow part, planned above with "all")
+    for (const family of ["all", "battle"] as const) {
+      for (const input of [{ template: "who-wins-fight-league" }, { mode: "fightLeague" }, { recipe: "fight-duel" }]) expect([family, JSON.stringify(input), planSources({ ...input, family }).ok]).toEqual([family, JSON.stringify(input), true]);
+    }
+    // the other series as well: an escape template is not planned under the battle family alone, and is by default
+    expect(planSources({ template: "get-out-classic", family: "battle" })).toMatchObject({ ok: false, error: expect.stringContaining('in the escape series, which family battle leaves out: add "family":"all" or "family":"escape"') });
+    expect(planSources({ template: "get-out-classic" }).ok).toBe(true);
+    // a hidden template still says why it waits, whatever the family (the square race's count-in)
+    expect(studioPlan({ template: "who-wins-race" }, copy)).toMatchObject({ ok: false, error: expect.stringMatching(/not ready yet/) });
   });
 
   it("points a plan past the crew's limit of a studio at two it can review, never at the review that refuses it", () => {
@@ -851,6 +870,37 @@ describe("the studio's second review round, findings 13-18 (--- studio ---)", ()
     expect(asked[1].errors.some((e) => /caption: 7 is not a number this clip has/.test(e))).toBe(rings !== 7);
     expect(pre.copy).toMatchObject({ source: "producer", clips: [{ title: `${rings} rings, can it get out?` }] });
   });
+
+  // --- studio --- (step 2's review round 1, 15: the producer was told "balls moving in an arena" and refused the hoops' 8)
+  it("step 2's finding 15: a template's own scene line reaches the producer as the viewer reads it, with the numbers it states", async () => {
+    const rec = planned({ template: "line-up-hoops", count: 1, planSeed: 1, world: { width: 800, height: 450 } })[0];
+    const hoops = rec.plan.settings.hpCount;
+    const clip = crewClipOfPlan(rec.plan, { run: rec.run });
+    const scene = templateSceneOf(clip)!;
+    expect([scene.startsWith(`${hoops} hoops`), clipSceneOf(clip), screenView(clip).text.split("\n")]).toEqual([true, scene, expect.arrayContaining([`scene: ${scene}`])]);
+    expect(sceneOf(clip.settings)).not.toBe(scene);
+    // (a clip that left its template's mode is described by its settings, as before)
+    const moved = { ...clip, settings: { ...clip.settings, mode: "classic" as const } };
+    expect(clipSceneOf(moved)).toBe(sceneOf(moved.settings));
+    const asked: { user: string; errors: string[] }[] = [];
+    const title = `${hoops} hoops, ${hoops} beads`;
+    const model: CrewModel = async ({ brief, errors }) => {
+      if (brief.role === "skeptic") return { reply: NOTHING };
+      if (brief.role === "reviewer") return { reply: KEEP };
+      if (brief.role === "producer") {
+        asked.push({ user: brief.user, errors });
+        const words = produced(brief.final as Record<string, unknown>);
+        return { reply: { ...words, clips: words.clips.map((c) => ({ ...c, title, caption: "Which bead lines up last?" })) } };
+      }
+      return { reply: {} };
+    };
+    const pre = await runPanel(createPanel({ stage: "pre", wanted: 1, candidates: [{ id: rec.id, clip }], who: "claude", separation: "sameContext" }), { model });
+    const kept = JSON.parse(/Kept clips \(JSON\): (.*)/.exec(asked[0].user)![1]) as { scene: string; numbers: number[] }[];
+    expect([kept[0].scene, kept[0].numbers.includes(hoops)]).toEqual([scene, true]);
+    // the hoops' count is a number this clip has: the first answer is kept
+    expect(asked).toHaveLength(1);
+    expect(pre.copy).toMatchObject({ source: "producer", clips: [{ title }] });
+  });
 });
 
 describe("the acceptance run's finding: a re-planned clip's words (--- studio ---)", () => {
@@ -1069,8 +1119,13 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
     for (const mode of new Set(ids.map((id) => ready.find((t) => t.id === id)!.mode))) {
       const own = ready.filter((t) => t.mode === mode).map((t) => t.id);
       expect([mode, studioTemplates({ family: "all", mode, copy: false }, copy).templates.map((x) => x.id)]).toEqual([mode, own]);
-      const src = planSources({ mode });
+      const src = planSources({ mode, family: "all" });
       expect([mode, src.ok && src.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id))]).toEqual([mode, own]);
+      // --- studio --- (step 2's review round 1, 18) and without a family, the default one's: a battle mode's none, as the listing
+      const offered = readyTemplates().filter((t) => t.mode === mode).map((t) => t.id);
+      const plain = planSources({ mode });
+      expect([mode, plain.ok ? plain.sources.map((x) => (x.kind === "template" ? x.info.id : x.recipe.id)) : []]).toEqual([mode, offered]);
+      expect([mode, studioTemplates({ mode, copy: false }, copy).templates.map((x) => x.id)]).toEqual([mode, offered]);
     }
     // every binding that waits says why: its measured reason, in the listing and in the plan's refusal
     const listed = studioTemplates({ family: "all", copy: false }, copy).bindings;
@@ -1079,7 +1134,17 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
       const refused = studioPlan({ mode: b.mode }, copy);
       expect(!refused.ok && refused.error, b.mode).toContain(EXPERIMENTAL[b.mode]!);
     }
-    expect(listed.filter((x) => "waits" in x).map((x) => x.mode)).toEqual(BINDINGS.filter((x) => EXPERIMENTAL[x.mode]).map((x) => x.mode));
+    // --- studio --- (step 2's review round 1, 17) a proven binding whose every variant is hidden waits too: its variants' reasons
+    for (const b of BINDINGS.filter((x) => !x.ready && !EXPERIMENTAL[x.mode])) {
+      const reasons = b.variants.filter((v) => v.hidden).map((v) => `${v.id}: ${v.hidden}`);
+      expect([b.mode, b.tier, reasons.length > 0]).toEqual([b.mode, "proven", true]);
+      expect(listed.find((x) => x.mode === b.mode)).toMatchObject({ ready: false, waits: `hidden: ${reasons.join("; ")}` });
+      const refused = studioPlan({ mode: b.mode, family: "all" }, copy);
+      expect(!refused.ok && refused.error, b.mode).toContain(`hidden: ${reasons.join("; ")}`);
+    }
+    expect(BINDINGS.filter((x) => !x.ready && !EXPERIMENTAL[x.mode]).map((x) => x.mode)).toEqual(expect.arrayContaining(["race"]));
+    expect(listed.filter((x) => "waits" in x).map((x) => x.mode)).toEqual(BINDINGS.filter((x) => !x.ready).map((x) => x.mode));
+    expect(listed.filter((x) => x.ready).some((x) => "waits" in x)).toBe(false);
   });
 
   it("plans every ready template by its id, in the page's world on a platform it fits, in the Simple look and linked to the live site", { timeout: 240_000 }, () => {

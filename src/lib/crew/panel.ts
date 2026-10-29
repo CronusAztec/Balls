@@ -3,7 +3,7 @@ import { BOT_DEFAULT_FAMILIES, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, RECIPES
 import { captionWordsOf } from "@/lib/bot/planner"; // --- templates --- (a message read as a viewer reads it)
 import { claimOfRecipe, countsIn, factNumbersOf, namesOf, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type Clarity } from "./clarity";
-import { intentView, sceneOf, screenView, type OtherCandidate } from "./dossier";
+import { clipSceneOf, intentView, screenView, type OtherCandidate } from "./dossier";
 import { confirmedDistractions, makesSenseOf, markObjection, markObjections, standing, type MarkedObjection } from "./evidence";
 import { applyCompiledFix, clutterOn, compileFixes, type CompiledFix, type FinderNeed } from "./fixes";
 import { pick, pickScore, type PickCandidate, type PickEntry, type Picked } from "./pick";
@@ -835,15 +835,16 @@ const roleWords = (clip: CrewClip, role: string) => captionWordsOf(clip.captions
 /**
  * --- crew --- (the studio's second review round, finding 18) The numbers a kept clip's title and caption may state: the clip's
  * own (clip.ts factNumbersOf: its hook values, its length, the day, one), the ones its scene line states (the rings, layers or
- * balls on screen: dossier.ts sceneOf), its payoff's second, and the ones in the words drawn on it and in its template's own post
- * copy (the series label's day or match) – each true of this run by construction. The producer's brief lists them, and
- * checkProducer refuses a title or caption with any other.
+ * balls on screen: dossier.ts clipSceneOf – --- crew --- step 2's review round 1, 15: its template's own line where it has one,
+ * the hoops' count, as the viewer reads it), its payoff's second, and the ones in the words drawn on it and in its template's
+ * own post copy (the series label's day or match) – each true of this run by construction. The producer's brief lists them,
+ * and checkProducer refuses a title or caption with any other.
  */
 export function producerNumbersOf(c: Pick<PanelClip, "clip" | "post">): number[] {
   const out = new Set<number>(factNumbersOf(c.clip));
   const at = c.clip.payoff.atSec;
   if (at !== null && Number.isFinite(at)) for (const n of [Math.floor(at), Math.round(at), Math.ceil(at)]) out.add(n);
-  const texts = [sceneOf(c.clip.settings), drawnHookText(c.clip), roleWords(c.clip, "payoff"), roleWords(c.clip, "question"), c.post?.title ?? "", c.post?.caption ?? ""];
+  const texts = [clipSceneOf(c.clip), drawnHookText(c.clip), roleWords(c.clip, "payoff"), roleWords(c.clip, "question"), c.post?.title ?? "", c.post?.caption ?? ""];
   for (const t of texts) for (const n of countsIn(t, namesOf(c.clip))) out.add(n); // --- crew --- (studio round 1, 4: a number inside the clip's names is no count)
   return [...out].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
 }
@@ -854,7 +855,8 @@ function producerUser(s: PanelState): string {
     const c = clipOf(s, id)!;
     const at = c.clip.payoff.atSec;
     // --- crew --- (finding 18) what is on screen and the numbers it has: a title or caption states no other
-    return { planId: id, platform: c.clip.platform, mode: c.clip.mode, scene: sceneOf(c.clip.settings), lengthSec: Math.round(c.clip.timing.clipSec * 10) / 10, payoffSec: at !== null && Number.isFinite(at) ? Math.round(at * 10) / 10 : null, numbers: producerNumbersOf(c), hook: drawnHookText(c.clip) || c.clip.hook || "", payoff: roleWords(c.clip, "payoff"), question: roleWords(c.clip, "question"), templateCopy: c.post ? { caption: c.post.caption, hashtags: c.post.hashtags } : null };
+    // --- crew --- (step 2's review round 1, 15) the scene the viewer is told: the template's own line where it has one
+    return { planId: id, platform: c.clip.platform, mode: c.clip.mode, scene: clipSceneOf(c.clip), lengthSec: Math.round(c.clip.timing.clipSec * 10) / 10, payoffSec: at !== null && Number.isFinite(at) ? Math.round(at * 10) / 10 : null, numbers: producerNumbersOf(c), hook: drawnHookText(c.clip) || c.clip.hook || "", payoff: roleWords(c.clip, "payoff"), question: roleWords(c.clip, "question"), templateCopy: c.post ? { caption: c.post.caption, hashtags: c.post.hashtags } : null };
   });
   return [`Write in ${LANGUAGES[s.request?.locale ?? "en"] ?? "English"}.`, `Kept clips (JSON): ${JSON.stringify(clips)}`, `Research: ${briefText(s.brief, BRIEF_CHARS.producer)}`].join("\n");
 }

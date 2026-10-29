@@ -421,9 +421,11 @@ export function captionsAtEdge(captions: readonly Caption[], indices: readonly n
 /**
  * The modes that draw something of their own along the bottom of the square (Canvas.tsx, the live watermark's bottom bands and
  * blocks: Fight League's ability boxes, a string battle's standings strip, Multipliers' ball counter at home, a race's standings
- * and mini-map, the Journey's clock), which captionBoxAt does not know: a Simple text stays at the top there.
+ * and mini-map, the Journey's clock – --- templates --- step 2's review round 1, 13: and Bullseye's dartboard lying at the bottom,
+ * the mark its hook asks about, which a bottom hook covered in the page's world, watched), which captionBoxAt does not know: a
+ * Simple text stays at the top there.
  */
-const BOTTOM_HUD_MODES: readonly SimulatorSettings["mode"][] = ["fightLeague", "stringBattle", "multipliers", "race", "journey"];
+const BOTTOM_HUD_MODES: readonly SimulatorSettings["mode"][] = ["fightLeague", "stringBattle", "multipliers", "race", "journey", "bullseye"];
 
 /**
  * Whether a Simple text may take the bottom edge of the square with these settings: not in BOTTOM_HUD_MODES, nor under the loop
@@ -501,9 +503,12 @@ export const ACTION_GAIN_SEC = 1;
  * The Simple look's texts, each at the edge of the square its run leaves clearer: a message moves to the bottom when it would
  * hide the moving balls there for at least ACTION_GAIN_SEC less than at the top, over the clip (`untilSec`), its lines read as
  * before – --- templates --- (AI studio step 3) and, before the balls, to the edge where it sits over a banner of the mode's own
- * text for less time (Glass Smash's "STAGE n" under a top hook: bannerCoverSec). None moves where the mode draws something of
- * its own along the bottom (bottomEdgeFree); the others stay at the top, the bot look's place. Pure: it reads the run's action
- * track.
+ * text for less time (Glass Smash's "STAGE n" under a top hook: bannerCoverSec). --- templates --- (step 2's review round 1, 13)
+ * The hook moves for less: wherever it hides any of the action at the top and none at the bottom. It is up in the first
+ * seconds, when the one ball that moves may be all there is to see (the conveyor's first ball rode its belt under "One ball."
+ * for half a second while the bottom of the square stayed empty), so no margin keeps it over the action. None moves where the
+ * mode draws something of its own along the bottom (bottomEdgeFree); the others stay at the top, the bot look's place. Pure:
+ * it reads the run's action track.
  */
 export function placeSimpleTexts(captions: readonly Caption[], roles: readonly CaptionRole[], track: ActionTrack, settings: Pick<SimulatorSettings, "mode" | "loopHud" | "ringTimer">, untilSec: number): Caption[] {
   let out = captions.slice();
@@ -516,7 +521,13 @@ export function placeSimpleTexts(captions: readonly Caption[], roles: readonly C
     const overTop = bannerCoverSec(top, message, track, untilSec, false, topHud);
     const overBottom = bannerCoverSec(bottom, message, track, untilSec, false, topHud);
     if (overTop !== overBottom) out = overTop > overBottom ? bottom : top;
-    else out = actionCoverSec(top, message, track, untilSec, false, topHud) - actionCoverSec(bottom, message, track, untilSec, false, topHud) >= ACTION_GAIN_SEC - 1e-9 ? bottom : top;
+    else {
+      const atTop = actionCoverSec(top, message, track, untilSec, false, topHud);
+      const atBottom = actionCoverSec(bottom, message, track, untilSec, false, topHud);
+      // --- templates --- (step 2's review round 1, 13) the hook: any action hidden at the top and none at the bottom moves it
+      const hookClear = roles[message[0]] === "hook" && atTop > 1e-9 && atBottom <= 1e-9;
+      out = hookClear || atTop - atBottom >= ACTION_GAIN_SEC - 1e-9 ? bottom : top;
+    }
   }
   return out;
 }
