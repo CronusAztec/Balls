@@ -293,7 +293,7 @@ export function trialAsked(settings) {
 /**
  * The facts of a post's series: each label, how many points it has, and whether its total is above zero ("yes" or "no",
  * never the total). The total is the series' own, else the sum of its points (Postiz sends each point's total as text).
- * @param {readonly { label?: unknown, total?: unknown, data?: unknown }[]} series
+ * @param {readonly { label?: unknown, total?: unknown, data?: unknown, [key: string]: unknown }[]} series (Postiz's own fields, percentageChange among them, are let through and never read)
  * @returns {{ label: string, points: number, aboveZero: "yes" | "no" }[]}
  */
 export function seriesFacts(series) {

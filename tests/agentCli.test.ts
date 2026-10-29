@@ -555,7 +555,7 @@ describe("owner-run commands (--- agent-cli ---)", () => {
   const env = { POSTIZ_URL: "https://postiz.example.com", POSTIZ_API_KEY: KEY };
   // (any: the output is checked field by field below)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const probe = (server: ReturnType<typeof postiz>, args: { days?: number; posts?: number } = { posts: 10 }): Promise<any> => postizProbeTool(toolbox, args, { env, fetchImpl: server.fetchImpl, now: NOW, clientModule: postizClientModule });
+  const probe = (server: ReturnType<typeof postiz>, args: { days?: number; posts?: number; platform?: string } = { posts: 10 }): Promise<any> => postizProbeTool(toolbox, args, { env, fetchImpl: server.fetchImpl, now: NOW, clientModule: postizClientModule });
 
   /** Every leaf of the output: a number only as an index, a count, an age, the period or a status; a yes/no field only yes, no or unknown. */
   function onlyCountsAgesAndYesNo(out: unknown) {
