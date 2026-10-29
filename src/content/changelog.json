@@ -1,6 +1,51 @@
 {
   "releases": [
     {
+      "id": "site-1-17-0",
+      "product": "site",
+      "version": "1.17.0",
+      "date": "2026-10-29",
+      "headline": {
+        "en": "A viral template for every mode in the Clip planner",
+        "pl": "Szablon viralowy dla każdego trybu w Planerze klipów",
+        "es": "Una plantilla viral para cada modo en el planificador"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Clip planner has a new Template choice. Pick a viral template for any mode, and Plan clips makes clips from it. Auto keeps the daily mix.",
+            "pl": "Planer klipów ma nowy wybór Szablon. Wybierz szablon viralowy dla dowolnego trybu, a Zaplanuj klipy zrobi z niego klipy. Automatycznie zostawia zestaw dnia.",
+            "es": "El Planificador de clips tiene una nueva opción, Plantilla. Elige una plantilla viral para cualquier modo y Planificar clips hará clips con ella. Automático mantiene la mezcla del día."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A new Simple look switch draws the clips dark and calm, with one line of text at a time. It is on for a chosen template and off for Auto.",
+            "pl": "Nowy przełącznik Prosty wygląd rysuje klipy ciemno i spokojnie, z jedną linijką tekstu naraz. Jest włączony dla wybranego szablonu i wyłączony dla trybu Automatycznie.",
+            "es": "Un nuevo interruptor, Aspecto sencillo, dibuja los clips oscuros y tranquilos, con una línea de texto a la vez. Está activado con una plantilla elegida y desactivado en Automático."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Why this clip now shows a Simple clip's score and seven clarity checks. A check that fails says why.",
+            "pl": "Lista Dlaczego ten klip pokazuje teraz Prostotę klipu w Prostym wyglądzie i siedem testów czytelności. Niezaliczony test mówi dlaczego.",
+            "es": "Por qué este clip muestra ahora la Sencillez de un clip con Aspecto sencillo y siete pruebas de claridad. Una prueba que falla dice por qué."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Turn one off to hide that mode's banners and counters. The run stays the same.",
+            "pl": "Podróż ma przełącznik HUD etapów, a Szklana spirala przełącznik HUD spirali. Wyłącz go, by ukryć banery i liczniki trybu. Przebieg zostaje taki sam.",
+            "es": "Viaje tiene un interruptor HUD de etapas y Espiral de cristal uno HUD de la espiral. Desactívalo para ocultar los carteles y contadores del modo. La partida no cambia."
+          }
+        }
+      ]
+    },
+    {
       "id": "app-1-6-0",
       "product": "app",
       "version": "1.6.0",

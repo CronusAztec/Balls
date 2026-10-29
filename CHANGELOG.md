@@ -7,6 +7,20 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.17.0 · 2026-10-29
+
+A viral template for every mode in the Clip planner
+
+### New
+
+- The Clip planner has a new Template choice. Pick a viral template for any mode, and Plan clips makes clips from it. Auto keeps the daily mix.
+- A new Simple look switch draws the clips dark and calm, with one line of text at a time. It is on for a chosen template and off for Auto.
+- Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Turn one off to hide that mode's banners and counters. The run stays the same.
+
+### Improved
+
+- Why this clip now shows a Simple clip's score and seven clarity checks. A check that fails says why.
+
 ## Windows app 1.6.0 · 2026-10-27
 
 Mode Lab and a playbook score for the clips you render
