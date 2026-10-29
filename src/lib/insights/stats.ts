@@ -413,11 +413,40 @@ export type Usual = { usual: number; n: number } | { usual: null; n: number; why
  * or version change, or the owner's "something changed"). It needs USUAL_MIN_POSTS posts and a median of USUAL_MIN_VIEWS.
  */
 export function usualOf(points: readonly MeasuredPoint[], at: number, since: number = Number.NEGATIVE_INFINITY): Usual {
+  return usualOfNewestFirst(newestFirst(points), at, since);
+}
+
+/** A channel lane's points, newest first (a stable sort: points published at one time keep their order). */
+const newestFirst = (points: readonly MeasuredPoint[]): MeasuredPoint[] => [...points].sort((a, b) => b.publishedAt - a.publishedAt);
+
+/**
+ * usualOf over points already sorted newest first (`newestFirst`), so measureRows sorts each channel lane once rather than
+ * once per post: the same posts in the same order, as filtering a stable sort keeps the order of sorting what is filtered.
+ */
+function usualOfNewestFirst(newest: readonly MeasuredPoint[], at: number, since: number): Usual {
   const from = Math.max(since, at - USUAL_WINDOW_DAYS * DAY_MS);
-  const last = points.filter((p) => p.publishedAt < at && p.publishedAt >= from).sort((a, b) => b.publishedAt - a.publishedAt).slice(0, USUAL_POSTS);
-  if (last.length < USUAL_MIN_POSTS) return { usual: null, n: last.length, why: "fewPosts" };
-  const m = median(last.map((p) => p.views72)) as number;
-  return m < USUAL_MIN_VIEWS ? { usual: null, n: last.length, why: "fewViews" } : { usual: m, n: last.length };
+  // the first point published before `at`, then the newest USUAL_POSTS from there that are not before `from`
+  let lo = 0;
+  let hi = newest.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (newest[mid].publishedAt < at) hi = mid;
+    else lo = mid + 1;
+  }
+  const views: number[] = [];
+  for (let i = lo; i < newest.length && views.length < USUAL_POSTS && newest[i].publishedAt >= from; i++) views.push(newest[i].views72);
+  if (views.length < USUAL_MIN_POSTS) return { usual: null, n: views.length, why: "fewPosts" };
+  // `median`, sorting the few views (at most USUAL_POSTS) in place: an insertion sort keeps equal values in their order, as the
+  // stable sort does
+  for (let i = 1; i < views.length; i++) {
+    const v = views[i];
+    let j = i - 1;
+    for (; j >= 0 && views[j] > v; j--) views[j + 1] = views[j];
+    views[j + 1] = v;
+  }
+  const mid = views.length >> 1;
+  const m = views.length % 2 ? views[mid] : (views[mid - 1] + views[mid]) / 2;
+  return m < USUAL_MIN_VIEWS ? { usual: null, n: views.length, why: "fewViews" } : { usual: m, n: views.length };
 }
 
 /** The score of a post under SCORE_RULE 1: ln((views at 72 h + 1) / (usual + 1)), clipped at plus or minus ln 10. */
@@ -466,27 +495,44 @@ function breakOf(platform: string): number {
  * measured and shown, never scored; TikTok is scored here and the learner leaves out what was posted Only me.
  */
 export function measureRows(rows: readonly InsightRow[], now: number, since: Readonly<Record<string, string>> = {}): PostMeasure[] {
+  // (lists grow in place and each channel lane is sorted once: the learner reads every row on every pass)
   const byChannel = new Map<string, InsightRow[]>();
-  for (const row of rows) byChannel.set(row.channelId, [...(byChannel.get(row.channelId) ?? []), row]);
+  for (const row of rows) {
+    const list = byChannel.get(row.channelId);
+    if (list) list.push(row);
+    else byChannel.set(row.channelId, [row]);
+  }
   const out: PostMeasure[] = [];
   const points = new Map<string, MeasuredPoint[]>(); // channel|lane -> measured points
   const finals = new Map<string, { views72: number; via: "line" | "projected" }>();
+  const publishedOf = new Map<InsightRow, number | null>();
+  const breaks = new Map<string, number>();
+  const breakAt = (platform: string) => {
+    let t = breaks.get(platform);
+    if (t === undefined) breaks.set(platform, (t = breakOf(platform)));
+    return t;
+  };
   for (const [channelId, list] of byChannel) {
     const growth = growthOf(list);
     for (const row of list) {
       const published = parseIso(row.publishedAt);
+      publishedOf.set(row, published);
       if (published === null || row.state === "excluded") continue;
       const at = viewsAt72(row.reads, (now - published) / HOUR_MS, growth);
       if (at.state !== "final") continue;
       finals.set(row.postId + "|" + channelId, { views72: at.views, via: at.via });
-      if (published < breakOf(row.platform)) continue;
+      if (published < breakAt(row.platform)) continue;
       const key = `${channelId}|${row.lane}`;
-      points.set(key, [...(points.get(key) ?? []), { publishedAt: published, views72: at.views }]);
+      const point = { publishedAt: published, views72: at.views };
+      const list = points.get(key);
+      if (list) list.push(point);
+      else points.set(key, [point]);
     }
   }
+  const newest = new Map([...points].map(([key, list]) => [key, newestFirst(list)]));
   const sorted = [...rows].sort((a, b) => (a.postId < b.postId ? -1 : a.postId > b.postId ? 1 : a.channelId < b.channelId ? -1 : a.channelId > b.channelId ? 1 : 0));
   for (const row of sorted) {
-    const published = parseIso(row.publishedAt);
+    const published = publishedOf.get(row) ?? null;
     const base = { postId: row.postId, channelId: row.channelId, platform: row.platform, lane: row.lane, publishedAt: published };
     const family = platformFamily(row.platform);
     const final = finals.get(row.postId + "|" + row.channelId);
@@ -496,13 +542,13 @@ export function measureRows(rows: readonly InsightRow[], now: number, since: Rea
     else if (!final && row.state === "missing") out.push(now - published > MEASURED_UNTIL_H * HOUR_MS ? { ...base, state: "excluded", why: "draft" } : { ...base, state: "pending" });
     else if (family === "youtube") out.push({ ...base, state: "excluded", why: "youtube", ...shown });
     else if (family === "other") out.push({ ...base, state: "excluded", why: "platform", ...shown });
-    else if (published < breakOf(row.platform)) out.push({ ...base, state: "excluded", why: "beforeBreak", ...shown });
+    else if (published < breakAt(row.platform)) out.push({ ...base, state: "excluded", why: "beforeBreak", ...shown });
     else if (!final) {
       const notMeasured = now - published > MEASURED_UNTIL_H * HOUR_MS;
       out.push(notMeasured ? { ...base, state: "excluded", why: row.state === "noAnswer" ? "noAnswer" : "notMeasured" } : { ...base, state: "pending", ...(noAnswerAt3Days(row, (now - published) / HOUR_MS) ? { noAnswer: true as const } : {}) });
     } else {
       const restart = parseIso(since[row.channelId]) ?? Number.NEGATIVE_INFINITY;
-      const usual = usualOf(points.get(`${row.channelId}|${row.lane}`) ?? [], published, restart);
+      const usual = usualOfNewestFirst(newest.get(`${row.channelId}|${row.lane}`) ?? [], published, restart);
       out.push(usual.usual === null ? { ...base, state: "unscored", views72: final.views72, via: final.via, why: usual.why, n: usual.n } : { ...base, state: "scored", views72: final.views72, via: final.via, usual: usual.usual, score: scoreOf(final.views72, usual.usual) });
     }
   }

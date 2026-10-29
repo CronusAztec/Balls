@@ -157,10 +157,10 @@ export function runWorld(o: WorldOptions): WorldResult {
   const usualViews = 500;
   const quiet = o.quiet ?? { from: "23:00", to: "07:00" };
   const missed: WorldResult["missed"] = [];
-  const allRows: { row: InsightRow; reads: InsightRead[]; noAnswer?: boolean }[] = [];
+  const allRows: { row: InsightRow; reads: InsightRead[]; readAt: number[]; noAnswer?: boolean }[] = [];
   /** A row as the app holds it at `now`: the reads taken by then, and an unanswered post's spent tries. */
-  const rowAt = ({ row, reads, noAnswer }: (typeof allRows)[number], now: number): InsightRow => {
-    if (!noAnswer) return { ...row, reads: reads.filter((r) => Date.parse(r.at) <= now) };
+  const rowAt = ({ row, reads, readAt, noAnswer }: (typeof allRows)[number], now: number): InsightRow => {
+    if (!noAnswer) return { ...row, reads: reads.filter((_, i) => readAt[i] <= now) };
     const published = Date.parse(row.publishedAt!);
     const spent = (window: InsightTries["window"], h: number): InsightTries => ({ window, n: 3, lastAt: iso(published + h * H) });
     const tries = now >= published + 64 * H ? spent("day3", 64) : now >= published + 22 * H ? spent("early", 22) : null;
@@ -185,7 +185,7 @@ export function runWorld(o: WorldOptions): WorldResult {
       posts.push({ postId, channelId: c.id, platform: ch.platform, lane: c.lane, clipId, approvedAt: iso(approvedAt), test: membership, facts: { template, bucket, ending, watermark: "sealed" }, privacy: ch.platform === "tiktok" ? "public" : null });
       const noAnswer = !!o.noTrialAnswer && c.lane === "trialReel" && !left;
       const reads = left || noAnswer ? [] : readsOf(at, v72, g, miss, u).map((r) => (o.zeroTrials && c.lane === "trialReel" ? { ...r, views: 0, reach: 0 } : r));
-      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads, noAnswer });
+      allRows.push({ row: { postId, channelId: c.id, platform: ch.platform, lane: c.lane, publishedAt: iso(at), state: left ? "excluded" : "ok", ...(left ? { excluded: "error" as const } : {}), reads: [], tries: null }, reads, readAt: reads.map((r) => Date.parse(r.at)), noAnswer });
     }
   };
   // the history: best clips before learning, one a day per channel
@@ -195,8 +195,10 @@ export function runWorld(o: WorldOptions): WorldResult {
   let input: LearnerInput | null = null;
   for (let d = 0; d < (o.days ?? 40); d++) {
     const now = start + d * DAY;
+    const date = dateOf(now);
+    const midnight = Date.parse(`${date}T00:00:00Z`);
     const rows = allRows.map((r) => rowAt(r, now));
-    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings: o.settingsAt?.(d) ?? settings, rows, posts: [...posts], decisions, channels, catalog: o.catalogAt?.(d) ?? CATALOG, perDay, quiet, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}), ...(o.sinceAt?.(d) ? { since: o.sinceAt(d)! } : {}) });
+    const make = (): LearnerInput => ({ date, now, pro: true, settings: o.settingsAt?.(d) ?? settings, rows, posts: [...posts], decisions, channels, catalog: o.catalogAt?.(d) ?? CATALOG, perDay, quiet, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}), ...(o.sinceAt?.(d) ? { since: o.sinceAt(d)! } : {}) });
     input = make();
     let plan = learnPass(input);
     for (let tries = 0; plan && plan.feasibilityNeeded.length && tries < 6; tries++) {
@@ -217,10 +219,10 @@ export function runWorld(o: WorldOptions): WorldResult {
     for (const slot of plan.slots) {
       const minute = postMinute(slot.window, quiet);
       if (minute === null) {
-        missed.push({ date: dateOf(now), role: slot.role, window: slot.window });
+        missed.push({ date, role: slot.role, window: slot.window });
         continue;
       }
-      const utc = Date.parse(`${dateOf(now)}T00:00:00Z`) + minute * 60_000;
+      const utc = midnight + minute * 60_000;
       const at = utc - (o.offsetMinAt?.(utc) ?? 0) * 60_000; // the local window's time
       if (slot.membership && firstTestAt === null && slot.role !== "best") firstTestAt = at;
       post(now + slot.index * 60_000, at, slot.options.template, slot.options.bucket, slot.options.ending, slot.channels, slot.membership, dayEffect);

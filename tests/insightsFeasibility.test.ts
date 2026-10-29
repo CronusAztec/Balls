@@ -181,10 +181,13 @@ describe("the app's port: the real planner and the real gates", () => {
   });
 
   // the port's contract, not the catalog's tuning: which plans pass moves with every template or clarity retune (AI studio
-  // step 2 passes 2 of these 3 where step 1 passed 1), and the stand-in planner above pins the numbers
+  // step 2 passes 2 of these 3 where step 1 passed 1), and the stand-in planner above pins the numbers. Two tests, each a few
+  // seed searches, so neither runs past vitest's 5 s on a busy machine
+  const realCatalog = () => learnerCatalog(readyTemplates("all"));
+  const realPlanner = () => ruleGatePlanner(copy, { maxSeeds: 6 });
   it("plans an arm with the seed search and the clarity gates, deterministically, over the arm's own templates in turn", () => {
-    const catalog = learnerCatalog(readyTemplates("all"));
-    const planner = ruleGatePlanner(copy, { maxSeeds: 6 });
+    const catalog = realCatalog();
+    const planner = realPlanner();
     const arm = S({ format: "getOut", bucket: "short", ending: "cliffhanger" });
     const result = checkArm(arm, catalog, none, planner);
     expect(result.key).toBe(armKey(arm));
@@ -200,7 +203,12 @@ describe("the app's port: the real planner and the real gates", () => {
     expect(plans.map((p) => p.template)).toEqual(Array.from({ length: FEASIBILITY_PLANS }, (_, i) => cands[i % cands.length]));
     expect(plans.every((p) => p.bucket === "short" && p.ending === "cliffhanger")).toBe(true);
     expect(planner(plans[0])).toEqual(planner(plans[0]));
-    // a plan its template cannot play never passes: a resolved-only template asked for a cliffhanger, or no template at all
+  });
+
+  it("never passes a plan its template cannot play", () => {
+    const catalog = realCatalog();
+    const planner = realPlanner();
+    // a resolved-only template asked for a cliffhanger, or no template at all
     const resolvedOnly = catalog.find((t) => !t.endings.includes("cliffhanger") && t.buckets.includes("short"));
     expect(resolvedOnly).toBeDefined();
     expect(planner({ template: resolvedOnly!.id, bucket: "short", ending: "cliffhanger", planSeed: 7 }).pass).toBe(false);

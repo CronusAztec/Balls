@@ -674,7 +674,11 @@ function normalClips(test: ParsedTest, posts: readonly LearnerPost[], measures: 
   if (!mine.length) return [];
   const openedAt = Math.min(...mine.map((p) => parseIso(p.approvedAt) ?? Number.POSITIVE_INFINITY));
   const byClip = new Map<string, LearnerPost[]>();
-  for (const p of mine) byClip.set(p.clipId, [...(byClip.get(p.clipId) ?? []), p]);
+  for (const p of mine) {
+    const list = byClip.get(p.clipId);
+    if (list) list.push(p);
+    else byClip.set(p.clipId, [p]);
+  }
   const out: ClipOutcome[] = [];
   for (const clipId of [...byClip.keys()].sort(byString)) {
     const list = byClip.get(clipId)!;
@@ -1055,8 +1059,16 @@ export function findingsOf(log: readonly LearnerDecision[]): Finding[] {
 class Variety {
   private readonly hist = new Map<string, string[]>();
   constructor(posts: readonly LearnerPost[], now: number) {
-    const recent = posts.filter((p) => p.facts.template && (parseIso(p.approvedAt) ?? 0) >= now - VARIETY_DAYS * DAY_MS).sort((a, b) => (parseIso(a.approvedAt) ?? 0) - (parseIso(b.approvedAt) ?? 0) || byString(a.postId, b.postId));
-    for (const p of recent) this.hist.set(p.channelId, [...(this.hist.get(p.channelId) ?? []), p.facts.template!]);
+    const recent = posts
+      .filter((p) => p.facts.template)
+      .map((p) => ({ p, at: parseIso(p.approvedAt) ?? 0 }))
+      .filter((r) => r.at >= now - VARIETY_DAYS * DAY_MS)
+      .sort((a, b) => a.at - b.at || byString(a.p.postId, b.p.postId));
+    for (const { p } of recent) {
+      const h = this.hist.get(p.channelId);
+      if (h) h.push(p.facts.template!);
+      else this.hist.set(p.channelId, [p.facts.template!]);
+    }
   }
   private ok(id: string, channels: readonly string[], strict: boolean, ready: number): boolean {
     for (const c of channels) {
@@ -1123,7 +1135,14 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   // "Forget my numbers" starts a new generation: a test membership of an earlier one belongs to no test now (its test is
   // forgotten with the numbers: never read, closed or continued), and the post still counts for the variety caps
   const generation = Number.isInteger(settings.generation) && settings.generation > 0 ? settings.generation : 0;
-  const ofThisGeneration = (id: string | undefined) => parseTestId(id)?.generation === generation;
+  // (each id parsed once a pass: every post's membership is asked)
+  const generations = new Map<string, number | null>();
+  const ofThisGeneration = (id: string | undefined) => {
+    if (id === undefined) return false;
+    let g = generations.get(id);
+    if (g === undefined) generations.set(id, (g = parseTestId(id)?.generation ?? null));
+    return g === generation;
+  };
   const posts = input.posts.map((p) => (p.test && !ofThisGeneration(p.test.id) ? { ...p, test: null } : p)).sort((a, b) => byString(a.postId, b.postId) || byString(a.channelId, b.channelId));
   const channels = [...input.channels].sort((a, b) => byString(a.id, b.id));
   const dials = new Set(activeDials(input.l3 ?? false));
@@ -1142,7 +1161,13 @@ export function learnPass(input: LearnerInput): PassPlan | null {
 
   // --- the usual of each scored channel, now
   const points = new Map<string, MeasuredPoint[]>();
-  for (const m of measures.values()) if ((m.state === "scored" || m.state === "unscored") && m.lane === "normal" && m.publishedAt !== null) points.set(m.channelId, [...(points.get(m.channelId) ?? []), { publishedAt: m.publishedAt, views72: m.views72 }]);
+  for (const m of measures.values()) {
+    if (!((m.state === "scored" || m.state === "unscored") && m.lane === "normal" && m.publishedAt !== null)) continue;
+    const list = points.get(m.channelId);
+    const point = { publishedAt: m.publishedAt, views72: m.views72 };
+    if (list) list.push(point);
+    else points.set(m.channelId, [point]);
+  }
   const usualReady = new Set<string>();
   const usual = channels.filter((c) => scoredFamily(c.platform)).map((c) => {
     const restart = parseIso(input.since?.[c.id]) ?? Number.NEGATIVE_INFINITY;

@@ -258,29 +258,32 @@ describe("the pipeline's worlds: learnPass day by day", () => {
   });
 
   // the review's world: post time matters (noon posts x1.25 or x0.8) and short clips do nothing. With the test clip in one
-  // window every day, short was kept 0.258 or called worse 0.242 of the time (400 worlds); drawn by date, post time is noise
-  it("post time that matters does not leak into a length verdict", () => {
-    const rates = [1, 1.25, 0.8].map((noon) => {
-      let kept = 0;
-      let notKept = 0;
-      for (let w = 0; w < N; w++) {
-        const r = runWorld({ seed: 91000 + w, effect: (p) => (new Date(p.at).getUTCHours() >= 12 && new Date(p.at).getUTCHours() < 15 ? Math.log(noon) : 0), stopAt: "length", days: 45 });
-        const v = r.decisions.find((d) => d.dial === "length");
-        if (v?.verdict === "kept") kept++;
-        if (v?.verdict === "notKept") notKept++;
-      }
-      return [kept, notKept];
-    });
-    expect(rates).toEqual([
-      [5, 6],
-      [5, 6],
-      [6, 5],
-    ]);
-    for (const [kept, notKept] of rates) {
+  // window every day, short was kept 0.258 or called worse 0.242 of the time (400 worlds); drawn by date, post time is noise.
+  // One test per noon effect, 100 worlds each, so no test runs 300 worlds under vitest's 5 s on a busy machine
+  const postTimeWorlds = (noon: number) => {
+    let kept = 0;
+    let notKept = 0;
+    for (let w = 0; w < N; w++) {
+      const r = runWorld({ seed: 91000 + w, effect: (p) => (new Date(p.at).getUTCHours() >= 12 && new Date(p.at).getUTCHours() < 15 ? Math.log(noon) : 0), stopAt: "length", days: 45 });
+      const v = r.decisions.find((d) => d.dial === "length");
+      if (v?.verdict === "kept") kept++;
+      if (v?.verdict === "notKept") notKept++;
+    }
+    return [kept, notKept];
+  };
+  const postTimeRates: [noon: number, rates: [kept: number, notKept: number]][] = [
+    [1, [5, 6]],
+    [1.25, [5, 6]],
+    [0.8, [6, 5]],
+  ];
+  for (const [noon, rates] of postTimeRates) {
+    it(`post time that matters (noon posts x${noon}) does not leak into a length verdict`, () => {
+      const [kept, notKept] = postTimeWorlds(noon);
+      expect([kept, notKept]).toEqual(rates);
       expect(kept / N).toBeLessThanOrEqual(0.16);
       expect(notKept / N).toBeLessThanOrEqual(0.16);
-    }
-  });
+    });
+  }
 });
 
 describe("a Trial Reel world", () => {
