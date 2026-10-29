@@ -3,7 +3,7 @@ import en from "../messages/en.json";
 import { recipeById, RECIPES } from "@/lib/bot/playbook";
 import { planClip, planTemplate, type ClipPlan, type PayoffMoment, type RunFacts } from "@/lib/bot/planner";
 import { defaultCaption, type Caption } from "@/lib/captions";
-import type { SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { factsOfExport, runSync } from "@/lib/insights/score";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { endBannersShown } from "@/lib/crew/simplicity"; // --- crew --- (AI studio step 4) a mode's own end banner
@@ -23,6 +23,7 @@ import {
   namesOf,
   countsIn,
   checkProducer,
+  payoffHoldSec,
   publicDomain,
   runWinnerOf,
   simpleScore,
@@ -241,6 +242,48 @@ describe("each gate's other problems", () => {
     expect(CLARITY.quietTailMaxSec).toBe(1.5);
   });
 
+  // --- crew --- (studio round 1, 11) Beat Machines' payoff, a note of the phrase heard at 2 s and 14 s, passed every gate: a beat's
+  // payoff stands out from the run before it (more than its busiest moment by a quarter, a larger chord, or an accent none matched)
+  it("G2 on a beat: a payoff that plays no more than the run did before it is plain; one that stands out passes; an older record keeps the old reading", () => {
+    const at = clean.payoff.atSec!;
+    const beat = (m: Partial<PayoffMoment>): CrewClip => ({ ...clean, claim: "beat", run: { ...clean.run!, moment: { atSec: at, sounds: 3, notes: 3, chordMax: 1, accent: false, motion: 200, motionMedian: 250, soundsMedian: 2, soundsMax: 3, chordBefore: 1, accents: [], ...m } } });
+    // the same bar again, and a steady stream with one frame more in the moment's window (552 against 540)
+    expect(gateOf(beat({}), "G2").problems).toEqual(["payoffLandsPlain"]);
+    expect(gateOf(beat({}), "G2").values).toEqual({ sec: Math.round(10 * at) / 10, sounds: 3, most: 3 });
+    expect(gateOf(beat({ sounds: 552, notes: 552, soundsMedian: 540, soundsMax: 540 }), "G2").problems).toEqual(["payoffLandsPlain"]);
+    expect(CLARITY.beatStandOutShare).toBe(1.25);
+    // busier than the run ever was before, by a quarter: the drop
+    expect(gateOf(beat({ sounds: 8, notes: 8, soundsMax: 6 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 7, notes: 7, soundsMax: 6 }), "G2").problems).toEqual(["payoffLandsPlain"]);
+    // a chord larger than any before it (Collision Playground's anti-collision chord), or an accent no accent before matched
+    expect(gateOf(beat({ sounds: 1, notes: 4, chordMax: 4, accent: true, soundsMax: 12 }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ sounds: 2, notes: 5, chordMax: 4, chordBefore: 4, soundsMax: 12 }), "G2").problems).toEqual(["payoffLandsPlain"]);
+    expect(gateOf(beat({ accent: true, accents: [[at + 2, 1]] }), "G2").ok).toBe(true);
+    expect(gateOf(beat({ accent: true, accents: [[at - 3, 1]] }), "G2").problems).toEqual(["payoffLandsPlain"]);
+    // not a beat, or an older record without the run's busiest moment: as before
+    expect(gateOf({ ...beat({}), claim: "inSync" }, "G2").ok).toBe(true);
+    expect(gateOf(beat({ soundsMax: undefined, chordBefore: undefined }), "G2").ok).toBe(true);
+    // silence and stillness are their own problems, never also plain
+    expect(gateOf(beat({ sounds: 0, notes: 0, chordMax: 0 }), "G2").problems).toEqual(["payoffLandsUnheard"]);
+  });
+
+  // --- crew --- (studio round 1, 10) Perfect Fit's box, full for its flash before it bursts, passed G2 on the 1.4 s left after its
+  // payoff: the payoff's state must hold as long as a payoff is shown
+  it("G2 on a fill's hold: Perfect Fit's box bursts a flash after it fills, so a clip that goes on after it still shows the fill for 0.15 s", () => {
+    // twelve pieces a second each: the box full at 12 s (the last landing), the burst 0.15 s later
+    const settings = { ...defaultSettings("perfectFit"), pfVariant: "pento", pfBoxes: "10×6", pfPieceSec: 1, pfBeat: false, captions: clean.settings.captions } as SimulatorSettings;
+    const fit = (atSec: number, clipSec: number): CrewClip => ({ ...clean, settings: settings, mode: "perfectFit", claim: "full", run: null, payoff: { ...clean.payoff, atSec, position: atSec / clipSec }, timing: { ...clean.timing, clipSec } });
+    expect(payoffHoldSec(fit(12, 14))).toBeCloseTo(0.15, 6);
+    const g2 = gateOf(fit(12, 14), "G2");
+    expect([g2.problems, g2.values]).toEqual([["payoffLandsBrief"], { held: 0.2 }]);
+    // a payoff that is not a box's completion, a cut clip, or another mode: nothing tells the hold
+    expect(payoffHoldSec(fit(11.5, 14))).toBeNull();
+    expect(payoffHoldSec({ ...fit(12, 14), ending: "cliffhanger" })).toBeNull();
+    expect(payoffHoldSec(clean)).toBeNull();
+    // a clip that ends 0.5 s after its payoff fails on the time left, as before
+    expect(gateOf(fit(12, 12.5), "G2").problems).toEqual(["payoffLandsNotShown"]);
+  });
+
   it("G2 on the real runs (review round 2, 20 and 21): the pendulum template's chord plays at half its cycle too; Ball Drop's last note fades out", { timeout: 60_000 }, () => {
     const runWithMoment = (plan: ClipPlan) => crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
     for (const seed of [1, 2]) {
@@ -336,6 +379,12 @@ describe("each gate's other problems", () => {
     const wordy = setCaptions(clean, clean.captions.map((c, i) => (clean.captionRoles[i] === "hook" ? { ...c, text: lines[k++] } : c)));
     expect(k).toBe(2);
     expect(gateOf({ ...wordy, hook: null }, "G5").problems).toEqual(["readableHookWords"]);
+    // --- crew --- (studio round 1, 9) a Top Text on the line where Spiral Glass writes its own question, while its overlay shows
+    const spiral = (sgHud: boolean, topText: string): CrewClip => ({ ...clean, topText, settings: { ...clean.settings, mode: "spiralGlass", sgHud } as SimulatorSettings });
+    const over = gateOf(spiral(true, "Smash · Day 1"), "G5");
+    expect([over.problems, over.values]).toEqual([["readableOverModeText"], { hud: "sgHud" }]);
+    expect(gateOf(spiral(false, "Smash · Day 1"), "G5").problems).not.toContain("readableOverModeText");
+    expect(gateOf(spiral(true, ""), "G5").problems).not.toContain("readableOverModeText");
   });
 
   it("G7: a cut is judged by its own length", () => {

@@ -25,6 +25,8 @@ import {
   MARK_MODES,
   matchupEpisode,
   payoffSecOf,
+  PAYOFF_WORDS_LEAD_SEC,
+  simplePayoffHalf,
   placeSimpleTexts,
   planClip,
   planDay,
@@ -70,8 +72,8 @@ import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { simulateOutcomeRun } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
-import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan } from "@/lib/crew/clip";
-import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
+import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan, payoffHoldSec } from "@/lib/crew/clip";
+import { CLARITY, beatStandsOut, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { screenView } from "@/lib/crew/dossier";
 import { STUDIO_RENDER_WORLD } from "@/lib/agentKit/studioKit"; // --- templates --- (studio round 1, 1)
@@ -106,8 +108,10 @@ const PROVEN: readonly ModeId[] = ["classic", "accumulation", "portal", "glass",
 /**
  * --- templates --- (review round 2, 14 and 21) The proven bindings that plan: all but the square race, whose one variant is
  * hidden (--- templates --- AI studio step 5: and Ball Drop's, hidden in review round 2 for its fading run, plays its rain looped).
+ * --- templates --- (studio round 1, 11) Ball Drop's is hidden again: its looped rain's last 1.5 s, its payoff, play what every moment
+ * before them did (the beat format's payoff stands out from the run: G2).
  */
-const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race");
+const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !== "drop" /* --- templates --- (studio round 1, 11) */);
 /**
  * --- templates --- (AI studio step 4) The trial bindings group B readied with their own settings, measured and watched as group A's:
  * the conveyor (its last ball out), the Maze (its first one out), Territory and Land Claim (cut before their verdict), Bullseye (its
@@ -126,9 +130,10 @@ const OVERLAY_READY: readonly ModeId[] = ["journey", "spiralGlass"];
  * groups' before: line up (Chord Stars' close, Focus Shot's convergence, Spinning Hoops' beads all up, Bouncing Orbs in phase,
  * Colour Sort's sort, the chaos fan's split) and on the beat (Beat Machines' phrase, Collision Playground and the Wave Tank to the
  * clip's end). Beat Runner stays experimental, its first note 1.5 s in (G1), and Beat Drop and the Sound Vortex, which plan but draw
- * a HUD or a title of their own under the hook (watched in the render).
+ * a HUD or a title of their own under the hook (watched in the render). --- templates --- (studio round 1, 11) Beat Machines and the
+ * Wave Tank left the ready ones: nothing stands out at their payoff (G2); Collision Playground stays, timed by its anti-collision drop.
  */
-const GROUP_C_READY: readonly ModeId[] = ["starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatMachine", "collide", "waveTank"];
+const GROUP_C_READY: readonly ModeId[] = ["starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "collide"];
 /**
  * --- templates --- (AI studio step 6) The trial bindings group D readied, measured and watched as the groups' before: the Drawing
  * Machine (Earth and Venus's five-petal flower, revealed) and Mode Lab (one variant per catalog game bp-check calls playable, each
@@ -141,18 +146,19 @@ const GROUP_D_READY: readonly ModeId[] = ["drawingMachine", "blueprint"];
  * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
- * mini-map and clock crowd the screen (both watched in the render).
+ * mini-map and clock crowd the screen (both watched in the render). --- templates --- (studio round 1, 10) Perfect Fit left the ready
+ * ones: its box is full for its 0.15 s flash only before it bursts (G2, the payoff's state held).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
  * The variants of ready bindings that are hidden, and why (they fail a gate on every plan): the square race's 3-2-1-GO opens the
  * gate at 1.8 s (G1, the first impact within 1 s). (--- templates --- AI studio step 5: Ball Drop's, hidden in review round 2 for
  * its run fading out, plays its rain looped on the beat; step 6: the boss rush's, whose hook was over the 7 words of G5, draws its
- * format's own hook.)
+ * format's own hook; --- templates --- studio round 1, 11: Ball Drop's again, its looped rain's end no payoff that stands out.)
  */
-const HIDDEN_VARIANTS = ["fill-grow-fills", "who-wins-race"];
+const HIDDEN_VARIANTS = ["fill-grow-fills", "on-the-beat-drop", "who-wins-race"];
 /**
  * --- templates --- (review round 2, 21) Ball Drop's recipe in the Simple look, as the studio may still plan it: its run fades out
  * (its template plays the rain looped since AI studio step 5), and the Simple look's placement and line breaks are the look's,
@@ -256,8 +262,9 @@ describe("the bindings", () => {
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
     expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
     expect(BINDINGS.filter((b) => b.tier === "trial").map((b) => b.mode).sort()).toEqual([...TRIAL_READY].sort());
-    // (--- templates --- AI studio step 5: the square race the one proven binding not ready, Ball Drop's ready on the beat)
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(33 - TRIAL_READY.length);
+    // (--- templates --- AI studio step 5: the square race the one proven binding not ready, Ball Drop's ready on the beat; studio round
+    // 1, 11: Ball Drop's not ready again, its one variant hidden)
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34 - TRIAL_READY.length);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
@@ -276,12 +283,14 @@ describe("the bindings", () => {
   });
 
   // --- templates --- (review round 2, 21) the studio's plans of Ball Drop ended on a faint tick, then 1.7-3.6 s of silence; (AI studio
-  // step 5) its template plays the rain looped, so the beat format's payoff, the clip's end, lands on a full board
-  it("plays Ball Drop's template on the beat, its rain looped to the clip's end, where its recipe's run fades out to a lone faint tick, then silence", { timeout: 120_000 }, () => {
+  // step 5) its template plays the rain looped, so the beat format's payoff, the clip's end, lands on a full board; (studio round 1,
+  // 11) a board as full as every moment before it: nothing stands out there, so its template is hidden again
+  it("hides Ball Drop's template, its rain looped to the clip's end: its last 1.5 s play what the whole rain did, and its recipe's run fades out to a lone faint tick, then silence", { timeout: 120_000 }, () => {
     const drop = templateById("on-the-beat-drop")!;
-    expect([drop.binding.tier, drop.binding.ready, drop.ready, drop.binding.strategy, drop.binding.tune]).toEqual(["proven", true, true, "atEnd", { dropLoop: true }]);
-    expect(drop.binding.variants.find((v) => v.id === drop.id)!.hidden).toBeUndefined();
-    const r = templateRecipeById(drop.id)!;
+    expect([drop.binding.tier, drop.binding.ready, drop.ready, drop.binding.strategy, drop.binding.tune]).toEqual(["proven", false, false, "atEnd", { dropLoop: true }]);
+    expect(drop.binding.variants.find((v) => v.id === drop.id)!.hidden).toMatch(/one more stretch of rain.*stand out \(G2\)/);
+    expect(templateRecipeById(drop.id)).toBeUndefined();
+    const r = plannedRecipe(drop)!;
     expect([r.wraps, r.strategy, r.endings, r.buckets, r.payoffWords]).toEqual(["drop-symphony", "atEnd", ["resolved"], ["short", "standard"], false]);
     // the recipe's draw, the rain looped over it and the clip's length from the payoff target (the bot's own Drop Symphony keeps its own)
     const ctx: RecipeContext = { rng: seededRandom(3), bucket: "short", ending: "resolved", payoffTarget: 12.75, roster: SERIES_ROSTER, planSeed: 3 };
@@ -289,15 +298,17 @@ describe("the bindings", () => {
     expect(r.settings(ctx)).toEqual({ ...own, dropLoop: true, recordingDuration: atEndRecordingSec(12.75), mode: "drop" });
     expect(own.dropLoop).toBe(false);
     for (const seed of [1, 2]) {
-      const plan = planTemplate(drop.id, seed, "reels", { copy, episode: 3, index: seed });
+      const plan = planClip(r, seed, "reels", { copy, look: "simple", template: drop.id, episode: 3, index: seed });
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
-      const clarity = clarityOf(crewClipOfPlan(plan, { run }));
-      // heard at its payoff, the clip's last 1.5 s: many notes, no quiet end
-      expect([seed, plan.ending, plan.settings.dropLoop, plan.payoff.atSec, clarity.pass]).toEqual([seed, "resolved", true, plan.timing.recordingDuration - AT_END_SEC, true]);
-      expect([seed, run.moment!.sounds >= 3, (run.moment!.quietTailSec ?? 0) < 0.5]).toEqual([seed, true, true]);
+      const g2 = clarityOf(crewClipOfPlan(plan, { run })).gates.find((g) => g.id === "G2")!;
+      // heard at its payoff, the clip's last 1.5 s: many notes, no quiet end – and no more of them than its busiest moment before,
+      // one at a time, no accent: the reason it is hidden (when a plan's end stands out, it may be shown again)
+      expect([seed, plan.ending, plan.settings.dropLoop, plan.payoff.atSec]).toEqual([seed, "resolved", true, plan.timing.recordingDuration - AT_END_SEC]);
+      expect([seed, run.moment!.sounds >= 3, (run.moment!.quietTailSec ?? 0) < 0.5, run.moment!.chordMax, run.moment!.accent]).toEqual([seed, true, true, 1, false]);
+      expect([seed, g2.problems]).toEqual([seed, ["payoffLandsPlain"]]);
     }
-    // the beat format has ready templates now, its first Ball Drop's
-    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat").map((t) => t.id)).toContain(drop.id);
+    // the beat format's ready template is Collision Playground's, timed by its drop (group C below)
+    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat").map((t) => t.id)).toEqual(["on-the-beat-collide"]);
     // the reason it was hidden still holds for its recipe's run: timed by its last note, every plan fails G2 – a lone note fewer than
     // the run's usual moment over a board at rest, and the clip ends on silence
     for (const seed of [1, 2, 3, 4]) {
@@ -758,6 +769,33 @@ describe("the Simple look", () => {
     expect(bot.payoff.text).toBe("Znów w jednej linii. 🎼");
   });
 
+  // --- templates --- (studio round 1, 10) floored to the half second, a payoff's words came up to 0.5 s before the event they name –
+  // Perfect Fit's "Full!" 0.33 s before its box was full: the Simple look starts them at the event's half second or after it, the one
+  // before it only while they are still entering, and draws none where the clip leaves no time to read a line after the event
+  it("never starts the Simple look's payoff words before the event, but while they enter, and draws none it leaves no time to read", async () => {
+    expect([PAYOFF_WORDS_LEAD_SEC, simplePayoffHalf(19.333), simplePayoffHalf(9.58), simplePayoffHalf(9.73), simplePayoffHalf(12), simplePayoffHalf(8.17), simplePayoffHalf(13.5)]).toEqual([0.2, 19.5, 9.5, 10, 12, 8, 13.5]);
+    let drawn = 0;
+    for (const t of ready.filter((x) => !SAMPLED.includes(x.id))) {
+      for (const seed of [1, 2]) {
+        const platform = platformsOf(t.id)[seed - 1] ?? platformsOf(t.id)[0];
+        const plan = planTemplate(t.id, seed, platform, { copy, episode: 3, index: seed });
+        const at = plan.payoff.atSec;
+        const words = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "payoff");
+        if (at === null || words.length === 0 || plan.ending !== "resolved") continue;
+        drawn++;
+        const where = `${t.id}/${platform}/${seed}`;
+        for (const c of words) expect([where, c.start >= at - PAYOFF_WORDS_LEAD_SEC - 1e-9, (plan.timing.clipSec - c.start) / words.length >= SIMPLE_TEXT.secPerLine - 1e-9]).toEqual([where, true, true]);
+      }
+      await breathe();
+    }
+    expect(drawn).toBeGreaterThan(20);
+    // the bot look keeps its words at the half second before the payoff, as its plans always had them
+    const bot = planTemplate("get-out-classic", 1, "reels", { copy, episode: 3, index: 1, look: "bot", ending: "resolved" });
+    const botWords = bot.settings.captions.filter((_, i) => bot.captionRoles[i] === "payoff");
+    expect([botWords.length > 0, bot.payoff.atSec! > 5]).toEqual([true, true]);
+    expect(botWords.map((c) => c.start)).toEqual(botWords.map(() => Math.floor(bot.payoff.atSec! * 2) / 2));
+  }, 240_000);
+
   // --- templates --- (review round 2, 22) a bar and a timer count the recording's seconds: one text at a time took them off at the
   // payoff, the pendulum's bar at 84 % and Ball Drop's timer at 0:04 – and the templates tool said those formats draw none
   it("draws a counter caption only where the format takes one and it counts what happens: never a bar or a timer cut short at the payoff", () => {
@@ -1052,7 +1090,9 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // stays, its first note 1.5 s in, and Beat Drop and the Sound Vortex, a HUD and a title of their own under the hook)
   // (--- templates --- AI studio step 6: the Drawing Machine and Mode Lab left it, planned on 3 of 4 seeds on every platform and
   // watched; Lines and Circle Illusion stay, with what was measured and watched)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "illusion"];
+  // (--- templates --- studio round 1, 10 and 11: three readied before joined it after a review, each with what was measured and
+  // watched – Perfect Fit, its box full for a flash; Beat Machines and the Wave Tank, nothing standing out at their payoff)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "illusion", "perfectFit", "beatMachine", "waveTank"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -1248,7 +1288,8 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
 // --- templates --- (AI studio step 3) group A: the get-out, smash and fill bindings with their own settings, Classic's one ring and
 // Grow's fill that ends the run, and Glass Smash's hook kept clear of the mode's own STAGE banners (the studio's first known gap)
 describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Classic's one ring", () => {
-  const GROUP_A = ["get-out-shatter", "get-out-color-match", "smash-target", "smash-brick-rebuild", "fill-perfect-fit", "get-out-classic-ring"];
+  // (--- templates --- studio round 1, 10: Perfect Fit hidden, its box full for a flash only: the test after the next one)
+  const GROUP_A = ["get-out-shatter", "get-out-color-match", "smash-target", "smash-brick-rebuild", "get-out-classic-ring"];
 
   it("offers every one of them, in its format's words, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
     for (const id of GROUP_A) {
@@ -1274,8 +1315,8 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
 
   it("reads each payoff where the run shows it: the box full and Journey's HOME as the claim's facts, Spiral Glass's clear 2 s before its run's end", () => {
     expect(FILL_OUTCOMES).toEqual(["fills-by", "most-on-floor"]);
-    // Perfect Fit: the first box full is the payoff and the fill the crew's claim reads
-    const fit = planTemplate("fill-perfect-fit", 1, "reels", { copy, episode: 3, index: 1 });
+    // Perfect Fit (hidden since studio round 1, 10): the first box full is the payoff and the fill the crew's claim reads
+    const fit = planClip(plannedRecipe(templateById("fill-perfect-fit")!)!, 1, "reels", { copy, look: "simple", template: "fill-perfect-fit", episode: 3, index: 1 });
     const horizon = fit.timing.clipSec + 2;
     const facts = simulateFacts(finderRequestOfSettings(fit.settings, fit.world, horizon), fit.seed, { strategy: "outcome", outcome: "most-on-floor" }, horizon);
     expect([facts.fillSec > 0, facts.fillSec]).toEqual([true, facts.outcomeRun!.atSec]);
@@ -1295,6 +1336,33 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
     const brick = planTemplate("smash-brick-rebuild", 1, "reels", { copy, episode: 3, index: 1 });
     const own = outcomeRunOf(finderRequestOfSettings(brick.settings, brick.world, brick.timing.clipSec + 2), brick.seed, "bricks-cleared-by", brick.timing.clipSec + 2);
     expect([own.facts.atSec > 0, own.facts.endSec, own.summary.finished]).toEqual([true, null, false]);
+  });
+
+  // --- templates --- (studio round 1, 10) the full box on screen for a flash before it bursts, its "Full!" before the box was full, while
+  // G2 passed on the 1.4 s between the payoff and the clip's end: the payoff's state held is what G2 reads now
+  it("keeps Perfect Fit experimental: its box is full for the 0.15 s flash before it bursts, so G2 fails the payoff's state held, as it fails Paint's fill", () => {
+    expect(EXPERIMENTAL.perfectFit).toMatch(/0\.15 s flash.*0\.8 s G2 asks.*0 of 12 plans/);
+    const t = templateById("fill-perfect-fit")!;
+    expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
+    const r = plannedRecipe(t)!;
+    for (const [seed, platform] of [[1, "reels"], [2, "tiktok"], [3, "shorts"]] as const) {
+      const plan = planClip(r, seed, platform, { copy, look: "simple", template: t.id, episode: 3, index: seed });
+      const where = `${platform}/${seed}`;
+      const clip = crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
+      // seconds of clip after the payoff, but the box full for a flash of them
+      // (the payoff is the first frame the box is full: the flash's 0.15 s from its landing, less the frame's part already gone)
+      const held = payoffHoldSec(clip)!;
+      expect([where, plan.timing.clipSec - plan.payoff.atSec! >= CLARITY.shownAfterPayoffSec, held > 0.1 && held <= 0.15 + 1e-9]).toEqual([where, true, true]);
+      const g2 = clarityOf(clip).gates.find((g) => g.id === "G2")!;
+      expect([where, g2.problems, Number(g2.values.held) < CLARITY.shownAfterPayoffSec]).toEqual([where, ["payoffLandsBrief"], true]);
+      // and its words, where a look draws them, start on the payoff's own half second: before it only by less than half their
+      // entrance (PAYOFF_WORDS_LEAD_SEC), never a whole half second early as the floored start had them
+      const words = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "payoff");
+      for (const c of words) expect([where, c.start, c.start >= plan.payoff.atSec! - PAYOFF_WORDS_LEAD_SEC - 1e-9]).toEqual([where, simplePayoffHalf(plan.payoff.atSec!), true]);
+    }
+    // a clip of another mode holds its payoff to its end, as far as the crew can tell
+    const grow = planTemplate("fill-grow", 1, "shorts", { copy, episode: 3, index: 1 });
+    expect(payoffHoldSec(crewClipOfPlan(grow))).toBeNull();
   });
 
   it("keeps Paint experimental and Grow's fill that ends its run hidden, with their reasons: the run ends at the fill, so a resolved clip shows it for the recorder's 0.5 s (G2)", () => {
@@ -1438,16 +1506,40 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
     const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
     // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked; step 5: the chaos fan's, the plan's hook b;
     // step 6: each Mode Lab game's rule)
-    expect(own.sort()).toEqual(["own.box", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
+    // (--- templates --- studio round 1, 12: and the conveyor's, its own count)
+    expect(own.sort()).toEqual(["own.box", "own.conveyor", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "conveyor", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
       }
     }
     expect(planTemplate("aim-box", 1, "reels", { copy: COPY.pl, locale: "pl", search: false }).hook).toBe("Zatrzyma się na zerze.");
+  });
+
+  // --- templates --- (studio round 1, 12) "One ball. How many by the end?" over a belt that loads a ball every 2-3 s and multiplies
+  // nothing, its count only in the banner's small line: the conveyor states its own count and asks what ALL OUT! answers
+  it("hooks the conveyor on its own count, which its ALL OUT! answers at the payoff, in en, pl and es, with no words beside the banner", () => {
+    expect([MODE_TEMPLATES.conveyor.hookKey, MODE_TEMPLATES.conveyor.payoffWords]).toEqual([`${OWN_HOOK_FIELD}conveyor`, false]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const look of ["simple", "bot"] as const) {
+        const plan = planTemplate("count-conveyor", 2, "reels", { copy: COPY[locale], locale, episode: 3, index: 2, look });
+        const where = `${locale}/${look}: "${plan.hook}"`;
+        const count = plan.settings.cvMaxBalls;
+        const own = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks.conveyor.replace("{count}", String(count));
+        // its own count in the hook, whole in either look; the hook's number is a fact of the clip (G4)
+        expect([where, plan.hook, plan.payoff.text, plan.captionRoles.includes("payoff")]).toEqual([where, own, "", false]);
+        expect([where, count >= 3, plan.hook.includes(String(count))]).toEqual([where, true, true]);
+        if (look === "simple") {
+          const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+          const clip = crewClipOfPlan(plan, { run });
+          expect([where, clarityOf(clip).gates.find((g) => g.id === "G4")!.problems, endBannersShown(clip).map((b) => b.banner.words)]).toEqual([where, [], [expect.stringContaining("loaded and escaped")]]);
+        }
+      }
+    }
+    expect(planTemplate("count-conveyor", 2, "reels", { copy, search: false }).hook).toMatch(/^\d+ balls\. Will they all get out\?$/);
   });
 });
 
@@ -1501,11 +1593,13 @@ describe("one ending: a mode's own end banner", () => {
 
 // --- templates --- (AI studio step 4b) the two step 3 hid for what they draw of their own, ready since a setting switches it off:
 // the Journey (its stage banners, mini-map, clock and HOME! card: journeyHud) and Spiral Glass (its question over the spiral, its
-// title, tiles left and progress ring: sgHud), both HUD flags the Simple look turns off as the others
-describe("the overlay switches: the Journey and Spiral Glass in the Simple look", () => {
+// title, tiles left and progress ring: sgHud), both HUD flags the Simple look turns off as the others; --- templates --- (studio round
+// 1, 9) and their templates in the bot look too, the website's default, where the series label sat on Spiral Glass's question and the
+// hook on the Journey's stage banner
+describe("the overlay switches: the Journey and Spiral Glass, their overlays off in both looks", () => {
   const OVERLAY = [["get-out-journey", "journeyHud"], ["smash-spiral-glass", "sgHud"]] as const;
 
-  it("offers both, resolved only, their overlay off in the Simple look and on in the bot look; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
+  it("offers both, resolved only, their overlay off in both looks; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
     expect(OVERLAY.map(([id]) => templateById(id)!.mode)).toEqual([...OVERLAY_READY]);
     for (const [id, flag] of OVERLAY) {
       const t = templateById(id)!;
@@ -1521,13 +1615,29 @@ describe("the overlay switches: the Journey and Spiral Glass in the Simple look"
         expect(JSON.stringify(planTemplate(id, seed, platform, options)), where).toBe(JSON.stringify(plan));
         expect(rangeViolations(plan.settings), where).toEqual([]);
         expect([where, plan.ending, plan.settings[flag], hudsOn(plan.settings).filter((h) => h.flag)]).toEqual([where, "resolved", false, []]);
-        // the bot look keeps the mode's overlay, as every link, preset and the daily bot do
-        expect([where, planTemplate(id, seed, platform, { ...options, look: "bot", search: false }).settings[flag]]).toEqual([where, true]);
+        // (--- templates --- studio round 1, 9) the bot look too: its series label stays at the top, where the overlay writes its own words
+        const bot = planTemplate(id, seed, platform, { ...options, look: "bot", search: false });
+        expect([where, bot.settings[flag], bot.settings.topText !== "", hudsOn(bot.settings).some((h) => h.id === flag)]).toEqual([where, false, true, false]);
       }
       await breathe();
     }
     // neither is in the battle family: both are offered by default
     expect(readyTemplates().map((t) => t.id).filter((id) => OVERLAY.some(([o]) => o === id)).sort()).toEqual(["get-out-journey", "smash-spiral-glass"]);
+    // links, presets and the daily bot keep each mode's overlay, which every default shows
+    expect([defaultSettings("journey").journeyHud, defaultSettings("spiralGlass").sgHud]).toEqual([true, true]);
+  });
+
+  // --- templates --- (studio round 1, 9) the series label drawn into Spiral Glass's question for the whole clip ("WiSmashll mDay1ly?"):
+  // the crew's G5 sees a Top Text on the line where the mode writes its own words, so the overlay off is what makes the bot look readable
+  it("fails G5 for a Top Text over Spiral Glass's own question, and passes the template's bot look with the overlay off", () => {
+    const bot = planTemplate("smash-spiral-glass", 1, "reels", { copy, episode: 3, index: 1, look: "bot", search: false });
+    const clip = crewClipOfPlan(bot);
+    expect(clarityOf(clip).gates.find((g) => g.id === "G5")!.problems).not.toContain("readableOverModeText");
+    const withOverlay = crewClipOfPlan({ ...bot, settings: { ...bot.settings, sgHud: true } });
+    const g5 = clarityOf(withOverlay).gates.find((g) => g.id === "G5")!;
+    expect([g5.ok, g5.problems]).toEqual([false, expect.arrayContaining(["readableOverModeText"])]);
+    // no Top Text, no clash: the Simple look draws none
+    expect(clarityOf(crewClipOfPlan({ ...bot, settings: { ...bot.settings, sgHud: true, topText: "" } })).gates.find((g) => g.id === "G5")!.problems).not.toContain("readableOverModeText");
   });
 
   it("says HOME where the Journey's card did: its hook b and its own payoff words, in en, pl and es", () => {
@@ -1544,29 +1654,39 @@ describe("the overlay switches: the Journey and Spiral Glass in the Simple look"
       expect([where, wordCount(plan.hook) <= SIMPLE_TEXT.hookWordsMax, plan.hook.includes("Gerald")]).toEqual([where, true, true]);
     }
     expect(planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1 }).hook).toBe("Will Gerald make it home?");
-    // the bot look keeps its HOME! card, and its own payoff words beside it as before
+    // (--- templates --- studio round 1, 9) the bot look says HOME in its own words too, without the card beside them
     const bot = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
-    expect([bot.payoff.text, endBannersIn(bot.settings, { ending: "resolved", payoffSec: bot.payoff.atSec, clipSec: bot.timing.clipSec, runEndSec: null }).length]).toEqual(["Home! 🏠", 1]);
+    expect([bot.payoff.text, endBannersIn(bot.settings, { ending: "resolved", payoffSec: bot.payoff.atSec, clipSec: bot.timing.clipSec, runEndSec: null }).length]).toEqual(["Home! 🏠", 0]);
   });
 
-  it("asks the question Spiral Glass's overlay asked, in en, pl and es, and ends on its GLASS CLEARED with no words beside it", () => {
+  // --- templates --- (studio round 1, 8) the overlay's own question ("Will the ball multiply?") was answered by the badge's first x2,
+  // 44-51 % into the clip, and its ending, GLASS CLEARED, answered another question: the hook asks what the ending answers
+  it("asks what its GLASS CLEARED answers, in en, pl and es, and ends on it with no words beside it, in either look", () => {
     const messages = { en, pl, es } as const;
-    expect([MODE_TEMPLATES.spiralGlass.hookKey, MODE_TEMPLATES.spiralGlass.endings]).toEqual([`${OWN_HOOK_FIELD}spiralGlass`, ["resolved"]]);
+    expect([MODE_TEMPLATES.spiralGlass.hookKey, MODE_TEMPLATES.spiralGlass.endings, MODE_TEMPLATES.spiralGlass.payoffWords]).toEqual([`${OWN_HOOK_FIELD}spiralGlass`, ["resolved"], false]);
     for (const locale of ["en", "pl", "es"] as const) {
+      const own = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks.spiralGlass;
       const plan = planTemplate("smash-spiral-glass", 2, "reels", { copy: COPY[locale], locale, episode: 3, index: 2 });
       const where = `${locale}: "${plan.hook}"`;
-      expect([where, plan.hook]).toEqual([where, messages[locale].SpiralGlass.caption]);
+      // the hook names the glass the banner says is cleared, never the multiplying the overlay asked about
+      expect([where, plan.hook, plan.hook === messages[locale].SpiralGlass.caption]).toEqual([where, own, false]);
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
       const clip = crewClipOfPlan(plan, { run });
       expect([where, plan.captionRoles.includes("payoff"), plan.payoff.text, endBannersShown(clip).map((b) => b.banner.words)]).toEqual([where, false, "", [expect.stringContaining("GLASS CLEARED")]]);
+      const bot = planTemplate("smash-spiral-glass", 2, "reels", { copy: COPY[locale], locale, episode: 3, index: 2, look: "bot", search: false });
+      expect([where, bot.captionRoles.includes("payoff"), bot.payoff.text]).toEqual([where, false, ""]);
     }
+    expect(planTemplate("smash-spiral-glass", 2, "reels", { copy, search: false }).hook).toBe("Can it clear all the glass?");
+    expect([messages.en.SpiralGlass.canvasCleared, messages.pl.SpiralGlass.canvasCleared]).toEqual(["GLASS CLEARED", "SZKŁO ZBITE"]);
   });
 
   it("keeps no stage banner on the Journey's action track with its overlay off, so its hook takes the top, clear of nothing it would cover", () => {
     const plan = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1 });
     expect([modeBannersDrawn(plan.settings), "banners" in actionTrackSync(plan.settings, plan.seed, plan.world, 4)]).toEqual([false, false]);
+    // (--- templates --- studio round 1, 9) in the bot look too; the mode's defaults keep the banners
     const bot = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
-    expect([modeBannersDrawn(bot.settings), "banners" in actionTrackSync(bot.settings, bot.seed, bot.world, 4)]).toEqual([true, true]);
+    expect([modeBannersDrawn(bot.settings), "banners" in actionTrackSync(bot.settings, bot.seed, bot.world, 4)]).toEqual([false, false]);
+    expect(modeBannersDrawn({ ...bot.settings, journeyHud: true })).toBe(true);
     const hook = plan.captionRoles.flatMap((r, i) => (r === "hook" ? [i] : []));
     expect(hook.map((i) => plan.settings.captions[i].position)).toEqual(hook.map(() => "top"));
   });
@@ -1575,7 +1695,8 @@ describe("the overlay switches: the Journey and Spiral Glass in the Simple look"
 // --- templates --- (AI studio step 5) group C: the line-up and on-the-beat bindings with their own settings, each timed by its run's
 // own moment or the clip's end, every one its mode's own notes the music; Beat Runner kept hidden with what was measured
 describe("group C: line up and on the beat", () => {
-  const GROUP_C = ["line-up-star-chords", "line-up-ellipse-foci", "line-up-hoops", "line-up-orb-grid", "line-up-colour-sort", "line-up-double-pendulum", "on-the-beat-beat-machine", "on-the-beat-collide", "on-the-beat-wave-tank"];
+  // (--- templates --- studio round 1, 11: Beat Machines and the Wave Tank hidden, nothing standing out at their payoff: the tests below)
+  const GROUP_C = ["line-up-star-chords", "line-up-ellipse-foci", "line-up-hoops", "line-up-orb-grid", "line-up-colour-sort", "line-up-double-pendulum", "on-the-beat-collide"];
   /** A hidden group C template's plan from its binding's recipe, as the tests above plan Paddle Keep-Up's. */
   const hiddenPlanOf = (id: string, seed = 1) => planClip(plannedRecipe(templateById(id)!)!, seed, "reels", { copy, look: "simple", template: id, episode: 3, index: seed });
   /** A group C template's plan on reels (Shorts for Chord Stars, short only), resolved. */
@@ -1656,8 +1777,9 @@ describe("group C: line up and on the beat", () => {
   });
 
   it("reads each beat off its run: Beat Machines' phrase with no spare marble over one loop, the vortex's last ring on a bar line, the clip's end where the rest play on", () => {
-    // Beat Machines: one loop a clip, ending on its seam; the seed's phrase needs no spare marble, the payoff one of its notes
-    const bm = planOf("on-the-beat-beat-machine");
+    // Beat Machines (hidden since studio round 1, 11): one loop a clip, ending on its seam; the seed's phrase needs no spare marble,
+    // the payoff one of its notes
+    const bm = hiddenPlanOf("on-the-beat-beat-machine");
     const request = finderRequestOfSettings(bm.settings, bm.world, bm.timing.clipSec + 2);
     const machine = outcomeRunOf(request, bm.seed, "no-tube-conflict", bm.timing.clipSec + 2);
     expect([bm.settings.bmLoopBeats / 2, bm.timing.clipSec, machine.facts.matched, machine.facts.seam]).toEqual([bm.timing.recordingDuration, bm.timing.recordingDuration, true, true]);
@@ -1672,16 +1794,43 @@ describe("group C: line up and on the beat", () => {
     const ring = outcomeRunOf(finderRequestOfSettings(vx.settings, vx.world, vx.timing.clipSec + 2), vx.seed, "ring-on-bar", vx.timing.clipSec + 2);
     expect([vx.settings.vxRelease, ring.facts.matched, ring.facts.endSec! - ring.facts.atSec]).toEqual(["rings", true, expect.closeTo(1, 1)]);
     expect(Math.abs(vx.payoff.atSec! / 2 - Math.round(vx.payoff.atSec! / 2)) * 2).toBeLessThanOrEqual(0.02 + 1e-9);
-    // Collision Playground and the Wave Tank play on – and Beat Drop (hidden: its own HUD) to its recording's end: the clip's last
-    // 1.5 s are the payoff, and the beat is heard there
-    for (const id of ["on-the-beat-beat-drop", "on-the-beat-collide", "on-the-beat-wave-tank"]) {
-      const plan = id === "on-the-beat-beat-drop" ? hiddenPlanOf(id) : planOf(id);
+    // the Wave Tank plays on – and Beat Drop (hidden: its own HUD) to its recording's end: the clip's last 1.5 s are the payoff, and
+    // the beat is heard there – (--- templates --- studio round 1, 11) but nothing there stands out from the run: as many sounds as its
+    // busiest moment before, one at a time, no accent the run had not played (G2), so both are hidden
+    for (const id of ["on-the-beat-beat-drop", "on-the-beat-wave-tank"]) {
+      const plan = hiddenPlanOf(id);
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
       const clip = crewClipOfPlan(plan, { run });
       // (Beat Drop's run ends with its recording, a moment after the clip's payoff: its facts read no finish while it is hidden,
       // as the score reads a mode without a ready template by its own run)
-      expect([id, plan.payoff.atSec, run.moment!.sounds > 0, claimSeen(clip), clarityOf(clip).pass]).toEqual([id, plan.timing.recordingDuration - AT_END_SEC, true, true, true]);
+      expect([id, plan.payoff.atSec, run.moment!.sounds > 0, claimSeen(clip), beatStandsOut(run.moment!)]).toEqual([id, plan.timing.recordingDuration - AT_END_SEC, true, true, false]);
+      expect([id, clarityOf(clip).gates.find((g) => g.id === "G2")!.problems]).toEqual([id, ["payoffLandsPlain"]]);
     }
+    // Beat Machines' payoff, its loop's note nearest 85 %: one note of a phrase the run already played, no louder (G2)
+    const bmRun = runSync(bm.settings, bm.seed, bm.world, bm.recipe, bm.timing.clipSec, bm.payoff.atSec);
+    expect([bmRun.moment!.sounds > 0, bmRun.moment!.chordMax, bmRun.moment!.accent, beatStandsOut(bmRun.moment!)]).toEqual([true, 1, false, false]);
+    expect(clarityOf(crewClipOfPlan(bm, { run: bmRun })).gates.find((g) => g.id === "G2")!.problems).toEqual(["payoffLandsPlain"]);
+  });
+
+  // --- templates --- (studio round 1, 11) Collision Playground's last 1.5 s had played what the whole run did; its drop is the one
+  // moment that stands out: the anti-collision switch, timed by the fixed strategy at its setting's second
+  it("times Collision Playground by its drop: every orb a new colour, a flash, ANTI-COLLISION and an accented chord no moment before matched", () => {
+    expect([MODE_TEMPLATES.collide.strategy, templateRecipeById("on-the-beat-collide")!.strategy]).toEqual(["fixed", "fixed"]);
+    for (const seed of [1, 2, 3, 4]) {
+      const plan = planOf("on-the-beat-collide", seed);
+      const where = `collide/${seed}`;
+      const anti = plan.settings.cpAntiCollisionAt;
+      expect([where, Number.isInteger(anti) && anti > 0, plan.payoff.atSec, plan.ending, plan.timing.found]).toEqual([where, true, anti, "resolved", true]);
+      expect([where, plan.payoff.position! >= PAYOFF_BAND.from - 1e-9 && plan.payoff.position! <= PAYOFF_BAND.to + 1e-9]).toEqual([where, true]);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const m = run.moment!;
+      expect([where, m.accent, m.chordMax, (m.chordBefore ?? 0) < m.chordMax, beatStandsOut(m)]).toEqual([where, true, 4, true, true]);
+      const clip = crewClipOfPlan(plan, { run });
+      expect([where, clarityOf(clip).pass, endBannersShown(clip).map((b) => [b.start, b.banner.words])]).toEqual([where, true, [[anti, expect.stringContaining("ANTI-COLLISION")]]]);
+    }
+    // the bot's own plans and the mode's default are untouched: no anti-collision unless asked for
+    expect(defaultSettings("collide").cpAntiCollisionAt).toBe(0);
+    expect(RECIPES.some((r) => r.modes.includes("collide"))).toBe(false);
   });
 
   it("sees the beat claim where the run plays notes at the clip's own payoff, never where it is silent or read around another second", () => {
@@ -1706,7 +1855,17 @@ describe("group C: line up and on the beat", () => {
     for (const id of ["on-the-beat-beat-drop", "on-the-beat-vortex"]) {
       const plan = hiddenPlanOf(id);
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
-      expect([id, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).pass, plan.captionRoles.includes("hook")]).toEqual([id, true, true, true]);
+      // (--- templates --- studio round 1, 11: every gate but G2 passes; their payoffs do not stand out from their runs either)
+      expect([id, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.problems.join("+")), plan.captionRoles.includes("hook")]).toEqual([id, true, ["payoffLandsPlain"], true]);
+      expect(() => planTemplate(id, 1, "reels", { copy, search: false }), id).toThrow(/ready template/);
+    }
+  });
+
+  it("keeps Beat Machines and the Wave Tank experimental, with their reasons: nothing stands out at their payoff (G2)", () => {
+    expect(EXPERIMENTAL.beatMachine).toMatch(/one note at a time.*repeats the bar heard twice.*0 of 12 plans stand out \(G2\)/);
+    expect(EXPERIMENTAL.waveTank).toMatch(/one at a time.*0 of 12 plans stand out \(G2\)/);
+    for (const id of ["on-the-beat-beat-machine", "on-the-beat-wave-tank"]) {
+      expect([id, templateById(id)!.ready, templateById(id)!.binding.tier]).toEqual([id, false, "experimental"]);
       expect(() => planTemplate(id, 1, "reels", { copy, search: false }), id).toThrow(/ready template/);
     }
   });
@@ -1874,7 +2033,7 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     }
   });
 
-  it("binds 48 of 48: every binding ready, or experimental with its reason, or – the square race – proven with its one variant hidden with its reason", () => {
+  it("binds 48 of 48: every binding ready, or experimental with its reason, or – the square race and Ball Drop – proven with its one variant hidden with its reason", () => {
     expect(BINDINGS).toHaveLength(MODE_IDS.length);
     const perFormat: Record<string, [number, number, number]> = {};
     for (const b of BINDINGS) {
@@ -1886,8 +2045,10 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
       if (!b.ready && b.tier !== "experimental") expect([b.mode, b.variants.every((v) => (v.hidden ?? "").length > 20)]).toEqual([b.mode, true]);
     }
     // [ready, experimental, proven with every variant hidden]
-    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [2, 1, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [2, 1, 0], lineUp: [8, 0, 0], onTheBeat: [4, 3, 0], reveal: [1, 2, 0], labGame: [1, 0, 0] });
-    // 39 modes as 49 templates
-    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([39, 49]);
+    // (--- templates --- studio round 1, 10 and 11: Perfect Fit, Beat Machines and the Wave Tank experimental, Ball Drop's one variant
+    // hidden; Collision Playground ready, timed by its drop)
+    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [2, 1, 0], lineUp: [8, 0, 0], onTheBeat: [1, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
+    // 35 modes as 45 templates
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 45]);
   });
 });

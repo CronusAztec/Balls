@@ -10,6 +10,8 @@ import { botRecipeById, templateClaimOf } from "@/lib/bot/templates";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import type { ClipGenes, ClipGenesFeatures } from "@/lib/insights/genes";
 import { factsOfExport, planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } from "@/lib/insights/score";
+import { perfectFitSettingsOf, resolvePerfectFitSettings } from "@/lib/physics/perfectFit"; // --- crew --- (studio round 1, 10) a full box's hold
+import { perfectFitPlanOf } from "@/lib/simulation/perfectFitFinder";
 
 /*
  * --- crew --- The clip as the crew reads it (CrewClip): one shape for a planned clip (a bot plan, a Claude studio plan) and a
@@ -309,6 +311,32 @@ export function claimSeen(clip: CrewClip): boolean | null {
       return clip.payoff.atSec !== null;
   }
 }
+
+// --- crew --- (studio round 1, 10) how long the payoff's state stays on screen
+/** A completion this close to the payoff (s, in the loop's time) is the payoff's own. */
+const HOLD_MATCH_SEC = 0.25;
+
+/**
+ * How long the state a resolved payoff shows stays on screen after it (s), where the run itself takes it away before the clip ends;
+ * null where it stays to the clip's end, as far as anything tells. Perfect Fit's rectangles: the box is full from its last piece's
+ * landing (the payoff) to its burst, a flash later – 0.15 s at free timing (polyominoPlan.ts PF_FLASH_SEC; the scatter and the fade
+ * after it show the pieces flying out of an emptying box) –, so a clip that runs on for seconds after the payoff shows the box full
+ * for that flash alone. The timeline is the same for every tiling (12 slots, then the completion), so any solution seed reads it.
+ * The crew's gate G2 asks the payoff's state to hold as long as it asks a payoff to be shown (CLARITY.shownAfterPayoffSec).
+ */
+export function payoffHoldSec(clip: Pick<CrewClip, "settings" | "payoff" | "timing" | "ending">): number | null {
+  const at = clip.payoff.atSec;
+  if (clip.ending !== "resolved" || at === null || clip.settings.mode !== "perfectFit") return null;
+  const pf = resolvePerfectFitSettings(perfectFitSettingsOf(clip.settings));
+  if (pf.variant !== "pento") return null;
+  const plan = perfectFitPlanOf(pf, pf.seed > 0 ? pf.seed : 1);
+  if (!(plan.loopSec > 0)) return null;
+  const local = at - Math.floor(at / plan.loopSec + 1e-9) * plan.loopSec;
+  const box = plan.puzzles.find((p) => p.status === "ok" && Math.abs(p.tDone - local) <= HOLD_MATCH_SEC);
+  if (!box) return null;
+  return Math.max(0, Math.min(clip.timing.clipSec, at + (box.tDone - local) + box.flashSec) - at);
+}
+// --- end of the payoff's hold
 
 /** The numbers a hook may state truthfully: the recipe's own hook values, the clip's length, the day, and one. */
 export function factNumbersOf(clip: Pick<CrewClip, "recipe" | "settings" | "timing" | "episode" | "mode">): number[] {

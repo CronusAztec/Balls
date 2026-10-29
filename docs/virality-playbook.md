@@ -217,24 +217,27 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 39 modes as 49 templates. 15 of the 16 modes a recipe plays give 20 of them: Classic and Portal also have a
+- **Ready now:** 35 modes as 45 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset, the bracket and, since AI studio step 6, the boss rush. A template
   plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
   on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
-  Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
+  Brick Smash and Perfect Fit, a trial tier each; Perfect Fit's was hidden again in the first review round (below). Classic adds a variant of its own settings, one ring with one gap
   ("Classic · Get out · One ring"). Six more do since AI studio step 4: the conveyor, the Maze, Territory, Land Claim, Bullseye
   and Bouncing Shapes. Two more since step 4b: the Journey and Spiral Glass, each with a setting that switches its own overlay
   off. Nine more since step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp
-  line up, and Beat Machines, Collision Playground and Wave Tank play on the beat. Ball Drop's template is ready again since
-  step 5, its rain looped. Two more since step 6: the Drawing Machine reveals its flower, and the Mode Lab plays five of its
-  six built-in games, a template each. Their numbers are in the tables of steps 3, 4, 4b, 5 and 6 below, and the whole table's
-  counts and medians per format after them.
-- **Hidden for now:** the other 9 modes are bound but wait, each with its reason. Eight sit in the experimental table
-  (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Each was planned and measured and
-  stays with the reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4, Beat Drop, Beat Runner and the Sound
-  Vortex in step 5, Lines and Circle Illusion in step 6 (below). The ninth is the square race, a recipe's binding whose one
-  variant is hidden (below). The Journey and Spiral Glass, hidden in step 3, left the table in step 4b, and the Drawing Machine
+  line up, and Beat Machines, Collision Playground and Wave Tank play on the beat. Ball Drop's template was ready again in
+  step 5, its rain looped. The first review round hid Beat Machines', the Wave Tank's and Ball Drop's again, as nothing at their
+  payoff stands out from the run before it, and timed Collision Playground's by its anti-collision drop (below). Two more since step 6: the Drawing Machine reveals its flower, and the Mode Lab plays five of its
+  six built-in games, a template each. Their numbers are in the tables of steps 3, 4, 4b, 5 and 6 and the first review round
+  below, and the whole table's counts and medians per format after them.
+- **Hidden for now:** the other 13 modes are bound but wait, each with its reason. Eleven sit in the experimental table
+  (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass, and joins it only by a deliberate
+  edit of the test's pinned list, with what was measured. Each was planned and measured and stays with the reason found: Paint
+  in step 3, Merge Ring and Paddle Keep-Up in step 4, Beat Drop, Beat Runner and the Sound Vortex in step 5, Lines and Circle
+  Illusion in step 6, and Perfect Fit, Beat Machines and the Wave Tank, ready before, in the first review round (below). The
+  other two are recipes' bindings whose one variant is hidden: the square race and, since the first review round, Ball Drop
+  (below). The Journey and Spiral Glass, hidden in step 3, left the table in step 4b, and the Drawing Machine
   and the Mode Lab in step 6. The payoff timing of every binding is in place
   (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
@@ -247,11 +250,12 @@ checks (G4).
   (`OWN_RUN_MOMENTS`). Fight League's boss rush was hidden until step 6: its recipe's hook names the boss and the division in
   one clause of 8–9 words, more than the 7 G5 allows, so its template now draws its format's own (below). The square race is
   hidden: its 3-2-1-GO opens the gate at 1.8 s, so no plan passes G1, and no setting skips the count (step 4 tried 96
-  seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). Ball Drop's was hidden until step 5:
-  its run fades out. Its last note is one faint tick over a board at rest, then silence until a SETTLED! banner the recorder
-  shows for 0.5 s, so no plan timed by that note lands (G2). Its template now loops the rain (below). A template that fails a
-  gate on every plan is hidden with its reason, never kept by an exception. A binding is ready only while one of its templates
-  is, so the race's binding is not ready either, though it wraps a recipe.
+  seeds, 8 for each of its 12 plans: the gate opened at 1.8 s on every one). Ball Drop's was hidden until step 5 and is
+  again since the first review round. Its run fades out: its last note is one faint tick over a board at rest, then silence
+  until a SETTLED! banner the recorder shows for 0.5 s, so no plan timed by that note lands (G2). Its template of step 5 loops
+  the rain, whose end plays what the whole rain did, so nothing stands out at its payoff (G2, the first review round, below).
+  A template that fails a gate on every plan is hidden with its reason, never kept by an exception. A binding is ready only
+  while one of its templates is, so the race's and Ball Drop's bindings are not ready either, though each wraps a recipe.
 - **Unchanged:** the templates sit beside the recipes, so the daily rotation, its pinned days, the bot's own plans and every
   fingerprint stay as they were.
 - **Words:** a template that wraps a recipe speaks with the recipe's words. The 32 bindings without one speak with their format's, written
@@ -266,7 +270,8 @@ checks (G4).
   Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring", and since step 6 a Mode
   Lab game's name: "Mode Lab · Lab game · Ring Breaker"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
   A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
-  Bouncing Shapes', Spiral Glass's, the Double Pendulum's, and since step 6 each Mode Lab game's rule) or a payoff
+  Bouncing Shapes', Spiral Glass's, the Double Pendulum's, since step 6 each Mode Lab game's rule, and since the first review
+  round the conveyor's, with its count) or a payoff
   (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠"). A variant that wraps a recipe may draw one of its format's hooks
   instead of the recipe's (step 6: Fight League's boss rush, "Pick one before it starts.").
 
@@ -276,7 +281,8 @@ checks (G4).
   trails;
 - no wall glow, colour trail, rainbow walls, rainbow ball, reactive background, shake or confetti: a wall breaks into shards;
 - every HUD switched off but the one that counts down (String Battle's panel, Fight League's HP bars), and no name label.
-  Since AI studio step 4b that includes the Journey's and Spiral Glass's own overlays (`journeyHud`, `sgHud`);
+  Since AI studio step 4b that includes the Journey's and Spiral Glass's own overlays (`journeyHud`, `sgHud`), which their
+  templates switch off in the bot look too since the first review round;
 - one text at a time: the hook for 2.5 s, then the countdown caption until the next text, then the payoff's words or the
   closing question. No countdown caption appears where a HUD on screen counts down already. The caption counts walls only,
   where the format takes one: a bar or a timer counts the clip's seconds and would leave at the payoff short of its 100 % or
@@ -300,7 +306,10 @@ checks (G4).
   clip's quiet end;
 - a payoff cut the same way toward 3 words ("FREE! Gerald made it 🎉" becomes "FREE!"). A payoff of one clause keeps its
   words ("Thor is the champion! 🏆", "Znów w jednej linii. 🎼"). It gets 1.2 s a line: where the seconds after it are too
-  short for two lines, as on Shorts, it takes one line, without its closing emoji and a size smaller if need be. The closing
+  short for two lines, as on Shorts, it takes one line, without its closing emoji and a size smaller if need be. Its words
+  come in on the half second before the payoff only where the payoff is at most 0.2 s past it (half the words' 0.4 s
+  entrance), else on the next half second, so their entrance is at most half done when the moment comes; where less than a line's
+  1.2 s is left after that, the clip ends on its picture without them (the first review round). The closing
   question gets the last 2 s, or 2.5 s on two lines;
 - the series label and the rest of a long hook go in the post caption, not on the clip.
 
@@ -404,6 +413,8 @@ rendered watermarked through the page's own fast export, and its hook and contac
   inside G2's band but past the checklist's 90 % on TikTok and Reels.
 - Classic's one ring misses one Shorts plan: in the short length its seed search found no escape in time.
 - In the bot look, Brick Smash and Perfect Fit are busy (G6), as Glass is: the Simple look is what makes them ready.
+- Perfect Fit's row is history. The first review round watched its box full for a 0.15 s flash before it bursts, with "Full!"
+  on screen while the last piece fell, and hid it (below).
 
 Hidden after measuring, each with its reason in `EXPERIMENTAL` (a template that fails a gate on every plan, or a screen that
 is not calm when watched, is hidden, never kept by an exception):
@@ -449,6 +460,9 @@ passed its watch: one clip of each rendered watermarked and its hook and contact
   with most pegs in play every first shot hits one within the first second.
 - The Maze names its winner by its colour ("AQUA", "SNOW"), as its banner does, in the plan, the payoff and the crew's run.
 - The battle family keeps the Maze, Territory and Land Claim: they are offered only when that family is asked for.
+- The conveyor spoke its format's hook until the first review round ("One ball. How many by the end?"), with its count only in
+  the grey line under it. Its run loads balls one by one and never multiplies, so its hook is its own since, with the count
+  in it (below).
 
 Hidden after measuring in step 4 (`EXPERIMENTAL`):
 
@@ -486,6 +500,9 @@ looked at.
   hook. Step 3 had planned both endings: the Journey then missed one Shorts cliffhanger, whose seed search fit no cut.
 - In the bot look they keep their overlays and are busy (G6: Simple 9 and 24), as Glass is: the Simple look is what makes them
   ready. The bot look also draws the Journey's hook over its stage banner (G5).
+- Both changed in the first review round (below): their templates switch the overlays off in the bot look too, and Spiral
+  Glass's hook asks what GLASS CLEARED answers ("Can it clear all the glass?"). Its old hook, "Will the ball multiply?", was
+  answered by the badge mid-clip, and its payoff never said so.
 
 **AI studio step 5's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
 the same counts in each]**. Nine more modes play settings of their own, six that line up and three on the beat, and Ball
@@ -530,6 +547,9 @@ notes) and its hook and contact sheets looked at.
   sounds before its payoff.
 - In the bot look, Spinning Hoops, the Double Pendulum and Collision Playground pass every gate (Simple 85–89). The others are
   busy there (G6: Simple 30–46), as Glass is: the Simple look is what makes them ready.
+- Four rows are history since the first review round (below): Ball Drop's, Beat Machines' and the Wave Tank's templates are
+  hidden, as nothing at their payoff stands out from the run before it, and Collision Playground's is timed by its
+  anti-collision drop instead of the clip's last 1.5 s.
 
 Hidden after measuring in step 5 (`EXPERIMENTAL`):
 
@@ -599,41 +619,41 @@ Hidden after measuring in step 6:
   its run ends, shown for the recorder's 0.5 s only: 0 of 12 plans passed (G2), as Paint's fill.
 
 **The whole table after AI studio step 6 and the first review round** **[observed: every ready template, 4 plan seeds × 3
-platforms, on the platforms its buckets fit: 584 plans in the Simple look in each of English, Polish and Spanish, and 584 in
-the bot look in English; English and the bot look measured again after the review round]**.
-48 of 48 modes are bound. 39 are ready, as 49 templates. The other 9 are not ready, each with its reason: the 8 bindings of
-the experimental table and the square race, a recipe's binding whose one variant is hidden. Three variants of ready bindings
-are hidden with theirs: Grow's fill that ends the run, Colour Conquest and the square race's. A test pins the counts per
-format (`tests/botTemplates.test.ts`).
+platforms, on the platforms its buckets fit: 536 plans in the Simple look in each of English, Polish and Spanish, and 536 in
+the bot look in English, measured after the review round's findings 7–12]**.
+48 of 48 modes are bound. 35 are ready, as 45 templates. The other 13 are not ready, each with its reason: the 11 bindings of
+the experimental table, and the square race and Ball Drop, recipes' bindings whose one variant is hidden. Three variants of
+ready bindings are hidden with theirs: Grow's fill that ends the run, Colour Conquest and the square race's. A test pins the
+counts per format (`tests/botTemplates.test.ts`).
 
 | Format | Bindings ready | Not ready, and why | Templates ready | Pass every gate (each language) | Simple median (range) | Checklist median |
 | --- | --- | --- | --- | --- | --- | --- |
 | get out | 7 | – | 10 | 118/120 | 97 (84–97) | 94 |
 | smash | 4 | – | 4 | 48/48 | 97 (86–100) | 86 |
-| fill | 2 | Paint: its run ends at its fill, shown 0.5 s | 2 | 24/24 | 97 (97–97) | 84 |
+| fill | 1 | Paint: its run ends at its fill, shown 0.5 s; Perfect Fit: its box full for a 0.15 s flash | 1 | 12/12 | 97 (97–97) | 84 |
 | count | 3 | Merge Ring: its own question under the ring | 3 | 36/36 | 91 (87–97) | 85 |
 | who wins | 7 | the square race: its count-in opens the gate at 1.8 s (G1) | 10 | 114/116 | 90 (87–97) | 94 |
 | aim | 2 | Paddle Keep-Up: its score band under the hook | 2 | 24/24 | 94 (87–97) | 86 |
 | line up | 8 | – | 8 | 96/96 | 97 (97–100) | 84 |
-| on the beat | 4 | Beat Drop and the Sound Vortex: their own HUD or title under the hook; Beat Runner: its first note at 1.5 s (G1) | 4 | 48/48 | 97 (97–97) | 82 |
+| on the beat | 1 | Beat Drop and the Sound Vortex: their own HUD or title under the hook; Beat Runner: its first note at 1.5 s (G1); Beat Machines, the Wave Tank and Ball Drop: nothing at their payoff stands out from the run (G2) | 1 | 12/12 | 97 (97–97) | 86 |
 | reveal | 1 | Lines and Circle Illusion: no picture to guess | 1 | 12/12 | 97 (97–97) | 82 |
 | Mode Lab game | 1 | – | 5 | 60/60 | 89 (86–92) | 84 |
-| **All** | **39** | **9** | **49** | **580/584** | **97 (84–100)** | **86** |
+| **All** | **35** | **13** | **45** | **532/536** | **97 (84–100)** | **86** |
 
-- The ranges are the English plans'. Polish and Spanish pass the same 580 plans, miss the same 4 and have the same medians
+- The ranges are the English plans'. Polish and Spanish pass the same 532 plans, miss the same 4 and have the same medians
   per format. A template's Simple median moves by half a point at most, and a lowest plan by one (Glass's lowest Spanish
   plan scores 83, Power Layers' lowest Polish one 85).
 - Every ready template passes every gate on at least 3 of its 4 plan seeds on every platform it is offered on, at Simple 80
   or more and a checklist score of 75 or more, in each language. Its runs are the bot look's: the seed and every run fact are
-  the same in both looks, on all 584 English plans.
+  the same in both looks.
 - The 4 misses are the ones the tables above name: Classic's one ring and Glass on one Shorts plan each, a Land Claim plan of
-  42 s past Reels' lengths, and one String Battle whose first hit comes at 1.4 s. Grow until it fills, which missed two Reels
-  and TikTok plans in step 6, plans the short length only since the review round (below).
-- The lowest checklist score of a passing plan is the Maze's 76; the lowest Simple score is Glass's 84.
-- In the bot look 95 of the 584 plans pass every gate (median Simple 36): the Simple look is what makes most templates ready.
+  42 s past Reels' lengths, and one String Battle whose first hit comes at 1.4 s.
+- The lowest checklist score of a passing plan is Grow's 75 (its short clips, below); the lowest Simple score is Glass's 84.
+- In the bot look 107 of the 536 plans pass every gate (median Simple 39; 95 of 584 before the round): the Simple look is what
+  makes most templates ready. Spiral Glass passes all 12 there now and Collision Playground 12 of 12 (below).
 - Each format has at least one ready template. Who wins holds the battle family: its 10 templates, Fight League's among them,
   are offered only where that family is asked for (`readyTemplates("battle")` or `"all"`, and the `templates` tool's
-  `family`). The default menus offer the other 39, as the daily bot leaves its battles out.
+  `family`). The default menus offer the other 35, as the daily bot leaves its battles out.
 
 **Grow until it fills, short only (the first review round)** **[observed: `fill-grow`, plan seeds beyond the
 test's and the studio's 800×450 world]**. Its seed search often found no fill inside the band in the standard length, the
@@ -651,8 +671,30 @@ every platform, as Gerald's Portal escape plans the standard one only. Measured 
 | The bot look, en, pl and es | 1–4 | 0/36 (G5 and G6: busy by design) | 30 | 98 |
 
 The run is the bot look's in both looks (the readiness test checks `runFactsSync`). A test now also plans every ready template
-on plan seeds 5–8 in the 800×450 world, one platform and one language a seed: all 49 pass 4 of 4 there, where Grow's standard
+on plan seeds 5–8 in the 800×450 world, one platform and one language a seed: all 45 pass 4 of 4 there, where Grow's standard
 clips had passed 2 of 4.
+
+**The first review round, findings 7–12** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and
+Spanish (the same counts in each), and the bot look in English; the changed templates rendered watermarked and watched]**.
+The review watched what the tables above had passed and found six things a stranger would not get. Each is fixed at its root,
+or its template is hidden with what was measured:
+
+| Finding | What a viewer saw | What changed | Measured since |
+| --- | --- | --- | --- |
+| Spiral Glass's hook | "Will the ball multiply?" answered by the entrance badge mid-clip; the payoff said GLASS CLEARED | its own hook asks what its ending answers, "Can it clear all the glass?" ("Czy zbije całe szkło?", "¿Romperá todo el cristal?"); no payoff words beside GLASS CLEARED | 12/12, Simple 97, checklist 86 |
+| Overlays in the bot look | Spiral Glass's question under the hook for the whole clip; the Journey's hook over its stage banner | both templates switch their overlay off in both looks (their binding's settings: `sgHud`, `journeyHud`); G5 now fails a top text where a mode writes its own words at the top centre for the whole run (`topCentre` in `src/lib/crew/hudFlags.ts`) | bot look: Spiral Glass 12/12 (Simple 86, from 24), the Journey 0/12 on G6 alone (Simple 47, from 9; no G5) |
+| Perfect Fit's full box | full for 0.15 s, then it bursts; "Full!" came while the last piece fell | G2 now asks that the payoff's state holds 0.8 s (`payoffHoldSec`); the payoff words start at most 0.2 s before the moment they name (above) | 0/12: hidden (`EXPERIMENTAL`) |
+| Beat payoffs | Beat Machines' payoff note repeats a bar heard twice before it, as loud (two renders: 0.1 dB apart) | G2 asks a beat payoff to stand out from the run before it: a quarter more sounds than its busiest moment, a larger chord, or an accent none before matched (`beatStandsOut`) | Beat Machines 0/12, the Wave Tank 0/12, Ball Drop 0/12: hidden; Collision Playground re-timed on its anti-collision drop (`cpAntiCollisionAt`, a 4-note chord where the run had played 1 at most): 12/12, Simple 97, checklist 86, in the bot look 12/12 too |
+| The conveyor's hook | "One ball. How many by the end?" over a belt that loads balls and never multiplies; its count only in a grey line | its own hook states its count and asks what ALL OUT! answers ("7 balls. Will they all get out?") | 12/12, Simple 91 (90–92), checklist 82 |
+| `viral-bot.mjs --plan --template` | a usage message that sent the caller round in a loop | the message says `--template` and `--look` plan a dry run, `--dry-run` without `--plan` | `tests/botSection.test.ts` |
+
+- The Simple look's payoff words used to start on the half second before the payoff, up to 0.5 s early. They start there
+  now only within 0.2 s of it, else on the next half second, and where under 1.2 s would be left for them the clip ends on its
+  picture (above). No ready template lost a plan to it: the whole table above passes 532 of 536 in each language, the same 4
+  misses as before the round.
+- The beat format keeps one ready template, Collision Playground's. Its claim is a beat heard at the payoff, and only a payoff
+  that stands out answers it: a run that sounds the same from its first second to its last asks nothing a viewer waits for.
+- The role eval's corpus moved with Ball Drop's template (docs/agents/CREW-EVAL.md, run round1b).
 
 **Where the templates are offered** (AI studio steps 7 and 8):
 

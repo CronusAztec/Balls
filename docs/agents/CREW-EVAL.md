@@ -702,7 +702,7 @@ moved; all 18 of the brainstormer's ideas passed every gate, as before, in 3.33 
 ### claude-opus-5-5-2026-10-29-round1
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-round1 -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 250 briefs answered (250 replies, refused ones included). Corpus 7369f59928d82bba.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 250 briefs answered (250 replies, refused ones included). Corpus 7369f59928d82bba (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -740,3 +740,54 @@ clips moved to them: 4 of the 67 fixtures changed, and the corpus with them. The
 ask in one context, as before: it read both clean clips as a ball that grows until it fills the ring and kept them, and read the
 one whose payoff says "Bullseye!" as a fill with a wrong ending and dropped it. The other 237 answers are step 6's, to briefs
 that did not change by a byte, and step 6's run stays above as history. No catch rate, objection, misread or fix count moved.
+
+### claude-opus-5-5-2026-10-29-round1b
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-round1b -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 350 briefs answered (354 replies, refused ones included). Corpus e588ddc5b93e647c.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 17 of 27 (63%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.1 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 18 of 27 (67%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.39 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.24 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 2/3 | 0/3 | 0/3 | 2/3 | 2/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 3 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-round1b -->
+
+The second half of the studio's first review round of AI studio step 2 hid Ball Drop's, Beat Machines', Wave Tank's and Perfect
+Fit's templates again (a beat payoff must now stand out from the bars before it, and Perfect Fit's full box shows for 0.15 s),
+re-timed Collision Playground's on its anti-collision drop, gave Spiral Glass and Conveyor hooks their payoffs answer and
+moved the Simple payoff line to the half second its words can reach in time. The corpus of the proven templates' clips lost
+Ball Drop's clips (three clean, two planted), so its round robin moved and all 67 fixtures differ from round 1's; 140 of the 237 briefs were word for
+word ones round 1's run had answered, and those answers stand. The same model answered the other 97 in one context: the
+viewer's, skeptic's and reviewer's briefs of 21 clips (11 clean, 10 planted) and the brainstormer's three. It read both clean
+Glass clips as glass breaking rather than Gerald getting home, so the viewer misread 3 clean clips (1) and the thorough panel
+rewrote those two hooks (Clean changed 3, from 1); it called Capture the Flag's win at 95 % late but minor, so the skeptic
+caught one late payoff fewer (17 of 27, from 18; 25 of 27 for Quick and Thorough, from 26). It dropped the two planted clips
+whose payoff word answers another question and that no listed fix can reword (a resolved-only template). The brainstormer
+answered its three briefs twice. Its first pitch was refused on every request (a cliffhanger-only Shatter and Target, a
+short-only Chord Stars); then the menu changed once more, as the conveyor's own hook now shows its words ("{count} balls.
+Will they all get out?") where it had shown none, and it answered the three new briefs knowing those refusals: valid first
+time on 3 of 3, at 3 calls. All 18 ideas passed every gate, in 3 formats a request (3.33). Round 1's run stays above as
+history.

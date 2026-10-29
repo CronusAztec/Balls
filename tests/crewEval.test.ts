@@ -382,6 +382,11 @@ describe("the recorded runs (--- crew --- tests/fixtures/crew/runs/)", () => {
  * misread, 10 now: the Glass clip's misread gone, three Ball Drop ones back), and the scripted skeptic's hookMismatch on that
  * Glass clip is gone (5 clean clips objected to, 4 now), with the quick run's fix of it (17 / 20, 16 / 19). The thorough run's
  * reviewer rewrites the misread hooks (8 clean clips changed, 10; 20 / 23 fixes kept, 22 / 25). No catch rate moved.
+ * --- templates --- (studio round 1, 11) Ball Drop's template is hidden again (its looped rain's end, its payoff, stands out from
+ * nothing before it), so its three clean clips left the round robin and the counts step 5 moved go back: the Glass clip's misread and
+ * the skeptic's hookMismatch on it return (5 clean clips objected to, 4 before; 8 misread, 10 before, the three Ball Drop hooks the
+ * scripted viewer read as a count gone), the quick run fixes that hook (17 / 20, 16 / 19) and the thorough run rewrites 8 misread
+ * hooks (20 / 23, 22 / 25). The scripted viewer names 20 planted defects (21). No catch rate moved.
  */
 const SCRIPTED_TABLES = [
   "Corpus: 40 clean clips, 27 planted (9 classes).",
@@ -389,11 +394,11 @@ const SCRIPTED_TABLES = [
   "| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |",
   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   "| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |",
-  "| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 4 of 40 (10%) | 0 of 40 (0%) | none asked | 1.12 |",
-  "| viewer | the viewer; the rules decide | 12 of 27 (44%) | 21 of 27 (78%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 10 of 40 (25%) | none asked | 1 |",
+  "| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 5 of 40 (13%) | 0 of 40 (0%) | none asked | 1.12 |",
+  "| viewer | the viewer; the rules decide | 12 of 27 (44%) | 20 of 27 (74%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 8 of 40 (20%) | none asked | 1 |",
   "| reviewer | the reviewer alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1 |",
-  "| quick | Quick: the skeptic, the reviewer where in doubt | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 4 of 40 (10%) | 4 of 40 (10%) | 0 of 40 (0%) | 16 / 19 (3 need the seed search) | 1.42 |",
-  "| all | Thorough: the viewer, the skeptic, the reviewer | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 10 of 40 (25%) | 4 of 40 (10%) | 10 of 40 (25%) | 22 / 25 (3 need the seed search) | 3.17 |",
+  "| quick | Quick: the skeptic, the reviewer where in doubt | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 5 of 40 (13%) | 5 of 40 (13%) | 0 of 40 (0%) | 17 / 20 (3 need the seed search) | 1.44 |",
+  "| all | Thorough: the viewer, the skeptic, the reviewer | 27 of 27 (100%) | 27 of 27 (100%) | 0 of 40 (0%) | 8 of 40 (20%) | 5 of 40 (13%) | 8 of 40 (20%) | 20 / 23 (3 need the seed search) | 3.17 |",
   "",
   "| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |",
   "| --- | --- | --- | --- | --- | --- | --- | --- |",

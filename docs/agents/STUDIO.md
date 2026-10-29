@@ -94,14 +94,14 @@ argument.
 
 `src/lib/bot/templates.ts` binds each of the 48 modes to one of ten formats. A format promises one thing the run must
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
-and Mode Lab game. 39 of the 48 bindings are ready, as 49 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+and Mode Lab game. 35 of the 48 bindings are ready, as 45 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its measured reason
 (`waits`), and `plan` refuses its mode with that reason.
 
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
-it. The default menus offer the other 39 templates, as the daily bot leaves its battles out.
+it. The default menus offer the other 35 templates, as the daily bot leaves its battles out.
 
 | Format | Mode | The payoff | Ready templates | Waits, and why |
 | --- | --- | --- | --- | --- |
@@ -111,17 +111,17 @@ it. The default menus offer the other 39 templates, as the daily bot leaves its 
 | | Shatter | the first escape (`outcome` escapes-at), cut before it | `get-out-shatter` | |
 | | Color Match | the first escape (`outcome` escapes-at), cut before it | `get-out-color-match` | |
 | | Glass Smash | Gerald home | `get-out-glass` | |
-| | Journey | HOME, its overlay off (`journeyHud`) | `get-out-journey` | |
+| | Journey | HOME, its overlay off in both looks (`journeyHud`) | `get-out-journey` | |
 | smash | Target | the last segment, cut before it | `smash-target` | |
 | | Power Layers | the break-out the settings time | `smash-power-layers` | |
 | | Brick Smash | the picture's last brick (`outcome`, a run of its own) | `smash-brick-rebuild` | |
-| | Spiral Glass | GLASS CLEARED, its overlay off (`sgHud`) | `smash-spiral-glass` | |
+| | Spiral Glass | GLASS CLEARED, its overlay off in both looks (`sgHud`); its hook asks what the banner answers | `smash-spiral-glass` | |
 | fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
 | | Grow | the measured fill, in the short length only (a standard clip often found no fill in time) | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
-| | Perfect Fit | the box full (`outcome`, a run of its own) | `fill-perfect-fit` | |
+| | Perfect Fit | | | `fill-perfect-fit`: its box is full for its 0.15 s flash only, then bursts (G2) |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
-| | Conveyor Belt | ALL OUT!, the last ball out (its mark) | `count-conveyor` | |
+| | Conveyor Belt | ALL OUT!, the last ball out (its mark); its hook states its own count | `count-conveyor` | |
 | | Merge Ring | | | `count-merge-ring`: its own question under the ring for the whole run |
 | who wins (battle family) | String Battle | the winner | `who-wins-string-battle` | |
 | | Square Racing Grand Prix | | | `who-wins-race`: its 3-2-1-GO opens the gate at 1.8 s (G1) |
@@ -142,13 +142,13 @@ it. The default menus offer the other 39 templates, as the daily bot leaves its 
 | | Chord Stars | every star closed (`outcome`, a run of its own) | `line-up-star-chords` | |
 | | Spinning Hoops | every bead up (`outcome` all-up-by) | `line-up-hoops` | |
 | | Focus Shot | every ball on the other focus (`outcome`, a run of its own) | `line-up-ellipse-foci` | |
-| on the beat | Ball Drop | the clip's last 1.5 s, its rain looped (`atEnd`) | `on-the-beat-drop` | |
-| | Collision Playground | the clip's last 1.5 s (`atEnd`) | `on-the-beat-collide` | |
+| on the beat | Ball Drop | | | `on-the-beat-drop`: its looped rain's last 1.5 s play what the whole rain did (G2) |
+| | Collision Playground | its anti-collision drop, at its setting's second (`fixed`) | `on-the-beat-collide` | |
 | | Beat Runner | | | `on-the-beat-runner`: its first note at 1.5 s (G1) |
 | | Sound Vortex | | | `on-the-beat-vortex`: its own title in the corner for the whole run |
 | | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
-| | Beat Machines | a note of its last bars (`outcome`, a run of its own) | `on-the-beat-beat-machine` | |
-| | Wave Tank | the clip's last 1.5 s (`atEnd`) | `on-the-beat-wave-tank` | |
+| | Beat Machines | | | `on-the-beat-beat-machine`: its payoff note repeats a bar heard twice before (G2) |
+| | Wave Tank | | | `on-the-beat-wave-tank`: its last 1.5 s play what every moment did (G2) |
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |
@@ -167,8 +167,9 @@ the run ends with it:
 
 - The recipes' own: `escape` (the first escape), `winner` (the run's winner), `finish` (the run's own finish, or the moment a
   mode marks: Bullseye's first BULLSEYE!, the first shape at zero, the last ball out, a Mode Lab game's finish rule;
-  `MARK_MODES`), `fixed` (Power Layers' break-out, from its settings), `cycle` (the realignment Pendulum Wave's and
-  Polyrhythm's settings time) and `fill` (the fill measured on the run).
+  `MARK_MODES`), `fixed` (Power Layers' break-out, from its settings; since the studio's first review round Collision
+  Playground's anti-collision drop too), `cycle` (the realignment Pendulum Wave's and Polyrhythm's settings time) and `fill`
+  (the fill measured on the run).
 - `outcome`: the seed finder's outcome around the payoff target, its moment read off the finder's own run of the seed
   (`src/lib/bot/outcomeStrategy.ts`). Six outcomes the finder searches over settings, not seeds, plan from a run of their own
   (`OWN_RUN_MOMENTS`): the template draws what the finder would search (Chord Stars' star set, Focus Shot's transit, Beat
@@ -176,7 +177,8 @@ the run ends with it:
   its run. The Maze reads its first one out the same way. A binding's own settings switch on the option its outcome needs,
   such as the Double Pendulum's chaos fan (`OUTCOME_FLAG_SETTINGS`).
 - `atEnd`: the clip's last 1.5 s, for a run that loops or has no moment to search. The seed changes nothing about the timing,
-  the hook promises no event, and the clip ends resolved.
+  the hook promises no event, and the clip ends resolved. A beat format's payoff must still stand out from the run (G2, since
+  the studio's first review round): a looped rain or a steady scan does not, so no beat template takes it today.
 
 ### On the website
 
@@ -188,7 +190,9 @@ daily bot's plans and its pinned days do not move. The **Simple look** switch is
 once their own steps land; today the app's AI plans the playbook's recipes in the bot look
 (`src/components/simulator/desktop/studioPorts.ts`). **Why this clip** shows a Simple clip's score and the crew's clarity
 lines G1-G7, the studio's own `clarityOf` on the plan and its run; a clip in the bot look gets one line saying the rules judge
-the Simple look (`clarityJudges`). `node scripts/viral-bot.mjs --dry-run --template <id> [--look
+the Simple look (`clarityJudges`). A template switches its mode's own overlay off in both looks (the Journey's and Spiral
+Glass's, a binding's `tune`): in the bot look, the website's default, the series label sat on Spiral Glass's question and the
+hook on the Journey's stage banner (the studio's first review round, 9). `node scripts/viral-bot.mjs --dry-run --template <id> [--look
 simple]` plans one template's clips in Node, a battle template only with the family all or battle.
 
 ## How the review holds you to the rules
@@ -511,11 +515,19 @@ What the run showed:
   change of the hub file Canvas.tsx, with the planner's caption boxes (`captionBoxAt`'s `topHud`) to match: the owner's call.
   Beat Drop (AI studio step 5) is hidden the same way: its HUD at the top left of the square (BEAT DROP, the tempo, the
   landings on the beat, the bar's dots) sits under the hook for its 2.5 s, and no setting switches it off.
-- **A loop's last second.** Perfect Fit fills its box, bursts it and starts again, and its page records whole loops, so its
-  clip ends on the loop's seam (watched at 5 frames a second): the box is full and flashes at the payoff, bursts 0.2 s later,
-  and its last 0.5 s show the empty box and the next loop's tray coming in, all under the payoff's "Full!", as every Simple
-  payoff's words stay to the end. A clip that loops back to its start may want that; the owner should decide whether the
-  payoff's words leave with the burst, a change of the payoff caption's end for every template.
+- **A held payoff** (the studio's first review round, 10). Perfect Fit fills its box, flashes it for 0.15 s and bursts it, and
+  its page records whole loops, so its clip shows the full box for that flash only, its last second the pieces flying out and
+  the next loop's tray. G2 now reads how long a payoff's state holds (`payoffHoldSec`: a box's completion to its burst) and asks
+  0.8 s, as it asks of a payoff shown, so the template is hidden. A hold before the burst would bring it back: a drawn-only
+  setting of the mode (its plan's timeline and loop length move with it, the fingerprint at the default does not), the
+  owner's call.
+- **A beat that drops** (the studio's first review round, 11). The beat format's payoff is the drop or the last bar, and G2 now
+  asks it to stand out from the run before it (`beatStandsOut`: a quarter more sounds than the run's busiest moment, a larger
+  chord, or an accent none before matched). Collision Playground's anti-collision switch does (a flash, ANTI-COLLISION, every
+  orb a new colour, a 4-note accented chord), and its template is timed by it. Ball Drop's looped rain, the Wave Tank's bells,
+  Beat Machines' phrase, Beat Drop's landings and the Sound Vortex's rings play their payoff as they play every other moment,
+  so their templates are hidden. A setting that accents a run's last bar would give each a drop: a change of the mode's sound
+  (its fingerprint where the sound feeds the run), the owner's call.
 - **A fix offered after the render.** The producer does not run after a render, so the fixed version keeps the title and
   caption written before the fix. Its hook on screen is the fixed one, and post.txt shows it. (How the two versions are
   counted was fixed in AI studio step 8: below.)
@@ -567,7 +579,7 @@ What the run showed:
 - **The eval runs no planner.** In the role eval, a fix that needs the seed search is reverted (`docs/agents/CREW-EVAL.md`).
   The studio's own review runs that search.
 
-## Gaps closed in AI studio steps 3 to 8
+## Gaps closed in AI studio steps 3 to 8 and the review round after them
 
 - **Text over a mode's own banner** (AI studio step 3). The run's action track (`src/lib/bot/actionTrack.ts`) now
   records where a mode's own banner shows, every half second: Glass's "STAGE n" and the Journey's stage banner, with the
@@ -598,9 +610,21 @@ What the run showed:
   median moved from 89 to 90 and Fight League's from 89 to 89.5; the others kept theirs (docs/virality-playbook.md §5). The
   role eval's corpus changed with them (`docs/agents/CREW-EVAL.md`, run step4).
 - **Ball Drop's faded run** (AI studio step 5). Its template loops the rain (`dropLoop`), so its notes never thin out and the
-  clip's last 1.5 s, on a full board, are its payoff. The beat format has four ready templates: Ball Drop, Beat Machines,
+  clip's last 1.5 s, on a full board, are its payoff. The beat format had four ready templates: Ball Drop, Beat Machines,
   Collision Playground and Wave Tank. Beat Drop and the Sound Vortex wait for a switch for their own HUD and title (Known gaps),
-  Beat Runner for a first note inside the first second: it runs a second before its first take-off.
+  Beat Runner for a first note inside the first second: it runs a second before its first take-off. Since the studio's first
+  review round only Collision Playground's is ready, timed by its drop (Known gaps: a beat that drops).
+- **The hook its ending answers** (the studio's first review round, 8 and 12). Spiral Glass's hook asked the overlay's
+  question, "Will the ball multiply?", which the badge's first x2 answered 44-51 % into the clip, and its ending, GLASS
+  CLEARED, answered another: it asks "Can it clear all the glass?" now. The conveyor's asked "One ball. How many by the end?"
+  over a belt that loads a ball every 2-3 s and multiplies nothing: it states its own count, "7 balls. Will they all get
+  out?", and its ALL OUT! answers it. Both own hooks are in English, Polish and Spanish (`ViralBot.ownHooks`), and neither
+  draws the format's payoff words beside the mode's banner, in either look.
+- **Payoff words before the event** (the studio's first review round, 10). The Simple look floored a payoff's words to the half
+  second, so they came up to 0.5 s before the event they name (Perfect Fit's "Full!" over a box with a gap, its last piece
+  falling). They start at the event's half second or after it now, the one before only while they are still entering (at most
+  0.2 s, half the caption's entrance: `simplePayoffHalf`), and a clip that leaves no line its 1.2 s after the event draws none.
+  The bot look keeps its floor, its plans as they were.
 - **A fix offered after the render, counted twice** (AI studio step 8). post.txt counted the clip as rendered among the keeps
   beside its fixed version ("4 kept of 4 rendered" for three clips). The clip and its fixed version are now one clip in two
   versions: post.txt says "3 kept of 3 rendered clips" with the 4 renders and names the pair, the review's decision keeps

@@ -35,20 +35,23 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    of the EXPERIMENTAL table, a shrink-only list: hidden from every menu until the planning acceptance passes them). A proven
  *    binding's variant whose plans fail a gate on every seed is hidden with its reason, never kept ready by an exception: the
  *    square race (its count-in) and Grow's fill that ends the run (AI studio step 3: shown 0.5 s); Ball Drop's, hidden while its
- *    run faded out (review round 2, 21), plays its rain looped since AI studio step 5 (DROP_RAIN: the beat format's payoff the
- *    clip's last 1.5 s), and Fight League's boss rush, hidden for its hook of 8–9 words, draws its format's own since step 6
+ *    run faded out (review round 2, 21), played its rain looped from AI studio step 5 (DROP_RAIN: the beat format's payoff the
+ *    clip's last 1.5 s) and is hidden again since the studio's first review round (11: that last 1.5 s plays what the whole rain
+ *    did, DROP_PLAIN), and Fight League's boss rush, hidden for its hook of 8–9 words, draws its format's own since step 6
  *    ("Pick one before it starts.": a variant's own `hookKey`, wrappedRecipe). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
- *    this release 15 of the 16 proven ones, the square race's binding not ready since its one variant is hidden, and 24 trial
- *    ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the conveyor, the Maze,
+ *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
+ *    hidden, and 21 trial ones (AI studio step 3: Shatter, Color Match, Target and Brick Smash; step 4: the conveyor, the Maze,
  *    Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey and Spiral Glass,
- *    their own overlays switched off – `journeyHud`, `sgHud`; step 5: Chord Stars, Focus Shot, Spinning Hoops, Bouncing Orbs,
- *    Colour Sort and the Double Pendulum Harp lined up, Beat Machines, Collision Playground and Wave Tank on the beat; step 6: the
- *    Drawing Machine's flower revealed, and Mode Lab, a variant per catalog game bp-check calls playable – Colour Conquest's hidden,
- *    its page's run parting from the planner's, watched); the other 8 are
- *    declared, experimental and hidden with the reason measured and watched – no setting answers it yet, their format's copy is
- *    written – (docs/virality-playbook.md §5). 48 of 48 are bound: every binding is ready, or experimental with its reason, or
- *    (the square race) proven with its one variant hidden with its reason. A trial binding plans once it leaves the table, where its
- *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
+ *    their own overlays switched off – `journeyHud`, `sgHud`, in both looks since the first review round; step 5: Chord Stars,
+ *    Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp lined up, and Collision Playground on the
+ *    beat, timed by its anti-collision drop since the first review round; step 6: the Drawing Machine's flower revealed, and Mode
+ *    Lab, a variant per catalog game bp-check calls playable – Colour Conquest's hidden, its page's run parting from the
+ *    planner's, watched); the other 11 are declared, experimental and hidden with the reason measured and watched – no setting
+ *    answers it yet, their format's copy is written – (docs/virality-playbook.md §5): Perfect Fit, Beat Machines and the Wave Tank
+ *    joined them in the studio's first review round (10 and 11). 48 of 48 are bound: every binding is ready, or experimental with
+ *    its reason, or (the square race, Ball Drop) proven with its one variant hidden with its reason. A trial binding plans once it
+ *    leaves the table, where its strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn:
+ *    Classic's one ring).
  *  - A variant: one template id (`<format>-<mode>[-<variant>]`, kebab-case: it names clip files) wrapping one recipe – or none,
  *    a binding's own settings –, or hidden with its reason (a variant that fails a gate on every plan), or narrowed to the length
  *    buckets its seed search finds the payoff in. A variant without a recipe adapts its binding (ownRecipe: the format's family,
@@ -438,7 +441,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -641,6 +644,14 @@ function conveyorSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const cvInterval = stepBetween(ctx.rng, 2, 3, 0.5);
   return { cvInterval, cvMaxBalls: Math.max(3, Math.round((ctx.payoffTarget - 6.5) / cvInterval)) };
 }
+/**
+ * --- templates --- (studio round 1, 12) The conveyor's own hook, from its own count: "7 balls. Will they all get out?"
+ * (`own.conveyor`), which its ALL OUT! banner answers at the payoff, the run's last ball out. The count format's hook, "One ball. How
+ * many by the end?", described a run that multiplies: the belt loads a new ball every 2–3 s and nothing multiplies, so "One ball." stood
+ * over a second ball on the belt, and the number it asked for showed only in the banner's small grey line ("Loaded 7 / Escaped 7").
+ * No payoff words of the format's ("7! 🤯") in either look: the mode's banner is the one ending.
+ */
+const CONVEYOR_OWN_COUNT = "its run ends 1.5 s after its last ball is out (ALL OUT!): the payoff, not a loop's end; its own hook states its count and asks whether they all get out ('7 balls. Will they all get out?'), which ALL OUT! answers – the format's 'One ball. How many by the end?' asked about a run that loads balls and never multiplies";
 
 /**
  * Merge Ring's ladder: 5 tiers in a short clip, 6 in a standard one, the drop at the slider's strongest gravity (3: the first ball
@@ -826,9 +837,14 @@ function vortexSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
  * Collision Playground: 100–140 orbs, a third to a half of the default 300 (watched: at 300 a mass of small orbs, no one bump to
  * follow; the orbs grow as they get fewer, so the circle stays full and its measured motion stays past the Simple score's
  * reference, its 5 points charged); every collision still a note.
+ * --- templates --- (studio round 1, 11) The drop: its anti-collision switch at the payoff target's whole second (the setting's step),
+ * where every orb turns a new colour and stops colliding, the screen flashes, ANTI-COLLISION comes up and an accented chord plays
+ * (modes/collide.ts switchToAntiCollision): the one moment of its run that stands out, timed by the "fixed" strategy (planner.ts
+ * payoffSecOf). Until then a bump is a note, as many a moment as the sound takes; the clip's last 1.5 s played what every moment
+ * before them had (552 events against the run's busiest 540: 0 of 12 plans stood out).
  */
 function collideSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { cpCount: stepBetween(ctx.rng, 100, 140, 20) };
+  return { cpCount: stepBetween(ctx.rng, 100, 140, 20), cpAntiCollisionAt: Math.max(1, Math.round(ctx.payoffTarget)) };
 }
 
 /** Ball Drop's rain, looped: the balls fall through the board and in again at the top, so its notes never thin out (the atEnd payoff lands on a full board). */
@@ -917,6 +933,33 @@ const LAB_GAME_SCENES: Readonly<Record<BlueprintCatalogId, string>> = {
 
 // --- templates --- why a binding is in the experimental table
 /**
+ * --- templates --- (studio round 1, 10) Perfect Fit's box is full from its last piece's landing to its burst, the 0.15 s of its flash
+ * (polyominoPlan.ts PF_FLASH_SEC; on the beat, a beat's share of it): the scatter and the fade after it show the pieces flying out of
+ * an emptying box, and the next loop's tray fading in. So a resolved clip shows the full box – the fill format's promise – for that
+ * flash only, under the 0.8 s the crew's G2 asks a payoff to be shown, as Paint's fill (the recorder's 0.5 s) and Grow's fill that
+ * ends its run; and its "Full!" came at the half second before the box was full, the last piece still falling (watched). No setting
+ * holds the box full longer: 0 of 12 plans pass (G2, the payoff's state held 0.1 s).
+ */
+const PERFECT_FIT_FLASH = "its box is full only for the 0.15 s flash between its last piece's landing and its burst (polyominoPlan.ts PF_FLASH_SEC), so a resolved clip shows the fill that long, under the 0.8 s G2 asks, as Paint's fill; no setting holds it longer: 0 of 12 plans passed (4 plan seeds × 3 platforms; watched: 'Full!' came while the last piece was falling, the box burst a flash after it filled)";
+/**
+ * --- templates --- (studio round 1, 11) The beat format's payoff is the drop or the last bar: a moment that stands out from the run (the
+ * crew's G2, clarity.ts beatStandsOut). Beat Machines' marble phrase is one note at a time, its motifs over again (A, A', B, A, A, A':
+ * beatMachinePlan.ts), so the note its payoff was timed by – the loop's note nearest 85 % – was the bar heard at 2 s and 14 s, as loud
+ * (measured on two renders: 18.0–18.75 s matched 2.0–2.75 s and 14.0–14.75 s to 0.1 dB), with no payoff words and a still picture;
+ * the tonic at the loop's end is one more note. No setting accents a bar of it.
+ */
+const BEAT_MACHINE_PLAIN = "its marble phrase is one note at a time, its motifs over again, so the payoff (the loop's note nearest 85 %) repeats the bar heard twice before it, as loud, with no chord or accent – nothing a viewer could tell from the rest (measured on two renders: 18.0-18.75 s matched 2.0-2.75 s and 14.0-14.75 s to 0.1 dB); no setting accents a bar: 0 of 12 plans stand out (G2)";
+/**
+ * --- templates --- (studio round 1, 11) The Wave Tank's bells strike at the scan's rate from its first second to its last, one at a time:
+ * the clip's last 1.5 s (atEnd) play what every moment before them played (7 strikes a moment against the run's busiest 7).
+ */
+const WAVE_TANK_PLAIN = "its bells strike at the scan's rate from the first second to the last, one at a time: the clip's last 1.5 s, its payoff, play what every moment before them played (7 strikes against the run's busiest 7), no chord, no accent; 0 of 12 plans stand out (G2)";
+/**
+ * --- templates --- (studio round 1, 11) Ball Drop's rain, looped (DROP_RAIN), plays as many notes at the clip's end as at its busiest
+ * moments before, one at a time: its last 1.5 s are one more stretch of rain (19–46 notes a moment against the run's busiest 25–41).
+ */
+const DROP_PLAIN = "its rain, looped, plays as many notes at the clip's end as at its busiest moments before, one at a time: its last 1.5 s, the payoff, are one more stretch of rain (19-46 notes a moment against the run's busiest 25-41), no chord, no accent; 0 of 12 plans stand out (G2)";
+/**
  * --- templates --- (AI studio step 3) Paint's run ends the moment 95 % is painted (picturePaint.ts COVERAGE_DONE): a resolved clip
  * shows it for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only – measured: 0 of 12 plans pass.
  */
@@ -924,14 +967,19 @@ const PAINT_ENDS_AT_FILL = "its run ends the moment 95 % is painted, so a resolv
 /** --- templates --- (AI studio step 3) Grow's fill that ends the run, likewise (its fills-by variant). */
 const GROW_ENDS_AT_FILL = "with Grow's fill ending the run (fills-by's flag) the clip shows the fill for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only: 0 of 12 plans passed; the grow-fill recipe's ring goes on after its fill";
 /**
- * --- templates --- (AI studio step 4b) Spiral Glass with its own overlay off (the setting `sgHud`, a HUD flag the Simple look switches
- * off as the others): step 3 hid it because its question "Will the ball multiply?" over the spiral, its title, its tiles left and a
- * progress ring in the corners stayed for the whole run, which no setting switched off then. With them off, the hook asks the
- * question the overlay asked, the badge at the spiral's entrance counts the balls as they multiply, and GLASS CLEARED – the clear,
- * with the balls' count and the time, 2 s before the run's end – is the payoff and its one ending. Resolved only: a cut clip's
- * closing question ("One more hit?") would ask a second question.
+ * --- templates --- (AI studio step 4b) Spiral Glass with its own overlay off (the setting `sgHud`): step 3 hid it because its question
+ * "Will the ball multiply?" over the spiral, its title, its tiles left and a progress ring in the corners stayed for the whole run,
+ * which no setting switched off then. With them off, the badge at the spiral's entrance counts the balls as they multiply, and GLASS
+ * CLEARED – the clear, with the balls' count and the time, 2 s before the run's end – is the payoff and its one ending. Resolved only:
+ * a cut clip's closing question ("One more hit?") would ask a second question.
+ * --- templates --- (studio round 1, 8) Its hook asks what GLASS CLEARED answers: "Can it clear all the glass?" (`own.spiralGlass`). The
+ * overlay's own question, "Will the ball multiply?", was answered by the badge's first x2 – 44–51 % into the clip, outside the payoff
+ * band, measured on two renders – and the ending then answered another question. No payoff words of the format's ("Smashed.") beside
+ * the mode's banner, in either look.
+ * --- templates --- (studio round 1, 9) The overlay is off in both looks (`tune`): in the bot look, the website's default, the series
+ * label sat on the overlay's question for the whole clip, the two lines drawn into one ("WiSmashll mDay1ly?", watched).
  */
-const SPIRAL_SIMPLE = "its own overlay off in the Simple look (sgHud: no title, tiles left, progress ring or question over the spiral); the hook asks the question the overlay asked ('Will the ball multiply?'), the badge at the entrance counts the balls, and GLASS CLEARED, 2 s before the run's end, is the payoff and its one ending (planner.ts payoffSecOf); resolved only, as a cut clip's closing question would ask a second one";
+const SPIRAL_SIMPLE = "its own overlay off in both looks (sgHud: no title, tiles left, progress ring or question over the spiral); the hook asks what its ending answers ('Can it clear all the glass?'), the badge at the entrance counts the balls, and GLASS CLEARED, 2 s before the run's end, is the payoff and its one ending (planner.ts payoffSecOf), with no words of the format's beside it; resolved only, as a cut clip's closing question would ask a second one";
 /**
  * --- templates --- (AI studio step 4b) The Journey with its own overlay off (the setting `journeyHud`): step 3 hid it because a banner
  * as each stage began ("Stage 3/5: Rings"), the stage names, a mini-map and a clock crowded the screen and its HOME! card stood beside
@@ -939,8 +987,18 @@ const SPIRAL_SIMPLE = "its own overlay off in the Simple look (sgHud: no title, 
  * sign is the picture's and stays), the hook asks the format's hook b ("Will Gerald make it home?") and the payoff's own words say
  * HOME where the card did ("Home! 🏠": its HOME is Glass Smash's, the chord, then 1.8 s of celebration). Resolved only: a cut clip's
  * closing question ("Out or not?") would ask another question than the hook.
+ * --- templates --- (studio round 1, 9) The overlay is off in both looks (`tune`): in the bot look, the website's default, the hook sat on
+ * the stage banner ("Stage 1/5: Pegs") and the ending stacked "Home! 🏠", the HOME! card, the door's sign, the mini-map and the clock
+ * (watched).
  */
-const JOURNEY_SIMPLE = "its own overlay off in the Simple look (journeyHud: no stage banners or names, mini-map, clock or HOME! card); Gerald heads for the door marked HOME (hook b 'Will Gerald make it home?'), and the payoff's own words say HOME where the card did ('Home! 🏠'); resolved only, as a cut clip's 'Out or not?' would ask another question";
+const JOURNEY_SIMPLE = "its own overlay off in both looks (journeyHud: no stage banners or names, mini-map, clock or HOME! card); Gerald heads for the door marked HOME (hook b 'Will Gerald make it home?'), and the payoff's own words say HOME where the card did ('Home! 🏠'); resolved only, as a cut clip's 'Out or not?' would ask another question";
+/**
+ * --- templates --- (studio round 1, 9) The settings that switch a mode's own overlay off (crew/hudFlags.ts HUD_FLAGS), which its template
+ * plays in both looks (a binding's `tune`): the Simple look would switch them off anyway; the bot look keeps the series label at the top,
+ * where the overlay draws its own words.
+ */
+const JOURNEY_OVERLAY_OFF: Partial<SimulatorSettings> = { journeyHud: false };
+const SPIRAL_OVERLAY_OFF: Partial<SimulatorSettings> = { sgHud: false };
 /**
  * --- templates --- (AI studio step 4) Merge Ring plans (its final form the payoff, 12 of 12 a language), but it draws a question of
  * its own under the ring for the whole run ("Will it merge into its final form?"), with its title, its merge count, its top size
@@ -998,7 +1056,9 @@ const ILLUSION_NO_REVEAL = "its lines and rings types run a fixed length and pla
 /**
  * --- templates --- The experimental table: the bindings the planning acceptance has not passed – hidden from every menu, never
  * ready –, each with its reason. Shrink only: tests/botTemplates.test.ts pins it, so a binding leaves it when it passes (with its
- * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin. All 32 bindings without
+ * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin – the studio's first
+ * review round made three such changes (Perfect Fit, Beat Machines, the Wave Tank: a payoff never seen held, or never heard
+ * standing out). All 32 bindings without
  * a recipe started here; AI studio step 3 passed five (Shatter, Color Match, Target, Brick Smash, Perfect Fit) and gave Journey,
  * Paint and Spiral Glass their measured reasons; step 4 passed six (the conveyor, the Maze, Territory, Land Claim, Bullseye,
  * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs; step 4b passed the Journey and Spiral Glass, once a setting
@@ -1016,6 +1076,10 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   vortex: VORTEX_OWN_TITLE,
   lines: LINES_NO_PICTURE,
   illusion: ILLUSION_NO_REVEAL,
+  // --- templates --- (studio round 1, 10 and 11) taken out after a review: a payoff a viewer never sees held, or never hears stand out
+  perfectFit: PERFECT_FIT_FLASH,
+  beatMachine: BEAT_MACHINE_PLAIN,
+  waveTank: WAVE_TANK_PLAIN,
 };
 
 /**
@@ -1036,12 +1100,12 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   glass: bind("glass", { format: "getOut", strategy: "finish", tier: "proven", keepHud: null, variants: [["glass-smash"]], note: "home is the way out: 'Will Gerald make it home?'" }),
   shatter: bind("shatter", later("getOut", "outcome", { outcome: "escapes-at", generate: shatterSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE })),
   colorMatch: bind("colorMatch", later("getOut", "outcome", { outcome: "escapes-at", generate: colorMatchSettings, buckets: ["standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE, scene: (s) => `one ball inside a ring of 12 segments in ${s.colorMatchColorCount} colours, a counter in the middle` })),
-  journey: bind("journey", later("getOut", "finish", { generate: journeySettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookB", payoffKey: "ownPayoff.journey", character: true, note: JOURNEY_SIMPLE, scene: (s) => `one ball with a face at the top of a column of ${s.journeyStages.split(",").length - 1} stages, a door marked HOME at the bottom` })),
+  journey: bind("journey", later("getOut", "finish", { generate: journeySettings, tune: JOURNEY_OVERLAY_OFF, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookB", payoffKey: "ownPayoff.journey", character: true, note: JOURNEY_SIMPLE, scene: (s) => `one ball with a face at the top of a column of ${s.journeyStages.split(",").length - 1} stages, a door marked HOME at the bottom` })),
   // smash
   powerLayers: bind("powerLayers", { format: "smash", strategy: "fixed", tier: "proven", keepHud: null, variants: [["power-layers"]], note: "the layer count is the mode's own HUD" }),
   target: bind("target", later("smash", "finish", { generate: targetSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookVars: (s) => ({ count: s.targetCount }), note: ENDS_AT_FINISH, scene: (s) => `one ball inside a ring of ${s.targetCount} numbered segments, a big number in the middle` })),
   brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'", scene: () => "a few small balls under a wall of bricks that draws a picture" })),
-  spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
+  spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, tune: SPIRAL_OVERLAY_OFF, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", payoffWords: false, note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
   // fill
   grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill", undefined, undefined, GROW_FILL_BUCKETS], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
   paint: bind("paint", later("fill", "finish", { patch: PAINT_FAST, note: "95 % painted" })),
@@ -1051,7 +1115,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   multipliers: bind("multipliers", { format: "count", strategy: "finish", tier: "proven", keepHud: null, variants: [["multipliers-board"]], note: "the ball counter at home is the mode's own HUD" }),
   // (--- templates --- AI studio step 4: the plan had both on atEnd, as loops; the code's both end – the conveyor once its last ball is
   // out, Merge Ring 2 s after its final form or an overflow –, so each is timed by its own moment, its run's end inside the clip)
-  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookVars: (s) => ({ count: s.cvMaxBalls }), note: "its run ends 1.5 s after its last ball is out (ALL OUT!): the payoff, not a loop's end", scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
+  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookKey: "own.conveyor", payoffWords: false, hookVars: (s) => ({ count: s.cvMaxBalls }), note: CONVEYOR_OWN_COUNT, scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
   mergeRing: bind("mergeRing", later("count", "finish", { generate: mergeRingSettings, buckets: ["short", "standard"], hookKey: "own.mergeRing", note: "its run ends 2 s after its final form (FINAL FORM): the payoff, not a loop's end; hook 'How far can it merge?'", scene: () => "balls of numbered sizes dropping through a chute into a ring, where two of a size fuse into a bigger one" })),
   // whoWins (the battle family: offered only where the battle family is asked for, as the daily bot's BOT_DEFAULT_FAMILIES)
   race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race", undefined, COUNT_IN]], note: "it waits for a race whose gate opens within the first second" }),
@@ -1084,12 +1148,12 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", generate: colourSortSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "a gate rule whose sort completes (the default's), timed by the balls' speed", scene: (s) => `${s.csColours * s.csPerColour} balls of ${s.csColours} colours mixed together inside rings with gaps` })),
   doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", generate: doublePendulumSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.doublePendulum", note: "its own hook, the plan's hook b: 'Same start. Watch them split.' (the chaos fan, played forward)", scene: (s) => `${s.dpFanCount} double pendulums started on top of one another, swinging over a row of strings` })),
   // onTheBeat (--- templates --- AI studio step 5: Ball Drop's rain loops, so its notes never thin out; the clip's end is its payoff)
-  drop: bind("drop", { format: "onTheBeat", strategy: "atEnd", tier: "proven", keepHud: null, variants: [["drop-symphony"]], tune: DROP_RAIN, note: DROP_FADES }),
+  drop: bind("drop", { format: "onTheBeat", strategy: "atEnd", tier: "proven", keepHud: null, variants: [["drop-symphony", undefined, DROP_PLAIN]], tune: DROP_RAIN, note: DROP_FADES }),
   beatDrop: bind("beatDrop", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hookB", note: "its run is its recording: the last landing a second before the clip's end, its banner on it (atEnd: the plan's 'finish' never comes before the clip does)", scene: () => "one ball bouncing down from platform to platform as each flies in" })),
   beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles", generate: beatMachineSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "one loop a clip, its seeded phrase one no tube needs a spare marble for (a run of its own: a note of its last bars)", scene: () => "marbles dropping from tubes onto a row of tuned bars and rolling back" })),
   runner: bind("runner", later("onTheBeat", "finish", { musicFirst: true, note: "LEVEL COMPLETE 1.6 s before its run's end" })),
   vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings", generate: vortexSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "two rings, the last one swallowed on a bar line (a run of its own), the final banner a second later", scene: () => "rings of balls spiralling down a whirlpool towards a hole in its middle" })),
-  collide: bind("collide", later("onTheBeat", "atEnd", { generate: collideSettings, musicFirst: true, hookKey: "hookB", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
+  collide: bind("collide", later("onTheBeat", "fixed", { generate: collideSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookB", note: "the drop: its anti-collision switch at the payoff, every orb a new colour, a flash, ANTI-COLLISION and an accented chord (studio round 1, 11: its clip's end had played what the whole run did)", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
   waveTank: bind("waveTank", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hook", scene: () => "water waves rolling through gaps in a wall, a row of bells along the far side" })),
   // reveal (--- templates --- AI studio step 6: the picture the hook asks to guess, the clip's last 1.5 s)
   lines: bind("lines", later("reveal", "atEnd")),

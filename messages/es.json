@@ -3797,6 +3797,8 @@
         "payoffLandsOutdone": "Un acorde igual de grande suena también a los {sec} s, así que el desenlace no es único.",
         "payoffLandsStill": "En el desenlace, a los {sec} s, todo está quieto y en silencio.",
         "payoffLandsDeadTail": "El clip termina con {sec} s de silencio sin nada en movimiento.",
+        "payoffLandsBrief": "El desenlace dura en pantalla solo {held} s. Necesita 0,8 s.",
+        "payoffLandsPlain": "En el desenlace, a los {sec} s, nada destaca. Antes sonaba lo mismo.",
         "oneIdeaTwoHooks": "Hay más de un gancho en pantalla.",
         "oneIdeaTwoEndings": "El clip termina dos veces, con el desenlace y una pregunta.",
         "oneIdeaModeSwitched": "El modo cambió después del plan.",
@@ -3815,6 +3817,7 @@
         "readableHookWords": "El gancho tiene {words} palabras. Siete como máximo.",
         "readableHurried": "Una línea dura solo {sec} s. Hacen falta 1,2 s para leerla.",
         "readableOverBanner": "A los {sec} s un texto tapa el del propio modo.",
+        "readableOverModeText": "El texto superior tapa las palabras del propio modo.",
         "notTooBusyBusy": "Necesita una sencillez de 60 o más.",
         "lengthFitsOut": "{sec} s no encaja en ninguna duración de esta plataforma."
       }
@@ -4254,7 +4257,8 @@
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
       "box": "Se para en cero.",
-      "spiralGlass": "¿Se multiplicará la bola?",
+      "spiralGlass": "¿Romperá todo el cristal?",
+      "conveyor": "{count} pelotas. ¿Saldrán todas?",
       "doublePendulum": "Mismo inicio. Mira cómo se separan.",
       "hatchery": "Cada cristal roto hace nacer una bola.",
       "ringBreaker": "Cada anillo roto duplica las bolas.",

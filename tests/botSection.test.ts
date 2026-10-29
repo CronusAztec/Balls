@@ -246,6 +246,16 @@ describe("viral-bot CLI --template and --look", () => {
     for (const bad of [["--template", "get-out-classic"], ["--look", "simple"], ["--dry-run", "--look", "neon"], ["--dry-run", "--template", "Get Out"], ["--plan", "--template", "get-out-classic"], ["--dry-run", "--template"]]) expect(() => parseArgs(bad), bad.join(" ")).toThrow();
   });
 
+  // --- bot-templates --- (studio round 1, 7) a refusal's advice leads to a command the CLI takes, never to another refusal
+  it("refuses --plan with --template or --look by the rotation's own message, whose advice parses", () => {
+    for (const bad of [["--plan", "--template", "fill-grow"], ["--plan", "--look", "simple"], ["--plan", "--dry-run", "--template", "fill-grow"], ["--plan", "--dry-run", "--look=bot"]]) {
+      expect(() => parseArgs(bad), bad.join(" ")).toThrow(/--plan only prints the rotation.*--dry-run without --plan/);
+    }
+    expect(() => parseArgs(["--template", "fill-grow"])).toThrow(/add --dry-run/);
+    expect(parseArgs(["--dry-run", "--template", "fill-grow"])).toMatchObject({ dryRun: true, plan: false, template: "fill-grow" });
+    expect(parseArgs(["--dry-run", "--look", "simple"])).toMatchObject({ dryRun: true, plan: false, look: "simple" });
+  });
+
   it("refuses a template that is unknown, hidden, or of a series --family leaves out (the battle family only with all or battle)", () => {
     const planner = { templateById, readyTemplates };
     const battle = readyTemplates("battle")[0];

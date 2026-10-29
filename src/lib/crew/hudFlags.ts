@@ -44,6 +44,11 @@ export interface HudFlag {
   counts: boolean;
   /** What a viewer sees, in plain words (the screen view): no claim's word ("winner", "out"…), as the screen view holds no intent. */
   words: string;
+  /**
+   * --- crew --- (studio round 1, 9) Its words sit at the top centre of the square, on the line the Top Text is drawn on: Spiral Glass's
+   * question over its spiral. A Top Text beside it is drawn into it, the two lines one ("WiSmashll mDay1ly?", watched): gate G5.
+   */
+  topCentre?: true;
 }
 
 /** More ball names than this on screen cost the Simple score its HUD points. */
@@ -90,7 +95,7 @@ export const HUD_FLAGS: readonly HudFlag[] = [
   // stage banner, the stage names at the wall and the clock (the mini-map is a picture), Spiral Glass's title and tiles left, the
   // share in its progress ring and its question over the spiral; neither counts down to the payoff
   { key: "journeyHud", modes: onlyIn("journey"), kind: "hud", on: (s) => s.journeyHud !== false, texts: () => 3, counts: false, words: "a banner as each stage begins, the stage names, a mini-map and a clock" },
-  { key: "sgHud", modes: onlyIn("spiralGlass"), kind: "hud", on: (s) => s.sgHud !== false, texts: () => 3, counts: false, words: "a title with the tiles left, a ring with a share and a question over the spiral" },
+  { key: "sgHud", modes: onlyIn("spiralGlass"), kind: "hud", on: (s) => s.sgHud !== false, texts: () => 3, counts: false, words: "a title with the tiles left, a ring with a share and a question over the spiral", topCentre: true },
   { key: "loopHud", modes: "any", kind: "hud", on: (s) => s.loopHud, texts: (s) => 1 + (loopHudHasCounter(s) ? 1 : 0), counts: false, words: "a title at the top and a counter at the bottom" },
   { key: "bounceMathHud", modes: "any", kind: "badge", on: (s) => s.bounceMathHud && s.bounceMath.length > 0, texts: one, counts: false, words: "a badge with the bounce rules" },
   { key: "prNumbers", modes: onlyIn("polyrhythm"), kind: "labels", on: (s) => s.prNumbers, texts: one, counts: false, words: "numbers on the dots" },
@@ -186,6 +191,9 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   // --- crew --- (AI studio step 5) a rhythm field's IN PHASE callout as the orbs land together, for IN_PHASE_HOLD_MS (modes/orbRhythm.ts)
   { mode: "orbGrid", at: "payoff", forSec: 1.8, when: (s) => s.ogModel === "rhythm", words: "an IN PHASE banner: how many orbs land together, and at which second" },
   { mode: "runner", at: "finish", leadSec: 1.6, words: "a LEVEL COMPLETE! banner" },
+  // --- crew --- (studio round 1, 11) Collision Playground's anti-collision switch, the moment its template times its payoff by: a flash
+  // and its label for ANTI_LABEL_MS (collideRenderer.ts), every orb in a new colour
+  { mode: "collide", at: "payoff", forSec: 2.2, when: (s) => s.cpAntiCollisionAt > 0, words: "a flash and an ANTI-COLLISION label across the middle, every orb in a new colour" },
   { mode: "beatDrop", at: "finish", leadSec: 0.6, words: "a banner on the last landing" },
   { mode: "multipliers", at: "finish", words: "a MADE IT HOME banner with the balls home" },
   { mode: "battle", at: "finish", words: "the champion's banner" },
@@ -264,6 +272,8 @@ export interface HudOn {
   texts: number;
   counts: boolean;
   words: string;
+  /** --- crew --- (studio round 1, 9) Its words sit at the top centre of the square, where the Top Text is drawn (HudFlag.topCentre). */
+  topCentre?: true;
 }
 
 const applies = (flag: HudFlag, mode: ModeId) => flag.modes === "any" || flag.modes.includes(mode);
@@ -274,7 +284,7 @@ export function hudsOn(s: SimulatorSettings): HudOn[] {
   for (const h of MODE_HUDS) if (h.mode === s.mode) out.push({ id: `mode:${h.mode}`, kind: "hud", flag: false, costs: false, texts: 1, counts: h.counts, words: h.words });
   for (const f of HUD_FLAGS) {
     if (!applies(f, s.mode) || !f.on(s)) continue;
-    out.push({ id: f.key, kind: f.kind, flag: true, costs: f.costs ? f.costs(s) : true, texts: f.texts(s), counts: f.counts, words: f.words });
+    out.push({ id: f.key, kind: f.kind, flag: true, costs: f.costs ? f.costs(s) : true, texts: f.texts(s), counts: f.counts, words: f.words, ...(f.topCentre ? { topCentre: true as const } : {}) });
   }
   return out;
 }

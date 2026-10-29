@@ -3,10 +3,11 @@ import { BOT_FRAME, FIRST_IMPACT_SEC, TOP_HUD_MODES } from "@/lib/bot/playbook";
 import { botRecipeById, CHORD_WORDS } from "@/lib/bot/templates";
 import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } from "@/lib/bot/planner";
 import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTrack"; // --- crew --- (AI studio step 3) the modes' banners
-import { STILL_MOTION_SHARE } from "@/lib/insights/score";
+import { MOMENT_BEFORE_SEC, STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
-import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
+import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, payoffHoldSec, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
+import { hudsOn } from "./hudFlags"; // --- crew --- (studio round 1, 9) a mode's own words at the top centre
 
 /*
  * --- crew --- The clarity check: the rules that decide, for free and before any model is asked, whether a clip is clear and
@@ -23,7 +24,10 @@ import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIM
  *     after the payoff), and a sound or motion at it whatever it claims (never still and quiet: the balls at a quarter of the
  *     run's median motion or less, with no sound – or, for a beat, only a few lone notes: fewer than the run's usual moment
  *     plays, none accented, no chord), and – a clip that ends without words (neither the payoff's nor, --- crew --- AI studio
- *     step 4, the mode's own end banner) – no quiet end longer than 1.5 s after it (no sound, the balls still: dead air);
+ *     step 4, the mode's own end banner) – no quiet end longer than 1.5 s after it (no sound, the balls still: dead air); ---
+ *     crew --- (studio round 1, 10 and 11) the payoff's state held at least 0.8 s (Perfect Fit's full box bursts a flash after it
+ *     fills), and a beat's payoff that stands out from the run before it (beatStandsOut: busier than its busiest moment, a larger
+ *     chord, or an accent none before matched);
  *     cliffhanger: the cut 0–3 s before the payoff and a closing question on screen at the end.
  *  G3 oneIdea – one mode (no switch since the plan), one hook message, one ending (the payoff's words or a closing question,
  *     never both).
@@ -34,7 +38,8 @@ import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIM
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band, and – --- crew
  *     --- (AI studio step 3) – no caption over a banner of the mode's own text while it shows (the run's action track:
- *     Glass Smash's "STAGE n", the Journey's stage banner), which would stack two texts.
+ *     Glass Smash's "STAGE n", the Journey's stage banner), which would stack two texts; --- crew --- (studio round 1, 9) no Top
+ *     Text on the line where the mode writes its own words for the whole run (Spiral Glass's question while its overlay shows).
  *  G6 notTooBusy – Simple at least 60 (simplicity.ts).
  *  G7 lengthFits – the clip's length inside a bucket its platform takes.
  *  G8 rendered (after a render only) – at most 2 % lagged frames, the watermark on every free run, drawing an address a viewer
@@ -80,6 +85,13 @@ export const CLARITY = {
   quietTailMaxSec: 1.5,
   /** --- crew --- (review round 2, 22) A bar or a timer leaves the screen at most this long before its end (100 %, 0:00). */
   counterEndSec: 1,
+  /**
+   * --- crew --- (studio round 1, 11) A beat's payoff busier than the run before it plays at least this many times the sound events
+   * of the run's busiest window of the same length (a quarter more): the payoff's window takes in one frame more than the windows
+   * before it, which alone lets a run whose sound never changes – a field of colliding orbs at its ceiling of notes a frame – read
+   * a few more events there (552 against 540, measured).
+   */
+  beatStandOutShare: 1.25,
 } as const;
 
 /** --- templates --- The indices of a clip's captions of one role, in the list's order. */
@@ -152,6 +164,12 @@ function payoffGate(clip: CrewClip): Gate {
   if (position < CLARITY.payoffFrom - EPS) problems.push({ key: "Early", values: { pct: pct(position), sec: r1(atSec) } });
   else if (position > CLARITY.payoffTo + EPS) problems.push({ key: "Late", values: { pct: pct(position), sec: r1(atSec) } });
   if (clipSec - atSec < CLARITY.shownAfterPayoffSec - EPS) problems.push({ key: "NotShown", values: { after: r1(Math.max(0, clipSec - atSec)) } });
+  else {
+    // --- crew --- (studio round 1, 10) the payoff's state held as long as a payoff is shown: Perfect Fit's full box bursts a flash after
+    // it fills, seconds before the clip ends (clip.ts payoffHoldSec), as Paint's fill ended its run in the recorder's 0.5 s
+    const held = payoffHoldSec(clip);
+    if (held !== null && held < CLARITY.shownAfterPayoffSec - EPS) problems.push({ key: "Brief", values: { held: r1(held) } });
+  }
   problems.push(...momentProblems(clip, atSec));
   return gate("G2", problems, "Ok", { pct: pct(position), sec: r1(atSec) });
 }
@@ -198,6 +216,9 @@ function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: 
   // so only silence counts there; a run without the windows' count, an older record, keeps the old reading: no sound at all)
   const quiet = m.sounds === 0 || (clip.claim === "beat" && !m.accent && m.chordMax <= 1 && typeof m.soundsMedian === "number" && m.sounds < m.soundsMedian);
   if (quiet && m.motion !== null && m.motionMedian !== null && m.motionMedian > 0 && m.motion <= CLARITY.stillShareMax * m.motionMedian + EPS) out.push({ key: "Still", values: { sec: r1(atSec), pct: pct(m.motion / m.motionMedian), sounds: m.sounds } });
+  // --- crew --- (studio round 1, 11) a beat's payoff, heard and not still, that plays nothing the run had not played before it (an
+  // older record, without the run's busiest window, keeps the old reading)
+  else if (clip.claim === "beat" && m.sounds > 0 && typeof m.soundsMax === "number" && !beatStandsOut(m)) out.push({ key: "Plain", values: { sec: r1(atSec), sounds: m.sounds, most: m.soundsMax } });
   // --- crew --- (review round 2, 21) dead air at the end of a clip with no words left to read
   const end = clip.timing.clipSec;
   // (--- crew --- AI studio step 4: the mode's own end banner on screen at the end is words to read, as the payoff's are, where
@@ -206,6 +227,20 @@ function momentProblems(clip: CrewClip, atSec: number): { key: string; values?: 
   const wordsAtEnd = rolesAt(clip, "payoff").some((i) => clip.captions[i].start < end - EPS && (clip.captions[i].end <= clip.captions[i].start || clip.captions[i].end >= end - 1e-6)) || endBannersShown(clip).some((b) => b.end >= end - 1e-6 && b.start <= tailFrom + EPS);
   if (!wordsAtEnd && typeof m.quietTailSec === "number" && m.quietTailSec > CLARITY.quietTailMaxSec + EPS) out.push({ key: "DeadTail", values: { sec: r1(m.quietTailSec) } });
   return out;
+}
+
+/**
+ * --- crew --- (studio round 1, 11) Whether a beat's payoff stands out from the run before it, as the format's "the drop or the last bar"
+ * promises: a quarter more sound events than the run's busiest window of the same length before it (CLARITY.beatStandOutShare), a
+ * chord larger than any it played before,
+ * or an accented event no accent before it matched. A note of a phrase heard twice already (Beat Machines' 86 % note, the same bar
+ * as at 2 s and 14 s), the steady rain of a looped Ball Drop or a field of colliding orbs plays nothing new there.
+ */
+export function beatStandsOut(m: Pick<NonNullable<NonNullable<CrewClip["run"]>["moment"]>, "atSec" | "sounds" | "chordMax" | "accent" | "accents" | "soundsMax" | "chordBefore">): boolean {
+  if (typeof m.soundsMax === "number" && m.sounds > m.soundsMax && m.sounds >= CLARITY.beatStandOutShare * m.soundsMax - EPS) return true;
+  if (m.chordMax >= 2 && m.chordMax > (m.chordBefore ?? 0)) return true;
+  const before = (m.accents ?? []).filter(([sec]) => sec < m.atSec - MOMENT_BEFORE_SEC - EPS);
+  return m.accent && !before.some(([, notes]) => notes >= m.chordMax);
 }
 
 /** G3: one idea – no mode switch, one hook message, one ending's words. */
@@ -316,6 +351,10 @@ function readableGate(clip: CrewClip): Gate {
     if (text.trim() && !inSafeZone(edgeTextBox(text.trim(), where, BOT_FRAME, clip.settings.textSize))) problems.push({ key: "EdgeUnsafe", values: { where } });
   }
   if (topText && topHud) problems.push({ key: "OverBand" });
+  // --- crew --- (studio round 1, 9) the Top Text on the line where the mode writes its own words (Spiral Glass's question while its
+  // overlay shows): two texts drawn into one for the whole clip
+  const ownTop = topText ? hudsOn(clip.settings).find((h) => h.topCentre) : undefined;
+  if (ownTop) problems.push({ key: "OverModeText", values: { hud: ownTop.id } });
   const groups = overlaysOf(clip).filter((o) => o.captions && o.captions.length > 0);
   const long = groups.find((g) => g.lines > CLARITY.linesMax);
   if (long) problems.push({ key: "Lines", values: { lines: long.lines } });

@@ -3797,6 +3797,8 @@
         "payoffLandsOutdone": "A chord as big plays at {sec} s too, so the payoff is not the only one.",
         "payoffLandsStill": "Everything is still and quiet at the payoff at {sec} s.",
         "payoffLandsDeadTail": "The clip ends on {sec} s of silence with nothing moving.",
+        "payoffLandsBrief": "The payoff stays on screen only {held} s. It needs 0.8 s.",
+        "payoffLandsPlain": "Nothing stands out at the payoff at {sec} s. The run played as much before it.",
         "oneIdeaTwoHooks": "More than one hook on screen.",
         "oneIdeaTwoEndings": "The clip ends twice, with the payoff's words and a question.",
         "oneIdeaModeSwitched": "The mode changed after the plan.",
@@ -3815,6 +3817,7 @@
         "readableHookWords": "The hook has {words} words. Seven at most.",
         "readableHurried": "A line stays only {sec} s. It needs 1.2 s to read.",
         "readableOverBanner": "A caption covers the mode's own text at {sec} s.",
+        "readableOverModeText": "The top text sits on the mode's own words.",
         "notTooBusyBusy": "It needs a Simple score of 60 or more.",
         "lengthFitsOut": "{sec} s fits none of this platform's lengths."
       }
@@ -4254,7 +4257,8 @@
     "ownHooks": {
       "mergeRing": "How far can it merge?",
       "box": "It stops at zero.",
-      "spiralGlass": "Will the ball multiply?",
+      "spiralGlass": "Can it clear all the glass?",
+      "conveyor": "{count} balls. Will they all get out?",
       "doublePendulum": "Same start. Watch them split.",
       "hatchery": "Every broken tile hatches a new ball.",
       "ringBreaker": "Every broken ring doubles the balls.",

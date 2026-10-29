@@ -382,6 +382,9 @@ export const MOMENT_ACCENTS_MAX = 24;
  * plays), and, with `clipSec` (the clip's end, past the moment), follows the run to it: the accented events outside the moment
  * (accents: where else the mode plays its chord and flash) and the quiet stretch the clip ends on (quietTailSec: no sound, the
  * balls at most STILL_MOTION_SHARE of their median).
+ *
+ * --- crew --- (studio round 1, 11) And what the run played before the moment at its most: the busiest of those windows (soundsMax)
+ * and the largest chord (chordBefore), so the crew's gate G2 can tell a beat's payoff that stands out from one more bar of the same.
  */
 export function payoffMomentSync(settings: SimulatorSettings, seed: number, world: BotWorld | null | undefined, payoffSec: number, clipSec?: number | null): PayoffMoment {
   return drain(payoffMomentSteps(settings, seed, world, payoffSec, clipSec));
@@ -413,6 +416,7 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
   const windowSec = MOMENT_BEFORE_SEC + MOMENT_AFTER_SEC;
   const windows: number[] = [];
   const accents: [number, number][] = [];
+  let chordBefore = 0; // --- crew --- (studio round 1, 11) the largest chord before the moment
   let lastSoundSec = -1;
   const after: { sec: number; speed: number }[] = [];
   let stepsRun = 0; // --- bot-templates ---
@@ -439,6 +443,7 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
         }
       }
       for (const e of events) if (e.accent) accents.push([Math.round(sec * 100) / 100, e.chord && e.chord.length > 0 ? e.chord.length : 1]);
+      if (sec < from - 1e-9) for (const e of events) chordBefore = Math.max(chordBefore, e.chord && e.chord.length > 0 ? e.chord.length : 1); // --- crew --- (studio round 1, 11)
     }
     if (events.length > 0 && (clipEnd === null || sec <= clipEnd + 1e-9)) lastSoundSec = sec;
     if (!last || sec - last.sec >= MOTION_STEP_SEC - 1e-9 || engine.isSimulationFinished()) {
@@ -493,6 +498,9 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
     motion: anyBalls ? r2(mean(inside) ?? 0) : null,
     motionMedian: r2(motionMedian),
     soundsMedian: windows.length ? median(windows) : null,
+    // --- crew --- (studio round 1, 11) the busiest window before the moment and the largest chord before it: what the run played
+    soundsMax: windows.length ? Math.max(...windows) : null,
+    chordBefore,
     accents: largest,
     ...(quietTailSec !== null ? { quietTailSec } : {}),
   };

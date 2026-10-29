@@ -52,12 +52,12 @@ export function reasonValues(values: Readonly<Record<string, string | number>>, 
  * A copy string of the recipe, filled (`field`: name, hook, cliffHook, payoff, cliffQuestion, postQuestion…). --- templates ---
  * A template's own recipe (BotRecipe.formatCopy) speaks with its format's words (formatText).
  */
-export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, field: string, vars: Record<string, string | number> = {}): string {
-  if (recipe.formatCopy) return formatText(copy, recipe.copyKey, field, vars); // --- templates ---
+export function recipeText(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "formatCopy">, field: string, vars: Record<string, string | number> = {}, keep: KeepUnfilled = false): string {
+  if (recipe.formatCopy) return formatText(copy, recipe.copyKey, field, vars, keep); // --- templates ---
   // --- templates --- (AI studio step 6) a recipe's template that speaks one of its format's words (FORMAT_FIELD: the boss rush's hook)
   if (field.startsWith(FORMAT_FIELD)) {
     const [format, ...rest] = field.slice(FORMAT_FIELD.length).split(".");
-    return formatText(copy, format, rest.join("."), vars);
+    return formatText(copy, format, rest.join("."), vars, keep);
   }
   return fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.${field}`), vars).trim();
 }
@@ -117,7 +117,7 @@ const capitalised = (value: string) => value.replace(/^(\P{L}*)(\p{Ll})/u, (_, l
  * opening "¿" or "¡") starts with a capital ("{thing} vs the clock." → "The ball vs the clock."); a template with a placeholder
  * left unfilled – no value, or an empty one – is no text (""), so no clip draws a brace or a sentence with a hole in it.
  */
-function fillSentences(template: string, vars: Readonly<Record<string, string | number>>): string {
+function fillSentences(template: string, vars: Readonly<Record<string, string | number>>, keep: KeepUnfilled = false): string {
   let unfilled = false;
   const text = template.replace(/\{(\w+)\}/g, (whole, key: string, at: number) => {
     const value = Object.hasOwn(vars, key) ? String(vars[key]).trim() : "";
@@ -128,22 +128,29 @@ function fillSentences(template: string, vars: Readonly<Record<string, string | 
     const before = template.slice(0, at).trimEnd();
     return before === "" || /[.!?…¿¡]$/u.test(before) ? capitalised(value) : value;
   });
-  return unfilled ? "" : text.trim();
+  return unfilled && !keep ? "" : text.trim();
 }
+
+/**
+ * --- templates --- (studio round 1, 12) Whether a text keeps a placeholder it cannot fill yet, in its braces: true where the words
+ * are listed rather than drawn (the studio's templates tool and the brainstormer's menu show the conveyor's own hook as "{count}
+ * balls. Will they all get out?", as a recipe's hook shows "{count}" there), false for anything a clip draws or posts.
+ */
+export type KeepUnfilled = boolean;
 
 /**
  * A format's words for a field, filled (fillSentences: capitals at a sentence's start, "" while a placeholder is unfilled); a
  * recipe's field the format has none of reads the one that stands in for it (its name as the series, the closing question as
  * a cliffhanger's post question); "" for a field neither has (its keywords, its own hashtags).
  */
-export function formatText(copy: BotCopy, format: string, field: string, vars: Readonly<Record<string, string | number>> = {}): string {
+export function formatText(copy: BotCopy, format: string, field: string, vars: Readonly<Record<string, string | number>> = {}, keep: KeepUnfilled = false): string {
   // --- templates --- (AI studio step 4) a binding's own hook, where its format's three do not say what its run does (OWN_HOOK_FIELD)
-  if (field.startsWith(OWN_HOOK_FIELD)) return fillSentences(copyString(copy, `ownHooks.${field.slice(OWN_HOOK_FIELD.length)}`), vars);
+  if (field.startsWith(OWN_HOOK_FIELD)) return fillSentences(copyString(copy, `ownHooks.${field.slice(OWN_HOOK_FIELD.length)}`), vars, keep);
   // --- templates --- (AI studio step 4b) a binding's own payoff, where its format's does not name its run's moment (OWN_PAYOFF_FIELD)
-  if (field.startsWith(OWN_PAYOFF_FIELD)) return fillSentences(copyString(copy, `ownPayoffs.${field.slice(OWN_PAYOFF_FIELD.length)}`), vars);
+  if (field.startsWith(OWN_PAYOFF_FIELD)) return fillSentences(copyString(copy, `ownPayoffs.${field.slice(OWN_PAYOFF_FIELD.length)}`), vars, keep);
   const own = copyString(copy, `formats.${format}.${field}`);
   const standIn = FORMAT_STAND_INS[field];
-  return fillSentences(own || (standIn ? copyString(copy, `formats.${format}.${standIn}`) : ""), vars);
+  return fillSentences(own || (standIn ? copyString(copy, `formats.${format}.${standIn}`) : ""), vars, keep);
 }
 
 /** A mode's noun, the one its format's `{thing}` takes (`ViralBot.things.<mode>`: "the ball", "piłka", "las esferas", "Gerald"); "" without one. */

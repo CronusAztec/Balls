@@ -179,7 +179,9 @@ export function parseArgs(argv) {
     }
   }
   if (opts.dryRun && (opts.post || opts.postOnly)) throw new UsageError("--dry-run renders nothing, so there is nothing to post");
-  if (opts.plan && (opts.post || opts.postOnly || opts.dryRun || opts.relay)) throw new UsageError("--plan only prints the rotation: it goes with --date, --count, --family, --platform and --bucket"); // --- fl-overhaul --- (Stage 6)
+  // (--- bot-templates --- studio round 1, 7: --template and --look are refused here too, before the dry-run check below, whose
+  // advice – add --dry-run – would lead to this refusal)
+  if (opts.plan && (opts.post || opts.postOnly || opts.dryRun || opts.relay || opts.template || opts.look)) throw new UsageError("--plan only prints the rotation: it goes with --date, --count, --family, --platform and --bucket (--template and --look plan a dry run: --dry-run without --plan)"); // --- fl-overhaul --- (Stage 6)
   if (opts.post && opts.postOnly) throw new UsageError("--post renders and posts; --post-only posts what was rendered – pick one");
   if ((opts.template || opts.look) && !opts.dryRun) throw new UsageError("--template and --look plan dry runs only: add --dry-run (a render plans in the page, the rotation in the bot look)"); // --- bot-templates ---
   // --- social-publish ---

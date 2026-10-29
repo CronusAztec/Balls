@@ -177,8 +177,9 @@ function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | 
     const vars = recipeCopyVars(copy, recipe, defaultSettings(recipe.modes[0]));
     const drawn = recipe.hookKey ?? (recipe.endings?.length === 1 && recipe.endings[0] === "cliffhanger" ? "cliffHook" : "hook");
     for (const f of COPY_FIELDS) {
-      // (--- templates --- AI studio step 4b: its own payoff, where its binding has one)
-      const text = recipeText(copy, recipe, f === "hook" ? drawn : f === "payoff" ? (recipe.payoffKey ?? f) : f, vars);
+      // (--- templates --- AI studio step 4b: its own payoff, where its binding has one; studio round 1, 12: a number known only once
+      // the clip is planned stays in its braces, "{count} balls. Will they all get out?", as a recipe's hook shows it here)
+      const text = recipeText(copy, recipe, f === "hook" ? drawn : f === "payoff" ? (recipe.payoffKey ?? f) : f, vars, true);
       if (text) out[f] = text;
     }
     return out;

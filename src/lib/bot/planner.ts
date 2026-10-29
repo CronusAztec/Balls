@@ -1,4 +1,4 @@
-import { CAPTION_MARGIN, defaultCaption, sanitizeCaptionText, type Caption } from "@/lib/captions";
+import { CAPTION_ENTER_SEC, CAPTION_MARGIN, defaultCaption, sanitizeCaptionText, type Caption } from "@/lib/captions";
 import { startBallCount } from "@/lib/physics/ballStats";
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { polyrhythmCycleSeconds, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
@@ -742,6 +742,12 @@ export interface PayoffMoment {
    */
   soundsMedian?: number | null;
   /**
+   * --- crew --- (studio round 1, 11) The busiest of those windows (null: none to count) and the largest chord played before the
+   * moment (notes in one event; 0: none): what the run played at its most before its payoff. Absent: an older record.
+   */
+  soundsMax?: number | null;
+  chordBefore?: number;
+  /**
    * --- crew --- (review round 2, 20) The accented events outside the moment, to the clip's end when it was given: [second, notes],
    * in time order, at most MOMENT_ACCENTS_MAX (the largest kept) – where else the mode plays the chord and flash it accents.
    */
@@ -926,6 +932,9 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
     case "cycle":
       return settings.mode === "polyrhythm" ? polyrhythmCycleSeconds(polyrhythmSettingsOf(settings)) : settings.pwCycleSeconds;
     case "fixed":
+      // --- templates --- (studio round 1, 11) Collision Playground's anti-collision switch, at the second it is set to: its accented
+      // chord, its flash and every orb's new colour (modes/collide.ts switchToAntiCollision); Power Layers' break otherwise
+      if (settings.mode === "collide") return settings.cpAntiCollisionAt > 0 ? settings.cpAntiCollisionAt : null;
       return powerLayersPayoffSec(settings.plLayers, settings.plSequence, settings.plSpeed);
     case "atEnd": // --- templates --- the clip's last 1.5 s (outcomeStrategy.ts)
       return atEndPayoffSec(settings.recordingDuration);
@@ -958,7 +967,7 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
 
 /** When the run ends on its own after the payoff (s), or null when it does not within the clip (endless modes, analytic ones). */
 function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSettings, facts: RunFacts | null, payoff: number): number | null {
-  if (recipe.strategy === "fixed") return payoff + 1.8; // Power Layers: the freedom celebration, then the end
+  if (recipe.strategy === "fixed") return settings.mode === "collide" ? null /* --- templates --- (the orbs fly on) */ : payoff + 1.8; // Power Layers: the freedom celebration, then the end
   if (recipe.strategy === "cycle" || recipe.strategy === "fill" || recipe.strategy === "atEnd" /* --- templates --- */) return null;
   // --- templates --- the bound outcome's run: where it ended on its own, or closed its loop (outcomeClipSec)
   if (recipe.strategy === "outcome") return facts?.outcomeRun?.endSec ?? null;
@@ -1149,6 +1158,20 @@ export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext, look: BotL
   return { settings: s, melodyId, preset };
 }
 
+// --- templates --- (studio round 1, 10) when the Simple look's payoff words come in
+/** How far before its event a payoff's words may start (s): half their entrance, still under half their size as the event lands. */
+export const PAYOFF_WORDS_LEAD_SEC = CAPTION_ENTER_SEC / 2;
+
+/**
+ * The half second (a caption's step) the Simple look's payoff words start at: the payoff's own, or the one before it while the words are
+ * still entering as the event lands (at most PAYOFF_WORDS_LEAD_SEC before it), else the one after it. Floored, as the bot look has them,
+ * words came up to 0.5 s before the event they name: "Full!" 0.33 s before Perfect Fit's box was full, its last piece still falling.
+ */
+export function simplePayoffHalf(payoffSec: number): number {
+  const before = Math.floor(payoffSec * 2 + 1e-9) / 2;
+  return payoffSec - before <= PAYOFF_WORDS_LEAD_SEC + 1e-9 ? before : before + 0.5;
+}
+
 const hookStyle = { size: 1.2, color: "#ffffff", background: "#000000" };
 const LIME = "#93d119";
 
@@ -1161,7 +1184,9 @@ export type TextPlan = "stack" | "oneLine";
  * --- templates --- `textPlan` "oneLine" (the Simple look): one text at a time – the countdown caption comes after the hook and
  * leaves when the payoff's words or the closing question come, so no two texts are on screen together – and the payoff's words
  * cut by whole clauses toward 3 (templates.ts simplePayoffText), on one line where the clip's tail after them is too short for
- * two at 1.2 s a line (simplePayoffLines). `payoffText`: the payoff's words as drawn (null: none drawn). --- templates --- (AI
+ * two at 1.2 s a line (simplePayoffLines), from the half second simplePayoffHalf picks (never before the event, but while entering),
+ * and none where the clip leaves no line its time after that (`payoffText` ""). `payoffText`:
+ * the payoff's words as drawn (null: none drawn). --- templates --- (AI
  * studio step 4) `ownEnding`: the mode draws its own ending in the clip (its end banner: crew/hudFlags.ts endBannersIn), so no
  * payoff words of the clip's own stand beside it – one ending.
  */
@@ -1181,7 +1206,10 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   // gets 2.5 s, 1.25 s a line)
   const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2, oneLine) : null;
   const questionStart = half(Math.max(hookEndSec + 0.5, clip - (oneLine && q && q.lines.length > 1 ? 2.5 : 2)));
-  const payoffStart = timing.payoffSec !== null ? half(Math.max(hookEndSec + 0.5, Math.floor(timing.payoffSec * 2) / 2)) : null;
+  // (--- templates --- studio round 1, 10: the Simple look's payoff words never come before the event they name – simplePayoffHalf;
+  // the bot look keeps its floor, its plans as they were)
+  const payoffHalf = timing.payoffSec === null ? null : oneLine ? simplePayoffHalf(timing.payoffSec) : Math.floor(timing.payoffSec * 2) / 2;
+  const payoffStart = payoffHalf !== null ? half(Math.max(hookEndSec + 0.5, payoffHalf)) : null;
   if (recipe.countdown.source === "caption") {
     const label = copyString(copy, `countdown.${recipe.countdown.kind}`);
     const type = recipe.countdown.kind === "walls" ? "wallCounter" : recipe.countdown.kind === "percent" ? "progress" : "countdown";
@@ -1192,6 +1220,10 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   }
   if (q) {
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start: questionStart, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
+  } else if (oneLine && payoffStart !== null && Math.min(timing.clipSec, clip) - payoffStart < SIMPLE_TEXT.secPerLine - 1e-9) {
+    // --- templates --- (studio round 1, 10) no time after the event for a line (G5's 1.2 s): no words, never early or hurried ones –
+    // the moment speaks, as in a format whose payoff needs none
+    payoffText = "";
   } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */ && !ownEnding /* --- templates --- (AI studio step 4) */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
     // --- templates --- (the Simple look: its words cut by clauses, on the lines the clip's tail after them has time for)

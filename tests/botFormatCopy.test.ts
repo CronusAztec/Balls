@@ -216,13 +216,15 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
       }
       // a payoff whose number no binding fills yet ("{count}!": Merge Ring's) draws no words, never a brace – in the bot look, where
       // no banner of the mode's own stands in for the payoff's words (--- templates --- AI studio step 4: the conveyor's binding
-      // fills its count now, with the balls it loads)
+      // fills its count now, with the balls it loads; studio round 1, 12: in its own hook, "{count} balls. Will they all get out?", which
+      // its ALL OUT! banner answers, with no words of the format's beside it)
       const count = planClip(plannedRecipe(mergeRing)!, 1, "reels", { ...options, look: "bot", template: mergeRing.id });
       const where = `${locale} ${mergeRing.id}`;
       expect([where, count.hook, count.payoff.text, drawn(count, "payoff")]).toEqual([where, formatText(copy, "count", "own.mergeRing"), "", []]);
       expect(JSON.stringify([count.post, count.settings.captions]), where).not.toMatch(/\{\w+\}/);
       const filled = planClip(plannedRecipe(conveyor)!, 1, "reels", { ...options, look: "bot", template: conveyor.id });
-      expect([locale, filled.hook, filled.payoff.text]).toEqual([locale, formatText(copy, "count", "hook"), formatText(copy, "count", "payoff", { count: filled.settings.cvMaxBalls })]);
+      expect([locale, filled.hook, filled.payoff.text]).toEqual([locale, formatText(copy, "count", "own.conveyor", { count: filled.settings.cvMaxBalls }), ""]);
+      expect([locale, filled.hook.includes(String(filled.settings.cvMaxBalls)), /\{\w+\}/.test(filled.hook)]).toEqual([locale, true, false]);
     }
   });
 
