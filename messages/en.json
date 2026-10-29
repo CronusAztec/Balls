@@ -1443,6 +1443,8 @@
     "journeyDesc": "The ball clears one stage after another on its way HOME while the camera scrolls down. Build the route below or let the seed draw one.",
     "journeyAutoStages": "Random Stages",
     "journeyAutoStagesTip": "0 plays your stage list. Any other number builds a random route of that many stages before HOME. The slider's usual range ends at 12, and a typed number goes past it. A run builds at most 500.",
+    "journeyHud": "Stage HUD",
+    "journeyHudTip": "The stage banners and names, the mini-map, the clock and the HOME! card at the end. Off: just the ball, the stages and the door marked HOME. The run stays the same.",
     "journeyAutoOff": "Off",
     "journeyStages": "Stages",
     "journeyStagesTip": "The route from top to bottom. Pick each stage's size (S, M, L: fewer or more rings, panes, pegs or gates and a taller stage), move it with the arrows, remove it with ✕ or add one before HOME. HOME is always last.",
@@ -1508,6 +1510,8 @@
     "sgChipEveryTip": "Seconds a ball grinds on a tile before it chips one hit off. Every ball queued behind it pushes too, so more balls grind faster.",
     "sgRainbow": "Rainbow Line",
     "sgRainbowTip": "The spiral line cycles slowly through the hues and the glass takes a faint tint of it. Off draws it in the wall colour.",
+    "sgHud": "Spiral HUD",
+    "sgHudTip": "The title and tiles left in the corner, the progress ring and the question over the spiral. Off: just the glass, the balls and their count. GLASS CLEARED shows either way.",
     "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",
     "modeBlueprint": "Mode Lab",
     "blTitle": "Mode Lab",
@@ -4183,7 +4187,11 @@
     },
     "ownHooks": {
       "mergeRing": "How far can it merge?",
-      "box": "It stops at zero."
+      "box": "It stops at zero.",
+      "spiralGlass": "Will the ball multiply?"
+    },
+    "ownPayoffs": {
+      "journey": "Home! 🏠"
     },
     "cover": {
       "label": "Cover",

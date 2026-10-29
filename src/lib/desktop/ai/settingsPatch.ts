@@ -244,6 +244,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   runner: "runner",
   paddle: "pd",
   vortex: "vx",
+  journey: "journey", // --- templates --- (AI studio step 4b) the random stages and the overlay switch (the stage list is PATCH_EXCLUDED)
   bullseye: "by",
   mergeRing: "mr", // --- merge-ring ---
   spiralGlass: "sg", // --- spiral-glass ---

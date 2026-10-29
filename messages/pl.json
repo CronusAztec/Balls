@@ -1443,6 +1443,8 @@
     "journeyDesc": "Kulka pokonuje etap za etapem w drodze do DOMU, a kamera zjeżdża razem z nią. Ułóż trasę poniżej albo pozwól, by ziarno ją wylosowało.",
     "journeyAutoStages": "Losowe etapy",
     "journeyAutoStagesTip": "0 odtwarza twoją listę etapów. Każda inna liczba buduje losową trasę z tyloma etapami, a na końcu DOM. Zwykły zakres suwaka kończy się na 12, a wpisana liczba może go przekroczyć. Przebieg buduje najwyżej 500.",
+    "journeyHud": "HUD etapów",
+    "journeyHudTip": "Banery i nazwy etapów, minimapa, zegar oraz karta W DOMU! na końcu. Wyłączony: tylko kulka, etapy i drzwi z napisem DOM. Przebieg się nie zmienia.",
     "journeyAutoOff": "Wył.",
     "journeyStages": "Etapy",
     "journeyStagesTip": "Trasa od góry do dołu. Wybierz rozmiar każdego etapu (S, M, L: mniej lub więcej pierścieni, tafli, kołków albo bramek i wyższy etap), przesuwaj go strzałkami, usuń przyciskiem ✕ albo dodaj nowy przed DOMEM. DOM jest zawsze ostatni.",
@@ -1508,6 +1510,8 @@
     "sgChipEveryTip": "Ile sekund kulka trze o płytkę, zanim odłupie jedno trafienie. Każda kulka w kolejce za nią też pcha, więc więcej kulek kruszy szybciej.",
     "sgRainbow": "Tęczowa linia",
     "sgRainbowTip": "Linia spirali powoli przechodzi przez odcienie, a szkło przejmuje ich lekki odcień. Wyłączona rysuje ją w kolorze ściany.",
+    "sgHud": "HUD spirali",
+    "sgHudTip": "Tytuł i liczba płytek w rogu, pierścień postępu i pytanie nad spiralą. Wyłączony: tylko szkło, kulki i ich licznik. SZKŁO ZBITE pokazuje się zawsze.",
     "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",
     "modeBlueprint": "Laboratorium trybów",
     "blTitle": "Laboratorium trybów",
@@ -4183,7 +4187,11 @@
     },
     "ownHooks": {
       "mergeRing": "Do którego poziomu się połączą?",
-      "box": "Zatrzyma się na zerze."
+      "box": "Zatrzyma się na zerze.",
+      "spiralGlass": "Czy kulka się pomnoży?"
+    },
+    "ownPayoffs": {
+      "journey": "W domu! 🏠"
     },
     "cover": {
       "label": "Okładka",

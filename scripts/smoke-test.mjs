@@ -7111,6 +7111,25 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
   check("search finds the journey controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
 }
 {
+  // --- templates --- (AI studio step 4b) the Journey's own overlay: a switch, hidden in a link as jshud=0, drawn only – the
+  // canvas reads it, the run goes on as it was (no restart) when it changes, and the HUD comes back with it on
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,glass-s,home&jshud=0`, { waitUntil: "networkidle" });
+  const hudToggle = () => page.getByTestId("journey").getByRole("switch", { name: switchName("Stage HUD") });
+  const offChecked = await hudToggle().getAttribute("aria-checked");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const offData = await canvasData();
+  await hudToggle().click();
+  await page.waitForTimeout(600);
+  const onData = await canvasData();
+  const query = jyQuery();
+  check(
+    "journey: the Stage HUD switch hides the overlay from a link (jshud=0) and brings it back live, the run going on",
+    offChecked === "false" && offData.journeyHud === "0" && onData.journeyHud === "1" && !/(^|&)jshud=/.test(query) && Number(onData.journeyNotes) >= Number(offData.journeyNotes) && (await page.getByRole("button", { name: /Start Simulator/ }).count()) === 0,
+    `(switch ${offChecked}, off ${offData.journeyHud} at ${offData.journeyNotes} notes, on ${onData.journeyHud} at ${onData.journeyNotes} notes, ${query})`,
+  );
+}
+{
   // A short route at 1×: a small peg field, two glass panes, HOME – stages in order, a swoosh at each of the two transitions.
   await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,glass-s,home&face=cute`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
@@ -19685,6 +19704,25 @@ await smokeBlock("spiral-glass", async () => {
   const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
   await page.getByPlaceholder("Search settings...").fill("");
   check("search finds the spiral glass controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // --- templates --- (AI studio step 4b) the mode's own overlay: a switch, hidden in a link as sghud=0, drawn only – the canvas
+  // reads it, the run goes on as it was (no restart) when it changes, and the HUD comes back with it on
+  await page.goto(`${BASE}/en/simulator/?mode=spiralGlass&sgt=3&sgh=1&sgv=1.5&sgc=0.1&sghud=0`, { waitUntil: "networkidle" });
+  const hudToggle = () => page.getByTestId("spiral-glass").getByRole("switch", { name: switchName("Spiral HUD") });
+  const offChecked = await hudToggle().getAttribute("aria-checked");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const offData = await canvasData();
+  await hudToggle().click();
+  await page.waitForTimeout(600);
+  const onData = await canvasData();
+  const query = page.url().split("?")[1] || "";
+  check(
+    "spiral glass: the Spiral HUD switch hides the overlay from a link (sghud=0) and brings it back live, the run going on",
+    offChecked === "false" && offData.spiralHud === "0" && onData.spiralHud === "1" && !/(^|&)sghud=/.test(query) && Number(onData.spiralChips) >= Number(offData.spiralChips) && Number(offData.spiralChips) > 0,
+    `(switch ${offChecked}, off ${offData.spiralHud} at ${offData.spiralChips} chips, on ${onData.spiralHud} at ${onData.spiralChips} chips, ${query})`,
+  );
 }
 {
   // A fast run at 8×: three turns of one-hit glass, fast balls, a chip every 0.1 s: the glass is cleared within the budget.

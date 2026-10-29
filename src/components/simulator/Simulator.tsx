@@ -4247,6 +4247,8 @@ export default function Simulator() {
               labels={labels}
               paintPicture={paintPicture?.url ?? null}
               paintGhost={s.paintGhost}
+              journeyHud={s.journeyHud} // --- templates --- (AI studio step 4b) the Journey's own overlay (draw-only)
+              sgHud={s.sgHud} // --- templates --- (AI studio step 4b) Spiral Glass's own overlay (draw-only)
               character={characterRender}
               onCharacterChirp={onCharacterChirp}
               // --- themes

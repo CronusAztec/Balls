@@ -170,13 +170,14 @@ const COPY_FIELDS = ["name", "series", "hook", "cliffHook", "payoff", "cliffQues
  * --- templates --- (AI studio step 3) A template without a recipe speaks with its format's words, its `{thing}` its mode's noun
  * ("Will the ball get out?"), its hook the one it draws: its own variant, else a cut clip's where it only ends cut.
  */
-function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | "copyVars" | "modes" | "hookKey" | "endings">, copy: BotCopy): Record<string, string> {
+function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | "copyVars" | "modes" | "hookKey" | "payoffKey" | "endings">, copy: BotCopy): Record<string, string> {
   const out: Record<string, string> = {};
   if (recipe.formatCopy) {
     const vars = recipeCopyVars(copy, recipe, defaultSettings(recipe.modes[0]));
     const drawn = recipe.hookKey ?? (recipe.endings?.length === 1 && recipe.endings[0] === "cliffhanger" ? "cliffHook" : "hook");
     for (const f of COPY_FIELDS) {
-      const text = recipeText(copy, recipe, f === "hook" ? drawn : f, vars);
+      // (--- templates --- AI studio step 4b: its own payoff, where its binding has one)
+      const text = recipeText(copy, recipe, f === "hook" ? drawn : f === "payoff" ? (recipe.payoffKey ?? f) : f, vars);
       if (text) out[f] = text;
     }
     return out;

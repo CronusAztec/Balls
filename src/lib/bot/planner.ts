@@ -1267,7 +1267,7 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const hook = simple ? simpleHookText(fullHook, recipe.stakeHook && !stakeOnScreen ? stakeNumbersOf(recipe.hookVars(settings)) : undefined) : fullHook;
   // (--- templates --- AI studio step 4: a maze ball without a roster goes by its colour, as the maze's banner names it: "AQUA ESCAPED")
   const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? (settings.mode === "maze" ? mazeBallName(winner) : `#${winner + 1}`)) : null;
-  const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
+  const payoffKey = recipe.payoffKey ?? payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell; --- templates --- AI studio step 4b: a binding's own payoff)
   const payoffText = recipe.payoffWords === false ? "" : recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" }); // --- templates --- (none drawn)
   // --- templates --- (AI studio step 4) one ending: where the mode draws its own end banner inside a resolved clip (Power Layers'
   // "FREEDOM! 10 hits · 16.7s", an arena's winner, Bullseye's callout) as its payoff comes, the Simple look draws no payoff words

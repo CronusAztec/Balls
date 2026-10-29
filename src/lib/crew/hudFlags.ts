@@ -86,6 +86,11 @@ export const HUD_FLAGS: readonly HudFlag[] = [
   { key: "flDmgNumbers", modes: onlyIn("fightLeague"), kind: "picture", on: (s) => s.flDmgNumbers, texts: none, counts: false, words: "floating damage numbers" },
   { key: "ogHud", modes: onlyIn("orbGrid"), kind: "hud", on: (s) => s.ogHud, texts: one, counts: false, words: "a line naming the orbs" },
   { key: "lcHud", modes: onlyIn("landClaim"), kind: "hud", on: (s) => s.lcHud, texts: one, counts: false, words: "a title with a bar and a counter per side" },
+  // --- crew --- (AI studio step 4b) the two overlays a setting switches since then (Canvas.tsx `journeyHud`, `sgHud`): the Journey's
+  // stage banner, the stage names at the wall and the clock (the mini-map is a picture), Spiral Glass's title and tiles left, the
+  // share in its progress ring and its question over the spiral; neither counts down to the payoff
+  { key: "journeyHud", modes: onlyIn("journey"), kind: "hud", on: (s) => s.journeyHud !== false, texts: () => 3, counts: false, words: "a banner as each stage begins, the stage names, a mini-map and a clock" },
+  { key: "sgHud", modes: onlyIn("spiralGlass"), kind: "hud", on: (s) => s.sgHud !== false, texts: () => 3, counts: false, words: "a title with the tiles left, a ring with a share and a question over the spiral" },
   { key: "loopHud", modes: "any", kind: "hud", on: (s) => s.loopHud, texts: (s) => 1 + (loopHudHasCounter(s) ? 1 : 0), counts: false, words: "a title at the top and a counter at the bottom" },
   { key: "bounceMathHud", modes: "any", kind: "badge", on: (s) => s.bounceMathHud && s.bounceMath.length > 0, texts: one, counts: false, words: "a badge with the bounce rules" },
   { key: "prNumbers", modes: onlyIn("polyrhythm"), kind: "labels", on: (s) => s.prNumbers, texts: one, counts: false, words: "numbers on the dots" },
@@ -163,7 +168,7 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "portal", at: "payoff", words: "an ESCAPED! banner with the teleports" },
   { mode: "shatter", at: "payoff", words: "a SHATTERED! banner with the segments broken" },
   { mode: "powerLayers", at: "payoff", words: "a FREEDOM! banner with the hits and the time" },
-  { mode: "journey", at: "payoff", words: "a HOME! card with the stages, the time and the score" },
+  { mode: "journey", at: "payoff", when: (s) => s.journeyHud !== false /* --- crew --- (AI studio step 4b) the overlay's card */, words: "a HOME! card with the stages, the time and the score" },
   { mode: "race", at: "payoff", words: "a callout naming the first across the line" },
   { mode: "maze", at: "payoff", words: "a banner naming the first ball to leave, with its time and a line under it" },
   { mode: "bullseye", at: "payoff", forSec: 1.5, words: "a big BULLSEYE! callout" },

@@ -216,17 +216,18 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 25 modes as 30 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
+- **Ready now:** 27 modes as 32 templates. 14 of the 16 modes a recipe plays give 18 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset and the bracket. A template plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
   on about half the plans. Five modes without a recipe play their own settings (AI studio step 3): Shatter, Color Match, Target,
   Brick Smash and Perfect Fit, a trial tier each. Classic adds a variant of its own settings, one ring with one gap
   ("Classic · Get out · One ring"). Six more do since AI studio step 4: the conveyor, the Maze, Territory, Land Claim, Bullseye
-  and Bouncing Shapes. Their numbers are in the tables of steps 3 and 4 below.
-- **Hidden for now:** the other 23 modes are bound but wait for their own settings and planning acceptance. They sit in
-  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Five of
-  them were planned and measured and stay with the reason found: Journey, Paint and Spiral Glass in step 3, Merge Ring and
-  Paddle Keep-Up in step 4 (below). Their
+  and Bouncing Shapes. Two more since step 4b: the Journey and Spiral Glass, each with a setting that switches its own overlay
+  off. Their numbers are in the tables of steps 3, 4 and 4b below.
+- **Hidden for now:** the other 21 modes are bound but wait for their own settings and planning acceptance. They sit in
+  the experimental table (`EXPERIMENTAL`), which a test lets only shrink: a binding leaves it when its plans pass. Three of
+  them were planned and measured and stay with the reason found: Paint in step 3, Merge Ring and Paddle Keep-Up in step 4
+  (below). The Journey and Spiral Glass, hidden in step 3, left the table in step 4b. Their
   payoff timing is in place (`src/lib/bot/outcomeStrategy.ts`). The **outcome** strategy asks the seed finder for the
   binding's outcome around the payoff target, such as Shatter's first escape, and reads the moment off the finder's own run
   of the seed. The **atEnd** strategy puts the payoff in the clip's last 1.5 s, for a run that loops. Its clips end resolved,
@@ -254,13 +255,16 @@ checks (G4).
   the planner cannot fill yet (a count format's "{count}!") leaves the text out, never a brace. A template is named "{Mode
   name} · {Format name}" ("Shatter · Get out"). A binding's further variant adds its recipe's name ("Classic · Get out ·
   Gerald escapes"), or without a recipe its own (`ViralBot.variants`: "Classic · Get out · One ring"). The two looks have a name and a line each (`ViralBot.looks`: Bold, today's bot look, and Simple).
+  A binding whose run its format's words do not describe has words of its own: a hook (`ViralBot.ownHooks`: Merge Ring's,
+  Bouncing Shapes', Spiral Glass's) or a payoff (`ViralBot.ownPayoffs`, step 4b: the Journey's "Home! 🏠").
 
 **The Simple look** (`SIMPLE_LOOK`; templates plan in it, the daily bot keeps its own look):
 
 - neon on a dark gradient (#05070a to #141a24, both under the look item's 0.12 luminance), ball glow and thin single-colour
   trails;
 - no wall glow, colour trail, rainbow walls, rainbow ball, reactive background, shake or confetti: a wall breaks into shards;
-- every HUD switched off but the one that counts down (String Battle's panel, Fight League's HP bars), and no name label;
+- every HUD switched off but the one that counts down (String Battle's panel, Fight League's HP bars), and no name label.
+  Since AI studio step 4b that includes the Journey's and Spiral Glass's own overlays (`journeyHud`, `sgHud`);
 - one text at a time: the hook for 2.5 s, then the countdown caption until the next text, then the payoff's words or the
   closing question. No countdown caption appears where a HUD on screen counts down already. The caption counts walls only,
   where the format takes one: a bar or a timer counts the clip's seconds and would leave at the payoff short of its 100 % or
@@ -396,10 +400,11 @@ is not calm when watched, is hidden, never kept by an exception):
   same way, 0 of 12; the grow-fill recipe's ring goes on after its fill.
 - **Spiral Glass** passed every gate on 12 of 12 plans in each language, timed at its GLASS CLEARED, 2 s before its run ends.
   Watched, it draws a question of its own over the spiral for the whole run ("Will the ball multiply?"), with its title, its
-  tiles left and a progress ring, and no setting switches them off: a template's hook stacks a second question over it.
+  tiles left and a progress ring, and no setting switched them off then: a template's hook stacked a second question over it.
+  Ready since step 4b (below).
 - **Journey** passed every gate on 11 of 12 plans in each language, home as its way out. Watched, its own HUD (a banner as each
   stage begins, a mini-map, a clock, every stage's label) and its HOME! card beside the payoff's words put two or three texts
-  on screen at once, and no setting switches them off.
+  on screen at once, and no setting switched them off then. Ready since step 4b (below).
 
 **AI studio step 4's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
 the same counts in each]**. Six more modes play settings of their own, and each is timed by a moment of its own run: the
@@ -436,12 +441,38 @@ Hidden after measuring in step 4 (`EXPERIMENTAL`):
 
 - **Merge Ring** passed every gate on 12 of 12 plans in each language, timed at its FINAL FORM. Watched, it asks "Will it
   merge into its final form?" under its ring for the whole run, with its title, its merge count and its ladder of sizes, and
-  no setting switches them off: a template's hook stacks a second question over it, as Spiral Glass's.
+  no setting switches them off: a template's hook stacks a second question over it, as Spiral Glass's did before step 4b.
 - **Paddle Keep-Up** passed every gate on 12 of 12 plans, timed at its GAME OVER. Watched, its score, lives and streak sit in a
   band over its ceiling at the top of the square, which the hook covers for its 2.5 s, and the bottom is its paddle. The
   canvas starts the top captions below a mode's top HUD only where the mode reports one, and Paddle reports none
   (docs/agents/STUDIO.md, known gaps).
 - **The square race** stays hidden: its gate opens at 1.8 s on every seed searched.
+
+**AI studio step 4b's templates** **[observed: 4 plan seeds × 3 platforms, the Simple look, in English, Polish and Spanish:
+the same counts in each]**. The two step 3 hid for what they draw of their own get a setting that switches it off, with its
+mode's own link key: the Journey's `journeyHud` (`jshud=0`: the stage banners and names, the mini-map, the clock and score, and
+the HOME! card) and Spiral Glass's `sgHud` (`sghud=0`: its title and tiles left, its progress ring and its question over the
+spiral). Each is a toggle in its mode's panel, in English, Polish and Spanish. The default shows the overlay, so every link,
+preset, project file and the daily bot look as before. Both are HUD flags, so the Simple look switches them off, and both are
+drawn only: the canvas reads them and the engine never does, so the run is the same either way (a test checks that the
+engine's request and `runFactsSync` are the same with each switch on and off, and that each mode's fingerprint is its
+BASELINE's). Each passed its watch: one clip of each rendered watermarked and its hook and contact sheets
+looked at.
+
+| Template | Its own settings and words | Simple (median) | Checklist (median) | Pass every gate |
+| --- | --- | --- | --- | --- |
+| get-out-journey | three stages before HOME (short) or four (standard), none with badges or a score; hook b "Will Gerald make it home?", its own payoff "Home! 🏠"; resolved only | 97 | 86 | 12/12 |
+| smash-spiral-glass | 5 turns of 1-hit glass at speed 2 (short), 3–4 turns of 2-hit glass at 1.5–2 (standard); its own hook "Will the ball multiply?"; GLASS CLEARED, 2 s before the run ends; resolved only | 97 | 86 | 12/12 |
+
+- Their runs are the bot look's: the seed and every run fact are the same in both looks, on all 72 plans.
+- What stays for the clip to make sense with the overlay off. The Journey: the door marked HOME, which is the picture's, and
+  the payoff's own words say HOME where the card did. Spiral Glass: the badge at the spiral's entrance, which counts the balls
+  as they multiply (x1 to x7 in the clip watched), and GLASS CLEARED with the balls' count, the clip's one ending. Its hook asks
+  the question the overlay asked ("Czy kulka się pomnoży?", "¿Se multiplicará la bola?").
+- Both end resolved only: a cut clip's closing question ("Out or not?", "One more hit?") would ask another question than the
+  hook. Step 3 had planned both endings: the Journey then missed one Shorts cliffhanger, whose seed search fit no cut.
+- In the bot look they keep their overlays and are busy (G6: Simple 9 and 24), as Glass is: the Simple look is what makes them
+  ready. The bot look also draws the Journey's hook over its stage banner (G5).
 
 Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your

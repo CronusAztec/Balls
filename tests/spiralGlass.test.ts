@@ -57,7 +57,15 @@ import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/typ
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
-import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
+import { finderRequestOfSettings, modeSettingsOfSettings } from "@/lib/bot/finderRequest";
+import { simpleLookPatch } from "@/lib/bot/templates"; // --- templates --- (AI studio step 4b)
+import { endBannersOf, hudsOn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4b)
+import { runFactsSync } from "@/lib/insights/score"; // --- templates --- (AI studio step 4b)
+import { buildProject, parseProject } from "@/lib/project"; // --- templates --- (AI studio step 4b)
+import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch"; // --- templates --- (AI studio step 4b)
+import { BASELINE_FILE, fingerprintOf, parseBaselineLiteral } from "@/lib/agentKit/fingerprint"; // --- templates --- (AI studio step 4b)
+import fs from "fs"; // --- templates --- (AI studio step 4b)
+import path from "path"; // --- templates --- (AI studio step 4b)
 import { BOUNCE_MATH_BREAK_MODES, BOUNCE_MATH_COLLIDE_MODES } from "@/lib/physics/bounceMathRuntime";
 import { assistantSettings } from "@/lib/desktop/ai/settingsPatch";
 import { HERO_MOMENTS } from "@/lib/thumbnails/heroMoments";
@@ -857,5 +865,49 @@ describe("the renderer", () => {
     expect(writes.find(([k]) => k === "spiralTilesTotal")![1]).toBe("216");
     expect(writes.find(([k]) => k === "spiralCount")![1]).toBe("1");
     expect(writes.find(([k]) => k === "spiralFinishedMs")![1]).toBe("-1");
+  });
+});
+
+/* ------------------------------------------------------------------ --- templates --- (AI studio step 4b) the overlay switch */
+
+// Spiral Glass's own overlay – its title and the tiles left, the progress ring and the question over the spiral – behind one setting
+// (`sgHud`, link `sghud=0`), so a template can play it in the Simple look and ask the question itself. Shown by default, so every
+// link, preset and project looks as before; drawn only (Canvas.tsx reads it, the engine never sees it), so the run is the same
+// either way. GLASS CLEARED and the ball count at the entrance stay: the clip's ending and its counter.
+describe("the overlay switch (sgHud, --- templates --- AI studio step 4b)", () => {
+  const on = () => ({ ...defaultSettings("spiralGlass"), sgTurns: 4 });
+  const off = () => ({ ...on(), sgHud: false });
+
+  it("shows the overlay by default and travels in a link only as sghud=0; presets, project files and the app AI's patches keep it", () => {
+    for (const mode of MODE_IDS) expect([mode, defaultSettings(mode).sgHud, settingsToSearchParams(defaultSettings(mode)).has("sghud")]).toEqual([mode, true, false]);
+    const params = settingsToSearchParams(off());
+    expect(params.get("sghud")).toBe("0");
+    expect(settingsFromSearchParams(params).sgHud).toBe(false);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=spiralGlass&sghud=1")).sgHud).toBe(true);
+    for (const junk of ["", "no", "false", "2"]) expect([junk, settingsFromSearchParams(new URLSearchParams(`mode=spiralGlass&sghud=${junk}`)).sgHud]).toEqual([junk, true]);
+    expect(presetToSettings({ mode: "spiralGlass", sgHud: false }).sgHud).toBe(false);
+    for (const junk of [undefined, null, 0, "0", "off"]) expect([String(junk), presetToSettings({ mode: "spiralGlass", sgHud: junk as unknown as boolean }).sgHud]).toEqual([String(junk), true]);
+    const parsed = parseProject(JSON.stringify(buildProject({ name: "calm", settings: off() })));
+    expect(parsed.ok && parsed.project.settings.sgHud).toBe(false);
+    // the app AI's patches take it, and its prompt lists it with the mode's block (prefix sg)
+    expect(validateSettingsPatch(on(), { sgHud: false })).toEqual({ ok: true, patch: { sgHud: false } });
+    expect(assistantSettings(on()).map(([k]) => k)).toContain("sgHud");
+    // the mode's own fields are as they were: the switch is the canvas's, not the engine's
+    expect(Object.keys(modeSettingsOfSettings(off()).spiralGlass!).sort()).toEqual(["chipEvery", "glassHp", "maxBalls", "rainbow", "speed", "turns"]);
+  });
+
+  it("is drawn only: the engine's request, the run's facts and the fingerprint are the same with it on and off", () => {
+    expect(JSON.stringify(finderRequestOfSettings(off(), undefined, 30))).toBe(JSON.stringify(finderRequestOfSettings(on(), undefined, 30)));
+    for (const seed of [1, 7]) expect(runFactsSync(off(), seed)).toEqual(runFactsSync(on(), seed));
+    const baseline = parseBaselineLiteral(fs.readFileSync(path.resolve(__dirname, "..", BASELINE_FILE), "utf8"));
+    expect(fingerprintOf("spiralGlass")).toEqual(baseline.spiralGlass);
+  });
+
+  it("is a HUD flag the Simple look switches off; GLASS CLEARED stays the clip's one ending", () => {
+    expect(hudsOn(on()).filter((h) => h.flag).map((h) => h.id)).toEqual(["sgHud"]);
+    expect(hudsOn(off()).filter((h) => h.flag)).toEqual([]);
+    expect(simpleLookPatch(on(), "picture")).toMatchObject({ sgHud: false });
+    expect(endBannersOf(off()).map((b) => b.words)).toEqual(endBannersOf(on()).map((b) => b.words));
+    expect(endBannersOf(off()).map((b) => b.words)).toEqual([expect.stringContaining("GLASS CLEARED")]);
   });
 });

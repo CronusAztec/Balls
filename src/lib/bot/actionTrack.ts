@@ -107,6 +107,14 @@ export function actionUnder(track: ActionTrack, k: number, box: SquareBox): bool
 /** The modes that draw a banner of their own text over the square (modeBannerBox): Glass Smash's stages, the Journey's. */
 export const BANNER_MODES: readonly SimulatorSettings["mode"][] = ["glass", "journey"];
 
+/**
+ * --- templates --- (AI studio step 4b) Whether these settings draw the mode's own banners: a banner mode's, but the Journey's only
+ * with its overlay on (`journeyHud`: the Simple look switches it off), so a track keeps no banner its clip never shows.
+ */
+export function modeBannersDrawn(settings: Pick<SimulatorSettings, "mode" | "journeyHud">): boolean {
+  return BANNER_MODES.includes(settings.mode) && (settings.mode !== "journey" || settings.journeyHud !== false);
+}
+
 /** How long a banner shows (ms): modes/glass.ts BANNER_MS, modes/journey.ts JOURNEY_BANNER_MS. */
 const BANNER_SHOWS_MS: Readonly<Record<string, number>> = { glass: GLASS_BANNER_MS, journey: JOURNEY_BANNER_MS };
 
@@ -170,7 +178,7 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
   const moveMin = ACTION_MOVE_SHARE * side;
   const step = 1000 / 60;
   const samples: string[] = [];
-  const banners: string[] | null = BANNER_MODES.includes(request.mode) ? [] : null; // --- templates --- (AI studio step 3)
+  const banners: string[] | null = modeBannersDrawn(settings) ? [] : null; // --- templates --- (AI studio step 3; step 4b: drawn ones only)
   let last = new Map<number, { x: number; y: number }>();
   let elapsed = 0;
   let steps = 0;

@@ -12,13 +12,15 @@ export interface SpiralGlassSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const SPIRAL_GLASS_KEYS = ["sgTurns", "sgGlassHp", "sgSpeed", "sgMaxBalls", "sgChipEvery", "sgRainbow"];
+export const SPIRAL_GLASS_KEYS = ["sgTurns", "sgGlassHp", "sgSpeed", "sgMaxBalls", "sgChipEvery", "sgRainbow", "sgHud" /* --- templates --- (AI studio step 4b) */];
 
 /**
  * "Spiral Glass" controls (feature spiral-glass), shown in the Mode row while Spiral Glass is the mode (and in the Ball
  * section while the settings search is in use): the turns of the spiral, the glass's hit points, the balls' speed, the
- * ball cap, the chip time and the rainbow line. The values live in SimulatorSettings; Simulator.tsx forwards them to the
- * engine (see lib/physics/modes/spiralGlass.ts) and restarts the run when one changes (the rainbow follows live).
+ * ball cap, the chip time, the rainbow line and – --- templates --- (AI studio step 4b) – the mode's own overlay (the title, the
+ * tiles left, the progress ring and the question over the spiral). The values live in SimulatorSettings; Simulator.tsx forwards
+ * them to the engine (see lib/physics/modes/spiralGlass.ts) and restarts the run when one changes (the rainbow follows live, and
+ * the overlay switch is the canvas's alone: Canvas.tsx `sgHud`).
  */
 export default function SpiralGlassSection({ t, search, matches, settings: s, update }: SpiralGlassSectionProps) {
   return (
@@ -36,6 +38,10 @@ export default function SpiralGlassSection({ t, search, matches, settings: s, up
       <Slider t={t} search={search} matches={matches} labelKey="sgChipEvery" tipKey="sgChipEveryTip" value={s.sgChipEvery} range={RANGES.sgChipEvery} onChange={(v) => update({ sgChipEvery: v })} display={`${s.sgChipEvery.toFixed(2)}s`} />
       <Searchable search={search} matches={matches} labelKey="sgRainbow">
         <Toggle t={t} labelKey="sgRainbow" tipKey="sgRainbowTip" value={s.sgRainbow} onChange={(v) => update({ sgRainbow: v })} />
+      </Searchable>
+      {/* --- templates --- (AI studio step 4b) the mode's own overlay: drawn only, so it follows live and the run stays the same */}
+      <Searchable search={search} matches={matches} labelKey="sgHud">
+        <Toggle t={t} labelKey="sgHud" tipKey="sgHudTip" value={s.sgHud} onChange={(v) => update({ sgHud: v })} />
       </Searchable>
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="spiral-glass-run">

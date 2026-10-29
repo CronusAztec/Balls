@@ -1443,6 +1443,8 @@
     "journeyDesc": "La bola supera una etapa tras otra de camino a CASA mientras la cámara baja. Construye la ruta abajo o deja que la semilla dibuje una.",
     "journeyAutoStages": "Etapas aleatorias",
     "journeyAutoStagesTip": "0 reproduce tu lista de etapas. Cualquier otro número crea una ruta al azar con ese número de etapas y CASA al final. El rango habitual del deslizador termina en 12, y un número escrito puede superarlo. Una partida crea como mucho 500.",
+    "journeyHud": "HUD de etapas",
+    "journeyHudTip": "Los carteles y nombres de las etapas, el minimapa, el reloj y la tarjeta ¡EN CASA! del final. Desactivado: solo la bola, las etapas y la puerta de CASA. La tirada no cambia.",
     "journeyAutoOff": "No",
     "journeyStages": "Etapas",
     "journeyStagesTip": "La ruta de arriba abajo. Elige el tamaño de cada etapa (S, M, L: menos o más anillos, cristales, clavos o puertas y una etapa más alta), muévela con las flechas, quítala con ✕ o añade una antes de CASA. CASA siempre va al final.",
@@ -1508,6 +1510,8 @@
     "sgChipEveryTip": "Segundos que una bola roza una loseta antes de quitarle un golpe. Cada bola en la cola también empuja, así que más bolas rompen más rápido.",
     "sgRainbow": "Línea arcoíris",
     "sgRainbowTip": "La línea de la espiral recorre despacio los tonos y el cristal toma un leve tinte. Apagada se dibuja en el color de la pared.",
+    "sgHud": "HUD de la espiral",
+    "sgHudTip": "El título y las losetas que quedan en la esquina, el anillo de progreso y la pregunta sobre la espiral. Desactivado: solo el cristal, las bolas y su contador. CRISTAL LIMPIO se muestra siempre.",
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
     "modeBlueprint": "Lab de modos",
     "blTitle": "Lab de modos",
@@ -4183,7 +4187,11 @@
     },
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
-      "box": "Se para en cero."
+      "box": "Se para en cero.",
+      "spiralGlass": "¿Se multiplicará la bola?"
+    },
+    "ownPayoffs": {
+      "journey": "¡En casa! 🏠"
     },
     "cover": {
       "label": "Portada",

@@ -32,8 +32,9 @@ import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- te
  *    Fight League's boss rush (its hook), the square race (its count-in), Ball Drop (its run fades out: review round 2, 21)
  *    and Grow's fill that ends the run (AI studio step 3: shown 0.5 s). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden, and 11 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the
- *    conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings); the other 23 are
+ *    hidden, and 13 trial ones (AI studio step 3: Shatter, Color Match, Target, Brick Smash and Perfect Fit; step 4: the
+ *    conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey
+ *    and Spiral Glass, their own overlays switched off – `journeyHud`, `sgHud`); the other 21 are
  *    declared, experimental and hidden until their settings and planning acceptance land – their
  *    format's copy is written – (docs/virality-playbook.md §5). A trial binding plans once it leaves the table, where its
  *    strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn: Classic's one ring).
@@ -336,7 +337,7 @@ export interface TemplateVariant {
 }
 
 /** --- templates --- (AI studio step 3) What a variant without a recipe sets over its binding (variantBinding). */
-export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "note">>;
+export type VariantOwn = Partial<Pick<ModeBinding, "strategy" | "outcome" | "needs" | "patch" | "generate" | "countdown" | "hookVars" | "hookKey" | "payoffKey" | "endings" | "buckets" | "keepHud" | "scene" | "character" | "payoffWords" | "note">>;
 
 export interface ModeBinding {
   mode: ModeId;
@@ -392,6 +393,11 @@ export interface ModeBinding {
    * (FORMAT_HOOK_FIELDS). Without one a cliffhanger draws its format's `cliffHook` ("{thing} vs the clock."), else its `hook`.
    */
   hookKey?: "hook" | "hookB" | "hookC" | OwnHookKey;
+  /**
+   * --- templates --- (AI studio step 4b) Its payoff's own words, where its format's do not name its run's moment (copy.ts
+   * OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's "Home! 🏠" at the door marked HOME, where get-out says "Out!".
+   */
+  payoffKey?: OwnPayoffKey;
   /** --- templates --- (AI studio step 3) Gerald plays the ball (BotRecipe.character: his face and name; the Simple look draws no label). */
   character?: true;
   /**
@@ -407,7 +413,10 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing"}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass"}`;
+
+/** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
+export type OwnPayoffKey = `ownPayoff.${"journey"}`;
 
 const kebab = (id: string) => id.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
@@ -671,21 +680,28 @@ const PAINT_ENDS_AT_FILL = "its run ends the moment 95 % is painted, so a resolv
 /** --- templates --- (AI studio step 3) Grow's fill that ends the run, likewise (its fills-by variant). */
 const GROW_ENDS_AT_FILL = "with Grow's fill ending the run (fills-by's flag) the clip shows the fill for the recorder's 0.5 s only (G2 asks 0.8 s), and the fill format ends resolved only: 0 of 12 plans passed; the grow-fill recipe's ring goes on after its fill";
 /**
- * --- templates --- (AI studio step 3) Spiral Glass draws a text of its own over the spiral for the whole run – its question "Will the
- * ball multiply?" – with its title, its tiles left and a progress ring in the corners, which no setting switches off: a template's
- * hook would stack a second text and ask a second question over it (watched in the studio's render), whatever it plans.
+ * --- templates --- (AI studio step 4b) Spiral Glass with its own overlay off (the setting `sgHud`, a HUD flag the Simple look switches
+ * off as the others): step 3 hid it because its question "Will the ball multiply?" over the spiral, its title, its tiles left and a
+ * progress ring in the corners stayed for the whole run, which no setting switched off then. With them off, the hook asks the
+ * question the overlay asked, the badge at the spiral's entrance counts the balls as they multiply, and GLASS CLEARED – the clear,
+ * with the balls' count and the time, 2 s before the run's end – is the payoff and its one ending. Resolved only: a cut clip's
+ * closing question ("One more hit?") would ask a second question.
  */
-const SPIRAL_OWN_TEXT = "it draws a question of its own over the spiral for the whole run (\"Will the ball multiply?\"), with its title, its tiles left and a progress ring in the corners, which no setting switches off: a template's hook stacks a second text and a second question over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
+const SPIRAL_SIMPLE = "its own overlay off in the Simple look (sgHud: no title, tiles left, progress ring or question over the spiral); the hook asks the question the overlay asked ('Will the ball multiply?'), the badge at the entrance counts the balls, and GLASS CLEARED, 2 s before the run's end, is the payoff and its one ending (planner.ts payoffSecOf); resolved only, as a cut clip's closing question would ask a second one";
 /**
- * --- templates --- (AI studio step 3) The Journey plans (its HOME is the way out, Glass Smash's: the chord, then 1.8 s of
- * celebration), but its own HUD – a banner as each stage begins ("Stage 3/5: Rings"), a mini-map, a clock, every stage's label
- * – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, the screen is not calm.
+ * --- templates --- (AI studio step 4b) The Journey with its own overlay off (the setting `journeyHud`): step 3 hid it because a banner
+ * as each stage began ("Stage 3/5: Rings"), the stage names, a mini-map and a clock crowded the screen and its HOME! card stood beside
+ * the payoff's words, none of which a setting switched off then. With them off, Gerald heads for the door marked HOME (the door's
+ * sign is the picture's and stays), the hook asks the format's hook b ("Will Gerald make it home?") and the payoff's own words say
+ * HOME where the card did ("Home! 🏠": its HOME is Glass Smash's, the chord, then 1.8 s of celebration). Resolved only: a cut clip's
+ * closing question ("Out or not?") would ask another question than the hook.
  */
-const JOURNEY_OWN_HUD = "its own HUD – a banner as each stage begins (\"Stage 3/5: Rings\"), a mini-map, a clock and every stage's label – no setting switches off, and its HOME! card stands beside the payoff's words: watched in the render, two or three texts at once and the screen not calm (its plans pass every gate, 11 of 12 a language)";
+const JOURNEY_SIMPLE = "its own overlay off in the Simple look (journeyHud: no stage banners or names, mini-map, clock or HOME! card); Gerald heads for the door marked HOME (hook b 'Will Gerald make it home?'), and the payoff's own words say HOME where the card did ('Home! 🏠'); resolved only, as a cut clip's 'Out or not?' would ask another question";
 /**
  * --- templates --- (AI studio step 4) Merge Ring plans (its final form the payoff, 12 of 12 a language), but it draws a question of
  * its own under the ring for the whole run ("Will it merge into its final form?"), with its title, its merge count, its top size
- * and its ladder of sizes, which no setting switches off: a template's hook stacks a second question over it, as Spiral Glass's.
+ * and its ladder of sizes, which no setting switches off: a template's hook stacks a second question over it, as Spiral Glass's did
+ * until its overlay switch (AI studio step 4b).
  */
 const MERGE_RING_OWN_TEXT = "it draws a question of its own under the ring for the whole run (\"Will it merge into its final form?\"), with its title, its merge count, its top size and its ladder of sizes, which no setting switches off: a template's hook stacks a second question over it (watched in the render; its plans pass every gate, 12 of 12 a language)";
 /**
@@ -709,12 +725,11 @@ const OWN_SEARCH = "its outcome is searched over settings by its own finder, not
  * settings, its copy and the test that plans it) and none joins it without a reviewed change of that pin. All 32 bindings without
  * a recipe started here; AI studio step 3 passed five (Shatter, Color Match, Target, Brick Smash, Perfect Fit) and gave Journey,
  * Paint and Spiral Glass their measured reasons; step 4 passed six (the conveyor, the Maze, Territory, Land Claim, Bullseye,
- * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs.
+ * Bouncing Shapes) and gave Merge Ring and Paddle Keep-Up theirs; step 4b passed the Journey and Spiral Glass, once a setting
+ * switched off what they draw of their own (their reasons, which no setting could answer then, are their notes now).
  */
 export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
-  journey: JOURNEY_OWN_HUD,
   paint: PAINT_ENDS_AT_FILL,
-  spiralGlass: SPIRAL_OWN_TEXT,
   mergeRing: MERGE_RING_OWN_TEXT,
   paddle: PADDLE_OWN_HUD,
   starChords: OWN_SEARCH,
@@ -753,12 +768,12 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   glass: bind("glass", { format: "getOut", strategy: "finish", tier: "proven", keepHud: null, variants: [["glass-smash"]], note: "home is the way out: 'Will Gerald make it home?'" }),
   shatter: bind("shatter", later("getOut", "outcome", { outcome: "escapes-at", generate: shatterSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE })),
   colorMatch: bind("colorMatch", later("getOut", "outcome", { outcome: "escapes-at", generate: colorMatchSettings, buckets: ["standard"], endings: ["cliffhanger"], hookKey: "hook", note: ENDS_AT_ESCAPE, scene: (s) => `one ball inside a ring of 12 segments in ${s.colorMatchColorCount} colours, a counter in the middle` })),
-  journey: bind("journey", later("getOut", "finish", { generate: journeySettings, buckets: ["short", "standard"], hookKey: "hook", character: true, note: "home is the way out (its HOME is Glass Smash's: the chord, then 1.8 s of celebration); the payoff's words stand beside the mode's own HOME! card, as Power Layers' beside its FREEDOM! banner (docs/agents/STUDIO.md, Known gaps)", scene: (s) => `one ball with a face at the top of a column of ${s.journeyStages.split(",").length - 1} stages, a door at the bottom` })),
+  journey: bind("journey", later("getOut", "finish", { generate: journeySettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookB", payoffKey: "ownPayoff.journey", character: true, note: JOURNEY_SIMPLE, scene: (s) => `one ball with a face at the top of a column of ${s.journeyStages.split(",").length - 1} stages, a door marked HOME at the bottom` })),
   // smash
   powerLayers: bind("powerLayers", { format: "smash", strategy: "fixed", tier: "proven", keepHud: null, variants: [["power-layers"]], note: "the layer count is the mode's own HUD" }),
   target: bind("target", later("smash", "finish", { generate: targetSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookVars: (s) => ({ count: s.targetCount }), note: ENDS_AT_FINISH, scene: (s) => `one ball inside a ring of ${s.targetCount} numbered segments, a big number in the middle` })),
   brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'", scene: () => "a few small balls under a wall of bricks that draws a picture" })),
-  spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, buckets: ["short", "standard"], note: "its GLASS CLEARED is the payoff, 2 s before the run's end (planner.ts payoffSecOf)" })),
+  spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
   // fill
   grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill"], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
   paint: bind("paint", later("fill", "finish", { patch: PAINT_FAST, note: "95 % painted" })),
@@ -998,6 +1013,7 @@ function ownRecipe(info: TemplateInfo): BotRecipe | null {
     settings: ownSettingsOf(b),
     hookVars: b.hookVars ?? (() => ({})),
     ...(b.hookKey ? { hookKey: b.hookKey } : {}), // --- templates --- (AI studio step 3) its hook variant, in either ending
+    ...(b.payoffKey ? { payoffKey: b.payoffKey } : {}), // --- templates --- (AI studio step 4b) its own payoff's words
     ...(b.character ? { character: true } : {}),
     formatCopy: true, // --- templates --- (its format's words, its mode's noun)
     copyVars: () => ({ thing: thingKeyOf(b.mode) }),

@@ -268,6 +268,12 @@ export interface BotRecipe {
    * hook, hookB or hookC ("Will Gerald make it home?"). Without it a cliffhanger draws its copy's cliffHook, else its hook.
    */
   hookKey?: string;
+  /**
+   * --- templates --- (AI studio step 4b) The copy key of its payoff's words where its format's do not name its run's moment: a
+   * binding's own payoff (copy.ts OWN_PAYOFF_FIELD: the Journey's "Home! 🏠" for the door marked HOME, not the format's "Out!").
+   * Without it the payoff speaks its copy's `payoff` (planner.ts payoffKeyOf).
+   */
+  payoffKey?: string;
 }
 
 /* seeded helpers ---------------------------------------------------------- */

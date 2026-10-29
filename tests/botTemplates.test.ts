@@ -36,7 +36,7 @@ import {
   type ClipPlan,
 } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, type ActionTrack } from "@/lib/bot/actionTrack";
+import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, modeBannersDrawn, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
 import {
@@ -74,7 +74,7 @@ import { CLAIMS, CLAIM_OF_RECIPE, crewClipOfPlan } from "@/lib/crew/clip";
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { screenView } from "@/lib/crew/dossier";
-import { OWN_HOOK_FIELD } from "@/lib/bot/copy";
+import { OWN_HOOK_FIELD, OWN_PAYOFF_FIELD } from "@/lib/bot/copy";
 import { crowding, drawnHookText, endBannersShown, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
@@ -112,13 +112,19 @@ const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !=
  */
 const GROUP_B_READY: readonly ModeId[] = ["conveyor", "maze", "territory", "landClaim", "bullseye", "box"];
 /**
+ * --- templates --- (AI studio step 4b) The two step 3 hid for what they draw of their own, ready since a setting switches it off
+ * (`journeyHud`, `sgHud`: HUD flags the Simple look turns off): the Journey (its door marked HOME) and Spiral Glass (GLASS CLEARED),
+ * measured and watched as the groups' were.
+ */
+const OVERLAY_READY: readonly ModeId[] = ["journey", "spiralGlass"];
+/**
  * --- templates --- (AI studio step 3) The trial bindings readied with their own settings (group A): each planned on 4 plan seeds
  * on every platform it is offered on, 3 or more passing every gate at Simple 80+ and Playbook 75+, in en, pl and es (the tests
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
  * mini-map and clock crowd the screen (both watched in the render).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", "perfectFit", ...GROUP_B_READY, ...OVERLAY_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
@@ -449,17 +455,37 @@ const BOT_SEARCH_DIGESTS: readonly (readonly [string, number])[] = [
 const BOT_DAY_DIGEST = 4171265516;
 
 describe("the bot's own look", () => {
-  const digest = (value: unknown) => hashString(JSON.stringify(value));
+  /**
+   * --- templates --- (AI studio step 4b) Every settings object carries the two overlay switches since that step (`journeyHud`,
+   * `sgHud`: true, the overlay shown), so a plan's JSON is the one recorded with those two keys added and nothing else: the digest
+   * is of the plan without them – the recorded numbers unchanged –, and every plan below is checked to carry both as true.
+   */
+  const OVERLAY_DEFAULTS: Readonly<Record<string, boolean>> = { journeyHud: true, sgHud: true };
+  const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
+  const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
+  const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
 
   it("plans every recipe byte for byte as before the templates (no search, a search, a day)", { timeout: 120_000 }, () => {
     expect(BOT_DIGESTS.map(([id]) => id)).toEqual(RECIPES.map((r) => r.id));
+    const planned: ClipPlan[] = [];
     for (const [id, a, b] of BOT_DIGESTS) {
       const r = recipeById(id)!;
-      expect(digest(planClip(r, 7, "reels", { copy: COPY.en, search: false, siteUrl: SITE, episode: 4, index: 2 })), id).toBe(a);
-      expect(digest(planClip(r, 11, "tiktok", { copy: COPY.pl, locale: "pl", search: false, siteUrl: SITE, episode: 9, index: 1, ending: "cliffhanger" })), id).toBe(b);
+      const first = planClip(r, 7, "reels", { copy: COPY.en, search: false, siteUrl: SITE, episode: 4, index: 2 });
+      const second = planClip(r, 11, "tiktok", { copy: COPY.pl, locale: "pl", search: false, siteUrl: SITE, episode: 9, index: 1, ending: "cliffhanger" });
+      planned.push(first, second);
+      expect(digest(first), id).toBe(a);
+      expect(digest(second), id).toBe(b);
     }
-    for (const [id, d] of BOT_SEARCH_DIGESTS) expect(digest(planClip(recipeById(id)!, 3, "shorts", { copy, siteUrl: SITE, maxSeeds: 6, episode: 2 })), id).toBe(d);
-    expect(digest(planDay("2026-10-20", "reels", 3, { copy, siteUrl: SITE, search: false, family: "all" }))).toBe(BOT_DAY_DIGEST);
+    for (const [id, d] of BOT_SEARCH_DIGESTS) {
+      const searched = planClip(recipeById(id)!, 3, "shorts", { copy, siteUrl: SITE, maxSeeds: 6, episode: 2 });
+      planned.push(searched);
+      expect(digest(searched), id).toBe(d);
+    }
+    const day = planDay("2026-10-20", "reels", 3, { copy, siteUrl: SITE, search: false, family: "all" });
+    planned.push(...day.clips);
+    expect(digest(day)).toBe(BOT_DAY_DIGEST);
+    // (--- templates --- AI studio step 4b: the two keys the digest leaves out, as every default has them: the overlays shown)
+    expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
   });
 
   it("is the default: look 'bot' plans what no look plans", () => {
@@ -924,7 +950,7 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
 // binding the planner plans while it is not yet offered
 describe("the outcome and atEnd strategies, a binding's own settings and the experimental table", () => {
   /**
-   * The experimental table as this release has it: 27 of the 32 bindings without a recipe. Shrink only – a binding leaves the table
+   * The experimental table as this release has it: 19 of the 32 bindings without a recipe. Shrink only – a binding leaves the table
    * (and may leave this list) when its planning acceptance passes; one that joins the table fails here.
    */
   // (--- templates --- AI studio step 3: five of group A's trial bindings left it, planned on 3 of 4 seeds on every platform and
@@ -932,7 +958,8 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // own banners, mini-map and clock)
   // (--- templates --- AI studio step 4: seven of group B left it, planned on 3 of 4 seeds on every platform and watched; Merge Ring
   // stays, with its own question under the ring)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["journey", "paint", "spiralGlass", "mergeRing", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
+  // (--- templates --- AI studio step 4b: the Journey and Spiral Glass left it, their own overlays switched off in the Simple look)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "starChords", "ellipseFoci", "hoops", "orbGrid", "colourSort", "doublePendulum", "beatDrop", "beatMachine", "runner", "vortex", "collide", "waveTank", "lines", "drawingMachine", "illusion", "blueprint"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -1155,13 +1182,13 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
     const facts = simulateFacts(finderRequestOfSettings(fit.settings, fit.world, horizon), fit.seed, { strategy: "outcome", outcome: "most-on-floor" }, horizon);
     expect([facts.fillSec > 0, facts.fillSec]).toEqual([true, facts.outcomeRun!.atSec]);
     expect(fit.payoff.atSec).toBeCloseTo(facts.fillSec, 9);
-    // Journey (experimental: its own HUD): HOME, then 1.8 s of celebration before its run ends (Glass Smash's), so a resolved clip shows it
+    // Journey (its own overlay off in the Simple look): HOME, then 1.8 s of celebration before its run ends (Glass Smash's), so a resolved clip shows it
     const home = planClip(plannedRecipe(templateById("get-out-journey")!)!, 1, "reels", { copy, look: "simple", template: "get-out-journey", episode: 3, index: 1, ending: "resolved" });
     const jh = home.timing.clipSec + 3;
     const journey = simulateFacts(finderRequestOfSettings(home.settings, home.world, jh), home.seed, { strategy: "finish" }, jh);
     expect([home.ending, journey.homeSec > 0, journey.finishSec - journey.homeSec > 1.5]).toEqual(["resolved", true, true]);
     expect(home.payoff.atSec).toBeCloseTo(journey.homeSec, 9);
-    // Spiral Glass (experimental: its own question over the spiral): GLASS CLEARED 2 s before the run finishes
+    // Spiral Glass (its own overlay off in the Simple look): GLASS CLEARED 2 s before the run finishes
     const spiral = planClip(plannedRecipe(templateById("smash-spiral-glass")!)!, 1, "reels", { copy, look: "simple", template: "smash-spiral-glass", episode: 3, index: 1, ending: "resolved" });
     const sh = spiral.timing.clipSec + 3;
     const sg = simulateFacts(finderRequestOfSettings(spiral.settings, spiral.world, sh), spiral.seed, { strategy: "finish" }, sh);
@@ -1174,8 +1201,9 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
 
   it("keeps Paint experimental and Grow's fill that ends its run hidden, with their reasons: the run ends at the fill, so a resolved clip shows it for the recorder's 0.5 s (G2)", () => {
     expect(EXPERIMENTAL.paint).toMatch(/95 %.*0\.5 s.*G2/);
-    // (and the two hidden after watching their render: what they draw of their own, which no setting switches off)
-    expect([EXPERIMENTAL.spiralGlass, EXPERIMENTAL.journey]).toEqual([expect.stringMatching(/Will the ball multiply\?.*watched/), expect.stringMatching(/banner.*mini-map.*clock.*watched/)]);
+    // (--- templates --- AI studio step 4b: the two hidden after watching their render left the table once a setting switched off
+    // what they draw of their own, which the Simple look does: tests below, "the overlay switches")
+    expect([EXPERIMENTAL.spiralGlass, EXPERIMENTAL.journey]).toEqual([undefined, undefined]);
     const grow = templateById("fill-grow-fills")!;
     expect([grow.ready, grow.binding.ready, grow.binding.variants.find((v) => v.id === grow.id)!.hidden]).toEqual([false, true, expect.stringMatching(/0\.5 s.*G2/)]);
     // the reasons still hold (when they no longer do, they may be shown): every plan fails G2, timed by the fill that ends the run
@@ -1308,10 +1336,11 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
 
   it("speaks with a hook of its own where its format's three do not say what its run does: ViralBot.ownHooks in en, pl and es", () => {
     const own = allTemplates().map((t) => variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id)).hookKey as string | undefined).filter((k): k is string => !!k && k.startsWith(OWN_HOOK_FIELD));
-    expect(own.sort()).toEqual(["own.box", "own.mergeRing"]);
+    // (--- templates --- AI studio step 4b: and Spiral Glass's, the question its own overlay asked)
+    expect(own.sort()).toEqual(["own.box", "own.mergeRing", "own.spiralGlass"]);
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box"]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass"]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
@@ -1366,5 +1395,78 @@ describe("one ending: a mode's own end banner", () => {
     const settled = endBannersShown(crewClipOfPlan(drop, { run: dropRun }));
     expect([settled.length, settled[0]?.start]).toEqual([1, dropRun.finishSec]);
     expect([drop.captionRoles.includes("payoff"), drop.payoff.text]).toEqual([false, ""]);
+  });
+});
+
+// --- templates --- (AI studio step 4b) the two step 3 hid for what they draw of their own, ready since a setting switches it off:
+// the Journey (its stage banners, mini-map, clock and HOME! card: journeyHud) and Spiral Glass (its question over the spiral, its
+// title, tiles left and progress ring: sgHud), both HUD flags the Simple look turns off as the others
+describe("the overlay switches: the Journey and Spiral Glass in the Simple look", () => {
+  const OVERLAY = [["get-out-journey", "journeyHud"], ["smash-spiral-glass", "sgHud"]] as const;
+
+  it("offers both, resolved only, their overlay off in the Simple look and on in the bot look; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
+    expect(OVERLAY.map(([id]) => templateById(id)!.mode)).toEqual([...OVERLAY_READY]);
+    for (const [id, flag] of OVERLAY) {
+      const t = templateById(id)!;
+      const r = templateRecipeById(id)!;
+      expect([id, t.ready, t.binding.tier, r.formatCopy, r.wraps, r.endings]).toEqual([id, true, "trial", true, undefined, ["resolved"]]);
+      const platforms = platformsOf(id);
+      expect(platforms).toEqual([...BOT_PLATFORMS]);
+      for (const seed of [1, 2, 3, 4]) {
+        const platform = platforms[(seed - 1) % platforms.length];
+        const options = { copy, episode: 3, index: seed };
+        const plan = planTemplate(id, seed, platform, options);
+        const where = `${id}/${platform}/${seed}`;
+        expect(JSON.stringify(planTemplate(id, seed, platform, options)), where).toBe(JSON.stringify(plan));
+        expect(rangeViolations(plan.settings), where).toEqual([]);
+        expect([where, plan.ending, plan.settings[flag], hudsOn(plan.settings).filter((h) => h.flag)]).toEqual([where, "resolved", false, []]);
+        // the bot look keeps the mode's overlay, as every link, preset and the daily bot do
+        expect([where, planTemplate(id, seed, platform, { ...options, look: "bot", search: false }).settings[flag]]).toEqual([where, true]);
+      }
+      await breathe();
+    }
+    // neither is in the battle family: both are offered by default
+    expect(readyTemplates().map((t) => t.id).filter((id) => OVERLAY.some(([o]) => o === id)).sort()).toEqual(["get-out-journey", "smash-spiral-glass"]);
+  });
+
+  it("says HOME where the Journey's card did: its hook b and its own payoff words, in en, pl and es", () => {
+    const binding = MODE_TEMPLATES.journey;
+    expect([binding.hookKey, binding.payoffKey, binding.endings]).toEqual(["hookB", `${OWN_PAYOFF_FIELD}journey`, ["resolved"]]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const words = (COPY[locale] as unknown as { ownPayoffs: Record<string, string> }).ownPayoffs;
+      expect([locale, Object.keys(words)]).toEqual([locale, ["journey"]]);
+      const plan = planTemplate("get-out-journey", 1, "reels", { copy: COPY[locale], locale, episode: 3, index: 1 });
+      const where = `${locale}: "${plan.payoff.text}"`;
+      // its own words, drawn whole (one clause), as the clip's one ending: no HOME! card beside them with the overlay off
+      expect([where, plan.payoff.text, simplePayoffText(words.journey), plan.captionRoles.includes("payoff")]).toEqual([where, words.journey, words.journey, true]);
+      expect(endBannersIn(plan.settings, { ending: "resolved", payoffSec: plan.payoff.atSec, clipSec: plan.timing.clipSec, runEndSec: null })).toEqual([]);
+      expect([where, wordCount(plan.hook) <= SIMPLE_TEXT.hookWordsMax, plan.hook.includes("Gerald")]).toEqual([where, true, true]);
+    }
+    expect(planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1 }).hook).toBe("Will Gerald make it home?");
+    // the bot look keeps its HOME! card, and its own payoff words beside it as before
+    const bot = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
+    expect([bot.payoff.text, endBannersIn(bot.settings, { ending: "resolved", payoffSec: bot.payoff.atSec, clipSec: bot.timing.clipSec, runEndSec: null }).length]).toEqual(["Home! 🏠", 1]);
+  });
+
+  it("asks the question Spiral Glass's overlay asked, in en, pl and es, and ends on its GLASS CLEARED with no words beside it", () => {
+    const messages = { en, pl, es } as const;
+    expect([MODE_TEMPLATES.spiralGlass.hookKey, MODE_TEMPLATES.spiralGlass.endings]).toEqual([`${OWN_HOOK_FIELD}spiralGlass`, ["resolved"]]);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const plan = planTemplate("smash-spiral-glass", 2, "reels", { copy: COPY[locale], locale, episode: 3, index: 2 });
+      const where = `${locale}: "${plan.hook}"`;
+      expect([where, plan.hook]).toEqual([where, messages[locale].SpiralGlass.caption]);
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const clip = crewClipOfPlan(plan, { run });
+      expect([where, plan.captionRoles.includes("payoff"), plan.payoff.text, endBannersShown(clip).map((b) => b.banner.words)]).toEqual([where, false, "", [expect.stringContaining("GLASS CLEARED")]]);
+    }
+  });
+
+  it("keeps no stage banner on the Journey's action track with its overlay off, so its hook takes the top, clear of nothing it would cover", () => {
+    const plan = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1 });
+    expect([modeBannersDrawn(plan.settings), "banners" in actionTrackSync(plan.settings, plan.seed, plan.world, 4)]).toEqual([false, false]);
+    const bot = planTemplate("get-out-journey", 1, "reels", { copy, episode: 3, index: 1, look: "bot" });
+    expect([modeBannersDrawn(bot.settings), "banners" in actionTrackSync(bot.settings, bot.seed, bot.world, 4)]).toEqual([true, true]);
+    const hook = plan.captionRoles.flatMap((r, i) => (r === "hook" ? [i] : []));
+    expect(hook.map((i) => plan.settings.captions[i].position)).toEqual(hook.map(() => "top"));
   });
 });

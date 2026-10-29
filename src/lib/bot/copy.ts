@@ -87,6 +87,13 @@ export const FORMAT_PLACEHOLDERS = ["thing", "count", "seconds", "name", "winner
  */
 export const OWN_HOOK_FIELD = "own.";
 
+/**
+ * --- templates --- (AI studio step 4b) The field of a binding's own payoff: `ownPayoff.<key>` reads `ViralBot.ownPayoffs.<key>`
+ * ("Home! 🏠"), for a binding whose run's moment its format's payoff does not name (templates.ts payoffKey: the Journey's door
+ * marked HOME, where the get-out format says "Out!").
+ */
+export const OWN_PAYOFF_FIELD = "ownPayoff.";
+
 /** A recipe's field a format's copy does not have, and the one that stands in for it: its name is its series, its closing question a cliffhanger's post question. */
 const FORMAT_STAND_INS: Readonly<Record<string, FormatCopyField>> = { series: "name", cliffPostQuestion: "cliffQuestion" };
 
@@ -120,6 +127,8 @@ function fillSentences(template: string, vars: Readonly<Record<string, string | 
 export function formatText(copy: BotCopy, format: string, field: string, vars: Readonly<Record<string, string | number>> = {}): string {
   // --- templates --- (AI studio step 4) a binding's own hook, where its format's three do not say what its run does (OWN_HOOK_FIELD)
   if (field.startsWith(OWN_HOOK_FIELD)) return fillSentences(copyString(copy, `ownHooks.${field.slice(OWN_HOOK_FIELD.length)}`), vars);
+  // --- templates --- (AI studio step 4b) a binding's own payoff, where its format's does not name its run's moment (OWN_PAYOFF_FIELD)
+  if (field.startsWith(OWN_PAYOFF_FIELD)) return fillSentences(copyString(copy, `ownPayoffs.${field.slice(OWN_PAYOFF_FIELD.length)}`), vars);
   const own = copyString(copy, `formats.${format}.${field}`);
   const standIn = FORMAT_STAND_INS[field];
   return fillSentences(own || (standIn ? copyString(copy, `formats.${format}.${standIn}`) : ""), vars);

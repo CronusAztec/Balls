@@ -345,6 +345,12 @@ export interface CanvasProps {
   paintPicture?: string | null;
   /** Opacity of the greyscale ghost of the unrevealed picture. */
   paintGhost?: number;
+  // --- templates --- (AI studio step 4b) the modes' own overlays (the settings `journeyHud` and `sgHud`): drawn unless false. Draw-only:
+  // the engine never sees them, so the run is the same either way
+  /** Journey: the stage banners, the stage names at the wall, the mini-map, the clock and score, and the HOME! card. */
+  journeyHud?: boolean;
+  /** Spiral Glass: the title and the tiles left, the progress ring and the question over the spiral (GLASS CLEARED stays). */
+  sgHud?: boolean;
   // --- gerald-faces ---
   /** Ball characters: face, name label and squash (null = none); see lib/character and faceRenderer.ts. */
   character?: CharacterRenderOptions | null;
@@ -539,6 +545,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     labels,
     paintPicture = null,
     paintGhost = 0.12,
+    journeyHud = true, // --- templates --- (AI studio step 4b)
+    sgHud = true, // --- templates --- (AI studio step 4b)
     character = null,
     onCharacterChirp,
     // --- themes
@@ -705,6 +713,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     simSpeed,
     cameraFollow,
     paintGhost,
+    journeyHud, // --- templates --- (AI studio step 4b)
+    sgHud,
   });
   useEffect(() => {
     propsRef.current = {
@@ -731,6 +741,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       simSpeed,
       cameraFollow,
       paintGhost,
+      journeyHud, // --- templates --- (AI studio step 4b)
+      sgHud,
     };
   }, [
     showTrails,
@@ -756,6 +768,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     simSpeed,
     cameraFollow,
     paintGhost,
+    journeyHud, // --- templates --- (AI studio step 4b)
+    sgHud,
   ]);
 
   const circleRgbRef = useRef(hexToRgb(circleColor));
@@ -2041,6 +2055,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         journeyRender.multLabels = JL.multipliers ?? DEFAULT_MULTIPLIER_LABELS;
         journeyRender.gapSize = engine.config.gapSize;
         journeyRender.ballRadius = drawnBalls[0]?.radius ?? (engine.config.ballRadius || 8);
+        journeyRender.stageLabels = p.journeyHud; // --- templates --- (AI studio step 4b) the stage names at the wall are the overlay's
         journeyLayer.drawWorld(ctx, journeyView, journeyRender, JL.journey ?? DEFAULT_JOURNEY_LABELS, size.height);
       }
       // --- gerald-bullseye --- Bullseye: the bumper rings, the landing line, the target and the launcher under the balls.
@@ -2938,13 +2953,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !!loopHudRef.current /* --- funnel-spin --- (the ring release's words are the HUD's) */);
       // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
-      if (journeyView) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
+      // (--- templates --- AI studio step 4b: none of them with its overlay switched off)
+      if (journeyView && p.journeyHud) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
       // --- gerald-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
       if (bullseyeView) bullseyeLayer.drawOverlay(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- merge-ring --- Merge Ring: the merge counter, the top tier, the ladder and the caption (screen space, part of the recording).
       if (mergeRingView) mergeRingLayer.drawOverlay(ctx, mergeRingView, (labelsRef.current ?? DEFAULT_LABELS).mergeRing ?? DEFAULT_MERGE_RING_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- spiral-glass --- Spiral Glass: the tiles left, the progress ring and the caption (screen space, part of the recording).
-      if (spiralGlassView) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // (--- templates --- AI studio step 4b: none of them with its overlay switched off; the badge and GLASS CLEARED stay)
+      if (spiralGlassView && p.sgHud) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- blueprint --- Mode Lab: the title, the HUD counters, the clock, ARENA FULL and the end banner (screen space, part of the recording).
       // (--- review fix (blueprint) --- a recorded or exported frame keeps the HUD inside the square: the clip is the square alone)
       if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, recordingRef.current || !!offline);
@@ -3265,7 +3282,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
         }
         // --- gerald-journey --- Journey: Gerald is HOME – the stages, the total time and the score.
-        if (journeyView && journeyView.homeReached) {
+        // (--- templates --- AI studio step 4b: the overlay's card, gone with it – the door marked HOME is the picture's)
+        if (journeyView && journeyView.homeReached && p.journeyHud) {
           const JL = L.journey ?? DEFAULT_JOURNEY_LABELS;
           bigBanner(JL.homeTitle, JL.homeSub(journeyView.stages.length, (journeyView.homeAtMs / 1000).toFixed(1), journeyView.score), "#a3e635");
         }
@@ -3905,8 +3923,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (vortexView) writeVortexDataset(vortexView, setCanvasData);
       else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];
       // --- gerald-journey --- stage, stages, kind, sequence, swooshes, score, HOME and its time, finished, camera, notes (data-journey-*)
-      if (journeyView) writeJourneyDataset(journeyView, setCanvasData);
-      else if (canvas.dataset.journeyStage !== undefined) for (const key of JOURNEY_DATA_KEYS) delete canvas.dataset[key];
+      if (journeyView) {
+        writeJourneyDataset(journeyView, setCanvasData);
+        setCanvasData("journeyHud", p.journeyHud ? "1" : "0"); // --- templates --- (AI studio step 4b) the overlay drawn (1) or switched off (0)
+      } else if (canvas.dataset.journeyStage !== undefined) {
+        for (const key of JOURNEY_DATA_KEYS) delete canvas.dataset[key];
+        delete canvas.dataset.journeyHud; // --- templates ---
+      }
       // --- gerald-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
       if (bullseyeView) bullseyeData.write(bullseyeView, setCanvasData);
       else if (canvas.dataset.bullseyeShots !== undefined) for (const key of BULLSEYE_DATA_KEYS) delete canvas.dataset[key];
@@ -3914,8 +3937,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (mergeRingView) mergeRingData.write(mergeRingView, setCanvasData);
       else if (canvas.dataset.mergeTiers !== undefined) for (const key of MERGE_RING_DATA_KEYS) delete canvas.dataset[key];
       // --- spiral-glass --- count, balls, tiles, hp, chips, shatters, notes, cleared, timeout, finished (data-spiral-*)
-      if (spiralGlassView) spiralGlassData.write(spiralGlassView, setCanvasData);
-      else if (canvas.dataset.spiralCount !== undefined) for (const key of SPIRAL_GLASS_DATA_KEYS) delete canvas.dataset[key];
+      if (spiralGlassView) {
+        spiralGlassData.write(spiralGlassView, setCanvasData);
+        setCanvasData("spiralHud", p.sgHud ? "1" : "0"); // --- templates --- (AI studio step 4b) the overlay drawn (1) or switched off (0)
+      } else if (canvas.dataset.spiralCount !== undefined) {
+        for (const key of SPIRAL_GLASS_DATA_KEYS) delete canvas.dataset[key];
+        delete canvas.dataset.spiralHud; // --- templates ---
+      }
       // --- blueprint --- name, catalog, finished, reason, result, banner, HUD, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
       if (blueprintView) blueprintData.write(blueprintView, setCanvasData, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS);
       else if (canvas.dataset.blueprintFinished !== undefined) for (const key of BLUEPRINT_DATA_KEYS) delete canvas.dataset[key];
@@ -4006,7 +4034,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
         else if (realTimeBadge) noteCornerReadouts(hud, liveSquare, true, 1, recording ? 0 : 52); // --- slow-motion --- (the real-time badge alone)
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);
-        if (journeyView) noteJourneyHud(hud, journeyView.field);
+        if (journeyView && p.journeyHud) noteJourneyHud(hud, journeyView.field); // (--- templates --- AI studio step 4b: none switched off)
         if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);
         if (multBoard) noteHomeCounter(hud, liveSquare);
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
@@ -4017,7 +4045,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
           mergeRingLayer.noteHud(hud);
         }
-        if (spiralGlassView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass ---
+        if (spiralGlassView && p.sgHud) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass --- (--- templates --- AI studio step 4b: none switched off)
         if (blueprintView) blueprintLayer.noteHud(hud, liveSquare, titleInset); // --- blueprint --- (the title, the HUD counters, the clock and ARENA FULL)
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");

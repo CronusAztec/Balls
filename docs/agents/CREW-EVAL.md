@@ -520,7 +520,7 @@ seed 3 again found no fill in time, so 17 of 18 passed every gate, as before.
 ### claude-opus-5-5-2026-10-29-step4
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-step4 -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -568,3 +568,45 @@ the clip (lib/crew/eval.ts): a twin cut shorter keeps facts of its own length, a
 The code's ideas mix 6 formats a request (5) with the aim format on the menu; the brainstormer pitched Bouncing Shapes,
 Bullseye and the conveyor among its ideas and mixed 3 formats a request (2.67). Its Grow clip on plan seed 3 again found no
 fill in time, so 17 of 18 passed every gate, as before.
+
+### claude-opus-5-5-2026-10-29-step4b
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-step4b -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 0ad98c82ecffd9ab.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 1 of 40 (3%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 1 of 40 (3%) | 0 of 40 (0%) | 1 of 40 (3%) | 10 / 14 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 17 of 18 (94%) | 3 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-step4b -->
+
+AI studio step 4b readied the Journey's and Spiral Glass's templates (each mode's own overlay switched off in the Simple look),
+and both joined the brainstormer's menu, so its three briefs changed. Nothing else did: the corpus is made of the proven
+templates' clips and did not change by a byte. The same model answered the three briefs again in one context. It pitched
+Spiral Glass among its satisfying clips, in the conveyor's place, and the Journey and Spiral Glass among the clips where
+something gets out or breaks, in place of Shatter and Brick Smash (Shatter's hook would have opened with the same three words
+as Spiral Glass's), and kept its six calm ideas. The other 234 answers are step 4's, and step 4's run stays above as history.
+No number moved: 17 of 18 of its ideas passed every gate, as before, in 3 formats a request.

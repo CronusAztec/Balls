@@ -759,6 +759,12 @@ export interface SimulatorSettings {
   journeyStages: string;
   /** 0: play the list; 1–12: a seeded random journey of that many stages before HOME (URL `jsa`). */
   journeyAutoStages: number;
+  /**
+   * --- templates --- (AI studio step 4b) The Journey's own overlay: the stage banners, the stage names, the mini-map, the clock
+   * and score, and the HOME! card at the end (URL `jshud`, written only as `jshud=0`). Draw-only: the canvas reads it, the
+   * engine never sees it, so a run is the same either way.
+   */
+  journeyHud: boolean;
   // --- end gerald-journey ---
   // --- gerald-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
   /** Balls launched at the target, 1–30 (URL `bys`). */
@@ -799,6 +805,12 @@ export interface SimulatorSettings {
   sgRainbow: boolean;
   /** Seconds of contact per hit point chipped, 0.1–1 (URL `sgc`). */
   sgChipEvery: number;
+  /**
+   * --- templates --- (AI studio step 4b) Spiral Glass's own overlay: its title and the tiles left, the progress ring and the
+   * question over the spiral (URL `sghud`, written only as `sghud=0`). Draw-only, as `journeyHud`: the GLASS CLEARED banner and
+   * the ball count at the entrance stay, and the run is the same either way.
+   */
+  sgHud: boolean;
   // --- end spiral-glass ---
   // --- blueprint --- Mode Lab (lib/physics/modes/blueprint.ts): a game mode described as data, played by one sandboxed interpreter
   /** The catalog entry played when there is no spec of a link (lib/blueprint/catalog; URL `blp`). */
@@ -1454,6 +1466,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
     slowMotion: true, // --- slow-motion --- (on: every slow-motion moment, as always; out here, past the core literal's fast-path limit)
+    // --- templates --- (AI studio step 4b) the Journey's and Spiral Glass's own overlays, shown as always (out here too)
+    journeyHud: true,
+    sgHud: true,
     // --- unlimited-sizes --- the growth caps as settings, each at the old constant (out here too, past the fast-path limit)
     ...defaultGrowthCapFields(),
     cpRingCount: RING_MAX_BODIES,
@@ -1464,7 +1479,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
   return {
     mode,
     gravity: 300,
@@ -1873,6 +1888,9 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   ne: "neverEscape", // --- rigged ---
   [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1` (--- unlimited-sizes --- written only as `inf=0`: on is the default)
   smo: "slowMotion", // --- slow-motion --- only ever written as `smo=0` (on is the default)
+  // --- templates --- (AI studio step 4b) the modes' own overlays, only ever written as `=0` (shown is the default)
+  jshud: "journeyHud",
+  sghud: "sgHud",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -1946,10 +1964,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- gerald-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   writeFunnelSpinParams(settings, base, params); // --- funnel-spin ---: vxrl, vxv, vxw, vxwi, vxfd, vxe, vxsf, vxfl, vxh, vxrg, vxlr
-  writeJourneyParams(settings, base, params); // --- gerald-journey ---: js, jsa
+  writeJourneyParams(settings, base, params); // --- gerald-journey ---: js, jsa (--- templates --- the overlay's jshud is a BOOLEAN_URL_KEYS key)
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeMergeRingParams(settings, base, params); // --- merge-ring ---: mrt, mri, mrs, mrg, mrr
-  writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr
+  writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr (--- templates --- the overlay's sghud is a BOOLEAN_URL_KEYS key)
   writeBlueprintParams(settings, base, params); // --- blueprint ---: blp, bls, blv
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
@@ -2679,6 +2697,9 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   merged.slowMotion = preset.slowMotion !== false; // --- slow-motion --- a real boolean: only false turns it off (a preset, file or journal from before it is on)
+  // --- templates --- (AI studio step 4b) real booleans: only false hides an overlay (a link, preset, file or plan from before them shows it)
+  merged.journeyHud = preset.journeyHud !== false;
+  merged.sgHud = preset.sgHud !== false;
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)
   return merged;
 }

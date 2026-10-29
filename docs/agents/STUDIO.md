@@ -391,11 +391,17 @@ What the run showed:
   at the edge where it covers the banner for less time, before it weighs the balls. Glass's hooks moved to the bottom of the
   square, so the role eval's four Glass clips changed (`docs/agents/CREW-EVAL.md`, run step3). The banners the track knows
   are these two: a mode's other texts of its own are not in it (below).
-- **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Spiral Glass asks "Will the ball
-  multiply?" over its spiral for the whole run, and the Journey shows a mini-map, a clock and every stage's label. Merge Ring
-  (AI studio step 4) asks "Will it merge into its final form?" under its ring for the whole run, beside its title, its merge
-  count and its ladder of sizes. Their templates passed every gate and were hidden after the render was watched
-  (docs/virality-playbook.md §5). Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
+- **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Merge Ring (AI studio step 4) asks
+  "Will it merge into its final form?" under its ring for the whole run, beside its title, its merge count and its ladder of
+  sizes. Its template passed every gate and was hidden after the render was watched (docs/virality-playbook.md §5). Spiral
+  Glass and the Journey were hidden for the same reason in step 3. Since AI studio step 4b a setting switches each one's own
+  overlay off (`sgHud`, link `sghud=0`: its question over the spiral, its title, tiles left and progress ring; `journeyHud`,
+  link `jshud=0`: the stage banners and names, the mini-map, the clock and the HOME! card). Both are HUD flags
+  (`HUD_FLAGS` in `src/lib/crew/hudFlags.ts`), so the Simple look turns them off as it does the others, and both are drawn
+  only: the canvas reads them, the engine never sees them, so the run and every fingerprint are the same either way. Their
+  templates are ready: Spiral Glass's hook asks the question its overlay asked and ends on its GLASS CLEARED, the Journey's
+  asks "Will Gerald make it home?" and its payoff's own words say "Home! 🏠" where the card did. Merge Ring could get the same
+  switch. Perfect Fit labels its box ("4 × 15 / one of 368 ways") under it, where neither the Simple
   score nor the screen view sees it: its hook sits at the top, over the tray of pieces that wait still, never over the label.
   The Maze's banner keeps its deadpan line ("who else thought that was blood") under the winner's name though its template
   colours each ball's trail its own (watched: the line is the mode's, and the trail it jokes about is red only by default).

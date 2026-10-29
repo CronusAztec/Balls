@@ -58,6 +58,11 @@ export interface JourneyRenderOptions {
   /** The Gap Size setting and the ball's radius: a rings stage's outline before it goes live shows the gaps it will have. */
   gapSize: number;
   ballRadius: number;
+  /**
+   * --- templates --- (AI studio step 4b) Each stage's number and name at the wall ("2 · PEGS"): part of the mode's own overlay, so
+   * the setting `journeyHud` switches them off with the banners, the mini-map and the clock (the dashed lines between the stages stay).
+   */
+  stageLabels?: boolean;
 }
 
 /** Glyph of each stage kind on the mini-map. */
@@ -142,6 +147,7 @@ export class JourneyLayer implements StagePainter {
         ctx.stroke();
         ctx.setLineDash(NO_DASH);
       }
+      if (opts.stageLabels === false) continue; // --- templates --- (AI studio step 4b)
       ctx.globalAlpha = i === view.active ? 0.6 : 0.34;
       ctx.fillStyle = STAGE_COLORS[view.stages[i].kind];
       ctx.fillText(`${i + 1} · ${labels.names[view.stages[i].kind].toUpperCase()}`, f.left + 6, b.top + 4);

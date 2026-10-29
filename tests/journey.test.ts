@@ -45,6 +45,17 @@ import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverF
 import { SWOOSH_TONE, scheduleSwooshTone } from "@/lib/audio/swooshTone";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
+import { DEFAULT_JOURNEY_LABELS, JourneyLayer } from "@/components/simulator/journeyRenderer"; // --- templates --- (AI studio step 4b)
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest"; // --- templates --- (AI studio step 4b)
+import { actionTrackSync, modeBannersDrawn } from "@/lib/bot/actionTrack"; // --- templates --- (AI studio step 4b)
+import { simpleLookPatch } from "@/lib/bot/templates"; // --- templates --- (AI studio step 4b)
+import { endBannersOf, hudsOn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4b)
+import { runFactsSync } from "@/lib/insights/score"; // --- templates --- (AI studio step 4b)
+import { buildProject, parseProject } from "@/lib/project"; // --- templates --- (AI studio step 4b)
+import { assistantSettings, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch"; // --- templates --- (AI studio step 4b)
+import { BASELINE_FILE, fingerprintOf, parseBaselineLiteral } from "@/lib/agentKit/fingerprint"; // --- templates --- (AI studio step 4b)
+import fs from "fs"; // --- templates --- (AI studio step 4b)
+import path from "path"; // --- templates --- (AI studio step 4b)
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -931,5 +942,73 @@ describe("the swoosh", () => {
     playSoundEvent(audio, { type: "hit", wallIndex: 0, swoosh: true, melody: false }, () => calls.push("break"));
     playSoundEvent(audio, { type: "hit", wallIndex: 0, frequency: 262 }, () => calls.push("break"));
     expect(calls).toEqual(["swoosh", "hit 0 262"]);
+  });
+});
+
+/* ------------------------------------------------------------------ --- templates --- (AI studio step 4b) the overlay switch */
+
+// The Journey's own overlay – the stage banners and names, the mini-map, the clock and score, the HOME! card – behind one setting
+// (`journeyHud`, link `jshud=0`), so a template can play it in the Simple look. Shown by default, so every link, preset, project and
+// the daily bot look as before; drawn only (Canvas.tsx reads it, the engine never sees it), so the run is the same either way.
+describe("the overlay switch (journeyHud, --- templates --- AI studio step 4b)", () => {
+  const on = () => ({ ...defaultSettings("journey"), journeyStages: "pegs-s,glass-s,home" });
+  const off = () => ({ ...on(), journeyHud: false });
+
+  it("shows the overlay by default and travels in a link only as jshud=0; presets, project files and the app AI's patches keep it", () => {
+    for (const mode of MODE_IDS) expect([mode, defaultSettings(mode).journeyHud, settingsToSearchParams(defaultSettings(mode)).has("jshud")]).toEqual([mode, true, false]);
+    const params = settingsToSearchParams(off());
+    expect(params.get("jshud")).toBe("0");
+    expect(settingsFromSearchParams(params).journeyHud).toBe(false);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=journey&jshud=1")).journeyHud).toBe(true);
+    for (const junk of ["", "no", "false", "2"]) expect([junk, settingsFromSearchParams(new URLSearchParams(`mode=journey&jshud=${junk}`)).journeyHud]).toEqual([junk, true]);
+    // presetToSettings, the last word for presets, files and share codes: only false hides it
+    expect(presetToSettings({ mode: "journey", journeyHud: false }).journeyHud).toBe(false);
+    for (const junk of [undefined, null, 0, "0", "off"]) expect([String(junk), presetToSettings({ mode: "journey", journeyHud: junk as unknown as boolean }).journeyHud]).toEqual([String(junk), true]);
+    const parsed = parseProject(JSON.stringify(buildProject({ name: "calm", settings: off() })));
+    expect(parsed.ok && parsed.project.settings.journeyHud).toBe(false);
+    // the app AI's patches take it, and its prompt lists it on a Journey page (the mode's block)
+    expect(validateSettingsPatch(on(), { journeyHud: false })).toEqual({ ok: true, patch: { journeyHud: false } });
+    expect(validateSettingsPatch(on(), { journeyHud: "off" }).ok).toBe(false);
+    expect(assistantSettings(on()).map(([k]) => k)).toEqual(expect.arrayContaining(["journeyAutoStages", "journeyHud"]));
+    expect(assistantSettings(on()).map(([k]) => k)).not.toContain("journeyStages");
+  });
+
+  it("is drawn only: the engine's request, the run's facts and the fingerprint are the same with it on and off", () => {
+    expect(JSON.stringify(finderRequestOfSettings(off(), undefined, 30))).toBe(JSON.stringify(finderRequestOfSettings(on(), undefined, 30)));
+    for (const seed of [1, 7]) expect(runFactsSync(off(), seed)).toEqual(runFactsSync(on(), seed));
+    // the mode's fingerprint is the BASELINE's (the fingerprint tool's own check), whatever the switch: it never reaches the engine
+    const baseline = parseBaselineLiteral(fs.readFileSync(path.resolve(__dirname, "..", BASELINE_FILE), "utf8"));
+    expect(fingerprintOf("journey")).toEqual(baseline.journey);
+  });
+
+  it("is a HUD flag the Simple look switches off, and its HOME! card and stage banners go with it", () => {
+    expect(hudsOn(on()).filter((h) => h.flag).map((h) => h.id)).toEqual(["journeyHud"]);
+    expect(hudsOn(off()).filter((h) => h.flag)).toEqual([]);
+    expect(simpleLookPatch(on(), "picture")).toMatchObject({ journeyHud: false });
+    expect(endBannersOf(on()).map((b) => b.words)).toEqual([expect.stringContaining("HOME!")]);
+    expect(endBannersOf(off())).toEqual([]);
+    // the run's action track keeps no stage banner its clip never shows
+    expect([modeBannersDrawn(on()), modeBannersDrawn(off()), modeBannersDrawn({ mode: "glass", journeyHud: false })]).toEqual([true, false, true]);
+    const shown = actionTrackSync(on(), 3, null, 6);
+    expect(shown.banners?.some((cells) => cells !== "")).toBe(true);
+    expect("banners" in actionTrackSync(off(), 3, null, 6)).toBe(false);
+    expect(actionTrackSync(off(), 3, null, 6).samples).toEqual(shown.samples);
+  });
+
+  it("the renderer leaves the stage names at the wall out with it", () => {
+    const texts: string[] = [];
+    const ctx = new Proxy({} as CanvasRenderingContext2D, {
+      get: (_t, prop) => (typeof prop !== "string" ? undefined : prop === "fillText" ? (text: string) => texts.push(text) : () => undefined),
+      set: () => true,
+    });
+    const engine = journeyEngine({ stages: "pegs,glass,home" }, 2);
+    engine.update(1000 / 60, 0);
+    const view = engine.getJourneyView();
+    const opts = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showWallGlow: false, gapSize: 0.3, ballRadius: 8 };
+    new JourneyLayer().drawWorld(ctx, view, opts, DEFAULT_JOURNEY_LABELS, 600);
+    expect(texts.some((t) => /^1 · PEGS$/.test(t))).toBe(true);
+    texts.length = 0;
+    new JourneyLayer().drawWorld(ctx, view, { ...opts, stageLabels: false }, DEFAULT_JOURNEY_LABELS, 600);
+    expect(texts.filter((t) => / · /.test(t))).toEqual([]);
   });
 });

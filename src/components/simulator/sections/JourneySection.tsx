@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Searchable, Slider, offBtn, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, Toggle, offBtn, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import Tooltip from "../Tooltip";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import {
@@ -31,7 +31,7 @@ export interface JourneySectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const JOURNEY_KEYS = ["journeyStages", "journeyStagesCode", "journeyAutoStages"];
+export const JOURNEY_KEYS = ["journeyStages", "journeyStagesCode", "journeyAutoStages", "journeyHud" /* --- templates --- (AI studio step 4b) */];
 
 const SIZE_KEYS = { s: "journeySizeSmall", m: "journeySizeMedium", l: "journeySizeLarge" } as const;
 const iconBtn = "w-7 h-7 rounded-md text-xs font-bold transition-colors cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed";
@@ -41,8 +41,10 @@ const iconBtn = "w-7 h-7 rounded-md text-xs font-bold transition-colors cursor-p
  * section while the settings search is in use): the stage list top-down – each stage with its size (small, medium,
  * large), arrows to move it up or down and a button to remove it, HOME fixed at the bottom – an "add stage" picker, the
  * compact stage code (`rings,pegs-l,glass-s,home`, the URL's `js`) to paste or copy, and the Random Stages slider that
- * replaces the list with a seeded random journey of that many stages. The values live in SimulatorSettings;
- * Simulator.tsx forwards them to the engine (lib/physics/modes/journey.ts) and restarts the run when they change.
+ * replaces the list with a seeded random journey of that many stages, and – --- templates --- (AI studio step 4b) – the switch of
+ * the mode's own overlay (the stage banners and names, the mini-map, the clock and the HOME! card). The values live in
+ * SimulatorSettings; Simulator.tsx forwards them to the engine (lib/physics/modes/journey.ts) and restarts the run when they
+ * change (the overlay switch is the canvas's alone: Canvas.tsx `journeyHud`).
  */
 export default function JourneySection({ t, search, matches, settings: s, update }: JourneySectionProps) {
   const names = useTranslations("Journey");
@@ -171,6 +173,10 @@ export default function JourneySection({ t, search, matches, settings: s, update
           </div>
         </Searchable>
       )}
+      {/* --- templates --- (AI studio step 4b) the mode's own overlay: drawn only, so it follows live and the run stays the same */}
+      <Searchable search={search} matches={matches} labelKey="journeyHud">
+        <Toggle t={t} labelKey="journeyHud" tipKey="journeyHudTip" value={s.journeyHud} onChange={(v) => update({ journeyHud: v })} />
+      </Searchable>
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed" data-testid="journey-run">
           {auto ? t("journeyRunAuto", { count: s.journeyAutoStages }) : t("journeyRunInfo", { count: last })}
