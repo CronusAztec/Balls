@@ -351,13 +351,62 @@ export function outcomeRunOf(request: FinderRequest, seed: number, kind: FinderO
   const ms = OUTCOME_MOMENTS[kind]?.ms(summary) ?? -1;
   let winner = -1;
   if (kind === "winner") for (let team = 0; team < summary.teams.length; team++) if (outcomeMatches({ ...outcome, team }, summary)) winner = team;
-  const matched = kind === "winner" ? winner >= 0 : outcomeMatches(outcome, summary);
+  // (--- templates --- studio2 review round 2, 6: a mode's own refusal of a run its outcome matched – Colour Sort's stalled sort)
+  const matched = (kind === "winner" ? winner >= 0 : outcomeMatches(outcome, summary)) && !OUTCOME_REFUSALS[request.mode]?.[kind]?.(request, seed, ms);
   const closes = summary.finished || (summary.cycleMs ?? 0) > 0;
   // --- templates --- (AI studio step 5) a run that closes its loop without finishing (Colour Sort: the sort, the chord's hold, the
   // remix) ends the clip on that loop's seam: the page's whole-loop export cuts it there, with no stop after it (clipTiming)
   const seam = !summary.finished && (summary.cycleMs ?? 0) > 0;
   return { summary, facts: { kind, atSec: ms >= 0 ? ms / 1000 : -1, matched, winner, endSec: closes ? outcomeClipSec(outcome, summary) : null, ...(seam ? { seam: true as const } : {}) } };
 }
+
+// --- templates --- (studio2 review round 2, 6)
+/**
+ * The longest a Colour Sort run may go, before its first sort completes, without a ball reaching its own band (s): the census's
+ * longest still stretch. Past it the bands look formed long before the last straggler sets the chord off – the review watched
+ * 5 s of nothing (3.35 s of it silent, no gate's pluck) before a payoff timed to the last ball. Every rise of the census is a
+ * gate's pluck too, so no stretch of a kept seed is silent for longer. Measured at the binding's 160 balls (templates.ts
+ * colourSortSettings), over 40 seeds: the longest still stretch is 1.7 s at the median at the speed of 240 (12 seeds refused)
+ * and 2.55 s at 140 (21 of the 39 that sort refused), so the seed search still finds a seed within its 24: every plan of the
+ * readiness grid did (36 of 36, and 4 of 4 in the studio's world).
+ */
+export const CS_STALL_SEC = 2.5;
+
+/**
+ * Colour Sort's longest still stretch before its first sort completes (s): the seed's run stepped as the page plays it, its
+ * census (the balls in their own band; the gates are one-way, so it only rises) read every step from the start until the sort
+ * completes – at most `sortedMs` (the finder's moment of it) and a second.
+ */
+export function colourSortStallSec(request: FinderRequest, seed: number, sortedMs: number): number {
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  let census = engine.getColourSortView().sorted;
+  let rose = 0;
+  let longest = 0;
+  while (elapsed < sortedMs + 1000) {
+    engine.update(step, 0);
+    elapsed += stepPlaybackMs(engine, step);
+    engine.consumeSoundEvents();
+    const v = engine.getColourSortView();
+    if (v.sorted > census || v.completions > 0) {
+      longest = Math.max(longest, elapsed - rose);
+      rose = elapsed;
+      census = v.sorted;
+    }
+    if (v.completions > 0) break;
+  }
+  return longest / 1000;
+}
+
+/**
+ * --- templates --- (studio2 review round 2, 6) The runs a mode refuses although they meet its outcome (a seed of them never plans
+ * when another does): Colour Sort's first sort that stalls before its last ball longer than CS_STALL_SEC.
+ */
+const OUTCOME_REFUSALS: Readonly<Partial<Record<ModeId, Partial<Record<FinderOutcomeKind, (request: FinderRequest, seed: number, ms: number) => boolean>>>>> = {
+  colourSort: { "sorted-by": (request, seed, ms) => ms >= 0 && colourSortStallSec(request, seed, ms) > CS_STALL_SEC + 1e-9 },
+};
+// --- end templates ---
 
 /* ------------------------------------------------------------------ atEnd */
 

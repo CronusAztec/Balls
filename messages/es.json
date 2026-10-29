@@ -3662,6 +3662,7 @@
     },
     "template": "Plantilla",
     "templateAuto": "Automático (mezcla del día)",
+    "templateFits": "Esta plantilla solo tiene las duraciones y los finales de la lista.",
     "simpleLook": "Aspecto sencillo",
     "planClips": "Planificar clips",
     "today": "Plan de hoy",
@@ -3689,6 +3690,7 @@
     "splitRace": "El plan se renderiza con la exportación rápida, que dibuja una sola arena: vuelve a poner Arenas en 1 (o abre uno de los clips) para renderizarlo.",
     "worldChanged": "El simulador cambió de tamaño desde que se hizo el plan: las semillas se eligieron para el lienzo anterior – vuelve a planificar para que los tiempos cuadren.",
     "notes": "Los finales se alternan para compararlos en las estadísticas; publica un gancho nuevo primero como reel de prueba.",
+    "notesTrial": "Publica un gancho nuevo primero como reel de prueba.",
     "countdown": {
       "walls": "🧱 [n]/[total]",
       "timer": "⏱ [time]",
@@ -3768,6 +3770,7 @@
       "checking": "Comprobando las reglas de claridad…",
       "failed": "No se pudieron comprobar las reglas de claridad.",
       "botLook": "Las reglas de claridad juzgan el aspecto sencillo. Activa Aspecto sencillo para un clip más tranquilo, con una línea de texto a la vez.",
+      "botLookPlanAgain": "Las reglas de claridad juzgan el aspecto sencillo. Vuelve a planificar para tener este clip con el aspecto sencillo.",
       "ok": "Se cumple",
       "notOk": "No se cumple",
       "bands": {
@@ -3812,6 +3815,7 @@
         "wordsMatchPictureClaimUnseen": "La partida no muestra lo que promete el gancho.",
         "wordsMatchPictureClaimUnmeasured": "No se pudo comprobar la partida con el gancho.",
         "wordsMatchPictureCounterCut": "El contador desaparece en {reads}, antes de terminar.",
+        "wordsMatchPictureOverUndone": "El texto del desenlace sigue en pantalla tras {sec} s, cuando la imagen ya no lo muestra.",
         "readableUnsafe": "Un texto se sale de la zona segura.",
         "readableEdgeUnsafe": "El texto superior o inferior se sale de la zona segura.",
         "readableOverBand": "El texto superior tapa el marcador del modo.",
@@ -3847,6 +3851,7 @@
     "schedule": {
       "title": "Calendario de publicación",
       "intro": "Planificado por el planificador de clips de {siteName} para el {date} ({platform}). Los finales se alternan para comparar clips resueltos y cliffhangers.",
+      "introPlain": "Planificado por el planificador de clips de {siteName} para el {date} ({platform}).",
       "time": "Hora",
       "file": "Archivo",
       "recipe": "Receta",

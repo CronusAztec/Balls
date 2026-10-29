@@ -10,7 +10,7 @@ import type { BotWorld } from "@/lib/bot/finderRequest";
 import { batchTextFiles, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
+import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelLengthAndEnding, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import { clarityJudges } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { PlanClarity } from "@/lib/bot/clarityLines"; // --- bot-templates --- (a type only: the module loads when a clip's lines are opened)
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
@@ -231,8 +231,10 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       const date = request?.date && parseIsoDate(request.date) ? request.date : localIsoDate(new Date());
       const custom = kind === "custom";
       const family = request?.family !== undefined ? (isBotFamily(request.family) || request.family === "default" ? request.family : "all") : custom ? opts.family : "all"; // --- legal-audit --- "default": the CLI without --family (no Fight League clips)
-      const bucket = request?.bucket !== undefined ? (isLengthBucket(request.bucket) ? request.bucket : "auto") : custom ? opts.bucket : "auto";
-      const ending = request?.ending !== undefined ? (isEndingChoice(request.ending) ? request.ending : "auto") : custom ? opts.ending : "auto";
+      // --- bot-templates --- (studio2 review round 2, 2) beside a chosen template, the length and the ending its selects show
+      const own = request ? opts : panelLengthAndEnding(opts);
+      const bucket = request?.bucket !== undefined ? (isLengthBucket(request.bucket) ? request.bucket : "auto") : custom ? own.bucket : "auto";
+      const ending = request?.ending !== undefined ? (isEndingChoice(request.ending) ? request.ending : "auto") : custom ? own.ending : "auto";
       // --- bot-templates --- the panel's Template choice ("Plan clips", like its other filters; Auto: the rotation) and its Simple
       // switch (both buttons); the CLI's handle plans the rotation in the bot look, as before. The bot look is passed to the
       // rotation as before: not at all. --- bot-templates --- (studio2 review round 1, 21) A template plans in the look the switch

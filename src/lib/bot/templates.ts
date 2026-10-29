@@ -3,7 +3,7 @@ import { RANGES, defaultSettings, type SimulatorSettings } from "@/lib/settings"
 import type { FinderOutcomeKind, OutcomeContext } from "@/lib/simulation/outcomes";
 import type { Claim } from "@/lib/crew/clip";
 import { defaultKeptHuds, hudsOn } from "@/lib/crew/hudFlags";
-import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, intBetween, pick, recipeById, snapStep, stepBetween, type BotFamily, type BotFamilyChoice, type BotRecipe, type CountdownKind, type CountdownSource, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
+import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, intBetween, pick, recipeById, snapStep, stepBetween, supportsBucket, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type CountdownKind, type CountdownSource, type EndingChoice, type EndingStyle, type HookVars, type LengthBucket, type PayoffStrategy, type PayoffType, type RecipeContext } from "./playbook";
 import { AT_END_BUCKETS, AT_END_SEC, atEndRecordingSec, outcomeStrategyPlans } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 import { FORMAT_FIELD, OWN_HOOK_FIELD, templateName, type BotCopy } from "./copy"; // --- templates --- (a template's name; AI studio step 6: a variant's format hook)
 import { modeSettingsOfSettings } from "./finderRequest"; // --- templates --- (Perfect Fit's solution seed: the finder's own search)
@@ -792,6 +792,26 @@ function orbGridSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 }
 
 /**
+ * --- templates --- (studio2 review round 2, 6) Colour Sort's payoff is its completion: the bullseye whole, its chord and its
+ * half-second hold (CS_HOLD_SEC). Then the remix pulls every ball back to its start until the clip ends on the loop's seam, so
+ * payoff words – 1.2 s a line, never before the event – would stand over the mixed balls ("There it is. ✨" over the start
+ * state for the clip's last 2.8 s, watched; the crew's G4 now fails that: crew/clip.ts payoffUndone): the moment speaks, its
+ * chord and its bullseye, in both looks, and the remix is shorter (CS_REMIX_SEC). A short clip cannot hold the sort at 80 % and
+ * the seconds after it (0.5 s hold and the remix), so it fills the standard length only (every Shorts plan of the short one had
+ * been the closest, none found). And the seed's sort may not stall: a seed whose census stands still longer than
+ * CS_STALL_SEC before its sort completes is refused (outcomeStrategy.ts OUTCOME_REFUSALS: the review watched 5 s of nothing
+ * before the chord, 3.35 s of it silent, as the last ball found its band).
+ */
+const CS_WORDS = "a gate rule whose sort completes (the default's), timed by the balls' speed; its chord and bullseye speak, no words over its 2 s remix; standard only; never a sort that stalls";
+/**
+ * --- templates --- (studio2 review round 2, 6) The remix's length (s, csRemix; the mode's default 2.8 s stays): with no words at the
+ * clip's end, the default remix's spring left 1.3–1.52 s of still, quiet balls before the seam on every plan measured (24 of 24,
+ * plan seeds 1–8 on 3 platforms; G2's dead tail is 1.5 s, one plan over it), 2 s leaves 0.75–1 s, and the mixed balls show for
+ * 2 s instead of 2.8 s. The sort before it is the same run.
+ */
+const CS_REMIX_SEC = 2;
+
+/**
  * Colour Sort: 40 balls a colour, nearly twice the default size, so a viewer sees each ball reach its band (at the default 90 small
  * ones the sort is a haze: watched), the balls' speed that sorts them about the payoff target in (the first sort about 3500 / speed
  * s in, ±25 % by seed: measured). The remix after it pulls every ball back to its start: the clip ends on that loop's seam.
@@ -800,7 +820,7 @@ function orbGridSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
  * remix (watched: page stills at the plan's seconds); without them both runs sort on the same frame (12.37 s on the seed watched).
  */
 function colourSortSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { csPerColour: 40, csSize: 8, csContacts: false, csSpeed: snapStep(3500 / ctx.payoffTarget, RANGES.csSpeed) };
+  return { csPerColour: 40, csSize: 8, csContacts: false, csSpeed: snapStep(3500 / ctx.payoffTarget, RANGES.csSpeed), csRemix: CS_REMIX_SEC };
 }
 
 /**
@@ -1162,7 +1182,8 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   ellipseFoci: bind("ellipseFoci", later("lineUp", "outcome", { outcome: "converge-on-beat", generate: ellipseFociSettings, musicFirst: true, buckets: ["short"], endings: ["resolved"], hookKey: "hook", note: "one volley: fired from one focus, every ball lands on the other at once, its transit whole bars of its bed (a run of its own)", scene: (s) => `${s.efCount} small balls at one point inside an oval, fired outwards all at once` })),
   hoops: bind("hoops", later("lineUp", "outcome", { outcome: "all-up-by", generate: hoopsSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "the spin ramps up until every bead has climbed (all-up-by)", scene: (s) => `${s.hpCount} hoops of different sizes spinning slowly, a bead resting at the bottom of each` })),
   orbGrid: bind("orbGrid", later("lineUp", "outcome", { outcome: "resolves-at", generate: orbGridSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hookC", note: "the field bounces out of step until it lands in phase at its cycle (resolves-at, the accented chord)", scene: () => "a large square field of small orbs, each bouncing on its own spot" })),
-  colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", generate: colourSortSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "a gate rule whose sort completes (the default's), timed by the balls' speed", scene: (s) => `${s.csColours * s.csPerColour} balls of ${s.csColours} colours mixed together inside rings with gaps` })),
+  // (--- templates --- studio2 review round 2, 6: no words over the remix, standard clips only, a sort that never stalls – CS_WORDS)
+  colourSort: bind("colourSort", later("lineUp", "outcome", { outcome: "sorted-by", needs: "colourSortSettles", generate: colourSortSettings, musicFirst: true, buckets: ["standard"], endings: ["resolved"], hookKey: "hook", payoffWords: false, note: CS_WORDS, scene: (s) => `${s.csColours * s.csPerColour} balls of ${s.csColours} colours mixed together inside rings with gaps` })),
   doublePendulum: bind("doublePendulum", later("lineUp", "outcome", { outcome: "diverges-at", needs: "dpFan", generate: doublePendulumSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.doublePendulum", note: "its own hook, the plan's hook b: 'Same start. Watch them split.' (the chaos fan, played forward)", scene: (s) => `${s.dpFanCount} double pendulums started on top of one another, swinging over a row of strings` })),
   // onTheBeat (--- templates --- AI studio step 5: Ball Drop's rain loops, so its notes never thin out; the clip's end is its payoff)
   drop: bind("drop", { format: "onTheBeat", strategy: "atEnd", tier: "proven", keepHud: null, variants: [["drop-symphony", undefined, DROP_PLAIN]], tune: DROP_RAIN, note: DROP_FADES }),
@@ -1404,6 +1425,38 @@ const ADAPTERS = new Map<string, BotRecipe>(INFOS.flatMap((t) => {
 export function templateRecipeById(id: string | null | undefined): BotRecipe | undefined {
   return id ? ADAPTERS.get(id) : undefined;
 }
+
+// --- bot-templates --- (studio2 review round 2, 1–3)
+/** What a ready template plays: the lengths and endings its recipe fills, and the platforms that take one of those lengths. */
+export interface TemplatePlay {
+  buckets: readonly LengthBucket[];
+  endings: readonly EndingStyle[];
+  platforms: readonly BotPlatform[];
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 1–3) What a ready template plays (undefined: hidden or unknown): the lengths its
+ * recipe fills (every one where it names none), its endings (both where it names none, as resolveEnding takes them) and the
+ * platforms whose lengths (PLATFORMS[platform].buckets) take one of them – Fight League's bracket fills the long length only,
+ * which Shorts (short and standard) does not take, so neither the Bot section nor viral-bot.mjs offers it there: every Shorts plan
+ * of it ran 60–86 s and failed G7, its length.
+ */
+export function templatePlayOf(id: string | null | undefined): TemplatePlay | undefined {
+  const recipe = templateRecipeById(id);
+  if (!recipe) return undefined;
+  const buckets = LENGTH_BUCKETS.filter((b) => supportsBucket(recipe, b));
+  return { buckets, endings: recipe.endings ?? ENDING_STYLES, platforms: BOT_PLATFORMS.filter((p) => PLATFORMS[p].buckets.some((b) => buckets.includes(b))) };
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 2) Whether a plan's endings alternate, as the Bot section's note under the plan and
+ * the posting schedule's intro say they do: every clip asked for "auto" (Alternate), and a template's clip from one that ends both
+ * ways – never a chosen ending, nor a template that ends one way only (34 of the 45 ready templates). An empty plan says so as before.
+ */
+export function endingsAlternate(clips: readonly { template?: string; endingChoice: EndingChoice }[]): boolean {
+  return clips.every((c) => c.endingChoice === "auto" && (!c.template || (templatePlayOf(c.template)?.endings.length ?? ENDING_STYLES.length) > 1));
+}
+// --- end bot-templates ---
 
 /** A plan's recipe: a playbook recipe, or a ready template's (the plan carries either id). */
 export function botRecipeById(id: string | null | undefined): BotRecipe | undefined {

@@ -67,7 +67,8 @@ import {
   variantBinding,
   type OutcomeFlag,
 } from "@/lib/bot/templates";
-import { AT_END_BUCKETS, AT_END_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { AT_END_BUCKETS, AT_END_SEC, CS_STALL_SEC, FILL_OUTCOMES, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, colourSortStallSec, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
+import { CS_HOLD_SEC } from "@/lib/physics/modes/colourSort"; // --- templates --- (studio2 review round 2, 6)
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { simulateOutcomeRun } from "@/lib/simulation/finder";
@@ -993,9 +994,34 @@ describe("a Simple text reads as one phrase a line, where the run leaves the squ
         expect([locale, id, hook[0].style.size >= 1.0]).toEqual([locale, id, true]);
       }
     }
-    const bot = planTemplate("line-up-pendulum", 1, "reels", { copy, search: false, look: "bot" });
+    // (--- bot-templates --- studio2 review round 2, 4: the bot look's greedy lines are the rotation's, its recipe's plans byte for
+    // byte as before; a template's hook breaks at its clauses in either look, as it was written and measured: the test below)
+    const bot = planClip(recipeById("pendulum-wave")!, 1, "reels", { copy, search: false });
     const botLines = bot.settings.captions.filter((_, i) => bot.captionRoles[i] === "hook").map((c) => c.text);
     expect(botLines).toEqual(splitCaptionLines(bot.hook, bot.settings.captions[0].style.size));
+  });
+
+  // --- bot-templates --- (studio2 review round 2, 4) the bot look's greedy splitter had broken template hooks inside a clause on 24
+  // templates in English ("Can it clear all the" / "glass?", "Gerald w drodze. Cel:" / "dom.", "¿Hay salida para la" / "pelota?"):
+  // their copy was written and measured with the Simple look's clause breaks
+  it("breaks a template's hook at its clauses in the bot look too, in every language, and leaves the rotation's greedy lines", () => {
+    const hookLines = (plan: ClipPlan) => plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "hook");
+    for (const locale of ["en", "pl", "es"] as const) {
+      for (const t of ready) {
+        const plan = planTemplate(t.id, 1, "reels", { copy: COPY[locale], locale, search: false, look: "bot" });
+        const hook = hookLines(plan);
+        expect([locale, t.id, hook.map((c) => c.text)]).toEqual([locale, t.id, evenCaptionLines(plan.hook, hook[0].style.size).slice(0, 2)]);
+      }
+    }
+    const lines = (id: string, locale: BotLocale) => hookLines(planTemplate(id, 1, "reels", { copy: COPY[locale], locale, search: false, look: "bot" })).map((c) => c.text);
+    expect(lines("get-out-journey", "pl")).toEqual(["Gerald w drodze.", "Cel: dom."]);
+    expect(lines("smash-spiral-glass", "en").at(-1)).not.toBe("glass?");
+    expect(lines("get-out-classic-ring", "es").at(-1)).not.toBe("pelota?");
+    // the rotation's bot look, the bot's own: greedy, as before (its PINNED plans: tests/bot.test.ts)
+    for (const plan of planDay("2026-10-29", "reels", 3, { copy, search: false }).clips) {
+      const hook = hookLines(plan);
+      expect([plan.recipe, hook.map((c) => c.text)]).toEqual([plan.recipe, splitCaptionLines(plan.hook, hook[0].style.size)]);
+    }
   });
 
   it("puts each text of a searched plan at the edge of the square its run leaves clear: Ball Drop's and Pendulum Wave's hooks at the bottom", { timeout: 120_000 }, async () => {
@@ -1831,6 +1857,47 @@ describe("group C: line up and on the beat", () => {
     const fan = planOf("line-up-double-pendulum");
     expect([fan.settings.dpFan, fan.settings.dpForwardSec >= fan.timing.clipSec]).toEqual([true, true]);
   });
+
+  // --- templates --- (studio2 review round 2, 6) Colour Sort's clip had "There it is. ✨" over the remix's mixed balls for its last
+  // 2.8 s, and its sort had waited 5 s for its last ball, 3.35 s of it silent: no words over the remix, a 2 s remix, standard clips
+  // only, no seed whose sort stalls, and the crew's G4 and screen view see words over a payoff the run has undone
+  it("ends Colour Sort on its chord and bullseye with no words over the remix, never after a sort that stalls", () => {
+    const recipe = templateRecipeById("line-up-colour-sort")!;
+    expect([recipe.buckets, recipe.payoffWords]).toEqual([["standard"], false]);
+    const plan = planOf("line-up-colour-sort");
+    expect(rangeViolations(plan.settings)).toEqual([]);
+    // the binding's remix, not the mode's default; the clip ends on the loop's seam: the sort, its hold, the remix
+    expect([plan.settings.csRemix, defaultSettings("colourSort").csRemix]).toEqual([2, 2.8]);
+    expect(plan.captionRoles).not.toContain("payoff");
+    expect(plan.timing.clipSec).toBeCloseTo(plan.payoff.atSec! + CS_HOLD_SEC + plan.settings.csRemix, 1);
+    // its sort never stood still longer than CS_STALL_SEC; a seed whose sort completes but stalls is refused, the rest matched
+    const horizon = plan.timing.clipSec + 2;
+    const request = finderRequestOfSettings(plan.settings, plan.world, horizon);
+    expect(colourSortStallSec(request, plan.seed, 1000 * plan.payoff.atSec!)).toBeLessThanOrEqual(CS_STALL_SEC);
+    let refused = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const { facts } = outcomeRunOf(request, seed, "sorted-by", horizon);
+      if (facts.atSec < 0) continue;
+      const stalls = colourSortStallSec(request, seed, 1000 * facts.atSec) > CS_STALL_SEC;
+      expect([seed, facts.matched]).toEqual([seed, !stalls]);
+      if (stalls) refused++;
+    }
+    expect(refused).toBeGreaterThan(0);
+    // the crew: every gate passes; the screen view says what the picture does from the remix on
+    const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+    const clip = crewClipOfPlan(plan, { run });
+    expect(clarityOf(clip).gates.filter((g) => !g.ok).map((g) => g.key)).toEqual([]);
+    expect(screenView(clip).text).toMatch(/to the end: every ball is pulled back to where it started/);
+    // and the payoff words the clip had stood over the remix: G4 fails them; words that leave as the remix starts pass it
+    const withWords = (end: number): ClipPlan => {
+      const hook = plan.settings.captions[plan.captionRoles.indexOf("hook")];
+      const start = Math.ceil(plan.payoff.atSec! * 2) / 2;
+      return { ...plan, settings: { ...plan.settings, captions: [...plan.settings.captions, { ...hook, text: "There it is. ✨", start, end }] }, captionRoles: [...plan.captionRoles, "payoff"] };
+    };
+    const g4 = (p: ClipPlan) => clarityOf(crewClipOfPlan(p, { run })).gates.find((g) => g.id === "G4")!.problems;
+    expect(g4(withWords(0))).toContain("wordsMatchPictureOverUndone");
+    expect(g4(withWords(Math.floor((plan.payoff.atSec! + CS_HOLD_SEC) * 10) / 10))).not.toContain("wordsMatchPictureOverUndone");
+  }, 120_000);
 
   it("reads each beat off its run: Beat Machines' phrase with no spare marble over one loop, the vortex's last ring on a bar line, the clip's end where the rest play on", () => {
     // Beat Machines (hidden since studio round 1, 11): one loop a clip, ending on its seam; the seed's phrase needs no spare marble,

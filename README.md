@@ -1543,7 +1543,11 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   `jumpingballslive_viral_bot`). Plans are timed for the canvas size they were made in: after a resize the block asks to plan again.
   --- bot-templates --- (AI studio step 7) Two more controls. **Template** lists the ready viral templates
   (`src/lib/bot/templates.ts`) of the chosen series as "{Mode name} · {Format name}", grouped by format – the battle family's
-  only under All series and Battle, where the bot already offers them; **Plan clips** then plans that template's clips
+  only under All series and Battle, where the bot already offers them, and on a platform only the templates that plan a length
+  it takes (`templatePlayOf()`: Fight League's bracket, long only, is not offered on Shorts; a platform button that leaves the
+  chosen one out goes back to Auto). Beside a chosen template the **Length** and **Ending** selects offer only what it plays and
+  show what it plans, with one line saying so (`lengthSelect()`, `endingSelect()` in `store.ts`), and the note under the plan
+  says the endings alternate only where they do (`endingsAlternate()`). **Plan clips** then plans that template's clips
   (`planDaySteps` with `template`: a plan seed per place, `templateDaySlots()`), and **Auto** (the default) keeps the daily
   rotation exactly. The **Simple look** switch draws the clips of both buttons in the Simple look: off by default for Auto
   (the rotation keeps today's look), and on by default once a template is chosen, the look its clarity gates were measured
@@ -1553,14 +1557,16 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   clarity lines (G1–G7, a failed one saying why: `src/lib/bot/clarityLines.ts`, the studio's `clarityOf` on the plan and the
   run of its seed, followed in slices and loaded only when the lines are opened) for a clip in the Simple look, whose rules they
   are; a clip in the bot look gets one line that says so instead (`clarityJudges`: its glow, trails and longer hook read Busy
-  by design). Only the panel's two new options join the
+  by design), and asks to plan again where the switch is on already (`botLookLine()`). A template's texts break at their clauses
+  in either look; the rotation's bot look keeps its greedy lines. Only the panel's two new options join the
   stored state, and only when they differ from the defaults (the bot look only beside a template); an older stored state and
   its version-1 plan load as they were.
 - **CLI** – `node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
   [--bucket standard] [--ending resolved] [--locale pl] [--dry-run] [--post | --post-only]` (also `npm run bot -- …`). Without `--family` the plan holds escape and rhythm clips only (`--family default`); `--family all` and `--family battle` are the only ways to plan Fight League clips (the legal audit).
   --- bot-templates --- `--dry-run --template get-out-classic [--look simple]` plans one ready template's clips instead of the
   rotation, in the look asked for (the template's own Simple look without `--look`; a battle template only with `--family all`
-  or `battle`). Both go with `--dry-run` only: a render plans in the page, the rotation in the bot look, and the licence path
+  or `battle`; a `--platform`, `--bucket` or `--ending` the template does not play is refused, naming the ones it does). Both go
+  with `--dry-run` only: a render plans in the page, the rotation in the bot look, and the licence path
   is untouched.
   --- fl-overhaul --- (Stage 6) `--plan --date 2026-10-05` prints the recipe rotation of the 7 days from the date (the
   planner's `daySlots()`: no simulation, nothing written). With the

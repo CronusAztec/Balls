@@ -1211,9 +1211,12 @@ export type TextPlan = "stack" | "oneLine";
  * and none where the clip leaves no line its time after that (`payoffText` ""). `payoffText`:
  * the payoff's words as drawn (null: none drawn). --- templates --- (AI
  * studio step 4) `ownEnding`: the mode draws its own ending in the clip (its end banner: crew/hudFlags.ts endBannersIn), so no
- * payoff words of the clip's own stand beside it – one ending.
+ * payoff words of the clip's own stand beside it – one ending. --- bot-templates --- (studio2 review round 2, 4) `evenLines`: two
+ * lines broken where a reader breaks them (evenCaptionLines, with its clause shrink) – the Simple look's, and a template's in the
+ * bot look too, whose hooks were written and measured with those breaks ("Gerald w drodze." / "Cel: dom.", never "Gerald w
+ * drodze. Cel:" / "dom."); the rotation's bot look keeps its greedy lines, its plans byte for byte as before.
  */
-export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack", ownEnding = false): { captions: Caption[]; roles: CaptionRole[]; payoffText: string | null } {
+export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff", textPlan: TextPlan = "stack", ownEnding = false, evenLines = textPlan === "oneLine"): { captions: Caption[]; roles: CaptionRole[]; payoffText: string | null } {
   const captions: Caption[] = [];
   const roles: CaptionRole[] = [];
   const add = (caption: Caption, role: CaptionRole) => {
@@ -1222,12 +1225,12 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   };
   const oneLine = textPlan === "oneLine"; // --- templates --- (and its lines broken where a reader breaks them)
   let payoffText: string | null = null; // the payoff's words as drawn (none: no payoff words)
-  const hookParts = captionLines(hook, hookStyle.size, 2, oneLine);
+  const hookParts = captionLines(hook, hookStyle.size, 2, evenLines); // (--- bot-templates --- studio2 review round 2, 4: a template's in either look)
   for (const line of hookParts.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: 0, end: hookEndSec, animation: "pop", style: { ...hookStyle, size: hookParts.size } }, "hook");
   const clip = timing.recordingDuration;
   // when the closing question and the payoff's words come in (--- templates --- one text at a time: a question of two lines
   // gets 2.5 s, 1.25 s a line)
-  const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2, oneLine) : null;
+  const q = ending === "cliffhanger" ? captionLines(recipeText(copy, recipe, "cliffQuestion", vars), 1.2, 2, evenLines) : null;
   const questionStart = half(Math.max(hookEndSec + 0.5, clip - (oneLine && q && q.lines.length > 1 ? 2.5 : 2)));
   // (--- templates --- studio round 1, 10: the Simple look's payoff words never come before the event they name – simplePayoffHalf;
   // the bot look keeps its floor, its plans as they were)
@@ -1250,7 +1253,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   } else if (payoffStart !== null && recipe.payoffWords !== false /* --- templates --- */ && !ownEnding /* --- templates --- (AI studio step 4) */) {
     const words = recipeText(copy, recipe, payoffKey, vars);
     // --- templates --- (the Simple look: its words cut by clauses, on the lines the clip's tail after them has time for)
-    const p = oneLine ? simplePayoffLines(simplePayoffText(words), Math.min(timing.clipSec, clip) - payoffStart) : { text: words, ...captionLines(words, 1.3, 2) };
+    const p = oneLine ? simplePayoffLines(simplePayoffText(words), Math.min(timing.clipSec, clip) - payoffStart) : { text: words, ...captionLines(words, 1.3, 2, evenLines) };
     for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start: payoffStart, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
     payoffText = p.text;
   }
@@ -1336,7 +1339,8 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   // beside it; a banner that comes later (Ball Drop's SETTLED!, seconds after its last note) leaves the payoff its words
   const payoffSec = timing.payoffSec;
   const ownEnding = simple && ending === "resolved" && payoffSec !== null && endBannersIn(settings, { ending, payoffSec, clipSec: timing.clipSec, runEndSec: runEndSec(recipe, settings, facts, payoffSec) }).some((b) => b.start <= payoffSec + BANNER_WITH_PAYOFF_SEC + 1e-9);
-  const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack", ownEnding);
+  // (--- bot-templates --- studio2 review round 2, 4: a template's lines break at its clauses in the bot look too)
+  const { captions, roles, payoffText: drawnPayoff } = clipCaptions(textRecipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey, simple ? "oneLine" : "stack", ownEnding, simple || !!options.template);
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];
@@ -1438,8 +1442,9 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
       const verdict = search ? passesFinderPredicates(recipe, facts, timing, ending, teamCount) : { ok: false, winner: -1 };
       const winner = verdict.winner >= 0 ? verdict.winner : (facts?.winnerIndex ?? -1);
       const plan = assemblePlan(recipe, built, seed, planSeed, platform, bucket, ending, facts, timing, winner, verdict.ok, tested, hookEndSec, options);
-      // --- templates --- (the bot look's plan of this candidate, for its score: see bestRank)
-      const rank = look === "bot" ? plan.score : assemblePlan(recipe, botBuilt, seed, planSeed, platform, bucket, ending, facts, timing, winner, verdict.ok, tested, drawnHookEnd, { ...options, look: "bot" }).score;
+      // --- templates --- (the bot look's plan of this candidate, for its score: see bestRank – --- bot-templates --- studio2 review
+      // round 2, 4: as the search always ranked it, with the bot look's greedy lines, so no Simple plan moves)
+      const rank = look === "bot" ? plan.score : assemblePlan(recipe, botBuilt, seed, planSeed, platform, bucket, ending, facts, timing, winner, verdict.ok, tested, drawnHookEnd, { ...options, look: "bot", template: undefined }).score;
       if (verdict.ok) accepted++;
       if (!best || (verdict.ok && !bestAccepted) || (verdict.ok === bestAccepted && rank > bestRank)) {
         best = plan;

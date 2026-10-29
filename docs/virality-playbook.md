@@ -158,7 +158,7 @@ timeline. It is 100 minus:
 | G1 motion early | The first impact comes within 1 s (after a render: the measured first impact, the first motion or the first sound, within 1.5 s). |
 | G2 payoff lands | The payoff comes at 60–97 % with at least 0.8 s shown after it, or the cut comes 0–3 s before it with a question at the end. A shown payoff happens in the run: a sound there where the clip promises one (a beat, or words that name a chord), the mode's own chord where the words name one, no chord as large after a hook that promises one, and never silence with the balls at a quarter of their usual motion or less (on a beat, never only a few lone notes, fewer than the run's usual moment plays). A clip that ends without words never ends on more than 1.5 s of silence over still balls. |
 | G3 one idea | One mode since the plan, one hook, one ending (the payoff's words or a closing question, never both). |
-| G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim, and a bar or a timer of the clip's seconds stays on screen to within 1 s of its end. |
+| G4 words match the picture | The drawn hook is the clip's hook, its numbers are the clip's, a named winner is the run's, the run shows the claim, a bar or a timer of the clip's seconds stays on screen to within 1 s of its end, and the payoff's words leave before the run undoes what they name (Colour Sort's remix). |
 | G5 readable | Every text is in the safe zone, 2 lines at most, 7 words at most in the hook, 1.2 s a line, nothing over a scoreboard band, and no text over a mode's own banner while it shows (Glass's "STAGE 2" as each floor begins). |
 | G6 not too busy | Simple is 60 or more. |
 | G7 length fits | The length is in a bucket the platform takes. |
@@ -518,7 +518,7 @@ notes) and its hook and contact sheets looked at.
 | line-up-ellipse-foci | a volley of 36–72 balls fired from one focus, its transit whole 2 s bars nearest the target, so every ball lands on the other focus at once; two passes a loop; short only (a standard clip's target asks a transit past the slider's 20 s) | 97 | 84 | 12/12 |
 | line-up-hoops | the spin's ramp that brings every bead up by the target | 97 | 86 | 12/12 |
 | line-up-orb-grid | 21 × 21 orbs (the default 33 × 33 was busy when watched), their cycle on the target; the mode's IN PHASE banner the one ending | 97 | 82 | 12/12 |
-| line-up-colour-sort | 40 balls a colour at size 8, passing through each other, the speed that sorts them about the target; the clip ends on the loop's seam after the remix | 100 | 82 | 12/12 |
+| line-up-colour-sort | 40 balls a colour at size 8, passing through each other, the speed that sorts them about the target; the clip ends on the loop's seam after the remix (since the second review round: no words over a 2 s remix, standard clips only, no seed whose sort stalls: below) | 100 | 86 | 12/12 |
 | line-up-double-pendulum | the chaos fan 10⁻⁵° apart (short) or 10⁻⁶° (standard), played forward; its own hook "Same start. Watch them split." | 97 | 86 | 12/12 |
 | on-the-beat-drop | Drop Symphony's draw with the rain looped; the clip's last 1.5 s | 97 | 82 | 12/12 |
 | on-the-beat-beat-machine | 120 bpm, one loop the clip's length, 5 marbles a tube; a seed whose phrase needs no spare marble, the note nearest 85 % of the loop its payoff; the clip ends on the loop's seam | 97 | 86 | 12/12 |
@@ -714,15 +714,37 @@ sees, one in what is posted, and three in what the crew and the studio's tools a
   `all` or `battle`, as `viral-bot.mjs --template` and the listing do.
 - The role eval's corpus moved with one hook (Gerald's Portal escape, at the bottom now): docs/agents/CREW-EVAL.md, run round1c.
 
+**The second review round, findings 1–6** **[observed: Colour Sort's 4 plan seeds × 3 platforms in the Simple look in English,
+Polish and Spanish, plan seeds 5–8 in the 800×450 world, and the bot look in English; plan seeds 1–8 × 3 platforms with the
+payoff's moment read, as Why this clip and the studio read it; every ready template planned on plan seed 1 on each platform it
+fits, before and after, in both looks; one clip rendered watermarked and watched]**. Four of the six were in the website's Bot
+section, one in a clip:
+
+| Finding | What a viewer saw | What changed | Measured since |
+| --- | --- | --- | --- |
+| Fight League's bracket on Shorts | the Template choice offered it on Shorts, which takes no long clip; Plan clips gave a 74–86 s clip whose own line said it fits none of Shorts' lengths (G7), under a Playbook 87; `viral-bot.mjs` planned it too | the choice lists on a platform only the templates that plan a length it takes (`templatePlayOf`), a platform button that leaves the chosen one out goes back to Auto, and `viral-bot.mjs --template` refuses the pair, naming the platforms that take it | every template offered on a platform plans a length it takes, on all three (`tests/botSection.test.ts`); the bracket is the only one left out, on Shorts alone |
+| Length and Ending beside a template | Long and Cliffhanger chosen beside "Journey · Get out", three resolved clips of about 20 s planned, under "Endings alternate" | beside a chosen template the selects offer only what it plays (34 of the 45 cannot be long, 34 end one way) and show what it plans, with one line saying so; the note under the plan and the posting schedule's intro say the endings alternate only where they do; `--bucket` and `--ending` outside the template's own are refused | every length and ending the selects offer, for every ready template on Reels, plans as shown |
+| Hooks in the bot look | "Gerald w drodze. Cel:" / "dom.", "Can it clear all the" / "glass?": the bot look's greedy lines broke 24 English template hooks inside a clause | a template's texts break at their clauses in either look (`evenCaptionLines`), as its copy was written and measured; the rotation keeps its greedy lines, its plans byte for byte | the bot look's template plans moved in their line breaks alone: the same seeds and scores on all 77 compared; two hooks of two long clauses still break inside one, as in the Simple look (Capture the Flag's, the Plinko race's in Polish) |
+| Why this clip | "Turn on Simple look" under a bot-look clip with the switch on already | it says to plan again: the switch changes the next plan, not the one on screen | `tests/botSection.test.ts` |
+| Colour Sort | the bands looked formed by 9 s, then 5 s of waiting for the last ball (3.35 s of it silent), then "There it is. ✨" over the remix's mixed balls for the clip's last 2.8 s | no words over the remix: the chord and the bullseye speak; a 2 s remix (`csRemix`, the mode's default 2.8 s unchanged: with no words at the end, 2.8 s left 1.3–1.52 s of still, quiet balls on every plan, G2's dead tail being 1.5 s); standard clips only; a seed whose sort stands still for over 2.5 s before it completes is refused (`OUTCOME_REFUSALS`, `CS_STALL_SEC`). G4 now fails payoff words still on screen once the run undoes what they name (`payoffUndone`), and the screen view says what the picture does from then on | 12/12 in each language, Simple 100, checklist 86 (82 before); 4/4 in the 800×450 world; the bot look 12/12 at checklist 90; 24/24 with the payoff's moment read, a quiet end of 0.75–1 s |
+
+- No other plan moved: the rotation's day plans in both looks and every other ready template's Simple plans are byte for byte
+  the same, and the fingerprints are unchanged.
+- The panel's intro still says the rotation's endings alternate. It describes Auto, the default; beside a chosen template the
+  Ending select and its one line say what that template plays.
+
 **Where the templates are offered** (AI studio steps 7 and 8):
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
-  by format, as "{Mode name} · {Format name}"; the battle family's only under All series and Battle. Auto, the default, keeps
+  by format, as "{Mode name} · {Format name}"; the battle family's only under All series and Battle, and on a platform only
+  the templates that plan a length it takes (the second review round, above). Beside a chosen template the Length and Ending
+  selects offer only what it plays. Auto, the default, keeps
   the rotation and its pinned days exactly. A Simple look switch draws the clips of both buttons in the Simple look: off by
   default for Auto, on by default for a chosen template (its own look: in the bot look its plans fail the gates it was made
   ready on, step 2's review round 1, 21), and Why this clip shows a Simple clip's score and the clarity lines G1–G7 (a clip in the bot look, busy by
   design, gets one line saying the rules judge the Simple look). `scripts/viral-bot.mjs` plans
-  one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names.
+  one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names, and refuses a `--platform`,
+  `--bucket` or `--ending` the template does not play.
 - **Claude's studio** (docs/agents/STUDIO.md). The `templates` and `plan` tools cover every ready template, in the Simple
   look, and a binding that waits says why. The crew judges each clip before its render and again after it, and a fix offered
   after the render is a second version of the same clip: the owner picks one.

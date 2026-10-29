@@ -3662,6 +3662,7 @@
     },
     "template": "Szablon",
     "templateAuto": "Automatycznie (zestaw dnia)",
+    "templateFits": "Ten szablon ma tylko długości i zakończenia z listy.",
     "simpleLook": "Prosty wygląd",
     "planClips": "Zaplanuj klipy",
     "today": "Plan na dziś",
@@ -3689,6 +3690,7 @@
     "splitRace": "Plan renderuje się szybkim eksportem, który rysuje tylko jedną arenę – ustaw Areny z powrotem na 1 (albo otwórz jeden z klipów), aby go wyrenderować.",
     "worldChanged": "Od utworzenia planu zmienił się rozmiar symulatora: ziarna dobrano do starego płótna – zaplanuj ponownie, aby czas się zgadzał.",
     "notes": "Zakończenia są naprzemienne, żeby dało się je porównać w statystykach; nowy hook opublikuj najpierw jako próbną rolkę.",
+    "notesTrial": "Nowy hook opublikuj najpierw jako próbną rolkę.",
     "countdown": {
       "walls": "🧱 [n]/[total]",
       "timer": "⏱ [time]",
@@ -3768,6 +3770,7 @@
       "checking": "Sprawdzam zasady czytelności…",
       "failed": "Nie udało się sprawdzić zasad czytelności.",
       "botLook": "Zasady czytelności oceniają prosty wygląd. Włącz Prosty wygląd, a klip będzie spokojniejszy, z jedną linijką tekstu naraz.",
+      "botLookPlanAgain": "Zasady czytelności oceniają prosty wygląd. Zaplanuj ponownie, a dostaniesz ten klip w prostym wyglądzie.",
       "ok": "Spełniona",
       "notOk": "Niespełniona",
       "bands": {
@@ -3812,6 +3815,7 @@
         "wordsMatchPictureClaimUnseen": "Przebieg nie pokazuje tego, co obiecuje hook.",
         "wordsMatchPictureClaimUnmeasured": "Nie udało się sprawdzić przebiegu z hookiem.",
         "wordsMatchPictureCounterCut": "Licznik znika przy {reads}, przed końcem.",
+        "wordsMatchPictureOverUndone": "Tekst finału zostaje na ekranie po {sec} s, gdy obraz już go nie pokazuje.",
         "readableUnsafe": "Napis wychodzi poza bezpieczną strefę.",
         "readableEdgeUnsafe": "Górny lub dolny tekst wychodzi poza bezpieczną strefę.",
         "readableOverBand": "Górny tekst zasłania tablicę wyników trybu.",
@@ -3847,6 +3851,7 @@
     "schedule": {
       "title": "Harmonogram publikacji",
       "intro": "Zaplanowane przez planer klipów {siteName} na {date} ({platform}). Zakończenia są naprzemienne, żeby porównać klipy rozstrzygnięte i cliffhangery.",
+      "introPlain": "Zaplanowane przez planer klipów {siteName} na {date} ({platform}).",
       "time": "Godzina",
       "file": "Plik",
       "recipe": "Przepis",

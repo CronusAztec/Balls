@@ -7,9 +7,9 @@ import { Searchable, SliderTrack, offBtn, onBtn, selectClass, type Matcher, type
 import { CLIP_CEILING } from "@/lib/uncap"; // --- unlimited-sizes --- (the wide track of a clip count ends at its ceiling)
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById, type BotFamily, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
-import { BOT_COUNT_RANGE, chosenTemplate, lookSwitched, panelLook, templateChoices, templateSwitched } from "@/lib/bot/store";
+import { BOT_COUNT_RANGE, botLookLine, chosenTemplate, endingSelect, lengthSelect, lookSwitched, panelLook, platformSwitched, templateChoices, templateSwitched } from "@/lib/bot/store";
 import { reasonValues, type BotCopy } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
-import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, clarityJudges, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
+import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, endingsAlternate, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { ModeId } from "@/lib/physics/types";
 import type { BotClarity, BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
@@ -33,6 +33,13 @@ export type { BotPanelProps } from "../useViralBot";
  * chosen template, whose own look it is: lib/bot/store.ts panelLook; turned off, a template's clips take the bot look). "Why this clip" adds the clip's Simple score and the crew's clarity lines
  * (lib/bot/clarityLines.ts), checked when it is opened and kept in memory only – for a clip in the Simple look, whose rules they
  * are; a clip in the bot's own look gets one line that says so (studio round 1, 3: every one of them read Busy beside its ticks).
+ *
+ * --- bot-templates --- (studio2 review round 2) The Template choice lists only the templates that plan a length the platform takes
+ * (Fight League's bracket, long only, is not offered on Shorts), and a platform it does not plan for goes back to Auto
+ * (store.ts platformSwitched); beside a chosen template the Length and Ending selects offer only what it plays, showing what it
+ * plans, with one line that says so (lengthSelect, endingSelect: 34 of the 45 ready templates cannot be long and 34 end one way),
+ * and the note under the plan says the endings alternate only where they do. A bot-look clip's line says to plan again when the
+ * Simple switch is on already: the switch changes the next plan, not the one on screen.
  */
 
 /** Search keys of the block (added to SECTION_KEYS.recording in Controls.tsx; the label is in the Controls namespace). */
@@ -85,7 +92,10 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
   const template = templateById(clip.template); // --- bot-templates --- ("{Mode name} · {Format name}": its mode named already)
   const name = template ? templateNameOf(template, botCopy, modeLabel(t, template.mode)) : recipe ? b(`recipes.${recipe.copyKey}.name`) : clip.recipe;
   const busy = !!bot.planning || !!bot.rerolling || bot.render.status === "running";
-  const judged = clarityJudges(clip); // --- bot-templates --- (studio round 1, 3: the clarity lines are the Simple look's)
+  // --- bot-templates --- (studio round 1, 3: the clarity lines are the Simple look's; studio2 review round 2, 5: a bot-look clip's one
+  // line asks to plan again where the Simple switch is on already – the switch changes the next plan, not the one on screen)
+  const lookLine = botLookLine(clip, bot.options);
+  const judged = lookLine === null;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(clip.post.caption);
@@ -141,9 +151,10 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
         {judged ? (
           <ClarityLines lines={bot.clarity(clip)} b={b} /* --- bot-templates --- */ />
         ) : (
-          // --- bot-templates --- (studio round 1, 3) the bot's own look: one neutral line, no verdict of the Simple look's rules
-          <p className="mt-1.5 border-t border-line-strong/30 pt-1.5 text-xs text-ink-3" data-bot-clarity="botLook">
-            {b("crew.botLook")}
+          // --- bot-templates --- (studio round 1, 3) the bot's own look: one neutral line, no verdict of the Simple look's rules –
+          // (studio2 review round 2, 5) with the Simple switch on already, to plan again: the switch changes the next plan only
+          <p className="mt-1.5 border-t border-line-strong/30 pt-1.5 text-xs text-ink-3" data-bot-clarity="botLook" data-bot-clarity-line={lookLine}>
+            {b(lookLine ?? "crew.botLook")}
           </p>
         )}
       </details>
@@ -168,6 +179,10 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
   const simpleIds = { label: useId(), line: useId() }; // --- bot-templates ---
   const o = bot.options;
   const simple = panelLook(o) === "simple"; // --- bot-templates --- (studio2 review round 1, 21: the look both buttons plan in; a template its own Simple one)
+  // --- bot-templates --- (studio2 review round 2, 2) the Length and Ending selects as a chosen template plays them
+  const lengths = lengthSelect(o);
+  const endings = endingSelect(o);
+  const narrowed = !!chosenTemplate(o) && (lengths.options.length < 1 + LENGTH_BUCKETS.length || endings.options.length < ENDING_CHOICES.length);
   const plan = bot.plan;
   const rendering = bot.render.status === "running";
   const busy = !!bot.planning || !!bot.rerolling || rendering;
@@ -185,7 +200,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
 
         <div className="grid grid-cols-3 gap-2" role="group" aria-label={b("platform")}>
           {BOT_PLATFORMS.map((p) => (
-            <button key={p} type="button" aria-pressed={o.platform === p} disabled={busy} onClick={() => bot.setOptions({ platform: p })} className={`px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${o.platform === p ? onBtn : offBtn}`}>
+            <button key={p} type="button" aria-pressed={o.platform === p} disabled={busy} onClick={() => bot.setOptions(platformSwitched(o, p)) /* --- bot-templates --- (studio2 review round 2, 1) */} className={`px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 ${o.platform === p ? onBtn : offBtn}`}>
               {b(`platforms.${p}`)}
             </button>
           ))}
@@ -214,9 +229,8 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-bucket">
             {b("bucket")}
-            <select id="bot-bucket" value={o.bucket} disabled={busy} onChange={(e) => bot.setOptions({ bucket: e.target.value as LengthBucket | "auto" })} className={`${selectClass} text-xs px-2`}>
-              <option value="auto">{b("buckets.auto")}</option>
-              {LENGTH_BUCKETS.map((k) => (
+            <select id="bot-bucket" value={lengths.value} disabled={busy} onChange={(e) => bot.setOptions({ bucket: e.target.value as LengthBucket | "auto" })} className={`${selectClass} text-xs px-2`}>
+              {lengths.options.map((k) => (
                 <option key={k} value={k}>
                   {b(`buckets.${k}`)}
                 </option>
@@ -225,8 +239,8 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-ending">
             {b("ending")}
-            <select id="bot-ending" value={o.ending} disabled={busy} onChange={(e) => bot.setOptions({ ending: e.target.value as EndingChoice })} className={`${selectClass} text-xs px-2`}>
-              {ENDING_CHOICES.map((k) => (
+            <select id="bot-ending" value={endings.value} disabled={busy} onChange={(e) => bot.setOptions({ ending: e.target.value as EndingChoice })} className={`${selectClass} text-xs px-2`}>
+              {endings.options.map((k) => (
                 <option key={k} value={k}>
                   {b(`endings.${k}`)}
                 </option>
@@ -241,7 +255,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
           <select id="bot-template" value={chosenTemplate(o) ?? "auto"} disabled={busy} onChange={(e) => bot.setOptions(templateSwitched(o, e.target.value === "auto" ? undefined : e.target.value))} className={`${selectClass} text-xs px-2 w-full min-w-0`}>
             <option value="auto">{b("templateAuto")}</option>
             {TEMPLATE_FORMAT_IDS.map((f) => {
-              const list = templateChoices(o.family).filter((x) => x.format.id === f);
+              const list = templateChoices(o.family, o.platform /* --- bot-templates --- (studio2 review round 2, 1) */).filter((x) => x.format.id === f);
               return list.length === 0 ? null : (
                 <optgroup key={f} label={b(`formats.${TEMPLATE_FORMATS[f].copyKey}.name`)}>
                   {list.map((x) => (
@@ -254,6 +268,12 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             })}
           </select>
         </label>
+        {/* --- bot-templates --- (studio2 review round 2, 2) the selects above offer only what the chosen template plays */}
+        {narrowed && (
+          <p className="text-xs text-ink-3 leading-snug" data-bot-template-fits="">
+            {b("templateFits")}
+          </p>
+        )}
         <div className="flex items-center justify-between gap-3">
           <span className="min-w-0 text-xs leading-snug">
             <span id={simpleIds.label} className="block text-ink-2">
@@ -323,7 +343,11 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
                 <ClipRow key={clip.id} clip={clip} t={t} b={b} bot={bot} botCopy={botCopy} />
               ))}
             </ol>
-            <p className="text-xs text-ink-3 leading-snug">{b("notes")}</p>
+            {/* --- bot-templates --- (studio2 review round 2, 2) "Endings alternate" only where they do (templates.ts endingsAlternate):
+                never a chosen ending, nor a template's one ending */}
+            <p className="text-xs text-ink-3 leading-snug" data-bot-notes={endingsAlternate(plan.clips) ? "alternate" : "trial"}>
+              {b(endingsAlternate(plan.clips) ? "notes" : "notesTrial")}
+            </p>
             <button type="button" onClick={bot.onRenderAll} disabled={!canRender} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed">
               <IconVideo size={16} /> {b("renderAll")}
               <WatermarkBadge /* --- free-watermark --- */ />

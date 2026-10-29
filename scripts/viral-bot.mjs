@@ -58,7 +58,8 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --max-seeds N      seeds searched per clip (default 24)
   --dry-run          plan only (in Node, no browser): captions, manifest.json, posting-schedule.md
   --template ID      with --dry-run: plan one ready template's clips instead of the rotation (the templates tool
-                     lists them: npm run -s agent -- templates); a battle one needs --family all or battle
+                     lists them: npm run -s agent -- templates); a battle one needs --family all or battle, and
+                     a --platform, --bucket or --ending the template does not play is refused
   --look L           with --dry-run: bot | simple (default: the bot look, a template's own Simple look)
   --plan             print the recipe rotation of the 7 days from --date (no simulation, nothing written)
   --post             publish the rendered clips to Instagram (needs IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL)
@@ -251,16 +252,28 @@ function isoParts(iso) {
 // --- bot-templates ---
 /**
  * Why a dry run's --template cannot plan (null: it can): an unknown or hidden template, or one of a series --family leaves out –
- * the battle family's only with --family all or battle (the legal opt-in), as the website's Bot section lists them.
+ * the battle family's only with --family all or battle (the legal opt-in), as the website's Bot section lists them. --- bot-templates ---
+ * (studio2 review round 2, 1–3) And, where `opts` names them, a --platform none of whose lengths the template plays (Fight League's
+ * bracket, long only, on Shorts: every plan of it failed its length gate), a --bucket it does not fill or an --ending it does not
+ * end with – the planner would plan its own instead without a word, as the website's selects now offer only what it plays.
  */
 export function templateRefusal(planner, opts) {
   if (!opts.template) return null;
   const info = planner.templateById(opts.template);
   const ready = planner.readyTemplates(opts.family).map((t) => t.id);
-  if (ready.includes(opts.template)) return null;
-  if (!info) return `There is no template ${opts.template}. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
-  if (!info.ready) return `The template ${opts.template} is not ready yet. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
-  return `The template ${opts.template} is in the ${info.family} series, which --family ${opts.family} leaves out: add --family ${info.family === "battle" ? "all or --family battle" : `all or --family ${info.family}`}.`;
+  if (!ready.includes(opts.template)) {
+    if (!info) return `There is no template ${opts.template}. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
+    if (!info.ready) return `The template ${opts.template} is not ready yet. The ready ones of --family ${opts.family}: ${ready.join(", ")}.`;
+    return `The template ${opts.template} is in the ${info.family} series, which --family ${opts.family} leaves out: add --family ${info.family === "battle" ? "all or --family battle" : `all or --family ${info.family}`}.`;
+  }
+  const play = opts.platform || (opts.bucket && opts.bucket !== "auto") || (opts.ending && opts.ending !== "auto") ? planner.templatePlayOf(opts.template) : null;
+  if (!play) return null;
+  const or = (list, flag) => list.map((x) => `${flag} ${x}`).join(" or ");
+  const lengths = play.buckets.join(" and ");
+  if (opts.platform && !play.platforms.includes(opts.platform)) return `The template ${opts.template} plays the ${lengths} length${play.buckets.length === 1 ? "" : "s"} only, which --platform ${opts.platform} does not take: use ${or(play.platforms, "--platform")}.`;
+  if (opts.bucket && opts.bucket !== "auto" && !play.buckets.includes(opts.bucket)) return `The template ${opts.template} plays the ${lengths} length${play.buckets.length === 1 ? "" : "s"} only: drop --bucket or use ${or(play.buckets, "--bucket")}.`;
+  if (opts.ending && opts.ending !== "auto" && !play.endings.includes(opts.ending)) return `The template ${opts.template} ends ${play.endings.join(" or ")} only: drop --ending or use ${or(play.endings, "--ending")}.`;
+  return null;
 }
 // --- end bot-templates ---
 

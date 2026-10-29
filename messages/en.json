@@ -3662,6 +3662,7 @@
     },
     "template": "Template",
     "templateAuto": "Auto (daily mix)",
+    "templateFits": "This template plays only the lengths and endings listed.",
     "simpleLook": "Simple look",
     "planClips": "Plan clips",
     "today": "Today's plan",
@@ -3689,6 +3690,7 @@
     "splitRace": "The plan renders with the fast export, which draws a single arena – set Arenas back to 1 (or open one of the clips) to render it.",
     "worldChanged": "The simulator was resized since this plan was made: its seeds were timed for the old canvas – plan again for exact timing.",
     "notes": "Endings alternate so you can compare them in Insights; post a new hook as a Trial Reel first.",
+    "notesTrial": "Post a new hook as a Trial Reel first.",
     "countdown": {
       "walls": "🧱 [n]/[total]",
       "timer": "⏱ [time]",
@@ -3768,6 +3770,7 @@
       "checking": "Checking the clarity rules…",
       "failed": "The clarity rules could not be checked.",
       "botLook": "The clarity rules judge the Simple look. Turn on Simple look for a calmer clip, one line of text at a time.",
+      "botLookPlanAgain": "The clarity rules judge the Simple look. Plan again to get this clip in the Simple look.",
       "ok": "Passes",
       "notOk": "Fails",
       "bands": {
@@ -3812,6 +3815,7 @@
         "wordsMatchPictureClaimUnseen": "The run does not show what the hook promises.",
         "wordsMatchPictureClaimUnmeasured": "The run could not be checked against the hook.",
         "wordsMatchPictureCounterCut": "The counter leaves at {reads}, before its end.",
+        "wordsMatchPictureOverUndone": "The payoff's words stay on screen after {sec} s, when the picture no longer shows it.",
         "readableUnsafe": "A caption runs outside the safe zone.",
         "readableEdgeUnsafe": "The top or bottom text runs outside the safe zone.",
         "readableOverBand": "The top text sits on the mode's scoreboard.",
@@ -3847,6 +3851,7 @@
     "schedule": {
       "title": "Posting schedule",
       "intro": "Planned by the {siteName} clip planner for {date} ({platform}). Endings alternate so resolved and cliffhanger clips can be compared.",
+      "introPlain": "Planned by the {siteName} clip planner for {date} ({platform}).",
       "time": "Time",
       "file": "File",
       "recipe": "Recipe",

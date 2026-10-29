@@ -5,7 +5,7 @@ import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } fr
 import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTrack"; // --- crew --- (AI studio step 3) the modes' banners
 import { MOMENT_BEFORE_SEC, STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
-import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, payoffHoldSec, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
+import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, payoffHoldSec, payoffUndone, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 import { hudsOn } from "./hudFlags"; // --- crew --- (studio round 1, 9) a mode's own words at the top centre
 
@@ -34,7 +34,8 @@ import { hudsOn } from "./hudFlags"; // --- crew --- (studio round 1, 9) a mode'
  *  G4 wordsMatchPicture – the drawn hook is the hook the clip's words say it has; every number in it is one of the clip's
  *     facts; a winner the payoff names is the run's; the recipe (or the template) that wrote the hook plays this mode; the
  *     run shows the claim; a counter of the clip's seconds (a bar, a timer) reaches its end on screen – 100 % or 0:00, within
- *     a second of it – rather than leaving at "84 %" (the studio's second review round, 22).
+ *     a second of it – rather than leaving at "84 %" (the studio's second review round, 22); --- crew --- (studio2 review round
+ *     2, 6) and the payoff's words leave before the run undoes what they name (clip.ts payoffUndone: Colour Sort's remix).
  *  G5 readable – every caption and the Top / Bottom Text inside the safe zone whenever it is on screen, at most 2 lines a
  *     message, at most 7 words in the hook, at least 1.2 s a line, no Top Text over an arena's scoreboard band, and – --- crew
  *     --- (AI studio step 3) – no caption over a banner of the mode's own text while it shows (the run's action track:
@@ -303,6 +304,10 @@ function wordsGate(clip: CrewClip): Gate {
   if (clip.claim && seen === null) problems.push({ key: "ClaimUnmeasured", values: { claim: clip.claim } });
   const cut = counterCutReading(clip); // --- crew --- (review round 2, 22)
   if (cut !== null) problems.push({ key: "CounterCut", values: { reads: cut } });
+  // --- crew --- (studio2 review round 2, 6) the payoff's words still on screen once the run undoes what they name (clip.ts
+  // payoffUndone: Colour Sort's remix mixing the balls again, "There it is. ✨" over them to the clip's end)
+  const undone = payoffUndone(clip);
+  if (undone !== null && rolesAt(clip, "payoff").some((i) => (clip.captions[i].end > clip.captions[i].start ? clip.captions[i].end : clip.timing.clipSec) > undone.sec + EPS)) problems.push({ key: "OverUndone", values: { sec: r1(undone.sec) } });
   return gate("G4", problems, "Ok");
 }
 

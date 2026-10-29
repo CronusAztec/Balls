@@ -6,7 +6,7 @@ export { planDay, planDaySteps, dayIndexOf, localIsoDate, parseIsoDate, scoreCli
 export { daySlots, resolveBucket } from "./planner"; // --- fl-overhaul --- (Stage 6) the CLI's --plan: the week's rotation, no simulation
 // --- templates --- the templates and the Simple look (the toolbox's plan tool; viral-bot's dry runs)
 export { planTemplate, planTemplateSteps } from "./planner";
-export { BOT_LOOKS, MODE_TEMPLATES, SIMPLE_LOOK, TEMPLATE_FORMATS, allTemplates, isBotLook, readyTemplates, templateById, type BotLookId, type TemplateInfo } from "./templates";
+export { BOT_LOOKS, MODE_TEMPLATES, SIMPLE_LOOK, TEMPLATE_FORMATS, allTemplates, isBotLook, readyTemplates, templateById, templatePlayOf, type BotLookId, type TemplateInfo } from "./templates"; // (--- bot-templates --- studio2 review round 2, 1–3: templatePlayOf, what --template refuses)
 export { batchTextFiles, buildManifest, captionFileName, reasonText, MANIFEST_FILE, SCHEDULE_FILE, type RenderedClip } from "./output";
 export { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, RECIPES, isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket } from "./playbook";
 export { BOT_LOCALES, isBotLocale, copyString } from "./copy";

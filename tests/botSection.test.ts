@@ -7,9 +7,11 @@ import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import type { BotCopy } from "@/lib/bot/copy";
-import { BOT_PLAN_VERSION, planDay, planDaySteps, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
-import { chosenTemplate, defaultBotOptions, lookSwitched, panelLook, panelPlanChoice, parseBotOptions, parseBotState, storedTemplate, templateChoices, templateSwitched } from "@/lib/bot/store";
-import { allTemplates, clarityJudges, readyTemplates, templateById } from "@/lib/bot/templates";
+import { BOT_PLAN_VERSION, planDay, planDaySteps, planTemplate, resolveBucket, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
+import { botLookLine, chosenTemplate, defaultBotOptions, endingSelect, lengthSelect, lookSwitched, panelLengthAndEnding, panelLook, panelPlanChoice, parseBotOptions, parseBotState, platformSwitched, storedTemplate, templateChoices, templateSwitched } from "@/lib/bot/store";
+import { allTemplates, clarityJudges, endingsAlternate, readyTemplates, templateById, templatePlayOf, templateRecipeById } from "@/lib/bot/templates";
+import { BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, PLATFORMS, recipeBucket } from "@/lib/bot/playbook";
+import { scheduleMarkdown } from "@/lib/bot/output";
 import { planClarity, planClarityOf } from "@/lib/bot/clarityLines";
 import { clarityOf, GATES } from "@/lib/crew/clarity";
 import { crewClipOfPlan } from "@/lib/crew/clip";
@@ -153,6 +155,124 @@ describe("the Simple switch shows the look the panel plans in", () => {
       expect([id, clarity.simple.score >= 80, clarity.gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([id, true, []]);
     }
   }, 240_000);
+});
+
+// --- bot-templates --- (studio2 review round 2, 1-3 and 5) Fight League's bracket, long only, was offered and planned on Shorts
+// (86 s clips failing G7 under a Playbook 87); beside a chosen template the Length and Ending selects were ignored without a word
+// (34 of the 45 ready templates cannot be long, 34 end one way) under a note that said the endings alternate; and a clip in the bot
+// look asked to turn on a Simple switch that was on already
+describe("the panel offers only what a chosen template plays", () => {
+  const BRACKET = "who-wins-fight-league-bracket";
+  const auto = defaultBotOptions();
+
+  it("lists on a platform only the templates that plan a length it takes, and goes back to Auto when the platform leaves one out", () => {
+    expect(templatePlayOf(BRACKET)).toMatchObject({ buckets: ["long"], platforms: ["reels", "tiktok"] });
+    for (const platform of BOT_PLATFORMS) {
+      const offered = templateChoices("all", platform);
+      expect(offered.length, platform).toBeGreaterThan(0);
+      // every template offered on a platform plans a bucket that platform takes, whatever its Length select shows
+      for (const t of offered) {
+        const recipe = templateRecipeById(t.id)!;
+        const lengths = lengthSelect({ ...auto, platform, template: t.id });
+        expect([t.id, platform, lengths.options.length > 0]).toEqual([t.id, platform, true]);
+        for (const bucket of lengths.options) expect([t.id, platform, bucket, PLATFORMS[platform].buckets.includes(recipeBucket(recipe, resolveBucket(platform, bucket)))]).toEqual([t.id, platform, bucket, true]);
+      }
+      // and none that does not: the bracket only where its long clips fit
+      const left = readyTemplates("all").filter((t) => !offered.includes(t));
+      expect([platform, left.map((t) => t.id)]).toEqual([platform, platform === "shorts" ? [BRACKET] : []]);
+    }
+    // the bracket chosen on Reels: offered and planned there; on Shorts it plans Auto, the rotation in today's look
+    const reels = { ...auto, family: "all" as const, ...templateSwitched(auto, BRACKET) };
+    expect([chosenTemplate(reels), panelPlanChoice(reels, true)]).toEqual([BRACKET, { template: BRACKET, look: "simple" }]);
+    const shorts = { ...reels, platform: "shorts" as const };
+    expect([chosenTemplate(shorts), panelLook(shorts), panelPlanChoice(shorts, true)]).toEqual([undefined, "bot", {}]);
+    // pressing Shorts drops the choice back to Auto, a "bot" look beside it too; another template keeps its choice
+    expect(platformSwitched(reels, "shorts")).toEqual({ platform: "shorts", template: undefined, look: undefined });
+    expect(platformSwitched({ ...reels, ...lookSwitched(reels) }, "shorts")).toEqual({ platform: "shorts", template: undefined, look: undefined });
+    expect(platformSwitched(reels, "tiktok")).toEqual({ platform: "tiktok" });
+    const journey = { ...auto, ...templateSwitched(auto, "get-out-journey") };
+    expect(platformSwitched(journey, "shorts")).toEqual({ platform: "shorts" });
+    expect(platformSwitched(auto, "shorts")).toEqual({ platform: "shorts" });
+  });
+
+  it("plans on every platform a bucket it takes for each template it offers there (no seed search: the bucket is the plan's own)", () => {
+    for (const platform of BOT_PLATFORMS) {
+      for (const t of templateChoices("all", platform)) {
+        const plan = planTemplate(t.id, 1, platform, { copy, locale: "en", world, bucket: "auto", ending: "auto", search: false });
+        expect([t.id, platform, PLATFORMS[platform].buckets.includes(plan.bucket)]).toEqual([t.id, platform, true]);
+      }
+    }
+  }, 60_000);
+
+  it("offers in the Length and Ending selects only what a chosen template plays, shows what it plans, and plans what it shows", () => {
+    // Auto: every length and ending, as stored
+    expect(lengthSelect({ ...auto, bucket: "long" })).toEqual({ options: ["auto", ...LENGTH_BUCKETS], value: "long", fixed: false });
+    expect(endingSelect({ ...auto, ending: "cliffhanger" })).toEqual({ options: ENDING_CHOICES, value: "cliffhanger", fixed: false });
+    expect(panelLengthAndEnding({ ...auto, bucket: "long", ending: "cliffhanger" })).toEqual({ bucket: "long", ending: "cliffhanger" });
+    // the review's case: the Journey (short and standard, resolved only) asked for a long cliffhanger on Reels
+    const journey = { ...auto, ...templateSwitched(auto, "get-out-journey"), bucket: "long" as const, ending: "cliffhanger" as const };
+    expect(lengthSelect(journey)).toEqual({ options: ["auto", "short", "standard"], value: "standard", fixed: false });
+    expect(endingSelect(journey)).toEqual({ options: ["resolved"], value: "resolved", fixed: true });
+    expect(panelLengthAndEnding(journey)).toEqual({ bucket: "standard", ending: "resolved" });
+    // on Shorts the Journey's lengths are Shorts' own (a stored long shows the nearest it plays, as the planner picks it) and Auto
+    // shows Shorts' own short; Shatter ends on a cliffhanger only; Auto stays Auto where it is offered
+    expect(lengthSelect({ ...journey, platform: "shorts" })).toEqual({ options: ["auto", "short", "standard"], value: "standard", fixed: false });
+    expect(lengthSelect({ ...journey, platform: "shorts", bucket: "auto" })).toEqual({ options: ["auto", "short", "standard"], value: "auto", fixed: false });
+    const shatter = { ...auto, ...templateSwitched(auto, "get-out-shatter") };
+    expect(endingSelect(shatter)).toEqual({ options: ["cliffhanger"], value: "cliffhanger", fixed: true });
+    expect(panelLengthAndEnding(shatter)).toEqual({ bucket: lengthSelect(shatter).value, ending: "auto" });
+    // every ready template, every length and ending its selects offer on Reels: the plan's own is the one shown
+    for (const t of templateChoices("all", "reels")) {
+      const play = templatePlayOf(t.id)!;
+      for (const bucket of lengthSelect({ ...auto, template: t.id }).options) {
+        for (const ending of endingSelect({ ...auto, template: t.id }).options) {
+          const o = { ...auto, template: t.id, bucket, ending };
+          const asked = panelLengthAndEnding(o);
+          const plan = planTemplate(t.id, 2, "reels", { copy, locale: "en", world, bucket: asked.bucket, ending: asked.ending, search: false });
+          const where = `${t.id}/${bucket}/${ending}`;
+          expect([where, plan.bucket]).toEqual([where, lengthSelect(o).value === "auto" ? recipeBucket(templateRecipeById(t.id)!, resolveBucket("reels", "auto")) : lengthSelect(o).value]);
+          if (ending !== "auto") expect([where, plan.ending]).toEqual([where, ending]);
+          expect([where, play.endings.includes(plan.ending)]).toEqual([where, true]);
+        }
+      }
+    }
+  }, 60_000);
+
+  it("says the endings alternate only where they do: under the plan and in the posting schedule", () => {
+    const options = { copy, locale: "en" as const, family: "all" as const, world, search: false };
+    const rotation = planDay(DATE, "reels", 2, { ...options, bucket: "auto", ending: "auto" }).clips;
+    const resolved = planDay(DATE, "reels", 2, { ...options, bucket: "auto", ending: "resolved" }).clips;
+    const journey = planDay(DATE, "reels", 2, { ...options, bucket: "auto", ending: "auto", template: "get-out-journey", look: "simple" }).clips;
+    const both = readyTemplates("all").find((t) => (templatePlayOf(t.id)?.endings.length ?? 0) > 1)!;
+    const alternating = planDay(DATE, "reels", 2, { ...options, bucket: "auto", ending: "auto", template: both.id, look: "simple" }).clips;
+    expect([endingsAlternate(rotation), endingsAlternate(resolved), endingsAlternate(journey), endingsAlternate(alternating), endingsAlternate([])]).toEqual([true, false, false, true, true]);
+    const intro = (clips: ClipPlan[]) => scheduleMarkdown(clips, copy, { date: DATE, platform: "reels" }).split("\n")[2];
+    expect(intro(rotation)).toMatch(/Endings alternate/);
+    expect(intro(journey)).not.toMatch(/alternate/);
+    expect(intro(journey)).toContain(DATE);
+    for (const m of [en, pl, es]) {
+      const v = m.ViralBot as unknown as { notes: string; notesTrial: string; templateFits: string; schedule: { intro: string; introPlain: string } };
+      expect(v.notes.endsWith(v.notesTrial.slice(1)), "notesTrial is the notes' second half").toBe(true);
+      expect(v.schedule.intro.startsWith(v.schedule.introPlain)).toBe(true);
+      expect(v.templateFits.length).toBeGreaterThan(20);
+    }
+  }, 60_000);
+
+  it("asks to plan again, not to turn on a switch that is on already, for a clip in the bot look", () => {
+    const bot = { look: undefined };
+    expect(botLookLine(bot, auto)).toBe("crew.botLook");
+    expect(botLookLine({ look: "bot" }, { ...auto, ...lookSwitched(auto) })).toBe("crew.botLookPlanAgain");
+    expect(botLookLine(bot, { ...auto, ...templateSwitched(auto, "get-out-journey") })).toBe("crew.botLookPlanAgain");
+    // a clip in the Simple look gets the clarity lines, whatever the switch shows
+    expect(botLookLine({ look: "simple" }, auto)).toBeNull();
+    expect(botLookLine({ look: "simple" }, { ...auto, ...lookSwitched(auto) })).toBeNull();
+    for (const m of [en, pl, es]) {
+      const crew = (m.ViralBot as unknown as { crew: { botLook: string; botLookPlanAgain: string } }).crew;
+      expect(crew.botLookPlanAgain.length).toBeGreaterThan(40);
+      expect(crew.botLookPlanAgain).not.toMatch(/[{}()]/);
+      expect(crew.botLookPlanAgain).not.toBe(crew.botLook);
+    }
+  });
 });
 
 describe("the panel's stored state", () => {
@@ -311,6 +431,27 @@ describe("viral-bot CLI --template and --look", () => {
     expect(templateRefusal(planner, { template: battle.id, family: "battle" })).toBeNull();
     expect(templateRefusal(planner, { template: hidden.id, family: "all" })).toMatch(/not ready/);
     expect(templateRefusal(planner, { template: "nope", family: "all" })).toMatch(/no template nope/);
+  });
+
+  // --- bot-templates --- (studio2 review round 2, 1-3) as the website's selects: a platform, a length or an ending the template does
+  // not play is refused with the ones it does, never planned as another without a word
+  it("refuses a --platform none of whose lengths the template plays, and a --bucket or an --ending it does not play", () => {
+    const planner = { templateById, readyTemplates, templatePlayOf };
+    const bracket = "who-wins-fight-league-bracket";
+    const base = { family: "all", bucket: "auto", ending: "auto" };
+    expect(templateRefusal(planner, { ...base, template: bracket, platform: "shorts" })).toMatch(/plays the long length only, which --platform shorts does not take: use --platform reels or --platform tiktok\.$/);
+    expect(templateRefusal(planner, { ...base, template: bracket, platform: "reels" })).toBeNull();
+    expect(templateRefusal(planner, { ...base, template: "get-out-journey", platform: "reels", bucket: "long" })).toMatch(/drop --bucket or use --bucket short or --bucket standard\.$/);
+    expect(templateRefusal(planner, { ...base, template: "get-out-journey", platform: "reels", ending: "cliffhanger" })).toMatch(/ends resolved only: drop --ending or use --ending resolved\.$/);
+    expect(templateRefusal(planner, { ...base, template: "get-out-journey", platform: "shorts", bucket: "short", ending: "resolved" })).toBeNull();
+    // every refusal's advice plans: the platforms, lengths and endings it names are the template's own
+    for (const t of readyTemplates("all")) {
+      const play = templatePlayOf(t.id)!;
+      for (const platform of BOT_PLATFORMS) expect([t.id, platform, templateRefusal(planner, { ...base, template: t.id, platform }) === null]).toEqual([t.id, platform, play.platforms.includes(platform)]);
+      for (const bucket of LENGTH_BUCKETS) expect([t.id, bucket, templateRefusal(planner, { ...base, template: t.id, platform: play.platforms[0], bucket }) === null]).toEqual([t.id, bucket, play.buckets.includes(bucket)]);
+    }
+    // a series --family leaves out is still said first
+    expect(templateRefusal(planner, { ...base, family: "default", template: bracket, platform: "shorts" })).toMatch(/--family all or --family battle/);
   });
 
   it("writes a template's clips in a dry run, the very plans of the planner", () => {

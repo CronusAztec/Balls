@@ -3,6 +3,7 @@ import { copyString, fillTemplate, reasonValues, type BotCopy } from "./copy";
 import { recipeById, type BotPlatform } from "./playbook";
 import type { ClipPlan, ScoreReason } from "./planner";
 import { coverFrameOf, type CoverFrame } from "./cover"; // --- mode-thumbnails ---
+import { endingsAlternate } from "./templates"; // --- bot-templates --- (studio2 review round 2, 2)
 
 /*
  * --- viral-bot --- What a rendered (or planned) batch of clips is delivered as – the same files from the Bot section's ZIP
@@ -161,14 +162,18 @@ export function buildManifest(plans: readonly ClipPlan[], copy: BotCopy, meta: {
 
 const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
 
-/** posting-schedule.md: when to post which file, its recipe, ending, score and hook, then the manual steps. */
+/**
+ * posting-schedule.md: when to post which file, its recipe, ending, score and hook, then the manual steps. --- bot-templates ---
+ * (studio2 review round 2, 2) Its intro says the endings alternate only where they do (templates.ts endingsAlternate): never for a
+ * chosen ending, nor a template that ends one way only.
+ */
 export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform }, rendered: readonly RenderedClip[] = []): string {
   const h = (key: string, fallback: string) => copyString(copy, `schedule.${key}`) || fallback;
   const platform = copyString(copy, `platforms.${meta.platform}`) || meta.platform;
   const out = [
     `# ${h("title", "Posting schedule")}`,
     "",
-    fillTemplate(h("intro", "Planned for {date} ({platform})."), { date: meta.date ?? "–", platform, siteName: SITE_NAME }),
+    fillTemplate(endingsAlternate(plans) ? h("intro", "Planned for {date} ({platform}).") : h("introPlain", "Planned for {date} ({platform})."), { date: meta.date ?? "–", platform, siteName: SITE_NAME }),
     "",
     `| # | ${h("time", "Time")} | ${h("file", "File")} | ${h("recipe", "Recipe")} | ${h("ending", "Ending")} | ${h("score", "Score")} | ${h("hook", "Hook")} |`,
     "|---|---|---|---|---|---|---|",

@@ -2,7 +2,7 @@ import type { SimulatorSettings } from "@/lib/settings";
 import { templateById, variantBinding } from "@/lib/bot/templates"; // --- crew --- (AI studio step 3) a template's own scene line
 import { MARK_WHAT } from "@/lib/bot/planner"; // --- crew --- (studio2 review round 1, 19) a mark mode's own moment
 import { hasRingWalls, hudsOn } from "./hudFlags";
-import { runWinnerOf, shownSecOf, type CrewClip } from "./clip";
+import { payoffUndone, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { clarityOf, type Clarity } from "./clarity";
 import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions } from "./simplicity";
 
@@ -21,7 +21,8 @@ import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions }
  *  - The screen view (`screenView()`, at most SCREEN_MAX characters): only what is drawn and heard – a neutral line of the
  *    scene (from the settings' numbers, never the mode's name), the length, the look and the sound in words, every text with
  *    its seconds and place, the HUDs in words, --- crew --- (AI studio step 4) the banner the picture draws at its own ending
- *    with its seconds, a cut's extras, and after a render the motion in 8 parts and the sound events a second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
+ *    with its seconds, --- crew --- (studio2 review round 2, 6) what the picture does once its run undoes its last state (Colour
+ *    Sort's remix: clip.ts payoffUndone), a cut's extras, and after a render the motion in 8 parts and the sound events a second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
  *    "intent" or "payoff" outside the clip's own drawn words (tests/crewDossier.test.ts). The cold viewer reads it.
  *
  * Both views trim deterministically to their budgets: long quotes shorter first, then lists, then the drawn words to roles.
@@ -503,6 +504,9 @@ function renderScreen(clip: CrewClip, scene: string | undefined, t: { quote: num
   lines.push(`also on screen: ${huds.length ? huds.slice(0, t.list).map((h) => h.words).join("; ") : "nothing else"}`);
   // --- crew --- (AI studio step 4) the mode's own end banner, from the second it comes in (simplicity.ts endBannersShown)
   for (const o of overlays.filter((x) => x.kind === "banner").slice(0, t.list)) lines.push(`drawn on screen at the end, ${o.end >= shown - 1e-6 ? `${r1(o.start)} s to the end` : `${r1(o.start)}-${r1(o.end)} s`}: ${o.words}`);
+  // --- crew --- (studio2 review round 2, 6) the run undoing its last state before the clip ends (Colour Sort's remix), in neutral words
+  const undone = payoffUndone(clip);
+  if (undone !== null && undone.sec < shown - 1e-6) lines.push(`from ${r1(undone.sec)} s to the end: ${undone.words}`);
   if (clip.cut) {
     const c = clip.cut;
     const extras = [c.hook.trim() ? `a pill on top ${quote(c.hook, t.quote)}` : "", c.url.trim() ? `an address line ${quote(c.url, t.quote)}` : "", c.cardSec > 0 ? `then an end card for ${r1(c.cardSec)} s` : ""].filter(Boolean);

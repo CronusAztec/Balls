@@ -12,6 +12,7 @@ import type { ClipGenes, ClipGenesFeatures } from "@/lib/insights/genes";
 import { factsOfExport, planLikeFromSettings, scorePlanLike, scoreRecipeFor, type ScoreFacts } from "@/lib/insights/score";
 import { perfectFitSettingsOf, resolvePerfectFitSettings } from "@/lib/physics/perfectFit"; // --- crew --- (studio round 1, 10) a full box's hold
 import { perfectFitPlanOf } from "@/lib/simulation/perfectFitFinder";
+import { CS_HOLD_SEC } from "@/lib/physics/modes/colourSort"; // --- crew --- (studio2 review round 2, 6) the sort's hold before its remix
 
 /*
  * --- crew --- The clip as the crew reads it (CrewClip): one shape for a planned clip (a bot plan, a Claude studio plan) and a
@@ -335,6 +336,22 @@ export function payoffHoldSec(clip: Pick<CrewClip, "settings" | "payoff" | "timi
   const box = plan.puzzles.find((p) => p.status === "ok" && Math.abs(p.tDone - local) <= HOLD_MATCH_SEC);
   if (!box) return null;
   return Math.max(0, Math.min(clip.timing.clipSec, at + (box.tDone - local) + box.flashSec) - at);
+}
+
+/**
+ * --- crew --- (studio2 review round 2, 6) Where the clip's own run undoes a resolved payoff's state before the clip ends, as far as
+ * the planner knows it: the second it starts to (s) and what the picture does from it, in neutral words. Colour Sort's sort
+ * (sorted-by): the bullseye holds CS_HOLD_SEC after it completes, then the remix pulls every ball back to its start until the clip
+ * ends on the loop's seam – payoff words still on screen there name a state the picture has left ("There it is. ✨" over the mixed
+ * balls for the clip's last 2.8 s, watched). null: none known, or the clip ends before it.
+ */
+export function payoffUndone(clip: Pick<CrewClip, "settings" | "payoff" | "timing" | "ending" | "recipe">): { sec: number; words: string } | null {
+  const at = clip.payoff.atSec;
+  if (clip.ending !== "resolved" || at === null || clip.settings.mode !== "colourSort") return null;
+  const recipe = botRecipeById(clip.recipe);
+  if (recipe?.strategy !== "outcome" || recipe.outcome !== "sorted-by") return null;
+  const sec = at + CS_HOLD_SEC;
+  return sec < clip.timing.clipSec - 1e-6 ? { sec, words: "every ball is pulled back to where it started, the colours mixed again" } : null;
 }
 // --- end of the payoff's hold
 

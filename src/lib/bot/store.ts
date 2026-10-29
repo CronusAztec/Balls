@@ -1,7 +1,7 @@
-import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "./playbook";
-import { BOT_PLAN_VERSION, type ClipPlan, type PlanOptions } from "./planner";
+import { ENDING_CHOICES, LENGTH_BUCKETS, PLATFORMS, isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, recipeBucket, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "./playbook";
+import { BOT_PLAN_VERSION, resolveBucket, type ClipPlan, type PlanOptions } from "./planner";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
-import { isBotLook, readyTemplates, templateById, TEMPLATE_LOOK, type BotLookId, type TemplateInfo } from "./templates"; // --- bot-templates ---
+import { clarityJudges, isBotLook, readyTemplates, templateById, templatePlayOf, TEMPLATE_LOOK, type BotLookId, type TemplateInfo } from "./templates"; // --- bot-templates ---
 
 /*
  * --- viral-bot --- The Bot section's options and its last plan, kept in this browser's localStorage (a convenience: every
@@ -59,16 +59,75 @@ export function storedTemplate(value: unknown): string | undefined {
 
 /**
  * --- bot-templates --- The templates the Template choice lists for the panel's series: the ready ones of that series – "all"
- * (the panel's All series) every one, the battle family's too, which the bot offers there today; a series its own.
+ * (the panel's All series) every one, the battle family's too, which the bot offers there today; a series its own. --- bot-templates ---
+ * (studio2 review round 2, 1 and 3) With the panel's platform, only the ones that plan a length it takes (templatePlayOf): Fight
+ * League's bracket, long only, is not listed for Shorts, where every plan of it failed G7, its length.
  */
-export function templateChoices(family: BotOptions["family"]): TemplateInfo[] {
-  return readyTemplates(family);
+export function templateChoices(family: BotOptions["family"], platform?: BotPlatform): TemplateInfo[] {
+  const ready = readyTemplates(family);
+  return platform ? ready.filter((t) => templatePlayOf(t.id)?.platforms.includes(platform) === true) : ready;
 }
 
-/** --- bot-templates --- The template "Plan clips" plans: the choice while it is one its series lists, else undefined (Auto). */
-export function chosenTemplate(options: Pick<BotOptions, "template" | "family">): string | undefined {
+/** --- bot-templates --- The panel's options a template choice reads: its template and series, and – when known – its platform. */
+type TemplateOptions = Pick<BotOptions, "template" | "family"> & Partial<Pick<BotOptions, "platform">>;
+
+/** --- bot-templates --- The template "Plan clips" plans: the choice while it is one its series (and platform) lists, else undefined (Auto). */
+export function chosenTemplate(options: TemplateOptions): string | undefined {
   const id = storedTemplate(options.template);
-  return id && templateChoices(options.family).some((t) => t.id === id) ? id : undefined;
+  return id && templateChoices(options.family, options.platform).some((t) => t.id === id) ? id : undefined;
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 1 and 3) What a platform button stores: the platform, and back to Auto – the
+ * template and a "bot" look beside it dropped (templateSwitched) – when the chosen template plans no length that platform takes.
+ */
+export function platformSwitched(options: TemplateOptions & Pick<BotOptions, "look">, platform: BotPlatform): Partial<BotOptions> {
+  const id = chosenTemplate(options);
+  return id && !chosenTemplate({ ...options, platform }) ? { platform, ...templateSwitched(options, undefined) } : { platform };
+}
+
+/** --- bot-templates --- (studio2 review round 2, 2) A select of the panel as it shows: its options, the one shown and whether it is the only one. */
+export interface PanelSelect<T extends string> {
+  options: readonly T[];
+  value: T;
+  fixed: boolean;
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 2) The Length select: every length and the platform's default (Auto); beside a
+ * chosen template only the lengths it plays that the platform takes – the default too where it plays it and another – showing
+ * the one it plans (the stored choice where it plays it, else the nearest it plays: recipeBucket), so no choice is ignored
+ * without a word (34 of the 45 ready templates cannot be long).
+ */
+export function lengthSelect(options: TemplateOptions & Pick<BotOptions, "platform" | "bucket">): PanelSelect<LengthBucket | "auto"> {
+  const play = templatePlayOf(chosenTemplate(options));
+  if (!play) return { options: ["auto", ...LENGTH_BUCKETS], value: options.bucket, fixed: false };
+  const platform = PLATFORMS[options.platform];
+  const fills = platform.buckets.filter((b) => play.buckets.includes(b));
+  const list: (LengthBucket | "auto")[] = [...(fills.length > 1 && fills.includes(platform.defaultBucket) ? (["auto"] as const) : []), ...fills];
+  const value = list.includes(options.bucket) ? options.bucket : recipeBucket({ buckets: fills }, resolveBucket(options.platform, options.bucket));
+  return { options: list, value, fixed: fills.length === 1 };
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 2) The Ending select: Alternate and both endings; beside a chosen template that
+ * plays one ending only that one (34 of the 45 ready templates end one way).
+ */
+export function endingSelect(options: TemplateOptions & Pick<BotOptions, "ending">): PanelSelect<EndingChoice> {
+  const play = templatePlayOf(chosenTemplate(options));
+  if (!play || play.endings.length > 1) return { options: ENDING_CHOICES, value: options.ending, fixed: false };
+  return { options: [play.endings[0]], value: play.endings[0], fixed: true };
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 2) The length and the ending "Plan clips" asks for: the panel's, and beside a
+ * chosen template the ones its selects show – the stored choice wherever the template plays it, so a choice it plays plans as
+ * before (Auto stays Auto: the planner's own fallback to the template's ending).
+ */
+export function panelLengthAndEnding(options: TemplateOptions & Pick<BotOptions, "platform" | "bucket" | "ending">): Pick<BotOptions, "bucket" | "ending"> {
+  if (!chosenTemplate(options)) return { bucket: options.bucket, ending: options.ending };
+  const ending = endingSelect(options);
+  return { bucket: lengthSelect(options).value, ending: ending.fixed && options.ending !== "auto" ? ending.value : options.ending };
 }
 
 /**
@@ -77,13 +136,23 @@ export function chosenTemplate(options: Pick<BotOptions, "template" | "family">)
  * fail the clarity gates it was made ready on (the Journey's 9 and Spiral Glass's 24 of 100 there) – and Auto's today's bot look,
  * as the owner asked for the rotation.
  */
-export function panelLook(options: Pick<BotOptions, "template" | "family" | "look">): BotLookId {
+export function panelLook(options: TemplateOptions & Pick<BotOptions, "look">): BotLookId {
   return options.look ?? (chosenTemplate(options) ? TEMPLATE_LOOK : "bot");
 }
 
 /** --- bot-templates --- (studio2 review round 1, 21) What the Simple switch stores when pressed: "simple", or off – "bot" beside a template, else nothing (Auto's own). */
-export function lookSwitched(options: Pick<BotOptions, "template" | "family" | "look">): Pick<BotOptions, "look"> {
+export function lookSwitched(options: TemplateOptions & Pick<BotOptions, "look">): Pick<BotOptions, "look"> {
   return { look: panelLook(options) === "simple" ? (chosenTemplate(options) ? "bot" : undefined) : "simple" };
+}
+
+/**
+ * --- bot-templates --- (studio2 review round 2, 5) The one line "Why this clip" shows where the clarity lines do not judge the clip
+ * (a clip in the bot's own look: clarityJudges): to turn the Simple look on, or – the switch on already, which changes the next
+ * plan, not the one on screen – to plan again. null: a clip in the Simple look, whose rules the clarity lines are.
+ */
+export function botLookLine(clip: { look?: BotLookId }, options: TemplateOptions & Pick<BotOptions, "look">): "crew.botLook" | "crew.botLookPlanAgain" | null {
+  if (clarityJudges(clip)) return null;
+  return panelLook(options) === "simple" ? "crew.botLookPlanAgain" : "crew.botLook";
 }
 
 /** --- bot-templates --- (studio2 review round 1, 21) What a new Template choice stores: the template, and no "bot" look beside Auto (its own already). */
@@ -95,7 +164,7 @@ export function templateSwitched(options: Pick<BotOptions, "look">, template: st
  * --- bot-templates --- (studio2 review round 1, 21) What the panel asks the planner for (useViralBot.ts): "Plan clips" a chosen
  * template, both buttons the panel's look – nothing for the rotation in today's bot look, so its plans stay byte for byte as before.
  */
-export function panelPlanChoice(options: Pick<BotOptions, "template" | "family" | "look">, custom: boolean): Pick<PlanOptions, "look" | "template"> {
+export function panelPlanChoice(options: TemplateOptions & Pick<BotOptions, "look">, custom: boolean): Pick<PlanOptions, "look" | "template"> {
   const template = custom ? chosenTemplate(options) : undefined;
   const look = panelLook(options);
   return template ? { template, look } : look === "simple" ? { look } : {};
