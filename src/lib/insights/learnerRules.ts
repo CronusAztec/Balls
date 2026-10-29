@@ -110,6 +110,12 @@ export const BLOCK_MAX_DAYS = 21;
  */
 export const TRIAL_PAUSE_DAYS = 30;
 /**
+ * Instagram's Trial Reel limit on an account (Meta 2207078, Postiz's "Instagram Trial Reel publish limit reached"): trials
+ * there pause 24 hours (the plan's trial errors), and a Trial Reel Fully autonomous stamped before it waits for the person
+ * (lib/desktop/autonomy.ts). The size of the limit is not published.
+ */
+export const TRIAL_LIMIT_PAUSE_H = 24;
+/**
  * A normal-lane test or check has no fixed length (it waits for its clips), but one that has not decided within 3 times its
  * horizon (its clips at today's pace, plus the 3-day read: 33 days for a test at 3 clips a day, 81 at 1 a day) closes as "not
  * enough clips", so a lane whose clips cannot count (reads that never come, a channel that stops answering) moves on. l0.py:

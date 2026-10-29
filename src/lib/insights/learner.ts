@@ -533,8 +533,10 @@ const scoredFamily = (platform: string) => {
 /**
  * The channels a slot's clip goes to, each with its lane. A trial reel: only its Instagram channel, as a Trial Reel. A test
  * clip, a check's old clip or a newcomer test's rotation clip (its best arm, which is not the best settings): only the scored
- * channels whose usual is ready. A best clip or a check's new clip: every channel that takes its bucket (never long on YouTube
- * Shorts), as a normal post.
+ * channels whose usual is ready. A best clip or a check's new clip (the new best: while a check runs every slot of the day is a
+ * check slot, so YouTube would get nothing for days otherwise): every channel that takes its bucket (never long on YouTube
+ * Shorts), as a normal post. Fully autonomous reads the same contract from the stamp's arm (lib/desktop/autonomy.ts
+ * laneProblems; tests/autonomy.test.ts feeds it this function's check slots).
  */
 export function channelsFor(role: SlotRole, arm: string | null, bucket: LengthBucket, channels: readonly LearnerChannel[], ctx: { trialChannel: string | null; usualReady: ReadonlySet<string> }): { id: string; lane: InsightLane }[] {
   if (role === "trialA" || role === "trialB") return ctx.trialChannel ? [{ id: ctx.trialChannel, lane: "trialReel" }] : [];

@@ -1,12 +1,14 @@
 import type { SocialPostRequest, SocialQueueBy, SocialQueueStatus } from "./contract";
 import type { InsightLane } from "@/lib/insights/stats";
 import type { LearnerDecision, RenderWatermark, SlotRole } from "@/lib/insights/learner";
+import type { LearnerSettings } from "@/lib/insights/learnerSettings";
+import type { DialId } from "@/lib/insights/dials";
 import type { ClipReview } from "@/lib/crew/review";
 import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN, inQuietMinutes } from "./autopilot";
 import { YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, type CardChannel, type CardProblem, type YouTubeVisibility } from "./socialCard";
 import { classifyPostizError, isAccountHealth } from "./postizErrors";
 import { textProblems, type TextFacts, type TextLanguage, type TextProblem } from "./autonomyText";
-import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
+import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insights/learnerRules";
 
 /*
  * --- autonomy --- "Fully autonomous" as pure rules (the learner plan's C11): with the owner's switch on, the app approves and
@@ -26,10 +28,15 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
  *    edited, from the newest pass, at most 24 hours old, made after the consent, the last Resume and the last time learning
  *    was paused, turned off or switched back on, and after the practice day (the clocks' allowed difference counted as practice), with their
  *    test still open and no verdict written since, and no other proposal of the same clip.
+ *  - What the owner changed on the Learning card since, which the learner reads on its next pass only: a Trial Reel waits for
+ *    good once Trial Reels are switched off, set to no pairs a day or Instagram's automatic sharing is no longer confirmed
+ *    off, once the learner stops trials on its account, and once Postiz says the account cannot post them or hit its Trial
+ *    Reel limit (24 hours); a test, check or Trial Reel waits for good once the owner skipped its question or fixed its dial.
  *  - The lane rules: a Trial Reel has exactly one Instagram channel, a Reel (post_type "post"), is_trial_reel and MANUAL; a
- *    test or check clip goes only to scored channels (Instagram normal Reels; TikTok's part is split off); YouTube takes best
- *    clips only; a best clip carries no trial field; a test, check or Trial Reel carries its test or block, a Trial Reel its
- *    pair; no account is listed twice.
+ *    test clip, a check's old clip and a newcomer test's rotation clip go only to scored channels (Instagram normal Reels;
+ *    TikTok's part is split off); YouTube takes the best settings only, a best clip or a check's new clip (the new best, as
+ *    the learner sends it); a best clip carries no trial field; a test, check or Trial Reel carries its test or block, a
+ *    Trial Reel its pair; no account is listed twice.
  *  - Only clips the crew kept: a post-stage keep, quick or thorough, with no failed gate, on this very file (its SHA-256 and
  *    size), rendered sealed (never free or sealedTest), never the battle family; words that pass the text gate
  *    (lib/desktop/autonomyText.ts); and the card's own rules for the request it builds itself.
@@ -40,8 +47,10 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
  *    same video twice on an account.
  *  - It pauses itself, and says why: on any failed post of its own, on any warning from the platform about a consented
  *    account (48 hours before Resume or a new consent, kept apart from the consent so Off does not end it, a warning from
- *    before the consent or the last Resume counted too, and its own still-scheduled posts on that account removed unless the
- *    owner chose "only tell me"), on an error text Postiz's table does not know (lib/desktop/postizErrors.ts, fail closed),
+ *    before the consent or the last Resume counted too, every account warned in one read named, and its own still-scheduled
+ *    posts on each of them removed unless the owner chose "only tell me": listed again on every tick while the warning's
+ *    pause or its 48 hours run, until the app has removed them, so a post Postiz lists only after the warning goes too), on
+ *    an error text Postiz's table does not know (lib/desktop/postizErrors.ts, fail closed),
  *    on one of its posts deleted in Postiz, on a change the learner sent back, when Pro ends, when the key or an account
  *    changes, on a new consent version, and after more than 48 hours without running. What happens while it is paused is
  *    noted on the pause, so the banner says it before Resume. An app older than the one that recorded the consent turns it
@@ -173,6 +182,8 @@ export interface AutonomyPause {
   until: string | null;
   /** The account it concerns, when one. */
   channelId: string | null;
+  /** A warning's pause: the other accounts warned with it, or before it while it was on. Absent: none. */
+  otherChannels?: string[];
   /** What happened after it paused (a post of its own failed, an unknown error, one of its posts gone, a change sent back), and the pause a warning about an account replaced. Absent: nothing. */
   also?: AutonomyPauseNote[];
 }
@@ -185,6 +196,8 @@ export interface AutonomyCooldown {
   until: string;
   /** The account the latest warning was about. */
   channelId: string | null;
+  /** The other accounts warned while it ran (its own still-scheduled posts there are removed too). Absent: none. */
+  otherChannels?: string[];
 }
 
 /** The config's "autonomy" block. */
@@ -285,6 +298,22 @@ function sanitizeNote(raw: unknown): AutonomyPauseNote | null {
   return { reason: reason as AutonomyPauseReason, at, channelId: boundedString(own(raw, "channelId"), 511) };
 }
 
+/** The accounts a warning's pause or cooldown is about: its account, then the others. */
+const channelsOf = (c: Pick<AutonomyCooldown, "channelId" | "otherChannels"> | null | undefined): string[] => (c ? [...(c.channelId ? [c.channelId] : []), ...(c.otherChannels ?? [])] : []);
+
+/** `channelId` and `otherChannels` of a list of accounts: the first, then the rest, each once (no `otherChannels` when none). */
+function accountsOf(channels: readonly string[]): Pick<AutonomyCooldown, "channelId" | "otherChannels"> {
+  const unique = [...new Set(channels)];
+  return { channelId: unique[0] ?? null, ...(unique.length > 1 ? { otherChannels: unique.slice(1) } : {}) };
+}
+
+/** A stored list of other accounts: bounded ids, each once, none of them `channelId` (absent when none). */
+function sanitizeOthers(raw: unknown, channelId: string | null): Pick<AutonomyCooldown, "otherChannels"> {
+  if (!Array.isArray(raw)) return {};
+  const ids = [...new Set(raw.map((v) => boundedString(v, 511)).filter((v): v is string => v !== null && v !== channelId))].slice(0, AUTONOMY_ACCOUNTS_MAX);
+  return ids.length ? { otherChannels: ids } : {};
+}
+
 /** The stored block over the defaults: unknown keys dropped, a consent without a date or an account dropped (so: off). */
 export function sanitizeAutonomy(raw: unknown): AutonomyState {
   if (!isObj(raw)) return { ...DEFAULT_AUTONOMY };
@@ -296,7 +325,8 @@ export function sanitizeAutonomy(raw: unknown): AutonomyState {
     if (head) {
       const rawAlso = own(p, "also");
       const also = Array.isArray(rawAlso) ? rawAlso.map(sanitizeNote).filter((n): n is AutonomyPauseNote => n !== null).slice(-AUTONOMY_PAUSE_NOTES_MAX) : [];
-      pause = { reason: head.reason, at: head.at, until: isoOrNull(own(p, "until")), channelId: head.channelId, ...(also.length ? { also } : {}) };
+      const others = head.reason === "accountHealth" ? sanitizeOthers(own(p, "otherChannels"), head.channelId) : {};
+      pause = { reason: head.reason, at: head.at, until: isoOrNull(own(p, "until")), channelId: head.channelId, ...others, ...(also.length ? { also } : {}) };
     }
   }
   const c = own(raw, "cooldown");
@@ -304,7 +334,8 @@ export function sanitizeAutonomy(raw: unknown): AutonomyState {
   if (isObj(c)) {
     const at = isoOrNull(own(c, "at"));
     const until = isoOrNull(own(c, "until"));
-    if (at && until) cooldown = { at, until, channelId: boundedString(own(c, "channelId"), 511) };
+    const channelId = boundedString(own(c, "channelId"), 511);
+    if (at && until) cooldown = { at, until, channelId, ...sanitizeOthers(own(c, "otherChannels"), channelId) };
   }
   return {
     consent,
@@ -321,14 +352,19 @@ export function sanitizeAutonomy(raw: unknown): AutonomyState {
 /** The cooldown an account-health pause carries (one stored without its end: 48 hours from it), or null. */
 function healthCooldownOf(pause: AutonomyPause | null): AutonomyCooldown | null {
   if (!pause || pause.reason !== "accountHealth") return null;
-  return { at: pause.at, until: pause.until ?? new Date(ms(pause.at) + AUTONOMY_HEALTH_COOLDOWN_MS).toISOString(), channelId: pause.channelId };
+  return { at: pause.at, until: pause.until ?? new Date(ms(pause.at) + AUTONOMY_HEALTH_COOLDOWN_MS).toISOString(), ...accountsOf(channelsOf(pause)) };
 }
 
-/** Two cooldowns as one: recorded at the later time, ending at the later end, about the latest warning's account. */
+/**
+ * Two cooldowns as one: recorded at the later time, ending at the later end, about the latest warning's account first. The
+ * older one's accounts stay on it while it still ran when the newer was recorded (two accounts warned a day apart are both
+ * cooling down); an older one that had ended by then is over.
+ */
 function laterCooldown(a: AutonomyCooldown | null, b: AutonomyCooldown | null): AutonomyCooldown | null {
   if (!a || !b) return a ?? b;
   const [older, newer] = ms(a.at) <= ms(b.at) ? [a, b] : [b, a];
-  return { at: newer.at, until: ms(older.until) > ms(newer.until) ? older.until : newer.until, channelId: newer.channelId };
+  const channels = ms(older.until) > ms(newer.at) ? [...channelsOf(newer), ...channelsOf(older)] : channelsOf(newer);
+  return { at: newer.at, until: ms(older.until) > ms(newer.until) ? older.until : newer.until, ...accountsOf(channels) };
 }
 
 /** The account-health cooldown as it stands: the stored one, and the pause's own when it is a warning's. */
@@ -372,6 +408,11 @@ export interface AutonomyStamp {
   role: SlotRole;
   /** The test, check or block the clip belongs to (null: no test). */
   testId: string | null;
+  /**
+   * The slot's arm, as its test membership says it (lib/insights/learner.ts TestMembership.arm): a test's dial arm, a check's
+   * "old" or "new", a reel's levels, a newcomer test's best arm "rotation". Null or absent: no test.
+   */
+  arm?: string | null;
   /** The pair of a Trial Reel. */
   pair: number | null;
   /** The slot's window (ISO times); null: the planned time only. */
@@ -445,6 +486,8 @@ export interface AccountPost {
   seenAt?: string | null;
   /** One of the app's own scheduled posts is gone from Postiz before its time, and the app did not delete it. */
   gone?: boolean;
+  /** The app deleted it itself, after a warning about its account (AutonomyCheck.deleteOwn): it takes up nothing, and is never listed for deletion again. */
+  removed?: boolean;
   /** Its learner test and Trial Reel pair, for the pair's gap. */
   testId?: string | null;
   pair?: number | null;
@@ -483,9 +526,13 @@ export interface AutonomyContext {
     trialRoute: boolean | null;
     channels: readonly AutonomyLiveChannel[];
   };
-  learner: {
-    learn: boolean;
-    paused: boolean;
+  /**
+   * The learner as the main process reads it: its settings block (desktop/src/social/learner.ts), the newest pass and the
+   * decision log. The owner's switches and locks come in as they stand now, since the learner reads them on its next pass
+   * only: Trial Reels on, the pairs a day and the automatic-sharing confirmation, "Ask again" for Trial Reels (trialRetryAt),
+   * the skipped questions and the fixed dials.
+   */
+  learner: Pick<LearnerSettings, "learn" | "paused" | "trialReels" | "pairsPerDay" | "autoShareOff" | "trialRetryAt" | "skipped" | "fixed"> & {
     /**
      * ISO time learning was last paused, turned off or switched back on (null: never): every item made before it waits for
      * the person, those of a pass made before the stop at once and any made while it was stopped once it is back on.
@@ -494,6 +541,11 @@ export interface AutonomyContext {
     /** The newest pass id the main process recorded. */
     newestPassId: string | null;
     decisions: readonly Pick<LearnerDecision, "testId" | "decidedAt" | "verdict">[];
+    /**
+     * The channels the learner lets post Trial Reels now (lib/insights/learner.ts LearnerChannel.trialReels: Postiz 2.18 or
+     * newer, the owner's pilot passed, and not turned off by "This account doesn't support Trial Reels").
+     */
+    trialChannels: readonly string[];
   };
   autopilot: { quietFrom: string; quietTo: string; language: TextLanguage };
   /** The whole posting queue (other proposals of the same clip count). */
@@ -526,7 +578,7 @@ export function stableJson(value: unknown): string {
 
 /** What proposePass hashes, and the approver hashes again before each create: everything that would go out, and the stamp. */
 export function stampText(item: Pick<AutonomyItem, "clipId" | "video" | "channels" | "when" | "thumbnailMs" | "createdAt"> & { pass: Omit<AutonomyStamp, "hash"> | AutonomyStamp | null }): string {
-  const pass = item.pass ? { passId: item.pass.passId, date: item.pass.date, role: item.pass.role, testId: item.pass.testId, pair: item.pass.pair, window: item.pass.window } : null;
+  const pass = item.pass ? { passId: item.pass.passId, date: item.pass.date, role: item.pass.role, testId: item.pass.testId, arm: item.pass.arm ?? null, pair: item.pass.pair, window: item.pass.window } : null;
   return stableJson({
     v: 1,
     clipId: item.clipId,
@@ -560,12 +612,16 @@ export const AUTONOMY_REASONS = {
   noPair: true, // a Trial Reel stamped without its pair
   testClosed: true, // its test or block has a verdict
   planChanged: true, // a verdict was written after it was made
+  testSkipped: true, // the owner skipped its test's question, or fixed one of its dials
+  trialsOff: true, // Trial Reels switched off, no pairs a day, automatic sharing not confirmed off, or the learner stopped them on its account
+  trialUnsupported: true, // Postiz said the account cannot post Trial Reels
+  trialLimit: true, // the account reached its Trial Reel limit less than 24 hours before its time
   otherProposal: true, // another proposal of the same clip is in the queue
   noTime: true,
   // lanes
   trialChannels: true, // a Trial Reel lists anything but one Instagram channel
   trialSettings: true, // a Trial Reel without is_trial_reel or MANUAL, or not a Reel (post_type "post")
-  testChannels: true, // a test or check clip lists YouTube or an unscored channel
+  testChannels: true, // what is not the best settings (a test clip, a check's old clip, a rotation clip) lists YouTube or an unscored channel
   trialFieldOutsideTrial: true,
   laneMismatch: true, // a channel's stamped lane does not match the role
   story: true,
@@ -648,7 +704,7 @@ export function localOf(at: number, offsetMinAt: (at: number) => number): { day:
 }
 
 /** Whether a post takes up its account: pending, out, or a create whose answer never came (not a draft, a failure or a deleted one). */
-const occupies = (p: AccountPost) => (p.state === "QUEUE" || p.state === "PUBLISHED" || p.state === "intent") && !p.gone;
+const occupies = (p: AccountPost) => (p.state === "QUEUE" || p.state === "PUBLISHED" || p.state === "intent") && !p.gone && !p.removed;
 
 /** The channels of an item the app may post on its own (allowed platform, ticked in the consent), and the rest. */
 export function splitChannels<C extends { integrationId: string; platform: string }>(channels: readonly C[], consent: AutonomyConsent | null): { auto: C[]; person: C[] } {
@@ -662,11 +718,14 @@ export function splitChannels<C extends { integrationId: string; platform: strin
 
 /**
  * The lane rules for a learner proposal, on its channels as stamped (before anything is split off, and again before each
- * create): a Trial Reel has exactly one channel, Instagram, a Reel with is_trial_reel and MANUAL in the trial lane; a test or
- * check clip lists only scored channels (Instagram normal Reels and TikTok) in the normal lane; a best clip carries no
- * trial field; no Instagram story; settings.__type is the channel's platform.
+ * create): a Trial Reel has exactly one channel, Instagram, a Reel with is_trial_reel and MANUAL in the trial lane; what is
+ * not the best settings lists only scored channels (Instagram normal Reels and TikTok) in the normal lane: a test clip, a
+ * check's old clip (and a check stamped without its arm) and a newcomer test's rotation clip; YouTube and every other channel
+ * take the best settings only, a best clip or a check's new clip, which is the new best (the learner sends a check's new clips
+ * to every channel, lib/insights/learner.ts channelsFor, as every slot of the day is a check slot while a check runs); a best
+ * clip carries no trial field; no Instagram story; settings.__type is the channel's platform. `arm` is the stamp's.
  */
-export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyItemChannel, "platform" | "settings" | "lane">[]): AutonomyReason[] {
+export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyItemChannel, "platform" | "settings" | "lane">[], arm: string | null = null): AutonomyReason[] {
   const out = new Set<AutonomyReason>();
   if (channels.some((c) => own(c.settings, "__type") !== c.platform)) out.add("typeMismatch");
   if (channels.some((c) => familyOf(c.platform) === "instagram" && own(c.settings, "post_type") === "story")) out.add("story");
@@ -678,11 +737,70 @@ export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyIte
       if (own(c.settings, "is_trial_reel") !== true || own(c.settings, "graduation_strategy") !== MANUAL || (postType !== undefined && postType !== "post")) out.add("trialSettings");
     }
   } else {
+    const bestSettings = (role === "best" && arm !== "rotation") || (role === "check" && arm === "new");
     for (const c of channels) {
       if (c.lane !== "normal") out.add("laneMismatch");
       if (hasTrialField(c.settings)) out.add("trialFieldOutsideTrial");
-      if (TEST_ROLES.includes(role) && familyOf(c.platform) !== "instagram" && c.platform !== "tiktok") out.add("testChannels");
+      if (!bestSettings && familyOf(c.platform) !== "instagram" && c.platform !== "tiktok") out.add("testChannels");
     }
+  }
+  return [...out];
+}
+
+/**
+ * The questions of a learner test id, as lib/insights/learner.ts testIdOf writes them ("n3.length.standard.short", a block's
+ * "t2.<question>~<question>", a check's "c4.<its test's id>", a generation after "Forget my numbers" as "n0g1."), each with its
+ * dial and its question key (lib/insights/dials.ts questionKey: the dial, its two arms in a fixed order and a newcomer's
+ * template). Empty: not a test id the learner writes. tests/autonomy.test.ts keeps it equal to the learner's own parser,
+ * which this file cannot import (the main process bundles it alone).
+ */
+export function testQuestionsOf(testId: string | null | undefined): { dial: string; key: string }[] {
+  const m = typeof testId === "string" ? /^([ntc])(\d{1,6})(?:g([1-9]\d{0,3}))?\.(.+)$/.exec(testId) : null;
+  if (!m) return [];
+  if (m[1] === "c") return m[4].startsWith("c") ? [] : testQuestionsOf(m[4]);
+  const out: { dial: string; key: string }[] = [];
+  for (const text of m[4].split("~")) {
+    const [dial, a, b, subject, ...rest] = text.split(".");
+    if (!dial || !a || !b || rest.length || subject === "") return [];
+    const pair = [a, b].sort().join("~");
+    out.push({ dial, key: subject ? `${dial}:${pair}:${subject}` : `${dial}:${pair}` });
+  }
+  return out;
+}
+
+/**
+ * What the owner changed on the Learning card since an item was stamped: the learner reads it on its next pass only, so an
+ * item stamped before it waits for the person for good.
+ *  - A Trial Reel: Trial Reels switched off, no pairs a day, or Instagram's automatic sharing no longer confirmed off; its
+ *    account no longer among the learner's Trial Reel channels; Postiz's "This account doesn't support Trial Reels" on any
+ *    post of the account, the person's too, since the owner last asked for Trial Reels again (the plan: trials go off for that
+ *    account); and Instagram's Trial Reel limit on any post of the account less than 24 hours before the item's time (the
+ *    plan: trials pause 24 hours there).
+ *  - A test, check or Trial Reel: one of its test's questions skipped, or one of its dials fixed.
+ */
+export function learnerStopProblems(item: Pick<AutonomyItem, "channels" | "when" | "pass">, ctx: Pick<AutonomyContext, "learner" | "posts">): AutonomyReason[] {
+  const pass = item.pass;
+  if (!pass) return [];
+  const learner = ctx.learner;
+  const out = new Set<AutonomyReason>();
+  if (isTrialRole(pass.role)) {
+    if (!learner.trialReels || !(learner.pairsPerDay >= 1) || !learner.autoShareOff) out.add("trialsOff");
+    const retry = ms(learner.trialRetryAt);
+    const since = Number.isFinite(retry) ? retry : -Infinity;
+    const planned = ms(item.when);
+    for (const c of item.channels) {
+      if (!learner.trialChannels.includes(c.integrationId)) out.add("trialsOff");
+      for (const p of ctx.posts) {
+        if (p.channelId !== c.integrationId || p.state !== "ERROR") continue;
+        const kind = classifyPostizError(p.error, p.platform ?? c.platform).kind;
+        if (kind === "trialUnsupported" && eventTime(p) > since) out.add("trialUnsupported");
+        if (kind === "trialLimit" && !(planned >= eventTime(p) + TRIAL_LIMIT_PAUSE_H * HOUR_MS)) out.add("trialLimit");
+      }
+    }
+  }
+  if (TEST_ROLES.includes(pass.role) || isTrialRole(pass.role)) {
+    const fixed = (dial: string) => !!own(learner.fixed as Record<string, unknown>, dial as DialId);
+    if (testQuestionsOf(pass.testId).some((q) => learner.skipped.includes(q.key) || fixed(q.dial))) out.add("testSkipped");
   }
   return [...out];
 }
@@ -840,7 +958,8 @@ export function wordsOf(item: Pick<AutonomyItem, "channels">, clip: Pick<Autonom
 export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null | undefined, state: AutonomyState, ctx: AutonomyContext): { reasons: AutonomyReason[]; words: TextProblem[]; card: CardProblem[] } {
   const reasons = new Set<AutonomyReason>(eligibilityProblems(item, state, ctx));
   const consent = state.consent;
-  if (item.pass) for (const r of laneProblems(item.pass.role, item.channels)) reasons.add(r);
+  if (item.pass) for (const r of laneProblems(item.pass.role, item.channels, item.pass.arm ?? null)) reasons.add(r);
+  for (const r of learnerStopProblems(item, ctx)) reasons.add(r);
   for (const r of clipProblems(clip)) reasons.add(r);
   let words: TextProblem[] = [];
   let card: CardProblem[] = [];
@@ -875,11 +994,14 @@ function blockAt(at: number, item: AutonomyItem, consent: AutonomyConsent, ctx: 
     if (!account) continue;
     const mine = posts.filter((p) => p.channelId === c.integrationId && occupies(p));
     if (mine.some((p) => Math.abs(ms(p.at) - at) < AUTONOMY_SPACING_MS)) return "spacing";
-    const total = Math.min(account.perDay + (familyOf(account.platform) === "instagram" ? 2 * account.trialPairs : 0), AUTONOMY_CHANNEL_DAY_MAX);
+    // the pairs the consent named, and no more than the owner's pairs a day on the Learning card now
+    const learnerPairs = Number.isFinite(ctx.learner.pairsPerDay) ? Math.max(0, Math.floor(ctx.learner.pairsPerDay)) : 0;
+    const pairs = familyOf(account.platform) === "instagram" ? Math.min(account.trialPairs, learnerPairs) : 0;
+    const total = Math.min(account.perDay + 2 * pairs, AUTONOMY_CHANNEL_DAY_MAX);
     const isTrialPost = (p: AccountPost) => p.lane === "trialReel";
     if (countOver(mine, at, ctx) + 1 > total) return "dayFull";
     if (trial) {
-      if (familyOf(c.platform) !== "instagram" || countOver(mine.filter(isTrialPost), at, ctx) + 1 > 2 * account.trialPairs) return "trialPairsFull";
+      if (familyOf(c.platform) !== "instagram" || countOver(mine.filter(isTrialPost), at, ctx) + 1 > 2 * pairs) return "trialPairsFull";
     } else if (countOver(mine.filter((p) => p.by === "app" && !isTrialPost(p)), at, ctx) + 1 > account.perDay) return "dayFull";
   }
   if (trial && siblingAt !== null && Math.abs(siblingAt - at) < AUTONOMY_PAIR_GAP_MS) return "pairGap";
@@ -967,7 +1089,12 @@ export interface AutonomyCheck {
   off: AutonomyOffReason | null;
   /** A pause to record now (null: none new; an existing pause stays). */
   pause: AutonomyPause | null;
-  /** Its own still-scheduled posts to remove after a warning about an account (only when deleteOnWarning). */
+  /**
+   * Its own still-scheduled posts to remove after a warning about an account (only when deleteOnWarning): every one Postiz
+   * lists on any account a warning's pause or its 48 hours are about, on every tick they run (after Off too), until the app has
+   * removed it (AccountPost.removed), so a post Postiz lists only after the warning (a create in flight, a create whose answer
+   * came late) and one whose time has passed but that Postiz has not published yet go too. Each once per list.
+   */
   deleteOwn: { channelId: string; postId: string }[];
 }
 
@@ -982,40 +1109,57 @@ const EVENT_REASONS: readonly AutonomyPauseReason[] = ["ownPostFailed", "unknown
 const isEventReason = (r: AutonomyPauseReason) => EVENT_REASONS.includes(r);
 
 /**
- * Whether autonomy must turn Off or pause now, and why. Conditions (the licence, the key, the accounts, the consent version,
- * the gap) and events after the consent and the last Resume (failed posts, warnings about an account, its own posts gone, a
- * change sent back).
+ * Whether autonomy must turn Off or pause now, and why, and which of its own posts to remove. Conditions (the licence, the
+ * key, the accounts, the consent version, the gap) and events after the consent and the last Resume (failed posts, warnings
+ * about an account, its own posts gone, a change sent back).
  *  - A warning about an account counts for 48 hours whenever it came, before the consent or the last Resume too, and over
- *    any pause; the warnings seen when the cooldown was last recorded are counted already. While the stored cooldown runs
- *    (a warning, then Off and on again), it pauses for the rest of it.
+ *    any pause; the warnings seen when the cooldown was last recorded are counted already. Every consented account warned in
+ *    one read is named on the pause (the first as its account, the rest as `otherChannels`), and so are the accounts of the
+ *    warning's pause it replaces. While the stored cooldown runs (a warning, then Off and on again), it pauses for the rest
+ *    of it.
+ *  - While a warning's pause is on or its 48 hours run, its own still-scheduled posts on those accounts are listed for
+ *    removal on every tick (`deleteOwn`), not only on the tick that records the warning.
  *  - While paused, an event comes back too, once: `paused` notes it on the pause, so the banner says it before Resume, and
  *    the events the pause has recorded are not taken again.
  */
 export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): AutonomyCheck {
-  const none: AutonomyCheck = { off: null, pause: null, deleteOwn: [] };
   const consent = state.consent;
-  if (!consent) return none;
-  if (compareVersions(ctx.appVersion, consent.appVersion) < 0) return { ...none, off: "appOlder" };
+  const cooldown = cooldownOf(state);
+  const pausedFor = state.pause?.reason === "accountHealth" ? channelsOf(state.pause) : [];
+  const removals = (warned: readonly string[]): AutonomyCheck["deleteOwn"] => {
+    if (!state.deleteOnWarning) return [];
+    const on = new Set([...warned, ...pausedFor, ...(cooldown && ms(cooldown.until) > ctx.now ? channelsOf(cooldown) : [])]);
+    const out: AutonomyCheck["deleteOwn"] = [];
+    for (const p of ctx.posts) {
+      if (!on.has(p.channelId) || p.by !== "app" || p.state !== "QUEUE" || p.gone || p.removed || !p.postId) continue;
+      if (!out.some((d) => d.channelId === p.channelId && d.postId === p.postId)) out.push({ channelId: p.channelId, postId: p.postId });
+    }
+    return out;
+  };
+  const check = (off: AutonomyOffReason | null, pause: AutonomyPause | null, warned: readonly string[] = []): AutonomyCheck => ({ off, pause, deleteOwn: removals(warned) });
+  if (!consent) return check(null, null);
+  if (compareVersions(ctx.appVersion, consent.appVersion) < 0) return check("appOlder", null);
   const nowIso = new Date(ctx.now).toISOString();
   const pause = (reason: AutonomyPauseReason, channelId: string | null = null, until: number | null = null): AutonomyPause => ({ reason, at: nowIso, until: until === null ? null : new Date(until).toISOString(), channelId });
+  const healthPause = (channels: readonly string[], until: number): AutonomyPause => ({ reason: "accountHealth", at: nowIso, until: new Date(until).toISOString(), ...accountsOf(channels) });
   const resumed = ms(state.resumedAt);
   const since = Math.max(ms(consent.at), Number.isFinite(resumed) ? resumed : -Infinity);
   const consented = new Set(consent.accounts.map((a) => a.channelId));
   const isHealth = (p: AccountPost) => consented.has(p.channelId) && p.state === "ERROR" && isAccountHealth(classifyPostizError(p.error, p.platform).kind);
-  const deleteOwnOn = (channelId: string) => (state.deleteOnWarning ? ctx.posts.filter((p) => p.channelId === channelId && p.by === "app" && p.state === "QUEUE" && !p.gone && p.postId && ms(p.at) > ctx.now).map((p) => ({ channelId: p.channelId, postId: p.postId! })) : []);
 
-  // a warning about an account: on any post of a consented account, whoever made it, or the account off in Postiz
-  const cooldown = cooldownOf(state);
+  // a warning about an account: on any post of a consented account, whoever made it, or the account off in Postiz. Every
+  // account warned since the cooldown was recorded, and every account off that the warning's pause on now is not about yet
   const healthFrom = Math.max(Math.min(since, ctx.now - AUTONOMY_HEALTH_COOLDOWN_MS), cooldown ? ms(cooldown.at) : -Infinity);
-  const healthPost = ctx.posts.find((p) => isHealth(p) && eventTime(p) > healthFrom);
-  const offChannel = consent.accounts.find((a) => {
-    const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
-    return !!live && (live.disabled || live.refreshNeeded);
-  });
-  const healthChannel = healthPost?.channelId ?? offChannel?.channelId ?? null;
-  const alreadyHealth = healthPost === undefined && state.pause?.reason === "accountHealth" && state.pause.channelId === healthChannel;
-  if (healthChannel !== null && !alreadyHealth) return { off: null, pause: pause("accountHealth", healthChannel, ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS), deleteOwn: deleteOwnOn(healthChannel) };
-  if (!state.pause && cooldown && ms(cooldown.until) > ctx.now) return { off: null, pause: pause("accountHealth", cooldown.channelId, ms(cooldown.until)), deleteOwn: cooldown.channelId ? deleteOwnOn(cooldown.channelId) : [] };
+  const offChannels = consent.accounts
+    .filter((a) => {
+      const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
+      return !!live && (live.disabled || live.refreshNeeded);
+    })
+    .map((a) => a.channelId);
+  const warned = [...new Set([...ctx.posts.filter((p) => isHealth(p) && eventTime(p) > healthFrom).map((p) => p.channelId), ...offChannels.filter((c) => !pausedFor.includes(c))])];
+  // the accounts of the warning's pause it replaces stay on it, so they are not taken as new on the next tick
+  if (warned.length) return check(null, healthPause([...warned, ...pausedFor], ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS), warned);
+  if (!state.pause && cooldown && ms(cooldown.until) > ctx.now) return check(null, healthPause(channelsOf(cooldown), ms(cooldown.until)));
 
   // the events after the consent and the last Resume, and after those the pause on now has recorded
   const recorded = state.pause ? [state.pause, ...(state.pause.also ?? [])].filter((n) => isEventReason(n.reason)).map((n) => ms(n.at)) : [];
@@ -1026,24 +1170,24 @@ export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): Autonomy
     if (failed) return pause(classifyPostizError(failed.error, failed.platform).kind === "unknown" ? "unknownError" : "ownPostFailed", failed.channelId);
     const unknown = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && eventTime(p) > from && classifyPostizError(p.error, p.platform).kind === "unknown");
     if (unknown) return pause("unknownError", unknown.channelId);
-    const gone = ctx.posts.find((p) => p.by === "app" && p.gone && eventTime(p) > from);
+    const gone = ctx.posts.find((p) => p.by === "app" && p.gone && !p.removed && eventTime(p) > from);
     if (gone) return pause("ownPostDeleted", gone.channelId);
     if (ctx.learner.decisions.some((d) => d.verdict === "wentBack" && ms(d.decidedAt) > from)) return pause("wentBack");
     return null;
   })();
-  if (state.pause) return event ? { ...none, pause: event } : none;
+  if (state.pause) return check(null, event);
 
-  if (consent.version < AUTONOMY_CONSENT_VERSION) return { ...none, pause: pause("consentVersion") };
-  if (!ctx.postiz.configured) return { ...none, pause: pause("keyRemoved") };
-  if (ms(ctx.postiz.keySavedAt) > since || ctx.postiz.baseUrl !== consent.postiz.baseUrl || (ctx.postiz.organizationId !== null && ctx.postiz.organizationId !== consent.postiz.organizationId)) return { ...none, pause: pause("keyChanged") };
+  if (consent.version < AUTONOMY_CONSENT_VERSION) return check(null, pause("consentVersion"));
+  if (!ctx.postiz.configured) return check(null, pause("keyRemoved"));
+  if (ms(ctx.postiz.keySavedAt) > since || ctx.postiz.baseUrl !== consent.postiz.baseUrl || (ctx.postiz.organizationId !== null && ctx.postiz.organizationId !== consent.postiz.organizationId)) return check(null, pause("keyChanged"));
   for (const a of consent.accounts) {
     const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
-    if (!live || live.platform !== a.platform || (live.profile ?? "") !== a.profile) return { ...none, pause: pause("accountChanged", a.channelId) };
+    if (!live || live.platform !== a.platform || (live.profile ?? "") !== a.profile) return check(null, pause("accountChanged", a.channelId));
   }
-  if (ctx.licence && (!ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now))) return { ...none, pause: pause("proEnded") };
+  if (ctx.licence && (!ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now))) return check(null, pause("proEnded"));
   const lastRun = Number.isFinite(ms(state.lastRunAt)) ? ms(state.lastRunAt) : ms(consent.at);
-  if (ctx.now - lastRun > AUTONOMY_GAP_MS) return { ...none, pause: pause("gap") };
-  return event ? { ...none, pause: event } : none;
+  if (ctx.now - lastRun > AUTONOMY_GAP_MS) return check(null, pause("gap"));
+  return check(null, event);
 }
 
 /** Why Resume is not available yet (empty: one press resumes). */
@@ -1089,7 +1233,7 @@ export function paused(state: AutonomyState, pause: AutonomyPause): AutonomyStat
   const note = (p: AutonomyPause): AutonomyPauseNote => ({ reason: p.reason, at: p.at, channelId: p.channelId });
   const withNotes = (p: AutonomyPause, notes: AutonomyPauseNote[]): AutonomyPause => {
     const kept = notes.slice(-AUTONOMY_PAUSE_NOTES_MAX);
-    const head: AutonomyPause = { reason: p.reason, at: p.at, until: p.until, channelId: p.channelId };
+    const head: AutonomyPause = { reason: p.reason, at: p.at, until: p.until, channelId: p.channelId, ...(p.otherChannels?.length ? { otherChannels: p.otherChannels } : {}) };
     return kept.length ? { ...head, also: kept } : head;
   };
   if (pause.reason === "accountHealth") {
@@ -1212,7 +1356,7 @@ export function checkBeforeCreate(itemId: string, state: AutonomyState, ctx: Aut
 
 /** Whether the outcome watcher should read Postiz's list: one of its own posts is pending, or was published in the last 24 hours. */
 export function watchNeeded(posts: readonly AccountPost[], now: number): boolean {
-  return posts.some((p) => p.by === "app" && (p.state === "QUEUE" || p.state === "intent" || (p.state === "PUBLISHED" && now - ms(p.at) <= AUTONOMY_WATCH_AFTER_MS)));
+  return posts.some((p) => p.by === "app" && !p.removed && (p.state === "QUEUE" || p.state === "intent" || (p.state === "PUBLISHED" && now - ms(p.at) <= AUTONOMY_WATCH_AFTER_MS)));
 }
 
 /* ------------------------------------------------------------------ the consent screen */

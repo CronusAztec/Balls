@@ -155,6 +155,86 @@ describe("the text gate: words nobody reads", () => {
     expect(keysOf(ig("Red escapes. dc"))).not.toContain("name");
   });
 
+  it("reads the banned claims, bait and franchise names inside a hashtag, in the three languages", () => {
+    const noWinner: TextFacts = { numbers: [1, 20], winner: null, contestants: [] };
+    const held: [string, TextLanguage, TextProblemKey][] = [
+      ["Which ball escapes first? #satisfying #goviral", "en", "claim"],
+      ["Which ball escapes first? #satisfying #reelsviral", "en", "claim"],
+      ["Which ball escapes first? #satisfying #instaviral", "en", "claim"],
+      ["Which ball escapes first? #satisfying #fypviral", "en", "claim"],
+      ["Which ball escapes first? #satisfying #bestoftheday", "en", "claim"],
+      ["Which ball escapes first? #satisfying #bestreels", "en", "claim"],
+      ["Która kulka ucieknie pierwsza? #satysfakcja #polskiewirale", "pl", "claim"],
+      ["Która kulka ucieknie pierwsza? #najlepszefilmiki", "pl", "claim"],
+      ["¿Qué bola escapa primero? #satisfactorio #videoviral", "es", "claim"],
+      ["¿Qué bola escapa primero? #losmejoresvideos", "es", "claim"],
+      ["Which ball escapes first? #satisfying #followforfollow", "en", "bait"],
+      ["Which ball escapes first? #satisfying #likeforlike", "en", "bait"],
+      ["Which ball escapes first? #satisfying #followme", "en", "bait"],
+      ["Which ball escapes first? #satisfying #linkinbio", "en", "bait"],
+      ["Which ball escapes first? #satisfying #tagafriend", "en", "bait"],
+      ["Która kulka ucieknie pierwsza? #obserwujmnie", "pl", "bait"],
+      ["Która kulka ucieknie pierwsza? #linkwbio", "pl", "bait"],
+      ["¿Qué bola escapa primero? #Sígueme", "es", "bait"],
+      ["¿Qué bola escapa primero? #enlaceenbio", "es", "bait"],
+      ["Which ball escapes first? #satisfying #minecraftmemes", "en", "name"],
+      ["Which ball escapes first? #satisfying #pokemongo", "en", "name"],
+      ["Which ball escapes first? #PokémonGO", "en", "name"],
+      ["¿Qué bola escapa primero? #fortniteclips", "es", "name"],
+      ["Która kulka ucieknie pierwsza? #DCfani", "pl", "name"],
+    ];
+    for (const [text, language, key] of held) expect(keysOf(ig(text), language, noWinner), text).toContain(key);
+    expect(check(ig("Which ball escapes first? #satisfying #goviral"), "en", noWinner).find((p) => p.key === "claim")?.match).toBe("#goviral");
+    // a fighter's name run together with other words, and another creator's
+    const fighter = NAMES.find((n) => n.length >= 4 && /^[A-Z][a-z]+$/.test(n) && !["Thor", "Loki"].includes(n))!;
+    expect(keysOf(ig(`Which ball escapes first? #${fighter.toLowerCase()}fans`), "en", noWinner), fighter).toContain("name");
+    expect(textProblems({ channels: [ig("Which ball escapes first? #mrballzfan")], language: "en", facts: noWinner, names: ["MrBallz"], readNumbers: numbersIn }).map((p) => p.key)).toContain("name");
+    // the everyday hashtags pass in each language
+    const everyday: [string, TextLanguage][] = [
+      ["Which ball escapes first? #satisfying #oddlysatisfying #physics #asmr #simulation #marblerace #fyp #foryou #reels #explore #trending #shorts", "en"],
+      ["Która kulka ucieknie pierwsza? #satysfakcja #fizyka #symulacja #kulki", "pl"],
+      ["¿Qué bola escapa primero? #satisfactorio #física #simulación #bolas", "es"],
+    ];
+    for (const [text, language] of everyday) expect(check(ig(text), language, noWinner), text).toEqual([]);
+  });
+
+  it("reads 'escapes first', 'survives', 'beats' and the like as a claim of who won, in the three languages", () => {
+    const blue: TextFacts = { numbers: [1, 20], winner: "Blue", contestants: ["Red", "Blue"] };
+    const wrong: [string, TextLanguage][] = [
+      ["Red escapes first. Watch until the end", "en"],
+      ["Red makes it out first", "en"],
+      ["Only Red survives", "en"],
+      ["Red beats Blue", "en"],
+      ["Red is the last one standing", "en"],
+      ["Red finishes first", "en"],
+      ["Red is out first", "en"],
+      ["Gerald escapes first", "en"],
+      ["Gerald makes it out", "en"],
+      ["Czerwona ucieka pierwsza", "pl"],
+      ["Tylko czerwona przetrwa", "pl"],
+      ["Czerwona pokonuje niebieską", "pl"],
+      ["La roja escapa primero", "es"],
+      ["Solo la roja sobrevive", "es"],
+      ["La roja vence a la azul", "es"],
+    ];
+    for (const [text, language] of wrong) expect(keysOf(ig(text), language, blue), text).toContain("winner");
+    // the clip's own winner said the same ways, a question and a pronoun claim nothing wrong
+    const right: [string, TextLanguage][] = [
+      ["Blue escapes first. Watch until the end", "en"],
+      ["Only Blue survives", "en"],
+      ["Blue is the last one standing", "en"],
+      ["It escapes first. Watch until the end", "en"],
+      ["Which ball escapes first?", "en"],
+      ["Niebieska ucieka pierwsza", "pl"],
+      ["Która kulka ucieknie pierwsza?", "pl"],
+      ["La azul escapa primero", "es"],
+      ["¿Qué bola escapa primero?", "es"],
+    ];
+    for (const [text, language] of right) expect(keysOf(ig(text), language, blue), text).not.toContain("winner");
+    // a run with no winner: anyone said to come first waits
+    expect(keysOf(ig("Red escapes first"), "en", { ...blue, winner: null })).toContain("winner");
+  });
+
   it("refuses a number the clip's facts do not hold, in digits or in words", () => {
     expect(keysOf(ig("50 rings and one ball"))).toContain("number");
     expect(keysOf(ig("Fifty rings, one ball"))).toContain("number");

@@ -14,9 +14,14 @@
  *    "1 in a million", "a billion" (the number reader stops at a million, so they are claims, not numbers);
  *  - a franchise, fighter or other creator's name: the franchises ADS.md names, plus the names the caller passes (the Fight
  *    League roster's, other creators' handles);
+ *  - the same claims, bait and names inside a hashtag, where no word boundary stands between them and the rest of the tag
+ *    ("#goviral", "#videoviral", "#bestoftheday", "#followforfollow", "#linkinbio", "#minecraftmemes"): each hashtag's body is
+ *    read on its own, without its accents, for the stems in HASHTAG_CLAIMS, HASHTAG_BAIT and HASHTAG_NAMES;
  *  - a number the clip's own facts do not hold (read with the crew's number reader, src/lib/crew/clip.ts numbersIn, which
  *    the caller passes in: digits of any script and number words in the three languages), and a winner the clip does not
- *    have (a sentence that says who won names the clip's winner and no other contestant or colour; a question is no claim);
+ *    have (a sentence that says who won, or who came first, last or alone, got out, survived or beat another, names the
+ *    clip's winner and no other contestant or colour: "Red escapes first" claims as much as "Red wins"; a question is no
+ *    claim);
  *  - another language than the autopilot's, when the words say so (hashtags, links and names are not read for it);
  *  - YouTube's own rules: a title of 2 to 100 characters without < or >, and a description without < or >.
  *
@@ -251,6 +256,55 @@ export const CLAIM_PATTERNS: Readonly<Record<TextLanguage, readonly RegExp[]>> =
 /** The franchises docs/ADS.md section 2 names (any case), and the Fight League itself. "DC" is matched in capitals only. */
 export const FRANCHISE_PATTERNS: readonly RegExp[] = [...words(["marvel", "nintendo", "pok[ée]mon", "star wars", "fight league", "thor", "loki", "disney", "pixar", "minecraft", "fortnite", "roblox"]), /(?<![\p{L}\p{N}_])DC(?![\p{L}\p{N}_])/u];
 
+/* ------------------------------------------------------------------ inside hashtags */
+
+/*
+ * A hashtag runs its words together, so the whole-word patterns above miss a stem inside one ("#goviral", "#bestoftheday",
+ * "#followforfollow"). Each hashtag's body is read on its own: lower case, its accents dropped ("#Síguenos" reads "siguenos",
+ * "#Pokémon" "pokemon"), for these stems anywhere in it (a "^" anchors one to the start of the tag, a "$" to its end). A tag
+ * held by mistake only waits for the person, which is the safe side.
+ */
+const tagStems = (sources: readonly string[]) => sources.map((s) => new RegExp(s, "u"));
+
+/** The banned claims inside a hashtag, in the three languages. */
+export const HASHTAG_CLAIMS: readonly RegExp[] = tagStems([
+  "viral", "wiral", "best", "najlepsz", "mejor", "numberone", "numerjeden", "numerouno", "official", "oficjal", "oficial", "endorsed",
+  "sponsored", "patrocinad", "guarantee", "gwarant", "garanti", "money", "zarab", "zarob", "dinero", "income", "dochod", "ingreso",
+  "moneti", "monetyz", "payout", "paypal", "sidehustle", "ultimate", "unlimited", "nieograniczon", "ilimitad",
+  "(?:free|more|get|gain|grow|boost)(?:views|followers|likes|subs|subscribers|reach)", "blowup",
+]);
+
+/** Engagement bait inside a hashtag, in the three languages. */
+export const HASHTAG_BAIT: readonly RegExp[] = tagStems([
+  "follow", "obserwuj", "sigueme", "siguenos", "seguidores", "like4like", "likeforlike", "likeback", "l4l", "f4f", "s4s", "^likes?$",
+  "polub", "dalelike", "megusta", "^comments?$", "commentbelow", "koment", "comenta",
+  "(?:link|enlace)(?:in|en|w)(?:my|the|la|mi)?bio", "tag(?:a|ur|your)?(?:friends?|buddy|bestie|bff|mates?|someone)", "oznacz", "etiqueta",
+  "subscri", "subskryb", "suscri", "share(?:this|it|with)", "udostepnij", "comparte", "doubletap", "smash(?:that|the)?like",
+  "notification", "powiadomien", "notificacion",
+]);
+
+/** The franchises inside a hashtag (the short names only at its start: "#thor", "#lokifans"). */
+export const HASHTAG_NAMES: readonly RegExp[] = tagStems(["marvel", "nintendo", "pokemon", "starwars", "fightleague", "disney", "pixar", "minecraft", "fortnite", "roblox", "^thor", "^loki"]);
+
+/** The hashtags of a text, as written. */
+export function hashtagsOf(text: string): string[] {
+  return [...text.matchAll(/(?<![\p{L}\p{N}_])#[\p{L}\p{N}_]+/gu)].map((m) => m[0]);
+}
+
+/** A hashtag's body as the stems read it: no "#", lower case, no accents. */
+const tagBody = (tag: string) => tag.slice(1).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/** The first hashtag of a text whose body holds one of the stems, or null. */
+function tagMatch(text: string, stems: readonly RegExp[]): string | null {
+  for (const tag of hashtagsOf(text)) {
+    const body = tagBody(tag);
+    if (stems.some((s) => s.test(body))) return tag;
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ who won */
+
 /** Words that say someone won (a question is no claim). */
 export const WIN_PATTERNS: readonly RegExp[] = words([
   "wins?",
@@ -267,6 +321,52 @@ export const WIN_PATTERNS: readonly RegExp[] = words([
   "vencedor\\p{L}*",
   "campe[oó]n\\p{L}*",
 ]);
+
+/**
+ * Words that say who came first, last or alone, who got out, survived or beat another, in the three languages: with a name or
+ * a colour in the same sentence they claim a result as much as a win word ("Red escapes first", "Only Red survives", "Red
+ * beats Blue", "Czerwona ucieka pierwsza", "La roja escapa primero"). A sentence about a red ring that breaks first is read as
+ * a claim too, and waits for the person: the safe side.
+ */
+export const PLACE_PATTERNS: readonly RegExp[] = words([
+  "first",
+  "1st",
+  "last",
+  "only",
+  "alone",
+  "escap\\p{L}*",
+  "surviv\\p{L}*",
+  "beats?",
+  "beaten",
+  "beating",
+  "defeat\\p{L}*",
+  "outlast\\p{L}*",
+  "outr[au]n\\p{L}*",
+  "finish(?:es|ed|ing)?",
+  "(?:makes?|made|making) it (?:out|through)",
+  "(?:gets?|got|getting) out",
+  "(?:breaks?|broke|breaking) (?:out|free|through)",
+  "pierwsz\\p{L}*",
+  "ostatni\\p{L}*",
+  "jedyn\\p{L}*",
+  "tylko",
+  "uciek\\p{L}*",
+  "ucieczk\\p{L}*",
+  "przetrw\\p{L}*",
+  "pokon\\p{L}*",
+  "wydost\\p{L}*",
+  "primer\\p{L}*",
+  "[úu]ltim[oa]s?",
+  "s[óo]l[oa]",
+  "solamente",
+  "[úu]nic[oa]",
+  "sobreviv\\p{L}*",
+  "venc[eií]\\p{L}*",
+  "derrot\\p{L}*",
+]);
+
+/** Every word that makes a sentence a claim of who won, or of a place: a win word or a place word. */
+const RESULT_PATTERNS: readonly RegExp[] = [...WIN_PATTERNS, ...PLACE_PATTERNS];
 
 /** The colours a contestant may go by, each in the three languages (one class per colour, so "Red" and "czerwona" agree). */
 export const COLOUR_CLASSES: Readonly<Record<string, RegExp>> = {
@@ -323,23 +423,34 @@ export function mentionIn(text: string): string | null {
   return MENTION_PATTERN.exec(text)?.[0] ?? null;
 }
 
-/** The first engagement bait in a text (any of the three languages), or null. */
+/** The first engagement bait in a text (any of the three languages), or null; inside a hashtag too ("#followforfollow"). */
 export function baitIn(text: string): string | null {
-  return firstMatch(text, TEXT_LANGUAGES.flatMap((l) => BAIT_PATTERNS[l]));
+  return firstMatch(text, TEXT_LANGUAGES.flatMap((l) => BAIT_PATTERNS[l])) ?? tagMatch(text, HASHTAG_BAIT);
 }
 
-/** The first banned claim in a text (any of the three languages), or null. */
+/** The first banned claim in a text (any of the three languages), or null; inside a hashtag too ("#goviral", "#bestoftheday"). */
 export function claimIn(text: string): string | null {
-  return firstMatch(text, TEXT_LANGUAGES.flatMap((l) => CLAIM_PATTERNS[l]));
+  return firstMatch(text, TEXT_LANGUAGES.flatMap((l) => CLAIM_PATTERNS[l])) ?? tagMatch(text, HASHTAG_CLAIMS);
 }
 
-/** The first franchise, fighter or creator's name in a text, or null. `names` match as whole words, case as written. */
+/** The shortest name `names` reads inside a hashtag: a shorter one only as the whole tag. */
+const NAME_IN_TAG_MIN = 4;
+
+/**
+ * The first franchise, fighter or creator's name in a text, or null. `names` match as whole words, case as written; inside a
+ * hashtag any case, without spaces or accents ("#minecraftmemes", "#captainfalconfans"), a name under 4 letters only as the
+ * whole tag.
+ */
 export function nameIn(text: string, names: readonly string[] = []): string | null {
-  const own = names
-    .map((n) => n.trim())
-    .filter((n) => n.length >= 2 && n.length <= 80)
-    .map((n) => new RegExp(`(?<![${LETTER_OR_DIGIT}@])${escapeRe(n)}(?![${LETTER_OR_DIGIT}])`, "u"));
-  return firstMatch(text, [...FRANCHISE_PATTERNS, ...own]);
+  const kept = names.map((n) => n.trim()).filter((n) => n.length >= 2 && n.length <= 80);
+  const own = kept.map((n) => new RegExp(`(?<![${LETTER_OR_DIGIT}@])${escapeRe(n)}(?![${LETTER_OR_DIGIT}])`, "u"));
+  const found = firstMatch(text, [...FRANCHISE_PATTERNS, ...own]);
+  if (found) return found;
+  const inTags = kept
+    .map((n) => tagBody(`#${n}`).replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter((n) => n.length >= 2)
+    .map((n) => new RegExp(n.length >= NAME_IN_TAG_MIN ? escapeRe(n) : `^${escapeRe(n)}$`, "u"));
+  return tagMatch(text, [...HASHTAG_NAMES, ...inTags]) ?? hashtagsOf(text).find((t) => /^#DC/u.test(t)) ?? null;
 }
 
 /** The numbers a text states that the clip's facts do not hold (each once, in the text's order). */
@@ -350,10 +461,14 @@ export function numbersNotInFacts(text: string, facts: Pick<TextFacts, "numbers"
   return out;
 }
 
+/** Pronouns a sentence may start with ("It escapes first", "Ona ucieka pierwsza"): no one's name. */
+const PRONOUNS: ReadonlySet<string> = new Set(["it", "he", "she", "they", "we", "you", "i", "on", "ona", "ono", "oni", "one", "ella", "ellas", "él", "ellos", "eso", "esto"]);
+
 /**
  * The entities a sentence names: the clip's contestants by name, colours by class, and any other capitalised word that is not
- * a common word of the three languages, a win word or part of a contestant's name (so "Gerald wins" names someone). The
- * sentence's first word counts only right before a win word: "Finally Red wins" names Red, not "Finally".
+ * a common word of the three languages, a pronoun, a win or place word or part of a contestant's name (so "Gerald wins" and
+ * "Gerald escapes first" name someone). The sentence's first word counts only right before a win or place word: "Finally Red
+ * wins" names Red, not "Finally".
  */
 function entitiesIn(sentence: string, contestants: readonly string[]): string[] {
   const out = new Set<string>();
@@ -370,10 +485,11 @@ function entitiesIn(sentence: string, contestants: readonly string[]): string[] 
   const firstAt = sentence.search(/\p{L}/u);
   for (const m of sentence.matchAll(/(?<![\p{L}\p{N}_])\p{Lu}[\p{L}'-]+/gu)) {
     const w = m[0].toLowerCase();
-    if (nameWords.has(w) || TEXT_LANGUAGES.some((l) => LANGUAGE_WORDS[l].has(w)) || WIN_PATTERNS.some((p) => p.test(m[0])) || Object.values(COLOUR_CLASSES).some((p) => p.test(m[0]))) continue;
+    if (nameWords.has(w) || PRONOUNS.has(w) || TEXT_LANGUAGES.some((l) => LANGUAGE_WORDS[l].has(w)) || RESULT_PATTERNS.some((p) => p.test(m[0])) || Object.values(COLOUR_CLASSES).some((p) => p.test(m[0]))) continue;
     if (m.index === firstAt) {
-      const next = /^\s+([\p{L}]+)/u.exec(sentence.slice(firstAt + m[0].length));
-      if (!next || !WIN_PATTERNS.some((p) => p.test(next[1]))) continue;
+      // right before a win or place word, a phrase one ("Gerald makes it out first") included
+      const rest = /^\s+(.*)$/su.exec(sentence.slice(firstAt + m[0].length));
+      if (!rest || !RESULT_PATTERNS.some((p) => p.exec(rest[1])?.index === 0)) continue;
     }
     out.add(`name:${w}`);
   }
@@ -393,8 +509,9 @@ function entityOfWinner(winner: string): string {
 }
 
 /**
- * The first sentence that says who won and names someone the clip did not have win (or names anyone when the run has no
- * winner), or null. A question ("Who wins?", "¿Quién gana?") claims nothing.
+ * The first sentence that says who won, or who came first, last or alone, got out, survived or beat another, and names
+ * someone the clip did not have win (or names anyone when the run has no winner), or null. A question ("Who wins?",
+ * "¿Quién gana?", "Which ball escapes first?") claims nothing.
  */
 export function wrongWinnerIn(text: string, facts: Pick<TextFacts, "winner" | "contestants">): string | null {
   const plain = plainWords(text);
@@ -403,7 +520,7 @@ export function wrongWinnerIn(text: string, facts: Pick<TextFacts, "winner" | "c
     const sentence = m[1];
     if (!sentence.trim()) continue;
     if (m[2].includes("?") || sentence.includes("¿")) continue;
-    if (!WIN_PATTERNS.some((p) => p.test(sentence))) continue;
+    if (!RESULT_PATTERNS.some((p) => p.test(sentence))) continue;
     const named = entitiesIn(sentence, [...facts.contestants, ...(facts.winner ? [facts.winner] : [])]);
     if (named.some((e) => e !== winner)) return short(sentence.trim());
   }
