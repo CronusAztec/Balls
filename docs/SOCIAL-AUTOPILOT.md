@@ -262,8 +262,11 @@ The Insights work (phase P7: the owner's own post statistics on the PC, joined t
 analytics series the owner's Postiz really returns, per platform and per post: Postiz hands each provider's own labels
 through, and they differ between providers and Postiz versions. So before P7 is designed, the owner runs the probe once
 against the real Postiz and records its output here. The probe goes through the Windows app's own Postiz client and prints
-series labels and point counts only: never a value, a channel name, a post text or the key (docs/agents/CLI.md, "Owner-run
-commands").
+series labels and point counts; per recent post also its age in hours, the Trial Reel it asked for and whether each
+series' total is above zero (yes or no); whether the per-post route answers (Postiz 2.18.0 or newer); and whether the post
+list carries each post's settings (Postiz 2.24.0 or newer: before it every post's Trial Reel reads `unknown`). Errors are
+printed by kind, never with Postiz's message. Never a value, a channel name, a post text or the key (docs/agents/CLI.md,
+"Owner-run commands"). The learner's Trial Reel part also waits for the owner's pilot below.
 
 1. On your own PC, in the repository, put your Postiz address and API key in the git-ignored `.env.local`, as in the app's
    Accounts tab (`https://api.postiz.com` for Postiz cloud, else your backend's address):
@@ -272,7 +275,8 @@ commands").
    POSTIZ_API_KEY=paste-your-key-here
    ```
 2. Run `npm run -s agent -- postiz-probe --json '{"days":30,"posts":5}'` (`days` is 7, 30 or 90; `posts` is how many recent
-   published posts it reads, 0 to 20). Without the two variables it prints `not configured` and exits 0.
+   published posts it reads, 0 to 20; `"platform":"instagram"` keeps one platform's posts). Without the two variables it
+   prints `not configured` and exits 0.
 3. Paste its output below and fill in the tables. The key never appears in it; `host` names your Postiz server, so leave it
    out if that is private.
 4. Take the key out of `.env.local` again if you do not want it kept there.
@@ -283,19 +287,31 @@ commands").
 | Filled in by the owner | |
 | --- | --- |
 | Run on (date) | |
-| Postiz: cloud or self-hosted | |
+| Postiz: cloud, or self-hosted and its version | |
 | `days` and `posts` | |
 
 Per channel (the output's `channels`: the platform, whether it is disabled, and each series' `label` with its `points`, or
-the `error`):
+the `error` by kind):
 
-| index | platform | disabled | series (label: points) or error |
+| index | platform | disabled | series (label: points) or error kind |
 | --- | --- | --- | --- |
 | | | | |
 
-Per recent post (the output's `posts`):
+The post list (the output's `postList`: `settings` `yes` needs Postiz 2.24.0 or newer):
 
-| index | platform | series (label: points) or error |
+| listed | settings | meaning |
+| --- | --- | --- |
+| | | |
+
+Per recent post (the output's `posts`; `trialReel` is what the post asked Postiz for, not proof that Instagram did so):
+
+| index | platform | ageHours | trialReel (graduation) | answer | series (label: points, aboveZero) or error kind |
+| --- | --- | --- | --- | --- | --- |
+| | | | | | |
+
+The per-post route (the output's `postRoute`):
+
+| answers | meaning | checkedWith |
 | --- | --- | --- |
 | | | |
 
@@ -308,6 +324,48 @@ The probe's output as printed:
 What P7 takes from it: which labels stand for views, likes, comments, shares and followers on each platform; whether a
 post's series are daily points or a single total; how many days back a post has numbers; and which platforms return nothing
 (an `error`, or no series), which then get no Insights card.
+
+### The Trial Reel pilot: filled in by the owner
+
+The steps, what to look for at 24 h and 72 h, and what passing means are in docs/agents/CLI.md, "The Trial Reel pilot". In
+short: run the probe, post one Trial Reel (Graduation Strategy Manual, "I share it myself") and one normal Reel on the same
+Instagram channel and the same day from Postiz's own post editor, run the probe again at about 24 h and 72 h with
+`npm run -s agent -- postiz-probe --json '{"days":7,"posts":20,"platform":"instagram"}'`, and check in the Instagram app.
+The pilot needs Postiz 2.24.0 or newer (Postiz Cloud runs the newest): on 2.18 to 2.23 the post list carries no post's
+settings (`postList.settings` `no`), so every `trialReel` is `unknown` and the trial's row cannot be told from the normal
+one. Update Postiz first. The app's Trial Reel switch, planned for a later release, comes only after the pilot has passed.
+
+**Status: not run yet.**
+
+| The pilot | |
+| --- | --- |
+| Instagram channel's platform (`instagram` or `instagram-standalone`) | |
+| Day 0: the date both reels went out | |
+| Postiz: cloud, or self-hosted and its version (2.24.0 or newer) | |
+
+Each probe run (copy the two Instagram rows from `posts`):
+
+| Read | Reel | ageHours | trialReel / graduation | answer | Views aboveZero | Reach aboveZero | postRoute.answers | postList.settings |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Day 0, before posting | (none) | | | | | | | |
+| About 24 h | Trial | | | | | | | |
+| About 24 h | Normal | | | | | | | |
+| About 72 h | Trial | | | | | | | |
+| About 72 h | Normal | | | | | | | |
+
+In the Instagram app:
+
+| Check | yes or no | Date |
+| --- | --- | --- |
+| Trial settings: "Share to everyone automatically" is off (day 0) | | |
+| Postiz showed no error on the trial (no "This account doesn't support Trial Reels") | | |
+| At about 72 h the trial is still a trial (not on the grid; its insights offer "Share to everyone") | | |
+| At about 72 h "Share to everyone automatically" is still off | | |
+
+| Result | |
+| --- | --- |
+| **The pilot passed**: `postRoute.answers` `yes` at every run, `postList.settings` `yes` at 24 h and at 72 h (the trial reads `trialReel` `yes`), the trial's Views and Reach above zero at 24 h and at 72 h, still a trial at 72 h, automatic sharing off | |
+| If not, what failed (for example: the normal Reel had numbers and the trial had none) | |
 
 ## 7. Out of scope, on purpose
 

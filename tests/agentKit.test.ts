@@ -8,7 +8,7 @@ import { commonPrefix, linkChecks, modeCatalog, modeDetail, type LinkIo } from "
 import { explainFailure, testFilesIn, textReadsOf } from "@/lib/agentKit/explain";
 import { AGENT_TOOLS, checkToolArgs, toolSpec } from "@/lib/agentKit/tools";
 import { DEFAULT_SEED, normaliseLink, resolveRun } from "@/lib/agentKit/runRequest";
-import { postizConfigFromEnv, seriesShapes, statsConfigFromEnv, statsOrigin, statsPeriod, statsRequests, statsSummary, withoutSecret } from "../scripts/agent/owner-stats.mjs";
+import { POST_LIST_OLDER, POST_LIST_SETTINGS, POST_ROUTE_OLDER, ageHours, errorKind, labelOf, platformMatches, platformOf, postAnswerKind, postRouteOf, postizConfigFromEnv, rawRouteOf, seriesFacts, seriesShapes, settingsById, settingsListedOf, statsConfigFromEnv, statsOrigin, statsPeriod, statsRequests, statsSummary, trialAsked, withoutSecret, withoutSecretDeep } from "../scripts/agent/owner-stats.mjs";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { simulateSeed } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
@@ -314,5 +314,134 @@ describe("owner-run commands' pure halves (--- agent-cli ---)", () => {
   it("keeps only the labels and point counts of Postiz series, and cuts a key out of a message", () => {
     expect(seriesShapes([{ label: "Views", data: [{ total: 9 }, { total: 3 }] }, { data: null }])).toEqual([{ label: "Views", points: 2 }, { label: "(no label)", points: 0 }]);
     expect(withoutSecret("bad key abc123 for abc123", "abc123")).toBe("bad key [key] for [key]");
+  });
+
+  // --- insights --- The pilot's per-post facts (C10): ages, the trial a post asked for, yes or no above zero, errors by kind.
+  it("reads the Trial Reel a post asked Postiz for from its settings, as Postiz reads it, and never echoes a setting", () => {
+    // Postiz answers each post's settings as the JSON text it was created with (prisma Post.settings String?)
+    expect(trialAsked(JSON.stringify({ __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL", collaborators: [] }))).toEqual({ trialReel: "yes", graduation: "MANUAL" });
+    expect(trialAsked({ __type: "instagram", is_trial_reel: "TRUE", graduation_strategy: "SS_PERFORMANCE" })).toEqual({ trialReel: "yes", graduation: "SS_PERFORMANCE" });
+    expect(trialAsked('{"__type":"instagram","post_type":"post","is_trial_reel":"true"}')).toEqual({ trialReel: "yes", graduation: "not set" });
+    expect(trialAsked({ is_trial_reel: true, graduation_strategy: "share it at 4321 views for @someone" })).toEqual({ trialReel: "yes", graduation: "other" });
+    expect(trialAsked({ __type: "instagram", post_type: "post", is_trial_reel: false, graduation_strategy: "MANUAL" })).toEqual({ trialReel: "no" });
+    expect(trialAsked({ is_trial_reel: "false" })).toEqual({ trialReel: "no" });
+    expect(trialAsked('{"__type":"tiktok","privacy_level":"PUBLIC_TO_EVERYONE"}')).toEqual({ trialReel: "no" });
+    expect(trialAsked(null)).toEqual({ trialReel: "no" });
+    expect(trialAsked("")).toEqual({ trialReel: "no" });
+    expect(trialAsked(undefined)).toEqual({ trialReel: "unknown" });
+    expect(trialAsked("{not json")).toEqual({ trialReel: "unknown" });
+    expect(trialAsked([1, 2])).toEqual({ trialReel: "unknown" });
+    expect(settingsById({ posts: [{ id: "a", settings: "{}" }, { id: "b" }, { id: 3, settings: "{}" }] })).toEqual(new Map([["a", "{}"]]));
+    expect(settingsById([{ id: "a", settings: null }])).toEqual(new Map([["a", null]]));
+    expect(settingsById({ message: "no" }).size).toBe(0);
+  });
+
+  it("says whether each series' total is above zero, yes or no, never the total", () => {
+    // Postiz 2.18's per-post answer: [{ label, percentageChange, data: [{ total: "<text>", date }] }]
+    const answer = [
+      { label: "Views", percentageChange: 0, data: [{ total: "48213", date: "2026-10-30" }] },
+      { label: "Reach", percentageChange: 0, data: [{ total: "0", date: "2026-10-30" }] },
+      { label: "Likes", total: 917, data: [{ date: "2026-10-30", total: 917 }] },
+      { label: "Saves", total: 0, data: [] },
+      { label: "Shares", data: [{ total: "7" }, { total: "x" }] },
+    ];
+    const facts = seriesFacts(answer);
+    expect(facts).toEqual([
+      { label: "Views", points: 1, aboveZero: "yes" },
+      { label: "Reach", points: 1, aboveZero: "no" },
+      { label: "Likes", points: 1, aboveZero: "yes" },
+      { label: "Saves", points: 0, aboveZero: "no" },
+      { label: "Shares", points: 2, aboveZero: "yes" },
+    ]);
+    expect(JSON.stringify(facts)).not.toMatch(/48213|917|"7"|2026/);
+    expect(seriesFacts([{ label: "Views", percentageChange: 0, data: [{ total: "0" }] }, { label: "Reach", data: [{ total: 0 }] }]).map((f) => f.aboveZero)).toEqual(["no", "no"]);
+  });
+
+  it("tells the per-post route's answers apart: series, empty, missing, unreadable; and which requests it reads raw", () => {
+    expect(postAnswerKind([{ label: "Views", data: [] }])).toBe("series");
+    expect(postAnswerKind([])).toBe("empty");
+    expect(postAnswerKind({ missing: true })).toBe("missing");
+    expect(postAnswerKind({ analytics: [] })).toBe("empty");
+    expect(postAnswerKind("ok")).toBe("unreadable");
+    expect(postAnswerKind(null)).toBe("unreadable");
+    expect(rawRouteOf("https://api.postiz.com/public/v1/posts?startDate=a&endDate=b")).toEqual({ route: "posts" });
+    expect(rawRouteOf("https://postiz.example.com/api/public/v1/analytics/post/cm%2Fx1?date=30")).toEqual({ route: "post", id: "cm/x1" });
+    expect(rawRouteOf("https://api.postiz.com/public/v1/analytics/ig1?date=30")).toBeNull();
+    expect(rawRouteOf("https://api.postiz.com/public/v1/integrations")).toBeNull();
+    expect(rawRouteOf("not a url")).toBeNull();
+  });
+
+  it("names an error by its kind, status and meaning only; a 404 on the per-post route is a Postiz older than 2.18", () => {
+    const notFound = Object.assign(new Error("Cannot GET /public/v1/analytics/post/cm123?date=30 SECRET-KEY"), { code: "notFound", status: 404 });
+    expect(errorKind(notFound, { postRoute: true })).toEqual({ kind: "notFound", status: 404, meaning: "your Postiz is older than 2.18: no per-post numbers" });
+    expect(POST_ROUTE_OLDER).toBe("your Postiz is older than 2.18: no per-post numbers");
+    expect(errorKind(notFound)).toEqual({ kind: "notFound", status: 404, meaning: "Postiz does not know this route or item" });
+    expect(errorKind(Object.assign(new Error("Too Many Requests"), { code: "rateLimited", status: 429 }), { postRoute: true })).toEqual({ kind: "rateLimited", status: 429, meaning: expect.stringMatching(/pause/) });
+    expect(errorKind(Object.assign(new Error("x"), { code: "server", status: 502 }), { postRoute: true }).kind).toBe("server");
+    expect(errorKind(new Error("rate limited for SECRET-KEY"))).toEqual({ kind: "unknown", status: null, meaning: "Postiz answered unexpectedly" });
+    expect(errorKind({ code: "toString", status: 1.5 })).toEqual({ kind: "unknown", status: null, meaning: "Postiz answered unexpectedly" });
+    expect(JSON.stringify([errorKind(notFound, { postRoute: true }), errorKind(notFound)])).not.toMatch(/SECRET|cm123|Cannot/);
+  });
+
+  it("counts a post's age in whole hours, and sums up whether the per-post route answers", () => {
+    const at = Date.parse("2026-10-30T12:00:00Z");
+    expect(ageHours("2026-10-29T12:00:00.000Z", at)).toBe(24);
+    expect(ageHours("2026-10-27T11:30:00.000Z", at)).toBe(72);
+    expect(ageHours("2026-10-30T13:00:00.000Z", at)).toBe(0);
+    expect(ageHours("", at)).toBeNull();
+    expect(ageHours(undefined, at)).toBeNull();
+    const older = { kind: "notFound", status: 404, meaning: POST_ROUTE_OLDER };
+    const paused = { kind: "rateLimited", status: 429, meaning: "pause" };
+    expect(postRouteOf([])).toEqual({ answers: "not asked", meaning: "no per-post call was made" });
+    expect(postRouteOf([{ ok: true }, { ok: false, error: paused }])).toEqual({ answers: "yes", meaning: "GET /public/v1/analytics/post/:id answers: Postiz 2.18.0 or newer" });
+    expect(postRouteOf([{ ok: false, error: older }])).toEqual({ answers: "no", meaning: POST_ROUTE_OLDER });
+    expect(postRouteOf([{ ok: false, error: paused }])).toEqual({ answers: "unknown", meaning: "no call to it succeeded (rateLimited): run the probe again later" });
+  });
+
+  it("keeps one platform's posts when asked, its variants included, and takes the platform only as an identifier", () => {
+    expect(["instagram", "instagram-standalone", "instagramx", "tiktok", null].map((p) => platformMatches(p, "instagram"))).toEqual([true, true, false, false, false]);
+    expect(platformMatches("tiktok-business", "tiktok")).toBe(true);
+    expect(platformMatches("youtube", undefined)).toBe(true);
+    expect(checkToolArgs("postiz-probe", { days: 7, posts: 20, platform: "instagram" }).ok).toBe(true);
+    expect(checkToolArgs("postiz-probe", { platform: "My Channel" }).ok).toBe(false);
+    expect(checkToolArgs("postiz-probe", { posts: 21 }).ok).toBe(false);
+  });
+
+  it("prints a label only as plain words and a platform only as an identifier: a value, a name or a long text never comes through", () => {
+    // Postiz's own labels (instagram.provider.ts setTitle, youtube.provider.ts, gmb.provider.ts's metric names) pass as they are
+    for (const label of ["Views", "Reach", "Total Likes", "Average View Duration", "Pin click rate", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "Page Views"]) expect(labelOf(label)).toBe(label);
+    expect(["48213", "Views 48213", "Jumping Balls Live reach 39107", "Views SECRET-KEY-7f3a", "Likes: 917", "x".repeat(61), "@jumpingballs", "Ünïcode"].map((label) => labelOf(label))).toEqual(Array(8).fill("(odd label)"));
+    expect([undefined, null, "", "   ", 48213, { label: "Views" }].map((label) => labelOf(label))).toEqual(Array(6).fill("(no label)"));
+    // plain words that hold a channel's name (as Postiz lists it, any case) are not echoed; a name under 3 letters is no name
+    expect(labelOf("Reach of Bouncy Account", ["Jumping Balls Live", "Bouncy Account"])).toBe("(odd label)");
+    expect(labelOf("JUMPING BALLS LIVE views", ["Jumping Balls Live"])).toBe("(odd label)");
+    expect(labelOf("Views", ["Jumping Balls Live", "", "ab", "  "])).toBe("Views");
+    expect(seriesFacts([{ label: "Bouncy Account likes", data: [{ total: "0" }] }, { label: "Likes", data: [] }], ["Bouncy Account"]).map((f) => f.label)).toEqual(["(odd label)", "Likes"]);
+    expect(seriesShapes([{ label: "Views 48213", data: [{ total: 1 }] }, { label: 917, data: [] }])).toEqual([{ label: "(odd label)", points: 1 }, { label: "(no label)", points: 0 }]);
+    expect(seriesFacts([{ label: "Reach of Jumping Balls 39107", data: [{ total: "39107" }] }])).toEqual([{ label: "(odd label)", points: 1, aboveZero: "yes" }]);
+    for (const platform of ["instagram", "instagram-standalone", "tiktok", "x", "linkedin-page"]) expect(platformOf(platform)).toBe(platform);
+    expect(["Jumping Balls Live", "48213", "Instagram", "instagram standalone", `a${"b".repeat(40)}`, "insta_gram"].map((p) => platformOf(p))).toEqual(Array(6).fill("(other)"));
+    expect([undefined, null, "", 48213].map((p) => platformOf(p))).toEqual([null, null, null, null]);
+  });
+
+  it("cuts the key out of every string of a result, as typed and URL-encoded, keys included", () => {
+    const key = "k3y/with+odd=chars";
+    expect(withoutSecret(`a ${key} b ${encodeURIComponent(key)}`, key)).toBe("a [key] b [key]");
+    expect(withoutSecret("nothing here", "")).toBe("nothing here");
+    const out = withoutSecretDeep({ host: `${key}.example.com`, list: [`x ${key}`, 3, null, true, { [`label ${key}`]: [`y ${encodeURIComponent(key)}`] }], n: 48 }, key);
+    expect(out).toEqual({ host: "[key].example.com", list: ["x [key]", 3, null, true, { "label [key]": ["y [key]"] }], n: 48 });
+    expect(JSON.stringify(out)).not.toContain("k3y");
+  });
+
+  it("tells whether the post list carries each post's settings: Postiz 2.24.0 or newer, else every trial is unknown", () => {
+    // 2.24 and newer: getPosts selects settings (null for a post created without any)
+    expect(settingsListedOf({ posts: [{ id: "a", settings: null }, { id: "b", settings: '{"is_trial_reel":true}' }] })).toEqual({ settings: "yes", meaning: POST_LIST_SETTINGS });
+    // 2.18 to 2.23: the same list without the field
+    expect(settingsListedOf({ posts: [{ id: "a", content: "x", publishDate: "2026-10-29T12:00:00Z" }, { id: "b" }] })).toEqual({ settings: "no", meaning: POST_LIST_OLDER });
+    expect(POST_LIST_OLDER).toMatch(/older than 2\.24/);
+    expect(settingsListedOf([{ id: "a", settings: "{}" }]).settings).toBe("yes");
+    expect(settingsListedOf({ posts: [] })).toMatchObject({ settings: "unknown", meaning: expect.stringMatching(/no post was listed/) });
+    expect(settingsListedOf(null).settings).toBe("unknown");
+    expect(settingsListedOf({ posts: ["a", 3, null] }).settings).toBe("unknown");
   });
 });
