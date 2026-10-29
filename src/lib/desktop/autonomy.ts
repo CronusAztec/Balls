@@ -201,7 +201,7 @@ export interface AutonomyCooldown {
 }
 
 /** The config's "autonomy" block. */
-export interface AutonomyState {
+export interface AutonomySettings {
   /** Null: off (the default, and after Off). */
   consent: AutonomyConsent | null;
   pause: AutonomyPause | null;
@@ -215,7 +215,7 @@ export interface AutonomyState {
   cooldown: AutonomyCooldown | null;
 }
 
-export const DEFAULT_AUTONOMY: AutonomyState = { consent: null, pause: null, resumedAt: null, deleteOnWarning: true, lastRunAt: null, cooldown: null };
+export const DEFAULT_AUTONOMY: AutonomySettings = { consent: null, pause: null, resumedAt: null, deleteOnWarning: true, lastRunAt: null, cooldown: null };
 
 /** The most notes one pause keeps (the newest). */
 export const AUTONOMY_PAUSE_NOTES_MAX = 20;
@@ -315,7 +315,7 @@ function sanitizeOthers(raw: unknown, channelId: string | null): Pick<AutonomyCo
 }
 
 /** The stored block over the defaults: unknown keys dropped, a consent without a date or an account dropped (so: off). */
-export function sanitizeAutonomy(raw: unknown): AutonomyState {
+export function sanitizeAutonomy(raw: unknown): AutonomySettings {
   if (!isObj(raw)) return { ...DEFAULT_AUTONOMY };
   const consent = sanitizeConsent(own(raw, "consent"));
   const p = own(raw, "pause");
@@ -368,12 +368,12 @@ function laterCooldown(a: AutonomyCooldown | null, b: AutonomyCooldown | null): 
 }
 
 /** The account-health cooldown as it stands: the stored one, and the pause's own when it is a warning's. */
-export function cooldownOf(state: Pick<AutonomyState, "cooldown" | "pause">): AutonomyCooldown | null {
+export function cooldownOf(state: Pick<AutonomySettings, "cooldown" | "pause">): AutonomyCooldown | null {
   return laterCooldown(state.cooldown, healthCooldownOf(state.pause));
 }
 
 /** Whether the account-health cooldown still runs at `now`. */
-export function coolingDown(state: Pick<AutonomyState, "cooldown" | "pause">, now: number): boolean {
+export function coolingDown(state: Pick<AutonomySettings, "cooldown" | "pause">, now: number): boolean {
   const c = cooldownOf(state);
   return !!c && ms(c.until) > now;
 }
@@ -819,7 +819,7 @@ export function stampProblems(pass: Pick<AutonomyStamp, "role" | "testId" | "pai
 /* ------------------------------------------------------------------ the item */
 
 /** Why an item is not the learner's own, unchanged, current proposal (empty: it is). */
-export function eligibilityProblems(item: AutonomyItem, state: AutonomyState, ctx: AutonomyContext): AutonomyReason[] {
+export function eligibilityProblems(item: AutonomyItem, state: AutonomySettings, ctx: AutonomyContext): AutonomyReason[] {
   const out: AutonomyReason[] = [];
   const consent = state.consent;
   if (item.origin !== "learnerPass") out.push("notLearner");
@@ -955,7 +955,7 @@ export function wordsOf(item: Pick<AutonomyItem, "channels">, clip: Pick<Autonom
 }
 
 /** Every reason an item may not go out on its own, before its time is picked (empty: it may, if a time fits). */
-export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null | undefined, state: AutonomyState, ctx: AutonomyContext): { reasons: AutonomyReason[]; words: TextProblem[]; card: CardProblem[] } {
+export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null | undefined, state: AutonomySettings, ctx: AutonomyContext): { reasons: AutonomyReason[]; words: TextProblem[]; card: CardProblem[] } {
   const reasons = new Set<AutonomyReason>(eligibilityProblems(item, state, ctx));
   const consent = state.consent;
   if (item.pass) for (const r of laneProblems(item.pass.role, item.channels, item.pass.arm ?? null)) reasons.add(r);
@@ -1044,7 +1044,7 @@ function siblingTime(item: AutonomyItem, ctx: AutonomyContext, posts: readonly A
  * the licence's end. "at": create it now (the time is 60 to 90 minutes away); "later": a time fits but is more than 90 minutes
  * away; "none": nothing fits any more ("Missed its time"), with what stopped the first time it tried.
  */
-export function scheduleFor(item: AutonomyItem, state: AutonomyState, ctx: AutonomyContext, postizNow: number, posts: readonly AccountPost[] = ctx.posts): Schedule {
+export function scheduleFor(item: AutonomyItem, state: AutonomySettings, ctx: AutonomyContext, postizNow: number, posts: readonly AccountPost[] = ctx.posts): Schedule {
   const consent = state.consent;
   const planned = ms(item.when);
   if (!consent || !Number.isFinite(planned)) return { kind: "none", reason: "window" };
@@ -1077,7 +1077,7 @@ export function scheduleFor(item: AutonomyItem, state: AutonomyState, ctx: Auton
 /* ------------------------------------------------------------------ pausing and the whole approver */
 
 /** Whether the practice day runs (by Postiz's clock when known). */
-export function practising(state: AutonomyState, ctx: Pick<AutonomyContext, "now" | "postizNow">): boolean {
+export function practising(state: AutonomySettings, ctx: Pick<AutonomyContext, "now" | "postizNow">): boolean {
   const c = state.consent;
   return !!c && c.practise && (ctx.postizNow ?? ctx.now) < ms(c.at) + AUTONOMY_PRACTICE_MS;
 }
@@ -1122,7 +1122,7 @@ const isEventReason = (r: AutonomyPauseReason) => EVENT_REASONS.includes(r);
  *  - While paused, an event comes back too, once: `paused` notes it on the pause, so the banner says it before Resume, and
  *    the events the pause has recorded are not taken again.
  */
-export function pauseCheck(state: AutonomyState, ctx: AutonomyContext): AutonomyCheck {
+export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): AutonomyCheck {
   const consent = state.consent;
   const cooldown = cooldownOf(state);
   const pausedFor = state.pause?.reason === "accountHealth" ? channelsOf(state.pause) : [];
@@ -1197,7 +1197,7 @@ export type ResumeProblem = "off" | "cooldown" | "consentVersion" | "appOlder" |
  * Why Resume is not available yet (empty: one press resumes). A warning or an event the pause has not recorded yet comes
  * back by its reason: recorded first (pauseCheck, then paused), it is on the banner before the press that clears it.
  */
-export function resumeProblems(state: AutonomyState, ctx: AutonomyContext): ResumeProblem[] {
+export function resumeProblems(state: AutonomySettings, ctx: AutonomyContext): ResumeProblem[] {
   const consent = state.consent;
   if (!consent) return ["off"];
   const out: ResumeProblem[] = [];
@@ -1220,7 +1220,7 @@ export function resumeProblems(state: AutonomyState, ctx: AutonomyContext): Resu
 }
 
 /** The state after Resume (the caller checked resumeProblems is empty): no pause, and items made before now never qualify. The cooldown stays on record. */
-export function resumed(state: AutonomyState, now: number): AutonomyState {
+export function resumed(state: AutonomySettings, now: number): AutonomySettings {
   return { ...state, pause: null, resumedAt: new Date(now).toISOString(), cooldown: cooldownOf(state) };
 }
 
@@ -1229,7 +1229,7 @@ export function resumed(state: AutonomyState, now: number): AutonomyState {
  * a note) and records the cooldown; an event (a post of its own failed, an unknown error, one of its posts gone, a change
  * sent back) is noted on the pause that is on; any other pause never replaces one.
  */
-export function paused(state: AutonomyState, pause: AutonomyPause): AutonomyState {
+export function paused(state: AutonomySettings, pause: AutonomyPause): AutonomySettings {
   const note = (p: AutonomyPause): AutonomyPauseNote => ({ reason: p.reason, at: p.at, channelId: p.channelId });
   const withNotes = (p: AutonomyPause, notes: AutonomyPauseNote[]): AutonomyPause => {
     const kept = notes.slice(-AUTONOMY_PAUSE_NOTES_MAX);
@@ -1246,7 +1246,7 @@ export function paused(state: AutonomyState, pause: AutonomyPause): AutonomyStat
 }
 
 /** The state after Off: the consent cleared, so the next on asks again. The owner's "only tell me" choice and the account-health cooldown stay. */
-export function turnedOff(state: AutonomyState): AutonomyState {
+export function turnedOff(state: AutonomySettings): AutonomySettings {
   return { ...DEFAULT_AUTONOMY, deleteOnWarning: state.deleteOnWarning, cooldown: cooldownOf(state) };
 }
 
@@ -1288,7 +1288,7 @@ function ordered(queue: readonly AutonomyItem[]): AutonomyItem[] {
 }
 
 /** One item's outcome, with the approver's wait (a pause included) and the posts as they stand (the creates before it counted). */
-function itemOutcome(item: AutonomyItem, clip: AutonomyClip | undefined, state: AutonomyState, ctx: AutonomyContext, wait: AutonomyReason | null, practice: boolean, posts: readonly AccountPost[]): ItemOutcome & { trialRouteFailed?: boolean } {
+function itemOutcome(item: AutonomyItem, clip: AutonomyClip | undefined, state: AutonomySettings, ctx: AutonomyContext, wait: AutonomyReason | null, practice: boolean, posts: readonly AccountPost[]): ItemOutcome & { trialRouteFailed?: boolean } {
   const { reasons, words, card } = autonomyProblems(item, clip, state, { ...ctx, posts });
   if (reasons.some(isFinalReason)) return { itemId: item.id, kind: "wait", reasons, final: true, words, card };
   if (wait !== null || ctx.postizNow === null || !state.consent) return { itemId: item.id, kind: "wait", reasons: [...reasons, wait ?? "clockUnknown"], final: false, words, card };
@@ -1313,7 +1313,7 @@ const trialPause = (now: number): AutonomyPause => ({ reason: "trialCheckFailed"
  * create counted against the next, as the main process makes them one at a time); one further away waits for a later tick;
  * the practice day only says when each would go out. Everything else waits for the person, with why (`final`: for good).
  */
-export function decideAutonomy(state: AutonomyState, ctx: AutonomyContext, clips: ReadonlyMap<string, AutonomyClip>): AutonomyDecision {
+export function decideAutonomy(state: AutonomySettings, ctx: AutonomyContext, clips: ReadonlyMap<string, AutonomyClip>): AutonomyDecision {
   const check = pauseCheck(state, ctx);
   if (!state.consent || check.off) return { status: "off", check, wait: null, items: [] };
   const isPaused = !!state.pause || !!check.pause;
@@ -1344,7 +1344,7 @@ export function decideAutonomy(state: AutonomyState, ctx: AutonomyContext, clips
  * the upload's own answer, and the time picked again. "create" with the time and the request, or why not; a pause or Off
  * found now comes back in `check`. Null: the item is not a learner proposal waiting in the queue.
  */
-export function checkBeforeCreate(itemId: string, state: AutonomyState, ctx: AutonomyContext, clips: ReadonlyMap<string, AutonomyClip>): { check: AutonomyCheck; outcome: ItemOutcome | null } {
+export function checkBeforeCreate(itemId: string, state: AutonomySettings, ctx: AutonomyContext, clips: ReadonlyMap<string, AutonomyClip>): { check: AutonomyCheck; outcome: ItemOutcome | null } {
   const check = pauseCheck(state, ctx);
   const item = ordered(ctx.queue).find((i) => i.id === itemId);
   if (!item) return { check, outcome: null };
@@ -1371,7 +1371,7 @@ export interface ConsentDraft {
 }
 
 /** What the consent screen checks a draft against: the main process's context, and the stored block's account-health cooldown (cooldownOf). */
-export type ConsentScreenContext = Pick<AutonomyContext, "now" | "appVersion" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomyState, "cooldown">;
+export type ConsentScreenContext = Pick<AutonomyContext, "now" | "appVersion" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomySettings, "cooldown">;
 
 /** A value as JSON with its keys sorted, so two records compare by content alone. */
 const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => (isObj(x) ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, x[k]])) : x));

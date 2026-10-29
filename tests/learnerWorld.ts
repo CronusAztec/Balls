@@ -4,6 +4,7 @@ import { learnPass, type LearnerChannel, type LearnerDecision, type LearnerInput
 import { DEFAULT_LEARNER, type LearnerSettings } from "@/lib/insights/learnerSettings";
 import { SCORE_CLIP } from "@/lib/insights/learnerRules";
 import { seededDraws, type InsightRead, type InsightRow, type InsightTries } from "@/lib/insights/stats";
+import { inQuietMinutes } from "@/lib/desktop/autopilot";
 
 /*
  * --- learner --- Seeded worlds for the learner's tests (tests/insightsLearner.test.ts, tests/insightsFeasibility.test.ts): a
@@ -14,6 +15,10 @@ import { seededDraws, type InsightRead, type InsightRow, type InsightTries } fro
  * The toy world is the plan's (sim/l0.py): a clip's score is a shared day effect (30 % of the variance at a spread of 1.0) plus
  * its own noise plus its arm's true effect, 1 % of clips a 30x hit; each channel post adds a little noise of its own; views
  * grow with age as age^g, g ~ N(0.35, 0.10) per post. Everything is seeded: the same seed is the same world.
+ *
+ * Quiet hours hold as they do in the app: a slot goes out 30 minutes into its window, or at the window's first minute outside
+ * quiet hours, and a slot whose whole window is quiet never goes out (C11's "missed its time"; the card refuses a time inside
+ * them). It is counted in `missed`, so a test can see a plan that asked for a post no one could make.
  */
 
 // --- learner ---
@@ -95,6 +100,8 @@ export interface WorldOptions {
   settingsAt?: (day: number) => LearnerSettings | null;
   /** The ready templates on a day (an app update can take a template's readiness away). */
   catalogAt?: (day: number) => LearnerTemplate[];
+  /** Each channel's usual restarts at these times from a day on (LearnerInput.since: "something changed", a Postiz change). */
+  sinceAt?: (day: number) => Record<string, string> | null;
 }
 
 export interface WorldResult {
@@ -105,6 +112,23 @@ export interface WorldResult {
   posts: LearnerPost[];
   rows: InsightRow[];
   input: LearnerInput;
+  /** The slots that could not go out: their whole window lies in quiet hours. */
+  missed: { date: string; role: PassPlan["slots"][number]["role"]; window: { from: string; to: string } }[];
+}
+
+const minuteOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/**
+ * The minute of the day a slot goes out: 30 minutes into its window, else the first minute of the window after that outside
+ * quiet hours, else the first one before it; null when the whole window is quiet.
+ */
+export function postMinute(window: { from: string; to: string }, quiet: { from: string; to: string }): number | null {
+  const from = minuteOf(window.from);
+  const to = minuteOf(window.to);
+  const open = (m: number) => !inQuietMinutes(m % (24 * 60), quiet.from, quiet.to);
+  for (let m = Math.min(from + 30, to); m <= to; m++) if (open(m)) return m;
+  for (let m = from; m < Math.min(from + 30, to); m++) if (open(m)) return m;
+  return null;
 }
 
 /** The reads a post gets: early, 3-day (else a catch-up), week; each missed with `miss`. Views ~ v72 (age/72)^g. */
@@ -131,6 +155,8 @@ export function runWorld(o: WorldOptions): WorldResult {
   const excl = o.excl ?? 0;
   const start = o.start ?? Date.parse("2026-11-01T09:00:00Z");
   const usualViews = 500;
+  const quiet = o.quiet ?? { from: "23:00", to: "07:00" };
+  const missed: WorldResult["missed"] = [];
   const allRows: { row: InsightRow; reads: InsightRead[]; noAnswer?: boolean }[] = [];
   /** A row as the app holds it at `now`: the reads taken by then, and an unanswered post's spent tries. */
   const rowAt = ({ row, reads, noAnswer }: (typeof allRows)[number], now: number): InsightRow => {
@@ -170,7 +196,7 @@ export function runWorld(o: WorldOptions): WorldResult {
   for (let d = 0; d < (o.days ?? 40); d++) {
     const now = start + d * DAY;
     const rows = allRows.map((r) => rowAt(r, now));
-    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings: o.settingsAt?.(d) ?? settings, rows, posts: [...posts], decisions, channels, catalog: o.catalogAt?.(d) ?? CATALOG, perDay, quiet: o.quiet ?? { from: "23:00", to: "07:00" }, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}) });
+    const make = (): LearnerInput => ({ date: dateOf(now), now, pro: true, settings: o.settingsAt?.(d) ?? settings, rows, posts: [...posts], decisions, channels, catalog: o.catalogAt?.(d) ?? CATALOG, perDay, quiet, feasibility, ...(o.offsetMinAt ? { offsetMinAt: o.offsetMinAt } : {}), ...(o.sinceAt?.(d) ? { since: o.sinceAt(d)! } : {}) });
     input = make();
     let plan = learnPass(input);
     for (let tries = 0; plan && plan.feasibilityNeeded.length && tries < 6; tries++) {
@@ -189,15 +215,19 @@ export function runWorld(o: WorldOptions): WorldResult {
     }
     const dayEffect = z() * Math.sqrt(0.3);
     for (const slot of plan.slots) {
-      const [hh, mm] = slot.window.from.split(":").map(Number);
-      const utc = Date.parse(`${dateOf(now)}T00:00:00Z`) + (hh * 60 + mm + 30) * 60_000;
+      const minute = postMinute(slot.window, quiet);
+      if (minute === null) {
+        missed.push({ date: dateOf(now), role: slot.role, window: slot.window });
+        continue;
+      }
+      const utc = Date.parse(`${dateOf(now)}T00:00:00Z`) + minute * 60_000;
       const at = utc - (o.offsetMinAt?.(utc) ?? 0) * 60_000; // the local window's time
       if (slot.membership && firstTestAt === null && slot.role !== "best") firstTestAt = at;
       post(now + slot.index * 60_000, at, slot.options.template, slot.options.bucket, slot.options.ending, slot.channels, slot.membership, dayEffect);
     }
   }
   const rows = allRows.map((r) => rowAt(r, Number.POSITIVE_INFINITY));
-  return { decisions, days, plans, posts, rows, input: input! };
+  return { decisions, days, plans, posts, rows, input: input!, missed };
 }
 
 // --- end learner ---

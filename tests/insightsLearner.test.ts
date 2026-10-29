@@ -37,7 +37,7 @@ import { CHECK_OLD, CHECK_POSTS, KEEP_P, KEEP_RATIO, NORMAL_HORIZON_TIMES, NORMA
 import { inQuietMinutes } from "@/lib/desktop/autopilot";
 import { DEFAULT_LEARNER } from "@/lib/insights/learnerSettings";
 import { measureRows, type PostMeasure } from "@/lib/insights/stats";
-import { CATALOG, DAY, H, IG, ON, TT, YT, dateOf, iso, normals, passAll, runWorld, type WorldResult } from "./learnerWorld";
+import { CATALOG, DAY, H, IG, ON, TT, YT, dateOf, iso, normals, passAll, postMinute, runWorld, type WorldResult } from "./learnerWorld";
 import { armKey, checkArms, type ArmPlanner, type FeasibilityResult } from "@/lib/insights/feasibility";
 import { activeDials, questionKey, TEST_ORDER, type DialId } from "@/lib/insights/dials";
 
@@ -435,6 +435,60 @@ describe("the combined check", () => {
     // the next pass plans from the old settings again: no clip of the short bucket while length is not under test
     const next = learnPass({ ...r.input, decisions: r.decisions })!;
     expect(next.best.length).toBe("standard");
+  });
+});
+
+// A check opened without checking that any channel's usual was ready (a lab win before the normal lane's 5 posts, or the usual
+// restarted: "something changed", a Postiz change). Its old places had no channel and were dropped, a dropped place never moved
+// on, and past its 16 places every slot was old: the day had no clip, so the usual could never come back. Restarted on day 4,
+// no slot for 22 days at 3 clips a day (52 at 1), until the check closed as "not enough clips" with nothing read
+describe("a check while no usual is ready", () => {
+  const kept = verdict({ testId: "t0.length.standard.short", lane: "trialReel", decidedAt: iso(T0 - DAY) });
+
+  it("opens only once a scored channel's usual is ready: until then the day's clips keep the best settings and count for no test", () => {
+    const r = runWorld({ seed: 3, history: 4, decisions: [kept], effect: () => 0, days: 8 });
+    const opened = r.plans.findIndex((p) => p.test);
+    expect([r.plans[opened].date, r.plans[opened].test?.id]).toEqual(["2026-11-05", "c0.t0.length.standard.short"]);
+    expect(r.plans[opened].status.usual.some((u) => u.ready)).toBe(true);
+    for (const p of r.plans.slice(0, opened)) {
+      expect(p.status.usual.some((u) => u.ready), p.date).toBe(false);
+      expect(p.slots.map((s) => [s.role, s.membership]), p.date).toEqual([
+        ["best", null],
+        ["best", null],
+        ["best", null],
+      ]);
+    }
+  });
+
+  it("an open check holds while the usual restarts: the day keeps its clips, with the best settings and no test, and its places wait", () => {
+    for (const perDay of [1, 3]) {
+      const r = runWorld({ seed: 5, perDay, decisions: [kept], effect: () => 0, days: perDay === 1 ? 7 : 6 });
+      const open = r.plans[r.plans.length - 1].test!;
+      expect([open.id, open.kind]).toEqual(["c0.t0.length.standard.short", "check"]);
+      // without a restart the next pass goes on with the check (one clip a day: the old place the restart used to drop)
+      expect(learnPass(r.input)!.slots.map((s) => [s.role, s.membership?.arm]), `${perDay}`).toEqual(perDay === 1 ? [["check", "old"]] : [["check", "old"], ["check", "new"], ["check", "new"]]);
+      // the usual restarts now: no channel has one for days
+      const since = { ig1: iso(r.input.now), tt1: iso(r.input.now) };
+      for (let d = 0; d < 3; d++) {
+        const now = r.input.now + d * DAY;
+        const plan = learnPass({ ...r.input, now, date: dateOf(now), since })!;
+        expect(plan.status.usual.some((u) => u.ready)).toBe(false);
+        expect(plan.test?.id).toBe(open.id);
+        expect(plan.slots, `${perDay} a day, day ${d}`).toHaveLength(perDay);
+        for (const s of plan.slots) expect([s.role, s.membership, s.locked, s.options.bucket]).toEqual(["best", null, ["length"], "short"]);
+      }
+    }
+  });
+
+  it("a usual restarted mid-check: 5 days of best clips while it comes back, then the check reads 4 old against 12 new", () => {
+    const at = iso(T0 + 4 * DAY - H);
+    const r = runWorld({ seed: 5, decisions: [kept], effect: () => 0, days: 40, until: (v) => v.testId.startsWith("c"), sinceAt: (d) => (d >= 4 ? { ig1: at, tt1: at } : null) });
+    expect(r.plans.every((p) => p.slots.length === 3)).toBe(true);
+    const held = r.plans.filter((p) => p.test?.kind === "check" && p.slots.every((s) => s.membership === null));
+    expect(held.map((p) => p.date)).toEqual(["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09"]);
+    const v = r.decisions.find((d) => d.testId.startsWith("c"))!;
+    expect([v.testId, v.verdict, v.nBest, v.nTest, v.decidedAt.slice(0, 10)]).toEqual(["c0.t0.length.standard.short", "held", CHECK_OLD, CHECK_POSTS - CHECK_OLD, "2026-11-19"]);
+    expect(r.missed).toEqual([]);
   });
 });
 
@@ -864,6 +918,7 @@ describe("post time and quiet hours", () => {
     for (const quiet of [evening, { from: "19:30", to: "07:00" }, { from: "22:00", to: "12:30" }]) {
       const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, quiet, effect: () => 0, days: 70 });
       for (const s of r.plans.flatMap((p) => p.slots)) expect(inQuietMinutes(minute(s.window.from), quiet.from, quiet.to), `${quiet.from}: ${s.window.from}`).toBe(false);
+      expect(r.missed, quiet.from).toEqual([]); // the world keeps quiet hours: every planned slot went out
       const tests = [...openedOn(r).keys()].filter((id) => id.includes(".postTime."));
       expect(tests.length, quiet.from).toBeGreaterThanOrEqual(2);
       for (const id of tests) expect(postTimeOpen(parseTestId(id)!.questions[0].challenger, quiet), id).toBe(true);
@@ -871,6 +926,28 @@ describe("post time and quiet hours", () => {
       expect(verdicts.length, quiet.from).toBeGreaterThanOrEqual(2);
       expect(verdicts.every((d) => d.verdict !== "stopped" && d.nTest === NORMAL_TEST_CLIPS)).toBe(true);
     }
+  });
+
+  // spreadWindows fell back to every window when quiet hours covered them all, so each normal clip was planned inside them,
+  // where none could go out (C11's "missed its time"; the card refuses the time), and the test world posted them anyway
+  it("quiet hours over every window: the normal lane plans no clip and says so, and the world misses nothing", () => {
+    const allDay = { from: "11:00", to: "22:30" };
+    expect(spreadWindows(dayOfDate("2026-11-01"), allDay)).toEqual([]);
+    // the world posts 30 minutes into a window, else at its first minute outside quiet hours, and never inside them
+    expect(postMinute({ from: "12:00", to: "14:00" }, { from: "23:00", to: "07:00" })).toBe(12 * 60 + 30);
+    expect(postMinute({ from: "20:00", to: "22:00" }, { from: "20:00", to: "21:00" })).toBe(21 * 60);
+    expect(postMinute({ from: "20:00", to: "22:00" }, allDay)).toBeNull();
+    const r = runWorld({ seed: 8, channels: [IG, TT], settings: ON, quiet: allDay, effect: () => 0, days: 20 });
+    expect(r.plans).toHaveLength(20);
+    for (const p of r.plans) {
+      expect([p.date, p.status.noPostWindow, p.slots.length]).toEqual([p.date, true, 0]); // no Trial Reel pair fits either
+    }
+    expect(r.missed).toEqual([]);
+    // one window outside them, the evening: every normal clip goes out there
+    const evening = { from: "19:30", to: "17:00" };
+    const e = runWorld({ seed: 8, channels: [IG, TT], settings: ON, quiet: evening, effect: () => 0, days: 20 });
+    expect(e.plans.every((p) => !p.status.noPostWindow && p.slots.length === 3 && p.slots.every((s) => s.window.from === "17:00"))).toBe(true);
+    expect(e.missed).toEqual([]);
   });
 
   it("a night test open when quiet hours move over 20:00 stops at once, rests nothing, and plans no clip at night", () => {
@@ -1107,6 +1184,52 @@ describe("after Forget my numbers", () => {
     }
     // without the new generation the old memberships came back: verdicts on forgotten tests
     expect(passes(0).flatMap((p) => p.verdicts).length).toBeGreaterThan(0);
+  });
+});
+
+// The pass's id named only the day, the open test and block and the log's length: posts a day, the channels, Trial Reels, quiet
+// hours, a Fix, a Skip or the ready templates changed the day's plan under one id, so Fully autonomous counted a superseded
+// plan's items as the newest pass's (autonomy.ts "olderPass" reads only the id)
+describe("the pass's id", () => {
+  const w = runWorld({ seed: 11, channels: [IG, TT], effect: () => 0, days: 3 });
+  const input = w.input;
+  const base = learnPass(input)!;
+  const slotsOf = (p: NonNullable<ReturnType<typeof learnPass>>) => p.slots.map((s) => [s.role, s.options, s.channels.map((c) => c.id)]);
+
+  it("is new whenever the owner changes what shapes the slots", () => {
+    const changed: Record<string, LearnerInput> = {
+      "5 a day": { ...input, perDay: 5 },
+      "1 a day": { ...input, perDay: 1 },
+      "a YouTube channel": { ...input, channels: [IG, TT, YT] },
+      "quiet hours over the night": { ...input, quiet: { from: "20:00", to: "07:00" } },
+      "the ending fixed": { ...input, settings: { ...input.settings, fixed: { ending: "cliffhanger" } } },
+      "a template withdrawn": { ...input, catalog: CATALOG.filter((t) => t.id !== "fill-grow") },
+    };
+    const ids = new Set([base.passId]);
+    for (const [name, v] of Object.entries(changed)) {
+      const p = learnPass(v)!;
+      expect(slotsOf(p), name).not.toEqual(slotsOf(base));
+      expect(p.passId, name).not.toBe(base.passId);
+      ids.add(p.passId);
+    }
+    expect(ids.size).toBe(Object.keys(changed).length + 1);
+    // and whatever else the owner set that a pass reads: a Skip, a Fix at the best arm, Trial Reels and their pairs a day
+    const settings = [{ skipped: [questionKey("ending", "resolved", "cliffhanger", null)] }, { fixed: { ending: "resolved" } }, { trialReels: true }, { trialReels: true, pairsPerDay: 2 }];
+    for (const over of settings) ids.add(learnPass({ ...input, settings: { ...input.settings, ...over } })!.passId);
+    expect(ids.size).toBe(Object.keys(changed).length + 1 + settings.length);
+  });
+
+  it("is the same for the same plan: the same inputs, quiet hours that leave the same windows, and the day's own approvals", () => {
+    expect(base.passId).toMatch(/^[0-9a-f]{8}$/);
+    expect(learnPass(JSON.parse(JSON.stringify(input)))!.passId).toBe(base.passId);
+    const later = learnPass({ ...input, quiet: { from: "23:30", to: "07:00" } })!;
+    expect([later.passId, slotsOf(later)]).toEqual([base.passId, slotsOf(base)]);
+    // the first slot approved: its posts move the variety caps' picks for the rest of the day, not the plan
+    const slot = base.slots[0];
+    const approved: LearnerPost[] = slot.channels.map((c) => ({ postId: `x-${c.id}`, channelId: c.id, platform: c.id === "ig1" ? "instagram" : "tiktok", lane: c.lane, clipId: "x", approvedAt: iso(input.now + 60_000), test: slot.membership, facts: { template: slot.options.template, bucket: slot.options.bucket, ending: slot.options.ending, watermark: "sealed" }, privacy: c.id === "tt1" ? "public" : null }));
+    expect(learnPass({ ...input, posts: [...input.posts, ...approved] })!.passId).toBe(base.passId);
+    // the next day is a new pass
+    expect(learnPass({ ...input, now: input.now + DAY, date: dateOf(input.now + DAY) })!.passId).not.toBe(base.passId);
   });
 });
 

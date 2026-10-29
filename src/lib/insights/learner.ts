@@ -58,14 +58,23 @@ import type { LearnerSettings } from "./learnerSettings";
  * After any kept change the combined check runs on the next CHECK_POSTS normal posts: CHECK_OLD keep the old combination
  * (every change of that test or block undone together), the rest the new one, in a seeded order with at most one old clip a
  * day; the old one ahead with CHECK_BACK_P sends every change back together ("wentBack"), else they hold ("held"). A losing
- * question rests REST_DAYS (REST_TWICE_DAYS after two losses in a row); Undo locks it.
+ * question rests REST_DAYS (REST_TWICE_DAYS after two losses in a row); Undo locks it. Like a test, a check opens only while
+ * some scored channel's usual is ready, and while none is (a restart of the usual: "something changed", a Postiz change) it
+ * holds: the day's clips keep the best settings and count for no test, so the usual can come back, and its places wait.
  *
  * Nothing waits for ever. A normal test or check not decided within NORMAL_HORIZON_TIMES its horizon closes as "not enough
  * clips", and a block not done in BLOCK_MAX_DAYS as "not enough clean pairs": each rests its question in its own lane only.
  * A test that can no longer be made (Trial Reels switched off, a template no longer ready, quiet hours over a post-time
- * window, a checked change no longer in use) closes at once as "stopped", resting nothing. Post-time arms are only windows
- * that start outside quiet hours. The lab checks its own numbers: once its newest pair got none, its block closes and it
- * pauses TRIAL_PAUSE_DAYS (or until the owner asks again), while the normal lane runs the whole list.
+ * window, a checked change no longer in use) closes at once as "stopped", resting nothing. Post-time arms, and the windows a
+ * "spread" clip walks, are only windows that start outside quiet hours: with quiet hours over every window the normal lane
+ * plans no clip (status.noPostWindow), never one that could not go out. The lab checks its own numbers: once its newest pair
+ * got none, its block closes and it pauses TRIAL_PAUSE_DAYS (or until the owner asks again), while the normal lane runs the
+ * whole list.
+ *
+ * A pass's id (PassPlan.passId) names what shapes its slots: the day, the open test and block, the log, the owner's settings
+ * and channels, the windows quiet hours leave, the usuals ready and the ready templates. Anything the owner changes is a new
+ * pass, whose items replace the old one's (C11 sends an older pass's items back to the person); an approval during the day
+ * changes none of it, so the day's other items stay the newest pass's.
  *
  * "Forget my numbers" starts a new generation (LearnerSettings.generation): test ids carry it, and the audit's older test
  * memberships belong to no test, so nothing forgotten is read, closed or continued.
@@ -475,11 +484,12 @@ function shuffled<T>(list: readonly T[], draw: () => number): T[] {
  * window as often (an order fixed by place put the day's one test clip in the same window every day, so post time leaked into
  * every verdict). Its first window walks every window once in each run of n days, in a seeded order per run, so one clip a
  * day still goes out at noon, evening and night by date; the day's other windows follow in a seeded order per date. Windows
- * that start in quiet hours are left out.
+ * that start in quiet hours are left out, and with quiet hours over every window there is none: a clip planned inside them
+ * could not go out (C11 refuses it as "missed its time"), so the normal lane plans none (learnPass).
  */
 export function spreadWindows(day: number, quiet: LearnerInput["quiet"]): PostWindow[] {
-  const open = POST_WINDOW_NAMES.filter((n) => !inQuiet(minutesOf(POST_WINDOWS[n][0]), quiet));
-  const list = open.length ? open : POST_WINDOW_NAMES;
+  const list = POST_WINDOW_NAMES.filter((n) => !inQuiet(minutesOf(POST_WINDOWS[n][0]), quiet));
+  if (!list.length) return [];
   const n = list.length;
   const run = Math.floor(day / n);
   const first = shuffled(list, seededDraws(hashText(`spread|${list.join(",")}|${run}`)))[day - run * n];
@@ -488,9 +498,9 @@ export function spreadWindows(day: number, quiet: LearnerInput["quiet"]): PostWi
 
 /**
  * Whether a post-time arm can go out: its window (POST_WINDOWS) starts outside quiet hours, where its clips are planned, as
- * spreadWindows and trialPairWindows keep theirs. "spread" always can: it walks the windows that start outside them. A clip
- * planned inside quiet hours could not go out in its window (C11 refuses it as "missed its time", and the autopilot moves it
- * out of its window), so its test would never close.
+ * spreadWindows and trialPairWindows keep theirs. "spread" always can: it walks the windows that start outside them (with
+ * none, the normal lane plans no clip at all). A clip planned inside quiet hours could not go out in its window (C11 refuses
+ * it as "missed its time", and the autopilot moves it out of its window), so its test would never close.
  */
 export function postTimeOpen(arm: string, quiet: LearnerInput["quiet"]): boolean {
   if (arm !== "noon" && arm !== "evening" && arm !== "night") return true;
@@ -997,11 +1007,20 @@ export interface LearnerStatus {
    * ("noNumbers": the card's Postiz line); null: not paused.
    */
   trialPause: "noTrialNumbers" | "noNumbers" | null;
+  /**
+   * Quiet hours cover the start of every post-time window (POST_WINDOWS): the normal lane plans no clip, as none could go out
+   * in its window ("Your quiet hours cover every post time."). The lab keeps its own windows (trialPairWindows).
+   */
+  noPostWindow: boolean;
 }
 
 export interface PassPlan {
   scoreRule: number;
   date: string;
+  /**
+   * The pass's id, from everything that shapes its slots (the header): a plan the owner changed has a new one, and the day's own
+   * approvals keep it. C11 lets only the newest pass's items go out on their own (autonomy.ts "olderPass").
+   */
   passId: string;
   /** Each dial's best, and the newcomers that joined their format's rotation. */
   best: Record<DialId, string>;
@@ -1257,12 +1276,16 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   const lockedBy = (t: ParsedTest | null) => new Set<DialId>(t ? (t.kind === "check" ? checkKept : t.questions).map((q) => q.dial) : []);
   const fixedDials = new Set((Object.keys(settings.fixed) as DialId[]).filter((d) => settings.fixed[d]));
   const ctxBase = { catalog, log, now, skipped, feasibility, formats, quiet: input.quiet };
-  if (!normalTest) {
+  // a test or a check opens only while some scored channel's usual is ready: its clips are scored against it, and a check's old
+  // clips go only to channels that have one (channelsFor). Opened without one (a usual restarted, or a lab win before the normal
+  // lane had its 5 posts), a check's old places had no channel: they were dropped, never moved on, and once its 16 places were
+  // used every slot was old, so the day had no clip and the usual could never come back
+  if (!normalTest && usualReady.size) {
     const checks = pendingChecks().filter((c) => (!block || !c.kept.some((q) => lockedBy(block).has(q.dial))) && armsPossible(c.kept, bothLevels(c.kept), bests));
     if (checks.length) {
       checkKept = checks[0].kept;
       normalTest = parseTestId(testIdOf("check", seqOf("normal"), [], checks[0].source, generation));
-    } else if (usualReady.size) {
+    } else {
       const order = (trialLane ? TEST_ORDER.normal : TEST_ORDER.normalWithoutTrials).filter((d) => dials.has(d) && DIALS[d].lanes.includes("normal"));
       const pick = nextTest(order, 1, bests, { ...ctxBase, lane: "normal", locked: new Set([...fixedDials, ...lockedBy(block)]) });
       needed.push(...pick.needed);
@@ -1294,6 +1317,10 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   // 20000 worlds, against 0.10 with one old clip a day and l0.py's 0.106; learnPass's own worlds: 0.117 over 1000. An old
   // clip that is due waits for the next day, and one left out (an error, no answer) is made again, so exactly CHECK_OLD are
   // live or coming: never more, as readCheck reads the first CHECK_OLD.
+  // An open check holds while no scored channel's usual is ready (it restarted: "something changed", a Postiz change): its old
+  // clips would have no channel and its new ones no score, so the day's clips keep the best settings (its new combination),
+  // count for no test and build the usual again, and its places wait for it
+  const checkHeld = normalTest?.kind === "check" && usualReady.size === 0;
   let oldLive = normalRead ? normalRead.clips.filter((c) => c.arm === "old" && c.state !== "excluded").length : 0;
   let oldToday = normalTest?.kind === "check" && posts.some((p) => p.test?.id === normalTest!.id && p.test.arm === "old" && localDay(parseIso(p.approvedAt) ?? Number.NEGATIVE_INFINITY, offset) === today);
   const oldDue = (place: number) => (place < CHECK_POSTS ? checkArms.slice(0, place + 1).filter((a) => a === "old").length : CHECK_OLD);
@@ -1319,15 +1346,16 @@ export function learnPass(input: LearnerInput): PassPlan | null {
     for (const j of places.slice(0, count)) testPlaces.add(j);
     for (const j of places.slice(count, count + rotationCount)) rotationPlaces.add(j);
   }
-  // the day's windows for "spread", from the date alone (never from a slot's role)
+  // the day's windows for "spread", from the date alone (never from a slot's role); none outside quiet hours, no normal clip
   const spread = spreadWindows(today, input.quiet);
-  for (let j = 0; j < perDay; j++) {
+  const normalSlots = spread.length ? perDay : 0;
+  for (let j = 0; j < normalSlots; j++) {
     let role: SlotRole = "best";
     let arm: string | null = null;
     let setting: ArmSetting = { ...base };
     let membership: TestMembership | null = null;
     let windowArm = bests.arms.postTime;
-    if (normalTest?.kind === "check") {
+    if (normalTest?.kind === "check" && !checkHeld) {
       role = "check";
       arm = !oldToday && oldDue(checkPlace) > oldLive ? "old" : "new";
       checkPlace++;
@@ -1354,6 +1382,15 @@ export function learnPass(input: LearnerInput): PassPlan | null {
       return cands.length && chs.length ? { setting: set, chs, pick: variety.peek(cands, chs.map((c) => c.id), today + j, null) } : null;
     };
     let placed = place(role, arm, setting);
+    // a check's old clip that cannot be placed today (no channel, no template for the old combination) gives its place to a new
+    // clip, the best settings, rather than leaving the day without it: the old one comes at a later place
+    if (!placed && role === "check" && arm === "old" && normalTest) {
+      arm = "new";
+      setting = { ...base };
+      windowArm = bests.arms.postTime;
+      membership = { id: normalTest.id, arm, role };
+      placed = place(role, arm, setting);
+    }
     // a newcomer test's arms have one or two templates each: a clip of one that the caps refuse today (the same template twice in
     // a row on a channel, or over its share) keeps the best settings instead and counts for no test, so the caps always hold
     if (newcomerTest && membership && (!placed || placed.pick.relaxed)) {
@@ -1443,10 +1480,32 @@ export function learnPass(input: LearnerInput): PassPlan | null {
   const kept = log.filter((e) => e.verdict === "kept").length;
   const wentBack = new Set(log.filter((e) => e.verdict === "wentBack").map((e) => keyOf(e))).size;
   const best = Object.fromEntries([...dials].map((d) => [d, bests.arms[d]])) as Record<DialId, string>;
+  // the pass's id: everything that shapes its slots (see the header). It once named only the day, the open test and block and
+  // the log's length, so posts a day, the channels, the pairs, quiet hours, a Fix or a Skip changed the plan under one id, and
+  // C11 took the superseded plan's items for the newest pass's. The posts stay out: an approval moves the variety caps' picks
+  // and a check's place, not the plan
+  const listed = (list: Iterable<string>) => [...list].sort(byString).join(",");
+  const passShape = [
+    input.date,
+    normalTest?.id ?? "-",
+    block?.id ?? "-",
+    String(log.length),
+    String(perDay),
+    trialLane ? trialPairs.slice(0, pairsPerDay).map((pair) => pair.map((w) => w.from).join("+")).join(",") : "-",
+    listed(spread),
+    channels.map((c) => `${c.id}:${c.platform}:${c.trialReels ? "trial" : "-"}`).join(","),
+    listed(usualReady),
+    listed(Object.entries(bests.arms).map(([d, a]) => `${d}=${a}`)),
+    listed(bests.joined),
+    listed(Object.entries(settings.fixed).flatMap(([d, a]) => (a ? [`${d}=${a}`] : []))),
+    listed(skipped),
+    catalog.map((t) => `${t.id}:${t.format}:${t.mode}:${t.family ?? "-"}:${[...t.buckets].sort(byString).join("/")}:${[...t.endings].sort(byString).join("/")}`).join(","),
+    input.l3 ? "l3" : "-",
+  ].join("|");
   return {
     scoreRule: SCORE_RULE,
     date: input.date,
-    passId: hashText(`${input.date}|${normalTest?.id ?? "-"}|${block?.id ?? "-"}|${log.length}`).toString(16).padStart(8, "0"),
+    passId: hashText(passShape).toString(16).padStart(8, "0"),
     best,
     joined: [...bests.joined].sort(byString),
     test,
@@ -1454,7 +1513,7 @@ export function learnPass(input: LearnerInput): PassPlan | null {
     slots,
     verdicts,
     findings: findingsOf(log),
-    status: { measured: allMeasured, usual, kept, wentBack, trialLane, trialPause },
+    status: { measured: allMeasured, usual, kept, wentBack, trialLane, trialPause, noPostWindow: spread.length === 0 },
     feasibilityNeeded: dedupe(needed),
   };
 }

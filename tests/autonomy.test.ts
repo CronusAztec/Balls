@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { numbersIn } from "@/lib/crew/clip";
 import { toRequest, type CardDraft } from "@/lib/desktop/socialCard";
@@ -44,7 +46,7 @@ import {
   type AutonomyLiveChannel,
   type AutonomyPauseReason,
   type AutonomyReason,
-  type AutonomyState,
+  type AutonomySettings,
   type ItemOutcome,
 } from "@/lib/desktop/autonomy";
 import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
@@ -84,7 +86,7 @@ const LIVE: AutonomyLiveChannel[] = [
   { id: "fb-1", platform: "facebook", profile: "JBL page", disabled: false, refreshNeeded: false },
 ];
 
-function baseState(): AutonomyState {
+function baseState(): AutonomySettings {
   return {
     consent: {
       version: AUTONOMY_CONSENT_VERSION,
@@ -167,7 +169,7 @@ function baseClip(over: Partial<AutonomyClip> = {}): AutonomyClip {
 const trialChannel = (over: Record<string, unknown> = {}) => ({ integrationId: "ig-1", platform: "instagram", text: "Which ball escapes first? 🔊 #satisfying", settings: { __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL", ...over }, lane: "trialReel" as const });
 
 interface World {
-  state: AutonomyState;
+  state: AutonomySettings;
   ctx: AutonomyContext;
   item: AutonomyItem;
   clip: AutonomyClip;
@@ -1341,6 +1343,23 @@ describe("the limits it shares with the learner, and what the main process bundl
       expect(testQuestionsOf(id), id).toEqual(parsed!.questions.map((q) => ({ dial: q.dial, key: questionKey(q.dial, q.best, q.challenger, q.subject) })));
     }
     for (const id of ["", "block:2", "x1.length.standard.short", "c1.c2.n0.length.standard.short", "n1.length", null, undefined]) expect(testQuestionsOf(id), String(id)).toEqual([]);
+  });
+
+  // the plan's C11 names the stored block AutonomySettings, beside sanitizeAutonomy, for the main process's store and the
+  // consent screen; it was called AutonomyState here, so wiring written from the plan imported a type that did not exist
+  it("exports what the plan's C11 names for its wiring: AutonomySettings, sanitizeAutonomy, the rules and the constants", async () => {
+    const mod: Record<string, unknown> = await import("@/lib/desktop/autonomy");
+    for (const name of ["sanitizeAutonomy", "eligibilityProblems", "autonomyProblems", "laneProblems", "scheduleFor", "requestOfProposal"]) expect(typeof mod[name], name).toBe("function");
+    expect(mod.AUTONOMY_PLATFORMS).toEqual(["instagram", "instagram-standalone", "youtube"]);
+    const constants = { AUTONOMY_LEAD_MS: 60 * MIN, AUTONOMY_MAX_LEAD_MS: 90 * MIN, AUTONOMY_TICK_MS: 5 * MIN, AUTONOMY_WATCH_MS: 15 * MIN, AUTONOMY_ITEM_MAX_AGE_MS: D, AUTONOMY_CHANNEL_DAY_MAX: 7, AUTONOMY_HEALTH_COOLDOWN_MS: 2 * D, AUTONOMY_GAP_MS: 2 * D, AUTONOMY_CLOCK_SKEW_MS: 5 * MIN, AUTONOMY_PRACTICE_MS: D };
+    for (const [name, value] of Object.entries(constants)) expect(mod[name], name).toBe(value);
+    expect(typeof mod.AUTONOMY_CONSENT_VERSION).toBe("number");
+    // the block the store keeps, by the plan's name (the type check fails without the export), and no second name for it
+    const stored: AutonomySettings = sanitizeAutonomy(JSON.parse(JSON.stringify(baseState())));
+    expect(stored).toEqual(baseState());
+    const source = readFileSync(path.join(__dirname, "../src/lib/desktop/autonomy.ts"), "utf8");
+    expect(source).toMatch(/^export interface AutonomySettings \{$/m);
+    expect(source).not.toMatch(/\bAutonomyState\b/);
   });
 
   // its header says the main process bundles it: values only from the light modules, and nothing heavier comes along
