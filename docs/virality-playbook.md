@@ -598,8 +598,9 @@ Hidden after measuring in step 6:
   and the rings line up every cycle, a line-up rather than a reveal. Its white-spaces type hides a picture and reveals it as
   its run ends, shown for the recorder's 0.5 s only: 0 of 12 plans passed (G2), as Paint's fill.
 
-**The whole table after AI studio step 6** **[observed: every ready template, 4 plan seeds × 3 platforms, on the platforms
-its buckets fit: 584 plans in the Simple look in each of English, Polish and Spanish, and 584 in the bot look in English]**.
+**The whole table after AI studio step 6 and the first review round** **[observed: every ready template, 4 plan seeds × 3
+platforms, on the platforms its buckets fit: 584 plans in the Simple look in each of English, Polish and Spanish, and 584 in
+the bot look in English; English and the bot look measured again after the review round]**.
 48 of 48 modes are bound. 39 are ready, as 49 templates. The other 9 are not ready, each with its reason: the 8 bindings of
 the experimental table and the square race, a recipe's binding whose one variant is hidden. Three variants of ready bindings
 are hidden with theirs: Grow's fill that ends the run, Colour Conquest and the square race's. A test pins the counts per
@@ -609,7 +610,7 @@ format (`tests/botTemplates.test.ts`).
 | --- | --- | --- | --- | --- | --- | --- |
 | get out | 7 | – | 10 | 118/120 | 97 (84–97) | 94 |
 | smash | 4 | – | 4 | 48/48 | 97 (86–100) | 86 |
-| fill | 2 | Paint: its run ends at its fill, shown 0.5 s | 2 | 22/24 | 97 (97–97) | 82 |
+| fill | 2 | Paint: its run ends at its fill, shown 0.5 s | 2 | 24/24 | 97 (97–97) | 84 |
 | count | 3 | Merge Ring: its own question under the ring | 3 | 36/36 | 91 (87–97) | 85 |
 | who wins | 7 | the square race: its count-in opens the gate at 1.8 s (G1) | 10 | 114/116 | 90 (87–97) | 94 |
 | aim | 2 | Paddle Keep-Up: its score band under the hook | 2 | 24/24 | 94 (87–97) | 86 |
@@ -617,28 +618,49 @@ format (`tests/botTemplates.test.ts`).
 | on the beat | 4 | Beat Drop and the Sound Vortex: their own HUD or title under the hook; Beat Runner: its first note at 1.5 s (G1) | 4 | 48/48 | 97 (97–97) | 82 |
 | reveal | 1 | Lines and Circle Illusion: no picture to guess | 1 | 12/12 | 97 (97–97) | 82 |
 | Mode Lab game | 1 | – | 5 | 60/60 | 89 (86–92) | 84 |
-| **All** | **39** | **9** | **49** | **578/584** | **97 (84–100)** | **86** |
+| **All** | **39** | **9** | **49** | **580/584** | **97 (84–100)** | **86** |
 
-- The ranges are the English plans'. Polish and Spanish pass the same 578 plans, miss the same 6 and have the same medians
+- The ranges are the English plans'. Polish and Spanish pass the same 580 plans, miss the same 4 and have the same medians
   per format. A template's Simple median moves by half a point at most, and a lowest plan by one (Glass's lowest Spanish
   plan scores 83, Power Layers' lowest Polish one 85).
 - Every ready template passes every gate on at least 3 of its 4 plan seeds on every platform it is offered on, at Simple 80
   or more and a checklist score of 75 or more, in each language. Its runs are the bot look's: the seed and every run fact are
   the same in both looks, on all 584 English plans.
-- The 6 misses are the ones the tables above name: Classic's one ring and Glass on one Shorts plan each, Grow until it fills
-  on two, a Land Claim plan of 42 s past Reels' lengths, and one String Battle whose first hit comes at 1.4 s.
+- The 4 misses are the ones the tables above name: Classic's one ring and Glass on one Shorts plan each, a Land Claim plan of
+  42 s past Reels' lengths, and one String Battle whose first hit comes at 1.4 s. Grow until it fills, which missed two Reels
+  and TikTok plans in step 6, plans the short length only since the review round (below).
 - The lowest checklist score of a passing plan is the Maze's 76; the lowest Simple score is Glass's 84.
 - In the bot look 95 of the 584 plans pass every gate (median Simple 36): the Simple look is what makes most templates ready.
 - Each format has at least one ready template. Who wins holds the battle family: its 10 templates, Fight League's among them,
   are offered only where that family is asked for (`readyTemplates("battle")` or `"all"`, and the `templates` tool's
   `family`). The default menus offer the other 39, as the daily bot leaves its battles out.
 
+**Grow until it fills, short only (the first review round)** **[observed: `fill-grow`, plan seeds beyond the
+test's and the studio's 800×450 world]**. Its seed search often found no fill inside the band in the standard length, the
+Reels and TikTok default: it handed back a 32–46 s clip that failed G7, or one with no fill in it (G2 and G4). On Reels, 16 of
+24 English plans passed every gate on plan seeds 101–124, 2 of 4 in Polish and in Spanish, and 2 of 4 in the 800×450 world;
+the readiness test's own seeds 1–4 had passed 3 of 4, with no margin. The template now plans the short length (8–15 s) on
+every platform, as Gerald's Portal escape plans the standard one only. Measured since:
+
+| Plans | Seeds | Pass every gate | Simple (median) | Checklist (median, lowest) |
+| --- | --- | --- | --- | --- |
+| English, 3 platforms | 1–20 and 101–124 | 132/132 | 97 | 84 (75) |
+| Polish and Spanish, 3 platforms | 1–4, 21–24, 31–34 | 72/72 | 97 | 84 (75) |
+| 800×450, en, pl and es, 3 platforms | 1–8 | 72/72 | 97 | 84 (75) |
+| The studio's `plan`, 8 clips a platform, 800×450 | 1–8 | 24/24 | 97 | 84 (75) |
+| The bot look, en, pl and es | 1–4 | 0/36 (G5 and G6: busy by design) | 30 | 98 |
+
+The run is the bot look's in both looks (the readiness test checks `runFactsSync`). A test now also plans every ready template
+on plan seeds 5–8 in the 800×450 world, one platform and one language a seed: all 49 pass 4 of 4 there, where Grow's standard
+clips had passed 2 of 4.
+
 **Where the templates are offered** (AI studio steps 7 and 8):
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
   by format, as "{Mode name} · {Format name}"; the battle family's only under All series and Battle. Auto, the default, keeps
   the rotation and its pinned days exactly. A Simple look switch, off by default there, draws the clips of both buttons in
-  the Simple look, and Why this clip shows the clip's Simple score and the clarity lines G1–G7. `scripts/viral-bot.mjs` plans
+  the Simple look, and Why this clip shows a Simple clip's score and the clarity lines G1–G7 (a clip in the bot look, busy by
+  design, gets one line saying the rules judge the Simple look). `scripts/viral-bot.mjs` plans
   one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names.
 - **Claude's studio** (docs/agents/STUDIO.md). The `templates` and `plan` tools cover every ready template, in the Simple
   look, and a binding that waits says why. The crew judges each clip before its render and again after it, and a fix offered

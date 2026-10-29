@@ -3667,7 +3667,7 @@
     "today": "Plan na dziś",
     "planning": "Planuję klip {current} z {total} · sprawdzono {seeds} ziaren",
     "cancel": "Anuluj",
-    "empty": "Nie ma jeszcze planu: zaplanuj klipy z tymi ustawieniami albo weź plan na dziś (ten sam, który tworzy CLI i zadanie cykliczne).",
+    "empty": "Nie ma jeszcze planu. Zaplanuj klipy z tymi ustawieniami albo weź plan na dziś: klipy tego dnia, te same przez cały dzień, w wybranym wyglądzie.",
     "planFor": "Klipy: {count} · {date} · {platform}",
     "open": "Otwórz w symulatorze",
     "reroll": "Losuj ponownie",
@@ -3765,6 +3765,7 @@
       "simple": "Prostota {score}/100 · {band}",
       "checking": "Sprawdzam zasady czytelności…",
       "failed": "Nie udało się sprawdzić zasad czytelności.",
+      "botLook": "Zasady czytelności oceniają prosty wygląd. Włącz Prosty wygląd, a klip będzie spokojniejszy, z jedną linijką tekstu naraz.",
       "ok": "Spełniona",
       "notOk": "Niespełniona",
       "bands": {

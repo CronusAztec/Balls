@@ -9,7 +9,7 @@ import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, recipeById
 import type { ClipPlan } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, chosenTemplate, templateChoices } from "@/lib/bot/store";
 import { reasonValues, type BotCopy } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
-import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
+import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, clarityJudges, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { ModeId } from "@/lib/physics/types";
 import type { BotClarity, BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
@@ -20,8 +20,9 @@ export type { BotPanelProps } from "../useViralBot";
 
 /*
  * --- viral-bot --- The "Viral video bot" block at the end of the Recording section: platform, clip count, series, length
- * and ending; "Plan clips" (a fresh set with these filters) and "Today's plan" (the day's own plan – the one the CLI and
- * the scheduled job make); the planned clips with their recipe, hook, mode, seed, length, ending and score, "why this
+ * and ending; "Plan clips" (a fresh set with these filters) and "Today's plan" (the day's own plan of every series, the same
+ * all day – --- bot-templates --- in the look the Simple switch picks: the CLI and the scheduled job plan the day's rotation in the
+ * bot look, studio round 1, 5); the planned clips with their recipe, hook, mode, seed, length, ending and score, "why this
  * clip", Open in simulator, Re-roll and Copy caption; "Render all" through the batch renderer into a ZIP. The page side
  * is components/simulator/useViralBot.ts, the planner lib/bot/planner.ts.
  *
@@ -29,7 +30,8 @@ export type { BotPanelProps } from "../useViralBot";
  * listed as "{Mode name} · {Format name}" and grouped by format, the series' own – the battle family's only under All series
  * and Battle, where the bot offers it; Auto keeps the daily rotation exactly) and the Simple switch (off by default here: the
  * Simple look for the clips of both buttons). "Why this clip" adds the clip's Simple score and the crew's clarity lines
- * (lib/bot/clarityLines.ts), checked when it is opened and kept in memory only.
+ * (lib/bot/clarityLines.ts), checked when it is opened and kept in memory only – for a clip in the Simple look, whose rules they
+ * are; a clip in the bot's own look gets one line that says so (studio round 1, 3: every one of them read Busy beside its ticks).
  */
 
 /** Search keys of the block (added to SECTION_KEYS.recording in Controls.tsx; the label is in the Controls namespace). */
@@ -82,6 +84,7 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
   const template = templateById(clip.template); // --- bot-templates --- ("{Mode name} · {Format name}": its mode named already)
   const name = template ? templateNameOf(template, botCopy, modeLabel(t, template.mode)) : recipe ? b(`recipes.${recipe.copyKey}.name`) : clip.recipe;
   const busy = !!bot.planning || !!bot.rerolling || bot.render.status === "running";
+  const judged = clarityJudges(clip); // --- bot-templates --- (studio round 1, 3: the clarity lines are the Simple look's)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(clip.post.caption);
@@ -96,7 +99,9 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
       <div className="flex items-start gap-2">
         <span className="text-ink-3 tabular-nums w-5 shrink-0">{clip.index}.</span>
         <div className="flex-1 min-w-0">
-          <div className="text-ink font-medium truncate" title={name}>
+          {/* --- bot-templates --- (studio round 1, 6) a template's name wraps to a second line, never cut: at phone width a Mode Lab
+              game's name ("Laboratorium trybów · Gra z laboratorium · Wyścig przez kołki") lost the game, the one part that differs */}
+          <div className={`text-ink font-medium ${template ? "line-clamp-2 break-words" : "truncate"}`} title={name} data-bot-name="">
             {name} {!template && <span className="text-ink-3 font-normal">· {modeLabel(t, clip.mode)}</span>}
           </div>
           <div className="text-ink-2 italic truncate" title={clip.hook}>
@@ -115,7 +120,7 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
         {clip.post.time && <span>· {clip.post.time}</span>}
       </div>
       {!clip.timing.found && <p className="pl-7 text-xs text-warn">{b("closest")}</p>}
-      <details className="pl-7" onToggle={(e) => e.currentTarget.open && bot.onClarity(clip.id) /* --- bot-templates --- */}>
+      <details className="pl-7" onToggle={(e) => e.currentTarget.open && judged && bot.onClarity(clip.id) /* --- bot-templates --- */}>
         <summary className="cursor-pointer text-xs text-accent select-none">{b("why")}</summary>
         <ul className="mt-1 space-y-0.5">
           {clip.reasons.map((r) => (
@@ -132,7 +137,14 @@ function ClipRow({ clip, t, b, bot, botCopy }: { clip: ClipPlan; t: Translate; b
             </li>
           ))}
         </ul>
-        <ClarityLines lines={bot.clarity(clip)} b={b} /* --- bot-templates --- */ />
+        {judged ? (
+          <ClarityLines lines={bot.clarity(clip)} b={b} /* --- bot-templates --- */ />
+        ) : (
+          // --- bot-templates --- (studio round 1, 3) the bot's own look: one neutral line, no verdict of the Simple look's rules
+          <p className="mt-1.5 border-t border-line-strong/30 pt-1.5 text-xs text-ink-3" data-bot-clarity="botLook">
+            {b("crew.botLook")}
+          </p>
+        )}
       </details>
       <div className="pl-7 flex flex-wrap gap-1.5">
         <button type="button" onClick={() => bot.onOpen(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 disabled:opacity-40 cursor-pointer">

@@ -92,6 +92,15 @@ export function isBotLook(value: unknown): value is BotLookId {
 export const TEMPLATE_LOOK: BotLookId = "simple";
 
 /**
+ * --- bot-templates --- (studio round 1, 3) Whether the crew's clarity rules judge a planned clip: only one drawn in the Simple look,
+ * whose rules they are (G5's seven words and one text at a time, G6's Simple score). A clip in the bot's own look is busy by
+ * design – its glow, trails, series label and longer hook –, so every one of them would fail G5 or G6 beside its checklist's ticks.
+ */
+export function clarityJudges(plan: { look?: BotLookId }): boolean {
+  return plan.look === "simple";
+}
+
+/**
  * The Simple look's settings. The gradient is dark without being black: both colours stay under scoreClip's 0.12 luminance
  * (the slate #1e293b would be 0.157 and lose the look's 3 points). The trail thickness is the settings' default, the one the
  * Simple score charges nothing for (crew/simplicity.ts SIMPLE_TRAIL_THICKNESS). The neon theme's particles are sparks.
@@ -486,6 +495,16 @@ const ENDS_AT_ESCAPE = "the run ends with the escape (a resolved clip shows it f
  * in time on about half the plans (3 or 4 of 8 pass every gate, on every platform), in the standard one 7 or 8 of 8 do.
  */
 const GERALD_PORTAL_BUCKETS: readonly LengthBucket[] = ["standard"];
+
+/**
+ * --- templates --- (studio round 1, 1) Grow's fill takes the short length only. The fill format ends resolved, and in the standard
+ * length (15–30 s, the Reels and TikTok default) the grow-fill recipe's seed search often finds no fill inside the band: it hands back
+ * a 32–46 s clip that fails G7 (a standard clip's length), or one with no fill in it at all (G2 and G4). Measured on plan seeds beyond
+ * the test's: 16 of 24 Reels plans passed every gate (seeds 101–124), 2 of 4 in Polish and in Spanish, 2 of 4 in the studio's
+ * 800×450 world. In the short length (8–15 s, Shorts' own) every plan did, on every platform: 276 of 276 measured, in en, pl and
+ * es, the 800×450 world among them (docs/virality-playbook.md §5).
+ */
+const GROW_FILL_BUCKETS: readonly LengthBucket[] = ["short"];
 
 /**
  * --- templates --- Pendulum Wave as its template plays it. The recipe sounds a bob as it crosses the centre: at the realignment
@@ -1024,7 +1043,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'", scene: () => "a few small balls under a wall of bricks that draws a picture" })),
   spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
   // fill
-  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill"], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
+  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill", undefined, undefined, GROW_FILL_BUCKETS], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
   paint: bind("paint", later("fill", "finish", { patch: PAINT_FAST, note: "95 % painted" })),
   perfectFit: bind("perfectFit", later("fill", "outcome", { outcome: "most-on-floor", needs: "pfPento", generate: perfectFitSettings, buckets: ["short", "standard"], note: "one box, its tiling with the most pieces on the floor; landings-on-beat would need the page's tempo", scene: () => "twelve puzzle pieces in a tray at the top, an empty rectangular box below them" })),
   // count

@@ -11,7 +11,7 @@ import { batchTextFiles, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, chosenTemplate, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
-import type { BotLookId } from "@/lib/bot/templates"; // --- bot-templates ---
+import { clarityJudges, type BotLookId } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { PlanClarity } from "@/lib/bot/clarityLines"; // --- bot-templates --- (a type only: the module loads when a clip's lines are opened)
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
@@ -385,7 +385,8 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
   const [, setClarityTick] = useState(0);
   const onClarity = useCallback(async (id: string) => {
     const clip = stateRef.current.plan?.clips.find((c) => c.id === id);
-    if (!clip || clarityRef.current.has(clip)) return;
+    // (studio round 1, 3: the rules judge the Simple look's clips only, templates.ts clarityJudges)
+    if (!clip || !clarityJudges(clip) || clarityRef.current.has(clip)) return;
     clarityRef.current.set(clip, "checking");
     setClarityTick((n) => n + 1);
     let lines: BotClarity = "failed";

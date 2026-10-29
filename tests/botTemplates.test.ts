@@ -74,6 +74,7 @@ import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan } from "@/lib/crew/c
 import { CLARITY, clarityOf, counterCutReading } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { screenView } from "@/lib/crew/dossier";
+import { STUDIO_RENDER_WORLD } from "@/lib/agentKit/studioKit"; // --- templates --- (studio round 1, 1)
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6)
 import { END_HOLD_SEC as LAB_END_HOLD_SEC } from "@/lib/physics/modes/blueprint";
 import { OWN_HOOK_FIELD, OWN_PAYOFF_FIELD } from "@/lib/bot/copy";
@@ -685,6 +686,49 @@ describe("the Simple look", () => {
       }
     });
   }
+
+  // --- templates --- (studio round 1, 1) and past the pinned seeds, in the world the studio plans and renders in: Grow's fill had
+  // passed on plan seeds 1-4 in the planner's 800x600 world with no margin and missed on others (16 of 24 Reels plans on seeds
+  // 101-124, 2 of 4 on seeds 1-4 in 800x450). Sampled, as the test above takes the full grid: every ready template on plan seeds
+  // 5-8 in STUDIO_RENDER_WORLD, one platform and one language a seed, rotating, in two halves of the list for the time
+  const beyond = ready.filter((t, i, all) => i < Math.ceil(all.length / 2));
+  for (const [half, list] of [["first", beyond], ["second", ready.filter((t) => !beyond.includes(t))]] as const) {
+    it(`every ready template passes every clarity gate on 3 of 4 further plan seeds in the studio's world, each plan at Simple 80+ (${half} half, sampled)`, { timeout: 240_000 }, async () => {
+      expect(list.length).toBeGreaterThan(0);
+      for (const t of list) {
+        const platforms = platformsOf(t.id);
+        let passed = 0;
+        for (const [k, seed] of [5, 6, 7, 8].entries()) {
+          const platform = platforms[k % platforms.length];
+          const locale = (["pl", "es", "en"] as const)[k % 3];
+          const plan = planTemplate(t.id, seed, platform, { copy: COPY[locale], locale, episode: 3, index: seed, world: STUDIO_RENDER_WORLD });
+          const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec);
+          const clarity = clarityOf(crewClipOfPlan(plan, { run }));
+          const where = `${locale}/${t.id}/${platform}/${seed}/800x450`;
+          expect([where, plan.world]).toEqual([where, STUDIO_RENDER_WORLD]);
+          expect(clarity.simple.score, where).toBeGreaterThanOrEqual(80);
+          if (clarity.gates.every((g) => g.ok)) {
+            passed++;
+            expect(plan.score, where).toBeGreaterThanOrEqual(75);
+          }
+        }
+        expect(passed, `${t.id} (seeds 5-8, 800x450)`).toBeGreaterThanOrEqual(3);
+        await breathe();
+      }
+    });
+  }
+
+  it("plans Grow's fill in the short length only, where its seed search finds the fill: never a standard clip that fills too late or not at all", () => {
+    const grow = templateById("fill-grow")!;
+    expect(grow.buckets).toEqual(["short"]);
+    expect(templateRecipeById(grow.id)!.buckets).toEqual(["short"]);
+    // (the recipe itself, the bot's, keeps both lengths)
+    expect(recipeById("grow-fill")!.buckets).toEqual(["short", "standard"]);
+    expect(platformsOf(grow.id)).toEqual([...BOT_PLATFORMS]);
+    for (const platform of BOT_PLATFORMS) {
+      for (const bucket of ["auto", "short", "standard"] as const) expect(planTemplate(grow.id, 1, platform, { copy, search: false, bucket }).bucket, `${platform}/${bucket}`).toBe("short");
+    }
+  });
 
   // --- templates --- (review round 2, 13) "Znów w jednej linii. 🎼" is one clause of 4 words: no clause cut shortens it, and on
   // Shorts its 🎼 took a second line in the 2 s the clip leaves after the payoff – 1 s a line, under G5's 1.2 s, on every plan

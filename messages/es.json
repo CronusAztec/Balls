@@ -3667,7 +3667,7 @@
     "today": "Plan de hoy",
     "planning": "Planificando el clip {current} de {total} · {seeds} semillas probadas",
     "cancel": "Cancelar",
-    "empty": "Todavía no hay plan: planifica clips con estos ajustes o usa el plan de hoy (el mismo que crean la CLI y la tarea programada).",
+    "empty": "Todavía no hay plan. Planifica clips con estos ajustes o usa el plan de hoy: los clips del día, los mismos todo el día, con el aspecto que elegiste.",
     "planFor": "Clips: {count} · {date} · {platform}",
     "open": "Abrir en el simulador",
     "reroll": "Volver a sortear",
@@ -3765,6 +3765,7 @@
       "simple": "Sencillez {score}/100 · {band}",
       "checking": "Comprobando las reglas de claridad…",
       "failed": "No se pudieron comprobar las reglas de claridad.",
+      "botLook": "Las reglas de claridad juzgan el aspecto sencillo. Activa Aspecto sencillo para un clip más tranquilo, con una línea de texto a la vez.",
       "ok": "Se cumple",
       "notOk": "No se cumple",
       "bands": {

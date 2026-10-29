@@ -2058,7 +2058,7 @@ export default function Simulator() {
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
-  const finderOutcomes = availableOutcomes(s.mode, outcomeContextOfSettings(s, { paintPicture: !!paintPicture })); // --- outcome-context --- (lib/simulation/outcomeContext.ts: the bot's templates read the same context)
+  const finderOutcomes = availableOutcomes(s.mode, outcomeContextOfSettings(s, { paintPicture: !!paintPicture })); // --- outcome-context --- (lib/simulation/outcomeContext.ts; the template tests check the bindings against it)
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   // --- low-findings-2 --- the chaos fan run backwards only splits on its forward run: a later "Splits at" is said, never searched
   const divergeLatestSec = s.mode === "doublePendulum" && s.dpFan ? fanSplitLatestSec(s, ESCAPE_AT_TOLERANCE_SEC) : null;

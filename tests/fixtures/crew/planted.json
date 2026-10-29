@@ -866,7 +866,7 @@
    }
   },
   {
-   "id": "f13",
+   "id": "f11",
    "source": "get-out-portal-gerald#3",
    "defect": "twoIdeas",
    "variant": 2,
@@ -1185,285 +1185,7 @@
    }
   },
   {
-   "id": "f14",
-   "source": "fill-grow#4",
-   "defect": "payoffCut",
-   "variant": 1,
-   "clip": {
-    "from": "plan",
-    "captionRoles": [
-     "hook",
-     "payoff"
-    ],
-    "mode": "grow",
-    "recipe": "fill-grow",
-    "template": "fill-grow",
-    "claim": "full",
-    "platform": "tiktok",
-    "bucket": "standard",
-    "ending": "resolved",
-    "seed": 93215882,
-    "episode": 1,
-    "hook": "It grows every bounce.",
-    "payoff": {
-     "type": "fill",
-     "atSec": 20.1166666666667,
-     "position": 1.052,
-     "cutGapSec": null,
-     "text": "FULL. 😮",
-     "winner": null
-    },
-    "timing": {
-     "clipSec": 19.117,
-     "recordingDuration": 24,
-     "firstImpactSec": 0.3833333333333334
-    },
-    "countdown": {
-     "kind": "percent",
-     "source": "picture"
-    },
-    "simulated": true,
-    "run": {
-     "firstImpactSec": 0.3833333333333334,
-     "firstEscapeSec": -1,
-     "finishSec": -1,
-     "homeSec": -1,
-     "fillSec": 20.1166666666667,
-     "winSec": -1,
-     "winnerIndex": -1,
-     "summary": {
-      "mode": "grow",
-      "durationMs": 20116.6666666667,
-      "finished": false,
-      "firstEscapeMs": -1,
-      "teams": [
-       {
-        "bounces": 220,
-        "walls": 0,
-        "escapes": 0,
-        "firstEscapeMs": -1
-       }
-      ]
-     },
-     "moment": {
-      "atSec": 20.117,
-      "sounds": 23,
-      "notes": 23,
-      "chordMax": 1,
-      "accent": false,
-      "motion": 21.26,
-      "motionMedian": 263.36,
-      "soundsMedian": 8,
-      "accents": [],
-      "quietTailSec": 0
-     },
-     "action": {
-      "stepSec": 0.5,
-      "grid": 20,
-      "samples": [
-       "3o3p3q48494a4s4t4u",
-       "7f7g7h7z80818j8k8l",
-       "2z30313j3k3l434445",
-       "4p4q4r4s595a5b5c5t5u5v5w6d6e6f6g",
-       "565758595a5q5r5s5t5u6a6b6c6d6e6u6v6w6x6y",
-       "4344454647484n4o4p4q4r4s5758595a5b5c5r5s5t5u5v5w6b6c6d6e6f6g",
-       "4m4n4o4p4q4r4s565758595a5b5c5q5r5s5t5u5v5w6a6b6c6d6e6f6g6u6v6w6x6y6z707e7f7g7h7i7j7k7y7z8081828384",
-       "303132333435363k3l3m3n3o3p3q4445464748494a4o4p4q4r4s4t4u58595a5b5c5d5e5s5t5u5v5w5x5y6c6d6e6f6g6h6i",
-       "5p5q5r5s5t5u5v696a6b6c6d6e6f6t6u6v6w6x6y6z7d7e7f7g7h7i7j7x7y7z808182838h8i8j8k8l8m8n91929394959697",
-       "1u1v1w1x1y1z20212e2f2g2h2i2j2k2l2y2z3031323334353i3j3k3l3m3n3o3p42434445464748494m4n4o4p4q4r4s4t565758595a5b5c5d5q5r5s5t5u5v5w5x6a6b6c6d6e6f6g6h",
-       "3f3g3h3i3j3k3l3m3n3z40414243444546474j4k4l4m4n4o4p4q4r535455565758595a5b5n5o5p5q5r5s5t5u5v6768696a6b6c6d6e6f6r6s6t6u6v6w6x6y6z7b7c7d7e7f7g7h7i7j7v7w7x7y7z80818283",
-       "3i3j3k3l3m3n3o3p3q3r42434445464748494a4b4m4n4o4p4q4r4s4t4u4v565758595a5b5c5d5e5f5q5r5s5t5u5v5w5x5y5z6a6b6c6d6e6f6g6h6i6j6u6v6w6x6y6z707172737e7f7g7h7i7j7k7l7m7n7y7z80818283848586878i8j8k8l8m8n8o8p8q8r",
-       "1t1u1v1w1x1y1z202122232d2e2f2g2h2i2j2k2l2m2n2x2y2z30313233343536373h3i3j3k3l3m3n3o3p3q3r4142434445464748494a4b4l4m4n4o4p4q4r4s4t4u4v55565758595a5b5c5d5e5f5p5q5r5s5t5u5v5w5x5y5z696a6b6c6d6e6f6g6h6i6j6t6u6v6w6x6y6z707172737d7e7f7g7h7i7j7k7l7m7n",
-       "2c2d2e2f2g2h2i2j2k2l2m2w2x2y2z303132333435363g3h3i3j3k3l3m3n3o3p3q404142434445464748494a4k4l4m4n4o4p4q4r4s4t4u5455565758595a5b5c5d5e5o5p5q5r5s5t5u5v5w5x5y68696a6b6c6d6e6f6g6h6i6s6t6u6v6w6x6y6z7071727c7d7e7f7g7h7i7j7k7l7m7w7x7y7z80818283848586",
-       "2c2d2e2f2g2h2i2j2k2l2m2w2x2y2z303132333435363g3h3i3j3k3l3m3n3o3p3q404142434445464748494a4k4l4m4n4o4p4q4r4s4t4u5455565758595a5b5c5d5e5o5p5q5r5s5t5u5v5w5x5y68696a6b6c6d6e6f6g6h6i6s6t6u6v6w6x6y6z7071727c7d7e7f7g7h7i7j7k7l7m7w7x7y7z80818283848586",
-       "2u2v2w2x2y2z3031323334353e3f3g3h3i3j3k3l3m3n3o3p3y3z404142434445464748494i4j4k4l4m4n4o4p4q4r4s4t52535455565758595a5b5c5d5m5n5o5p5q5r5s5t5u5v5w5x666768696a6b6c6d6e6f6g6h6q6r6s6t6u6v6w6x6y6z70717a7b7c7d7e7f7g7h7i7j7k7l7u7v7w7x7y7z8081828384858e8f8g8h8i8j8k8l8m8n8o8p8y8z90919293949596979899",
-       "2w2x2y2z303132333435363g3h3i3j3k3l3m3n3o3p3q404142434445464748494a4k4l4m4n4o4p4q4r4s4t4u5455565758595a5b5c5d5e5o5p5q5r5s5t5u5v5w5x5y68696a6b6c6d6e6f6g6h6i6s6t6u6v6w6x6y6z7071727c7d7e7f7g7h7i7j7k7l7m7w7x7y7z808182838485868g8h8i8j8k8l8m8n8o8p8q909192939495969798999a",
-       "3g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z80818283848586878g8h8i8j8k8l8m8n8o8p8q8r909192939495969798999a9b9k9l9m9n9o9p9q9r9s9t9u9v",
-       "3g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z80818283848586878g8h8i8j8k8l8m8n8o8p8q8r909192939495969798999a9b",
-       "2w2x2y2z30313233343536373g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z80818283848586878g8h8i8j8k8l8m8n8o8p8q8r909192939495969798999a9b",
-       "",
-       "3g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z80818283848586878g8h8i8j8k8l8m8n8o8p8q8r909192939495969798999a9b9k9l9m9n9o9p9q9r9s9t9u9v",
-       "2w2x2y2z30313233343536373g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z80818283848586878g8h8i8j8k8l8m8n8o8p8q8r909192939495969798999a9b",
-       "2v2w2x2y2z303132333435363f3g3h3i3j3k3l3m3n3o3p3q3z404142434445464748494a4j4k4l4m4n4o4p4q4r4s4t4u535455565758595a5b5c5d5e5n5o5p5q5r5s5t5u5v5w5x5y6768696a6b6c6d6e6f6g6h6i6r6s6t6u6v6w6x6y6z7071727b7c7d7e7f7g7h7i7j7k7l7m7v7w7x7y7z808182838485868f8g8h8i8j8k8l8m8n8o8p8q8z909192939495969798999a",
-       "1q1r1s1t1u1v1w1x1y1z2021222a2b2c2d2e2f2g2h2i2j2k2l2m2u2v2w2x2y2z303132333435363e3f3g3h3i3j3k3l3m3n3o3p3q3y3z404142434445464748494a4i4j4k4l4m4n4o4p4q4r4s4t4u52535455565758595a5b5c5d5e5m5n5o5p5q5r5s5t5u5v5w5x5y666768696a6b6c6d6e6f6g6h6i6q6r6s6t6u6v6w6x6y6z7071727a7b7c7d7e7f7g7h7i7j7k7l7m7u7v7w7x7y7z808182838485868e8f8g8h8i8j8k8l8m8n8o8p8q",
-       "1r1s1t1u1v1w1x1y1z202122232b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z8081828384858687",
-       "2d2e2f2g2h2i2j2k2l2m2n2o2p2x2y2z303132333435363738393h3i3j3k3l3m3n3o3p3q3r3s3t4142434445464748494a4b4c4d4l4m4n4o4p4q4r4s4t4u4v4w4x55565758595a5b5c5d5e5f5g5h5p5q5r5s5t5u5v5w5x5y5z6061696a6b6c6d6e6f6g6h6i6j6k6l6t6u6v6w6x6y6z7071727374757d7e7f7g7h7i7j7k7l7m7n7o7p7x7y7z808182838485868788898h8i8j8k8l8m8n8o8p8q8r8s8t9192939495969798999a9b9c9d",
-       "2a2b2c2d2e2f2g2h2i2j2k2l2m2n2u2v2w2x2y2z30313233343536373e3f3g3h3i3j3k3l3m3n3o3p3q3r3y3z404142434445464748494a4b4i4j4k4l4m4n4o4p4q4r4s4t4u4v52535455565758595a5b5c5d5e5f5m5n5o5p5q5r5s5t5u5v5w5x5y5z666768696a6b6c6d6e6f6g6h6i6j6q6r6s6t6u6v6w6x6y6z707172737a7b7c7d7e7f7g7h7i7j7k7l7m7n7u7v7w7x7y7z80818283848586878e8f8g8h8i8j8k8l8m8n8o8p8q8r8y8z909192939495969798999a9b",
-       "1s1t1u1v1w1x1y1z2021222324252c2d2e2f2g2h2i2j2k2l2m2n2o2p2w2x2y2z303132333435363738393g3h3i3j3k3l3m3n3o3p3q3r3s3t404142434445464748494a4b4c4d4k4l4m4n4o4p4q4r4s4t4u4v4w4x5455565758595a5b5c5d5e5f5g5h5o5p5q5r5s5t5u5v5w5x5y5z606168696a6b6c6d6e6f6g6h6i6j6k6l6s6t6u6v6w6x6y6z7071727374757c7d7e7f7g7h7i7j7k7l7m7n7o7p7w7x7y7z808182838485868788898g8h8i8j8k8l8m8n8o8p8q8r8s8t",
-       "1q1r1s1t1u1v1w1x1y1z202122232a2b2c2d2e2f2g2h2i2j2k2l2m2n2u2v2w2x2y2z30313233343536373e3f3g3h3i3j3k3l3m3n3o3p3q3r3y3z404142434445464748494a4b4i4j4k4l4m4n4o4p4q4r4s4t4u4v52535455565758595a5b5c5d5e5f5m5n5o5p5q5r5s5t5u5v5w5x5y5z666768696a6b6c6d6e6f6g6h6i6j6q6r6s6t6u6v6w6x6y6z707172737a7b7c7d7e7f7g7h7i7j7k7l7m7n7u7v7w7x7y7z80818283848586878e8f8g8h8i8j8k8l8m8n8o8p8q8r8y8z909192939495969798999a9b",
-       "2b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "2b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
-       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z2021222324252b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2v2w2x2y2z303132333435363738393f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3z404142434445464748494a4b4c4d4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x535455565758595a5b5c5d5e5f5g5h5n5o5p5q5r5s5t5u5v5w5x5y5z60616768696a6b6c6d6e6f6g6h6i6j6k6l6r6s6t6u6v6w6x6y6z7071727374757b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7v7w7x7y7z808182838485868788898f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8z909192939495969798999a9b9c9d9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "1r1s1t1u1v1w1x1y1z2021222324252b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2v2w2x2y2z303132333435363738393f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3z404142434445464748494a4b4c4d4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x535455565758595a5b5c5d5e5f5g5h5n5o5p5q5r5s5t5u5v5w5x5y5z60616768696a6b6c6d6e6f6g6h6i6j6k6l6r6s6t6u6v6w6x6y6z7071727374757b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7v7w7x7y7z808182838485868788898f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8z909192939495969798999a9b9c9d9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "1718191a1b1c1d1e1f1g1h1i1j1k1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
-       "1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "",
-       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "",
-       "",
-       ""
-      ]
-     }
-    },
-    "measured": null,
-    "cut": null,
-    "playbook": {
-     "score": 66,
-     "reasons": [
-      {
-       "id": "motion",
-       "points": 10,
-       "max": 10,
-       "key": "motionOk",
-       "values": {
-        "sec": "0.4"
-       }
-      },
-      {
-       "id": "hook",
-       "points": 15,
-       "max": 15,
-       "key": "hookOk",
-       "values": {
-        "text": "It grows every bounce."
-       }
-      },
-      {
-       "id": "countdown",
-       "points": 0,
-       "max": 10,
-       "key": "countdownMissing",
-       "values": {}
-      },
-      {
-       "id": "payoff",
-       "points": 0,
-       "max": 20,
-       "key": "payoffOff",
-       "values": {
-        "sec": "20.1",
-        "pct": 105
-       }
-      },
-      {
-       "id": "length",
-       "points": 10,
-       "max": 10,
-       "key": "lengthOk",
-       "values": {
-        "sec": "19.1",
-        "min": 15,
-        "max": 30
-       }
-      },
-      {
-       "id": "sound",
-       "points": 10,
-       "max": 10,
-       "key": "soundOk",
-       "values": {
-        "melody": "entertainer"
-       }
-      },
-      {
-       "id": "ending",
-       "points": 10,
-       "max": 10,
-       "key": "endingLoop",
-       "values": {
-        "tail": "-1.0"
-       }
-      },
-      {
-       "id": "series",
-       "points": 6,
-       "max": 10,
-       "key": "seriesWeak",
-       "values": {
-        "label": ""
-       }
-      },
-      {
-       "id": "look",
-       "points": 5,
-       "max": 5,
-       "key": "lookOk",
-       "values": {}
-      }
-     ]
-    },
-    "settingsPatch": {
-     "mode": "grow",
-     "ballSpeed": 600,
-     "ballColor": "#00f0ff",
-     "ballRadius": 6,
-     "ballColor2": "#faff00",
-     "circleColor": "#ff00e6",
-     "rainbowWalls": false,
-     "showGlow": true,
-     "showWallGlow": false,
-     "colorTrail": false,
-     "wallBreakStyle": "shatter",
-     "themeId": "neon",
-     "backgroundType": "gradient",
-     "backgroundColors": [
-      "#05070a",
-      "#141a24"
-     ],
-     "particleStyle": "sparks",
-     "trailColors": [
-      "#00f0ff",
-      "#ff00e6"
-     ],
-     "lineColor": "#00f0ff",
-     "growRate": 8,
-     "growLines": true,
-     "recordingDuration": 24,
-     "melodyInstrument": "pluck",
-     "scale": "major",
-     "nameLabel": false,
-     "captions": [
-      {
-       "type": "text",
-       "text": "It grows every bounce.",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "FULL. 😮",
-       "answer": "",
-       "position": "top",
-       "start": 20,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
-        "background": "#000000"
-       }
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "f15",
+   "id": "f12",
    "source": "smash-power-layers#1",
    "defect": "slowStart",
    "variant": 1,
@@ -1742,7 +1464,7 @@
    }
   },
   {
-   "id": "f17",
+   "id": "f14",
    "source": "who-wins-string-battle#2",
    "defect": "hookMismatch",
    "variant": 2,
@@ -2042,7 +1764,7 @@
    }
   },
   {
-   "id": "f21",
+   "id": "f18",
    "source": "line-up-polyrhythm#1",
    "defect": "twoIdeas",
    "variant": 0,
@@ -2318,7 +2040,7 @@
    }
   },
   {
-   "id": "f22",
+   "id": "f19",
    "source": "who-wins-ctf#1",
    "defect": "hookUntrue",
    "variant": 0,
@@ -2694,7 +2416,263 @@
    }
   },
   {
-   "id": "f24",
+   "id": "f20",
+   "source": "fill-grow#2",
+   "defect": "payoffCut",
+   "variant": 1,
+   "clip": {
+    "from": "plan",
+    "captionRoles": [
+     "hook",
+     "payoff"
+    ],
+    "mode": "grow",
+    "recipe": "fill-grow",
+    "template": "fill-grow",
+    "claim": "full",
+    "platform": "shorts",
+    "bucket": "short",
+    "ending": "resolved",
+    "seed": 1828940404,
+    "episode": 1,
+    "hook": "It grows every bounce.",
+    "payoff": {
+     "type": "fill",
+     "atSec": 10.7833333333333,
+     "position": 1.102,
+     "cutGapSec": null,
+     "text": "FULL. 😮",
+     "winner": null
+    },
+    "timing": {
+     "clipSec": 9.783,
+     "recordingDuration": 13,
+     "firstImpactSec": 0.3833333333333334
+    },
+    "countdown": {
+     "kind": "percent",
+     "source": "picture"
+    },
+    "simulated": true,
+    "run": {
+     "firstImpactSec": 0.3833333333333334,
+     "firstEscapeSec": -1,
+     "finishSec": -1,
+     "homeSec": -1,
+     "fillSec": 10.7833333333333,
+     "winSec": -1,
+     "winnerIndex": -1,
+     "summary": {
+      "mode": "grow",
+      "durationMs": 10783.3333333333,
+      "finished": false,
+      "firstEscapeMs": -1,
+      "teams": [
+       {
+        "bounces": 140,
+        "walls": 0,
+        "escapes": 0,
+        "firstEscapeMs": -1
+       }
+      ]
+     },
+     "moment": {
+      "atSec": 10.783,
+      "sounds": 20,
+      "notes": 20,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 23.35,
+      "motionMedian": 80.93,
+      "soundsMedian": 9,
+      "accents": [],
+      "quietTailSec": 0
+     },
+     "action": {
+      "stepSec": 0.5,
+      "grid": 20,
+      "samples": [
+       "55565758595a5b5p5q5r5s5t5u5v696a6b6c6d6e6f6t6u6v6w6x6y6z7d7e7f7g7h7i7j7x7y7z808182838h8i8j8k8l8m8n",
+       "323334353637383m3n3o3p3q3r3s464748494a4b4c4q4r4s4t4u4v4w5a5b5c5d5e5f5g5u5v5w5x5y5z606e6f6g6h6i6j6k6y6z7071727374",
+       "40414243444546474k4l4m4n4o4p4q4r5455565758595a5b5o5p5q5r5s5t5u5v68696a6b6c6d6e6f6s6t6u6v6w6x6y6z7c7d7e7f7g7h7i7j7w7x7y7z808182838g8h8i8j8k8l8m8n",
+       "2z30313233343536373j3k3l3m3n3o3p3q3r434445464748494a4b4n4o4p4q4r4s4t4u4v5758595a5b5c5d5e5f5r5s5t5u5v5w5x5y5z6b6c6d6e6f6g6h6i6j6v6w6x6y6z707172737f7g7h7i7j7k7l7m7n",
+       "2y2z30313233343536373i3j3k3l3m3n3o3p3q3r42434445464748494a4b4m4n4o4p4q4r4s4t4u4v565758595a5b5c5d5e5f5q5r5s5t5u5v5w5x5y5z6a6b6c6d6e6f6g6h6i6j6u6v6w6x6y6z707172737e7f7g7h7i7j7k7l7m7n7y7z8081828384858687",
+       "2v2w2x2y2z3031323334353f3g3h3i3j3k3l3m3n3o3p3z404142434445464748494j4k4l4m4n4o4p4q4r4s4t535455565758595a5b5c5d5n5o5p5q5r5s5t5u5v5w5x6768696a6b6c6d6e6f6g6h6r6s6t6u6v6w6x6y6z70717b7c7d7e7f7g7h7i7j7k7l7v7w7x7y7z8081828384858f8g8h8i8j8k8l8m8n8o8p",
+       "2v2w2x2y2z3031323334353f3g3h3i3j3k3l3m3n3o3p3z404142434445464748494j4k4l4m4n4o4p4q4r4s4t535455565758595a5b5c5d5n5o5p5q5r5s5t5u5v5w5x6768696a6b6c6d6e6f6g6h6r6s6t6u6v6w6x6y6z70717b7c7d7e7f7g7h7i7j7k7l7v7w7x7y7z8081828384858f8g8h8i8j8k8l8m8n8o8p",
+       "2a2b2c2d2e2f2g2h2i2j2k2l2m2u2v2w2x2y2z303132333435363e3f3g3h3i3j3k3l3m3n3o3p3q3y3z404142434445464748494a4i4j4k4l4m4n4o4p4q4r4s4t4u52535455565758595a5b5c5d5e5m5n5o5p5q5r5s5t5u5v5w5x5y666768696a6b6c6d6e6f6g6h6i6q6r6s6t6u6v6w6x6y6z7071727a7b7c7d7e7f7g7h7i7j7k7l7m7u7v7w7x7y7z808182838485868e8f8g8h8i8j8k8l8m8n8o8p8q8y8z909192939495969798999a",
+       "1s1t1u1v1w1x1y1z20212223242c2d2e2f2g2h2i2j2k2l2m2n2o2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s",
+       "2b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r8z909192939495969798999a9b",
+       "1s1t1u1v1w1x1y1z20212223242c2d2e2f2g2h2i2j2k2l2m2n2o2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s",
+       "2b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r8z909192939495969798999a9b9j9k9l9m9n9o9p9q9r9s9t9u9v",
+       "2b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
+       "1s1t1u1v1w1x1y1z2021222324252c2d2e2f2g2h2i2j2k2l2m2n2o2p2w2x2y2z303132333435363738393g3h3i3j3k3l3m3n3o3p3q3r3s3t404142434445464748494a4b4c4d4k4l4m4n4o4p4q4r4s4t4u4v4w4x5455565758595a5b5c5d5e5f5g5h5o5p5q5r5s5t5u5v5w5x5y5z606168696a6b6c6d6e6f6g6h6i6j6k6l6s6t6u6v6w6x6y6z7071727374757c7d7e7f7g7h7i7j7k7l7m7n7o7p7w7x7y7z808182838485868788898g8h8i8j8k8l8m8n8o8p8q8r8s8t909192939495969798999a9b9c9d",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c",
+       "1r1s1t1u1v1w1x1y1z2021222324252b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2v2w2x2y2z303132333435363738393f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3z404142434445464748494a4b4c4d4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x535455565758595a5b5c5d5e5f5g5h5n5o5p5q5r5s5t5u5v5w5x5y5z60616768696a6b6c6d6e6f6g6h6i6j6k6l6r6s6t6u6v6w6x6y6z7071727374757b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7v7w7x7y7z808182838485868788898f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8z909192939495969798999a9b9c9d",
+       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       "1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       "",
+       ""
+      ]
+     }
+    },
+    "measured": null,
+    "cut": null,
+    "playbook": {
+     "score": 66,
+     "reasons": [
+      {
+       "id": "motion",
+       "points": 10,
+       "max": 10,
+       "key": "motionOk",
+       "values": {
+        "sec": "0.4"
+       }
+      },
+      {
+       "id": "hook",
+       "points": 15,
+       "max": 15,
+       "key": "hookOk",
+       "values": {
+        "text": "It grows every bounce."
+       }
+      },
+      {
+       "id": "countdown",
+       "points": 0,
+       "max": 10,
+       "key": "countdownMissing",
+       "values": {}
+      },
+      {
+       "id": "payoff",
+       "points": 0,
+       "max": 20,
+       "key": "payoffOff",
+       "values": {
+        "sec": "10.8",
+        "pct": 110
+       }
+      },
+      {
+       "id": "length",
+       "points": 10,
+       "max": 10,
+       "key": "lengthOk",
+       "values": {
+        "sec": "9.8",
+        "min": 8,
+        "max": 15
+       }
+      },
+      {
+       "id": "sound",
+       "points": 10,
+       "max": 10,
+       "key": "soundOk",
+       "values": {
+        "melody": "canon-in-d"
+       }
+      },
+      {
+       "id": "ending",
+       "points": 10,
+       "max": 10,
+       "key": "endingLoop",
+       "values": {
+        "tail": "-1.0"
+       }
+      },
+      {
+       "id": "series",
+       "points": 6,
+       "max": 10,
+       "key": "seriesWeak",
+       "values": {
+        "label": ""
+       }
+      },
+      {
+       "id": "look",
+       "points": 5,
+       "max": 5,
+       "key": "lookOk",
+       "values": {}
+      }
+     ]
+    },
+    "settingsPatch": {
+     "mode": "grow",
+     "ballSpeed": 500,
+     "ballColor": "#00f0ff",
+     "ballColor2": "#faff00",
+     "circleColor": "#ff00e6",
+     "rainbowWalls": false,
+     "showGlow": true,
+     "showWallGlow": false,
+     "colorTrail": false,
+     "wallBreakStyle": "shatter",
+     "themeId": "neon",
+     "backgroundType": "gradient",
+     "backgroundColors": [
+      "#05070a",
+      "#141a24"
+     ],
+     "particleStyle": "sparks",
+     "trailColors": [
+      "#00f0ff",
+      "#ff00e6"
+     ],
+     "lineColor": "#00f0ff",
+     "growRate": 10,
+     "recordingDuration": 13,
+     "instrument": "marimba",
+     "melodyInstrument": "marimba",
+     "scale": "pentatonic",
+     "rootNote": 7,
+     "nameLabel": false,
+     "captions": [
+      {
+       "type": "text",
+       "text": "It grows every bounce.",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "text",
+       "text": "FULL. 😮",
+       "answer": "",
+       "position": "top",
+       "start": 10.5,
+       "end": 0,
+       "animation": "pop",
+       "style": {
+        "size": 1.3,
+        "color": "#93d119",
+        "background": "#000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "f22",
    "source": "count-multiply#1",
    "defect": "payoffLate",
    "variant": 1,
@@ -2994,7 +2972,7 @@
    }
   },
   {
-   "id": "f26",
+   "id": "f25",
    "source": "get-out-classic#2",
    "defect": "slowStart",
    "variant": 0,
@@ -3281,7 +3259,7 @@
    }
   },
   {
-   "id": "f27",
+   "id": "f26",
    "source": "on-the-beat-drop#4",
    "defect": "twoIdeas",
    "variant": 1,
@@ -3533,7 +3511,7 @@
    }
   },
   {
-   "id": "f32",
+   "id": "f31",
    "source": "get-out-classic-gerald#2",
    "defect": "hookMismatch",
    "variant": 1,
@@ -3822,7 +3800,7 @@
    }
   },
   {
-   "id": "f33",
+   "id": "f32",
    "source": "count-multiply#2",
    "defect": "endingConfusing",
    "variant": 0,
@@ -4089,7 +4067,7 @@
    }
   },
   {
-   "id": "f35",
+   "id": "f34",
    "source": "count-multipliers#2",
    "defect": "hookUntrue",
    "variant": 1,
@@ -4430,7 +4408,7 @@
    }
   },
   {
-   "id": "f36",
+   "id": "f35",
    "source": "count-multiply#3",
    "defect": "tooBusy",
    "variant": 2,
@@ -4734,7 +4712,7 @@
    }
   },
   {
-   "id": "f39",
+   "id": "f38",
    "source": "who-wins-ctf#2",
    "defect": "payoffLate",
    "variant": 0,
@@ -5116,7 +5094,7 @@
    }
   },
   {
-   "id": "f43",
+   "id": "f42",
    "source": "line-up-pendulum#1",
    "defect": "textUnreadable",
    "variant": 2,
@@ -5432,7 +5410,7 @@
    }
   },
   {
-   "id": "f45",
+   "id": "f44",
    "source": "get-out-portal#4",
    "defect": "tooBusy",
    "variant": 0,
@@ -5722,7 +5700,7 @@
    }
   },
   {
-   "id": "f47",
+   "id": "f46",
    "source": "get-out-glass#2",
    "defect": "slowStart",
    "variant": 2,
@@ -6420,7 +6398,266 @@
    }
   },
   {
-   "id": "f56",
+   "id": "f55",
+   "source": "fill-grow#1",
+   "defect": "endingConfusing",
+   "variant": 2,
+   "clip": {
+    "from": "plan",
+    "captionRoles": [
+     "hook",
+     "payoff"
+    ],
+    "mode": "grow",
+    "recipe": "fill-grow",
+    "template": "fill-grow",
+    "claim": "full",
+    "platform": "tiktok",
+    "bucket": "short",
+    "ending": "resolved",
+    "seed": 912685276,
+    "episode": 1,
+    "hook": "It grows every bounce.",
+    "payoff": {
+     "type": "fill",
+     "atSec": 12.933333333333222,
+     "position": 0.8622222222222148,
+     "cutGapSec": null,
+     "text": "Bullseye!",
+     "winner": null
+    },
+    "timing": {
+     "clipSec": 15,
+     "recordingDuration": 15,
+     "firstImpactSec": 0.35000000000000003
+    },
+    "countdown": {
+     "kind": "percent",
+     "source": "picture"
+    },
+    "simulated": true,
+    "run": {
+     "firstImpactSec": 0.35000000000000003,
+     "firstEscapeSec": -1,
+     "finishSec": -1,
+     "homeSec": -1,
+     "fillSec": 12.933333333333222,
+     "winSec": -1,
+     "winnerIndex": -1,
+     "summary": {
+      "mode": "grow",
+      "durationMs": 12933.333333333221,
+      "finished": false,
+      "firstEscapeMs": -1,
+      "teams": [
+       {
+        "bounces": 173,
+        "walls": 0,
+        "escapes": 0,
+        "firstEscapeMs": -1
+       }
+      ]
+     },
+     "moment": {
+      "atSec": 12.933,
+      "sounds": 24,
+      "notes": 24,
+      "chordMax": 1,
+      "accent": false,
+      "motion": 20.41,
+      "motionMedian": 240.27,
+      "soundsMedian": 10,
+      "accents": [],
+      "quietTailSec": 0
+     },
+     "action": {
+      "stepSec": 0.5,
+      "grid": 20,
+      "samples": [
+       "5c5d5e5w5x5y6g6h6i",
+       "696a6b6c6t6u6v6w7d7e7f7g",
+       "1z2021222j2k2l2m333435363n3o3p3q",
+       "6c6d6e6f6g6w6x6y6z707g7h7i7j7k80818283848k8l8m8n8o9495969798",
+       "2w2x2y2z3031323g3h3i3j3k3l3m404142434445464k4l4m4n4o4p4q5455565758595a5o5p5q5r5s5t5u68696a6b6c6d6e",
+       "4o4p4q4r4s4t4u58595a5b5c5d5e5s5t5u5v5w5x5y6c6d6e6f6g6h6i6w6x6y6z7071727g7h7i7j7k7l7m80818283848586",
+       "1t1u1v1w1x1y1z202d2e2f2g2h2i2j2k2x2y2z30313233343h3i3j3k3l3m3n3o41424344454647484l4m4n4o4p4q4r4s55565758595a5b5c5p5q5r5s5t5u5v5w",
+       "4142434445464748494l4m4n4o4p4q4r4s4t55565758595a5b5c5d5p5q5r5s5t5u5v5w5x696a6b6c6d6e6f6g6h6t6u6v6w6x6y6z70717d7e7f7g7h7i7j7k7l7x7y7z8081828384858h8i8j8k8l8m8n8o8p",
+       "2e2f2g2h2i2j2k2l2m2n2y2z30313233343536373i3j3k3l3m3n3o3p3q3r42434445464748494a4b4m4n4o4p4q4r4s4t4u4v565758595a5b5c5d5e5f5q5r5s5t5u5v5w5x5y5z6a6b6c6d6e6f6g6h6i6j6u6v6w6x6y6z707172737e7f7g7h7i7j7k7l7m7n",
+       "1t1u1v1w1x1y1z202122232d2e2f2g2h2i2j2k2l2m2n2x2y2z30313233343536373h3i3j3k3l3m3n3o3p3q3r4142434445464748494a4b4l4m4n4o4p4q4r4s4t4u4v55565758595a5b5c5d5e5f5p5q5r5s5t5u5v5w5x5y5z696a6b6c6d6e6f6g6h6i6j6t6u6v6w6x6y6z707172737d7e7f7g7h7i7j7k7l7m7n",
+       "1s1t1u1v1w1x1y1z202122232c2d2e2f2g2h2i2j2k2l2m2n2w2x2y2z30313233343536373g3h3i3j3k3l3m3n3o3p3q3r404142434445464748494a4b4k4l4m4n4o4p4q4r4s4t4u4v5455565758595a5b5c5d5e5f5o5p5q5r5s5t5u5v5w5x5y5z68696a6b6c6d6e6f6g6h6i6j6s6t6u6v6w6x6y6z707172737c7d7e7f7g7h7i7j7k7l7m7n7w7x7y7z8081828384858687",
+       "1t1u1v1w1x1y1z20212223242d2e2f2g2h2i2j2k2l2m2n2o2x2y2z3031323334353637383h3i3j3k3l3m3n3o3p3q3r3s4142434445464748494a4b4c4l4m4n4o4p4q4r4s4t4u4v4w55565758595a5b5c5d5e5f5g5p5q5r5s5t5u5v5w5x5y5z60696a6b6c6d6e6f6g6h6i6j6k6t6u6v6w6x6y6z70717273747d7e7f7g7h7i7j7k7l7m7n7o7x7y7z808182838485868788",
+       "2d2e2f2g2h2i2j2k2l2m2n2o2x2y2z3031323334353637383h3i3j3k3l3m3n3o3p3q3r3s4142434445464748494a4b4c4l4m4n4o4p4q4r4s4t4u4v4w55565758595a5b5c5d5e5f5g5p5q5r5s5t5u5v5w5x5y5z60696a6b6c6d6e6f6g6h6i6j6k6t6u6v6w6x6y6z70717273747d7e7f7g7h7i7j7k7l7m7n7o7x7y7z8081828384858687888h8i8j8k8l8m8n8o8p8q8r8s",
+       "2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s909192939495969798999a9b9c",
+       "1r1s1t1u1v1w1x1y1z202122232b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r",
+       "1s1t1u1v1w1x1y1z20212223242c2d2e2f2g2h2i2j2k2l2m2n2o2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s",
+       "2b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r8z909192939495969798999a9b",
+       "1s1t1u1v1w1x1y1z2021222324252c2d2e2f2g2h2i2j2k2l2m2n2o2p2w2x2y2z303132333435363738393g3h3i3j3k3l3m3n3o3p3q3r3s3t404142434445464748494a4b4c4d4k4l4m4n4o4p4q4r4s4t4u4v4w4x5455565758595a5b5c5d5e5f5g5h5o5p5q5r5s5t5u5v5w5x5y5z606168696a6b6c6d6e6f6g6h6i6j6k6l6s6t6u6v6w6x6y6z7071727374757c7d7e7f7g7h7i7j7k7l7m7n7o7p7w7x7y7z808182838485868788898g8h8i8j8k8l8m8n8o8p8q8r8s8t909192939495969798999a9b9c9d",
+       "1718191a1b1c1d1e1f1g1h1i1j1k1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s",
+       "1718191a1b1c1d1e1f1g1h1i1j1k1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s",
+       "2b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "1r1s1t1u1v1w1x1y1z2021222324252b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2v2w2x2y2z303132333435363738393f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3z404142434445464748494a4b4c4d4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x535455565758595a5b5c5d5e5f5g5h5n5o5p5q5r5s5t5u5v5w5x5y5z60616768696a6b6c6d6e6f6g6h6i6j6k6l6r6s6t6u6v6w6x6y6z7071727374757b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7v7w7x7y7z808182838485868788898f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8z909192939495969798999a9b9c9d",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
+       ""
+      ]
+     }
+    },
+    "measured": null,
+    "cut": null,
+    "playbook": {
+     "score": 84,
+     "reasons": [
+      {
+       "id": "motion",
+       "points": 10,
+       "max": 10,
+       "key": "motionOk",
+       "values": {
+        "sec": "0.4"
+       }
+      },
+      {
+       "id": "hook",
+       "points": 15,
+       "max": 15,
+       "key": "hookOk",
+       "values": {
+        "text": "It grows every bounce."
+       }
+      },
+      {
+       "id": "countdown",
+       "points": 0,
+       "max": 10,
+       "key": "countdownMissing",
+       "values": {}
+      },
+      {
+       "id": "payoff",
+       "points": 20,
+       "max": 20,
+       "key": "payoffOk",
+       "values": {
+        "sec": "12.9",
+        "pct": 86
+       }
+      },
+      {
+       "id": "length",
+       "points": 8,
+       "max": 10,
+       "key": "lengthOk",
+       "values": {
+        "sec": "15.0",
+        "min": 8,
+        "max": 15
+       }
+      },
+      {
+       "id": "sound",
+       "points": 10,
+       "max": 10,
+       "key": "soundOk",
+       "values": {
+        "melody": "twinkle-twinkle"
+       }
+      },
+      {
+       "id": "ending",
+       "points": 10,
+       "max": 10,
+       "key": "endingLoop",
+       "values": {
+        "tail": "2.1"
+       }
+      },
+      {
+       "id": "series",
+       "points": 6,
+       "max": 10,
+       "key": "seriesWeak",
+       "values": {
+        "label": ""
+       }
+      },
+      {
+       "id": "look",
+       "points": 5,
+       "max": 5,
+       "key": "lookOk",
+       "values": {}
+      }
+     ]
+    },
+    "settingsPatch": {
+     "mode": "grow",
+     "ballSpeed": 630,
+     "ballColor": "#00f0ff",
+     "ballColor2": "#faff00",
+     "circleColor": "#ff00e6",
+     "rainbowWalls": false,
+     "showGlow": true,
+     "showWallGlow": false,
+     "colorTrail": false,
+     "wallBreakStyle": "shatter",
+     "themeId": "neon",
+     "backgroundType": "gradient",
+     "backgroundColors": [
+      "#05070a",
+      "#141a24"
+     ],
+     "particleStyle": "sparks",
+     "trailColors": [
+      "#00f0ff",
+      "#ff00e6"
+     ],
+     "lineColor": "#00f0ff",
+     "growRate": 9,
+     "growLines": true,
+     "recordingDuration": 15,
+     "melodyInstrument": "pluck",
+     "scale": "major",
+     "nameLabel": false,
+     "captions": [
+      {
+       "type": "text",
+       "text": "It grows every bounce.",
+       "answer": "",
+       "position": "top",
+       "start": 0,
+       "end": 2.5,
+       "animation": "pop",
+       "style": {
+        "size": 1.2,
+        "color": "#ffffff",
+        "background": "#000000"
+       }
+      },
+      {
+       "type": "text",
+       "text": "Bullseye!",
+       "answer": "",
+       "position": "top",
+       "start": 12.5,
+       "end": 0,
+       "animation": "pop",
+       "style": {
+        "size": 1.3,
+        "color": "#93d119",
+        "background": "#000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "f57",
    "source": "get-out-classic-gerald#3",
    "defect": "payoffCut",
    "variant": 2,
@@ -6720,7 +6957,7 @@
    }
   },
   {
-   "id": "f59",
+   "id": "f60",
    "source": "who-wins-battle#1",
    "defect": "payoffLate",
    "variant": 2,
@@ -7115,7 +7352,7 @@
    }
   },
   {
-   "id": "f60",
+   "id": "f61",
    "source": "get-out-portal-gerald#2",
    "defect": "textUnreadable",
    "variant": 0,
@@ -7414,7 +7651,7 @@
    }
   },
   {
-   "id": "f62",
+   "id": "f63",
    "source": "get-out-classic#4",
    "defect": "tooBusy",
    "variant": 1,
@@ -7711,7 +7948,7 @@
    }
   },
   {
-   "id": "f63",
+   "id": "f64",
    "source": "get-out-accumulation#1",
    "defect": "hookMismatch",
    "variant": 0,
@@ -8002,262 +8239,6 @@
        "style": {
         "size": 1.2,
         "color": "#ffffff",
-        "background": "#000000"
-       }
-      }
-     ]
-    }
-   }
-  },
-  {
-   "id": "f65",
-   "source": "fill-grow#2",
-   "defect": "endingConfusing",
-   "variant": 2,
-   "clip": {
-    "from": "plan",
-    "captionRoles": [
-     "hook",
-     "payoff"
-    ],
-    "mode": "grow",
-    "recipe": "fill-grow",
-    "template": "fill-grow",
-    "claim": "full",
-    "platform": "shorts",
-    "bucket": "short",
-    "ending": "resolved",
-    "seed": 1828940404,
-    "episode": 1,
-    "hook": "It grows every bounce.",
-    "payoff": {
-     "type": "fill",
-     "atSec": 10.7833333333333,
-     "position": 0.8294871794871769,
-     "cutGapSec": null,
-     "text": "Bullseye!",
-     "winner": null
-    },
-    "timing": {
-     "clipSec": 13,
-     "recordingDuration": 13,
-     "firstImpactSec": 0.3833333333333334
-    },
-    "countdown": {
-     "kind": "percent",
-     "source": "picture"
-    },
-    "simulated": true,
-    "run": {
-     "firstImpactSec": 0.3833333333333334,
-     "firstEscapeSec": -1,
-     "finishSec": -1,
-     "homeSec": -1,
-     "fillSec": 10.7833333333333,
-     "winSec": -1,
-     "winnerIndex": -1,
-     "summary": {
-      "mode": "grow",
-      "durationMs": 10783.3333333333,
-      "finished": false,
-      "firstEscapeMs": -1,
-      "teams": [
-       {
-        "bounces": 140,
-        "walls": 0,
-        "escapes": 0,
-        "firstEscapeMs": -1
-       }
-      ]
-     },
-     "moment": {
-      "atSec": 10.783,
-      "sounds": 20,
-      "notes": 20,
-      "chordMax": 1,
-      "accent": false,
-      "motion": 23.35,
-      "motionMedian": 80.93,
-      "soundsMedian": 9,
-      "accents": [],
-      "quietTailSec": 0
-     },
-     "action": {
-      "stepSec": 0.5,
-      "grid": 20,
-      "samples": [
-       "55565758595a5b5p5q5r5s5t5u5v696a6b6c6d6e6f6t6u6v6w6x6y6z7d7e7f7g7h7i7j7x7y7z808182838h8i8j8k8l8m8n",
-       "323334353637383m3n3o3p3q3r3s464748494a4b4c4q4r4s4t4u4v4w5a5b5c5d5e5f5g5u5v5w5x5y5z606e6f6g6h6i6j6k6y6z7071727374",
-       "40414243444546474k4l4m4n4o4p4q4r5455565758595a5b5o5p5q5r5s5t5u5v68696a6b6c6d6e6f6s6t6u6v6w6x6y6z7c7d7e7f7g7h7i7j7w7x7y7z808182838g8h8i8j8k8l8m8n",
-       "2z30313233343536373j3k3l3m3n3o3p3q3r434445464748494a4b4n4o4p4q4r4s4t4u4v5758595a5b5c5d5e5f5r5s5t5u5v5w5x5y5z6b6c6d6e6f6g6h6i6j6v6w6x6y6z707172737f7g7h7i7j7k7l7m7n",
-       "2y2z30313233343536373i3j3k3l3m3n3o3p3q3r42434445464748494a4b4m4n4o4p4q4r4s4t4u4v565758595a5b5c5d5e5f5q5r5s5t5u5v5w5x5y5z6a6b6c6d6e6f6g6h6i6j6u6v6w6x6y6z707172737e7f7g7h7i7j7k7l7m7n7y7z8081828384858687",
-       "2v2w2x2y2z3031323334353f3g3h3i3j3k3l3m3n3o3p3z404142434445464748494j4k4l4m4n4o4p4q4r4s4t535455565758595a5b5c5d5n5o5p5q5r5s5t5u5v5w5x6768696a6b6c6d6e6f6g6h6r6s6t6u6v6w6x6y6z70717b7c7d7e7f7g7h7i7j7k7l7v7w7x7y7z8081828384858f8g8h8i8j8k8l8m8n8o8p",
-       "2v2w2x2y2z3031323334353f3g3h3i3j3k3l3m3n3o3p3z404142434445464748494j4k4l4m4n4o4p4q4r4s4t535455565758595a5b5c5d5n5o5p5q5r5s5t5u5v5w5x6768696a6b6c6d6e6f6g6h6r6s6t6u6v6w6x6y6z70717b7c7d7e7f7g7h7i7j7k7l7v7w7x7y7z8081828384858f8g8h8i8j8k8l8m8n8o8p",
-       "2a2b2c2d2e2f2g2h2i2j2k2l2m2u2v2w2x2y2z303132333435363e3f3g3h3i3j3k3l3m3n3o3p3q3y3z404142434445464748494a4i4j4k4l4m4n4o4p4q4r4s4t4u52535455565758595a5b5c5d5e5m5n5o5p5q5r5s5t5u5v5w5x5y666768696a6b6c6d6e6f6g6h6i6q6r6s6t6u6v6w6x6y6z7071727a7b7c7d7e7f7g7h7i7j7k7l7m7u7v7w7x7y7z808182838485868e8f8g8h8i8j8k8l8m8n8o8p8q8y8z909192939495969798999a",
-       "1s1t1u1v1w1x1y1z20212223242c2d2e2f2g2h2i2j2k2l2m2n2o2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s",
-       "2b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r8z909192939495969798999a9b",
-       "1s1t1u1v1w1x1y1z20212223242c2d2e2f2g2h2i2j2k2l2m2n2o2w2x2y2z3031323334353637383g3h3i3j3k3l3m3n3o3p3q3r3s404142434445464748494a4b4c4k4l4m4n4o4p4q4r4s4t4u4v4w5455565758595a5b5c5d5e5f5g5o5p5q5r5s5t5u5v5w5x5y5z6068696a6b6c6d6e6f6g6h6i6j6k6s6t6u6v6w6x6y6z70717273747c7d7e7f7g7h7i7j7k7l7m7n7o7w7x7y7z8081828384858687888g8h8i8j8k8l8m8n8o8p8q8r8s",
-       "2b2c2d2e2f2g2h2i2j2k2l2m2n2v2w2x2y2z30313233343536373f3g3h3i3j3k3l3m3n3o3p3q3r3z404142434445464748494a4b4j4k4l4m4n4o4p4q4r4s4t4u4v535455565758595a5b5c5d5e5f5n5o5p5q5r5s5t5u5v5w5x5y5z6768696a6b6c6d6e6f6g6h6i6j6r6s6t6u6v6w6x6y6z707172737b7c7d7e7f7g7h7i7j7k7l7m7n7v7w7x7y7z80818283848586878f8g8h8i8j8k8l8m8n8o8p8q8r8z909192939495969798999a9b9j9k9l9m9n9o9p9q9r9s9t9u9v",
-       "2b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1s1t1u1v1w1x1y1z2021222324252c2d2e2f2g2h2i2j2k2l2m2n2o2p2w2x2y2z303132333435363738393g3h3i3j3k3l3m3n3o3p3q3r3s3t404142434445464748494a4b4c4d4k4l4m4n4o4p4q4r4s4t4u4v4w4x5455565758595a5b5c5d5e5f5g5h5o5p5q5r5s5t5u5v5w5x5y5z606168696a6b6c6d6e6f6g6h6i6j6k6l6s6t6u6v6w6x6y6z7071727374757c7d7e7f7g7h7i7j7k7l7m7n7o7p7w7x7y7z808182838485868788898g8h8i8j8k8l8m8n8o8p8q8r8s8t909192939495969798999a9b9c9d",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z20212223242b2c2d2e2f2g2h2i2j2k2l2m2n2o2v2w2x2y2z3031323334353637383f3g3h3i3j3k3l3m3n3o3p3q3r3s3z404142434445464748494a4b4c4j4k4l4m4n4o4p4q4r4s4t4u4v4w535455565758595a5b5c5d5e5f5g5n5o5p5q5r5s5t5u5v5w5x5y5z606768696a6b6c6d6e6f6g6h6i6j6k6r6s6t6u6v6w6x6y6z70717273747b7c7d7e7f7g7h7i7j7k7l7m7n7o7v7w7x7y7z8081828384858687888f8g8h8i8j8k8l8m8n8o8p8q8r8s8z909192939495969798999a9b9c9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
-       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c",
-       "1r1s1t1u1v1w1x1y1z2021222324252b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2v2w2x2y2z303132333435363738393f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3z404142434445464748494a4b4c4d4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x535455565758595a5b5c5d5e5f5g5h5n5o5p5q5r5s5t5u5v5w5x5y5z60616768696a6b6c6d6e6f6g6h6i6j6k6l6r6s6t6u6v6w6x6y6z7071727374757b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7v7w7x7y7z808182838485868788898f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8z909192939495969798999a9b9c9d",
-       "1q1r1s1t1u1v1w1x1y1z20212223242a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2u2v2w2x2y2z3031323334353637383e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3y3z404142434445464748494a4b4c4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w52535455565758595a5b5c5d5e5f5g5m5n5o5p5q5r5s5t5u5v5w5x5y5z60666768696a6b6c6d6e6f6g6h6i6j6k6q6r6s6t6u6v6w6x6y6z70717273747a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7u7v7w7x7y7z8081828384858687888e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8y8z909192939495969798999a9b9c9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w",
-       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "161718191a1b1c1d1e1f1g1h1i1j1k1l1q1r1s1t1u1v1w1x1y1z2021222324252a2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2u2v2w2x2y2z303132333435363738393e3f3g3h3i3j3k3l3m3n3o3p3q3r3s3t3y3z404142434445464748494a4b4c4d4i4j4k4l4m4n4o4p4q4r4s4t4u4v4w4x52535455565758595a5b5c5d5e5f5g5h5m5n5o5p5q5r5s5t5u5v5w5x5y5z6061666768696a6b6c6d6e6f6g6h6i6j6k6l6q6r6s6t6u6v6w6x6y6z7071727374757a7b7c7d7e7f7g7h7i7j7k7l7m7n7o7p7u7v7w7x7y7z808182838485868788898e8f8g8h8i8j8k8l8m8n8o8p8q8r8s8t8y8z909192939495969798999a9b9c9d9i9j9k9l9m9n9o9p9q9r9s9t9u9v9w9x",
-       "",
-       ""
-      ]
-     }
-    },
-    "measured": null,
-    "cut": null,
-    "playbook": {
-     "score": 86,
-     "reasons": [
-      {
-       "id": "motion",
-       "points": 10,
-       "max": 10,
-       "key": "motionOk",
-       "values": {
-        "sec": "0.4"
-       }
-      },
-      {
-       "id": "hook",
-       "points": 15,
-       "max": 15,
-       "key": "hookOk",
-       "values": {
-        "text": "It grows every bounce."
-       }
-      },
-      {
-       "id": "countdown",
-       "points": 0,
-       "max": 10,
-       "key": "countdownMissing",
-       "values": {}
-      },
-      {
-       "id": "payoff",
-       "points": 20,
-       "max": 20,
-       "key": "payoffOk",
-       "values": {
-        "sec": "10.8",
-        "pct": 83
-       }
-      },
-      {
-       "id": "length",
-       "points": 10,
-       "max": 10,
-       "key": "lengthOk",
-       "values": {
-        "sec": "13.0",
-        "min": 8,
-        "max": 15
-       }
-      },
-      {
-       "id": "sound",
-       "points": 10,
-       "max": 10,
-       "key": "soundOk",
-       "values": {
-        "melody": "canon-in-d"
-       }
-      },
-      {
-       "id": "ending",
-       "points": 10,
-       "max": 10,
-       "key": "endingLoop",
-       "values": {
-        "tail": "2.2"
-       }
-      },
-      {
-       "id": "series",
-       "points": 6,
-       "max": 10,
-       "key": "seriesWeak",
-       "values": {
-        "label": ""
-       }
-      },
-      {
-       "id": "look",
-       "points": 5,
-       "max": 5,
-       "key": "lookOk",
-       "values": {}
-      }
-     ]
-    },
-    "settingsPatch": {
-     "mode": "grow",
-     "ballSpeed": 500,
-     "ballColor": "#00f0ff",
-     "ballColor2": "#faff00",
-     "circleColor": "#ff00e6",
-     "rainbowWalls": false,
-     "showGlow": true,
-     "showWallGlow": false,
-     "colorTrail": false,
-     "wallBreakStyle": "shatter",
-     "themeId": "neon",
-     "backgroundType": "gradient",
-     "backgroundColors": [
-      "#05070a",
-      "#141a24"
-     ],
-     "particleStyle": "sparks",
-     "trailColors": [
-      "#00f0ff",
-      "#ff00e6"
-     ],
-     "lineColor": "#00f0ff",
-     "growRate": 10,
-     "recordingDuration": 13,
-     "instrument": "marimba",
-     "melodyInstrument": "marimba",
-     "scale": "pentatonic",
-     "rootNote": 7,
-     "nameLabel": false,
-     "captions": [
-      {
-       "type": "text",
-       "text": "It grows every bounce.",
-       "answer": "",
-       "position": "top",
-       "start": 0,
-       "end": 2.5,
-       "animation": "pop",
-       "style": {
-        "size": 1.2,
-        "color": "#ffffff",
-        "background": "#000000"
-       }
-      },
-      {
-       "type": "text",
-       "text": "Bullseye!",
-       "answer": "",
-       "position": "top",
-       "start": 10.5,
-       "end": 0,
-       "animation": "pop",
-       "style": {
-        "size": 1.3,
-        "color": "#93d119",
         "background": "#000000"
        }
       }

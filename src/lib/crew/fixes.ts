@@ -7,7 +7,7 @@ import { scorePlanLike, type ScorePlan } from "@/lib/insights/score";
 import { validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import type { SimulatorSettings } from "@/lib/settings";
 import { CLARITY } from "./clarity";
-import { factNumbersOf, numbersIn, type CrewClip } from "./clip";
+import { countsIn, factNumbersOf, namesOf, type CrewClip } from "./clip";
 import { EVIDENCE } from "./evidence";
 import { defaultKeptHuds, hudCounts, hudsOn } from "./hudFlags";
 import { overlaysOf, SIMPLE_TRAIL_THICKNESS, simpleScore, wordCount, type SimpleOptions } from "./simplicity";
@@ -324,7 +324,7 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
         if (Array.from(text).length > FIX_BOUNDS.hookChars) errors.push(`rewriteHook: at most ${FIX_BOUNDS.hookChars} characters`);
         if (wordCount(text) > FIX_BOUNDS.hookWords) errors.push(`rewriteHook: at most ${FIX_BOUNDS.hookWords} words (got ${wordCount(text)})`);
         const facts = factNumbersOf(clip);
-        const untrue = numbersIn(text).filter((n) => !facts.some((f) => Math.abs(f - n) < 1e-6));
+        const untrue = countsIn(text, namesOf(clip)).filter((n) => !facts.some((f) => Math.abs(f - n) < 1e-6)); // --- crew --- (studio round 1, 4: its names are no count)
         if (untrue.length) errors.push(`rewriteHook: ${untrue[0]} is not a number this clip has (${facts.join(", ")})`);
         if (errors.some((e) => e.startsWith("rewriteHook"))) break;
         const { end } = hookEndOf(clip);

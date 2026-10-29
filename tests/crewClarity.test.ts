@@ -20,6 +20,9 @@ import {
   numbersIn,
   asciiDigits,
   markObjection,
+  namesOf,
+  countsIn,
+  checkProducer,
   publicDomain,
   runWinnerOf,
   simpleScore,
@@ -424,6 +427,44 @@ describe("the facts a hook may state", () => {
     const n = clean.timing.recordingDuration;
     const spelled = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"][n];
     expect([spelled, gateOf(withHookText(`Out in ${spelled} seconds?`), "G4").ok, untrue(withHookText(`Out in ${spelled} seconds?`))]).toEqual([spelled, true, "refuted"]);
+  });
+
+  // --- crew --- (studio round 1, 4) "Scorpion vs Sub-Zero: who wins?" had failed G4 with "The hook says 0" (Sub-Zero read as
+  // "sub" and "zero"), and a fighter named Eleven would have said 11: a number inside the clip's own name is no count
+  it("reads no number inside the clip's own names: Sub-Zero says no 0 and Eleven no 11, in G4, rewriteHook's check and the producer's", () => {
+    // numbersIn alone still reads them, as it cannot know a name; countsIn leaves the clip's names out
+    expect([numbersIn("Scorpion vs Sub-Zero: who wins?"), numbersIn("Eleven vs Vecna")]).toEqual([[0], [11]]);
+    expect(countsIn("Scorpion vs Sub-Zero: who wins?", ["Scorpion", "Sub-Zero"])).toEqual([]);
+    expect(countsIn("Scorpion vs Sub-Zero: ¿quién gana?", ["Sub-Zero"])).toEqual([]);
+    expect(countsIn("SUB-ZERO wins in 12 s", ["Sub-Zero"])).toEqual([12]);
+    expect(countsIn("Eleven vs Vecna: 3 rounds", ["Eleven", "Vecna"])).toEqual([3]);
+    expect(countsIn("C-3PO vs R2-D2", [])).toEqual([3]);
+    expect(countsIn("C-3PO vs R2-D2", ["C-3PO", "R2-D2"])).toEqual([]);
+    // a count beside a name is still read
+    expect(countsIn("Two of them, one Eleven", ["Eleven"])).toEqual([2, 1]);
+    // the fighters as the roster names them, the teams' and the ball's names
+    const duel = planTemplate("who-wins-fight-league", 1, "reels", { copy, search: false });
+    const fight = (a: string, b: string): CrewClip => crewClipOfPlan({ ...duel, settings: { ...duel.settings, flFighterA: a, flFighterB: b } });
+    expect(namesOf(fight("scorpion", "subzero"))).toEqual(expect.arrayContaining(["Scorpion", "Sub-Zero"]));
+    expect(namesOf(fight("eleven", "scorpion"))).toEqual(expect.arrayContaining(["Eleven", "Scorpion"]));
+    expect(namesOf(clean)).not.toContain("Sub-Zero");
+    // G4 on the hook the finding saw, in en and es, and on Eleven's: the words match the picture
+    const hooked = (clip: CrewClip, text: string): CrewClip => {
+      const first = clip.captionRoles.indexOf("hook");
+      const keep = clip.captions.map((_, i) => clip.captionRoles[i] !== "hook" || i === first);
+      const captions = clip.captions.map((c, i) => (i === first ? { ...c, text } : c)).filter((_, i) => keep[i]);
+      return { ...setCaptions(clip, captions, clip.captionRoles.filter((_, i) => keep[i])), hook: null };
+    };
+    for (const [a, b, text] of [["scorpion", "subzero", "Scorpion vs Sub-Zero: who wins?"], ["scorpion", "subzero", "Scorpion vs Sub-Zero: ¿quién gana?"], ["eleven", "scorpion", "Eleven vs Scorpion: who wins?"]] as const) {
+      const g4 = gateOf(hooked(fight(a, b), text), "G4");
+      expect([text, g4.problems.includes("wordsMatchPictureHookNumber")]).toEqual([text, false]);
+    }
+    // a number the clip does not have still fails beside a name
+    expect(gateOf(hooked(fight("scorpion", "subzero"), "Sub-Zero wins 99 times"), "G4").problems).toContain("wordsMatchPictureHookNumber");
+    // the producer's title may name the fighters too (its numbers are the clip's, its names no count)
+    const result = { clips: [{ planId: "p1", title: "Scorpion vs Sub-Zero", caption: "Who wins, Sub-Zero or Scorpion?" }] } as unknown as Parameters<typeof checkProducer>[0];
+    expect(checkProducer(result, ["p1"], { p1: [1] })).toEqual(expect.arrayContaining([expect.stringContaining("0 is not a number this clip has")]));
+    expect(checkProducer(result, ["p1"], { p1: [1] }, { p1: ["Scorpion", "Sub-Zero"] })).toEqual([]);
   });
 
   it("knows the recipe's hook values, the clip's length and the day", () => {

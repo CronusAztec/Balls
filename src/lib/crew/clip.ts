@@ -2,6 +2,7 @@ import type { Caption } from "@/lib/captions";
 import { outcomeMatches } from "@/lib/simulation/outcomes";
 import type { ModeId } from "@/lib/physics/types";
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- crew --- (AI studio step 4) the maze's balls go by their colours
+import { FL_BY_ID } from "@/lib/physics/modes/fightLeagueRoster"; // --- crew --- (studio round 1, 4) the fighters' names
 import type { SimulatorSettings } from "@/lib/settings";
 import { inReadingOrder, type CaptionRole, type ClipPlan, type RunFacts, type ScoreReason } from "@/lib/bot/planner";
 import { BUCKET_SECONDS, PLATFORMS, type BotPlatform, type CountdownKind, type CountdownSource, type EndingStyle, type LengthBucket, type PayoffType } from "@/lib/bot/playbook";
@@ -503,10 +504,47 @@ function numberWordsAt(text: string): { at: number; value: number }[] {
  * The numbers a text states, as a reader reads them, in its order: the ones it writes in digits of any script (numeralsIn)
  * and the ones it spells in words in English, Polish or Spanish ("Fifty rings", "pięćdziesiąt", "cincuenta y tres", "a dozen").
  * --- crew --- (the studio's second review round, finding 3) A hook's numbers are checked against the clip's facts whichever
- * way they are written (gate G4, rewriteHook, the skeptic's hookUntrue).
+ * way they are written (gate G4, rewriteHook, the skeptic's hookUntrue: through countsIn, which leaves the clip's names out).
  */
 export function numbersIn(text: string): number[] {
   return [...numeralsAt(text), ...numberWordsAt(text)].sort((a, b) => a.at - b.at).map((x) => x.value);
+}
+
+/**
+ * --- crew --- (studio round 1, 4) The numbers a text states as counts: numbersIn's, but a number inside one of `names` – the
+ * clip's own names (namesOf) – is part of the name: "Scorpion vs Sub-Zero" states no 0, and "Eleven vs Vecna" no 11. A name
+ * is matched whole, in any case. Gate G4, rewriteHook and the producer's check read a clip's texts so.
+ */
+export function countsIn(text: string, names: readonly string[]): number[] {
+  const spans = nameSpans(text, names);
+  const counted = (at: number) => !spans.some(([from, to]) => at >= from && at < to);
+  return [...numeralsAt(text), ...numberWordsAt(text)].filter((x) => counted(x.at)).sort((a, b) => a.at - b.at).map((x) => x.value);
+}
+
+/** --- crew --- (studio round 1, 4) Where each of `names` stands in a text, whole and in any case: [from, to) of the NFC text. */
+function nameSpans(text: string, names: readonly string[]): [number, number][] {
+  const nfc = text.normalize("NFC");
+  const spans: [number, number][] = [];
+  for (const name of new Set(names.map((n) => n.normalize("NFC").trim()).filter((n) => n.length > 0))) {
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?=$|[^\\p{L}\\p{N}])`, "giu");
+    for (const m of nfc.matchAll(re)) {
+      const from = (m.index ?? 0) + m[1].length;
+      spans.push([from, from + m[2].length]);
+    }
+  }
+  return spans;
+}
+
+/**
+ * --- crew --- (studio round 1, 4) The names a clip's texts may say that are no count, though a number word or a digit is in
+ * them: its teams' and its ball's, and – Fight League – its fighters' as the roster names them ("Sub-Zero", "Eleven", a custom
+ * fighter's). countsIn leaves a number inside one out (gate G4, rewriteHook, the producer's numbers).
+ */
+export function namesOf(clip: Pick<CrewClip, "settings">): string[] {
+  const s = clip.settings;
+  const names = [...s.teams.map((t) => t.name), s.ballName];
+  if (s.mode === "fightLeague") for (const id of [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) names.push(FL_BY_ID.get(id)?.name ?? "");
+  return [...new Set(names.map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length > 0))];
 }
 
 /** The buckets the platform takes that the clip's length is in (scoreClip's 0.5 s slack). */

@@ -27,10 +27,11 @@ import type { OutcomeContext } from "./outcomes";
  * fan, the marble xylophone, the vortex's ring waves, the pentomino rectangles, Classic's Ring Escape options, a Colour Sort
  * rule whose sort only settles, Land Claim's pyramid, Bouncing Orbs' rhythm model, Fight League's shows).
  *
- * The Simulator page computed it inline for its Find Simulation panel; it calls this now, and so does the viral bot's
- * template planner (lib/bot/templates.ts), which checks a binding's outcome against its own settings, never the defaults. The
- * one thing a settings object does not carry is the page's state: Picture Paint's uploaded picture (`page.paintPicture`), which
- * the finder cannot replay. Pure.
+ * The Simulator page computed it inline for its Find Simulation panel and calls this now. The viral bot's planner does not
+ * call it at runtime: tests/botTemplates.test.ts checks with it that every template binding's own settings, and every clip
+ * planned from one, keep the binding's outcome available (never the defaults' context), so a binding that switches its
+ * outcome's flag off fails there (--- templates --- studio round 1, 2). The one thing a settings object does not carry is the
+ * page's state: Picture Paint's uploaded picture (`page.paintPicture`), which the finder cannot replay. Pure.
  */
 
 // --- outcome-context ---
@@ -40,7 +41,7 @@ export interface OutcomeContextPage {
   paintPicture?: boolean;
 }
 
-/** The finder's context for these settings (the page's Find Simulation panel and the bot's templates read the same one). */
+/** The finder's context for these settings: the page's Find Simulation panel reads it, and the template tests hold the bindings to it. */
 export function outcomeContextOfSettings(s: SimulatorSettings, page: OutcomeContextPage = {}): OutcomeContext {
   // the run can never finish (an endless mode, Rain, the countdown off, "never escape" in a mode that ends on an escape…)
   const finderEndless =

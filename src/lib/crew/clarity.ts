@@ -5,7 +5,7 @@ import { captionBoxAt, captionWordsOf, edgeTextBox, inSafeZone, squareBoxOf } fr
 import { actionSampleSec, bannerUnder, isActionTrack } from "@/lib/bot/actionTrack"; // --- crew --- (AI studio step 3) the modes' banners
 import { STILL_MOTION_SHARE } from "@/lib/insights/score";
 import { countdownSeconds, formatClock, progressFraction } from "@/lib/captions";
-import { bucketsFitting, claimSeen, factNumbersOf, measuredFirstImpactSec, numbersIn, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
+import { bucketsFitting, claimSeen, countsIn, factNumbersOf, measuredFirstImpactSec, namesOf, runWinnerOf, shownSecOf, type CrewClip } from "./clip";
 import { drawnHookText, endBannersShown, overlaysOf, sameWords, simpleScore, SIMPLE_BANDS, wordCount, type SimpleOptions, type SimpleScore } from "./simplicity";
 
 /*
@@ -246,7 +246,8 @@ function wordsGate(clip: CrewClip): Gate {
   const drawn = drawnHookText(clip);
   if (clip.hook !== null && clip.hook.trim() && !sameWords(clip.hook, drawn)) problems.push({ key: "HookNotDrawn" });
   const facts = factNumbersOf(clip);
-  const untrue = numbersIn(drawn).filter((n) => !facts.some((f) => Math.abs(f - n) < 1e-6));
+  // (--- crew --- studio round 1, 4: a number inside the clip's own names is no count, "Sub-Zero" and "Eleven" included)
+  const untrue = countsIn(drawn, namesOf(clip)).filter((n) => !facts.some((f) => Math.abs(f - n) < 1e-6));
   if (untrue.length) problems.push({ key: "HookNumber", values: { number: untrue[0] } });
   // a winner the payoff names is the run's
   const runWinner = runWinnerOf(clip);

@@ -9,7 +9,7 @@ import pl from "../messages/pl.json";
 import type { BotCopy } from "@/lib/bot/copy";
 import { BOT_PLAN_VERSION, planDay, planDaySteps, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
 import { chosenTemplate, defaultBotOptions, parseBotOptions, parseBotState, storedTemplate, templateChoices } from "@/lib/bot/store";
-import { allTemplates, readyTemplates, templateById } from "@/lib/bot/templates";
+import { allTemplates, clarityJudges, readyTemplates, templateById } from "@/lib/bot/templates";
 import { planClarity, planClarityOf } from "@/lib/bot/clarityLines";
 import { clarityOf, GATES } from "@/lib/crew/clarity";
 import { crewClipOfPlan } from "@/lib/crew/clip";
@@ -95,6 +95,20 @@ describe("the Template choice and the Simple switch plan as asked", () => {
     expect(templateChoices("all").every((t) => t.ready)).toBe(true);
     expect(templateChoices("all")).toHaveLength(readyTemplates("all").length);
   });
+
+  // --- bot-templates --- (studio round 1, 5) the empty state had promised "the one the CLI and the scheduled job make", which plan
+  // the day's rotation in the bot look only (and without the battle family unless asked): with the switch on, Today's plan is the
+  // same day's clips drawn in the Simple look, so the copy says that instead
+  it("plans Today's plan as its words say: the day's own clips, the same all day, in the look the switch picks", () => {
+    const today = { copy, locale: "en" as const, family: "all" as const, bucket: "auto" as const, ending: "auto" as const, world, maxSeeds: 3 };
+    const bot = planDay(DATE, "reels", 2, today);
+    const simple = planDay(DATE, "reels", 2, { ...today, look: "simple" });
+    expect(json(planDay(DATE, "reels", 2, today))).toBe(json(bot));
+    expect(simple.clips.map((c) => [c.recipe, c.planSeed, c.seed])).toEqual(bot.clips.map((c) => [c.recipe, c.planSeed, c.seed]));
+    expect(simple.clips.map((c) => c.look)).toEqual(["simple", "simple"]);
+    expect(bot.clips.map((c) => c.look)).toEqual([undefined, undefined]);
+    for (const m of [en, pl, es]) expect(m.ViralBot.empty).not.toMatch(/CLI/);
+  }, 60_000);
 });
 
 describe("the panel's stored state", () => {
@@ -174,6 +188,25 @@ describe("the clarity lines of Why this clip", () => {
     const simple = planClarityOf(plans[4], runSync(plans[4].settings, plans[4].seed, plans[4].world, plans[4].recipe, plans[4].timing.clipSec, plans[4].payoff.atSec));
     expect(simple.simple).toBeGreaterThanOrEqual(80);
     expect(simple.band).toBe("simple");
+  }, 60_000);
+
+  // --- bot-templates --- (studio round 1, 3) the default look's clips had shown a green 96-100 with every checklist line ticked and,
+  // under it, "Simple score 30-56/100 · Busy" with G6 (and G5's seven words) crossed out: two verdicts at once
+  it("judge only a clip in the Simple look, whose rules they are: a clip in the bot's own look gets one neutral line, in en, pl and es", () => {
+    expect(plans.map((p) => clarityJudges(p))).toEqual([false, false, true, true, true]);
+    expect(clarityJudges({})).toBe(false);
+    expect(clarityJudges({ look: "bot" })).toBe(false);
+    // (why: the bot's look is busy by design, so its clips would fail the Simple look's G6, or G5, beside their checklist's ticks)
+    for (const p of plans.slice(0, 2)) {
+      const lines = planClarityOf(p, runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec, p.payoff.atSec));
+      expect([p.id, lines.band, lines.gates.some((g) => !g.ok && (g.id === "G5" || g.id === "G6"))]).toEqual([p.id, "busy", true]);
+      expect(p.score).toBeGreaterThanOrEqual(75);
+    }
+    const line = (m: unknown) => (m as { ViralBot: { crew: { botLook?: string; simple: string } } }).ViralBot.crew.botLook ?? "";
+    for (const m of [en, pl, es]) {
+      expect(line(m).length).toBeGreaterThan(40);
+      expect(line(m)).not.toMatch(/[{}()]/);
+    }
   }, 60_000);
 
   it("say every gate and every verdict a plan can show in en, pl and es, with the same arguments", () => {

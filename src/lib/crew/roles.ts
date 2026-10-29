@@ -4,7 +4,7 @@ import { BOT_PLATFORMS, ENDING_STYLES, LENGTH_BUCKETS, type BotPlatform, type En
 import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
 import { HUD_FLAGS } from "./hudFlags";
-import { CLAIMS, numbersIn, type Claim } from "./clip";
+import { CLAIMS, countsIn, type Claim } from "./clip";
 import { DOSSIER_KEYS, type DossierKey } from "./dossier";
 import { wordCount } from "./simplicity";
 
@@ -802,10 +802,12 @@ export function normaliseProducer(value: unknown, drawn: Readonly<Record<string,
 
 /**
  * Every kept clip worded once, --- crew --- and (the studio's second review round, finding 18) every number its title and caption
- * state – in digits or in words, as a reader reads them (clip.ts numbersIn) – one the clip has (`numbers`: the panel's
+ * state – in digits or in words, as a reader reads them (clip.ts countsIn) – one the clip has (`numbers`: the panel's
  * producerNumbersOf, by plan id), as rewriteHook holds a new hook to the clip's numbers. A clip with no list is not checked.
+ * --- crew --- (studio round 1, 4) A number inside one of the clip's own names (`names`: clip.ts namesOf, by plan id) is part of
+ * the name: "Sub-Zero" in a title states no 0.
  */
-export function checkProducer(result: ProducerResult, planIds: readonly string[], numbers: Readonly<Record<string, readonly number[]>> = {}): string[] {
+export function checkProducer(result: ProducerResult, planIds: readonly string[], numbers: Readonly<Record<string, readonly number[]>> = {}, names: Readonly<Record<string, readonly string[]>> = {}): string[] {
   const errors: string[] = [];
   for (const id of planIds) {
     const n = result.clips.filter((c) => c.planId === id).length;
@@ -815,7 +817,7 @@ export function checkProducer(result: ProducerResult, planIds: readonly string[]
     const has = Object.hasOwn(numbers, c.planId) ? numbers[c.planId] : null;
     if (!has) continue;
     for (const field of ["title", "caption"] as const) {
-      const untrue = numbersIn(c[field]).filter((x) => !has.some((f) => Math.abs(f - x) < 1e-6));
+      const untrue = countsIn(c[field], Object.hasOwn(names, c.planId) ? names[c.planId] : []).filter((x) => !has.some((f) => Math.abs(f - x) < 1e-6));
       if (untrue.length) errors.push(`clips: ${c.planId} ${field}: ${untrue[0]} is not a number this clip has (${has.join(", ")})`);
     }
   }

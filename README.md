@@ -1528,11 +1528,13 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   and `look`). The words are the recipe's, or the format's in three languages (`ViralBot.formats`, `ViralBot.things`).
   `tests/botTemplates.test.ts` binds every mode once, plans every ready template on 4 plan seeds on each platform it fits
   (passing every clarity gate on at least 3, at Simple 80+ and Playbook 75+, in en, pl and es; Glass Hatchery's, the slowest
-  to plan, sampled) and keeps the bot look's plans byte for byte; `docs/agents/STUDIO.md` has every mode's templates and [docs/virality-playbook.md](docs/virality-playbook.md)
+  to plan, sampled), samples every one again on plan seeds 5–8 in the studio's 800×450 world (one platform and one language a
+  seed), and keeps the bot look's plans byte for byte; `docs/agents/STUDIO.md` has every mode's templates and [docs/virality-playbook.md](docs/virality-playbook.md)
   §5 their measured numbers. Claude's studio plans them with the `templates` and `plan` tools.
 - **Bot section** – `components/simulator/sections/BotSection.tsx` (search key `BOT_KEYS`, after the Batch block) and
   `components/simulator/useViralBot.ts`: platform, count 1–20, series, length and ending; **Plan clips** (a fresh set with these
-  filters) and **Today's plan** (the day's own, the one the CLI and the job make); per clip the recipe, hook, mode, seed, length,
+  filters) and **Today's plan** (the day's own clips of every series, the same all day, in the look the Simple switch picks; the CLI
+  and the scheduled job plan the day's rotation in the bot look, its battle clips only with `--family all` or `battle`); per clip the recipe, hook, mode, seed, length,
   ending, score and **why this clip**, **Open in simulator** (the settings through the preset loader, the melody, the seed pinned
   like a found simulation), **Re-roll** and **Copy caption**; **Render all** hands the plan to the batch renderer
   (`useBatchRender`'s `runJobs()` – a small hook: jobs with their own settings, seed, name and a `prepare()` that loads the
@@ -1546,7 +1548,9 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   rotation exactly. The **Simple look** switch (off by default here; Claude's studio plans in the Simple look, and the app's
   crew and the autopilot are to once their own steps land) draws the clips of both buttons in the Simple look. **Why this clip** adds the clip's Simple score and the crew's seven
   clarity lines (G1–G7, a failed one saying why: `src/lib/bot/clarityLines.ts`, the studio's `clarityOf` on the plan and the
-  run of its seed, followed in slices and loaded only when the lines are opened). Only the panel's two new options join the
+  run of its seed, followed in slices and loaded only when the lines are opened) for a clip in the Simple look, whose rules they
+  are; a clip in the bot look gets one line that says so instead (`clarityJudges`: its glow, trails and longer hook read Busy
+  by design). Only the panel's two new options join the
   stored state, and only when they differ from the defaults; an older stored state and its version-1 plan load as they were.
 - **CLI** – `node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
   [--bucket standard] [--ending resolved] [--locale pl] [--dry-run] [--post | --post-only]` (also `npm run bot -- …`). Without `--family` the plan holds escape and rhythm clips only (`--family default`); `--family all` and `--family battle` are the only ways to plan Fight League clips (the legal audit).
@@ -1601,8 +1605,9 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   in three languages, `--template` and `--look`); the smoke test plans three clips
   in the Bot block, opens their share links (the canvas' `data-seed` is the planned seed), reloads, opens one, keeps an arena
   game's captions below its scoreboard band, and renders a one-clip short plan into a ZIP it reads back; --- bot-templates ---
-  it reads the clarity lines of a clip, and a free visitor picks a template and the Simple switch by keyboard, plans a Simple
-  template clip that keeps both through a reload, and renders it watermarked.
+  a clip of the default look says the clarity rules judge the Simple look, and a free visitor picks a template and the Simple
+  switch by keyboard, plans a Simple template clip, reads its clarity lines, keeps both through a reload, and renders it
+  watermarked.
 
 ### Journey
 Feature gerald-journey: a Gerald-family mode in a family of its own (`MODE_CATEGORIES.journey`, the "Journey modes" heading) that strings the other modes' mechanics into one run. The mode is `src/lib/physics/modes/journey.ts`; the stages live in `src/lib/physics/journey/`, one adapter per kind around code that already exists – nothing is simulated twice.

@@ -6879,18 +6879,19 @@ await smokeBlock("viral-bot", async () => {
     planned && rows.length === 3 && rows.every((r) => r.recipe && r.score > 0 && r.score <= 100 && /^(resolved|cliffhanger)$/.test(r.ending) && /^\d+$/.test(r.seed) && /^ep\d{3}-\d+-[a-z-]+-\d+$/.test(r.id)) && reasons === 9 && hooks.every((h) => h.length > 4),
     `(${JSON.stringify(rows)}; ${reasons} reasons; ${planMs} ms)`,
   );
-  // --- bot-templates --- the clarity lines under the checklist: checked when opened, the Simple score and seven gates, a failed
-  // gate saying why
+  // --- bot-templates --- the clarity lines under the checklist are the Simple look's rules: (studio round 1, 3) a clip in the
+  // bot's own look, the default here, gets one neutral line that says so, never a Simple score or a gate's verdict (every one of
+  // them had read Busy beside its ticks); the seven lines of a Simple clip are checked with the Simple switch below
   {
     const why = bot.locator("details").first();
-    const done = await why.locator("[data-bot-clarity='done']").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
-    const simple = Number(await why.locator("[data-bot-clarity]").getAttribute("data-bot-simple").catch(() => null));
-    const gates = await why.locator("[data-bot-gate]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-gate"), ok: e.getAttribute("data-bot-gate-ok") === "1", text: (e.textContent ?? "").trim(), why: (e.querySelector("[data-bot-gate-why]")?.textContent ?? "").trim() })));
-    const line = (await why.locator("[data-bot-clarity] p").first().innerText().catch(() => "")).trim();
+    const look = await bot.locator("[data-bot-clip]").first().getAttribute("data-bot-look").catch(() => null);
+    const neutral = await why.locator("[data-bot-clarity='botLook']").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const line = (await why.locator("[data-bot-clarity]").first().innerText().catch(() => "")).trim();
+    const verdicts = await why.locator("[data-bot-gate], [data-bot-simple]").count();
     check(
-      "viral bot: Why this clip adds the clip's Simple score and the crew's seven clarity lines, a failed one saying why",
-      done && Number.isFinite(simple) && simple >= 0 && simple <= 100 && line.includes(`Simple score ${simple}/100`) && gates.map((g) => g.id).join() === "G1,G2,G3,G4,G5,G6,G7" && gates.every((g) => g.text.length > 4 && (g.ok ? g.why === "" : g.why.length > 8)),
-      `(${line}; ${JSON.stringify(gates).slice(0, 400)})`,
+      "viral bot: Why this clip of a clip in the bot's own look says the clarity rules judge the Simple look, with no Simple score or gate verdict",
+      look === "bot" && neutral && /clarity rules judge the Simple look/.test(line) && verdicts === 0,
+      `(${look}; ${line}; ${verdicts} verdicts)`,
     );
   }
   // 2. The CLI's handle and the text files of the plan.
@@ -7006,16 +7007,29 @@ await smokeBlock("viral-bot", async () => {
       await fbot.getByRole("button", { name: /Plan clips/ }).click();
       const planned = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "planned" && document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === "1", null, { timeout: 180000 }).then(() => true).catch(() => false);
       const rowOf = () => fp.locator("[data-bot-clip]").first().evaluate((e) => ({ id: e.getAttribute("data-bot-clip"), recipe: e.getAttribute("data-bot-recipe"), template: e.getAttribute("data-bot-template"), look: e.getAttribute("data-bot-look"), name: (e.querySelector(".font-medium")?.textContent ?? "").trim() })).catch(() => null);
+      // --- bot-templates --- (studio round 1, 6) a template's name wraps to two lines instead of being cut at phone width
+      const nameWraps = () => fp.locator("[data-bot-clip] [data-bot-name]").first().evaluate((e) => { const cs = getComputedStyle(e); return cs.whiteSpace !== "nowrap" && cs.webkitLineClamp === "2"; }).catch(() => false);
       const row = await rowOf();
       await fbot.locator("details summary").first().click().catch(() => {});
       const clear = await fbot.locator("details").first().locator("[data-bot-clarity='done']").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
       const simple = Number(await fbot.locator("details").first().locator("[data-bot-clarity]").getAttribute("data-bot-simple").catch(() => null));
       const passed = await fbot.locator("details").first().locator("[data-bot-gate-ok='1']").count();
+      // --- bot-templates --- (studio round 1, 3) the clip's Simple score and the crew's seven clarity lines, here where they judge it:
+      // checked when opened, a failed one saying why
+      const gates = await fbot.locator("details").first().locator("[data-bot-gate]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-gate"), ok: e.getAttribute("data-bot-gate-ok") === "1", text: (e.textContent ?? "").trim(), why: (e.querySelector("[data-bot-gate-why]")?.textContent ?? "").trim() })));
+      const line = (await fbot.locator("details").first().locator("[data-bot-clarity] p").first().innerText().catch(() => "")).trim();
+      check(
+        "viral bot: Why this clip adds the clip's Simple score and the crew's seven clarity lines, a failed one saying why",
+        clear && Number.isFinite(simple) && simple >= 0 && simple <= 100 && line.includes(`Simple score ${simple}/100`) && gates.map((g) => g.id).join() === "G1,G2,G3,G4,G5,G6,G7" && gates.every((g) => g.text.length > 4 && (g.ok ? g.why === "" : g.why.length > 8)),
+        `(${line}; ${JSON.stringify(gates).slice(0, 400)})`,
+      );
       check(
         "viral bot: the Simple switch works by keyboard, and Plan clips plans the template in the Simple look, Simple 80 or more with every clarity line passing",
         off === "false" && on === "true" && planned && !!row && row.recipe === TEMPLATE && row.template === TEMPLATE && row.look === "simple" && row.name === "Grow · Fill it" && new RegExp(`^ep\\d{3}-1-${TEMPLATE}-\\d+$`).test(row.id ?? "") && clear && simple >= 80 && passed === 7,
         `(${off}→${on}; ${JSON.stringify(row)}; Simple ${simple}; ${passed}/7 gates)`,
       );
+      const wraps = await nameWraps();
+      check("viral bot: a template clip's name wraps to a second line rather than being cut (a Mode Lab game's at phone width)", wraps, `(${wraps})`);
       // the choice and the plan survive a reload (the per-viewer bot state, nothing else stored)
       await fp.reload({ waitUntil: "networkidle" });
       fbot = await openFree();

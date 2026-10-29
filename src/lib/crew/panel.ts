@@ -1,7 +1,7 @@
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { BOT_DEFAULT_FAMILIES, ENDING_STYLES, LENGTH_BUCKETS, PLATFORMS, RECIPES, type BotFamily, type BotPlatform } from "@/lib/bot/playbook";
 import { captionWordsOf } from "@/lib/bot/planner"; // --- templates --- (a message read as a viewer reads it)
-import { claimOfRecipe, factNumbersOf, numbersIn, type CrewClip } from "./clip";
+import { claimOfRecipe, countsIn, factNumbersOf, namesOf, type CrewClip } from "./clip";
 import { clarityOf, failedGates, type Clarity } from "./clarity";
 import { intentView, sceneOf, screenView, type OtherCandidate } from "./dossier";
 import { confirmedDistractions, makesSenseOf, markObjection, markObjections, standing, type MarkedObjection } from "./evidence";
@@ -844,7 +844,7 @@ export function producerNumbersOf(c: Pick<PanelClip, "clip" | "post">): number[]
   const at = c.clip.payoff.atSec;
   if (at !== null && Number.isFinite(at)) for (const n of [Math.floor(at), Math.round(at), Math.ceil(at)]) out.add(n);
   const texts = [sceneOf(c.clip.settings), drawnHookText(c.clip), roleWords(c.clip, "payoff"), roleWords(c.clip, "question"), c.post?.title ?? "", c.post?.caption ?? ""];
-  for (const t of texts) for (const n of numbersIn(t)) out.add(n);
+  for (const t of texts) for (const n of countsIn(t, namesOf(c.clip))) out.add(n); // --- crew --- (studio round 1, 4: a number inside the clip's names is no count)
   return [...out].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
 }
 
@@ -987,8 +987,11 @@ function checkReply(s: PanelState, role: CrewRole, c: PanelClip | null, raw: unk
       return { value, errors: checkViewer(value as ViewerResult) };
     case "brainstormer":
       return { value, errors: checkBrainstorm(value as BrainstormResult, { menu: s.menu, named: !!s.request?.namedTemplate }) };
-    case "producer":
-      return { value, errors: checkProducer(value as ProducerResult, s.picked?.keeps.map((k) => k.id) ?? [], Object.fromEntries((s.picked?.keeps ?? []).flatMap((k) => { const x = clipOf(s, k.id); return x ? [[k.id, producerNumbersOf(x)]] : []; }))) };
+    case "producer": {
+      const kept = (s.picked?.keeps ?? []).flatMap((k) => { const x = clipOf(s, k.id); return x ? [[k.id, x] as const] : []; });
+      // (--- crew --- studio round 1, 4: and the clip's own names, whose numbers are no count)
+      return { value, errors: checkProducer(value as ProducerResult, s.picked?.keeps.map((k) => k.id) ?? [], Object.fromEntries(kept.map(([id, x]) => [id, producerNumbersOf(x)])), Object.fromEntries(kept.map(([id, x]) => [id, namesOf(x.clip)]))) };
+    }
     case "reviewer": {
       const st = standing(c!.marks);
       return {

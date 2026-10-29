@@ -660,7 +660,7 @@ gate (17 of 18). Step 4b's run stays above as history.
 ### claude-opus-5-5-2026-10-29-step6
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-step6 -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 884d91a65835d962.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 237 briefs answered (237 replies, refused ones included). Corpus 884d91a65835d962 (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -698,3 +698,45 @@ briefs again in one context. It pitched the Drawing Machine among its satisfying
 its calm ones, in the polyrhythm's, and Ring Breaker among the clips where something gets out or breaks, in Glass's place.
 The other 234 answers are step 5's, and step 5's run stays above as history. No catch rate, objection, misread or fix count
 moved; all 18 of the brainstormer's ideas passed every gate, as before, in 3.33 formats a request (2.33).
+
+### claude-opus-5-5-2026-10-29-round1
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-29-round1 -->
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 250 briefs answered (250 replies, refused ones included). Corpus 7369f59928d82bba.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 18 of 27 (67%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.12 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 16 of 27 (59%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 1 of 40 (3%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.4 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 26 of 27 (96%) | 27 of 27 (100%) | 0 of 40 (0%) | 1 of 40 (3%) | 0 of 40 (0%) | 1 of 40 (3%) | 10 / 14 (4 need the seed search) | 3.3 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 3/3 | 0/3 | 0/3 | 3/3 | 3/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 3.33 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-29-round1 -->
+
+The studio's first review round of AI studio step 2 narrowed Grow's fill template to the short length: in the standard one its
+seed search often found no fill inside the band (about one Reels plan in three failed a gate). The corpus plans its clean clips
+from plan seed 1 up, so Grow's three clips are now short ones, fill-grow#1, #2 and #3 instead of #2, #4 and #5, and two planted
+clips moved to them: 4 of the 67 fixtures changed, and the corpus with them. The same model answered the 13 briefs those clips
+ask in one context, as before: it read both clean clips as a ball that grows until it fills the ring and kept them, and read the
+one whose payoff says "Bullseye!" as a fill with a wrong ending and dropped it. The other 237 answers are step 6's, to briefs
+that did not change by a byte, and step 6's run stays above as history. No catch rate, objection, misread or fix count moved.

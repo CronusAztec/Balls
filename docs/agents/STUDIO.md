@@ -117,7 +117,7 @@ it. The default menus offer the other 39 templates, as the daily bot leaves its 
 | | Brick Smash | the picture's last brick (`outcome`, a run of its own) | `smash-brick-rebuild` | |
 | | Spiral Glass | GLASS CLEARED, its overlay off (`sgHud`) | `smash-spiral-glass` | |
 | fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
-| | Grow | the measured fill | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
+| | Grow | the measured fill, in the short length only (a standard clip often found no fill in time) | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
 | | Perfect Fit | the box full (`outcome`, a run of its own) | `fill-perfect-fit` | |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
@@ -186,8 +186,9 @@ battle family's appear only under All series and Battle. **Auto**, the default, 
 daily bot's plans and its pinned days do not move. The **Simple look** switch is off there by default. The studio's
 `plan` uses the Simple look unless `look` is `bot`. The app's crew and the autopilot are to use it too (the owner's answer),
 once their own steps land; today the app's AI plans the playbook's recipes in the bot look
-(`src/components/simulator/desktop/studioPorts.ts`). **Why this clip** shows the clip's Simple score and the crew's clarity
-lines G1-G7, the studio's own `clarityOf` on the plan and its run. `node scripts/viral-bot.mjs --dry-run --template <id> [--look
+(`src/components/simulator/desktop/studioPorts.ts`). **Why this clip** shows a Simple clip's score and the crew's clarity
+lines G1-G7, the studio's own `clarityOf` on the plan and its run; a clip in the bot look gets one line saying the rules judge
+the Simple look (`clarityJudges`). `node scripts/viral-bot.mjs --dry-run --template <id> [--look
 simple]` plans one template's clips in Node, a battle template only with the family all or battle.
 
 ## How the review holds you to the rules

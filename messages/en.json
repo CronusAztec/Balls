@@ -3667,7 +3667,7 @@
     "today": "Today's plan",
     "planning": "Planning clip {current} of {total} · {seeds} seeds tested",
     "cancel": "Cancel",
-    "empty": "No plan yet: plan clips with these settings, or take today's plan (the one the CLI and the scheduled job make).",
+    "empty": "No plan yet. Plan clips with these settings, or take today's plan: the day's own clips, the same all day, in the look you chose.",
     "planFor": "{count} clips · {date} · {platform}",
     "open": "Open in simulator",
     "reroll": "Re-roll",
@@ -3765,6 +3765,7 @@
       "simple": "Simple score {score}/100 · {band}",
       "checking": "Checking the clarity rules…",
       "failed": "The clarity rules could not be checked.",
+      "botLook": "The clarity rules judge the Simple look. Turn on Simple look for a calmer clip, one line of text at a time.",
       "ok": "Passes",
       "notOk": "Fails",
       "bands": {
