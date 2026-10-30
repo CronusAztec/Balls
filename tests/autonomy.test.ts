@@ -1378,6 +1378,14 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       const missing = tiktokWorld(null);
       expect(() => requestOfProposal(missing.item, NOW + 75 * MIN, missing.state.consent!)).toThrow(/TikTok choices/);
       expect(() => requestOfProposal(baseItem({ channels: [ttChannel()] }), NOW + 75 * MIN, baseState().consent!)).toThrow(/TikTok choices/);
+      // branded content on Only me, which TikTok refuses, held in memory however it got there: refused the same way
+      const branded = { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const, brand_content_toggle: true };
+      refuses((w) => {
+        tiktokOn(w, branded);
+        onTikTok()(w);
+      }, "tiktokChoices");
+      const brandedWorld = tiktokWorld(branded);
+      expect(() => requestOfProposal(brandedWorld.item, NOW + 75 * MIN, brandedWorld.state.consent!)).toThrow(/TikTok choices/);
     });
 
     it("keeps a TikTok account in the stored block only with the tick and every choice, never widened", () => {

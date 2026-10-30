@@ -347,6 +347,12 @@ export function cleanTikTok(raw: unknown): AutonomyTikTok | null {
   return { content_posting_method: "DIRECT_POST", privacy_level: privacy as TikTokPrivacy, ...switches };
 }
 
+/**
+ * Whether a TikTok account's choices may go out: every one made and valid on the profile (no disclosure on Only me), or the
+ * inbox, which sends only the most private values whatever is held (tiktokCardSettings).
+ */
+const tiktokChoicesOk = (t: AutonomyTikTok | null | undefined): t is AutonomyTikTok => !!t && (t.content_posting_method === "UPLOAD" || cleanTikTok(t) !== null);
+
 /** Whether a TikTok account's posts are scored: public, on the profile (Postiz gives no post id to Only me or Friends posts). */
 export const tiktokScored = (t: AutonomyTikTok | null | undefined): boolean => !!t && t.content_posting_method === "DIRECT_POST" && t.privacy_level === "PUBLIC_TO_EVERYONE";
 
@@ -914,7 +920,7 @@ export function tiktokPartProblems(channelId: string, part: TikTokPartInput, sta
   const account = consent && consent.tiktok === true ? accountOf(consent, channelId) : null;
   if (!account || account.platform !== "tiktok") return [];
   const out = new Set<AutonomyReason>();
-  if (!account.tiktok) out.add("tiktokChoices");
+  if (!tiktokChoicesOk(account.tiktok)) out.add("tiktokChoices");
   if (tiktokPausedAt(state, now)) out.add("tiktokPaused");
   const resumedTikTok = ms(state.tiktok?.resumedAt);
   if (Number.isFinite(resumedTikTok) && !((part.createdAt ? ms(part.createdAt) : now) > resumedTikTok)) out.add("tiktokPaused");
@@ -1179,11 +1185,12 @@ function cardChannelsOf(item: Pick<AutonomyItem, "channels" | "pass">, consent: 
  * The request the main process sends for an item it approved itself: what the card would send for the same choices
  * (lib/desktop/socialCard.ts providerSettingsOf), YouTube's visibility and made-for-kids and every TikTok field from the
  * consent only, and on a Trial Reel Instagram's two trial fields with MANUAL. `at` is the time scheduleFor picked. A TikTok
- * channel whose consent lacks its choices throws: Postiz would post it for Everyone (autonomyProblems has refused it first).
+ * channel whose consent lacks its choices, or holds ones TikTok refuses (a disclosure on Only me), throws: Postiz would post a
+ * missing privacy for Everyone (autonomyProblems has refused it first).
  */
 export function requestOfProposal(item: Pick<AutonomyItem, "clipId" | "channels" | "pass" | "thumbnailMs">, at: number, consent: AutonomyConsent): SocialPostRequest {
   const trial = !!item.pass && isTrialRole(item.pass.role);
-  for (const c of item.channels) if (familyOf(c.platform) === "tiktok" && !accountOf(consent, c.integrationId)?.tiktok) throw new Error(`requestOfProposal: the consent holds no TikTok choices for ${c.integrationId}`);
+  for (const c of item.channels) if (familyOf(c.platform) === "tiktok" && !tiktokChoicesOk(accountOf(consent, c.integrationId)?.tiktok)) throw new Error(`requestOfProposal: the consent holds no TikTok choices for ${c.integrationId}`);
   return {
     clipId: item.clipId,
     channels: cardChannelsOf(item, consent).map((c) => {
