@@ -5,7 +5,7 @@ import type { LearnerSettings } from "@/lib/insights/learnerSettings";
 import type { DialId } from "@/lib/insights/dials";
 import type { ClipReview } from "@/lib/crew/review";
 import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN, inQuietMinutes } from "./autopilot";
-import { TIKTOK_PRIVACY, YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, type CardChannel, type CardProblem, type TikTokPrivacy, type TikTokSettings, type YouTubeVisibility } from "./socialCard";
+import { TIKTOK_PRIVACY, YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, tiktokBrandedPrivate, type CardChannel, type CardProblem, type TikTokPrivacy, type TikTokSettings, type YouTubeVisibility } from "./socialCard";
 import { TIKTOK_APP_PRIVATE_ONLY, TIKTOK_PAUSE_KINDS, classifyPostizError, isAccountHealth } from "./postizErrors";
 import { textProblems, type TextFacts, type TextLanguage, type TextProblem } from "./autonomyText";
 import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insights/learnerRules";
@@ -25,8 +25,10 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insigh
  *  - Instagram and YouTube (AUTONOMY_PLATFORMS, by Postiz identifier), and TikTok only behind the consent's own TikTok tick:
  *    the owner's answer of 30 Oct 2026, "Include TikTok, I accept the risk". TikTok's rules ask for a preview and a choice on
  *    each post, which a choice made once does not give; the consent screen says so, and the owner accepted that risk for the
- *    TikTok account. Every TikTok request carries every TikTok field, from the consent only (Postiz would fill a missing
- *    privacy with Everyone). TikTok Business (its videos have no privacy) and every other platform always wait for the person.
+ *    TikTok account. Every TikTok request carries every TikTok field, from the consent only: Postiz's public POST /posts
+ *    refuses a TikTok post that lacks one (its TikTokDto, checked on every post that is not a draft), and the app sends no
+ *    value the consent does not hold. TikTok Business (its videos have no privacy) and every other platform always wait for
+ *    the person.
  *  - TikTok's part of a learner proposal waits for the person, and the rest goes on, when TikTok paused itself, when the file
  *    shows the site's address or its end card (TikTok asks apps to add no link or brand line), and when what is not the best
  *    settings would go to a TikTok account not consented for Everyone on the profile (only public TikTok is scored).
@@ -65,9 +67,10 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insigh
  *  - TikTok pauses alone, and Instagram and YouTube carry on, on TikTok's own errors on any post of a consented TikTok account
  *    (postizErrors.ts TIKTOK_PAUSE_KINDS): a warning or its day's limit for 48 hours (its own cooldown, which Off keeps, and
  *    its own still-scheduled TikTok posts there removed unless "only tell me"), the account or the app to fix until Resume
- *    TikTok, and a privacy the account does not offer until its TikTok choices are made again. A TikTok account off or needing
- *    a reconnect in Postiz is the account to fix, and so is an ERROR with no text on such an account. Any other failed post of
- *    its own on TikTok pauses everything, as everywhere.
+ *    TikTok, TikTok's rate limit on the account until Resume TikTok, and a privacy the account does not offer until its TikTok
+ *    choices are made again. A TikTok account off or needing a reconnect in Postiz is the account to fix, and so is an ERROR
+ *    with no text on such an account. An error TikTok's own pause took stays TikTok's: unticking TikTok, or reconnecting the
+ *    account, never hands it to the switch. Any other failed post of its own on TikTok pauses everything, as everywhere.
  *
  * Pure and deterministic: no clock (the PC's time and Postiz's come in), no randomness, no file. The hash function, the
  * crew's number reader and the PC's UTC offset at a moment (DST) are passed in. It imports only light modules the main process
@@ -252,8 +255,9 @@ export const AUTONOMY_TIKTOK_PAUSE_REASONS = [
   "accountHealth", // TikTok warned about a consented TikTok account: banned from posting, or spam (48 hours)
   "dailyLimit", // the account's day's limit, or its 5 posts waiting in the TikTok inbox (48 hours)
   "accountFix", // the account's login, permissions or TikTok phone app, or the account off or needing a reconnect in Postiz
-  "app", // the TikTok app Postiz posts through: TikTok's daily user cap, or its rate limit
-  "appPrivateOnly", // the TikTok app Postiz posts through may post only as Only me
+  "app", // the TikTok app Postiz posts through reached TikTok's daily cap of users for that app
+  "appPrivateOnly", // the TikTok app Postiz posts through is not audited: it may post only as Only me, to an account set to private
+  "rateLimit", // TikTok's rate limit on the account's own access token: it sent too many requests in a short time
   "privacy", // the account does not offer the privacy chosen: its TikTok choices are made again
 ] as const;
 export type AutonomyTikTokPauseReason = (typeof AUTONOMY_TIKTOK_PAUSE_REASONS)[number];
@@ -319,10 +323,11 @@ export function platformAllowed(platform: unknown, consent: Pick<AutonomyConsent
 }
 
 /**
- * A TikTok account's choices as the consent records them, or null when one is missing or not valid. With the inbox only the
- * method is chosen, and the rest is the most private (TIKTOK_INBOX_CHOICES): a record that says otherwise is dropped. On the
- * profile every field is chosen, and a disclosure with Only me is refused, as on the approval card
- * (postizProblemTikTokBrandedPrivate).
+ * A TikTok account's choices as the stored consent holds them, or null when one is missing or not valid (sanitizeAccount: a
+ * stored account is dropped, never widened). With the inbox only the method is chosen, and the rest is the most private
+ * (TIKTOK_INBOX_CHOICES): a stored record that says otherwise is dropped. On the profile every field is chosen, and Branded
+ * content with Only me is refused, as TikTok and the approval card refuse it (socialCard.ts tiktokBrandedPrivate); Your brand
+ * may go with any audience. Only these eight fields come back, whatever else the record holds.
  */
 export function cleanTikTok(raw: unknown): AutonomyTikTok | null {
   if (!isObj(raw)) return null;
@@ -343,18 +348,35 @@ export function cleanTikTok(raw: unknown): AutonomyTikTok | null {
     if (typeof v !== "boolean") return null;
     switches[key] = v;
   }
-  if (privacy === "SELF_ONLY" && (switches.brand_content_toggle || switches.brand_organic_toggle)) return null;
+  if (tiktokBrandedPrivate({ brand_content_toggle: switches.brand_content_toggle, privacy_level: privacy })) return null;
   return { content_posting_method: "DIRECT_POST", privacy_level: privacy as TikTokPrivacy, ...switches };
 }
 
 /**
- * Whether a TikTok account's choices may go out: every one made and valid on the profile (no disclosure on Only me), or the
- * inbox, which sends only the most private values whatever is held (tiktokCardSettings).
+ * The TikTok choices a consent's record, or the consent screen's draft, stands for: the one reading the screen, the consent it
+ * records and the request it sends share. With the inbox, only how it posts, and the most private values whatever else is held
+ * (the screen hides the other choices, and Postiz forwards none of them); on the profile, every choice made and valid
+ * (cleanTikTok: those eight fields only, never a title or anything else the record holds). Null: a choice not made, or one
+ * TikTok refuses.
  */
-const tiktokChoicesOk = (t: AutonomyTikTok | null | undefined): t is AutonomyTikTok => !!t && (t.content_posting_method === "UPLOAD" || cleanTikTok(t) !== null);
+export function tiktokChoicesOf(raw: unknown): AutonomyTikTok | null {
+  if (isObj(raw) && own(raw, "content_posting_method") === "UPLOAD") return { content_posting_method: "UPLOAD", ...TIKTOK_INBOX_CHOICES };
+  return cleanTikTok(raw);
+}
 
-/** Whether a TikTok account's posts are scored: public, on the profile (Postiz gives no post id to Only me or Friends posts). */
-export const tiktokScored = (t: AutonomyTikTok | null | undefined): boolean => !!t && t.content_posting_method === "DIRECT_POST" && t.privacy_level === "PUBLIC_TO_EVERYONE";
+/** Whether a TikTok account's choices may go out (tiktokChoicesOf). */
+const tiktokChoicesOk = (t: AutonomyTikTok | null | undefined): t is AutonomyTikTok => tiktokChoicesOf(t) !== null;
+
+/**
+ * Whether a TikTok account's posts are scored: public, on the profile. Postiz gets a post id, and so numbers, only for a post
+ * TikTok publishes for public viewing (its publicaly_available_post_id): none for Only me or Friends (tiktok.provider.ts
+ * 1178-1185), and for Followers, which only a private account offers, it waits for one that never comes. So only Everyone is
+ * scored, and Followers, Friends and Only me get no numbers.
+ */
+export function tiktokScored(t: AutonomyTikTok | null | undefined): boolean {
+  const c = tiktokChoicesOf(t);
+  return !!c && c.content_posting_method === "DIRECT_POST" && c.privacy_level === "PUBLIC_TO_EVERYONE";
+}
 
 /** One stored account, or null when any part of it is not valid (an account is dropped, never widened). */
 export function sanitizeAccount(raw: unknown): AutonomyAccount | null {
@@ -722,7 +744,11 @@ export interface AutonomyContext {
   autopilot: { quietFrom: string; quietTo: string; language: TextLanguage };
   /** The whole posting queue (other proposals of the same clip count). */
   queue: readonly AutonomyItem[];
-  /** Every post on the consented accounts: the audit's and Postiz's list. */
+  /**
+   * Every post on the consented accounts, and every post of the app's own wherever it is (the audit's and Postiz's list): an
+   * account the consent no longer names (TikTok unticked) keeps its own posts here, so a warning's clean-up and what TikTok's
+   * own pause took still see them.
+   */
   posts: readonly AccountPost[];
   /** The app's create calls in the last hour (the audit). */
   createCallsLastHour: number;
@@ -1158,13 +1184,14 @@ export function accountProblems(item: Pick<AutonomyItem, "channels">, consent: A
 }
 
 /**
- * TikTok's settings as the card holds them, from the consent's choices only (nothing the page, the model or the proposal set:
- * no title either, as Postiz makes a video's caption its TikTok title). With the inbox, the most private values. Without
- * choices, the privacy and the interactions stay unset, which the card's own rules refuse.
+ * TikTok's settings as the card holds them, from the consent's choices only, as tiktokChoicesOf reads them: the very record
+ * requestOfProposal checked, built afresh, so nothing else a record held in memory carries goes out (nothing the page, the
+ * model or the proposal set: no title either, as Postiz makes a video's caption its TikTok title). With the inbox, the most
+ * private values. Without valid choices, the privacy and the interactions stay unset, which the card's own rules refuse.
  */
 function tiktokCardSettings(t: AutonomyTikTok | undefined): TikTokSettings {
-  if (!t) return { __type: "tiktok", brand_content_toggle: false, brand_organic_toggle: false, content_posting_method: "DIRECT_POST", video_made_with_ai: false, autoAddMusic: "no" };
-  const choices = t.content_posting_method === "UPLOAD" ? { content_posting_method: "UPLOAD" as const, ...TIKTOK_INBOX_CHOICES } : t;
+  const choices = tiktokChoicesOf(t);
+  if (!choices) return { __type: "tiktok", brand_content_toggle: false, brand_organic_toggle: false, content_posting_method: "DIRECT_POST", video_made_with_ai: false, autoAddMusic: "no" };
   return { __type: "tiktok", ...choices, autoAddMusic: "no" };
 }
 
@@ -1185,8 +1212,10 @@ function cardChannelsOf(item: Pick<AutonomyItem, "channels" | "pass">, consent: 
  * The request the main process sends for an item it approved itself: what the card would send for the same choices
  * (lib/desktop/socialCard.ts providerSettingsOf), YouTube's visibility and made-for-kids and every TikTok field from the
  * consent only, and on a Trial Reel Instagram's two trial fields with MANUAL. `at` is the time scheduleFor picked. A TikTok
- * channel whose consent lacks its choices, or holds ones TikTok refuses (a disclosure on Only me), throws: Postiz would post a
- * missing privacy for Everyone (autonomyProblems has refused it first).
+ * channel whose consent lacks its choices, or holds ones TikTok refuses (Branded content on Only me), throws (autonomyProblems
+ * has refused it first): the app sends no TikTok value the consent does not hold, and Postiz's public POST /posts refuses a
+ * TikTok post that lacks one (TikTokDto, checked on every post that is not a draft), which as a refused create of its own
+ * would pause everything.
  */
 export function requestOfProposal(item: Pick<AutonomyItem, "clipId" | "channels" | "pass" | "thumbnailMs">, at: number, consent: AutonomyConsent): SocialPostRequest {
   const trial = !!item.pass && isTrialRole(item.pass.role);
@@ -1387,7 +1416,11 @@ export interface AutonomyCheck {
   tiktokPause?: AutonomyTikTokPause;
 }
 
-/** An ERROR with no text: a refresh-token or disconnect failure, as GET /posts shows it (posts.repository.ts curatedError). */
+/**
+ * An ERROR with no text, as GET /posts shows a refresh-token failure (posts.repository.ts curatedError) or a TikTok status
+ * Postiz does not map. A disconnect (Instagram's log-in checkpoint, TikTok's daily user limit) comes back with its sentence,
+ * its channel needing a reconnect on the same read (post.activity.ts handleDisconnect).
+ */
 const noText = (p: AccountPost) => typeof p.error !== "string" || !p.error.trim();
 
 /** The consent's TikTok accounts, with its tick (none without it). */
@@ -1440,7 +1473,7 @@ function tiktokCheck(state: AutonomySettings, ctx: AutonomyContext): { pause: Au
   const event = ctx.posts.find((p) => isTikTokOwnError(p, ids, ctx) && !isAccountHealth(tiktokKindOf(p).kind) && eventTime(p) > from);
   if (event) {
     const match = tiktokKindOf(event);
-    const reason: AutonomyTikTokPauseReason = match.kind === "app" ? (match.entry?.message === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app") : match.kind === "privacy" ? "privacy" : "accountFix";
+    const reason: AutonomyTikTokPauseReason = match.kind === "app" ? (match.entry?.message === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app") : match.kind === "rateLimit" ? "rateLimit" : match.kind === "privacy" ? "privacy" : "accountFix";
     return { pause: { reason, at: nowIso, until: null, channelId: event.channelId }, warned: [] };
   }
   if (!current) {
@@ -1448,6 +1481,29 @@ function tiktokCheck(state: AutonomySettings, ctx: AutonomyContext): { pause: Au
     if (off) return { pause: { reason: "accountFix", at: nowIso, until: null, channelId: off }, warned: [] };
   }
   return { pause: null, warned: [] };
+}
+
+/**
+ * The latest time TikTok's own state took TikTok's errors: its pause, its cooldown, or the last Resume TikTok (-Infinity:
+ * never). Every TikTok error seen by then that was TikTok's own was taken by it (tiktokCheck, on the tick that saw it).
+ */
+function tiktokTakenUntil(state: Pick<AutonomySettings, "tiktok">): number {
+  const times = [state.tiktok?.pause?.at, tiktokCooldownOf(state)?.at, state.tiktok?.resumedAt].map((t) => ms(t)).filter((t) => Number.isFinite(t));
+  return times.length ? Math.max(...times) : -Infinity;
+}
+
+/**
+ * Whether an ERROR is one TikTok's own pause took, which stays TikTok's: on a TikTok account (the post's platform, else the
+ * channel's in Postiz's list), seen no later than TikTok's state last took its errors, with a TikTok kind (TIKTOK_PAUSE_KINDS)
+ * or no text. Its attribution is the one it got when it was read: unticking TikTok (its accounts no longer consented) or
+ * reconnecting the account (its ERROR with no text no longer read as the account to fix) never hands it to the switch, while
+ * one TikTok's state never took (TikTok unticked before any tick read it) is the switch's, as any failed post of its own.
+ */
+function tiktokTaken(p: AccountPost, takenUntil: number, ctx: Pick<AutonomyContext, "postiz">): boolean {
+  if (p.state !== "ERROR" || !(eventTime(p) <= takenUntil)) return false;
+  if ((p.platform ?? ctx.postiz.channels.find((l) => l.id === p.channelId)?.platform) !== "tiktok") return false;
+  const kind = classifyPostizError(p.error, "tiktok").kind;
+  return noText(p) || (kind !== "unknown" && TIKTOK_PAUSE_KINDS.includes(kind));
 }
 
 /** When an event happened: when the watcher first saw it (an error, a post gone), else the post's own time. */
@@ -1475,7 +1531,8 @@ const isEventReason = (r: AutonomyPauseReason) => EVENT_REASONS.includes(r);
  *    the events the pause has recorded are not taken again.
  *  - TikTok's own errors on a consented TikTok account (isTikTokOwnError) are TikTok's alone: they come back as
  *    `tiktokPause` (tiktokCheck), never as the switch's pause, and a TikTok account off or needing a reconnect is not a
- *    warning about every account. Any other failed post of its own on TikTok, and an unknown text there, pause everything.
+ *    warning about every account. One TikTok's own pause took stays TikTok's after TikTok is unticked or the account is
+ *    reconnected (tiktokTaken). Any other failed post of its own on TikTok, and an unknown text there, pause everything.
  */
 export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): AutonomyCheck {
   const consent = state.consent;
@@ -1512,9 +1569,10 @@ export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): Auton
   const since = Math.max(ms(consent.at), Number.isFinite(resumed) ? resumed : -Infinity);
   const consented = new Set(consent.accounts.map((a) => a.channelId));
   const tiktokIds = tiktokAccountsOf(consent);
-  // TikTok's own warnings are TikTok's (tiktokCheck)
+  // TikTok's own warnings are TikTok's (tiktokCheck), and so is every error its own pause took, ever since
   const isHealth = (p: AccountPost) => consented.has(p.channelId) && !tiktokIds.has(p.channelId) && p.state === "ERROR" && isAccountHealth(classifyPostizError(p.error, p.platform).kind);
-  const tiktokOwn = (p: AccountPost) => isTikTokOwnError(p, tiktokIds, ctx);
+  const takenUntil = tiktokTakenUntil(state);
+  const tiktokOwn = (p: AccountPost) => isTikTokOwnError(p, tiktokIds, ctx) || tiktokTaken(p, takenUntil, ctx);
 
   // a warning about an account: on any post of a consented account, whoever made it, or the account off in Postiz. Every
   // account warned since the cooldown was recorded, and every account off that the warning's pause on now is not about yet
@@ -1772,8 +1830,34 @@ export function watchNeeded(posts: readonly AccountPost[], now: number): boolean
 
 /* ------------------------------------------------------------------ the consent screen */
 
+/**
+ * TikTok's choices as the consent screen holds them, each unset until the owner picks it. `disclosure` is the screen's "Does it
+ * promote something": No (false: neither option), or Yes (true), and then Your brand, Branded content or both. It is not
+ * recorded: the two toggles are.
+ */
+export type TikTokChoicesDraft = Partial<AutonomyTikTok> & { disclosure?: boolean };
+
 /** An account as the consent screen holds it: TikTok's choices made one by one, each unset until the owner picks it. */
-export type AutonomyAccountDraft = Omit<AutonomyAccount, "tiktok"> & { tiktok?: Partial<AutonomyTikTok> | null };
+export type AutonomyAccountDraft = Omit<AutonomyAccount, "tiktok"> & { tiktok?: TikTokChoicesDraft | null };
+
+/**
+ * What TikTok's content sharing guidelines (3a and 4, updated 4 Aug 2026) have the consent screen say for a TikTok account's
+ * disclosure, the lines TikTok asks an app to show before each post:
+ *  - `label`: the label TikTok puts on the posts, shown as its prompt: "promotional" for Your brand alone ('Your photo/video
+ *    will be labeled as "Promotional content"'), "paidPartnership" for Branded content, alone or with Your brand ('... labeled
+ *    as "Paid partnership"'), null with no disclosure or the inbox (where TikTok asks it);
+ *  - `declaration`: the line before Turn on, "musicUsage" ('By posting, you agree to TikTok's Music Usage Confirmation.') or,
+ *    with Branded content, "brandedContent" ('By posting, you agree to TikTok's Branded Content Policy and Music Usage
+ *    Confirmation.');
+ *  - `pickOne`: Yes picked and neither option, when TikTok's hint shows ('You need to indicate if your content promotes
+ *    yourself, a third party, or both.') and Turn on stays disabled (consentProblems "tiktokDisclosure").
+ */
+export function tiktokDisclosureOf(t: TikTokChoicesDraft | null | undefined): { label: "promotional" | "paidPartnership" | null; declaration: "musicUsage" | "brandedContent"; pickOne: boolean } {
+  if (!t || t.content_posting_method === "UPLOAD") return { label: null, declaration: "musicUsage", pickOne: false };
+  const branded = t.brand_content_toggle === true;
+  const organic = t.brand_organic_toggle === true;
+  return { label: branded ? "paidPartnership" : organic ? "promotional" : null, declaration: branded ? "brandedContent" : "musicUsage", pickOne: t.disclosure === true && !branded && !organic };
+}
 
 /** What the owner chose on the consent screen. */
 export interface ConsentDraft {
@@ -1804,7 +1888,8 @@ export type ConsentProblem =
   | "tiktokOff" // a TikTok account ticked while the TikTok tick is off
   | "tiktokNoAccount" // the TikTok tick on, and no TikTok account ticked
   | "tiktokChoices" // a TikTok choice not made
-  | "tiktokBrandedPrivate" // a disclosure with Only me, which TikTok refuses
+  | "tiktokDisclosure" // "Yes, it promotes something", and neither Your brand nor Branded content picked
+  | "tiktokBrandedPrivate" // Branded content with Only me, which TikTok refuses
   | "notUnderstood"
   | "notRecordable";
 
@@ -1819,7 +1904,9 @@ const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => 
  * record makeConsent writes must be the one the next load reads back (sanitizeAutonomy), or the switch would turn Off with no
  * reason said: a workspace Postiz did not name ("workspaceUnknown") or anything else the stored block cannot hold
  * ("notRecordable") keeps it off. TikTok: an account only with the TikTok tick, the tick only with a TikTok account, and every
- * TikTok choice made (with the inbox, only how it posts), with no disclosure on Only me.
+ * TikTok choice made, with no Branded content on Only me and, once Yes is picked for "Does it promote something", Your brand,
+ * Branded content or both. With the inbox only how it posts is asked: the screen hides the rest, so what was picked there
+ * before the inbox is not read, and the most private values are recorded (tiktokChoicesOf).
  */
 export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ConsentProblem[] {
   const out: ConsentProblem[] = [];
@@ -1841,8 +1928,9 @@ export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext):
     if (a.platform === "tiktok") {
       if (draft.tiktok !== true) out.push("tiktokOff");
       const t = a.tiktok;
-      if (t?.content_posting_method === "DIRECT_POST" && t.privacy_level === "SELF_ONLY" && (t.brand_content_toggle === true || t.brand_organic_toggle === true)) out.push("tiktokBrandedPrivate");
-      else if (!cleanTikTok(t)) out.push("tiktokChoices");
+      if (t?.content_posting_method === "DIRECT_POST" && tiktokBrandedPrivate(t)) out.push("tiktokBrandedPrivate");
+      else if (tiktokDisclosureOf(t).pickOne) out.push("tiktokDisclosure");
+      else if (!tiktokChoicesOf(t)) out.push("tiktokChoices");
     }
   }
   if (draft.tiktok === true && !draft.accounts.some((a) => a.platform === "tiktok")) out.push("tiktokNoAccount");
@@ -1879,8 +1967,9 @@ export function makeConsent(draft: ConsentDraft, ctx: Pick<AutonomyContext, "now
     postiz: workspace,
     accounts: draft.accounts.map((a): AutonomyAccount => {
       const { tiktok: drafted, ...rest } = a;
-      // TikTok's choices as they are recorded (the inbox's most private values filled in); none on any other account
-      const tiktok = a.platform === "tiktok" ? cleanTikTok(drafted) : null;
+      // TikTok's choices as they are recorded (the inbox's most private values filled in, whatever the screen held before the
+      // inbox was picked); none on any other account
+      const tiktok = a.platform === "tiktok" ? tiktokChoicesOf(drafted) : null;
       return { ...rest, profile: ctx.postiz.channels.find((l) => l.id === a.channelId)?.profile ?? "", youtube: a.platform === "youtube" ? a.youtube : null, trialPairs: familyOf(a.platform) === "instagram" ? a.trialPairs : 0, ...(tiktok ? { tiktok } : {}) };
     }),
     practise: draft.practise,
@@ -1907,7 +1996,7 @@ export function consentWidens(prev: AutonomyConsent | null, next: Pick<AutonomyC
     if (a.youtube && before.youtube) {
       if (VISIBILITY_REACH[a.youtube.type] > VISIBILITY_REACH[before.youtube.type] || a.youtube.selfDeclaredMadeForKids !== before.youtube.selfDeclaredMadeForKids) return true;
     } else if (a.youtube && !before.youtube) return true;
-    if (a.platform === "tiktok" && (next.tiktok !== true || canonical(cleanTikTok(a.tiktok)) !== canonical(cleanTikTok(before.tiktok)) || !cleanTikTok(a.tiktok))) return true;
+    if (a.platform === "tiktok" && (next.tiktok !== true || canonical(tiktokChoicesOf(a.tiktok)) !== canonical(tiktokChoicesOf(before.tiktok)) || !tiktokChoicesOf(a.tiktok))) return true;
   }
   return false;
 }

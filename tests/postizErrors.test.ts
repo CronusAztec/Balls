@@ -92,7 +92,8 @@ describe("Postiz's error table", () => {
       ["Access token invalid, please re-authenticate your TikTok account", "accountFix"],
       ["Missing required permissions, please re-authenticate with all scopes", "accountFix"],
       ["Additional permissions required, please re-authenticate", "accountFix"],
-      ["TikTok API rate limit exceeded, please try again later", "app"],
+      // TikTok's limit on the account's own access token (a few requests a minute), not on the app Postiz posts through
+      ["TikTok API rate limit exceeded, please try again later", "rateLimit"],
       ["File format is invalid, please check video specifications", "media"],
       ["In order to use the TikTok upload feature, you have to update your app to the latest version", "accountFix"],
       ["Video duration is invalid, please check video specifications", "media"],
@@ -127,7 +128,8 @@ describe("Postiz's error table", () => {
     expect(POSTIZ_ERRORS.filter((e) => e.platform === "tiktok").length + 1).toBe(tiktok.length); // the byte-range sentence is shared
     expect(POSTIZ_ERRORS.find((e) => e.message === "The media storage did not return the requested byte range, please try again")?.platform).toBe("any");
     expect(TIKTOK_APP_PRIVATE_ONLY).toBe("App not approved for public posting, contact support");
-    expect(TIKTOK_PAUSE_KINDS).toEqual(["accountHealth", "dailyLimit", "accountFix", "app", "privacy"]);
+    expect(TIKTOK_PAUSE_KINDS).toEqual(["accountHealth", "dailyLimit", "accountFix", "app", "rateLimit", "privacy"]);
+    expect(isAccountHealth("rateLimit")).toBe(false);
     // the longer spam sentence is itself, not the shorter one it holds
     expect(classifyPostizError("TikTok detected potential spam in the post text").entry?.message).toBe("TikTok detected potential spam in the post text");
   });
@@ -141,6 +143,7 @@ describe("Postiz's error table", () => {
     expect(classifyPostizError(status("privacy_level_option_mismatch"), "tiktok")).toMatchObject({ kind: "privacy", by: "marker" });
     expect(classifyPostizError(status("unaudited_client_can_only_post_to_private_accounts"), "tiktok")).toMatchObject({ kind: "app", by: "marker", entry: { message: TIKTOK_APP_PRIVATE_ONLY } });
     expect(classifyPostizError(status("reached_active_user_cap"), "tiktok")).toMatchObject({ kind: "app", by: "marker" });
+    expect(classifyPostizError(status("rate_limit_exceeded"), "tiktok")).toMatchObject({ kind: "rateLimit", by: "marker" });
     // Postiz checks the privacy before its catch-all "internal"
     expect(postizErrorKind('{"error":{"code":"privacy_level_option_mismatch","message":"internal check"}}', "tiktok")).toBe("privacy");
     // TikTok's plain words are no marker elsewhere: an unknown text that holds them stays unknown (fail closed)
@@ -152,6 +155,23 @@ describe("Postiz's error table", () => {
     // a FAILED status Postiz does not map comes back with no text
     expect(postizErrorKind("", "tiktok")).toBe("unknown");
     expect(postizErrorKind("TikTok rejected the video", "tiktok")).toBe("unknown");
+  });
+
+  // social.abstract.ts at v2.25.3: TikTok's upload asks the media's size with a HEAD request (mediaSize) and reads a local file
+  // only inside Postiz's upload folder (localMediaPath); both throw a bad body, so GET /posts shows them
+  it("knows the media sentences TikTok's upload reads through, on every platform", () => {
+    for (const text of ["Could not determine the media size for upload", "The media for this post is not in the upload directory, so it was not published"]) {
+      for (const platform of ["tiktok", "instagram", "youtube", null]) expect(classifyPostizError(text, platform), `${text} on ${platform}`).toMatchObject({ kind: "media", by: "message" });
+      expect(POSTIZ_ERRORS.find((e) => e.message === text)?.platform).toBe("any");
+    }
+  });
+
+  // public.integrations.controller.ts: POST /posts refuses a text past the provider's maxLength (2000 on TikTok) before it
+  // creates anything, with a 400 whose body holds the sentence
+  it("names the public route's refusal of a text that is too long, in the 400's body too", () => {
+    expect(classifyPostizError("post is too long, please fix it", "tiktok")).toMatchObject({ kind: "other", by: "message" });
+    expect(postizErrorKind(JSON.stringify({ statusCode: 400, provider: "tiktok", name: "jbl", message: "post is too long, please fix it" }), "tiktok")).toBe("other");
+    expect(POSTIZ_ERRORS.find((e) => e.message === "post is too long, please fix it")?.platform).toBe("any");
   });
 
   it("calls anything else unknown, Postiz's catch-all included", () => {

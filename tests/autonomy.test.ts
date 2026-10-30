@@ -39,10 +39,12 @@ import {
   stampText,
   testQuestionsOf,
   tickableChannels,
+  tiktokDisclosureOf,
   tiktokPartProblems,
   tiktokPaused,
   tiktokResumeProblems,
   tiktokResumed,
+  tiktokScored,
   turnedOff,
   watchNeeded,
   withoutChannels,
@@ -57,6 +59,7 @@ import {
   type AutonomySettings,
   type AutonomyTikTok,
   type ItemOutcome,
+  type TikTokChoicesDraft,
 } from "@/lib/desktop/autonomy";
 import { POSTIZ_ERRORS, TIKTOK_APP_PRIVATE_ONLY } from "@/lib/desktop/postizErrors";
 import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
@@ -1386,6 +1389,12 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       }, "tiktokChoices");
       const brandedWorld = tiktokWorld(branded);
       expect(() => requestOfProposal(brandedWorld.item, NOW + 75 * MIN, brandedWorld.state.consent!)).toThrow(/TikTok choices/);
+      // a record held in memory with more than TikTok's choices (a title the text gate never reads, music): only the choices
+      // the request was checked on go out, and nothing else the record carries
+      const extra = { ...TT_PUBLIC, title: "Go viral: link in bio jumpingballs.live", autoAddMusic: "yes", music: { id: "m-1" } } as unknown as AutonomyTikTok;
+      const held = tiktokWorld(extra);
+      expect(outcomeOf(held)).toEqual({ itemId: "it-1", kind: "create", at: NOW + 75 * MIN, request: { clipId: "clip-1", channels: [{ id: "tt-1", platform: "tiktok", text: "Red escapes first. Watch until the end 🔊 #satisfying", settings: sent(TT_PUBLIC) }], when: iso(NOW + 75 * MIN) } });
+      expect(requestOfProposal(held.item, NOW + 75 * MIN, held.state.consent!).channels[0].settings).not.toHaveProperty("title");
     });
 
     it("keeps a TikTok account in the stored block only with the tick and every choice, never widened", () => {
@@ -1451,6 +1460,17 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
         tiktokOn(w);
         onTikTok([ttChannel({ text: `Red escapes first. ${"a".repeat(2200)}` })])(w);
       }, "cardRules");
+      // Postiz's TikTok provider takes 2000 characters, and POST /posts refuses more before it creates anything: a refused
+      // create of its own would pause everything, so 2001 to 2200 wait for the person too
+      const caption = (length: number) => tiktokWorld(TT_PUBLIC, [ttChannel({ text: `Red escapes first. ${"a".repeat(length - "Red escapes first. ".length)}` })]);
+      expect(outcomeOf(caption(2000)).kind).toBe("create");
+      expect(outcomeOf(caption(2001))).toMatchObject({ kind: "wait", final: true, card: [{ key: "postizProblemTextLong", params: { max: 2000 }, channelId: "tt-1" }] });
+      // and if one is refused all the same, it is named, not an unknown text
+      const refused = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW - H), by: "app", state: "ERROR", error: JSON.stringify({ statusCode: 400, provider: "tiktok", name: "jbl", message: "post is too long, please fix it" }), platform: "tiktok", seenAt: iso(NOW - MIN) })];
+      });
+      expect(pauseCheck(refused.state, refused.ctx).pause?.reason).toBe("ownPostFailed");
       // the practice day: shown, never sent
       const practice = tiktokWorld(TT_PUBLIC, undefined, (w) => {
         w.state.consent!.at = iso(NOW - 3 * H);
@@ -1486,6 +1506,9 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
 
   describe("its part splits off where it may not go, and the rest goes on", () => {
     it("sends a test's or a check's TikTok part only to an account consented for Everyone on the profile", () => {
+      // Postiz gets a post id only for a post TikTok publishes for public viewing: Followers, Friends, Only me and the inbox get
+      // no numbers
+      expect([TT_PUBLIC, TT_FOLLOWERS, { ...TT_PUBLIC, privacy_level: "MUTUAL_FOLLOW_FRIENDS" as const }, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const }, TT_INBOX].map(tiktokScored)).toEqual([true, false, false, false, false]);
       const test = { role: "test" as const, testId: "n3.length.standard.short", arm: "short" };
       expect(outcomeOf(tiktokWorld(TT_PUBLIC, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], test))).kind).toBe("create");
       for (const choices of [TT_FOLLOWERS, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const }, TT_INBOX]) {
@@ -1619,9 +1642,11 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       expect(resumed(s, NOW).tiktok).toEqual(s.tiktok);
     });
 
-    it("pauses TikTok until Resume TikTok on the account or the app to fix, and asks the privacy again on a mismatch", () => {
-      const fixes = sentences("accountFix", "app");
+    it("pauses TikTok until Resume TikTok on the account or the app to fix, on its rate limit, and asks the privacy again on a mismatch", () => {
+      const fixes = sentences("accountFix", "app", "rateLimit");
       expect(fixes.length).toBeGreaterThanOrEqual(7);
+      // TikTok's rate limit is on the account's own access token, not on the app Postiz uses: it has a reason of its own
+      expect(sentences("rateLimit")).toEqual(["TikTok API rate limit exceeded, please try again later"]);
       for (const error of fixes) {
         const w = world((x) => {
           tiktokOn(x);
@@ -1630,7 +1655,7 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
         const check = pauseCheck(w.state, w.ctx);
         const kind = POSTIZ_ERRORS.find((e) => e.message === error)!.kind;
         expect(check.pause, error).toBeNull();
-        expect(check.tiktokPause, error).toEqual({ reason: kind === "accountFix" ? "accountFix" : error === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app", at: iso(NOW), until: null, channelId: "tt-1" });
+        expect(check.tiktokPause, error).toEqual({ reason: kind === "accountFix" ? "accountFix" : kind === "rateLimit" ? "rateLimit" : error === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app", at: iso(NOW), until: null, channelId: "tt-1" });
         expect(check.deleteOwn, error).toEqual([]);
         const s = tiktokPaused(w.state, check.tiktokPause!);
         expect(tiktokResumeProblems(s, w.ctx), error).toEqual([]);
@@ -1684,6 +1709,112 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       expect(pauseCheck(unticked.state, unticked.ctx).pause?.reason).toBe("ownPostFailed");
     });
 
+    // "To stop only TikTok, untick it": unticking narrows (the consent's date stays, its TikTok accounts go), and an error
+    // TikTok's own pause took on an earlier tick is still TikTok's, so Instagram and YouTube go on
+    it("keeps an error TikTok's own pause took as TikTok's after TikTok is unticked", () => {
+      const igItem = baseItem({ id: "it-ig", clipId: "clip-ig", video: "job:ig" });
+      for (const [error, reason] of [
+        ["TikTok API rate limit exceeded, please try again later", "rateLimit"],
+        ["TikTok daily user limit reached, please re-connect your account", "app"],
+        ["TikTok detected potential spam", "accountHealth"],
+      ] as const) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [post({ channelId: "tt-1", postId: "own-failed", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error, platform: "tiktok", seenAt: iso(NOW - 90 * MIN) }), ownTikTok];
+        });
+        const first = pauseCheck(w.state, w.ctx);
+        expect(first.pause, error).toBeNull();
+        expect(first.tiktokPause?.reason, error).toBe(reason);
+        const recorded = tiktokPaused(w.state, first.tiktokPause!);
+        const narrowed = { ...recorded.consent!, tiktok: undefined, accounts: recorded.consent!.accounts.filter((a) => a.platform !== "tiktok") };
+        expect(consentWidens(recorded.consent, narrowed), error).toBe(false);
+        const unticked = { ...recorded, consent: narrowed };
+        const later = { ...w.ctx, now: NOW + 5 * MIN, postizNow: NOW + 5 * MIN, queue: [igItem] };
+        const check = pauseCheck(unticked, later);
+        expect(check.pause, error).toBeNull();
+        expect(check.tiktokPause, error).toBeUndefined();
+        // a warning's own still-scheduled TikTok posts still go while its 48 hours run
+        expect(check.deleteOwn, error).toEqual(reason === "accountHealth" ? [{ channelId: "tt-1", postId: "own-tt" }] : []);
+        const d = decideAutonomy(unticked, later, new Map([["clip-ig", baseClip({ id: "clip-ig" })]]));
+        expect(d.status, error).toBe("on");
+        expect(d.items, error).toMatchObject([{ itemId: "it-ig", kind: "create" }]);
+      }
+      // one TikTok's state never took (TikTok unticked before any tick read it) is the switch's, as any failed post of its own
+      const early = world((x) => (x.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error: "TikTok API rate limit exceeded, please try again later", platform: "tiktok", seenAt: iso(NOW - 90 * MIN) })]));
+      expect(pauseCheck(early.state, early.ctx).pause?.reason).toBe("ownPostFailed");
+      // and a media error on its own TikTok post stays everything's, taken or not
+      const media = world((x) => {
+        tiktokOn(x);
+        x.state = tiktokPaused(x.state, { reason: "app", at: iso(NOW), until: null, channelId: "tt-1" });
+        x.ctx.posts = [failure("Video duration is invalid, please check video specifications", "app")];
+      });
+      expect(pauseCheck(media.state, media.ctx).pause?.reason).toBe("ownPostFailed");
+    });
+
+    // the reconnect ends what made it the account to fix, not what TikTok's pause took
+    it("keeps an ERROR with no text read as the account to fix as TikTok's once the account is reconnected, and after Resume TikTok", () => {
+      const reconnecting = LIVE.map((l) => (l.id === "tt-1" ? { ...l, refreshNeeded: true } : l));
+      for (const by of ["app", "user"] as const) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting };
+          x.ctx.posts = [post({ channelId: "tt-1", postId: `no-text-${by}`, at: iso(NOW - 2 * H), by, state: "ERROR", error: null, platform: "tiktok", seenAt: iso(NOW - 90 * MIN) })];
+        });
+        const first = pauseCheck(w.state, w.ctx);
+        expect(first, by).toMatchObject({ pause: null, tiktokPause: { reason: "accountFix", channelId: "tt-1" } });
+        const recorded = tiktokPaused(w.state, first.tiktokPause!);
+        // reconnected in Postiz, 30 minutes later: neither pause is new, and Resume TikTok is one press
+        const fixed = { ...w.ctx, now: NOW + 30 * MIN, postizNow: NOW + 30 * MIN, postiz: { ...w.ctx.postiz, channels: LIVE } };
+        expect(pauseCheck(recorded, fixed), by).toEqual({ off: null, pause: null, deleteOwn: [] });
+        expect(tiktokResumeProblems(recorded, fixed), by).toEqual([]);
+        expect(resumeProblems({ ...recorded, pause: { reason: "user", at: iso(NOW - H), until: null, channelId: null } }, fixed), by).toEqual([]);
+        // after Resume TikTok too
+        const back = tiktokResumed(recorded, NOW + 35 * MIN);
+        expect(pauseCheck(back, { ...fixed, now: NOW + 40 * MIN, postizNow: NOW + 40 * MIN }), by).toEqual({ off: null, pause: null, deleteOwn: [] });
+      }
+    });
+
+    // Postiz shows a disconnect with its sentence and marks the channel as needing a reconnect on the same read
+    // (post.activity.ts handleDisconnect); only a refresh-token failure comes back with no text
+    it("reads a disconnect as Postiz shows it: its sentence and the channel needing a reconnect at once", () => {
+      const reconnecting = (id: string) => LIVE.map((l) => (l.id === id ? { ...l, refreshNeeded: true } : l));
+      // TikTok's daily user limit: TikTok's own app pause, until the account is reconnected and Resume TikTok is pressed
+      const tt = world((x) => {
+        tiktokOn(x);
+        x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting("tt-1") };
+        x.ctx.posts = [failure("TikTok daily user limit reached, please re-connect your account", "app"), ownTikTok, ownInstagram];
+      });
+      const ttCheck = pauseCheck(tt.state, tt.ctx);
+      expect(ttCheck).toEqual({ off: null, pause: null, deleteOwn: [], tiktokPause: { reason: "app", at: iso(NOW), until: null, channelId: "tt-1" } });
+      const ttPaused = tiktokPaused(tt.state, ttCheck.tiktokPause!);
+      expect(tiktokResumeProblems(ttPaused, tt.ctx)).toEqual(["accountDisabled"]);
+      expect(tiktokResumeProblems(ttPaused, { ...tt.ctx, postiz: { ...tt.ctx.postiz, channels: LIVE } })).toEqual([]);
+      // Instagram's log-in checkpoint, on a person's post: a warning about the account, everything for 48 hours, and its own
+      // still-scheduled posts there removed
+      const ig = world((x) => {
+        x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting("ig-1") };
+        x.ctx.posts = [post({ channelId: "ig-1", postId: "person-ig", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram requires you to log in at instagram.com and follow its instructions before posting can resume. After that, please reconnect this channel.", platform: "instagram", seenAt: iso(NOW - MIN) }), ownInstagram];
+      });
+      expect(pauseCheck(ig.state, ig.ctx)).toEqual({ off: null, pause: { reason: "accountHealth", at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "ig-1" }, deleteOwn: [{ channelId: "ig-1", postId: "own-ig" }] });
+    });
+
+    // social.abstract.ts's media sentences on TikTok's upload: a person's failed post pauses nothing, one of its own pauses
+    // everything as a failed post of its own (never as an unknown text)
+    it("knows the media sentences of TikTok's upload: a person's failed post pauses nothing", () => {
+      for (const error of ["Could not determine the media size for upload", "The media for this post is not in the upload directory, so it was not published"]) {
+        const person = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error)];
+        });
+        expect(pauseCheck(person.state, person.ctx), error).toEqual({ off: null, pause: null, deleteOwn: [] });
+        const own = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error, "app")];
+        });
+        expect(pauseCheck(own.state, own.ctx).pause?.reason, error).toBe("ownPostFailed");
+      }
+    });
+
     it("keeps TikTok's 48 hours through Off and a new consent, in the stored block too", () => {
       const w = world((x) => {
         tiktokOn(x);
@@ -1706,7 +1837,7 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
   describe("the consent screen", () => {
     const ctx = () => ({ ...baseCtx(), cooldown: null });
     const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
-    const tt = (tiktok: Partial<AutonomyTikTok> | null = TT_PUBLIC) => ({ channelId: "tt-1", platform: "tiktok" as const, profile: "", perDay: 2, trialPairs: 0, youtube: null, tiktok });
+    const tt = (tiktok: TikTokChoicesDraft | null = TT_PUBLIC) => ({ channelId: "tt-1", platform: "tiktok" as const, profile: "", perDay: 2, trialPairs: 0, youtube: null, tiktok });
 
     it("offers TikTok accounts only after the TikTok tick, none ticked, and TikTok Business never", () => {
       expect(tickableChannels(LIVE).waits.map((c) => c.id)).toContain("tt-1");
@@ -1715,7 +1846,7 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       expect(waits.map((c) => c.id)).toEqual(["tb-1", "fb-1"]);
     });
 
-    it("turns on only with the tick, a TikTok account and every TikTok choice made, with no disclosure on Only me", () => {
+    it("turns on only with the tick, a TikTok account and every TikTok choice made, with no Branded content on Only me", () => {
       expect(consentProblems({ accounts: [ig, tt()], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
       expect(consentProblems({ accounts: [ig, tt()], understood: true, practise: true }, ctx())).toEqual(["tiktokOff"]);
       expect(consentProblems({ accounts: [ig], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokNoAccount"]);
@@ -1725,10 +1856,44 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
         delete choices[key];
         expect(consentProblems({ accounts: [tt(choices)], understood: true, practise: true, tiktok: true }, ctx()), key).toEqual(["tiktokChoices"]);
       }
-      expect(consentProblems({ accounts: [tt({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_organic_toggle: true })], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokBrandedPrivate"]);
-      expect(consentProblems({ accounts: [tt({ ...TT_PUBLIC, privacy_level: "SELF_ONLY" })], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
+      // TikTok's rule is Branded content's (content sharing guidelines 3b): never Only me. Your brand may be Only me, which an
+      // app TikTok has not audited allows alone, and Branded content may be Followers
+      const turnOn = (choices: Partial<AutonomyTikTok>) => consentProblems({ accounts: [tt(choices)], understood: true, practise: true, tiktok: true }, ctx());
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_content_toggle: true })).toEqual(["tiktokBrandedPrivate"]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_content_toggle: true, brand_organic_toggle: true })).toEqual(["tiktokBrandedPrivate"]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_organic_toggle: true })).toEqual([]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "FOLLOWER_OF_CREATOR", brand_content_toggle: true })).toEqual([]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY" })).toEqual([]);
+      // recorded as chosen, kept by the stored block, and sent as chosen
+      const ownBrand: AutonomyTikTok = { ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_organic_toggle: true };
+      const made = makeConsent({ accounts: [tt(ownBrand)], understood: true, practise: true, tiktok: true }, ctx())!;
+      expect(made.accounts[0].tiktok).toEqual(ownBrand);
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent).toEqual(made);
+      const w = tiktokWorld(ownBrand);
+      expect(requestOfProposal(w.item, NOW + 75 * MIN, w.state.consent!).channels[0].settings).toEqual(sent(ownBrand));
       // TikTok Business is never allowed, whatever it is called
       expect(consentProblems({ accounts: [{ ...tt(), channelId: "tb-1" }], understood: true, practise: true, tiktok: true }, ctx())).toContain("accountNotAllowed");
+    });
+
+    // TikTok's content sharing guidelines 3a and 4: the label TikTok puts on the posts, the declaration line, and the hint
+    // that keeps Turn on disabled while Yes is picked with neither option
+    it("says the label TikTok puts on the posts and its declaration line, and waits while Yes is picked with neither option", () => {
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC })).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_organic_toggle: true })).toEqual({ label: "promotional", declaration: "musicUsage", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_content_toggle: true })).toEqual({ label: "paidPartnership", declaration: "brandedContent", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_organic_toggle: true, brand_content_toggle: true })).toEqual({ label: "paidPartnership", declaration: "brandedContent", pickOne: false });
+      expect(tiktokDisclosureOf(null)).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      // the inbox asks nothing of it here: TikTok asks it in its own app
+      expect(tiktokDisclosureOf({ content_posting_method: "UPLOAD", brand_content_toggle: true })).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      // "Does it promote something": Yes, and neither option picked
+      const yes = { ...TT_PUBLIC, disclosure: true };
+      expect(tiktokDisclosureOf(yes).pickOne).toBe(true);
+      expect(consentProblems({ accounts: [tt(yes)], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokDisclosure"]);
+      const picked = { ...yes, brand_organic_toggle: true };
+      expect(consentProblems({ accounts: [tt(picked)], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
+      // what the screen asked is not recorded: the two toggles are
+      expect(makeConsent({ accounts: [tt(picked)], understood: true, practise: true, tiktok: true }, ctx())!.accounts[0].tiktok).toEqual({ ...TT_PUBLIC, brand_organic_toggle: true });
+      expect(consentProblems({ accounts: [tt({ ...TT_PUBLIC, disclosure: false })], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
     });
 
     it("records the tick and each account's choices, with the inbox's most private values filled in, as the next load reads them", () => {
@@ -1740,6 +1905,14 @@ describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () =
       expect(made.accounts[0]).not.toHaveProperty("tiktok");
       expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent).toEqual(made);
       expect(makeConsent({ accounts: [ig], understood: true, practise: true }, ctx())).not.toHaveProperty("tiktok");
+      // the inbox picked after other choices: the screen hides them, so they are not read, and the most private values are
+      // recorded (a stored record that says otherwise is still dropped)
+      for (const before of [{ privacy_level: "PUBLIC_TO_EVERYONE" as const }, { comment: true }, TT_PUBLIC, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const, brand_content_toggle: true }]) {
+        const switched = { accounts: [ig, tt({ ...before, content_posting_method: "UPLOAD" })], understood: true, practise: true, tiktok: true };
+        expect(consentProblems(switched, ctx()), JSON.stringify(before)).toEqual([]);
+        expect(makeConsent(switched, ctx())!.accounts[1].tiktok, JSON.stringify(before)).toEqual(TT_INBOX);
+        expect(consentWidens(made, { accounts: makeConsent(switched, ctx())!.accounts, tiktok: true }), JSON.stringify(before)).toBe(false);
+      }
     });
 
     it("asks again on ticking TikTok, a new TikTok account and any change to a TikTok choice, never on unticking it", () => {

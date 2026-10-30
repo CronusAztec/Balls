@@ -81,7 +81,9 @@ Provider settings the approval card must collect (Postiz validates them, so the 
   `duet`, `stitch`, `comment`, `brand_content_toggle`, `brand_organic_toggle`, `content_posting_method` (DIRECT_POST | UPLOAD),
   `video_made_with_ai`, `autoAddMusic` ("yes" | "no"), optional `title` (≤ 90). TikTok's audit rules require the user to choose privacy and the three interaction
   settings every time, with no defaults – the card shows them unset. Until TikTok audits the Postiz app in use, posts go out
-  SELF_ONLY whatever was chosen; the card says so.
+  SELF_ONLY whatever was chosen; the card says so. Branded content cannot be SELF_ONLY (TikTok's rule; "Your brand" alone may
+  be). The text is at most 2000 characters: Postiz's TikTok provider's `maxLength`, which `POST /posts` checks ("post is too
+  long, please fix it"), below TikTok's own 2200.
 - **Instagram** `__type:"instagram"` (Facebook-linked) or `"instagram-standalone"`: `post_type` post (a Reel when the media is one
   video) | story; optional trial reel, collaborators. Reels are always public. Postiz asks for MP4 ≤ 300 MB, 1920 px wide, 25 Mbps.
 - **YouTube** `__type:"youtube"`: `title` (2–100), `type` public | private | unlisted, `selfDeclaredMadeForKids` ("yes" | "no"), `tags`, optional
