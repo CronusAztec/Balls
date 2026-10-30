@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_HEALTH_KINDS, POSTIZ_ERRORS, POSTIZ_ERRORS_POSTIZ, POSTIZ_ERROR_KINDS, classifyPostizError, familyOfPlatform, isAccountHealth, postizErrorKind } from "@/lib/desktop/postizErrors";
+import { ACCOUNT_HEALTH_KINDS, POSTIZ_ERRORS, POSTIZ_ERRORS_POSTIZ, POSTIZ_ERROR_KINDS, TIKTOK_APP_PRIVATE_ONLY, TIKTOK_PAUSE_KINDS, classifyPostizError, familyOfPlatform, isAccountHealth, postizErrorKind } from "@/lib/desktop/postizErrors";
 import { familyOf } from "@/lib/desktop/socialCard";
 import { importsOf, mainBundleInputs } from "./mainBundle";
 
 /*
  * --- autonomy --- Postiz's own error sentences (lib/desktop/postizErrors.ts): the literal strings of Postiz v2.25.3's
- * instagram.provider.ts and youtube.provider.ts map to their kinds, a text holding only the platform's code is matched by
- * the code, and a text the table does not know is "unknown" (Fully autonomous pauses on it).
+ * instagram.provider.ts, youtube.provider.ts and tiktok.provider.ts map to their kinds, a text holding only the platform's
+ * code is matched by the code, and a text the table does not know is "unknown" (Fully autonomous pauses on it).
  */
 
 // --- autonomy ---
@@ -85,6 +85,75 @@ describe("Postiz's error table", () => {
     expect(postizErrorKind("Error validating access token: The session has been invalidated because the user changed their password", "instagram")).toBe("accountHealth");
   });
 
+  // the owner's answer of 30 Oct 2026: TikTok posts on its own too, so the app must know what Postiz's TikTok provider says
+  // (tiktok.provider.ts at v2.25.3, unchanged at main of 28 Oct 2026, read 30 Oct 2026)
+  it("maps every sentence of Postiz's TikTok provider to its kind", () => {
+    const tiktok: [string, string][] = [
+      ["Access token invalid, please re-authenticate your TikTok account", "accountFix"],
+      ["Missing required permissions, please re-authenticate with all scopes", "accountFix"],
+      ["Additional permissions required, please re-authenticate", "accountFix"],
+      ["TikTok API rate limit exceeded, please try again later", "app"],
+      ["File format is invalid, please check video specifications", "media"],
+      ["In order to use the TikTok upload feature, you have to update your app to the latest version", "accountFix"],
+      ["Video duration is invalid, please check video specifications", "media"],
+      ["Video frame rate is invalid, please check video specifications", "media"],
+      ["Failed to pull video from URL, please check the URL", "media"],
+      ["Failed to pull photo from URL, please check the URL", "media"],
+      ["Account banned from posting, please check TikTok account status", "accountHealth"],
+      ["TikTok detected potential spam in the post text", "accountHealth"],
+      ["TikTok says your daily post limit reached, please try again tomorrow", "dailyLimit"],
+      ["TikTok limits pending posts to 5 within any 24-hour period. Please check your TikTok inbox in the TikTok mobile app and try again after 24 hours.", "dailyLimit"],
+      ["TikTok detected potential spam", "accountHealth"],
+      ["TikTok daily user limit reached, please re-connect your account", "app"],
+      ["App not approved for public posting, contact support", "app"],
+      ["You have to upload the picture/video to Postiz when sending a URL", "media"],
+      ["Privacy level mismatch, please check privacy settings", "privacy"],
+      ["Invalid file format or specifications not met", "media"],
+      ["Invalid request parameters, please check content format", "other"],
+      ["There is a problem with TikTok servers, please try again later", "other"],
+      ["Media size not supported by TikTok: images up to 1080px on the shorter side, videos at least 360px on both sides", "media"],
+      ["TikTok API error, please try again", "other"],
+      ["Failed to upload the video to TikTok", "media"],
+      ["The media storage did not return the requested byte range, please try again", "media"],
+      ["TikTok refused to publish your post", "other"],
+      ["No video / images selected", "media"],
+      ["Only pictures are supported when selecting multiple items", "media"],
+      ["You need one media", "media"],
+    ];
+    for (const [text, kind] of tiktok) {
+      expect(classifyPostizError(text, "tiktok"), text).toMatchObject({ kind, by: "message" });
+      expect(postizErrorKind(text), text).toBe(kind);
+    }
+    expect(POSTIZ_ERRORS.filter((e) => e.platform === "tiktok").length + 1).toBe(tiktok.length); // the byte-range sentence is shared
+    expect(POSTIZ_ERRORS.find((e) => e.message === "The media storage did not return the requested byte range, please try again")?.platform).toBe("any");
+    expect(TIKTOK_APP_PRIVATE_ONLY).toBe("App not approved for public posting, contact support");
+    expect(TIKTOK_PAUSE_KINDS).toEqual(["accountHealth", "dailyLimit", "accountFix", "app", "privacy"]);
+    // the longer spam sentence is itself, not the shorter one it holds
+    expect(classifyPostizError("TikTok detected potential spam in the post text").entry?.message).toBe("TikTok detected potential spam in the post text");
+  });
+
+  it("matches a TikTok answer holding only its reason by the marker, in Postiz's order, and only on a TikTok post", () => {
+    const status = (reason: string) => JSON.stringify({ data: { status: "FAILED", fail_reason: reason } });
+    expect(classifyPostizError(status("spam_risk_too_many_posts"), "tiktok")).toMatchObject({ kind: "dailyLimit", by: "marker" });
+    expect(classifyPostizError(status("spam_risk_too_many_pending_share"), "tiktok")).toMatchObject({ kind: "dailyLimit", by: "marker" });
+    expect(classifyPostizError(status("spam_risk_user_banned_from_posting"), "tiktok")).toMatchObject({ kind: "accountHealth", by: "marker" });
+    expect(classifyPostizError(status("spam_risk"), "tiktok")).toMatchObject({ kind: "accountHealth", by: "marker" });
+    expect(classifyPostizError(status("privacy_level_option_mismatch"), "tiktok")).toMatchObject({ kind: "privacy", by: "marker" });
+    expect(classifyPostizError(status("unaudited_client_can_only_post_to_private_accounts"), "tiktok")).toMatchObject({ kind: "app", by: "marker", entry: { message: TIKTOK_APP_PRIVATE_ONLY } });
+    expect(classifyPostizError(status("reached_active_user_cap"), "tiktok")).toMatchObject({ kind: "app", by: "marker" });
+    // Postiz checks the privacy before its catch-all "internal"
+    expect(postizErrorKind('{"error":{"code":"privacy_level_option_mismatch","message":"internal check"}}', "tiktok")).toBe("privacy");
+    // TikTok's plain words are no marker elsewhere: an unknown text that holds them stays unknown (fail closed)
+    expect(postizErrorKind('{"error":{"code":"internal"}}', "tiktok")).toBe("other");
+    expect(postizErrorKind('{"error":{"code":"internal"}}', "instagram")).toBe("unknown");
+    expect(postizErrorKind('{"error":{"code":"internal"}}')).toBe("unknown");
+    expect(postizErrorKind(status("spam_risk"), "youtube")).toBe("unknown");
+    expect(postizErrorKind(status("spam_risk"), "tiktok-business")).toBe("unknown");
+    // a FAILED status Postiz does not map comes back with no text
+    expect(postizErrorKind("", "tiktok")).toBe("unknown");
+    expect(postizErrorKind("TikTok rejected the video", "tiktok")).toBe("unknown");
+  });
+
   it("calls anything else unknown, Postiz's catch-all included", () => {
     for (const text of [null, undefined, "", "   ", "Unknown Error", "Something odd happened", "TikTok rejected the video"]) expect(postizErrorKind(text as string | null | undefined)).toBe("unknown");
     expect(classifyPostizError("Something odd happened")).toEqual({ kind: "unknown", entry: null, by: null });
@@ -97,11 +166,14 @@ describe("what the main process bundles", () => {
   const POSTIZ_IDENTIFIERS = ["bluesky", "devto", "discord", "dribbble", "facebook", "gmb", "hashnode", "instagram", "instagram-standalone", "kick", "lemmy", "linkedin", "linkedin-page", "listmonk", "mastodon", "mastodon-custom", "medium", "mewe", "moltbook", "nostr", "pinterest", "reddit", "skool", "slack", "telegram", "threads", "tiktok", "tiktok-business", "tumblr", "twitch", "vk", "whop", "wordpress", "wrapcast", "x", "youtube", "Instagram", ""];
 
   // its own copy of the card's familyOf (the file imports nothing): a family the card learns, or loses, fails here first
-  it("reads Postiz's provider identifiers as the approval card does, for the two families its markers belong to", () => {
+  it("reads Postiz's provider identifiers as the approval card does, for the three families its markers belong to", () => {
     for (const id of POSTIZ_IDENTIFIERS) {
       const card = familyOf(id);
-      expect(familyOfPlatform(id), id).toBe(card === "instagram" || card === "youtube" ? card : null);
+      // TikTok is the table's third family since the owner's answer of 30 Oct 2026; tiktok-business stays outside it
+      expect(familyOfPlatform(id), id).toBe(card === "instagram" || card === "youtube" || card === "tiktok" ? card : null);
     }
+    expect(familyOfPlatform("tiktok")).toBe("tiktok");
+    expect(familyOfPlatform("tiktok-business")).toBeNull();
     expect(familyOfPlatform(null)).toBeNull();
     expect(familyOfPlatform(undefined)).toBeNull();
   });

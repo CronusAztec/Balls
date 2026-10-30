@@ -5,8 +5,8 @@ import type { LearnerSettings } from "@/lib/insights/learnerSettings";
 import type { DialId } from "@/lib/insights/dials";
 import type { ClipReview } from "@/lib/crew/review";
 import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN, inQuietMinutes } from "./autopilot";
-import { YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, type CardChannel, type CardProblem, type YouTubeVisibility } from "./socialCard";
-import { classifyPostizError, isAccountHealth } from "./postizErrors";
+import { TIKTOK_PRIVACY, YOUTUBE_VISIBILITIES, channelProblems, familyOf, providerSettingsOf, type CardChannel, type CardProblem, type TikTokPrivacy, type TikTokSettings, type YouTubeVisibility } from "./socialCard";
+import { TIKTOK_APP_PRIVATE_ONLY, TIKTOK_PAUSE_KINDS, classifyPostizError, isAccountHealth } from "./postizErrors";
 import { textProblems, type TextFacts, type TextLanguage, type TextProblem } from "./autonomyText";
 import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insights/learnerRules";
 
@@ -20,9 +20,16 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insigh
  * It is built to post less than a person could approve, never more:
  *  - Off by default, for everyone. A consent record turns it on: the date, the copy version, the app version, the Postiz
  *    workspace, and for each ticked account its Postiz id, identifier and profile, the posts a day, the Trial Reel pairs and,
- *    on YouTube, the visibility and made-for-kids chosen once. Anything that widens it asks again; Off clears it.
- *  - Instagram and YouTube only (AUTONOMY_PLATFORMS, by Postiz identifier). TikTok, TikTok Business and every other platform
- *    always wait for the person: TikTok asks for a preview and a choice on each post.
+ *    on YouTube, the visibility and made-for-kids chosen once, and on TikTok every choice of Postiz's TikTok settings chosen
+ *    once. Anything that widens it asks again; Off clears it.
+ *  - Instagram and YouTube (AUTONOMY_PLATFORMS, by Postiz identifier), and TikTok only behind the consent's own TikTok tick:
+ *    the owner's answer of 30 Oct 2026, "Include TikTok, I accept the risk". TikTok's rules ask for a preview and a choice on
+ *    each post, which a choice made once does not give; the consent screen says so, and the owner accepted that risk for the
+ *    TikTok account. Every TikTok request carries every TikTok field, from the consent only (Postiz would fill a missing
+ *    privacy with Everyone). TikTok Business (its videos have no privacy) and every other platform always wait for the person.
+ *  - TikTok's part of a learner proposal waits for the person, and the rest goes on, when TikTok paused itself, when the file
+ *    shows the site's address or its end card (TikTok asks apps to add no link or brand line), and when what is not the best
+ *    settings would go to a TikTok account not consented for Everyone on the profile (only public TikTok is scored).
  *  - Only the learner's own proposals: stamped in the main process by social.queue.proposePass (origin "learnerPass", the
  *    pass, the role, the test, each channel's lane and a hash), unchanged since (the hash is taken again), not held, not
  *    edited, from the newest pass, at most 24 hours old, made after the consent, the last Resume and the last time learning
@@ -33,10 +40,10 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insigh
  *    off, once the learner stops trials on its account, and once Postiz says the account cannot post them or hit its Trial
  *    Reel limit (24 hours); a test, check or Trial Reel waits for good once the owner skipped its question or fixed its dial.
  *  - The lane rules: a Trial Reel has exactly one Instagram channel, a Reel (post_type "post"), is_trial_reel and MANUAL; a
- *    test clip, a check's old clip and a newcomer test's rotation clip go only to scored channels (Instagram normal Reels;
- *    TikTok's part is split off); YouTube takes the best settings only, a best clip or a check's new clip (the new best, as
- *    the learner sends it); a best clip carries no trial field; a test, check or Trial Reel carries its test or block, a
- *    Trial Reel its pair; no account is listed twice.
+ *    test clip, a check's old clip and a newcomer test's rotation clip go only to scored channels (Instagram normal Reels and
+ *    TikTok, whose part splits off unless public, above); YouTube takes the best settings only, a best clip or a check's new
+ *    clip (the new best, as the learner sends it); a best clip carries no trial field; a test, check or Trial Reel carries
+ *    its test or block, a Trial Reel its pair; no account is listed twice.
  *  - Only clips the crew kept: a post-stage keep, quick or thorough, with no failed gate, on this very file (its SHA-256 and
  *    size), rendered sealed (never free or sealedTest), never the battle family; words that pass the text gate
  *    (lib/desktop/autonomyText.ts); and the card's own rules for the request it builds itself.
@@ -55,6 +62,12 @@ import { PAIR_GAP_H, PAIRS_PER_DAY_MAX, TRIAL_LIMIT_PAUSE_H } from "@/lib/insigh
  *    changes, on a new consent version, and after more than 48 hours without running. What happens while it is paused is
  *    noted on the pause, so the banner says it before Resume. An app older than the one that recorded the consent turns it
  *    Off.
+ *  - TikTok pauses alone, and Instagram and YouTube carry on, on TikTok's own errors on any post of a consented TikTok account
+ *    (postizErrors.ts TIKTOK_PAUSE_KINDS): a warning or its day's limit for 48 hours (its own cooldown, which Off keeps, and
+ *    its own still-scheduled TikTok posts there removed unless "only tell me"), the account or the app to fix until Resume
+ *    TikTok, and a privacy the account does not offer until its TikTok choices are made again. A TikTok account off or needing
+ *    a reconnect in Postiz is the account to fix, and so is an ERROR with no text on such an account. Any other failed post of
+ *    its own on TikTok pauses everything, as everywhere.
  *
  * Pure and deterministic: no clock (the PC's time and Postiz's come in), no randomness, no file. The hash function, the
  * crew's number reader and the PC's UTC offset at a moment (DST) are passed in. It imports only light modules the main process
@@ -70,9 +83,11 @@ const DAY_MS = 24 * HOUR_MS;
 
 /** The consent screen's copy version: a new one asks again. */
 export const AUTONOMY_CONSENT_VERSION = 1;
-/** The Postiz identifiers the app may post to on its own. */
-export const AUTONOMY_PLATFORMS = ["instagram", "instagram-standalone", "youtube"] as const;
+/** The Postiz identifiers the app may post to on its own: "tiktok" only while the consent's TikTok tick is on (platformAllowed). */
+export const AUTONOMY_PLATFORMS = ["instagram", "instagram-standalone", "youtube", "tiktok"] as const;
 export type AutonomyPlatform = (typeof AUTONOMY_PLATFORMS)[number];
+/** A TikTok account posting to its inbox holds at most this many posts not finished in TikTok in any 24 hours: TikTok refuses a sixth. */
+export const AUTONOMY_TIKTOK_PENDING_MAX = 5;
 /** A post is created only when its time is this far away, at least ... */
 export const AUTONOMY_LEAD_MS = 60 * MINUTE_MS;
 /** ... and at most this far: Postiz never holds more than the next 90 minutes of the app's own posts. */
@@ -118,6 +133,34 @@ export interface AutonomyYouTube {
   selfDeclaredMadeForKids: "yes" | "no";
 }
 
+/**
+ * TikTok's per-post choices, made once per TikTok account on the consent screen, each with no default: the fields of
+ * Postiz's TikTokDto (libraries/nestjs-libraries/src/dtos/posts/providers-settings/tiktok.dto.ts, Postiz v2.25.3), which
+ * POST /posts checks on every post. autoAddMusic is not asked (it does nothing for a video) and is always sent as "no".
+ */
+export interface AutonomyTikTok {
+  /** "Post it on my profile" (DIRECT_POST), or "Send it to my TikTok inbox" (UPLOAD), where TikTok keeps only the caption. */
+  content_posting_method: "DIRECT_POST" | "UPLOAD";
+  /** Who can see it. */
+  privacy_level: TikTokPrivacy;
+  comment: boolean;
+  duet: boolean;
+  stitch: boolean;
+  /** "Your brand": the posts promote the owner or their own business. */
+  brand_organic_toggle: boolean;
+  /** "Branded content": a paid partnership with another brand. */
+  brand_content_toggle: boolean;
+  /** The AI-generated label. */
+  video_made_with_ai: boolean;
+}
+
+/**
+ * With the inbox, Postiz sends TikTok only the caption, and the person picks the rest in TikTok. Postiz still checks its
+ * required fields, so they are filled with their most private values, which it never forwards.
+ */
+export const TIKTOK_INBOX_CHOICES: Readonly<Omit<AutonomyTikTok, "content_posting_method">> = { privacy_level: "SELF_ONLY", comment: false, duet: false, stitch: false, brand_organic_toggle: false, brand_content_toggle: false, video_made_with_ai: false };
+const TIKTOK_SWITCHES = ["comment", "duet", "stitch", "brand_organic_toggle", "brand_content_toggle", "video_made_with_ai"] as const;
+
 /** One account the owner ticked on the consent screen. */
 export interface AutonomyAccount {
   /** Postiz's integration id. */
@@ -132,6 +175,8 @@ export interface AutonomyAccount {
   trialPairs: number;
   /** YouTube's choices (YouTube only, required there). */
   youtube: AutonomyYouTube | null;
+  /** TikTok's choices (TikTok only, required there; absent elsewhere). */
+  tiktok?: AutonomyTikTok;
 }
 
 /** The owner's recorded consent: what turning the switch on approved in advance. */
@@ -146,6 +191,8 @@ export interface AutonomyConsent {
   accounts: AutonomyAccount[];
   /** "Practise for a day first". */
   practise: boolean;
+  /** "Let the app post to TikTok too", the owner's accepted risk for the TikTok accounts (absent: off, and TikTok waits). */
+  tiktok?: boolean;
 }
 
 /** Why autonomy paused (a banner, a notification and an audit line say it). */
@@ -200,6 +247,40 @@ export interface AutonomyCooldown {
   otherChannels?: string[];
 }
 
+/** Why TikTok paused alone (its banner, with its own Resume TikTok, says it). */
+export const AUTONOMY_TIKTOK_PAUSE_REASONS = [
+  "accountHealth", // TikTok warned about a consented TikTok account: banned from posting, or spam (48 hours)
+  "dailyLimit", // the account's day's limit, or its 5 posts waiting in the TikTok inbox (48 hours)
+  "accountFix", // the account's login, permissions or TikTok phone app, or the account off or needing a reconnect in Postiz
+  "app", // the TikTok app Postiz posts through: TikTok's daily user cap, or its rate limit
+  "appPrivateOnly", // the TikTok app Postiz posts through may post only as Only me
+  "privacy", // the account does not offer the privacy chosen: its TikTok choices are made again
+] as const;
+export type AutonomyTikTokPauseReason = (typeof AUTONOMY_TIKTOK_PAUSE_REASONS)[number];
+/** The TikTok pauses that run 48 hours, with their own cooldown. */
+const TIKTOK_HEALTH_REASONS: readonly AutonomyTikTokPauseReason[] = ["accountHealth", "dailyLimit"];
+
+export interface AutonomyTikTokPause {
+  reason: AutonomyTikTokPauseReason;
+  /** ISO time it paused. */
+  at: string;
+  /** Resume TikTok waits until then (ISO), after a warning or the day's limit; null: as soon as the cause is gone. */
+  until: string | null;
+  /** The TikTok account it concerns, when one. */
+  channelId: string | null;
+  /** A warning's pause: the other TikTok accounts warned with it. Absent: none. */
+  otherChannels?: string[];
+}
+
+/** TikTok's own pause, apart from the switch's: Instagram and YouTube carry on while it is on. */
+export interface AutonomyTikTokState {
+  pause: AutonomyTikTokPause | null;
+  /** TikTok's own 48 hours after a warning or its day's limit. Off and a new consent keep it, like the other cooldown. */
+  cooldown: AutonomyCooldown | null;
+  /** ISO time of the last Resume TikTok: TikTok parts made before it never go out on their own. */
+  resumedAt: string | null;
+}
+
 /** The config's "autonomy" block. */
 export interface AutonomySettings {
   /** Null: off (the default, and after Off). */
@@ -213,6 +294,8 @@ export interface AutonomySettings {
   lastRunAt: string | null;
   /** The account-health cooldown, if one was ever recorded (an ended one stays, harmless). */
   cooldown: AutonomyCooldown | null;
+  /** TikTok's own pause, cooldown and last Resume TikTok. Absent: TikTok never paused alone. */
+  tiktok?: AutonomyTikTokState;
 }
 
 export const DEFAULT_AUTONOMY: AutonomySettings = { consent: null, pause: null, resumedAt: null, deleteOnWarning: true, lastRunAt: null, cooldown: null };
@@ -229,6 +312,43 @@ const ms = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 
 export function isAutonomyPlatform(value: unknown): value is AutonomyPlatform {
   return typeof value === "string" && (AUTONOMY_PLATFORMS as readonly string[]).includes(value);
 }
+
+/** Whether the app may post on its own to a Postiz identifier under a consent: the allow-list, and TikTok only with its tick. */
+export function platformAllowed(platform: unknown, consent: Pick<AutonomyConsent, "tiktok"> | null | undefined): boolean {
+  return isAutonomyPlatform(platform) && (platform !== "tiktok" || consent?.tiktok === true);
+}
+
+/**
+ * A TikTok account's choices as the consent records them, or null when one is missing or not valid. With the inbox only the
+ * method is chosen, and the rest is the most private (TIKTOK_INBOX_CHOICES): a record that says otherwise is dropped. On the
+ * profile every field is chosen, and a disclosure with Only me is refused, as on the approval card
+ * (postizProblemTikTokBrandedPrivate).
+ */
+export function cleanTikTok(raw: unknown): AutonomyTikTok | null {
+  if (!isObj(raw)) return null;
+  const method = own(raw, "content_posting_method");
+  if (method === "UPLOAD") {
+    for (const [key, value] of Object.entries(TIKTOK_INBOX_CHOICES)) {
+      const v = own(raw, key);
+      if (v !== undefined && v !== value) return null;
+    }
+    return { content_posting_method: "UPLOAD", ...TIKTOK_INBOX_CHOICES };
+  }
+  if (method !== "DIRECT_POST") return null;
+  const privacy = own(raw, "privacy_level");
+  if (!(TIKTOK_PRIVACY as readonly unknown[]).includes(privacy)) return null;
+  const switches = {} as Record<(typeof TIKTOK_SWITCHES)[number], boolean>;
+  for (const key of TIKTOK_SWITCHES) {
+    const v = own(raw, key);
+    if (typeof v !== "boolean") return null;
+    switches[key] = v;
+  }
+  if (privacy === "SELF_ONLY" && (switches.brand_content_toggle || switches.brand_organic_toggle)) return null;
+  return { content_posting_method: "DIRECT_POST", privacy_level: privacy as TikTokPrivacy, ...switches };
+}
+
+/** Whether a TikTok account's posts are scored: public, on the profile (Postiz gives no post id to Only me or Friends posts). */
+export const tiktokScored = (t: AutonomyTikTok | null | undefined): boolean => !!t && t.content_posting_method === "DIRECT_POST" && t.privacy_level === "PUBLIC_TO_EVERYONE";
 
 /** One stored account, or null when any part of it is not valid (an account is dropped, never widened). */
 export function sanitizeAccount(raw: unknown): AutonomyAccount | null {
@@ -251,7 +371,13 @@ export function sanitizeAccount(raw: unknown): AutonomyAccount | null {
     if (!(YOUTUBE_VISIBILITIES as readonly unknown[]).includes(type) || (kids !== "yes" && kids !== "no")) return null;
     youtube = { type: type as YouTubeVisibility, selfDeclaredMadeForKids: kids };
   } else if (yt !== undefined && yt !== null) return null;
-  return { channelId, platform, profile, perDay, trialPairs, youtube };
+  const tk = own(raw, "tiktok");
+  let tiktok: AutonomyTikTok | null = null;
+  if (platform === "tiktok") {
+    tiktok = cleanTikTok(tk);
+    if (!tiktok) return null;
+  } else if (tk !== undefined && tk !== null) return null;
+  return { channelId, platform, profile, perDay, trialPairs, youtube, ...(tiktok ? { tiktok } : {}) };
 }
 
 /**
@@ -265,7 +391,7 @@ export function consentWorkspace(postiz: { baseUrl?: unknown; organizationId?: u
   return baseUrl && organizationId ? { baseUrl, organizationId } : null;
 }
 
-/** A stored consent, or null: no date, no version, no workspace, or no valid account is no consent. */
+/** A stored consent, or null: no date, no version, no workspace, or no valid account is no consent. A TikTok account without the TikTok tick is dropped. */
 export function sanitizeConsent(raw: unknown): AutonomyConsent | null {
   if (!isObj(raw)) return null;
   const version = own(raw, "version");
@@ -276,17 +402,18 @@ export function sanitizeConsent(raw: unknown): AutonomyConsent | null {
   const workspace = consentWorkspace({ baseUrl: own(postiz, "baseUrl"), organizationId: own(postiz, "organizationId") });
   if (!workspace) return null;
   const { baseUrl, organizationId } = workspace;
+  const tiktok = own(raw, "tiktok") === true;
   const rawAccounts = own(raw, "accounts");
   const accounts: AutonomyAccount[] = [];
   if (Array.isArray(rawAccounts)) {
     for (const a of rawAccounts.slice(0, AUTONOMY_ACCOUNTS_MAX)) {
       const clean = sanitizeAccount(a);
-      if (clean && !accounts.some((x) => x.channelId === clean.channelId)) accounts.push(clean);
+      if (clean && (clean.platform !== "tiktok" || tiktok) && !accounts.some((x) => x.channelId === clean.channelId)) accounts.push(clean);
     }
   }
   if (accounts.length === 0) return null;
   const practise = own(raw, "practise");
-  return { version, at, appVersion, postiz: { baseUrl, organizationId }, accounts, practise: practise !== false };
+  return { version, at, appVersion, postiz: { baseUrl, organizationId }, accounts, practise: practise !== false, ...(tiktok ? { tiktok: true } : {}) };
 }
 
 /** A stored pause note, or null. */
@@ -329,14 +456,8 @@ export function sanitizeAutonomy(raw: unknown): AutonomySettings {
       pause = { reason: head.reason, at: head.at, until: isoOrNull(own(p, "until")), channelId: head.channelId, ...others, ...(also.length ? { also } : {}) };
     }
   }
-  const c = own(raw, "cooldown");
-  let cooldown: AutonomyCooldown | null = null;
-  if (isObj(c)) {
-    const at = isoOrNull(own(c, "at"));
-    const until = isoOrNull(own(c, "until"));
-    const channelId = boundedString(own(c, "channelId"), 511);
-    if (at && until) cooldown = { at, until, channelId, ...sanitizeOthers(own(c, "otherChannels"), channelId) };
-  }
+  const cooldown = sanitizeCooldown(own(raw, "cooldown"));
+  const tiktok = sanitizeTikTokState(own(raw, "tiktok"), consent);
   return {
     consent,
     // a pause without a consent is no pause: off is off
@@ -346,12 +467,41 @@ export function sanitizeAutonomy(raw: unknown): AutonomySettings {
     lastRunAt: isoOrNull(own(raw, "lastRunAt")),
     // the cooldown outlives the consent; a warning's pause stored without one (an older block) still carries it
     cooldown: laterCooldown(cooldown, healthCooldownOf(pause)),
+    ...(tiktok ? { tiktok } : {}),
   };
 }
 
-/** The cooldown an account-health pause carries (one stored without its end: 48 hours from it), or null. */
-function healthCooldownOf(pause: AutonomyPause | null): AutonomyCooldown | null {
-  if (!pause || pause.reason !== "accountHealth") return null;
+/** A stored cooldown, or null. */
+function sanitizeCooldown(c: unknown): AutonomyCooldown | null {
+  if (!isObj(c)) return null;
+  const at = isoOrNull(own(c, "at"));
+  const until = isoOrNull(own(c, "until"));
+  const channelId = boundedString(own(c, "channelId"), 511);
+  return at && until ? { at, until, channelId, ...sanitizeOthers(own(c, "otherChannels"), channelId) } : null;
+}
+
+/** TikTok's stored pause, cooldown and last Resume TikTok, or null when none holds anything. Like the switch's: a pause needs a consent, the cooldown does not. */
+function sanitizeTikTokState(raw: unknown, consent: AutonomyConsent | null): AutonomyTikTokState | null {
+  if (!isObj(raw)) return null;
+  const p = own(raw, "pause");
+  let pause: AutonomyTikTokPause | null = null;
+  if (isObj(p) && consent) {
+    const reason = own(p, "reason");
+    const at = isoOrNull(own(p, "at"));
+    if ((AUTONOMY_TIKTOK_PAUSE_REASONS as readonly unknown[]).includes(reason) && at) {
+      const r = reason as AutonomyTikTokPauseReason;
+      const channelId = boundedString(own(p, "channelId"), 511);
+      pause = { reason: r, at, until: isoOrNull(own(p, "until")), channelId, ...(TIKTOK_HEALTH_REASONS.includes(r) ? sanitizeOthers(own(p, "otherChannels"), channelId) : {}) };
+    }
+  }
+  const cooldown = laterCooldown(sanitizeCooldown(own(raw, "cooldown")), healthCooldownOf(pause, TIKTOK_HEALTH_REASONS));
+  const resumedAt = isoOrNull(own(raw, "resumedAt"));
+  return pause || cooldown || resumedAt ? { pause, cooldown, resumedAt } : null;
+}
+
+/** The cooldown a warning's pause carries (one stored without its end: 48 hours from it), or null. `health`: the reasons that carry one. */
+function healthCooldownOf(pause: Pick<AutonomyPause, "at" | "until" | "channelId" | "otherChannels"> & { reason: string } | null, health: readonly string[] = ["accountHealth"]): AutonomyCooldown | null {
+  if (!pause || !health.includes(pause.reason)) return null;
   return { at: pause.at, until: pause.until ?? new Date(ms(pause.at) + AUTONOMY_HEALTH_COOLDOWN_MS).toISOString(), ...accountsOf(channelsOf(pause)) };
 }
 
@@ -376,6 +526,17 @@ export function cooldownOf(state: Pick<AutonomySettings, "cooldown" | "pause">):
 export function coolingDown(state: Pick<AutonomySettings, "cooldown" | "pause">, now: number): boolean {
   const c = cooldownOf(state);
   return !!c && ms(c.until) > now;
+}
+
+/** TikTok's own cooldown as it stands: the stored one, and its pause's own when it is a warning's or the day's limit. */
+export function tiktokCooldownOf(state: Pick<AutonomySettings, "tiktok">): AutonomyCooldown | null {
+  return laterCooldown(state.tiktok?.cooldown ?? null, healthCooldownOf(state.tiktok?.pause ?? null, TIKTOK_HEALTH_REASONS));
+}
+
+/** Whether TikTok is paused alone at `now`: its own pause, or its own 48 hours still running. */
+export function tiktokPausedAt(state: Pick<AutonomySettings, "tiktok">, now: number): boolean {
+  const c = tiktokCooldownOf(state);
+  return !!state.tiktok?.pause || (!!c && ms(c.until) > now);
 }
 
 /* ------------------------------------------------------------------ what the main process hands in */
@@ -465,6 +626,11 @@ export interface AutonomyClip {
   mode: string | null;
   /** What the clip says, for the text gate. */
   facts: TextFacts;
+  /**
+   * The kinds of the texts drawn on this very file, as the crew lists them (lib/crew/simplicity.ts OverlayKind): TikTok takes
+   * a file on its own only when none is "cutUrl" or "endCard". Null or absent: not known, so TikTok waits.
+   */
+  overlayKinds?: readonly string[] | null;
 }
 
 /** One post on an account, from the audit and from Postiz's own list (so posts made in Postiz itself count too). */
@@ -600,7 +766,7 @@ export const AUTONOMY_REASONS = {
   notProposed: true,
   held: true, // its card was opened
   edited: true,
-  splitOff: true, // the part of a learner proposal the app may not post (TikTok and the rest)
+  splitOff: true, // the part of a learner proposal the app may not post (TikTok without its tick or its rules, and the rest)
   noStamp: true,
   hashChanged: true,
   olderPass: true, // the learner changed its plan since
@@ -654,6 +820,11 @@ export const AUTONOMY_REASONS = {
   profileChanged: true,
   youtubeChoices: true,
   postizOld: true, // Postiz is older than 2.18
+  // TikTok's part of a learner proposal: it splits off and waits for the person, and the rest goes on (accountDisabled too)
+  tiktokPaused: true, // TikTok paused itself or its 48 hours run, or the part was made before the last Resume TikTok
+  tiktokChoices: true, // the consent holds no TikTok choices for the account
+  tiktokUnscored: true, // what is not the best settings, on a TikTok account not consented for Everyone on the profile
+  tiktokWebAddress: true, // the file shows the site's address or its end card, or its texts are not known
   // time and volume
   missedTime: true, // nothing fits in its window any more
   duplicate: true, // this video was posted on the account before (a master and its cut are one)
@@ -706,12 +877,79 @@ export function localOf(at: number, offsetMinAt: (at: number) => number): { day:
 /** Whether a post takes up its account: pending, out, or a create whose answer never came (not a draft, a failure or a deleted one). */
 const occupies = (p: AccountPost) => (p.state === "QUEUE" || p.state === "PUBLISHED" || p.state === "intent") && !p.gone && !p.removed;
 
-/** The channels of an item the app may post on its own (allowed platform, ticked in the consent), and the rest. */
-export function splitChannels<C extends { integrationId: string; platform: string }>(channels: readonly C[], consent: AutonomyConsent | null): { auto: C[]; person: C[] } {
+/** What the TikTok rules read of a learner proposal: its role and arm, when it was made, and the texts drawn on its file. */
+export interface TikTokPartInput {
+  role: SlotRole;
+  arm?: string | null;
+  /** ISO time it was made (null or absent: now, at proposePass). */
+  createdAt?: string | null;
+  /** AutonomyClip.overlayKinds of the file it would post. */
+  overlayKinds?: readonly string[] | null;
+}
+
+/** The texts TikTok asks apps not to add to a post: the site's address line and the end card of a cut (lib/crew/simplicity.ts). */
+export const TIKTOK_BURNT_IN: readonly string[] = ["cutUrl", "endCard"];
+
+/**
+ * Whether a file may go to TikTok on its own: TikTok's Watermark Guidelines ask apps not to add a brand name, a link or
+ * promotional text to what they share, and a TikTok cut carries the site's address and an end card by default
+ * (lib/clipEdit/spec.ts DEFAULT_CLIP_EDIT). A file whose texts are not known waits too.
+ */
+export function tiktokFileProblems(overlayKinds: readonly string[] | null | undefined): AutonomyReason[] {
+  return !overlayKinds || overlayKinds.some((k) => TIKTOK_BURNT_IN.includes(k)) ? ["tiktokWebAddress"] : [];
+}
+
+/** Whether a slot's clip is the best settings: a best clip (not a newcomer test's rotation clip) or a check's new clip. */
+const bestSettingsOf = (role: SlotRole, arm: string | null) => (role === "best" && arm !== "rotation") || (role === "check" && arm === "new");
+
+/**
+ * Why the TikTok part of a learner proposal may not go out on its own, on a TikTok account the consent holds (with its tick):
+ * TikTok paused alone (or its 48 hours run, or the part was made before the last Resume TikTok), no TikTok choices, the
+ * account off or needing a reconnect in Postiz, what is not the best settings on an account not consented for Everyone on
+ * the profile (only public TikTok is scored), and a file with the site's address or its end card. Such a part splits off and
+ * waits for the person; the rest of the proposal goes on. Empty for any other channel.
+ */
+export function tiktokPartProblems(channelId: string, part: TikTokPartInput, state: Pick<AutonomySettings, "consent" | "tiktok">, now: number, live?: readonly AutonomyLiveChannel[]): AutonomyReason[] {
+  const consent = state.consent;
+  const account = consent && consent.tiktok === true ? accountOf(consent, channelId) : null;
+  if (!account || account.platform !== "tiktok") return [];
+  const out = new Set<AutonomyReason>();
+  if (!account.tiktok) out.add("tiktokChoices");
+  if (tiktokPausedAt(state, now)) out.add("tiktokPaused");
+  const resumedTikTok = ms(state.tiktok?.resumedAt);
+  if (Number.isFinite(resumedTikTok) && !((part.createdAt ? ms(part.createdAt) : now) > resumedTikTok)) out.add("tiktokPaused");
+  const channel = live?.find((l) => l.id === channelId);
+  if (channel && (channel.disabled || channel.refreshNeeded)) out.add("accountDisabled");
+  if (!bestSettingsOf(part.role, part.arm ?? null) && !tiktokScored(account.tiktok)) out.add("tiktokUnscored");
+  for (const r of tiktokFileProblems(part.overlayKinds)) out.add(r);
+  return [...out];
+}
+
+/**
+ * The channels of an item the app may post on its own (allowed platform, ticked in the consent; on TikTok, its tick and
+ * tiktokPartProblems empty, so `tiktok` must say what the proposal is), and the rest, which proposePass splits off for the
+ * person.
+ */
+export function splitChannels<C extends { integrationId: string; platform: string }>(channels: readonly C[], consent: AutonomyConsent | null, tiktok?: { part: TikTokPartInput; state?: Pick<AutonomySettings, "tiktok">; now: number; live?: readonly AutonomyLiveChannel[] }): { auto: C[]; person: C[] } {
   const auto: C[] = [];
   const person: C[] = [];
-  for (const c of channels) (consent && isAutonomyPlatform(c.platform) && accountOf(consent, c.integrationId) ? auto : person).push(c);
+  for (const c of channels) {
+    const allowed = !!consent && platformAllowed(c.platform, consent) && !!accountOf(consent, c.integrationId);
+    const tiktokOk = c.platform !== "tiktok" || (!!tiktok && tiktokPartProblems(c.integrationId, tiktok.part, { consent, tiktok: tiktok.state?.tiktok }, tiktok.now, tiktok.live).length === 0);
+    (allowed && tiktokOk ? auto : person).push(c);
+  }
   return { auto, person };
+}
+
+/**
+ * The learner item after the main process split `channelIds` off it (a "split" outcome), stamped again with the main
+ * process's hash so the rest goes on. The part split off is the person's: its own item, splitFrom this one. Null when the
+ * item's stamp no longer matches (a change since would be stamped as the app's own): it waits for the person instead.
+ */
+export function withoutChannels(item: AutonomyItem, channelIds: readonly string[], digest: (text: string) => string): AutonomyItem | null {
+  if (!item.pass || digest(stampText(item)) !== item.pass.hash) return null;
+  const kept: AutonomyItem = { ...item, channels: item.channels.filter((c) => !channelIds.includes(c.integrationId)) };
+  return { ...kept, pass: { ...item.pass, hash: digest(stampText(kept)) } };
 }
 
 /* ------------------------------------------------------------------ the lane rules */
@@ -723,7 +961,9 @@ export function splitChannels<C extends { integrationId: string; platform: strin
  * check's old clip (and a check stamped without its arm) and a newcomer test's rotation clip; YouTube and every other channel
  * take the best settings only, a best clip or a check's new clip, which is the new best (the learner sends a check's new clips
  * to every channel, lib/insights/learner.ts channelsFor, as every slot of the day is a check slot while a check runs); a best
- * clip carries no trial field; no Instagram story; settings.__type is the channel's platform. `arm` is the stamp's.
+ * clip carries no trial field; no Instagram story; settings.__type is the channel's platform. `arm` is the stamp's. These
+ * are the learner's own lanes (TikTok is a scored channel there); whether a TikTok account is scored under the consent is its
+ * part's rule (tiktokPartProblems), so a TikTok part that is not splits off and the rest goes on.
  */
 export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyItemChannel, "platform" | "settings" | "lane">[], arm: string | null = null): AutonomyReason[] {
   const out = new Set<AutonomyReason>();
@@ -737,7 +977,7 @@ export function laneProblems(role: SlotRole, channels: readonly Pick<AutonomyIte
       if (own(c.settings, "is_trial_reel") !== true || own(c.settings, "graduation_strategy") !== MANUAL || (postType !== undefined && postType !== "post")) out.add("trialSettings");
     }
   } else {
-    const bestSettings = (role === "best" && arm !== "rotation") || (role === "check" && arm === "new");
+    const bestSettings = bestSettingsOf(role, arm);
     for (const c of channels) {
       if (c.lane !== "normal") out.add("laneMismatch");
       if (hasTrialField(c.settings)) out.add("trialFieldOutsideTrial");
@@ -879,14 +1119,17 @@ export function clipProblems(clip: AutonomyClip | null | undefined): AutonomyRea
   return out;
 }
 
-/** Why the item's accounts may not be posted to on its own: the consent, the allow-list and Postiz's live list. */
+/**
+ * Why the item's accounts may not be posted to on its own: the consent, the allow-list (TikTok only with its tick) and
+ * Postiz's live list. A TikTok account off or needing a reconnect is its part's (tiktokPartProblems): TikTok pauses alone.
+ */
 export function accountProblems(item: Pick<AutonomyItem, "channels">, consent: AutonomyConsent, ctx: Pick<AutonomyContext, "postiz">): AutonomyReason[] {
   const out = new Set<AutonomyReason>();
   if (item.channels.length === 0) out.add("noAccount");
   // as the card's own check (checkSocialPostRequest): Postiz would make two posts of one video on one account at once
   if (new Set(item.channels.map((c) => c.integrationId)).size !== item.channels.length) out.add("repeatedAccount");
   for (const c of item.channels) {
-    if (!isAutonomyPlatform(c.platform)) {
+    if (!platformAllowed(c.platform, consent)) {
       out.add("platformNotAllowed");
       continue;
     }
@@ -901,14 +1144,25 @@ export function accountProblems(item: Pick<AutonomyItem, "channels">, consent: A
       continue;
     }
     if (live.platform !== c.platform || live.platform !== account.platform || own(c.settings, "__type") !== live.platform) out.add("platformChanged");
-    if (live.disabled || live.refreshNeeded) out.add("accountDisabled");
+    if ((live.disabled || live.refreshNeeded) && account.platform !== "tiktok") out.add("accountDisabled");
     if ((live.profile ?? "") !== account.profile) out.add("profileChanged");
     if (account.platform === "youtube" && !account.youtube) out.add("youtubeChoices");
   }
   return [...out];
 }
 
-/** The card channels the request is built from: the stamped words, the card's settings, and YouTube's choices from the consent only. */
+/**
+ * TikTok's settings as the card holds them, from the consent's choices only (nothing the page, the model or the proposal set:
+ * no title either, as Postiz makes a video's caption its TikTok title). With the inbox, the most private values. Without
+ * choices, the privacy and the interactions stay unset, which the card's own rules refuse.
+ */
+function tiktokCardSettings(t: AutonomyTikTok | undefined): TikTokSettings {
+  if (!t) return { __type: "tiktok", brand_content_toggle: false, brand_organic_toggle: false, content_posting_method: "DIRECT_POST", video_made_with_ai: false, autoAddMusic: "no" };
+  const choices = t.content_posting_method === "UPLOAD" ? { content_posting_method: "UPLOAD" as const, ...TIKTOK_INBOX_CHOICES } : t;
+  return { __type: "tiktok", ...choices, autoAddMusic: "no" };
+}
+
+/** The card channels the request is built from: the stamped words, the card's settings, and YouTube's and TikTok's choices from the consent only. */
 function cardChannelsOf(item: Pick<AutonomyItem, "channels" | "pass">, consent: AutonomyConsent): CardChannel[] {
   return item.channels.map((c) => {
     const account = accountOf(consent, c.integrationId);
@@ -916,17 +1170,20 @@ function cardChannelsOf(item: Pick<AutonomyItem, "channels" | "pass">, consent: 
       const title = typeof own(c.settings, "title") === "string" ? (own(c.settings, "title") as string) : "";
       return { id: c.integrationId, platform: c.platform, name: "", text: c.text, settings: { __type: "youtube", title, type: account?.youtube?.type, selfDeclaredMadeForKids: account?.youtube?.selfDeclaredMadeForKids } };
     }
+    if (familyOf(c.platform) === "tiktok") return { id: c.integrationId, platform: c.platform, name: "", text: c.text, settings: tiktokCardSettings(account?.tiktok) };
     return { id: c.integrationId, platform: c.platform, name: "", text: c.text, settings: { __type: c.platform as "instagram" | "instagram-standalone", post_type: "post" } };
   });
 }
 
 /**
  * The request the main process sends for an item it approved itself: what the card would send for the same choices
- * (lib/desktop/socialCard.ts providerSettingsOf), YouTube's visibility and made-for-kids from the consent only, and on a
- * Trial Reel Instagram's two trial fields with MANUAL. `at` is the time scheduleFor picked.
+ * (lib/desktop/socialCard.ts providerSettingsOf), YouTube's visibility and made-for-kids and every TikTok field from the
+ * consent only, and on a Trial Reel Instagram's two trial fields with MANUAL. `at` is the time scheduleFor picked. A TikTok
+ * channel whose consent lacks its choices throws: Postiz would post it for Everyone (autonomyProblems has refused it first).
  */
 export function requestOfProposal(item: Pick<AutonomyItem, "clipId" | "channels" | "pass" | "thumbnailMs">, at: number, consent: AutonomyConsent): SocialPostRequest {
   const trial = !!item.pass && isTrialRole(item.pass.role);
+  for (const c of item.channels) if (familyOf(c.platform) === "tiktok" && !accountOf(consent, c.integrationId)?.tiktok) throw new Error(`requestOfProposal: the consent holds no TikTok choices for ${c.integrationId}`);
   return {
     clipId: item.clipId,
     channels: cardChannelsOf(item, consent).map((c) => {
@@ -954,8 +1211,18 @@ export function wordsOf(item: Pick<AutonomyItem, "channels">, clip: Pick<Autonom
   });
 }
 
-/** Every reason an item may not go out on its own, before its time is picked (empty: it may, if a time fits). */
-export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null | undefined, state: AutonomySettings, ctx: AutonomyContext): { reasons: AutonomyReason[]; words: TextProblem[]; card: CardProblem[] } {
+/** A TikTok part of an item that may not go out on its own: it splits off for the person, and the rest goes on. */
+export interface TikTokPart {
+  channelId: string;
+  reasons: AutonomyReason[];
+}
+
+/**
+ * Every reason an item may not go out on its own, before its time is picked (empty: it may, if a time fits). `tiktokParts`:
+ * its TikTok channels that may not, on accounts the consent holds with its tick (tiktokPartProblems), which split off; the
+ * card's rules are read on the rest only.
+ */
+export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null | undefined, state: AutonomySettings, ctx: AutonomyContext): { reasons: AutonomyReason[]; words: TextProblem[]; card: CardProblem[]; tiktokParts: TikTokPart[] } {
   const reasons = new Set<AutonomyReason>(eligibilityProblems(item, state, ctx));
   const consent = state.consent;
   if (item.pass) for (const r of laneProblems(item.pass.role, item.channels, item.pass.arm ?? null)) reasons.add(r);
@@ -963,9 +1230,18 @@ export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null |
   for (const r of clipProblems(clip)) reasons.add(r);
   let words: TextProblem[] = [];
   let card: CardProblem[] = [];
+  const tiktokParts: TikTokPart[] = [];
   if (consent) {
     for (const r of accountProblems(item, consent, ctx)) reasons.add(r);
-    card = cardRuleProblems(item, consent);
+    if (item.pass) {
+      const part: TikTokPartInput = { role: item.pass.role, arm: item.pass.arm ?? null, createdAt: item.createdAt, overlayKinds: clip?.overlayKinds };
+      for (const c of item.channels) {
+        if (c.platform !== "tiktok" || tiktokParts.some((p) => p.channelId === c.integrationId)) continue;
+        const r = tiktokPartProblems(c.integrationId, part, state, ctx.now, ctx.postiz.channels);
+        if (r.length) tiktokParts.push({ channelId: c.integrationId, reasons: r });
+      }
+    }
+    card = cardRuleProblems({ ...item, channels: item.channels.filter((c) => !tiktokParts.some((p) => p.channelId === c.integrationId)) }, consent);
     if (card.length) reasons.add("cardRules");
   }
   if (clip) {
@@ -976,13 +1252,13 @@ export function autonomyProblems(item: AutonomyItem, clip: AutonomyClip | null |
   for (const c of item.channels) {
     if (ctx.posts.some((p) => p.channelId === c.integrationId && ((item.video !== null && p.video === item.video) || p.clipId === item.clipId))) reasons.add("duplicate");
   }
-  return { reasons: [...reasons], words, card };
+  return { reasons: [...reasons], words, card, tiktokParts };
 }
 
 /* ------------------------------------------------------------------ the time */
 
 /** What stopped a time from fitting. */
-export type ScheduleBlock = "window" | "licenceEnd" | "quiet" | "spacing" | "dayFull" | "trialPairsFull" | "pairGap";
+export type ScheduleBlock = "window" | "licenceEnd" | "quiet" | "spacing" | "dayFull" | "trialPairsFull" | "pairGap" | "tiktokPending";
 export type Schedule = { kind: "at"; at: number } | { kind: "later"; at: number } | { kind: "none"; reason: ScheduleBlock };
 
 /** What stops `at` on the item's accounts (null: it fits): quiet hours, the spacing on both sides, the day's caps, the pair's gap. */
@@ -999,6 +1275,9 @@ function blockAt(at: number, item: AutonomyItem, consent: AutonomyConsent, ctx: 
     const pairs = familyOf(account.platform) === "instagram" ? Math.min(account.trialPairs, learnerPairs) : 0;
     const total = Math.min(account.perDay + 2 * pairs, AUTONOMY_CHANNEL_DAY_MAX);
     const isTrialPost = (p: AccountPost) => p.lane === "trialReel";
+    // TikTok refuses a sixth post waiting in the inbox in any 24 hours, whatever the posts a day say; the app cannot see which
+    // were finished in TikTok, so every post on the account counts
+    if (account.tiktok?.content_posting_method === "UPLOAD" && countOver(mine, at, ctx) + 1 > AUTONOMY_TIKTOK_PENDING_MAX) return "tiktokPending";
     if (countOver(mine, at, ctx) + 1 > total) return "dayFull";
     if (trial) {
       if (familyOf(c.platform) !== "instagram" || countOver(mine.filter(isTrialPost), at, ctx) + 1 > 2 * pairs) return "trialPairsFull";
@@ -1093,9 +1372,75 @@ export interface AutonomyCheck {
    * Its own still-scheduled posts to remove after a warning about an account (only when deleteOnWarning): every one Postiz
    * lists on any account a warning's pause or its 48 hours are about, on every tick they run (after Off too), until the app has
    * removed it (AccountPost.removed), so a post Postiz lists only after the warning (a create in flight, a create whose answer
-   * came late) and one whose time has passed but that Postiz has not published yet go too. Each once per list.
+   * came late) and one whose time has passed but that Postiz has not published yet go too. Each once per list. TikTok's own
+   * warnings and day's limit add its still-scheduled TikTok posts there, the same way.
    */
   deleteOwn: { channelId: string; postId: string }[];
+  /** TikTok's own pause to record now (tiktokPaused): Instagram and YouTube carry on. Absent: none new. */
+  tiktokPause?: AutonomyTikTokPause;
+}
+
+/** An ERROR with no text: a refresh-token or disconnect failure, as GET /posts shows it (posts.repository.ts curatedError). */
+const noText = (p: AccountPost) => typeof p.error !== "string" || !p.error.trim();
+
+/** The consent's TikTok accounts, with its tick (none without it). */
+const tiktokAccountsOf = (consent: AutonomyConsent | null): Set<string> => new Set(consent?.tiktok === true ? consent.accounts.filter((a) => a.platform === "tiktok").map((a) => a.channelId) : []);
+
+/** Whether Postiz lists a channel off or needing a reconnect. */
+const offInPostiz = (ctx: Pick<AutonomyContext, "postiz">, channelId: string) => {
+  const live = ctx.postiz.channels.find((l) => l.id === channelId);
+  return !!live && (live.disabled || live.refreshNeeded);
+};
+
+/** The kind of a post's error on a consented TikTok account (its platform read as TikTok when the post does not say). */
+const tiktokKindOf = (p: AccountPost) => classifyPostizError(p.error, p.platform ?? "tiktok");
+
+/**
+ * Whether a post's error is TikTok's own, which pauses TikTok alone (whoever made the post): one of TIKTOK_PAUSE_KINDS on a
+ * consented TikTok account, or an ERROR with no text there while Postiz lists the account off or needing a reconnect.
+ */
+function isTikTokOwnError(p: AccountPost, tiktokIds: ReadonlySet<string>, ctx: Pick<AutonomyContext, "postiz">): boolean {
+  if (!tiktokIds.has(p.channelId) || p.state !== "ERROR") return false;
+  const kind = tiktokKindOf(p).kind;
+  return (kind !== "unknown" && TIKTOK_PAUSE_KINDS.includes(kind)) || (noText(p) && offInPostiz(ctx, p.channelId));
+}
+
+/**
+ * TikTok's own pause to record now, and the TikTok accounts warned since its cooldown was recorded (their own still-scheduled
+ * TikTok posts go). Like the switch's: a warning or the day's limit counts for 48 hours whenever it came, and replaces the
+ * pause that is on; the account or the app to fix and a privacy the account does not offer count after the consent, the
+ * last Resume TikTok and the pause that is on; a TikTok account off or needing a reconnect pauses while nothing else does.
+ */
+function tiktokCheck(state: AutonomySettings, ctx: AutonomyContext): { pause: AutonomyTikTokPause | null; warned: string[] } {
+  const consent = state.consent;
+  const ids = tiktokAccountsOf(consent);
+  if (!consent || ids.size === 0) return { pause: null, warned: [] };
+  const current = state.tiktok?.pause ?? null;
+  const cooldown = tiktokCooldownOf(state);
+  const nowIso = new Date(ctx.now).toISOString();
+  const resumed = ms(state.tiktok?.resumedAt);
+  const since = Math.max(ms(consent.at), Number.isFinite(resumed) ? resumed : -Infinity);
+  const healthFrom = Math.max(Math.min(since, ctx.now - AUTONOMY_HEALTH_COOLDOWN_MS), cooldown ? ms(cooldown.at) : -Infinity);
+  const healthPosts = ctx.posts.filter((p) => ids.has(p.channelId) && p.state === "ERROR" && isAccountHealth(tiktokKindOf(p).kind) && eventTime(p) > healthFrom);
+  const warned = [...new Set(healthPosts.map((p) => p.channelId))];
+  const pausedFor = current && TIKTOK_HEALTH_REASONS.includes(current.reason) ? channelsOf(current) : [];
+  if (warned.length) {
+    const reason: AutonomyTikTokPauseReason = tiktokKindOf(healthPosts[0]).kind === "dailyLimit" ? "dailyLimit" : "accountHealth";
+    return { pause: { reason, at: nowIso, until: new Date(ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS).toISOString(), ...accountsOf([...warned, ...pausedFor]) }, warned };
+  }
+  if (!current && cooldown && ms(cooldown.until) > ctx.now) return { pause: { reason: "accountHealth", at: nowIso, until: cooldown.until, ...accountsOf(channelsOf(cooldown)) }, warned: [] };
+  const from = Math.max(since, current ? ms(current.at) : -Infinity);
+  const event = ctx.posts.find((p) => isTikTokOwnError(p, ids, ctx) && !isAccountHealth(tiktokKindOf(p).kind) && eventTime(p) > from);
+  if (event) {
+    const match = tiktokKindOf(event);
+    const reason: AutonomyTikTokPauseReason = match.kind === "app" ? (match.entry?.message === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app") : match.kind === "privacy" ? "privacy" : "accountFix";
+    return { pause: { reason, at: nowIso, until: null, channelId: event.channelId }, warned: [] };
+  }
+  if (!current) {
+    const off = [...ids].find((id) => offInPostiz(ctx, id));
+    if (off) return { pause: { reason: "accountFix", at: nowIso, until: null, channelId: off }, warned: [] };
+  }
+  return { pause: null, warned: [] };
 }
 
 /** When an event happened: when the watcher first saw it (an error, a post gone), else the post's own time. */
@@ -1121,14 +1466,28 @@ const isEventReason = (r: AutonomyPauseReason) => EVENT_REASONS.includes(r);
  *    removal on every tick (`deleteOwn`), not only on the tick that records the warning.
  *  - While paused, an event comes back too, once: `paused` notes it on the pause, so the banner says it before Resume, and
  *    the events the pause has recorded are not taken again.
+ *  - TikTok's own errors on a consented TikTok account (isTikTokOwnError) are TikTok's alone: they come back as
+ *    `tiktokPause` (tiktokCheck), never as the switch's pause, and a TikTok account off or needing a reconnect is not a
+ *    warning about every account. Any other failed post of its own on TikTok, and an unknown text there, pause everything.
  */
 export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): AutonomyCheck {
   const consent = state.consent;
   const cooldown = cooldownOf(state);
   const pausedFor = state.pause?.reason === "accountHealth" ? channelsOf(state.pause) : [];
+  const older = !!consent && compareVersions(ctx.appVersion, consent.appVersion) < 0;
+  const tiktok = consent && !older ? tiktokCheck(state, ctx) : { pause: null, warned: [] };
+  const tiktokCooldown = tiktokCooldownOf(state);
+  const tiktokPausedFor = state.tiktok?.pause && TIKTOK_HEALTH_REASONS.includes(state.tiktok.pause.reason) ? channelsOf(state.tiktok.pause) : [];
   const removals = (warned: readonly string[]): AutonomyCheck["deleteOwn"] => {
     if (!state.deleteOnWarning) return [];
-    const on = new Set([...warned, ...pausedFor, ...(cooldown && ms(cooldown.until) > ctx.now ? channelsOf(cooldown) : [])]);
+    const on = new Set([
+      ...warned,
+      ...pausedFor,
+      ...(cooldown && ms(cooldown.until) > ctx.now ? channelsOf(cooldown) : []),
+      ...tiktok.warned,
+      ...tiktokPausedFor,
+      ...(tiktokCooldown && ms(tiktokCooldown.until) > ctx.now ? channelsOf(tiktokCooldown) : []),
+    ]);
     const out: AutonomyCheck["deleteOwn"] = [];
     for (const p of ctx.posts) {
       if (!on.has(p.channelId) || p.by !== "app" || p.state !== "QUEUE" || p.gone || p.removed || !p.postId) continue;
@@ -1136,26 +1495,25 @@ export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): Auton
     }
     return out;
   };
-  const check = (off: AutonomyOffReason | null, pause: AutonomyPause | null, warned: readonly string[] = []): AutonomyCheck => ({ off, pause, deleteOwn: removals(warned) });
+  const check = (off: AutonomyOffReason | null, pause: AutonomyPause | null, warned: readonly string[] = []): AutonomyCheck => ({ off, pause, deleteOwn: removals(warned), ...(tiktok.pause ? { tiktokPause: tiktok.pause } : {}) });
   if (!consent) return check(null, null);
-  if (compareVersions(ctx.appVersion, consent.appVersion) < 0) return check("appOlder", null);
+  if (older) return check("appOlder", null);
   const nowIso = new Date(ctx.now).toISOString();
   const pause = (reason: AutonomyPauseReason, channelId: string | null = null, until: number | null = null): AutonomyPause => ({ reason, at: nowIso, until: until === null ? null : new Date(until).toISOString(), channelId });
   const healthPause = (channels: readonly string[], until: number): AutonomyPause => ({ reason: "accountHealth", at: nowIso, until: new Date(until).toISOString(), ...accountsOf(channels) });
   const resumed = ms(state.resumedAt);
   const since = Math.max(ms(consent.at), Number.isFinite(resumed) ? resumed : -Infinity);
   const consented = new Set(consent.accounts.map((a) => a.channelId));
-  const isHealth = (p: AccountPost) => consented.has(p.channelId) && p.state === "ERROR" && isAccountHealth(classifyPostizError(p.error, p.platform).kind);
+  const tiktokIds = tiktokAccountsOf(consent);
+  // TikTok's own warnings are TikTok's (tiktokCheck)
+  const isHealth = (p: AccountPost) => consented.has(p.channelId) && !tiktokIds.has(p.channelId) && p.state === "ERROR" && isAccountHealth(classifyPostizError(p.error, p.platform).kind);
+  const tiktokOwn = (p: AccountPost) => isTikTokOwnError(p, tiktokIds, ctx);
 
   // a warning about an account: on any post of a consented account, whoever made it, or the account off in Postiz. Every
   // account warned since the cooldown was recorded, and every account off that the warning's pause on now is not about yet
+  // (a TikTok account off is TikTok's account to fix)
   const healthFrom = Math.max(Math.min(since, ctx.now - AUTONOMY_HEALTH_COOLDOWN_MS), cooldown ? ms(cooldown.at) : -Infinity);
-  const offChannels = consent.accounts
-    .filter((a) => {
-      const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
-      return !!live && (live.disabled || live.refreshNeeded);
-    })
-    .map((a) => a.channelId);
+  const offChannels = consent.accounts.filter((a) => a.platform !== "tiktok" && offInPostiz(ctx, a.channelId)).map((a) => a.channelId);
   const warned = [...new Set([...ctx.posts.filter((p) => isHealth(p) && eventTime(p) > healthFrom).map((p) => p.channelId), ...offChannels.filter((c) => !pausedFor.includes(c))])];
   // the accounts of the warning's pause it replaces stay on it, so they are not taken as new on the next tick
   if (warned.length) return check(null, healthPause([...warned, ...pausedFor], ctx.now + AUTONOMY_HEALTH_COOLDOWN_MS), warned);
@@ -1165,10 +1523,10 @@ export function pauseCheck(state: AutonomySettings, ctx: AutonomyContext): Auton
   const recorded = state.pause ? [state.pause, ...(state.pause.also ?? [])].filter((n) => isEventReason(n.reason)).map((n) => ms(n.at)) : [];
   const from = Math.max(since, ...recorded);
   const event = ((): AutonomyPause | null => {
-    // a warning's own post is the warning's (above), not a failure of its own as well
-    const failed = ctx.posts.find((p) => p.by === "app" && p.state === "ERROR" && !isHealth(p) && eventTime(p) > from);
-    if (failed) return pause(classifyPostizError(failed.error, failed.platform).kind === "unknown" ? "unknownError" : "ownPostFailed", failed.channelId);
-    const unknown = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && eventTime(p) > from && classifyPostizError(p.error, p.platform).kind === "unknown");
+    // a warning's own post is the warning's (above), not a failure of its own as well; TikTok's own error is TikTok's
+    const failed = ctx.posts.find((p) => p.by === "app" && p.state === "ERROR" && !isHealth(p) && !tiktokOwn(p) && eventTime(p) > from);
+    if (failed) return pause(classifyPostizError(failed.error, failed.platform ?? (tiktokIds.has(failed.channelId) ? "tiktok" : null)).kind === "unknown" ? "unknownError" : "ownPostFailed", failed.channelId);
+    const unknown = ctx.posts.find((p) => consented.has(p.channelId) && p.state === "ERROR" && !tiktokOwn(p) && eventTime(p) > from && classifyPostizError(p.error, p.platform ?? (tiktokIds.has(p.channelId) ? "tiktok" : null)).kind === "unknown");
     if (unknown) return pause("unknownError", unknown.channelId);
     const gone = ctx.posts.find((p) => p.by === "app" && p.gone && !p.removed && eventTime(p) > from);
     if (gone) return pause("ownPostDeleted", gone.channelId);
@@ -1213,10 +1571,44 @@ export function resumeProblems(state: AutonomySettings, ctx: AutonomyContext): R
   for (const a of consent.accounts) {
     const live = ctx.postiz.channels.find((l) => l.id === a.channelId);
     if (!live || live.platform !== a.platform || (live.profile ?? "") !== a.profile) out.push("accountChanged");
-    else if (live.disabled || live.refreshNeeded) out.push("accountDisabled");
+    // a TikTok account off is TikTok's own pause (tiktokResumeProblems), not the switch's
+    else if ((live.disabled || live.refreshNeeded) && a.platform !== "tiktok") out.push("accountDisabled");
   }
   if (!ctx.learner.learn) out.push("learningOff");
   return [...new Set(out)];
+}
+
+/** Why Resume TikTok is not available yet (empty: one press resumes it). */
+export type TikTokResumeProblem = "off" | "cooldown" | "tiktokChoices" | "accountDisabled" | AutonomyTikTokPauseReason;
+
+/**
+ * Why Resume TikTok is not available yet: TikTok not consented (the switch off, or no TikTok tick), its 48 hours, a TikTok
+ * error its pause has not recorded yet (recorded first, it is on the banner before the press), a privacy pause until the
+ * account's TikTok choices are made again (a newer consent), and a TikTok account still off or needing a reconnect.
+ */
+export function tiktokResumeProblems(state: AutonomySettings, ctx: AutonomyContext): TikTokResumeProblem[] {
+  const consent = state.consent;
+  if (!consent || tiktokAccountsOf(consent).size === 0) return ["off"];
+  const out: TikTokResumeProblem[] = [];
+  const pause = state.tiktok?.pause ?? null;
+  const cooldown = tiktokCooldownOf(state);
+  if ((pause?.until && ms(pause.until) > ctx.now) || (cooldown && ms(cooldown.until) > ctx.now)) out.push("cooldown");
+  const fresh = tiktokCheck(state, ctx).pause;
+  if (pause && fresh) out.push(fresh.reason);
+  if (pause?.reason === "privacy" && !(ms(consent.at) > ms(pause.at))) out.push("tiktokChoices");
+  for (const id of tiktokAccountsOf(consent)) if (offInPostiz(ctx, id)) out.push("accountDisabled");
+  return [...new Set(out)];
+}
+
+/** The state after TikTok's own pause that pauseCheck returned (`tiktokPause`): it replaces the one on; a warning's or the day's limit records TikTok's cooldown. */
+export function tiktokPaused(state: AutonomySettings, pause: AutonomyTikTokPause): AutonomySettings {
+  const cooldown = TIKTOK_HEALTH_REASONS.includes(pause.reason) ? laterCooldown(tiktokCooldownOf(state), healthCooldownOf(pause, TIKTOK_HEALTH_REASONS)) : tiktokCooldownOf(state);
+  return { ...state, tiktok: { pause, cooldown, resumedAt: state.tiktok?.resumedAt ?? null } };
+}
+
+/** The state after Resume TikTok (the caller checked tiktokResumeProblems is empty): no TikTok pause, TikTok parts made before now never qualify. Its cooldown stays on record; the switch's pause is left as it is. */
+export function tiktokResumed(state: AutonomySettings, now: number): AutonomySettings {
+  return { ...state, tiktok: { pause: null, cooldown: tiktokCooldownOf(state), resumedAt: new Date(now).toISOString() } };
 }
 
 /** The state after Resume (the caller checked resumeProblems is empty): no pause, and items made before now never qualify. The cooldown stays on record. */
@@ -1245,16 +1637,21 @@ export function paused(state: AutonomySettings, pause: AutonomyPause): AutonomyS
   return state;
 }
 
-/** The state after Off: the consent cleared, so the next on asks again. The owner's "only tell me" choice and the account-health cooldown stay. */
+/** The state after Off: the consent cleared, so the next on asks again. The owner's "only tell me" choice and the account-health cooldowns, TikTok's too, stay. */
 export function turnedOff(state: AutonomySettings): AutonomySettings {
-  return { ...DEFAULT_AUTONOMY, deleteOnWarning: state.deleteOnWarning, cooldown: cooldownOf(state) };
+  const tiktokCooldown = tiktokCooldownOf(state);
+  return { ...DEFAULT_AUTONOMY, deleteOnWarning: state.deleteOnWarning, cooldown: cooldownOf(state), ...(tiktokCooldown ? { tiktok: { pause: null, cooldown: tiktokCooldown, resumedAt: null } } : {}) };
 }
 
-/** What the approver does with one item this tick. */
+/**
+ * What the approver does with one item this tick. "split": its TikTok parts may not go out on its own (tiktokPartProblems),
+ * so the main process splits them off for the person (splitOff, then withoutChannels) and the rest is taken on the next tick.
+ */
 export type ItemOutcome =
   | { itemId: string; kind: "create"; at: number; request: SocialPostRequest }
   | { itemId: string; kind: "practise"; at: number }
   | { itemId: string; kind: "later"; at: number; reason: AutonomyReason }
+  | { itemId: string; kind: "split"; channels: string[]; reasons: AutonomyReason[] }
   | { itemId: string; kind: "wait"; reasons: AutonomyReason[]; final: boolean; words: TextProblem[]; card: CardProblem[]; block?: ScheduleBlock };
 
 export interface AutonomyDecision {
@@ -1289,9 +1686,13 @@ function ordered(queue: readonly AutonomyItem[]): AutonomyItem[] {
 
 /** One item's outcome, with the approver's wait (a pause included) and the posts as they stand (the creates before it counted). */
 function itemOutcome(item: AutonomyItem, clip: AutonomyClip | undefined, state: AutonomySettings, ctx: AutonomyContext, wait: AutonomyReason | null, practice: boolean, posts: readonly AccountPost[]): ItemOutcome & { trialRouteFailed?: boolean } {
-  const { reasons, words, card } = autonomyProblems(item, clip, state, { ...ctx, posts });
-  if (reasons.some(isFinalReason)) return { itemId: item.id, kind: "wait", reasons, final: true, words, card };
+  const { reasons, words, card, tiktokParts } = autonomyProblems(item, clip, state, { ...ctx, posts });
+  const partReasons = [...new Set(tiktokParts.flatMap((p) => p.reasons))];
+  if (reasons.some(isFinalReason)) return { itemId: item.id, kind: "wait", reasons: [...new Set([...reasons, ...partReasons])], final: true, words, card };
+  // an item of TikTok parts only waits for the person as a whole
+  if (tiktokParts.length && item.channels.every((c) => tiktokParts.some((p) => p.channelId === c.integrationId))) return { itemId: item.id, kind: "wait", reasons: [...new Set([...reasons, ...partReasons])], final: true, words, card };
   if (wait !== null || ctx.postizNow === null || !state.consent) return { itemId: item.id, kind: "wait", reasons: [...reasons, wait ?? "clockUnknown"], final: false, words, card };
+  if (tiktokParts.length) return { itemId: item.id, kind: "split", channels: tiktokParts.map((p) => p.channelId), reasons: partReasons };
   const schedule = scheduleFor(item, state, ctx, ctx.postizNow, posts);
   if (schedule.kind === "none") return { itemId: item.id, kind: "wait", reasons: ["missedTime"], final: true, words, card, block: schedule.reason };
   if (schedule.kind === "later") return { itemId: item.id, kind: "later", at: schedule.at, reason: "notYet" };
@@ -1311,7 +1712,8 @@ const trialPause = (now: number): AutonomyPause => ({ reason: "trialCheckFailed"
  * One tick of the approver: whether autonomy turns Off or pauses (and which of its own posts to remove), and for every
  * learner item what happens now. An item that passes every rule and whose time is 60 to 90 minutes away is created (each
  * create counted against the next, as the main process makes them one at a time); one further away waits for a later tick;
- * the practice day only says when each would go out. Everything else waits for the person, with why (`final`: for good).
+ * the practice day only says when each would go out; TikTok parts that may not go split off. Everything else waits for the
+ * person, with why (`final`: for good). TikTok's own pause found this tick already holds this tick's TikTok parts.
  */
 export function decideAutonomy(state: AutonomySettings, ctx: AutonomyContext, clips: ReadonlyMap<string, AutonomyClip>): AutonomyDecision {
   const check = pauseCheck(state, ctx);
@@ -1319,11 +1721,12 @@ export function decideAutonomy(state: AutonomySettings, ctx: AutonomyContext, cl
   const isPaused = !!state.pause || !!check.pause;
   const wait = isPaused ? "paused" : globalWait(ctx);
   const practice = practising(state, ctx);
+  const withTikTok = check.tiktokPause ? tiktokPaused(state, check.tiktokPause) : state;
   const posts: AccountPost[] = [...ctx.posts];
   const items: ItemOutcome[] = [];
   let trialFailed = false;
   for (const item of ordered(ctx.queue)) {
-    const { trialRouteFailed, ...outcome } = itemOutcome(item, clips.get(item.clipId), state, ctx, trialFailed ? "paused" : wait, practice, posts);
+    const { trialRouteFailed, ...outcome } = itemOutcome(item, clips.get(item.clipId), withTikTok, ctx, trialFailed ? "paused" : wait, practice, posts);
     items.push(outcome);
     if (trialRouteFailed) trialFailed = true;
     if (outcome.kind !== "create") continue;
@@ -1350,7 +1753,8 @@ export function checkBeforeCreate(itemId: string, state: AutonomySettings, ctx: 
   if (!item) return { check, outcome: null };
   if (!state.consent || check.off) return { check, outcome: { itemId, kind: "wait", reasons: ["paused"], final: false, words: [], card: [] } };
   const wait = state.pause || check.pause ? "paused" : globalWait(ctx);
-  const { trialRouteFailed, ...outcome } = itemOutcome(item, clips.get(item.clipId), state, ctx, wait, practising(state, ctx), ctx.posts);
+  const withTikTok = check.tiktokPause ? tiktokPaused(state, check.tiktokPause) : state;
+  const { trialRouteFailed, ...outcome } = itemOutcome(item, clips.get(item.clipId), withTikTok, ctx, wait, practising(state, ctx), ctx.posts);
   return trialRouteFailed && !check.pause && !state.pause ? { check: { ...check, pause: trialPause(ctx.now) }, outcome } : { check, outcome };
 }
 
@@ -1361,14 +1765,41 @@ export function watchNeeded(posts: readonly AccountPost[], now: number): boolean
 
 /* ------------------------------------------------------------------ the consent screen */
 
+/** An account as the consent screen holds it: TikTok's choices made one by one, each unset until the owner picks it. */
+export type AutonomyAccountDraft = Omit<AutonomyAccount, "tiktok"> & { tiktok?: Partial<AutonomyTikTok> | null };
+
 /** What the owner chose on the consent screen. */
 export interface ConsentDraft {
-  accounts: AutonomyAccount[];
+  accounts: AutonomyAccountDraft[];
   /** "I understand the app will post for me without asking each time". */
   understood: boolean;
   /** "Practise for a day first" (ticked by default). */
   practise: boolean;
+  /** "Let the app post to TikTok too", off until ticked: its warning shows, and TikTok accounts can be ticked. */
+  tiktok?: boolean;
 }
+
+/** Why Turn on stays disabled (consentProblems). */
+export type ConsentProblem =
+  | "cooldown"
+  | "pro"
+  | "testMode"
+  | "noKey"
+  | "workspaceUnknown"
+  | "learningOff"
+  | "noAccount"
+  | "accountNotAllowed"
+  | "accountGone"
+  | "accountDisabled"
+  | "youtubeChoices"
+  | "perDay"
+  | "trialPairs"
+  | "tiktokOff" // a TikTok account ticked while the TikTok tick is off
+  | "tiktokNoAccount" // the TikTok tick on, and no TikTok account ticked
+  | "tiktokChoices" // a TikTok choice not made
+  | "tiktokBrandedPrivate" // a disclosure with Only me, which TikTok refuses
+  | "notUnderstood"
+  | "notRecordable";
 
 /** What the consent screen checks a draft against: the main process's context, and the stored block's account-health cooldown (cooldownOf). */
 export type ConsentScreenContext = Pick<AutonomyContext, "now" | "appVersion" | "licence" | "realKey" | "postiz" | "learner"> & Pick<AutonomySettings, "cooldown">;
@@ -1380,10 +1811,11 @@ const canonical = (v: unknown): string => JSON.stringify(v, (_k, x: unknown) => 
  * Why Turn on stays disabled (empty: it may turn on). A warning's 48 hours outlive Off, so a new consent waits them out. The
  * record makeConsent writes must be the one the next load reads back (sanitizeAutonomy), or the switch would turn Off with no
  * reason said: a workspace Postiz did not name ("workspaceUnknown") or anything else the stored block cannot hold
- * ("notRecordable") keeps it off.
+ * ("notRecordable") keeps it off. TikTok: an account only with the TikTok tick, the tick only with a TikTok account, and every
+ * TikTok choice made (with the inbox, only how it posts), with no disclosure on Only me.
  */
-export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ("cooldown" | "pro" | "testMode" | "noKey" | "workspaceUnknown" | "learningOff" | "noAccount" | "accountNotAllowed" | "accountGone" | "accountDisabled" | "youtubeChoices" | "perDay" | "trialPairs" | "notUnderstood" | "notRecordable")[] {
-  const out: ReturnType<typeof consentProblems> = [];
+export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext): ConsentProblem[] {
+  const out: ConsentProblem[] = [];
   if (ctx.cooldown && ms(ctx.cooldown.until) > ctx.now) out.push("cooldown");
   if (!ctx.realKey || ctx.licence?.testMode) out.push("testMode");
   if (!ctx.licence || !ctx.licence.pro || (ctx.licence.expiresAt !== null && ms(ctx.licence.expiresAt) <= ctx.now)) out.push("pro");
@@ -1399,7 +1831,14 @@ export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext):
     if (a.platform === "youtube" && !(a.youtube && (YOUTUBE_VISIBILITIES as readonly string[]).includes(a.youtube.type) && (a.youtube.selfDeclaredMadeForKids === "yes" || a.youtube.selfDeclaredMadeForKids === "no"))) out.push("youtubeChoices");
     if (!Number.isInteger(a.perDay) || a.perDay < AUTOPILOT_PER_DAY_MIN || a.perDay > AUTOPILOT_PER_DAY_MAX) out.push("perDay");
     if (!Number.isInteger(a.trialPairs) || a.trialPairs < 0 || a.trialPairs > AUTONOMY_TRIAL_PAIRS_MAX || (a.trialPairs > 0 && familyOf(a.platform) !== "instagram")) out.push("trialPairs");
+    if (a.platform === "tiktok") {
+      if (draft.tiktok !== true) out.push("tiktokOff");
+      const t = a.tiktok;
+      if (t?.content_posting_method === "DIRECT_POST" && t.privacy_level === "SELF_ONLY" && (t.brand_content_toggle === true || t.brand_organic_toggle === true)) out.push("tiktokBrandedPrivate");
+      else if (!cleanTikTok(t)) out.push("tiktokChoices");
+    }
   }
+  if (draft.tiktok === true && !draft.accounts.some((a) => a.platform === "tiktok")) out.push("tiktokNoAccount");
   if (!draft.understood) out.push("notUnderstood");
   if (!out.length) {
     const made = makeConsent(draft, ctx);
@@ -1408,11 +1847,14 @@ export function consentProblems(draft: ConsentDraft, ctx: ConsentScreenContext):
   return [...new Set(out)];
 }
 
-/** The accounts the consent screen may offer a tick for: Instagram and YouTube only, live and on. Every other one "Waits for you". */
-export function tickableChannels(channels: readonly AutonomyLiveChannel[]): { tickable: AutonomyLiveChannel[]; waits: AutonomyLiveChannel[] } {
+/**
+ * The accounts the consent screen may offer a tick for, live and on: Instagram and YouTube, and TikTok once the TikTok tick
+ * is on (`tiktok`). Every other one "Waits for you", TikTok Business always.
+ */
+export function tickableChannels(channels: readonly AutonomyLiveChannel[], tiktok = false): { tickable: AutonomyLiveChannel[]; waits: AutonomyLiveChannel[] } {
   const tickable: AutonomyLiveChannel[] = [];
   const waits: AutonomyLiveChannel[] = [];
-  for (const c of channels) (isAutonomyPlatform(c.platform) && !c.disabled ? tickable : waits).push(c);
+  for (const c of channels) (platformAllowed(c.platform, { tiktok }) && !c.disabled ? tickable : waits).push(c);
   return { tickable, waits };
 }
 
@@ -1428,17 +1870,29 @@ export function makeConsent(draft: ConsentDraft, ctx: Pick<AutonomyContext, "now
     at: new Date(ctx.now).toISOString(),
     appVersion: ctx.appVersion,
     postiz: workspace,
-    accounts: draft.accounts.map((a) => ({ ...a, profile: ctx.postiz.channels.find((l) => l.id === a.channelId)?.profile ?? "", youtube: a.platform === "youtube" ? a.youtube : null, trialPairs: familyOf(a.platform) === "instagram" ? a.trialPairs : 0 })),
+    accounts: draft.accounts.map((a): AutonomyAccount => {
+      const { tiktok: drafted, ...rest } = a;
+      // TikTok's choices as they are recorded (the inbox's most private values filled in); none on any other account
+      const tiktok = a.platform === "tiktok" ? cleanTikTok(drafted) : null;
+      return { ...rest, profile: ctx.postiz.channels.find((l) => l.id === a.channelId)?.profile ?? "", youtube: a.platform === "youtube" ? a.youtube : null, trialPairs: familyOf(a.platform) === "instagram" ? a.trialPairs : 0, ...(tiktok ? { tiktok } : {}) };
+    }),
     practise: draft.practise,
+    ...(draft.tiktok === true ? { tiktok: true } : {}),
   };
 }
 
 const VISIBILITY_REACH: Readonly<Record<YouTubeVisibility, number>> = { private: 0, unlisted: 1, public: 2 };
 
-/** Whether a new choice widens the consent, so the screen asks again: no consent yet, a new account, more posts or pairs, a wider YouTube audience, another made-for-kids answer, or a newer copy version. Narrowing never asks. */
-export function consentWidens(prev: AutonomyConsent | null, next: Pick<AutonomyConsent, "accounts"> & { version?: number }): boolean {
+/**
+ * Whether a new choice widens the consent, so the screen asks again: no consent yet, a new account, more posts or pairs, a
+ * wider YouTube audience, another made-for-kids answer, the TikTok tick turned on, any change to a TikTok choice (TikTok's
+ * rules want each one made by the person), or a newer copy version. Narrowing never asks: fewer accounts, fewer posts a day,
+ * or unticking TikTok (its accounts left out).
+ */
+export function consentWidens(prev: AutonomyConsent | null, next: Pick<AutonomyConsent, "accounts"> & { version?: number; tiktok?: boolean }): boolean {
   if (!prev) return true;
   if ((next.version ?? AUTONOMY_CONSENT_VERSION) > prev.version) return true;
+  if (next.tiktok === true && prev.tiktok !== true) return true;
   for (const a of next.accounts) {
     const before = prev.accounts.find((p) => p.channelId === a.channelId);
     if (!before || before.platform !== a.platform) return true;
@@ -1446,6 +1900,7 @@ export function consentWidens(prev: AutonomyConsent | null, next: Pick<AutonomyC
     if (a.youtube && before.youtube) {
       if (VISIBILITY_REACH[a.youtube.type] > VISIBILITY_REACH[before.youtube.type] || a.youtube.selfDeclaredMadeForKids !== before.youtube.selfDeclaredMadeForKids) return true;
     } else if (a.youtube && !before.youtube) return true;
+    if (a.platform === "tiktok" && (next.tiktok !== true || canonical(cleanTikTok(a.tiktok)) !== canonical(cleanTikTok(before.tiktok)) || !cleanTikTok(a.tiktok))) return true;
   }
   return false;
 }

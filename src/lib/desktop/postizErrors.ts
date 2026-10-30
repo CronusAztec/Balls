@@ -1,8 +1,9 @@
 /*
  * --- autonomy --- Postiz's own error messages, as a versioned table, so the app can tell what a failed post means: a Trial
- * Reel the account cannot post, the Trial Reel limit, a warning from the platform about the account, a daily limit, a media
- * problem, or something else. "Fully autonomous" (the learner plan's C11, lib/desktop/autonomy.ts) pauses on them, and the
- * Trial Reel lane (C1 and C2) turns trials off or waits on the two trial kinds.
+ * Reel the account cannot post, the Trial Reel limit, a warning from the platform about the account, a daily limit, an
+ * account or app TikTok must see fixed, a TikTok privacy the account does not offer, a media problem, or something else.
+ * "Fully autonomous" (the learner plan's C11, lib/desktop/autonomy.ts) pauses on them, and the Trial Reel lane (C1 and C2)
+ * turns trials off or waits on the two trial kinds.
  *
  * Why messages and not Meta's codes: Postiz keeps its own English sentence in post.error, never the platform's code. A
  * provider's handleErrors() reads the platform's answer for a code or a phrase and returns a sentence of its own; the post
@@ -12,19 +13,29 @@
  *    create-time refusals of checkValidity() (instagram-standalone uses the same handleErrors);
  *  - libraries/nestjs-libraries/src/integrations/social/youtube.provider.ts: handleErrors() and the upload's own sentences,
  *    because YouTube is the other platform Fully autonomous posts to;
+ *  - libraries/nestjs-libraries/src/integrations/social/tiktok.provider.ts (read 30 Oct 2026, the owner's answer of that day
+ *    that TikTok posts on its own too, at the owner's risk): handleErrors() in its own order (spam_risk_too_many_posts and the
+ *    rest before spam_risk), its own throws, and the create-time refusals of checkValidity(). Not tiktok-business's: such an
+ *    account is never posted on its own;
  *  - libraries/nestjs-libraries/src/integrations/social.abstract.ts: the media read that failed.
  * Each entry keeps the markers Postiz looks for in the platform's answer (Meta's codes such as 2207051, or a phrase), so a
  * text that holds only the platform's answer is matched by its marker, in Postiz's own order. A code is matched as a whole
- * number. Postiz's catch-all "Unknown Error" is not in the table on purpose: a text the table does not know is "unknown", and
- * Fully autonomous pauses on it (fail closed). A later Postiz that rewords a sentence does the same until the table follows.
+ * number. TikTok's markers are plain words ("internal", "invalid_params"), so they are read only on a TikTok post. Postiz's
+ * catch-all "Unknown Error" is not in the table on purpose: a text the table does not know is "unknown", and Fully autonomous
+ * pauses on it (fail closed). A later Postiz that rewords a sentence does the same until the table follows.
+ *
+ * What GET /posts shows: only Postiz's bad-body sentences (posts.repository.ts curatedError). A refresh-token or disconnect
+ * failure (Instagram's "Something is wrong with your connected user...", YouTube's re-authenticate texts, TikTok's
+ * "Access token invalid..." and its daily user limit) comes back as an ERROR with no text, and the app reads it from the
+ * channel needing a reconnect in GET /integrations. Their sentences stay here for Postiz's notifications and a later Postiz.
  *
  * Pure, no imports: the app's main process bundles it (tests/postizErrors.test.ts reads its imports and bundles it).
  */
 
 // --- autonomy ---
 
-/** Bumped whenever an entry changes. */
-export const POSTIZ_ERRORS_VERSION = 1;
+/** Bumped whenever an entry changes (2: TikTok's sentences, and the byte-range sentence shared with YouTube). */
+export const POSTIZ_ERRORS_VERSION = 2;
 /** The Postiz release the sentences were read from. */
 export const POSTIZ_ERRORS_POSTIZ = "2.25.3";
 
@@ -34,21 +45,30 @@ export const POSTIZ_ERRORS_POSTIZ = "2.25.3";
  *  - trialLimit: the account's Trial Reel limit is reached (Meta 2207078);
  *  - accountHealth: the platform warned about the account, or its login must be renewed (blocked, spam, restricted, a revoked
  *    or invalidated session, Instagram's log-in checkpoint);
- *  - dailyLimit: the account's own posting limit for the day;
+ *  - dailyLimit: the account's own posting limit for the day (on TikTok also its 5 posts waiting in the inbox);
+ *  - accountFix (TikTok): the account's login, its permissions or the TikTok phone app need the person;
+ *  - app (TikTok): the TikTok app Postiz posts through is not approved for public posts, reached TikTok's daily user cap, or
+ *    hit TikTok's rate limit;
+ *  - privacy (TikTok): the account does not offer the privacy level the post asked for;
  *  - media: the file, its format, its thumbnail or its upload;
  *  - other: the text, the settings or the permissions of a post, a retry, or anything else Postiz names.
  */
-export const POSTIZ_ERROR_KINDS = ["trialUnsupported", "trialLimit", "accountHealth", "dailyLimit", "media", "other"] as const;
+export const POSTIZ_ERROR_KINDS = ["trialUnsupported", "trialLimit", "accountHealth", "dailyLimit", "accountFix", "app", "privacy", "media", "other"] as const;
 export type PostizErrorKind = (typeof POSTIZ_ERROR_KINDS)[number];
-/** The kinds that are about the account, not the post: Fully autonomous pauses every account on them, for 48 hours. */
+/**
+ * The kinds that are about the account, not the post: Fully autonomous pauses for 48 hours on them (every account on an
+ * Instagram or YouTube one; on a TikTok one, TikTok alone).
+ */
 export const ACCOUNT_HEALTH_KINDS: readonly PostizErrorKind[] = ["accountHealth", "dailyLimit"];
+/** TikTok's sentence when the TikTok app Postiz uses may post only as Only me (TikTok's unaudited_client_can_only_post_to_private_accounts). */
+export const TIKTOK_APP_PRIVATE_ONLY = "App not approved for public posting, contact support";
 
 export interface PostizErrorEntry {
   /** Postiz's sentence, exactly. */
   message: string;
   kind: PostizErrorKind;
-  /** The provider whose sentence it is ("any": the shared media read). */
-  platform: "instagram" | "youtube" | "any";
+  /** The provider whose sentence it is ("any": shared by the providers, such as the media read). */
+  platform: "instagram" | "youtube" | "tiktok" | "any";
   /** What Postiz looks for in the platform's answer (case as written; a leading or trailing digit is a whole-number edge). */
   markers?: readonly string[];
   /** What Postiz looks for in the lowercased answer. */
@@ -57,6 +77,7 @@ export interface PostizErrorEntry {
 
 const ig = (message: string, kind: PostizErrorKind, markers?: readonly string[], lowerMarkers?: readonly string[]): PostizErrorEntry => ({ message, kind, platform: "instagram", ...(markers ? { markers } : {}), ...(lowerMarkers ? { lowerMarkers } : {}) });
 const yt = (message: string, kind: PostizErrorKind, markers?: readonly string[]): PostizErrorEntry => ({ message, kind, platform: "youtube", ...(markers ? { markers } : {}) });
+const tt = (message: string, kind: PostizErrorKind, markers?: readonly string[]): PostizErrorEntry => ({ message, kind, platform: "tiktok", ...(markers ? { markers } : {}) });
 
 /** The table, in Postiz's order within each provider. */
 export const POSTIZ_ERRORS: readonly PostizErrorEntry[] = [
@@ -139,12 +160,45 @@ export const POSTIZ_ERRORS: readonly PostizErrorEntry[] = [
   yt("Please re-authenticate your YouTube account", "accountHealth", ["UNAUTHENTICATED", "invalid_grant"]),
   // youtube.provider.ts: the upload's own sentences
   yt("Could not determine the video size for the YouTube upload", "media"),
-  yt("The media storage did not return the requested byte range, please try again", "media"),
   yt("The upload session expired before the video was uploaded, please post again", "media"),
   yt("Failed to check the video upload status", "media"),
   yt("Could not start the video upload, please try again", "media"),
   yt("Failed to upload the video to YouTube", "media"),
   yt("The video upload took too long, please try a smaller video", "media"),
+  // tiktok.provider.ts handleErrors(), in its own order (its second check for a ban repeats the first, so it is here once)
+  tt("Access token invalid, please re-authenticate your TikTok account", "accountFix", ["access_token_invalid"]),
+  tt("Missing required permissions, please re-authenticate with all scopes", "accountFix", ["scope_not_authorized"]),
+  tt("Additional permissions required, please re-authenticate", "accountFix", ["scope_permission_missed"]),
+  tt("TikTok API rate limit exceeded, please try again later", "app", ["rate_limit_exceeded"]),
+  tt("File format is invalid, please check video specifications", "media", ["file_format_check_failed"]),
+  tt("In order to use the TikTok upload feature, you have to update your app to the latest version", "accountFix", ["app_version_check_failed"]),
+  tt("Video duration is invalid, please check video specifications", "media", ["duration_check_failed"]),
+  tt("Video frame rate is invalid, please check video specifications", "media", ["frame_rate_check_failed"]),
+  tt("Failed to pull video from URL, please check the URL", "media", ["video_pull_failed"]),
+  tt("Failed to pull photo from URL, please check the URL", "media", ["photo_pull_failed"]),
+  tt("Account banned from posting, please check TikTok account status", "accountHealth", ["spam_risk_user_banned_from_posting"]),
+  tt("TikTok detected potential spam in the post text", "accountHealth", ["spam_risk_text"]),
+  tt("TikTok says your daily post limit reached, please try again tomorrow", "dailyLimit", ["spam_risk_too_many_posts"]),
+  tt("TikTok limits pending posts to 5 within any 24-hour period. Please check your TikTok inbox in the TikTok mobile app and try again after 24 hours.", "dailyLimit", ["spam_risk_too_many_pending_share"]),
+  tt("TikTok detected potential spam", "accountHealth", ["spam_risk"]),
+  tt("TikTok daily user limit reached, please re-connect your account", "app", ["reached_active_user_cap"]),
+  tt(TIKTOK_APP_PRIVATE_ONLY, "app", ["unaudited_client_can_only_post_to_private_accounts"]),
+  tt("You have to upload the picture/video to Postiz when sending a URL", "media", ["url_ownership_unverified"]),
+  tt("Privacy level mismatch, please check privacy settings", "privacy", ["privacy_level_option_mismatch"]),
+  tt("Invalid file format or specifications not met", "media", ["invalid_file_upload"]),
+  tt("Invalid request parameters, please check content format", "other", ["invalid_params"]),
+  tt("There is a problem with TikTok servers, please try again later", "other", ["internal"]),
+  tt("Media size not supported by TikTok: images up to 1080px on the shorter side, videos at least 360px on both sides", "media", ["picture_size_check_failed"]),
+  tt("TikTok API error, please try again", "other", ["TikTok API error"]),
+  // tiktok.provider.ts: its own throws
+  tt("Failed to upload the video to TikTok", "media"),
+  tt("TikTok refused to publish your post", "other"),
+  // tiktok.provider.ts checkValidity(): refused when the post is created
+  tt("No video / images selected", "media"),
+  tt("Only pictures are supported when selecting multiple items", "media"),
+  tt("You need one media", "media"),
+  // the upload's own sentence in youtube.provider.ts and tiktok.provider.ts alike
+  { message: "The media storage did not return the requested byte range, please try again", kind: "media", platform: "any" },
   // social.abstract.ts
   { message: "We could not read the media for this post, so it was not published", kind: "media", platform: "any" },
 ];
@@ -189,12 +243,14 @@ function hasMarker(text: string, marker: string): boolean {
 
 /**
  * The provider family of a Postiz identifier, for the markers (a sentence matches whatever the platform). It is the approval
- * card's familyOf (lib/desktop/socialCard.ts) for the two families the table knows, null for the rest: a copy, as this file
- * imports nothing, which tests/postizErrors.test.ts keeps equal across Postiz's provider identifiers.
+ * card's familyOf (lib/desktop/socialCard.ts) for the three families the table knows, null for the rest (tiktok-business
+ * included): a copy, as this file imports nothing, which tests/postizErrors.test.ts keeps equal across Postiz's provider
+ * identifiers.
  */
-export function familyOfPlatform(platform: string | null | undefined): "instagram" | "youtube" | null {
+export function familyOfPlatform(platform: string | null | undefined): "instagram" | "youtube" | "tiktok" | null {
   if (platform === "instagram" || platform === "instagram-standalone") return "instagram";
   if (platform === "youtube") return "youtube";
+  if (platform === "tiktok") return "tiktok";
   return null;
 }
 
@@ -203,8 +259,9 @@ const BY_LENGTH = [...POSTIZ_ERRORS].sort((a, b) => b.message.length - a.message
 
 /**
  * What a post's error text means. First Postiz's sentence (exactly, then held inside a longer text), then the markers of the
- * platform's own answer in Postiz's order (only the post's own provider's markers when the platform is given). Empty or
- * missing text, or anything else, is "unknown".
+ * platform's own answer in Postiz's order (only the post's own provider's markers when the platform is given; TikTok's plain
+ * words only on a TikTok post, so an unknown text elsewhere that holds "internal" stays unknown). Empty or missing text, or
+ * anything else, is "unknown".
  */
 export function classifyPostizError(text: string | null | undefined, platform?: string | null): PostizErrorMatch {
   if (typeof text !== "string") return UNKNOWN;
@@ -218,6 +275,7 @@ export function classifyPostizError(text: string | null | undefined, platform?: 
   const lower = t.toLowerCase();
   for (const e of POSTIZ_ERRORS) {
     if (family && e.platform !== family && e.platform !== "any") continue;
+    if (e.platform === "tiktok" && family !== "tiktok") continue;
     if (e.markers?.some((m) => hasMarker(t, m)) || e.lowerMarkers?.some((m) => lower.includes(m))) return { kind: e.kind, entry: e, by: "marker" };
   }
   return UNKNOWN;
@@ -232,5 +290,12 @@ export function postizErrorKind(text: string | null | undefined, platform?: stri
 export function isAccountHealth(kind: PostizErrorKind | "unknown"): boolean {
   return kind !== "unknown" && ACCOUNT_HEALTH_KINDS.includes(kind);
 }
+
+/**
+ * The kinds that pause TikTok alone on a consented TikTok account (the owner's answer of 30 Oct 2026): a warning or the day's
+ * limit (48 hours), the account or the app to fix (until Resume TikTok), and a privacy the account does not offer (its TikTok
+ * choices asked again). A media or other text, an unknown one or none pauses everything, as on every platform.
+ */
+export const TIKTOK_PAUSE_KINDS: readonly PostizErrorKind[] = ["accountHealth", "dailyLimit", "accountFix", "app", "privacy"];
 
 // --- end autonomy ---
