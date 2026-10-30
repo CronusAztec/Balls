@@ -23,6 +23,11 @@ import { JOURNEY_BANNER_MS } from "@/lib/physics/modes/journey";
  * screen, as the canvas draws it (world y − cameraY), and the banners of its own text it draws over the square ("STAGE 2", "Stage
  * 2/5: Pegs") are kept per sample beside the balls (ActionTrack.banners): the Simple look keeps its texts clear of them (planner.ts
  * placeSimpleTexts) and the crew's G5 fails a text drawn over one (crew/clarity.ts) – two texts stacked, the studio's first gap.
+ *
+ * --- templates --- (studio2 review round 2, 16) A mode whose stake stands still on its own (Target's glowing segment, the one to hit
+ * next) keeps the cells it covers per sample too (ActionTrack.stakes): what a viewer watches as much as the ball, so a text over it
+ * hides the action (actionUnder) – the hook "Will it break?" and the closing "One more hit? 👇" sat over the very segment they
+ * asked about, at the top of the ring, while the bottom of the square was clear (watched).
  */
 
 // --- templates ---
@@ -44,6 +49,11 @@ export interface ActionTrack {
    * absent for a mode that draws no banner, so every other mode's track is as it was.
    */
   banners?: string[];
+  /**
+   * --- templates --- (studio2 review round 2, 16) Per sample: the cells the mode's stake covers there, a still thing a viewer watches
+   * (modeStakeCells: Target's segment to hit next, its number beside it); absent for a mode without one, so every other track is as it was.
+   */
+  stakes?: string[];
 }
 
 /** A rectangle in the exported square, as shares of its side from its top left (0–1). */
@@ -80,7 +90,8 @@ export function isActionTrack(value: unknown): value is ActionTrack {
     t.grid > 0 &&
     Array.isArray(t.samples) &&
     t.samples.every((s) => typeof s === "string") &&
-    (t.banners === undefined || (Array.isArray(t.banners) && t.banners.every((s) => typeof s === "string"))) // --- templates --- (AI studio step 3)
+    (t.banners === undefined || (Array.isArray(t.banners) && t.banners.every((s) => typeof s === "string"))) && // --- templates --- (AI studio step 3)
+    (t.stakes === undefined || (Array.isArray(t.stakes) && t.stakes.every((s) => typeof s === "string"))) // --- templates --- (studio2 review round 2, 16)
   );
 }
 
@@ -89,19 +100,77 @@ export function actionSampleSec(track: Pick<ActionTrack, "stepSec">, k: number):
   return (k + 1) * track.stepSec;
 }
 
-/**
- * Whether a moving ball is under `box` at sample `k`: a cell of the sample whose centre lies inside the box (so a cell the
- * box only grazes does not count).
- */
-export function actionUnder(track: ActionTrack, k: number, box: SquareBox): boolean {
-  const g = track.grid;
-  for (const cell of actionCellsOf(track.samples[k] ?? "")) {
+/** Whether a cell of `sample` lies under `box`: one whose centre lies inside it (so a cell the box only grazes does not count). */
+function cellsUnder(sample: string, g: number, box: SquareBox): boolean {
+  for (const cell of actionCellsOf(sample)) {
     const cx = ((cell % g) + 0.5) / g;
     const cy = (Math.floor(cell / g) + 0.5) / g;
     if (cx >= box.left && cx <= box.right && cy >= box.top && cy <= box.bottom) return true;
   }
   return false;
 }
+
+/**
+ * Whether a moving ball is under `box` at sample `k`: a cell of the sample whose centre lies inside the box (so a cell the
+ * box only grazes does not count) – --- templates --- (studio2 review round 2, 16) or a cell of the mode's stake there (stakes).
+ */
+export function actionUnder(track: ActionTrack, k: number, box: SquareBox): boolean {
+  return cellsUnder(track.samples[k] ?? "", track.grid, box) || (!!track.stakes && cellsUnder(track.stakes[k] ?? "", track.grid, box));
+}
+
+/** --- templates --- (studio2 review round 2, 16) Whether the mode's stake lies under `box` at sample `k` (a stake cell whose centre lies inside it). */
+export function stakeUnder(track: ActionTrack, k: number, box: SquareBox): boolean {
+  return !!track.stakes && cellsUnder(track.stakes[k] ?? "", track.grid, box);
+}
+
+// --- templates --- (studio2 review round 2, 16) the modes' own stakes
+/** The modes that draw a still stake of their own a viewer watches (modeStakeCells): Target's segment to hit next. */
+export const STAKE_MODES: readonly SimulatorSettings["mode"][] = ["target"];
+
+/** Points along an arc a stake is sampled at (each a cell it covers): 4 a cell of a 20 × 20 grid on a ring of the square's side. */
+const STAKE_ARC_POINTS = 48;
+
+/**
+ * --- templates --- (studio2 review round 2, 16) The cells of the exported square the mode's stake covers now (none once its run is
+ * done): Target's segment to hit next as Canvas.tsx draws it – the arc of its ring from 12 o'clock clockwise, a 2π/total step a
+ * segment, its stroke max(8, 6 % of the radius) thick with a 12 px glow – and its number outside the ring (labelR, its font 3 % of
+ * the canvas's side).
+ */
+function modeStakeCells(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"], world: BotWorld, cellOf: (share: number) => number, g: number): number[] {
+  if (mode !== "target" || !engine.isCountdownMode() || engine.isCountdownComplete()) return [];
+  const wall = engine.getCircularWalls()[0];
+  const total = engine.getCountdownTotal();
+  const target = engine.getCountdownTarget();
+  const s = engine.getCountdownSegmentMap().indexOf(target);
+  if (!wall || !(total > 0) || s < 0) return [];
+  const side = Math.min(world.width, world.height);
+  const ox = (world.width - side) / 2;
+  const oy = (world.height - side) / 2;
+  const cx = world.width / 2;
+  const cy = world.height / 2;
+  const r = wall.radius;
+  const half = Math.max(8, 0.06 * r) / 2 + 12;
+  const labelR = r + Math.max(12, 0.08 * r);
+  const font = Math.max(10, 0.03 * side);
+  const step = (2 * Math.PI) / total;
+  const a0 = -Math.PI / 2 + s * step;
+  const cells = new Set<number>();
+  const mark = (x: number, y: number) => {
+    const u = (x - ox) / side;
+    const v = (y - oy) / side;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) cells.add(cellOf(v) * g + cellOf(u));
+  };
+  for (let i = 0; i <= STAKE_ARC_POINTS; i++) {
+    const a = a0 + (step * i) / STAKE_ARC_POINTS;
+    for (const rr of [r - half, r, r + half]) mark(cx + rr * Math.cos(a), cy + rr * Math.sin(a));
+  }
+  const mid = a0 + step / 2;
+  const lx = cx + labelR * Math.cos(mid);
+  const ly = cy + labelR * Math.sin(mid);
+  for (const dx of [-font, 0, font]) for (const dy of [-font / 2, 0, font / 2]) mark(lx + dx, ly + dy);
+  return [...cells].sort((a, b) => a - b);
+}
+// --- end of the modes' own stakes
 
 // --- templates --- (AI studio step 3) the modes' own banners and cameras
 /**
@@ -208,6 +277,7 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
   const step = 1000 / 60;
   const samples: string[] = [];
   const banners: string[] | null = modeBannersDrawn(settings) ? [] : null; // --- templates --- (AI studio step 3; step 4b: drawn ones only)
+  const stakes: string[] | null = STAKE_MODES.includes(settings.mode) ? [] : null; // --- templates --- (studio2 review round 2, 16)
   let last = new Map<number, { x: number; y: number }>();
   let elapsed = 0;
   let steps = 0;
@@ -248,11 +318,12 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
         }
         banners.push(encodeCells(covered));
       }
+      if (stakes) stakes.push(encodeCells(modeStakeCells(engine, request.mode, w, cellOf, g))); // --- templates --- (studio2 review round 2, 16)
     }
     if (engine.isSimulationFinished()) break;
     if (++steps % SLICE_STEPS === 0) yield elapsed;
   }
-  return { stepSec: ACTION_STEP_SEC, grid: g, samples, ...(banners ? { banners } : {}) };
+  return { stepSec: ACTION_STEP_SEC, grid: g, samples, ...(banners ? { banners } : {}), ...(stakes ? { stakes } : {}) };
 }
 
 /** actionTrackSteps() in one go. */

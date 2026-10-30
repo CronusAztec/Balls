@@ -35,6 +35,8 @@ import {
   studioReview,
   rankedTemplates,
   studioRenderRefusal,
+  RENDER_BUCKETS,
+  RENDER_MAX_SEC,
   studioTemplates,
   studioTemplatesOf,
   templateMenu,
@@ -1302,4 +1304,88 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
     const named = [...doc.matchAll(/`((?:get-out|smash|fill|count|who-wins|aim|line-up|on-the-beat|reveal|lab-game)-[a-z0-9-]+)`/g)].map((m) => m[1]);
     expect(named.filter((id) => !known.has(id))).toEqual([]);
   });
+});
+
+// --- studio --- (studio2 review round 2, 18) the studio pitches, plans, keeps and fixes only clips its render plays: Classic's and
+// Pendulum Wave's long ideas (63 s and 86 s) were planned and kept, then render refused them, and a reviewer's changeLength to long ran
+describe("the studio2 review's second round, finding 18: only lengths the render plays (--- studio ---)", () => {
+  const WORLD = { width: 800, height: 450 };
+  const viewerRead = { whatHappens: "out", understood: "a ball escapes rings", waitingFor: "the escape", clearBySec: 1, distractions: [], watchToEnd: "yes" };
+
+  it("offers the brainstormer the short and standard lengths only: its menu, its brief's lines, its schema and its card", () => {
+    expect([RENDER_MAX_SEC, RENDER_BUCKETS]).toEqual([60, ["short", "standard"]]);
+    const menu = templateMenu("all", copy as never);
+    for (const m of menu) {
+      expect([m.template, m.buckets!.length > 0, m.buckets!.every((b) => RENDER_BUCKETS.includes(b))]).toEqual([m.template, true, true]);
+      expect([m.template, m.buckets]).toEqual([m.template, (templateRecipeById(m.template)!.buckets ?? LENGTH_BUCKETS).filter((b) => b !== "long")]);
+    }
+    // the templates the review reported: their recipes fill the long length too, and the menu leaves it out
+    for (const id of ["get-out-classic", "line-up-pendulum"]) expect([id, templateRecipeById(id)!.buckets ?? LENGTH_BUCKETS, menu.find((m) => m.template === id)!.buckets]).toEqual([id, expect.arrayContaining(["long"]), ["short", "standard"]]);
+    const out = studio([], "bs18").call({ request: "three clips", wanted: 3, world: WORLD, family: "all" });
+    const next = nextOf(out);
+    expect(next.role).toBe("brainstormer");
+    const items = ((next.schema.properties as Record<string, { items: { oneOf: { properties: { bucket: { enum: string[] }; template: { const: string } } }[] } }>).ideas.items.oneOf);
+    expect(items.length).toBe(menu.length);
+    for (const item of items) expect([item.properties.template.const, item.properties.bucket.enum.includes("long")]).toEqual([item.properties.template.const, false]);
+    const user = next.messages.find((m) => m.role === "user")!.content;
+    expect(user).toMatch(/^- get-out-classic \(getOut, proven[^)]*\): classic; a "[^"]+"; endings resolved, cliffhanger; lengths short, standard$/m);
+    expect(user.split("\n").filter((l) => l.startsWith("- ")).every((l) => / lengths (short|standard)(, standard)?$/.test(l))).toBe(true);
+    expect(ROLE_SPECS.brainstormer.card).toContain("bucket: short, standard or long, one its menu line lists");
+  });
+
+  it("refuses an open request's long idea, and plans the same ideas at a length the render plays", () => {
+    const s = studio([], "bs18b");
+    s.call({ request: "three clips", wanted: 3, world: WORLD });
+    const idea = (template: string, mode: string, bucket: string) => ({ template, mode, hook: "a", ending: "resolved", bucket, angle: "", basis: "none" });
+    const refused = s.call({ role: "brainstormer", verdict: { ideas: [idea("get-out-classic", "classic", "long"), idea("smash-spiral-glass", "spiralGlass", "standard"), idea("line-up-pendulum", "pendulum", "long")] } });
+    expect(refused.result.accepted).toMatchObject({ ok: false });
+    expect(JSON.stringify((refused.result.accepted as { errors: string[] }).errors)).toMatch(/bucket/);
+    expect(refused.plan).toBeNull();
+    const accepted = s.call({ role: "brainstormer", verdict: { ideas: [idea("get-out-classic", "classic", "standard"), idea("smash-spiral-glass", "spiralGlass", "standard"), idea("line-up-pendulum", "pendulum", "standard")] } });
+    expect(accepted.result.accepted).toMatchObject({ ok: true });
+    expect(accepted.plan!.plans.length).toBe(3);
+    for (const r of accepted.plan!.plans) expect([r.id, r.plan.settings.recordingDuration <= RENDER_MAX_SEC]).toEqual([r.id, true]);
+  }, 120_000);
+
+  it("drops a planned clip past the render before any model looks at it, and keeps none it cannot render", () => {
+    const [long] = planned({ template: "line-up-pendulum", count: 1, planSeed: 1, maxSeeds: 1, bucket: "long", platform: "reels" });
+    const [fits] = planned({ template: "get-out-classic", count: 1, planSeed: 1, maxSeeds: 1, platform: "reels" });
+    expect([long.plan.settings.recordingDuration > RENDER_MAX_SEC, fits.plan.settings.recordingDuration <= RENDER_MAX_SEC]).toEqual([true, true]);
+    const s = studio([long, fits], "len18");
+    const first = s.call({ wanted: 2 });
+    expect(nextOf(first)).toMatchObject({ role: "skeptic", clip: fits.id });
+    const pre = s.panel()!.pre!;
+    expect(pre.maxClipSec).toBe(RENDER_MAX_SEC);
+    expect(pre.clips.find((c) => c.id === long.id)).toMatchObject({ status: "done", verdict: "drop", dropWhy: "tooLong" });
+    expect(pre.log).toContain(`measure ${long.id}: dropped, ${long.plan.settings.recordingDuration} s long, past the render's 60 s`);
+    const done = s.call({ role: "skeptic", clip: fits.id, verdict: NOTHING });
+    const decision = panelDecision(s.panel()!.pre!);
+    expect(decision.keeps.map((k) => k.id)).toEqual([fits.id]);
+    expect(decision.drops).toEqual([expect.objectContaining({ id: long.id, reason: "tooLong" })]);
+    expect(done.ok).toBe(true);
+    // the app's own panel has no such limit: a long clip is a clip there
+    const app = createPanel({ stage: "pre", wanted: 1, candidates: [{ id: long.id, clip: crewClipOfPlan(long.plan, { run: long.run }) }] });
+    expect(app.maxClipSec).toBeUndefined();
+    expect(app.clips[0].dropWhy).not.toBe("tooLong");
+  }, 120_000);
+
+  it("never asks the seed search for a long clip: changeLength past the render is refused, by the reviewer's schema and by the fix compiler", () => {
+    const [r] = planned({ template: "get-out-classic", count: 1, planSeed: 1, maxSeeds: 1, platform: "reels" });
+    const clip = crewClipOfPlan(r.plan, { run: r.run });
+    const toLong = [{ action: "changeLength" as const, bucket: "long" as const }];
+    expect(compileFixes(clip, toLong).errors).toEqual([]);
+    expect(compileFixes(clip, toLong, { maxClipSec: RENDER_MAX_SEC }).errors).toEqual(["changeLength: a long clip runs to 90 s, past the render's 60 s (it takes short, standard)"]);
+    expect(compileFixes(clip, [{ action: "changeLength", bucket: "short" }], { maxClipSec: RENDER_MAX_SEC }).errors).toEqual([]);
+    // the studio's reviewer brief: its schema names short and standard only, its data says why
+    const s = studio([r], "fix18");
+    s.call({ depth: "thorough", wanted: 1 });
+    s.call({ role: "viewer", clip: r.id, verdict: viewerRead });
+    const next = nextOf(s.call({ role: "skeptic", clip: r.id, verdict: NOTHING }));
+    expect(next).toMatchObject({ role: "reviewer", clip: r.id });
+    expect(JSON.stringify(next.schema)).toContain('"changeLength"},"bucket":{"enum":["short","standard"]}');
+    expect(next.messages.find((m) => m.role === "user")!.content).toContain("changeLength may name: short, standard (the render plays 60 s at most).");
+    const asked = s.call({ role: "reviewer", clip: r.id, verdict: { ...KEEP, verdict: "fix", confidence: "medium", fixes: toLong, why: "a longer build-up" } });
+    expect(asked.result.accepted).toMatchObject({ ok: false });
+    expect(JSON.stringify((asked.result.accepted as { errors: string[] }).errors)).toMatch(/bucket|long/);
+  }, 120_000);
 });

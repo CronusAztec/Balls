@@ -364,7 +364,7 @@ whose counter would count the clip's seconds score 82–84 on the checklist: the
 | get-out-portal-gerald | 97 | 96 | 12/12 |
 | get-out-glass | 88.5 | 96 | 11/12 |
 | smash-power-layers | 89.5 | 96 | 12/12 |
-| fill-grow | 97 | 82 | 10/12 |
+| fill-grow (short only since the first review round, no trails or glow since the second: below) | 97 | 82 | 10/12 |
 | count-multiply | 97 | 82 | 12/12 |
 | count-multipliers | 90 | 96 | 12/12 |
 | who-wins-ctf | 90 | 96 | 12/12 |
@@ -398,9 +398,9 @@ rendered watermarked through the page's own fast export, and its hook and contac
 
 | Template | Its own settings | Simple (median) | Checklist (median) | Pass every gate |
 | --- | --- | --- | --- | --- |
-| get-out-shatter | 8–12 rings of glass (short) or 16–20 (standard), ball speed 380–440; cut before the escape | 97 | 86 | 12/12 |
+| get-out-shatter | 8–12 rings of glass (short) or 16–20 (standard), ball speed 380–440; cut before the escape (its rings turning at a fifth of the speed since the second review round: below) | 97 | 86 | 12/12 |
 | get-out-color-match | one ring of 12 segments in 2 colours, ball speed 600–800; standard only, cut before the escape | 97 | 86 | 12/12 |
-| smash-target | 5 numbered segments (short) or 6–7 (standard), ball speed 600–720, no gravity; cut before the last | 97 | 86 | 12/12 |
+| smash-target | 5 numbered segments (short) or 6–7 (standard), ball speed 600–720, no gravity; cut before the last (its texts clear of the segment to hit next since the second review round: below) | 97 | 86 | 12/12 |
 | smash-brick-rebuild | a new ball every max(1, target ÷ 5) bricks, ball speed 420–520; the last brick of the picture (since the second review round its settle held past the clip's end, and its bricks' counter counted: below) | 100 | 86 | 12/12 |
 | fill-perfect-fit | the 12 pentominoes in a 10 × 6, 12 × 5 or 15 × 4 box, timed to fill at the target; the tiling with the most pieces on the floor | 97 | 82 | 12/12 |
 | get-out-classic-ring | one ring with a 15–25 % gap, ball speed 420–560, spin 0.8–1.6, ball 8–11 | 97 | 86 | 11/12 |
@@ -447,7 +447,7 @@ passed its watch: one clip of each rendered watermarked and its hook and contact
 | who-wins-territory | its countdown on its 5 s step at or past the target; cut before the verdict | 97 | 86 | 12/12 |
 | who-wins-land-claim | the claim rule (a block takes its hitter's colour), 2 balls a side over 12–20 rows (short) or 2–3 a side, no new balls, 12–16 rows (standard); cut before the verdict (two sides that snowball since the second review round, cut where one leads: below) | 97 | 86 | 11/12 |
 | aim-bullseye | 4–5 rings (short) or 6–7 (standard), most pegs in play (chaos 0.6–0.75), 16 or 20 shots; the first BULLSEYE! | 90 | 86 | 12/12 |
-| aim-box | two squares at speeds 2 : 3, each counting down from twice the target; the first one at zero | 97 | 82 | 12/12 |
+| aim-box | two squares at speeds 2 : 3, each counting down from twice the target; the first one at zero (hidden since the second review round: below) | 97 | 82 | 12/12 |
 
 - Their runs are the bot look's: the seed and every run fact are the same in both looks, on every plan.
 - The plan said the conveyor and Merge Ring loop and should take the clip's last 1.5 s. The code says otherwise: both runs
@@ -759,6 +759,29 @@ renders and found six things a stranger would not get, or hear. Each is fixed at
 - The conveyor's chord changes its mode for every user, the website's too: the run, its timing and its fingerprint are as they
   were, and its end is heard.
 - The role eval's corpus moved with the payoff moment's silent end and the menu (docs/agents/CREW-EVAL.md, run round2b).
+
+**The second review round, findings 13–18** **[observed: the changed templates' 4 plan seeds × 3 platforms in the Simple look in
+English, Polish and Spanish (the same counts in each), plan seeds 5–8 × 3 platforms in the studio's 800×450 world, and the bot look
+in English; every ready template's 4 plan seeds in English after the round; one clip of each changed template rendered
+watermarked and watched]**. The review watched the renders and found five things a stranger would plainly see, and one the
+studio did that no render could finish:
+
+| Finding | What a viewer saw | What changed | Measured since |
+| --- | --- | --- | --- |
+| Grow's trails and glow | from 6 s, translucent teal wedges sticking out of the ring (the ring read as breaking), and the ball's glow lit the square as a hard-edged box | the Simple look draws a ball that grows to its arena's size without trails or glow (`BALL_FILLS_ARENA_MODES`: a single-colour trail is one polyline 0.8 of the ball wide, its corners spiking past the ring at each bounce; the glow, twice the ball, was cut at the square's edges); the template grows at its short length's fastest rate (`growRate` 10, the recipe's 7–10), where one plan in eight found no fill in time and ran on to 16–22 s | 12/12 in each language, 12/12 at 800×450; Simple 97, checklist 82 (82–84, the look item 3 of 5 now), 24 of 24 plans on plan seeds 1–8 finding the fill in 10–13 s; the render shows no wedge and no box; the bot look as before (0/12: G5 and G6, busy by design) |
+| Shatter's flicker | the whole disc flipping from spokes to bricks 4.5 times a second (at 10 rings as at 19) | its rings turn at a fifth of the mode's speed (`rotationSpeed` 0.2; the mode's default 1 stays): neighbouring rings line up 4.6 × that a second, about once now | 12/12 in each language, 12/12 at 800×450; Simple 97, checklist 86; the render, read at 10 frames a second, goes spokes to bricks and back once a second; the bot look 12/12 |
+| Brick Smash's counter | "896 bricks" … "0 bricks" under the box, which the screen view named and the checklist still charged as no countdown (−10) | the count of the bricks the renderer draws with the loop HUD off is the template's countdown (`hudShowsCountdown`, `MODE_HUDS` counts) | 12/12 in each language, 12/12 at 800×450; Simple 92.5 (89–95), checklist 96 (88–96; 86 before); the bot look keeps its loop HUD, uncredited, as before |
+| Target's texts | "Will it break?" over the glowing segment it asked about, and "One more hit? 👇" grazing the last one | the action track records a mode's stake, Target's segment to hit next with its number (`stakes`), a text over it hides the action, and the Simple look puts a text at the edge clear of it before it weighs the balls (`stakeCoverSec`) | 12/12 in each language, 12/12 at 800×450; Simple 97, checklist 86; at the top, the bot look's place, 13 of the 24 hooks and questions sat over the segment for 0.5–2 s; placed, 22 cover none of it and two Shorts hooks 1 s, where the segment moves from the top to the bottom under the hook; the render's hook and question sit at the bottom, the segments clear |
+| Bouncing Shapes' payoff | the first square at zero stopped in its corner as the dimmest thing on screen, no words, while the other went on bright | tried: a race hook ("Which one hits zero first?") with payoff words ("Zero! 🎯") in the short length, the clip ending 1.8 s after the zero – 12/12 in each language, Simple 97, checklist 84 –, and watched: the stopped square sank, faded, into the corner under the watermark while "6" went on bouncing. The mode draws a stopped shape at 35 %, no setting changes it, and one square ends the run at its zero (shown 0.5 s, G2) | hidden (`EXPERIMENTAL.box`); the aim format keeps Bullseye |
+| Long clips in the studio | the brainstormer offered "long" on every template whose recipe fills it, a 63 s Classic and an 86 s Pendulum Wave were planned and kept, then refused by render; the reviewer's changeLength to long ran its seed search | the studio's menu offers each template the lengths render plays (short and standard), the panel drops a planned clip past 60 s before any role looks at it (`tooLong`), and changeLength names short or standard only there (`maxClipSec`); the brainstormer's card and menu lines name the endings and lengths each template takes | `tests/agentStudio.test.ts` |
+
+- The whole table after the round: 34 ready bindings as 43 templates, 509 of 512 English plans passing every gate (the same
+  three misses as before: Classic's one ring and Glass on one Shorts plan each, a String Battle's first hit at 1.4 s).
+- Grow's fill gives up the checklist's 2 points for glow and trails: a ball the ring's size covers its own trail, and its glow
+  outgrows the square the clip shows.
+- A flicker over the whole picture is not measured by any rule (docs/agents/STUDIO.md, known gaps): the post-render Simple score
+  reads motion, not a moiré. Shatter's binding turns its rings slowly; another mode's pattern would need its own.
+- The role eval's corpus moved with Grow's clips and the menu (docs/agents/CREW-EVAL.md, run round2c).
 
 **Where the templates are offered** (AI studio steps 7 and 8):
 

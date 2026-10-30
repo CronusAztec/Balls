@@ -5,7 +5,7 @@ import { claimOfRecipe, countsIn, factNumbersOf, namesOf, type CrewClip } from "
 import { clarityOf, failedGates, type Clarity } from "./clarity";
 import { clipSceneOf, intentView, screenView, type OtherCandidate } from "./dossier";
 import { confirmedDistractions, makesSenseOf, markObjection, markObjections, standing, type MarkedObjection } from "./evidence";
-import { applyCompiledFix, clutterOn, compileFixes, type CompiledFix, type FinderNeed } from "./fixes";
+import { applyCompiledFix, bucketsWithin, clutterOn, compileFixes, type CompiledFix, type FinderNeed, type FixOptions } from "./fixes";
 import { pick, pickScore, type PickCandidate, type PickEntry, type Picked } from "./pick";
 import { briefText, BRIEF_CHARS, researchBriefOf, researchGapOf, type ResearchDigest } from "./research";
 import { cleanNote, sanitizeReview, type ClipReview, type ClipReviewRole, type ReviewFixState, type ReviewIssue, type ReviewNotReviewed } from "./review";
@@ -243,6 +243,12 @@ export interface PanelState {
   separation: "contexts" | "sameContext";
   /** The roles this run leaves to the rules (never asked; absent: none – a panel saved before the field had none). */
   off?: CrewRole[];
+  /**
+   * --- crew --- (studio2 review round 2, 18) The longest clip the caller renders (s): before a render a longer candidate is dropped by
+   * the rules ("tooLong": a kept clip its render cannot play is no clip), and no fix asks for a length past it (fixes.ts maxClipSec,
+   * the reviewer's schema). Absent: no limit – the app records any length, and a panel saved before the field had none.
+   */
+  maxClipSec?: number;
   request: PanelRequest | null;
   menu: MenuItem[];
   liveResearch: boolean;
@@ -283,6 +289,8 @@ export interface PanelInput {
   separation?: "contexts" | "sameContext";
   /** Roles this run never asks (see the header). */
   off?: readonly CrewRole[];
+  /** --- crew --- (studio2 review round 2, 18) The longest clip the caller renders (PanelState.maxClipSec; absent: no limit). */
+  maxClipSec?: number;
 }
 
 /** A role's brief: everything a model needs for one call, the same on every route. */
@@ -411,6 +419,7 @@ export function createPanel(input: PanelInput): PanelState {
     who: input.who ?? "app",
     separation: input.separation ?? "contexts",
     ...(input.off?.length ? { off: CREW_ROLES.filter((r) => input.off!.includes(r)) } : {}),
+    ...(input.maxClipSec !== undefined && input.maxClipSec > 0 ? { maxClipSec: input.maxClipSec } : {}),
     request,
     menu: [...(input.menu ?? recipeMenu())],
     liveResearch: !!input.liveResearch,
@@ -459,6 +468,10 @@ const pickOf = (c: PanelClip) => pickScore(c.clarity.playbook.score, c.clarity.s
 const templateOf = (clip: CrewClip) => clip.template ?? clip.recipe ?? clip.mode;
 /** A clip the crew keeps: a keep, or a fix (applied, or reverted with nothing major left standing). */
 const kept = (c: PanelClip) => c.verdict === "keep" || c.verdict === "fix";
+/** --- crew --- (studio2 review round 2, 18) A clip's fix options in this run: its Simple options and the render's longest clip. */
+const fixOptionsOf = (s: Pick<PanelState, "maxClipSec">, c: Pick<PanelClip, "simple">): FixOptions => ({ simple: c.simple, ...(s.maxClipSec !== undefined ? { maxClipSec: s.maxClipSec } : {}) });
+/** --- crew --- (studio2 review round 2, 18) A clip's recorded length (s): its plan's recording. */
+const recordedSecOf = (clip: CrewClip) => clip.timing.recordingDuration || clip.settings.recordingDuration;
 
 export type RuleFix = PanelClip["ruleFix"][number];
 /** The measure step's rule fix (a failed G5 or G6): the calm look, then one text at a time. */
@@ -489,6 +502,12 @@ function measured(s: PanelState, candidates: readonly PanelCandidate[]): PanelSt
   if (s.stage === "pre") {
     clips = clips.map((pc) => {
       let c = pc;
+      // --- crew --- (studio2 review round 2, 18) a clip past the caller's render is no clip: dropped before any rule fix or model
+      const seconds = recordedSecOf(c.clip);
+      if (s.maxClipSec !== undefined && seconds > s.maxClipSec + 1e-9) {
+        next = log(next, `measure ${c.id}: dropped, ${seconds} s long, past the render's ${s.maxClipSec} s`);
+        return { ...c, status: "done", verdict: "drop", dropWhy: "tooLong" };
+      }
       const failing = failedGates(c.clarity);
       if (failing.some((g) => g === "G5" || g === "G6")) {
         const { clip, applied } = withRuleFix(c.clip, RULE_FIXES, c.simple);
@@ -594,7 +613,7 @@ const call = (s: PanelState, role: CrewRole, clipId: string | null): PanelState 
 /** The fix round of a pre-render "fix" (step 4): compiled, then applied here or after the seed search. */
 function fixRound(s: PanelState, c: PanelClip): PanelState {
   const result = c.reviewer.result!;
-  const compiled = compileFixes(c.clip, result.fixes, { simple: c.simple });
+  const compiled = compileFixes(c.clip, result.fixes, fixOptionsOf(s, c));
   if (!compiled.ok) return judged(s, c.id, null, { actions: result.fixes, state: "refused", why: compiled.errors[0] ?? "refused", compiled });
   if (compiled.finder) return { ...withClip(s, c.id, (x) => ({ ...x, fix: { actions: result.fixes, state: "pending", why: null, compiled } })), pending: { kind: "replan", clipId: c.id } };
   return judged(s, c.id, applyCompiledFix(c.clip, compiled, { simple: c.simple }), { actions: result.fixes, state: "applied", why: null, compiled });
@@ -676,7 +695,7 @@ function reviewStep(s: PanelState): PanelState {
   if (r.verdict === "drop") return finishClip(s, c.id, (x) => ({ ...x, verdict: "drop", dropWhy: "reviewer", confidence: r.confidence }));
   if (!pre) {
     // after a render a fix is offered ("Make the fixed version"), never applied here
-    const compiled = compileFixes(c.clip, r.fixes, { simple: c.simple });
+    const compiled = compileFixes(c.clip, r.fixes, fixOptionsOf(s, c));
     return finishClip(s, c.id, (x) => ({ ...x, verdict: "fix", confidence: r.confidence, fix: { actions: r.fixes, state: compiled.ok ? "offered" : "refused", why: compiled.ok ? null : compiled.errors[0] ?? null, compiled } }));
   }
   return fixRound(s, c);
@@ -799,9 +818,10 @@ function advance(start: PanelState): PanelState {
 const clipPrefix = (c: PanelClip) => `${SHARED_RUBRIC}\n\nThe clip's dossier:\n${c.dossier ?? ""}`;
 const SKEPTIC_USER = "Judge the clip in the dossier.";
 
-function reviewShape(c: PanelClip): ReviewShape {
+function reviewShape(s: PanelState, c: PanelClip): ReviewShape {
   const st = standing(c.marks);
-  return { objections: st.map((m) => m.id), viewer: c.viewer.source !== "model" || !c.viewer.result ? "none" : c.makesSense !== "yes" ? "misread" : "read", clutter: clutterOn(c.clip, { simple: c.simple }) };
+  // (--- crew --- studio2 review round 2, 18: changeLength names only the lengths the caller's render plays)
+  return { objections: st.map((m) => m.id), viewer: c.viewer.source !== "model" || !c.viewer.result ? "none" : c.makesSense !== "yes" ? "misread" : "read", clutter: clutterOn(c.clip, { simple: c.simple }), ...(s.maxClipSec !== undefined ? { buckets: bucketsWithin(s.maxClipSec) } : {}) };
 }
 
 function reviewerUser(s: PanelState, c: PanelClip): string {
@@ -814,6 +834,8 @@ function reviewerUser(s: PanelState, c: PanelClip): string {
     `Stage: ${s.stage === "pre" ? "before the render (a fix is applied and measured again)" : "after the render (a fix is offered as a new version)"}.`,
     `Research: ${briefText(s.brief, BRIEF_CHARS.reviewer)}`,
     `turnOff may name: ${clutterOn(c.clip, { simple: c.simple }).join(", ") || "nothing (all off)"}.`,
+    // --- crew --- (studio2 review round 2, 18) the lengths a render plays, where the caller's has a limit (the toolbox's 60 s)
+    ...(s.maxClipSec !== undefined ? [`changeLength may name: ${bucketsWithin(s.maxClipSec).join(", ")} (the render plays ${s.maxClipSec} s at most).`] : []),
   ].join("\n");
 }
 
@@ -826,7 +848,9 @@ function brainstormUser(s: PanelState): string {
     `Research brief:\n${briefText(s.brief, BRIEF_CHARS.brainstormer)}`,
     // (--- crew --- step 2's review round 1, 23: each template's tier and the trend it follows, the proven and trending first)
     s.menu.some((m) => m.tier) ? "Menu, proven and trending first (template (format, tier, the trend it follows): modes; hook variants, with their words where known):" : "Menu (template (format): modes; hook variants, with their words where known):",
-    ...s.menu.map((m) => `- ${m.template} (${[m.format, ...(m.tier ? [m.tier] : []), ...(m.trend ? [`trending: ${m.trend}`] : [])].join(", ")}): ${m.modes.join(", ")}; ${m.hooks.map((h) => (m.hookWords?.[h] ? `${h} ${JSON.stringify(m.hookWords[h])}` : h)).join(", ")}`),
+    // (--- crew --- studio2 review round 2, 18: and the endings and lengths it takes, which its schema holds it to – the studio's
+    // menu lists the lengths its render plays, never a long one)
+    ...s.menu.map((m) => `- ${m.template} (${[m.format, ...(m.tier ? [m.tier] : []), ...(m.trend ? [`trending: ${m.trend}`] : [])].join(", ")}): ${m.modes.join(", ")}; ${m.hooks.map((h) => (m.hookWords?.[h] ? `${h} ${JSON.stringify(m.hookWords[h])}` : h)).join(", ")}; endings ${(m.endings ?? ENDING_STYLES).join(", ")}; lengths ${(m.buckets ?? LENGTH_BUCKETS).join(", ")}`),
   ].join("\n");
 }
 
@@ -892,7 +916,7 @@ export function briefOf(s: PanelState, role: CrewRole, clipId: string | null): R
     case "reviewer":
       prefix = clipPrefix(c!);
       user = reviewerUser(s, c!);
-      final = reviewFinal(reviewShape(c!));
+      final = reviewFinal(reviewShape(s, c!));
       break;
     case "producer": {
       prefix = SHARED_RUBRIC;
@@ -1004,7 +1028,7 @@ function checkReply(s: PanelState, role: CrewRole, c: PanelClip | null, raw: unk
           objections: st.map((m) => ({ id: m.id, kind: m.kind, severity: m.severity, mark: m.mark === "confirmed" ? "confirmed" : "opinion" })),
           viewer: c!.viewer.source === "model" && c!.makesSense ? { makesSense: c!.makesSense } : null,
           gateFails: !c!.clarity.pass,
-          compile: (fixes) => compileFixes(c!.clip, fixes, { simple: c!.simple }).errors,
+          compile: (fixes) => compileFixes(c!.clip, fixes, fixOptionsOf(s, c!)).errors,
         }),
       };
     }

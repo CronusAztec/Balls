@@ -139,7 +139,9 @@ export const MODE_HUDS: readonly ModeHud[] = [
   { mode: "blueprint", counts: false, words: "the game's name and its counters in the top left corner" },
   // --- crew --- (studio2 review round 2, 7) Brick Smash's count of its bricks under the box, which its renderer draws whenever the
   // loop HUD is off (brickRebuildRenderer.ts drawCounters: the HUD's own counter line takes its place when it is on), the Simple look's too
-  { mode: "brickRebuild", counts: false, when: (s) => !s.loopHud, words: "a count of the bricks left, under the box" },
+  // --- crew --- (studio2 review round 2, 15) It counts down to the payoff: "896 bricks" … "0 bricks" as the last brick falls (bricks-cleared-by),
+  // so the Playbook credits it as the countdown (planner.ts hudShowsCountdown), where it charged countdownMissing beside the counter drawn
+  { mode: "brickRebuild", counts: true, when: (s) => !s.loopHud, words: "a count of the bricks left, under the box" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings

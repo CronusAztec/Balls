@@ -3,6 +3,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { recipeById, RECIPES } from "@/lib/bot/playbook";
+import { plannedRecipe, templateById } from "@/lib/bot/templates"; // --- crew --- (studio2 review round 2, 17: a hidden template's plan)
 import { MARK_MODES, MARK_WHAT, planClip, planTemplate, type CaptionRole, type ClipPlan } from "@/lib/bot/planner";
 import { defaultCaption, MAX_CAPTION_TEXT_LENGTH, type Caption } from "@/lib/captions";
 import { MODE_IDS } from "@/lib/physics/types";
@@ -186,7 +187,9 @@ describe("the intent view", () => {
       ["aim-box", "first shape at zero", "hit"],
       ["lab-game-blueprint", "game over (its finish rule)", "gameOver"],
     ] as const) {
-      const p = planTemplate(id, 2, "reels", { copy, ending: "resolved", episode: 3 });
+      // (--- crew --- studio2 review round 2, 17: Bouncing Shapes is hidden, its plan from its binding's recipe)
+      const t = templateById(id)!;
+      const p = t.ready ? planTemplate(id, 2, "reels", { copy, ending: "resolved", episode: 3 }) : planClip(plannedRecipe(t)!, 2, "reels", { copy, look: "simple", template: id, ending: "resolved", episode: 3 });
       const c = crewClipOfPlan(p, { run: runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec) });
       const d = intentView(c);
       const at = Math.round(p.payoff.atSec! * 10) / 10;

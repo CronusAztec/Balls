@@ -354,6 +354,9 @@ describe("the HUD flags and the ring-wall modes", () => {
   it("counts down exactly where scoreClip credits a HUD countdown (planner.ts hudShowsCountdown)", () => {
     const variants: SimulatorSettings[] = MODE_IDS.map((m) => ({ ...defaultSettings(m), recordingDuration: 20 }));
     variants.push({ ...defaultSettings("stringBattle"), sbHud: false }, { ...defaultSettings("fightLeague"), flHud: false });
+    // --- crew --- (studio2 review round 2, 15) Brick Smash's own count of its bricks, drawn with the loop HUD off (the Simple look)
+    variants.push({ ...defaultSettings("brickRebuild"), loopHud: false });
+    expect(hudCounts({ ...defaultSettings("brickRebuild"), loopHud: false })).toBe(true);
     for (const s of variants) {
       const like = planLikeFromSettings({ ...s, captions: [] }, { firstImpactSec: 0.5, payoffSec: 17, clipSec: 20 }, { platform: "reels" });
       const key = scoreClip(like as unknown as ClipPlan).reasons.find((r) => r.id === "countdown")!.key;

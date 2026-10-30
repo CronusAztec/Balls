@@ -94,7 +94,7 @@ argument.
 
 `src/lib/bot/templates.ts` binds each of the 48 modes to one of ten formats. A format promises one thing the run must
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
-and Mode Lab game. 35 of the 48 bindings are ready, as 45 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+and Mode Lab game. 34 of the 48 bindings are ready, as 43 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
 experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode with it.
@@ -102,26 +102,29 @@ experimental one's measured reason, a proven one's hidden variants with theirs),
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
 it: `plan` refuses one named by its id, its mode or its recipe without it, as `viral-bot.mjs --template` does. The default
-menus offer the other 35 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
+menus offer the other 33 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
 section and `viral-bot.mjs`, which render long clips, but not in the studio: it fills the long length only (60–90 s), and
 render plays 60 s at most. The listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan`
-leave it out (the mode route plans Fight League's other three).
+leave it out (the mode route plans Fight League's other three). Since the studio2 review's second round (18) the studio keeps
+every clip to the lengths render plays: the brainstormer's menu offers each template its short and standard lengths only, the
+panel drops a planned clip past 60 s before any role looks at it (`tooLong`, the plan route's `"bucket":"long"` included), and
+the reviewer's `changeLength` names short or standard only (`maxClipSec` on the panel, `RENDER_MAX_SEC`).
 
 | Format | Mode | The payoff | Ready templates | Waits, and why |
 | --- | --- | --- | --- | --- |
 | get out | Classic | the first escape; the one ring's first ring (`outcome` ring-at) | `get-out-classic`, `get-out-classic-gerald`, `get-out-classic-ring` | |
 | | Accumulation | the first escape, cut before it | `get-out-accumulation` | |
 | | Portal | the first escape, cut before it | `get-out-portal`, `get-out-portal-gerald` | |
-| | Shatter | the first escape (`outcome` escapes-at), cut before it | `get-out-shatter` | |
+| | Shatter | the first escape (`outcome` escapes-at), cut before it; its rings turn at a fifth of the mode's speed | `get-out-shatter` | |
 | | Color Match | the first escape (`outcome` escapes-at), cut before it | `get-out-color-match` | |
 | | Glass Smash | Gerald home | `get-out-glass` | |
 | | Journey | HOME, its overlay off in both looks (`journeyHud`) | `get-out-journey` | |
-| smash | Target | the last segment, cut before it | `smash-target` | |
+| smash | Target | the last segment, cut before it; its texts at the edge clear of the segment to hit next | `smash-target` | |
 | | Power Layers | the break-out the settings time | `smash-power-layers` | |
-| | Brick Smash | the picture's last brick (`outcome`, a run of its own); its settle held past the clip's end, so the picture never flies back in under its words | `smash-brick-rebuild` | |
+| | Brick Smash | the picture's last brick (`outcome`, a run of its own); its settle held past the clip's end, so the picture never flies back in under its words; its bricks' count under the box is its countdown | `smash-brick-rebuild` | |
 | | Spiral Glass | GLASS CLEARED, its overlay off in both looks (`sgHud`); its hook asks what the banner answers | `smash-spiral-glass` | |
 | fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
-| | Grow | the measured fill, in the short length only (a standard clip often found no fill in time) | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
+| | Grow | the measured fill, in the short length only (a standard clip often found no fill in time), at its fastest growth; no trails or glow on a ball the ring's size | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
 | | Perfect Fit | | | `fill-perfect-fit`: its box is full for its 0.15 s flash only, then bursts (G2) |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
@@ -135,7 +138,7 @@ leave it out (the mode route plans Fight League's other three).
 | | Maze Escape | the first one out (`outcome`, a run of its own) | `who-wins-maze` | |
 | | Fight League | the KO, or the champion | `who-wins-fight-league`, `who-wins-fight-league-upset`, `who-wins-fight-league-bracket` (the website's only: long, past render's 60 s), `who-wins-fight-league-boss` | |
 | | Land Claim | the winner (`outcome`) of two sides, cut before the verdict where one leads by a tenth of the land | `who-wins-land-claim` | |
-| aim | Bouncing Shapes | the first shape at zero (its mark); its post asks which one stops first | `aim-box` | |
+| aim | Bouncing Shapes | | | `aim-box`: its payoff, the first shape at zero, is drawn faded while the other bounces on bright |
 | | Paddle Keep-Up | | | `aim-paddle`: its score band sits under the hook |
 | | Bullseye | the first BULLSEYE! (its mark) | `aim-bullseye` | |
 | line up | Pendulum Wave | the realignment | `line-up-pendulum` | |
@@ -609,7 +612,14 @@ What the run showed:
   length only: its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s in, and render
   plays 60 s at most (the page's `LINK_RENDER_MAX_SEC`). The studio leaves it out, and render's advice for a clip past 60 s
   names the lengths its template fills. A bracket of four in a standard clip would be a template of its own, planned, measured
-  and watched like the others: not built yet.
+  and watched like the others: not built yet. The other templates' long lengths stay the website's: the studio offers, keeps and
+  fixes short and standard clips only (the studio2 review's second round, 18).
+- **A pattern that flickers** (the studio2 review's second round, 14). Shatter's counter-turning rings flipped the whole disc from
+  spokes to bricks 4.5 times a second, and no rule measured it: the post-render Simple score reads motion, not a moiré. The
+  template turns its rings slower; a flicker measure in the post-render rules is not built.
+- **A stopped shape drawn faded** (the studio2 review's second round, 17). Bouncing Shapes draws a shape that reached zero at 35 %:
+  its template's payoff cannot be the brightest thing on screen while another shape bounces, and one shape ends the run at its
+  zero. A setting for how a stopped shape is drawn would be a change of the mode: the owner's call.
 
 ## Gaps closed in AI studio steps 3 to 8 and the review round after them
 
@@ -672,3 +682,12 @@ What the run showed:
   split tagged as a sync: their posts are their own (`ViralBot.ownPosts`), and the templates listing shows no payoff words where
   none are drawn. The conveyor's ALL OUT! came in silent: it plays its chord, and G2 fails a silent payoff the clip then ends on
   in silence. docs/virality-playbook.md §5 has the numbers.
+- **What the second review round of step 2 watched** (findings 13-18). Grow's ball, the ring's size near its fill, laid its trail
+  as wedges past the ring and its glow as a hard-edged box over the square: the Simple look draws a ball that fills its arena
+  without either (`BALL_FILLS_ARENA_MODES`), and the template grows at its short length's fastest rate, so every plan finds its
+  fill. Shatter's rings flipped from spokes to bricks four or five times a second: they turn at a fifth of the speed now. Brick
+  Smash's count of its bricks under the box is its countdown, credited by the checklist (`hudShowsCountdown`). Target's hook and
+  closing question sat over the very segment they asked about: the action track records a mode's stake (`stakes`, Target's
+  segment to hit next), and the Simple look puts a text at the edge clear of it before it weighs the balls. Bouncing Shapes'
+  payoff, a stopped shape the mode draws faded, stayed the dimmest thing on screen with a race hook and payoff words too
+  (watched): hidden. And the studio planned and kept long clips its render cannot play: no more (above).

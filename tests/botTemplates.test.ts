@@ -35,10 +35,11 @@ import {
   seededRandom,
   simulateFacts,
   splitCaptionLines,
+  stakeCoverSec, // --- templates --- (studio2 review round 2, 16)
   type ClipPlan,
 } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, modeBannersDrawn, type ActionTrack } from "@/lib/bot/actionTrack";
+import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, STAKE_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, modeBannersDrawn, stakeUnder, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
 import {
@@ -67,6 +68,8 @@ import {
   variantBinding,
   brickSettleSec, // --- templates --- (studio2 review round 2, 7)
   BR_SETTLE_PAST_SEC,
+  BALL_FILLS_ARENA_MODES, // --- templates --- (studio2 review round 2, 13)
+  simpleLookPatch,
   type OutcomeFlag,
 } from "@/lib/bot/templates";
 import { AT_END_BUCKETS, AT_END_SEC, CS_STALL_SEC, FILL_OUTCOMES, LC_LEAD_MIN, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, colourSortStallSec, landClaimLeadAt, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
@@ -121,7 +124,8 @@ const READY_MODES: readonly ModeId[] = PROVEN.filter((m) => m !== "race" && m !=
  * first bullseye), Bouncing Shapes (its first shape at zero) and Paddle Keep-Up (its GAME OVER). Merge Ring stays experimental: its
  * own question under the ring for the whole run (watched in the render).
  */
-const GROUP_B_READY: readonly ModeId[] = ["conveyor", "maze", "territory", "landClaim", "bullseye", "box"];
+// (--- templates --- studio2 review round 2, 17: Bouncing Shapes hidden after a review, its payoff a faded shape: EXPERIMENTAL.box)
+const GROUP_B_READY: readonly ModeId[] = ["conveyor", "maze", "territory", "landClaim", "bullseye"];
 /**
  * --- templates --- (AI studio step 4b) The two step 3 hid for what they draw of their own, ready since a setting switches it off
  * (`journeyHud`, `sgHud`: HUD flags the Simple look turns off): the Journey (its door marked HOME) and Spiral Glass (GLASS CLEARED),
@@ -577,16 +581,20 @@ describe("the Simple look", () => {
     for (const t of ready) {
       const plan = planTemplate(t.id, 2, "reels", { copy, search: false });
       const s = plan.settings;
+      // (--- templates --- studio2 review round 2, 13: a ball that grows to its arena's size draws neither trails nor glow)
+      const fills = BALL_FILLS_ARENA_MODES.includes(t.mode);
       for (const [key, value] of Object.entries(SIMPLE_LOOK)) {
         if (key === "background") expect(s.backgroundColors, t.id).toEqual([...SIMPLE_LOOK.background]);
         else if (key === "trailThickness") expect(s.trailThickness, t.id).toBeLessThanOrEqual(SIMPLE_TRAIL_THICKNESS);
+        else if (fills && (key === "showTrails" || key === "showGlow")) expect((s as unknown as Record<string, unknown>)[key], `${t.id} ${key}`).toBe(false);
         else expect((s as unknown as Record<string, unknown>)[key], `${t.id} ${key}`).toEqual(value);
       }
       expect(s.backgroundType).toBe("gradient");
       expect(s.particleStyle).not.toBe("confetti");
       expect([s.topText, s.bottomText], t.id).toEqual(["", ""]);
       expect(hudsOn(s).filter((h) => h.flag).map((h) => h.id), t.id).toEqual(t.binding.keepHud ? [t.binding.keepHud] : []);
-      expect(reason(plan, "look").points, t.id).toBe(5);
+      // (the look item's 2 points for glow and trails are Grow's to give up: its ball covers its own trail and outgrows the square)
+      expect(reason(plan, "look").points, t.id).toBe(fills ? 3 : 5);
       // the series label is in the post caption instead
       expect(plan.post.caption, t.id).toContain(plan.series.label);
     }
@@ -650,7 +658,14 @@ describe("the Simple look", () => {
           // (--- templates --- AI studio step 3: a template without a recipe lets the picture count in both looks: no counter to lose)
           const counted = simple.countdown.source === "picture" && t.recipe !== null;
           if (counted) expect([where, bot.settings.captions[bot.captionRoles.indexOf("countdown")]?.type]).toEqual([where, expect.stringMatching(/^(progress|countdown)$/)]);
-          expect([moved, bot.score - simple.score], where).toEqual(counted ? [["countdown", "series"], 14] : [["series"], 4]);
+          // (--- templates --- studio2 review round 2, 13: and Grow's look item's 2, its ball drawn without glow or trails; 15: and the
+          // other way round, the countdown's 10 the Simple look gains where it draws a counter that counts and the bot look's HUD does
+          // not – Brick Smash's bricks under the box, its loop HUD off)
+          const fills = BALL_FILLS_ARENA_MODES.includes(t.mode);
+          const gained = reason(simple, "countdown").key === "countdownHud" && reason(simple, "countdown").points > reason(bot, "countdown").points;
+          const lost = [...(counted || gained ? ["countdown"] : []), "series", ...(fills ? ["look"] : [])];
+          expect([moved, bot.score - simple.score], where).toEqual([bot.reasons.map((r) => r.id).filter((id) => lost.includes(id)), (counted ? 14 : 4) + (fills ? 2 : 0) - (gained ? 10 : 0)]);
+          if (gained) expect([where, t.mode, simple.settings.loopHud, bot.settings.loopHud]).toEqual([where, "brickRebuild", false, true]);
         }
         await breathe();
       }
@@ -668,7 +683,8 @@ describe("the Simple look", () => {
       simple.push(clarityOf(crewClipOfPlan(calm, { run })).simple.score);
       before.push(bot.score);
       after.push(calm.score);
-      expect(reason(calm, "look").points, r.id).toBe(5);
+      // (--- templates --- studio2 review round 2, 13: Grow's ball drawn without glow or trails gives up the item's 2)
+      expect(reason(calm, "look").points, r.id).toBe(r.modes.some((m) => BALL_FILLS_ARENA_MODES.includes(m)) ? 3 : 5);
     }
     expect(median(simple)).toBeGreaterThanOrEqual(80);
     expect(median(before) - median(after)).toBeLessThanOrEqual(5);
@@ -1176,7 +1192,8 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
   // watched; Lines and Circle Illusion stay, with what was measured and watched)
   // (--- templates --- studio round 1, 10 and 11: three readied before joined it after a review, each with what was measured and
   // watched – Perfect Fit, its box full for a flash; Beat Machines and the Wave Tank, nothing standing out at their payoff)
-  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "illusion", "perfectFit", "beatMachine", "waveTank"];
+  // (--- templates --- studio2 review round 2, 17: Bouncing Shapes joined it after a review, its payoff a faded shape the other one outshines)
+  const EXPERIMENTAL_PINNED: readonly ModeId[] = ["paint", "mergeRing", "paddle", "beatDrop", "runner", "vortex", "lines", "illusion", "perfectFit", "beatMachine", "waveTank", "box"];
   /** A seeded context as the planner hands a recipe one. */
   const ctxOf = (seed: number, payoffTarget = 12.75): RecipeContext => ({ rng: seededRandom(seed), bucket: "short", ending: "resolved", payoffTarget, roster: SERIES_ROSTER, planSeed: seed });
 
@@ -1498,7 +1515,7 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
 // --- templates --- (AI studio step 4) group B: the count, who-wins and aim bindings with their own settings, each timed by its run's
 // own moment, and Merge Ring and the square race kept hidden with what was measured
 describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes", () => {
-  const GROUP_B = ["count-conveyor", "who-wins-maze", "who-wins-territory", "who-wins-land-claim", "aim-bullseye", "aim-box"];
+  const GROUP_B = ["count-conveyor", "who-wins-maze", "who-wins-territory", "who-wins-land-claim", "aim-bullseye"];
 
   it("offers every one of them, in its format's words or a hook of its own, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
     expect(GROUP_B.map((id) => templateById(id)!.mode)).toEqual([...GROUP_B_READY]);
@@ -1520,7 +1537,7 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
     }
     // the who-wins ones stay in the battle family, out of the default menus as the daily bot's battles
     expect(GROUP_B.filter((id) => templateById(id)!.family === "battle")).toEqual(["who-wins-maze", "who-wins-territory", "who-wins-land-claim"]);
-    expect(readyTemplates().map((t) => t.id).filter((id) => GROUP_B.includes(id)).sort()).toEqual(["aim-box", "aim-bullseye", "count-conveyor"]);
+    expect(readyTemplates().map((t) => t.id).filter((id) => GROUP_B.includes(id)).sort()).toEqual(["aim-bullseye", "count-conveyor"]);
     // the bot's own plans are untouched: no mode of group B is a recipe's (the maze race plays Classic)
     expect(GROUP_B.filter((id) => RECIPES.some((r) => r.modes.includes(templateById(id)!.mode)))).toEqual([]);
   });
@@ -1531,7 +1548,8 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
     // the run's end after its mark (s): GAME OVER and the last ball out end the run; a bullseye and a shape at zero leave it going on
     const holds: Record<string, number | null> = { "aim-bullseye": null, "aim-box": null, "aim-paddle": 2.2, "count-conveyor": 1.5 };
     for (const [id, hold] of Object.entries(holds)) {
-      // Paddle's template is hidden (its own HUD under the hook): its plan comes from its binding's recipe, as the tests above
+      // Paddle's template is hidden (its own HUD under the hook), and Bouncing Shapes' (studio2 review round 2, 17): their plans come from
+      // their bindings' recipes, as the tests above
       const plan = templateById(id)!.ready ? planTemplate(id, 2, "reels", { copy, episode: 3, index: 2, ending: "resolved" }) : planClip(plannedRecipe(templateById(id)!)!, 2, "reels", { copy, look: "simple", template: id, episode: 3, index: 2, ending: "resolved" });
       const horizon = plan.timing.clipSec + 4;
       const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "finish" }, horizon);
@@ -1601,7 +1619,8 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
       }
     }
-    expect(planTemplate("aim-box", 1, "reels", { copy: COPY.pl, locale: "pl", search: false }).hook).toBe("Zatrzyma się na zerze.");
+    // (--- templates --- studio2 review round 2, 17: Bouncing Shapes is hidden, its plan from its binding's recipe, as Paddle's)
+    expect(planClip(plannedRecipe(templateById("aim-box")!)!, 1, "reels", { copy: COPY.pl, locale: "pl", look: "simple", template: "aim-box", search: false }).hook).toBe("Zatrzyma się na zerze.");
   });
 
   // --- templates --- (studio round 1, 12) "One ball. How many by the end?" over a belt that loads a ball every 2-3 s and multiplies
@@ -2178,9 +2197,10 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // [ready, experimental, proven with every variant hidden]
     // (--- templates --- studio round 1, 10 and 11: Perfect Fit, Beat Machines and the Wave Tank experimental, Ball Drop's one variant
     // hidden; Collision Playground ready, timed by its drop)
-    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [2, 1, 0], lineUp: [8, 0, 0], onTheBeat: [1, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
-    // 35 modes as 44 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden)
-    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 44]);
+    // (--- templates --- studio2 review round 2, 17: Bouncing Shapes experimental, the aim format's Bullseye ready)
+    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [1, 2, 0], lineUp: [8, 0, 0], onTheBeat: [1, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
+    // 34 modes as 43 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden; 17: 44 until Bouncing Shapes')
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([34, 43]);
   });
 });
 
@@ -2236,7 +2256,8 @@ describe("the second review round, findings 7-12: the clip's end, the hook's edg
     expect(hudsOn({ ...plan.settings, loopHud: true }).map((h) => h.id)).not.toContain("mode:brickRebuild");
     const clip = crewClipOfPlan(plan);
     expect(screenView(clip).text).toContain("also on screen: a count of the bricks left, under the box");
-    expect(intentView(clip).text).toMatch(/beats\.countdown: no counter caption: the picture, and the mode draws its own: a count of the bricks left, under the box/);
+    // (--- templates --- studio2 review round 2, 15: that count is the clip's countdown, its HUD's)
+    expect(intentView(clip).text).toMatch(/beats\.countdown: walls by hud/);
   });
 
   it("hides Tier Climb: its hook, pushed off the game's title block, sat over the merges it describes; no ready template's hook sits so (G5)", async () => {
@@ -2325,19 +2346,21 @@ describe("the second review round, findings 7-12: the clip's end, the hook's edg
       "line-up-double-pendulum": { hook: /split/i, not: /perfectsync/i },
     };
     for (const [id, words] of Object.entries(own)) {
-      const r = templateRecipeById(id)!;
+      const r = templateRecipeById(id) ?? plannedRecipe(templateById(id)!)!; // (--- templates --- studio2 review round 2, 17: a hidden one's binding's)
       expect([id, r.postKey]).toEqual([id, `ownPost.${r.modes[0]}`]);
       for (const locale of ["en", "pl", "es"] as const) {
         const posts = (COPY[locale] as unknown as { ownPosts: Record<string, { postQuestion: string; hashtags: string }> }).ownPosts[r.modes[0]];
-        const plan = planTemplate(id, 1, platformsOf(id)[0], { copy: COPY[locale], locale, episode: 3, index: 1, search: false });
+        // (--- templates --- studio2 review round 2, 17: a hidden binding's post too – Bouncing Shapes' – from its binding's recipe)
+        const t = templateById(id)!;
+        const plan = t.ready ? planTemplate(id, 1, platformsOf(id)[0], { copy: COPY[locale], locale, episode: 3, index: 1, search: false }) : planClip(plannedRecipe(t)!, 1, "reels", { copy: COPY[locale], locale, look: "simple", template: id, episode: 3, index: 1, search: false });
         const where = `${id}/${locale}`;
         expect([where, plan.post.question, posts.postQuestion.trim().endsWith("?")]).toEqual([where, posts.postQuestion, true]);
         for (const tag of posts.hashtags.split(/\s+/)) expect([where, plan.post.hashtags]).toEqual([where, expect.arrayContaining([tag])]);
         if (locale === "en") {
           expect([where, words.hook.test(plan.hook), words.not.test(plan.post.caption)]).toEqual([where, true, false]);
           // the studio's listing (the brainstormer's and the producer's) has its own post, and no payoff words where none are drawn
-          const listed = studioTemplates({ family: "all" }, COPY.en).templates.find((x) => x.id === id)!.words!;
-          expect([where, listed.postQuestion, listed.hashtags, "payoff" in listed]).toEqual([where, posts.postQuestion, posts.hashtags, r.payoffWords !== false]);
+          const listed = studioTemplates({ family: "all" }, COPY.en).templates.find((x) => x.id === id)?.words;
+          if (t.ready) expect([where, listed?.postQuestion, listed?.hashtags, !!listed && "payoff" in listed]).toEqual([where, posts.postQuestion, posts.hashtags, r.payoffWords !== false]);
         }
       }
     }
@@ -2369,5 +2392,103 @@ describe("the second review round, findings 7-12: the clip's end, the hook's edg
       expect([where, gateOf(plan, { ...run, moment: { ...m, silentTailSec: 2.3 } }, "G2").problems]).not.toContain("payoffLandsSilentEnd");
       await breathe();
     }
+  });
+});
+
+// --- templates --- (studio2 review round 2, 13-17) what the second review round's renders showed: Grow's trails and glow, Shatter's
+// flicker, Brick Smash's counter, Target's texts over its stake, Bouncing Shapes' payoff – each fixed in its template or the planner
+describe("the second review round, findings 13-17: a ball that fills its ring, rings that drift, a counter counted, a stake kept clear, a race to zero", () => {
+  const planOn = (id: string, seed: number, platform: BotPlatform, options: Partial<Parameters<typeof planTemplate>[3]> = {}) => planTemplate(id, seed, platform, { copy, episode: 3, index: seed, ...options });
+
+  it("draws Grow's ball without trails or glow in the Simple look only, and grows it at its short length's fastest rate, every fill found", () => {
+    expect([...BALL_FILLS_ARENA_MODES]).toEqual(["grow"]);
+    expect(simpleLookPatch(defaultSettings("grow"), "picture")).toMatchObject({ showTrails: false, showGlow: false });
+    for (const mode of MODE_IDS.filter((m) => m !== "grow")) expect([mode, simpleLookPatch(defaultSettings(mode), "picture")]).toEqual([mode, expect.objectContaining({ showTrails: SIMPLE_LOOK.showTrails, showGlow: SIMPLE_LOOK.showGlow })]);
+    for (const platform of BOT_PLATFORMS) {
+      for (const seed of [1, 2, 3, 4]) {
+        const calm = planOn("fill-grow", seed, platform);
+        const bot = planOn("fill-grow", seed, platform, { look: "bot" });
+        const where = `${platform}/${seed}`;
+        expect([where, calm.settings.showTrails, calm.settings.showGlow, calm.settings.growRate, calm.timing.found, calm.bucket]).toEqual([where, false, false, 10, true, "short"]);
+        // the bot look keeps them (its checklist's look item whole); the run and the seed are the same in both looks
+        expect([where, bot.settings.showTrails, bot.settings.showGlow, bot.settings.growRate, bot.seed]).toEqual([where, true, true, 10, calm.seed]);
+        expect([where, reason(calm, "look").points, calm.score >= 75]).toEqual([where, 3, true]);
+      }
+    }
+    // the bot's own recipe draws its growth as before (7-10 a short clip), its plan byte for byte
+    const day = planClip(recipeById("grow-fill")!, 2, "reels", { copy, episode: 3, index: 1 });
+    expect([day.settings.showTrails, day.settings.showGlow, day.template]).toEqual([true, true, undefined]);
+  });
+
+  it("turns Shatter's rings at a fifth of the mode's speed, so neighbouring rings line up about once a second, not four times", () => {
+    const recipe = templateRecipeById("get-out-shatter")!;
+    for (const bucket of ["short", "standard"] as const) {
+      const s = { ...defaultSettings("shatter"), ...recipe.settings({ rng: seededRandom(7), bucket, ending: "cliffhanger", payoffTarget: 12, roster: SERIES_ROSTER, planSeed: 7 }) };
+      expect([bucket, s.rotationSpeed, rangeViolations(s)]).toEqual([bucket, 0.2, []]);
+    }
+    expect(defaultSettings("shatter").rotationSpeed).toBe(1);
+    // 18 segments a ring, the rings turning each the other way at 0.8 × rotationSpeed rad/s (engine.ts wallRotationRate)
+    const alignHz = (rs: number) => (2 * 0.8 * rs) / ((2 * Math.PI) / 18);
+    expect([alignHz(1) > 4, alignHz(0.2) < 1]).toEqual([true, true]);
+    for (const platform of BOT_PLATFORMS) expect([platform, planOn("get-out-shatter", 1, platform).settings.rotationSpeed]).toEqual([platform, 0.2]);
+  });
+
+  it("counts Brick Smash's bricks under its box as its countdown where its renderer draws them, the loop HUD off", () => {
+    for (const platform of BOT_PLATFORMS) {
+      const calm = planOn("smash-brick-rebuild", 1, platform);
+      const where = platform;
+      expect([where, calm.settings.loopHud, calm.countdown, hudsOn(calm.settings).find((h) => h.id === "mode:brickRebuild")?.counts]).toEqual([where, false, { kind: "walls", source: "hud" }, true]);
+      expect([where, reason(calm, "countdown").key, reason(calm, "countdown").points]).toEqual([where, "countdownHud", 10]);
+      const clip = crewClipOfPlan(calm, { run: runSync(calm.settings, calm.seed, calm.world, calm.recipe, calm.timing.clipSec) });
+      expect([where, screenView(clip).text]).toEqual([where, expect.stringContaining("also on screen: a count of the bricks left, under the box")]);
+      // the bot look draws the loop HUD's own counter line in its place, which the checklist does not credit, as before
+      const bot = planOn("smash-brick-rebuild", 1, platform, { look: "bot" });
+      expect([where, bot.settings.loopHud, reason(bot, "countdown").key]).toEqual([where, true, "countdownMissing"]);
+    }
+  });
+
+  it("keeps Target's hook and closing question off the segment to hit next: its stake in the action track, ranked before the balls", () => {
+    expect([...STAKE_MODES]).toEqual(["target"]);
+    const plan = planOn("smash-target", 1, "reels");
+    const track = actionTrackSync(plan.settings, plan.seed, plan.world, plan.timing.clipSec);
+    expect([isActionTrack(track), track.stakes?.length]).toEqual([true, track.samples.length]);
+    expect(track.stakes!.every((x) => actionCellsOf(x).length > 0 || x === "")).toBe(true);
+    expect(actionTrackSync(defaultSettings("classic"), 1, null, 3).stakes).toBeUndefined();
+    // a stake counts as the action a text may not hide (the Simple score's textOverAction reads actionUnder)
+    const stakeAt = track.stakes!.findIndex((x) => x !== "");
+    expect([stakeUnder(track, stakeAt, { left: 0, top: 0, right: 1, bottom: 1 }), actionUnder({ ...track, samples: track.samples.map(() => "") }, stakeAt, { left: 0, top: 0, right: 1, bottom: 1 })]).toEqual([true, true]);
+    // a stake at the top the whole clip, a ball under the bottom the whole clip: the stake ranks first, the text goes to the bottom
+    const g = ACTION_GRID;
+    const cellsIn = (rows: number[]) => rows.flatMap((r) => Array.from({ length: g }, (_, c) => (r * g + c).toString(36).padStart(2, "0"))).join("");
+    const k = Math.ceil(plan.timing.clipSec / ACTION_STEP_SEC);
+    const synthetic: ActionTrack = { stepSec: ACTION_STEP_SEC, grid: g, samples: Array(k).fill(cellsIn([16, 17, 18])), stakes: Array(k).fill(cellsIn([1, 2, 3])) };
+    const roles = plan.captionRoles;
+    const placed = placeSimpleTexts(plan.settings.captions, roles, synthetic, plan.settings, plan.timing.clipSec);
+    for (const message of captionMessagesOf(roles)) expect([roles[message[0]], placed[message[0]].position]).toEqual([roles[message[0]], "bottom"]);
+    // every plan: each message covers the stake no longer than it would at the other edge
+    for (const platform of BOT_PLATFORMS) {
+      for (const seed of [1, 2, 3, 4]) {
+        const p = planOn("smash-target", seed, platform);
+        const t = actionTrackSync(p.settings, p.seed, p.world, p.timing.clipSec);
+        for (const message of captionMessagesOf(p.captionRoles)) {
+          const edge = p.settings.captions[message[0]].position as "top" | "bottom";
+          const here = stakeCoverSec(p.settings.captions, message, t, p.timing.clipSec);
+          const there = stakeCoverSec(captionsAtEdge(p.settings.captions, message, edge === "top" ? "bottom" : "top"), message, t, p.timing.clipSec);
+          expect([`${platform}/${seed}/${p.captionRoles[message[0]]}`, here <= there + 1e-9]).toEqual([`${platform}/${seed}/${p.captionRoles[message[0]]}`, true]);
+        }
+      }
+    }
+  });
+
+  it("hides Bouncing Shapes with what was watched: its payoff, the first shape at zero, is drawn faded while the other one bounces on bright", () => {
+    const b = MODE_TEMPLATES.box;
+    expect([b.tier, b.ready, EXPERIMENTAL.box]).toEqual(["experimental", false, expect.stringContaining("drawn faded")]);
+    expect(readyTemplates("all").some((t) => t.mode === "box")).toBe(false);
+    expect(() => planTemplate("aim-box", 1, "reels", { copy, search: false })).toThrow(/ready template/);
+    // its binding still plans – two squares, the first at zero its payoff –: what hid it is what the render showed, a stopped shape faded
+    const plan = planClip(plannedRecipe(templateById("aim-box")!)!, 1, "reels", { copy, look: "simple", template: "aim-box", episode: 3, index: 1 });
+    expect([plan.settings.boxShapeCount, plan.payoff.type, plan.timing.found]).toEqual([2, "hit", true]);
+    // the aim format keeps a ready template: Bullseye's
+    expect(readyTemplates().filter((t) => t.format.id === "aim").map((t) => t.id)).toEqual(["aim-bullseye"]);
   });
 });

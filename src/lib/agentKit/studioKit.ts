@@ -301,7 +301,10 @@ export function rankedTemplates(list: readonly TemplateInfo[], trends: TrendSumm
 /**
  * The brainstormer's menu: the ready templates of a family choice (each on its one mode; its recipe's endings and buckets), --- studio
  * --- (step 2's review round 1, 23) ranked (rankedTemplates), each with its tier and the trend it follows, so a model sees which
- * are proven and the code's own ideas (ideasByCode: the first of each format) take the proven and trending ones.
+ * are proven and the code's own ideas (ideasByCode: the first of each format) take the proven and trending ones. --- studio ---
+ * (studio2 review round 2, 18) Its buckets are the ones of its recipe's the toolbox renders (RENDER_BUCKETS: short and standard),
+ * so the brainstormer's schema never offers a long clip – Classic's and Pendulum Wave's 63–86 s ideas were planned, kept and then
+ * refused by render.
  */
 export function templateMenu(family: BotFamilyChoice = "default", copy?: BotCopy, trends: TrendSummary | null = TRENDS): MenuItem[] {
   // (--- studio --- step 2's review round 1, 20: only what the studio renders – a pitch it cannot render is no clip)
@@ -310,7 +313,9 @@ export function templateMenu(family: BotFamilyChoice = "default", copy?: BotCopy
     // --- studio --- the hook's words in the clip's language, so the brainstormer picks a variant by what it says
     const hook = copy ? wordsOf(recipe, copy).hook : undefined;
     const trend = templateTrend(t, trends);
-    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(hook ? { hookWords: { a: hook } } : {}), ...(recipe.endings ? { endings: [...recipe.endings] } : {}), ...(recipe.buckets ? { buckets: [...recipe.buckets] } : {}), tier: t.binding.tier === "proven" ? "proven" : "trial", ...(trend ? { trend } : {}) };
+    // --- studio --- (studio2 review round 2, 18) the lengths its render plays only: a long idea would plan a clip no render takes
+    const buckets = (recipe.buckets ?? LENGTH_BUCKETS).filter((b) => RENDER_BUCKETS.includes(b));
+    return { template: t.id, format: t.format.id, modes: [t.mode], hooks: ["a"], ...(hook ? { hookWords: { a: hook } } : {}), ...(recipe.endings ? { endings: [...recipe.endings] } : {}), buckets, tier: t.binding.tier === "proven" ? "proven" : "trial", ...(trend ? { trend } : {}) };
   });
 }
 
@@ -893,7 +898,8 @@ function startStage(stage: PanelStage, input: StudioReviewInput, ctx: StudioRevi
   const separation = input.separation ?? (stage === "post" ? before?.separation : undefined) ?? "sameContext";
   const platform = input.platform ?? ctx.plan?.plans[0]?.plan.platform ?? "reels";
   const locale = input.locale ?? ctx.plan?.plans[0]?.plan.locale ?? "en";
-  const common = { depth, who: "claude" as const, separation, digest: ctx.digest, liveResearch: input.research === "live" };
+  // --- studio --- (studio2 review round 2, 18) the toolbox renders RENDER_MAX_SEC at most: the panel drops a longer plan and asks no longer fix
+  const common = { depth, who: "claude" as const, separation, digest: ctx.digest, liveResearch: input.research === "live", maxClipSec: RENDER_MAX_SEC };
   if (stage === "post") {
     if (!ctx.rendered.length) return { ok: false, error: `No rendered clip in .agent-out/studio/${ctx.studio}/ yet: render the kept clips first (render {"plan":".agent-out/studio/${ctx.studio}/plan.json","clip":"<id>"})` };
     if (ctx.rendered.length > STUDIO_CLIPS_MAX) return { ok: false, error: `${ctx.rendered.length} rendered clips: the review takes ${STUDIO_CLIPS_MAX} at most` };

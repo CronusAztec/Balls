@@ -41,16 +41,17 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    did, DROP_PLAIN), and Fight League's boss rush, hidden for its hook of 8–9 words, draws its format's own since step 6
  *    ("Pick one before it starts.": a variant's own `hookKey`, wrappedRecipe). Only ready bindings plan – a proven one with a variant that plans (bind(): ready is derived, never declared) –: in
  *    this release 14 of the 16 proven ones, the square race's and Ball Drop's bindings not ready since their one variant is
- *    hidden, and 21 trial ones (AI studio step 3: Shatter, Color Match, Target and Brick Smash; step 4: the conveyor, the Maze,
- *    Territory, Land Claim, Bullseye and Bouncing Shapes, each with its own settings; step 4b: the Journey and Spiral Glass,
+ *    hidden, and 20 trial ones (AI studio step 3: Shatter, Color Match, Target and Brick Smash; step 4: the conveyor, the Maze,
+ *    Territory, Land Claim and Bullseye, each with its own settings; step 4b: the Journey and Spiral Glass,
  *    their own overlays switched off – `journeyHud`, `sgHud`, in both looks since the first review round; step 5: Chord Stars,
  *    Focus Shot, Spinning Hoops, Bouncing Orbs, Colour Sort and the Double Pendulum Harp lined up, and Collision Playground on the
  *    beat, timed by its anti-collision drop since the first review round; step 6: the Drawing Machine's flower revealed, and Mode
  *    Lab, a variant per catalog game bp-check calls playable – Colour Conquest's hidden, its page's run parting from the
  *    planner's, watched, and since the studio2 review's second round Tier Climb's, its hook with no clear edge (LAB_GAME_HIDDEN));
- *    the other 11 are declared, experimental and hidden with the reason measured and watched – no setting
+ *    the other 12 are declared, experimental and hidden with the reason measured and watched – no setting
  *    answers it yet, their format's copy is written – (docs/virality-playbook.md §5): Perfect Fit, Beat Machines and the Wave Tank
- *    joined them in the studio's first review round (10 and 11). 48 of 48 are bound: every binding is ready, or experimental with
+ *    joined them in the studio's first review round (10 and 11), and Bouncing Shapes, ready from step 4, in the studio2 review's
+ *    second (17: its payoff a stopped shape the mode draws faded, the other one bouncing on bright). 48 of 48 are bound: every binding is ready, or experimental with
  *    its reason, or (the square race, Ball Drop) proven with its one variant hidden with its reason. A trial binding plans once it
  *    leaves the table, where its strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn:
  *    Classic's one ring).
@@ -70,7 +71,8 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  * (tests/botTemplates.test.ts asserts that no template id is a recipe id).
  *
  * The Simple look (look "simple", PlanOptions.look; templates plan in it unless the caller asks for the bot's): neon on a dark
- * gradient that keeps the checklist's look points, ball glow and thin single-colour trails, every charged effect off, the HUDs
+ * gradient that keeps the checklist's look points, ball glow and thin single-colour trails (--- templates --- studio2 review round 2,
+ * 13: neither on a ball that grows to its arena's size, BALL_FILLS_ARENA_MODES, its look item 3 of 5), every charged effect off, the HUDs
  * off but the one that counts down, no name label; one text at a time – the hook (at most 7 words, 2 lines) for 2.5 s, then
  * the countdown caption where no HUD counts, then the payoff's words or the closing question –, and the series label moved to
  * the post caption. Look settings only: the physics, the payoff's timing and the run (lib/insights/score.ts runFactsSync) stay
@@ -126,6 +128,17 @@ export const SIMPLE_LOOK = {
   nameLabel: false,
 } as const;
 
+/**
+ * --- templates --- (studio2 review round 2, 13) The modes whose ball grows until it fills the arena (Grow): there the Simple look draws
+ * no trails and no glow (FILLS_ARENA_LOOK). Canvas.tsx strokes a single-colour trail as one polyline as wide as 0.8 of the ball, so a
+ * ball nearly the ring's size laid a band as wide as the ring whose corners, where the path turns at a bounce, stuck out past the ring
+ * as translucent wedges – the ring read as breaking from 6 s on, and a trail is gone with &trails=0 (watched) –; and the glow, twice the
+ * ball's radius, outgrew the arena and was cut off at the exported square's edges, a hard-edged box behind the ring. Look settings
+ * only: the run is the same, the checklist's look points 3 of 5 (its 2 ask for glow and trails, which this ball covers itself).
+ */
+export const BALL_FILLS_ARENA_MODES: readonly SimulatorSettings["mode"][] = ["grow"];
+const FILLS_ARENA_LOOK: Partial<SimulatorSettings> = { showTrails: false, showGlow: false };
+
 /** The value that switches a HUD flag off (crew/hudFlags.ts HUD_FLAGS: Power Layers' badge has a "none", the rest are switches). */
 function hudOffValue(key: string): unknown {
   return key === "plBadge" ? "none" : false;
@@ -155,6 +168,8 @@ export function simpleLookPatch(s: SimulatorSettings, countdownSource: Countdown
     nameLabel: L.nameLabel,
   };
   if (s.particleStyle === "confetti") patch.particleStyle = "sparks";
+  // --- templates --- (studio2 review round 2, 13) a ball that grows to the arena's size draws neither trails nor glow
+  if (BALL_FILLS_ARENA_MODES.includes(s.mode)) Object.assign(patch, FILLS_ARENA_LOOK);
   const kept = new Set(keepHuds ?? defaultKeptHuds(s, countdownSource));
   for (const h of hudsOn(s)) if (h.flag && !kept.has(h.id)) patch[h.id] = hudOffValue(h.id);
   return patch as Partial<SimulatorSettings>;
@@ -536,6 +551,15 @@ const GERALD_PORTAL_BUCKETS: readonly LengthBucket[] = ["standard"];
 const GROW_FILL_BUCKETS: readonly LengthBucket[] = ["short"];
 
 /**
+ * --- templates --- (studio2 review round 2, 13) Grow's template grows at the short length's fastest rate of its recipe (growRate 10 of
+ * the grow-fill recipe's 7–10, both looks): every plan's seed search then finds its fill inside the short band – 24 of 24 on plan
+ * seeds 1–8 on TikTok, Reels and Shorts, 11–13 s clips –, where at 8 or 9 one plan in eight found none and ran on to 16–22 s, out of
+ * its length (Playbook 73–77, measured). The Simple look draws this ball without trails or glow (BALL_FILLS_ARENA_MODES), so those
+ * plans would have fallen under the bar. The bot's own recipe draws its rate as before.
+ */
+const GROW_FAST_FILL: Partial<SimulatorSettings> = { growRate: 10 };
+
+/**
  * --- templates --- Pendulum Wave as its template plays it. The recipe sounds a bob as it crosses the centre: at the realignment
  * every bob is at a turning point, so the realignment was the quietest moment of the clip (the crossings after it spread over
  * 0.1 s, never one chord). Sounding at the turning points instead, every bob plays at once there – one accented chord (the
@@ -577,11 +601,18 @@ const forBucket = <T,>(ctx: RecipeContext, values: Readonly<Record<LengthBucket,
 /**
  * Shatter's rings of glass segments: the ball breaks its way out of 8–12 in a short clip (it is out 4–13 s in), of 16–20 in a
  * standard one (6–35 s): the outcome strategy's seed search picks the seed whose escape the clip cuts before.
+ * --- templates --- (studio2 review round 2, 14) The rings turn at a fifth of the mode's speed (SHATTER_SPIN): its rings turn each the
+ * other way at 0.8 × rotationSpeed rad/s (engine.ts wallRotationRate), so its 18 segments of two neighbouring rings come in line
+ * 4.6 × rotationSpeed times a second, and at the default 1 the whole disc flipped from radial spokes to staggered bricks and back about
+ * 4.5 times a second (watched, at 10 rings as at 19) – a shimmer over the whole picture the Simple look is not. At 0.2 they line up
+ * about once a second, a slow drift; the escape's seed search finds its seed as often (24 of 24 plans on plan seeds 1–8, measured).
  */
 function shatterSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const walls = forBucket(ctx, { short: [8, 12], standard: [16, 20], long: [18, 20] });
-  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10) };
+  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN };
 }
+/** --- templates --- (studio2 review round 2, 14) Shatter's ring spin under its template (rotationSpeed, on its 0.1 step; the mode's default 1 stays). */
+const SHATTER_SPIN = 0.2;
 
 /**
  * Target's numbered segments, hit in order: 5 in a short clip, 6–7 in a standard one, a fast ball without gravity, so the last
@@ -617,6 +648,13 @@ export const BR_SETTLE_PAST_SEC = 0.5;
 export function brickSettleSec(bucket: LengthBucket): number {
   return stepAtLeast((1 - PAYOFF_BAND.from) * (BUCKET_SECONDS[bucket].max + 0.5) + BR_SETTLE_PAST_SEC, RANGES.brSettle);
 }
+/**
+ * --- templates --- (studio2 review round 2, 15) Brick Smash's countdown: the count of its bricks under the box ("896 bricks" … "0
+ * bricks"), which its renderer draws with the loop HUD off – the Simple look's – and which reaches 0 as the last brick falls, the
+ * payoff (crew/hudFlags.ts MODE_HUDS, planner.ts hudShowsCountdown). With the loop HUD on (the bot look) its counter line counts the
+ * same bricks under its title, which the checklist does not credit: no HUD of the crew's counts there, as before.
+ */
+const BRICKS_LEFT = { kind: "walls", source: "hud" } as const;
 /** What the viewer's screen view sees of Brick Smash, in neutral words: its balls, the wall, and – the balls multiply – the new ball a few bricks bring. */
 function brickSmashScene(s: SimulatorSettings): string {
   const more = s.brEvery > 1 ? `, a new ball for every ${s.brEvery} bricks broken` : s.brEvery === 1 ? ", a new ball for every brick broken" : "";
@@ -1028,6 +1066,17 @@ const LAB_GAME_SCENES: Readonly<Record<BlueprintCatalogId, string>> = {
  * ends its run; and its "Full!" came at the half second before the box was full, the last piece still falling (watched). No setting
  * holds the box full longer: 0 of 12 plans pass (G2, the payoff's state held 0.1 s).
  */
+/**
+ * --- templates --- (studio2 review round 2, 17) Bouncing Shapes' payoff is the first shape at zero, and the mode draws a stopped shape
+ * faded (boxRenderer.ts: 35 %) where its last hit left it – a corner, as often as not –, while the other one bounces on bright to the
+ * clip's end: the payoff was the dimmest thing on screen, the eye following the shape that never stops (the review's 21 s clip). Tried
+ * and watched: a race hook ("Which one hits zero first?") with payoff words ("Zero! 🎯") in the short length, the clip ending 1.8 s after
+ * the zero – the stopped square sank, navy and faded, into the bottom-left corner under the watermark while "6" went on bouncing (12/12
+ * plans passed every gate, Simple 97, checklist 84: the rules saw nothing wrong). One shape ends the run at its zero (COUNTED DOWN!),
+ * shown for the recorder's 0.5 s (G2 asks 0.8 s), and a cut before a countdown's certain zero asks nothing. No setting brightens a
+ * stopped shape, so the binding is hidden.
+ */
+const BOX_STOPS_FADED = "its payoff, the first shape at zero, is drawn faded (a stopped shape at 35 %, boxRenderer.ts) where its last hit left it, often a corner (under the watermark in the render watched), while the other shape bounces on bright to the clip's end: the eye follows the one that never stops; a race hook with payoff words in the short length did not change that (watched, 12/12 passing every gate), one shape ends its run at zero (shown 0.5 s, G2 asks 0.8 s), and no setting brightens a stopped shape";
 const PERFECT_FIT_FLASH = "its box is full only for the 0.15 s flash between its last piece's landing and its burst (polyominoPlan.ts PF_FLASH_SEC), so a resolved clip shows the fill that long, under the 0.8 s G2 asks, as Paint's fill; no setting holds it longer: 0 of 12 plans passed (4 plan seeds × 3 platforms; watched: 'Full!' came while the last piece was falling, the box burst a flash after it filled)";
 /**
  * --- templates --- (studio round 1, 11) The beat format's payoff is the drop or the last bar: a moment that stands out from the run (the
@@ -1168,6 +1217,8 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
   perfectFit: PERFECT_FIT_FLASH,
   beatMachine: BEAT_MACHINE_PLAIN,
   waveTank: WAVE_TANK_PLAIN,
+  // --- templates --- (studio2 review round 2, 17) taken out after a review: its payoff the faded shape, the bright one bouncing on
+  box: BOX_STOPS_FADED,
 };
 
 /**
@@ -1193,10 +1244,10 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   powerLayers: bind("powerLayers", { format: "smash", strategy: "fixed", tier: "proven", keepHud: null, variants: [["power-layers"]], note: "the layer count is the mode's own HUD" }),
   target: bind("target", later("smash", "finish", { generate: targetSettings, buckets: ["short", "standard"], endings: ["cliffhanger"], hookVars: (s) => ({ count: s.targetCount }), note: ENDS_AT_FINISH, scene: (s) => `one ball inside a ring of ${s.targetCount} numbered segments, a big number in the middle` })),
   // (--- templates --- studio2 review round 2, 7: its settle held past the clip's end, so the rebuild never starts inside it; the scene says the balls multiply)
-  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, buckets: ["short", "standard"], note: "loops forever: never 'finish'; its settle held past the clip's end, so the picture never flies back in inside it (brickSettleSec)", scene: brickSmashScene })),
+  brickRebuild: bind("brickRebuild", later("smash", "outcome", { outcome: "bricks-cleared-by", generate: brickSmashSettings, countdown: BRICKS_LEFT, buckets: ["short", "standard"], note: "loops forever: never 'finish'; its settle held past the clip's end, so the picture never flies back in inside it (brickSettleSec)", scene: brickSmashScene })),
   spiralGlass: bind("spiralGlass", later("smash", "finish", { generate: spiralGlassSettings, tune: SPIRAL_OVERLAY_OFF, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.spiralGlass", payoffWords: false, note: SPIRAL_SIMPLE, scene: () => "balls running along a spiral channel of frosted glass, a badge with a number at its entrance" })),
   // fill
-  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, variants: [["grow-fill", undefined, undefined, GROW_FILL_BUCKETS], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
+  grow: bind("grow", { format: "fill", strategy: "fill", tier: "proven", keepHud: null, tune: GROW_FAST_FILL, variants: [["grow-fill", undefined, undefined, GROW_FILL_BUCKETS], [null, "fills", GROW_ENDS_AT_FILL, undefined, { strategy: "outcome", outcome: "fills-by", needs: "growFinish", generate: growFinishSettings, note: "the fill that ends the run (fills-by)" }]] }),
   paint: bind("paint", later("fill", "finish", { patch: PAINT_FAST, note: "95 % painted" })),
   perfectFit: bind("perfectFit", later("fill", "outcome", { outcome: "most-on-floor", needs: "pfPento", generate: perfectFitSettings, buckets: ["short", "standard"], note: "one box, its tiling with the most pieces on the floor; landings-on-beat would need the page's tempo", scene: () => "twelve puzzle pieces in a tray at the top, an empty rectangular box below them" })),
   // count

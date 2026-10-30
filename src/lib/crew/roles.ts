@@ -355,7 +355,7 @@ export const ROLE_SPECS: Readonly<Record<CrewRole, RoleSpec>> = {
     task: "crew.brainstormer",
     card: [
       "Your role: the brainstormer. Pitch different clips for the request, each one template of the menu on one of its modes.",
-      "Each idea: template; mode; hook: a, b or c (the template's variants) or your own of at most 7 words and 42 characters; ending: resolved or cliffhanger; bucket: short, standard or long; an angle of at most 80 characters; basis: the brief point it rests on (r1-r5) or none.",
+      "Each idea: template; mode; hook: a, b or c (the template's variants) or your own of at most 7 words and 42 characters; ending: resolved or cliffhanger, one its menu line lists; bucket: short, standard or long, one its menu line lists; an angle of at most 80 characters; basis: the brief point it rests on (r1-r5) or none.",
       "Make them differ: at most 2 ideas on one template, no two hooks starting with the same 3 words, at least 2 formats when you pitch 4 or more.",
     ].join("\n"),
     finalHint: '{"ideas":[{"template":"<menu id>","mode":"<one of its modes>","hook":"a|b|c|<own words>","ending":"resolved|cliffhanger","bucket":"short|standard|long","angle":"<at most 80 characters>","basis":"r1|none"}]}',
@@ -470,8 +470,11 @@ function nullable(schema: JsonSchema): JsonSchema {
   return { oneOf: [schema, { type: "null" }] };
 }
 
-/** One fix, as an object naming its action (a oneOf of the nine, each with its parameters). */
-export function fixActionSchema(clutter: readonly string[] = CLUTTER_KEYS): JsonSchema {
+/**
+ * One fix, as an object naming its action (a oneOf of the nine, each with its parameters). --- crew --- (studio2 review round 2, 18)
+ * `buckets`: the lengths changeLength may name (the ones the caller's render plays; default all three).
+ */
+export function fixActionSchema(clutter: readonly string[] = CLUTTER_KEYS, buckets: readonly LengthBucket[] = LENGTH_BUCKETS): JsonSchema {
   const params: Record<FixId, Record<string, JsonSchema>> = {
     simplifyLook: {},
     oneTextAtATime: {},
@@ -480,7 +483,7 @@ export function fixActionSchema(clutter: readonly string[] = CLUTTER_KEYS): Json
     retimePayoff: { targetPos: { type: "number", minimum: FIX_BOUNDS.retimeFrom, maximum: FIX_BOUNDS.retimeTo } },
     reseedEarlyMotion: {},
     switchEnding: { ending: { enum: ENDING_STYLES } },
-    changeLength: { bucket: { enum: LENGTH_BUCKETS } },
+    changeLength: { bucket: { enum: buckets.length ? [...buckets] : [...LENGTH_BUCKETS] } },
     turnOff: { key: { enum: clutter.length ? [...clutter] : [...CLUTTER_KEYS] } },
   };
   return { oneOf: FIX_IDS.map((id) => obj({ action: { const: id }, ...params[id] })) };
@@ -520,11 +523,13 @@ export interface ReviewShape {
   viewer?: "none" | "misread" | "read";
   /** The clutter keys turnOff may name (the clip's own effects and HUDs that are on). */
   clutter?: readonly string[];
+  /** --- crew --- (studio2 review round 2, 18) The lengths changeLength may name: the ones the caller's render plays (default all). */
+  buckets?: readonly LengthBucket[];
 }
 
 /** The reviewer's answer schema, narrowed to one clip (its standing objections, its viewer, the clutter it has). */
 export function reviewFinal(shape: ReviewShape = {}): JsonSchema {
-  const fix = fixActionSchema(shape.clutter ?? CLUTTER_KEYS);
+  const fix = fixActionSchema(shape.clutter ?? CLUTTER_KEYS, shape.buckets ?? LENGTH_BUCKETS);
   const ids = shape.objections ?? OBJECTION_IDS;
   const answer = obj({ objection: { enum: ids.length ? [...ids] : [...OBJECTION_IDS] }, accept: { type: "boolean" }, reason: nullable({ enum: REJECT_REASONS }), fix: nullable(fix) });
   const viewerAnswer = obj({ accept: { type: "boolean" }, fix: nullable(fix) });

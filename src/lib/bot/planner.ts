@@ -11,7 +11,7 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyPath, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
-import { actionSampleSec, actionTrackSteps, actionUnder, bannerUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
+import { actionSampleSec, actionTrackSteps, actionUnder, bannerUnder, stakeUnder, type ActionTrack, type SquareBox } from "./actionTrack"; // --- templates --- (where the run moves)
 import { askHookText, botRecipeById, simpleHookText, simpleLookPatch, simplePayoffText, SIMPLE_TEXT, stakeNumbersOf, TEMPLATE_LOOK, templateRecipeById, type BotLookId } from "./templates"; // --- templates ---
 import { atEndPayoffSec, FILL_OUTCOMES, outcomeRunOf, payoffWindow, strategyOutcome, type OutcomeRunFacts } from "./outcomeStrategy"; // --- templates --- (the outcome and atEnd strategies)
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
@@ -474,6 +474,24 @@ export function bannerCoverSec(captions: readonly Caption[], indices: readonly n
   return sec;
 }
 
+/**
+ * --- templates --- (studio2 review round 2, 16) The seconds message `indices` of `captions` sits over the mode's stake (ActionTrack.stakes:
+ * Target's segment to hit next) before `untilSec`: the thing a hook or a closing question asks about, hidden under it.
+ */
+export function stakeCoverSec(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, untilSec: number, topText = false, topHud = false): number {
+  let sec = 0;
+  if (!track.stakes) return sec;
+  for (let k = 0; k < track.samples.length; k++) {
+    const t = actionSampleSec(track, k);
+    if (t >= untilSec - 1e-9) break;
+    if (indices.some((i) => {
+      const box = captionBoxAt(captions, i, t, BOT_FRAME, topText, topHud);
+      return !!box && stakeUnder(track, k, squareBoxOf(box));
+    })) sec += track.stepSec;
+  }
+  return sec;
+}
+
 /** Whether message `indices` of `captions` hides a moving ball at sample `k` of `track` (actionCoverSec's test). */
 export function actionHiddenAt(captions: readonly Caption[], indices: readonly number[], track: ActionTrack, k: number, topText = false, topHud = false): boolean {
   const t = actionSampleSec(track, k);
@@ -507,8 +525,9 @@ export const ACTION_GAIN_SEC = 1;
  * The hook moves for less: wherever it hides any of the action at the top and none at the bottom. It is up in the first
  * seconds, when the one ball that moves may be all there is to see (the conveyor's first ball rode its belt under "One ball."
  * for half a second while the bottom of the square stayed empty), so no margin keeps it over the action. None moves where the
- * mode draws something of its own along the bottom (bottomEdgeFree); the others stay at the top, the bot look's place. Pure:
- * it reads the run's action track.
+ * mode draws something of its own along the bottom (bottomEdgeFree); the others stay at the top, the bot look's place. ---
+ * templates --- (studio2 review round 2, 16) Between the banners and the balls: the edge clear of the mode's stake (stakeCoverSec),
+ * a still thing the clip is about. Pure: it reads the run's action track.
  */
 export function placeSimpleTexts(captions: readonly Caption[], roles: readonly CaptionRole[], track: ActionTrack, settings: Pick<SimulatorSettings, "mode" | "loopHud" | "ringTimer">, untilSec: number): Caption[] {
   let out = captions.slice();
@@ -520,7 +539,12 @@ export function placeSimpleTexts(captions: readonly Caption[], roles: readonly C
     // --- templates --- (AI studio step 3) first the edge clear of the mode's own banners (two texts never stacked), then the action
     const overTop = bannerCoverSec(top, message, track, untilSec, false, topHud);
     const overBottom = bannerCoverSec(bottom, message, track, untilSec, false, topHud);
+    // --- templates --- (studio2 review round 2, 16) then the edge clear of the mode's stake (Target's segment to hit next), which stays
+    // put while a ball only passes: "One more hit? 👇" over the very segment it asks about stayed up where a ball crossed the bottom
+    const onTop = stakeCoverSec(top, message, track, untilSec, false, topHud);
+    const onBottom = stakeCoverSec(bottom, message, track, untilSec, false, topHud);
     if (overTop !== overBottom) out = overTop > overBottom ? bottom : top;
+    else if (Math.abs(onTop - onBottom) > 1e-9) out = onTop > onBottom ? bottom : top;
     else {
       const atTop = actionCoverSec(top, message, track, untilSec, false, topHud);
       const atBottom = actionCoverSec(bottom, message, track, untilSec, false, topHud);
@@ -1533,6 +1557,7 @@ export function simpleCountdownSource(recipe: Pick<BotRecipe, "countdown" | "cou
 const hudShowsCountdown = (s: SimulatorSettings): boolean => {
   if (s.mode === "stringBattle") return s.sbHud;
   if (s.mode === "fightLeague") return s.flHud; // --- fl-overhaul --- (Stage 6) the HP bars
+  if (s.mode === "brickRebuild") return !s.loopHud; // --- templates --- (studio2 review round 2, 15) the bricks left under the box, drawn with the loop HUD off
   return ["powerLayers", "battle", "race", "ctf", "glass", "multipliers"].includes(s.mode);
 };
 

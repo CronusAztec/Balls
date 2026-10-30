@@ -881,7 +881,7 @@ order (Classic, Grow, Multipliers, Pendulum Wave, Power Layers, Ring Breaker) an
 ### claude-opus-5-5-2026-10-29-round2b
 
 <!-- crew-eval:run claude-opus-5-5-2026-10-29-round2b -->
-Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 359 briefs answered (363 replies, refused ones included). Corpus 809f23c508fae13f.
+Model: claude-opus-5-5. Date: 2026-10-29. Roles played in one context. 359 briefs answered (363 replies, refused ones included). Corpus 809f23c508fae13f (an older corpus or older briefs: kept as history, not replayed).
 
 Corpus: 40 clean clips, 27 planted (9 classes).
 
@@ -922,3 +922,49 @@ describes the ten orbs passing through each other. The hook's first wording ("..
 the hook's size, so it was shortened before the commit, and the same three pitches answered the briefs that changed with it, as
 none quotes the hook. Every other answer is round 1d's, to briefs that did not change by a byte (its answers to the menus before
 stay in the record, as no brief asks them now), and round 1d's run stays above as history.
+
+### claude-opus-5-5-2026-10-30-round2c
+
+<!-- crew-eval:run claude-opus-5-5-2026-10-30-round2c -->
+Model: claude-opus-5-5. Date: 2026-10-30. Roles played in one context. 378 briefs answered (382 replies, refused ones included). Corpus 999af7bf7157a335.
+
+Corpus: 40 clean clips, 27 planted (9 classes).
+
+| Run | Who is asked | Defects caught | Defects named | Clean dropped | Clean changed | Clean objected to | Clean misread | Fixes kept / asked | Calls per kept clip |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rules | no model: the rules alone | 12 of 27 (44%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 0 |
+| skeptic | the skeptic; the rules decide | 17 of 27 (63%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | none asked | 1.1 |
+| viewer | the viewer; the rules decide | 12 of 27 (44%) | 18 of 27 (67%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 3 of 40 (8%) | none asked | 1 |
+| reviewer | the reviewer alone | 23 of 27 (85%) | 12 of 27 (44%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.04 |
+| quick | Quick: the skeptic, the reviewer where in doubt | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 0 of 40 (0%) | 9 / 13 (4 need the seed search) | 1.39 |
+| all | Thorough: the viewer, the skeptic, the reviewer | 25 of 27 (93%) | 27 of 27 (100%) | 0 of 40 (0%) | 3 of 40 (8%) | 0 of 40 (0%) | 3 of 40 (8%) | 12 / 16 (4 need the seed search) | 3.24 |
+
+| Defect (3 each) | Gate | rules | skeptic | viewer | reviewer | quick | all |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| slowStart | G1 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffCut | G2 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| hookUntrue | G4 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| textUnreadable | G5 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| payoffLate | none | 0/3 | 2/3 | 0/3 | 0/3 | 2/3 | 2/3 |
+| tooBusy | none | 0/3 | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| hookMismatch | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| twoIdeas | none | 0/3 | 0/3 | 0/3 | 3/3 | 3/3 | 3/3 |
+| endingConfusing | none | 0/3 | 0/3 | 0/3 | 2/3 | 2/3 | 2/3 |
+
+| Ideas for open requests | Requests | Ideas | Planned | Pass every gate | Formats a request | Calls | Valid first time |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| by code (ideasByCode) | 3 | 18 | 18 | 18 of 18 (100%) | 6 | 0 | - |
+| the brainstormer | 3 | 18 | 18 | 18 of 18 (100%) | 3.67 | 3 | 3 of 3 |
+<!-- /crew-eval:run claude-opus-5-5-2026-10-30-round2c -->
+
+The round-2b run, carried over to the corpus and the menu as step 2's second review round, findings 13 to 18, left them. Grow's
+template draws its ball without trails or glow in the Simple look and grows at its short length's fastest rate, so its six corpus
+clips (three clean, three planted twins) moved: each plans a seed of its own now, 11-12 s long, with no glow or trails in its
+dossier. The menu lost Bouncing Shapes' template (hidden: its payoff is a stopped shape the mode draws faded) and every line names
+the endings and lengths its template takes, the studio's short and standard only, and the brainstormer's card asks for one its
+line lists, so the brainstormer's three briefs changed too. The same model answered the 19 briefs that changed in one context, as
+round 2b had: the cold viewer read each grow clip as filling up (the planted "Bullseye!" one with the word as a distraction), the
+skeptic objected to that "Bullseye!" alone (endingConfusing), the reviewers kept the other grow clips and dropped that one, and the
+three pitches are round 2b's, which every menu line still offers at the lengths pitched. One answer, the reviewer-alone brief of
+the "Bullseye!" clip, was first written as a keep by a slip and corrected to the drop its brief calls for, as round 2b's, before
+the run was recorded. Every other answer is round 2b's, to briefs that did not change by a byte, and the tables are round 2b's.

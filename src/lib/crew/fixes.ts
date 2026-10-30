@@ -1,5 +1,5 @@
 import { sanitizeCaptionText, type Caption } from "@/lib/captions";
-import { BOT_FRAME, HOOK_SEC, PLATFORMS, TOP_HUD_MODES, type BotRecipe, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
+import { BOT_FRAME, BUCKET_SECONDS, HOOK_SEC, LENGTH_BUCKETS, PLATFORMS, TOP_HUD_MODES, type BotRecipe, type EndingStyle, type LengthBucket } from "@/lib/bot/playbook";
 import { botRecipeById } from "@/lib/bot/templates";
 import { captionBoxAt, captionsAtEdge, captionWordsOf, clipCaptions, inSafeZone, placeSimpleTexts, scoreClip, type CaptionRole, type ClipPlan, type ClipTiming, type ScoreReason } from "@/lib/bot/planner";
 import { isActionTrack } from "@/lib/bot/actionTrack"; // --- templates --- (where the run moves)
@@ -85,6 +85,16 @@ export interface CompiledFix {
 export interface FixOptions {
   /** The clip's Simple options (the HUDs its template keeps: simplifyLook leaves them on). */
   simple?: SimpleOptions;
+  /**
+   * --- crew --- (studio2 review round 2, 18) The longest clip the caller renders (s): changeLength refuses a length bucket whose
+   * clips run past it (the toolbox's render plays 60 s at most, so its review never asks for a long clip). Absent: no limit.
+   */
+  maxClipSec?: number;
+}
+
+/** --- crew --- (studio2 review round 2, 18) The length buckets whose clips a render of at most `maxClipSec` plays (all without a limit). */
+export function bucketsWithin(maxClipSec: number | undefined): LengthBucket[] {
+  return LENGTH_BUCKETS.filter((b) => maxClipSec === undefined || BUCKET_SECONDS[b].max <= maxClipSec + EPS);
 }
 
 const EPS = 1e-9;
@@ -381,6 +391,8 @@ function applyActions(start: CrewClip, actions: readonly FixAction[], options: F
         if (a.bucket === start.bucket) errors.push(`changeLength: the clip is ${a.bucket} already`);
         else if (!PLATFORMS[start.platform].buckets.includes(a.bucket)) errors.push(`changeLength: ${start.platform} takes ${PLATFORMS[start.platform].buckets.join(", ")}`);
         else if (recipe?.buckets && !recipe.buckets.includes(a.bucket)) errors.push(`changeLength: ${recipe.id} takes ${recipe.buckets.join(", ")}`);
+        // --- crew --- (studio2 review round 2, 18) a length the caller's render cannot play: the clip could never be made
+        else if (!bucketsWithin(options.maxClipSec).includes(a.bucket)) errors.push(`changeLength: a ${a.bucket} clip runs to ${BUCKET_SECONDS[a.bucket].max} s, past the render's ${options.maxClipSec} s (it takes ${bucketsWithin(options.maxClipSec).join(", ")})`);
         else if (collectNeed) {
           const n = needOf();
           n.bucket = a.bucket;
