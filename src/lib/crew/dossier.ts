@@ -22,7 +22,8 @@ import { crowding, drawnHookText, overlaysOf, type Overlay, type SimpleOptions }
  *    scene (from the settings' numbers, never the mode's name), the length, the look and the sound in words, every text with
  *    its seconds and place, the HUDs in words, --- crew --- (AI studio step 4) the banner the picture draws at its own ending
  *    with its seconds, --- crew --- (studio2 review round 2, 6) what the picture does once its run undoes its last state (Colour
- *    Sort's remix: clip.ts payoffUndone), a cut's extras, and after a render the motion in 8 parts and the sound events a second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
+ *    Sort's remix: clip.ts payoffUndone), --- crew --- (studio2 review round 2, 19) what the mode's own counter reads at the start and
+ *    the end (Brick Smash's bricks, Spiral Glass's badge), a cut's extras, and after a render the motion in 8 parts and the sound events a second. It holds no intent: no template, format, claim, recipe or idea, and none of the words "template", "idea",
  *    "intent" or "payoff" outside the clip's own drawn words (tests/crewDossier.test.ts). The cold viewer reads it.
  *
  * Both views trim deterministically to their budgets: long quotes shorter first, then lists, then the drawn words to roles.
@@ -513,6 +514,9 @@ function renderScreen(clip: CrewClip, scene: string | undefined, t: { quote: num
   if (s.nameLabel && s.ballName.trim()) lines.push(`a name under the ball: ${quote(s.ballName, t.quote)}`);
   const huds = hudsOn(s);
   lines.push(`also on screen: ${huds.length ? huds.slice(0, t.list).map((h) => h.words).join("; ") : "nothing else"}`);
+  // --- crew --- (studio2 review round 2, 19) what the mode's own counter reads, as its run read it (clip.ts counterNumbersOf)
+  const reading = counterReading(clip);
+  if (reading) lines.push(reading);
   // --- crew --- (AI studio step 4) the mode's own end banner, from the second it comes in (simplicity.ts endBannersShown)
   for (const o of overlays.filter((x) => x.kind === "banner").slice(0, t.list)) lines.push(`drawn on screen at the end, ${o.end >= shown - 1e-6 ? `${r1(o.start)} s to the end` : `${r1(o.start)}-${r1(o.end)} s`}: ${o.words}`);
   // --- crew --- (studio2 review round 2, 6) the run undoing its last state before the clip ends (Colour Sort's remix), in neutral words
@@ -527,6 +531,21 @@ function renderScreen(clip: CrewClip, scene: string | undefined, t: { quote: num
   if (f && "motion" in f && Array.isArray(f.motion) && f.motion.length > 1) lines.push(`motion in 8 parts (0 still - 9 most): ${motionBuckets(f.motion).join(" ")}`);
   if (f && f.soundEventsPerSec !== null) lines.push(`sounds a second: ${r1(f.soundEventsPerSec)}`);
   return lines;
+}
+
+/**
+ * --- crew --- (studio2 review round 2, 19) The screen view's line for the mode's own counter (lib/bot/actionTrack.ts COUNTER_MODES),
+ * as the run read it (RunFacts.action.counter) and as the mode writes it: Brick Smash's "900 bricks" … "0 bricks", Spiral Glass's
+ * badge "x1" … "x7"; its least and most too where they lie outside its first and last readings. null: no counter read.
+ */
+function counterReading(clip: CrewClip): string | null {
+  const c = clip.run?.action?.counter;
+  if (!c) return null;
+  const label = clip.settings.mode === "spiralGlass" ? (n: number) => `x${n}` : clip.settings.mode === "brickRebuild" ? (n: number) => `${n} bricks` : (n: number) => String(n);
+  const low = Math.min(c.first, c.last);
+  const high = Math.max(c.first, c.last);
+  const extra = [c.least < low ? `down to ${label(c.least)}` : "", c.most > high ? `up to ${label(c.most)}` : ""].filter(Boolean);
+  return `the counter on screen reads ${label(c.first)} at the start and ${label(c.last)} at the end${extra.length ? ` (${extra.join(", ")} between)` : ""}`;
 }
 
 /** The motion curve in 8 equal parts, each its mean scaled to 0–9 against the largest part. */

@@ -783,6 +783,25 @@ studio did that no render could finish:
   reads motion, not a moiré. Shatter's binding turns its rings slowly; another mode's pattern would need its own.
 - The role eval's corpus moved with Grow's clips and the menu (docs/agents/CREW-EVAL.md, run round2c).
 
+**The second review round, findings 19–24** **[observed: Brick Smash's and Spiral Glass's 4 plan seeds × 3 platforms in the
+Simple look in English, Polish and Spanish (the same counts in each), plan seeds 5–8 in the studio's 800×450 world, and the bot
+look in English; the counters read on the review's own renders]**. One finding was in what the crew is told, three in what the
+studio's tools say, one in the release notes, and one the first part of this round had fixed already:
+
+| Finding | What was wrong | What changed | Measured since |
+| --- | --- | --- | --- |
+| The counters a mode draws | Brick Smash's "900 bricks" … "0 bricks" and Spiral Glass's x1–x7 badge were on screen, but the producer's "897 bricks down to 0" and "One ball becomes 7" were refused as numbers the clip did not have; the dossier gave the badge as no HUD, and the GLASS CLEARED banner's words named the tiles where it shows the count and the time | the run's action track reads a mode's own counter after every step (`COUNTER_MODES`, `counter`: its first and last readings, its least and its most) and those numbers are the clip's facts (`counterNumbersOf`, in `factNumbersOf` and the producer's numbers: 900, 0 and 7, while a reading on the way, 897, stays no fact to state); the badge is a HUD of Spiral Glass's own (`MODE_HUDS`, counting the balls, not down to the payoff); the screen view says what the counter reads at the start and the end; the banner's words name the count and the time | both 12/12 in each language and 12/12 at 800×450; Brick Smash as before (Simple 92.5, checklist 96); Spiral Glass Simple 89 (88–90), was 97 with its badge uncounted, checklist 86; its bot look 0/12 now (Simple 56, G6: the series label, the hook and the badge at once), where it had passed at 86 |
+| Plan by template id | a waiting template was refused with its design note or outcome ("one life, its GAME OVER") | the reason the templates listing and the mode route give (`bindingWaits`): an experimental binding's measured reason, a hidden variant's own | every template of a waiting binding, by id and by mode alike (`tests/agentStudio.test.ts`) |
+| An open request's links | plan.json's plans linked to http://localhost:3000 | they link to the live site, as the plan tool's do | `tests/agentStudio.test.ts` |
+| The bracket and viral-bot.mjs | the refusal sent the bracket to `viral-bot.mjs` to render, which refuses `--template` without `--dry-run`; CLI.md said `plan` covers every ready template | the refusal and docs/agents/STUDIO.md say the website's Bot section renders it and `viral-bot.mjs` plans the template only, rendering the recipe in its rotation's long clips with the battle family asked for; `plan` covers 42 of the 43 | the refusal's words pinned in `tests/agentStudio.test.ts` |
+| The 1.17.0 notes | "A viral template for every mode" and switches that "hide that mode's banners and counters" | "Viral templates for most modes", and what each switch hides: GLASS CLEARED and the ball count stay | `npm run changelog:check` |
+| The bracket on Shorts | (the first part of this round, above) | verified: Shorts lists no bracket, a Shorts platform button drops it back to Auto, and `viral-bot.mjs --template … --platform shorts` refuses the pair | `tests/botSection.test.ts` |
+
+- No plan moved: the counter is read beside the run, the badge costs no HUD points, and every fingerprint is unchanged.
+- The whole table: 34 ready bindings as 43 templates, as after the round's findings 13–18.
+- The Spiral Glass badge is the clip's own count of the balls, which its hook does not ask about. It stays on screen with the
+  overlay off by design (its tip says so), so it now costs the Simple score its text on screen; the template stays ready.
+
 **Where the templates are offered** (AI studio steps 7 and 8):
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
@@ -795,8 +814,9 @@ studio did that no render could finish:
   design, gets one line saying the rules judge the Simple look). `scripts/viral-bot.mjs` plans
   one template's clips in Node with `--dry-run --template <id>`, in the look `--look` names, and refuses a `--platform`,
   `--bucket` or `--ending` the template does not play.
-- **Claude's studio** (docs/agents/STUDIO.md). The `templates` and `plan` tools cover every ready template, in the Simple
-  look, and a binding that waits says why. The crew judges each clip before its render and again after it, and a fix offered
+- **Claude's studio** (docs/agents/STUDIO.md). The `templates` tool lists every ready template and `plan` plans the ones
+  its render plays, all but Fight League's bracket (long only), in the Simple look; a binding that waits says why, by its
+  mode and by its template's id alike. The crew judges each clip before its render and again after it, and a fix offered
   after the render is a second version of the same clip: the owner picks one.
 - **The app's crew and the autopilot** are to plan from the templates in the Simple look once their own steps land (the
   owner's answer). Today the app's AI plans the recipes in the bot look.

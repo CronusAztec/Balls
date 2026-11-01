@@ -9,13 +9,13 @@ This file is generated from `src/content/changelog.json`. Do not edit it by hand
 
 ## Website 1.17.0 · 2026-10-29
 
-A viral template for every mode in the Clip planner
+Viral templates for most modes in the Clip planner
 
 ### New
 
-- The Clip planner has a new Template choice. Pick a viral template for any mode, and Plan clips makes clips from it. Auto keeps the daily mix.
+- The Clip planner has a new Template choice, with viral templates for most modes. Pick one, and Plan clips makes clips from it. Auto keeps the daily mix.
 - A new Simple look switch draws the clips dark and calm, with one line of text at a time. It is on for a chosen template and off for Auto.
-- Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Turn one off to hide that mode's banners and counters. The run stays the same.
+- Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Off, they hide Journey's stage banners, map and clock and Spiral Glass's title, tile count and question. The run stays the same.
 
 ### Improved
 

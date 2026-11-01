@@ -27,7 +27,16 @@ import {
   sceneOf,
   screenView,
   type CrewClip,
+  // --- crew --- (studio2 review round 2, 19) a mode's own counter
+  MODE_END_BANNERS,
+  checkProducer,
+  clarityOf,
+  counterNumbersOf,
+  hudsOn,
+  producerNumbersOf,
+  type ProducerResult,
 } from "@/lib/crew";
+import { isActionTrack } from "@/lib/bot/actionTrack";
 
 /*
  * --- crew --- The clip dossier (lib/crew/dossier.ts, C2 of the AI studio plan): the intent view the skeptic and the reviewer
@@ -301,6 +310,63 @@ describe("the screen view holds no intent", () => {
     expect(motionBuckets(features.motion)).toHaveLength(8);
     expect(Math.max(...motionBuckets(features.motion))).toBe(9);
     expect(motionBuckets([0, 0, 0])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+// --- crew --- (studio2 review round 2, 19) the numbers a mode's own counter draws: Brick Smash's "897 bricks" under the box in the Simple
+// look and Spiral Glass's x1–x7 badge were on screen from the first frame, yet the dossier said "look.huds: none" for the badge and the
+// producer's "897 bricks" and "becomes 7" were refused as numbers the clip did not have
+describe("a mode's own counter: on screen, in the views and among the clip's numbers", () => {
+  const ranOf = (plan: ClipPlan) => crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
+  const produced = (planId: string, title: string, caption: string): ProducerResult => ({ clips: [{ planId, name: "a", title, hook: "", caption, hashtags: [], platform: "reels" }], summary: "" });
+
+  it("reads Brick Smash's bricks under its box in the Simple look: a HUD in both views, its numbers the producer's", () => {
+    const plan = planTemplate("smash-brick-rebuild", 1, "reels", { copy, episode: 3, index: 1 });
+    const clip = ranOf(plan);
+    const counter = clip.run!.action!.counter!;
+    expect([plan.look, plan.ending, plan.settings.loopHud, counter.first > 100, counter.last, counter.least, counter.most]).toEqual(["simple", "resolved", false, true, 0, 0, counter.first]);
+    expect(intentView(clip).facts["look.huds"]).toEqual(["mode:brickRebuild"]);
+    const screen = screenView(clip).text;
+    expect(screen).toContain("also on screen: a count of the bricks left, under the box");
+    expect(screen).toContain(`the counter on screen reads ${counter.first} bricks at the start and 0 bricks at the end`);
+    expect(counterNumbersOf(clip)).toEqual([0, counter.first]);
+    const numbers = producerNumbersOf({ clip, post: null });
+    expect([numbers.includes(counter.first), numbers.includes(0)]).toEqual([true, true]);
+    // the producer's own words, refused before: the total and the zero are this run's
+    const title = `${counter.first} bricks down to 0`;
+    expect(checkProducer(produced(plan.id, title, `${counter.first} bricks. 3 balls.`), [plan.id], { [plan.id]: numbers })).toEqual([]);
+    expect(checkProducer(produced(plan.id, `${counter.first + 1} bricks`, ""), [plan.id], { [plan.id]: numbers })[0]).toContain(`${counter.first + 1} is not a number this clip has`);
+    // without a run (a plan without the search) nothing is read, and nothing is claimed
+    expect(counterNumbersOf(crewClipOfPlan(plan))).toEqual([]);
+  });
+
+  it("reads Spiral Glass's badge, which its overlay switch leaves on: a HUD that counts the balls up, the final count the clip's", () => {
+    const plan = planTemplate("smash-spiral-glass", 1, "reels", { copy, episode: 3, index: 1 });
+    const clip = ranOf(plan);
+    const counter = clip.run!.action!.counter!;
+    expect([plan.settings.sgHud, counter.first, counter.least, counter.most === counter.last, counter.most > 1]).toEqual([false, 1, 1, true, true]);
+    const own = hudsOn(clip.settings).find((h) => h.id === "mode:spiralGlass")!;
+    expect([own.flag, own.counts, own.texts]).toEqual([false, false, 1]);
+    expect(intentView(clip).facts["look.huds"]).toEqual(["mode:spiralGlass"]);
+    const screen = screenView(clip).text;
+    expect(screen).toContain("a badge at the spiral's entrance with the number of balls");
+    expect(screen).toContain(`the counter on screen reads x1 at the start and x${counter.last} at the end`);
+    // the badge and the banner in a stranger's words: no claim's word, as the rest of the screen view (the clip's quoted words aside)
+    const bare = screen.replace(/"[^"]*"/g, '""');
+    for (const claim of CLAIMS) expect([claim, new RegExp(`\\b${claim}\\b`, "i").test(bare)]).toEqual([claim, false]);
+    // its banner's sub-line is the badge's count and the time ("x7 in 17.7s"), not the tiles
+    expect(MODE_END_BANNERS.find((b) => b.mode === "spiralGlass")!.words).toMatch(/^a GLASS CLEARED banner with the number of balls \(x n\) and the time/);
+    const numbers = producerNumbersOf({ clip, post: null });
+    expect(checkProducer(produced(plan.id, "Can it clear the glass?", `One ball becomes ${counter.most}.`), [plan.id], { [plan.id]: numbers })).toEqual([]);
+    // the Simple score counts the badge on screen and keeps the template simple
+    expect(clarityOf(clip).simple.score).toBeGreaterThanOrEqual(80);
+  });
+
+  it("keeps no counter for a mode without one, and reads a counter from a file only when it is four numbers", () => {
+    const plan = planTemplate("get-out-classic", 1, "reels", { copy, episode: 3, index: 1 });
+    expect(ranOf(plan).run!.action!.counter).toBeUndefined();
+    const track = { stepSec: 0.5, grid: 20, samples: [] };
+    expect([isActionTrack({ ...track, counter: { first: 9, last: 0, least: 0, most: 9 } }), isActionTrack({ ...track, counter: { first: 9, last: 0, least: 0 } }), isActionTrack({ ...track, counter: { first: 9, last: "0", least: 0, most: 9 } })]).toEqual([true, false, false]);
   });
 });
 

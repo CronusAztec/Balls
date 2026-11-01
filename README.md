@@ -1518,7 +1518,7 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   formats (get out, smash, fill, count, who wins, aim, line up, on the beat, reveal, Mode Lab game: what the clip promises
   and must show), `MODE_TEMPLATES` a `Record` over the modes, so a new mode without a binding fails the type check. A binding
   wraps a recipe (proven) or plays settings of its own (trial), and plans as a recipe-shaped template
-  (`templateRecipeById`); 35 bindings are ready as 45 templates, and the other 13 wait with their measured reason (the
+  (`templateRecipeById`); 34 bindings are ready as 43 templates, and the other 14 wait with their measured reason (the
   shrink-only `EXPERIMENTAL` table, or a hidden variant: the square race's count-in, Ball Drop's looped rain with no drop). Two payoff strategies are the
   templates' own (`src/lib/bot/outcomeStrategy.ts`): `outcome`, the seed finder's outcome read off the run of the seed (or a
   run of its own where the finder searches settings, `OWN_RUN_MOMENTS`), and `atEnd`, the clip's last 1.5 s for a run that

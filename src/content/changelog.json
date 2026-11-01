@@ -6,17 +6,17 @@
       "version": "1.17.0",
       "date": "2026-10-29",
       "headline": {
-        "en": "A viral template for every mode in the Clip planner",
-        "pl": "Szablon viralowy dla każdego trybu w Planerze klipów",
-        "es": "Una plantilla viral para cada modo en el planificador"
+        "en": "Viral templates for most modes in the Clip planner",
+        "pl": "Szablony viralowe dla większości trybów w Planerze klipów",
+        "es": "Plantillas virales para la mayoría de los modos"
       },
       "items": [
         {
           "kind": "new",
           "text": {
-            "en": "The Clip planner has a new Template choice. Pick a viral template for any mode, and Plan clips makes clips from it. Auto keeps the daily mix.",
-            "pl": "Planer klipów ma nowy wybór Szablon. Wybierz szablon viralowy dla dowolnego trybu, a Zaplanuj klipy zrobi z niego klipy. Automatycznie zostawia zestaw dnia.",
-            "es": "El Planificador de clips tiene una nueva opción, Plantilla. Elige una plantilla viral para cualquier modo y Planificar clips hará clips con ella. Automático mantiene la mezcla del día."
+            "en": "The Clip planner has a new Template choice, with viral templates for most modes. Pick one, and Plan clips makes clips from it. Auto keeps the daily mix.",
+            "pl": "Planer klipów ma nowy wybór Szablon, z szablonami viralowymi dla większości trybów. Wybierz jeden, a Zaplanuj klipy zrobi z niego klipy. Automatycznie zostawia zestaw dnia.",
+            "es": "El Planificador de clips tiene una nueva opción, Plantilla, con plantillas virales para la mayoría de los modos. Elige una y Planificar clips hará clips con ella. Automático mantiene la mezcla del día."
           }
         },
         {
@@ -38,9 +38,9 @@
         {
           "kind": "new",
           "text": {
-            "en": "Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Turn one off to hide that mode's banners and counters. The run stays the same.",
-            "pl": "Podróż ma przełącznik HUD etapów, a Szklana spirala przełącznik HUD spirali. Wyłącz go, by ukryć banery i liczniki trybu. Przebieg zostaje taki sam.",
-            "es": "Viaje tiene un interruptor HUD de etapas y Espiral de cristal uno HUD de la espiral. Desactívalo para ocultar los carteles y contadores del modo. La partida no cambia."
+            "en": "Journey has a Stage HUD switch and Spiral Glass a Spiral HUD switch. Off, they hide Journey's stage banners, map and clock and Spiral Glass's title, tile count and question. The run stays the same.",
+            "pl": "Podróż ma przełącznik HUD etapów, a Szklana spirala przełącznik HUD spirali. Wyłączone ukrywają banery etapów, mapę i zegar Podróży oraz tytuł, licznik płytek i pytanie spirali. Przebieg zostaje taki sam.",
+            "es": "Viaje tiene un interruptor HUD de etapas y Espiral de cristal uno HUD de la espiral. Desactivados, ocultan carteles, mapa y reloj en Viaje, y título, losetas restantes y pregunta en la espiral. La partida no cambia."
           }
         }
       ]

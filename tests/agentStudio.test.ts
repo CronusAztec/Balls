@@ -382,6 +382,9 @@ describe("review: Claude plays the roles, the rules hold it (--- studio ---)", (
       // (the brainstormer's answer comes in a later call, which names no world: the panel keeps the one it started with)
       const out = call({ role: "brainstormer", verdict: { ideas: [idea] } });
       expect(out.result.accepted).toMatchObject({ ok: true });
+      // --- studio --- (studio2 review round 2, 21) an open request's plans link to the live site, as the plan tool's do (they opened
+      // http://localhost:3000, the planner's own default, in plan.json)
+      for (const p of out.plan!.plans) expect([p.id, p.plan.shareUrl.startsWith(`${STUDIO_SITE_URL}/en/simulator/?`)]).toEqual([p.id, true]);
       return out.plan!.plans.map((p) => p.plan.world);
     });
     expect(worlds).toEqual([[page], [{ width: 800, height: 600 }]]);
@@ -1198,6 +1201,17 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
       expect(!refused.ok && refused.error, b.mode).toContain(`hidden: ${reasons.join("; ")}`);
     }
     expect(BINDINGS.filter((x) => !x.ready && !EXPERIMENTAL[x.mode]).map((x) => x.mode)).toEqual(expect.arrayContaining(["race"]));
+    // --- studio --- (studio2 review round 2, 20) plan by a waiting template's id gives the reason plan by its mode gives: an experimental
+    // binding's measured one (aim-paddle was refused with its outcome, "one life, its GAME OVER"), a hidden variant its own
+    for (const b of BINDINGS.filter((x) => !x.ready)) {
+      for (const v of b.variants) {
+        const byId = studioPlan({ template: v.id, family: "all" }, copy);
+        const byMode = studioPlan({ mode: b.mode, family: "all" }, copy);
+        const reason = EXPERIMENTAL[b.mode] ?? v.hidden!;
+        expect([v.id, !byId.ok && byId.error.includes(reason), !byMode.ok && byMode.error.includes(reason)]).toEqual([v.id, true, true]);
+        if (EXPERIMENTAL[b.mode] && b.note && !EXPERIMENTAL[b.mode]!.includes(b.note)) expect([v.id, !byId.ok && byId.error.includes(b.note)]).toEqual([v.id, false]);
+      }
+    }
     expect(listed.filter((x) => "waits" in x).map((x) => x.mode)).toEqual(BINDINGS.filter((x) => !x.ready).map((x) => x.mode));
     expect(listed.filter((x) => x.ready).some((x) => "waits" in x)).toBe(false);
   });
@@ -1217,6 +1231,9 @@ describe("AI studio step 8: every ready template, the MCP's size and a fixed ver
   it("leaves out a ready template whose every plan runs past the render, with its reason in the listing, the plan's refusal and render's advice", () => {
     const why = studioRenderRefusal(templateRecipeById("who-wins-fight-league-bracket")!);
     expect(why).toMatch(/long length only \(60–90 s\), past the toolbox's 60 s render/);
+    // --- studio --- (studio2 review round 2, 24) it sends no one to viral-bot.mjs to render the template, which it refuses without
+    // --dry-run: the website's Bot section renders it, viral-bot.mjs only the recipe in its rotation's long clips
+    expect(why).toContain("the website's Bot section plans and renders it; viral-bot.mjs plans the template with --dry-run only, and renders the recipe only in its rotation's long clips (--bucket long with --family all or battle)");
     for (const t of ready) expect([t.id, studioRenderRefusal(templateRecipeById(t.id)!) === null]).toEqual([t.id, inStudio.some((x) => x.id === t.id)]);
     const listed = studioTemplates({ family: "all", copy: false }, copy);
     expect(listed.templates.find((x) => x.id === "who-wins-fight-league-bracket")).toMatchObject({ notInStudio: why });

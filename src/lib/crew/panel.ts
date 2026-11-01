@@ -859,7 +859,8 @@ const roleWords = (clip: CrewClip, role: string) => captionWordsOf(clip.captions
 
 /**
  * --- crew --- (the studio's second review round, finding 18) The numbers a kept clip's title and caption may state: the clip's
- * own (clip.ts factNumbersOf: its hook values, its length, the day, one), the ones its scene line states (the rings, layers or
+ * own (clip.ts factNumbersOf: its hook values, its length, the day, one – --- crew --- studio2 review round 2, 19: and the ones the
+ * mode's own counter draws, Brick Smash's bricks and Spiral Glass's badge, counterNumbersOf), the ones its scene line states (the rings, layers or
  * balls on screen: dossier.ts clipSceneOf – --- crew --- step 2's review round 1, 15: its template's own line where it has one,
  * the hoops' count, as the viewer reads it), its payoff's second, and the ones in the words drawn on it and in its template's
  * own post copy (the series label's day or match) – each true of this run by construction. The producer's brief lists them,

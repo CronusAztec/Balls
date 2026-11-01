@@ -28,6 +28,11 @@ import { JOURNEY_BANNER_MS } from "@/lib/physics/modes/journey";
  * next) keeps the cells it covers per sample too (ActionTrack.stakes): what a viewer watches as much as the ball, so a text over it
  * hides the action (actionUnder) – the hook "Will it break?" and the closing "One more hit? 👇" sat over the very segment they
  * asked about, at the top of the ring, while the bottom of the square was clear (watched).
+ *
+ * --- templates --- (studio2 review round 2, 19) A mode that draws a counter of its own over the clip (COUNTER_MODES: Brick Smash's
+ * bricks standing, Spiral Glass's badge) keeps what it read too (ActionTrack.counter): its first and last readings, its least and its
+ * most – numbers a viewer reads on screen, so the crew's facts hold them (crew/clip.ts counterNumbersOf: the producer's "897 bricks
+ * down to 0" was refused as "not a number this clip has" under a counter drawn from its first frame, "900 bricks", watched).
  */
 
 // --- templates ---
@@ -54,6 +59,19 @@ export interface ActionTrack {
    * (modeStakeCells: Target's segment to hit next, its number beside it); absent for a mode without one, so every other track is as it was.
    */
   stakes?: string[];
+  /**
+   * --- templates --- (studio2 review round 2, 19) What the mode's own counter read over the track (COUNTER_MODES), after every step
+   * to its last sample (within stepSec of the clip's end); absent for a mode without one, so every other track is as it was.
+   */
+  counter?: CounterRead;
+}
+
+/** --- templates --- (studio2 review round 2, 19) A mode's own counter over a track: its first and last readings, its least and its most. */
+export interface CounterRead {
+  first: number;
+  last: number;
+  least: number;
+  most: number;
 }
 
 /** A rectangle in the exported square, as shares of its side from its top left (0–1). */
@@ -91,8 +109,15 @@ export function isActionTrack(value: unknown): value is ActionTrack {
     Array.isArray(t.samples) &&
     t.samples.every((s) => typeof s === "string") &&
     (t.banners === undefined || (Array.isArray(t.banners) && t.banners.every((s) => typeof s === "string"))) && // --- templates --- (AI studio step 3)
-    (t.stakes === undefined || (Array.isArray(t.stakes) && t.stakes.every((s) => typeof s === "string"))) // --- templates --- (studio2 review round 2, 16)
+    (t.stakes === undefined || (Array.isArray(t.stakes) && t.stakes.every((s) => typeof s === "string"))) && // --- templates --- (studio2 review round 2, 16)
+    (t.counter === undefined || isCounterRead(t.counter)) // --- templates --- (studio2 review round 2, 19)
   );
+}
+
+/** --- templates --- (studio2 review round 2, 19) Whether a value is a counter's reading (CounterRead): four finite numbers. */
+function isCounterRead(value: unknown): value is CounterRead {
+  const c = value as Record<string, unknown> | null;
+  return !!c && typeof c === "object" && (["first", "last", "least", "most"] as const).every((k) => typeof c[k] === "number" && Number.isFinite(c[k]));
 }
 
 /** The run second of sample `k`. */
@@ -171,6 +196,22 @@ function modeStakeCells(engine: ReturnType<typeof createEngineForSettings>, mode
   return [...cells].sort((a, b) => a - b);
 }
 // --- end of the modes' own stakes
+
+// --- templates --- (studio2 review round 2, 19) the modes' own counters
+/**
+ * The modes that draw a counter of their own over the whole clip, which no setting switches off (crew/hudFlags.ts MODE_HUDS): Brick
+ * Smash's bricks standing – "900 bricks" under the box with the loop HUD off (brickRebuildRenderer.ts drawCounters), the loop HUD's
+ * counter line with it on – and Spiral Glass's badge at the spiral's entrance, the balls' count ("x7": spiralGlassRenderer.ts drawEffects).
+ */
+export const COUNTER_MODES: readonly SimulatorSettings["mode"][] = ["brickRebuild", "spiralGlass"];
+
+/** The number a mode's own counter draws now (COUNTER_MODES), null in another mode. */
+function modeCounter(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"]): number | null {
+  if (mode === "brickRebuild") return engine.getBrickRebuildHudCount();
+  if (mode === "spiralGlass") return engine.getSpiralGlassView().count;
+  return null;
+}
+// --- end of the modes' own counters
 
 // --- templates --- (AI studio step 3) the modes' own banners and cameras
 /**
@@ -278,6 +319,8 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
   const samples: string[] = [];
   const banners: string[] | null = modeBannersDrawn(settings) ? [] : null; // --- templates --- (AI studio step 3; step 4b: drawn ones only)
   const stakes: string[] | null = STAKE_MODES.includes(settings.mode) ? [] : null; // --- templates --- (studio2 review round 2, 16)
+  let counter: CounterRead | null = null; // --- templates --- (studio2 review round 2, 19)
+  const counts = COUNTER_MODES.includes(settings.mode);
   let last = new Map<number, { x: number; y: number }>();
   let elapsed = 0;
   let steps = 0;
@@ -285,6 +328,16 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
   while (actionSampleSec({ stepSec: ACTION_STEP_SEC }, samples.length) <= untilSec + 1e-9) {
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step);
+    // --- templates --- (studio2 review round 2, 19) the mode's own counter, after every step
+    const n = counts ? modeCounter(engine, request.mode) : null;
+    if (n !== null && Number.isFinite(n)) {
+      if (!counter) counter = { first: n, last: n, least: n, most: n };
+      else {
+        counter.last = n;
+        if (n < counter.least) counter.least = n;
+        if (n > counter.most) counter.most = n;
+      }
+    }
     if (elapsed / 1000 + 1e-9 >= actionSampleSec({ stepSec: ACTION_STEP_SEC }, samples.length)) {
       const at = new Map<number, { x: number; y: number }>();
       const cells = new Set<number>();
@@ -323,7 +376,7 @@ export function* actionTrackSteps(settings: SimulatorSettings, seed: number, wor
     if (engine.isSimulationFinished()) break;
     if (++steps % SLICE_STEPS === 0) yield elapsed;
   }
-  return { stepSec: ACTION_STEP_SEC, grid: g, samples, ...(banners ? { banners } : {}), ...(stakes ? { stakes } : {}) };
+  return { stepSec: ACTION_STEP_SEC, grid: g, samples, ...(banners ? { banners } : {}), ...(stakes ? { stakes } : {}), ...(counter ? { counter } : {}) };
 }
 
 /** actionTrackSteps() in one go. */

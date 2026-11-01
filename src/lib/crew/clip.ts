@@ -366,10 +366,26 @@ const UNDONE_BY: Readonly<Partial<Record<ModeId, { outcome: string; afterSec: (s
 };
 // --- end of the payoff's hold
 
-/** The numbers a hook may state truthfully: the recipe's own hook values, the clip's length, the day, and one. */
-export function factNumbersOf(clip: Pick<CrewClip, "recipe" | "settings" | "timing" | "episode" | "mode">): number[] {
+/**
+ * --- crew --- (studio2 review round 2, 19) The numbers the mode's own counter draws on screen over the clip, as its run read them
+ * (RunFacts.action.counter: lib/bot/actionTrack.ts COUNTER_MODES): its first and last readings, its least and its most – Brick
+ * Smash's "900 bricks" at its first frame down to "0 bricks", Spiral Glass's badge from x1 to x7, the count its GLASS CLEARED banner
+ * repeats. None without a run that read one (a plan without the search, another mode).
+ */
+export function counterNumbersOf(clip: { run?: RunFacts | null }): number[] {
+  const c = clip.run?.action?.counter;
+  if (!c) return [];
+  return [...new Set([c.first, c.last, c.least, c.most].filter(finite))].sort((a, b) => a - b);
+}
+
+/**
+ * The numbers a hook may state truthfully: the recipe's own hook values, the clip's length, the day, and one – --- crew --- (studio2
+ * review round 2, 19) and the ones the mode's own counter draws (counterNumbersOf), where its run read them.
+ */
+export function factNumbersOf(clip: Pick<CrewClip, "recipe" | "settings" | "timing" | "episode" | "mode"> & { run?: RunFacts | null }): number[] {
   const out = new Set<number>([1, clip.timing.recordingDuration, Math.floor(clip.timing.clipSec), Math.round(clip.timing.clipSec), Math.ceil(clip.timing.clipSec)]);
   if (clip.episode >= 1) out.add(clip.episode);
+  for (const n of counterNumbersOf(clip)) out.add(n); // --- crew --- (studio2 review round 2, 19)
   const recipe = botRecipeById(clip.recipe) ?? scoreRecipeFor(clip.settings.mode, clip.recipe) ?? null;
   if (recipe) {
     try {

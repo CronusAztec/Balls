@@ -386,8 +386,12 @@ export function planSources(input: StudioPlanInput): { ok: true; sources: Source
     const info = templateById(input.template);
     if (!info) return { ok: false, error: `Unknown template "${input.template}" (the ready ones: ${readyIds().join(", ")})` };
     if (!info.ready) {
+      // --- studio --- (studio2 review round 2, 20) why it waits, as the listing's `waits` and the mode route say it (bindingWaits): an
+      // experimental binding's measured reason – its design note or outcome is no reason –, a hidden variant of a proven one its own
       const v = info.binding.variants.find((x) => x.id === info.id);
-      return { ok: false, error: `The template ${info.id} is not ready yet (${v?.hidden ?? `its binding is ${info.binding.tier}${info.binding.note ? `: ${info.binding.note}` : ""}`}). The ready ones: ${readyIds().join(", ")}` };
+      const waits = bindingWaits(info.binding);
+      const why = waits && "experimental" in waits ? `its binding is ${info.binding.tier}: ${waits.experimental}` : (v?.hidden ?? (waits ? waitsText(waits) : `its binding is ${info.binding.tier}${info.binding.note ? `: ${info.binding.note}` : ""}`));
+      return { ok: false, error: `The template ${info.id} is not ready yet (${why}). The ready ones: ${readyIds().join(", ")}` };
     }
     const refused = familyRefusal(`The template ${info.id}`, [info.family], family);
     if (refused) return { ok: false, error: refused };
@@ -499,17 +503,21 @@ export const RENDER_BUCKETS: readonly LengthBucket[] = LENGTH_BUCKETS.filter((b)
 
 /**
  * Why the studio leaves out a recipe or a template whose every length runs past its render (null: its clips render): ready for
- * the website's Bot section and viral-bot.mjs, which render long clips, but the toolbox plays RENDER_MAX_SEC at most, and the
- * plan tool's `bucket` cannot ask for a length the recipe does not fill. Fight League's bracket fills the long bucket only
- * (fightRecipes.ts: seven bouts): its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s
- * in (measured), so the templates listing names it with this reason, and the brainstormer's menu and the plan tool leave it out.
+ * the website's Bot section, which plans and renders long clips, but the toolbox plays RENDER_MAX_SEC at most, and the plan tool's
+ * `bucket` cannot ask for a length the recipe does not fill. Fight League's bracket fills the long bucket only (fightRecipes.ts:
+ * seven bouts): its 12 plans at 800 × 450 on TikTok, Reels and Shorts ran 62–88 s, the champion crowned 57–83 s in (measured), so
+ * the templates listing names it with this reason, and the brainstormer's menu and the plan tool leave it out. --- studio ---
+ * (studio2 review round 2, 24) viral-bot.mjs renders no template: `--template` plans a dry run only (it refuses one without
+ * `--dry-run`); its daily rotation renders the recipe, in the bot look, only when asked for that length (daySlots: `--bucket long`),
+ * and a battle recipe only with the family's opt-in (`--family all` or `battle`).
  */
-export function studioRenderRefusal(recipe: Pick<BotRecipe, "buckets">): string | null {
+export function studioRenderRefusal(recipe: Pick<BotRecipe, "buckets"> & Partial<Pick<BotRecipe, "family">>): string | null {
   const buckets = recipe.buckets ?? LENGTH_BUCKETS;
   if (buckets.some((b) => RENDER_BUCKETS.includes(b))) return null;
   const from = Math.min(...buckets.map((b) => BUCKET_SECONDS[b].min));
   const to = Math.max(...buckets.map((b) => BUCKET_SECONDS[b].max));
-  return `it fills the ${buckets.join(" and ")} length only (${from}–${to} s), past the toolbox's ${RENDER_MAX_SEC} s render, so the studio leaves it out: the website's Bot section and viral-bot.mjs plan and render it`;
+  const optIn = recipe.family === "battle" ? " with --family all or battle" : ""; // (--- studio --- studio2 review round 2, 24: the legal opt-in)
+  return `it fills the ${buckets.join(" and ")} length only (${from}–${to} s), past the toolbox's ${RENDER_MAX_SEC} s render, so the studio leaves it out: the website's Bot section plans and renders it; viral-bot.mjs plans the template with --dry-run only, and renders the recipe only in its rotation's ${buckets.join(" and ")} clips (--bucket ${buckets[0]}${optIn})`;
 }
 
 /** Whether the studio plans a ready template (its clips render: studioRenderRefusal). */
@@ -807,7 +815,7 @@ function planOfClip(file: StudioPanelFile, plan: StudioPlanFile | null, id: stri
 
 /**
  * The brainstormer's ideas (or the code's) planned: each a ready template on its mode, its ending and bucket, plan seed i + 1,
- * in the request's world (default the planner's: the role eval's).
+ * in the request's world (default the planner's: the role eval's), --- studio --- (studio2 review round 2, 21) linked to the live site.
  */
 function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPlatform; locale: string; world?: BotWorld }, copyOf: (l: string) => BotCopy): { records: StudioPlanRecord[]; candidates: PanelCandidate[]; notes: string[] } {
   const records: StudioPlanRecord[] = [];
@@ -820,7 +828,8 @@ function planIdeas(ideas: readonly BrainstormIdea[], request: { platform: BotPla
       notes.push(`idea ${i + 1}: ${idea.template} is not a ready template: skipped`);
       return;
     }
-    const plan = drain(planTemplateSteps(info.id, i + 1, request.platform, { copy: copyOf(locale), locale, bucket: idea.bucket, ending: idea.ending, episode: 1, index: i + 1, date: null, world: request.world ?? DEFAULT_BOT_WORLD, look: "simple" }));
+    // (--- studio --- studio2 review round 2, 21: its share link opens the live site, as the plan tool's and a replan's do)
+    const plan = drain(planTemplateSteps(info.id, i + 1, request.platform, { copy: copyOf(locale), locale, bucket: idea.bucket, ending: idea.ending, episode: 1, index: i + 1, date: null, world: request.world ?? DEFAULT_BOT_WORLD, look: "simple", siteUrl: STUDIO_SITE_URL }));
     const run = runOfPlan(plan);
     records.push({ id: plan.id, plan, run });
     let clip = crewClipOfPlan(plan, { run });

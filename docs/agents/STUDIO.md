@@ -97,15 +97,19 @@ visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count,
 and Mode Lab game. 34 of the 48 bindings are ready, as 43 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
-experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode with it.
+experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode or a template's
+id with it.
 
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
 it: `plan` refuses one named by its id, its mode or its recipe without it, as `viral-bot.mjs --template` does. The default
 menus offer the other 33 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
-section and `viral-bot.mjs`, which render long clips, but not in the studio: it fills the long length only (60–90 s), and
-render plays 60 s at most. The listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan`
-leave it out (the mode route plans Fight League's other three). Since the studio2 review's second round (18) the studio keeps
+section, which plans and renders long clips, but not in the studio: it fills the long length only (60–90 s), and render plays
+60 s at most. `viral-bot.mjs` renders no template: `viral-bot.mjs --dry-run --template <id>` plans one, and its daily
+rotation renders the bracket's recipe, in the bot look, only when it is asked for long clips and the battle family
+(`viral-bot.mjs --bucket long --family all`, or `battle`). The
+listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan` leave it out (the mode route plans
+Fight League's other three): `plan` covers 42 of the 43 ready templates. Since the studio2 review's second round (18) the studio keeps
 every clip to the lengths render plays: the brainstormer's menu offers each template its short and standard lengths only, the
 panel drops a planned clip past 60 s before any role looks at it (`tooLong`, the plan route's `"bucket":"long"` included), and
 the reviewer's `changeLength` names short or standard only (`maxClipSec` on the panel, `RENDER_MAX_SEC`).
@@ -691,3 +695,10 @@ What the run showed:
   segment to hit next), and the Simple look puts a text at the edge clear of it before it weighs the balls. Bouncing Shapes'
   payoff, a stopped shape the mode draws faded, stayed the dimmest thing on screen with a race hook and payoff words too
   (watched): hidden. And the studio planned and kept long clips its render cannot play: no more (above).
+- **What the second review round of step 2 found** (findings 19-24). The numbers a mode's own counter draws were not among the
+  clip's facts: Brick Smash's "900 bricks" and Spiral Glass's x1 to x7 badge. The run's action track now reads the counter
+  (`COUNTER_MODES`), its first, last, least and most readings are the clip's numbers for a hook, a title or a caption
+  (`counterNumbersOf`), the screen view says what it reads at the start and the end, and the badge is a HUD of Spiral Glass's
+  own (`MODE_HUDS`). `plan` by a waiting template's id gives the reason its mode gives, an open request's plans link to the
+  live site, and the bracket's refusal no longer sends anyone to `viral-bot.mjs` to render a template it only plans, in a
+  dry run. docs/virality-playbook.md §5 has the numbers.

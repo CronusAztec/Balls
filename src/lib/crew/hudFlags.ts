@@ -8,8 +8,10 @@ import { teamsPlayIn } from "@/lib/teams";
  * Simple score; lib/crew/dossier.ts, the HUDs in words). Two kinds:
  *  - HUD_FLAGS: the ones a setting switches, per mode (a String Battle's WEB DOMINION panel, Power Layers' corner badge, the
  *    loop HUD in any mode…). Each that is on and that the clip does not keep costs the Simple score its HUD points;
- *  - MODE_HUDS: the ones a mode always draws (the arena games' scoreboard band, Power Layers' layer count…). They cost no HUD
- *    points (nothing switches them off), but their words are on screen like any other message;
+ *  - MODE_HUDS: the ones a mode always draws (the arena games' scoreboard band, Power Layers' layer count, --- crew --- studio2
+ *    review round 2, 19: Brick Smash's bricks under its box, Spiral Glass's badge…). They cost no HUD points (nothing switches them
+ *    off), but their words are on screen like any other message, and the numbers a counter of them draws are the clip's facts
+ *    (lib/bot/actionTrack.ts COUNTER_MODES, crew/clip.ts counterNumbersOf);
  *  - --- crew --- (AI studio step 4) MODE_END_BANNERS: the banners a mode draws at its own ending ("FREEDOM!", an arena's
  *    champion, Bullseye's callout). The Simple look draws no payoff words of its own beside one that comes in with the payoff
  *    (BANNER_WITH_PAYOFF_SEC; lib/bot/planner.ts clipCaptions: one ending), the Simple score and the screen view count it on
@@ -142,6 +144,10 @@ export const MODE_HUDS: readonly ModeHud[] = [
   // --- crew --- (studio2 review round 2, 15) It counts down to the payoff: "896 bricks" … "0 bricks" as the last brick falls (bricks-cleared-by),
   // so the Playbook credits it as the countdown (planner.ts hudShowsCountdown), where it charged countdownMissing beside the counter drawn
   { mode: "brickRebuild", counts: true, when: (s) => !s.loopHud, words: "a count of the bricks left, under the box" },
+  // --- crew --- (studio2 review round 2, 19) Spiral Glass's badge at the spiral's entrance with the balls' count ("x1" … "x7"), each new
+  // count popping up over the ball that brought it (spiralGlassRenderer.ts drawEffects), which its overlay switch (sgHud) leaves on: the
+  // Simple look's and the template's in both looks. It counts up, the balls, not down to GLASS CLEARED (its words name no claim: "the number")
+  { mode: "spiralGlass", counts: false, words: "a badge at the spiral's entrance with the number of balls (x1, x2…), each new number popping up over a ball" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings
@@ -190,7 +196,8 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "bullseye", at: "payoff", forSec: 1.5, words: "a big BULLSEYE! callout" },
   { mode: "bullseye", at: "finish", leadSec: 2.5, words: "a final banner with the total and the best shot" },
   { mode: "mergeRing", at: "finish", leadSec: 2, words: "a FINAL FORM banner with the merges and the time (or OVERFLOW)" },
-  { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the tiles and the time" },
+  // (--- crew --- studio2 review round 2, 19: its sub-line is the badge's number and the time, "x7 in 17.7s" – TIME'S UP's the tiles left)
+  { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the number of balls (x n) and the time (or TIME'S UP with the tiles left)" },
   { mode: "conveyor", at: "finish", leadSec: 1.5, words: "a final banner with the balls loaded and escaped" },
   { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
   { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },
