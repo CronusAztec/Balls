@@ -7,7 +7,7 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
-## Website 1.17.0 · 2026-10-29
+## Website 1.17.0 · 2026-11-02
 
 Viral templates for most modes in the Clip planner
 
