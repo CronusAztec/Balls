@@ -18,6 +18,7 @@ import {
   hashtagCount,
   isoToLocal,
   localToIso,
+  tiktokBrandedPrivate,
   toRequest,
   utf8Bytes,
   type CardChannel,
@@ -482,7 +483,7 @@ function TikTokForm({ settings, locked, onChange }: { settings: TikTokSettings; 
           <input type="checkbox" className={radio} checked={settings.brand_content_toggle} disabled={locked} onChange={(e) => onChange({ brand_content_toggle: e.target.checked })} data-testid="postiz-tt-brand-content" />
           {t("postizTikTokBrandContent")}
         </label>
-        {(settings.brand_content_toggle || settings.brand_organic_toggle) && settings.privacy_level === "SELF_ONLY" && (
+        {tiktokBrandedPrivate(settings) && (
           <p className="text-xs text-danger" data-testid="postiz-tt-branded-private">
             {t("postizProblemTikTokBrandedPrivate")}
           </p>

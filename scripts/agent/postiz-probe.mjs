@@ -7,13 +7,32 @@
  *   /analytics/post/<post>?date=<days>, with the raw POSTIZ_API_KEY in the Authorization header.
  * POSTIZ_URL and POSTIZ_API_KEY come from the environment (or the git-ignored .env files); without them it prints
  * "not configured" and exits 0. CLI only: the MCP wrapper does not offer it.
+ *
+ * --- insights --- The owner's pilot (L0, docs/agents/CLI.md "Owner-run commands", docs/SOCIAL-AUTOPILOT.md section 6): per
+ * recent published post it also prints its age in hours, whether it asked Postiz to be a Trial Reel (its settings
+ * is_trial_reel and graduation_strategy: what was asked, not proof that Instagram did so), and for each series whether its
+ * total is above zero (yes or no, never the total); whether the per-post route answers at all (Postiz 2.18.0 or newer:
+ * a 404 is "your Postiz is older than 2.18"; after it, or after a 429, the other posts are not asked); and whether the post
+ * list carries each post's settings (postList.settings: Postiz 2.24.0 or newer, else every trialReel is "unknown").
+ * Every error – the channel list, a channel's series, the post list, a post's numbers – is printed by kind, HTTP status and
+ * meaning, never with Postiz's message; a platform is printed only when it is a plain identifier, and a label only when it is
+ * plain words that hold no channel's name; and every string of the result has the key cut out before it is returned. The
+ * client's own shapes leave out a post's settings and Postiz's {missing: true}, so the fetch the client is given keeps a
+ * copy of those two answers' JSON (the post list and each post's numbers); the client still makes every request and reads
+ * every answer itself. With no published post in the period it checks the route once with a made-up post id, which a
+ * Postiz 2.18 or newer answers with an empty list.
  */
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import { loadDotEnv } from "../dotenv.mjs";
 import { ROOT, cacheDir } from "./paths.mjs";
-import { postizConfigFromEnv, seriesShapes, withoutSecret } from "./owner-stats.mjs";
+import { POST_NOTES, POST_ROUTE_OLDER, ageHours, errorKind, platformMatches, platformOf, postAnswerKind, postRouteOf, postizConfigFromEnv, rawRouteOf, seriesFacts, seriesShapes, settingsById, settingsListedOf, trialAsked, withoutSecret, withoutSecretDeep } from "./owner-stats.mjs";
+
+/** The made-up post id of the route check (no published post in the period): a Postiz 2.18 or newer answers it with []. */
+export const ROUTE_CHECK_ID = "jbl-probe-route-check";
+/** The most of an answer the probe copies (the client's own cap). */
+const RAW_MAX_BYTES = 8 * 1024 * 1024;
 
 async function loadPostizClient() {
   const esbuild = await import("esbuild");
@@ -32,11 +51,35 @@ async function loadPostizClient() {
 }
 
 /**
- * @param {unknown} _tb the bundled toolbox (unused: the owner-run halves live in owner-stats.mjs)
- * @param {{ days?: number, posts?: number }} args
- * @param {{ env?: Record<string, string | undefined> | null, fetchImpl?: (url: string, init: any) => Promise<Response>, now?: number, client?: any }} [options]
+ * The fetch the client is given: every answer goes to the client as it came; of the post list and of each post's numbers a
+ * copy of the JSON is kept in `raw` ("posts", "post:<id>"), for what the client's shapes leave out.
+ * @param {(url: string, init: any) => Promise<Response>} fetchImpl
+ * @param {Map<string, unknown>} raw
  */
-export async function postizProbeTool(_tb, args, { env = null, fetchImpl = globalThis.fetch, now = Date.now(), client = null } = {}) {
+function keepingRaw(fetchImpl, raw) {
+  return async (/** @type {string} */ url, /** @type {any} */ init) => {
+    const response = await fetchImpl(url, init);
+    const route = response.ok ? rawRouteOf(String(url)) : null;
+    if (route && !(Number(response.headers.get("content-length") ?? "0") > RAW_MAX_BYTES)) {
+      try {
+        raw.set(route.route === "posts" ? "posts" : `post:${route.id}`, JSON.parse(await response.clone().text()));
+      } catch {
+        // not JSON (or not readable): the client says what it makes of it
+      }
+    }
+    return response;
+  };
+}
+
+/**
+ * @param {unknown} _tb the bundled toolbox (unused: the owner-run halves live in owner-stats.mjs)
+ * @param {{ days?: number, posts?: number, platform?: string }} args (platform: only that platform's recent posts, so the pilot's
+ *   two reels stay among them on a busy account)
+ * @param {{ env?: Record<string, string | undefined> | null, fetchImpl?: (url: string, init: any) => Promise<Response>, now?: number, client?: any, clientModule?: { PostizClient: any } | null }} [options]
+ *   client: a stand-in client (its answers are read through its own shapes only); clientModule: the module that exports
+ *   PostizClient (the tests hand in desktop/src/social/postiz.ts; the CLI bundles it)
+ */
+export async function postizProbeTool(_tb, args, { env = null, fetchImpl = globalThis.fetch, now = Date.now(), client = null, clientModule = null } = {}) {
   if (!env) {
     loadDotEnv(ROOT);
     env = process.env;
@@ -46,44 +89,88 @@ export async function postizProbeTool(_tb, args, { env = null, fetchImpl = globa
   const days = args.days ?? 30;
   const postCount = args.posts ?? 5;
   const key = found.config.apiKey;
-  const safe = (e) => withoutSecret(e instanceof Error ? `${e.code ? `${e.code}: ` : ""}${e.message}` : String(e), key);
+  /** @type {Map<string, unknown>} */
+  const raw = new Map();
   let postiz = client;
   if (!postiz) {
-    const { PostizClient } = await loadPostizClient();
-    postiz = new PostizClient({ baseUrl: found.config.baseUrl, apiKey: key, fetch: fetchImpl });
+    const { PostizClient } = clientModule ?? (await loadPostizClient());
+    postiz = new PostizClient({ baseUrl: found.config.baseUrl, apiKey: key, fetch: keepingRaw(fetchImpl, raw) });
   }
   let channels;
   try {
     channels = await postiz.integrations();
   } catch (e) {
-    throw new Error(`Postiz did not list the channels (${safe(e)})`);
+    // (by kind only: Postiz's message can name the channel, a value or a request address)
+    const { kind, status, meaning } = errorKind(e);
+    throw new Error(withoutSecret(`Postiz did not list the channels (${kind}${status === null ? "" : `, HTTP ${status}`}): ${meaning}`, key));
   }
+  // (a label that holds one of these is never echoed)
+  const names = channels.map((/** @type {any} */ ch) => ch.name).filter((/** @type {unknown} */ n) => typeof n === "string");
   const channelShapes = [];
   for (const [index, ch] of channels.entries()) {
+    const platform = platformOf(ch.platform);
     try {
-      channelShapes.push({ index, platform: ch.platform, disabled: ch.disabled === true, series: seriesShapes(await postiz.analytics(ch.id, days)) });
+      channelShapes.push({ index, platform, disabled: ch.disabled === true, series: seriesShapes(await postiz.analytics(ch.id, days), names) });
     } catch (e) {
-      channelShapes.push({ index, platform: ch.platform, disabled: ch.disabled === true, error: safe(e) });
+      // (a Postiz older than 2.18 has no GET /analytics/:integration either: its 404 is notFound here, and postRoute says why)
+      channelShapes.push({ index, platform, disabled: ch.disabled === true, error: errorKind(e) });
     }
   }
+  /** @type {{ listed: "yes" | "no" | "not asked", settings: "yes" | "no" | "unknown", meaning: string, error?: { kind: string, status: number | null, meaning: string } }} */
+  let postList = { listed: "not asked", settings: "unknown", meaning: "not asked (posts is 0)" };
   const postShapes = [];
+  /** @type {({ ok: true } | { ok: false, error: { kind: string, status: number | null, meaning: string } })[]} */
+  const routeCalls = [];
+  let routeCheckedWith = "not asked (posts is 0)";
   if (postCount > 0) {
     let posts = [];
+    let listed = true;
     try {
       posts = await postiz.posts({ startDate: new Date(now - days * 86_400_000).toISOString(), endDate: new Date(now).toISOString() });
+      // (the raw answer when the fetch kept one; a stand-in client's own posts otherwise)
+      postList = { listed: "yes", ...settingsListedOf(raw.has("posts") ? raw.get("posts") : posts) };
     } catch (e) {
-      postShapes.push({ error: `Postiz did not list the posts (${safe(e)})` });
+      listed = false;
+      postList = { listed: "no", settings: "unknown", meaning: "Postiz did not list the posts", error: errorKind(e) };
     }
+    const settings = settingsById(raw.get("posts"));
     const recent = posts
-      .filter((p) => p.state === "PUBLISHED")
-      .sort((a, b) => String(b.publishDate).localeCompare(String(a.publishDate)))
+      .filter((/** @type {any} */ p) => p.state === "PUBLISHED" && platformMatches(p.integration?.platform, args.platform))
+      .sort((/** @type {any} */ a, /** @type {any} */ b) => String(b.publishDate).localeCompare(String(a.publishDate)))
       .slice(0, postCount);
+    // after a 404 (no such route) or a 429 (Postiz asks for a pause) the other posts are not asked
+    let stopAsking = false;
     for (const [index, p] of recent.entries()) {
-      const platform = p.integration?.platform ?? null;
+      const facts = {
+        index,
+        platform: platformOf(p.integration?.platform),
+        ageHours: ageHours(p.publishDate, now),
+        ...trialAsked(settings.has(p.id) ? settings.get(p.id) : p.settings),
+      };
+      if (stopAsking) {
+        postShapes.push({ ...facts, answer: "skipped" });
+        continue;
+      }
       try {
-        postShapes.push({ index, platform, series: seriesShapes(await postiz.postAnalytics(p.id, days)) });
+        const series = await postiz.postAnalytics(p.id, days);
+        routeCalls.push({ ok: true });
+        const kind = raw.has(`post:${p.id}`) ? postAnswerKind(raw.get(`post:${p.id}`)) : series.length ? "series" : "empty";
+        const named = typeof p.integration?.name === "string" ? [...names, p.integration.name] : names;
+        postShapes.push({ ...facts, answer: kind === "series" && !series.length ? "unreadable" : kind, ...(series.length ? { series: seriesFacts(series, named) } : {}) });
       } catch (e) {
-        postShapes.push({ index, platform, error: safe(e) });
+        const error = errorKind(e, { postRoute: true });
+        routeCalls.push({ ok: false, error });
+        stopAsking = error.meaning === POST_ROUTE_OLDER || error.kind === "rateLimited";
+        postShapes.push({ ...facts, answer: "error", error });
+      }
+    }
+    routeCheckedWith = recent.length ? "the recent posts below" : `a made-up post id (${listed ? `no published${args.platform ? ` ${args.platform}` : ""} post in the period` : "the posts could not be listed"})`;
+    if (!recent.length) {
+      try {
+        await postiz.postAnalytics(ROUTE_CHECK_ID, days);
+        routeCalls.push({ ok: true });
+      } catch (e) {
+        routeCalls.push({ ok: false, error: errorKind(e, { postRoute: true }) });
       }
     }
   }
@@ -93,5 +180,6 @@ export async function postizProbeTool(_tb, args, { env = null, fetchImpl = globa
   } catch {
     host = null;
   }
-  return { configured: true, host, days, channels: channelShapes, posts: postShapes };
+  // the last guard: whatever got in, the key is cut out of every string before the result is printed
+  return withoutSecretDeep({ configured: true, host, days, channels: channelShapes, postList, postRoute: { ...postRouteOf(routeCalls), checkedWith: routeCheckedWith }, posts: postShapes, notes: [...POST_NOTES] }, key);
 }

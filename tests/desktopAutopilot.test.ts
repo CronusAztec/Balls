@@ -13,7 +13,7 @@ import { DEFAULT_AUTOPILOT, clipVideoKey, inQuietHours, inQuietMinutes, nextAllo
 import { editCutJobId } from "@/lib/clipEdit/propose";
 import { validateJson } from "@/lib/desktop/ai/jsonSchema";
 import { runAgent, type ChatModel } from "@/lib/desktop/ai/agent";
-import { checkPlanResult, normalisePlanResult, planFinal, planTask, whenProblem, type PlanOptions, type PlanResult } from "@/lib/desktop/ai/plan";
+import { checkPlanResult, normalisePlanResult, planFinal, planTask, platformGuidance, whenProblem, type PlanOptions, type PlanResult } from "@/lib/desktop/ai/plan";
 import { runPlanner } from "@/lib/desktop/ai/planRun";
 import type { SocialBridge } from "@/lib/desktop/capabilities";
 import { AI_TASKS } from "@/components/simulator/desktop/useDesktopAi";
@@ -119,7 +119,10 @@ describe("the plan task", () => {
     expect(one({ when: iso(NOW - 60_000) }).join("\n")).toMatch(/in the past/);
     expect(one({ when: iso(NOW + 49 * 3_600_000) }).join("\n")).toMatch(/more than 48 hours/);
     expect(one({ when: "2026-13-45T18:00:00Z" }).join("\n")).toMatch(/not an ISO time/);
-    expect(one({ channels: [{ integrationId: "int-tt", text: "x".repeat(2201) }] }).join("\n")).toMatch(/over 2200 characters/);
+    // Postiz's TikTok provider takes 2000 characters (POST /posts refuses more), and the planner is told the same
+    expect(one({ channels: [{ integrationId: "int-tt", text: "x".repeat(2001) }] }).join("\n")).toMatch(/over 2000 characters/);
+    expect(one({ channels: [{ integrationId: "int-tt", text: "x".repeat(1990) }] })).toEqual([]);
+    expect(platformGuidance("tiktok")).toMatch(/at most 2000 characters/);
     expect(one({ channels: [{ integrationId: "int-yt", text: "desc" }] }).join("\n")).toMatch(/YouTube channel "int-yt" needs a title/);
     expect(one({ channels: [{ integrationId: "int-yt", text: "desc", title: "a<b>" }] }).join("\n")).toMatch(/without < or >/);
     expect(one({ channels: [{ integrationId: "int-tt", text: "x" }, { integrationId: "int-tt", text: "y" }] }).join("\n")).toMatch(/listed twice/);

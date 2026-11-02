@@ -1,0 +1,2011 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { numbersIn } from "@/lib/crew/clip";
+import { toRequest, type CardDraft } from "@/lib/desktop/socialCard";
+import {
+  AUTONOMY_CHANNEL_DAY_MAX,
+  AUTONOMY_CONSENT_VERSION,
+  AUTONOMY_HEALTH_COOLDOWN_MS,
+  AUTONOMY_LEAD_MS,
+  AUTONOMY_MAX_LEAD_MS,
+  AUTONOMY_PAIR_GAP_MS,
+  AUTONOMY_PLATFORMS,
+  AUTONOMY_REASONS,
+  AUTONOMY_TIKTOK_PENDING_MAX,
+  DEFAULT_AUTONOMY,
+  TIKTOK_INBOX_CHOICES,
+  checkBeforeCreate,
+  clipProblems,
+  compareVersions,
+  consentProblems,
+  consentWidens,
+  countOver,
+  decideAutonomy,
+  eligibilityProblems,
+  laneProblems,
+  learnerStopProblems,
+  makeConsent,
+  pauseCheck,
+  paused,
+  requestOfProposal,
+  resumeProblems,
+  resumed,
+  sanitizeAutonomy,
+  scheduleFor,
+  splitChannels,
+  stampProblems,
+  stampText,
+  testQuestionsOf,
+  tickableChannels,
+  tiktokDisclosureOf,
+  tiktokPartProblems,
+  tiktokPaused,
+  tiktokResumeProblems,
+  tiktokResumed,
+  tiktokScored,
+  turnedOff,
+  watchNeeded,
+  withoutChannels,
+  type AccountPost,
+  type AutonomyAccount,
+  type AutonomyClip,
+  type AutonomyContext,
+  type AutonomyItem,
+  type AutonomyLiveChannel,
+  type AutonomyPauseReason,
+  type AutonomyReason,
+  type AutonomySettings,
+  type AutonomyTikTok,
+  type ItemOutcome,
+  type TikTokChoicesDraft,
+} from "@/lib/desktop/autonomy";
+import { POSTIZ_ERRORS, TIKTOK_APP_PRIVATE_ONLY } from "@/lib/desktop/postizErrors";
+import { PAIR_GAP_H, PAIRS_PER_DAY_MAX } from "@/lib/insights/learnerRules";
+import { resolveLearner } from "@/lib/insights/learnerSettings";
+import { parseTestId, testIdOf, type LearnerDecision } from "@/lib/insights/learner";
+import { questionKey } from "@/lib/insights/dials";
+import { IG, TT, YT, runWorld } from "./learnerWorld";
+import { mainBundleInputs, valueImportsOutside } from "./mainBundle";
+
+/*
+ * --- autonomy --- "Fully autonomous" as pure rules (lib/desktop/autonomy.ts, the learner plan's C11). Every "never" of C11 is
+ * a test: each refusal alone against one clean world (provenance, lanes, the crew's keep, the render, the words, the accounts,
+ * the volume, the consent, the clock and the mode), the time picked just before each create (60 to 90 minutes ahead, the
+ * window, quiet hours, the spacing on both sides, the day's caps across midnight and a DST change, the pair's gap, the
+ * licence's end), the self-pauses with their reasons, Resume, the practice day, the request it builds, and the stored block.
+ * TikTok (the owner's answer of 30 Oct 2026, "Include TikTok, I accept the risk"): never without its own tick and every
+ * choice made once, then within every cap and pause, its part split off where it may not go, and its own errors pausing
+ * TikTok alone.
+ */
+
+// --- autonomy ---
+
+const MIN = 60_000;
+const H = 60 * MIN;
+const D = 24 * H;
+/** 20 Nov 2026, 15:00 in Warsaw (UTC+1). */
+const NOW = Date.parse("2026-11-20T14:00:00Z");
+const iso = (ms: number) => new Date(ms).toISOString();
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+const FILE = { sha256: "ab".repeat(32), bytes: 1_000_000 };
+const CUT_FILE = { sha256: "cd".repeat(32), bytes: 400_000 };
+const CONSENT_AT = NOW - 3 * D;
+
+const LIVE: AutonomyLiveChannel[] = [
+  { id: "ig-1", platform: "instagram", profile: "jbl.balls", disabled: false, refreshNeeded: false },
+  { id: "yt-1", platform: "youtube", profile: "JBL", disabled: false, refreshNeeded: false },
+  { id: "ig-2", platform: "instagram-standalone", profile: "other.account", disabled: false, refreshNeeded: false },
+  { id: "tt-1", platform: "tiktok", profile: "jbl", disabled: false, refreshNeeded: false },
+  { id: "tb-1", platform: "tiktok-business", profile: "jblbiz", disabled: false, refreshNeeded: false },
+  { id: "fb-1", platform: "facebook", profile: "JBL page", disabled: false, refreshNeeded: false },
+];
+
+function baseState(): AutonomySettings {
+  return {
+    consent: {
+      version: AUTONOMY_CONSENT_VERSION,
+      at: iso(CONSENT_AT),
+      appVersion: "1.8.0",
+      postiz: { baseUrl: "https://api.postiz.com", organizationId: "org-1" },
+      accounts: [
+        { channelId: "ig-1", platform: "instagram", profile: "jbl.balls", perDay: 3, trialPairs: 1, youtube: null },
+        { channelId: "yt-1", platform: "youtube", profile: "JBL", perDay: 2, trialPairs: 0, youtube: { type: "public", selfDeclaredMadeForKids: "no" } },
+      ],
+      practise: true,
+    },
+    pause: null,
+    resumedAt: null,
+    deleteOnWarning: true,
+    lastRunAt: iso(NOW - 5 * MIN),
+    cooldown: null,
+  };
+}
+
+function baseCtx(): AutonomyContext {
+  return {
+    now: NOW,
+    postizNow: NOW,
+    offsetMinAt: () => 60,
+    appVersion: "1.8.0",
+    realKey: true,
+    licence: { pro: true, testMode: false, expiresAt: iso(NOW + 30 * D) },
+    postiz: { configured: true, baseUrl: "https://api.postiz.com", organizationId: "org-1", keySavedAt: iso(CONSENT_AT - D), postNumbers: true, trialRoute: true, channels: LIVE },
+    learner: { learn: true, paused: false, switchedAt: null, newestPassId: "pass-7", decisions: [], trialReels: true, pairsPerDay: 1, autoShareOff: true, trialRetryAt: null, skipped: [], fixed: {}, trialChannels: ["ig-1"] },
+    autopilot: { quietFrom: "22:00", quietTo: "08:00", language: "en" },
+    queue: [],
+    posts: [],
+    createCallsLastHour: 0,
+    digest: sha,
+    readNumbers: numbersIn,
+    names: ["Thor", "Loki"],
+  };
+}
+
+/** The stamp's hash taken again, as proposePass does in the main process. */
+function stamp(item: AutonomyItem): AutonomyItem {
+  return { ...item, pass: item.pass ? { ...item.pass, hash: sha(stampText(item)) } : null };
+}
+
+function baseItem(over: Partial<AutonomyItem> = {}): AutonomyItem {
+  const item: AutonomyItem = {
+    id: "it-1",
+    clipId: "clip-1",
+    video: "job:j1",
+    status: "proposed",
+    by: "ai",
+    origin: "learnerPass",
+    createdAt: iso(NOW - H),
+    held: false,
+    splitFrom: null,
+    when: iso(NOW + 75 * MIN),
+    channels: [{ integrationId: "ig-1", platform: "instagram", text: "Red escapes first. Watch until the end 🔊 #satisfying", settings: { __type: "instagram" }, lane: "normal" }],
+    pass: { passId: "pass-7", date: "2026-11-20", role: "best", testId: null, pair: null, window: { from: iso(NOW + 30 * MIN), to: iso(NOW + 3 * H) }, hash: "" },
+    ...over,
+  };
+  return stamp(item);
+}
+
+function baseClip(over: Partial<AutonomyClip> = {}): AutonomyClip {
+  return {
+    id: "clip-1",
+    exists: true,
+    file: FILE,
+    review: { verdict: "keep", stage: "post", depth: "quick", gates: [], file: FILE },
+    watermark: "sealed",
+    family: "escape",
+    mode: "classic",
+    // the run its words describe: "Red escapes first"
+    facts: { numbers: [1, 20], winner: "Red", contestants: ["Red", "Blue"] },
+    ...over,
+  };
+}
+
+const trialChannel = (over: Record<string, unknown> = {}) => ({ integrationId: "ig-1", platform: "instagram", text: "Which ball escapes first? 🔊 #satisfying", settings: { __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL", ...over }, lane: "trialReel" as const });
+
+/** TikTok's choices made once on the consent screen: public on the profile, so its posts are scored. */
+const TT_PUBLIC: AutonomyTikTok = { content_posting_method: "DIRECT_POST", privacy_level: "PUBLIC_TO_EVERYONE", comment: true, duet: false, stitch: true, brand_organic_toggle: false, brand_content_toggle: false, video_made_with_ai: true };
+const TT_FOLLOWERS: AutonomyTikTok = { ...TT_PUBLIC, privacy_level: "FOLLOWER_OF_CREATOR" };
+const TT_INBOX: AutonomyTikTok = { content_posting_method: "UPLOAD", ...TIKTOK_INBOX_CHOICES };
+const ttAccount = (tiktok: AutonomyTikTok | null = TT_PUBLIC, over: Partial<AutonomyAccount> = {}): AutonomyAccount => ({ channelId: "tt-1", platform: "tiktok", profile: "jbl", perDay: 2, trialPairs: 0, youtube: null, ...(tiktok ? { tiktok } : {}), ...over });
+const ttChannel = (over: Partial<AutonomyItem["channels"][number]> = {}): AutonomyItem["channels"][number] => ({ integrationId: "tt-1", platform: "tiktok", text: "Red escapes first. Watch until the end 🔊 #satisfying", settings: { __type: "tiktok" }, lane: "normal", ...over });
+
+/** The TikTok tick on, tt-1 consented with `choices` (null: none), and a clip whose file shows no address line and no end card. */
+function tiktokOn(w: World, choices: AutonomyTikTok | null = TT_PUBLIC, over: Partial<AutonomyAccount> = {}) {
+  w.state.consent = { ...w.state.consent!, tiktok: true, accounts: [...w.state.consent!.accounts, ttAccount(choices, over)] };
+  w.clip = { ...w.clip, overlayKinds: ["hook", "payoff"] };
+}
+
+interface World {
+  state: AutonomySettings;
+  ctx: AutonomyContext;
+  item: AutonomyItem;
+  clip: AutonomyClip;
+}
+
+function world(change?: (w: World) => void): World {
+  const w: World = { state: baseState(), ctx: baseCtx(), item: baseItem(), clip: baseClip() };
+  change?.(w);
+  if (!w.ctx.queue.some((q) => q.id === w.item.id)) w.ctx = { ...w.ctx, queue: [w.item, ...w.ctx.queue] };
+  return w;
+}
+
+const decide = (w: World) => decideAutonomy(w.state, w.ctx, new Map([[w.clip.id, w.clip]]));
+const outcomeOf = (w: World, id = w.item.id): ItemOutcome => decide(w).items.find((o) => o.itemId === id)!;
+const reasonsOf = (w: World): AutonomyReason[] => {
+  const o = outcomeOf(w);
+  return o.kind === "wait" ? o.reasons : [];
+};
+
+/** The item waits for the person for good with `reason`, and nothing is created. */
+function refuses(change: (w: World) => void, reason: AutonomyReason) {
+  const w = world(change);
+  const o = outcomeOf(w);
+  expect(o.kind, reason).toBe("wait");
+  expect(reasonsOf(w), reason).toContain(reason);
+  expect(decide(w).items.some((x) => x.kind === "create"), reason).toBe(false);
+}
+
+/** A post on an account. */
+const post = (over: Partial<AccountPost> & Pick<AccountPost, "channelId" | "at">): AccountPost => ({ postId: `p-${over.channelId}-${over.at}`, state: "QUEUE", by: "user", ...over });
+
+describe("the clean case", () => {
+  it("creates the learner's own, unchanged, crew-kept, sealed proposal 60 to 90 minutes before its time", () => {
+    const w = world();
+    const d = decide(w);
+    expect(d.status).toBe("on");
+    expect(d.check).toEqual({ off: null, pause: null, deleteOwn: [] });
+    expect(d.items).toEqual([{ itemId: "it-1", kind: "create", at: NOW + 75 * MIN, request: { clipId: "clip-1", channels: [{ id: "ig-1", platform: "instagram", text: w.item.channels[0].text, settings: { __type: "instagram", post_type: "post" } }], when: iso(NOW + 75 * MIN) } }]);
+    expect(eligibilityProblems(w.item, w.state, w.ctx)).toEqual([]);
+  });
+
+  it("is the same decision for the same inputs, whatever the queue's order", () => {
+    const second = baseItem({ id: "it-2", clipId: "clip-2", video: "job:j2", when: iso(NOW + 80 * MIN), channels: [{ integrationId: "yt-1", platform: "youtube", text: "20 rings, 1 ball.", settings: { __type: "youtube", title: "Which ball escapes first?" }, lane: "normal" }] });
+    const clips = new Map([
+      ["clip-1", baseClip()],
+      ["clip-2", baseClip({ id: "clip-2" })],
+    ]);
+    const a = world((w) => (w.ctx.queue = [w.item, second]));
+    const b = world((w) => (w.ctx.queue = [second, w.item]));
+    const da = decideAutonomy(a.state, a.ctx, clips);
+    expect(da).toEqual(decideAutonomy(b.state, b.ctx, clips));
+    expect(da.items.map((o) => o.kind)).toEqual(["create", "create"]);
+  });
+});
+
+describe("never: provenance", () => {
+  it("refuses an item made by propose (Plan posts, Send to Posts tab) or by the person", () => {
+    const w = world((x) => (x.item = stamp({ ...x.item, origin: "ai" })));
+    expect(eligibilityProblems(w.item, w.state, w.ctx)).toContain("notLearner");
+    expect(decide(w).items).toEqual([]); // the approver never takes it: it waits on its card as today
+    expect(eligibilityProblems(stamp({ ...w.item, origin: "user" }), w.state, w.ctx)).toContain("notLearner");
+  });
+
+  it("refuses a learnerPass item once a propose for the same clip is in the queue", () => {
+    refuses((w) => (w.ctx.queue = [w.item, { ...baseItem({ id: "plan-1", origin: "ai", pass: null }) }]), "otherProposal");
+    refuses((w) => (w.ctx.queue = [w.item, { ...baseItem({ id: "plan-2", clipId: "clip-cut", origin: "ai", pass: null }) }]), "otherProposal"); // its cut (the same video)
+    // the part split off it for the person is no other proposal
+    const w = world((x) => (x.ctx.queue = [x.item, { ...baseItem({ id: "it-1-tt", splitFrom: "it-1" }) }]));
+    expect(outcomeOf(w).kind).toBe("create");
+  });
+
+  it("refuses a held item, an edited item, a hash that no longer matches, a split-off part and an item without a stamp", () => {
+    refuses((w) => (w.item = stamp({ ...w.item, held: true })), "held");
+    refuses((w) => (w.item = stamp({ ...w.item, by: "user", channels: [{ ...w.item.channels[0], text: "Red escapes." }] })), "edited");
+    refuses((w) => (w.item = { ...w.item, channels: [{ ...w.item.channels[0], text: "Red escapes at last." }] }), "hashChanged");
+    refuses((w) => (w.item = { ...w.item, when: iso(NOW + 80 * MIN) }), "hashChanged");
+    refuses((w) => (w.item = stamp({ ...w.item, splitFrom: "it-0" })), "splitOff");
+    refuses((w) => (w.item = { ...w.item, pass: null }), "noStamp");
+  });
+
+  it("refuses an item from an older pass, over 24 hours old, or made before the consent or the last Resume", () => {
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, passId: "pass-6" } })), "olderPass");
+    refuses((w) => (w.item = stamp({ ...w.item, createdAt: iso(NOW - 25 * H) })), "tooOld");
+    refuses((w) => (w.state.consent!.at = iso(NOW - 30 * MIN)), "beforeConsent");
+    refuses((w) => (w.state.resumedAt = iso(NOW - 30 * MIN)), "beforeConsent");
+  });
+
+  it("refuses an item made during the practice day, and a test or block with a verdict, or any verdict since", () => {
+    // the practice day ended 6 hours ago: an item made an hour ago is no practice item, one made 10 hours ago is
+    const w = world((x) => (x.state.consent!.at = iso(NOW - 30 * H)));
+    expect(outcomeOf(w).kind).toBe("create");
+    refuses((x) => {
+      x.state.consent!.at = iso(NOW - 30 * H);
+      x.item = stamp({ ...x.item, createdAt: iso(NOW - 10 * H) });
+    }, "practised");
+    refuses((x) => {
+      x.item = stamp({ ...x.item, pass: { ...x.item.pass!, role: "test", testId: "normal:3:length~short" } });
+      x.ctx.learner = { ...x.ctx.learner, decisions: [{ testId: "normal:3:length~short", decidedAt: iso(NOW - 5 * D), verdict: "kept" }] };
+    }, "testClosed");
+    refuses((x) => (x.ctx.learner = { ...x.ctx.learner, decisions: [{ testId: "normal:2:ending~cliffhanger", decidedAt: iso(NOW - 30 * MIN), verdict: "notKept" }] }), "planChanged");
+  });
+
+  it("approves nothing when turned on over a queue of 10-day-old items, closed-test items and practice-day items", () => {
+    const old = baseItem({ id: "old", clipId: "c-old", video: "job:old", createdAt: iso(NOW - 10 * D) });
+    const closed = baseItem({ id: "closed", clipId: "c-closed", video: "job:closed", pass: { ...baseItem().pass!, role: "check", testId: "check:4" } });
+    const practice = baseItem({ id: "practice", clipId: "c-practice", video: "job:practice", createdAt: iso(NOW - 2 * H) });
+    const w = world((x) => {
+      x.state.consent!.at = iso(NOW - 25 * H); // the practice day ended an hour ago
+      x.item = practice;
+      x.ctx.queue = [practice, old, closed];
+      x.ctx.learner = { ...x.ctx.learner, decisions: [{ testId: "check:4", decidedAt: iso(NOW - 26 * H), verdict: "held" }] };
+    });
+    const clips = new Map(["c-old", "c-closed", "c-practice"].map((id) => [id, baseClip({ id })]));
+    const d = decideAutonomy(w.state, w.ctx, clips);
+    expect(d.items.map((o) => o.kind)).toEqual(["wait", "wait", "wait"]);
+    expect(d.items.every((o) => o.kind === "wait" && o.final)).toBe(true);
+  });
+});
+
+describe("never: lanes", () => {
+  it("refuses a Trial Reel with an added channel, without MANUAL, on YouTube or as a story", () => {
+    const trial = (channels: AutonomyItem["channels"]) => (w: World) => (w.item = stamp({ ...w.item, channels, pass: { ...w.item.pass!, role: "trialA", testId: "block:2", pair: 1 } }));
+    refuses(trial([trialChannel(), { integrationId: "yt-1", platform: "youtube", text: "x", settings: { __type: "youtube", title: "Balls" }, lane: "trialReel" }]), "trialChannels");
+    refuses(trial([trialChannel({ graduation_strategy: "SS_PERFORMANCE" })]), "trialSettings");
+    refuses(trial([trialChannel({ is_trial_reel: undefined })]), "trialSettings");
+    refuses(trial([{ integrationId: "yt-1", platform: "youtube", text: "x", settings: { __type: "youtube", title: "Balls", is_trial_reel: true, graduation_strategy: "MANUAL" }, lane: "trialReel" }]), "trialChannels");
+    refuses(trial([trialChannel({ post_type: "story" })]), "story");
+    refuses(trial([{ ...trialChannel(), lane: "normal" }]), "laneMismatch");
+  });
+
+  it("refuses a test item listing YouTube, a best item with a trial field, and a type that is not the channel's", () => {
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: "normal:3:length~short" }, channels: [w.item.channels[0], { integrationId: "yt-1", platform: "youtube", text: "x", settings: { __type: "youtube", title: "Balls" }, lane: "normal" }] })), "testChannels");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [{ ...w.item.channels[0], settings: { __type: "instagram", is_trial_reel: true } }] })), "trialFieldOutsideTrial");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [{ ...w.item.channels[0], settings: { __type: "instagram-standalone" } }] })), "typeMismatch");
+    expect(laneProblems("test", [{ platform: "instagram", settings: { __type: "instagram" }, lane: "normal" }, { platform: "tiktok", settings: { __type: "tiktok" }, lane: "normal" }])).toEqual([]);
+    expect(laneProblems("trialB", [trialChannel()])).toEqual([]);
+  });
+
+  it("lets YouTube take the best settings only: a best clip or a check's new clip, never a test, a check's old clip or a rotation clip", () => {
+    const ig = { platform: "instagram", settings: { __type: "instagram" }, lane: "normal" as const };
+    const yt = { platform: "youtube", settings: { __type: "youtube", title: "Which ball escapes first?" }, lane: "normal" as const };
+    // a check's new clip is the new best: the learner sends it to every channel, YouTube included
+    expect(laneProblems("check", [ig, yt], "new")).toEqual([]);
+    expect(laneProblems("best", [ig, yt], null)).toEqual([]);
+    expect(laneProblems("check", [ig, yt], "old")).toEqual(["testChannels"]);
+    expect(laneProblems("check", [ig, yt])).toEqual(["testChannels"]); // a check stamped without its arm
+    expect(laneProblems("test", [ig, yt], "short")).toEqual(["testChannels"]);
+    expect(laneProblems("best", [ig, yt], "rotation")).toEqual(["testChannels"]); // a newcomer test's best arm is its format's rotation
+    // the stamp carries the arm, and the hash covers it
+    const check = (arm: string) => (w: World) => (w.item = stamp({ ...w.item, channels: [w.item.channels[0], { integrationId: "yt-1", platform: "youtube", text: "Red escapes first.", settings: { __type: "youtube", title: "Which ball escapes first?" }, lane: "normal" }], pass: { ...w.item.pass!, role: "check", testId: "c4.n3.length.standard.short", arm } }));
+    expect(outcomeOf(world(check("new"))).kind).toBe("create");
+    refuses(check("old"), "testChannels");
+    refuses((w) => {
+      check("old")(w);
+      w.item = { ...w.item, pass: { ...w.item.pass!, arm: "new" } };
+    }, "hashChanged");
+  });
+
+  it("takes every slot of a check the learner really plans, YouTube's new clips included", () => {
+    // a length change kept by the lab: its check runs on normal posts, every slot of the day a check slot
+    const kept: LearnerDecision = { testId: "t0.length.standard.short", lane: "trialReel", dial: "length", best: "standard", challenger: "short", subject: null, decidedAt: "2026-10-31T09:00:00.000Z", verdict: "kept", ratio: 1.6, p: 0.9, nTest: 8, nBest: 8, scoreRule: 1 };
+    const r = runWorld({ seed: 91, decisions: [kept], channels: [IG, TT, YT], effect: () => 0, days: 6 });
+    const slots = r.plans.flatMap((p) => p.slots).filter((s) => s.role === "check");
+    const platformOf: Record<string, string> = { ig1: "instagram", tt1: "tiktok", yt1: "youtube" };
+    expect(slots.some((s) => s.membership?.arm === "new" && s.channels.some((c) => c.id === "yt1"))).toBe(true);
+    expect(slots.some((s) => s.membership?.arm === "old")).toBe(true);
+    for (const s of slots) {
+      const channels = s.channels.map((c) => ({ platform: platformOf[c.id], settings: { __type: platformOf[c.id] }, lane: c.lane }));
+      expect(laneProblems(s.role, channels, s.membership?.arm ?? null), `${s.membership?.arm} ${s.channels.map((c) => c.id)}`).toEqual([]);
+    }
+  });
+
+  it("splits off every channel the app may not post to: TikTok without its tick, TikTok Business, other platforms, unticked accounts", () => {
+    const channels = ["ig-1", "tt-1", "tb-1", "fb-1", "ig-2", "yt-1"].map((id) => ({ integrationId: id, platform: LIVE.find((l) => l.id === id)!.platform }));
+    const { auto, person } = splitChannels(channels, baseState().consent);
+    expect(auto.map((c) => c.integrationId)).toEqual(["ig-1", "yt-1"]);
+    expect(person.map((c) => c.integrationId)).toEqual(["tt-1", "tb-1", "fb-1", "ig-2"]);
+    expect(splitChannels(channels, null).auto).toEqual([]);
+    // the owner's answer of 30 Oct 2026: TikTok joins, only behind the consent's own tick
+    expect([...AUTONOMY_PLATFORMS]).toEqual(["instagram", "instagram-standalone", "youtube", "tiktok"]);
+    // with the tick and the account's choices, TikTok stays with the item; TikTok Business never does
+    const ticked = { ...baseState().consent!, tiktok: true, accounts: [...baseState().consent!.accounts, ttAccount()] };
+    const withTick = splitChannels(channels, ticked, { part: { role: "best", overlayKinds: [] }, now: NOW, live: LIVE });
+    expect(withTick.auto.map((c) => c.integrationId)).toEqual(["ig-1", "tt-1", "yt-1"]);
+    expect(withTick.person.map((c) => c.integrationId)).toEqual(["tb-1", "fb-1", "ig-2"]);
+    // not told what the proposal is, TikTok's own rules cannot be read: it waits for the person
+    expect(splitChannels(channels, ticked).person.map((c) => c.integrationId)).toContain("tt-1");
+  });
+
+  it("refuses a stamp without what its role needs, and one account listed twice", () => {
+    // a test or check without its test could never be closed by its verdict, and a Trial Reel without its pair never keeps
+    // its 2 hours: both reels of such a pair would go out 20 minutes apart
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: null } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "check", testId: "" } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: null, pair: null } })), "noTest");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialB", testId: "block:2", pair: null } })), "noPair");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: null, pair: null } })), "noPair");
+    expect(stampProblems({ role: "best", testId: null, pair: null })).toEqual([]);
+    expect(stampProblems({ role: "test", testId: "normal:3:length~short", pair: null })).toEqual([]);
+    expect(stampProblems({ role: "trialA", testId: "block:2", pair: 1 })).toEqual([]);
+    // the same Instagram account twice: two Reels of one video at the same minute
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [w.item.channels[0], w.item.channels[0]] })), "repeatedAccount");
+    refuses((w) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: "normal:3:length~short" }, channels: [w.item.channels[0], { ...w.item.channels[0], text: "Red escapes first." }] })), "repeatedAccount");
+  });
+});
+
+describe("never: the crew's keep, the render, the words", () => {
+  it("refuses a clip the crew did not keep on this very file", () => {
+    refuses((w) => (w.clip = baseClip({ review: null })), "notReviewed");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, verdict: "notReviewed" } })), "notReviewed");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, depth: "rules" } })), "rulesOnly");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, verdict: "split" } })), "split");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, verdict: "drop" } })), "dropped");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, verdict: "fix" } })), "notKept");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, keepAnyway: true } })), "keepAnyway");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, stage: "pre" } })), "stagePre");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, gates: ["G4"] } })), "gateFailed");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, file: { ...FILE, sha256: "ef".repeat(32) } } })), "reviewFileMismatch");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, file: { ...FILE, bytes: FILE.bytes + 1 } } })), "reviewFileMismatch");
+    refuses((w) => (w.clip = baseClip({ review: { ...baseClip().review!, file: null } })), "reviewFileMismatch");
+    // a cut of a kept master: the review is the master's, the file is the cut's
+    refuses((w) => (w.clip = baseClip({ file: CUT_FILE })), "reviewFileMismatch");
+    refuses((w) => (w.clip = baseClip({ exists: false })), "clipMissing");
+    expect(clipProblems(undefined)).toEqual(["clipMissing"]);
+  });
+
+  it("refuses a free, test-sealed or unknown render, and the battle family", () => {
+    refuses((w) => (w.clip = baseClip({ watermark: "free" })), "watermarkFree");
+    refuses((w) => (w.clip = baseClip({ watermark: "sealedTest" })), "watermarkTest");
+    refuses((w) => (w.clip = baseClip({ watermark: null })), "watermarkUnknown");
+    refuses((w) => (w.clip = baseClip({ family: "battle" })), "battleFamily");
+    refuses((w) => (w.clip = baseClip({ mode: "fightLeague", family: null })), "battleFamily");
+  });
+
+  it("refuses words that fail the text gate, with the gate's reasons", () => {
+    for (const text of ["Follow for more!", "Watch it at balls.com", "This one goes viral", "50 rings, one ball", "Thor escapes"]) {
+      const w = world((x) => (x.item = stamp({ ...x.item, channels: [{ ...x.item.channels[0], text }] })));
+      const o = outcomeOf(w);
+      expect(o.kind === "wait" && o.reasons.includes("words") && o.words.length > 0, text).toBe(true);
+    }
+  });
+
+  it("refuses what the card itself would refuse", () => {
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [{ ...w.item.channels[0], text: `Red escapes ${Array.from({ length: 31 }, (_, i) => `#t${String.fromCharCode(97 + (i % 26))}${i}`).join(" ")}` }] })), "cardRules");
+  });
+});
+
+describe("never: what the owner changed on the Learning card since it was stamped", () => {
+  const BLOCK = "t2.newcomer.rotation.newcomer.get-out-journey~length.standard.short";
+  const reel = (role: "trialA" | "trialB", pair = 1) => (w: World) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role, testId: BLOCK, arm: role === "trialA" ? "01" : "10", pair } }));
+  const withLearner = (change: Partial<AutonomyContext["learner"]>, then?: (w: World) => void) => (w: World) => {
+    then?.(w);
+    w.ctx.learner = { ...w.ctx.learner, ...change };
+  };
+
+  it("sends a stamped Trial Reel back once Trial Reels are off, set to no pairs, sharing is no longer confirmed off, or the learner stopped them on its account", () => {
+    expect(outcomeOf(world(reel("trialA"))).kind).toBe("create");
+    refuses(withLearner({ trialReels: false }, reel("trialA")), "trialsOff");
+    refuses(withLearner({ pairsPerDay: 0 }, reel("trialA")), "trialsOff");
+    refuses(withLearner({ autoShareOff: false }, reel("trialA")), "trialsOff");
+    refuses(withLearner({ trialChannels: [] }, reel("trialA")), "trialsOff");
+    // a best clip is no Trial Reel: the switch leaves it alone
+    expect(outcomeOf(world(withLearner({ trialReels: false, pairsPerDay: 0, trialChannels: [] })))).toMatchObject({ kind: "create" });
+    expect(learnerStopProblems(world(reel("trialB")).item, baseCtx())).toEqual([]);
+  });
+
+  it("keeps the owner's pairs a day now, under the consent's", () => {
+    const secondPair = (pairsPerDay: number) =>
+      world((w) => {
+        reel("trialA", 2)(w);
+        w.state.consent!.accounts[0] = { ...w.state.consent!.accounts[0], trialPairs: 2 };
+        w.ctx.learner = { ...w.ctx.learner, pairsPerDay };
+        w.ctx.posts = [1, 2].map((n) => post({ channelId: "ig-1", at: iso(NOW - 2 * n * H), by: "app", state: "PUBLISHED", lane: "trialReel", testId: BLOCK, pair: 1, clipId: `trial-${n}` }));
+      });
+    expect(outcomeOf(secondPair(2)).kind).toBe("create");
+    expect(outcomeOf(secondPair(1))).toMatchObject({ kind: "wait", final: true, block: "trialPairsFull" });
+  });
+
+  it("sends a stamped Trial Reel back when Postiz says its account cannot post them, or hit its limit, on any post of the account", () => {
+    const UNSUPPORTED = "This account doesn't support Trial Reels";
+    const LIMIT = "Instagram Trial Reel publish limit reached for this account, please try again later or publish the post as a regular Reel";
+    // the person approved trial A on its card, and Postiz's worker failed it: the app's own trial B never follows
+    const personsTrialA = (error: string, seenAgo: number) => post({ channelId: "ig-1", postId: "trial-a", at: iso(NOW - seenAgo - 10 * MIN), by: "user", state: "ERROR", error, platform: "instagram", seenAt: iso(NOW - seenAgo), lane: "trialReel", testId: BLOCK, pair: 1, clipId: "clip-a", video: "job:a" });
+    const failed = (error: string, seenAgo = 110 * MIN) => (w: World) => {
+      reel("trialB")(w);
+      w.ctx.posts = [personsTrialA(error, seenAgo)];
+    };
+    refuses(failed(UNSUPPORTED), "trialUnsupported");
+    refuses(failed(LIMIT), "trialLimit");
+    // a known error of the person's post pauses nothing: only the Trial Reels wait
+    const w = world(failed(UNSUPPORTED));
+    expect(pauseCheck(w.state, w.ctx).pause).toBeNull();
+    expect(decide(w).status).toBe("on");
+    // asked for again since the error, the account may try; a limit hit 24 hours before its time (15:15) is over, one a minute later is not
+    expect(outcomeOf(world(withLearner({ trialRetryAt: iso(NOW - 30 * MIN) }, failed(UNSUPPORTED)))).kind).toBe("create");
+    expect(outcomeOf(world(failed(LIMIT, 24 * H - 75 * MIN))).kind).toBe("create");
+    refuses(failed(LIMIT, 24 * H - 76 * MIN), "trialLimit");
+  });
+
+  it("sends a stamped test, check or Trial Reel back once the owner skipped its question or fixed its dial", () => {
+    const test = (w: World) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "test", testId: "n3.length.standard.short", arm: "short" } }));
+    const check = (w: World) => (w.item = stamp({ ...w.item, pass: { ...w.item.pass!, role: "check", testId: "c4.n3.length.standard.short", arm: "new" } }));
+    const skipLength = { skipped: [questionKey("length", "standard", "short")] };
+    expect(outcomeOf(world(test)).kind).toBe("create");
+    refuses(withLearner(skipLength, test), "testSkipped");
+    refuses(withLearner({ fixed: { length: "standard" } }, test), "testSkipped");
+    refuses(withLearner(skipLength, check), "testSkipped");
+    refuses(withLearner({ fixed: { length: "short" } }, check), "testSkipped");
+    refuses(withLearner({ skipped: [questionKey("newcomer", "rotation", "newcomer", "get-out-journey")] }, reel("trialA")), "testSkipped");
+    refuses(withLearner({ fixed: { length: "short" } }, reel("trialB")), "testSkipped");
+    // another question or dial leaves it alone, and a best clip is the best settings whatever was skipped or fixed
+    expect(outcomeOf(world(withLearner({ skipped: [questionKey("ending", "resolved", "cliffhanger")], fixed: { postTime: "evening" } }, test))).kind).toBe("create");
+    expect(outcomeOf(world(withLearner({ ...skipLength, fixed: { length: "standard" } })))).toMatchObject({ kind: "create" });
+  });
+});
+
+describe("never: accounts", () => {
+  const onChannel = (id: string, platform: string, settings: Record<string, unknown> = { __type: platform }) => (w: World) => (w.item = stamp({ ...w.item, channels: [{ integrationId: id, platform, text: "Red escapes first.", settings, lane: "normal" }] }));
+  it("refuses an account outside the consent, TikTok without its tick, TikTok Business and every other platform", () => {
+    refuses(onChannel("ig-2", "instagram-standalone"), "notConsented");
+    refuses(onChannel("tt-1", "tiktok"), "platformNotAllowed");
+    refuses(onChannel("tb-1", "tiktok-business"), "platformNotAllowed");
+    refuses(onChannel("fb-1", "facebook"), "platformNotAllowed");
+    refuses((w) => (w.item = stamp({ ...w.item, channels: [] })), "noAccount");
+    // with the TikTok tick: a ticked TikTok account goes, one the owner did not tick does not, TikTok Business never
+    const ticked = (w: World) => {
+      w.state.consent = { ...w.state.consent!, tiktok: true };
+      w.clip = baseClip({ overlayKinds: ["hook", "payoff"] });
+    };
+    refuses((w) => {
+      ticked(w);
+      onChannel("tt-1", "tiktok")(w);
+    }, "notConsented");
+    refuses((w) => {
+      tiktokOn(w);
+      onChannel("tb-1", "tiktok-business")(w);
+    }, "platformNotAllowed");
+    expect(outcomeOf(world((w) => {
+      tiktokOn(w);
+      onChannel("tt-1", "tiktok")(w);
+    })).kind).toBe("create");
+  });
+
+  it("refuses a live identifier that differs from the item's platform or type, a disabled channel and a changed profile", () => {
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "ig-1" ? { ...l, platform: "instagram-standalone" } : l)) }), "platformChanged");
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "ig-1" ? { ...l, disabled: true } : l)) }), "accountDisabled");
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "ig-1" ? { ...l, refreshNeeded: true } : l)) }), "accountDisabled");
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "ig-1" ? { ...l, profile: "someone.else" } : l)) }), "profileChanged");
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.filter((l) => l.id !== "ig-1") }), "accountGone");
+    refuses((w) => (w.ctx.postiz = { ...w.ctx.postiz, postNumbers: false }), "postizOld");
+  });
+});
+
+describe("never: volume", () => {
+  it("refuses a second Trial Reel pair on the account's day", () => {
+    const w = world((x) => {
+      x.item = stamp({ ...x.item, channels: [trialChannel()], pass: { ...x.item.pass!, role: "trialA", testId: "block:2", pair: 2 } });
+      x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 4 * H), by: "app", state: "PUBLISHED", lane: "trialReel", testId: "block:2", pair: 1 }), post({ channelId: "ig-1", at: iso(NOW - 2 * H), by: "app", state: "PUBLISHED", lane: "trialReel", testId: "block:2", pair: 1 })];
+    });
+    expect(outcomeOf(w)).toMatchObject({ kind: "wait", reasons: ["missedTime"], final: true, block: "trialPairsFull" });
+  });
+
+  it("counts a post made in Postiz's own editor against the day's cap", () => {
+    const yt = (w: World) => (w.item = stamp({ ...w.item, channels: [{ integrationId: "yt-1", platform: "youtube", text: "Red escapes first.", settings: { __type: "youtube", title: "Which ball escapes first?" }, lane: "normal" }] }));
+    const withPosts = (posts: AccountPost[]) => world((w) => {
+      yt(w);
+      w.ctx.posts = posts;
+    });
+    const mine = post({ channelId: "yt-1", at: iso(NOW - 5 * H), by: "app", state: "PUBLISHED" });
+    expect(outcomeOf(withPosts([mine])).kind).toBe("create");
+    expect(outcomeOf(withPosts([mine, post({ channelId: "yt-1", at: iso(NOW - 3 * H), by: "outside", state: "PUBLISHED" })]))).toMatchObject({ kind: "wait", block: "dayFull" });
+    // never more than 7 on an account in a day, whoever made them
+    const many = Array.from({ length: AUTONOMY_CHANNEL_DAY_MAX }, (_, i) => post({ channelId: "ig-1", at: iso(NOW - (i + 1) * 30 * MIN), by: "outside", state: "PUBLISHED" }));
+    const w = world((x) => {
+      x.state.consent!.accounts[0] = { ...x.state.consent!.accounts[0], perDay: 5, trialPairs: 2 };
+      x.ctx.posts = many;
+    });
+    expect(outcomeOf(w)).toMatchObject({ kind: "wait", block: "dayFull" });
+  });
+
+  it("keeps the cap over any 24 hours across midnight, and over the local day across a DST change", () => {
+    // UTC, no quiet hours: two posts late on 19 Nov, the item at 00:30 on 20 Nov. The local day is empty, the last 24 hours are not.
+    const t = Date.parse("2026-11-20T00:30:00Z");
+    const ytItem = (when: number) => (w: World) => {
+      w.ctx = { ...w.ctx, now: when - 75 * MIN, postizNow: when - 75 * MIN, offsetMinAt: () => 0, autopilot: { ...w.ctx.autopilot, quietFrom: "03:00", quietTo: "03:00" } };
+      w.state.lastRunAt = iso(when - 80 * MIN);
+      w.item = stamp({ ...w.item, createdAt: iso(when - 2 * H), when: iso(when), channels: [{ integrationId: "yt-1", platform: "youtube", text: "Red escapes first.", settings: { __type: "youtube", title: "Which ball escapes first?" }, lane: "normal" }], pass: { ...w.item.pass!, window: null } });
+    };
+    const late = [post({ channelId: "yt-1", at: "2026-11-19T22:00:00.000Z", by: "user", state: "PUBLISHED" }), post({ channelId: "yt-1", at: "2026-11-19T23:00:00.000Z", by: "app", state: "PUBLISHED" })];
+    const w = world((x) => {
+      ytItem(t)(x);
+      x.ctx.posts = late;
+    });
+    expect(countOver(late, t, w.ctx)).toBe(2);
+    expect(outcomeOf(w)).toMatchObject({ kind: "wait", block: "dayFull" });
+    // the same posts two days earlier leave the item alone
+    const free = world((x) => {
+      ytItem(t)(x);
+      x.ctx.posts = late.map((p) => ({ ...p, at: iso(Date.parse(p.at) - 2 * D) }));
+    });
+    expect(outcomeOf(free).kind).toBe("create");
+
+    // Warsaw, 25 Oct 2026: clocks go back at 01:00 UTC, so that local day lasts 25 hours. A post at 00:10 local (22:10 UTC on
+    // the 24th) and the item at 23:50 local (22:50 UTC on the 25th) are 24 h 40 min apart but on one local day.
+    const warsaw = (at: number) => (at < Date.parse("2026-10-25T01:00:00Z") ? 120 : 60);
+    const item = Date.parse("2026-10-25T22:50:00Z");
+    const dst = world((x) => {
+      ytItem(item)(x);
+      x.ctx = { ...x.ctx, offsetMinAt: warsaw };
+      x.state.consent!.at = iso(item - 4 * D);
+      x.ctx.postiz = { ...x.ctx.postiz, keySavedAt: iso(item - 5 * D) };
+      x.state.consent!.accounts[1] = { ...x.state.consent!.accounts[1], perDay: 1 };
+      x.ctx.posts = [post({ channelId: "yt-1", at: "2026-10-24T22:10:00.000Z", by: "outside", state: "PUBLISHED" })];
+    });
+    expect(outcomeOf(dst)).toMatchObject({ kind: "wait", block: "dayFull" });
+    // with a fixed +1 h the post would fall on the day before, and the item would go out
+    expect(outcomeOf({ ...dst, ctx: { ...dst.ctx, offsetMinAt: () => 60 } }).kind).toBe("create");
+  });
+
+  it("counts the posts after the item's time too: the next day's posts fill the 24 hours from it", () => {
+    // UTC, no quiet hours; ig-1 takes 3 a day and 1 Trial Reel pair, 5 in all. The item is planned for 21:00 on 20 Nov, and
+    // the person's posts wait in Postiz on 21 Nov from 08:00, 2 hours apart: its local day is empty, its 24 hours are not.
+    const t = Date.parse("2026-11-20T21:00:00Z");
+    const nextDay = (n: number, shift = 0) => Array.from({ length: n }, (_, i) => post({ channelId: "ig-1", at: iso(Date.parse("2026-11-21T08:00:00Z") + i * 2 * H + shift), by: "user" }));
+    const withPosts = (posts: AccountPost[]) => world((w) => {
+      w.ctx = { ...w.ctx, now: t - 75 * MIN, postizNow: t - 75 * MIN, offsetMinAt: () => 0, autopilot: { ...w.ctx.autopilot, quietFrom: "03:00", quietTo: "03:00" }, posts };
+      w.state.lastRunAt = iso(t - 80 * MIN);
+      w.item = stamp({ ...w.item, createdAt: iso(t - 2 * H), when: iso(t), pass: { ...w.item.pass!, window: null } });
+    });
+    expect(countOver(nextDay(7), t, withPosts([]).ctx)).toBe(7);
+    // the 24 hours from 21:00 would hold 8: past the 7 a day on any account, whoever made them, and past the consent's 5
+    expect(outcomeOf(withPosts(nextDay(7)))).toMatchObject({ kind: "wait", reasons: ["missedTime"], final: true, block: "dayFull" });
+    expect(outcomeOf(withPosts(nextDay(5)))).toMatchObject({ kind: "wait", block: "dayFull" });
+    expect(outcomeOf(withPosts(nextDay(4))).kind).toBe("create");
+    // the same posts a day later are outside its 24 hours
+    expect(outcomeOf(withPosts(nextDay(7, D))).kind).toBe("create");
+  });
+
+  it("never posts a video twice on an account: a master and its cut are one", () => {
+    refuses((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * D), by: "user", state: "PUBLISHED", video: "job:j1", clipId: "clip-master" })]), "duplicate");
+    refuses((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * D), by: "app", state: "ERROR", clipId: "clip-1", error: "Media expired, please upload again", seenAt: iso(NOW - 2 * D) })]), "duplicate");
+  });
+
+  it("keeps 20 minutes on both sides of every post on the account, a person's 'now' post included", () => {
+    // UTC, no quiet hours; the item planned for 12:10 with no window of its own
+    const at = (hhmm: string) => Date.parse(`2026-11-20T${hhmm}:00Z`);
+    const at1210 = (w: World) => {
+      w.ctx = { ...w.ctx, now: at("10:55"), postizNow: at("10:55"), offsetMinAt: () => 0, autopilot: { ...w.ctx.autopilot, quietFrom: "03:00", quietTo: "03:00" } };
+      w.state.lastRunAt = iso(at("10:50"));
+      w.item = stamp({ ...w.item, createdAt: iso(at("10:00")), when: iso(at("12:10")), pass: { ...w.item.pass!, window: null } });
+    };
+    const withPosts = (posts: AccountPost[]) => world((w) => {
+      at1210(w);
+      w.ctx.posts = posts;
+    });
+    expect(outcomeOf(withPosts([post({ channelId: "ig-1", at: iso(at("12:00")) }), post({ channelId: "ig-1", at: iso(at("21:00")) })]))).toMatchObject({ kind: "wait", block: "spacing" });
+    // out of order: the other post is the later one
+    expect(outcomeOf(withPosts([post({ channelId: "ig-1", at: iso(at("12:25")) })]))).toMatchObject({ kind: "wait", block: "spacing" });
+    // a person's post for "now", made at 12:05 (its real time), next to the item's 12:10
+    expect(outcomeOf(withPosts([post({ channelId: "ig-1", at: iso(at("12:05")), state: "PUBLISHED" })]))).toMatchObject({ kind: "wait", block: "spacing" });
+    expect(outcomeOf(withPosts([post({ channelId: "ig-1", at: iso(at("11:50")) }), post({ channelId: "ig-1", at: iso(at("12:30")) })])).kind).toBe("create");
+    // another account, a draft, a failed post and a post gone from Postiz take no room
+    expect(outcomeOf(withPosts([post({ channelId: "yt-1", at: iso(at("12:10")) }), post({ channelId: "ig-1", at: iso(at("12:10")), state: "DRAFT" }), post({ channelId: "ig-1", at: iso(at("12:12")), state: "ERROR", error: "Caption is too long", seenAt: iso(at("10:00")) })])).kind).toBe("create");
+  });
+
+  it("makes the creates of one tick count against each other", () => {
+    const second = baseItem({ id: "it-2", clipId: "clip-2", video: "job:j2", when: iso(NOW + 80 * MIN), pass: { ...baseItem().pass!, window: null } });
+    const w = world((x) => (x.ctx.queue = [x.item, second]));
+    const d = decideAutonomy(w.state, w.ctx, new Map([["clip-1", baseClip()], ["clip-2", baseClip({ id: "clip-2" })]]));
+    expect(d.items.map((o) => o.kind)).toEqual(["create", "wait"]);
+    expect(d.items[1]).toMatchObject({ block: "spacing" });
+  });
+});
+
+describe("never: consent, clock and mode", () => {
+  const nothingCreated = (w: World, wait: AutonomyReason) => {
+    const d = decide(w);
+    expect(d.wait, wait).toBe(wait);
+    expect(d.items.some((o) => o.kind === "create"), wait).toBe(false);
+    expect(reasonsOf(w), wait).toContain(wait);
+  };
+
+  it("waits when the clock is off by more than 5 minutes, or unknown", () => {
+    nothingCreated(world((w) => (w.ctx.postizNow = NOW - 6 * MIN)), "clockOff");
+    nothingCreated(world((w) => (w.ctx.postizNow = null)), "clockUnknown");
+    expect(outcomeOf(world((w) => (w.ctx.postizNow = NOW - 4 * MIN))).kind).toBe("create");
+  });
+
+  it("waits while learning is off or paused, in licence test mode, before the licence is handed, and while a create is unsettled", () => {
+    nothingCreated(world((w) => (w.ctx.learner = { ...w.ctx.learner, paused: true })), "learningPaused");
+    nothingCreated(world((w) => (w.ctx.learner = { ...w.ctx.learner, learn: false })), "learningOff");
+    nothingCreated(world((w) => (w.ctx.licence = { ...w.ctx.licence!, testMode: true })), "testMode");
+    nothingCreated(world((w) => (w.ctx.realKey = false)), "testMode");
+    nothingCreated(world((w) => (w.ctx.licence = null)), "licenceMissing");
+    nothingCreated(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, postNumbers: null })), "postizUnchecked");
+    nothingCreated(world((w) => (w.ctx.createCallsLastHour = 60)), "createLimit");
+    // a create whose answer never came: nothing more until Postiz's list settles it, and it counts on its account meanwhile
+    const unsettled = world((w) => (w.ctx.posts = [post({ channelId: "yt-1", at: iso(NOW + 2 * H), state: "intent", by: "app", postId: null })]));
+    nothingCreated(unsettled, "unsettled");
+    expect(countOver(unsettled.ctx.posts, NOW + 2 * H, unsettled.ctx)).toBe(1);
+  });
+
+  it("sends every item made before Pause learning, or learning off, back to the person for good", () => {
+    // pass-7's item was made at 14:00 Warsaw time; Pause learning at 14:30: it waits for the person at once
+    const during = world((w) => (w.ctx.learner = { ...w.ctx.learner, paused: true, switchedAt: iso(NOW - 30 * MIN) }));
+    expect(decide(during).wait).toBe("learningPaused");
+    expect(outcomeOf(during)).toMatchObject({ kind: "wait", final: true });
+    expect(reasonsOf(during)).toContain("learningStopped");
+    const off = world((w) => (w.ctx.learner = { ...w.ctx.learner, learn: false, switchedAt: iso(NOW - 30 * MIN) }));
+    expect(decide(off).wait).toBe("learningOff");
+    expect(outcomeOf(off)).toMatchObject({ kind: "wait", final: true });
+    // learning back on at 14:50: it stays waiting, and so does an item stamped while learning was paused
+    refuses((w) => (w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 10 * MIN) }), "learningStopped");
+    refuses((w) => {
+      w.item = stamp({ ...w.item, createdAt: iso(NOW - 20 * MIN) });
+      w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 10 * MIN) };
+    }, "learningStopped");
+    // a time that cannot be read: every item
+    refuses((w) => (w.ctx.learner = { ...w.ctx.learner, switchedAt: "yesterday" }), "learningStopped");
+    // an item the learner made after learning came back goes out
+    const fresh = world((w) => {
+      w.ctx.learner = { ...w.ctx.learner, switchedAt: iso(NOW - 25 * MIN) };
+      w.item = stamp({ ...w.item, createdAt: iso(NOW - 20 * MIN) });
+    });
+    expect(outcomeOf(fresh).kind).toBe("create");
+  });
+
+  it("pauses on an older consent version, and turns Off in an app older than the consent's", () => {
+    const old = world((w) => (w.state.consent!.version = AUTONOMY_CONSENT_VERSION - 1));
+    expect(pauseCheck(old.state, old.ctx).pause?.reason).toBe("consentVersion");
+    expect(resumeProblems(old.state, old.ctx)).toContain("consentVersion");
+    const older = world((w) => (w.ctx.appVersion = "1.7.9"));
+    const d = decide(older);
+    expect(d.status).toBe("off");
+    expect(d.check.off).toBe("appOlder");
+    expect(d.items).toEqual([]);
+    expect(compareVersions("1.10.0", "1.9.9")).toBeGreaterThan(0);
+    expect(compareVersions("1.8.0", "1.8.0-beta")).toBe(0);
+  });
+});
+
+describe("pausing itself, and Resume", () => {
+  const pauseOf = (w: World) => pauseCheck(w.state, w.ctx).pause;
+
+  it("pauses on any failed post of its own (the first one: no second is waited for), with its reason", () => {
+    const w = world((x) => (x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error: "Media expired, please upload again", seenAt: iso(NOW - MIN) })]));
+    expect(pauseOf(w)).toEqual({ reason: "ownPostFailed", at: iso(NOW), until: null, channelId: "ig-1" });
+    const d = decide(w);
+    expect(d.status).toBe("paused");
+    expect(d.items.some((o) => o.kind === "create")).toBe(false);
+    // an unknown text pauses too (fail closed), and names itself
+    expect(pauseOf(world((x) => (x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error: "Something odd", seenAt: iso(NOW - MIN) })])))?.reason).toBe("unknownError");
+    expect(pauseOf(world((x) => (x.ctx.posts = [post({ channelId: "yt-1", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error: null, seenAt: iso(NOW - MIN) })])))?.reason).toBe("unknownError");
+  });
+
+  it("pauses every account for 48 hours on each of Postiz's account warnings, on a post the person made, and removes only its own still-scheduled posts there", () => {
+    const warnings = [
+      "Instagram blocked your request",
+      "Instagram detected that your post is spam, please try again with different content",
+      "Instagram user is restricted",
+      "Something is wrong with your connected user, please re-authenticate",
+      "You session has been invalidated, this can usually happen from frequent posting, please re-authenticate, and wait 1-2 days before posting again",
+      "Instagram requires you to log in at instagram.com and follow its instructions before posting can resume. After that, please reconnect this channel.",
+      "You have reached the maximum of 25 posts per day, allowed for your account",
+      "Page posting for today is limited, please try again tomorrow",
+    ];
+    const mineLater = post({ channelId: "ig-1", postId: "own-later", at: iso(NOW + 70 * MIN), by: "app", state: "QUEUE" });
+    const minePublished = post({ channelId: "ig-1", postId: "own-done", at: iso(NOW - 3 * H), by: "app", state: "PUBLISHED" });
+    const personLater = post({ channelId: "ig-1", postId: "person-later", at: iso(NOW + 80 * MIN), by: "user", state: "QUEUE" });
+    const mineYouTube = post({ channelId: "yt-1", postId: "own-yt", at: iso(NOW + 60 * MIN), by: "app", state: "QUEUE" });
+    for (const error of warnings) {
+      const w = world((x) => (x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error, platform: "instagram", seenAt: iso(NOW - MIN) }), mineLater, minePublished, personLater, mineYouTube]));
+      const check = pauseCheck(w.state, w.ctx);
+      expect(check.pause, error).toEqual({ reason: "accountHealth", at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "ig-1" });
+      expect(check.deleteOwn, error).toEqual([{ channelId: "ig-1", postId: "own-later" }]);
+    }
+    // "only tell me"
+    const tell = world((x) => {
+      x.state.deleteOnWarning = false;
+      x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "outside", state: "ERROR", error: warnings[0], seenAt: iso(NOW - MIN) }), mineLater];
+    });
+    expect(pauseCheck(tell.state, tell.ctx)).toMatchObject({ pause: { reason: "accountHealth" }, deleteOwn: [] });
+    // Resume waits 48 hours, then needs nothing more
+    const p = pauseCheck(tell.state, tell.ctx).pause!;
+    const pausedState = paused(tell.state, p);
+    const later = { ...tell.ctx, posts: [] };
+    expect(resumeProblems(pausedState, later)).toEqual(["cooldown"]);
+    expect(resumeProblems(pausedState, { ...later, now: NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN })).toEqual([]);
+  });
+
+  it("pauses on an account turned off or needing a reconnect in Postiz", () => {
+    expect(pauseOf(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "yt-1" ? { ...l, refreshNeeded: true } : l)) })))).toMatchObject({ reason: "accountHealth", channelId: "yt-1" });
+  });
+
+  it("escalates a pause to the account warning, but never deletes twice for one warning", () => {
+    const warning = post({ channelId: "ig-1", at: iso(NOW - 10 * MIN), by: "user", state: "ERROR", error: "Instagram blocked your request", seenAt: iso(NOW - MIN) });
+    const own = post({ channelId: "ig-1", postId: "own-later", at: iso(NOW + 70 * MIN), by: "app", state: "QUEUE" });
+    const userPaused = world((w) => {
+      w.state.pause = { reason: "user", at: iso(NOW - 30 * MIN), until: null, channelId: null };
+      w.ctx.posts = [warning, own];
+    });
+    const check = pauseCheck(userPaused.state, userPaused.ctx);
+    expect(check.pause?.reason).toBe("accountHealth");
+    expect(check.deleteOwn).toEqual([{ channelId: "ig-1", postId: "own-later" }]);
+    const recorded = paused(userPaused.state, check.pause!);
+    const next = { ...userPaused.ctx, now: NOW + 5 * MIN };
+    // its delete has not gone through yet: listed again on the next tick, with no new pause
+    expect(pauseCheck(recorded, next)).toEqual({ off: null, pause: null, deleteOwn: [{ channelId: "ig-1", postId: "own-later" }] });
+    // the app removed it: never listed again
+    const after = { ...userPaused, state: recorded, ctx: { ...next, posts: [warning, { ...own, removed: true }] } };
+    expect(pauseCheck(after.state, after.ctx)).toEqual({ off: null, pause: null, deleteOwn: [] });
+    // another pause never replaces a pause that is on
+    expect(paused(after.state, { reason: "user", at: iso(NOW), until: null, channelId: null })).toBe(after.state);
+  });
+
+  it("removes its own posts Postiz lists only after the warning, on every tick of its 48 hours, and one Postiz has not published yet", () => {
+    const warning = post({ channelId: "ig-1", at: iso(NOW - 10 * MIN), by: "user", state: "ERROR", error: "Instagram blocked your request", platform: "instagram", seenAt: iso(NOW - MIN) });
+    // the approver's create on ig-1 is in flight when the warning is seen: no answer yet, so no post id to remove
+    const intent = post({ channelId: "ig-1", postId: null, at: iso(NOW + 70 * MIN), by: "app", state: "intent", clipId: "clip-1", video: "job:j1" });
+    const w = world((x) => (x.ctx.posts = [warning, intent]));
+    const first = pauseCheck(w.state, w.ctx);
+    expect(first).toMatchObject({ pause: { reason: "accountHealth", channelId: "ig-1" }, deleteOwn: [] });
+    const warned = paused(w.state, first.pause!);
+    const at = (minutes: number, posts: AccountPost[], state = warned) => pauseCheck(state, { ...w.ctx, now: NOW + minutes * MIN, postizNow: NOW + minutes * MIN, posts });
+    // 15 minutes later the intent settles: Postiz lists it, scheduled. Removed, with no new pause
+    const settled: AccountPost = { ...intent, postId: "own-x", state: "QUEUE" };
+    expect(at(15, [warning, settled])).toEqual({ off: null, pause: null, deleteOwn: [{ channelId: "ig-1", postId: "own-x" }] });
+    // a create whose answer came only after the warning was recorded
+    const late = post({ channelId: "ig-1", postId: "own-y", at: iso(NOW + 65 * MIN), by: "app", state: "QUEUE", clipId: "clip-2" });
+    expect(at(5, [warning, late]).deleteOwn).toEqual([{ channelId: "ig-1", postId: "own-y" }]);
+    // its time passed 2 minutes ago, but Postiz's worker has not published it yet: still scheduled, so removed too
+    const lagging = post({ channelId: "ig-1", postId: "own-lag", at: iso(NOW - 2 * MIN), by: "app", state: "QUEUE", clipId: "clip-3" });
+    expect(pauseCheck(w.state, { ...w.ctx, posts: [warning, lagging, settled] }).deleteOwn).toEqual([
+      { channelId: "ig-1", postId: "own-lag" },
+      { channelId: "ig-1", postId: "own-x" },
+    ]);
+    // after Off as well, while the 48 hours run; never once the app removed it, never after the 48 hours, and never on "only tell me"
+    expect(at(30, [warning, settled], turnedOff(warned)).deleteOwn).toEqual([{ channelId: "ig-1", postId: "own-x" }]);
+    expect(at(20, [warning, { ...settled, removed: true }]).deleteOwn).toEqual([]);
+    const over = NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN;
+    expect(pauseCheck({ ...resumed(warned, over), lastRunAt: iso(over) }, { ...w.ctx, now: over + MIN, postizNow: over + MIN, posts: [warning, settled] }).deleteOwn).toEqual([]);
+    expect(at(15, [warning, settled], { ...warned, deleteOnWarning: false }).deleteOwn).toEqual([]);
+    // a removed post takes up nothing, and the watcher lets it go
+    expect(watchNeeded([{ ...settled, removed: true }], NOW)).toBe(false);
+  });
+
+  it("names every account warned in one read, and removes its own posts on each of them, on every tick", () => {
+    const warning = (channelId: string, platform: string, error = "Instagram blocked your request") => post({ channelId, at: iso(NOW - 15 * MIN), by: "user", state: "ERROR", error, platform, seenAt: iso(NOW - 2 * MIN) });
+    const own = (channelId: string, minutes: number) => post({ channelId, postId: `own-${channelId}`, at: iso(NOW + minutes * MIN), by: "app", state: "QUEUE" });
+    const both = world((x) => {
+      x.state.consent!.accounts.push({ channelId: "ig-2", platform: "instagram-standalone", profile: "other.account", perDay: 2, trialPairs: 0, youtube: null });
+      x.ctx.posts = [warning("ig-1", "instagram"), warning("ig-2", "instagram-standalone"), own("ig-1", 70), own("ig-2", 80)];
+    });
+    const first = pauseCheck(both.state, both.ctx);
+    const until = iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS);
+    expect(first.pause).toEqual({ reason: "accountHealth", at: iso(NOW), until, channelId: "ig-1", otherChannels: ["ig-2"] });
+    const removeBoth = [
+      { channelId: "ig-1", postId: "own-ig-1" },
+      { channelId: "ig-2", postId: "own-ig-2" },
+    ];
+    expect(first.deleteOwn).toEqual(removeBoth);
+    const warned = paused(both.state, first.pause!);
+    expect(warned.cooldown).toEqual({ at: iso(NOW), until, channelId: "ig-1", otherChannels: ["ig-2"] });
+    for (const t of [5, 10, 15, 30, 60]) {
+      const c = pauseCheck(warned, { ...both.ctx, now: NOW + t * MIN, postizNow: NOW + t * MIN });
+      expect(c.pause, `+${t} min`).toBeNull();
+      expect(c.deleteOwn, `+${t} min`).toEqual(removeBoth);
+    }
+    // the stored block keeps both accounts, and Off then on again within the 48 hours pauses for both
+    expect(sanitizeAutonomy(JSON.parse(JSON.stringify(warned)))).toEqual(warned);
+    const again = { ...turnedOff(warned), consent: both.state.consent, lastRunAt: iso(NOW + 55 * MIN) };
+    const back = pauseCheck(again, { ...both.ctx, now: NOW + H, postizNow: NOW + H });
+    expect(back.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1", otherChannels: ["ig-2"] });
+    expect(back.deleteOwn).toEqual(removeBoth);
+    // a YouTube warning in the same read as an Instagram one
+    const mixed = world((x) => (x.ctx.posts = [warning("ig-1", "instagram"), warning("yt-1", "youtube", "Token expired or invalid, please reconnect your YouTube account."), own("ig-1", 70), own("yt-1", 80)]));
+    const m = pauseCheck(mixed.state, mixed.ctx);
+    expect(m.pause).toMatchObject({ channelId: "ig-1", otherChannels: ["yt-1"] });
+    expect(m.deleteOwn).toEqual([
+      { channelId: "ig-1", postId: "own-ig-1" },
+      { channelId: "yt-1", postId: "own-yt-1" },
+    ]);
+    // a second account warned a day later, while the first's 48 hours still run: both cool down, both lose their posts
+    const one = world((x) => (x.ctx.posts = [warning("ig-1", "instagram")]));
+    const igOnly = paused(one.state, pauseCheck(one.state, one.ctx).pause!);
+    const day = NOW + D;
+    const ytWarning = { ...warning("yt-1", "youtube", "Token expired or invalid, please reconnect your YouTube account."), seenAt: iso(day - MIN) };
+    const second = pauseCheck({ ...igOnly, lastRunAt: iso(day - 5 * MIN) }, { ...one.ctx, now: day, postizNow: day, posts: [warning("ig-1", "instagram"), ytWarning, own("ig-1", 24 * 60 + 70), own("yt-1", 24 * 60 + 80)] });
+    expect(second.pause).toMatchObject({ reason: "accountHealth", channelId: "yt-1", otherChannels: ["ig-1"] });
+    expect(second.deleteOwn.map((d) => d.channelId).sort()).toEqual(["ig-1", "yt-1"]);
+    expect(paused(igOnly, second.pause!).cooldown).toEqual({ at: iso(day), until: iso(day + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "yt-1", otherChannels: ["ig-1"] });
+  });
+
+  it("does not pause on a known error of a person's post, nor on any post of an account outside the consent", () => {
+    expect(pauseOf(world((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error: "Caption is too long", seenAt: iso(NOW - MIN) })])))).toBeNull();
+    expect(pauseOf(world((w) => (w.ctx.posts = [post({ channelId: "ig-2", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram blocked your request", seenAt: iso(NOW - MIN) })])))).toBeNull();
+    expect(pauseOf(world((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error: "Something odd", seenAt: iso(NOW - MIN) })])))?.reason).toBe("unknownError");
+    // what happened before the last Resume is forgotten
+    expect(pauseOf(world((w) => {
+      w.state.resumedAt = iso(NOW - 10 * MIN);
+      w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "app", state: "ERROR", error: "Media expired, please upload again", seenAt: iso(NOW - 20 * MIN) })];
+    }))).toBeNull();
+  });
+
+  it("pauses when one of its scheduled posts is deleted in Postiz, and on a change the learner sent back", () => {
+    expect(pauseOf(world((w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW + H), by: "app", state: "QUEUE", gone: true, seenAt: iso(NOW - MIN) })])))?.reason).toBe("ownPostDeleted");
+    expect(pauseOf(world((w) => (w.ctx.learner = { ...w.ctx.learner, decisions: [{ testId: "check:4", decidedAt: iso(NOW - 10 * MIN), verdict: "wentBack" }] })))?.reason).toBe("wentBack");
+  });
+
+  it("pauses when Pro ends, the key is removed or saved again, an account changes, or it has not run for more than 48 hours", () => {
+    expect(pauseOf(world((w) => (w.ctx.licence = { ...w.ctx.licence!, pro: false })))?.reason).toBe("proEnded");
+    expect(pauseOf(world((w) => (w.ctx.licence = { ...w.ctx.licence!, expiresAt: iso(NOW - MIN) })))?.reason).toBe("proEnded");
+    expect(pauseOf(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, configured: false })))?.reason).toBe("keyRemoved");
+    expect(pauseOf(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, keySavedAt: iso(NOW - H) })))?.reason).toBe("keyChanged");
+    expect(pauseOf(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, organizationId: "org-2" })))?.reason).toBe("keyChanged");
+    expect(pauseOf(world((w) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "yt-1" ? { ...l, profile: "Someone" } : l)) })))).toMatchObject({ reason: "accountChanged", channelId: "yt-1" });
+    // the approver last ran 3 days ago (the app closed, or rolled back to 1.6.0 and forward again)
+    const gap = world((w) => (w.state.lastRunAt = iso(NOW - 3 * D)));
+    expect(pauseOf(gap)?.reason).toBe("gap");
+    expect(decide(gap).status).toBe("paused");
+    expect(resumeProblems(paused(gap.state, pauseOf(gap)!), gap.ctx)).toEqual([]);
+  });
+
+  it("resumes with one press once the cause is gone, and items made before Resume never qualify", () => {
+    const w = world((x) => (x.state.pause = { reason: "user", at: iso(NOW - 2 * H), until: null, channelId: null }));
+    expect(decide(w).items).toEqual([{ itemId: "it-1", kind: "wait", reasons: ["paused"], final: false, words: [], card: [] }]);
+    const back = resumed(w.state, NOW);
+    expect(back.pause).toBeNull();
+    expect(eligibilityProblems(w.item, back, w.ctx)).toContain("beforeConsent");
+    expect(resumeProblems(w.state, { ...w.ctx, licence: null })).toContain("proEnded");
+    expect(resumeProblems(w.state, { ...w.ctx, learner: { ...w.ctx.learner, learn: false } })).toContain("learningOff");
+    expect(resumeProblems(turnedOff(w.state), w.ctx)).toEqual(["off"]);
+  });
+
+  it("keeps a warning's 48 hours through Off and on again, and counts a warning from before the consent", () => {
+    // ig-1's post turns ERROR "Instagram blocked your request", seen 5 minutes ago: paused for 48 hours from now
+    const warning = post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram blocked your request", platform: "instagram", seenAt: iso(NOW - 5 * MIN) });
+    const w = world((x) => (x.ctx.posts = [warning]));
+    const check = pauseCheck(w.state, w.ctx);
+    expect(check.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1", until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS) });
+    const warned = paused(w.state, check.pause!);
+    const cooldown = { at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "ig-1" };
+    expect(warned.cooldown).toEqual(cooldown);
+    expect(resumeProblems(warned, w.ctx)).toEqual(["cooldown"]);
+    // Off keeps it, the stored block keeps it with no consent, and Turn on waits it out
+    const off = turnedOff(warned);
+    expect(off.consent).toBeNull();
+    expect(off.cooldown).toEqual(cooldown);
+    expect(sanitizeAutonomy(JSON.parse(JSON.stringify(off))).cooldown).toEqual(cooldown);
+    expect(sanitizeAutonomy({ ...JSON.parse(JSON.stringify(warned)), cooldown: undefined }).cooldown).toEqual(cooldown); // an older block: the pause's own
+    const draft = { accounts: [baseState().consent!.accounts[0]], understood: true, practise: false };
+    expect(consentProblems(draft, { ...w.ctx, now: NOW + 50 * MIN, cooldown: off.cooldown })).toEqual(["cooldown"]);
+    expect(consentProblems(draft, { ...w.ctx, now: NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN, cooldown: off.cooldown })).toEqual([]);
+    // a consent recorded anyway, 50 minutes after the warning: paused for the rest of the 48 hours, nothing goes out
+    const tick = NOW + 55 * MIN;
+    const back = world((x) => {
+      x.state = { ...off, consent: makeConsent(draft, { now: NOW + 50 * MIN, appVersion: "1.8.0", postiz: x.ctx.postiz }), lastRunAt: iso(tick - 5 * MIN) };
+      x.ctx = { ...x.ctx, now: tick, postizNow: tick, posts: [warning] };
+      x.item = stamp({ ...x.item, createdAt: iso(NOW + 52 * MIN), when: iso(tick + 75 * MIN) });
+    });
+    expect(eligibilityProblems(back.item, back.state, back.ctx)).toEqual([]);
+    const d = decide(back);
+    expect(d.status).toBe("paused");
+    expect(d.check.pause).toEqual({ reason: "accountHealth", at: iso(tick), until: cooldown.until, channelId: "ig-1" });
+    expect(d.items.some((o) => o.kind === "create")).toBe(false);
+    expect(checkBeforeCreate("it-1", back.state, back.ctx, new Map([[back.clip.id, back.clip]])).outcome).toMatchObject({ kind: "wait", reasons: ["paused"] });
+
+    // a warning seen 10 minutes before the very first consent: nothing stored, and the 48 hours still hold
+    const first = world((x) => {
+      x.state.consent = { ...x.state.consent!, at: iso(NOW - 20 * MIN), practise: false };
+      x.ctx.posts = [{ ...warning, seenAt: iso(NOW - 30 * MIN) }];
+      x.item = stamp({ ...x.item, createdAt: iso(NOW - 15 * MIN) });
+    });
+    const fd = decide(first);
+    expect(fd.status).toBe("paused");
+    expect(fd.check.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1" });
+    expect(fd.items.some((o) => o.kind === "create")).toBe(false);
+    // after a Resume the warning it was paused for is counted already; one over 48 hours before the consent is over
+    const recorded = paused(first.state, fd.check.pause!);
+    expect(pauseCheck(recorded, { ...first.ctx, now: NOW + 5 * MIN }).pause).toBeNull();
+    const afterCooldown = NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN;
+    expect(pauseCheck({ ...resumed(recorded, afterCooldown), lastRunAt: iso(afterCooldown) }, { ...first.ctx, now: afterCooldown + MIN, postizNow: afterCooldown + MIN }).pause).toBeNull();
+    expect(pauseCheck(first.state, { ...first.ctx, posts: [{ ...warning, at: iso(NOW - 50 * H), seenAt: iso(NOW - 49 * H) }] }).pause).toBeNull();
+  });
+
+  it("notes what happens while paused on the pause, so the banner says it before the one press that resumes", () => {
+    const failure = (error: string | null) => post({ channelId: "ig-1", postId: "own-1", at: iso(NOW - 20 * MIN), by: "app", state: "ERROR", error, platform: "instagram", seenAt: iso(NOW - 5 * MIN) });
+    const pausedWith = (posts: AccountPost[], reason: AutonomyPauseReason = "user") => world((x) => {
+      x.state.pause = { reason, at: iso(NOW - 40 * MIN), until: null, channelId: null };
+      x.ctx.posts = posts;
+    });
+    const cases: [AccountPost, AutonomyPauseReason][] = [
+      [failure("Instagram could not process the video, please check the video format, duration and resolution and try again"), "ownPostFailed"],
+      [failure("Unknown Error"), "unknownError"],
+      [post({ channelId: "ig-1", postId: "own-2", at: iso(NOW + 30 * MIN), by: "app", state: "QUEUE", gone: true, seenAt: iso(NOW - 5 * MIN) }), "ownPostDeleted"],
+    ];
+    for (const [event, reason] of cases) {
+      for (const pausedFor of ["user", "gap"] as const) {
+        const w = pausedWith([event], pausedFor);
+        const check = pauseCheck(w.state, w.ctx);
+        expect(check.pause, `${reason} over ${pausedFor}`).toEqual({ reason, at: iso(NOW), until: null, channelId: "ig-1" });
+        expect(decide(w).items.some((o) => o.kind === "create")).toBe(false);
+        // not on the banner yet: Resume waits, and names it
+        expect(resumeProblems(w.state, w.ctx), reason).toEqual([reason]);
+        const noted = paused(w.state, check.pause!);
+        expect(noted.pause, reason).toEqual({ ...w.state.pause, also: [{ reason, at: iso(NOW), channelId: "ig-1" }] });
+        // noted once: the next tick takes it no more, and one press resumes
+        expect(pauseCheck(noted, { ...w.ctx, now: NOW + 5 * MIN }).pause, reason).toBeNull();
+        expect(resumeProblems(noted, w.ctx), reason).toEqual([]);
+      }
+    }
+    // a change the learner sent back while paused
+    const wentBack = world((x) => {
+      x.state.pause = { reason: "user", at: iso(NOW - 40 * MIN), until: null, channelId: null };
+      x.ctx.learner = { ...x.ctx.learner, decisions: [{ testId: "check:4", decidedAt: iso(NOW - 10 * MIN), verdict: "wentBack" }] };
+    });
+    expect(resumeProblems(wentBack.state, wentBack.ctx)).toEqual(["wentBack"]);
+
+    // after Resume the next item made goes out: the failure was said, and is forgotten
+    const w = pausedWith([cases[0][0]]);
+    const back = resumed(paused(w.state, pauseCheck(w.state, w.ctx).pause!), NOW);
+    const after = world((x) => {
+      x.state = { ...back, lastRunAt: iso(NOW + 5 * MIN) };
+      x.ctx = { ...x.ctx, now: NOW + 10 * MIN, postizNow: NOW + 10 * MIN, posts: [cases[0][0]] };
+      x.item = stamp({ ...x.item, createdAt: iso(NOW + 5 * MIN), when: iso(NOW + 85 * MIN) });
+    });
+    expect(decide(after).status).toBe("on");
+    expect(outcomeOf(after).kind).toBe("create");
+
+    // over a warning's pause the failure is noted too, and the warning's 48 hours stay
+    const health = world((x) => {
+      x.state.pause = { reason: "accountHealth", at: iso(NOW - 40 * MIN), until: iso(NOW - 40 * MIN + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "yt-1" };
+      x.ctx.posts = [cases[0][0]];
+    });
+    const hc = pauseCheck(health.state, health.ctx);
+    expect(hc.pause?.reason).toBe("ownPostFailed");
+    const hn = paused(health.state, hc.pause!);
+    expect(hn.pause).toMatchObject({ reason: "accountHealth", channelId: "yt-1", also: [{ reason: "ownPostFailed", channelId: "ig-1" }] });
+    expect(resumeProblems(hn, health.ctx)).toEqual(["cooldown"]);
+
+    // Pro ends and a post of its own fails in the same tick: the pause says the one, the next tick notes the other
+    const both = world((x) => {
+      x.ctx.licence = { ...x.ctx.licence!, pro: false };
+      x.ctx.posts = [cases[0][0]];
+    });
+    const firstPause = pauseCheck(both.state, both.ctx).pause!;
+    expect(firstPause.reason).toBe("proEnded");
+    expect(pauseCheck(paused(both.state, firstPause), { ...both.ctx, now: NOW + 5 * MIN }).pause?.reason).toBe("ownPostFailed");
+  });
+
+  it("checks Pause again just before each create attempt, the 429 retry included", () => {
+    const w = world();
+    const clips = new Map([[w.clip.id, w.clip]]);
+    expect(checkBeforeCreate("it-1", w.state, w.ctx, clips).outcome?.kind).toBe("create");
+    // "Pause posting" pressed during the upload or the 429 wait
+    const pausedNow = { ...w.state, pause: { reason: "user" as const, at: iso(NOW + 10 * MIN), until: null, channelId: null } };
+    expect(checkBeforeCreate("it-1", pausedNow, { ...w.ctx, now: NOW + 15 * MIN, postizNow: NOW + 15 * MIN }, clips).outcome).toMatchObject({ kind: "wait", reasons: ["paused"] });
+    // the person opened its card meanwhile
+    const held = stamp({ ...w.item, held: true });
+    expect(checkBeforeCreate("it-1", w.state, { ...w.ctx, queue: [held] }, clips).outcome).toMatchObject({ kind: "wait", final: true });
+    expect(checkBeforeCreate("nope", w.state, w.ctx, clips).outcome).toBeNull();
+  });
+
+  it("pauses when the per-post route fails just before a Trial Reel, and waits while it is not asked", () => {
+    const trial = (w: World) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: "block:2", pair: 1 } }));
+    const failed = world((w) => {
+      trial(w);
+      w.ctx.postiz = { ...w.ctx.postiz, trialRoute: false };
+    });
+    const d = decide(failed);
+    expect(d.status).toBe("paused");
+    expect(d.check.pause?.reason).toBe("trialCheckFailed");
+    expect(d.items.some((o) => o.kind === "create")).toBe(false);
+    const unasked = world((w) => {
+      trial(w);
+      w.ctx.postiz = { ...w.ctx.postiz, trialRoute: null };
+    });
+    expect(outcomeOf(unasked)).toMatchObject({ kind: "wait", reasons: ["trialRouteUnchecked"], final: false });
+    const ok = world(trial);
+    expect(outcomeOf(ok)).toMatchObject({ kind: "create", request: { channels: [{ settings: { __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL" } }] } });
+  });
+});
+
+describe("the time: just in time, picked before each attempt", () => {
+  const sched = (w: World, postizNow: number) => scheduleFor(w.item, w.state, w.ctx, postizNow);
+
+  it("creates only when the time is 60 to 90 minutes away", () => {
+    expect(outcomeOf(world((w) => (w.item = stamp({ ...w.item, when: iso(NOW + 100 * MIN) }))))).toEqual({ itemId: "it-1", kind: "later", at: NOW + 100 * MIN, reason: "notYet" });
+    expect(outcomeOf(world((w) => (w.item = stamp({ ...w.item, when: iso(NOW + 61 * MIN) })))).kind).toBe("create");
+    // its planned time 30 minutes away: the earliest minute 60 minutes ahead inside its window
+    const soon = world((w) => (w.item = stamp({ ...w.item, when: iso(NOW + 30 * MIN) })));
+    expect(outcomeOf(soon)).toMatchObject({ kind: "create", at: NOW + AUTONOMY_LEAD_MS });
+    // no window of its own: missed
+    expect(outcomeOf(world((w) => (w.item = stamp({ ...w.item, when: iso(NOW + 30 * MIN), pass: { ...w.item.pass!, window: null } }))))).toMatchObject({ kind: "wait", reasons: ["missedTime"], final: true, block: "window" });
+  });
+
+  it("is never under 60 minutes after the attempt: after a 40-minute upload, and after a 429 with a 5-minute Retry-After", () => {
+    const w = world((x) => (x.item = stamp({ ...x.item, when: iso(NOW + 85 * MIN) })));
+    expect(sched(w, NOW)).toEqual({ kind: "at", at: NOW + 85 * MIN });
+    const afterUpload = sched(w, NOW + 40 * MIN);
+    expect(afterUpload.kind).toBe("at");
+    if (afterUpload.kind === "at") expect(afterUpload.at - (NOW + 40 * MIN)).toBeGreaterThanOrEqual(AUTONOMY_LEAD_MS);
+    const after429 = sched(w, NOW + 45 * MIN);
+    if (after429.kind !== "at") throw new Error("no time after the 429");
+    expect(after429.at - (NOW + 45 * MIN)).toBeGreaterThanOrEqual(AUTONOMY_LEAD_MS);
+    expect(after429.at - (NOW + 45 * MIN)).toBeLessThanOrEqual(AUTONOMY_MAX_LEAD_MS);
+    // the window ends at the planned time: nothing fits after the upload
+    const tight = world((x) => (x.item = stamp({ ...x.item, when: iso(NOW + 85 * MIN), pass: { ...x.item.pass!, window: { from: iso(NOW + 30 * MIN), to: iso(NOW + 85 * MIN) } } })));
+    expect(sched(tight, NOW + 40 * MIN)).toEqual({ kind: "none", reason: "window" });
+    // a PC clock that jumps after Postiz's last answer is caught against the upload's own Date
+    const jumped = world((x) => (x.ctx = { ...x.ctx, now: NOW + 52 * MIN, postizNow: NOW + 40 * MIN }));
+    expect(checkBeforeCreate("it-1", jumped.state, jumped.ctx, new Map([[jumped.clip.id, jumped.clip]])).outcome).toMatchObject({ kind: "wait", reasons: ["clockOff"] });
+  });
+
+  it("is never after the licence's end", () => {
+    const ends = (minutes: number) => world((x) => (x.ctx.licence = { ...x.ctx.licence!, expiresAt: iso(NOW + minutes * MIN) }));
+    expect(sched(ends(80), NOW)).toEqual({ kind: "at", at: NOW + 75 * MIN });
+    // the licence ends before the planned time: the earliest time an hour ahead, still before the end
+    expect(sched(ends(70), NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+    expect(sched(ends(50), NOW)).toEqual({ kind: "none", reason: "licenceEnd" });
+    expect(outcomeOf(ends(50))).toMatchObject({ kind: "wait", reasons: ["missedTime"], block: "licenceEnd" });
+  });
+
+  it("never takes the licence's end itself, the moment its own rules count Pro as ended", () => {
+    const ends = (minutes: number) => world((x) => (x.ctx.licence = { ...x.ctx.licence!, expiresAt: iso(NOW + minutes * MIN) }));
+    const endedAt = (w: World, at: number) => pauseCheck(w.state, { ...w.ctx, now: at, postizNow: at }).pause?.reason ?? null;
+    // the planned time (+75) is the licence's end, where Pro has ended: not taken, the earliest minute an hour ahead is
+    const atPlanned = ends(75);
+    expect(endedAt(atPlanned, NOW + 75 * MIN)).toBe("proEnded");
+    expect(endedAt(atPlanned, NOW + 75 * MIN - 1)).toBeNull();
+    expect(sched(atPlanned, NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+    expect(outcomeOf(atPlanned)).toMatchObject({ kind: "create", at: NOW + 60 * MIN });
+    // the first minute an hour ahead is the licence's end: nothing fits
+    const atEarliest = ends(60);
+    expect(sched(atEarliest, NOW)).toEqual({ kind: "none", reason: "licenceEnd" });
+    expect(outcomeOf(atEarliest)).toMatchObject({ kind: "wait", reasons: ["missedTime"], block: "licenceEnd" });
+    // a minute later, that minute is before the end and is taken
+    expect(sched(ends(61), NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+    // the search stops before the end too: a person's post at +49 keeps +60 to +68 free of posts, and +69 is the end
+    const spaced = world((x) => {
+      x.ctx.licence = { ...x.ctx.licence!, expiresAt: iso(NOW + 69 * MIN) };
+      x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW + 49 * MIN) })];
+    });
+    expect(sched(spaced, NOW)).toEqual({ kind: "none", reason: "spacing" });
+    expect(sched(ends(70), NOW)).toEqual({ kind: "at", at: NOW + 60 * MIN });
+  });
+
+  it("keeps quiet hours", () => {
+    // 22:30 local, its window 22:00 to 23:00: all quiet
+    const quiet = world((x) => {
+      x.ctx = { ...x.ctx, now: Date.parse("2026-11-20T20:15:00Z"), postizNow: Date.parse("2026-11-20T20:15:00Z") };
+      x.state.lastRunAt = iso(Date.parse("2026-11-20T20:10:00Z"));
+      x.item = stamp({ ...x.item, createdAt: iso(Date.parse("2026-11-20T19:00:00Z")), when: "2026-11-20T21:30:00.000Z", pass: { ...x.item.pass!, window: { from: "2026-11-20T21:00:00.000Z", to: "2026-11-20T22:00:00.000Z" } } });
+    });
+    expect(sched(quiet, quiet.ctx.postizNow!)).toEqual({ kind: "none", reason: "quiet" });
+    // a window from 07:30 to 09:00 local, planned for 07:45: the first minute out of quiet hours, 08:00
+    const morning = world((x) => {
+      x.item = stamp({ ...x.item, when: "2026-11-21T06:45:00.000Z", pass: { ...x.item.pass!, window: { from: "2026-11-21T06:30:00.000Z", to: "2026-11-21T08:00:00.000Z" } } });
+    });
+    expect(sched(morning, Date.parse("2026-11-21T05:20:00Z"))).toEqual({ kind: "later", at: Date.parse("2026-11-21T07:00:00Z") });
+    expect(sched(morning, Date.parse("2026-11-21T05:45:00Z"))).toEqual({ kind: "at", at: Date.parse("2026-11-21T07:00:00Z") });
+  });
+
+  it("keeps 2 hours inside a Trial Reel pair", () => {
+    const pairA = (w: World) => (w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: "block:2", pair: 1 } }));
+    const w = world((x) => {
+      pairA(x);
+      x.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - 30 * MIN), by: "app", state: "PUBLISHED", lane: "trialReel", testId: "block:2", pair: 1, clipId: "clip-b" })];
+    });
+    expect(sched(w, NOW)).toEqual({ kind: "at", at: NOW + 90 * MIN });
+  });
+});
+
+describe("the request it builds itself", () => {
+  it("is what the card would send for the same choices, with YouTube's choices from the consent only", () => {
+    const consent = baseState().consent!;
+    const item = baseItem({ channels: [
+      { integrationId: "ig-1", platform: "instagram", text: "Red escapes first.", settings: { __type: "instagram" }, lane: "normal" },
+      { integrationId: "yt-1", platform: "youtube", text: "Red escapes first.", settings: { __type: "youtube", title: "Which ball escapes first?", type: "private", selfDeclaredMadeForKids: "yes" }, lane: "normal" },
+    ], thumbnailMs: 12_400 });
+    const at = NOW + 75 * MIN;
+    const draft: CardDraft = {
+      clipId: "clip-1",
+      channels: [
+        { id: "ig-1", platform: "instagram", name: "jbl.balls", text: "Red escapes first.", settings: { __type: "instagram", post_type: "post" } },
+        { id: "yt-1", platform: "youtube", name: "JBL", text: "Red escapes first.", settings: { __type: "youtube", title: "Which ball escapes first?", type: "public", selfDeclaredMadeForKids: "no" } },
+      ],
+      when: { kind: "schedule", local: "" },
+      thumbnailMs: 12_400,
+    };
+    const card = { ...toRequest({ ...draft, when: { kind: "now" } }), when: iso(at) };
+    expect(requestOfProposal(item, at, consent)).toEqual(card);
+    const yt = requestOfProposal(item, at, consent).channels[1].settings;
+    expect(yt).toMatchObject({ type: "public", selfDeclaredMadeForKids: "no" });
+  });
+
+  it("sends Instagram's trial fields only on a Trial Reel, always with MANUAL", () => {
+    const consent = baseState().consent!;
+    const trial = baseItem({ channels: [trialChannel({ graduation_strategy: "SS_PERFORMANCE" })], pass: { ...baseItem().pass!, role: "trialB", testId: "block:2", pair: 1 } });
+    expect(requestOfProposal(trial, NOW, consent).channels[0].settings).toEqual({ __type: "instagram", post_type: "post", is_trial_reel: true, graduation_strategy: "MANUAL" });
+    expect(requestOfProposal(baseItem(), NOW, consent).channels[0].settings).toEqual({ __type: "instagram", post_type: "post" });
+  });
+});
+
+describe("the practice day", () => {
+  it("sends nothing for 24 hours, says when each would go out, and never sends those items later", () => {
+    const practice = world((w) => {
+      w.state.consent!.at = iso(NOW - 3 * H);
+      w.ctx.postiz = { ...w.ctx.postiz, keySavedAt: iso(NOW - D) };
+      w.state.lastRunAt = iso(NOW - 5 * MIN);
+    });
+    const d = decide(practice);
+    expect(d.status).toBe("practising");
+    expect(d.items).toEqual([{ itemId: "it-1", kind: "practise", at: NOW + 75 * MIN }]);
+    // a day later the same item is a practice item: it waits for the person for good
+    const after = { ...practice, ctx: { ...practice.ctx, now: NOW + 22 * H, postizNow: NOW + 22 * H }, state: { ...practice.state, lastRunAt: iso(NOW + 22 * H - 5 * MIN) } };
+    expect(outcomeOf(after)).toMatchObject({ kind: "wait", final: true });
+    expect(reasonsOf(after)).toContain("practised");
+    // unticked: no practice day
+    const none = world((w) => {
+      w.state.consent!.at = iso(NOW - 3 * H);
+      w.state.consent!.practise = false;
+      w.ctx.postiz = { ...w.ctx.postiz, keySavedAt: iso(NOW - D) };
+    });
+    expect(outcomeOf(none).kind).toBe("create");
+  });
+
+  it("counts the clocks' allowed difference as practice: an item shown 'Would go out at' is never sent later", () => {
+    // the PC's clock runs 4 minutes ahead of Postiz's. The item is made at the PC's consent + 24 h 1 min, Postiz's 23 h 57 min.
+    const C = NOW - D;
+    const tickAt = (pc: number, created = C + D + MIN) => world((w) => {
+      w.state.consent!.at = iso(C);
+      w.state.lastRunAt = iso(pc - 5 * MIN);
+      w.ctx = { ...w.ctx, now: pc, postizNow: pc - 4 * MIN };
+      w.item = stamp({ ...w.item, createdAt: iso(created), when: iso(C + D + 73 * MIN), pass: { ...w.item.pass!, window: null } });
+    });
+    const shown = tickAt(C + D + 2 * MIN);
+    expect(decide(shown).status).toBe("practising");
+    expect(outcomeOf(shown)).toEqual({ itemId: "it-1", kind: "practise", at: C + D + 73 * MIN });
+    // two ticks on, Postiz's day is over: the same item waits for the person for good
+    const after = tickAt(C + D + 6 * MIN);
+    expect(decide(after).status).toBe("on");
+    expect(outcomeOf(after)).toMatchObject({ kind: "wait", final: true });
+    expect(reasonsOf(after)).toContain("practised");
+    // an item made after the day and those 5 minutes is no practice item
+    expect(outcomeOf(tickAt(C + D + 8 * MIN, C + D + 6 * MIN)).kind).toBe("create");
+  });
+});
+
+describe("the stored block and the consent screen", () => {
+  it("sanitises the block: unknown keys dropped, a consent without a date or an account is no consent, nothing widened", () => {
+    expect(sanitizeAutonomy(undefined)).toEqual(DEFAULT_AUTONOMY);
+    expect(sanitizeAutonomy({ ...baseState(), extra: 1, consent: { ...baseState().consent, extra: true } })).toEqual(baseState());
+    const noDate: Record<string, unknown> = { ...baseState().consent! };
+    delete noDate.at;
+    expect(sanitizeAutonomy({ ...baseState(), consent: noDate }).consent).toBeNull();
+    expect(sanitizeAutonomy({ ...baseState(), consent: { ...baseState().consent, at: "yesterday" } }).consent).toBeNull();
+    // a pause without a consent is no pause
+    expect(sanitizeAutonomy({ consent: null, pause: { reason: "user", at: iso(NOW), until: null, channelId: null } }).pause).toBeNull();
+    // an account that is not valid is dropped, never clamped: TikTok, a YouTube account without its choices, 9 posts a day, pairs on YouTube
+    const accounts = [
+      { channelId: "tt-1", platform: "tiktok", profile: "x", perDay: 1, trialPairs: 0, youtube: null },
+      { channelId: "yt-1", platform: "youtube", profile: "JBL", perDay: 1, trialPairs: 0, youtube: null },
+      { channelId: "ig-1", platform: "instagram", profile: "jbl.balls", perDay: 9, trialPairs: 0, youtube: null },
+      { channelId: "yt-2", platform: "youtube", profile: "JBL2", perDay: 1, trialPairs: 1, youtube: { type: "public", selfDeclaredMadeForKids: "no" } },
+      { channelId: "ig-3", platform: "instagram", profile: "ok", perDay: 2, trialPairs: 1, youtube: null },
+    ];
+    expect(sanitizeAutonomy({ consent: { ...baseState().consent, accounts } }).consent?.accounts.map((a) => a.channelId)).toEqual(["ig-3"]);
+    expect(sanitizeAutonomy({ consent: { ...baseState().consent, accounts: accounts.slice(0, 4) } }).consent).toBeNull();
+    expect(sanitizeAutonomy({ ...baseState(), deleteOnWarning: "no" }).deleteOnWarning).toBe(true);
+    expect(sanitizeAutonomy({ ...baseState(), pause: { reason: "made up", at: iso(NOW) } }).pause).toBeNull();
+    // an older config without the block is off
+    expect(decideAutonomy(sanitizeAutonomy({}), baseCtx(), new Map()).status).toBe("off");
+  });
+
+  it("offers a tick only for Instagram and YouTube accounts, none ticked, YouTube's choices with no default, and Turn on only after the tick", () => {
+    const { tickable, waits } = tickableChannels(LIVE);
+    expect(tickable.map((c) => c.id)).toEqual(["ig-1", "yt-1", "ig-2"]);
+    expect(waits.map((c) => c.id)).toEqual(["tt-1", "tb-1", "fb-1"]);
+    const ctx = { ...baseCtx(), cooldown: null };
+    expect(consentProblems({ accounts: [], understood: false, practise: true }, ctx)).toEqual(["noAccount", "notUnderstood"]);
+    const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
+    const yt = { channelId: "yt-1", platform: "youtube" as const, profile: "", perDay: 1, trialPairs: 0, youtube: null };
+    expect(consentProblems({ accounts: [ig, yt], understood: true, practise: true }, ctx)).toEqual(["youtubeChoices"]);
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, ctx)).toEqual([]);
+    expect(consentProblems({ accounts: [{ ...ig, channelId: "tb-1", platform: "instagram" }], understood: true, practise: true }, ctx)).toContain("accountNotAllowed");
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, { ...ctx, licence: { ...ctx.licence!, testMode: true } })).toContain("testMode");
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, { ...ctx, realKey: false })).toContain("testMode");
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, { ...ctx, licence: { ...ctx.licence!, pro: false } })).toContain("pro");
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, { ...ctx, learner: { ...ctx.learner, learn: false } })).toContain("learningOff");
+    expect(consentProblems({ accounts: [ig], understood: true, practise: true }, { ...ctx, postiz: { ...ctx.postiz, configured: false } })).toContain("noKey");
+    const consent = makeConsent({ accounts: [ig], understood: true, practise: true }, { now: NOW, appVersion: "1.8.0", postiz: ctx.postiz });
+    expect(consent).toEqual({ version: AUTONOMY_CONSENT_VERSION, at: iso(NOW), appVersion: "1.8.0", postiz: { baseUrl: "https://api.postiz.com", organizationId: "org-1" }, accounts: [{ ...ig, profile: "jbl.balls" }], practise: true });
+    expect(sanitizeAutonomy({ consent }).consent).toEqual(consent);
+  });
+
+  // makeConsent stored an unknown workspace as "", which the loader refuses: Fully autonomous turned Off at the next load,
+  // with no pause reason, no audit line and no notice
+  it("records only a consent the next load reads back: Turn on waits while Postiz has not named the workspace", () => {
+    const ctx = { ...baseCtx(), cooldown: null };
+    const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
+    const draft = { accounts: [ig], understood: true, practise: true };
+    const roundTrip = (consent: ReturnType<typeof makeConsent>) => sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent }))).consent;
+    // the clean case: what is made is what loads
+    expect(consentProblems(draft, ctx)).toEqual([]);
+    const made = makeConsent(draft, ctx);
+    expect(made).not.toBeNull();
+    expect(roundTrip(made)).toEqual(made);
+    // no workspace from Postiz's /me (null or empty), or no address: Turn on waits, and nothing is made
+    for (const postiz of [{ ...ctx.postiz, organizationId: null }, { ...ctx.postiz, organizationId: "" }, { ...ctx.postiz, baseUrl: "" }]) {
+      expect(consentProblems(draft, { ...ctx, postiz }), JSON.stringify(postiz)).toEqual(["workspaceUnknown"]);
+      expect(makeConsent(draft, { ...ctx, postiz })).toBeNull();
+    }
+    // anything else the stored block cannot hold keeps it off too: an account ticked twice, a profile longer than it keeps
+    expect(consentProblems({ ...draft, accounts: [ig, ig] }, ctx)).toEqual(["notRecordable"]);
+    const longName = { ...ctx, postiz: { ...ctx.postiz, channels: ctx.postiz.channels.map((c) => (c.id === "ig-1" ? { ...c, profile: "x".repeat(201) } : c)) } };
+    expect(consentProblems(draft, longName)).toEqual(["notRecordable"]);
+    // once on, a /me answer without the workspace is unknown, not a change: it does not pause; another workspace does
+    const on = world();
+    expect(pauseCheck(on.state, { ...on.ctx, postiz: { ...on.ctx.postiz, organizationId: null } }).pause).toBeNull();
+    expect(pauseCheck(on.state, { ...on.ctx, postiz: { ...on.ctx.postiz, organizationId: "org-2" } }).pause?.reason).toBe("keyChanged");
+  });
+
+  it("asks again when the scope widens, never when it narrows", () => {
+    const consent = baseState().consent!;
+    expect(consentWidens(null, consent)).toBe(true);
+    expect(consentWidens(consent, consent)).toBe(false);
+    expect(consentWidens(consent, { accounts: [consent.accounts[0]] })).toBe(false);
+    expect(consentWidens(consent, { accounts: [{ ...consent.accounts[0], perDay: 2 }] })).toBe(false);
+    expect(consentWidens(consent, { accounts: [{ ...consent.accounts[0], perDay: 4 }] })).toBe(true);
+    expect(consentWidens(consent, { accounts: [{ ...consent.accounts[0], trialPairs: 2 }] })).toBe(true);
+    expect(consentWidens(consent, { accounts: [...consent.accounts, { channelId: "ig-2", platform: "instagram-standalone", profile: "", perDay: 1, trialPairs: 0, youtube: null }] })).toBe(true);
+    expect(consentWidens(consent, { accounts: [{ ...consent.accounts[1], youtube: { type: "unlisted", selfDeclaredMadeForKids: "no" } }] })).toBe(false);
+    expect(consentWidens({ ...consent, accounts: [{ ...consent.accounts[1], youtube: { type: "unlisted", selfDeclaredMadeForKids: "no" } }] }, { accounts: [consent.accounts[1]] })).toBe(true);
+    expect(consentWidens(consent, { accounts: [{ ...consent.accounts[1], youtube: { type: "public", selfDeclaredMadeForKids: "yes" } }] })).toBe(true);
+    expect(consentWidens(consent, { accounts: consent.accounts, version: AUTONOMY_CONSENT_VERSION + 1 })).toBe(true);
+  });
+
+  it("watches its own posts while one is pending or was published in the last 24 hours", () => {
+    expect(watchNeeded([], NOW)).toBe(false);
+    expect(watchNeeded([post({ channelId: "ig-1", at: iso(NOW + H), by: "app" })], NOW)).toBe(true);
+    expect(watchNeeded([post({ channelId: "ig-1", at: iso(NOW - 23 * H), by: "app", state: "PUBLISHED" })], NOW)).toBe(true);
+    expect(watchNeeded([post({ channelId: "ig-1", at: iso(NOW - 25 * H), by: "app", state: "PUBLISHED" })], NOW)).toBe(false);
+    expect(watchNeeded([post({ channelId: "ig-1", at: iso(NOW + H), by: "user" })], NOW)).toBe(false);
+  });
+
+  it("keeps every reason's permanence closed", () => {
+    for (const [k, v] of Object.entries(AUTONOMY_REASONS)) expect(typeof v, k).toBe("boolean");
+    expect(AUTONOMY_REASONS.paused).toBe(false);
+    expect(AUTONOMY_REASONS.missedTime).toBe(true);
+  });
+});
+
+describe("TikTok, at the owner's risk (the owner's answer of 30 Oct 2026)", () => {
+  const IG_TEXT = "Red escapes first. Watch until the end 🔊 #satisfying";
+  const igChannel = { integrationId: "ig-1", platform: "instagram", text: IG_TEXT, settings: { __type: "instagram" }, lane: "normal" as const };
+  const onTikTok = (channels: AutonomyItem["channels"] = [ttChannel()], pass: Partial<NonNullable<AutonomyItem["pass"]>> = {}) => (w: World) => (w.item = stamp({ ...w.item, channels, pass: { ...w.item.pass!, ...pass } }));
+  const tiktokWorld = (choices: AutonomyTikTok | null = TT_PUBLIC, channels?: AutonomyItem["channels"], then?: (w: World) => void) =>
+    world((w) => {
+      tiktokOn(w, choices);
+      onTikTok(channels)(w);
+      then?.(w);
+    });
+  /** The TikTok settings Postiz gets for `choices`: every field, autoAddMusic "no", nothing else. */
+  const sent = (choices: AutonomyTikTok) => ({ __type: "tiktok", ...choices, autoAddMusic: "no" });
+
+  describe("never without its own tick and every choice made", () => {
+    it("never posts to TikTok while the tick is off, and never on an account without its choices", () => {
+      // the tick off: TikTok is no platform the app may post to, whatever the consent holds
+      refuses((w) => {
+        tiktokOn(w);
+        w.state.consent = { ...w.state.consent!, tiktok: false };
+        onTikTok()(w);
+      }, "platformNotAllowed");
+      // the tick on, the account's choices missing: it waits for the person, and the request is refused outright
+      refuses((w) => {
+        tiktokOn(w, null);
+        onTikTok()(w);
+      }, "tiktokChoices");
+      const missing = tiktokWorld(null);
+      expect(() => requestOfProposal(missing.item, NOW + 75 * MIN, missing.state.consent!)).toThrow(/TikTok choices/);
+      expect(() => requestOfProposal(baseItem({ channels: [ttChannel()] }), NOW + 75 * MIN, baseState().consent!)).toThrow(/TikTok choices/);
+      // branded content on Only me, which TikTok refuses, held in memory however it got there: refused the same way
+      const branded = { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const, brand_content_toggle: true };
+      refuses((w) => {
+        tiktokOn(w, branded);
+        onTikTok()(w);
+      }, "tiktokChoices");
+      const brandedWorld = tiktokWorld(branded);
+      expect(() => requestOfProposal(brandedWorld.item, NOW + 75 * MIN, brandedWorld.state.consent!)).toThrow(/TikTok choices/);
+      // a record held in memory with more than TikTok's choices (a title the text gate never reads, music): only the choices
+      // the request was checked on go out, and nothing else the record carries
+      const extra = { ...TT_PUBLIC, title: "Go viral: link in bio jumpingballs.live", autoAddMusic: "yes", music: { id: "m-1" } } as unknown as AutonomyTikTok;
+      const held = tiktokWorld(extra);
+      expect(outcomeOf(held)).toEqual({ itemId: "it-1", kind: "create", at: NOW + 75 * MIN, request: { clipId: "clip-1", channels: [{ id: "tt-1", platform: "tiktok", text: "Red escapes first. Watch until the end 🔊 #satisfying", settings: sent(TT_PUBLIC) }], when: iso(NOW + 75 * MIN) } });
+      expect(requestOfProposal(held.item, NOW + 75 * MIN, held.state.consent!).channels[0].settings).not.toHaveProperty("title");
+    });
+
+    it("keeps a TikTok account in the stored block only with the tick and every choice, never widened", () => {
+      const ticked = { ...baseState().consent!, tiktok: true, accounts: [...baseState().consent!.accounts, ttAccount()] };
+      const stored = (consent: unknown) => sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent }))).consent;
+      expect(stored(ticked)).toEqual(ticked);
+      // no tick: the TikTok account is dropped, the rest stays
+      expect(stored({ ...ticked, tiktok: false })?.accounts.map((a) => a.channelId)).toEqual(["ig-1", "yt-1"]);
+      expect(stored({ ...ticked, tiktok: "yes" })?.tiktok).toBeUndefined();
+      // a choice missing or not valid, a disclosure on Only me, an inbox record that is not the most private: dropped
+      for (const key of Object.keys(TT_PUBLIC) as (keyof AutonomyTikTok)[]) {
+        const choices: Record<string, unknown> = { ...TT_PUBLIC };
+        delete choices[key];
+        expect(stored({ ...ticked, accounts: [ttAccount(choices as unknown as AutonomyTikTok)] }), key).toBeNull();
+      }
+      expect(stored({ ...ticked, accounts: [ttAccount({ ...TT_PUBLIC, privacy_level: "EVERYONE" as never })] })).toBeNull();
+      expect(stored({ ...ticked, accounts: [ttAccount({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_content_toggle: true })] })).toBeNull();
+      expect(stored({ ...ticked, accounts: [ttAccount({ ...TT_INBOX, privacy_level: "PUBLIC_TO_EVERYONE" })] })).toBeNull();
+      expect(stored({ ...ticked, accounts: [ttAccount(TT_INBOX)] })?.accounts[0].tiktok).toEqual(TT_INBOX);
+      // TikTok's choices on any other account: dropped
+      expect(stored({ ...ticked, accounts: [{ ...baseState().consent!.accounts[0], tiktok: TT_PUBLIC }] })).toBeNull();
+    });
+  });
+
+  describe("with them, it posts within every cap and pause", () => {
+    it("creates a TikTok post with every TikTok field from the consent, and nothing the proposal sent", () => {
+      // the page or the model set TikTok's own fields and a title on the proposal: none of them goes out
+      const w = tiktokWorld(TT_PUBLIC, [ttChannel({ settings: { __type: "tiktok", privacy_level: "SELF_ONLY", comment: false, duet: true, video_made_with_ai: false, title: "Watch this", autoAddMusic: "yes" } })]);
+      expect(outcomeOf(w)).toEqual({ itemId: "it-1", kind: "create", at: NOW + 75 * MIN, request: { clipId: "clip-1", channels: [{ id: "tt-1", platform: "tiktok", text: IG_TEXT, settings: sent(TT_PUBLIC) }], when: iso(NOW + 75 * MIN) } });
+      // with Instagram in the same item
+      const both = tiktokWorld(TT_PUBLIC, [igChannel, ttChannel()]);
+      expect(outcomeOf(both)).toMatchObject({ kind: "create", request: { channels: [{ id: "ig-1", settings: { __type: "instagram", post_type: "post" } }, { id: "tt-1", settings: sent(TT_PUBLIC) }] } });
+      expect(eligibilityProblems(both.item, both.state, both.ctx)).toEqual([]);
+    });
+
+    it("is what the card would send for the same choices, and the inbox sends only the most private values", () => {
+      const w = tiktokWorld(TT_FOLLOWERS);
+      const at = NOW + 75 * MIN;
+      const draft: CardDraft = { clipId: "clip-1", channels: [{ id: "tt-1", platform: "tiktok", name: "jbl", text: IG_TEXT, settings: { __type: "tiktok", ...TT_FOLLOWERS, autoAddMusic: "no" } }], when: { kind: "now" } };
+      expect(requestOfProposal(w.item, at, w.state.consent!)).toEqual({ ...toRequest(draft), when: iso(at) });
+      // the inbox: Postiz forwards only the caption, and still checks its fields, filled with Only me and every switch off
+      const inbox = tiktokWorld(TT_INBOX);
+      expect(requestOfProposal(inbox.item, at, inbox.state.consent!).channels[0].settings).toEqual({ __type: "tiktok", content_posting_method: "UPLOAD", privacy_level: "SELF_ONLY", comment: false, duet: false, stitch: false, brand_organic_toggle: false, brand_content_toggle: false, video_made_with_ai: false, autoAddMusic: "no" });
+      // an inbox account held with other values in memory still sends the most private ones
+      const loose = { ...inbox.state.consent!, accounts: inbox.state.consent!.accounts.map((a) => (a.platform === "tiktok" ? { ...a, tiktok: { ...TT_INBOX, privacy_level: "PUBLIC_TO_EVERYONE" as const, comment: true } } : a)) };
+      expect(requestOfProposal(inbox.item, at, loose).channels[0].settings).toMatchObject({ privacy_level: "SELF_ONLY", comment: false });
+    });
+
+    it("keeps the day's cap, the spacing, the words, the card's rules, the practice day and every pause on TikTok", () => {
+      // two posts a day on tt-1: a third waits
+      const capped = tiktokWorld(TT_PUBLIC, undefined, (w) => (w.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW - 4 * H), by: "app", state: "PUBLISHED" }), post({ channelId: "tt-1", at: iso(NOW - 2 * H), by: "outside", state: "PUBLISHED" })]));
+      expect(outcomeOf(capped)).toMatchObject({ kind: "wait", block: "dayFull" });
+      // 20 minutes on both sides of a person's post on tt-1
+      const spaced = tiktokWorld(TT_PUBLIC, undefined, (w) => {
+        w.item = stamp({ ...w.item, pass: { ...w.item.pass!, window: null } });
+        w.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW + 80 * MIN) })];
+      });
+      expect(outcomeOf(spaced)).toMatchObject({ kind: "wait", block: "spacing" });
+      // the text gate and the card's caption limit
+      const words = tiktokWorld(TT_PUBLIC, [ttChannel({ text: "Follow for more!" })]);
+      expect(reasonsOf(words)).toContain("words");
+      refuses((w) => {
+        tiktokOn(w);
+        onTikTok([ttChannel({ text: `Red escapes first. ${"a".repeat(2200)}` })])(w);
+      }, "cardRules");
+      // Postiz's TikTok provider takes 2000 characters, and POST /posts refuses more before it creates anything: a refused
+      // create of its own would pause everything, so 2001 to 2200 wait for the person too
+      const caption = (length: number) => tiktokWorld(TT_PUBLIC, [ttChannel({ text: `Red escapes first. ${"a".repeat(length - "Red escapes first. ".length)}` })]);
+      expect(outcomeOf(caption(2000)).kind).toBe("create");
+      expect(outcomeOf(caption(2001))).toMatchObject({ kind: "wait", final: true, card: [{ key: "postizProblemTextLong", params: { max: 2000 }, channelId: "tt-1" }] });
+      // and if one is refused all the same, it is named, not an unknown text
+      const refused = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW - H), by: "app", state: "ERROR", error: JSON.stringify({ statusCode: 400, provider: "tiktok", name: "jbl", message: "post is too long, please fix it" }), platform: "tiktok", seenAt: iso(NOW - MIN) })];
+      });
+      expect(pauseCheck(refused.state, refused.ctx).pause?.reason).toBe("ownPostFailed");
+      // the practice day: shown, never sent
+      const practice = tiktokWorld(TT_PUBLIC, undefined, (w) => {
+        w.state.consent!.at = iso(NOW - 3 * H);
+        w.ctx.postiz = { ...w.ctx.postiz, keySavedAt: iso(NOW - D) };
+      });
+      expect(decide(practice).items).toEqual([{ itemId: "it-1", kind: "practise", at: NOW + 75 * MIN }]);
+      // Pause posting, and an Instagram warning, stop TikTok too
+      const userPaused = tiktokWorld(TT_PUBLIC, undefined, (w) => (w.state.pause = { reason: "user", at: iso(NOW - H), until: null, channelId: null }));
+      expect(outcomeOf(userPaused)).toMatchObject({ kind: "wait", reasons: ["paused"], final: false });
+      const igWarning = tiktokWorld(TT_PUBLIC, undefined, (w) => (w.ctx.posts = [post({ channelId: "ig-1", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram blocked your request", platform: "instagram", seenAt: iso(NOW - MIN) })]));
+      const d = decide(igWarning);
+      expect(d.check.pause).toMatchObject({ reason: "accountHealth", channelId: "ig-1" });
+      expect(d.items.some((o) => o.kind === "create")).toBe(false);
+    });
+
+    it("holds at most 5 posts waiting in the TikTok inbox in any 24 hours: a sixth is refused", () => {
+      const inbox = (n: number) =>
+        tiktokWorld(TT_INBOX, undefined, (w) => {
+          w.state.consent!.accounts = w.state.consent!.accounts.map((a) => (a.platform === "tiktok" ? { ...a, perDay: 5 } : a));
+          w.ctx.posts = Array.from({ length: n }, (_, i) => post({ channelId: "tt-1", at: iso(NOW - (i + 1) * H), by: "outside", state: "PUBLISHED" }));
+        });
+      expect(AUTONOMY_TIKTOK_PENDING_MAX).toBe(5);
+      expect(outcomeOf(inbox(AUTONOMY_TIKTOK_PENDING_MAX - 1)).kind).toBe("create");
+      expect(outcomeOf(inbox(AUTONOMY_TIKTOK_PENDING_MAX))).toMatchObject({ kind: "wait", reasons: ["missedTime"], final: true, block: "tiktokPending" });
+      // on the profile, the same posts leave the account's own cap to decide
+      const profile = tiktokWorld(TT_PUBLIC, undefined, (w) => {
+        w.state.consent!.accounts = w.state.consent!.accounts.map((a) => (a.platform === "tiktok" ? { ...a, perDay: 5 } : a));
+        w.ctx.posts = Array.from({ length: 4 }, (_, i) => post({ channelId: "tt-1", at: iso(NOW - (i + 1) * H), by: "outside", state: "PUBLISHED" }));
+      });
+      expect(outcomeOf(profile).kind).toBe("create");
+    });
+  });
+
+  describe("its part splits off where it may not go, and the rest goes on", () => {
+    it("sends a test's or a check's TikTok part only to an account consented for Everyone on the profile", () => {
+      // Postiz gets a post id only for a post TikTok publishes for public viewing: Followers, Friends, Only me and the inbox get
+      // no numbers
+      expect([TT_PUBLIC, TT_FOLLOWERS, { ...TT_PUBLIC, privacy_level: "MUTUAL_FOLLOW_FRIENDS" as const }, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const }, TT_INBOX].map(tiktokScored)).toEqual([true, false, false, false, false]);
+      const test = { role: "test" as const, testId: "n3.length.standard.short", arm: "short" };
+      expect(outcomeOf(tiktokWorld(TT_PUBLIC, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], test))).kind).toBe("create");
+      for (const choices of [TT_FOLLOWERS, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const }, TT_INBOX]) {
+        const w = tiktokWorld(choices, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], test));
+        expect(outcomeOf(w), choices.privacy_level).toEqual({ itemId: "it-1", kind: "split", channels: ["tt-1"], reasons: ["tiktokUnscored"] });
+        // a check's old clip too; a check's new clip and a best clip are the best settings, and go to any TikTok account
+        expect(outcomeOf(tiktokWorld(choices, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], { role: "check", testId: "c4.n3.length.standard.short", arm: "old" }))).kind).toBe("split");
+        expect(outcomeOf(tiktokWorld(choices, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], { role: "check", testId: "c4.n3.length.standard.short", arm: "new" }))).kind).toBe("create");
+        expect(outcomeOf(tiktokWorld(choices, [igChannel, ttChannel()])).kind).toBe("create");
+      }
+      // a TikTok-only test item on such an account waits for the person as a whole
+      refuses((w) => {
+        tiktokOn(w, TT_FOLLOWERS);
+        onTikTok([ttChannel()], test)(w);
+      }, "tiktokUnscored");
+      // at proposePass, the same rule splits it off before it is stamped
+      const ticked = { ...baseState().consent!, tiktok: true, accounts: [...baseState().consent!.accounts, ttAccount(TT_FOLLOWERS)] };
+      const channels = [igChannel, ttChannel()];
+      expect(splitChannels(channels, ticked, { part: { role: "test", arm: "short", overlayKinds: [] }, now: NOW }).person.map((c) => c.integrationId)).toEqual(["tt-1"]);
+      expect(splitChannels(channels, ticked, { part: { role: "best", overlayKinds: [] }, now: NOW }).person).toEqual([]);
+    });
+
+    it("lets the rest go on the next tick once the main process split the part off", () => {
+      const test = { role: "test" as const, testId: "n3.length.standard.short", arm: "short" };
+      const w = tiktokWorld(TT_FOLLOWERS, [igChannel, ttChannel()], onTikTok([igChannel, ttChannel()], test));
+      expect(outcomeOf(w).kind).toBe("split");
+      const kept = withoutChannels(w.item, ["tt-1"], sha)!;
+      expect(kept.channels.map((c) => c.integrationId)).toEqual(["ig-1"]);
+      const part: AutonomyItem = { ...w.item, id: "it-1-tt", channels: [ttChannel()], splitFrom: "it-1" };
+      const next = tiktokWorld(TT_FOLLOWERS, undefined, (x) => {
+        x.item = kept;
+        x.ctx.queue = [kept, part];
+      });
+      expect(outcomeOf(next)).toMatchObject({ kind: "create", request: { channels: [{ id: "ig-1" }] } });
+      expect(outcomeOf(next, "it-1-tt")).toMatchObject({ kind: "wait", final: true });
+      expect(reasonsOf({ ...next, item: part })).toContain("splitOff");
+      // an item changed since its stamp is never stamped again as the app's own
+      expect(withoutChannels({ ...w.item, channels: [{ ...igChannel, text: "Red escapes at last." }, ttChannel()] }, ["tt-1"], sha)).toBeNull();
+    });
+
+    it("keeps a file with the site's address or its end card off TikTok, and judges the same file on Instagram as before", () => {
+      for (const kinds of [["hook", "cutUrl"], ["payoff", "endCard"], null]) {
+        const label = String(kinds);
+        refuses((w) => {
+          tiktokOn(w);
+          onTikTok()(w);
+          w.clip = baseClip({ overlayKinds: kinds });
+        }, "tiktokWebAddress");
+        const mixed = tiktokWorld(TT_PUBLIC, [igChannel, ttChannel()], (w) => (w.clip = baseClip({ overlayKinds: kinds })));
+        expect(outcomeOf(mixed), label).toEqual({ itemId: "it-1", kind: "split", channels: ["tt-1"], reasons: ["tiktokWebAddress"] });
+        expect(outcomeOf(world((w) => (w.clip = baseClip({ overlayKinds: kinds })))).kind, label).toBe("create");
+      }
+    });
+
+    it("splits only the TikTok parts off while TikTok is paused, and Instagram and YouTube keep going", () => {
+      const paused = (w: World) => (w.state = tiktokPaused(w.state, { reason: "app", at: iso(NOW - 10 * MIN), until: null, channelId: "tt-1" }));
+      expect(outcomeOf(tiktokWorld(TT_PUBLIC, [igChannel, ttChannel()], paused))).toEqual({ itemId: "it-1", kind: "split", channels: ["tt-1"], reasons: ["tiktokPaused"] });
+      refuses((w) => {
+        tiktokOn(w);
+        onTikTok()(w);
+        paused(w);
+      }, "tiktokPaused");
+      const ig = world((w) => {
+        tiktokOn(w);
+        paused(w);
+      });
+      expect(decide(ig)).toMatchObject({ status: "on", items: [{ kind: "create" }] });
+      // after Resume TikTok, a TikTok part made before it never goes out on its own; one made after does
+      const back = tiktokResumed(tiktokPaused(baseState(), { reason: "app", at: iso(NOW - 2 * H), until: null, channelId: "tt-1" }), NOW - 30 * MIN);
+      const state = { ...back, consent: { ...back.consent!, tiktok: true, accounts: [...back.consent!.accounts, ttAccount()] } };
+      expect(tiktokPartProblems("tt-1", { role: "best", createdAt: iso(NOW - H), overlayKinds: [] }, state, NOW)).toEqual(["tiktokPaused"]);
+      expect(tiktokPartProblems("tt-1", { role: "best", createdAt: iso(NOW - 10 * MIN), overlayKinds: [] }, state, NOW)).toEqual([]);
+      expect(tiktokPartProblems("ig-1", { role: "test", overlayKinds: null }, state, NOW)).toEqual([]);
+    });
+  });
+
+  describe("a TikTok error pauses TikTok alone", () => {
+    const ownTikTok = post({ channelId: "tt-1", postId: "own-tt", at: iso(NOW + 70 * MIN), by: "app", state: "QUEUE" });
+    const ownInstagram = post({ channelId: "ig-1", postId: "own-ig", at: iso(NOW + 80 * MIN), by: "app", state: "QUEUE" });
+    const personsTikTok = post({ channelId: "tt-1", postId: "person-tt", at: iso(NOW + 100 * MIN), by: "user", state: "QUEUE" });
+    const failure = (error: string | null, by: AccountPost["by"] = "user") => post({ channelId: "tt-1", postId: `failed-${by}`, at: iso(NOW - H), by, state: "ERROR", error, platform: "tiktok", seenAt: iso(NOW - MIN) });
+    const sentences = (...kinds: string[]) => POSTIZ_ERRORS.filter((e) => e.platform === "tiktok" && kinds.includes(e.kind)).map((e) => e.message);
+
+    it("pauses TikTok for 48 hours on its warnings and its day's limit, on a person's post, and removes only its own TikTok posts there", () => {
+      const warnings = sentences("accountHealth", "dailyLimit");
+      expect(warnings).toHaveLength(5);
+      for (const error of warnings) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error), ownTikTok, ownInstagram, personsTikTok];
+        });
+        const check = pauseCheck(w.state, w.ctx);
+        expect(check.pause, error).toBeNull();
+        expect(check.tiktokPause, error).toEqual({ reason: /daily|pending/.test(error) ? "dailyLimit" : "accountHealth", at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "tt-1" });
+        expect(check.deleteOwn, error).toEqual([{ channelId: "tt-1", postId: "own-tt" }]);
+        // recorded: Resume TikTok waits 48 hours, then one press
+        const s = tiktokPaused(w.state, check.tiktokPause!);
+        expect(tiktokResumeProblems(s, w.ctx), error).toEqual(["cooldown"]);
+        const later = NOW + AUTONOMY_HEALTH_COOLDOWN_MS + MIN;
+        expect(tiktokResumeProblems(s, { ...w.ctx, now: later, postizNow: later }), error).toEqual([]);
+        // its own still-scheduled TikTok posts there go on every tick of the 48 hours, and only those
+        expect(pauseCheck(s, { ...w.ctx, now: NOW + 5 * MIN, postizNow: NOW + 5 * MIN })).toEqual({ off: null, pause: null, deleteOwn: [{ channelId: "tt-1", postId: "own-tt" }] });
+      }
+      // "only tell me" covers TikTok too
+      const tell = world((x) => {
+        tiktokOn(x);
+        x.state.deleteOnWarning = false;
+        x.ctx.posts = [failure(warnings[0]), ownTikTok];
+      });
+      expect(pauseCheck(tell.state, tell.ctx)).toMatchObject({ pause: null, tiktokPause: { reason: "accountHealth" }, deleteOwn: [] });
+    });
+
+    it("keeps Instagram and YouTube going while TikTok pauses, already on the tick that finds the warning", () => {
+      const ttItem = baseItem({ id: "it-tt", clipId: "clip-2", video: "job:j2", when: iso(NOW + 80 * MIN), channels: [ttChannel()] });
+      const w = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [failure("Account banned from posting, please check TikTok account status")];
+        x.ctx.queue = [x.item, ttItem];
+      });
+      const clips = new Map([
+        ["clip-1", baseClip()],
+        ["clip-2", baseClip({ id: "clip-2", overlayKinds: ["hook"] })],
+      ]);
+      const d = decideAutonomy(w.state, w.ctx, clips);
+      expect(d.status).toBe("on");
+      expect(d.check.tiktokPause?.reason).toBe("accountHealth");
+      expect(d.items.find((o) => o.itemId === "it-1")?.kind).toBe("create");
+      expect(d.items.find((o) => o.itemId === "it-tt")).toMatchObject({ kind: "wait", final: true, reasons: ["tiktokPaused"] });
+      // the switch's Resume leaves TikTok's pause as it is
+      const s = tiktokPaused(w.state, d.check.tiktokPause!);
+      expect(resumed(s, NOW).tiktok).toEqual(s.tiktok);
+    });
+
+    it("pauses TikTok until Resume TikTok on the account or the app to fix, on its rate limit, and asks the privacy again on a mismatch", () => {
+      const fixes = sentences("accountFix", "app", "rateLimit");
+      expect(fixes.length).toBeGreaterThanOrEqual(7);
+      // TikTok's rate limit is on the account's own access token, not on the app Postiz uses: it has a reason of its own
+      expect(sentences("rateLimit")).toEqual(["TikTok API rate limit exceeded, please try again later"]);
+      for (const error of fixes) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error), ownTikTok];
+        });
+        const check = pauseCheck(w.state, w.ctx);
+        const kind = POSTIZ_ERRORS.find((e) => e.message === error)!.kind;
+        expect(check.pause, error).toBeNull();
+        expect(check.tiktokPause, error).toEqual({ reason: kind === "accountFix" ? "accountFix" : kind === "rateLimit" ? "rateLimit" : error === TIKTOK_APP_PRIVATE_ONLY ? "appPrivateOnly" : "app", at: iso(NOW), until: null, channelId: "tt-1" });
+        expect(check.deleteOwn, error).toEqual([]);
+        const s = tiktokPaused(w.state, check.tiktokPause!);
+        expect(tiktokResumeProblems(s, w.ctx), error).toEqual([]);
+        // the account still needing a reconnect in Postiz: not yet
+        const off = { ...w.ctx, postiz: { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "tt-1" ? { ...l, refreshNeeded: true } : l)) } };
+        expect(tiktokResumeProblems(s, off), error).toEqual(["accountDisabled"]);
+      }
+      // a privacy level the account does not offer: TikTok's choices for it are made again before Resume TikTok
+      const w = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [failure("Privacy level mismatch, please check privacy settings", "app")];
+      });
+      const check = pauseCheck(w.state, w.ctx);
+      expect(check).toMatchObject({ pause: null, tiktokPause: { reason: "privacy", channelId: "tt-1" } });
+      const s = tiktokPaused(w.state, check.tiktokPause!);
+      expect(tiktokResumeProblems(s, w.ctx)).toEqual(["tiktokChoices"]);
+      const chosenAgain = { ...s, consent: { ...s.consent!, at: iso(NOW + MIN) } };
+      expect(tiktokResumeProblems(chosenAgain, { ...w.ctx, now: NOW + 2 * MIN, postizNow: NOW + 2 * MIN })).toEqual([]);
+    });
+
+    it("reads an ERROR with no text on a TikTok account needing a reconnect as the account to fix, and anything else of its own as everything's", () => {
+      const reconnect = (w: World) => (w.ctx.postiz = { ...w.ctx.postiz, channels: LIVE.map((l) => (l.id === "tt-1" ? { ...l, refreshNeeded: true } : l)) });
+      const noText = world((x) => {
+        tiktokOn(x);
+        reconnect(x);
+        x.ctx.posts = [failure(null, "app")];
+      });
+      expect(pauseCheck(noText.state, noText.ctx)).toMatchObject({ pause: null, tiktokPause: { reason: "accountFix", channelId: "tt-1" } });
+      // the account fine in Postiz: an ERROR with no text pauses everything (fail closed)
+      const fine = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [failure(null, "app")];
+      });
+      expect(pauseCheck(fine.state, fine.ctx).pause?.reason).toBe("unknownError");
+      // a TikTok media error on its own post pauses everything, as on every platform
+      const media = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [failure("Video duration is invalid, please check video specifications", "app")];
+      });
+      expect(pauseCheck(media.state, media.ctx).pause?.reason).toBe("ownPostFailed");
+      expect(pauseCheck(media.state, media.ctx).tiktokPause).toBeUndefined();
+      // the account off or needing a reconnect, with no post: TikTok's account to fix, not a warning about every account
+      const off = world((x) => {
+        tiktokOn(x);
+        reconnect(x);
+      });
+      expect(pauseCheck(off.state, off.ctx)).toMatchObject({ pause: null, tiktokPause: { reason: "accountFix", channelId: "tt-1" } });
+      expect(resumeProblems({ ...off.state, pause: { reason: "user", at: iso(NOW - H), until: null, channelId: null } }, off.ctx)).toEqual([]);
+      // without the TikTok tick, a TikTok account is nobody's: its own TikTok error pauses everything
+      const unticked = world((x) => (x.ctx.posts = [failure("Account banned from posting, please check TikTok account status", "app")]));
+      expect(pauseCheck(unticked.state, unticked.ctx).pause?.reason).toBe("ownPostFailed");
+    });
+
+    // "To stop only TikTok, untick it": unticking narrows (the consent's date stays, its TikTok accounts go), and an error
+    // TikTok's own pause took on an earlier tick is still TikTok's, so Instagram and YouTube go on
+    it("keeps an error TikTok's own pause took as TikTok's after TikTok is unticked", () => {
+      const igItem = baseItem({ id: "it-ig", clipId: "clip-ig", video: "job:ig" });
+      for (const [error, reason] of [
+        ["TikTok API rate limit exceeded, please try again later", "rateLimit"],
+        ["TikTok daily user limit reached, please re-connect your account", "app"],
+        ["TikTok detected potential spam", "accountHealth"],
+      ] as const) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [post({ channelId: "tt-1", postId: "own-failed", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error, platform: "tiktok", seenAt: iso(NOW - 90 * MIN) }), ownTikTok];
+        });
+        const first = pauseCheck(w.state, w.ctx);
+        expect(first.pause, error).toBeNull();
+        expect(first.tiktokPause?.reason, error).toBe(reason);
+        const recorded = tiktokPaused(w.state, first.tiktokPause!);
+        const narrowed = { ...recorded.consent!, tiktok: undefined, accounts: recorded.consent!.accounts.filter((a) => a.platform !== "tiktok") };
+        expect(consentWidens(recorded.consent, narrowed), error).toBe(false);
+        const unticked = { ...recorded, consent: narrowed };
+        const later = { ...w.ctx, now: NOW + 5 * MIN, postizNow: NOW + 5 * MIN, queue: [igItem] };
+        const check = pauseCheck(unticked, later);
+        expect(check.pause, error).toBeNull();
+        expect(check.tiktokPause, error).toBeUndefined();
+        // a warning's own still-scheduled TikTok posts still go while its 48 hours run
+        expect(check.deleteOwn, error).toEqual(reason === "accountHealth" ? [{ channelId: "tt-1", postId: "own-tt" }] : []);
+        const d = decideAutonomy(unticked, later, new Map([["clip-ig", baseClip({ id: "clip-ig" })]]));
+        expect(d.status, error).toBe("on");
+        expect(d.items, error).toMatchObject([{ itemId: "it-ig", kind: "create" }]);
+      }
+      // one TikTok's state never took (TikTok unticked before any tick read it) is the switch's, as any failed post of its own
+      const early = world((x) => (x.ctx.posts = [post({ channelId: "tt-1", at: iso(NOW - 2 * H), by: "app", state: "ERROR", error: "TikTok API rate limit exceeded, please try again later", platform: "tiktok", seenAt: iso(NOW - 90 * MIN) })]));
+      expect(pauseCheck(early.state, early.ctx).pause?.reason).toBe("ownPostFailed");
+      // and a media error on its own TikTok post stays everything's, taken or not
+      const media = world((x) => {
+        tiktokOn(x);
+        x.state = tiktokPaused(x.state, { reason: "app", at: iso(NOW), until: null, channelId: "tt-1" });
+        x.ctx.posts = [failure("Video duration is invalid, please check video specifications", "app")];
+      });
+      expect(pauseCheck(media.state, media.ctx).pause?.reason).toBe("ownPostFailed");
+    });
+
+    // the reconnect ends what made it the account to fix, not what TikTok's pause took
+    it("keeps an ERROR with no text read as the account to fix as TikTok's once the account is reconnected, and after Resume TikTok", () => {
+      const reconnecting = LIVE.map((l) => (l.id === "tt-1" ? { ...l, refreshNeeded: true } : l));
+      for (const by of ["app", "user"] as const) {
+        const w = world((x) => {
+          tiktokOn(x);
+          x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting };
+          x.ctx.posts = [post({ channelId: "tt-1", postId: `no-text-${by}`, at: iso(NOW - 2 * H), by, state: "ERROR", error: null, platform: "tiktok", seenAt: iso(NOW - 90 * MIN) })];
+        });
+        const first = pauseCheck(w.state, w.ctx);
+        expect(first, by).toMatchObject({ pause: null, tiktokPause: { reason: "accountFix", channelId: "tt-1" } });
+        const recorded = tiktokPaused(w.state, first.tiktokPause!);
+        // reconnected in Postiz, 30 minutes later: neither pause is new, and Resume TikTok is one press
+        const fixed = { ...w.ctx, now: NOW + 30 * MIN, postizNow: NOW + 30 * MIN, postiz: { ...w.ctx.postiz, channels: LIVE } };
+        expect(pauseCheck(recorded, fixed), by).toEqual({ off: null, pause: null, deleteOwn: [] });
+        expect(tiktokResumeProblems(recorded, fixed), by).toEqual([]);
+        expect(resumeProblems({ ...recorded, pause: { reason: "user", at: iso(NOW - H), until: null, channelId: null } }, fixed), by).toEqual([]);
+        // after Resume TikTok too
+        const back = tiktokResumed(recorded, NOW + 35 * MIN);
+        expect(pauseCheck(back, { ...fixed, now: NOW + 40 * MIN, postizNow: NOW + 40 * MIN }), by).toEqual({ off: null, pause: null, deleteOwn: [] });
+      }
+    });
+
+    // Postiz shows a disconnect with its sentence and marks the channel as needing a reconnect on the same read
+    // (post.activity.ts handleDisconnect); only a refresh-token failure comes back with no text
+    it("reads a disconnect as Postiz shows it: its sentence and the channel needing a reconnect at once", () => {
+      const reconnecting = (id: string) => LIVE.map((l) => (l.id === id ? { ...l, refreshNeeded: true } : l));
+      // TikTok's daily user limit: TikTok's own app pause, until the account is reconnected and Resume TikTok is pressed
+      const tt = world((x) => {
+        tiktokOn(x);
+        x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting("tt-1") };
+        x.ctx.posts = [failure("TikTok daily user limit reached, please re-connect your account", "app"), ownTikTok, ownInstagram];
+      });
+      const ttCheck = pauseCheck(tt.state, tt.ctx);
+      expect(ttCheck).toEqual({ off: null, pause: null, deleteOwn: [], tiktokPause: { reason: "app", at: iso(NOW), until: null, channelId: "tt-1" } });
+      const ttPaused = tiktokPaused(tt.state, ttCheck.tiktokPause!);
+      expect(tiktokResumeProblems(ttPaused, tt.ctx)).toEqual(["accountDisabled"]);
+      expect(tiktokResumeProblems(ttPaused, { ...tt.ctx, postiz: { ...tt.ctx.postiz, channels: LIVE } })).toEqual([]);
+      // Instagram's log-in checkpoint, on a person's post: a warning about the account, everything for 48 hours, and its own
+      // still-scheduled posts there removed
+      const ig = world((x) => {
+        x.ctx.postiz = { ...x.ctx.postiz, channels: reconnecting("ig-1") };
+        x.ctx.posts = [post({ channelId: "ig-1", postId: "person-ig", at: iso(NOW - H), by: "user", state: "ERROR", error: "Instagram requires you to log in at instagram.com and follow its instructions before posting can resume. After that, please reconnect this channel.", platform: "instagram", seenAt: iso(NOW - MIN) }), ownInstagram];
+      });
+      expect(pauseCheck(ig.state, ig.ctx)).toEqual({ off: null, pause: { reason: "accountHealth", at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "ig-1" }, deleteOwn: [{ channelId: "ig-1", postId: "own-ig" }] });
+    });
+
+    // social.abstract.ts's media sentences on TikTok's upload: a person's failed post pauses nothing, one of its own pauses
+    // everything as a failed post of its own (never as an unknown text)
+    it("knows the media sentences of TikTok's upload: a person's failed post pauses nothing", () => {
+      for (const error of ["Could not determine the media size for upload", "The media for this post is not in the upload directory, so it was not published"]) {
+        const person = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error)];
+        });
+        expect(pauseCheck(person.state, person.ctx), error).toEqual({ off: null, pause: null, deleteOwn: [] });
+        const own = world((x) => {
+          tiktokOn(x);
+          x.ctx.posts = [failure(error, "app")];
+        });
+        expect(pauseCheck(own.state, own.ctx).pause?.reason, error).toBe("ownPostFailed");
+      }
+    });
+
+    it("keeps TikTok's 48 hours through Off and a new consent, in the stored block too", () => {
+      const w = world((x) => {
+        tiktokOn(x);
+        x.ctx.posts = [failure("TikTok detected potential spam")];
+      });
+      const s = tiktokPaused(w.state, pauseCheck(w.state, w.ctx).tiktokPause!);
+      const cooldown = { at: iso(NOW), until: iso(NOW + AUTONOMY_HEALTH_COOLDOWN_MS), channelId: "tt-1" };
+      expect(s.tiktok).toEqual({ pause: { reason: "accountHealth", at: iso(NOW), until: cooldown.until, channelId: "tt-1" }, cooldown, resumedAt: null });
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify(s)))).toEqual(s);
+      const off = turnedOff(s);
+      expect(off.tiktok).toEqual({ pause: null, cooldown, resumedAt: null });
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify(off))).tiktok).toEqual({ pause: null, cooldown, resumedAt: null });
+      // on again within the 48 hours: TikTok pauses for the rest of them, and Instagram goes on
+      const again = { ...off, consent: { ...s.consent!, at: iso(NOW + 50 * MIN) }, lastRunAt: iso(NOW + 55 * MIN) };
+      const tick = { ...w.ctx, now: NOW + H, postizNow: NOW + H };
+      expect(pauseCheck(again, tick)).toMatchObject({ pause: null, tiktokPause: { reason: "accountHealth", until: cooldown.until, channelId: "tt-1" } });
+    });
+  });
+
+  describe("the consent screen", () => {
+    const ctx = () => ({ ...baseCtx(), cooldown: null });
+    const ig = { channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs: 1, youtube: null };
+    const tt = (tiktok: TikTokChoicesDraft | null = TT_PUBLIC) => ({ channelId: "tt-1", platform: "tiktok" as const, profile: "", perDay: 2, trialPairs: 0, youtube: null, tiktok });
+
+    it("offers TikTok accounts only after the TikTok tick, none ticked, and TikTok Business never", () => {
+      expect(tickableChannels(LIVE).waits.map((c) => c.id)).toContain("tt-1");
+      const { tickable, waits } = tickableChannels(LIVE, true);
+      expect(tickable.map((c) => c.id)).toEqual(["ig-1", "yt-1", "ig-2", "tt-1"]);
+      expect(waits.map((c) => c.id)).toEqual(["tb-1", "fb-1"]);
+    });
+
+    it("turns on only with the tick, a TikTok account and every TikTok choice made, with no Branded content on Only me", () => {
+      expect(consentProblems({ accounts: [ig, tt()], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
+      expect(consentProblems({ accounts: [ig, tt()], understood: true, practise: true }, ctx())).toEqual(["tiktokOff"]);
+      expect(consentProblems({ accounts: [ig], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokNoAccount"]);
+      expect(consentProblems({ accounts: [ig, tt(null)], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokChoices"]);
+      for (const key of Object.keys(TT_PUBLIC) as (keyof AutonomyTikTok)[]) {
+        const choices: Partial<AutonomyTikTok> = { ...TT_PUBLIC };
+        delete choices[key];
+        expect(consentProblems({ accounts: [tt(choices)], understood: true, practise: true, tiktok: true }, ctx()), key).toEqual(["tiktokChoices"]);
+      }
+      // TikTok's rule is Branded content's (content sharing guidelines 3b): never Only me. Your brand may be Only me, which an
+      // app TikTok has not audited allows alone, and Branded content may be Followers
+      const turnOn = (choices: Partial<AutonomyTikTok>) => consentProblems({ accounts: [tt(choices)], understood: true, practise: true, tiktok: true }, ctx());
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_content_toggle: true })).toEqual(["tiktokBrandedPrivate"]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_content_toggle: true, brand_organic_toggle: true })).toEqual(["tiktokBrandedPrivate"]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_organic_toggle: true })).toEqual([]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "FOLLOWER_OF_CREATOR", brand_content_toggle: true })).toEqual([]);
+      expect(turnOn({ ...TT_PUBLIC, privacy_level: "SELF_ONLY" })).toEqual([]);
+      // recorded as chosen, kept by the stored block, and sent as chosen
+      const ownBrand: AutonomyTikTok = { ...TT_PUBLIC, privacy_level: "SELF_ONLY", brand_organic_toggle: true };
+      const made = makeConsent({ accounts: [tt(ownBrand)], understood: true, practise: true, tiktok: true }, ctx())!;
+      expect(made.accounts[0].tiktok).toEqual(ownBrand);
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent).toEqual(made);
+      const w = tiktokWorld(ownBrand);
+      expect(requestOfProposal(w.item, NOW + 75 * MIN, w.state.consent!).channels[0].settings).toEqual(sent(ownBrand));
+      // TikTok Business is never allowed, whatever it is called
+      expect(consentProblems({ accounts: [{ ...tt(), channelId: "tb-1" }], understood: true, practise: true, tiktok: true }, ctx())).toContain("accountNotAllowed");
+    });
+
+    // TikTok's content sharing guidelines 3a and 4: the label TikTok puts on the posts, the declaration line, and the hint
+    // that keeps Turn on disabled while Yes is picked with neither option
+    it("says the label TikTok puts on the posts and its declaration line, and waits while Yes is picked with neither option", () => {
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC })).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_organic_toggle: true })).toEqual({ label: "promotional", declaration: "musicUsage", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_content_toggle: true })).toEqual({ label: "paidPartnership", declaration: "brandedContent", pickOne: false });
+      expect(tiktokDisclosureOf({ ...TT_PUBLIC, brand_organic_toggle: true, brand_content_toggle: true })).toEqual({ label: "paidPartnership", declaration: "brandedContent", pickOne: false });
+      expect(tiktokDisclosureOf(null)).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      // the inbox asks nothing of it here: TikTok asks it in its own app
+      expect(tiktokDisclosureOf({ content_posting_method: "UPLOAD", brand_content_toggle: true })).toEqual({ label: null, declaration: "musicUsage", pickOne: false });
+      // "Does it promote something": Yes, and neither option picked
+      const yes = { ...TT_PUBLIC, disclosure: true };
+      expect(tiktokDisclosureOf(yes).pickOne).toBe(true);
+      expect(consentProblems({ accounts: [tt(yes)], understood: true, practise: true, tiktok: true }, ctx())).toEqual(["tiktokDisclosure"]);
+      const picked = { ...yes, brand_organic_toggle: true };
+      expect(consentProblems({ accounts: [tt(picked)], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
+      // what the screen asked is not recorded: the two toggles are
+      expect(makeConsent({ accounts: [tt(picked)], understood: true, practise: true, tiktok: true }, ctx())!.accounts[0].tiktok).toEqual({ ...TT_PUBLIC, brand_organic_toggle: true });
+      expect(consentProblems({ accounts: [tt({ ...TT_PUBLIC, disclosure: false })], understood: true, practise: true, tiktok: true }, ctx())).toEqual([]);
+    });
+
+    it("records the tick and each account's choices, with the inbox's most private values filled in, as the next load reads them", () => {
+      const draft = { accounts: [ig, tt({ content_posting_method: "UPLOAD" })], understood: true, practise: true, tiktok: true };
+      expect(consentProblems(draft, ctx())).toEqual([]);
+      const made = makeConsent(draft, ctx())!;
+      expect(made.tiktok).toBe(true);
+      expect(made.accounts[1]).toEqual({ channelId: "tt-1", platform: "tiktok", profile: "jbl", perDay: 2, trialPairs: 0, youtube: null, tiktok: TT_INBOX });
+      expect(made.accounts[0]).not.toHaveProperty("tiktok");
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent).toEqual(made);
+      expect(makeConsent({ accounts: [ig], understood: true, practise: true }, ctx())).not.toHaveProperty("tiktok");
+      // the inbox picked after other choices: the screen hides them, so they are not read, and the most private values are
+      // recorded (a stored record that says otherwise is still dropped)
+      for (const before of [{ privacy_level: "PUBLIC_TO_EVERYONE" as const }, { comment: true }, TT_PUBLIC, { ...TT_PUBLIC, privacy_level: "SELF_ONLY" as const, brand_content_toggle: true }]) {
+        const switched = { accounts: [ig, tt({ ...before, content_posting_method: "UPLOAD" })], understood: true, practise: true, tiktok: true };
+        expect(consentProblems(switched, ctx()), JSON.stringify(before)).toEqual([]);
+        expect(makeConsent(switched, ctx())!.accounts[1].tiktok, JSON.stringify(before)).toEqual(TT_INBOX);
+        expect(consentWidens(made, { accounts: makeConsent(switched, ctx())!.accounts, tiktok: true }), JSON.stringify(before)).toBe(false);
+      }
+    });
+
+    it("asks again on ticking TikTok, a new TikTok account and any change to a TikTok choice, never on unticking it", () => {
+      const consent = { ...baseState().consent!, tiktok: true, accounts: [...baseState().consent!.accounts, ttAccount()] };
+      const plain = baseState().consent!;
+      expect(consentWidens(consent, consent)).toBe(false);
+      expect(consentWidens(plain, { accounts: plain.accounts, tiktok: true })).toBe(true);
+      expect(consentWidens(plain, { accounts: [...plain.accounts, ttAccount()], tiktok: true })).toBe(true);
+      for (const [key, value] of [["content_posting_method", "UPLOAD"], ["privacy_level", "SELF_ONLY"], ["comment", false], ["duet", true], ["stitch", false], ["brand_organic_toggle", true], ["brand_content_toggle", true], ["video_made_with_ai", false]] as const) {
+        const changed = key === "content_posting_method" ? TT_INBOX : { ...TT_PUBLIC, [key]: value };
+        expect(consentWidens(consent, { accounts: [...plain.accounts, ttAccount(changed)], tiktok: true }), key).toBe(true);
+      }
+      // unticking TikTok, its accounts left out, narrows
+      expect(consentWidens(consent, { accounts: plain.accounts })).toBe(false);
+      expect(consentWidens(consent, { accounts: plain.accounts, tiktok: false })).toBe(false);
+    });
+  });
+});
+
+describe("the limits it shares with the learner, and what the main process bundles", () => {
+  // the consent's most Trial Reel pairs and the pair's gap were copies of learnerRules.ts's numbers: raising the learner's
+  // most to 3 kept every test green while a consent naming 3 pairs was refused and, stored, dropped its account
+  it("lets a consent name every number of Trial Reel pairs the learner's settings hold, and no more", () => {
+    const most = resolveLearner({ pairsPerDay: 99 }).pairsPerDay;
+    expect(most).toBe(PAIRS_PER_DAY_MAX);
+    const ctx = { ...baseCtx(), cooldown: null };
+    const ig = (trialPairs: number) => ({ channelId: "ig-1", platform: "instagram" as const, profile: "", perDay: 3, trialPairs, youtube: null });
+    for (let pairs = 0; pairs <= most; pairs++) {
+      const draft = { accounts: [ig(pairs)], understood: true, practise: true };
+      expect(consentProblems(draft, ctx), `${pairs} pairs`).toEqual([]);
+      const made = makeConsent(draft, ctx);
+      expect(made?.accounts[0].trialPairs, `${pairs} pairs`).toBe(pairs);
+      expect(sanitizeAutonomy(JSON.parse(JSON.stringify({ ...baseState(), consent: made }))).consent, `${pairs} pairs`).toEqual(made);
+    }
+    expect(consentProblems({ accounts: [ig(most + 1)], understood: true, practise: true }, ctx)).toEqual(["trialPairs"]);
+  });
+
+  it("keeps the learner's own gap inside a Trial Reel pair: a sibling exactly that far off leaves the planned time as it is", () => {
+    expect(AUTONOMY_PAIR_GAP_MS).toBe(PAIR_GAP_H * H);
+    const pairA = (w: World, siblingAt: number) => {
+      w.item = stamp({ ...w.item, channels: [trialChannel()], pass: { ...w.item.pass!, role: "trialA", testId: "block:2", pair: 1 } });
+      w.ctx.posts = [post({ channelId: "ig-1", at: iso(siblingAt), by: "app", state: "PUBLISHED", lane: "trialReel", testId: "block:2", pair: 1, clipId: "clip-b" })];
+    };
+    const planned = NOW + 75 * MIN;
+    const apart = world((w) => pairA(w, planned - PAIR_GAP_H * H));
+    expect(scheduleFor(apart.item, apart.state, apart.ctx, NOW)).toEqual({ kind: "at", at: planned });
+    const close = world((w) => pairA(w, planned - PAIR_GAP_H * H + MIN));
+    expect(scheduleFor(close.item, close.state, close.ctx, NOW)).toEqual({ kind: "at", at: planned + MIN });
+  });
+
+  // the learner writes the test ids and the question keys the owner skips; this file cannot import its parser
+  it("reads a test id's questions as the learner's own parser does", () => {
+    const length = { dial: "length" as const, best: "standard", challenger: "short", subject: null };
+    const journey = { dial: "newcomer" as const, best: "rotation", challenger: "newcomer", subject: "get-out-journey" };
+    const ending = { dial: "ending" as const, best: "resolved", challenger: "cliffhanger", subject: null };
+    const block = testIdOf("block", 2, [journey, length]);
+    const ids = [testIdOf("normal", 3, [length]), block, testIdOf("check", 4, [], block), testIdOf("normal", 0, [{ dial: "postTime", best: "spread", challenger: "evening", subject: null }], undefined, 2), testIdOf("block", 5, [ending, length], undefined, 1)];
+    ids.push(testIdOf("check", 1, [], ids[3], 2));
+    for (const id of ids) {
+      const parsed = parseTestId(id);
+      expect(parsed, id).not.toBeNull();
+      expect(testQuestionsOf(id), id).toEqual(parsed!.questions.map((q) => ({ dial: q.dial, key: questionKey(q.dial, q.best, q.challenger, q.subject) })));
+    }
+    for (const id of ["", "block:2", "x1.length.standard.short", "c1.c2.n0.length.standard.short", "n1.length", null, undefined]) expect(testQuestionsOf(id), String(id)).toEqual([]);
+  });
+
+  // the plan's C11 names the stored block AutonomySettings, beside sanitizeAutonomy, for the main process's store and the
+  // consent screen; it was called AutonomyState here, so wiring written from the plan imported a type that did not exist
+  it("exports what the plan's C11 names for its wiring: AutonomySettings, sanitizeAutonomy, the rules and the constants", async () => {
+    const mod: Record<string, unknown> = await import("@/lib/desktop/autonomy");
+    for (const name of ["sanitizeAutonomy", "eligibilityProblems", "autonomyProblems", "laneProblems", "scheduleFor", "requestOfProposal", "tiktokFileProblems"]) expect(typeof mod[name], name).toBe("function");
+    // "tiktok" only while the consent's TikTok tick is on (the owner's answer of 30 Oct 2026)
+    expect(mod.AUTONOMY_PLATFORMS).toEqual(["instagram", "instagram-standalone", "youtube", "tiktok"]);
+    expect(mod.AUTONOMY_TIKTOK_PENDING_MAX).toBe(5);
+    const constants = { AUTONOMY_LEAD_MS: 60 * MIN, AUTONOMY_MAX_LEAD_MS: 90 * MIN, AUTONOMY_TICK_MS: 5 * MIN, AUTONOMY_WATCH_MS: 15 * MIN, AUTONOMY_ITEM_MAX_AGE_MS: D, AUTONOMY_CHANNEL_DAY_MAX: 7, AUTONOMY_HEALTH_COOLDOWN_MS: 2 * D, AUTONOMY_GAP_MS: 2 * D, AUTONOMY_CLOCK_SKEW_MS: 5 * MIN, AUTONOMY_PRACTICE_MS: D };
+    for (const [name, value] of Object.entries(constants)) expect(mod[name], name).toBe(value);
+    expect(typeof mod.AUTONOMY_CONSENT_VERSION).toBe("number");
+    // the block the store keeps, by the plan's name (the type check fails without the export), and no second name for it
+    const stored: AutonomySettings = sanitizeAutonomy(JSON.parse(JSON.stringify(baseState())));
+    expect(stored).toEqual(baseState());
+    const source = readFileSync(path.join(__dirname, "../src/lib/desktop/autonomy.ts"), "utf8");
+    expect(source).toMatch(/^export interface AutonomySettings \{$/m);
+    expect(source).not.toMatch(/\bAutonomyState\b/);
+  });
+
+  // its header says the main process bundles it: values only from the light modules, and nothing heavier comes along
+  it("loads values only from the autopilot's and the card's rules, the error table, the text gate and the learner's rules", async () => {
+    expect(valueImportsOutside("src/lib/desktop/autonomy.ts", ["./autopilot", "./socialCard", "./postizErrors", "./autonomyText", "@/lib/insights/learnerRules"])).toEqual([]);
+    const light = ["autonomy", "autopilot", "contract", "socialCard", "publish", "postizErrors", "autonomyText"].map((f) => `src/lib/desktop/${f}.ts`).concat(["src/lib/publish/platforms.ts", "src/lib/insights/learnerRules.ts"]);
+    const inputs = await mainBundleInputs("src/lib/desktop/autonomy.ts");
+    expect(inputs).toContain("src/lib/insights/learnerRules.ts");
+    expect(inputs.filter((f) => !light.includes(f))).toEqual([]);
+  });
+});
+
+// --- end autonomy ---

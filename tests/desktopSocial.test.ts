@@ -369,16 +369,25 @@ describe("the Postiz approval card", () => {
     expect(attr(branded, "postiz-tt-branded-private")).toBeTruthy();
     expect(branded).toContain(en.Desktop.postizProblemTikTokBrandedPrivate);
     expect(approve(branded)).toContain("disabled");
-    const organic = cardProblems({ clipId: "lib1", channels: [{ ...tt, settings: { ...tiktokReady, privacy_level: "SELF_ONLY", brand_organic_toggle: true } }], when: { kind: "now" } }, NOW);
-    expect(organic.map((p) => p.key)).toEqual(["postizProblemTikTokBrandedPrivate"]);
+    // TikTok's rule is Branded content's alone (its content sharing guidelines): Your brand may be seen by you only, and
+    // Branded content by your followers
+    const organic = renderCard(cardState({ channels: [{ ...tt, settings: { ...tiktokReady, privacy_level: "SELF_ONLY", brand_organic_toggle: true } }] }));
+    expect(problemKeys(organic)).toEqual([]);
+    expect(attr(organic, "postiz-tt-branded-private")).toBeFalsy();
+    expect(approve(organic)).not.toContain("disabled");
+    const both = cardProblems({ clipId: "lib1", channels: [{ ...tt, settings: { ...tiktokReady, privacy_level: "SELF_ONLY", brand_organic_toggle: true, brand_content_toggle: true } }], when: { kind: "now" } }, NOW);
+    expect(both.map((p) => p.key)).toEqual(["postizProblemTikTokBrandedPrivate"]);
+    const followers = cardProblems({ clipId: "lib1", channels: [{ ...tt, settings: { ...tiktokReady, privacy_level: "FOLLOWER_OF_CREATOR", brand_content_toggle: true } }], when: { kind: "now" } }, NOW);
+    expect(followers).toEqual([]);
     const publicBranded = renderCard(cardState({ channels: [{ ...tt, settings: { ...tiktokReady, brand_content_toggle: true } }] }));
     expect(problemKeys(publicBranded)).toEqual([]);
     expect(approve(publicBranded)).not.toContain("disabled");
-    // the caption limit and the title limit
-    expect(cardProblems({ clipId: "lib1", channels: [{ ...tt, text: "x".repeat(2201), settings: { ...tiktokReady, title: "t".repeat(91) } }], when: { kind: "now" } }, NOW).map((p) => [p.key, p.params?.max])).toEqual([
-      ["postizProblemTextLong", 2200],
+    // the caption limit (Postiz's TikTok provider takes 2000 characters, and POST /posts refuses more) and the title limit
+    expect(cardProblems({ clipId: "lib1", channels: [{ ...tt, text: "x".repeat(2001), settings: { ...tiktokReady, title: "t".repeat(91) } }], when: { kind: "now" } }, NOW).map((p) => [p.key, p.params?.max])).toEqual([
+      ["postizProblemTextLong", 2000],
       ["postizProblemTikTokTitle", 90],
     ]);
+    expect(cardProblems({ clipId: "lib1", channels: [{ ...tt, text: "x".repeat(2000), settings: tiktokReady }], when: { kind: "now" } }, NOW)).toEqual([]);
   });
 
   it("YouTube: the title (2 to 100), the visibility and made-for-kids are required with no defaults; the description is the text", () => {
@@ -544,7 +553,7 @@ describe("the Postiz approval card", () => {
     expect(defaultTextFor(item.meta, "tiktok")).toBe("Which floor breaks first?\n\n#glass #asmr");
     expect(defaultTextFor({ title: "T", caption: null, hashtags: [] }, "youtube")).toBe("T");
     const long = defaultTextFor({ title: "T", caption: "word ".repeat(600), hashtags: ["#a"] }, "tiktok");
-    expect(long.length).toBeLessThanOrEqual(2200);
+    expect(long.length).toBeLessThanOrEqual(2000);
     expect(long.endsWith("word")).toBe(true);
     expect(defaultTextFor({ title: "T", caption: "x".repeat(400), hashtags: [] }, "bluesky")).toHaveLength(400); // no known limit
   });

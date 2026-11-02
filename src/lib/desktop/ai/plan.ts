@@ -4,7 +4,7 @@ import type { JsonSchema } from "./jsonSchema";
 import { HASHTAG_MAX_CHARS, fitText, normaliseHashtags } from "./normalise";
 import { languageName } from "./studio";
 import { PLAN_HORIZON_MS, inQuietHours, type PlanClip } from "../autopilot";
-import { captionLimitOf, familyOf, utf8Bytes } from "../socialCard";
+import { POSTIZ_TIKTOK_CAPTION_MAX, captionLimitOf, familyOf, utf8Bytes } from "../socialCard";
 import type { PostizChannel, SocialPostOutcome } from "../contract";
 
 /*
@@ -122,7 +122,8 @@ export function planFinal(clipIds: readonly string[], channelIds: readonly strin
 export function platformGuidance(platform: string): string {
   switch (familyOf(platform)) {
     case "tiktok":
-      return `TikTok: punchy caption, a specific question, 3–6 hashtags, at most ${LIMITS.tiktok.caption} characters.`;
+      // --- autonomy --- Postiz's own TikTok limit, the one checkPlanResult and the card hold the text to (socialCard.ts)
+      return `TikTok: punchy caption, a specific question, 3–6 hashtags, at most ${POSTIZ_TIKTOK_CAPTION_MAX} characters.`;
     case "instagram":
       return `Instagram Reels: keywords in the caption, a question, 5–10 hashtags, at most ${LIMITS.instagram.caption} characters and ${LIMITS.instagram.hashtags} hashtags.`;
     case "youtube":

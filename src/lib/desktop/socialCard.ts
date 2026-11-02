@@ -18,6 +18,12 @@ export const TIKTOK_INTERACTIONS = ["comment", "duet", "stitch"] as const;
 export type TikTokInteraction = (typeof TIKTOK_INTERACTIONS)[number];
 /** TikTok's `title` setting is at most 90 characters. */
 export const TIKTOK_TITLE_MAX = 90;
+/**
+ * --- autonomy --- A TikTok caption through Postiz is at most 2000 characters: its TikTok provider's maxLength (tiktok.provider.ts,
+ * Postiz v2.25.3), which POST /posts checks on every post that is not a draft and refuses past it ("post is too long, please
+ * fix it"). TikTok itself takes 2200 (lib/publish/platforms.ts LIMITS, for the Publish block's own uploads).
+ */
+export const POSTIZ_TIKTOK_CAPTION_MAX = 2000;
 export const YOUTUBE_VISIBILITIES = ["public", "private", "unlisted"] as const;
 export type YouTubeVisibility = (typeof YOUTUBE_VISIBILITIES)[number];
 export const YOUTUBE_TITLE_MIN = 2;
@@ -132,7 +138,7 @@ export function genericFieldsOf(schema: SocialChannelSettings | null | undefined
 export function captionLimitOf(platform: string, schema?: SocialChannelSettings | null): number | null {
   switch (familyOf(platform)) {
     case "tiktok":
-      return LIMITS.tiktok.caption;
+      return POSTIZ_TIKTOK_CAPTION_MAX;
     case "instagram":
       return LIMITS.instagram.caption;
     case "youtube":
@@ -195,6 +201,18 @@ export interface CardProblem {
   channelId?: string;
 }
 
+/**
+ * --- autonomy --- Whether TikTok's settings disclose Branded content (a paid partnership) on Only me, which TikTok refuses: its
+ * content sharing guidelines (updated 4 Aug 2026) say Branded content "can only be configured with visibility as
+ * public/friends", disable Only me for it ("Branded content visibility cannot be set to private") and name no rule for Your brand
+ * alone, so Your brand may go with any audience. Followers is not refused either: TikTok's concrete rules name Only me only, a
+ * private account offers Followers as its widest audience, and TikTok's API names no error for it. The approval card and Fully
+ * autonomous's consent (lib/desktop/autonomy.ts) share this one rule.
+ */
+export function tiktokBrandedPrivate(s: { brand_content_toggle?: unknown; privacy_level?: unknown }): boolean {
+  return s.brand_content_toggle === true && s.privacy_level === "SELF_ONLY";
+}
+
 /** The reasons one channel is not ready. */
 export function channelProblems(channel: CardChannel, generic: GenericField[] = [], schema?: SocialChannelSettings | null): CardProblem[] {
   const out: CardProblem[] = [];
@@ -209,7 +227,7 @@ export function channelProblems(channel: CardChannel, generic: GenericField[] = 
     const s = channel.settings as TikTokSettings;
     if (!s.privacy_level) add("postizProblemTikTokPrivacy");
     if (TIKTOK_INTERACTIONS.some((k) => typeof s[k] !== "boolean")) add("postizProblemTikTokInteractions");
-    if ((s.brand_content_toggle || s.brand_organic_toggle) && s.privacy_level === "SELF_ONLY") add("postizProblemTikTokBrandedPrivate");
+    if (tiktokBrandedPrivate(s)) add("postizProblemTikTokBrandedPrivate");
     if ((s.title ?? "").length > TIKTOK_TITLE_MAX) add("postizProblemTikTokTitle", { max: TIKTOK_TITLE_MAX });
   } else if (family === "youtube") {
     const s = channel.settings as YouTubeSettings;
