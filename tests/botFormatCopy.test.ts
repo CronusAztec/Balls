@@ -3,7 +3,7 @@ import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
-import { FORMAT_COPY_FIELDS, FORMAT_HOOK_FIELDS, FORMAT_PLACEHOLDERS, clipHashtags, formatText, lookCopy, parseHashtags, recipeCopyPath, recipeCopyVars, recipeText, templateName, thingOf, type BotCopy, type BotLocale } from "@/lib/bot/copy";
+import { FORMAT_COPY_FIELDS, FORMAT_HOOK_FIELDS, FORMAT_PLACEHOLDERS, OWN_POST_FIELD, clipHashtags, formatText, lookCopy, parseHashtags, recipeCopyPath, recipeCopyVars, recipeText, templateName, thingOf, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { BOT_FAMILIES, BOT_PLATFORMS, HASHTAG_COUNT, PAYOFF_TYPES, PLATFORMS } from "@/lib/bot/playbook";
 import { defaultSettings } from "@/lib/settings";
 import { evenCaptionLines, planClip, type ClipPlan } from "@/lib/bot/planner";
@@ -262,10 +262,14 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
           expect([locale, format, family, named]).toEqual([locale, format, family, claimOf[family] === format]);
         }
       }
+      // --- templates --- (step 2's acceptance run) a binding with a post of its own (review round 2, 11: ViralBot.ownPosts, pinned in
+      // tests/botTemplates.test.ts) posts its own post's tags first, in place of its format's; these three, every other its format's
+      const ownPosts = allTemplates().filter((x) => x.recipe === null && plannedRecipe(x)?.postKey).map((x) => x.id).sort();
+      expect([locale, ownPosts]).toEqual([locale, ["aim-box", "count-conveyor", "line-up-double-pendulum"]]);
       for (const t of allTemplates().filter((x) => x.recipe === null)) {
         const r = plannedRecipe(t);
         if (!r) continue;
-        const own = parseHashtags(formatText(copy, t.format.id, "hashtags"));
+        const own = parseHashtags(r.postKey ? String(copyPath(copy, `ownPosts.${r.postKey.slice(OWN_POST_FIELD.length)}.hashtags`)) : formatText(copy, t.format.id, "hashtags"));
         for (const platform of BOT_PLATFORMS) {
           const posted = clipHashtags(copy, r, platform);
           const allowed = new Set([...own, PLATFORMS[platform].tag, ...parseHashtags(String(copyPath(copy, "hashtags.common")))].map((x) => x.toLowerCase()));
@@ -322,9 +326,11 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
         expect([locale, t.id, typeof game === "string" && !!games[game]?.name]).toEqual([locale, t.id, true]);
         expect([locale, t.id, templateNameOf(t, COPY[locale], modeName)]).toEqual([locale, t.id, `${base} · ${games[game as string].name}`]);
       }
-      // the Template choice's "Lab game" group: the ready games, each named
+      // the Template choice's "Lab game" group: the ready games, each named (--- templates --- step 2's acceptance run: four since
+      // Tier Climb's hook was hidden for the merges it covers, review round 2, 8; Colour Conquest's parts from the page's run)
       const ready = labGames.filter((t) => t.ready).map((t) => templateNameOf(t, COPY[locale], modeName));
-      expect([locale, ready.length >= 5, new Set(ready).size === ready.length, ready.includes(base)]).toEqual([locale, true, true, false]);
+      expect([locale, labGames.filter((t) => t.ready).map((t) => t.id)]).toEqual([locale, ["lab-game-blueprint", "lab-game-blueprint-ring-breaker", "lab-game-blueprint-plinko-race", "lab-game-blueprint-grow-escape"]]);
+      expect([locale, ready.length === 4, new Set(ready).size === ready.length, ready.includes(base)]).toEqual([locale, true, true, false]);
     }
     expect(templateName(COPY.pl, "Rozbicie", "getOut")).toBe("Rozbicie · Ucieczka");
     expect(templateName(COPY.es, " ", "lineUp")).toBe("En línea");
