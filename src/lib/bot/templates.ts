@@ -461,6 +461,13 @@ export interface ModeBinding {
    * Paddle Keep-Up's GAME OVER under the aim format, whose payoff is a hit.
    */
   payoffType?: PayoffType;
+  /**
+   * --- templates --- (step 2's acceptance run) The claim its own hook and payoff make, where its format's is not what they promise
+   * (crew/clip.ts: what the run must visibly do, what gate G4 and the cold viewer are held to; templateClaimOf): the conveyor's
+   * "7 balls. Will they all get out?", its ALL OUT! banner and its own post all say out under the count format, so a viewer's
+   * honest "out" was a misread and its clip was dropped after the render.
+   */
+  claim?: Claim;
   /** --- templates --- (AI studio step 3) Gerald plays the ball (BotRecipe.character: his face and name; the Simple look draws no label). */
   character?: true;
   /**
@@ -1255,7 +1262,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   multipliers: bind("multipliers", { format: "count", strategy: "finish", tier: "proven", keepHud: null, variants: [["multipliers-board"]], note: "the ball counter at home is the mode's own HUD" }),
   // (--- templates --- AI studio step 4: the plan had both on atEnd, as loops; the code's both end – the conveyor once its last ball is
   // out, Merge Ring 2 s after its final form or an overflow –, so each is timed by its own moment, its run's end inside the clip)
-  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookKey: "own.conveyor", postKey: "ownPost.conveyor", payoffWords: false, hookVars: (s) => ({ count: s.cvMaxBalls }), note: CONVEYOR_OWN_COUNT, scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
+  conveyor: bind("conveyor", later("count", "finish", { generate: conveyorSettings, buckets: ["standard"], hookKey: "own.conveyor", postKey: "ownPost.conveyor", claim: "out", payoffWords: false, hookVars: (s) => ({ count: s.cvMaxBalls }), note: CONVEYOR_OWN_COUNT, scene: () => "a belt at the top drops balls one by one into rings with turning gaps, a counter in the top right corner" })),
   mergeRing: bind("mergeRing", later("count", "finish", { generate: mergeRingSettings, buckets: ["short", "standard"], hookKey: "own.mergeRing", note: "its run ends 2 s after its final form (FINAL FORM): the payoff, not a loop's end; hook 'How far can it merge?'", scene: () => "balls of numbered sizes dropping through a chute into a ring, where two of a size fuse into a bigger one" })),
   // whoWins (the battle family: offered only where the battle family is asked for, as the daily bot's BOT_DEFAULT_FAMILIES)
   race: bind("race", { format: "whoWins", strategy: "finish", tier: "proven", keepHud: null, variants: [["square-race", undefined, COUNT_IN]], note: "it waits for a race whose gate opens within the first second" }),
@@ -1569,8 +1576,12 @@ export function botRecipeById(id: string | null | undefined): BotRecipe | undefi
   return recipeById(id) ?? templateRecipeById(id);
 }
 
-/** The claim a plan's recipe id makes through its template's format (null: not a template). */
+/**
+ * The claim a plan's recipe id makes through its template's format (null: not a template) – --- templates --- (step 2's
+ * acceptance run) its binding's own where it names one (ModeBinding.claim: the conveyor's out).
+ */
 export function templateClaimOf(id: string | null | undefined): Claim | null {
-  return templateById(id)?.format.claim ?? null;
+  const t = templateById(id);
+  return t ? (t.binding.claim ?? t.format.claim) : null;
 }
 // --- end templates ---

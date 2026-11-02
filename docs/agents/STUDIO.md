@@ -94,7 +94,8 @@ argument.
 
 `src/lib/bot/templates.ts` binds each of the 48 modes to one of ten formats. A format promises one thing the run must
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
-and Mode Lab game. 34 of the 48 bindings are ready, as 43 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+and Mode Lab game. A binding whose own hook and payoff promise another thing claims that instead (`ModeBinding.claim`,
+`templateClaimOf`): the conveyor, whose hook asks whether its stated balls all get out, claims out. 34 of the 48 bindings are ready, as 43 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
 experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode or a template's
@@ -132,7 +133,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | | Perfect Fit | | | `fill-perfect-fit`: its box is full for its 0.15 s flash only, then bursts (G2) |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
-| | Conveyor Belt | ALL OUT! and its chord, the last ball out (its mark); its hook states its own count, its post asks whether they all got out | `count-conveyor` | |
+| | Conveyor Belt | ALL OUT! and its chord, the last ball out (its mark); its hook states its own count, its post asks whether they all got out, so it claims out, not count (`ModeBinding.claim`) | `count-conveyor` | |
 | | Merge Ring | | | `count-merge-ring`: its own question under the ring for the whole run |
 | who wins (battle family) | String Battle | the winner | `who-wins-string-battle` | |
 | | Square Racing Grand Prix | | | `who-wins-race`: its 3-2-1-GO opens the gate at 1.8 s (G1) |

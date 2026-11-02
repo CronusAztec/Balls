@@ -256,7 +256,7 @@ export function studioTemplates(input: StudioTemplatesInput, copy: BotCopy) {
         id: t.id,
         mode: t.mode,
         format: t.format.id,
-        claim: t.format.claim,
+        claim: t.binding.claim ?? t.format.claim, // --- studio --- (step 2's acceptance run) a binding's own claim (templateClaimOf)
         family: t.family,
         recipe: t.recipe?.id ?? null,
         strategy: recipe.strategy,

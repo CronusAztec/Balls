@@ -58,6 +58,7 @@ import {
   simplePayoffText,
   stakeNumbersOf,
   templateById,
+  templateClaimOf, // --- templates --- (step 2's acceptance run) a binding's own claim
   templateRecipeById,
   EXPERIMENTAL,
   OUTCOME_FLAG_SETTINGS,
@@ -79,6 +80,7 @@ import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { createEngineForSettings, simulateOutcomeRun, stepPlaybackMs } from "@/lib/simulation/finder";
 import { runFactsSync, runSync, scoreRecipeFor } from "@/lib/insights/score";
 import { CLAIMS, CLAIM_OF_RECIPE, claimSeen, crewClipOfPlan, payoffHoldSec, payoffUndone } from "@/lib/crew/clip";
+import { makesSenseOf } from "@/lib/crew/evidence"; // --- templates --- (step 2's acceptance run) the viewer's read against a binding's own claim
 import { CLARITY, beatStandsOut, beatWashPerSec, clarityOf, counterCutReading, hookPushedOverAction } from "@/lib/crew/clarity";
 import { HUD_FLAGS, MODE_END_BANNERS, endBannersIn, hudsOn } from "@/lib/crew/hudFlags";
 import { intentView, screenView } from "@/lib/crew/dossier";
@@ -482,6 +484,21 @@ describe("the adapter", () => {
       expect(clarityOf(clip).gates.find((g) => g.id === "G4")!.problems).not.toContain("wordsMatchPictureHookElsewhere");
     }
   });
+
+  // --- templates --- (step 2's acceptance run) a binding's own claim: the conveyor's hook ("7 balls. Will they all get out?"), its
+  // ALL OUT! banner and its own post say out under the count format, so the cold viewer's honest "out" read as a misread and the
+  // clip was dropped after its render (the acceptance run's count-conveyor studio)
+  it("gives the crew a binding's own claim where its hook and payoff promise another than its format's: the conveyor's out", () => {
+    expect(BINDINGS.filter((b) => b.claim).map((b) => [b.mode, b.format, b.claim])).toEqual([["conveyor", "count", "out"]]);
+    for (const t of ready) expect([t.id, templateClaimOf(t.id)]).toEqual([t.id, t.id === "count-conveyor" ? "out" : t.format.claim]);
+    const plan = planTemplate("count-conveyor", 1, "reels", { copy, episode: 1, index: 1, world: STUDIO_RENDER_WORLD });
+    const clip = crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec) });
+    expect(clip.claim).toBe("out");
+    expect([claimSeen(clip), clarityOf(clip).pass]).toEqual([true, true]);
+    expect([makesSenseOf("out", clip.claim), makesSenseOf("count", clip.claim)]).toEqual(["yes", "no"]);
+    expect(intentView(clip).text).toMatch(/^clip\.claim: out$/m);
+    expect(studioTemplates({ family: "all" }, copy).templates.find((x) => x.id === "count-conveyor")?.claim).toBe("out");
+  }, 60_000);
 });
 
 /**
