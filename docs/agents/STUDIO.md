@@ -519,6 +519,49 @@ What the run showed:
     in AI studio step 8: below.
   - The fixed version keeps the producer's title that was written for the clip before its fix.
 
+## Step 2's acceptance run
+
+One Simple clip per format, ten formats, each from a template step 2 made ready where one was (in `.agent-out/studio/`, the
+studios named acc2- and acc2b-): planned 3 a studio in the page's world (800 × 450), the panel started with `"wanted":1` at
+Quick depth, Claude playing every role from its `.claude/agents/` file in one conversation (the record says "same context"),
+rendered v3. The who-wins clip asked for the battle family (`"family":"battle"`) and took Territory, whose arena names no
+one; no Fight League. Every render was watermarked jumpingballslive.com, played its payoff at the planned second (0 s off)
+and its planned length, with 0 lagged frames, and passed every gate after the render.
+
+```text
+format     template (platform, locale)                  before      after the render (viewer's read)      Simple  Playbook
+get out    get-out-shatter (reels, en)                  keep        keep (out)                            92      86
+smash      smash-target (tiktok, en)                    keep        drop: misread (hit), rules            97      86
+smash      smash-brick-rebuild (reels, en)              keep        keep (break)                          92      96
+fill       fill-grow (shorts, pl)                       keep        keep (full)                           92      84
+count      count-conveyor (reels, en)                   keep        drop: reviewer (out, claimed count)   91      82
+count      count-conveyor, again after the fix          keep        keep (out)                            91      82
+who wins   who-wins-territory (tiktok, en)              keep        keep (winner)                         97      86
+aim        aim-bullseye (shorts, en)                    keep        keep (hit)                            90      86
+line up    line-up-hoops (reels, en)                    keep        keep (inSync)                         97      86
+on the beat on-the-beat-collide (tiktok, en)            keep        keep (beat)                           92      86
+reveal     reveal-drawing-machine (shorts, es)          keep        keep (picture)                        97      86
+Mode Lab   lab-game-blueprint-ring-breaker (reels, en)  keep        keep (gameRule)                       88      84
+```
+
+What the run showed:
+
+- **Fixed in this run.** The briefs of the Conveyor, Bullseye and Ring Breaker had lost what the skeptic judges by: their
+  intent view ran past its 1,400 characters, and the last resort cut every line to an even share of the whole, 34
+  characters ("beats.end: 22.6 s, 2 s after the …"), leaving 291 characters unused. It now shares the room the short lines
+  leave among the long ones (`clampLines`, tests/crewDossier.test.ts). And the conveyor's hook, banner and post say out
+  while its format claimed count, so the cold viewer's honest "out" was a misread: a binding names its own claim now
+  (`ModeBinding.claim`), and the conveyor's clip, the same clip again, was kept.
+- **Known gaps**, noted and not fixed:
+  - After the render the panel may make two calls a clip (`defaultCalls`), and a retry counts as one: the Target's viewer
+    answered once too long (its line past 80 characters), so the reviewer had no call left and the rules dropped the misread
+    clip without offering a fix. Room for a retry after the render is a change of the caps the owner set (cost).
+  - A cliffhanger cuts before its claim happens: the Target's "Every hit counts. Will it break?" ends with the counter at 1
+    and nothing broken, so a stranger reads the hits, not a break. The Brick Smash cliffhanger read as a break, its bricks
+    falling all along.
+  - The Double Pendulum's own hook ("Same start. Watch them split.") promises a split no claim names, under the line-up
+    format's inSync; a cold viewer can answer notSure at best (makes sense: partly). Not run here.
+
 ## Known gaps
 
 - **A mode's own texts.** Some modes draw texts of their own that no setting switches off. Merge Ring (AI studio step 4) asks
