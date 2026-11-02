@@ -428,12 +428,25 @@ function renderIntent(clip: CrewClip, f: { [K in DossierKey]: DossierValue }, ov
   ];
 }
 
-/** The last resort: every line but the kept ones (the hooks: WORDS_MAX at most) cut to an equal share of the rest (deterministic). */
-function clampLines(text: string, max: number, keep: (line: string) => boolean = () => false): string {
+/**
+ * The last resort: every line but the kept ones (the hooks: WORDS_MAX at most) cut to a share of the room (deterministic).
+ * --- crew --- (step 2's acceptance run) The share is the room the shorter lines leave, shared by the long ones alone: a line that
+ * fits the share keeps whole and gives the rest what it does not use, so only the lines longer than that are cut, and only as far
+ * as the budget needs. An even share of the whole had cut 16 of a Conveyor brief's 39 lines to 34 characters ("beats.end: 22.6 s,
+ * 2 s after the …", a Ring Breaker's payoff without its share of the clip) and left 291 of its 1,400 characters unused.
+ */
+export function clampLines(text: string, max: number, keep: (line: string) => boolean = () => false): string {
   const lines = text.split("\n");
-  const kept = lines.filter(keep);
-  const room = max - (lines.length - 1) - kept.reduce((n, l) => n + l.length, 0);
-  const share = Math.max(12, Math.floor(room / Math.max(1, lines.length - kept.length)));
+  let room = max - (lines.length - 1) - lines.filter(keep).reduce((n, l) => n + l.length, 0);
+  const free = lines.filter((l) => !keep(l)).map((l) => l.length).sort((a, b) => a - b);
+  let left = free.length;
+  let share = Math.max(12, Math.floor(room / Math.max(1, left)));
+  for (const length of free) {
+    if (length > share) break;
+    room -= length;
+    left -= 1;
+    share = Math.max(12, Math.floor(room / Math.max(1, left)));
+  }
   const out = lines.map((l) => (keep(l) || l.length <= share ? l : `${l.slice(0, share - 1)}…`)).join("\n");
   return out.length <= max ? out : out.slice(0, max);
 }

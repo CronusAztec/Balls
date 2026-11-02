@@ -16,6 +16,7 @@ import { planSource, seedSource } from "@/lib/desktop/queueSources";
 import {
   CLAIMS,
   DOSSIER_KEYS,
+  clampLines, // --- crew --- (step 2's acceptance run)
   INTENT_MAX,
   SCREEN_MAX,
   crewClipOfPlan,
@@ -90,6 +91,38 @@ describe("budgets", () => {
       expect([plan.id, text.split("\n").map((l) => l.slice(0, l.indexOf(":")))]).toEqual([plan.id, [...DOSSIER_KEYS]]);
     }
   });
+
+  // --- crew --- (the studio2 acceptance run) the last resort spends the room it trims to: an even share of the whole had cut
+  // 16 of a Conveyor brief's 39 lines to 34 characters ("beats.end: 22.6 s, 2 s after the …") and left 291 of its 1,400 unused
+  it("cuts only the lines too long for the room the others leave, and only as far as the budget needs", () => {
+    const short = Array.from({ length: 10 }, (_, k) => `s${k}: ${"x".repeat(6)}`);
+    const longs = Array.from({ length: 4 }, (_, k) => `l${k}: ${"long words ".repeat(20)}`);
+    const out = clampLines([...short, ...longs].join("\n"), 500);
+    const lines = out.split("\n");
+    expect(out.length).toBeLessThanOrEqual(500);
+    expect(500 - out.length).toBeLessThan(longs.length);
+    expect(lines.slice(0, short.length)).toEqual(short);
+    for (const [k, l] of lines.slice(short.length).entries()) expect([k, l.length, l.endsWith("…"), longs[k].startsWith(l.slice(0, -1))]).toEqual([k, lines[short.length].length, true, true]);
+    // a kept line stays whole, and the rest share what it leaves
+    const kept = clampLines([...short, ...longs].join("\n"), 500, (l) => l.startsWith("l0: "));
+    expect(kept.split("\n")[short.length]).toBe(longs[0]);
+    expect(kept.length).toBeLessThanOrEqual(500);
+  });
+
+  it("keeps a template plan's beats whole beside the studio's other candidates and research", () => {
+    // (the studio's briefs: two other candidates and the research gap; Conveyor, Bullseye and Ring Breaker hit the last resort)
+    for (const id of ["count-conveyor", "aim-bullseye", "lab-game-blueprint-ring-breaker", "lab-game-blueprint"]) {
+      const p = planTemplate(id, 1, "reels", { copy, episode: 1, index: 1, world: { width: 800, height: 450 } });
+      const c = crewClipOfPlan(p, { run: runSync(p.settings, p.seed, p.world, p.recipe, p.timing.clipSec) });
+      const alone = intentView(c).text.split("\n");
+      const text = intentView(c, { others: others.slice(0, 2), research }).text;
+      expect([id, text.length <= INTENT_MAX]).toEqual([id, true]);
+      for (const key of ["clip.template", "beats.payoff", "beats.end", "run.finish"]) {
+        const line = (t: string[]) => t.find((l) => l.startsWith(`${key}: `));
+        expect([id, line(text.split("\n"))]).toEqual([id, line(alone)]);
+      }
+    }
+  }, 120_000);
 });
 
 describe("trims the others before the clip's own words", () => {
