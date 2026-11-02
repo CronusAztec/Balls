@@ -11,7 +11,6 @@ import { findPerfectFitRun } from "@/lib/simulation/perfectFitFinder"; // --- te
 import { randomStarSet, seededRandom as starRandom, serializeStars, starSetScore } from "@/lib/physics/starChords"; // --- templates --- (AI studio step 5: Chord Stars' sets, the finder's own kind)
 import { transitOnBeat } from "@/lib/simulation/ellipseFociFinder"; // --- templates --- (Focus Shot's transit on the beat)
 import { ceilSteps, funnelDescentSteps } from "@/lib/physics/funnelSpin"; // --- templates --- (the vortex's last ring on a bar line)
-import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, type BlueprintCatalogId } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6: Mode Lab's games)
 import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- templates --- (AI studio step 6: the illusion's fixed run length)
 
 /*
@@ -483,7 +482,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | BlueprintCatalogId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | LabGameId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -1028,12 +1027,30 @@ function illusionSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 }
 
 /**
+ * --- templates --- (step 2's acceptance run) The built-in Mode Lab games, by their catalog ids in the catalog's order, each with its
+ * series (the catalog's `meta.family`). Held here, not read from lib/blueprint/catalog, which only Mode Lab's own files import (the
+ * engine and the mode, the renderer, the panel and the page: tests/blueprintSchema.test.ts, "isolation and purity"); importing it
+ * had made the planner one of them. tests/botTemplates.test.ts holds this table to the catalog, id for id and series for series.
+ */
+export const LAB_GAMES = [
+  { id: "hatchery", family: "escape" },
+  { id: "ringBreaker", family: "escape" },
+  { id: "conquer", family: "battle" },
+  { id: "tierClimb", family: "rhythm" },
+  { id: "plinkoRace", family: "rhythm" },
+  { id: "growEscape", family: "escape" },
+] as const satisfies readonly { id: string; family: BotFamily }[];
+/** A built-in Mode Lab game's catalog id (lib/blueprint/catalog BlueprintCatalogId, held to it by tests/botTemplates.test.ts). */
+export type LabGameId = (typeof LAB_GAMES)[number]["id"];
+const LAB_GAME_IDS: readonly LabGameId[] = LAB_GAMES.map((g) => g.id);
+const labGameFamily = (id: LabGameId): BotFamily => LAB_GAMES.find((g) => g.id === id)!.family;
+/**
  * A Mode Lab game as its template plays it: the catalog's entry (`blPreset`), with its own sliders as the catalog sets them. Each
  * is one variant of the Mode Lab's binding (MODE_TEMPLATES.blueprint), its hook the game's own rule (`ViralBot.ownHooks.<id>`), its
  * series the game's own (Colour Conquest is a battle), its payoff the moment its finish rule fires (planner.ts MARK_MODES: the
  * game's end banner, held 1.5 s before its run ends).
  */
-const labGameVariant = (id: BlueprintCatalogId): VariantOwn => ({ patch: { blPreset: id }, family: catalogBlueprint(id).meta.family, hookKey: `own.${id}`, scene: () => LAB_GAME_SCENES[id] });
+const labGameVariant = (id: LabGameId): VariantOwn => ({ patch: { blPreset: id }, family: labGameFamily(id), hookKey: `own.${id}`, scene: () => LAB_GAME_SCENES[id] });
 /**
  * The length each game fills, from when its finish rule fires (bp-check's medians): Glass Hatchery's shell is cleared about 17 s in
  * and Tier Climb's tier 8 about 25 s in, so their seed search found no seed in a short clip (0 of 4 Shorts plans each) – the standard
@@ -1041,20 +1058,20 @@ const labGameVariant = (id: BlueprintCatalogId): VariantOwn => ({ patch: { blPre
  * about 9 s in and Grow or Go ends about 14 s in, so a standard clip took the seeds that drag – four balls waiting 8 s for the last
  * rings, the racers resting 10 s on the bowl's floor for the exit, a ball 4 bounces big after 17 s (watched) – the short length.
  */
-const LAB_GAME_BUCKETS: Readonly<Record<BlueprintCatalogId, readonly LengthBucket[]>> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
+const LAB_GAME_BUCKETS: Readonly<Record<LabGameId, readonly LengthBucket[]>> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
 /**
  * The games hidden after they were watched, each with its reason: Colour Conquest's 24 balls collide and convert each other, and the
  * page's run of them parted from the planner's – rendered twice, its run ended 0.8 s after the plan's finish once, and the other time
  * had two colours left at the clip's end (13 s, the plan's last colour standing 11 s in), so its ending never came (watched). The
  * planner times a payoff on its own run of the seed (docs/agents/STUDIO.md, known gaps: the page's run and the planner's).
  */
-const LAB_GAME_HIDDEN: Readonly<Partial<Record<BlueprintCatalogId, string>>> = {
+const LAB_GAME_HIDDEN: Readonly<Partial<Record<LabGameId, string>>> = {
   conquer: "its 24 balls collide and convert each other, and the page's run parted from the planner's: rendered twice, it ended 0.8 s after the planned finish once and had two colours left at the clip's end the other time (13 s; planned to end 11 s in), so its ending never came (watched)",
   // --- templates --- (studio2 review round 2, 8)
   tierClimb: "no edge of the square is clear for its hook: the game's title block takes the top (G5), where the rain also falls and the first orbs merge into a 2 about 1 s in, and at the bottom the hook hid the moving orbs on 3 of its 4 samples on 9 of 12 plans (1.5 s of its 2; 1 s on the other 3), the merges into 3 and 4 behind \"into a bigger one.\" at 1.6-2.4 s (watched): the hook covers the very thing it describes (crew/clarity.ts hookPushedOverAction)",
 };
 /** What the viewer's screen view sees of each game, in neutral words. */
-const LAB_GAME_SCENES: Readonly<Record<BlueprintCatalogId, string>> = {
+const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
   hatchery: "one ball inside a round shell of glass tiles, six layers deep",
   ringBreaker: "one ball inside eight spinning rings, each with one gap",
   conquer: "balls in four colours bouncing inside a circle",
@@ -1311,7 +1328,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
   // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
   // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)
-  blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: BLUEPRINT_CATALOG_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id), id]) })),
+  blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: LAB_GAME_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id), id]) })),
 };
 
 /** Every binding, in MODE_IDS order. */

@@ -59,6 +59,7 @@ import {
   stakeNumbersOf,
   templateById,
   templateClaimOf, // --- templates --- (step 2's acceptance run) a binding's own claim
+  LAB_GAMES, // --- templates --- (step 2's acceptance run) the Mode Lab games, held to the catalog
   templateRecipeById,
   EXPERIMENTAL,
   OUTCOME_FLAG_SETTINGS,
@@ -483,6 +484,14 @@ describe("the adapter", () => {
       // the hook's author plays the clip's mode (G4)
       expect(clarityOf(clip).gates.find((g) => g.id === "G4")!.problems).not.toContain("wordsMatchPictureHookElsewhere");
     }
+  });
+
+  // --- templates --- (step 2's acceptance run) the planner reads the Mode Lab games from its own table, not from the catalog, which
+  // only Mode Lab's own files import (tests/blueprintSchema.test.ts, isolation and purity): the table is the catalog's, game for game
+  it("holds the Mode Lab games to the catalog: every game, in its order, with its series, one variant each", () => {
+    expect(LAB_GAMES.map((g) => g.id)).toEqual([...BLUEPRINT_CATALOG_IDS]);
+    for (const g of LAB_GAMES) expect([g.id, g.family]).toEqual([g.id, catalogBlueprint(g.id).meta.family]);
+    expect(MODE_TEMPLATES.blueprint.variants.map((v) => v.own?.patch?.blPreset)).toEqual([...BLUEPRINT_CATALOG_IDS]);
   });
 
   // --- templates --- (step 2's acceptance run) a binding's own claim: the conveyor's hook ("7 balls. Will they all get out?"), its
