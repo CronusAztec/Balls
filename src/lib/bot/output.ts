@@ -3,7 +3,8 @@ import { copyString, fillTemplate, reasonValues, type BotCopy } from "./copy";
 import { recipeById, type BotPlatform } from "./playbook";
 import type { ClipPlan, ScoreReason } from "./planner";
 import { coverFrameOf, type CoverFrame } from "./cover"; // --- mode-thumbnails ---
-import { endingsAlternate } from "./templates"; // --- bot-templates --- (studio2 review round 2, 2)
+import { endingsAlternate, templateById, templateNameOf } from "./templates"; // --- bot-templates --- (studio2 review round 2, 2; 25: a template's name)
+import { MODE_IDS } from "@/lib/physics/types"; // --- bot-templates --- (studio2 review round 2, 25)
 
 /*
  * --- viral-bot --- What a rendered (or planned) batch of clips is delivered as – the same files from the Bot section's ZIP
@@ -90,6 +91,39 @@ export function postingStamp(plan: Pick<ClipPlan, "date" | "post">): string {
   return plan.date ? `${plan.date} ${plan.post.time}` : plan.post.time;
 }
 
+// --- bot-templates --- (studio2 review round 2, 25) a clip named in the files as the Bot section names it
+
+/** The site's name of each mode (a mode id → its name), as the Bot section's mode picker shows it. */
+export type ModeNames = Readonly<Partial<Record<string, string>>>;
+
+/** The key of a mode's name in the `Controls` namespace (`Controls.mode<Name>`: "modeClassic"), the Bot section's modeLabel's. */
+export function modeNameKey(mode: string): string {
+  return `mode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`;
+}
+
+/** Every mode's name out of a page's whole messages (`Controls.mode<Name>`); a mode without one is left out. */
+export function botModeNames(messages: Readonly<Record<string, unknown>>): Record<string, string> {
+  const controls = messages.Controls && typeof messages.Controls === "object" ? (messages.Controls as Record<string, unknown>) : {};
+  const names: Record<string, string> = {};
+  for (const mode of MODE_IDS) {
+    const name = controls[modeNameKey(mode)];
+    if (typeof name === "string" && name.trim()) names[mode] = name;
+  }
+  return names;
+}
+
+/**
+ * A clip's name, as the Bot section's row names it: a template's "{Mode name} · {Format name}" (templates.ts templateNameOf:
+ * "Classic · Get out"), a rotation clip its recipe's (`recipes.<key>.name`: "Ring escape"), else its id. `modeNames`: the site's
+ * name of each mode (botModeNames); a mode without one goes by its id, as the panel's would. The manifest keeps the ids.
+ */
+export function clipNameOf(plan: Pick<ClipPlan, "recipe" | "template">, copy: BotCopy, modeNames?: ModeNames): string {
+  const template = templateById(plan.template);
+  if (template) return templateNameOf(template, copy, modeNames?.[template.mode] ?? template.mode);
+  return copyString(copy, `recipes.${recipeById(plan.recipe)?.copyKey ?? plan.recipe}.name`) || plan.recipe;
+}
+// --- end bot-templates ---
+
 /** --- mode-thumbnails --- A clip's cover frame in words: "12.4 s – the payoff on screen". */
 export function coverText(cover: CoverFrame, copy: BotCopy): string {
   return fillTemplate(copyString(copy, "cover.at") || "{sec} s – {why}", { sec: cover.atSec.toFixed(1), why: copyString(copy, `cover.sources.${cover.source}`) || cover.source });
@@ -97,9 +131,10 @@ export function coverText(cover: CoverFrame, copy: BotCopy): string {
 
 /**
  * The caption file of a clip: the caption to paste (it ends with the hashtags), then the posting notes and the details.
- * --- mode-thumbnails --- `renderedSec`: the rendered clip's length, which its cover frame stays inside.
+ * --- mode-thumbnails --- `renderedSec`: the rendered clip's length, which its cover frame stays inside. --- bot-templates ---
+ * (studio2 review round 2, 25) Its recipe line names the clip as the Bot section does (clipNameOf, with `modeNames`), not by its id.
  */
-export function captionFileText(plan: ClipPlan, copy: BotCopy, renderedSec?: number | null): string {
+export function captionFileText(plan: ClipPlan, copy: BotCopy, renderedSec?: number | null, modeNames?: ModeNames): string {
   const lines = [
     plan.post.caption,
     "",
@@ -107,7 +142,7 @@ export function captionFileText(plan: ClipPlan, copy: BotCopy, renderedSec?: num
     `${copyString(copy, "schedule.time") || "Time"}: ${postingStamp(plan)} (${copyString(copy, `platforms.${plan.platform}`) || plan.platform})`,
     plan.post.note,
     `${copyString(copy, "schedule.ending") || "Ending"}: ${copyString(copy, `endings.${plan.ending}`) || plan.ending} · ${copyString(copy, "schedule.score") || "Score"}: ${plan.score}/100`,
-    `${copyString(copy, "schedule.recipe") || "Recipe"}: ${plan.recipe} · seed ${plan.seed}`,
+    `${copyString(copy, "schedule.recipe") || "Recipe"}: ${clipNameOf(plan, copy, modeNames)} · seed ${plan.seed}`, // --- bot-templates --- (studio2 review round 2, 25)
     `${copyString(copy, "cover.label") || "Cover"}: ${coverText(coverFrameOf(plan, renderedSec), copy)}`, // --- mode-thumbnails ---
     plan.shareUrl,
     "",
@@ -165,9 +200,10 @@ const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\s+/g, " ").t
 /**
  * posting-schedule.md: when to post which file, its recipe, ending, score and hook, then the manual steps. --- bot-templates ---
  * (studio2 review round 2, 2) Its intro says the endings alternate only where they do (templates.ts endingsAlternate): never for a
- * chosen ending, nor a template that ends one way only.
+ * chosen ending, nor a template that ends one way only. --- bot-templates --- (studio2 review round 2, 25) Its recipe column names
+ * each clip as the Bot section does (clipNameOf: a template "{Mode name} · {Format name}", by `meta.modeNames`).
  */
-export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform }, rendered: readonly RenderedClip[] = []): string {
+export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform; modeNames?: ModeNames }, rendered: readonly RenderedClip[] = []): string {
   const h = (key: string, fallback: string) => copyString(copy, `schedule.${key}`) || fallback;
   const platform = copyString(copy, `platforms.${meta.platform}`) || meta.platform;
   const out = [
@@ -181,7 +217,7 @@ export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta
   for (const plan of plans) {
     const r = rendered.find((x) => x.id === plan.id);
     const file = r?.file ?? `${clipFileBase(plan)}.mp4`;
-    const recipe = copyString(copy, `recipes.${recipeById(plan.recipe)?.copyKey ?? plan.recipe}.name`) || plan.recipe;
+    const recipe = clipNameOf(plan, copy, meta.modeNames); // --- bot-templates --- (studio2 review round 2, 25)
     out.push(`| ${plan.index} | ${cell(postingStamp(plan))} | ${cell(file)} | ${cell(recipe)} | ${cell(copyString(copy, `endings.${plan.ending}`) || plan.ending)} | ${plan.score} | ${cell(plan.hook)} |`);
   }
   out.push("", `## ${copyString(copy, "manual.title") || "Posting by hand"}`, "", copyString(copy, "manual.steps"), "");
@@ -194,10 +230,13 @@ export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta
   return `${out.join("\n").trim()}\n`;
 }
 
-/** Every text file of a batch (name → contents): a caption file per clip, the manifest and the schedule. */
-export function batchTextFiles(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform; locale: string }, rendered: readonly RenderedClip[] = []): { name: string; text: string }[] {
+/**
+ * Every text file of a batch (name → contents): a caption file per clip, the manifest and the schedule. --- bot-templates ---
+ * (studio2 review round 2, 25) `meta.modeNames` (botModeNames of the page's messages) names a template's clips as the panel does.
+ */
+export function batchTextFiles(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform; locale: string; modeNames?: ModeNames }, rendered: readonly RenderedClip[] = []): { name: string; text: string }[] {
   return [
-    ...plans.map((plan) => ({ name: captionFileName(plan), text: captionFileText(plan, copy, rendered.find((x) => x.id === plan.id)?.durationSec ?? null /* --- mode-thumbnails --- */) })),
+    ...plans.map((plan) => ({ name: captionFileName(plan), text: captionFileText(plan, copy, rendered.find((x) => x.id === plan.id)?.durationSec ?? null /* --- mode-thumbnails --- */, meta.modeNames) })),
     { name: MANIFEST_FILE, text: `${JSON.stringify(buildManifest(plans, copy, meta, rendered), null, 2)}\n` },
     { name: SCHEDULE_FILE, text: scheduleMarkdown(plans, copy, meta, rendered) },
   ];

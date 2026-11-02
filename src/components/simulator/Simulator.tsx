@@ -8,6 +8,7 @@ import { useHeroStill } from "./useHeroStill"; // --- mode-thumbnails ---
 import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish --- finished clips go to the Publish block
 import { loopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings --- (a clip keeps the loop-style words of its run)
 import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
+import { botModeNames } from "@/lib/bot/output"; // --- bot-templates --- (studio2 review round 2, 25)
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
@@ -3355,9 +3356,11 @@ export default function Simulator() {
   );
   const botLocale = useLocale();
   const botMessages = useMessages() as Record<string, unknown>;
+  const botNames = useMemo(() => botModeNames(botMessages), [botMessages]); // --- bot-templates --- (studio2 review round 2, 25)
   const viralBot = useViralBot({
     locale: isBotLocale(botLocale) ? botLocale : "en",
     copy: (botMessages.ViralBot ?? {}) as BotCopy,
+    modeNames: botNames, // --- bot-templates --- (the files name a template's clips as the panel does)
     // --- split-screen --- during a race the page's engine has the first arena's world: the bot's clips play in the single view's
     getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
     applySettings: loadPresetSettings,

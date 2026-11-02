@@ -1604,8 +1604,11 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   `cliffPostQuestion`, `keywords`, `hashtags`, optionally `cliffHook`). `tests/bot.test.ts` checks every recipe against `RANGES`
   for many seeds, the copy in three languages and the safe zone; update the recipe table above and the playbook's §5.
   --- bot-templates --- A new mode needs its binding in `MODE_TEMPLATES` (the type check says so): a format, a strategy the
-  planner can time, settings on their sliders' steps, and a tier; it starts in `EXPERIMENTAL` until its plans pass
-  `tests/botTemplates.test.ts`, and `docs/agents/STUDIO.md`'s table names it.
+  planner can time, settings on their sliders' steps, and a tier. It is ready once its plans pass `tests/botTemplates.test.ts`;
+  until then it waits in `EXPERIMENTAL` with its measured reason, which that test lets join only by a deliberate edit of its
+  shrink-only `EXPERIMENTAL_PINNED` (with a `Test-Change:` trailer), as it does the pinned per-format counts. Its noun goes in
+  `ViralBot.things` in the three messages files (`tests/botFormatCopy.test.ts`), and `docs/agents/STUDIO.md`'s table names it.
+  `docs/agents/MODES.md` rows 63–68 list every point.
 - **Tests and checks** – `tests/bot.test.ts` (recipes vs RANGES, determinism of planClip / planDay, the square race cut
   before its first finisher, Power Layers' hook vs its sequence, the series label and the arena scoreboard, the daily rotation,
   the score item by item, the safe zone, captions and hashtags per locale, the manifest, caption files and schedule),

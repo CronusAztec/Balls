@@ -8,6 +8,7 @@ export { daySlots, resolveBucket } from "./planner"; // --- fl-overhaul --- (Sta
 export { planTemplate, planTemplateSteps } from "./planner";
 export { BOT_LOOKS, MODE_TEMPLATES, SIMPLE_LOOK, TEMPLATE_FORMATS, allTemplates, isBotLook, readyTemplates, templateById, templatePlayOf, type BotLookId, type TemplateInfo } from "./templates"; // (--- bot-templates --- studio2 review round 2, 1–3: templatePlayOf, what --template refuses)
 export { batchTextFiles, buildManifest, captionFileName, reasonText, MANIFEST_FILE, SCHEDULE_FILE, type RenderedClip } from "./output";
+export { botModeNames } from "./output"; // --- bot-templates --- (studio2 review round 2, 25: the dry run names a template's clips as the panel does)
 export { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, RECIPES, isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket } from "./playbook";
 export { BOT_LOCALES, isBotLocale, copyString } from "./copy";
 export { DEFAULT_BOT_WORLD } from "./finderRequest";

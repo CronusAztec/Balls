@@ -7,7 +7,7 @@ import { SITE_SLUG } from "@/lib/site";
 import { zipBlobs } from "@/lib/recording/zip";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import type { BotWorld } from "@/lib/bot/finderRequest";
-import { batchTextFiles, type RenderedClip } from "@/lib/bot/output";
+import { batchTextFiles, type ModeNames, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelLengthAndEnding, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
@@ -72,6 +72,11 @@ export interface UseViralBotOptions {
   locale: BotLocale;
   /** The `ViralBot` namespace of the page's messages. */
   copy: BotCopy;
+  /**
+   * --- bot-templates --- (studio2 review round 2, 25) The site's name of each mode (output.ts botModeNames of the page's messages):
+   * the caption files and the posting schedule name a template's clips "{Mode name} · {Format name}", as the panel does.
+   */
+  modeNames?: ModeNames;
   /** The page engine's world (its canvas in CSS px), null before there is one. */
   getWorld: () => BotWorld | null;
   /** Puts a whole settings object on the page (the preset loader). */
@@ -342,7 +347,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     });
     lastRendered.current = results;
     if (download === "zip" && files.length > 0) {
-      const texts = batchTextFiles(clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale }, results);
+      const texts = batchTextFiles(clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale, modeNames: latest.current.modeNames /* --- bot-templates --- */ }, results);
       const zip = await zipBlobs([...files.map((f) => ({ name: f.name, blob: f.blob })), ...texts.map((t) => ({ name: t.name, blob: new Blob([t.text], { type: "text/plain;charset=utf-8" }) }))]);
       downloadExport(zip, "zip", `${SITE_SLUG}-bot-${plan.date}`);
     }
@@ -411,7 +416,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       textFiles: () => {
         const plan = stateRef.current.plan;
         if (!plan) return [];
-        return batchTextFiles(plan.clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale }, lastRendered.current);
+        return batchTextFiles(plan.clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale, modeNames: latest.current.modeNames /* --- bot-templates --- */ }, lastRendered.current);
       },
       world: () => latest.current.getWorld(),
       // --- paywall-gate ---

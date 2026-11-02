@@ -120,6 +120,23 @@ in `tests/slowMotionPhysics.test.ts` lists the files that read it: add the new o
 
 `<Title>` is the mode's English name (`Merge Ring`).
 
+## The viral templates (the bot, the Template choice and Claude's studio)
+
+Every mode is bound to one of the ten viral formats, so the bot, the website's Template choice and Claude's studio can plan
+its clips (`docs/agents/STUDIO.md`). A binding is ready only when its plans pass the readiness bar in
+`docs/virality-playbook.md` §5 (at least 3 of 4 plan seeds on every platform it is offered on, passing every clarity gate at
+Simple 80 or more and Playbook 75 or more, in en, pl and es) and a watched Simple clip makes sense; otherwise it waits in row
+64 with what was measured.
+
+| # | File | Look for | Add | Caught by |
+| --- | --- | --- | --- | --- |
+| 63 | `src/lib/bot/templates.ts` | `MODE_TEMPLATES`, `<id>: bind("<id>"` | The mode's binding: its format, the strategy that times its payoff and the outcome it waits for (a looping mode never binds to `"finish"`), a settings patch or a seeded generator (`ctx.rng`, every value on its `RANGES` step, no mode default changed) that switches on the context flag its outcome needs, the one HUD it keeps and its scene line. Words of its own go in row 66. | **typed** (`Record<ModeId, ModeBinding>`), and `tests/botTemplates.test.ts` checks its ids, settings and outcomes |
+| 64 | `src/lib/bot/templates.ts` | `EXPERIMENTAL`, `<id>:` | Only for a binding whose plans do not pass yet: its measured reason, over 80 characters. It keeps every template of the binding hidden. | **tested**: `tests/botTemplates.test.ts`, which lets the table only shrink (row 65) |
+| 65 | `tests/botTemplates.test.ts` | `expect(perFormat).toEqual({`, `EXPERIMENTAL_PINNED`, `"<id>"` | The pinned numbers a new binding changes: its format's count in "binds every mode once" and in "binds 48 of 48", the ready bindings and templates beside them, and for a binding in row 64 the mode in `EXPERIMENTAL_PINNED`, the shrink-only list. Each is a deliberate edit of a pinned list: the commit carries `Test-Change: tests/botTemplates.test.ts - <reason>`. | **tested**: these tests fail until then |
+| 66 | `messages/en.json` | `"things": {`, `"<id>":` | `ViralBot.things.<id>`, the one- or two-word noun its format's `{thing}` takes, in `MODE_IDS` order, and the same in `messages/pl.json` and `messages/es.json`. A binding whose run its format's words do not describe adds its own under `ViralBot.ownHooks` and `ViralBot.ownPosts`. Follow `docs/COPY-STYLE.md`. | **tested**: `tests/botFormatCopy.test.ts` (all three locales), `tests/i18nParity.test.ts` |
+| 67 | `docs/agents/STUDIO.md` | `## Every mode's templates`, `\| <Title> \|`, `-<kebab>` | The mode's row in the table, with each of its template ids, ready or waiting, and the counts above the table. | **tested**: `tests/agentStudio.test.ts` (every template id named) |
+| 68 | `docs/virality-playbook.md` | `### The viral templates and the Simple look`, `<Title>` | The binding's measured numbers in §5: the seeds planned, the gates passed, the median Simple and Playbook scores, what the watched clip showed, and the whole table's counts per format; README's bot section has the same counts. | **none** |
+
 ## Checking the mode as you go
 
 - `npm run -s agent -- modes --json '{"mode":"<id>"}'` lists the fields with their defaults, ranges, link keys and whether

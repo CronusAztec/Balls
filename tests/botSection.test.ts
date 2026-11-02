@@ -9,9 +9,10 @@ import pl from "../messages/pl.json";
 import type { BotCopy } from "@/lib/bot/copy";
 import { BOT_PLAN_VERSION, planDay, planDaySteps, planTemplate, resolveBucket, templateDaySlots, dayIndexOf, type ClipPlan } from "@/lib/bot/planner";
 import { botLookLine, chosenTemplate, defaultBotOptions, endingSelect, lengthSelect, lookSwitched, panelLengthAndEnding, panelLook, panelPlanChoice, parseBotOptions, parseBotState, platformSwitched, storedTemplate, templateChoices, templateSwitched } from "@/lib/bot/store";
-import { allTemplates, clarityJudges, endingsAlternate, readyTemplates, templateById, templatePlayOf, templateRecipeById } from "@/lib/bot/templates";
+import { allTemplates, clarityJudges, endingsAlternate, readyTemplates, templateById, templateNameOf, templatePlayOf, templateRecipeById } from "@/lib/bot/templates";
 import { BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, PLATFORMS, recipeBucket } from "@/lib/bot/playbook";
-import { scheduleMarkdown } from "@/lib/bot/output";
+import { batchTextFiles, botModeNames, captionFileText, clipNameOf, scheduleMarkdown } from "@/lib/bot/output";
+import { MODE_IDS } from "@/lib/physics/types";
 import { planClarity, planClarityOf } from "@/lib/bot/clarityLines";
 import { clarityOf, GATES } from "@/lib/crew/clarity";
 import { crewClipOfPlan } from "@/lib/crew/clip";
@@ -275,6 +276,65 @@ describe("the panel offers only what a chosen template plays", () => {
   });
 });
 
+// --- bot-templates --- (studio2 review round 2, 25) posting-schedule.md and the caption files name a template's clips as the panel
+// does, "{Mode name} · {Format name}" in the plan's language, never by the template's id; the manifest keeps the ids
+describe("the files name a clip as the panel does", () => {
+  const controlsName = (m: { Controls: unknown }, mode: string) => (m.Controls as Record<string, string>)[`mode${mode[0].toUpperCase()}${mode.slice(1)}`];
+
+  it("reads every mode's name the panel shows (Controls.mode<Name>) in en, pl and es", () => {
+    for (const m of [en, pl, es]) {
+      const names = botModeNames(m as unknown as Record<string, unknown>);
+      expect(Object.keys(names)).toEqual([...MODE_IDS]);
+      for (const mode of MODE_IDS) expect([mode, names[mode]]).toEqual([mode, controlsName(m, mode)]);
+    }
+    expect(botModeNames({})).toEqual({});
+  });
+
+  it("names every template \"{Mode name} · {Format name}\" by the panel's own name for it, in en, pl and es, no two alike", () => {
+    for (const m of [en, pl, es]) {
+      const c = m.ViralBot as unknown as BotCopy;
+      const names = botModeNames(m as unknown as Record<string, unknown>);
+      const seen = new Set<string>();
+      for (const t of allTemplates()) {
+        const name = clipNameOf({ recipe: t.id, template: t.id }, c, names);
+        expect(name).toBe(templateNameOf(t, c, controlsName(m, t.mode)));
+        expect(name.startsWith(`${controlsName(m, t.mode)} · `), name).toBe(true);
+        expect(name).not.toContain(t.id);
+        seen.add(name);
+      }
+      expect(seen.size).toBe(allTemplates().length);
+    }
+    // without the names, a mode goes by its id, as the panel's would; a rotation clip by its recipe's name, an unknown one by its id
+    const t = templateById("get-out-classic")!;
+    expect(clipNameOf({ recipe: t.id, template: t.id }, copy)).toBe(templateNameOf(t, copy, "classic"));
+    expect(clipNameOf({ recipe: "ring-escape" }, copy)).toBe(en.ViralBot.recipes.ringEscape.name);
+    expect(clipNameOf({ recipe: "nope", template: "nope" }, copy)).toBe("nope");
+  });
+
+  it("writes the template's name in posting-schedule.md and the caption files, the ids in manifest.json", () => {
+    const id = "get-out-classic";
+    for (const [m, locale] of [[en, "en"], [pl, "pl"], [es, "es"]] as const) {
+      const c = m.ViralBot as unknown as BotCopy;
+      const modeNames = botModeNames(m as unknown as Record<string, unknown>);
+      const clips = planDay(DATE, "reels", 2, { copy: c, locale, world, maxSeeds: 4, template: id, look: "simple" }).clips;
+      const name = templateNameOf(templateById(id)!, c, controlsName(m, "classic"));
+      const rows = scheduleMarkdown(clips, c, { date: DATE, platform: "reels", modeNames }).split("\n").filter((l) => /^\| \d+ \|/.test(l));
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.split(" | ")[3]).toBe(name);
+        expect(row).not.toContain(`| ${id} |`);
+      }
+      const recipeLine = `${(c.schedule as Record<string, string>).recipe}: ${name} · seed ${clips[0].seed}`;
+      expect(captionFileText(clips[0], c, null, modeNames).split("\n")).toContain(recipeLine);
+      const files = batchTextFiles(clips, c, { date: DATE, platform: "reels", locale, modeNames });
+      expect(files.find((f) => f.name.endsWith(".txt"))!.text).toContain(recipeLine);
+      expect(files.find((f) => f.name === "posting-schedule.md")!.text).toContain(`| ${name} |`);
+      const manifest = JSON.parse(files.find((f) => f.name === "manifest.json")!.text);
+      expect(manifest.clips.map((x: { recipe: string }) => x.recipe)).toEqual([id, id]);
+    }
+  }, 60_000);
+});
+
 describe("the panel's stored state", () => {
   const options = { copy, locale: "en" as const, family: "all" as const, bucket: "auto" as const, ending: "auto" as const, world, search: false };
 
@@ -464,6 +524,12 @@ describe("viral-bot CLI --template and --look", () => {
       const day = planDay(DATE, "reels", 2, { copy, locale: "en", family: "default", bucket: "auto", ending: "auto", maxSeeds: 4, siteUrl: "https://example.com/Balls", template: "get-out-classic", look: "simple" });
       expect(manifest.clips.map((c: { recipe: string; seed: number }) => [c.recipe, c.seed])).toEqual(day.clips.map((c) => [c.recipe, c.seed]));
       expect(manifest.clips.every((c: { status: string }) => c.status === "planned")).toBe(true);
+      // --- bot-templates --- (studio2 review round 2, 25) the schedule and the caption files name the template as the panel does
+      const name = templateNameOf(templateById("get-out-classic")!, copy, en.Controls.modeClassic);
+      const schedule = fs.readFileSync(path.join(out, "posting-schedule.md"), "utf8");
+      expect(schedule.split("\n").filter((l) => l.includes(` | ${name} | `))).toHaveLength(2);
+      expect(schedule).not.toContain("| get-out-classic |");
+      expect(fs.readFileSync(path.join(out, `${day.clips[0].id}.txt`), "utf8")).toContain(`Recipe: ${name} · seed ${day.clips[0].seed}`);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }

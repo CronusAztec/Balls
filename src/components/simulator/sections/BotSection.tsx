@@ -11,6 +11,7 @@ import { BOT_COUNT_RANGE, botLookLine, chosenTemplate, endingSelect, lengthSelec
 import { reasonValues, type BotCopy } from "@/lib/bot/copy"; // --- insights --- (a countdown by its name, not its code)
 import { TEMPLATE_FORMAT_IDS, TEMPLATE_FORMATS, endingsAlternate, templateById, templateNameOf } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { ModeId } from "@/lib/physics/types";
+import { modeNameKey } from "@/lib/bot/output"; // --- bot-templates --- (studio2 review round 2, 25: the key the files name a mode by)
 import type { BotClarity, BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -46,7 +47,7 @@ export type { BotPanelProps } from "../useViralBot";
 export const BOT_KEYS = ["viralBot"];
 
 function modeLabel(t: Translate, mode: ModeId): string {
-  const key = `mode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`;
+  const key = modeNameKey(mode); // --- bot-templates --- (studio2 review round 2, 25: output.ts botModeNames reads the same key)
   return t.has(key) ? t(key) : mode;
 }
 

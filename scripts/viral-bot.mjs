@@ -221,7 +221,8 @@ async function loadPlanner() {
   return import(pathToFileURL(outfile).href);
 }
 
-const readCopy = (locale) => JSON.parse(fs.readFileSync(path.join(ROOT, "messages", `${locale}.json`), "utf8")).ViralBot;
+const readMessages = (locale) => JSON.parse(fs.readFileSync(path.join(ROOT, "messages", `${locale}.json`), "utf8"));
+const readCopy = (locale) => readMessages(locale).ViralBot;
 
 function writeTextFiles(out, files) {
   for (const f of files) fs.writeFileSync(path.join(out, f.name), f.text);
@@ -660,7 +661,9 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(`Dry run: planning ${opts.count} ${opts.platform} ${what}${opts.look ? ` in the ${opts.look} look` : ""} for ${opts.date} in Node (world ${planner.DEFAULT_BOT_WORLD.width}×${planner.DEFAULT_BOT_WORLD.height}; the render plans again in the page's own world)…`);
     const day = planner.planDay(opts.date, opts.platform, opts.count, { copy, locale: opts.locale, family: opts.family, bucket: opts.bucket, ending: opts.ending, maxSeeds: opts.maxSeeds, siteUrl: process.env.NEXT_PUBLIC_SITE_URL || undefined, ...(opts.template ? { template: opts.template } : {}), ...(opts.look ? { look: opts.look } : {}) /* --- bot-templates --- */ });
     printPlan(day.clips);
-    writeTextFiles(out, planner.batchTextFiles(day.clips, copy, { date: day.date, platform: opts.platform, locale: opts.locale }));
+    // --- bot-templates --- (studio2 review round 2, 25) the files name a template's clips "{Mode name} · {Format name}", as the panel does
+    const modeNames = planner.botModeNames(readMessages(opts.locale));
+    writeTextFiles(out, planner.batchTextFiles(day.clips, copy, { date: day.date, platform: opts.platform, locale: opts.locale, modeNames }));
     console.log(`\nWrote ${day.clips.length} caption file${day.clips.length === 1 ? "" : "s"}, ${planner.MANIFEST_FILE} and ${planner.SCHEDULE_FILE} to ${out}. Nothing rendered, nothing posted.`);
     return 0;
   }
