@@ -526,18 +526,25 @@ describe("today's recipe plans say what their run does", () => {
   // the planner's real search (a few seeds a clip), each plan's seed run again from its settings, in the plan's world
   const plans = RECIPES.flatMap((recipe) => (["resolved", "cliffhanger"] as const).map((ending) => planClip(recipe, 11, "reels", { copy, ending, episode: 4, maxSeeds: 6 })));
 
-  it("one idea, words that match the picture, and a claim the run shows (G3, G4)", () => {
-    let checked = 0;
+  // --- crew --- (the merge of main into AI studio step 2) One test a plan: the 38 plans' runs played again in one test took
+  // 3.2–3.6 s of vitest's 5 s alone, and timed out at 5.5 s under the guard's three workers (Ball Drop's two runs are half of
+  // it). Each plan's own test plays its one run, so a busy machine leaves it room; the count of plans it checks is a test too.
+  describe("one idea, words that match the picture, and a claim the run shows (G3, G4)", () => {
     for (const plan of plans) {
-      const clip = withRun(plan);
-      const c = clarityOf(clip);
-      expect([plan.id, c.gates.find((g) => g.id === "G3")!.problems]).toEqual([plan.id, []]);
-      // a plan whose seed search found no accepted seed may miss its claim: the planner keeps its closest candidate
-      if (!plan.timing.found) continue;
-      checked++;
-      expect([plan.id, c.gates.find((g) => g.id === "G4")!.problems]).toEqual([plan.id, []]);
-      expect([plan.id, claimSeen(clip)]).toEqual([plan.id, true]);
+      it(`${plan.recipe}, ${plan.endingChoice} asked, ${plan.ending} planned (${plan.id})`, () => {
+        const clip = withRun(plan);
+        const c = clarityOf(clip);
+        expect([plan.id, c.gates.find((g) => g.id === "G3")!.problems]).toEqual([plan.id, []]);
+        // a plan whose seed search found no accepted seed may miss its claim: the planner keeps its closest candidate
+        if (!plan.timing.found) return;
+        expect([plan.id, c.gates.find((g) => g.id === "G4")!.problems]).toEqual([plan.id, []]);
+        expect([plan.id, claimSeen(clip)]).toEqual([plan.id, true]);
+      });
     }
-    expect(checked).toBeGreaterThanOrEqual(25);
+
+    it("checks the claim of 25 plans at least: the ones whose seed search found an accepted seed", () => {
+      const checked = plans.filter((plan) => plan.timing.found).length;
+      expect(checked).toBeGreaterThanOrEqual(25);
+    });
   });
 });
