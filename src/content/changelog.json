@@ -1,6 +1,51 @@
 {
   "releases": [
     {
+      "id": "app-1-7-0",
+      "product": "app",
+      "version": "1.7.0",
+      "date": "2026-11-02",
+      "headline": {
+        "en": "Viral templates and the Simple look in the app",
+        "pl": "Szablony viralowe i Prosty wygląd w aplikacji",
+        "es": "Plantillas virales y el Aspecto sencillo en la app"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Clip planner's new Template choice comes to the app, with viral templates for most modes. A chosen template plays in the calm Simple look.",
+            "pl": "Nowy wybór Szablon w Planerze klipów jest teraz w aplikacji, z szablonami viralowymi dla większości trybów. Wybrany szablon gra w spokojnym Prostym wyglądzie.",
+            "es": "La nueva opción Plantilla del Planificador de clips llega a la app, con plantillas virales para la mayoría de los modos. Una plantilla elegida se ve con el tranquilo Aspecto sencillo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Journey's Stage HUD switch and Spiral Glass's Spiral HUD switch come to the app too. Off, they hide the mode's own banners and counters.",
+            "pl": "Przełączniki HUD etapów w Podróży i HUD spirali w Szklanej spirali są też w aplikacji. Wyłączone ukrywają banery i liczniki trybu.",
+            "es": "Los interruptores HUD de etapas de Viaje y HUD de la espiral de Espiral de cristal llegan también a la app. Desactivados, ocultan los carteles y contadores del modo."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "A TikTok text on the approval card now stops at 2,000 characters, the most Postiz takes. Before, a longer text was refused when you sent it.",
+            "pl": "Tekst na TikToka na karcie zatwierdzania kończy się teraz na 2000 znaków, tyle przyjmuje Postiz. Wcześniej dłuższy tekst był odrzucany przy wysyłce.",
+            "es": "Un texto de TikTok en la tarjeta de aprobación se detiene ahora en 2000 caracteres, lo máximo que acepta Postiz. Antes, un texto más largo se rechazaba al enviarlo."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "A TikTok post that promotes your own brand can now be seen by you only. TikTok refuses that only for branded content.",
+            "pl": "Post na TikToka promujący Twoją własną markę może teraz widzieć tylko Ty. TikTok nie pozwala na to tylko przy treściach sponsorowanych.",
+            "es": "Una publicación de TikTok que promociona tu propia marca ya puede verla solo tú. TikTok solo lo rechaza en el contenido de marca."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-17-0",
       "product": "site",
       "version": "1.17.0",

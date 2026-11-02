@@ -7,6 +7,20 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Windows app 1.7.0 · 2026-11-02
+
+Viral templates and the Simple look in the app
+
+### New
+
+- The Clip planner's new Template choice comes to the app, with viral templates for most modes. A chosen template plays in the calm Simple look.
+- Journey's Stage HUD switch and Spiral Glass's Spiral HUD switch come to the app too. Off, they hide the mode's own banners and counters.
+
+### Fixed
+
+- A TikTok text on the approval card now stops at 2,000 characters, the most Postiz takes. Before, a longer text was refused when you sent it.
+- A TikTok post that promotes your own brand can now be seen by you only. TikTok refuses that only for branded content.
+
 ## Website 1.17.0 · 2026-11-02
 
 Viral templates for most modes in the Clip planner
