@@ -3,6 +3,7 @@ import { MZ_E, MZ_N, MZ_S, MZ_W, mazeWallH, mazeWallV } from "@/lib/physics/maze
 import { MZ_PALETTE, mazeBallName, mazeProgress, type MazeView } from "@/lib/physics/modes/maze";
 import type { TeamEntry } from "@/lib/teams";
 import { inCaptionColumn } from "@/lib/captions";
+import { EndBannerLayer, drawEndBannerStrip } from "./endBanner"; // --- end-banner ---
 
 /**
  * Canvas drawing of the Maze escape mode (feature odd-maze; lib/physics/modes/maze.ts), one `MazeLayer` per draw loop,
@@ -80,6 +81,23 @@ const HIT_GLOW_MS = 320;
 /** The fog's clear circle around a ball, in cells. */
 const FOG_RADIUS = 2.6;
 const BANNER_DELAY_MS = 200;
+/**
+ * --- end-banner --- The winner's banner covers the middle of the maze for this long (simulation ms from when it shows); then,
+ * while the others run on, it is a strip under the maze, and the whole banner again once the run is over.
+ */
+export const MAZE_BANNER_FULL_MS = 2200;
+
+/**
+ * --- end-banner --- What the verdict's banner is at simulation time `nowMs`: nothing before the verdict (and for
+ * BANNER_DELAY_MS after it), the whole banner across the maze for MAZE_BANNER_FULL_MS and again once the run is over, a
+ * strip under the maze in between, while the other balls run on.
+ */
+export function mazeBannerPhase(view: Pick<MazeView, "verdict" | "verdictMs" | "finished">, nowMs: number): "none" | "full" | "strip" {
+  if (view.verdict === "") return "none";
+  const age = nowMs - view.verdictMs - BANNER_DELAY_MS;
+  if (age < 0) return "none";
+  return !view.finished && age >= MAZE_BANNER_FULL_MS ? "strip" : "full";
+}
 const FIELD_FILL = "#050807";
 const ENTRANCE_RED = "#ff2b3a";
 
@@ -150,6 +168,10 @@ export class MazeLayer {
   /** The badge and the HUD stayed off the maze and its entrance chute this frame. */
   clear = true;
   bannerDrawn = false;
+  /** --- end-banner --- The banner is the strip under the maze this frame (the others still run), and the boxes for the watermark. */
+  bannerStrip = false;
+  readonly bannerBox = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly endBanner = new EndBannerLayer();
   fogDrawn = false;
   /** Paint strokes stamped into the trail layer this run, and wall flares drawn this frame. */
   stamped = 0;
@@ -580,7 +602,7 @@ export class MazeLayer {
    * (the HUD is off then) – moves the badge to the top-right one. Returns the screen y of the lowest top item that reaches
    * into the captions' centred column (0: none), which the top captions start below.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean; badgeRight?: boolean }): number {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean; badgeRight?: boolean; dtMs?: number }): number {
     const side = Math.min(o.width, o.height);
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
@@ -620,11 +642,14 @@ export class MazeLayer {
     if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, sx + side / 2, side)) topBottom = this.badgeBottom;
     if (this.hudDrawn && inCaptionColumn(this.hudX, this.hudW, sx + side / 2, side)) topBottom = Math.max(topBottom, this.hudBottom);
     this.bannerDrawn = false;
+    this.bannerStrip = false;
     // (with a roster the teams banner announces a team's win once the run is over; a ball past the six teams keeps this one)
-    if (view.verdict !== "" && !(frame.teamBanner && view.finished && view.winner < view.teamCount) && o.nowMs - view.verdictMs >= BANNER_DELAY_MS) {
-      this.drawBanner(ctx, view, sx + side / 2, sy + side * 0.46, side, o);
+    const phase = mazeBannerPhase(view, o.nowMs);
+    if (phase !== "none" && !(frame.teamBanner && view.finished && view.winner < view.teamCount)) {
+      this.drawBanner(ctx, view, sx, sy, side, o, frame.dtMs ?? 0, phase === "strip");
       this.bannerDrawn = true;
     }
+    this.endBanner.endFrame();
     ctx.restore();
     return topBottom;
   }
@@ -789,48 +814,40 @@ export class MazeLayer {
     }
   }
 
-  private drawBanner(ctx: CanvasRenderingContext2D, view: MazeView, cx: number, cy: number, side: number, o: MazeRenderOptions) {
+  /**
+   * --- end-banner --- The verdict: the shared end banner (endBanner.ts: the winner's colour on a dark plate, the time and the
+   * deadpan caption under it) across the middle of the maze while it is news – MAZE_BANNER_FULL_MS – and once the run is over;
+   * in between, while the other balls run on, one line on a strip under the maze, so the race stays in view.
+   */
+  private drawBanner(ctx: CanvasRenderingContext2D, view: MazeView, sx: number, sy: number, side: number, o: MazeRenderOptions, dtMs: number, strip: boolean) {
     const L = o.labels;
-    const k = Math.min(1, Math.max(0, o.nowMs - view.verdictMs - BANNER_DELAY_MS) / 260);
-    const pop = k >= 1 ? 1 : 0.6 + 0.4 * k + 0.15 * Math.sin(k * Math.PI);
     const winner = view.winner;
     const name = winner >= 0 ? this.nameOf(winner) : "";
     const title = view.verdict === "time" ? L.timeUp : L.wins(name);
     const sub = view.verdict === "time" ? L.closest(name) : L.time((view.verdictMs / 1000).toFixed(1));
     const color = winner >= 0 ? this.colorOf(winner) : "#ffffff";
-    let fs = Math.max(18, 0.07 * side);
-    ctx.font = this.font(fs, 900);
-    const tw = ctx.measureText(title).width;
-    if (tw > 0.86 * side) fs *= (0.86 * side) / tw;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(pop, pop);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.font = this.font(fs, 900);
-    ctx.lineWidth = Math.max(3, 0.14 * fs);
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
-    ctx.strokeText(title, 0, 0);
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
-    ctx.fillText(title, 0, 0);
-    ctx.shadowBlur = 0;
-    const sfs = 0.42 * fs;
-    ctx.font = this.font(sfs, 700);
-    ctx.lineWidth = Math.max(2, 0.16 * sfs);
-    ctx.strokeText(sub, 0, 0.95 * fs);
-    ctx.fillStyle = "#e4e4e7";
-    ctx.fillText(sub, 0, 0.95 * fs);
-    // The deadpan caption.
-    const cfs = 0.36 * fs;
-    ctx.font = `italic ${this.font(cfs, 600)}`;
-    ctx.lineWidth = Math.max(2, 0.16 * cfs);
-    ctx.strokeText(L.caption, 0, 1.75 * fs);
-    ctx.fillStyle = "rgba(228, 228, 231, 0.75)";
-    ctx.fillText(L.caption, 0, 1.75 * fs);
-    ctx.restore();
+    const cx = sx + side / 2;
+    const box = this.bannerBox;
+    if (strip) {
+      // under the maze, between the watermark's corners (the badge is at most 30 % of the side wide)
+      const f = view.field;
+      const cy = Math.min(sy + 0.965 * side, Math.max(f.top + f.height + 0.03 * side, sy + 0.94 * side));
+      drawEndBannerStrip(ctx, `${title} · ${sub}`, color, cx, cy, side, 0.4 * side, box);
+      this.bannerStrip = true;
+      return;
+    }
+    const words = this.endBanner.text;
+    words.title = title;
+    words.sub = sub;
+    words.note = L.caption;
+    words.color = color;
+    const lay = this.endBanner.layout(ctx, words, side);
+    const cy = sy + 0.46 * side;
+    this.endBanner.draw(ctx, words, cx, cy, side, dtMs);
+    box.x = cx - lay.width / 2;
+    box.y = cy - lay.height / 2;
+    box.w = lay.width;
+    box.h = lay.height;
   }
 }
 

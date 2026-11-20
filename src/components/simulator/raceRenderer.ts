@@ -105,6 +105,23 @@ export function exportRaceOptions(race: CanvasRaceOptions | null | undefined, pa
 }
 
 /**
+ * --- end-banner --- The rows of the list under the podium (two racers a row), as shares of the square's side: the first
+ * row's centre line, the step between rows and the font size. The list ends by PODIUM_REST_BOTTOM, above the strip the
+ * watermark badge of an export sits in (its top is 92.3 % down the square: lib/watermark/layout.ts), so the badge never
+ * covers a name; four rows (ten racers and more) stand closer together in smaller letters.
+ */
+export const PODIUM_REST_TOP = 0.832;
+export const PODIUM_REST_BOTTOM = 0.918;
+export function podiumRestRows(racers: number): { y0: number; step: number; fs: number } {
+  const rows = Math.max(1, Math.ceil(racers / 2));
+  const fsMax = 0.026;
+  // the last row's letters end at y0 + (rows − 1) · step + fs / 2
+  const step = rows > 1 ? Math.min(0.03, (PODIUM_REST_BOTTOM - PODIUM_REST_TOP - fsMax / 2) / (rows - 1)) : 0;
+  const fs = rows > 1 ? Math.min(fsMax, 0.9 * step) : fsMax;
+  return { y0: PODIUM_REST_TOP, step, fs };
+}
+
+/**
  * The standings listed under the podium: everybody the podium steps do not show (the first three finishers), in order –
  * fewer than three finishers leave the DNFs right after them –, at most `max`; `firstPlace` numbers the first of them.
  */
@@ -194,6 +211,8 @@ export class RaceLayer {
   private readonly widthCache = new Map<string, number>();
   /** Where each racer's standings row is drawn (eased toward its place, so overtakes slide); --- review fix (uncap-all) --- a slot per racer of the grid. */
   private rowY = new Float64Array(16).fill(NaN);
+  /** --- end-banner --- The standings' draw order of the frame (places): the rows at rest, then the ones changing places. */
+  private rowOrder = new Int32Array(16);
   private lastRun = -1;
   private readonly cupOrder: number[] = [];
   private cupTable: RaceCup | null = null;
@@ -270,7 +289,9 @@ export class RaceLayer {
       ctx.setLineDash([]);
       this.label(ctx, labels.lap(lap + 1, track.laps), track.left + 0.5 * track.width, y - 0.022 * S, 0.026 * S, "#ffffff");
     }
-    if (track.finishY >= viewTop - 0.05 * S && track.finishY <= viewBottom + 0.05 * S) this.drawFinish(ctx, track, labels.finish);
+    // (--- end-banner --- the end screens draw over the line: its label would show half hidden behind the podium's first step)
+    const endScreen = view.phase === "podium" || view.phase === "cup" || view.phase === "done";
+    if (track.finishY >= viewTop - 0.05 * S && track.finishY <= viewBottom + 0.05 * S) this.drawFinish(ctx, track, endScreen ? "" : labels.finish);
     // The rows in view.
     const rows = track.rows;
     for (let k = firstRowFrom(rows, viewTop - 0.05 * S); k < rows.length && rows[k].top <= viewBottom + 0.05 * S; k++) this.drawRow(ctx, rows[k], view, opts, race, labels, t);
@@ -328,7 +349,7 @@ export class RaceLayer {
         ctx.fillRect(track.left + c * cw, track.finishY - ch + row * ch, cw + 0.5, ch);
       }
     }
-    this.label(ctx, `🏁 ${text}`, track.left + track.width / 2, track.finishY + 0.035 * S, 0.03 * S, "#ffffff");
+    if (text) this.label(ctx, `🏁 ${text}`, track.left + track.width / 2, track.finishY + 0.035 * S, 0.03 * S, "#ffffff");
   }
 
   private drawRow(ctx: CanvasRenderingContext2D, row: RaceRow, view: RaceView, opts: RaceRenderOptions, race: CanvasRaceOptions | null, labels: RaceLabels, t: number) {
@@ -695,6 +716,12 @@ export class RaceLayer {
     const numW = 1.05 * rh;
     ctx.font = `${0.8 * fs}px sans-serif`;
     const gapW = Math.max(this.textWidth(ctx, "+88.8"), this.textWidth(ctx, labels.leader), this.textWidth(ctx, labels.dnf));
+    // --- end-banner --- Rows that are changing places slide over the others on a card of their own, so two names never
+    // print through each other: the rows at rest are drawn first, then the ones on the move, the one that gains a place last.
+    if (this.rowOrder.length < n) this.rowOrder = new Int32Array(n);
+    const rowOrder = this.rowOrder;
+    let resting = 0;
+    let moving = n;
     for (let k = 0; k < n; k++) {
       const i = view.order[k];
       const target = y0 + header + k * rh;
@@ -703,8 +730,23 @@ export class RaceLayer {
       y += (target - y) * ease;
       if (Math.abs(target - y) < 0.2) y = target;
       this.rowY[i] = y;
+      if (y === target) rowOrder[resting++] = k;
+      else rowOrder[--moving] = k; // (filled from the end: the lowest place comes first there, the highest last)
+    }
+    for (let slot = 0; slot < n; slot++) {
+      // the rows at rest in their order, then the moving ones from the lowest place up (the last drawn took the highest)
+      const k = rowOrder[slot];
+      const i = view.order[k];
+      const y = this.rowY[i];
       const color = race?.colors[i] ?? "#ffffff";
       const mid = y + 0.5 * rh;
+      if (slot >= resting) {
+        ctx.fillStyle = "#101014";
+        roundRect(ctx, x0 + 0.06 * rh, y + 0.03 * rh, w - 0.12 * rh, 0.94 * rh, 0.2 * rh);
+        ctx.fill();
+        ctx.fillStyle = color;
+        ctx.fillRect(x0 + 0.06 * rh, y + 0.16 * rh, Math.max(1.5, 0.07 * rh), 0.68 * rh);
+      }
       if (k === 0) {
         ctx.fillStyle = "rgba(147, 209, 25, 0.16)";
         ctx.fillRect(x0 + 0.1 * rh, y + 0.05 * rh, w - 0.2 * rh, 0.9 * rh);
@@ -931,7 +973,7 @@ export class RaceLayer {
     const f = track.field;
     const S = f.size;
     const age = Math.max(0, t - view.completeAtMs);
-    this.dim(ctx, view, Math.min(0.62, age / 400));
+    this.dim(ctx, view, Math.min(0.8, age / 400)); // (--- end-banner --- the track behind steps back: the podium is the picture)
     const rise = Math.min(1, age / 600);
     const ease = 1 - (1 - rise) * (1 - rise);
     ctx.textAlign = "center";
@@ -978,20 +1020,23 @@ export class RaceLayer {
     });
     // The rest of the order, two columns.
     const { firstPlace, racers: rest } = podiumRest(view);
+    // (--- end-banner --- between the podium's times and the watermark badge's strip along the bottom: the rows end by
+    // PODIUM_REST_BOTTOM of the square, closer together when there are four of them)
     if (rest.length > 0) {
-      ctx.font = `${0.022 * S}px sans-serif`;
+      const { y0, step, fs } = podiumRestRows(rest.length);
+      ctx.font = `600 ${fs * S}px sans-serif`;
       ctx.textAlign = "left";
       rest.forEach((i, k) => {
         const col = k % 2;
         const row = Math.floor(k / 2);
         const x = f.left + (0.12 + 0.42 * col) * S;
-        const y = f.top + (0.86 + 0.032 * row) * S;
+        const y = f.top + (y0 + step * row) * S;
         const place = view.place[i];
         ctx.fillStyle = race?.colors[i] ?? "#fff";
-        ctx.fillRect(x, y - 0.008 * S, 0.016 * S, 0.016 * S);
+        ctx.fillRect(x, y - 0.4 * fs * S, 0.8 * fs * S, 0.8 * fs * S);
         ctx.fillStyle = "#e4e4e7";
         const text = `${firstPlace + k}. ${race?.names[i] ?? `#${i + 1}`}  ${place < 0 ? labels.dnf : formatGap(view.finishMs[i] - view.finishMs[order[0]])}`;
-        ctx.fillText(this.fit(ctx, text, 0.36 * S, 0.022 * S), x + 0.025 * S, y);
+        ctx.fillText(this.fit(ctx, text, 0.36 * S, fs * S), x + 1.2 * fs * S, y);
       });
     }
   }
