@@ -187,6 +187,20 @@ export const FL_NOIR_ICON_H = 0.12;
 export const FL_NOIR_TITLE_Y = 0.165;
 export const FL_NOIR_TITLE_H = 0.06;
 export const FL_NOIR_TITLE_W = 0.78;
+/** --- end-banner --- The timer's letters on the title line, and the air between the title's last letter and the timer. */
+export const FL_NOIR_TIMER_FS = 0.022;
+export const FL_NOIR_TIMER_GAP = 0.014;
+/**
+ * --- end-banner --- The widest the centred title may be (px) in a square of `S` px whose text ends at `right` (px from the
+ * square's left: 0.965 S, 0.88 S in a 9:16 export, which keeps the right 10 % free) with a timer `timerW` px wide
+ * right-aligned there: FL_NOIR_TITLE_W of the side, less wherever the title would reach under the timer – in a 9:16 export
+ * the match clock was printed over the last letter of the second name. Without a timer: FL_NOIR_TITLE_W.
+ */
+export function flNoirTitleWidth(S: number, right: number, timerW: number): number {
+  const full = FL_NOIR_TITLE_W * S;
+  if (!(timerW > 0)) return full;
+  return Math.max(0.3 * S, Math.min(full, 2 * (right - timerW - FL_NOIR_TIMER_GAP * S - S / 2)));
+}
 export const FL_NOIR_ARENA_TOP = 0.205;
 export const FL_NOIR_ARENA_FRAC = 0.6;
 export const FL_NOIR_BLOCK_TOP = 0.813;
@@ -297,6 +311,16 @@ export class FlNoirHudPainter {
     });
   }
 
+  /**
+   * --- end-banner --- The width the timer takes at the right end of the title line (0 without a time cap): "0:00" at the
+   * timer's size, a digit more from ten minutes on. The width of the widest digits, so the title keeps its size all match long.
+   */
+  private timerWidth(fr: FlFrame, view: FightLeagueView, S: number): number {
+    const cap = view.capSec ?? view.settings.timeCap;
+    if (!(cap > 0)) return 0;
+    return fr.text.numberWidth(cap >= 600 ? "00:00" : "0:00", FL_NOIR_TIMER_FS * S, "#d4d4d8", null);
+  }
+
   /** The time left (as the band's pill shows it), small and mono at the right edge of the title line; red in the last five seconds. */
   private drawTimer(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, lay: FlHudLayout, ox: number, oy: number) {
     const cap = view.capSec ?? view.settings.timeCap;
@@ -310,7 +334,7 @@ export class FlNoirHudPainter {
       this.timerText = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     }
     const hot = secs <= 5 && !view.matchOver && now >= view.introMs;
-    fr.text.number(ctx, this.timerText, ox + lay.right, oy + FL_NOIR_TITLE_Y * lay.side, 0.022 * lay.side, hot ? "#f87171" : "#d4d4d8", null, "right", 1);
+    fr.text.number(ctx, this.timerText, ox + lay.right, oy + FL_NOIR_TITLE_Y * lay.side, FL_NOIR_TIMER_FS * lay.side, hot ? "#f87171" : "#d4d4d8", null, "right", 1);
   }
 
   /**
@@ -348,7 +372,7 @@ export class FlNoirHudPainter {
       });
     }
     const parts = this.titleParts(view, L);
-    const s = this.titleSprite(fr, parts, S, FL_NOIR_TITLE_W * S);
+    const s = this.titleSprite(fr, parts, S, flNoirTitleWidth(S, lay.right, this.timerWidth(fr, view, S)));
     if (s) {
       ctx.save();
       ctx.globalAlpha = 1;

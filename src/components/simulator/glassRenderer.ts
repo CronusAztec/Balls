@@ -110,12 +110,13 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
   const f = level.field;
   const now = view.timeMs;
   ctx.save();
-  // Stage markers: a faint dashed line where each stage begins and its name at the wall.
+  // Stage markers: a faint dashed line where each stage begins and its name under the middle of it (--- end-banner --- not at
+  // the wall: the line scrolls through the square's bottom corners, where the watermark badge sits, and "STAGE 2" read "E 2").
   ctx.setLineDash(STAGE_DASH);
   ctx.lineWidth = 1;
   const labelSize = Math.max(9, 0.022 * f.height);
   ctx.font = `600 ${labelSize}px sans-serif`;
-  ctx.textAlign = "left";
+  ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (let s = 1; s < level.stages.length; s++) {
     const y = level.stages[s].top;
@@ -128,7 +129,7 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     ctx.stroke();
     ctx.globalAlpha = 0.4;
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(opts.stageLabel(s + 1), f.left + 6, y + 4);
+    ctx.fillText(opts.stageLabel(s + 1), f.cx, y + 4);
   }
   ctx.setLineDash(NO_DASH);
   ctx.globalAlpha = 1;

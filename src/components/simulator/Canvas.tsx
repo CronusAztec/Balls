@@ -131,10 +131,14 @@ import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type Hoo
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
+import { EndBannerLayer, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
   escaped: string;
+  /** --- end-banner --- Classic's end card under ESCAPED!: "7 rings in 62.4 s". */
+  ringsOut?: (rings: number, seconds: string) => string;
   afterFrozenBalls: (n: number) => string;
   frozenCount: (n: number) => string;
   painted: (pct: number) => string;
@@ -429,6 +433,7 @@ const NO_ROSTER: readonly TeamEntry[] = []; // --- odd-string-battle ---
 
 const DEFAULT_LABELS: CanvasLabels = {
   escaped: "ESCAPED!",
+  ringsOut: (rings, seconds) => `${rings} ring${rings !== 1 ? "s" : ""} in ${seconds} s`, // --- end-banner ---
   afterFrozenBalls: (n) => `After ${n} frozen ball${n !== 1 ? "s" : ""}`,
   frozenCount: (n) => `Frozen: ${n}`,
   painted: (pct) => `${pct}% painted`,
@@ -1043,6 +1048,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const conveyorLayer = new ConveyorLayer();
     const conveyorRender: ConveyorRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const conveyorData = new ConveyorDataset();
+    // --- end-banner --- the modes' end banners (endBanner.ts): a frame shows one, seldom two (a mode's own and OUTGREW THE ARENA)
+    const endBanners = [new EndBannerLayer()];
+    let endBannerMid = false; // (one in the middle of the square this frame: the teams' winner banner goes lower)
     // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
     const orbLayer = new OrbGridLayer();
     const orbData = new OrbGridDataset();
@@ -3039,7 +3047,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // the badge moves to the top-right corner when the scoreboard – the HUD off – sits in the top-left one; the captions start below them)
       if (mazeView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
-        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 /* --- end-banner --- (the banner's entrance) */ }));
       }
       // --- orb-grid --- Bouncing Orbs: "1089 bouncing orbs" at the top of the square the recorder crops to – on the right while the
       // teams scoreboard holds the top-left corner; the top captions start below it
@@ -3069,29 +3077,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       {
         const L = labelsRef.current ?? DEFAULT_LABELS;
         const minDim = Math.min(size.width, size.height);
-        const blocks: { height: number; draw: (y: number) => void }[] = [];
-        const bannerFs = Math.max(24, 0.08 * minDim); // (the banners' title font size; the subline is 0.4 of it)
-        const bigBanner = (text: string, sub: string, color: string) => {
-          const fs = bannerFs;
-          const sfs = 0.4 * fs;
-          blocks.push({
-            height: fs + 1.2 * sfs,
-            draw: (y) => {
-              ctx.save();
-              ctx.font = `bold ${fs}px sans-serif`;
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillStyle = color;
-              ctx.shadowColor = color;
-              ctx.shadowBlur = 20;
-              ctx.fillText(text, cx, y + 0.5 * fs);
-              ctx.shadowBlur = 0;
-              ctx.font = `${sfs}px sans-serif`;
-              ctx.fillStyle = "#aaa";
-              ctx.fillText(sub, cx, y + fs + 0.6 * sfs);
-              ctx.restore();
-            },
-          });
+        const blocks: { height: number; draw: (y: number) => void; at?: number }[] = [];
+        const bannerFs = Math.max(24, 0.08 * minDim); // (the title size of the orb field's own banner; its subline is 0.4 of it)
+        // --- end-banner --- every mode's end banner: the title in the mode's colour and the line under it on a dark plate over
+        // the balls, at full opacity (this pass runs at the camera's 0.6), with a short entrance on the frames' own clock
+        // (endBanner.ts). It is stacked in the middle with the counters, or – `at` – its centre sits at that share of the square
+        // (a mode whose payoff is in the middle: the Journey's door, the conveyor's pile).
+        const bannerDt = !p.isPaused && p.isStarted ? frameMs : 0;
+        let bannersUsed = 0;
+        const bigBanner = (text: string, sub: string, color: string, at?: number) => {
+          if (bannersUsed >= endBanners.length) endBanners.push(new EndBannerLayer());
+          const layer = endBanners[bannersUsed++];
+          const words = layer.text;
+          words.title = text;
+          words.sub = sub;
+          words.color = color;
+          const lay = layer.layout(ctx, words, minDim);
+          blocks.push({ height: lay.height, at, draw: (y) => layer.draw(ctx, words, cx, y + lay.height / 2, minDim, bannerDt) });
         };
         if (engine.isAccumulationMode()) {
           const frozen = engine.getFrozenBalls().length;
@@ -3201,43 +3203,21 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
-        // --- gerald-multipliers --- the outgrow finish and the "N Gerald made it home" banner (auto-fitted to the square)
-        const fitBanner = (text: string, sub: string, color: string) => {
-          const base = Math.max(24, 0.08 * minDim);
-          ctx.font = `bold ${base}px sans-serif`;
-          const fs = Math.min(base, (0.9 * minDim * base) / Math.max(1, ctx.measureText(text).width));
-          const sfs = 0.4 * base;
-          blocks.push({
-            height: fs + 1.2 * sfs,
-            draw: (y) => {
-              ctx.save();
-              ctx.font = `bold ${fs}px sans-serif`;
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              // A dark outline keeps the banner readable over a ball that fills the arena.
-              ctx.lineJoin = "round";
-              ctx.lineWidth = Math.max(3, 0.12 * fs);
-              ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
-              ctx.strokeText(text, cx, y + 0.5 * fs);
-              ctx.fillStyle = color;
-              ctx.shadowColor = color;
-              ctx.shadowBlur = 20;
-              ctx.fillText(text, cx, y + 0.5 * fs);
-              ctx.shadowBlur = 0;
-              ctx.font = `${sfs}px sans-serif`;
-              ctx.lineWidth = Math.max(2, 0.15 * sfs);
-              ctx.strokeText(sub, cx, y + fs + 0.6 * sfs);
-              ctx.fillStyle = "#eee";
-              ctx.fillText(sub, cx, y + fs + 0.6 * sfs);
-              ctx.restore();
-            },
-          });
-        };
-        if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
+        // --- end-banner --- Classic: out of the last ring – ESCAPED! with the rings and the time it took, where the frame was
+        // empty before. Not in a loop clip (its HUD counter says "out in 11.2 s" and its seam needs the last frame clean), not
+        // with a roster (the winner banner is the card) and not in a clip with captions of its own: their words are its
+        // ending, as in every clip the bot and the studio plan, which stay as they were
+        if (engine.getCurrentModeName() === "classic" && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) {
+          const ringView = engine.getRingEscapeView();
+          if (ringView && ringRunOut(ringView)) bigBanner(L.escaped, (L.ringsOut ?? DEFAULT_LABELS.ringsOut!)(ringView.rings, (ringView.outMs / 1000).toFixed(1)), "#a3e635");
+        }
+        // --- gerald-multipliers --- the outgrow finish and the "N Gerald made it home" banner (--- end-banner --- the shared
+        // banner fits a long title to the square and its plate covers the gate labels under it)
+        if (multView.outgrown) bigBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
         else if (multBoard && multBoard.done) {
           // (--- review fix (modes-gerald-odd) --- and the balls lost on the way, when there are any)
           const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
-          fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
+          bigBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
         }
         // --- end gerald-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
@@ -3254,12 +3234,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (isPendulum) {
           const prog = engine.getPendulumProgress();
-          if (prog.finished) bigBanner(L.pendulumDone, L.pendulumInLine(prog.count, prog.total), "#a3e635");
+          if (prog.finished) bigBanner(L.pendulumDone, L.pendulumInLine(prog.count, prog.total), "#a3e635", 0.8); // --- end-banner --- (under the row of bobs back in line: the picture the words are about)
         }
         // --- jdm-polyrhythm ---
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
-          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635");
+          // (--- end-banner --- the rings' dots line up from the centre to the top: the banner goes over the lower half)
+          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635", engine.getPolyrhythmView().settings.layout === "rings" ? 0.73 : undefined);
         }
         // --- jdm-double-pendulum --- the finale of the clip: what the harp played (or the sparring hits, or the seconds of chaos).
         if (isDp) {
@@ -3270,7 +3251,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         // --- jdm-illusions --- lines / rings run for a set number of cycles: the figure is back where it started.
-        if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635");
+        // (--- end-banner --- over the lower half: the figure starts, and so ends, with its bodies in the upper one)
+        if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635", 0.75);
         // --- odd-power-layers --- Power Layers: the ball fell out of the bottom – freedom, with the hits and the time.
         if (plView && plView.freed) {
           const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
@@ -3285,7 +3267,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // (--- templates --- AI studio step 4b: the overlay's card, gone with it – the door marked HOME is the picture's)
         if (journeyView && journeyView.homeReached && p.journeyHud) {
           const JL = L.journey ?? DEFAULT_JOURNEY_LABELS;
-          bigBanner(JL.homeTitle, JL.homeSub(journeyView.stages.length, (journeyView.homeAtMs / 1000).toFixed(1), journeyView.score), "#a3e635");
+          bigBanner(JL.homeTitle, JL.homeSub(journeyView.stages.length, (journeyView.homeAtMs / 1000).toFixed(1), journeyView.score), "#a3e635", 0.27); // --- end-banner --- (where the stage banners were: above the door and its sign)
         }
         // --- gerald-bullseye --- Bullseye: every shot has landed – the total and the best shot (from the last landing, through the hold)
         if (bullseyeView && bullseyeView.allLanded) {
@@ -3308,7 +3290,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
         if (conveyorView && conveyorView.allDone) {
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
-          bigBanner(CV.title, CV.sub, "#a3e635");
+          bigBanner(CV.title, CV.sub, "#a3e635", conveyorView.settings.arena === "bowl" ? 0.78 : undefined); // --- end-banner --- (under the bowl and its pile, not over them; the rings and the pegs leave the middle free)
         }
         // --- orb-grid --- Bouncing Orbs: every orb at rest (from the last landing, through the hold before the end) / the clip over
         // while an orb still bounces – on a dark backdrop, the subline white (the field under it rests bright green; the end frame)
@@ -3320,7 +3302,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
         if (bdView && bdLayer.finale(bdView)) {
           const BD = L.beatDrop ?? DEFAULT_BEAT_DROP_LABELS;
-          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs.toFixed(3)), "#a3e635");
+          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs), "#a3e635");
         }
         // --- gerald-glass --- Glass Smash: Gerald is HOME.
         if (glassView && glassView.homeReached) {
@@ -3389,11 +3371,38 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         if (replay) blocks.length = 0; // --- camera --- the mode banners wait for the end of the escape replay
-        const totalH = blocks.reduce((s, b) => s + b.height, 0) + 8 * Math.max(0, blocks.length - 1);
-        let y = cy - totalH / 2;
+        // (--- end-banner --- a banner with a place of its own is not part of the stack in the middle)
+        let totalH = 0;
+        let stacked = 0;
         for (const b of blocks) {
+          if (b.at !== undefined) continue;
+          totalH += b.height;
+          stacked++;
+        }
+        totalH += 8 * Math.max(0, stacked - 1);
+        let y = cy - totalH / 2;
+        const squareTop = cy - minDim / 2;
+        for (const b of blocks) {
+          if (b.at !== undefined) {
+            // inside the square, and between the captions' stacks as the frame before drew them (a clip's own words keep their place)
+            let top = squareTop + 0.02 * minDim;
+            let bottom = squareTop + 0.98 * minDim;
+            if (captionLayer.usesTop && captionLayer.stackEdges.top > top) top = captionLayer.stackEdges.top + 0.01 * minDim;
+            if (captionLayer.usesBottom && captionLayer.stackEdges.bottom < bottom) bottom = captionLayer.stackEdges.bottom - 0.01 * minDim;
+            b.draw(placeEndBanner(squareTop + b.at * minDim - b.height / 2, b.height, top, bottom, cy - b.height / 2));
+            continue;
+          }
           b.draw(y);
           y += b.height + 8;
+        }
+        // --- end-banner --- a banner not drawn this frame plays its entrance again the next time; one in the middle of the
+        // square moves the teams' winner banner lower
+        endBannerMid = false;
+        for (const layer of endBanners) {
+          layer.endFrame();
+          if (!layer.shown) continue;
+          const mid = (layer.rect.y + layer.rect.h / 2 - squareTop) / minDim;
+          if (mid > 0.34 && mid < 0.64) endBannerMid = true;
         }
         if (p.watermarkText) {
           ctx.save();
@@ -3403,7 +3412,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.textBaseline = "middle";
           ctx.globalAlpha = 0.15;
           ctx.fillStyle = "#ffffff";
-          const wy = blocks.length > 0 ? cy + totalH / 2 + 8 + 0.8 * fs : cy;
+          const wy = stacked > 0 ? cy + totalH / 2 + 8 + 0.8 * fs : cy;
           ctx.fillText(p.watermarkText, cx, wy);
           ctx.restore();
         }
@@ -3417,7 +3426,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
           inset: teamInset,
           // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
-          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */,
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */ || endBannerMid /* --- end-banner --- (any mode's end banner there) */,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
       }
@@ -4031,6 +4040,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (sbView && sbView.circle && scLayer.stripTop < Infinity) hud.bottomBand(scLayer.stripTop);
         if (sbView && duelLayer.bannerOn) hud.block(duelLayer.bannerBox.x, duelLayer.bannerBox.y, duelLayer.bannerBox.w, duelLayer.bannerBox.h); // --- string-battle-alive --- (the FINAL DUEL banner)
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
+        for (const layer of endBanners) if (layer.shown) hud.block(layer.rect.x, layer.rect.y, layer.rect.w, layer.rect.h); // --- end-banner --- (the badge never sits on the verdict)
+        if (mazeView && mazeLayer.bannerDrawn) hud.block(mazeLayer.bannerBox.x, mazeLayer.bannerBox.y, mazeLayer.bannerBox.w, mazeLayer.bannerBox.h); // --- end-banner --- (the maze's banner, or its strip under the maze)
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
         else if (realTimeBadge) noteCornerReadouts(hud, liveSquare, true, 1, recording ? 0 : 52); // --- slow-motion --- (the real-time badge alone)
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);

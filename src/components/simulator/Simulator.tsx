@@ -126,6 +126,7 @@ import { raceCupStore } from "@/lib/raceCup";
 import { raceRoster } from "@/lib/raceRoster";
 import { resolveRaceTrackSettings } from "@/lib/physics/raceTrack"; // --- review fix (uncap-all) ---
 import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
+import { BEAT_DROP_ON_TIME_MS } from "./beatDropRenderer"; // --- end-banner ---
 import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
@@ -3672,11 +3673,13 @@ export default function Simulator() {
     };
     return {
       escaped: t("Simulator.canvasEscaped"),
-      afterFrozenBalls: (n) => fill("Simulator.canvasAfterFrozenBalls", { count: n }),
+      // --- end-banner --- (the end lines count in the page's language: "1 teleport", "2 teleports", "5 cykli")
+      ringsOut: (rings, seconds) => t("Simulator.canvasRingsOut", { rings, time: seconds }),
+      afterFrozenBalls: (n) => t("Simulator.canvasAfterFrozenBalls", { count: n }),
       frozenCount: (n) => fill("Simulator.canvasFrozenCount", { count: n }),
       painted: (pct) => fill("Simulator.canvasPainted", { pct }),
       teleports: t("Simulator.canvasTeleports"),
-      afterTeleports: (n) => fill("Simulator.canvasAfterTeleports", { count: n }),
+      afterTeleports: (n) => t("Simulator.canvasAfterTeleports", { count: n }),
       shattered: t("Simulator.canvasShattered"),
       segmentsDestroyed: (b, total) => fill("Simulator.canvasSegmentsDestroyed", { broken: b, total }),
       segmentsShattered: t("Simulator.canvasSegmentsShattered"),
@@ -3691,9 +3694,9 @@ export default function Simulator() {
       boxDone: t("Simulator.canvasBoxDone"),
       boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
       pendulumDone: t("Simulator.canvasPendulumDone"),
-      pendulumInLine: (n, cycles) => fill("Simulator.canvasPendulumInLine", { count: n, cycles }),
+      pendulumInLine: (n, cycles) => t("Simulator.canvasPendulumInLine", { count: n, cycles }),
       polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
-      polyrhythmAligned: (n, cycles) => fill("Simulator.canvasPolyrhythmAligned", { count: n, cycles }),
+      polyrhythmAligned: (n, cycles) => t("Simulator.canvasPolyrhythmAligned", { count: n, cycles }),
       polyrhythmInLine: (pct) => fill("Simulator.canvasPolyrhythmInLine", { count: pct }), // --- phase-spiral ---
       brickRebuild: { bricks: (n) => t("BrickRebuild.canvasBricks", { count: n }), balls: (n) => t("BrickRebuild.canvasBalls", { count: n }) }, // --- brick-rebuild ---
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
@@ -3707,7 +3710,7 @@ export default function Simulator() {
       glassStage: (n) => fill("Simulator.canvasGlassStage", { n }),
       glassHome: t("Simulator.canvasGlassHome"),
       glassHomeTitle: t("Simulator.canvasGlassHomeTitle"),
-      glassHomeSub: (panes, stages) => fill("Simulator.canvasGlassHomeSub", { panes, stages }),
+      glassHomeSub: (panes, stages) => t("Simulator.canvasGlassHomeSub", { panes, stages }),
       // --- gerald-multipliers ---
       multipliers: {
         speed: t("Simulator.canvasMpSpeed"),
@@ -3732,7 +3735,7 @@ export default function Simulator() {
       dpChaos: (seconds) => fill("Simulator.canvasDpChaos", { seconds }),
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
-      illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
+      illusionCycles: (n) => t("Simulator.canvasIllusionCycles", { count: n }),
       // --- odd-string-battle ---
       stringBattle: {
         title: t("Simulator.canvasSbTitle"),
@@ -3915,7 +3918,8 @@ export default function Simulator() {
         landings: (n, total) => fill("BeatDrop.canvasLandings", { count: n, total }),
         song: t("BeatDrop.canvasSong"),
         done: t("BeatDrop.canvasDone"),
-        doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
+        // --- end-banner --- (a result a person would say: "32 landings, not one late"; a miss of a millisecond or more is named)
+        doneSub: (landings, errorMs) => (errorMs < BEAT_DROP_ON_TIME_MS ? t("BeatDrop.canvasDoneSub", { count: landings }) : t("BeatDrop.canvasDoneSubOff", { count: landings, ms: Math.ceil(errorMs) })),
       },
       // --- bounce-math ---
       bounceMath: {

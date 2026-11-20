@@ -53,6 +53,13 @@ export interface BeatDropRenderOptions {
   ballColor: string;
 }
 
+/**
+ * --- end-banner --- A worst landing closer to its beat than this (ms) is on time: the end line says so in words ("32
+ * landings, not one late") instead of printing "0.000 ms off". The planned bounces land within a few millionths of a
+ * millisecond; half a millisecond is what a figure in whole milliseconds rounds to nothing.
+ */
+export const BEAT_DROP_ON_TIME_MS = 0.5;
+
 export interface BeatDropLabels {
   title: string;
   /** "♩ 120 BPM" */
@@ -63,7 +70,8 @@ export interface BeatDropLabels {
   song: string;
   /** The banner on the last landing, and its line. */
   done: string;
-  doneSub: (landings: number, errorMs: string) => string;
+  /** --- end-banner --- The end line: the landings, and how far off the beat the worst one was (ms). */
+  doneSub: (landings: number, errorMs: number) => string;
 }
 
 export const DEFAULT_BEAT_DROP_LABELS: BeatDropLabels = {
@@ -72,7 +80,8 @@ export const DEFAULT_BEAT_DROP_LABELS: BeatDropLabels = {
   landings: (n, total) => `${n} / ${total} on the beat`,
   song: "SONG",
   done: "ON BEAT!",
-  doneSub: (landings, errorMs) => `${landings} landings · ${errorMs} ms off`,
+  doneSub: (landings, errorMs) =>
+    errorMs < BEAT_DROP_ON_TIME_MS ? (landings === 1 ? "1 landing, right on the beat" : `${landings} landings, not one late`) : `${landings} landing${landings !== 1 ? "s" : ""}, within ${Math.ceil(errorMs)} ms of the beat`,
 };
 
 /** Colour of each kind in the "pad" colour mode. */
