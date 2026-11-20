@@ -13,7 +13,13 @@ import { paletteMatches, type PaletteEntry } from "@/lib/siteDesign";
  * of the panel and every searchable control in them (the panel's SECTION_KEYS and labels, matched by lib/siteDesign.ts).
  * Arrow keys move, Enter opens, Esc closes; the focus stays in the field (aria-activedescendant) and returns to whatever
  * opened the palette. Choosing a control opens its group and focuses it (Controls.tsx).
+ * --- mode-shelves --- Under the settings, the modes: "Change mode" (the picker) and every mode by its name and search
+ * words, so "fight" or "pendulum" switches the mode from the keyboard. With nothing typed the list is the groups and
+ * Change mode.
  */
+/** The heading an entry is listed under: the groups, the settings, then the modes (the Change mode action first). */
+const listOf = (entry: PaletteEntry): "sections" | "controls" | "modes" => (entry.kind === "section" ? "sections" : entry.kind === "control" ? "controls" : "modes");
+
 export default function CommandPalette({ entries, icons, onChoose, onClose }: { entries: readonly PaletteEntry[]; icons: Record<string, ReactNode>; onChoose: (entry: PaletteEntry) => void; onClose: () => void }) {
   const t = useTranslations("SiteRedesign");
   const [query, setQuery] = useState("");
@@ -21,10 +27,10 @@ export default function CommandPalette({ entries, icons, onChoose, onClose }: { 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const id = useId();
-  // Best first within each list, the groups above the settings (one heading each).
+  // Best first within each list, the groups above the settings (one heading each), the modes last.
   const matches = useMemo(() => {
     const ranked = paletteMatches(entries, query);
-    return [...ranked.filter((e) => e.kind === "section"), ...ranked.filter((e) => e.kind === "control")];
+    return [...ranked.filter((e) => e.kind === "section"), ...ranked.filter((e) => e.kind === "control"), ...ranked.filter((e) => e.kind === "action"), ...ranked.filter((e) => e.kind === "mode")];
   }, [entries, query]);
   const current = Math.min(index, Math.max(0, matches.length - 1));
 
@@ -54,7 +60,7 @@ export default function CommandPalette({ entries, icons, onChoose, onClose }: { 
     }
   };
 
-  let lastKind: PaletteEntry["kind"] | null = null;
+  let lastList: ReturnType<typeof listOf> | null = null;
   return (
     <Dialog title={t("studio.paletteTitle")} hideTitle closeLabel={t("dialog.close")} onClose={onClose} placement="top" initialFocus={inputRef} bodyClassName="flex flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4">
@@ -85,8 +91,9 @@ export default function CommandPalette({ entries, icons, onChoose, onClose }: { 
       <div ref={listRef} id={`${id}-list`} role="listbox" aria-label={t("studio.paletteTitle")} className="min-h-0 flex-1 overflow-y-auto p-2">
         {matches.length === 0 && <p className="px-3 py-8 text-center text-sm text-ink-3">{t("studio.paletteEmpty", { query })}</p>}
         {matches.map((entry, i) => {
-          const header = entry.kind !== lastKind ? (entry.kind === "section" ? t("studio.paletteSections") : t("studio.paletteControls")) : null;
-          lastKind = entry.kind;
+          const list = listOf(entry);
+          const header = list !== lastList ? (list === "sections" ? t("studio.paletteSections") : list === "controls" ? t("studio.paletteControls") : t("footer.modes")) : null;
+          lastList = list;
           const on = i === current;
           return (
             <div key={`${entry.kind}-${entry.section}-${entry.key}`} role="presentation">

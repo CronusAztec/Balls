@@ -137,6 +137,17 @@ Simple 80 or more and Playbook 75 or more, in en, pl and es) and a watched Simpl
 | 67 | `docs/agents/STUDIO.md` | `## Every mode's templates`, `\| <Title> \|`, `-<kebab>` | The mode's row in the table, with each of its template ids, ready or waiting, and the counts above the table. | **tested**: `tests/agentStudio.test.ts` (every template id named) |
 | 68 | `docs/virality-playbook.md` | `### The viral templates and the Simple look`, `<Title>` | The binding's measured numbers in §5: the seeds planned, the gates passed, the median Simple and Playbook scores, what the watched clip showed, and the whole table's counts per format; README's bot section has the same counts. | **none** |
 
+## Finding the mode on the site (the shelves, the search, the "New" badge)
+
+The modes wall, the studio's mode picker and the footer group the cards by what a visitor looks for, not by the family of
+row 47. A visitor also finds a mode by searching and by sorting on its arrival.
+
+| # | File | Look for | Add | Caught by |
+| --- | --- | --- | --- | --- |
+| 69 | `src/lib/siteDesign.ts` | `MODE_SHELVES` | The shelf the card stands on: `escape`, `battle`, `music`, `loops`, `smash`, `journey` or `lab`. Write the entry on its shelf's line, where the card should stand among its neighbours: the written order is the Featured order. | **typed** |
+| 70 | `src/lib/siteDesign.ts` | `MODE_SINCE` | The website version the mode ships in, for the Newest sort and the card's "New" badge. | **typed**, and `tests/siteRedesign.test.ts` once a release note names the mode |
+| 71 | `src/lib/modeSearch.ts` | `MODE_SEARCH_WORDS` | A few search words in English, Polish and Spanish: what the mode shows, and the parts of its English name its id does not spell. Never a word that names a setting of the panel. | **typed**, and `tests/siteRedesign.test.ts` |
+
 ## Checking the mode as you go
 
 - `npm run -s agent -- modes --json '{"mode":"<id>"}'` lists the fields with their defaults, ranges, link keys and whether

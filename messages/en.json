@@ -7,7 +7,10 @@
     "howItWorks": "How It Works",
     "modesBattle": "Battle modes",
     "modesJourney": "Journey modes",
-    "modesLab": "Lab modes"
+    "modesLab": "Lab modes",
+    "modesMusic": "Music & rhythm modes",
+    "modesLoops": "Loop & pattern modes",
+    "modesSmash": "Smash & merge modes"
   },
   "Navbar": {
     "simulator": "Simulator",
@@ -5577,7 +5580,10 @@
       "rhythm": "Rhythm",
       "battle": "Battle",
       "journey": "Journey",
-      "lab": "Lab"
+      "lab": "Lab",
+      "music": "Music",
+      "loops": "Loops",
+      "smash": "Smash"
     },
     "hero": {
       "eyebrow": "Ball physics studio",
@@ -5597,7 +5603,19 @@
       "intro": "{count} modes. Rings to escape, rhythm machines, duels and journeys. Pick one and it opens in the studio.",
       "all": "All",
       "filterLabel": "Filter modes by family",
-      "current": "Current"
+      "current": "Current",
+      "search": "Search modes",
+      "clear": "Clear search",
+      "found": "{count, plural, one {# mode} other {# modes}}",
+      "empty": "No mode matches “{query}”.",
+      "sortLabel": "Sort",
+      "sort": {
+        "featured": "Featured",
+        "newest": "Newest",
+        "az": "A to Z"
+      },
+      "new": "New",
+      "recent": "Recent"
     },
     "studio": {
       "search": "Search settings",
@@ -5613,8 +5631,8 @@
       "rail": "Control groups",
       "panelEmpty": "Pick a group to edit it. Everything you change is kept in the link.",
       "closeSettings": "Close the settings",
-      "paletteTitle": "Search settings and groups",
-      "palettePlaceholder": "Jump to a setting or a group…",
+      "paletteTitle": "Search settings, groups and modes",
+      "palettePlaceholder": "Jump to a setting, a group or a mode…",
       "paletteSections": "Groups",
       "paletteControls": "Settings",
       "paletteEmpty": "Nothing matches “{query}”.",

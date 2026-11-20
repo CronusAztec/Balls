@@ -11947,7 +11947,7 @@ const orbBannerPixels = () =>
   });
 await smokeBlock("orb-grid", async () => {
 // --- orb-grid ---
-// Bouncing Orbs: the preview image and the card under the rhythm heading; URL → the Bouncing Orbs
+// Bouncing Orbs: the preview image and the card under the loop heading; URL → the Bouncing Orbs
 // block of the Mode row (columns, rows, arrangement, distribution, sound, material, auto-orbit, the run line), controls → URL
 // and the search box; a 1089-orb run whose data-og-* counters advance, with the "1089 bouncing orbs" line drawn at the top of
 // the square; the corner-to-corner preset (the Presets group) falling into phase on its pattern clock; the octagons released
@@ -11962,15 +11962,16 @@ await smokeBlock("orb-grid", async () => {
   const res = await page.request.get(`${BASE}/modes/orbGrid.webp`);
   check("asset /modes/orbGrid.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  const inRhythm = await page.evaluate(() => {
+  const inLoops = await page.evaluate(() => {
     // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
     const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
-    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    // --- mode-shelves --- (the wall groups by what a visitor looks for: the loops have their own shelf, with its own heading)
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Loop & pattern modes");
     const group = heading?.parentElement;
     return !!group && !!group.querySelector('img[src$="/modes/orbGrid.webp"]') && !!group.querySelector('img[src$="/modes/pendulum.webp"]');
   });
   const card = await page.locator('img[src$="/modes/orbGrid.webp"]').count();
-  check("the Bouncing Orbs card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+  check("the Bouncing Orbs card is on the landing page under the loop heading", card === 1 && inLoops, `(cards=${card}, in the loop group=${inLoops})`);
 }
 {
   const block = page.getByTestId("orb-grid");
@@ -12342,7 +12343,7 @@ const orbSoundRun = async (query, ms) => {
 
 await smokeBlock("fight-league", async () => {
 // --- fight-league ---
-// Fight League: the preview image and the card under the rhythm heading of the landing page, with the arena games; URL →
+// Fight League: the preview image and the card under the battle heading of the landing page, with the arena games; URL →
 // the Fight League block of the Mode row (match type, fighters, HP, time cap, arena, HUD, a handicap), controls → URL (a
 // preset among them) and the search box; the default match is Thor vs Loki (data-fl-names) with the HUD's names, ability
 // boxes and VS card; a 1v1 on a pinned seed fought at 8× to its winner – weapon hits and ability swells heard
@@ -12355,15 +12356,16 @@ await smokeBlock("fight-league", async () => {
   const res = await page.request.get(`${BASE}/modes/fightLeague.webp`);
   check("asset /modes/fightLeague.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  const inRhythm = await page.evaluate(() => {
+  const inBattle = await page.evaluate(() => {
     // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
     const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
-    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    // --- mode-shelves --- (the wall groups by what a visitor looks for: every fight sits on the Battle shelf)
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Battle modes");
     const group = heading?.parentElement;
     return !!group && !!group.querySelector('img[src$="/modes/fightLeague.webp"]') && !!group.querySelector('img[src$="/modes/ctf.webp"]');
   });
   const card = await page.locator('img[src$="/modes/fightLeague.webp"]').count();
-  check("the Fight League card is on the landing page under the rhythm heading, with the arena games", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+  check("the Fight League card is on the landing page under the battle heading, with the arena games", card === 1 && inBattle, `(cards=${card}, in the battle group=${inBattle})`);
 }
 {
   const section = page.getByTestId("fight-league-section");
@@ -15840,7 +15842,7 @@ await smokeBlock("loop-foundation", async () => {
 
 await smokeBlock("chord-stars", async () => {
 // --- chord-stars ---
-// 39. Chord Stars: the preview image and the card under the rhythm heading; URL → the Chord Stars block of the Mode row (balls,
+// 39. Chord Stars: the preview image and the card under the loop heading; URL → the Chord Stars block of the Mode row (balls,
 // stars, drawing time, hold, fade, spread, line width, inner circles, colours, voice, chord) and the finder's outcome, controls →
 // URL (a preset, the drawing time), the search box; three cycles at 4× – every cycle draws Σn chords (data-sc-last-cycle-chords
 // by the run's clock and data-sc-layer-last, what the canvas' chord layer drew of the cycle, against the stars' point counts),
@@ -15852,15 +15854,16 @@ await smokeBlock("chord-stars", async () => {
   const res = await page.request.get(`${BASE}/modes/starChords.webp`);
   check("asset /modes/starChords.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  const inRhythm = await page.evaluate(() => {
+  const inLoops = await page.evaluate(() => {
     // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
     const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
-    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    // --- mode-shelves --- (the wall groups by what a visitor looks for: the loops have their own shelf, with its own heading)
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Loop & pattern modes");
     const group = heading?.parentElement;
     return !!group && !!group.querySelector('img[src$="/modes/starChords.webp"]') && !!group.querySelector('img[src$="/modes/illusion.webp"]');
   });
   const card = await page.locator('img[src$="/modes/starChords.webp"]').count();
-  check("the Chord Stars card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+  check("the Chord Stars card is on the landing page under the loop heading", card === 1 && inLoops, `(cards=${card}, in the loop group=${inLoops})`);
 }
 {
   await page.goto(`${BASE}/en/simulator/?mode=starChords&scn=7&scs=${encodeURIComponent("5/2,7/3")}&sct=6&sch=0.5&scf=1&scsp=0.5&scw=2&sce=on&scp=rainbow&scv=chime&scc=0`, { waitUntil: "networkidle" });
@@ -16018,7 +16021,7 @@ await smokeBlock("chord-stars", async () => {
 
 await smokeBlock("bead-hoops", async () => {
 // --- bead-hoops ---
-// 40. Spinning Hoops: the preview image and the card under the rhythm heading; URL → the Spinning Hoops block of the Mode row
+// 40. Spinning Hoops: the preview image and the card under the loop heading; URL → the Spinning Hoops block of the Mode row
 // (hoops, radii, gravity, spins, ramp and its shape, hold, return, damping, tilt, chime, bed – the line naming the spins the
 // beads lift at) with Find Simulation's outcomes, controls → URL and the search box; a 22 s headless run of the defaults
 // (mode=hoops) whose eight beads lift in strict size order (data-hoops-order 0,…,7, the eight tuned-bar strikes rising in
@@ -16032,15 +16035,16 @@ await smokeBlock("bead-hoops", async () => {
   const res = await page.request.get(`${BASE}/modes/hoops.webp`);
   check("asset /modes/hoops.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  const inRhythm = await page.evaluate(() => {
+  const inLoops = await page.evaluate(() => {
     // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
     const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
-    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    // --- mode-shelves --- (the wall groups by what a visitor looks for: the loops have their own shelf, with its own heading)
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Loop & pattern modes");
     const group = heading?.parentElement;
     return !!group && !!group.querySelector('img[src$="/modes/hoops.webp"]') && !!group.querySelector('img[src$="/modes/pendulum.webp"]');
   });
   const card = await page.locator('img[src$="/modes/hoops.webp"]').count();
-  check("the Spinning Hoops card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+  check("the Spinning Hoops card is on the landing page under the loop heading", card === 1 && inLoops, `(cards=${card}, in the loop group=${inLoops})`);
 }
 {
   await page.goto(`${BASE}/en/simulator/?mode=hoops&hpn=5&hprx=0.8&hprn=0.4&hpg=12&hpw0=0.2&hpw1=1.6&hpr=20&hps=steps&hph=3&hprt=0&hpd=0.5&hpj=0.002&hpt=0&hpb=1`, { waitUntil: "networkidle" });
@@ -19803,7 +19807,7 @@ await smokeBlock("merge-ring", async () => {
 
 await smokeBlock("spiral-glass", async () => {
 // --- spiral-glass ---
-// 50. Spiral Glass (the "will the ball multiply?" reels): the preview image and the card under the rhythm heading; URL → the
+// 50. Spiral Glass (the "will the ball multiply?" reels): the preview image and the card on the landing page; URL → the
 // Spiral Glass block of the Mode row (turns, glass strength, ball speed, max balls, chip time, rainbow line, the run summary),
 // controls → URL and the search box, no ring controls; a fast run at 8× (three turns, one hit point) chips the glass away –
 // the badge counts up, tiles go, shards and notes play – and ends with GLASS CLEARED under its banner (data-spiral-*).

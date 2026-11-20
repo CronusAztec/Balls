@@ -10,6 +10,10 @@ import { cx } from "@/components/ui/cx";
  * Polish and Spanish, bounded by tests/copyStyle.test.ts and docs/COPY-STYLE.md) reads in full at every width. Four lines
  * fit a card of 214 px or more, but on 320 to 640 px screens the cards are 136 to 187 px wide (152 px in the studio's picker
  * at 390) and need five to seven, so any clamp would end some mid-sentence (the smoke test measures them at 390 and 640 px).
+ * --- mode-shelves --- the tag sits on its own small line above the name, on phones too, and the name wraps instead of
+ * ending in an ellipsis ("Harfa z podwójnym wahadłem" needs two lines of a phone's card; in the gallery the tag is a mode's
+ * name, which used to squeeze the preset's). The name stays first in the markup, so a card still reads name, tag, one-liner.
+ * While a picture loads, its square shows a faint ring on the surface colour, not a black hole.
  */
 export default function PosterCard({
   image,
@@ -36,14 +40,16 @@ export default function PosterCard({
   const Heading = headingLevel;
   return (
     <>
-      <div className={cx("relative aspect-square overflow-hidden rounded-xl border bg-black transition-colors duration-150", current ? "border-accent" : "border-line group-hover:border-line-strong")}>
+      <div className={cx("relative aspect-square overflow-hidden rounded-xl border bg-surface-2 transition-colors duration-150", current ? "border-accent" : "border-line group-hover:border-line-strong")}>
+        {/* --- mode-shelves --- the placeholder a loading picture covers */}
+        <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-1/4 w-1/4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-line" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={image} alt={alt} loading="lazy" decoding="async" width={360} height={360} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90" />
         {badge && <span className="absolute left-2 top-2">{badge}</span>}
       </div>
-      <div className="mt-3 flex items-baseline justify-between gap-3">
-        <Heading className="min-w-0 truncate font-sans text-md font-medium tracking-normal text-ink">{name}</Heading>
-        {tag && <span className="eyebrow hidden shrink-0 text-ink-3 sm:inline">{tag}</span>}
+      <div className="mt-3 flex flex-col-reverse gap-0.5">
+        <Heading className="min-w-0 break-words font-sans text-md font-medium tracking-normal text-ink">{name}</Heading>
+        {tag && <span className="eyebrow min-w-0 break-words text-ink-3">{tag}</span>}
       </div>
       {description && <p className="mt-1 text-sm text-ink-2" data-poster-description="">{description}</p>}
       {footer}

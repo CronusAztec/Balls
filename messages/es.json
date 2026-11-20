@@ -7,7 +7,10 @@
     "howItWorks": "Cómo funciona",
     "modesBattle": "Modos de batalla",
     "modesJourney": "Modos de viaje",
-    "modesLab": "Modos de laboratorio"
+    "modesLab": "Modos de laboratorio",
+    "modesMusic": "Modos de música y ritmo",
+    "modesLoops": "Modos de bucles y patrones",
+    "modesSmash": "Modos de romper y fusionar"
   },
   "Navbar": {
     "simulator": "Simulador",
@@ -5577,7 +5580,10 @@
       "rhythm": "Ritmo",
       "battle": "Batalla",
       "journey": "Viaje",
-      "lab": "Lab"
+      "lab": "Lab",
+      "music": "Música",
+      "loops": "Bucles",
+      "smash": "Romper"
     },
     "hero": {
       "eyebrow": "Estudio de física de pelotas",
@@ -5597,7 +5603,19 @@
       "intro": "{count} modos. Anillos de escape, máquinas de ritmo, duelos y viajes. Elige uno y se abre en el estudio.",
       "all": "Todos",
       "filterLabel": "Filtrar modos por familia",
-      "current": "Actual"
+      "current": "Actual",
+      "search": "Buscar modos",
+      "clear": "Borrar la búsqueda",
+      "found": "{count, plural, one {# modo} other {# modos}}",
+      "empty": "Ningún modo coincide con «{query}».",
+      "sortLabel": "Ordenar",
+      "sort": {
+        "featured": "Destacados",
+        "newest": "Nuevos",
+        "az": "Alfabético"
+      },
+      "new": "Nuevo",
+      "recent": "Recientes"
     },
     "studio": {
       "search": "Buscar ajustes",
@@ -5613,8 +5631,8 @@
       "rail": "Grupos de controles",
       "panelEmpty": "Elige un grupo para editarlo. Todo lo que cambies se guarda en el enlace.",
       "closeSettings": "Cerrar los ajustes",
-      "paletteTitle": "Buscar ajustes y grupos",
-      "palettePlaceholder": "Ir a un ajuste o a un grupo…",
+      "paletteTitle": "Buscar ajustes, grupos y modos",
+      "palettePlaceholder": "Ir a un ajuste, un grupo o un modo…",
       "paletteSections": "Grupos",
       "paletteControls": "Ajustes",
       "paletteEmpty": "Nada coincide con «{query}».",

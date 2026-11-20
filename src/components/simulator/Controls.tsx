@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, Searchable, Slider, SliderTrack, Toggle, TrackEnds, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack, TrackEnds: the hand-written tracks widen too)
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
@@ -123,7 +123,9 @@ import { useModifierKey } from "@/components/ui/useModifierKey";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
-import { paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import { modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import { modeSearchWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does
+import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
@@ -347,6 +349,7 @@ export default function Controls(props: ControlsProps) {
   const phone = useMediaQuery("(max-width: 767.98px)");
   const mod = useModifierKey();
   const site = useTranslations("SiteRedesign");
+  const locale = useLocale(); // --- mode-search --- (the language of a mode's search words)
   const [presetName, setPresetName] = useState("");
   const [midiDrag, setMidiDrag] = useState(false);
   const [wallBreakDrag, setWallBreakDrag] = useState(false);
@@ -1521,14 +1524,30 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */))];
+    // --- mode-shelves --- the modes too, after the settings: Change mode (the picker), then every other mode by its name and
+    // its search words, in the picker's order (no section name: "mode" must not find all of them)
+    const modes: PaletteEntry[] = [
+      ...(props.onOpenModePicker ? [{ kind: "action" as const, section: "mode", key: "changeMode", label: t("modeDisplay"), sectionLabel: "" }] : []),
+      ...modesOnShelf("all").filter((id) => id !== s.mode).map((id) => ({ kind: "mode" as const, section: "mode", key: id, label: modeNames[id], sectionLabel: "", words: modeSearchWords(id, locale) })),
+    ];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */)), ...modes];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paletteOpen, t, paletteState, sections.length, !!props.project]);
+  }, [paletteOpen, t, locale, paletteState, sections.length, !!props.project, !!props.onOpenModePicker]);
   const railIcons = Object.fromEntries(railItems.map((item) => [item.id, item.icon])) as Record<string, ReactNode>;
 
   const choosePalette = (entry: PaletteEntry) => {
     setPaletteOpen(false);
+    // --- mode-shelves --- a mode switches in place (the event the mode cards send), Change mode opens the picker
+    if (entry.kind === "mode") {
+      rememberRecentMode(entry.key as ModeId, s.mode);
+      window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: entry.key }));
+      return;
+    }
+    if (entry.kind === "action") {
+      props.onOpenModePicker?.();
+      return;
+    }
     setSearch("");
     // A control: focus it in its block once the block has rendered. --- review fix (site-redesign) --- one its block does not
     // show right now (an advanced option, the collapsed Project file block, one that waits for another setting) is looked up

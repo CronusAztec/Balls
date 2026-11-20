@@ -7,7 +7,10 @@
     "howItWorks": "Jak to działa",
     "modesBattle": "Tryby bitewne",
     "modesJourney": "Tryby podróży",
-    "modesLab": "Tryby z laboratorium"
+    "modesLab": "Tryby z laboratorium",
+    "modesMusic": "Tryby muzyczne i rytmiczne",
+    "modesLoops": "Tryby pętli i wzorów",
+    "modesSmash": "Tryby rozbijania i łączenia"
   },
   "Navbar": {
     "simulator": "Symulator",
@@ -5577,7 +5580,10 @@
       "rhythm": "Rytm",
       "battle": "Bitwa",
       "journey": "Podróż",
-      "lab": "Lab"
+      "lab": "Lab",
+      "music": "Muzyka",
+      "loops": "Pętle",
+      "smash": "Rozbijanie"
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",
@@ -5597,7 +5603,19 @@
       "intro": "{count, plural, one {# tryb} few {# tryby} many {# trybów} other {# trybu}}. Pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże. Wybierz jeden, a otworzy się w studiu.",
       "all": "Wszystkie",
       "filterLabel": "Filtruj tryby według rodziny",
-      "current": "Bieżący"
+      "current": "Bieżący",
+      "search": "Szukaj trybu",
+      "clear": "Wyczyść wyszukiwanie",
+      "found": "{count, plural, one {# tryb} few {# tryby} many {# trybów} other {# trybu}}",
+      "empty": "Żaden tryb nie pasuje do „{query}”.",
+      "sortLabel": "Sortuj",
+      "sort": {
+        "featured": "Polecane",
+        "newest": "Najnowsze",
+        "az": "Od A do Z"
+      },
+      "new": "Nowość",
+      "recent": "Ostatnio wybrane"
     },
     "studio": {
       "search": "Szukaj ustawień",
@@ -5613,8 +5631,8 @@
       "rail": "Grupy ustawień",
       "panelEmpty": "Wybierz grupę, aby ją edytować. Wszystko, co zmienisz, zostaje w linku.",
       "closeSettings": "Zamknij ustawienia",
-      "paletteTitle": "Szukaj ustawień i grup",
-      "palettePlaceholder": "Przejdź do ustawienia lub grupy…",
+      "paletteTitle": "Szukaj ustawień, grup i trybów",
+      "palettePlaceholder": "Przejdź do ustawienia, grupy lub trybu…",
       "paletteSections": "Grupy",
       "paletteControls": "Ustawienia",
       "paletteEmpty": "Nic nie pasuje do „{query}”.",

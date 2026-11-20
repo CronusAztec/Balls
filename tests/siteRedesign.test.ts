@@ -1,9 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { MODE_CARD_ORDER } from "@/lib/modes";
-import { aspectRatioLabel, familyOf, modeFamilies, modesForFilter, paletteControlEntries, paletteMatches, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import {
+  MODE_SHELF_IDS,
+  MODE_SHELVES,
+  MODE_SINCE,
+  MODE_SINCE_BASELINE,
+  MODE_SORT_IDS,
+  WALL_DEFAULTS,
+  WALL_QUERY_MAX,
+  aspectRatioLabel,
+  familyOf,
+  isNewMode,
+  modeFamilies,
+  modeShelves,
+  modesForFilter,
+  modesOnShelf,
+  paletteControlEntries,
+  paletteMatches,
+  shelfOf,
+  sortModes,
+  wallStateFromSearch,
+  wallStateToSearch,
+  type PaletteEntry,
+  type PaletteGroup,
+} from "@/lib/siteDesign";
+import { MODE_SEARCH_WORDS, SEARCH_LOCALES, SHELF_SEARCH_WORDS, modeSearchWords, searchModes, type ModeSearchItem } from "@/lib/modeSearch"; // --- mode-search ---
+import { RECENT_MODES_KEY, RECENT_MODES_MAX, parseRecentModes, readRecentModes, rememberRecentMode, withRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
+import changelog from "@/content/changelog.json";
+import pkg from "../package.json";
 import { paletteKeyGroups, type ControlSection } from "@/components/simulator/Controls";
 import { MODE_BLOCK_KEYS, MODE_BLOCK_KEY_SET, sectionKeyShown, wallControlsOf, type PanelShown } from "@/components/simulator/panelKeys";
 import { supportsObstacles } from "@/lib/physics/obstacleEditor";
@@ -37,6 +64,303 @@ describe("mode families", () => {
 
   it("have a translated chip label in every language", () => {
     for (const m of [en, pl, es]) for (const f of modeFamilies()) expect((m.SiteRedesign.families as Record<string, string>)[f.id]?.length ?? 0).toBeGreaterThan(0);
+  });
+});
+
+/* --- mode-shelves --- the visitor's layer over the registry: where the wall, the picker and the footer put each mode */
+describe("mode shelves", () => {
+  const cap = (id: string) => id[0].toUpperCase() + id.slice(1);
+
+  it("place every mode with a card exactly once, on the shelves in their order", () => {
+    const shelves = modeShelves();
+    expect(shelves.map((f) => f.id)).toEqual([...MODE_SHELF_IDS]);
+    const all = shelves.flatMap((f) => f.modes);
+    expect(new Set(all).size).toBe(all.length);
+    // the wall shows exactly the modes the hero counts (the smoke suite compares the two numbers)
+    expect([...all].sort()).toEqual([...modesForFilter("all")].sort());
+    expect(Object.keys(MODE_SHELVES).sort()).toEqual([...MODE_IDS].sort());
+    for (const f of shelves) {
+      expect(f.modes.length).toBeGreaterThan(0);
+      for (const m of f.modes) expect(shelfOf(m)).toBe(f.id);
+      expect(modesOnShelf(f.id)).toEqual(f.modes);
+      // a shelf's order is the order MODE_SHELVES writes its modes in
+      expect(f.modes).toEqual((Object.keys(MODE_SHELVES) as ModeId[]).filter((m) => MODE_SHELVES[m] === f.id));
+    }
+    expect(modesOnShelf("all")).toEqual(all);
+  });
+
+  it("put every fight, team game and race under Battle with Fight League first, and none of them elsewhere", () => {
+    const battle = modesOnShelf("battle");
+    expect(battle[0]).toBe("fightLeague");
+    expect(battle).toEqual(expect.arrayContaining(["fightLeague", "battle", "stringBattle", "ctf", "territory", "landClaim", "race", "maze"]));
+    // (the registry's own "rhythm" family holds four of them: the catch-all the shelves replace on the wall)
+    expect(["battle", "ctf", "fightLeague", "race"].map((m) => familyOf(m as ModeId))).toEqual(["rhythm", "rhythm", "rhythm", "rhythm"]);
+  });
+
+  it("keep the neighbours the smoke suite looks for under one heading", () => {
+    const together: [ModeId[], string][] = [
+      [["runner", "paddle", "drop", "beatDrop"], "music"],
+      [["orbGrid", "pendulum", "hoops", "starChords", "illusion"], "loops"],
+      [["classic", "conveyor", "colourSort", "brickRebuild"], "escape"],
+      [["maze", "stringBattle", "landClaim", "territory", "fightLeague", "ctf"], "battle"],
+      [["mergeRing", "spiralGlass", "glass"], "smash"],
+      [["journey"], "journey"],
+      [["blueprint"], "lab"],
+    ];
+    for (const [modes, shelf] of together) for (const m of modes) expect(shelfOf(m), m).toBe(shelf);
+    // Journey and Lab are one card each, so they share the wall's last row (the smoke suite needs a shared row)
+    expect(modeShelves().slice(-2).map((f) => [f.id, f.modes.length])).toEqual([["journey", 1], ["lab", 1]]);
+  });
+
+  it("have a chip label and a heading in every language, and only the Music heading says rhythm", () => {
+    for (const [locale, m] of [["en", en], ["pl", pl], ["es", es]] as const) {
+      for (const id of MODE_SHELF_IDS) {
+        expect((m.SiteRedesign.families as Record<string, string>)[id]?.length ?? 0, `${locale} families.${id}`).toBeGreaterThan(0);
+        expect((m.Headings as Record<string, string>)[`modes${cap(id)}`]?.length ?? 0, `${locale} Headings.modes${cap(id)}`).toBeGreaterThan(0);
+      }
+    }
+    // scripts/smoke-test.mjs finds the Beat Runner's shelf as the first heading that says "rhythm", and looks these three up by name
+    const headings = en.Headings as Record<string, string>;
+    expect(MODE_SHELF_IDS.filter((id) => /rhythm/i.test(headings[`modes${cap(id)}`]))).toEqual(["music"]);
+    expect([headings.modesEscape, headings.modesBattle, headings.modesJourney]).toEqual(["Escape modes", "Battle modes", "Journey modes"]);
+    expect([headings.modesMusic, headings.modesLoops, headings.modesSmash]).toEqual(["Music & rhythm modes", "Loop & pattern modes", "Smash & merge modes"]);
+  });
+});
+
+/* --- mode-shelves --- the Newest sort and the "New" badge */
+describe("when each mode arrived", () => {
+  const parts = (v: string) => v.split(".").map(Number);
+  const newer = (a: string, b: string) => parts(a)[0] - parts(b)[0] || parts(a)[1] - parts(b)[1] || parts(a)[2] - parts(b)[2];
+  const site = (changelog.releases as { product: string; version: string; headline: { en: string }; items: { text: { en: string } }[] }[]).filter((r) => r.product === "site");
+
+  it("is the website version whose release notes first name the mode, 1.0.0 for the ten ring modes", () => {
+    expect(site.length).toBeGreaterThan(10);
+    const oldestFirst = [...site].sort((a, b) => newer(a.version, b.version));
+    const baseline = MODE_IDS.filter((m) => MODE_SINCE[m] === MODE_SINCE_BASELINE);
+    expect([...baseline].sort()).toEqual(["accumulation", "classic", "colorMatch", "grow", "lines", "multiply", "paint", "portal", "shatter", "target"]);
+    for (const mode of MODE_IDS) {
+      expect(MODE_SINCE[mode], mode).toMatch(/^\d+\.\d+\.\d+$/);
+      if (baseline.includes(mode)) continue;
+      const name = (en.Modes as Record<string, { name?: string }>)[mode]?.name ?? "";
+      expect(name, mode).not.toBe("");
+      const first = oldestFirst.find((r) => [r.headline.en, ...r.items.map((i) => i.text.en)].some((text) => text.includes(name)));
+      // a mode no release names yet is one still being built: it carries the version it will ship in, not an old one
+      if (first) expect(MODE_SINCE[mode], `${mode} (${name}) is first named in ${first.version}`).toBe(first.version);
+      else expect(newer(MODE_SINCE[mode], pkg.version), `${mode} (${name}) is in no release note yet`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("marks a mode new for two minor versions, and one that is ahead of the site", () => {
+    expect(MODE_SINCE.blueprint).toBe("1.15.0");
+    expect(["1.14.0", "1.15.0", "1.15.3", "1.16.0", "1.17.0", "1.18.0"].map((v) => isNewMode("blueprint", v))).toEqual([true, true, true, true, false, false]);
+    expect(isNewMode("classic", "1.1.0")).toBe(true);
+    expect(isNewMode("classic", "1.2.0")).toBe(false);
+    expect(isNewMode("blueprint", "1.17.0", 3)).toBe(true);
+    // another major version, or a version that is not one (vitest's and a broken build's "0.0.0-dev"), marks nothing
+    for (const mode of MODE_IDS) expect(isNewMode(mode, "2.0.0") || isNewMode(mode, "0.0.0-dev") || isNewMode(mode, ""), mode).toBe(false);
+  });
+
+  it("sorts by arrival, newest first, and by name in the page's language", () => {
+    expect([...MODE_SORT_IDS]).toEqual(["featured", "newest", "az"]);
+    const some: ModeId[] = ["classic", "drop", "mergeRing", "multiply", "blueprint", "fightLeague"];
+    const name = (m: ModeId) => (en.Modes as unknown as Record<string, { name: string }>)[m].name;
+    expect(sortModes(some, "featured", name, "en")).toEqual(some);
+    expect(sortModes(some, "featured", name, "en")).not.toBe(some);
+    // modes of one version keep the order they came in (classic before multiply)
+    expect(sortModes(some, "newest", name, "en")).toEqual(["blueprint", "mergeRing", "fightLeague", "drop", "classic", "multiply"]);
+    expect(sortModes(some, "az", name, "en")).toEqual(["drop", "classic", "fightLeague", "mergeRing", "blueprint", "multiply"]); // Ball Drop, Classic, Fight League, Merge Ring, Mode Lab, Multiply
+    const polish: Partial<Record<ModeId, string>> = { classic: "Żaba", drop: "ananas", box: "Łoś", glass: "Zebra", grow: "Lot" };
+    expect(sortModes(["classic", "drop", "box", "glass", "grow"], "az", (m) => polish[m] ?? "", "pl")).toEqual(["drop", "grow", "box", "glass", "classic"]);
+    const all = modesOnShelf("all");
+    const newest = sortModes(all, "newest", name, "en");
+    expect([...newest].sort()).toEqual([...all].sort());
+    for (let i = 1; i < newest.length; i++) expect(newer(MODE_SINCE[newest[i - 1]], MODE_SINCE[newest[i]]), `${newest[i - 1]} before ${newest[i]}`).toBeGreaterThanOrEqual(0);
+  });
+});
+
+/* --- mode-shelves --- ?family=battle&q=merge&sort=az on the landing page */
+describe("the wall's state in the address", () => {
+  it("reads the shelf, the search and the sort, and falls back to the default for anything else", () => {
+    expect(wallStateFromSearch("")).toEqual(WALL_DEFAULTS);
+    expect(WALL_DEFAULTS).toEqual({ shelf: "all", query: "", sort: "featured" });
+    expect(wallStateFromSearch("?family=battle&q=merge%20ring&sort=az")).toEqual({ shelf: "battle", query: "merge ring", sort: "az" });
+    expect(wallStateFromSearch("?family=rhythm&sort=oldest&utm_source=x")).toEqual(WALL_DEFAULTS); // (the registry's family is no shelf)
+    expect(wallStateFromSearch("?family=__proto__&sort=constructor")).toEqual(WALL_DEFAULTS);
+    expect(wallStateFromSearch(`?q=${"a".repeat(200)}`).query).toHaveLength(WALL_QUERY_MAX);
+  });
+
+  it("writes only what differs from the default and keeps every other parameter", () => {
+    expect(wallStateToSearch(WALL_DEFAULTS)).toBe("");
+    expect(wallStateToSearch({ shelf: "battle", query: "", sort: "featured" })).toBe("?family=battle");
+    expect(wallStateToSearch({ shelf: "battle", query: "  merge ring ", sort: "az" }, "?utm_source=clip&family=escape")).toBe("?utm_source=clip&family=battle&q=merge+ring&sort=az");
+    expect(wallStateToSearch(WALL_DEFAULTS, "?family=battle&q=a&sort=newest&utm_source=clip")).toBe("?utm_source=clip");
+    expect(wallStateToSearch(WALL_DEFAULTS, "?family=battle&q=a")).toBe("");
+  });
+
+  it("round-trips every shelf with every sort", () => {
+    for (const shelf of ["all", ...MODE_SHELF_IDS] as const) {
+      for (const sort of MODE_SORT_IDS) {
+        const state = { shelf, query: "żółw & co", sort };
+        expect(wallStateFromSearch(wallStateToSearch(state, "?gclid=1"))).toEqual(state);
+      }
+    }
+  });
+});
+
+/* --- mode-search --- the search field of the wall and the picker */
+describe("mode search", () => {
+  const CATALOGS = { en, pl, es } as const;
+  const itemsOf = (locale: keyof typeof CATALOGS): ModeSearchItem[] =>
+    modesOnShelf("all").map((id) => {
+      const mode = (CATALOGS[locale].Modes as unknown as Record<string, { name: string; description: string }>)[id];
+      return { id, name: mode.name, description: mode.description, shelf: (CATALOGS[locale].SiteRedesign.families as Record<string, string>)[shelfOf(id)] };
+    });
+  const find = (locale: keyof typeof CATALOGS, query: string) => searchModes(itemsOf(locale), query, locale);
+
+  it("finds every mode first by its own name, in every language", () => {
+    for (const locale of SEARCH_LOCALES) for (const item of itemsOf(locale)) expect(find(locale, item.name)[0], `${locale} "${item.name}"`).toBe(item.id);
+  });
+
+  it("finds what a visitor wants to see: a fight, a race, a merge, a loop, music, a countdown", () => {
+    expect(find("en", "fight")).toEqual(modesOnShelf("battle"));
+    expect(find("en", "race")).toEqual(["race", "maze"]);
+    expect(find("en", "merge")[0]).toBe("mergeRing");
+    expect([...find("en", "merge")].sort()).toEqual([...modesOnShelf("smash")].sort());
+    expect(find("en", "loop")).toEqual(modesOnShelf("loops"));
+    expect(find("en", "music")).toEqual(modesOnShelf("music"));
+    expect(find("en", "countdown")).toEqual(["target", "box"]);
+    expect(find("en", "duel")).toEqual(["fightLeague", "stringBattle"]);
+    expect(find("en", "dvd")).toEqual(["box"]);
+    expect(find("en", "ctf")).toEqual(["ctf"]);
+  });
+
+  it("ranks the name above the search words, the words above the shelf, the shelf above the one-liner", () => {
+    // "Metronomes & Polyrhythms" holds the word, the Music shelf answers to it
+    expect(find("en", "rhythm")).toEqual(["polyrhythm", ...modesOnShelf("music")]);
+    // two names, a search word (Shatter), then the rest of the Smash shelf
+    expect(find("en", "smash").slice(0, 3)).toEqual(["brickRebuild", "glass", "shatter"]);
+    // a name that starts with the search comes before one that only holds the word
+    expect(find("en", "glass").slice(0, 2)).toEqual(["glass", "spiralGlass"]);
+    expect(find("en", "pendulum").slice(0, 2)).toEqual(["pendulum", "doublePendulum"]);
+    // every word of the search has to match
+    expect(find("en", "beat run")).toEqual(["runner"]);
+    expect(find("en", "fight zzz")).toEqual([]);
+  });
+
+  it("answers in Polish and Spanish, without diacritics, and to the English name on every page", () => {
+    expect(find("pl", "walka")).toEqual(modesOnShelf("battle"));
+    expect(find("pl", "petla")).toEqual(modesOnShelf("loops"));
+    expect(find("pl", "pętla")).toEqual(modesOnShelf("loops"));
+    expect(find("pl", "wyscig")).toEqual(["race", "maze"]);
+    expect(find("pl", "laczenie")[0]).toBe("mergeRing");
+    expect(find("es", "pelea")).toEqual(modesOnShelf("battle"));
+    expect(find("es", "fusion")[0]).toBe("mergeRing");
+    expect(find("es", "musica")).toEqual(modesOnShelf("music"));
+    for (const locale of ["pl", "es"] as const) {
+      expect(find(locale, "fight league"), locale).toEqual(["fightLeague"]);
+      expect(find(locale, "merge ring"), locale).toEqual(["mergeRing"]);
+      expect(find(locale, "spiral glass"), locale).toEqual(["spiralGlass"]);
+    }
+  });
+
+  it("gives every mode for an empty search, nothing for nonsense, and never the same mode twice", () => {
+    const all = modesOnShelf("all");
+    expect(find("en", "")).toEqual(all);
+    expect(find("en", "   ")).toEqual(all);
+    expect(find("en", "zzzz")).toEqual([]);
+    expect(find("en", "?!")).toEqual(all); // (no letter or digit: nothing to look for)
+    for (const q of ["a", "b", "ball", "s"]) expect(new Set(find("en", q)).size, q).toBe(find("en", q).length);
+    // an unknown language searches with the English words
+    expect(searchModes(itemsOf("en"), "duel", "de")).toEqual(["fightLeague", "stringBattle"]);
+  });
+
+  it("has search words for every mode and every shelf in English, Polish and Spanish", () => {
+    expect(Object.keys(MODE_SEARCH_WORDS).sort()).toEqual([...MODE_IDS].sort());
+    expect(Object.keys(SHELF_SEARCH_WORDS).sort()).toEqual([...MODE_SHELF_IDS].sort());
+    for (const [id, words] of [...Object.entries(MODE_SEARCH_WORDS), ...Object.entries(SHELF_SEARCH_WORDS)]) {
+      for (const locale of SEARCH_LOCALES) {
+        const list = words[locale].split(" ");
+        expect(list.length, `${id} ${locale}`).toBeGreaterThanOrEqual(2);
+        expect(list.length, `${id} ${locale}`).toBeLessThanOrEqual(8);
+        expect(words[locale], `${id} ${locale}`).toBe(words[locale].toLowerCase().trim());
+        expect(new Set(list).size, `${id} ${locale}`).toBe(list.length);
+      }
+    }
+    expect(modeSearchWords("fightLeague", "pl")).toBe(`${MODE_SEARCH_WORDS.fightLeague.pl} ${MODE_SEARCH_WORDS.fightLeague.en} fight League`);
+    expect(modeSearchWords("fightLeague", "en")).toBe(`${MODE_SEARCH_WORDS.fightLeague.en} fight League`);
+  });
+});
+
+/* --- mode-shelves --- the command palette lists the modes and Change mode next to the groups and the settings */
+describe("command palette: the modes", () => {
+  const names = en.Modes as unknown as Record<string, { name: string }>;
+  const entries: PaletteEntry[] = [
+    { kind: "section", section: "mode", key: "mode", label: "Mode", sectionLabel: "Mode" },
+    { kind: "section", section: "ball", key: "ball", label: "Ball & Physics", sectionLabel: "Ball & Physics" },
+    { kind: "control", section: "ball", key: "gravity", label: "Gravity", sectionLabel: "Ball & Physics" },
+    { kind: "control", section: "ball", key: "ballSize", label: "Ball Size", sectionLabel: "Ball & Physics" },
+    { kind: "action", section: "mode", key: "changeMode", label: "Change mode", sectionLabel: "" },
+    ...modesOnShelf("all").map((id): PaletteEntry => ({ kind: "mode", section: "mode", key: id, label: names[id].name, sectionLabel: "", words: modeSearchWords(id, "en") })),
+  ];
+  const keys = (query: string, kind?: PaletteEntry["kind"]) => paletteMatches(entries, query, 200).filter((e) => !kind || e.kind === kind).map((e) => e.key);
+
+  it("lists the groups and Change mode for an empty query, and no mode", () => {
+    expect(keys("")).toEqual(["mode", "ball", "changeMode"]);
+  });
+
+  it("finds a mode by its name and by its search words", () => {
+    expect(keys("pendulum", "mode")).toEqual(["pendulum", "doublePendulum", "drawingMachine"]);
+    expect(keys("merge ring")).toEqual(["mergeRing"]);
+    expect(keys("duel", "mode")).toEqual(["fightLeague", "stringBattle"]);
+    expect(keys("change")).toEqual(["changeMode"]);
+  });
+
+  it("does not answer to a setting's or a group's name with every mode", () => {
+    // (the smoke suite types "grav" in Classic and expects one Gravity and no mode among the options)
+    for (const q of ["grav", "gravity", "gravity variation", "export project", "speed", "size", "wall", "trail"]) expect(keys(q, "mode"), q).toEqual([]);
+    expect(keys("mode", "mode")).toEqual(["blueprint"]); // Mode Lab, by its own name
+    expect(keys("mode")).toEqual(expect.arrayContaining(["mode", "changeMode"]));
+  });
+});
+
+/* --- mode-shelves --- the picker's Recent row */
+describe("recent modes", () => {
+  it("reads only a list of known mode ids, each once, at most six", () => {
+    expect(RECENT_MODES_MAX).toBe(6);
+    for (const raw of [null, undefined, "", "not json", "{}", '"classic"', "42"]) expect(parseRecentModes(raw), String(raw)).toEqual([]);
+    expect(parseRecentModes('["fightLeague","nope",7,null,"classic","fightLeague","__proto__"]')).toEqual(["fightLeague", "classic"]);
+    expect(parseRecentModes(JSON.stringify(MODE_IDS))).toEqual(MODE_IDS.slice(0, 6));
+  });
+
+  it("puts a pick first, once, and drops the oldest past six", () => {
+    expect(withRecentMode([], "classic")).toEqual(["classic"]);
+    expect(withRecentMode(["classic", "drop"], "drop")).toEqual(["drop", "classic"]);
+    const six: ModeId[] = ["classic", "drop", "box", "glass", "grow", "lines"];
+    expect(withRecentMode(six, "paint")).toEqual(["paint", "classic", "drop", "box", "glass", "grow"]);
+  });
+
+  it("remembers a pick with the mode it replaces, in this browser's storage only, and works without one", () => {
+    // Node has no window: nothing is read, nothing is thrown
+    expect(readRecentModes()).toEqual([]);
+    expect(() => rememberRecentMode("classic", "drop")).not.toThrow();
+    const store = new Map<string, string>();
+    vi.stubGlobal("window", { localStorage: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value) } });
+    try {
+      rememberRecentMode("fightLeague", "classic"); // (Classic came from a link: it was never picked, and is the way back)
+      expect(readRecentModes()).toEqual(["fightLeague", "classic"]);
+      rememberRecentMode("drop", "fightLeague");
+      rememberRecentMode("drop", "drop");
+      rememberRecentMode("mergeRing");
+      expect(readRecentModes()).toEqual(["mergeRing", "drop", "fightLeague", "classic"]);
+      expect([...store.keys()]).toEqual([RECENT_MODES_KEY]);
+      expect(JSON.parse(store.get(RECENT_MODES_KEY) ?? "null")).toEqual(["mergeRing", "drop", "fightLeague", "classic"]);
+      // a storage that refuses (private mode, a full quota)
+      vi.stubGlobal("window", { localStorage: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } });
+      expect(readRecentModes()).toEqual([]);
+      expect(() => rememberRecentMode("classic", "drop")).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

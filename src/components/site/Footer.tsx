@@ -6,18 +6,21 @@ import { LOCALE_OPTIONS } from "@/i18n/routing";
 import { SITE_NAME } from "@/lib/site";
 import { BUILD_COMMIT, BUILD_COMMIT_DATE, buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
 import { LEGAL_NAME, LEGAL_VAT_ID } from "@/lib/operator"; // --- build-identity --- the imprint line (empty until the owner sets NEXT_PUBLIC_LEGAL_NAME); --- legal-audit --- the VAT number after it
-import { modeFamilies } from "@/lib/siteDesign";
+import { SHOW_SHELF_EVENT, modeShelves } from "@/lib/siteDesign";
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 import Kbd from "@/components/ui/Kbd";
 import { useModifierKey } from "@/components/ui/useModifierKey";
 import { cx } from "@/components/ui/cx";
 
 /*
- * --- site-redesign --- The footer: four columns – Product, Modes (one link per family, opening its first mode), Legal and
- * Language (this page in the other languages) – then the wordmark line with the keyboard shortcuts.
+ * --- site-redesign --- The footer: four columns – Product, Modes, Legal and Language (this page in the other languages) –
+ * then the wordmark line with the keyboard shortcuts.
+ * --- mode-shelves --- The Modes column has one link per shelf of the modes wall (lib/siteDesign.ts), and each opens the wall
+ * on that shelf (/?family=battle#modes), not one mode of it. Clicked on the landing page itself, where the wall is already
+ * mounted, the link also tells it which shelf to show (SHOW_SHELF_EVENT).
  */
 
-const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
+const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", battle: "modesBattle", music: "modesMusic", loops: "modesLoops", smash: "modesSmash", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
 
 export default function Footer() {
   const t = useTranslations("Footer");
@@ -71,9 +74,9 @@ export default function Footer() {
         <div>
           <h2 className="eyebrow text-ink-3">{s("footer.modes")}</h2>
           <ul className="mt-4 space-y-3">
-            {modeFamilies().map((f) => (
+            {modeShelves().map((f) => (
               <li key={f.id}>
-                <Link href={`/simulator?mode=${f.modes[0]}`} className={linkClass}>
+                <Link href={`/?family=${f.id}#modes`} className={linkClass} onClick={() => window.dispatchEvent(new CustomEvent(SHOW_SHELF_EVENT, { detail: f.id }))}>
                   {familyLabel(f.id)}
                 </Link>
                 <span className="num ml-2 text-xs text-ink-3">{f.modes.length}</span>
