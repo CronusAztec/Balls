@@ -2,6 +2,7 @@ import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
 import { HOOPS_LOOK } from "@/lib/physics/hoopsFields"; // --- finales-in-clip ---
 import { drawingMachineLook } from "@/lib/physics/drawingMachineFields"; // --- finales-in-clip ---
+import { BULLSEYE_LAST_SHOT } from "@/lib/physics/modes/bullseye"; // --- finales-in-clip --- (review fix)
 
 /*
  * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip: a
@@ -115,19 +116,70 @@ const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, s
 const RUNNER_PACE: Partial<SimulatorSettings> = Object.freeze({ runnerObstacles: 18, runnerDensity: 0.85 });
 /** Sound Vortex: the ring release – rainbow rings of 6, 12 and 24 marbles, one cycle of 22.5 s (the mode's own stagger stays). */
 const VORTEX_PACE: Partial<SimulatorSettings> = Object.freeze({ vxRelease: "rings" } as const);
-/** Bullseye: ten shots, the last one steered into the bull (the mode's own 12 shots and no rig stay). */
-const BULLSEYE_PACE: Partial<SimulatorSettings> = Object.freeze({ byShots: 10, byPerfect: 10 });
+/**
+ * Bullseye: ten shots, the last one steered into the bull (the mode's own 12 shots and no rig stay). (--- review fix --- the last
+ * shot by name, BULLSEYE_LAST_SHOT: a visitor who changes Shots still gets the bull on the last one, never mid-run or not at all.)
+ */
+const BULLSEYE_PACE: Partial<SimulatorSettings> = Object.freeze({ byShots: 10, byPerfect: BULLSEYE_LAST_SHOT });
 /** Race: a track of 6 screens (the mode's own 8 stay). */
 const RACE_PACE: Partial<SimulatorSettings> = Object.freeze({ rcTrackLength: 6 });
 /** Journey: five stages and home – rings, pegs, glass, multipliers, funnel (the mode's own seven stay). */
 const JOURNEY_PACE: Partial<SimulatorSettings> = Object.freeze({ journeyStages: "rings,pegs,glass,multipliers,funnel,home" });
 /** Bouncing Orbs: a 26 s cycle, so the landing, its card and its chord land inside the clip (the mode's own 30 s stay). */
 const ORB_GRID_PACE: Partial<SimulatorSettings> = Object.freeze({ ogCycle: 26 });
-/** Maze: the run ends at the first ball out, the clip limit 25 s (the mode's own: every ball out, 60 s). */
-const MAZE_PACE: Partial<SimulatorSettings> = Object.freeze({ mzFirstOut: true, mzDuration: 25 });
+/**
+ * Maze: the run ends at the first ball out, the clip limit 25 s (the mode's own: every ball out, 60 s). (--- review fix --- and 14
+ * columns, the mode's own 12: seeds 1–60, the finder's world – the first ball out under 10 s on 12 runs, 23 at 12 columns; a median
+ * run of 14.6 s, 12.2 s; 2 time-ups as before, every run over by 27.5 s. 16 columns: a median 16.9 s, but 8 time-ups.)
+ */
+const MAZE_PACE: Partial<SimulatorSettings> = Object.freeze({ mzFirstOut: true, mzDuration: 25, mzCols: 14 });
 /** Paddle Keep-Up: a goal of 20 catches – a win card or GAME OVER, the question every run answers (the mode's own: no goal). */
 const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
 // --- end finales-in-clip ---
+
+// --- finder-target --- (review fix B6)
+/**
+ * Find Simulation's target (s) on a paced mode's own page pace: the page's 30 s found no run where the pace ends every run well
+ * inside the clip (Beat Runner 0 of 300 within 30 ± 0.5 s, Paddle Keep-Up 0 of 300, Bullseye, Journey and the Maze 0 of 150), so
+ * the search went through its 1,000 seeds and said "closest X s". Picked from the page's default runs, seeds 1–40 in the finder's
+ * worlds (800 × 600 and 450 × 450), as the target with the most runs within its ± 0.5 s:
+ *  - runner 22 (10 of 40; median 22.1 s), paddle 28 (11; 26.4 s, the wins at 20 catches), bullseye 25 (11 and 19; 25.3 and 24.7 s),
+ *    journey 21 (6 and 8; 22.9 and 20.6 s), maze 15 (6; 14.6 s), race 22 (11 and 10; 22.1 s);
+ *  - one length on every seed: Sound Vortex 22.5 (its ring cycle), Pendulum Wave and Polyrhythm 24 (one cycle);
+ *  - the earlier paces: Countdown 20 (4 and 6; 24.6 and 19.3 s), Color Match 22 (2 and 3; 28.8 and 18.7 s), Merge Ring 23 (5 and 6),
+ *    Spiral Glass 24 (24 and 27), Shatter 15 (2 and 6; 17.4 and 14.6 s).
+ * (Territory's countdown is 30 s on every seed, and Bouncing Orbs' rhythm field never ends: the page's 30 stays.) Only while the
+ * mode's run fields are at their page pace (`clipPacingDefaults()`; the ring modes' glow is a look): a link that sets its own
+ * course keeps the page's 30. Simulator.tsx sets it when the page starts a mode (a first visit, a mode picked).
+ */
+export const DEFAULT_FIND_SEC = 30;
+const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
+  target: 20,
+  colorMatch: 22,
+  pendulum: 24,
+  polyrhythm: 24,
+  mergeRing: 23,
+  spiralGlass: 24,
+  shatter: 15,
+  runner: 22,
+  vortex: 22.5,
+  bullseye: 25,
+  race: 22,
+  journey: 21,
+  maze: 15,
+  paddle: 28,
+});
+const LOOK_ONLY_PACE: ReadonlySet<string> = new Set(["showGlow"]);
+
+/** The finder's target (s) for `settings`: the paced mode's own while its run is at the page's pace, else the page's 30. */
+export function clipPacingFindSec(settings: Pick<SimulatorSettings, "mode"> & Partial<SimulatorSettings>): number {
+  const target = PACED_FIND_SEC[settings.mode];
+  if (target === undefined) return DEFAULT_FIND_SEC;
+  const own = settings as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(clipPacingDefaults(settings.mode))) if (!LOOK_ONLY_PACE.has(key) && own[key] !== value) return DEFAULT_FIND_SEC;
+  return target;
+}
+// --- end finder-target ---
 
 // --- clip-start --- (review fix B2)
 /**

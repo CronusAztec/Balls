@@ -80,7 +80,7 @@ import { funnelExtentPx } from "./funnelRenderer"; // --- funnel-spin --- (the l
 // --- gerald-journey --- the Journey: the stages in view, the banner, the mini-map, the clock and score
 import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDataset, type JourneyLabels, type JourneyRenderOptions } from "./journeyRenderer";
 // --- gerald-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
-import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
+import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, bullseyeCardShown, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- merge-ring --- Merge Ring: the rainbow rim, the tier bodies and emblems, the halos, the ladder, the caption and the HUD
 import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, MergeRingLayer, trailStrokeUnderBody, trailUnderBody, type MergeRingLabels, type MergeRingRenderOptions } from "./mergeRingRenderer";
 import { plainTransform } from "./mergeRingGlow";
@@ -3015,7 +3015,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-rhythm-runner --- progress, tempo, attempts and LEVEL COMPLETE! / score, lives, MISS! and GAME OVER (screen space,
       // part of the recording; live, below the page's buttons over a nearly square canvas)
       if (rrView) rrLayer.drawOverlay(ctx, rrView, (labelsRef.current ?? DEFAULT_LABELS).jdmRhythm ?? DEFAULT_JDM_RHYTHM_LABELS, jrRender, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 40 : 0);
-      if (pdView) pdLayer.drawOverlay(ctx, pdView, (labelsRef.current ?? DEFAULT_LABELS).jdmRhythm ?? DEFAULT_JDM_RHYTHM_LABELS);
+      if (pdView) pdLayer.drawOverlay(ctx, pdView, (labelsRef.current ?? DEFAULT_LABELS).jdmRhythm ?? DEFAULT_JDM_RHYTHM_LABELS, recordingRef.current || !!offline); // (--- paddle-look --- review fix: no AUTO tag in a clip)
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -3290,6 +3290,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
+        } else if (vortexView && vortexView.funnel.doneMs >= 0) {
+          // --- vortex-finale --- (review fix) the ring release's last marble down the hole: the same card, above the hole's flash
+          const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
+          bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635", 0.2);
         }
         // --- gerald-journey --- Journey: Gerald is HOME – the stages, the total time and the score.
         // (--- templates --- AI studio step 4b: the overlay's card, gone with it – the door marked HOME is the picture's)
@@ -3298,7 +3302,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           bigBanner(JL.homeTitle, JL.homeSub(journeyView.stages.length, (journeyView.homeAtMs / 1000).toFixed(1), journeyView.score), "#a3e635", 0.27); // --- end-banner --- (where the stage banners were: above the door and its sign)
         }
         // --- gerald-bullseye --- Bullseye: every shot has landed – the total and the best shot (from the last landing, through the hold)
-        if (bullseyeView && bullseyeView.allLanded) {
+        // (--- finales-in-clip --- review fix: after a BULLSEYE! of the last shots has gone, never under it)
+        if (bullseyeView && bullseyeCardShown(bullseyeView)) {
           const BY = L.bullseye ?? DEFAULT_BULLSEYE_LABELS;
           bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
         }

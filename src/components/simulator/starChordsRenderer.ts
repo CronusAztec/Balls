@@ -1,5 +1,6 @@
 import { SC_CHORD_CEILING, type StarChordsView } from "@/lib/physics/modes/starChords";
 import { envelopeRadius, vertexAngle } from "@/lib/physics/starChords";
+import { LOOP_HUD_AMBER } from "@/lib/loop/hud"; // --- finales-in-clip --- (review fix: the counter's amber)
 
 /*
  * --- chord-stars --- Chord Stars on the canvas (the mode: lib/physics/modes/starChords.ts). In world space, under the balls: the
@@ -39,6 +40,8 @@ export const SC_FRAME_CHORDS = 20_000;
 /** Above this many new chords a frame, a ball's are stroked as one path (a crossing inside it no longer blends twice). */
 const PER_CHORD_LIMIT = 512;
 const CHORD_ALPHA = 0.82;
+/** --- finales-in-clip --- (review fix) The countdown arc's colour: the "stars closing" counter's amber. */
+export const STAR_ARC_COLOR = LOOP_HUD_AMBER;
 /** Seconds a bounce's glint, the closing flash and an inner circle's appearance take. */
 const GLINT_SEC = 0.28;
 const FLASH_SEC = 0.75;
@@ -193,21 +196,31 @@ export class StarChordsLayer {
     }
     // --- finales-in-clip --- (B6) the countdown to the closing: a bright arc just outside the circle from the top, round with the
     // cycle's clock and complete on the closing frame (no words: it reads the same in every language)
+    // (--- finales-in-clip --- review fix: a band in the counter's amber, about three times the circle's line and clear of it, with a
+    // bright head – a 3 px line at 1080 px was one css px on a phone, a second edge of the circle)
     if (view.phase === "draw" && view.cycleSec > 0) {
       const k = Math.max(0, Math.min(1, view.cycleTime / view.cycleSec));
-      const r = f.radius + Math.max(3, 2.2 * ctx.lineWidth);
+      const band = Math.max(4.5, 0.02 * f.radius, 3 * ctx.lineWidth);
+      const r = f.radius + 0.5 * ctx.lineWidth + Math.max(4, 0.018 * f.radius) + 0.5 * band;
       ctx.save();
-      ctx.lineWidth = Math.max(1.5, 0.9 * ctx.lineWidth);
-      ctx.strokeStyle = "#ffffff";
-      ctx.globalAlpha = 0.12;
+      ctx.lineWidth = band;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = STAR_ARC_COLOR;
+      ctx.globalAlpha = 0.16;
       ctx.beginPath();
       ctx.arc(f.cx, f.cy, r, 0, 2 * Math.PI);
       ctx.stroke();
       if (k > 0) {
-        ctx.globalAlpha = 0.55 + 0.4 * k * k;
+        const end = -Math.PI / 2 + 2 * Math.PI * k;
+        ctx.globalAlpha = 0.75 + 0.25 * k;
         ctx.beginPath();
-        ctx.arc(f.cx, f.cy, r, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * k);
+        ctx.arc(f.cx, f.cy, r, -Math.PI / 2, end);
         ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#fff7e0";
+        ctx.beginPath();
+        ctx.arc(f.cx + r * Math.cos(end), f.cy + r * Math.sin(end), 0.75 * band, 0, 2 * Math.PI);
+        ctx.fill();
       }
       ctx.restore();
     }

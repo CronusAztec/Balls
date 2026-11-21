@@ -138,7 +138,8 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
       </Searchable>
       {!search && (
         <p className="text-xs text-ink-3 leading-relaxed" data-testid="maze-run">
-          {t("mzRunInfo", { cols: s.mzCols, rows, cells: s.mzCols * rows, seconds: s.mzDuration })}
+          {/* --- finales-in-clip --- (review fix) the rule the run ends by: the first ball out, or every ball */}
+          {t(s.mzFirstOut ? "mzRunInfoFirst" : "mzRunInfo", { cols: s.mzCols, rows, cells: s.mzCols * rows, seconds: s.mzDuration })}
         </p>
       )}
     </div>
