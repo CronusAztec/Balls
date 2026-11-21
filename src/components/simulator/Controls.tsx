@@ -131,10 +131,10 @@ import { StageModeContext } from "./studio/StageStrip"; // --- studio-fit --- th
 import { OPEN_SETTING_EVENT, modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
 import { modePaletteWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does, its shelf's among them
 import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
-import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, settingSearchWords, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode (--- panel-basics --- and the words a control answers to)
+import { MODE_BLOCK_KEYS, ballControlsOf, searchKeyShown, sectionKeyShown, settingSearchWords, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode (--- panel-basics --- and the words a control answers to)
 // --- panel-basics --- the starter block, the named rows of the Recording group, the undo history, the last address
 import FoldRow from "./studio/FoldRow";
-import { UNDO_SETTLE_MS, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, typesText, undoPatch } from "@/lib/studioMemory";
+import { UNDO_SETTLE_MS, isBareStudioQuery, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
 export type StudioSection = "mode" | ControlSection | "presets";
@@ -421,6 +421,11 @@ export default function Controls(props: ControlsProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const scrollTo = useRef<StudioSection | null>(null);
   const [scrollTick, setScrollTick] = useState(0);
+  // --- review fix (panel-basics) --- where the focus goes after a press that unmounts the pressed button: the block a step
+  // chip opened, the group whose Show Advanced Options row was pressed (and the switch it turned on)
+  const focusBlock = useRef<StudioSection | null>(null);
+  const focusAdvanced = useRef<ControlSection | null>(null);
+  const advancedSwitchRef = useRef<HTMLInputElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /**
    * A control the palette jumped to, until it is focused: its label and search key, the id of its block and of its section's
@@ -499,7 +504,6 @@ export default function Controls(props: ControlsProps) {
     // --- panel-basics --- and the words a visitor types for it ("colour", "length", "hook", "logo": panelKeys.ts)
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q) || settingSearchWords(key, locale).split(" ").some((word) => !!word && word.includes(q));
   };
-  const sectionMatches = (keys: string[]) => !search || keys.some(matches);
   const showAdvanced = advanced || !!search;
   /** --- panel-basics --- Whether the control with this key shows: a basic one always, one behind the switch with it on (ADVANCED_KEYS). */
   const shows = (key: string) => showAdvanced || !ADVANCED_KEY_SET.has(key);
@@ -1597,7 +1601,6 @@ export default function Controls(props: ControlsProps) {
   // so a search for "Spikes" in Classic still reports no results)
   const ballKeys = [...SECTION_KEYS.ball, ...(ESCAPE_MODE_KEYS_BY_MODE[s.mode] ?? [])];
   const keysOf = (id: ControlSection) => (id === "ball" ? ballKeys : SECTION_KEYS[id]);
-  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(keysOf(id))) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   // --- site-redesign --- the studio: the rail (a tab strip below 1280 px), the stage the page hands in, and the panel with
   // the open blocks – the Mode block, the open group (today's renderSection() output), Saved Presets, the project file –
@@ -1648,7 +1651,29 @@ export default function Controls(props: ControlsProps) {
     scrollTo.current = null;
     if (id === "mode") return;
     document.getElementById(`studio-block-${id}`)?.scrollIntoView({ block: "nearest" });
+    // --- review fix (panel-basics) --- a button that goes with the opening (the starter's step 3) hands the focus to the block
+    if (focusBlock.current === id) document.querySelector<HTMLElement>(`#studio-block-${id} > h2`)?.focus({ preventScroll: true });
+    focusBlock.current = null;
   }, [scrollTick]);
+  // --- review fix (panel-basics) --- the Show Advanced Options row goes once pressed: the focus moves to the first control it
+  // brought in (else to the switch it turned on), so the keyboard and a screen reader keep their place
+  useEffect(() => {
+    const group = focusAdvanced.current;
+    focusAdvanced.current = null;
+    if (!group || !advanced || !(group in ADVANCED_KEYS)) return;
+    const block = document.getElementById(`studio-block-${group}`);
+    let first: HTMLElement | null = null;
+    for (const key of ADVANCED_KEYS[group as AdvancedGroup]) {
+      const found = block && t.has(key) ? findControl(block, t(key), key) : null;
+      if (found?.focusable) {
+        first = found.el;
+        break;
+      }
+    }
+    if (first) scrollIntoPanel(first);
+    (first ?? advancedSwitchRef.current)?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanced]);
 
   // --- studio-fit --- a mode picked anywhere (the picker, the strip's arrows, the palette: the event they all send) is seen
   // at once: on a phone the sheet goes down
@@ -1788,7 +1813,8 @@ export default function Controls(props: ControlsProps) {
       pendingFocus.current = null;
       scrollIntoPanel(target.el); // --- studio-fit --- (the panel alone scrolls where it can: the stage stays where it is)
       if (target.focusable) target.el.focus({ preventScroll: true });
-      const row = target.el.closest<HTMLElement>("[data-search-key], [data-uncap-slider], .space-y-2, .space-y-3") ?? target.el;
+      // --- review fix (panel-basics) --- a Recording row's button: its line; a control in a row's block: the row at most, never the whole group
+      const row = (target.el.hasAttribute("data-recording-row") ? target.el.parentElement : target.el.closest<HTMLElement>("[data-search-key], [data-uncap-slider], [data-fold-row], .space-y-2, .space-y-3")) ?? target.el;
       row.setAttribute("data-palette-hit", "");
       window.setTimeout(() => row.removeAttribute("data-palette-hit"), 1600);
       return;
@@ -1834,13 +1860,17 @@ export default function Controls(props: ControlsProps) {
   // --- panel-basics --- Undo: a snapshot of the settings each time they rest for a moment after a change (UNDO_SETTLE_MS),
   // restored through the page's own update path, within one mode (a mode switch builds its own settings: the history starts
   // again there). The button sits beside Reset; Ctrl/Cmd+Z undoes too where the focus is not in a text field.
-  const undoRef = useRef<{ history: SimulatorSettings[]; settled: SimulatorSettings; timer: number; restoring: boolean }>({ history: [], settled: s, timer: 0, restoring: false });
+  const undoRef = useRef<{ history: SimulatorSettings[]; settled: SimulatorSettings; timer: number; restoring: boolean; found: boolean }>({ history: [], settled: s, timer: 0, restoring: false, found: props.simulationFound });
   const [undoable, setUndoable] = useState(false);
   const [resetFlash, setResetFlash] = useState(false);
   useEffect(() => {
     const u = undoRef.current;
     window.clearTimeout(u.timer);
-    if (s.mode !== u.settled.mode) {
+    // --- review fix (panel-basics) --- a found run is a new resting point, as a mode switch is: the finder's own change (the
+    // clip's length it sets) is no step to take back, and nothing before the find is either (Undo is off while it is found)
+    const foundNow = props.simulationFound && !u.found;
+    u.found = props.simulationFound;
+    if (s.mode !== u.settled.mode || foundNow) {
       u.history = [];
       u.settled = s;
       u.restoring = false;
@@ -1862,11 +1892,12 @@ export default function Controls(props: ControlsProps) {
       u.settled = s;
     }, UNDO_SETTLE_MS);
     return () => window.clearTimeout(u.timer);
-  }, [s]);
+  }, [s, props.simulationFound]);
   const settingsRef = useRef(s);
   settingsRef.current = s;
   const undo = useCallback(() => {
     const u = undoRef.current;
+    if (u.found) return; // --- review fix (panel-basics) --- (the found run's settings are kept: its clip length included)
     window.clearTimeout(u.timer);
     // a change still settling is undone first (back to where the settings last rested), then the history, newest first
     let patch = undoPatch(u.settled, settingsRef.current);
@@ -1906,7 +1937,9 @@ export default function Controls(props: ControlsProps) {
   const visit = useRef<{ arrived: SimulatorSettings; bare: boolean; changed: boolean }>({ arrived: s, bare: false, changed: false });
   useEffect(() => {
     const v = visit.current;
-    v.bare = !window.location.search;
+    // --- review fix (panel-basics) --- (the address a bare arrival writes, met again after a reload or Back, is bare too)
+    const arrival = studioQueryOf(window.location.search);
+    v.bare = !window.location.search || (!!arrival && isBareStudioQuery(arrival));
     if (v.bare) setLastVisit(readStudioQuery());
     else rememberStudioQuery(window.location.search);
     const onHide = () => {
@@ -2032,7 +2065,10 @@ export default function Controls(props: ControlsProps) {
             setStarterOpen(true);
             window.setTimeout(() => document.getElementById("studio-starter-body")?.scrollIntoView({ block: "nearest" }), 0);
           })}
-          {step(3, howItWorks("step3.title"), () => openGroup("recording"))}
+          {step(3, howItWorks("step3.title"), () => {
+            focusBlock.current = "recording"; // --- review fix (panel-basics) --- (the starter block and this chip go: the focus moves to the group)
+            openGroup("recording");
+          })}
         </ol>
         {lastVisit && resumeMode && resumeMode in modeNames && (
           <a
@@ -2084,6 +2120,12 @@ export default function Controls(props: ControlsProps) {
   );
 
   const panelBody = () => {
+    // --- review fix (panel-basics) --- a group heads the search results only when a control that matches shows in it: a
+    // match the mode or a setting leaves out (another mode's block, Text Size with no text, the per-arena editor with one
+    // arena) leaves no empty heading behind, and with nothing shown the panel says there are no results
+    const multipliersShown = showsMultipliersSection(s.mode, s.glassGates);
+    const groupFound = (id: ControlSection) => keysOf(id).some((key) => matches(key) && searchKeyShown(key, paletteShown, multipliersShown));
+    const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some(groupFound) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
     if (search)
       return (
         <div className="space-y-4 animate-fadeIn">
@@ -2096,7 +2138,7 @@ export default function Controls(props: ControlsProps) {
           {!anyResults && <p className="py-4 text-center text-sm text-ink-3">{t("noSearchResults")}</p>}
           {(Object.keys(SECTION_KEYS) as ControlSection[]).map(
             (id) =>
-              sectionMatches(keysOf(id)) && (
+              groupFound(id) && (
                 <div key={id} id={`studio-results-${id}`} /* --- review fix (site-redesign) --- (the palette looks for a section's control among its own results) */>
                   {/* --- panel-basics --- the group's name over its results: a found control says where it lives */}
                   <h2 className="eyebrow mb-3 text-ink-3" data-results-group={id}>
@@ -2111,7 +2153,9 @@ export default function Controls(props: ControlsProps) {
       );
     const block = (id: StudioSection, label: string, body: ReactNode) => (
       <section key={id} id={`studio-block-${id}`} className="scroll-mt-4 border-t border-line pt-4 first:border-t-0 first:pt-0 animate-fadeIn">
-        <h2 className="eyebrow mb-4 text-ink-3">{label}</h2>
+        <h2 className="eyebrow mb-4 text-ink-3" tabIndex={-1} /* --- review fix (panel-basics) --- (the starter's step 3 moves the focus here) */>
+          {label}
+        </h2>
         {body}
       </section>
     );
@@ -2120,7 +2164,15 @@ export default function Controls(props: ControlsProps) {
     // press turns the switch on
     const hidden = sectionItem && !advanced ? advancedCount(sectionItem.id as ControlSection, paletteShown, { tones: s.hitSoundMode === "tones", musicTrack: !!props.musicTrack, onBeat: s.onBeat, breathing: s.breathingAmplitude > 0 }) : 0;
     const advancedRow = hidden > 0 && (
-      <button type="button" onClick={() => setAdvancedPersist(true)} className="mt-4 flex w-full items-center justify-between gap-3 rounded-md border border-dashed border-line px-3 py-2 text-left text-sm text-ink-3 hover:border-line-strong hover:text-ink-2 cursor-pointer" data-advanced-row={hidden}>
+      <button
+        type="button"
+        onClick={() => {
+          focusAdvanced.current = (sectionItem?.id as ControlSection | undefined) ?? null; // --- review fix (panel-basics) --- (the row goes: the focus moves on)
+          setAdvancedPersist(true);
+        }}
+        className="mt-4 flex w-full items-center justify-between gap-3 rounded-md border border-dashed border-line px-3 py-2 text-left text-sm text-ink-3 hover:border-line-strong hover:text-ink-2 cursor-pointer"
+        data-advanced-row={hidden}
+      >
         <span>{t("showAdvancedOptions")}</span>
         <span className="num rounded-full bg-surface-2 px-2 text-xs text-ink-2">{hidden}</span>
       </button>
@@ -2207,7 +2259,7 @@ export default function Controls(props: ControlsProps) {
               <button
                 type="button"
                 onClick={undo}
-                disabled={!undoable}
+                disabled={!undoable || props.simulationFound /* --- review fix (panel-basics) --- */}
                 aria-label={customContent("undo")}
                 title={`${customContent("undo")} (${mod} Z)`}
                 className={cx("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11", resetFlash && undoable && "text-accent ring-1 ring-accent/60")}
@@ -2242,7 +2294,7 @@ export default function Controls(props: ControlsProps) {
                 <span />
               )}
               <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink [@media(pointer:coarse)]:min-h-11">
-                <input type="checkbox" className="switch" checked={advanced} onChange={(e) => setAdvancedPersist(e.target.checked)} />
+                <input ref={advancedSwitchRef} type="checkbox" className="switch" checked={advanced} onChange={(e) => setAdvancedPersist(e.target.checked)} />
                 <span>{t("showAdvancedOptions")}</span>
               </label>
             </div>

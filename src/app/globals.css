@@ -833,22 +833,23 @@ dialog.ui-dialog[open] {
     }
   }
 
-  /* --- panel-basics --- a named row of the Recording group (FoldRow.tsx) is its block's heading: the block's own heading
-     line and its top rule are left out inside it */
-  .studio-fold-body > div > span:first-child:has(> [data-tip]) {
-    display: none;
-  }
-  .studio-fold-body > div:first-child {
-    border-top: 0;
-    padding-top: 0;
-  }
-
   /* A control the command palette jumped to: a brief accent outline. */
   [data-palette-hit] {
     outline: 2px solid var(--color-accent);
     outline-offset: 4px;
     border-radius: var(--radius-control);
   }
+}
+
+/* --- panel-basics --- a named row of the Recording group (FoldRow.tsx) is its block's heading: the block's own heading
+   line (and its info tip) and its top rule are left out inside it. --- review fix (panel-basics) --- outside every layer:
+   inside one, the heading's own `flex` and `border-t` utilities won (the utilities layer comes last) */
+.studio-fold-body > div > span:first-child:has(> [data-tip]) {
+  display: none;
+}
+.studio-fold-body > div:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 /* --- site-redesign --- the reading column's typography (ProseLayout): 16 px text at 1.75 in the second ink, display

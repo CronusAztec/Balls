@@ -14,8 +14,9 @@ import MusicSection, { MUSIC_ADVANCED_KEYS } from "@/components/simulator/sectio
 import SongSlicerSection, { SONG_SLICER_ADVANCED_KEYS } from "@/components/simulator/sections/SongSlicerSection";
 import { VIDEO_BEATS_ADVANCED_KEYS } from "@/components/simulator/sections/VideoBeatsSection";
 import { BALL_PHYSICS_EXTRA_KEYS, WALL_PHYSICS_EXTRA_KEYS } from "@/components/simulator/sections/PhysicsExtrasSection";
-import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
-import { LAST_STUDIO_KEY, LAST_STUDIO_MAX, UNDO_LIMIT, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
+import { defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { searchKeyShown } from "@/components/simulator/panelKeys";
+import { LAST_STUDIO_KEY, LAST_STUDIO_MAX, UNDO_LIMIT, isBareStudioQuery, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
 
 /*
  * --- panel-basics --- The studio panel's basics: what Show Advanced Options holds back in each group and how many (the row
@@ -101,6 +102,25 @@ describe("Show Advanced Options: what each group holds back", () => {
   });
 });
 
+// --- review fix (panel-basics) --- a group heads the search results only for a match that shows a control
+describe("the search results' groups", () => {
+  it("count a match only where its control shows: never Text Size without a text, the arena editor with one arena or another mode's block", () => {
+    expect(searchKeyShown("textSize", PANEL, false)).toBe(true);
+    expect(searchKeyShown("textSize", { ...PANEL, bannerText: false }, false)).toBe(false);
+    expect(searchKeyShown("videoDuration", { ...PANEL, simulationFound: true }, false)).toBe(false);
+    expect(searchKeyShown("ballColor", PANEL, false)).toBe(true);
+    // the mode's own block shows among the results, another mode's never
+    const own = paletteKeyGroups({ ...PANEL, mode: "pendulum" }, [], false)[0].keys;
+    expect(own.length).toBeGreaterThan(0);
+    for (const key of own) {
+      expect(searchKeyShown(key, { ...PANEL, mode: "pendulum" }, false), key).toBe(true);
+      expect(searchKeyShown(key, PANEL, false), key).toBe(false);
+    }
+    // an alias shows what it names: Two Balls is the Ball Count slider, where the mode has one
+    expect(searchKeyShown("twoBalls", { ...PANEL, mode: "classic" }, false)).toBe(searchKeyShown("ballCount", { ...PANEL, mode: "classic" }, false));
+  });
+});
+
 describe("the undo history", () => {
   const base = defaultSettings("classic");
   it("restores every changed field but the mode, and nothing across modes", () => {
@@ -155,5 +175,19 @@ describe("continue where you left off", () => {
     vi.stubGlobal("window", { localStorage: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } });
     expect(readStudioQuery()).toBeNull();
     expect(() => rememberStudioQuery("?mode=classic")).not.toThrow();
+  });
+  // --- review fix (panel-basics) --- the address a bare arrival writes (?mode=classic), met again after a reload or Back
+  it("never remembers or offers the address a bare arrival writes, and keeps any other", () => {
+    expect(isBareStudioQuery("?mode=classic")).toBe(true);
+    expect(isBareStudioQuery(`?${settingsToSearchParams(defaultSettings()).toString()}`)).toBe(true);
+    for (const kept of ["?mode=classic&r=12", "?mode=pendulum", "?mode=classic&seed=7"]) expect(isBareStudioQuery(kept), kept).toBe(false);
+    const store = new Map<string, string>();
+    vi.stubGlobal("window", { localStorage: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value) } });
+    rememberStudioQuery("?mode=race&r=20");
+    rememberStudioQuery("?mode=classic");
+    rememberStudioQuery("?mode=classic&utm_source=tiktok");
+    expect(readStudioQuery()).toBe("?mode=race&r=20");
+    store.set(LAST_STUDIO_KEY, "?mode=classic");
+    expect(readStudioQuery()).toBeNull();
   });
 });

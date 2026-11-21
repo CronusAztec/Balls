@@ -36,6 +36,7 @@ import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import { onLibraryChanged } from "@/lib/desktop/libraryChanged"; // --- cut-reedit ---
 import type { PublishPlatform } from "@/lib/publish/platforms";
+import { OPEN_SETTING_EVENT } from "@/lib/siteDesign"; // --- review fix (panel-basics) --- (the Library's "show the Publish block")
 
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 /*
@@ -227,7 +228,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           shared: (platform, copied) => t(copied ? "libShared" : "libSharedNoCopy", { platform: PLATFORM_NAMES[platform] }),
         },
         {
-          showPublish: () => document.querySelector("[data-publish]")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          // --- review fix (panel-basics) --- the Publish block mounts once its Recording row opens: the panel opens the group
+          // and the row and brings it into view (the fast export card's Publish button does the same)
+          showPublish: () => window.dispatchEvent(new CustomEvent(OPEN_SETTING_EVENT, { detail: "publish" })),
           reveal: (item) => void bridge.library.reveal(item.id).catch(() => {}),
           navigator: typeof navigator !== "undefined" ? navigator : null,
           openUrl: (url) => void window.open(url, "_blank"),
