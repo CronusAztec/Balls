@@ -22,12 +22,14 @@ import { cx } from "@/components/ui/cx";
  * opens the link in a new tab.
  * --- site-nav --- A language link keeps the page's query, hash and scroll position (useSwitchLocale.ts; its href is the
  * plain page, for a new tab and for a browser without scripts). The shortcut line lists only keys that work on the page
- * it is on: the studio's three in the studio, "/" for the mode search on the landing page, and nothing anywhere else.
+ * it is on: the studio's three in the studio, "/" for the mode search on the landing page, and nothing anywhere else. The
+ * studio says so itself (`shortcuts="studio"`): a path prefix also matched a 404 under /simulator/, whose static HTML is
+ * rendered for another path, so its client render differed and threw.
  */
 
 const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", battle: "modesBattle", music: "modesMusic", loops: "modesLoops", smash: "modesSmash", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
 
-export default function Footer() {
+export default function Footer({ shortcuts }: { shortcuts?: "studio" } = {}) {
   const t = useTranslations("Footer");
   const s = useTranslations("SiteRedesign");
   const headings = useTranslations("Headings");
@@ -37,7 +39,7 @@ export default function Footer() {
   const pathname = usePathname();
   const mod = useModifierKey();
   const switchLocale = useSwitchLocale();
-  const inStudio = pathname === "/simulator" || pathname.startsWith("/simulator/"); // (the static export's paths end in a slash)
+  const inStudio = shortcuts === "studio";
   const onLanding = pathname === "/";
 
   const product = [

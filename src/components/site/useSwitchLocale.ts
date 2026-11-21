@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { handOverState } from "@/lib/siteTrail";
+import { forgetBefore, handOverState } from "@/lib/siteTrail";
 
 /*
  * --- site-nav --- Shows this page in another language without losing the visitor's place: the same page, its query (the
@@ -12,6 +12,7 @@ import { handOverState } from "@/lib/siteTrail";
  * language links both switch through it. The address is read at the click, never while rendering, so the static HTML
  * and the first client render agree. The page's history state is handed over too (lib/siteTrail.ts): the modes wall
  * keeps its search there, and a wall that finds it knows this is no new arrival and leaves the scroll position alone.
+ * The page before is forgotten: the entry behind this one is in the old language, so the studio's back arrow is a link.
  */
 export function useSwitchLocale(): (code: Locale) => void {
   const router = useRouter();
@@ -21,6 +22,7 @@ export function useSwitchLocale(): (code: Locale) => void {
     (code: Locale) => {
       const { search, hash } = window.location;
       handOverState(pathname, window.history.state);
+      forgetBefore();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       router.replace({ pathname: (pathname + search + hash) as any, params: params as Record<string, string> } as never, { locale: code, scroll: false });
     },
