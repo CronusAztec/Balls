@@ -149,6 +149,9 @@ import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
+import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
+import { wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
+import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
 import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
@@ -2269,9 +2272,14 @@ export default function Simulator() {
   }, [splitEngines, splitRunner, settings.arenas, settings.arenaCount, settings.arenaLayout, settings.ballColor, settings.soundArena, splitText]);
   // --- end split-screen ---
 
+  // --- card-looks --- the page writes its settings and its seed into a studio address only (/<locale>/simulator/, the Windows
+  // app's too): Back from the studio changes the address before the studio has gone, and a seed pinned in that moment (a mode
+  // card's link carries one) was written into the landing page's address ("?sort=az&seed=1"). A language switch stays on one.
+  const onStudioAddress = () => /\/simulator(\/|\/index\.html)?$/.test(window.location.pathname);
+
   // Mirror settings into the URL so any setup can be bookmarked or shared.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !onStudioAddress()) return; // --- card-looks ---
     const params = settingsToSearchParams(settings);
     if (new URLSearchParams(window.location.search).get("flDbg") === "1") params.set("flDbg", "1"); // --- fl-overhaul --- (Stage 3) Fight League's hit shapes: a URL-only switch the mirror keeps (the canvas reads it once it mounts)
     window.history.replaceState(null, "", `${window.location.pathname}?${withAttribution(params, window.location.search).toString()}`); // --- analytics --- (utm_*, gclid, fbclid, ttclid… stay: lib/analytics/attribution.ts)
@@ -2368,17 +2376,27 @@ export default function Simulator() {
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
   // --- studio-play --- every sender of the event is a visitor's pick (the picker, the palette, the stage strip's arrows, a
   // mode card): the new mode plays at once (a press, so its sound may start). A mode from a link or a preset waits as before.
+  // --- card-looks --- a card of the picker sends its mode with the look its picture shows (its link): the mode switches as
+  // before, then the link's settings go on top and its seed is pinned once they are on the page (below, after pinBotSeed)
   useEffect(() => {
     const handler = (e: Event) => {
       if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
-      const mode = (e as CustomEvent<ModeId>).detail;
+      const picked = selectedMode((e as CustomEvent<unknown>).detail);
+      if (!picked) return;
+      const mode = picked.mode;
+      const racing = themeLookRef.current.arenaCount > 1; // (a split-screen race: its arenas keep their own runs, the mode alone changes)
       changeMode(mode);
+      if (picked.look && !racing) {
+        const card = cardLinkPatch(mode, picked.look);
+        update(card.patch);
+        cardSeedRef.current = card.seed;
+      }
       document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
       if (!isRecording) start().catch(() => undefined); // (a browser that refuses the sound leaves the run waiting for Start)
     };
     window.addEventListener("jumpingballslive:select-mode", handler);
     return () => window.removeEventListener("jumpingballslive:select-mode", handler);
-  }, [changeMode, start, isRecording]);
+  }, [changeMode, start, isRecording, update]);
   // --- analytics --- sim_start: the first run of this page load (the mode and how the studio was reached – no settings, no seed);
   // share_open for a daily-challenge link that opened the page itself. Both do nothing without a statistics script (lib/analytics/track.ts).
   useEffect(() => {
@@ -3481,6 +3499,16 @@ export default function Simulator() {
     if (urlSeed !== null) pinBotSeed(urlSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, engineReady]);
+  // --- card-looks --- a picker card's seed, pinned once its look is on the page (after the effects above that let a pinned seed
+  // go when a setting makes another run, as the link's seed is)
+  const cardSeedRef = useRef<number | null>(null);
+  useEffect(() => {
+    const seed = cardSeedRef.current;
+    if (seed === null || !engineReady) return;
+    cardSeedRef.current = null;
+    pinBotSeed(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, engineReady]);
   // --- end viral-bot ---
   // --- daily-gallery --- the daily challenge on the page (after the page's seed effects: its seed is pinned last)
   const daily = useDailyChallenge({
@@ -3512,10 +3540,36 @@ export default function Simulator() {
     [settings.arenaCount, dailyOn, urlSeed],
   );
   useEffect(() => {
+    if (!onStudioAddress()) return; // --- card-looks --- (the studio's own address only)
     const now = window.location.search.replace(/^\?/, "");
     const next = withLinkSeed(now, currentLinkSeed());
     if (next !== now) window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [pinnedSeed, settings, currentLinkSeed, engineReady]);
+
+  // --- make-clip --- "Make me a clip" (the Mode block's starter area, the ready screen, `?make=1`): the clip planner plans one
+  // clip for the page's mode and opens it (useViralBot.ts makeClip). Never while the page records, renders a batch or a fast
+  // export, races in split screen (the bot's own `disabled`), plays a daily challenge or plans in the Clip planner. A press
+  // plays the clip at once; the address's switch, read in the first render like the link's seed (the URL mirror drops it),
+  // only sets it up.
+  const makeBlocked = viralBot.disabled || dailyOn || viralBot.planning !== null || viralBot.rerolling !== null;
+  const madeOn = !!viralBot.lastMade && pinnedSeed === viralBot.lastMade.seed && settings.mode === viralBot.lastMade.mode;
+  const makeClip = useCallback(
+    async (play: boolean) => {
+      if (makeBlocked) return;
+      const clip = await viralBot.makeClip(settings.mode);
+      if (clip && play) start().catch(() => undefined); // (a browser that refuses the sound leaves the clip waiting for Start)
+    },
+    [makeBlocked, viralBot, settings.mode, start],
+  );
+  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked };
+  const [makeAtLoad] = useState(() => wantsMadeClip(searchParams.toString()));
+  const madeAtLoad = useRef(false);
+  useEffect(() => {
+    if (!makeAtLoad || madeAtLoad.current || !engineReady || viralBot.disabled) return;
+    madeAtLoad.current = true;
+    if (!dailyAtLoad) void makeClip(false); // (a daily challenge's link plays the challenge)
+  }, [makeAtLoad, engineReady, viralBot.disabled, makeClip, dailyAtLoad]);
+  // --- end make-clip ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -4551,6 +4605,8 @@ export default function Simulator() {
               <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
                 <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
+                {/* --- make-clip --- (not over a found run, which a new clip would replace, nor where none can be made) */}
+                {!searchResult?.found && !makeBlocked && <MakeClipButton make={makeClipProps} variant="secondary" size="sm" className="pointer-events-auto mt-1" testId="make-clip-ready" /* (Start stays the stage's one primary action) */ />}
               </div>
             </div>
           )}
@@ -4840,6 +4896,7 @@ export default function Simulator() {
           onOpenModePicker={openModePicker} // --- site-redesign ---
           onOrbGridPreset={applyOrbGridPreset} // --- orb-grid ---
           onApplySettings={loadPresetSettings} // --- studio-undo --- (Reset All, and Undo back across a mode switch)
+          makeClip={makeClipProps} // --- make-clip ---
         />
       </ProjectDropZone>
       <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />

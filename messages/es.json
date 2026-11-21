@@ -5765,7 +5765,13 @@
       "paletteEmpty": "Nada coincide con «{query}».",
       "paletteMove": "mover",
       "paletteOpen": "abrir",
-      "paletteClose": "cerrar"
+      "paletteClose": "cerrar",
+      "looks": "Estilos",
+      "makeClip": "Hazme un clip",
+      "makeClipAnother": "Otro clip",
+      "makeClipBusy": "Preparando tu clip…",
+      "makeClipTip": "Planifica un clip de este modo y lo abre, listo para grabar.",
+      "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración."
     },
     "dialog": {
       "close": "Cerrar"

@@ -135,6 +135,8 @@ import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import { MODE_BLOCK_KEYS, ballControlsOf, searchKeyShown, sectionKeyShown, settingSearchWords, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode (--- panel-basics --- and the words a control answers to)
 // --- panel-basics --- the starter block, the named rows of the Recording group, the undo history, the last address
 import FoldRow from "./studio/FoldRow";
+import LooksRow from "./studio/LooksRow"; // --- studio-looks ---
+import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import { UNDO_SETTLE_MS, isBareStudioQuery, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
@@ -223,6 +225,8 @@ export interface ControlsProps {
   onApplySettings?: (settings: SimulatorSettings) => void;
   /** --- loop-foundation --- The loop families' clip slots of the Sound section (the owner's own clips; left out without it). */
   loopClips?: LoopClipsPanelProps;
+  /** --- make-clip --- "Make me a clip" in the Mode block's starter area (left out without it). */
+  makeClip?: MakeClipProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -2101,6 +2105,13 @@ export default function Controls(props: ControlsProps) {
     );
     return (
       <div className="space-y-3" data-testid="studio-starter">
+        {/* --- make-clip --- the one press to a finished clip, ahead of the three steps */}
+        {props.makeClip && (
+          <div className="space-y-1.5">
+            <MakeClipButton make={props.makeClip} block testId="make-clip" />
+            <p className="text-xs leading-snug text-ink-3">{site("studio.makeClipNote")}</p>
+          </div>
+        )}
         <ol className="grid grid-cols-3 gap-1.5" data-testid="studio-steps">
           {step(1, howItWorks("step1.title"), () => props.onOpenModePicker?.())}
           {step(2, howItWorks("step2.title"), () => {
@@ -2156,6 +2167,8 @@ export default function Controls(props: ControlsProps) {
           {t("modeDisplay")}
         </Button>
       </div>
+      {/* --- studio-looks --- the mode's looks, a press away (Undo takes one back) */}
+      <LooksRow mode={s.mode} settings={s} update={update} label={site("studio.looks")} disabled={!!props.batchRunning} />
       {!section && starterBlock() /* --- panel-basics --- */}
       {own && <div id="studio-mode-own">{own}</div> /* --- panel-basics --- (the palette looks for a mode's control here, not in the starter block) */}
     </div>

@@ -11650,6 +11650,151 @@ await smokeBlock("panel-basics", async () => {
 // --- end panel-basics ---
 });
 
+await smokeBlock("studio-looks", async () => {
+// --- card-looks --- --- studio-looks --- --- make-clip --- A mode card opens the look its picture shows: the landing page's
+// card and phone picture link to it (the shared glow, trails and wall glow, the card's settings and the picture's seed), and the
+// studio's picker card of another mode switches to it with the seed pinned (canvas data-seed). The Looks row at the top of the
+// Mode block puts a look on (its chip pressed, the link written) and Undo takes it back to Plain. "Make me a clip" plans a clip
+// for the mode and opens it playing: a hook (cap=), a pinned seed the canvas runs, the clip length its run needs; "Another
+// clip" plans the next one; ?make=1 sets one up as the page opens (Lines has no template: another mode's clip), the free
+// watermark stays on the Record button, and a daily challenge offers none. Then the Polish page's names. (A free visitor's
+// context: no licence.)
+{
+  const slErrors = [];
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, license: null });
+  try {
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => slErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && slErrors.push(`console: ${m.text()}`));
+    const ready = () => p.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 20000 });
+    const query = () => new URL(p.url()).searchParams;
+    const canvasSeed = () => p.evaluate(() => document.querySelector("main canvas")?.getAttribute("data-seed") ?? null);
+    // 1. the landing page: the wall's card and the phone row's picture link to the card's look
+    await p.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+    const hrefs = await p.evaluate(() => ({
+      multiply: document.querySelector('#modes a[data-mode-card="multiply"]')?.getAttribute("href") ?? "",
+      classic: document.querySelector('[data-testid="hero-modes"] a')?.getAttribute("href") ?? "",
+    }));
+    const multiplyLink = new URLSearchParams(hrefs.multiply.split("?")[1] ?? "");
+    const classicLink = new URLSearchParams(hrefs.classic.split("?")[1] ?? "");
+    await p.locator('#modes a[data-mode-card="multiply"]').scrollIntoViewIfNeeded();
+    await p.locator('#modes a[data-mode-card="multiply"]').click();
+    await p.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+    await ready();
+    const cardSeedHit = await p.waitForFunction(() => document.querySelector("main canvas")?.getAttribute("data-seed") === "2", null, { timeout: 15000 }).then(() => true).catch(() => false);
+    const opened = { mode: query().get("mode"), rball: query().get("rball"), gap: query().get("gap"), seed: query().get("seed"), canvas: await canvasSeed() };
+    check(
+      "card looks: a mode card and a phone picture of the landing page link to the look the picture shows, and the studio opens it on the picture's seed",
+      multiplyLink.get("mode") === "multiply" && multiplyLink.get("rball") === "1" && multiplyLink.get("glow") === "1" && multiplyLink.get("seed") === "2" && classicLink.get("mode") === "classic" && classicLink.get("gap") === "1" && classicLink.get("trails") === "1" && cardSeedHit && opened.mode === "multiply" && opened.rball === "1" && opened.gap === "0.6" && opened.seed === "2",
+      `(wall ${hrefs.multiply}, picture ${hrefs.classic}, opened ${JSON.stringify(opened)})`,
+    );
+    // 2. the studio's picker: another mode's card brings its look and its seed; the current mode's card switches as before
+    await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await ready();
+    await p.getByTestId("stage-strip").getByRole("button").first().click();
+    await p.locator('dialog [data-mode-card="target"]').click();
+    const pickedSeed = await p.waitForFunction(() => document.querySelector("main canvas")?.getAttribute("data-seed") === "6", null, { timeout: 15000 }).then(() => true).catch(() => false);
+    await p.waitForTimeout(600);
+    const picked = { mode: query().get("mode"), tt: query().get("tt"), r: query().get("r"), tc: query().get("tc"), seed: query().get("seed") };
+    check(
+      "card looks: the picker's card of another mode switches to the look its picture shows, on the picture's seed, at the page's pace",
+      picked.mode === "target" && picked.tt === "1.6" && picked.r === "11" && picked.tc === null && picked.seed === "6" && pickedSeed,
+      `(${JSON.stringify(picked)}, canvas seed ${await canvasSeed()})`,
+    );
+    // 3. the Looks row: Plain (a bare visit's start look) pressed, a gallery look goes on, Undo takes it back. (Ring Ladder plays
+    // Classic's start look: it is Plain, shown once.)
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await ready();
+    await p.waitForTimeout(400);
+    const row = () =>
+      p.evaluate(() => {
+        const box = document.querySelector('#studio-block-mode [data-testid="studio-looks"]');
+        return { heading: box?.querySelector("h3")?.textContent ?? null, chips: [...(box?.querySelectorAll("[data-look]") ?? [])].map((b) => `${b.getAttribute("data-look")}:${b.getAttribute("aria-pressed")}`), active: box?.getAttribute("data-look-active") ?? null, names: [...(box?.querySelectorAll("[data-look]") ?? [])].map((b) => (b.textContent ?? "").trim()) };
+      });
+    const before = await row();
+    await p.locator('[data-testid="studio-looks"] [data-look="neon-escape"]').click();
+    await p.waitForFunction(() => new URL(location.href).searchParams.get("theme") === "neon", null, { timeout: 5000 }).catch(() => {});
+    const on = { ...(await row()), theme: query().get("theme"), wc: query().get("wc") };
+    await p.waitForTimeout(900);
+    await p.getByTestId("studio-undo").click();
+    await p.waitForFunction(() => !new URL(location.href).searchParams.has("theme"), null, { timeout: 5000 }).catch(() => {});
+    await p.waitForTimeout(300);
+    const undone = { ...(await row()), theme: query().get("theme"), wc: query().get("wc") };
+    check(
+      "studio looks: the Mode block's Looks row lists Plain, As pictured, the gallery's and the daily look; a look goes on and Undo takes it back to Plain",
+      before.heading === "Looks" && before.names.slice(0, 2).join() === "Plain,As pictured" && before.chips.join() === "plain:true,card:false,neon-escape:false,daily:false" && before.active === "plain" && on.active === "neon-escape" && on.theme === "neon" && on.wc === "8" && undone.active === "plain" && undone.theme === null && undone.wc === null,
+      `(before ${JSON.stringify(before)}, on ${JSON.stringify(on)}, undone ${JSON.stringify(undone)})`,
+    );
+    // 4. Make me a clip: a planned clip opens playing, with a hook, a pinned seed and its length; Another plans the next one
+    await p.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
+    await ready();
+    const readyButton = await p.getByTestId("make-clip-ready").isVisible().catch(() => false);
+    const make = p.getByTestId("make-clip");
+    await p.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    await make.click();
+    const made = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
+    await p.waitForTimeout(500);
+    const clip = async () => ({
+      mode: query().get("mode"),
+      seed: query().get("seed"),
+      cap: (query().get("cap") ?? "").length,
+      canvas: await canvasSeed(),
+      length: Number(await p.locator('#studio-block-mode input[type="range"][aria-label="Clip Length"]').inputValue().catch(() => "NaN")),
+      dur: query().get("dur"),
+      label: ((await make.textContent().catch(() => "")) ?? "").trim(),
+      playing: await p.getByRole("button", { name: /^(Pause|Resume)$/ }).first().isVisible().catch(() => false),
+      watermark: await p.getByRole("group", { name: "Playback and export" }).getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count().catch(() => -1),
+    });
+    const first = await clip();
+    await make.click();
+    await p.waitForFunction((seed) => { const el = document.querySelector('[data-testid="make-clip"]'); return el?.getAttribute("data-make-state") === "made" && new URL(location.href).searchParams.get("seed") !== seed; }, first.seed, { timeout: 45000 }).catch(() => {});
+    await p.waitForTimeout(500);
+    const second = await clip();
+    const clipOk = (c) => c.mode === "pendulum" && !!c.seed && c.canvas === c.seed && c.cap > 0 && Number.isInteger(c.length) && c.length >= 10 && c.length <= 60 && (c.dur === null ? c.length === 30 : Number(c.dur) === c.length) && c.playing;
+    check(
+      "make a clip: Make me a clip (also on the ready screen) opens a planned clip playing, with a hook, a pinned seed and its length, and Another clip plans the next one",
+      readyButton && made && clipOk(first) && first.label === "Another clip" && clipOk(second) && second.seed !== first.seed,
+      `(ready screen ${readyButton}, first ${JSON.stringify(first)}, second ${JSON.stringify(second)})`,
+    );
+    check("make a clip: a free visitor's made clip keeps the watermark (the Record button's tag)", first.watermark === 1 && second.watermark === 1, `(${first.watermark}, ${second.watermark})`);
+    // 5. ?make=1: a mode without a template gets another mode's clip, set up as the page opens; a daily challenge offers none
+    await p.goto(`${BASE}/en/simulator/?mode=lines&make=1`, { waitUntil: "networkidle" });
+    await ready();
+    const atLoad = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
+    await p.waitForTimeout(500);
+    const loaded = { mode: query().get("mode"), make: query().get("make"), seed: query().get("seed"), canvas: await canvasSeed(), cap: (query().get("cap") ?? "").length };
+    await p.goto(`${BASE}/en/simulator/?daily=1`, { waitUntil: "networkidle" });
+    await ready();
+    await p.waitForTimeout(800);
+    const daily = { disabled: await p.getByTestId("make-clip").isDisabled().catch(() => null), ready: await p.getByTestId("make-clip-ready").count() };
+    check(
+      "make a clip: ?make=1 sets a clip up as the page opens (Lines has no template: another mode's), and a daily challenge offers none",
+      atLoad && loaded.mode !== "lines" && loaded.make === null && !!loaded.seed && loaded.canvas === loaded.seed && loaded.cap > 0 && daily.disabled === true && daily.ready === 0,
+      `(${JSON.stringify(loaded)}, daily ${JSON.stringify(daily)})`,
+    );
+    // 6. in Polish: the card's link, the row's heading and names, the button
+    await p.goto(`${BASE}/pl/`, { waitUntil: "networkidle" });
+    const plHref = (await p.locator('#modes a[data-mode-card="shatter"]').getAttribute("href").catch(() => "")) ?? "";
+    await p.goto(`${BASE}/pl/simulator/`, { waitUntil: "networkidle" });
+    await ready();
+    await p.waitForTimeout(400);
+    const plRow = await row();
+    const plMake = ((await p.getByTestId("make-clip").textContent().catch(() => "")) ?? "").trim();
+    check(
+      "studio looks (pl): the card links to its look, the row is Style with Zwykły pressed and Jak na obrazku, the button says Zrób mi klip",
+      /\/pl\/simulator\/?\?mode=shatter&glow=1&trails=1&wglow=1&r=11&seed=3$/.test(plHref) && plRow.heading === "Style" && plRow.names.slice(0, 2).join() === "Zwykły,Jak na obrazku" && plRow.active === "plain" && plMake === "Zrób mi klip",
+      `(${plHref}, ${JSON.stringify(plRow)}, "${plMake}")`,
+    );
+  } catch (err) {
+    check("studio-looks checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+  check("studio-looks: no page errors", slErrors.length === 0, slErrors.length ? `\n   ${slErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end studio-looks ---
+});
+
 await smokeBlock("gerald-conveyor", async () => {
 // --- gerald-conveyor ---
 // Conveyor Belt and timed respawns: the preview image and the card under the escape heading; URL → the Conveyor block of the

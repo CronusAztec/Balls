@@ -8,6 +8,8 @@ import { MODE_SHELF_IDS, MODE_SORT_IDS, SHOW_SHELF_EVENT, WALL_QUERY_MAX, isNewM
 import { searchModes, type ModeSearchItem } from "@/lib/modeSearch"; // --- mode-search ---
 import { readRecentModes, rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import { takeHandedState } from "@/lib/siteTrail"; // --- site-nav --- a language switch hands the wall's history state over
+import { cardHref, cardQuery } from "@/lib/thumbnails/heroMoments"; // --- card-looks ---
+import type { SelectModeLook } from "@/lib/studioLooks"; // --- card-looks --- (a type only: the studio's half reads the settings)
 import { BUILD_VERSION } from "@/lib/buildInfo";
 import { assetPath } from "@/lib/site";
 import Button from "@/components/ui/Button";
@@ -81,6 +83,9 @@ function wallHistory(): { q: string } | null {
  * into view, the arrow keys move between the cards, and "Surprise me" picks a mode at random. On a touch screen the
  * keyboard's search key only closes the keyboard, and on a screen under 500 px high (a phone held sideways) the bar scrolls
  * away with the wall, so the cards keep the room.
+ * --- card-looks --- A card opens the look its picture shows (lib/thumbnails/heroMoments.ts cardQuery: the picture's settings,
+ * or its look on the page's start pace, and its seed where that run ends inside the clip): the landing page's card links there,
+ * and the picker's card of another mode sends it with the mode. The current mode's card switches to it as before.
  */
 export default function ModesOverview({
   interactive = false,
@@ -166,9 +171,12 @@ export default function ModesOverview({
     setSort(id);
   };
 
-  const pick = (id: ModeId) => {
+  const pick = (id: ModeId, withLook = false) => {
     rememberRecentMode(id, current);
-    window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: id }));
+    // --- card-looks --- (a card of another mode brings the look its picture shows; the current mode's card, the Recent row and
+    // Surprise me switch the mode as before)
+    const detail: ModeId | SelectModeLook = withLook && id !== current ? { mode: id, look: cardQuery(id) } : id;
+    window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail }));
     onPicked?.();
   };
   const surprise = () => {
@@ -361,7 +369,7 @@ export default function ModesOverview({
   const onCardKey = (e: KeyboardEvent<HTMLDivElement>, id: ModeId) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      pick(id);
+      pick(id, true); // --- card-looks ---
       return;
     }
     if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -414,11 +422,11 @@ export default function ModesOverview({
     // (a card the keyboard moves to stops clear of the header and the bar)
     const cardClass = cx("group block min-w-0 rounded-xl cursor-pointer", picker ? "scroll-mt-40" : "scroll-mt-48");
     return interactive ? (
-      <div key={id} role="button" tabIndex={id === tabStop ? 0 : -1} aria-pressed={isCurrent} data-mode-card={id} className={cardClass} onClick={() => pick(id)} onKeyDown={(e) => onCardKey(e, id)} onFocus={() => setStoodOn(id)}>
+      <div key={id} role="button" tabIndex={id === tabStop ? 0 : -1} aria-pressed={isCurrent} data-mode-card={id} className={cardClass} onClick={() => pick(id, true) /* --- card-looks --- */} onKeyDown={(e) => onCardKey(e, id)} onFocus={() => setStoodOn(id)}>
         {content}
       </div>
     ) : (
-      <Link key={id} href={`/simulator?mode=${id}`} data-mode-card={id} className={cardClass} onClick={() => rememberRecentMode(id)}>
+      <Link key={id} href={cardHref(id) /* --- card-looks --- */} data-mode-card={id} className={cardClass} onClick={() => rememberRecentMode(id)}>
         {content}
       </Link>
     );
