@@ -949,11 +949,11 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSquishy, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */]);
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSquishy, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */, s.cpPourAt, s.cpPulse /* --- collide-pour --- */]);
   // Any Collision Playground change invalidates a found seed too (the finder hides itself for this endless mode, but a seed may be pinned).
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */]);
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing, s.cpRingCount /* --- unlimited-sizes --- */, s.cpPourAt /* --- collide-pour --- */]);
   // --- gerald-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes, gates) restarts it.
   useEffect(() => {
     const engine = engineRef.current;
@@ -1103,7 +1103,7 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.ilType, s.ilBalls, s.ilRings, s.ilDepth, s.ilPainters, s.ilPattern, s.ilSpeed, s.ilCycles]);
+  }, [s.ilType, s.ilBalls, s.ilRings, s.ilDepth, s.ilPainters, s.ilPattern, s.ilSpeed, s.ilCycles, s.ilStage /* --- illusion-stage --- */]);
   useEffect(() => {
     engineRef.current?.setIllusionSettings({ tracks: s.ilTracks, reveal: s.ilReveal });
   }, [s.ilTracks, s.ilReveal]);
@@ -1855,7 +1855,7 @@ export default function Simulator() {
     const isDefault = url !== s.wallBreakSound;
     if (isDefault ? modeBreakRef.current === url : modeBreakRef.current === null) return;
     modeBreakRef.current = isDefault ? url : null;
-    audioRef.current?.setWallBreakSound(url);
+    audioRef.current?.setWallBreakSound(url, isDefault); // --- glass-real --- (E4 review) the mode's own clip is no sound of the visitor's own
   }, [s.mode, s.wallBreakSound]);
   useEffect(() => {
     audioRef.current?.setHitSoundMode(s.hitSoundMode);
@@ -2438,7 +2438,7 @@ export default function Simulator() {
         const ownSound = audio.hasOwnSound(); // --- ring-voices --- (review fix B2)
         for (const raw of engine.consumeSoundEvents()) {
           // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
-          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
+          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound, raw.ringTexture ? audio.ownSoundIsMelody() : false /* --- glass-real --- (E4 review) */) : raw;
           if (!ev) continue;
           if (ev.ringVoice === "contact" && ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too: its own voice skips the plain path below)
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
@@ -2508,7 +2508,7 @@ export default function Simulator() {
           }
           // --- power-layers-crack --- a Power Layers layer giving way under the ball
           if (ev.plCrack) {
-            audio.playPowerLayerCrack(ev.frequency, ev.level);
+            audio.playPowerLayerCrack(ev.frequency, ev.level, ev.unpitched); // --- glass-real --- (E4 review) a texture's snap alone under a melody
             continue;
           }
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
@@ -3982,6 +3982,8 @@ export default function Simulator() {
       paintBeat: (bpm) => fill("Simulator.canvasPaintBeat", { bpm }),
       // --- jdm-collisions ---
       collideAnti: t("Simulator.canvasCollideAnti"),
+      collideEmpty: t("Simulator.canvasCollideEmpty"), // --- collide-pour ---
+      collideEmptySub: (n) => t("Simulator.canvasCollideEmptySub", { count: n }),
       replay: t("Simulator.canvasReplay"), // --- camera ---
       // --- gerald-glass ---
       glassStage: (n) => fill("Simulator.canvasGlassStage", { n }),
@@ -4014,6 +4016,8 @@ export default function Simulator() {
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
       illusionCycles: (n) => t("Simulator.canvasIllusionCycles", { count: n }),
+      illusionCircle: t("Simulator.canvasIllusionCircle"), // --- illusion-stage ---
+      illusionCircleSub: t("Simulator.canvasIllusionCircleSub"),
       // --- odd-string-battle ---
       stringBattle: {
         title: t("Simulator.canvasSbTitle"),
@@ -4444,7 +4448,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */, multiplyRace: settings.multiplyRace /* --- multiply-race --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */, multiplyRace: settings.multiplyRace /* --- multiply-race --- */, collide: collideSettingsOf(settings) /* --- collide-pour --- (a jar that pours ends) */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : settings.mode === "sandPlate" ? "Simulator.finderFixedSandPlate" /* --- sand-plate --- (its notes × the note length, plus the finale) */ : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

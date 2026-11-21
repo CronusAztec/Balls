@@ -70,6 +70,12 @@ export interface IllusionSettings {
   reveal: boolean;
   /** lines / rings: the run finishes after this many cycles; 0 = never. */
   cycles: number;
+  /**
+   * --- illusion-stage --- lines: the staged build – one ball on its line, the others joining one at a time on their first rim
+   * touch, then the tracks fade and the rolling circle is revealed with a chord a cycle before the end (illusionStage()); off:
+   * every ball from the first frame, as it always was (absent: off).
+   */
+  stage?: boolean;
 }
 
 export const DEFAULT_ILLUSION_SETTINGS: IllusionSettings = {
@@ -83,6 +89,7 @@ export const DEFAULT_ILLUSION_SETTINGS: IllusionSettings = {
   tracks: true,
   reveal: false,
   cycles: 0,
+  stage: false, // --- illusion-stage ---
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -95,7 +102,7 @@ export const ILLUSION_RANGES = {
   ilCycles: { min: 0, max: 20, step: 1 },
 } as const;
 
-/** The Circle Illusion fields of the SimulatorSettings object (URL keys ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc). */
+/** The Circle Illusion fields of the SimulatorSettings object (URL keys ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, ilsg). */
 export interface IllusionSettingFields {
   ilType: IllusionType;
   ilBalls: number;
@@ -107,6 +114,7 @@ export interface IllusionSettingFields {
   ilTracks: boolean;
   ilReveal: boolean;
   ilCycles: number;
+  ilStage: boolean; // --- illusion-stage ---
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -130,6 +138,7 @@ export function resolveIllusionSettings(config: Partial<IllusionSettings> | null
   if (typeof config.tracks === "boolean") out.tracks = config.tracks;
   if (typeof config.reveal === "boolean") out.reveal = config.reveal;
   if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, R.ilCycles, out.cycles));
+  if (typeof config.stage === "boolean") out.stage = config.stage; // --- illusion-stage ---
   return out;
 }
 
@@ -146,6 +155,7 @@ export function illusionSettingsOf(source: IllusionSettingFields): IllusionSetti
     tracks: source.ilTracks,
     reveal: source.ilReveal,
     cycles: source.ilCycles,
+    stage: source.ilStage, // --- illusion-stage ---
   };
 }
 
@@ -162,6 +172,7 @@ export function illusionSettingFields(settings: IllusionSettings): IllusionSetti
     ilTracks: settings.tracks,
     ilReveal: settings.reveal,
     ilCycles: settings.cycles,
+    ilStage: settings.stage ?? false, // --- illusion-stage ---
   };
 }
 
@@ -188,6 +199,7 @@ export function resolveIllusionFields(source: Partial<IllusionFeatureFields>): I
     tracks: source.ilTracks,
     reveal: source.ilReveal,
     cycles: source.ilCycles,
+    stage: source.ilStage, // --- illusion-stage ---
   });
   return { ...illusionSettingFields(settings), wallWobble: resolveWallWobble(source.wallWobble) };
 }
@@ -198,9 +210,9 @@ function formatNumber(n: number) {
 }
 
 const NUMERIC_KEYS = { ilb: "ilBalls", ilr: "ilRings", ild: "ilDepth", ilp: "ilPainters", ils: "ilSpeed", ilc: "ilCycles", wob: "wallWobble" } as const;
-const BOOLEAN_KEYS = { iltr: "ilTracks", ilrv: "ilReveal" } as const;
+const BOOLEAN_KEYS = { iltr: "ilTracks", ilrv: "ilReveal", ilsg: "ilStage" /* --- illusion-stage --- */ } as const;
 
-/** Writes the fields that differ from `base` (the mode's defaults) into the URL: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc and wob. */
+/** Writes the fields that differ from `base` (the mode's defaults) into the URL: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, ilsg and wob. */
 export function writeIllusionParams(settings: IllusionFeatureFields, base: IllusionFeatureFields, params: URLSearchParams) {
   if (settings.ilType !== base.ilType) params.set("ilt", settings.ilType);
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field]));
@@ -306,6 +318,58 @@ export function lineTouch(slot: number, count: number, direction: number): { bal
   return { ball, angle: linePhase(ball, n) + end };
 }
 
+// --- illusion-stage ---
+/** Slots (rim touches) between two balls joining the staged build: two beats (a ball every second at the default 8 balls and speed). */
+export const STAGE_JOIN_SLOTS = 4;
+/**
+ * The staged build's levels: a slot whose ball has not joined yet plays that ball's note as a faint ghost (a ghost touch), the
+ * reveal a ding and every ball's note at once with the riser before them, and the end that chord once more under the end card.
+ * (The chord is the balls' own voice, shared out like Pendulum Wave's: the loop family's kick, impact and completion chord set
+ * the export's true peak and held the clip's loudness 6–8 dB under its target in the normaliser; so did six notes at full level.)
+ */
+export const STAGE_GHOST_LEVEL = 0.22;
+export const STAGE_DING_LEVEL = 0.4;
+export const STAGE_RISER_LEVEL = 0.4;
+export const STAGE_CHORD_LEVEL = 0.5;
+export const STAGE_END_LEVEL = 0.15;
+
+/** The staged build of a lines run, in rim-touch slots (a slot is a cycle / (2 · count)). */
+export interface IllusionStagePlan {
+  /** Per ball: the slot of its first touch in the build – it joins there, with its note. */
+  joinSlot: number[];
+  /** The slot the last ball joins at. */
+  lastJoinSlot: number;
+  /** The slot the tracks start to fade (half a cycle before the reveal) and the slot the rolling circle is revealed (a cycle boundary). */
+  fadeSlot: number;
+  revealSlot: number;
+}
+
+/**
+ * --- illusion-stage --- The staged build of `count` balls rolling `direction` (±1) for `cycles` cycles (0: never ending): ball 0
+ * joins at the first slot, then a ball every STAGE_JOIN_SLOTS slots – the ball that touches the rim there, or the next one that
+ * has not joined yet – so they join as opposite pairs of the hidden circle (at 8 balls: a line, a cross, a star, the circle). The
+ * reveal comes on the cycle boundary a cycle before the end (and at least a whole cycle after the last ball joined: the straight
+ * lines are seen first), or two cycles after the last join when the run never ends; the tracks fade over the half cycle before it.
+ */
+export function illusionStage(count: number, direction: number, cycles: number): IllusionStagePlan {
+  const n = Math.max(1, Math.floor(count));
+  const slotsPerCycle = 2 * n;
+  const joinSlot = new Array<number>(n).fill(-1);
+  let m = 0;
+  let last = 0;
+  for (let k = 0; k < n; k++) {
+    if (k > 0) m += STAGE_JOIN_SLOTS;
+    while (joinSlot[lineTouch(m, n, direction).ball] >= 0) m++;
+    joinSlot[lineTouch(m, n, direction).ball] = m;
+    last = m;
+  }
+  const joinedCycle = Math.ceil((last + 1) / slotsPerCycle);
+  const revealCycle = cycles > 0 ? Math.min(cycles, Math.max(joinedCycle + 1, cycles - 1)) : joinedCycle + 2;
+  const revealSlot = revealCycle * slotsPerCycle;
+  return { joinSlot, lastJoinSlot: last, fadeSlot: Math.max(last + 1, revealSlot - n), revealSlot };
+}
+// --- end illusion-stage ---
+
 /* ------------------------------------------------------------------ the maths of the rings */
 
 /** Triangle wave of the radial phase u: 0 at even u (inner wall), 1 at odd u (outer wall), linear in between. */
@@ -386,6 +450,22 @@ export interface IllusionView {
   revealAtMs: number;
   /** Wobble the canvas gives this mode's circles even with Wobbly Walls at 0: the nested circles wobble by design. */
   intrinsicWobble: number;
+  // --- illusion-stage ---
+  /** Lines with the staged build on (illusionStage()). */
+  staged: boolean;
+  /** Per ball: the simulation second it joins (0 for every ball without the staged build). */
+  joinSec: Float64Array;
+  /** The second the tracks start to fade and the second the rolling circle is revealed (−1: no staged build). */
+  fadeSec: number;
+  revealSec: number;
+  /** Balls joined so far and the circle revealed (the staged build; every ball and false without it). */
+  joined: number;
+  revealed: boolean;
+  /** The step count after the last ghost touch (a slot whose ball has not joined: a faint note and a dot on the rim; −1 before), its rim angle and its ball. */
+  lastGhostStep: number;
+  ghostAngle: number;
+  ghostBall: number;
+  // --- end illusion-stage ---
 }
 
 /** Wobble of the nested circles when Wobbly Walls is 0. */
@@ -494,6 +574,16 @@ function createView(): IllusionView {
     revealStep: -1,
     revealAtMs: -1,
     intrinsicWobble: 0,
+    // --- illusion-stage ---
+    staged: false,
+    joinSec: new Float64Array(0),
+    fadeSec: -1,
+    revealSec: -1,
+    joined: 0,
+    revealed: false,
+    lastGhostStep: -1,
+    ghostAngle: 0,
+    ghostBall: 0,
   };
 }
 
@@ -524,6 +614,8 @@ export class IllusionMode implements GameMode {
   // lines: steps per cycle (the slot clock is (step · 2N) / cycleSteps, divided last so whole slots land exactly)
   private lineSteps = 240;
   private finalSlot = Infinity;
+  /** --- illusion-stage --- The staged build's slots (null: off). */
+  private stagePlan: IllusionStagePlan | null = null;
   // rings: steps per cycle (the traversal clock is (step · RING_TRAVERSALS) / cycleSteps)
   private ringSteps = 1440;
   private finalTraversal = Infinity;
@@ -581,6 +673,8 @@ export class IllusionMode implements GameMode {
       coverage: v.coverage,
       pattern: v.pattern?.id ?? null,
       count: v.count,
+      joined: v.joined, // --- illusion-stage ---
+      revealed: v.revealed,
     };
   }
 
@@ -609,6 +703,15 @@ export class IllusionMode implements GameMode {
     v.circleError = 0;
     v.pattern = null;
     v.intrinsicWobble = s.type === "nested" ? NESTED_WOBBLE : 0;
+    // --- illusion-stage --- (initLines sets them for a staged lines run)
+    v.staged = false;
+    v.fadeSec = -1;
+    v.revealSec = -1;
+    v.revealed = false;
+    v.lastGhostStep = -1;
+    v.ghostAngle = 0;
+    v.ghostBall = 0;
+    this.stagePlan = null;
     v.cycleSec = illusionCycleSeconds(s);
     this.sps = 60;
     this.width = ctx.config.width;
@@ -756,6 +859,9 @@ export class IllusionMode implements GameMode {
       v.r = new Float64Array(n);
       v.lastHitStep = new Float64Array(n);
     }
+    if (v.joinSec.length !== n) v.joinSec = new Float64Array(n); // --- illusion-stage ---
+    v.joinSec.fill(0);
+    v.joined = n;
     v.count = n;
     v.lastHitStep.fill(-1);
     v.colors = [];
@@ -852,6 +958,17 @@ export class IllusionMode implements GameMode {
     for (let i = 0; i < v.count; i++) this.pitch.push(pendulumPitch(i, v.count, "up"));
     this.layoutLines();
     this.updateRates();
+    // --- illusion-stage --- the build's slots and their seconds (the slot clock: a cycle is 2N slots)
+    if (v.settings.stage) {
+      const plan = illusionStage(v.count, v.direction, v.settings.cycles);
+      const slotSec = v.cycleSec / (2 * v.count);
+      this.stagePlan = plan;
+      v.staged = true;
+      for (let i = 0; i < v.count; i++) v.joinSec[i] = plan.joinSlot[i] * slotSec;
+      v.fadeSec = plan.fadeSlot * slotSec;
+      v.revealSec = plan.revealSlot * slotSec;
+      v.joined = 0;
+    }
     this.placeLines();
   }
 
@@ -886,19 +1003,77 @@ export class IllusionMode implements GameMode {
       v.noteCount += hi - 2 * n - from;
       from = hi - 2 * n;
     }
+    const plan = this.stagePlan; // --- illusion-stage ---
+    let ghost = 0;
     for (let m = from; m < hi; m++) {
       const touch = lineTouch(m, n, v.direction);
+      // --- illusion-stage --- a slot whose ball has not joined yet: its note as a faint ghost and a dot on the rim
+      if (plan && m < plan.joinSlot[touch.ball]) {
+        ghost = this.pitch[touch.ball];
+        v.lastGhostStep = step + 1;
+        v.ghostAngle = normalizeAngle(touch.angle + v.rotation);
+        v.ghostBall = touch.ball;
+        continue;
+      }
       v.lastHitStep[touch.ball] = step + 1;
-      this.queueNote(this.pitch[touch.ball], 1, false);
+      this.queueNote(this.pitch[touch.ball], 1, false); // (--- illusion-stage --- a joining ball's first note is its own, unaccented: an accent's +4 dB set the export's true peak and held its loudness down; the join is seen)
       ctx.recordWallContact?.(0, normalizeAngle(touch.angle + v.rotation), 0.8, 1000 * m * slotSec);
     }
+    if (plan) this.stageStep(ctx, plan, lo, hi, ghost);
     if (hi > 0) v.cyclesDone = Math.floor((hi - 1) / (2 * n));
     if (final) {
       v.finished = true;
       v.cyclesDone = v.settings.cycles;
       ctx.spawnConfetti(v.cx, v.cy);
+      // --- illusion-stage --- the end card's chord, ringing under IT WAS A CIRCLE!
+      if (plan) {
+        this.emit(ctx, this.stageChord());
+        // the completion chord, soft, ringing under the end card's hold (a quiet one: its peak sets the export's loudness)
+        this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chord", frequency: this.pitch[0] / 2, loopExact: true, level: STAGE_END_LEVEL, melody: false });
+      }
     }
   }
+
+  // --- illusion-stage ---
+  /**
+   * The staged build's sounds of the step that walked slots [lo, hi): a ghost touch's faint note (`ghost`: its pitch, 0 for none;
+   * a decorative voice the crew's measured moments leave out), the riser as the tracks start to fade, and the reveal – a ding on
+   * the top ball's note and every ball's note at once. Every count from the slot clock, so a replay hears the same.
+   */
+  private stageStep(ctx: ModeContext, plan: IllusionStagePlan, lo: number, hi: number, ghost: number) {
+    const v = this.view;
+    let joined = 0;
+    for (let i = 0; i < v.count; i++) if (plan.joinSlot[i] < hi) joined++;
+    v.joined = joined;
+    if (ghost > 0) this.emit(ctx, { type: "hit", wallIndex: 0, loop: "pluck", frequency: ghost, level: STAGE_GHOST_LEVEL, melody: false, ringVoice: "extra" });
+    const root = this.pitch[0] / 2;
+    if (plan.fadeSlot >= lo && plan.fadeSlot < hi && plan.fadeSlot < plan.revealSlot) {
+      this.emit(ctx, { type: "hit", wallIndex: 0, loop: "riser", frequency: root, loopSec: Math.max(0.2, v.revealSec - v.fadeSec), level: STAGE_RISER_LEVEL, melody: false });
+    }
+    if (plan.revealSlot >= lo && plan.revealSlot < hi) {
+      v.revealed = true;
+      this.emit(ctx, { type: "hit", wallIndex: 0, loop: "ding", frequency: this.pitch[v.count - 1], level: STAGE_DING_LEVEL, melody: false });
+      this.emit(ctx, this.stageChord());
+    }
+  }
+
+  /**
+   * The balls' notes at once – the first, third and fifth ball's and the top one's (a major triad and its octave at eight), every
+   * ball's below five – the reveal's and the end card's chord, at STAGE_CHORD_LEVEL: a chord's voices start together, so its peak
+   * grows with their number (four at full level peaked 6 dB over a note and set the export's true peak).
+   */
+  private stageChord(): SoundEvent {
+    const n = this.pitch.length;
+    const pick = n >= 5 ? [this.pitch[0], this.pitch[2], this.pitch[4], this.pitch[n - 1]] : [...this.pitch];
+    return { type: "hit", wallIndex: 0, frequency: pick[0], chord: pick, level: STAGE_CHORD_LEVEL, melody: false };
+  }
+
+  /** One sound event of the staged build, counted with the rest. */
+  private emit(ctx: ModeContext, event: SoundEvent) {
+    ctx.addPendingSoundEvent(event);
+    this.view.eventCount++;
+  }
+  // --- end illusion-stage ---
 
   private placeLines() {
     const v = this.view;

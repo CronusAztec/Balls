@@ -1116,7 +1116,14 @@ const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
  * shown for the recorder's 0.5 s (G2 asks 0.8 s), and a cut before a countdown's certain zero asks nothing. No setting brightens a
  * stopped shape, so the binding is hidden.
  */
-const BOX_STOPS_FADED = "its payoff, the first shape at zero, is drawn faded (a stopped shape at 35 %, boxRenderer.ts) where its last hit left it, often a corner (under the watermark in the render watched), while the other shape bounces on bright to the clip's end: the eye follows the one that never stops; a race hook with payoff words in the short length did not change that (watched, 12/12 passing every gate), one shape ends its run at zero (shown 0.5 s, G2 asks 0.8 s), and no setting brightens a stopped shape";
+/*
+ * --- box-finale --- (Lane E, E4 review) Re-measured after E4 drew a shape at zero as a pop of confetti with a chime (boxRenderer.ts:
+ * nothing of it after BURST_MS) and ended the last two countdowns on corners, top ones first: the 12 plans of 4 plan seeds × reels,
+ * TikTok and Shorts (payoffs 9.4–24.8 s) pass every gate but G4, the hook's "zero" a number the crew's facts read
+ * from a ready template's recipe (a hidden binding has none). What hid it was a render watched, so it waits for a review to watch the
+ * pop's renders, as Perfect Fit does.
+ */
+const BOX_STOPS_FADED = "its payoff, the first shape at zero, was drawn faded while the other shape bounced on bright to the clip's end, and the eye followed the one that never stopped (watched, 12/12 passing every gate); since Lane E's E4 a shape at zero pops into confetti with a chime and is gone, and the last two counts end on corners: re-measured, its 12 plans (4 plan seeds × 3 platforms, payoffs 9.4-24.8 s) pass every gate but G4, the hook's 'zero' a number the crew reads from a ready template's recipe only, and no review has watched the pop's renders yet";
 const PERFECT_FIT_FLASH = "its box was full only for a 0.15 s flash between its last piece's landing and its burst, under the 0.8 s G2 asks: 0 of 12 plans passed (4 plan seeds × 3 platforms; watched: 'Full!' came while the last piece was falling, the box burst a flash after it filled); --- finales-in-clip --- the box is held 0.85 s now (polyominoPlan.ts PF_FLASH_SEC) and G2 passes on the 3 plans measured, but it stays out until a review watches its plans' renders again";
 /**
  * --- templates --- (studio round 1, 11) The beat format's payoff is the drop or the last bar: a moment that stands out from the run (the

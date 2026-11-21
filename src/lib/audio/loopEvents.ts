@@ -44,10 +44,12 @@ export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
  * "contact" voice becomes the plain bounce or break it stands for, so the song steps on, the melody plays its note, the sample
  * and the clip sound, the beat lock places it and the face reacts to the break, as in Classic – and an "extra" (a sound with no
  * contact behind it) is left out (null). Shared by the page's sound loop (Simulator.tsx) and the fast export's
- * `playSoundEvent()`, so a clip sounds as the page did.
+ * `playSoundEvent()`, so a clip sounds as the page did. --- glass-real --- (E4 review) An extra marked `ringTexture` (Glass
+ * Smash's crack) stays under a melody alone (`melodyOnly`: `ToneGenerator.ownSoundIsMelody()`), unpitched, so the tune keeps
+ * its notes and the glass still cracks.
  */
-export function ringVoiceEvent(ev: SoundEvent, ownSound: boolean): SoundEvent | null {
+export function ringVoiceEvent(ev: SoundEvent, ownSound: boolean, melodyOnly = false): SoundEvent | null {
   if (!ev.ringVoice || !ownSound) return ev;
-  if (ev.ringVoice === "extra") return null;
+  if (ev.ringVoice === "extra") return ev.ringTexture && melodyOnly ? { ...ev, frequency: undefined, unpitched: true } : null;
   return ev.type === "gap" ? { type: "gap", wallIndex: ev.wallIndex } : { type: "hit", wallIndex: ev.wallIndex };
 }

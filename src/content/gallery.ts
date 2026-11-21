@@ -179,8 +179,9 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "gerald-glass",
     mode: "glass",
-    // (--- glass-real --- Lane E, E4: the leading camera, the next panes in view; the run is the same)
-    query: "mode=glass&glow=1&rwalls=0&gll=1&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Gerald&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
+    // (--- glass-real --- Lane E, E4: the leading camera, the next panes in view; E4 review: the start look's gravity 500, so the
+    // run reaches HOME at 22.3 s and ends at 24.1 s in a laptop's and a phone's world, inside a 30 s recording; at 300 it was 30.0 s)
+    query: "mode=glass&g=500&glow=1&rwalls=0&gll=1&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Gerald&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
     previewAt: 11.5,
     name: { en: "Gerald at Sunset", pl: "Gerald o zachodzie słońca", es: "Gerald al atardecer" },
     description: {

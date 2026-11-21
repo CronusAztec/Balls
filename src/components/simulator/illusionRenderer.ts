@@ -1,5 +1,5 @@
 import type { Ball } from "@/lib/physics/types";
-import { linePhase, rollingCircleCentre, type IllusionView } from "@/lib/physics/modes/illusion";
+import { linePhase, linePosition, rollingCircleCentre, type IllusionView } from "@/lib/physics/modes/illusion";
 import type { IllusionPattern } from "@/lib/physics/illusionPatterns";
 import type { WobbleLayer } from "./wobbleRenderer";
 
@@ -45,6 +45,39 @@ export const ALIGN_FLASH_MS = 520;
 export const REVEAL_MS = 1400;
 /** The white the arena starts as. */
 const PAPER = "#f4f4f5";
+// --- illusion-stage ---
+/** The staged build: a joining ball's pop (s), its burst ring (s), the reveal's fade-in of the rolling circle (s) and its burst (s). */
+export const STAGE_POP_SEC = 0.35;
+export const STAGE_BURST_SEC = 0.5;
+export const STAGE_REVEAL_SEC = 0.6;
+export const STAGE_REVEAL_BURST_SEC = 0.9;
+/** A joined ball's comet tail along its line: how far back it reaches (s) and its alpha. */
+export const STAGE_TAIL_SEC = 0.14;
+export const STAGE_TAIL_ALPHA = 0.45;
+/** A waiting track's alpha (its ball not joined yet), a joined one's, and the reveal flash's peak. */
+export const STAGE_WAITING_ALPHA = 0.1;
+export const STAGE_TRACK_ALPHA = 0.32;
+export const STAGE_FLASH = 0.32;
+
+/** How far ball `i` of a staged build has appeared at `nowMs` (0 before it joins, 1 a moment after); 1 without the staged build. */
+export function stageAppear(view: IllusionView, i: number, nowMs: number): number {
+  if (!view.staged) return 1;
+  const since = nowMs / 1000 - (view.joinSec[i] ?? 0);
+  return since < 0 ? 0 : Math.min(1, since / 0.12);
+}
+
+/** How far the staged build's tracks have faded (0 before `fadeSec`, 1 at the reveal), and its reveal has come in (0 before, 1 after STAGE_REVEAL_SEC). */
+export function stageFade(view: IllusionView, nowMs: number): number {
+  if (!view.staged || view.fadeSec < 0) return 0;
+  const t = nowMs / 1000;
+  return t <= view.fadeSec ? 0 : t >= view.revealSec ? 1 : (t - view.fadeSec) / Math.max(1e-6, view.revealSec - view.fadeSec);
+}
+export function stageReveal(view: IllusionView, nowMs: number): number {
+  if (!view.staged || view.revealSec < 0) return 0;
+  const since = nowMs / 1000 - view.revealSec;
+  return since < 0 ? 0 : Math.min(1, since / STAGE_REVEAL_SEC);
+}
+// --- end illusion-stage ---
 
 /** Simulation ms since the step count `step` was reached (Infinity for −1). */
 export function stepAgeMs(view: IllusionView, step: number, nowMs: number): number {
@@ -145,7 +178,8 @@ export class IllusionLayer {
         ctx.globalAlpha = fade;
         // (A lines ball's trail would only retrace its diameter: the rings' zig-zags are worth a tail.)
         if (o.showTrails && view.type === "rings") for (let i = 0; i < view.count && i < balls.length; i++) this.trail(ctx, balls[i], view.colors[i], view.r[i], o);
-        for (let i = 0; i < view.count; i++) this.body(ctx, view, i, o, null, -1);
+        if (view.staged) this.stagedBodies(ctx, view, o); // --- illusion-stage ---
+        else for (let i = 0; i < view.count; i++) this.body(ctx, view, i, o, null, -1);
       }
     }
     ctx.restore();
@@ -161,6 +195,10 @@ export class IllusionLayer {
     } else if (view.type === "whitespace" && view.revealAtMs >= 0) {
       const age = nowMs - view.revealAtMs;
       if (age >= 0 && age < ALIGN_FLASH_MS) flash = 0.28 * (1 - age / ALIGN_FLASH_MS);
+    } else if (view.staged && view.revealSec >= 0) {
+      // --- illusion-stage --- the reveal's flash
+      const age = nowMs - 1000 * view.revealSec;
+      if (age >= 0 && age < ALIGN_FLASH_MS) flash = STAGE_FLASH * (1 - age / ALIGN_FLASH_MS);
     }
     if (flash > 0.005) {
       ctx.save();
@@ -208,7 +246,13 @@ export class IllusionLayer {
   }
 
   /** The balls the ball characters are drawn on: the innermost circle of the nested type, every ball otherwise (a reused list). */
-  faceBalls(balls: readonly Ball[], view: IllusionView): readonly Ball[] {
+  faceBalls(balls: readonly Ball[], view: IllusionView, nowMs = Infinity): readonly Ball[] {
+    if (view.staged) {
+      // --- illusion-stage --- only the balls that have joined
+      this.faceList.length = 0;
+      for (let i = 0; i < view.count && i < balls.length; i++) if (stageAppear(view, i, nowMs) >= 1) this.faceList.push(balls[i]);
+      return this.faceList;
+    }
     if (view.type !== "nested") return balls;
     this.faceList.length = 0;
     const inner = balls[view.count - 1];
@@ -236,6 +280,10 @@ export class IllusionLayer {
   }
 
   private stageLines(ctx: CanvasRenderingContext2D, view: IllusionView, o: IllusionRenderOptions, wobble: WobbleLayer) {
+    if (view.staged) {
+      this.stageBuild(ctx, view, o, wobble); // --- illusion-stage ---
+      return;
+    }
     const n = view.count;
     const A = view.amplitude;
     // A faint disc so the illusion reads as "inside the circle".
@@ -285,6 +333,150 @@ export class IllusionLayer {
     }
     ctx.globalAlpha = 1;
   }
+
+  // --- illusion-stage ---
+  /**
+   * The staged build's stage: the disc lit from the middle, every diameter waiting dim in its ball's colour until the ball joins
+   * (a flash as it does), a ghost touch's dot on the rim, the tracks fading out before the reveal, then the rolling circle: the
+   * dashed circle, the rainbow polygon through the balls, its centre and spoke, and a burst as it comes in.
+   */
+  private stageBuild(ctx: CanvasRenderingContext2D, view: IllusionView, o: IllusionRenderOptions, wobble: WobbleLayer) {
+    const n = view.count;
+    const A = view.amplitude;
+    const t = o.nowMs / 1000;
+    const fade = stageFade(view, o.nowMs);
+    const reveal = stageReveal(view, o.nowMs);
+    // the disc, lit from the middle in the rim's colour
+    const disc = ctx.createRadialGradient(view.cx, view.cy, 0, view.cx, view.cy, view.radius);
+    disc.addColorStop(0, o.wallColor(0, 0.2));
+    disc.addColorStop(1, o.wallColor(0, 0.04));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(view.cx, view.cy, view.radius, 0, TWO_PI);
+    ctx.fill();
+    if (view.settings.tracks && fade < 1) {
+      ctx.lineWidth = Math.max(1.5, 0.6 * o.wallThickness + 1.2);
+      for (let i = 0; i < n; i++) {
+        const a = linePhase(i, n) + view.rotation;
+        const dx = A * Math.cos(a);
+        const dy = A * Math.sin(a);
+        const since = t - view.joinSec[i];
+        const joinFlash = since >= 0 && since < STAGE_BURST_SEC ? 1 - since / STAGE_BURST_SEC : 0;
+        ctx.globalAlpha = (since < 0 ? STAGE_WAITING_ALPHA : Math.min(1, STAGE_TRACK_ALPHA + 0.3 * noteFlash(view, i, o.nowMs) + 0.6 * joinFlash)) * (1 - fade);
+        ctx.strokeStyle = view.colors[i];
+        ctx.beginPath();
+        ctx.moveTo(view.cx - dx, view.cy - dy);
+        ctx.lineTo(view.cx + dx, view.cy + dy);
+        ctx.stroke();
+      }
+    }
+    this.rim(ctx, view, o, wobble, 0, view.cx, view.cy, view.radius, o.wallColor(0), Math.max(2, o.wallThickness + 1));
+    // a ghost touch: the slot of a ball still to come lights a dot on the rim in its colour
+    const ghostAge = stepAgeMs(view, view.lastGhostStep, o.nowMs);
+    if (ghostAge >= 0 && ghostAge < 1.5 * NOTE_FLASH_MS) {
+      const k = 1 - ghostAge / (1.5 * NOTE_FLASH_MS);
+      const r = view.r[view.ghostBall] ?? 4;
+      ctx.globalAlpha = 0.75 * k;
+      ctx.strokeStyle = view.colors[view.ghostBall] ?? "#ffffff";
+      ctx.lineWidth = Math.max(1.5, 0.25 * r);
+      ctx.beginPath();
+      ctx.arc(view.cx + A * Math.cos(view.ghostAngle), view.cy + A * Math.sin(view.ghostAngle), r * (0.7 + 0.5 * (1 - k)), 0, TWO_PI);
+      ctx.stroke();
+    }
+    if (reveal > 0) {
+      rollingCircleCentre(view.theta, A, view.rotation, this.point);
+      const x = view.cx + this.point.x;
+      const y = view.cy + this.point.y;
+      // the circle's light, its rainbow polygon through the balls (in index order round the circle), the dashed circle
+      ctx.globalAlpha = 0.1 * reveal;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, A / 2, 0, TWO_PI);
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, 0.5 * o.wallThickness + 1);
+      ctx.globalAlpha = 0.55 * reveal;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        ctx.strokeStyle = view.colors[i];
+        ctx.beginPath();
+        ctx.moveTo(view.x[i], view.y[i]);
+        ctx.lineTo(view.x[j], view.y[j]);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.9 * reveal;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = Math.max(2.5, 0.8 * o.wallThickness + 1.5);
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.arc(x, y, A / 2, 0, TWO_PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.45 * reveal;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(view.cx, view.cy);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.globalAlpha = 0.9 * reveal;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(2.5, 0.015 * view.radius), 0, TWO_PI);
+      ctx.fill();
+      // the burst as it comes in
+      const since = t - view.revealSec;
+      if (since >= 0 && since < STAGE_REVEAL_BURST_SEC) {
+        const p = since / STAGE_REVEAL_BURST_SEC;
+        ctx.globalAlpha = 0.8 * (1 - p);
+        ctx.lineWidth = Math.max(2, 6 * (1 - p));
+        ctx.beginPath();
+        ctx.arc(x, y, (A / 2) * (1 + 0.6 * p), 0, TWO_PI);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** The staged build's balls: each from its join with a comet tail along its line, popping in with a burst ring in its colour. */
+  private stagedBodies(ctx: CanvasRenderingContext2D, view: IllusionView, o: IllusionRenderOptions) {
+    const t = o.nowMs / 1000;
+    const alpha = ctx.globalAlpha;
+    // the tails: where each ball was STAGE_TAIL_SEC ago on its line (the phase runs back with the clock), to where it is
+    if (view.cycleSec > 0 && !view.finished) {
+      const back = view.theta - (view.direction * 2 * Math.PI * STAGE_TAIL_SEC) / view.cycleSec;
+      ctx.lineCap = "round";
+      for (let i = 0; i < view.count; i++) {
+        if (stageAppear(view, i, o.nowMs) < 1) continue;
+        linePosition(back, i, view.count, view.amplitude, view.rotation, this.point);
+        ctx.globalAlpha = alpha * STAGE_TAIL_ALPHA;
+        ctx.strokeStyle = view.colors[i];
+        ctx.lineWidth = 1.3 * view.r[i];
+        ctx.beginPath();
+        ctx.moveTo(view.cx + this.point.x, view.cy + this.point.y);
+        ctx.lineTo(view.x[i], view.y[i]);
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < view.count; i++) {
+      const appear = stageAppear(view, i, o.nowMs);
+      if (appear <= 0) continue;
+      const since = t - view.joinSec[i];
+      const pop = since < STAGE_POP_SEC ? 1 + 0.6 * (1 - since / STAGE_POP_SEC) : 1;
+      if (since < STAGE_BURST_SEC) {
+        const p = since / STAGE_BURST_SEC;
+        ctx.globalAlpha = alpha * 0.8 * (1 - p);
+        ctx.strokeStyle = view.colors[i];
+        ctx.lineWidth = Math.max(1.5, 0.3 * view.r[i] * (1 - p) + 1);
+        ctx.beginPath();
+        ctx.arc(view.x[i], view.y[i], view.r[i] * (1.4 + 2.6 * p), 0, TWO_PI);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = alpha * appear;
+      this.body(ctx, view, i, o, null, -1, pop);
+    }
+    ctx.globalAlpha = alpha;
+  }
+  // --- end illusion-stage ---
 
   private stageRings(ctx: CanvasRenderingContext2D, view: IllusionView, o: IllusionRenderOptions, wobble: WobbleLayer) {
     const K = view.count;
@@ -462,10 +654,10 @@ export class IllusionLayer {
   }
 
   /** Body i: glow, disc (wobbling when `wall` ≥ 0 – the innermost nested circle), highlight and the note flash ring. */
-  private body(ctx: CanvasRenderingContext2D, view: IllusionView, i: number, o: IllusionRenderOptions, wobble: WobbleLayer | null, wall: number) {
+  private body(ctx: CanvasRenderingContext2D, view: IllusionView, i: number, o: IllusionRenderOptions, wobble: WobbleLayer | null, wall: number, scale = 1 /* --- illusion-stage --- a joining ball's pop */) {
     const x = view.x[i];
     const y = view.y[i];
-    const r = view.r[i];
+    const r = view.r[i] * scale;
     const color = view.colors[i];
     const flash = noteFlash(view, i, o.nowMs);
     const alpha = ctx.globalAlpha;

@@ -40,6 +40,21 @@ export const ANTI_LABEL_MS = 2200;
 const TRAIL_POINTS = 5;
 /** Above this many orbs the streaks are skipped (they would cost more than they show). */
 export const TRAIL_MAX_BODIES = 600;
+// --- collide-pour ---
+/** A spark on an impact at least this fast (× the Ball Speed), for this long (simulation ms), at most this many a frame. */
+export const SPARK_SPEED = 0.9;
+export const SPARK_MS = 160;
+export const SPARK_MAX = 48;
+/** An orb faster than this (× the Ball Speed) glows white-hot at its core. */
+export const HOT_SPEED = 1.15;
+/** The opening's edges (warm light) and the orbs-left count behind the orbs (its alpha, its size as a share of the square). */
+const POUR_EDGE = "#ffd166";
+export const POUR_COUNT_ALPHA = 0.32;
+/** The open jar's light: its alpha full and empty. */
+export const POUR_GLOW_FROM = 0.04;
+export const POUR_GLOW_TO = 0.2;
+export const POUR_COUNT_SIZE = 0.3;
+// --- end collide-pour ---
 
 /** Simulation ms since sub-step `tick` (Infinity before the event). */
 export function ticksAgoMs(view: CollideView, tick: number): number {
@@ -106,6 +121,13 @@ export function drawCollideArena(ctx: CanvasRenderingContext2D, view: CollideVie
       ctx.closePath();
     }
   };
+  // --- collide-pour --- the open jar: the orbs left, big and faint behind them, and the rim with its opening, edges lit
+  if (view.pourActive) {
+    drawPourCount(ctx, view, o);
+    drawOpenJar(ctx, view, o, thickness);
+    ctx.restore();
+    return;
+  }
   const age = ticksAgoMs(view, view.lastWallHitTick);
   if (o.showWallGlow && age < WALL_GLOW_MS) {
     const strength = 1 - age / WALL_GLOW_MS;
@@ -122,6 +144,71 @@ export function drawCollideArena(ctx: CanvasRenderingContext2D, view: CollideVie
   ctx.stroke();
   ctx.restore();
 }
+
+// --- collide-pour ---
+/** The orbs still in the jar, a big faint number in its middle (behind the orbs). */
+function drawPourCount(ctx: CanvasRenderingContext2D, view: CollideView, o: CollideRenderOptions) {
+  const f = view.field;
+  if (!f) return;
+  ctx.save();
+  // the jar lights up in its colour as it empties
+  const poured = view.count > 0 ? 1 - Math.max(0, view.left) / view.count : 1;
+  ctx.globalAlpha = POUR_GLOW_FROM + (POUR_GLOW_TO - POUR_GLOW_FROM) * poured;
+  ctx.fillStyle = o.wallColor(0);
+  ctx.beginPath();
+  if (f.kind === "circle") ctx.arc(f.cx, f.cy, f.radius, 0, TWO_PI);
+  else ctx.rect(f.left, f.top, f.right - f.left, f.bottom - f.top);
+  ctx.fill();
+  ctx.globalAlpha = POUR_COUNT_ALPHA;
+  ctx.fillStyle = o.wallColor(0);
+  ctx.font = `900 ${Math.round(POUR_COUNT_SIZE * f.side)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(Math.max(0, view.left)), f.cx, f.cy);
+  ctx.restore();
+}
+
+/** The jar with its opening at the bottom (a circle's arc or a box with a slot in its floor) and the opening's lit edges. */
+function drawOpenJar(ctx: CanvasRenderingContext2D, view: CollideView, o: CollideRenderOptions, thickness: number) {
+  const f = view.field;
+  if (!f) return;
+  const half = Math.max(0, view.gapHalf);
+  let lx: number;
+  let rx: number;
+  let ey: number;
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = thickness;
+  ctx.strokeStyle = o.wallColor(0);
+  ctx.beginPath();
+  if (f.kind === "circle") {
+    const phi = Math.asin(Math.min(1, half / Math.max(1e-6, f.radius)));
+    ctx.arc(f.cx, f.cy, f.radius, Math.PI / 2 + phi, Math.PI / 2 - phi + TWO_PI);
+    lx = f.cx - f.radius * Math.sin(phi);
+    rx = f.cx + f.radius * Math.sin(phi);
+    ey = f.cy + f.radius * Math.cos(phi);
+  } else {
+    lx = Math.max(f.left, f.cx - half);
+    rx = Math.min(f.right, f.cx + half);
+    ey = f.bottom;
+    ctx.moveTo(lx, f.bottom);
+    ctx.lineTo(f.left, f.bottom);
+    ctx.lineTo(f.left, f.top);
+    ctx.lineTo(f.right, f.top);
+    ctx.lineTo(f.right, f.bottom);
+    ctx.lineTo(rx, f.bottom);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = POUR_EDGE;
+  const cap = Math.max(2.5, 1.4 * thickness);
+  ctx.beginPath();
+  ctx.moveTo(lx + cap, ey);
+  ctx.arc(lx, ey, cap, 0, TWO_PI);
+  ctx.moveTo(rx + cap, ey);
+  ctx.arc(rx, ey, cap, 0, TWO_PI);
+  ctx.fill();
+}
+// --- end collide-pour ---
 
 /** The orbs (or lollipops): streaks, sticks, glow, bodies by colour, squashed orbs, impact sparkles. */
 export function drawCollideBodies(ctx: CanvasRenderingContext2D, balls: Ball[], view: CollideView, o: CollideRenderOptions) {
@@ -266,6 +353,44 @@ export function drawCollideBodies(ctx: CanvasRenderingContext2D, balls: Ball[], 
     sparkles++;
   }
   if (sparkles > 0) ctx.fill();
+  // --- collide-pour --- white-hot cores on the fastest orbs, and sparks on the hardest contacts (a few dozen a frame at most)
+  const hot2 = (HOT_SPEED * view.ballSpeed) ** 2;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  let hot = 0;
+  for (let k = 0; k < n; k++) {
+    const ball = balls[k];
+    if (!ball || ball.id !== first + k) continue;
+    if (ball.vx * ball.vx + ball.vy * ball.vy < hot2) continue;
+    const r = 0.45 * ball.radius;
+    ctx.moveTo(ball.x + r, ball.y);
+    ctx.arc(ball.x, ball.y, r, 0, TWO_PI);
+    hot++;
+  }
+  if (hot > 0) ctx.fill();
+  const sparkSpeed = SPARK_SPEED * view.ballSpeed;
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = "#fff6d5";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let sparks = 0;
+  for (let k = 0; k < n && sparks < SPARK_MAX; k++) {
+    const age = (tick - view.impactTick[k]) * tickMs;
+    if (!(age < SPARK_MS) || !(view.impactSpeed[k] >= sparkSpeed)) continue;
+    const ball = balls[k];
+    if (!ball || ball.id !== first + k) continue;
+    const a = Math.atan2(view.impactNy[k], view.impactNx[k]);
+    const r0 = 1.15 * ball.radius;
+    const r1 = r0 + (0.4 + 0.9 * (1 - age / SPARK_MS)) * ball.radius;
+    for (let q = 0; q < 4; q++) {
+      const c = Math.cos(a + (q * Math.PI) / 2);
+      const s = Math.sin(a + (q * Math.PI) / 2);
+      ctx.moveTo(ball.x + c * r0, ball.y + s * r0);
+      ctx.lineTo(ball.x + c * r1, ball.y + s * r1);
+    }
+    sparks++;
+  }
+  if (sparks > 0) ctx.stroke();
   ctx.restore();
 }
 

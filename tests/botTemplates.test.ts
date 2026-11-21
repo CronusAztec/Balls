@@ -2603,9 +2603,10 @@ describe("the second review round, findings 13-17: a ball that fills its ring, r
     }
   });
 
-  it("hides Bouncing Shapes with what was watched: its payoff, the first shape at zero, is drawn faded while the other one bounces on bright", () => {
+  it("hides Bouncing Shapes with what was watched: its payoff, the first shape at zero, was drawn faded while the other one bounced on bright, and its pop waits for a review", () => {
     const b = MODE_TEMPLATES.box;
-    expect([b.tier, b.ready, EXPERIMENTAL.box]).toEqual(["experimental", false, expect.stringContaining("drawn faded")]);
+    // (--- box-finale --- E4 review: the reason says what was watched and what is drawn now, a pop no review has watched yet)
+    expect([b.tier, b.ready, EXPERIMENTAL.box]).toEqual(["experimental", false, expect.stringMatching(/was drawn faded.*pops into confetti.*no review has watched/)]);
     expect(readyTemplates("all").some((t) => t.mode === "box")).toBe(false);
     expect(() => planTemplate("aim-box", 1, "reels", { copy, search: false })).toThrow(/ready template/);
     // its binding still plans – two squares, the first at zero its payoff –: what hid it is what the render showed, a stopped shape faded

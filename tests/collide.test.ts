@@ -9,6 +9,8 @@ import {
   DEFAULT_COLLIDE_SETTINGS,
   HUE_BUCKETS,
   MAX_SOUNDS_PER_FRAME,
+  PULSE_MAX_NOTES,
+  PULSE_STEP_SEC,
   MAX_SQUASH,
   RING_MAX_BODIES,
   SIZE_SPREAD_RATIO,
@@ -38,6 +40,10 @@ import { frequencyToMidi } from "@/lib/audio/scales";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator, hitLevel } from "@/lib/audio/toneGenerator";
 import { createEngineForSettings, findSimulation, runNeverFinishes, type ModeSettings } from "@/lib/simulation/finder";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { clipStartSettings } from "@/lib/clipPacing"; // --- collide-pour ---
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { drawCollideArena, drawCollideBodies } from "@/components/simulator/collideRenderer";
+import { fakeCanvas } from "./fakeCanvas";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -805,5 +811,144 @@ describe("ToneGenerator soft hits", () => {
     expect(hitLevel(2)).toBe(1);
     expect(hitLevel(-1)).toBe(0);
     expect(hitLevel(Number.NaN)).toBe(1);
+  });
+});
+
+/* ------------------------------------------------------------------ --- collide-pour --- the jar's finale and the pulse */
+
+describe("Collision Playground: the jar pours out (collide-pour)", () => {
+  const startLook = (): SimulatorSettings => ({ ...defaultSettings("collide"), ...clipStartSettings("collide") }) as SimulatorSettings;
+  const pourEngine = (seed: number, s: SimulatorSettings = startLook()) => createEngineForSettings(physicsConfigOfSettings(s, { width: 800, height: 450 } as never), "collide", modeSettingsOfSettings(s), seed);
+
+  it("opens at its second, pours the small orbs first and the biggest last, and ends empty with the completion chord", { timeout: 120_000 }, () => {
+    const e = pourEngine(3);
+    const v = e.getCollideView();
+    const order: number[] = [];
+    const out = new Uint8Array(v.count);
+    const events: { t: number; e: SoundEvent }[] = [];
+    let opened = -1;
+    for (let k = 0; k < 40 * 60 && !e.isSimulationFinished(); k++) {
+      e.update(1000 / 60, 0);
+      const t = e.getElapsedMs() / 1000;
+      for (const ev of e.consumeSoundEvents()) events.push({ t, e: ev });
+      if (opened < 0 && v.pourActive) opened = t;
+      for (const ball of e.getBalls()) {
+        const i = ball.id - v.firstId;
+        if (v.out[i] === 2 && !out[i]) {
+          out[i] = 1;
+          order.push(ball.radius);
+        }
+      }
+    }
+    // the jar opens at 14 s and is empty a few seconds later, inside the clip
+    expect(opened).toBeCloseTo(14, 1);
+    expect([v.empty, v.left, order.length, e.isSimulationFinished()]).toEqual([true, 0, v.count, true]);
+    const end = e.getElapsedMs() / 1000;
+    expect(end).toBeGreaterThan(16);
+    expect(end).toBeLessThan(26);
+    // the smallest first, the biggest last: the first tenth out is well under the last tenth's size, which is well over the average
+    const tenth = Math.floor(order.length / 10);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(mean(order.slice(0, tenth))).toBeLessThan(0.6 * mean(order.slice(-tenth)));
+    expect(mean(order.slice(-tenth))).toBeGreaterThan(1.2 * mean(order));
+    // the latch at the opening, a pluck for the orbs out, the completion chord at the end
+    expect(events.filter((x) => x.e.loop === "ratchet").map((x) => Math.round(x.t))).toEqual([14]);
+    expect(events.filter((x) => x.e.loop === "pluck").length).toBeGreaterThan(10);
+    const chords = events.filter((x) => x.e.loop === "chord");
+    expect(chords).toHaveLength(1);
+    expect(chords[0].t).toBeCloseTo(end, 1);
+  });
+
+  it("plays the notes on a 16th-note grid, never more than four collisions a step, and keeps a sound going", { timeout: 120_000 }, () => {
+    const e = pourEngine(5);
+    let lastStep = -1;
+    let quiet = 0;
+    let longest = 0;
+    for (let k = 0; k < 20 * 60 && !e.isSimulationFinished(); k++) {
+      e.update(1000 / 60, 0);
+      const t = e.getElapsedMs() / 1000;
+      const evs = e.consumeSoundEvents();
+      if (evs.length === 0) {
+        longest = Math.max(longest, ++quiet);
+        continue;
+      }
+      quiet = 0;
+      const notes = evs.filter((x) => !x.loop && !x.chord);
+      if (notes.length === 0) continue;
+      // a frame with notes is the first of its grid step, and plays at most four of them
+      const step = Math.floor(t / PULSE_STEP_SEC + 1e-9);
+      expect(step).not.toBe(lastStep);
+      lastStep = step;
+      expect(notes.length).toBeLessThanOrEqual(PULSE_MAX_NOTES);
+    }
+    expect(longest / 60).toBeLessThan(1.5);
+  });
+
+  it("replays a seed, ends on every seed inside the clip, and leaves the link base endless", { timeout: 240_000 }, () => {
+    const ends: number[] = [];
+    for (const seed of [1, 2, 7, 11]) {
+      const e = pourEngine(seed);
+      for (let k = 0; k < 40 * 60 && !e.isSimulationFinished(); k++) {
+        e.update(1000 / 60, 0);
+        e.consumeSoundEvents();
+      }
+      ends.push(e.isSimulationFinished() ? e.getElapsedMs() / 1000 : Infinity);
+    }
+    expect(Math.max(...ends)).toBeLessThan(27);
+    const a = pourEngine(9);
+    const b = pourEngine(9);
+    for (let k = 0; k < 16 * 60; k++) {
+      a.update(1000 / 60, 0);
+      b.update(1000 / 60, 0);
+      expect(b.consumeSoundEvents()).toEqual(a.consumeSoundEvents());
+    }
+    expect(b.getBalls().map((x) => [x.x, x.y])).toEqual(a.getBalls().map((x) => [x.x, x.y]));
+    // the finder searches a pouring jar's length; the link base (and the ring) stay endless
+    expect(runNeverFinishes("collide", { collide: collideSettingsOf(startLook()) } as never)).toBe(false);
+    expect(runNeverFinishes("collide", { collide: collideSettingsOf(defaultSettings("collide")) } as never)).toBe(true);
+    expect(runNeverFinishes("collide", { collide: { ...collideSettingsOf(startLook()), ring: true } } as never)).toBe(true);
+  });
+
+  it("writes the pour and the pulse into links only when on, and is the page's start look", () => {
+    expect(clipStartSettings("collide")).toEqual({ cpSyncStart: true, cpSquishy: true, cpAntiCollisionAt: 10, cpPourAt: 14, cpPulse: true });
+    const base = settingsToSearchParams(defaultSettings("collide"));
+    expect([base.has("cppo"), base.has("cppl")]).toEqual([false, false]);
+    const link = settingsToSearchParams(startLook());
+    expect([link.get("cppo"), link.get("cppl")]).toEqual(["14", "1"]);
+    expect(settingsFromSearchParams(link)).toMatchObject({ cpPourAt: 14, cpPulse: true });
+    expect(presetToSettings({ mode: "collide", cpPourAt: 7.25, cpPulse: true } as never)).toMatchObject({ cpPourAt: 7.5, cpPulse: true });
+    expect(defaultSettings("collide")).toMatchObject({ cpPourAt: 0, cpPulse: false, cpAntiCollisionAt: 0, cpSyncStart: false });
+  });
+});
+
+describe("Collision Playground: the open jar drawn (collide-pour)", () => {
+  it("draws the rim with its opening at the bottom, the opening's lit edges and the orbs left, and sparks on hard contacts", { timeout: 120_000 }, () => {
+    const s = { ...defaultSettings("collide"), ...clipStartSettings("collide") } as SimulatorSettings;
+    const e = createEngineForSettings(physicsConfigOfSettings(s, { width: 800, height: 450 } as never), "collide", modeSettingsOfSettings(s), 4);
+    for (let k = 0; k < 17 * 60; k++) {
+      e.update(1000 / 60, 0);
+      e.consumeSoundEvents();
+    }
+    const v = e.getCollideView();
+    expect(v.pourActive).toBe(true);
+    const ctx = fakeCanvas(800, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    const o = { wallColor: () => "#ffffff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: false, trailThickness: 1 };
+    drawCollideArena(ctx, v, o);
+    // the count of the orbs left, then the rim as one arc that leaves out the bottom: from π/2 + φ round to π/2 − φ + 2π
+    const text = ctx.calls.find((c) => c.name === "fillText")!;
+    expect(text.args[0]).toBe(String(v.left));
+    const phi = Math.asin(v.gapHalf / v.field!.radius);
+    const rim = ctx.calls.filter((c) => c.name === "arc").find((c) => Math.abs((c.args[2] as number) - v.field!.radius) < 1e-9 && Math.abs((c.args[3] as number) - (Math.PI / 2 + phi)) < 1e-9);
+    expect(rim).toBeDefined();
+    expect(rim!.args[4] as number).toBeCloseTo(Math.PI / 2 - phi + 2 * Math.PI, 9);
+    // and the opening's half width is the size sort's: past the smallest orb, short of the widest opening
+    const radii = e.getBalls().map((b) => b.radius);
+    const [min, max] = [Math.min(...radii), Math.max(...radii)];
+    expect(v.gapHalf).toBeGreaterThan(min);
+    expect(v.gapHalf).toBeLessThanOrEqual(Math.max(1.2 * max, 0.5 * v.field!.radius) + 1e-9);
+    // the bodies: at most SPARK_MAX sparks, all of them strokes of one path
+    const bodies = fakeCanvas(800, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawCollideBodies(bodies, e.getBalls(), v, o);
+    expect(bodies.calls.filter((c) => c.name === "stroke").length).toBeLessThanOrEqual(2);
   });
 });

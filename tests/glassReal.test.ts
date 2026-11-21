@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing";
-import { CAMERA_LEAD, DEFAULT_GLASS_SETTINGS, HOME_BOOM_HZ, cameraTarget, glassCrackHz, glassSettingsOf, leadCameraTarget, type GlassSettings } from "@/lib/physics/modes/glass";
+import { CAMERA_LEAD, DEFAULT_GLASS_SETTINGS, HOME_IMPACT_CHORD, HOME_RESOLVE_HZ, cameraTarget, stageHue, glassCrackHz, glassSettingsOf, leadCameraTarget, type GlassSettings } from "@/lib/physics/modes/glass";
 import { GALLERY } from "@/content/gallery";
 import { HERO_MOMENTS } from "@/lib/thumbnails/heroMoments";
+import { ringVoiceEvent } from "@/lib/audio/loopEvents";
+import { ToneGenerator } from "@/lib/audio/toneGenerator";
+import { playSoundEvent } from "@/lib/recording/fastRender";
+import { CRACK_SNAP_TONE, CRACK_TONE, scheduleCrack } from "@/lib/audio/powerLayerTones";
+import { GLASS_STAGE_TINTS, glassStageTint } from "@/components/simulator/glassRenderer";
 
 /*
  * --- glass-real --- (Lane E, E4) Glass Smash's crack voice and HOME thud (sounds of their own: the run's contacts and the crew's
@@ -79,7 +84,7 @@ describe("glass-real: the leading camera", () => {
 });
 
 describe("glass-real: the sounds", () => {
-  it("rings the crack voice over every pane hit, a full one on the shatter, and the low thud with the HOME chord", () => {
+  it("rings the crack voice over every pane hit, a full one on the shatter, and an impact and a completion chord with the HOME chord", () => {
     const engine = glassEngine({ rows: 3, hp: 2, stages: 1, holes: false, moving: false }, 11);
     const events: SoundEvent[] = [];
     for (let f = 0; f < 60 * 60 && !engine.isSimulationFinished(); f++) {
@@ -91,12 +96,87 @@ describe("glass-real: the sounds", () => {
     const cracks = events.filter((e) => e.plCrack);
     expect(cracks).toHaveLength(view.hits);
     expect(cracks.every((e) => e.ringVoice === "extra" && e.melody === false)).toBe(true);
+    expect(cracks.every((e) => e.ringTexture === true)).toBe(true); // --- glass-real --- (E4 review) a melody keeps them
     expect(cracks.filter((e) => e.level === 1)).toHaveLength(view.shattered);
     const pitches = new Set(view.level!.panes.map((p) => glassCrackHz(p)));
     for (const c of cracks) expect(pitches.has(c.frequency!)).toBe(true);
     const chord = events.findIndex((e) => !!e.chord);
     expect(chord).toBeGreaterThanOrEqual(0);
-    expect(events[chord + 1]).toEqual({ type: "hit", wallIndex: 0, loop: "land", frequency: HOME_BOOM_HZ, level: 1, melody: false, ringVoice: "extra" });
+    expect(events[chord + 1]).toEqual({ type: "hit", wallIndex: 0, loop: "impact", frequency: HOME_IMPACT_CHORD[0], chord: [...HOME_IMPACT_CHORD], level: 1, melody: false, ringVoice: "extra" });
+    expect(events[chord + 2]).toEqual({ type: "hit", wallIndex: 0, loop: "chord", frequency: HOME_RESOLVE_HZ, level: 1, melody: false, ringVoice: "extra" });
+    // --- glass-real --- (E4 review) a phone plays it: every voice of the impact above 150 Hz
+    expect(Math.min(...HOME_IMPACT_CHORD)).toBeGreaterThan(150);
+  });
+});
+
+// --- glass-real --- (E4 review) a planned clip carries a melody: the glass still cracks under it, without a pitch of its own
+describe("glass-real: the crack under a visitor's melody", () => {
+  const crack: SoundEvent = { type: "hit", wallIndex: 0, plCrack: true, frequency: 1046.5, level: 0.6, melody: false, ringVoice: "extra", ringTexture: true };
+
+  it("stays under a melody alone as its snap, and goes under a song, a hit sample or a clip as every extra does", () => {
+    expect(ringVoiceEvent(crack, false)).toBe(crack);
+    expect(ringVoiceEvent(crack, true, true)).toEqual({ ...crack, frequency: undefined, unpitched: true });
+    expect(ringVoiceEvent(crack, true, false)).toBeNull();
+    const extra: SoundEvent = { type: "hit", wallIndex: 0, loop: "chord", frequency: 130.8, level: 1, melody: false, ringVoice: "extra" };
+    expect(ringVoiceEvent(extra, true, true)).toBeNull(); // (an extra that is no texture still gives way to the melody)
+  });
+
+  // (E4 review) Glass Smash's own glass clip set the tone generator's wall-break sound, so every extra was left out in the mode
+  it("counts the mode's own break clip as no sound of the visitor's own, and a clip the visitor chose as theirs", () => {
+    vi.stubGlobal("window", undefined);
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined); // (no audio context in Node: the clip is not decoded)
+    try {
+      const tone = new ToneGenerator();
+      tone.setWallBreakSound("/sounds/glass-break.mp3", true);
+      expect([tone.hasOwnSound(), tone.ownSoundIsMelody()]).toEqual([false, false]);
+      tone.setCustomNotes([440, 494]);
+      expect([tone.hasOwnSound(), tone.ownSoundIsMelody()]).toEqual([true, true]);
+      tone.setWallBreakSound("/sounds/glass-break.mp3");
+      expect([tone.hasOwnSound(), tone.ownSoundIsMelody()]).toEqual([true, false]);
+      tone.clearCustomNotes();
+      expect(tone.hasOwnSound()).toBe(true);
+      tone.setWallBreakSound(null, true);
+      expect(tone.hasOwnSound()).toBe(false);
+    } finally {
+      quiet.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("is played by the fast export as the unpitched snap, and the snap has no pitched voice at all", () => {
+    const calls: unknown[][] = [];
+    const audio = { hasOwnSound: () => true, ownSoundIsMelody: () => true, playPowerLayerCrack: (...args: unknown[]) => calls.push(args) };
+    playSoundEvent(audio as unknown as Parameters<typeof playSoundEvent>[0], crack, () => undefined);
+    expect(calls).toEqual([[undefined, 0.6, true]]);
+    const count = { osc: 0, noise: 0 };
+    const param = () => ({ value: 0, setValueAtTime: () => undefined, linearRampToValueAtTime: () => undefined, exponentialRampToValueAtTime: () => undefined });
+    const node = () => ({ connect: () => undefined });
+    const ctx = {
+      createBufferSource: () => ({ ...node(), buffer: null, start: () => void count.noise++, stop: () => undefined }),
+      createBiquadFilter: () => ({ ...node(), type: "", frequency: param(), Q: param() }),
+      createGain: () => ({ ...node(), gain: param() }),
+      createOscillator: () => ({ ...node(), type: "", frequency: param(), start: () => void count.osc++, stop: () => undefined }),
+    };
+    const noise = { duration: 1 } as AudioBuffer;
+    scheduleCrack(ctx as unknown as BaseAudioContext, {} as AudioNode, 0, 1046.5, noise, 1, CRACK_SNAP_TONE);
+    expect(count).toEqual({ osc: 0, noise: 1 });
+    scheduleCrack(ctx as unknown as BaseAudioContext, {} as AudioNode, 0, 1046.5, noise, 1, CRACK_TONE);
+    expect(count).toEqual({ osc: 4, noise: 2 }); // (the pitched crack as it was: the ping, its octave, the shimmer and the tick)
+  });
+});
+
+// --- glass-real --- (E4 review) Glass Smash's stage tints: every stage a colour of its own (stages 3 and 4 were the same purple)
+describe("glass stage tints", () => {
+  it("gives each of the first six stages its own tint, at least 60° from the stage before, and leaves another hue as it is", () => {
+    const tints = Array.from({ length: 6 }, (_, i) => glassStageTint(stageHue(i)));
+    expect(tints).toEqual([...GLASS_STAGE_TINTS]);
+    expect(new Set(tints).size).toBe(6);
+    for (let i = 1; i < 6; i++) {
+      const d = Math.abs(tints[i] - tints[i - 1]) % 360;
+      expect(Math.min(d, 360 - d)).toBeGreaterThanOrEqual(60);
+    }
+    expect(glassStageTint(stageHue(6))).toBe(GLASS_STAGE_TINTS[0]);
+    expect(glassStageTint(17)).toBe(17);
   });
 });
 
@@ -129,4 +209,31 @@ describe("glass-real: the start look", () => {
     expect(gallery.length).toBeGreaterThan(0);
     for (const preset of gallery) expect(new URLSearchParams(preset.query).get("gll"), preset.id).toBe("1");
   });
+
+  // --- glass-real --- (E4 review) a visitor who opens a glass card and presses Record (30 s) gets HOME and its celebration
+  it("every glass gallery card reaches HOME with its celebration by 27 s, in a laptop's and a phone's world", () => {
+    const gallery = GALLERY.filter((p) => p.mode === "glass");
+    expect(gallery.length).toBeGreaterThan(0);
+    for (const preset of gallery) {
+      const params = new URLSearchParams(preset.query);
+      const settings = settingsFromSearchParams(params);
+      const seed = Number(params.get("seed"));
+      expect(Number.isFinite(seed), preset.id).toBe(true);
+      for (const world of [
+        { width: 800, height: 450 },
+        { width: 450, height: 450 },
+      ]) {
+        const finder = finderRequestOfSettings(settings, world, 40);
+        const engine = createEngineForSettings(finder.physicsConfig, finder.mode, finder.modeSettings, seed);
+        let sec = 0;
+        while (sec < 40 && !engine.isSimulationFinished()) {
+          engine.update(1000 / 60, 0);
+          engine.consumeSoundEvents();
+          sec += 1 / 60;
+        }
+        expect(engine.isSimulationFinished(), `${preset.id} ${world.width}`).toBe(true);
+        expect(sec, `${preset.id} ${world.width}`).toBeLessThanOrEqual(27);
+      }
+    }
+  }, 30_000);
 });

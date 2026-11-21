@@ -307,7 +307,7 @@ export function fastRenderSupported(): boolean {
 /** Plays one engine sound event through `audio` – the page's dispatch (the sound loop in Simulator.tsx); keep the two in step. */
 export function playSoundEvent(audio: ToneGenerator, raw: SoundEvent, onWallBreak: () => void) {
   // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip, as on the page
-  const ev = raw.ringVoice ? ringVoiceEvent(raw, audio.hasOwnSound()) : raw;
+  const ev = raw.ringVoice ? ringVoiceEvent(raw, audio.hasOwnSound(), raw.ringTexture ? audio.ownSoundIsMelody() : false /* --- glass-real --- (E4 review) */) : raw;
   if (!ev) return;
   if (ev.ringVoice === "contact" && ev.type === "gap") onWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too, as on the page)
   // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
@@ -376,7 +376,7 @@ export function playSoundEvent(audio: ToneGenerator, raw: SoundEvent, onWallBrea
   }
   // --- power-layers-crack --- a Power Layers layer giving way under the ball
   if (ev.plCrack) {
-    audio.playPowerLayerCrack(ev.frequency, ev.level);
+    audio.playPowerLayerCrack(ev.frequency, ev.level, ev.unpitched); // --- glass-real --- (E4 review) a texture's snap alone under a melody
     return;
   }
   // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
