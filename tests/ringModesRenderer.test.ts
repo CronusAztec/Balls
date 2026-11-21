@@ -300,11 +300,13 @@ describe("Classic's rings left", () => {
     expect(filled.map((d) => d.fill)).toEqual(["ring-2", "ring-3", "ring-4", "ring-5", "ring-6"]);
     expect(drawn.filter((d) => d.name === "strokeRect").length).toBe(2);
     for (const d of drawn) if (d.name === "fillText" || d.name === "fillRect") expect(d.alpha).toBe(1); // full opacity, whatever the pass runs at
-    // in the square's top-left corner: outside the outermost ring (85 % of the half side) and inside 30 % of the side
+    // in the square's top-right corner (--- review fix (B3) --- the top-left one is where a recording's watermark tiles are
+    // measured): outside the outermost ring (85 % of the half side) and inside 30 % of the side
     const lay = ringPipLayout(0, 0, 1080, 7, 0);
-    const right = Math.max(...filled.map((d) => Number(d.args[0]) + Number(d.args[2])));
-    expect(right).toBeLessThan(0.3 * 1080 + lay.fs);
-    expect(Math.hypot(540 - right, 540 - bottom)).toBeGreaterThan(0.85 * 540);
+    const left = Math.min(...filled.map((d) => Number(d.args[0])), Number(drawn.find((d) => d.name === "fillText")!.args[1]));
+    expect(left).toBeGreaterThan(1080 - 0.3 * 1080 - lay.fs);
+    expect(Math.hypot(left - 540, 540 - bottom)).toBeGreaterThan(0.85 * 540);
+    expect(Math.max(...filled.map((d) => Number(d.args[0]) + Number(d.args[2])))).toBeLessThanOrEqual(1080 - (lay.x - 0) + 1e-6);
     expect(bottom).toBeLessThan(0.1 * 1080);
     expect(lay.fs).toBeGreaterThanOrEqual(0.05 * 1080); // 27 px in a 540 px feed
     expect(balanced(ctx)).toBe(true);

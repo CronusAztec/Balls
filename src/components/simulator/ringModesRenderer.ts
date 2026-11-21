@@ -431,7 +431,9 @@ export function ringPipLayout(sx: number, sy: number, side: number, rings: numbe
 /**
  * Classic's rings left, in the HUD pass at full opacity: the number, then one pip per ring (the innermost first) in the
  * ring's own colour – a broken ring's pip is a faint outline. More than PIP_CAP rings: the number alone. Returns the bottom
- * edge of what it drew (the top captions start below it).
+ * edge of what it drew (the top captions start below it). --- review fix (B3) --- In the square's top-right corner: the
+ * top-left one is the plain patch of background where a recording's watermark tiles are measured (scripts/smoke-test.mjs
+ * wmRegions: a Pro recording must show it flat), which the row made busy.
  */
 export const PIP_CAP = 24;
 export function drawRingPips(ctx: CanvasRenderingContext2D, rings: number, escaped: number, colorOf: (index: number) => string, sx: number, sy: number, side: number, inset: number): number {
@@ -449,11 +451,15 @@ export function drawRingPips(ctx: CanvasRenderingContext2D, rings: number, escap
   ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
   const text = String(left);
   const cy = lay.y + lay.fs / 2;
-  ctx.strokeText(text, lay.x, cy);
+  // right-aligned: the row ends as far from the square's right edge as it started from the left one
+  const textW = ctx.measureText(text).width;
+  const rowW = textW + (rings <= PIP_CAP ? 0.45 * lay.fs + (rings - 1) * lay.step + lay.w : 0);
+  const x = sx + side - (lay.x - sx) - rowW;
+  ctx.strokeText(text, x, cy);
   ctx.fillStyle = left > 0 ? "#ffffff" : "#a3e635";
-  ctx.fillText(text, lay.x, cy);
+  ctx.fillText(text, x, cy);
   if (rings <= PIP_CAP) {
-    const x0 = lay.x + ctx.measureText(text).width + 0.45 * lay.fs;
+    const x0 = x + textW + 0.45 * lay.fs;
     for (let i = 0; i < rings; i++) {
       const x = x0 + i * lay.step;
       const y = cy - lay.h / 2;
