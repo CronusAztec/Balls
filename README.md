@@ -2629,7 +2629,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `colorMatch` | a colour match shattering a segment of the ring | 1 | 16 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `grow` | the ball warmed to amber a bounce from filling its ring, the meter round the rim nearly closed, its hit markers fading | 1 | 19.6 s | `gLaw=multiply&gFill=finish&gStep=4&gStart=15&gHue=1&gMark=1&gPitch=1` | – |
 | `drop` | balls raining through the coloured pegs | 1 | 4 s | `dbc=16&dsi=0.2&dsv=0.7` | – |
-| `box` | fat squares mid-polyrhythm, the wall they just hit lit up | 1 | 17 s | `s=575&bxn=4&bxa=1&bxgr=3&bxr=4:5:6` | – |
+| `box` | fat squares mid-polyrhythm, the wall they just hit lit up | 1 | 17 s | `s=575&r=11&bxn=4&bxa=1&bxgr=3&bxr=4:5:6` | – |
 | `pendulum` | the pendulum wave in a perfect fan | 1 | 1 s | `pwn=20&pwk=24&pwt=40&pwtr=0.5` | – |
 | `polyrhythm` | sixteen voices fanned out along their chords in a rainbow wave | 1 | 3 s | `prl=arcs` | – |
 | `collide` | squishy orbs colliding in the circle | 1 | 6 s | `cpsq=1&cpn=60` | – |

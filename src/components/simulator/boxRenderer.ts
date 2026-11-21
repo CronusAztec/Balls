@@ -202,13 +202,13 @@ function drawBurst(ctx: CanvasRenderingContext2D, view: BoxView, ball: Ball, hw:
     ctx.translate(ball.x, ball.y);
     ctx.globalAlpha = 1 - t;
     ctx.fillStyle = `hsl(${hue}, 90%, ${Math.round(85 - 20 * t)}%)`;
-    shapePath(ctx, shape, hw * (1 + 0.6 * t), hh * (1 + 0.6 * t));
+    shapePath(ctx, shape, hw * (1 + 0.35 * t), hh * (1 + 0.35 * t));
     ctx.fill();
     ctx.globalAlpha = 0.8 * (1 - t);
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0, 0, Math.max(hw, hh) * (1.2 + 2.4 * t), 0, TWO_PI);
+    ctx.arc(0, 0, Math.max(hw, hh) * (1.2 + 1.4 * t), 0, TWO_PI);
     ctx.stroke();
     ctx.translate(-ball.x, -ball.y);
   }
