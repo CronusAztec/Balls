@@ -251,6 +251,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   mergeRing: "mr", // --- merge-ring ---
   spiralGlass: "sg", // --- spiral-glass ---
   songRing: "sr", // --- song-ring ---
+  sandPlate: "sp", // --- sand-plate ---
   blueprint: "bl", // --- blueprint --- (the catalog entry and the slider values; a spec is the Blueprint tools', never a patch's: PATCH_EXCLUDED)
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---

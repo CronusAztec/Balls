@@ -160,6 +160,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   spiralGlass: { samples: [[243369,453872],[264453,162907],[541556,182777],[522899,446019]], broken: [], walls: [] },
   // --- song-ring --- Song Ring: its own ring of note tiles, no engine rings; recorded when the mode was added (seed 12345, defaults: Twinkle's seven notes, a 4 s lap, speed 1.2, one ball, help 0.8).
   songRing: { samples: [[282832,432107],[593106,324116],[291107,397024],[475394,126937]], broken: [], walls: [] },
+  sandPlate: { samples: [[400000,279000],[400000,279000],[400000,279000],[400000,279000]], broken: [], walls: [] }, // --- sand-plate --- (recorded when the mode was added: no rings; its one ball a placeholder pinned at the plate's middle, the sand is the mode's own: tests/sandPlate.test.ts pins its grains)
   blueprint: { samples: [[394490,303176],[481193,271520],[419904,300489],[366487,328487],[417803,261907],[327124,346154],[511348,206452],[322460,392447]], broken: [], walls: [] }, // --- blueprint --- (Mode Lab's default: Glass Hatchery)
 };
 

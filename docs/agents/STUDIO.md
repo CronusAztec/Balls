@@ -45,7 +45,7 @@ plain code.
 | Tool | Use it to |
 | --- | --- |
 | `research` | Read the research brief, offline: the trend summary, the playbook and the local inspire dataset by its searches |
-| `templates` | See the ten formats, all 49 modes' bindings and tiers (a binding that waits says why: `waits`), the ready templates with their words, the Simple look |
+| `templates` | See the ten formats, all 50 modes' bindings and tiers (a binding that waits says why: `waits`), the ready templates with their words, the Simple look |
 | `plan` | Plan clips with the bot's planner, deterministically, into a studio's plan.json: a template by its id, a mode's ready templates, or one of each format first |
 | `review` | Play the crew's roles: take the next brief, answer it, get the next one or the decision |
 | `render` | With `plan` and `clip`: render a planned clip as the crew left it, watermarked, with its melody and sheets |
@@ -92,10 +92,10 @@ argument.
 
 ## Every mode's templates
 
-`src/lib/bot/templates.ts` binds each of the 49 modes to one of ten formats. A format promises one thing the run must
+`src/lib/bot/templates.ts` binds each of the 50 modes to one of ten formats. A format promises one thing the run must
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
 and Mode Lab game. A binding whose own hook and payoff promise another thing claims that instead (`ModeBinding.claim`,
-`templateClaimOf`): the conveyor, whose hook asks whether its stated balls all get out, claims out. 35 of the 49 bindings are ready, as 45 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+`templateClaimOf`): the conveyor, whose hook asks whether its stated balls all get out, claims out. 36 of the 50 bindings are ready, as 46 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
 experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode or a template's
@@ -110,7 +110,7 @@ section, which plans and renders long clips, but not in the studio: it fills the
 rotation renders the bracket's recipe, in the bot look, only when it is asked for long clips and the battle family
 (`viral-bot.mjs --bucket long --family all`, or `battle`). The
 listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan` leave it out (the mode route plans
-Fight League's other three): `plan` covers 44 of the 45 ready templates. Since the studio2 review's second round (18) the studio keeps
+Fight League's other three): `plan` covers 45 of the 46 ready templates. Since the studio2 review's second round (18) the studio keeps
 every clip to the lengths render plays: the brainstormer's menu offers each template its short and standard lengths only, the
 panel drops a planned clip past 60 s before any role looks at it (`tooLong`, the plan route's `"bucket":"long"` included), and
 the reviewer's `changeLength` names short or standard only (`maxClipSec` on the panel, `RENDER_MAX_SEC`).
@@ -165,6 +165,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |
+| | Sand Plate | the full chord on the last, finest figure, when its colour floods out and THE FINAL SHAPE rises (its run's end less the finale's hold); its own hook says what every note does | `reveal-sand-plate` | |
 | Mode Lab game | Mode Lab | the game's finish rule (its mark) | `lab-game-blueprint` (Glass Hatchery), `lab-game-blueprint-ring-breaker`, `lab-game-blueprint-plinko-race`, `lab-game-blueprint-grow-escape`, `lab-game-blueprint-thin-ice` (a battle: offered with the battle family) | `lab-game-blueprint-conquer`: the page's run parts from the planner's; `lab-game-blueprint-tier-climb` and `lab-game-blueprint-hot-potato`: no edge of the square is clear for its hook (G5) |
 
 A template that wraps a playbook recipe speaks with the recipe's words; the others speak with their format's

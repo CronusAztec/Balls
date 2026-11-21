@@ -81,6 +81,7 @@ import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // 
 import MergeRingSection, { MERGE_RING_KEYS } from "./sections/MergeRingSection"; // --- merge-ring --- the Merge Ring block of the Mode row
 import SpiralGlassSection, { SPIRAL_GLASS_KEYS } from "./sections/SpiralGlassSection"; // --- spiral-glass --- the Spiral Glass block of the Mode row
 import SongRingSection, { SONG_RING_KEYS } from "./sections/SongRingSection"; // --- song-ring --- the Song Ring block of the Mode row
+import SandPlateSection, { SAND_PLATE_KEYS } from "./sections/SandPlateSection"; // --- sand-plate --- the Sand Plate block of the Mode row
 import BlueprintSection, { BLUEPRINT_KEYS } from "./sections/BlueprintSection"; // --- blueprint --- the Mode Lab block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
@@ -289,6 +290,8 @@ SECTION_KEYS.ball.push(...MERGE_RING_KEYS);
 SECTION_KEYS.ball.push(...SPIRAL_GLASS_KEYS);
 // --- song-ring --- the Song Ring block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...SONG_RING_KEYS);
+// --- sand-plate --- the Sand Plate block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...SAND_PLATE_KEYS);
 // --- blueprint --- the Mode Lab block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BLUEPRINT_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
@@ -559,6 +562,8 @@ export default function Controls(props: ControlsProps) {
     spiralGlass: t("modeSpiralGlass"),
     // --- song-ring ---
     songRing: t("modeSongRing"),
+    // --- sand-plate ---
+    sandPlate: t("modeSandPlate"),
     // --- blueprint ---
     blueprint: t("modeBlueprint"),
     // --- beat-drop ---
@@ -744,6 +749,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "spiralGlass" && !!search && <SpiralGlassSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- song-ring --- */}
       {s.mode === "songRing" && !!search && <SongRingSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- sand-plate --- */}
+      {s.mode === "sandPlate" && !!search && <SandPlateSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- blueprint --- */}
       {s.mode === "blueprint" && !!search && <BlueprintSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
@@ -1553,6 +1560,9 @@ export default function Controls(props: ControlsProps) {
       // --- song-ring ---
       case "songRing":
         return <SongRingSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- sand-plate ---
+      case "sandPlate":
+        return <SandPlateSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- blueprint ---
       case "blueprint":
         return <BlueprintSection t={t} search={search} matches={matches} settings={s} update={update} />;

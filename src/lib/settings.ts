@@ -69,6 +69,8 @@ import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readM
 import { SPIRAL_GLASS_RANGES, defaultSpiralGlassFields, readSpiralGlassParams, resolveSpiralGlassFields, spiralGlassModeDefaults, writeSpiralGlassParams, type SpiralGlassFields } from "@/lib/physics/modes/spiralGlass";
 // --- song-ring --- the Song Ring mode
 import { SONG_RING_RANGES, defaultSongRingFields, readSongRingParams, resolveSongRingFields, songRingModeDefaults, writeSongRingParams, type SongRingFields, type SongRingSong } from "@/lib/physics/modes/songRing";
+// --- sand-plate --- the Sand Plate mode
+import { SAND_PLATE_RANGES, defaultSandPlateFields, readSandPlateParams, resolveSandPlateFields, sandPlateModeDefaults, writeSandPlateParams, type SandPlateFields } from "@/lib/physics/modes/sandPlate";
 // --- blueprint --- Mode Lab: a game mode as data (a Blueprint)
 import { BLUEPRINT_ENGINE_KEYS, BLUEPRINT_RANGES, blueprintModeDefaults, defaultBlueprintFields, readBlueprintParams, resolveBlueprintFields, writeBlueprintParams, type BlueprintFields } from "@/lib/physics/modes/blueprint";
 // --- beat-drop --- the Beat Drop mode
@@ -832,6 +834,18 @@ export interface SimulatorSettings {
   /** The hit that lights a tile plays its note at once (URL `srn`). */
   srLive: boolean;
   // --- end song-ring ---
+  // --- sand-plate --- Sand Plate (lib/physics/modes/sandPlate.ts): sand on a ringing plate, every new note shakes it into a finer figure
+  /** Notes in a run, one figure each, 3–12 (URL `spn`). */
+  spNotes: number;
+  /** Seconds a note rings, 1–5 (URL `sps`). */
+  spNoteSec: number;
+  /** Grains of sand on the plate, 500–10,000 (URL `spg`). */
+  spGrains: number;
+  /** How hard the plate shakes, × the tuned hop, 0.3–3 (URL `spk`). */
+  spShake: number;
+  /** Shake the sand loose after the last figure and play the run again, for ever (URL `spl`). */
+  spLoop: boolean;
+  // --- end sand-plate ---
   // --- blueprint --- Mode Lab (lib/physics/modes/blueprint.ts): a game mode described as data, played by one sandboxed interpreter
   /** The catalog entry played when there is no spec of a link (lib/blueprint/catalog; URL `blp`). */
   blPreset: string;
@@ -1485,6 +1499,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- song-ring --- the feature's fields (out here too; the mode changes no core default)
     ...defaultSongRingFields(),
     ...songRingModeDefaults(mode),
+    // --- sand-plate --- the feature's fields (out here too; the mode changes no core default)
+    ...defaultSandPlateFields(),
+    ...sandPlateModeDefaults(mode),
     // --- blueprint --- the feature's fields (out here too; a Blueprint sizes and colours its own balls)
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
@@ -1505,7 +1522,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */> {
   return {
     mode,
     gravity: 300,
@@ -1718,6 +1735,7 @@ export const RANGES = {
   ...MERGE_RING_RANGES, // --- merge-ring ---
   ...SPIRAL_GLASS_RANGES, // --- spiral-glass ---
   ...SONG_RING_RANGES, // --- song-ring ---
+  ...SAND_PLATE_RANGES, // --- sand-plate ---
   ...BLUEPRINT_RANGES, // --- blueprint --- (none: a Blueprint's sliders are the spec's own)
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
@@ -1997,6 +2015,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeMergeRingParams(settings, base, params); // --- merge-ring ---: mrt, mri, mrs, mrg, mrr
   writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr (--- templates --- the overlay's sghud is a BOOLEAN_URL_KEYS key)
   writeSongRingParams(settings, base, params); // --- song-ring ---: srt, srl, srv, srb, srh, srn
+  writeSandPlateParams(settings, base, params); // --- sand-plate ---: spn, sps, spg, spk, spl
   writeBlueprintParams(settings, base, params); // --- blueprint ---: blp, bls, blv
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
@@ -2180,6 +2199,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readMergeRingParams(params, settings); // --- merge-ring --- (clamped onto the sliders; bad values fall back)
   readSpiralGlassParams(params, settings); // --- spiral-glass --- (clamped onto the sliders; bad values fall back)
   readSongRingParams(params, settings); // --- song-ring --- (a known tune, clamped onto the sliders; bad values fall back)
+  readSandPlateParams(params, settings); // --- sand-plate --- (onto the sliders' steps; bad values fall back)
   readBlueprintParams(params, settings); // --- blueprint --- (a known catalog id, a plausible code, clean slider values)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
@@ -2417,6 +2437,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   mergeRing: rangeKeys(MERGE_RING_RANGES), // --- merge-ring --- (the tiers, the interval, the spawn tiers and the gravity; the rainbow rim is the picture's)
   spiralGlass: rangeKeys(SPIRAL_GLASS_RANGES), // --- spiral-glass --- (the turns, the hit points, the speed, the ball cap and the chip time; the rainbow line is the picture's)
   songRing: ["srSong", ...rangeKeys(SONG_RING_RANGES), "srLive"], // --- song-ring --- (the tune, the lap, the speed, the balls and the help are the run's; the live notes its sound events)
+  sandPlate: [...rangeKeys(SAND_PLATE_RANGES), "spLoop"], // --- sand-plate --- (every setting is the run's: the figures, the clock, the sand, the loop)
   blueprint: [...BLUEPRINT_ENGINE_KEYS], // --- blueprint --- (the catalog entry, the link's spec and its slider values: every one is the run's)
   beatDrop: rangeKeys(BEAT_DROP_RANGES),
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
@@ -2709,6 +2730,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveMergeRingFields(merged)); // --- merge-ring --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveSpiralGlassFields(merged)); // --- spiral-glass --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveSongRingFields(merged)); // --- song-ring --- a known tune, clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveSandPlateFields(merged)); // --- sand-plate --- numbers on their steps (the counts whole), a real boolean
   Object.assign(merged, resolveBlueprintFields(merged)); // --- blueprint --- a known catalog id, a plausible code, clean slider values
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans

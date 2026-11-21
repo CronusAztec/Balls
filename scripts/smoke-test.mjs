@@ -20834,6 +20834,78 @@ await smokeBlock("song-ring", async () => {
 // --- end song-ring ---
 });
 
+await smokeBlock("sand-plate", async () => {
+// --- sand-plate ---
+// Sand Plate ("every note draws a new shape"): the preview image and the card; URL → the Sand Plate block of the Mode row (the
+// notes, the note length, the grains, the shake, the loop, the run's length), controls → URL and the search box, no ring
+// controls; a fast run at 8× (four notes of 1 s) draws a figure per note and ends on the full chord (data-sand-*).
+{
+  const res = await page.request.get(`${BASE}/modes/sandPlate.webp`);
+  check("asset /modes/sandPlate.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Sand Plate card is on the landing page", (await page.locator('img[src$="/modes/sandPlate.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("sand-plate");
+  const spToggle = (label) => block.getByRole("switch", { name: switchName(label) });
+  const spSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=9&sps=2&spg=4000&spk=1.4&spl=1`, { waitUntil: "networkidle" });
+  {
+    const values = { spn: await spSlider("Notes").inputValue(), sps: await spSlider("Note Length").inputValue(), spg: await spSlider("Grains").inputValue(), spk: await spSlider("Shake").inputValue() };
+    const loop = await spToggle("Loop").getAttribute("aria-checked");
+    const runText = await page.getByTestId("sand-plate-run").innerText();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "sand plate loads from the URL",
+      values.spn === "9" && values.sps === "2" && values.spg === "4000" && values.spk === "1.4" && loop === "true" && /19\.8 s/.test(runText) && noRingControls,
+      `(${JSON.stringify(values)}, loop=${loop}, "${runText}", no ring controls=${noRingControls})`,
+    );
+  }
+  await spSlider("Notes").evaluate(setRangeValue, "5");
+  await spSlider("Grains").evaluate(setRangeValue, "2000");
+  await spToggle("Loop").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "sand plate mirrors into the URL",
+      /(^|&)spn=5(&|$)/.test(query) && /(^|&)spg=2000(&|$)/.test(query) && /(^|&)sps=2(&|$)/.test(query) && /(^|&)spk=1\.4(&|$)/.test(query) && !/(^|&)spl=/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("note length");
+  const found = await page.locator('input[aria-label="Note Length"]').isVisible();
+  const grainsHidden = !(await page.locator('input[aria-label="Grains"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the sand plate controls", found && grainsHidden, `(found=${found}, Grains hidden=${grainsHidden})`);
+}
+{
+  // A fast run at 8×: four notes of 1 s, a figure each, then the full chord on the last one and the end.
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=4&sps=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const notes = new Set();
+  let chordEarly = false;
+  const deadline = Date.now() + 60_000;
+  let data = await canvasData();
+  while (Date.now() < deadline) {
+    data = await canvasData();
+    if (data.sandNote !== undefined) notes.add(data.sandNote);
+    if (data.sandChord === "1" && data.sandNote !== "3") chordEarly = true;
+    if (data.sandFinished === "1") break;
+    await page.waitForTimeout(100);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-sand-plate.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check(
+    "sand plate: a fast run rings every note into its figure and ends on the full chord",
+    done && data.sandFinished === "1" && data.sandChord === "1" && data.sandNote === "3" && data.sandNotes === "4" && data.sandGrains === "3000" && Number(data.sandSounds) >= 8 && !chordEarly && notes.size >= 3 && /^\d+,\d+$/.test(data.sandFigure ?? ""),
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("sand"))))}, notes seen ${[...notes].join(",")}, chord early=${chordEarly})`,
+  );
+}
+// --- end sand-plate ---
+});
+
 await smokeBlock("blueprint", async () => {
 // --- blueprint ---
 // 51. Mode Lab (Blueprints: games made of rules): the preview image and the card under the lab heading; a catalog link → the

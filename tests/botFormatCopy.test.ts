@@ -15,7 +15,7 @@ import { BINDINGS, BOT_LOOKS, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS
 /*
  * --- templates --- The formats' words (AI studio step 2: messages/*.json ViralBot.formats, ViralBot.things, ViralBot.looks, read
  * by lib/bot/copy.ts): every format's nine fields (its own hashtags among them since step 2's review round 1, 16), a noun for each
- * of the 49 modes and the two looks, in English, Polish and Spanish; every hook of every format, on every mode bound to it and in every locale, inside the Simple look's lines (at most 7
+ * of the 50 modes and the two looks, in English, Polish and Spanish; every hook of every format, on every mode bound to it and in every locale, inside the Simple look's lines (at most 7
  * words on at most 2 lines, 42 characters in English and 52 in Polish and Spanish, numbers the clip has); a template without a
  * recipe planned in its format's words, a template that wraps one in its recipe's; and a template's name, "{Mode name} ·
  * {Format name}".
@@ -56,7 +56,7 @@ const filled = (locale: BotLocale, format: TemplateFormatId, field: string, mode
 const chars = (text: string) => [...text].length;
 
 describe("the formats' words (ViralBot.formats, things and looks)", () => {
-  it("has every format's nine fields, a noun for each of the 49 modes and the two looks, in en, pl and es, with plain placeholders only", () => {
+  it("has every format's nine fields, a noun for each of the 50 modes and the two looks, in en, pl and es, with plain placeholders only", () => {
     for (const locale of LOCALES) {
       const formats = formatsOf(locale);
       expect([locale, Object.keys(formats)]).toEqual([locale, [...TEMPLATE_FORMAT_IDS]]);
@@ -113,7 +113,7 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
         }
       }
     }
-    // 49 modes x 4 hooks x 3 locales
+    // 50 modes x 4 hooks x 3 locales
     expect(checked).toBe(MODE_IDS.length * HOOK_FIELDS.length * LOCALES.length);
   });
 
@@ -180,8 +180,8 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     // (--- templates --- AI studio step 3: and two variants of proven bindings that play their own way, Classic's one ring and Grow's
     // fill that ends the run; step 6: and Mode Lab's games after its first, a variant each)
     // (--- song-ring --- and Song Ring's binding, which plays settings of its own: 40; --- blueprint-catalog-c2 --- and Mode Lab's
-    // Thin Ice and Hot Potato, a variant each: 42)
-    expect([own.length, wrapped.length]).toEqual([42, 21]);
+    // Thin Ice and Hot Potato, a variant each: 42; --- sand-plate --- and Sand Plate's binding: 43)
+    expect([own.length, wrapped.length]).toEqual([43, 21]);
     for (const t of wrapped) {
       const r = plannedRecipe(t)!;
       expect([t.id, r.formatCopy, recipeCopyPath(r)]).toEqual([t.id, undefined, `recipes.${t.recipe!.copyKey}`]);

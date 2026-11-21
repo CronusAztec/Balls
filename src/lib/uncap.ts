@@ -228,6 +228,10 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   sgTurns: 24,
   sgMaxBalls: 500,
   srBalls: ENTITY_CEILING, // --- song-ring --- the balls in the ring (an entity each: its own trail, drawing and wall test)
+  // --- sand-plate --- the grains (17 bytes each with the first scatter; a step is one pass over them, two cosine products a
+  // grain, and the canvas draws each: 100,000 are ~1.7 MB and ~15 ms a step) and the notes (a figure, a pitch and a dot each)
+  spGrains: 100_000,
+  spNotes: 500,
   ballCount: CROWD_BALL_CEILING,
   multiplySpawnCount: CROWD_BALL_CEILING,
   wallCount: RING_CEILING,

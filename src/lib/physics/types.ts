@@ -99,6 +99,8 @@ export const MODE_IDS = [
   "spiralGlass",
   // --- song-ring --- Song Ring (a ball lights the notes of a tune lining a ring, and a playhead plays what is lit every lap)
   "songRing",
+  // --- sand-plate --- Sand Plate (sand on a ringing plate: every new note shakes it into a finer figure; the loop family)
+  "sandPlate",
   // --- blueprint --- Mode Lab (a game mode described as data – a Blueprint – played by one sandboxed interpreter)
   "blueprint",
 ] as const;

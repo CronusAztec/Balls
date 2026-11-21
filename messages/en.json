@@ -1541,6 +1541,21 @@
     "srLive": "Live Notes",
     "srLiveTip": "A note sounds the moment the ball lights it. Off: the hit is a soft tick and only the hand plays the notes, so the tune stays clear.",
     "srRunInfo": "One lap every {lap} s. The seed decides which notes the ball finds first, so Find Simulation can hit your clip length.",
+    "modeSandPlate": "Sand Plate",
+    "spTitle": "Sand Plate",
+    "spDesc": "Sand on a ringing plate. Every note shakes it into a new shape, each finer than the last. The last note brings the full chord.",
+    "spNotes": "Notes",
+    "spNotesTip": "How many notes the plate rings, one shape each. More notes climb to finer shapes at the end.",
+    "spNoteSec": "Note Length",
+    "spNoteSecTip": "Seconds each note rings before the next one. The sand needs about a second to find its lines.",
+    "spGrains": "Grains",
+    "spGrainsTip": "Grains of sand on the plate. More grains draw fuller lines. Fewer keep a slow phone smooth.",
+    "spShake": "Shake",
+    "spShakeTip": "How hard the plate shakes the sand. Stronger finds the lines sooner but rougher. Softer flows slowly.",
+    "spLoop": "Loop",
+    "spLoopTip": "After the last shape the sand is shaken loose and the run plays again, with no visible seam.",
+    "spRunInfo": "A run lasts {seconds} s, whatever the seed. The seed picks the shapes, the key and every grain's path.",
+    "spRunLoop": "One loop lasts {seconds} s. The seed picks the shapes, the key and every grain's path.",
     "modeBlueprint": "Mode Lab",
     "blTitle": "Mode Lab",
     "blDesc": "Every game here is built from rules that make balls break, merge or multiply. Pick a game and tune its sliders. A shared game link opens here too.",
@@ -2610,6 +2625,10 @@
     "songRing": {
       "name": "Song Ring",
       "description": "A ball lights up a tune one bounce at a time. Can you name it before it is whole?"
+    },
+    "sandPlate": {
+      "name": "Sand Plate",
+      "description": "Sand on a ringing plate. Every note shakes it into a new shape. The last one is the finest."
     },
     "blueprint": {
       "name": "Mode Lab",
@@ -4287,6 +4306,7 @@
       "mergeRing": "the balls",
       "spiralGlass": "the balls",
       "songRing": "the ball",
+      "sandPlate": "the sand",
       "blueprint": "the balls"
     },
     "looks": {
@@ -4319,6 +4339,7 @@
       "collide": "Bumps play notes. Then they slip through.",
       "doublePendulum": "Same start. Watch them split.",
       "songRing": "Name the tune before it ends.",
+      "sandPlate": "Every note draws a new shape.",
       "hatchery": "Every broken tile hatches a new ball.",
       "ringBreaker": "Every broken ring doubles the balls.",
       "conquer": "One hit converts. Last colour wins.",
@@ -4452,6 +4473,10 @@
     "song_elise": "FÜR ELISE",
     "song_jacques": "FRÈRE JACQUES",
     "song_mountain": "MOUNTAIN KING"
+  },
+  "SandPlate": {
+    "canvasTitle": "THE FINAL SHAPE",
+    "canvasDoneSub": "{count, plural, one {# note, # shape} other {# notes, # shapes}}"
   },
   "Blueprint": {
     "canvasArenaFull": "ARENA FULL",

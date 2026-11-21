@@ -18,6 +18,7 @@ import { atEndPayoffSec, FILL_OUTCOMES, outcomeRunOf, payoffWindow, strategyOutc
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { CLEAR_HOLD_MS as SPIRAL_CLEAR_HOLD_MS } from "@/lib/physics/modes/spiralGlass"; // --- templates --- (AI studio step 3)
 import { END_HOLD_MS as SONG_RING_END_HOLD_MS } from "@/lib/physics/modes/songRing"; // --- song-ring ---
+import { resolveSandPlateSettings, sandPlateChordSec, sandPlateCycleSec } from "@/lib/physics/modes/sandPlate"; // --- sand-plate ---
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 import { BANNER_WITH_PAYOFF_SEC, endBannersIn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4) a mode's own ending
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- templates --- (AI studio step 4) the maze's balls go by their colours
@@ -1008,6 +1009,11 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
     else if (settings.mode === "spiralGlass") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SPIRAL_CLEAR_HOLD_MS / 1000) : -1;
     // --- song-ring --- Song Ring ends END_HOLD_MS after its final chord (the phrase played whole, the tune named): the chord is the payoff
     else if (settings.mode === "songRing") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SONG_RING_END_HOLD_MS / 1000) : -1;
+    // --- sand-plate --- Sand Plate holds its last figure after the full chord (the flash, the colour flooding the lines): the chord is the payoff
+    else if (settings.mode === "sandPlate") {
+      const sp = resolveSandPlateSettings({ notes: settings.spNotes, noteSec: settings.spNoteSec });
+      sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - (sandPlateCycleSec(sp) - sandPlateChordSec(sp))) : -1;
+    }
     // --- templates --- (AI studio step 4) a mark mode's own moment (MARK_MODES: the first bullseye, the first shape at zero, the final form, GAME OVER, the last ball out)
     else if (MARK_MODES.includes(settings.mode)) sec = facts.markSec ?? -1;
     else sec = facts.finishSec;

@@ -52,7 +52,7 @@ export const MODE_SHELVES: Record<ModeId, ShelfId> = {
   // music: every hit is a note or lands on a beat
   songRing: "music", drop: "music", beatDrop: "music", beatMachine: "music", runner: "music", paddle: "music", doublePendulum: "music", vortex: "music", collide: "music", box: "music",
   // loops: motion that comes back round, and runs that draw a pattern
-  pendulum: "loops", polyrhythm: "loops", orbGrid: "loops", hoops: "loops", starChords: "loops", ellipseFoci: "loops", waveTank: "loops", drawingMachine: "loops", illusion: "loops", lines: "loops", paint: "loops",
+  pendulum: "loops", polyrhythm: "loops", orbGrid: "loops", hoops: "loops", starChords: "loops", ellipseFoci: "loops", waveTank: "loops", sandPlate: "loops", drawingMachine: "loops", illusion: "loops", lines: "loops", paint: "loops",
   // smash: things that merge, fit, score or break
   mergeRing: "smash", perfectFit: "smash", bullseye: "smash", spiralGlass: "smash", glass: "smash", powerLayers: "smash", multipliers: "smash",
   // journey and lab: one card each, sharing the wall's last row
@@ -111,6 +111,7 @@ export const MODE_SINCE: Record<ModeId, string> = {
   mergeRing: "1.12.0", spiralGlass: "1.12.0",
   blueprint: "1.15.0",
   songRing: "1.18.0",
+  sandPlate: "1.18.0",
 };
 
 /** "1.17.0" → [1, 17, 0]; anything else (a development build's "0.0.0-dev") → null. */

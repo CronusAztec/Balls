@@ -217,7 +217,7 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 35 modes as 45 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
+- **Ready now:** 36 modes as 46 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset, the bracket and, since AI studio step 6, the boss rush. A template
   plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
@@ -866,6 +866,29 @@ battle family offers them (`--family all` or `battle`), each a variant of the Mo
   with hooks of 29 to 52 characters alike. Its balls fly all over the ring, and a smaller ring (0.84 and 0.76 of the square)
   failed as often. It needs a game whose action leaves one edge of the square clear, or a hook placed off the action.
 - The whole table: 35 ready bindings as 45 templates.
+
+**Sand Plate, a new mode bound when it was added (new modes lane, C3)** **[observed: plans read as the studio reads them,
+with the payoff's moment: plan seeds 1–4 on reels, TikTok and Shorts in English, Polish and Spanish, 36 plans; 30 seeds of the
+default run headless; one 1080×1920 render watched (seed 3)]**. A reveal with a hook of its own, timed by its full chord.
+
+| Template | Its own words | Simple | Checklist | Pass every gate |
+| --- | --- | --- | --- | --- |
+| reveal-sand-plate | standard only; "Every note draws a new shape." ("Każda nuta rysuje nowy wzór.", "Cada nota dibuja una figura nueva.") | 89 (89–89) | 77 (75–77) | 36/36 |
+
+- The run's length is its settings', never the seed's: 7 notes of 2.5 s and the finale's 1.8 s hold, 19.3 s; the full chord
+  lands 16.3 s in on the last, finest figure (the payoff at 82 % of a 19.8 s clip), the plate flashes, colour floods its lines
+  and THE FINAL SHAPE rises at the foot of the square, held 3 s to the end. Every note is a visible event: the sand leaps off the
+  old lines and settles on the new ones within about a second (a quarter to two fifths of the grains still flying 0.25 s into
+  a note, a tenth by its end).
+- 2.5 to 3 sound events a second (a struck bar and the plate's hum on every note, plucks and a hiss that fade as the sand
+  settles), every pitch under 800 Hz; the render measured −20.4 LUFS, no silence, the first sound at 0.03 s.
+- 30 seeds, the same in the phone's 450×450 world and the laptop's 800×450 (the sand lives in plate units): every run ends
+  19.3 s in with its chord at 16.3 s, 2.44–3.06 sound events a second (median 2.85), the longest quiet 2.5 s (the hold after
+  the chord), 21–36 % of the grains flying 0.25 s into a note and 9–12 % at its end (p10–p90), four final figures (5,7 and
+  5,8, either sign) and all five keys, no grain ever off the plate, 0.5 ms a step with the engine.
+- Its format's own hook asks to guess the picture, and a figure of sand is none a viewer can name, so the binding speaks its
+  own (`own.sandPlate`). Its post is the format's ("What did you think it was drawing?").
+- The whole table: 36 ready bindings as 46 templates, 50 of 50 modes bound. Reveal has 2 ready bindings of 4.
 
 **Where the templates are offered** (AI studio steps 7 and 8):
 
