@@ -106,6 +106,18 @@ const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, s
  *  - accumulation: a 3 s timer, gap 0.35 and ball speed 450 – 76 of 100 runs out by 27 s (the link base: 72), median 17.7 s
  *    (14.3 s), and 8 of 100 out within the first 5 s (14): the first ball's luck with the gap, which only a physics change
  *    removes.
+ *  - grow (--- grow-fill-clip ---): the fill-and-finish Grow that was built and switched off – the multiply law at 8 % a bounce,
+ *    the run ending at the fill with the completion chord, the colour by size, the contact markers and a pluck a bounce pitched
+ *    by size. Seeds 1–20, both worlds (the ring follows the shorter side): full at 16.2–19.5 s on every seed, median 17.8 s
+ *    (the link base: not full at 240 s, and from about 85 s a nearly full ball buzzing at about 1,300 sounds a second); 2.3
+ *    sounds a second, at most 8 in a second (the last bounces), never more than 1.2 s without one. The link base stays: the
+ *    bot's fill-grow plans and the crew's role-eval corpus run it (their plans read the mode's defaults, and a recorded eval
+ *    answers that corpus byte for byte), and so does the gallery's Matrix Growth card.
+ *  - multiply (--- multiply-race ---): the race to the limit with a gap of 0.6 – the start ball out at 0.4 s on every seed, the
+ *    swarm at its limit of 200 and the run over by 27 s on 30 of 30 seeds in both worlds, median 17.7 s (11.3–26.0 s), about 4.3
+ *    sounds a second, never more than 0.9 s without one (the link base: the first escape at a median 18.3 s, 6 balls at 30 s,
+ *    never an end; the race at the link base's gap of 0.3: 50 balls at a median 33 s). The link base stays for the same reason
+ *    as Grow's: the bot's count-multiply plans in the crew's corpus run it.
  */
 export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -113,12 +125,20 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return CLASSIC_START;
     case "accumulation":
       return ACCUMULATION_START;
+    case "grow":
+      return GROW_START; // --- grow-fill-clip ---
+    case "multiply":
+      return MULTIPLY_START; // --- multiply-race ---
     default:
       return NONE;
   }
 }
 const CLASSIC_START: Partial<SimulatorSettings> = Object.freeze({ gapSize: 1, ballSpeed: 500, screenShake: 0.3, showGlow: true, wallBreakStyle: "all", ringSound: true } as const);
 const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true } as const);
+/** --- grow-fill-clip --- Grow's start look: the multiply law at 8 %, the run ending at the fill, colour and pitch by size, the markers. */
+const GROW_START: Partial<SimulatorSettings> = Object.freeze({ growLaw: "multiply", growStep: 8, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true } as const);
+/** --- multiply-race --- Multiply's start look: the race to the limit through a gap of 0.6. */
+const MULTIPLY_START: Partial<SimulatorSettings> = Object.freeze({ multiplyRace: true, gapSize: 0.6 } as const);
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and

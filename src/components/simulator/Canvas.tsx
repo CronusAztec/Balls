@@ -129,6 +129,7 @@ import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLaye
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
 import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
+import { SWARM_DATA_KEYS, SwarmLayer, writeSwarmDataset } from "./multiplySwarmRenderer"; // --- multiply-race ---
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
@@ -248,6 +249,14 @@ export interface CanvasLabels {
   // --- sand-plate ---
   /** Sand Plate: the end banner's title and its line. */
   sandPlate?: SandPlateLabels;
+  // --- grow-fill-clip ---
+  /** Grow: the fill that ends the run, FULL! and the time it took. */
+  growFull?: string;
+  growFullSub?: (seconds: string) => string;
+  // --- multiply-race ---
+  /** Multiply's race to the limit: the swarm's count as the banner's title, and the time it took from one ball. */
+  swarmFull?: (count: number) => string;
+  swarmFullSub?: (seconds: string) => string;
   // --- blueprint ---
   /** Mode Lab: ARENA FULL, the clock, the banner's subline, the team names and the catalog entries' own texts. */
   blueprint?: BlueprintLabels;
@@ -503,6 +512,10 @@ const DEFAULT_LABELS: CanvasLabels = {
   spiralGlass: DEFAULT_SPIRAL_GLASS_LABELS, // --- spiral-glass ---
   songRing: DEFAULT_SONG_RING_LABELS, // --- song-ring ---
   sandPlate: DEFAULT_SAND_PLATE_LABELS, // --- sand-plate ---
+  growFull: "FULL!", // --- grow-fill-clip ---
+  growFullSub: (seconds) => `Filled the ring in ${seconds}s`,
+  swarmFull: (count) => `${count} BALLS`, // --- multiply-race ---
+  swarmFullSub: (seconds) => `From one ball in ${seconds}s`,
   blueprint: DEFAULT_BLUEPRINT_LABELS, // --- blueprint ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
@@ -1111,6 +1124,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const lcRender: LandClaimRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, wallThickness: 2, labels: DEFAULT_LAND_CLAIM_LABELS, nowMs: 0 };
     const lcBodyColor = (ball: Ball) => lcLayer.colorOf(ball.team ?? 0);
     const growLayer = new GrowLayer(); // --- loop-foundation --- Grow's colour by size, contact markers and the loop's solid disc
+    const swarmLayer = new SwarmLayer(); // --- multiply-race --- Multiply's generations, doubling meter, count and full-swarm burst
     // --- colour-sort --- Colour Sort's layer (the band tints, the neon rings and pins, the refusal flashes) and its options
     const csLayer = new ColourSortLayer();
     const csRender: ColourSortRenderOptions = { showWallGlow: true, nowMs: 0 };
@@ -1417,7 +1431,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // flip's real clock (flRender.koStopMs), every cue the heavy hit's (flRender.heavyStopMs).
       // --- merge-ring-staged --- the final form's merge plays in slow motion (the camera's dip; the engine's clock is untouched)
       if (engine.isMergeRingMode()) {
-        const cue = mergeRingLayer.cameraCue(engine.getMergeRingView());
+        const mrCamView = engine.getMergeRingView();
+        // (review fix B4) from the final merge on, its balls are drawn between steps: the dip runs a step only every few frames
+        cam.modeSlowView = mrCamView.finalMs >= 0;
+        const cue = mergeRingLayer.cameraCue(mrCamView);
         if (cue) cam.dip(cue.dipMs, cue.factor);
       }
       if (engine.isFightLeagueMode()) {
@@ -1437,6 +1454,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // every few frames, so the raw positions would stand still and jump)
       const replay = cam.replayView();
       const slow = replay ? null : cam.slowView(engine, accumulator / 16.666);
+      // --- merge-ring-staged --- (review fix B4) the final merge's flash, halos and pulse at the time the balls are drawn at
+      mergeRingLayer.timeOffsetMs = slow && engine.isMergeRingMode() ? -(1 - Math.max(0, Math.min(1, accumulator / 16.666))) * 16.666 : 0;
       const walls = replay ? replay.walls : slow ? slow.walls : engine.getCircularWalls();
       const rotations = replay ? replay.rotations : slow ? slow.rotations : engine.getWallRotations();
       const broken = replay ? replay.broken : engine.getBrokenWalls();
@@ -1627,6 +1646,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const mergeRingView = engine.isMergeRingMode() ? engine.getMergeRingView() : null; // --- merge-ring ---
+      const swarmView = engine.isMultiplyModeActive() ? engine.getMultiplyView() : null; // --- multiply-race ---
       const spiralGlassView = engine.isSpiralGlassMode() ? engine.getSpiralGlassView() : null; // --- spiral-glass ---
       const songRingView = engine.isSongRingMode() ? engine.getSongRingView() : null; // --- song-ring ---
       const sandPlateView = engine.isSandPlateMode() ? engine.getSandPlateView() : null; // --- sand-plate ---
@@ -2495,9 +2515,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- loop-foundation --- Grow's contact markers (fading rings where the ball hit), under the balls
       const growView = isGrow ? engine.getGrowView() : null;
       const growLookNow = growLookRef.current;
+      // --- grow-fill-clip --- the ring's wash and the meter round it, in the ball's colour (under the markers and the balls)
+      const growColor = growView ? (engine.getBalls()[0] ? growLayer.colorOf(engine.getBalls()[0], growView, growLookNow) : engine.config.ballColor || "#ffffff") : "";
+      if (growView) growLayer.drawWorld(ctx, growView, engine.getBalls(), engine.getElapsedMs(), growColor, cx, cy);
+      // --- multiply-race --- the ring's wash in the newest generation's colour and the doubling meter (under the balls)
+      if (swarmView) swarmLayer.drawWorld(ctx, swarmView, cx, cy, walls[0]?.radius ?? 0, engine.config.ballColor || "#ffffff");
       if (growView && growLookNow && growLookNow.markers) {
-        const first = engine.getBalls()[0];
-        growLayer.drawMarkers(ctx, growView, growLookNow, engine.getElapsedMs(), first ? growLayer.colorOf(first, growView, growLookNow) : engine.config.ballColor || "#ffffff");
+        growLayer.drawMarkers(ctx, growView, growLookNow, engine.getElapsedMs(), growColor);
       }
 
       // --- unlimited --- the crowd under the full-physics balls: batched discs, or points in one image past 20,000
@@ -2584,7 +2608,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
         const teamSprite = isColorMatch || customImage ? null : teamLayer.spriteOf(ball);
         // --- review fix (blueprint) --- Mode Lab's balls wear their palette colour (a team, a tier): never the Rainbow Ball's
-        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall && !blueprintView ? rainbowColors[index] : ball.color);
+        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall && !blueprintView ? rainbowColors[index] : swarmView ? swarmLayer.colorOf(ball, swarmView) /* --- multiply-race --- its generation's colour */ : ball.color);
         // Trail
         // --- blueprint --- Mode Lab: a Blueprint's look decides (look.trail): a streak in the ball's own colour, never the rainbow
         if (blueprintView) {
@@ -2821,6 +2845,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- gerald-journey --- the glass stages' shards over the ball
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
+      if (growView) growLayer.drawEffects(ctx, growView, engine.getElapsedMs(), growColor, cx, cy); // --- grow-fill-clip --- a fill's flash and shockwave
+      if (swarmView) swarmLayer.drawEffects(ctx, swarmView, cx, cy, walls[0]?.radius ?? 0, engine.config.ballColor || "#ffffff", engine.getBalls().length); // --- multiply-race --- an escape's flash, the count and its ×2, the full swarm's burst
       if (spiralGlassView) spiralGlassLayer.drawEffects(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS); // --- spiral-glass --- the shards, the pops and the badge over the balls
       if (songRingView) songRingLayer.drawEffects(ctx, songRingView); // --- song-ring --- the sparks and the chord's flash over the balls
       if (sandPlateView) sandPlateLayer.drawEffects(ctx, sandPlateView); // --- sand-plate --- the chord's flash on the plate
@@ -3253,6 +3279,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
         }
         // --- merge-ring --- Merge Ring: the final form (from its appearance, through the hold) or the overflow
+        // --- multiply-race --- a race that reached the swarm's limit: the count and the time from one ball, a beat after the burst
+        if (swarmView && swarmView.race && swarmView.fullMs >= 0 && swarmView.timeMs >= swarmView.fullMs + 300) bigBanner((L.swarmFull ?? DEFAULT_LABELS.swarmFull!)(Number.isFinite(swarmView.limit) ? swarmView.limit : swarmView.count), (L.swarmFullSub ?? DEFAULT_LABELS.swarmFullSub!)((swarmView.fullMs / 1000).toFixed(1)), "#22d3ee");
+        // --- grow-fill-clip --- the fill that ends the run ("finish"): FULL! and the time it took, over the full ball
+        if (growView && growView.phase === "done" && growView.firstFillMs >= 0) bigBanner(L.growFull ?? DEFAULT_LABELS.growFull!, (L.growFullSub ?? DEFAULT_LABELS.growFullSub!)((growView.firstFillMs / 1000).toFixed(1)), "#facc15");
         if (mergeRingView && (mergeRingView.finalMs >= 0 || mergeRingView.overflowMs >= 0)) {
           const MR = L.mergeRing ?? DEFAULT_MERGE_RING_LABELS;
           // (--- merge-ring-staged --- the final form's banner a beat after its merge: the slow motion and the flash first)
@@ -3917,6 +3947,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- loop-foundation --- Grow's run (data-grow-*) and the loop contract's cycle and seams of any looping run (data-loop-*)
       if (growView) writeGrowDataset(growView, engine.getBalls(), setCanvasData);
       else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
+      if (swarmView) writeSwarmDataset(swarmView, setCanvasData); // --- multiply-race ---
+      else if (canvas.dataset.swarmCount !== undefined) for (const key of SWARM_DATA_KEYS) delete canvas.dataset[key];
       // --- colour-sort --- the phase, the census, the loop's counts and the checks (data-cs-*)
       if (csView) writeColourSortDataset(csView, setCanvasData);
       else if (canvas.dataset.csPhase !== undefined) for (const key of COLOUR_SORT_DATA_KEYS) delete canvas.dataset[key];

@@ -60,6 +60,10 @@
     "restartTooltip": "Reiniciar (R)",
     "canvasEscaped": "¡ESCAPÓ!",
     "canvasRingsOut": "{rings, plural, one {# anillo} other {# anillos}} en {time} s",
+    "canvasGrowFull": "¡LLENO!",
+    "canvasGrowFullSub": "Llenó el anillo en {seconds} s",
+    "canvasSwarmFull": "{count, plural, one {# PELOTA} other {# PELOTAS}}",
+    "canvasSwarmFullSub": "De una sola pelota en {seconds} s",
     "canvasAfterFrozenBalls": "Tras {count, plural, one {# pelota congelada} other {# pelotas congeladas}}",
     "canvasFrozenCount": "Congeladas: [count]",
     "canvasPainted": "[pct]% pintado",
@@ -224,6 +228,8 @@
     "spikeCountTip": "Número de púas repartidas uniformemente por la pared exterior.",
     "spawnCount": "Pelotas generadas",
     "spawnCountTip": "Cuántas pelotas nuevas aparecen cada vez que una escapa de una pared.",
+    "swarmRace": "Carrera al límite",
+    "swarmRaceTip": "La primera pelota va directa al hueco, cada escape suena una nota más alta y la partida termina con una explosión cuando el enjambre llega a su límite del enjambre.",
     "lineColor": "Color de línea",
     "rainbowSettings": "Arcoíris",
     "targetCount": "Número de objetivos",
@@ -1628,7 +1634,7 @@
     "tyPowerPainter": "Pintor",
     "tyPowerGhost": "Fantasma",
     "tyHintNone": "Ninguno: el pong wars clásico; la bola rebota en una casilla rival y convierte la que golpea.",
-    "tyHintVortex": "Vórtice: la trayectoria de la bola se curva y, en cada pulso de poder, arrastra un remolino cuyos dos brazos en espiral convierten las casillas rivales a su alcance.",
+    "tyHintVortex": "Vórtice: la trayectoria de la bola se curva. En cada pulso de poder se carga y, en su siguiente rebote contra una casilla rival, suelta un remolino cuyos cuatro brazos en espiral convierten las casillas rivales a su alcance.",
     "tyHintBomber": "Bombardero: en cada pulso de poder la bola se arma y explota en su siguiente rebote contra una casilla rival; todas las casillas a su alcance pasan a su color, las bolas cercanas salen despedidas y el tablero tiembla. Un rebote puede darle la vuelta al tablero.",
     "tyHintPainter": "Pintor: en cada pulso de poder la bola atraviesa en línea recta el territorio rival y deja un rastro pintado de una casilla de ancho.",
     "tyHintGhost": "Fantasma: una bola rápida e ingrávida que atraviesa las casillas rivales sin rebotar y convierte el bloque de 3×3 en el que está en cada rebote contra la pared.",
@@ -4827,7 +4833,10 @@
     "tryIt": "Pruébalo",
     "tryAria": "Pruébalo: {name}",
     "outro": "¿Has cambiado algo y te encanta el resultado? Copia el enlace para compartir bajo el lienzo y tu configuración irá con él.",
-    "cta": "Empezar desde cero"
+    "cta": "Empezar desde cero",
+    "filterLabel": "Filtrar presets por familia o modo",
+    "homeTitle": "Empieza con un preset listo",
+    "homeAll": "Ver toda la galería"
   },
   "Pwa": {
     "installApp": "Instalar la aplicación",
@@ -5770,8 +5779,10 @@
       "makeClip": "Hazme un clip",
       "makeClipAnother": "Otro clip",
       "makeClipBusy": "Preparando tu clip…",
-      "makeClipTip": "Planifica un clip de este modo y lo abre, listo para grabar.",
-      "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración."
+      "makeClipTip": "Planifica un clip y lo abre, listo para grabar.",
+      "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración.",
+      "makeClipOther": "El modo {mode} aún no tiene plan de clip, así que te tocará un clip de otro modo.",
+      "makeClipOtherShort": "Te tocará un clip de otro modo."
     },
     "dialog": {
       "close": "Cerrar"

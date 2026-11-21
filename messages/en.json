@@ -60,6 +60,10 @@
     "restartTooltip": "Restart (R)",
     "canvasEscaped": "ESCAPED!",
     "canvasRingsOut": "{rings, plural, one {# ring} other {# rings}} in {time}s",
+    "canvasGrowFull": "FULL!",
+    "canvasGrowFullSub": "Filled the ring in {seconds}s",
+    "canvasSwarmFull": "{count, plural, one {# BALL} other {# BALLS}}",
+    "canvasSwarmFullSub": "From one ball in {seconds}s",
     "canvasAfterFrozenBalls": "After {count, plural, one {# frozen ball} other {# frozen balls}}",
     "canvasFrozenCount": "Frozen: [count]",
     "canvasPainted": "[pct]% painted",
@@ -224,6 +228,8 @@
     "spikeCountTip": "Number of spikes evenly distributed around the outer wall.",
     "spawnCount": "Spawn Count",
     "spawnCountTip": "How many new balls spawn each time one escapes a wall.",
+    "swarmRace": "Race to the limit",
+    "swarmRaceTip": "The first ball heads straight for the gap, every escape plays a higher note, and the run ends with a burst when the swarm reaches its Swarm Limit.",
     "lineColor": "Line Color",
     "rainbowSettings": "Rainbow",
     "targetCount": "Number of Targets",
@@ -1628,7 +1634,7 @@
     "tyPowerPainter": "Painter",
     "tyPowerGhost": "Ghost",
     "tyHintNone": "None: classic pong wars – bounce off an enemy tile and convert the tile you hit.",
-    "tyHintVortex": "Vortex: the ball's path curves, and on every power tick it drags a whirl whose two spiral arms convert the enemy tiles within the reach.",
+    "tyHintVortex": "Vortex: the ball's path curves. On every power tick it arms, and on its next bounce off an enemy tile it lets go a whirl whose four spiral arms convert the enemy tiles within the reach.",
     "tyHintBomber": "Bomber: on every power tick the ball arms and blows on its next bounce off an enemy tile – every tile within the reach turns its colour, nearby balls are blown away and the board shakes. One bounce can flip the board.",
     "tyHintPainter": "Painter: on every power tick the ball dashes straight through enemy territory, painting a one-tile trail.",
     "tyHintGhost": "Ghost: a fast, weightless ball that passes through enemy tiles without bouncing and converts the 3×3 block it is in on every wall bounce.",
@@ -4827,7 +4833,10 @@
     "tryIt": "Try it",
     "tryAria": "Try it: {name}",
     "outro": "Changed something and love the result? Copy the share link under the canvas and your setup travels with it.",
-    "cta": "Start from scratch"
+    "cta": "Start from scratch",
+    "filterLabel": "Filter presets by family or mode",
+    "homeTitle": "Start from a finished look",
+    "homeAll": "See the whole gallery"
   },
   "Pwa": {
     "installApp": "Install app",
@@ -5770,8 +5779,10 @@
       "makeClip": "Make me a clip",
       "makeClipAnother": "Another clip",
       "makeClipBusy": "Making your clip…",
-      "makeClipTip": "Plans a clip of this mode and opens it, ready to record.",
-      "makeClipNote": "Plans a run that ends on time, adds a hook and sets the length, in one press."
+      "makeClipTip": "Plans a clip and opens it, ready to record.",
+      "makeClipNote": "Plans a run that ends on time, adds a hook and sets the length, in one press.",
+      "makeClipOther": "{mode} has no clip plan yet, so you get a clip of another mode.",
+      "makeClipOtherShort": "You get a clip of another mode."
     },
     "dialog": {
       "close": "Close"

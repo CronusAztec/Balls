@@ -22,7 +22,7 @@ export interface EscapeModeSectionProps {
  */
 export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   accumulation: ["accumulationEscape", "spikes", "spikeCount"],
-  multiply: ["spawnCount"],
+  multiply: ["spawnCount", "swarmRace" /* --- multiply-race --- */],
   lines: ["lineColor", "centerDot"],
   target: ["targetCount", "randomOrder"],
   colorMatch: ["colorCount", "segmentCount"],
@@ -69,6 +69,10 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
       return (
         <div className="space-y-3 pt-2">
           <Slider t={t} search={search} matches={matches} labelKey="spawnCount" tipKey="spawnCountTip" value={s.multiplySpawnCount} range={RANGES.multiplySpawnCount} onChange={(v) => update({ multiplySpawnCount: v })} />
+          {/* --- multiply-race --- the aimed start ball, the swarm's voice and the end at the Swarm Limit */}
+          <Searchable search={search} matches={matches} labelKey="swarmRace">
+            <Toggle t={t} labelKey="swarmRace" tipKey="swarmRaceTip" value={s.multiplyRace} onChange={(v) => update({ multiplyRace: v })} />
+          </Searchable>
         </div>
       );
     case "lines":

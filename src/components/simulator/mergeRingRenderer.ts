@@ -853,6 +853,12 @@ export class MergeRingLayer {
   private cuedFinalMs = -1;
   private glowKey = "";
   private glowFill: CanvasGradient | null = null;
+  /**
+   * (review fix B4) Simulation ms the frame is drawn behind the engine's clock: while the canvas draws the balls between the last
+   * two steps (the final merge's slow motion runs a step only every few frames), the flash, the halos and the final form's pulse
+   * follow the same in-between time, so they fade smoothly instead of in steps. 0 otherwise (the canvas sets it every frame).
+   */
+  timeOffsetMs = 0;
 
   constructor(createCanvas: CanvasFactory = defaultCanvasFactory) {
     this.rim = new RimCache(createCanvas);
@@ -907,7 +913,7 @@ export class MergeRingLayer {
     }
     // The final form: the rim flashes white and fades back – its glow a gradient with the blur's profile along the arc and
     // the blur itself only round the arc's two ends (where it wraps into the opening), under the stroke.
-    const fAge = now - view.finalMs;
+    const fAge = now + this.timeOffsetMs - view.finalMs; // (review fix B4: the in-between time of the slow motion)
     if (view.finalMs >= 0 && fAge >= 0 && fAge < FLASH_MS) {
       const f = 1 - fAge / FLASH_MS;
       const lw = width + 6 * f;
@@ -962,7 +968,7 @@ export class MergeRingLayer {
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-    const age = view.timeMs - view.finalMs;
+    const age = view.timeMs + this.timeOffsetMs - view.finalMs; // (review fix B4)
     if (view.finalMs >= 0 && age >= 0 && age < FINAL_FLASH_MS) {
       ctx.globalAlpha = 0.55 * (1 - age / FINAL_FLASH_MS);
       ctx.fillStyle = "#ffffff";
@@ -1037,7 +1043,7 @@ export class MergeRingLayer {
   drawBodies(ctx: CanvasRenderingContext2D, view: MergeRingView, balls: readonly Ball[], opts: MergeRingRenderOptions) {
     const L = view.layout;
     if (!L) return;
-    const now = view.timeMs;
+    const now = view.timeMs + this.timeOffsetMs; // (review fix B4: the pulse at the in-between time)
     ctx.save();
     ctx.globalAlpha = 1;
     for (const ball of balls) {
@@ -1070,7 +1076,7 @@ export class MergeRingLayer {
   drawEffects(ctx: CanvasRenderingContext2D, view: MergeRingView) {
     const L = view.layout;
     if (!L) return;
-    const now = view.timeMs;
+    const now = view.timeMs + this.timeOffsetMs; // (review fix B4: the halos at the in-between time)
     let m: ReturnType<typeof plainTransform> | undefined;
     ctx.save();
     this.drawWarning(ctx, view); // --- merge-ring-staged ---

@@ -226,6 +226,8 @@ export interface SimulatorSettings {
   spikesEnabled: boolean;
   spikeCount: number;
   multiplySpawnCount: number;
+  /** --- multiply-race --- Multiply's race to the limit: the start ball aimed at the gap, the swarm's voice, the run ending at the Swarm Limit (URL `mrace`). */
+  multiplyRace: boolean;
   lineColor: string;
   rainbowLines: boolean;
   linesCenterDot: boolean;
@@ -1513,6 +1515,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
     slowMotion: true, // --- slow-motion --- (on: every slow-motion moment, as always; out here, past the core literal's fast-path limit)
+    multiplyRace: false, // --- multiply-race --- (off: the link base plays as it did; the studio's start look and the Swarm Race card turn it on)
     // --- templates --- (AI studio step 4b) the Journey's and Spiral Glass's own overlays, shown as always (out here too)
     journeyHud: true,
     sgHud: true,
@@ -1532,7 +1535,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,
@@ -1907,6 +1910,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   cam: "cameraFollow",
   gdot: "growCenterDot",
   glines: "growLines",
+  mrace: "multiplyRace", // --- multiply-race ---
   ldot: "linesCenterDot",
   cine: "cinematicEnabled",
   hspw: "hitSamplePitchByWall",
@@ -2428,7 +2432,7 @@ const RING_ENGINE_KEYS: readonly string[] = [...rangeKeys(OBSTACLE_EDITOR_RANGES
 const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   classic: ["respawnEvery", "swarmLimit"], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- and its swarm ceiling)
   accumulation: ["accumulationTime", "spikeCount"],
-  multiply: ["multiplySpawnCount", "respawnEvery", "swarmLimit"], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- the swarm's ceiling)
+  multiply: ["multiplySpawnCount", "respawnEvery", "swarmLimit", "multiplyRace" /* --- multiply-race --- */], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- the swarm's ceiling)
   lines: [],
   paint: rangeKeys(PICTURE_PAINT_RANGES),
   target: ["targetCount"],

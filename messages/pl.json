@@ -60,6 +60,10 @@
     "restartTooltip": "Uruchom ponownie (R)",
     "canvasEscaped": "UCIEKŁA!",
     "canvasRingsOut": "{rings, plural, one {# pierścień} few {# pierścienie} many {# pierścieni} other {# pierścienia}} w {time} s",
+    "canvasGrowFull": "PEŁNO!",
+    "canvasGrowFullSub": "Wypełniła pierścień w {seconds} s",
+    "canvasSwarmFull": "{count, plural, one {# PIŁKA} few {# PIŁKI} many {# PIŁEK} other {# PIŁKI}}",
+    "canvasSwarmFullSub": "Z jednej piłki w {seconds} s",
     "canvasAfterFrozenBalls": "Po {count, plural, one {# zamrożonej piłce} few {# zamrożonych piłkach} many {# zamrożonych piłkach} other {# zamrożonej piłki}}",
     "canvasFrozenCount": "Zamrożone: [count]",
     "canvasPainted": "[pct]% pomalowane",
@@ -224,6 +228,8 @@
     "spikeCountTip": "Liczba kolców równomiernie rozmieszczonych na zewnętrznej ścianie.",
     "spawnCount": "Liczba nowych piłek",
     "spawnCountTip": "Ile nowych piłek pojawia się za każdym razem, gdy jedna ucieknie przez ścianę.",
+    "swarmRace": "Wyścig do limitu",
+    "swarmRaceTip": "Pierwsza piłka leci prosto w szczelinę, każda ucieczka gra wyższą nutę, a przebieg kończy się wybuchem, gdy rój dojdzie do swojego limitu roju.",
     "lineColor": "Kolor linii",
     "rainbowSettings": "Tęcza",
     "targetCount": "Liczba celów",
@@ -1628,7 +1634,7 @@
     "tyPowerPainter": "Malarz",
     "tyPowerGhost": "Duch",
     "tyHintNone": "Brak: klasyczne pong wars – kulka odbija się od wrogiego kafelka i przemalowuje ten, w który trafiła.",
-    "tyHintVortex": "Wir: tor kulki się zakrzywia, a przy każdym impulsie mocy kulka ciągnie za sobą wir, którego dwa spiralne ramiona przemalowują wrogie kafelki w zasięgu.",
+    "tyHintVortex": "Wir: tor kulki się zakrzywia. Przy każdym impulsie mocy kulka się ładuje, a przy najbliższym odbiciu od wrogiego kafelka wypuszcza wir, którego cztery spiralne ramiona przemalowują wrogie kafelki w zasięgu.",
     "tyHintBomber": "Bombowiec: przy każdym impulsie mocy kulka uzbraja się i wybucha przy najbliższym odbiciu od wrogiego kafelka – każdy kafelek w zasięgu przyjmuje jej kolor, pobliskie kulki zostają odrzucone, a plansza się trzęsie. Jedno odbicie może odwrócić losy planszy.",
     "tyHintPainter": "Malarz: przy każdym impulsie mocy kulka pędzi prosto przez wrogie terytorium i maluje za sobą ślad szerokości jednego kafelka.",
     "tyHintGhost": "Duch: szybka, nieważka kulka, która przenika przez wrogie kafelki bez odbijania się i przy każdym odbiciu od ściany przemalowuje blok 3×3, w którym się znajduje.",
@@ -4827,7 +4833,10 @@
     "tryIt": "Wypróbuj",
     "tryAria": "Wypróbuj: {name}",
     "outro": "Zmieniłeś coś i efekt Ci się podoba? Skopiuj link do udostępnienia pod płótnem, a Twoje ustawienia pójdą razem z nim.",
-    "cta": "Zacznij od zera"
+    "cta": "Zacznij od zera",
+    "filterLabel": "Filtruj presety według rodziny lub trybu",
+    "homeTitle": "Zacznij od gotowego presetu",
+    "homeAll": "Zobacz całą galerię"
   },
   "Pwa": {
     "installApp": "Zainstaluj aplikację",
@@ -5770,8 +5779,10 @@
       "makeClip": "Zrób mi klip",
       "makeClipAnother": "Kolejny klip",
       "makeClipBusy": "Robię twój klip…",
-      "makeClipTip": "Planuje klip w tym trybie i otwiera go, gotowy do nagrania.",
-      "makeClipNote": "Jednym kliknięciem planuje przebieg, który kończy się na czas, dodaje hook i ustawia długość."
+      "makeClipTip": "Planuje klip i otwiera go, gotowy do nagrania.",
+      "makeClipNote": "Jednym kliknięciem planuje przebieg, który kończy się na czas, dodaje hook i ustawia długość.",
+      "makeClipOther": "Tryb {mode} nie ma jeszcze planu klipu, więc dostaniesz klip z innego trybu.",
+      "makeClipOtherShort": "Dostaniesz klip z innego trybu."
     },
     "dialog": {
       "close": "Zamknij"

@@ -941,7 +941,8 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
         };
       });
     }
-    const chips = await gp.$$eval('[data-testid="gallery-filter"] label', (labels) => labels.map((l) => l.getAttribute("for")));
+    // (--- gallery-every-mode --- the shelf chips: the mode chips of the second row share the filter, and are checked below)
+    const chips = await gp.$$eval('[data-testid="gallery-filter"] label[for^="gallery-shelf-"]', (labels) => labels.map((l) => l.getAttribute("for")));
     const shown = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.closest("li").getAttribute("data-shelf")));
     const total = (await shown()).length;
     const perShelf = {};
@@ -961,6 +962,54 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
       "gallery: the shelf chips are radio buttons that show one shelf's presets with scripts off, each with its count, and All shows every preset again",
       chips[0] === "gallery-shelf-all" && chips.length >= 4 && Object.values(perShelf).every((x) => x.n > 0 && x.own && x.label === x.n) && Object.values(perShelf).reduce((sum, x) => sum + x.n, 0) === total && backToAll === total,
       `(${chips.join(" ")}, ${JSON.stringify(perShelf)}, all ${total} → ${backToAll})`,
+    );
+    // --- gallery-every-mode --- the mode chips, scripts off: a chip for every mode with a preset, none shown under All, a shelf
+    // shows its own modes, one filter at a time (a mode chip shows only its mode's presets), and a mode keeps its shelf's row
+    // and outlines the shelf's chip
+    const modeChips = await gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip]', (els) => els.map((el) => ({ mode: el.getAttribute("data-mode-chip"), shelf: el.getAttribute("data-shelf") })));
+    const visibleChips = () => gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip] label', (labels) => labels.filter((l) => l.getBoundingClientRect().width > 0).map((l) => l.closest("[data-mode-chip]").getAttribute("data-mode-chip")));
+    const shownModes = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-mode")));
+    const allChips = (await visibleChips()).length;
+    await gp.locator('label[for="gallery-shelf-lab"]').click();
+    await gp.locator('label[for="gallery-mode-blueprint"]').click();
+    await gp.waitForTimeout(400); // (the chips' colours ease over 150 ms)
+    const lab = { shown: await shownModes(), chips: await visibleChips(), shelfChecked: await gp.$$eval('input[id^="gallery-shelf-"]:checked', (els) => els.length), outline: await gp.$eval('label[for="gallery-shelf-lab"]', (l) => getComputedStyle(l).borderColor) };
+    await gp.locator('label[for="gallery-shelf-music"]').click();
+    const music = { chips: await visibleChips(), modeChecked: await gp.$$eval('input[id^="gallery-mode-"]:checked', (els) => els.length) };
+    await gp.locator('label[for="gallery-mode-songRing"]').click();
+    const song = { shown: await shownModes(), chips: await visibleChips() };
+    await gp.locator('label[for="gallery-shelf-all"]').click();
+    const musicModes = modeChips.filter((c) => c.shelf === "music").map((c) => c.mode);
+    check(
+      "gallery: a mode chip for every mode, scripts off: none under All, a shelf shows its own modes, a mode chip shows only that mode's presets (Mode Lab's two games), and one filter is on at a time",
+      modeChips.length >= 50 && allChips === 0 && lab.shown.length === 2 && lab.shown.every((m) => m === "blueprint") && lab.chips.join() === "blueprint" && lab.shelfChecked === 0 && lab.outline === "rgb(176, 240, 42)" && music.modeChecked === 0 && music.chips.join() === musicModes.join() && song.shown.join() === "songRing" && song.chips.join() === musicModes.join() && (await shown()).length === total,
+      `(${modeChips.length} chips, ${allChips} shown, lab ${JSON.stringify(lab)}, music ${JSON.stringify(music)}, song ${JSON.stringify(song)})`,
+    );
+  } finally {
+    await phone.close().catch(() => {});
+  }
+}
+// --- gallery-every-mode --- a mode chip goes into the address (?mode=sandPlate in place of the shelf) and a reload shows it again
+{
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const gp = await phone.newPage();
+    await gp.goto(`${BASE}/en/gallery/?family=music`, { waitUntil: "networkidle" });
+    await gp.waitForFunction(() => { const el = document.querySelector('[data-testid="gallery-filter"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 }).catch(() => {});
+    await gp.waitForTimeout(300);
+    const at = () => gp.evaluate(() => ({ checked: document.querySelector('input[name="gallery-shelf"]:checked')?.value ?? null, search: location.search, shown: [...document.querySelectorAll("[data-gallery-card]")].filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-card")), sideways: document.documentElement.scrollWidth - window.innerWidth }));
+    const music = await at();
+    await gp.locator('label[for="gallery-shelf-loops"]').tap();
+    await gp.locator('label[for="gallery-mode-sandPlate"]').tap();
+    await gp.waitForTimeout(300);
+    const picked = await at();
+    await gp.reload({ waitUntil: "networkidle" });
+    await gp.waitForTimeout(800);
+    const reloaded = await at();
+    check(
+      "gallery: a mode chip goes into the address in place of the shelf (?mode=sandPlate) and a reload shows its presets again, with no sideways scroll on a phone",
+      music.checked === "music" && picked.checked === "mode:sandPlate" && picked.search === "?mode=sandPlate" && picked.shown.join() === "sand-mandala" && reloaded.checked === "mode:sandPlate" && reloaded.shown.join() === "sand-mandala" && picked.sideways <= 0,
+      `(music ${music.checked}, picked ${JSON.stringify(picked)}, reloaded ${JSON.stringify(reloaded)})`,
     );
   } finally {
     await phone.close().catch(() => {});
@@ -8494,6 +8543,48 @@ await smokeBlock("daily-gallery", async () => {
   const plTry = await page.getByRole("link", { name: /Wypróbuj/ }).count();
   check("gallery: the Polish gallery speaks Polish", plTry === cards.length, `(${plTry} "Wypróbuj" links)`);
 
+  // --- home-looks --- 2b. The landing page's row under the hero: four to six gallery cards between the hero and today's challenge,
+  //    each linking to its preset's simulator link (its settings and its seed), the pictures lazy and sized; a card opens the
+  //    studio on its seed. On a phone the row scrolls sideways and the page does not.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const homeRow = await page.evaluate(() => {
+    const row = document.querySelector('[data-testid="home-gallery"]');
+    const hero = document.querySelector("h1");
+    const dailyCard = document.querySelector("[data-testid=daily-card]");
+    return {
+      cards: [...(row?.querySelectorAll("[data-home-look]") ?? [])].map((li) => ({ id: li.getAttribute("data-home-look"), href: li.querySelector("a")?.getAttribute("href") ?? "", img: li.querySelector("img")?.getAttribute("loading") ?? "", sized: !!li.querySelector("img[width][height]") })),
+      title: row?.querySelector("h2")?.textContent ?? "",
+      order: !!row && !!hero && !!dailyCard && !!(hero.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(dailyCard) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const homeLinks = homeRow.cards.every((c) => byId.has(c.id) && c.href === `${basePath}/en/simulator/?${byId.get(c.id).query}` && c.img === "lazy" && c.sized);
+  const homeFirst = byId.get(homeRow.cards[0]?.id);
+  await page.locator(`[data-home-look="${homeFirst?.id}"]`).scrollIntoViewIfNeeded();
+  const homeImgs = await page.$$eval('[data-testid="home-gallery"] img', (imgs) => Promise.all(imgs.map((img) => (img.complete && img.naturalWidth > 0) || new Promise((r) => { img.onload = () => r(img.naturalWidth > 0); img.onerror = () => r(false); setTimeout(() => r(img.naturalWidth > 0), 5000); }))));
+  await page.locator(`[data-home-look="${homeFirst?.id}"]`).getByTestId("home-gallery-try").click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const homePinned = await pinnedRun(homeFirst?.mode, new URLSearchParams(homeFirst?.query ?? "").get("seed"), null);
+  check(
+    "home looks: four to six gallery cards between the hero and today's challenge, each linking to its preset with its seed, the pictures lazy, sized and shown, and a card opens the studio on its seed",
+    homeRow.cards.length >= 4 && homeRow.cards.length <= 6 && homeRow.title === "Start from a finished look" && homeRow.order && homeLinks && homeImgs.every(Boolean) && homePinned,
+    `(${JSON.stringify(homeRow)}, pictures ${homeImgs.join()}, pinned ${homePinned})`,
+  );
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    try {
+      const hp = await phone.newPage();
+      await hp.goto(`${BASE}/pl/`, { waitUntil: "networkidle" });
+      const phoneRow = await hp.evaluate(() => {
+        const list = document.querySelector('[data-testid="home-gallery"] ul');
+        return { scrolls: !!list && list.scrollWidth > list.clientWidth + 40, sideways: document.documentElement.scrollWidth - window.innerWidth, title: document.querySelector('[data-testid="home-gallery"] h2')?.textContent ?? "", tries: document.querySelectorAll('[data-testid="home-gallery-try"]').length };
+      });
+      check("home looks (pl, 390 px): the row scrolls sideways and the page does not, in Polish", phoneRow.scrolls && phoneRow.sideways <= 0 && phoneRow.title === "Zacznij od gotowego presetu" && phoneRow.tries >= 4, `(${JSON.stringify(phoneRow)})`);
+    } finally {
+      await phone.close().catch(() => {});
+    }
+  }
+
   // 3. The landing card: today's (UTC) challenge right below the hero.
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
@@ -11671,7 +11762,8 @@ await smokeBlock("studio-looks", async () => {
 // for the mode and opens it playing: a hook (cap=), a pinned seed the canvas runs, the clip length its run needs; "Another
 // clip" plans the next one; ?make=1 sets one up as the page opens (Lines has no template: another mode's clip), the free
 // watermark stays on the Record button, and a daily challenge offers none. Then the Polish page's names. (A free visitor's
-// context: no licence.)
+// context: no licence.) (E1 review) The hero's live frame opens its card's look, a press goes from busy straight to made and
+// keeps the keyboard's focus, a mode without a clip plan says so under the button, and at 768 portrait the stage comes into view.
 {
   const slErrors = [];
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, license: null });
@@ -11688,6 +11780,13 @@ await smokeBlock("studio-looks", async () => {
       multiply: document.querySelector('#modes a[data-mode-card="multiply"]')?.getAttribute("href") ?? "",
       classic: document.querySelector('[data-testid="hero-modes"] a')?.getAttribute("href") ?? "",
     }));
+    // (E1 review) the hero's live frame links to the look its mode's card opens (the frame shows that card's picture until it plays)
+    const liveLink = await p.evaluate(() => {
+      const href = document.querySelector('[data-testid="live-preview"]')?.getAttribute("href") ?? "";
+      const mode = new URLSearchParams(href.split("?")[1] ?? "").get("mode") ?? "";
+      return { href, card: document.querySelector(`#modes a[data-mode-card="${mode}"]`)?.getAttribute("href") ?? null };
+    });
+    check("card looks: the hero's live frame opens the look and the seed its mode's card opens", !!liveLink.href && liveLink.href === liveLink.card && /[?&]seed=\d+/.test(liveLink.href), `(${JSON.stringify(liveLink)})`);
     const multiplyLink = new URLSearchParams(hrefs.multiply.split("?")[1] ?? "");
     const classicLink = new URLSearchParams(hrefs.classic.split("?")[1] ?? "");
     await p.locator('#modes a[data-mode-card="multiply"]').scrollIntoViewIfNeeded();
@@ -11744,9 +11843,24 @@ await smokeBlock("studio-looks", async () => {
     const readyButton = await p.getByTestId("make-clip-ready").isVisible().catch(() => false);
     const make = p.getByTestId("make-clip");
     await p.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    // (E1 review) the button's states as they come, read every 15 ms: a press goes from busy straight to made
+    const recordStates = () =>
+      p.evaluate(() => {
+        const seen = [];
+        const read = () => {
+          const at = document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") ?? "none";
+          if (seen.at(-1) !== at) seen.push(at);
+        };
+        read();
+        window.clearInterval(window.__makeStatesTimer);
+        window.__makeStates = seen;
+        window.__makeStatesTimer = window.setInterval(read, 15);
+      });
+    await recordStates();
     await make.click();
     const made = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
     await p.waitForTimeout(500);
+    const firstStates = await p.evaluate(() => (window.__makeStates ?? []).join()); // (after the wait: the 15 ms reader has seen "made" too)
     const clip = async () => ({
       mode: query().get("mode"),
       seed: query().get("seed"),
@@ -11759,10 +11873,22 @@ await smokeBlock("studio-looks", async () => {
       watermark: await p.getByRole("group", { name: "Playback and export" }).getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count().catch(() => -1),
     });
     const first = await clip();
-    await make.click();
+    // (E1 review) Another clip from the keyboard: the button keeps the focus while it plans and after
+    await recordStates();
+    await make.focus();
+    await p.keyboard.press("Enter");
+    const focusBusy = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "busy", null, { timeout: 5000 }).then(() => p.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null)).catch(() => "never busy");
     await p.waitForFunction((seed) => { const el = document.querySelector('[data-testid="make-clip"]'); return el?.getAttribute("data-make-state") === "made" && new URL(location.href).searchParams.get("seed") !== seed; }, first.seed, { timeout: 45000 }).catch(() => {});
     await p.waitForTimeout(500);
     const second = await clip();
+    const secondStates = await p.evaluate(() => (window.__makeStates ?? []).join());
+    const focusMade = await p.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null);
+    await p.evaluate(() => window.clearInterval(window.__makeStatesTimer));
+    check(
+      "make a clip: a press goes from Making your clip straight to Another clip, and a press from the keyboard keeps the focus on the button",
+      firstStates === "idle,busy,made" && secondStates === "made,busy,made" && focusBusy === "make-clip" && focusMade === "make-clip",
+      `(first ${firstStates}, second ${secondStates}, focus while busy ${focusBusy}, after ${focusMade})`,
+    );
     const clipOk = (c) => c.mode === "pendulum" && !!c.seed && c.canvas === c.seed && c.cap > 0 && Number.isInteger(c.length) && c.length >= 10 && c.length <= 60 && (c.dur === null ? c.length === 30 : Number(c.dur) === c.length) && c.playing;
     check(
       "make a clip: Make me a clip (also on the ready screen) opens a planned clip playing, with a hook, a pinned seed and its length, and Another clip plans the next one",
@@ -11770,6 +11896,20 @@ await smokeBlock("studio-looks", async () => {
       `(ready screen ${readyButton}, first ${JSON.stringify(first)}, second ${JSON.stringify(second)})`,
     );
     check("make a clip: a free visitor's made clip keeps the watermark (the Record button's tag)", first.watermark === 1 && second.watermark === 1, `(${first.watermark}, ${second.watermark})`);
+    // (E1 review) a mode without a clip plan says so under the button; a mode with one keeps the button's note
+    await p.goto(`${BASE}/en/simulator/?mode=lines`, { waitUntil: "networkidle" });
+    await ready();
+    const linesNote = ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim();
+    const linesTip = (await make.getAttribute("title").catch(() => "")) ?? "";
+    const linesReady = ((await p.getByTestId("make-clip-ready-note").textContent().catch(() => "")) ?? "").trim();
+    await p.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
+    await ready();
+    const ownNotes = { note: ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim(), ready: await p.getByTestId("make-clip-ready-note").count() };
+    check(
+      "make a clip: a mode without a clip plan says the press makes another mode's clip (under the button and on the ready screen), and the tip promises no clip of this mode",
+      linesNote === "Lines has no clip plan yet, so you get a clip of another mode." && linesReady === "You get a clip of another mode." && linesTip === "Plans a clip and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
+      `("${linesNote}", "${linesReady}", "${linesTip}", pendulum ${JSON.stringify(ownNotes)})`,
+    );
     // 5. ?make=1: a mode without a template gets another mode's clip, set up as the page opens; a daily challenge offers none
     await p.goto(`${BASE}/en/simulator/?mode=lines&make=1`, { waitUntil: "networkidle" });
     await ready();
@@ -11798,6 +11938,28 @@ await smokeBlock("studio-looks", async () => {
       /\/pl\/simulator\/?\?mode=shatter&glow=1&trails=1&wglow=1&r=11&seed=3$/.test(plHref) && plRow.heading === "Style" && plRow.names.slice(0, 2).join() === "Zwykły,Jak na obrazku" && plRow.active === "plain" && plMake === "Zrób mi klip",
       `(${plHref}, ${JSON.stringify(plRow)}, "${plMake}")`,
     );
+    // 7. (E1 review) at 768 portrait the Mode block sits under the stage: a tap there brings the stage into view as the clip plays
+    const tablet = await browser.newContext({ viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, license: null });
+    try {
+      const t = await tablet.newPage();
+      t.on("pageerror", (e) => slErrors.push(`pageerror (768): ${e.message}`));
+      await t.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
+      await t.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 20000 });
+      const tMake = t.getByTestId("make-clip");
+      await tMake.scrollIntoViewIfNeeded();
+      const below = await t.evaluate(() => { const r = document.querySelector("main canvas")?.getBoundingClientRect(); return r ? Math.round(Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) : null; });
+      await tMake.tap();
+      const tMade = await t.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
+      await t.waitForTimeout(1200);
+      const stage = await t.evaluate(() => { const r = document.querySelector("main canvas")?.getBoundingClientRect(); return r ? { seen: Math.round(Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)), height: Math.round(r.height) } : null; });
+      check(
+        "make a clip: at 768 portrait a tap on Make me a clip under the stage brings the stage into view as the clip plays",
+        tMade && below !== null && stage !== null && stage.seen >= Math.min(stage.height, 1024) / 2,
+        `(made ${tMade}, stage seen before ${below} px, after ${JSON.stringify(stage)})`,
+      );
+    } finally {
+      await tablet.close().catch(() => {});
+    }
   } catch (err) {
     check("studio-looks checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
   } finally {

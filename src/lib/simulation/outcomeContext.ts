@@ -59,6 +59,7 @@ export function outcomeContextOfSettings(s: SimulatorSettings, page: OutcomeCont
       grow: growFillSettingsOf(s), // --- loop-foundation --- ("finish" ends at the fill)
       hoops: hoopsSettingsOf(s), // --- bead-hoops --- (the return loops forever)
       landClaim: landClaimSettingsOf(s), // --- land-claim-pyramid --- (a looping pyramid never ends)
+      multiplyRace: s.multiplyRace, // --- multiply-race --- (the race ends at the swarm's limit)
     }) || rigNeverFinishes(s.mode, s);
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);

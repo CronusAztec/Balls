@@ -1193,7 +1193,8 @@ describe("Territory past the old size cap (uncap-all: the Ball Size however big)
     expect(fingerprint({ tyTeams: 4, tyBallsPerTeam: 3, tyPegs: true, tyPowers: "vortex,bomber,painter,ghost" }, 7, 900)).toEqual({ tiles: 2401213736, balls: 1917723765, counts: "167,170,54,89", events: "2176,791,271,482,18,17,21,61,95,212", verdict: "-" });
     expect(fingerprint({ ballRadius: 16, tyPowers: "ghost,painter,vortex,bomber" }, 3, 900)).toEqual({ tiles: 1753082155, balls: 3249829075, counts: "244,236", events: "252,99,79,0,0,0,14,29,50,94", verdict: "-" });
     expect(fingerprint({ ballRadius: 4, tyCols: 48 }, 5, 600)).toEqual({ tiles: 455804859, balls: 4098046989, counts: "854,1066", events: "518,52,47,0,6,9,0,0,36,51", verdict: "-" });
-    expect(fingerprint({}, 42, 600, { width: 800, height: 600 })).toEqual({ tiles: 2296448667, balls: 586943615, counts: "216,264", events: "574,69,55,0,8,8,0,0,52,74", verdict: "-" });
+    // (--- territory-swing --- review fix B4: a lead changes hands only 1 % of the board ahead, so this run's two 50 % flickers play no sting: 74 -> 72 sounds)
+    expect(fingerprint({}, 42, 600, { width: 800, height: 600 })).toEqual({ tiles: 2296448667, balls: 586943615, counts: "216,264", events: "574,69,55,0,8,8,0,0,52,72", verdict: "-" });
   });
 
   it("sizes the balls by the Ball Size with no maximum – past the old 0.9 tiles, on any board – and knows when one is wider than the board", () => {

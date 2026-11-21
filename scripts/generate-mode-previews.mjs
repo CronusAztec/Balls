@@ -234,37 +234,44 @@ if (failures.length) {
 }
 // --- end mode-thumbnails ---
 // --- daily-gallery --- the gallery cards: read from the served gallery page, rendered from each card's query at its previewAt
+/** --- gallery-every-mode --- A gallery card's picture stays under this many bytes (today's are 4 to 31 KB). */
+const GALLERY_MAX_BYTES = 36_000;
 if (renderGallery) {
   const galleryDir = path.join(process.cwd(), "public", "gallery");
   fs.mkdirSync(galleryDir, { recursive: true });
   await page.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
-  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), query: el.getAttribute("data-gallery-query"), at: Number(el.getAttribute("data-preview-at")) })));
+  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), mode: el.getAttribute("data-gallery-mode"), query: el.getAttribute("data-gallery-query"), at: Number(el.getAttribute("data-preview-at")) })));
   if (cards.length === 0) throw new Error(`no gallery cards at ${BASE}/en/gallery/ – build and serve the site first`);
   for (const card of cards) {
     if (galleryIds && !galleryIds.includes(card.id)) continue;
-    await page.goto(`${BASE}/en/simulator/?${card.query}&wm=`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /Start Simulator/ }).click();
-    await page.waitForTimeout(Math.round(1000 * (Number.isFinite(card.at) && card.at > 0 ? card.at : 5)));
-    const dataUrl = await page.evaluate(() => {
-      const canvas = document.querySelector("main canvas");
-      const w = 640;
-      const h = 360;
-      const out = document.createElement("canvas");
-      out.width = w;
-      out.height = h;
-      const g = out.getContext("2d");
-      let cw = canvas.width;
-      let ch = canvas.width / (w / h);
-      if (ch > canvas.height) {
-        ch = canvas.height;
-        cw = canvas.height * (w / h);
-      }
-      g.drawImage(canvas, (canvas.width - cw) / 2, (canvas.height - ch) / 2, cw, ch, 0, 0, w, h);
-      return out.toDataURL("image/webp", 0.85);
-    });
-    const buf = Buffer.from(dataUrl.split(",")[1], "base64");
-    fs.writeFileSync(path.join(galleryDir, `${card.id}.webp`), buf);
-    console.log(`wrote public/gallery/${card.id}.webp (${buf.length} bytes)`);
+    // --- gallery-every-mode --- the still camera, as for the mode cards: the card's settings and pinned seed rendered offline
+    // and stepped to its previewAt second, so a busy machine takes the same picture (the page played the run in real time and
+    // took whatever second a loaded machine had reached); the whole 800 × 450 world, scaled to the card's 640 × 360, as WebP
+    // under GALLERY_MAX_BYTES (the quality steps down until it fits)
+    await openStill(card.query);
+    const seed = Number(new URLSearchParams(card.query).get("seed"));
+    const r = await capture(card.mode, { times: [Number.isFinite(card.at) && card.at > 0 ? card.at : 5], raw: true, size: 900, format: "png", seed: Number.isFinite(seed) ? seed : undefined });
+    const raw = r.frames[0]?.raw;
+    if (!raw) throw new Error(`${card.id}: the still camera handed back no picture of the world`);
+    const encoded = await page.evaluate(
+      async ({ raw, maxBytes }) => {
+        const img = new Image();
+        img.src = raw;
+        await img.decode();
+        const out = document.createElement("canvas");
+        out.width = 640;
+        out.height = 360;
+        out.getContext("2d").drawImage(img, 0, 0, 640, 360);
+        for (const quality of [0.85, 0.78, 0.7, 0.62, 0.55]) {
+          const dataUrl = out.toDataURL("image/webp", quality);
+          if (Math.ceil(((dataUrl.length - dataUrl.indexOf(",") - 1) * 3) / 4) <= maxBytes || quality === 0.55) return { dataUrl, quality };
+        }
+      },
+      { raw, maxBytes: GALLERY_MAX_BYTES },
+    );
+    const bytes = writeDataUrl(path.join(galleryDir, `${card.id}.webp`), encoded.dataUrl);
+    if (bytes > GALLERY_MAX_BYTES) throw new Error(`${card.id}: ${bytes} bytes, over the ${GALLERY_MAX_BYTES}-byte budget`);
+    console.log(`wrote public/gallery/${card.id}.webp (${(bytes / 1000).toFixed(1)} KB, WebP q${Math.round(100 * encoded.quality)}, seed ${r.seed} at ${r.frames[0].sec} s${r.frames[0].finished ? ", the run already over" : ""})`);
   }
 }
 // --- end daily-gallery ---

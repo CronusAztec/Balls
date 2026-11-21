@@ -7,8 +7,11 @@ import {
   TY_STING_GAP_MS,
   TY_TICK_HZ,
   TY_TICK_SECONDS,
+  TY_LEAD_MARGIN,
   TY_WHIRL_ARMS,
   TY_WHIRL_INTO,
+  territoryLeadMargin,
+  territoryVerdictRoot,
   type TyBall,
 } from "@/lib/physics/modes/territory";
 import { DEFAULT_TERRITORY_LABELS, TY_TILE_LIGHT, TY_WAVE_MAX_MS, TY_WAVE_MS_PER_TILE, TerritoryLayer, blastWaveMs } from "@/components/simulator/territoryRenderer";
@@ -242,5 +245,55 @@ describe("the look", () => {
     expect(texts).toContain(`🏆 ${DEFAULT_TERRITORY_LABELS.wins(name)}`);
     expect(texts.some((t) => /PINK|CYAN/.test(t))).toBe(false);
     expect(canvas.ctx.calls.some((c) => c.name === "roundRect" || c.name === "arcTo")).toBe(true);
+  });
+});
+
+// --- territory-swing --- (review fix B4)
+describe("the lead and the verdict, as the HUD shows them (review fix B4)", () => {
+  it("changes hands only past the margin: a 50 % flicker is no lead change, and the glow sits on the team ahead or on none", () => {
+    expect(TY_LEAD_MARGIN).toBe(0.01);
+    expect(territoryLeadMargin(480)).toBe(5);
+    expect(territoryLeadMargin(50)).toBe(1);
+    let changes = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const engine = pageEngine(seed);
+      let seen = 0;
+      let prev = -1;
+      while (!engine.isSimulationFinished() && engine.getElapsedMs() < 40_000) {
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        const v = engine.getTerritoryView();
+        if (v.leader >= 0) for (let t = 0; t < v.teams; t++) if (t !== v.leader) expect(v.counts[v.leader]).toBeGreaterThan(v.counts[t]);
+        if (v.leadChanges !== seen) {
+          expect(v.leadChanges, `seed ${seed}`).toBe(seen + 1);
+          expect(v.leader).toBeGreaterThanOrEqual(0);
+          if (prev >= 0) expect(v.counts[v.leader] - v.counts[prev], `seed ${seed}`).toBeGreaterThanOrEqual(territoryLeadMargin(v.total));
+          // the HUD's percentages differ at every lead change
+          expect(Math.round((100 * v.counts[0]) / v.total)).not.toBe(Math.round((100 * v.counts[1]) / v.total));
+          seen = v.leadChanges;
+          changes++;
+        }
+        if (v.leader >= 0) prev = v.leader;
+      }
+    }
+    // measured when this was written (seeds 1–6, the phone world): 84 lead changes, none at a level HUD
+    expect(changes / 6).toBeGreaterThan(6);
+  });
+
+  it("plays the verdict under the banner: the completion chord on the winner's note, held with its tremolo, as its one sound", () => {
+    const engine = pageEngine(7);
+    const events: SoundEvent[] = [];
+    while (!engine.isSimulationFinished() && engine.getElapsedMs() < 40_000) {
+      engine.update(STEP, 0);
+      events.push(...engine.consumeSoundEvents());
+    }
+    const v = engine.getTerritoryView();
+    expect(v.finished).toBe(true);
+    expect(v.winner).toBeGreaterThanOrEqual(0);
+    const last = events[events.length - 1];
+    expect(last).toMatchObject({ type: "hit", loop: "chord", frequency: territoryVerdictRoot(v.winner, v.rows), accent: true, loopTremolo: true, loopMinor: false });
+    expect(events.filter((ev) => ev.loop === "chord")).toHaveLength(1);
+    expect(territoryVerdictRoot(-1, v.rows)).toBe(territoryVerdictRoot(0, v.rows));
+    expect(territoryVerdictRoot(1, v.rows)).not.toBe(territoryVerdictRoot(0, v.rows));
   });
 });

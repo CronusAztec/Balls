@@ -330,7 +330,7 @@ export const TY_PEG_FIT = (TY_PEG_STEP - 2 * TY_PEG_RADIUS) / 2;
  * pass through each other instead (each keeping the ground it stands on), and the run says ARENA FULL.
  */
 export const TY_CROWD_FILL = 0.6;
-/** Vortex: its path curves at this rate (rad/s), and a whirl sweeps its two arms out over TY_WHIRL_MS, TY_WHIRL_TURNS turns each. */
+/** Vortex: its path curves at this rate (rad/s), and a whirl sweeps its TY_WHIRL_ARMS arms out over TY_WHIRL_MS, TY_WHIRL_TURNS turns each. */
 export const TY_VORTEX_CURVE = 0.9;
 export const TY_WHIRL_MS = 900;
 export const TY_WHIRL_TURNS = 1.25;
@@ -376,6 +376,17 @@ export const TY_BOOM_GAP_MS = 180;
  * TY_TICK_SECONDS (on the clock's digits as they change). Sounds only: nothing here moves a ball.
  */
 export const TY_STING_GAP_MS = 600;
+/**
+ * --- territory-swing --- (review fix B4) A lead changes hands only when the new leader is this share of the board ahead of
+ * the old one (at least one tile): a 241 : 239 flicker the HUD shows as 50 % VS 50 % is no lead change, no sting, no flash.
+ * Inside the margin the board is contested (`leader` −1).
+ */
+export const TY_LEAD_MARGIN = 0.01;
+
+/** --- territory-swing --- (review fix B4) Tiles the new leader must be ahead of the old one by, on a board of `total` tiles. */
+export function territoryLeadMargin(total: number): number {
+  return Math.max(1, Math.ceil(TY_LEAD_MARGIN * total - 1e-9));
+}
 export const TY_TICK_SECONDS = 5;
 /** The tick: the flip ladder's top note (D6), accented, so it rings over the flips like the clock it is. */
 export const TY_TICK_HZ = midiToFrequency(86);
@@ -567,6 +578,14 @@ export function flipFrequency(team: number, row: number, rows: number): number {
   const y = rows > 1 ? Math.max(0, Math.min(1, row / (rows - 1))) : 0.5;
   const degree = Math.round((1 - y) * 8) + TY_TEAM_DEGREE[((Math.round(team) % 4) + 4) % 4];
   return midiToFrequency(TY_LADDER[Math.max(0, Math.min(TY_LADDER.length - 1, degree))]);
+}
+
+/**
+ * --- territory-swing --- (review fix B4) The verdict chord's root: the winner's lowest note on the flip ladder (team 0's for a
+ * draw), so the chord rings in the winner's own key under the flips' notes.
+ */
+export function territoryVerdictRoot(winner: number, rows: number): number {
+  return flipFrequency(Math.max(0, winner), Math.max(0, rows - 1), rows);
 }
 
 /** The finale's speed factor `sinceMs` into it: a smooth ramp from 1 to TY_FINALE_SPEED over the finale. */
@@ -792,7 +811,10 @@ export interface TerritoryView {
   /** The rig's chosen team (−1 off) and the conversions it absorbed. */
   forcedWinner: number;
   shields: number;
-  /** The team leading right now (−1: a level top), the lead changes so far and the slow-motion requests made in the finale. */
+  /**
+   * The team leading right now (−1: a level top, or (review fix B4) a new top still inside TY_LEAD_MARGIN of the old leader), the
+   * lead changes so far (each one past the margin) and the slow-motion requests made in the finale.
+   */
   leader: number;
   leadChanges: number;
   slowMos: number;
@@ -1245,7 +1267,7 @@ export class TerritoryMode implements GameMode {
     else this.blast(ctx, ball, tb, now, nx, ny);
   }
 
-  /** --- territory-swing --- The vortex's whirl: two spiral arms sweeping out to the reach round a point past the border; the next charge starts. */
+  /** --- territory-swing --- The vortex's whirl: TY_WHIRL_ARMS (four) spiral arms sweeping out to the reach round a fixed point past the border; the next charge starts. */
   private whirlFrom(ctx: ModeContext, ball: Ball, tb: TyBall, now: number, nx: number, ny: number) {
     const v = this.view;
     const f = v.field;
@@ -1854,8 +1876,10 @@ export class TerritoryMode implements GameMode {
       return;
     }
     if (!v.finished) {
-      const leader = tileLeader(v.counts, v.teams);
-      if (leader >= 0 && this.lastLeader >= 0 && leader !== this.lastLeader) {
+      // (review fix B4) the lead changes hands only past TY_LEAD_MARGIN: a flicker at 50 % keeps the old leader
+      const top = tileLeader(v.counts, v.teams);
+      const leader = top >= 0 && this.lastLeader >= 0 && top !== this.lastLeader && v.counts[top] - v.counts[this.lastLeader] < territoryLeadMargin(v.total) ? this.lastLeader : top;
+      if (top >= 0 && leader === top && this.lastLeader >= 0 && leader !== this.lastLeader) {
         v.leadChanges++;
         // --- territory-swing --- the new leader's sting (one per TY_STING_GAP_MS)
         if (now - this.lastStingMs >= TY_STING_GAP_MS) {
@@ -1869,7 +1893,7 @@ export class TerritoryMode implements GameMode {
         }
       }
       if (leader >= 0) this.lastLeader = leader;
-      v.leader = leader;
+      v.leader = top >= 0 && leader === top ? leader : -1; // (review fix B4: contested inside the margin)
       if (now >= v.durationMs - 1e-6) this.finish(ctx, now);
     }
     while (v.shocks.length > 0 && now - v.shocks[0].t0 >= TY_SHOCK_MS) v.shocks.shift();
@@ -1899,7 +1923,10 @@ export class TerritoryMode implements GameMode {
       for (let k = 0; k < v.counts[team]; k++) ctx.creditWallBreak?.(rep);
       if (v.leaders.includes(team)) ctx.creditEscape?.(rep);
     }
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: flipFrequency(Math.max(0, v.winner), 0, v.rows), accent: true });
+    // --- territory-swing --- (review fix B4) the verdict under the banner: the completion chord on the winner's note – its ding,
+    // its voices blooming one after the other and its sub – held about 2 s with its tremolo, then a long decay over the clip's
+    // tail (a draw: its minor ending). One sound, as the verdict's single note was; never a melody note (a loop voice).
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: territoryVerdictRoot(v.winner, v.rows), level: 1, accent: true, loopTremolo: true, loopMinor: v.winner < 0 });
   }
 
   onWallHit() {
