@@ -11231,10 +11231,12 @@ await smokeBlock("review-fix-site-redesign", async () => {
     const picked = await stripClear(p, false);
     const sheet = () =>
       p.evaluate(() => {
-        const start = [...document.querySelectorAll("button")].find((b) => /Start Simulator/.test(b.textContent ?? ""));
+        // the transport's play control: Start Simulator, or its Pause once the run plays (--- studio-play --- a mode picked in
+        // the picker plays at once)
+        const start = [...document.querySelectorAll("button")].find((b) => /Start Simulator/.test(b.textContent ?? "")) ?? [...document.querySelectorAll(".studio-transport button")].find((b) => (b.textContent ?? "").trim() === "Pause");
         const r = start?.getBoundingClientRect();
         const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
-        return { open: document.getElementById("studio-panel")?.hidden === false, startReachable: !!start && start.contains(hit), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) };
+        return { open: document.getElementById("studio-panel")?.hidden === false, control: (start?.textContent ?? "").trim(), startReachable: !!start && start.contains(hit), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) };
       });
     const tab = p.getByRole("toolbar").getByRole("button", { name: "Ball & Physics", exact: true });
     await tab.tap();
