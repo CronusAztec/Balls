@@ -3,13 +3,14 @@ import type { LiveHud } from "@/lib/watermark/liveLayout";
 
 /**
  * Canvas drawing of Song Ring (feature song-ring, lib/physics/modes/songRing.ts). The canvas calls, per frame:
- * `drawWorld()` under the balls (the faint staff circles, the note tiles – bars standing on the outside of the wall, as
+ * `drawWorld()` under the balls (the glow around the ring, its floor, the faint staff circles, the note tiles – bars standing on the outside of the wall, as
  * tall and as warm as their pitch, dim while dark and glowing once lit, swelling when the playhead plays them –, the wall,
  * the hub, the ripples of the finale's notes and the playhead: a bright spoke with a sweep of light behind it), `drawEffects()` over
  * the balls (the sparks and the chord's flash) and `drawOverlay()` in screen space (the count of the notes lit and the
  * line under it, in the hub; gone once the chord falls and the canvas names the tune). Everything animates on the mode's
  * clock (`view.timeMs`) and from its state, so a pause freezes it, a recording replays it and the fast export draws the
- * same frame; nothing is allocated per frame (colours and strings cached). The end's words – the tune's name, only then –
+ * same frame; nothing is allocated per frame (colours, strings and gradients are kept) and nothing is blurred (a
+ * `shadowBlur` draw is a blur pass each: the glows are wide soft strokes). The end's words – the tune's name, only then –
  * are the canvas' shared end banner's (endBanner.ts), which fits a long name of another language to the square.
  */
 
@@ -49,8 +50,13 @@ const TWO_PI = Math.PI * 2;
 export const TILE_GAP = 0.02;
 export const TAIL_SLICES = 14;
 export const TAIL_TURN = 0.12;
+/** A lit tile's glow: the widths (world px at the tuned side) of its three strokes, and how much each grows while the tile pops or sounds. */
+const HALO_WIDTHS = [18, 11, 5] as const;
+const HALO_SWELL = [16, 10, 5] as const;
 /** The share of a slot of the phrase a lit tile's nod lasts. */
 export const BEAT_NOD = 0.4;
+/** How far from the centre the glow around the ring reaches (share of the square's side: to its edge, where it is gone). */
+export const GLOW_REACH = 0.5;
 /** How long the chord's flash and a finale note's ripple last (ms). */
 export const CHORD_FLASH_MS = 650;
 export const RIPPLE_MS = 620;
@@ -68,21 +74,23 @@ export function tileHeight(view: Pick<SongRingView, "layout" | "tiles">, tile: n
   return L.bandMin + (L.bandMax - L.bandMin) * view.tiles.level[tile];
 }
 
-/** A tile's fill while dark and once lit, and its outline (cached per hue). */
-const darkFill = new Map<number, string>();
-const litFill = new Map<number, string>();
-const edgeStroke = new Map<number, string>();
-const wedgeFill = new Map<number, string>();
-function colours(hue: number): { dark: string; lit: string; edge: string } {
+/** A tile's fill while dark and once lit, its outline and its glow (one object per hue, kept). */
+interface TileColours {
+  dark: string;
+  lit: string;
+  edge: string;
+  halo: string;
+}
+const tileColours = new Map<number, TileColours>();
+const sparkFill = new Map<number, string>();
+function colours(hue: number): TileColours {
   const key = Math.round(hue);
-  let dark = darkFill.get(key);
-  if (dark === undefined) {
-    dark = `hsla(${key}, 78%, 60%, 0.36)`;
-    darkFill.set(key, dark);
-    litFill.set(key, `hsl(${key}, 96%, 62%)`);
-    edgeStroke.set(key, `hsla(${key}, 96%, 76%, 0.95)`);
+  let c = tileColours.get(key);
+  if (c === undefined) {
+    c = { dark: `hsla(${key}, 78%, 60%, 0.36)`, lit: `hsl(${key}, 96%, 62%)`, edge: `hsla(${key}, 96%, 76%, 0.95)`, halo: `hsla(${key}, 96%, 62%, 0.1)` };
+    tileColours.set(key, c);
   }
-  return { dark, lit: litFill.get(key)!, edge: edgeStroke.get(key)! };
+  return c;
 }
 
 /** The seconds from the start to the last tile, for the banner. */
@@ -97,6 +105,32 @@ export class SongRingLayer {
   private captionScale = 1;
   /** The hub's box as the last `drawOverlay()` drew it (w 0: nothing drawn), for the live watermark. */
   readonly hudBox = { x: 0, y: 0, w: 0, h: 0 };
+  /**
+   * The gradients kept between frames: the glow's and the floor's per count of lit notes, a lit tile's wedge per hue and
+   * pulse level, the chord's halo. A gradient belongs to its context and holds its geometry, so they are dropped when either changes.
+   */
+  private gradCtx: CanvasRenderingContext2D | null = null;
+  private readonly gradAt = [NaN, NaN, NaN, NaN, NaN];
+  private readonly glows = new Map<number, CanvasGradient>();
+  private readonly floors = new Map<number, CanvasGradient>();
+  private readonly beams = new Map<number, CanvasGradient>();
+  private halo: CanvasGradient | null = null;
+
+  /** Drops the kept gradients when the context or the ring's geometry is another than they were built for. */
+  private keepGradients(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, hub: number, band: number) {
+    const at = this.gradAt;
+    if (ctx === this.gradCtx && at[0] === cx && at[1] === cy && at[2] === radius && at[3] === hub && at[4] === band) return;
+    this.gradCtx = ctx;
+    at[0] = cx;
+    at[1] = cy;
+    at[2] = radius;
+    at[3] = hub;
+    at[4] = band;
+    this.glows.clear();
+    this.floors.clear();
+    this.beams.clear();
+    this.halo = null;
+  }
 
   /** Under the balls: the staff, the tiles, the wall, the hub, the ripples and the playhead. */
   drawWorld(ctx: CanvasRenderingContext2D, view: SongRingView, opts: SongRingRenderOptions) {
@@ -111,11 +145,31 @@ export class SongRingLayer {
     ctx.globalAlpha = 1;
     ctx.lineCap = "butt";
     ctx.lineJoin = "round";
-    // The floor of the ring: a soft glow that warms as the notes are found.
-    const share = view.total > 0 ? view.lit / view.total : 0;
-    const floor = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, R);
-    floor.addColorStop(0, `rgba(124, 92, 255, ${(0.2 + 0.14 * share).toFixed(3)})`);
-    floor.addColorStop(1, `rgba(56, 80, 220, ${(0.08 + 0.1 * share).toFixed(3)})`);
+    this.keepGradients(ctx, L.cx, L.cy, R, L.hub, L.bandMax);
+    // The glow around the ring, stronger with every note found (a gradient per count, kept). It is gone at the square's edge:
+    // a glow cut off there would show the square as a box in the exported frame.
+    let glow = this.glows.get(view.lit);
+    if (glow === undefined) {
+      const lit = view.total > 0 ? view.lit / view.total : 0;
+      glow = ctx.createRadialGradient(L.cx, L.cy, 0.8 * R, L.cx, L.cy, GLOW_REACH * L.side);
+      glow.addColorStop(0, `rgba(116, 88, 255, ${(0.2 + 0.26 * lit).toFixed(3)})`);
+      glow.addColorStop(0.6, `rgba(116, 88, 255, ${(0.1 + 0.14 * lit).toFixed(3)})`);
+      glow.addColorStop(1, "rgba(116, 88, 255, 0)");
+      this.glows.set(view.lit, glow);
+    }
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(L.cx, L.cy, GLOW_REACH * L.side, 0, TWO_PI);
+    ctx.fill();
+    // The floor of the ring: a soft glow that warms as the notes are found (a gradient per count of lit notes, kept).
+    let floor = this.floors.get(view.lit);
+    if (floor === undefined) {
+      const share = view.total > 0 ? view.lit / view.total : 0;
+      floor = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, R);
+      floor.addColorStop(0, `rgba(124, 92, 255, ${(0.2 + 0.14 * share).toFixed(3)})`);
+      floor.addColorStop(1, `rgba(56, 80, 220, ${(0.08 + 0.1 * share).toFixed(3)})`);
+      this.floors.set(view.lit, floor);
+    }
     ctx.fillStyle = floor;
     ctx.beginPath();
     ctx.arc(L.cx, L.cy, R, 0, TWO_PI);
@@ -135,15 +189,15 @@ export class SongRingLayer {
       const a1 = angleOf(T.end[i]) - TILE_GAP;
       if (!(a1 > a0)) continue;
       const sung = fade(now - view.playMs[i], NOTE_PULSE_MS);
+      // (a gradient per hue and one of eight levels of the note's pulse, kept: none is built in a frame that has them)
       const key = Math.round(tileHue(T.level[i])) * 8 + Math.round(7 * sung);
-      let wedge = wedgeFill.get(key);
-      if (wedge === undefined) {
-        wedge = `hsla(${Math.round(tileHue(T.level[i]))}, 96%, 62%, ${(0.2 + 0.3 * (Math.round(7 * sung) / 7)).toFixed(3)})`;
-        wedgeFill.set(key, wedge);
+      let beam = this.beams.get(key);
+      if (beam === undefined) {
+        beam = ctx.createRadialGradient(L.cx, L.cy, 3 * L.hub, L.cx, L.cy, R);
+        beam.addColorStop(0, "rgba(0, 0, 0, 0)");
+        beam.addColorStop(1, `hsla(${Math.round(tileHue(T.level[i]))}, 96%, 62%, ${(0.2 + 0.3 * (Math.round(7 * sung) / 7)).toFixed(3)})`);
+        this.beams.set(key, beam);
       }
-      const beam = ctx.createRadialGradient(L.cx, L.cy, 3 * L.hub, L.cx, L.cy, R);
-      beam.addColorStop(0, "rgba(0, 0, 0, 0)");
-      beam.addColorStop(1, wedge);
       ctx.fillStyle = beam;
       ctx.beginPath();
       ctx.moveTo(L.cx, L.cy);
@@ -171,13 +225,18 @@ export class SongRingLayer {
       ctx.arc(L.cx, L.cy, R, a1, a0, true);
       ctx.closePath();
       if (lit) {
-        ctx.fillStyle = c.lit;
         if (opts.showWallGlow) {
-          ctx.shadowColor = c.lit;
-          ctx.shadowBlur = (10 + 16 * Math.max(pop, sung)) * k;
+          // (its glow: three faint strokes of its colour round the bar, each narrower, so the light falls off away from it –
+          // no blur, which costs a pass per tile every frame)
+          const swell = Math.max(pop, sung);
+          ctx.strokeStyle = c.halo;
+          for (let ring = 0; ring < 3; ring++) {
+            ctx.lineWidth = (HALO_WIDTHS[ring] + HALO_SWELL[ring] * swell) * k;
+            ctx.stroke();
+          }
         }
+        ctx.fillStyle = c.lit;
         ctx.fill();
-        ctx.shadowBlur = 0;
         const white = Math.max(0.85 * pop, 0.7 * sung);
         if (white > 0) {
           ctx.fillStyle = `rgba(255, 255, 255, ${white.toFixed(3)})`;
@@ -247,22 +306,32 @@ export class SongRingLayer {
       const a = angleOf(view.head);
       const cos = Math.cos(a);
       const sin = Math.sin(a);
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2.6 * k;
-      if (opts.showWallGlow) {
-        ctx.shadowColor = "#ffffff";
-        ctx.shadowBlur = 12 * k;
-      }
       ctx.beginPath();
       ctx.moveTo(L.cx + cos * hubR, L.cy + sin * hubR);
       ctx.lineTo(L.cx + cos * reach, L.cy + sin * reach);
+      if (opts.showWallGlow) {
+        // (its glow: the same line wider and faint, twice – no blur)
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+        ctx.lineWidth = 11 * k;
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+        ctx.lineWidth = 6 * k;
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2.6 * k;
       ctx.stroke();
-      // (its head: a bright bead riding the wall)
+      // (its head: a bright bead riding the wall, in a faint ring of light)
+      if (opts.showWallGlow) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+        ctx.beginPath();
+        ctx.arc(L.cx + cos * R, L.cy + sin * R, 7.5 * k, 0, TWO_PI);
+        ctx.fill();
+      }
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(L.cx + cos * R, L.cy + sin * R, 3.6 * k, 0, TWO_PI);
       ctx.fill();
-      ctx.shadowBlur = 0;
     }
     ctx.restore();
   }
@@ -281,24 +350,36 @@ export class SongRingLayer {
     for (let i = 0; i < view.sparkCount; i++) {
       const life = view.sparkMaxLife[i] > 0 ? view.sparkLife[i] / view.sparkMaxLife[i] : 0;
       const hue = view.sparkHue[i];
-      const a = Math.max(0, Math.min(1, 1.5 * life)).toFixed(3);
-      ctx.fillStyle = hue < 0 ? `rgba(255, 255, 255, ${a})` : `hsla(${Math.round(hue)}, 96%, 70%, ${a})`;
+      // (its colour at one of sixteen levels of its fade, kept per hue)
+      const level = Math.round(15 * Math.max(0, Math.min(1, 1.5 * life)));
+      const key = (hue < 0 ? 400 : Math.round(hue)) * 16 + level;
+      let fill = sparkFill.get(key);
+      if (fill === undefined) {
+        fill = hue < 0 ? `rgba(255, 255, 255, ${(level / 15).toFixed(3)})` : `hsla(${Math.round(hue)}, 96%, 70%, ${(level / 15).toFixed(3)})`;
+        sparkFill.set(key, fill);
+      }
+      ctx.fillStyle = fill;
       ctx.beginPath();
       ctx.arc(view.sparkX[i], view.sparkY[i], view.sparkSize[i] * (0.5 + 0.5 * life), 0, TWO_PI);
       ctx.fill();
     }
     const flash = Math.max(fade(view.timeMs - view.chordMs, CHORD_FLASH_MS), 0.6 * fade(view.timeMs - view.completeMs, 0.5 * REWIND_MS));
     if (flash > 0 && (view.chordMs >= 0 || view.completeMs >= 0)) {
-      // (a halo round the wall: the middle stays clear for the count and the tune's name)
-      const g = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, L.radius + L.bandMax);
-      g.addColorStop(0, "rgba(255, 255, 255, 0)");
-      g.addColorStop(0.5, "rgba(255, 255, 255, 0)");
-      g.addColorStop(0.86, `rgba(255, 255, 255, ${(0.6 * flash).toFixed(3)})`);
-      g.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.fillStyle = g;
+      // (a halo round the wall: the middle stays clear for the count and the tune's name; one gradient, kept, faded by the alpha)
+      this.keepGradients(ctx, L.cx, L.cy, L.radius, L.hub, L.bandMax);
+      if (!this.halo) {
+        this.halo = ctx.createRadialGradient(L.cx, L.cy, 0, L.cx, L.cy, L.radius + L.bandMax);
+        this.halo.addColorStop(0, "rgba(255, 255, 255, 0)");
+        this.halo.addColorStop(0.5, "rgba(255, 255, 255, 0)");
+        this.halo.addColorStop(0.86, "rgba(255, 255, 255, 0.6)");
+        this.halo.addColorStop(1, "rgba(255, 255, 255, 0)");
+      }
+      ctx.globalAlpha = flash;
+      ctx.fillStyle = this.halo;
       ctx.beginPath();
       ctx.arc(L.cx, L.cy, L.radius + L.bandMax, 0, TWO_PI);
       ctx.fill();
+      ctx.globalAlpha = 1;
     }
     ctx.restore();
   }
@@ -330,9 +411,8 @@ export class SongRingLayer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = `800 ${fs.toFixed(1)}px sans-serif`;
+    // (white on the hub's dark disc: it needs no shadow, and a blurred one would cost a pass every frame)
     ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-    ctx.shadowBlur = 6;
     ctx.fillText(this.countText, L.cx, L.cy - 0.016 * L.side);
     const cfs = 0.027 * L.side;
     ctx.font = `700 ${cfs.toFixed(1)}px sans-serif`;

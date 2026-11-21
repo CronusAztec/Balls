@@ -8,6 +8,7 @@ import {
   LIGHT_DING_OCTAVES,
   LIGHT_TICK_HZ,
   MAX_SPARKS,
+  NOTE_PULSE_MS,
   PLAN_LAST_AT,
   PLAN_WAIT,
   REWIND_MS,
@@ -791,9 +792,22 @@ describe("the renderer", () => {
     layer.drawWorld(ctx, v, opts);
     expect(calls[0]).toBe("save(0)");
     expect(calls.at(-1)).toBe("restore(0)");
-    // the floor, every tile and the hub are filled; the staff, every dark tile's edge, the wall and the playhead stroked
-    expect(calls.filter((c) => c === "fill(0)").length).toBeGreaterThanOrEqual(v.total + 2);
+    // the glow, the floor, every tile and the hub are filled; the staff, every dark tile's edge, the wall and the playhead stroked
+    expect(calls.filter((c) => c === "fill(0)").length).toBeGreaterThanOrEqual(v.total + 3);
     expect(calls.filter((c) => c === "stroke(0)").length).toBeGreaterThanOrEqual(3 + (v.total - v.lit) + 2);
+    // the gradients are built once and kept – the glow's, the floor's, and a wedge's per hue and pulse level of the lit tiles –: a
+    // second frame of the same state on the same context builds none
+    const wedges = new Set<number>();
+    for (let i = 0; i < v.total; i++) if (v.litMs[i] >= 0) wedges.add(Math.round(tileHue(v.tiles.level[i])) * 8 + Math.round(7 * fade(v.timeMs - v.playMs[i], NOTE_PULSE_MS)));
+    expect(wedges.size).toBeGreaterThan(0);
+    expect(calls.filter((c) => c === "createRadialGradient(6)").length).toBe(2 + wedges.size);
+    calls.length = 0;
+    layer.drawWorld(ctx, v, opts);
+    expect(calls.filter((c) => c === "createRadialGradient(6)").length).toBe(0);
+    // …and another ring (a resize) drops them
+    calls.length = 0;
+    layer.drawWorld(ctx, { ...v, layout: { ...v.layout!, radius: v.layout!.radius + 1 } }, opts);
+    expect(calls.filter((c) => c === "createRadialGradient(6)").length).toBe(2 + wedges.size);
     calls.length = 0;
     layer.drawEffects(ctx, v);
     expect(calls[0]).toBe("save(0)");
