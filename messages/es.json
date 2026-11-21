@@ -4527,6 +4527,7 @@
         "ballHitSameTeam": "Cuando chocan dos bolas del mismo equipo",
         "ballHitOtherTeam": "Cuando chocan bolas de dos equipos",
         "ballHitSmaller": "Cuando una bola toca a otra más pequeña",
+        "ballHitOf": "Cuando {who} toca otra bola",
         "ballHitBody": "Cuando {who} toca la bola {other}",
         "escape": "Cuando {who} escapa",
         "ringPass": "Cuando {who} atraviesa un anillo",
@@ -4557,7 +4558,10 @@
         "other": "la otra bola",
         "slower": "la bola más lenta",
         "all": "cada bola",
-        "merged": "la bola nueva"
+        "merged": "la bola nueva",
+        "bigger": "la bola más grande",
+        "smaller": "la bola más pequeña",
+        "allOf": "cada bola {body}"
       },
       "act": {
         "spawn": "{count, plural, one {aparece # bola nueva} other {aparecen # bolas nuevas}} {place}",
@@ -4579,6 +4583,9 @@
         "damage": "{who} pierde {n} PV",
         "damageSome": "{who} recibe daño",
         "varAdd": "el contador «{name}» sube {n}",
+        "resize": "{who} cambia de tamaño",
+        "varChange": "el contador «{name}» cambia",
+        "varSub": "el contador «{name}» baja {n}",
         "varSet": "el contador «{name}» pasa a {n}",
         "varMul": "el contador «{name}» se multiplica por {n}",
         "impulse": "{who} recibe un empujón",
@@ -4674,7 +4681,7 @@
       "say0": "¡GANA EL [winner]!",
       "timeoutSay": "EL [winner] VA EN CABEZA",
       "params": {
-        "per": "Bolas por color",
+        "per": "Bolas extra por color",
         "boost": "Acelera cada"
       }
     },
@@ -4729,7 +4736,7 @@
       "say0": "EL [winner] SIGUE SECO",
       "timeoutSay": "EL HIELO AGUANTÓ",
       "params": {
-        "per": "Bolas por lado",
+        "per": "Bolas por color",
         "hp": "Grosor del hielo",
         "cols": "Placas de hielo",
         "melt": "Deshielo cada"

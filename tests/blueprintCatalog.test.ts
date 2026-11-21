@@ -174,6 +174,84 @@ describe("blueprint catalog: endings a clip can use", () => {
       expect([seed, h.world.aliveCount(), h.stats.escaped]).toEqual([seed, atFinish, 0]);
     }
   });
+
+  // --- blueprint-catalog-c2 --- review fix (C2): STAYS DRY over a winner whose last ball then fell into the water
+  it("Thin Ice's winner keeps a ball on the ice 2 s after the banner, and every ball out dropped through a hole", () => {
+    const misses: number[] = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      const h = new HeadlessBlueprint(catalogBlueprint("thinIce"), { seed });
+      const f = h.world.tiles;
+      const iceTop = f.y0[0];
+      let minX = Infinity;
+      let maxX = -Infinity;
+      for (let i = 0; i < f.count; i++) {
+        minX = Math.min(minX, f.x0[i]);
+        maxX = Math.max(maxX, f.x1[i]);
+      }
+      // a ball goes out where the ice is: never off an edge of it
+      const last = new Map<number, number>();
+      while (!h.finished) {
+        h.step();
+        const alive = new Set(h.world.balls.filter((b) => b.alive).map((b) => b.id));
+        for (const [id, x] of last) if (!alive.has(id)) expect([seed, x >= minX && x <= maxX]).toEqual([seed, true]);
+        last.clear();
+        for (const b of h.world.balls) if (b.alive) last.set(b.id, b.x);
+      }
+      const r = h.result();
+      expect([seed, r.reason]).toEqual([seed, "condition"]);
+      const tilesAtFinish = f.aliveTotal;
+      for (let i = 0; i < 120; i++) h.step();
+      // the board the banner names holds: no pane breaks under it
+      expect([seed, f.aliveTotal]).toEqual([seed, tilesAtFinish]);
+      if (!h.world.balls.some((b) => b.alive && b.team === r.winner && b.y < iceTop)) misses.push(seed);
+    }
+    expect(misses.length).toBeLessThanOrEqual(1);
+  });
+
+  it("Hot Potato's final two are two colours, and they pass the bomb in the final duel on all but a few seeds", () => {
+    let noPass = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const h = new HeadlessBlueprint(catalogBlueprint("hotPotato"), { seed });
+      h.step();
+      h.step();
+      // four players in four colours (the spark is no player)
+      expect([seed, h.world.balls.filter((b) => b.alive && b.body !== 0).map((b) => b.team).sort()]).toEqual([seed, [1, 2, 3, 4]]);
+      let holder = -1;
+      let passes = 0;
+      while (!h.finished) {
+        h.step();
+        if (h.vars[2] > 2) continue;
+        const big = h.world.balls.filter((b) => b.alive && b.body !== 0 && b.r > 27);
+        if (big.length === 1) {
+          if (holder >= 0 && big[0].id !== holder) passes++;
+          holder = big[0].id;
+        }
+      }
+      expect([seed, h.result().reason]).toEqual([seed, "condition"]);
+      if (!passes) noPass++;
+    }
+    expect(noPass).toBeLessThanOrEqual(3);
+  });
+
+  it("Thin Ice and Hot Potato never start two balls on one spot", () => {
+    for (const id of ["thinIce", "hotPotato"] as const)
+      for (let seed = 1; seed <= 30; seed++) {
+        const h = new HeadlessBlueprint(catalogBlueprint(id), { seed });
+        const seen = new Set<number>();
+        // the first frame, and every ball that joins in the first 1.5 s (Hot Potato's fourth, Thin Ice's second wave) at the
+        // moment it joins
+        for (let i = 0; i <= 90; i++) {
+          if (i > 0) h.step();
+          const live = h.world.balls.filter((b) => b.alive);
+          for (const b of live) {
+            if (seen.has(b.id)) continue;
+            seen.add(b.id);
+            if (i > 0 && id === "thinIce") continue; // (Thin Ice's second wave drops in at the middle while the first flies)
+            for (const o of live) if (o !== b) expect([id, seed, i, Math.hypot(o.x - b.x, o.y - b.y) >= o.r + b.r]).toEqual([id, seed, i, true]);
+          }
+        }
+      }
+  });
 });
 
 describe("blueprint catalog: three locales", () => {

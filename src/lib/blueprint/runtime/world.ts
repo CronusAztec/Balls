@@ -229,6 +229,12 @@ export class BlueprintWorld {
   readonly gy: number;
   /** The wall bounciness extra (the page's physics extras), applied to every rebound off the arena and its obstacles. */
   wallBounciness = 1;
+  /**
+   * --- blueprint-catalog-c2 --- review fix (C2): true once the run is decided. The balls still bounce under the end
+   * banner, but no tile takes a hit any more, so the board the banner names stays as it is (Thin Ice's winner never falls
+   * through ice that broke after its banner).
+   */
+  holdTiles = false;
 
   /* the rim's exits (circle): centre angle at rotation 0 and half width, radians */
   readonly exitAt: number[] = [];
@@ -813,7 +819,7 @@ export class BlueprintWorld {
       const tile = field.contactTile[k];
       const impact = field.contactImpact[k];
       if (!isHit(impact, speed)) continue;
-      const broke = field.damage(tile, 1);
+      const broke = this.holdTiles ? false : field.damage(tile, 1); // --- blueprint-catalog-c2 --- (none once decided)
       events.tileHit(b, tile, broke, impact);
       if (!b.alive) return;
       if (k === 0 && broke && this.tilePierce) {

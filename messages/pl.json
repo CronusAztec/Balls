@@ -4527,6 +4527,7 @@
         "ballHitSameTeam": "Gdy zderzą się dwie kulki z jednej drużyny",
         "ballHitOtherTeam": "Gdy zderzą się kulki dwóch drużyn",
         "ballHitSmaller": "Gdy kulka zderzy się z mniejszą",
+        "ballHitOf": "Gdy {who} trafi w inną kulkę",
         "ballHitBody": "Gdy {who} trafi w kulkę {other}",
         "escape": "Gdy {who} ucieka",
         "ringPass": "Gdy {who} przelatuje przez pierścień",
@@ -4557,7 +4558,10 @@
         "other": "druga kulka",
         "slower": "wolniejsza kulka",
         "all": "każda kulka",
-        "merged": "nowa kulka"
+        "merged": "nowa kulka",
+        "bigger": "większa kulka",
+        "smaller": "mniejsza kulka",
+        "allOf": "każda kulka {body}"
       },
       "act": {
         "spawn": "{count, plural, one {pojawia się # nowa kulka} few {pojawiają się # nowe kulki} many {pojawia się # nowych kulek} other {pojawia się # nowej kulki}} {place}",
@@ -4579,6 +4583,9 @@
         "damage": "{who} traci {n} HP",
         "damageSome": "{who} dostaje obrażenia",
         "varAdd": "licznik „{name}” rośnie o {n}",
+        "resize": "{who} zmienia rozmiar",
+        "varChange": "licznik „{name}” się zmienia",
+        "varSub": "licznik „{name}” spada o {n}",
         "varSet": "licznik „{name}” zmienia się na {n}",
         "varMul": "licznik „{name}” mnoży się przez {n}",
         "impulse": "{who} dostaje pchnięcie",
@@ -4674,7 +4681,7 @@
       "say0": "[winner] WYGRYWA",
       "timeoutSay": "[winner] PROWADZI",
       "params": {
-        "per": "Kulki na kolor",
+        "per": "Dodatkowe kulki na kolor",
         "boost": "Przyspieszenie co"
       }
     },
@@ -4722,14 +4729,14 @@
     },
     "thinIce": {
       "name": "Cienki lód",
-      "description": "Każde odbicie kruszy lód. Kto przez niego wpadnie, odpada. Wygrywa ostatni kolor, który został na lodzie.",
+      "description": "Każde odbicie kruszy lód. Kto przez niego wpadnie, odpada. Wygrywa ostatni kolor, który nie wpadł do wody.",
       "line": "Każde odbicie kruszy lód",
-      "hud0": "na lodzie",
+      "hud0": "suche",
       "hud1": "lód",
-      "say0": "[winner] ZOSTAJE NA LODZIE",
+      "say0": "[winner] SUCHY DO KOŃCA",
       "timeoutSay": "LÓD WYTRZYMAŁ",
       "params": {
-        "per": "Kulki na stronę",
+        "per": "Kulki na kolor",
         "hp": "Grubość lodu",
         "cols": "Tafle lodu",
         "melt": "Topnienie co"

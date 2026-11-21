@@ -35,6 +35,10 @@ export interface BlueprintView {
   /** A ball refused at the ball ceiling within the last second or so: the ARENA FULL badge. */
   arenaFullAtSec: number;
   flashAtSec: number;
+  /** --- blueprint-catalog-c2 --- The last flash's palette index and point. */
+  flashColor: number;
+  flashX: number;
+  flashY: number;
   /** Whether any body shows a label: tiers (a merge or tier rule, or a body above tier 1) and hit points. */
   showTiers: boolean;
   showHp: boolean;
@@ -67,6 +71,9 @@ export function createBlueprintView(): BlueprintView {
     escaped: 0,
     arenaFullAtSec: -Infinity,
     flashAtSec: -Infinity,
+    flashColor: 0,
+    flashX: 0,
+    flashY: 0,
     showTiers: false,
     showHp: false,
     result: { finished: false, reason: null, condition: -1, timeSec: 0, winner: -1, result: "" },
@@ -124,6 +131,9 @@ export function refreshBlueprintView(view: BlueprintView, run: BlueprintRun) {
   view.clockSec = run.timeSec;
   view.arenaFullAtSec = run.arenaFullAtSec;
   view.flashAtSec = run.flashAtSec;
+  view.flashColor = run.flashColor; // --- blueprint-catalog-c2 ---
+  view.flashX = run.flashX;
+  view.flashY = run.flashY;
   if (view.frozen) return;
   view.frozen = run.done.finished;
   view.timeSec = run.done.finished ? run.done.timeSec : run.timeSec;

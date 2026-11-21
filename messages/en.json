@@ -4527,6 +4527,7 @@
         "ballHitSameTeam": "When two team-mates touch",
         "ballHitOtherTeam": "When balls of two teams touch",
         "ballHitSmaller": "When a ball touches a smaller one",
+        "ballHitOf": "When {who} touches another ball",
         "ballHitBody": "When {who} touches a ball called {other}",
         "escape": "When {who} escapes",
         "ringPass": "When {who} gets through a ring",
@@ -4557,7 +4558,10 @@
         "other": "the other ball",
         "slower": "the slower ball",
         "all": "every ball",
-        "merged": "the new ball"
+        "merged": "the new ball",
+        "bigger": "the bigger ball",
+        "smaller": "the smaller ball",
+        "allOf": "every ball called {body}"
       },
       "act": {
         "spawn": "{count, plural, one {# new ball appears} other {# new balls appear}} {place}",
@@ -4579,6 +4583,9 @@
         "damage": "{who} loses {n} HP",
         "damageSome": "{who} takes damage",
         "varAdd": "“{name}” goes up by {n}",
+        "resize": "{who} changes size",
+        "varChange": "“{name}” changes",
+        "varSub": "“{name}” goes down by {n}",
         "varSet": "“{name}” becomes {n}",
         "varMul": "“{name}” is multiplied by {n}",
         "impulse": "{who} gets a push",
@@ -4674,7 +4681,7 @@
       "say0": "[winner] WINS",
       "timeoutSay": "[winner] LEADS",
       "params": {
-        "per": "Balls per colour",
+        "per": "Extra balls a colour",
         "boost": "Speed-up every"
       }
     },
@@ -4729,7 +4736,7 @@
       "say0": "[winner] STAYS DRY",
       "timeoutSay": "THE ICE HELD",
       "params": {
-        "per": "Balls per side",
+        "per": "Balls per colour",
         "hp": "Ice strength",
         "cols": "Panes of ice",
         "melt": "Melt every"

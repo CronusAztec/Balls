@@ -271,10 +271,13 @@ export function act(run: BlueprintRun, rule: CompiledRule, action: CompiledActio
           refuse();
           continue;
         }
+        const was = b.r;
         b.r = r;
         if (!(b.r >= 1)) {
           b.alive = false; // (shrunk away: it pops)
-          run.effect("pop", b.x, b.y, b.color, 1);
+          // --- blueprint-catalog-c2 --- review fix (C2): the pop is drawn at the size the ball had, not at the 1 px it
+          // shrank to (Hot Potato's burst reads as the bomb bursting, not as the bomb vanishing)
+          run.effect("pop", b.x, b.y, b.color, was);
         }
       }
       return;

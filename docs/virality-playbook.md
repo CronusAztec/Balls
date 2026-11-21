@@ -217,7 +217,7 @@ The templates (`src/lib/bot/templates.ts`) bind every mode to one of ten formats
 line up, on the beat, reveal and Mode Lab game. A format promises one thing the run must visibly do, its claim, which the crew
 checks (G4).
 
-- **Ready now:** 35 modes as 44 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
+- **Ready now:** 35 modes as 45 templates. 14 of the 16 modes a recipe plays give 19 of them: Classic and Portal also have a
   Gerald variant, and Fight League has the duel, the upset, the bracket and, since AI studio step 6, the boss rush. A template
   plans its recipe pinned to its own mode.
   Gerald's Portal escape takes the standard length only: in the short one, Shorts' own, its seed search found no escape in time
@@ -852,6 +852,15 @@ battle family offers them (`--family all` or `battle`), each a variant of the Mo
   second at the median (only the landings on the ice, the breaks and the falls sound), and each colour wins 30 to 38 of the 100.
 - Hot Potato over 100 seeds: the last ball stands 16.0–20.6 s in (median 17.5 s, 100 of 100 between 15 and 25 s), the last
   two pass the bomb at least once on every seed, 3.7 sounds a second at the median, and each colour wins 28 to 39 of the 100.
+- The C2 review (new modes lane) remade both games, so the two lines above and the table describe the games as first added.
+  The winner the banner named often fell through the ice in the next two seconds (94 of 300 Thin Ice runs), most outs slid off
+  a fixed broken edge, a quarter of Hot Potato's duels had no pass, and duels of one colour against itself were common. Thin
+  Ice now runs its ice from wall to wall over a water line that takes a ball the moment it drops through, and a decided run
+  breaks no more tiles: over 100 seeds the last colour stands 13.7–22.4 s in (median 17.6 s, 94 of 100 between 15 and 25 s),
+  every ball out went through a hole, the winner still has a ball on the ice 2 s after the banner in 98 of 100, 3.1 sounds a
+  second. Hot Potato now plays four balls in four colours, a longer final fuse and a nudge every 0.4 s: the last ball stands
+  16.1–19.6 s in (median 17.4 s, 100 of 100 between 15 and 25 s), 3 of 100 duels have no pass, 3.1 sounds a second. The plans
+  in the table were not read again after the remake.
 - Hot Potato waits, hidden with its reason (`LAB_GAME_HIDDEN`): the game's title block takes the top of the square, and at
   the bottom its hook hid the moving balls on more than half of its samples on 10 of 16 plans (G5, `hookPushedOverAction`),
   with hooks of 29 to 52 characters alike. Its balls fly all over the ring, and a smaller ring (0.84 and 0.76 of the square)
