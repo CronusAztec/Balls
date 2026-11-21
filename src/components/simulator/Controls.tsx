@@ -22,7 +22,7 @@ import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, Wa
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
-import ThemeSection, { THEME_KEYS, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes
+import ThemeSection, { THEME_KEYS, ThemeCards, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes (--- panel-basics --- ThemeCards: the starter block's too)
 import CameraSection, { CAMERA_KEYS } from "./sections/CameraSection"; // --- camera ---
 // --- jdm-collisions ---
 import CollisionPlaygroundSection, { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
@@ -43,6 +43,9 @@ import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // -
 import DoublePendulumSection, { DOUBLE_PENDULUM_KEYS } from "./sections/DoublePendulumSection"; // --- jdm-double-pendulum ---
 import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
 import RiggedSection, { RIGGED_KEYS } from "./sections/RiggedSection"; // --- rigged ---
+import { MUSIC_ADVANCED_KEYS } from "./sections/MusicSection"; // --- panel-basics --- (what the Music block shows with Show Advanced Options only)
+import { SONG_SLICER_ADVANCED_KEYS } from "./sections/SongSlicerSection"; // --- panel-basics ---
+import { VIDEO_BEATS_ADVANCED_KEYS } from "./sections/VideoBeatsSection"; // --- panel-basics ---
 import { riggedConfigOf } from "@/lib/physics/rigged"; // --- rigged ---
 import TimelineSection, { TIMELINE_SECTION_KEYS, TimelineRangeInput, TimelineValueText } from "./sections/TimelineSection"; // --- timeline ---
 import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- timeline ---
@@ -122,13 +125,16 @@ import Kbd from "@/components/ui/Kbd";
 import { cx } from "@/components/ui/cx";
 import { useModifierKey } from "@/components/ui/useModifierKey";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
-import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
+import { IconBall, IconBookmark, IconCaptions, IconChevronDown, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUndo, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
 import { StageModeContext } from "./studio/StageStrip"; // --- studio-fit --- the strip's mode arrows read the mode from here
 import { OPEN_SETTING_EVENT, modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
 import { modePaletteWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does, its shelf's among them
 import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
-import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
+import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, settingSearchWords, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode (--- panel-basics --- and the words a control answers to)
+// --- panel-basics --- the starter block, the named rows of the Recording group, the undo history, the last address
+import FoldRow from "./studio/FoldRow";
+import { UNDO_SETTLE_MS, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, typesText, undoPatch } from "@/lib/studioMemory";
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
 export type StudioSection = "mode" | ControlSection | "presets";
@@ -214,6 +220,9 @@ export interface ControlsProps {
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
+
+/** --- panel-basics --- Where the starter block's open state is kept ("open" or "closed"; a per-visitor convenience). */
+const STARTER_STORAGE_KEY = "jumpingballslive_studio_starter";
 
 /** Translation keys for the instrument and scale pickers (Controls namespace). */
 const INSTRUMENT_LABELS: Record<InstrumentId, string> = { sine: "instSine", triangle: "instTriangle", square: "instSquare", saw: "instSaw", pluck: "instPluck", marimba: "instMarimba", chip: "instChip" };
@@ -318,6 +327,55 @@ SECTION_KEYS.recording.push(...PUBLISH_KEYS);
 SECTION_KEYS.recording.push(...LOOP_KEYS); // --- loop-foundation --- Export whole loops and the loop HUD
 SECTION_KEYS.sound.push(...LOOP_CLIP_KEYS); // --- loop-foundation --- the loop families' clip slots
 
+// --- panel-basics --- Show Advanced Options: what each group shows only with the switch on, and how many of them a group
+// holds right now (the quiet row at the end of the group says it and turns the switch on).
+/** The groups that hold controls behind the switch. */
+export type AdvancedGroup = "ball" | "wall" | "visual" | "sound" | "recording";
+/**
+ * The search keys of the controls a group shows only with Show Advanced Options on. The panel's own gates read this table
+ * (shows() in Controls()); the Sound group's blocks gate their own (`showAdvanced`) and list theirs next to their keys.
+ * Gravity, the top text and the bottom text are basics: never behind the switch. tests/panelBasics.test.ts keeps it true.
+ */
+export const ADVANCED_KEYS: Readonly<Record<AdvancedGroup, readonly string[]>> = {
+  ball: ["fullBallLimit", "bouncier", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  wall: ["wallThickness", "gapSize", ...WALL_PHYSICS_EXTRA_KEYS],
+  visual: ["cinematic", ...RIGGED_KEYS.filter((key) => key !== "riggedGroup" /* (its heading) */), "trailThickness"],
+  sound: ["importMidi", ...SONG_SLICER_ADVANCED_KEYS, ...MUSIC_ADVANCED_KEYS, ...VIDEO_BEATS_ADVANCED_KEYS, "importWallBreak"],
+  recording: ["customWatermark", "textSize"],
+};
+const ADVANCED_KEY_SET: ReadonlySet<string> = new Set(Object.values(ADVANCED_KEYS).flat());
+
+/** What besides PanelShown decides whether a control behind the switch would show. */
+export interface AdvancedShown {
+  /** The bounces play tones (Import MIDI). */
+  tones: boolean;
+  /** A music track is loaded (its release and start offset). */
+  musicTrack: boolean;
+  /** On beat is on (its range). */
+  onBeat: boolean;
+  /** The walls breathe (their speed). */
+  breathing: boolean;
+}
+
+/** How many controls of a group Show Advanced Options would add right now (0: no row). */
+export function advancedCount(group: ControlSection, p: PanelShown, x: AdvancedShown): number {
+  if (!(group in ADVANCED_KEYS)) return 0;
+  const multipliers = showsMultipliersSection(p.mode, p.glassGates);
+  return ADVANCED_KEYS[group as AdvancedGroup].filter((key) => {
+    if (!sectionKeyShown(key, p, multipliers)) return false;
+    if (key === "importMidi") return x.tones;
+    if ((MUSIC_ADVANCED_KEYS as readonly string[]).includes(key)) return x.musicTrack;
+    if ((VIDEO_BEATS_ADVANCED_KEYS as readonly string[]).includes(key)) return p.videoBeats && x.onBeat;
+    if (key === "breathingSpeed") return x.breathing;
+    return true;
+  }).length;
+}
+
+/** --- panel-basics --- The Recording group's blocks that open from a named row, and their keys (the palette opens them). */
+const FOLD_ROWS = { batch: BATCH_KEYS, bot: BOT_KEYS, publish: PUBLISH_KEYS } as const;
+type FoldRowId = keyof typeof FOLD_ROWS;
+const foldRowOf = (key: string): FoldRowId | null => (Object.keys(FOLD_ROWS) as FoldRowId[]).find((id) => (FOLD_ROWS[id] as readonly string[]).includes(key)) ?? null;
+
 /**
  * --- review fix (site-redesign) --- The command palette's controls, group by group, for this panel state: the mode's own
  * block under the Mode group, then the rail's sections (`sectionIds`, in rail order) without the other modes' blocks and
@@ -374,12 +432,19 @@ export default function Controls(props: ControlsProps) {
   const railColumn = useMediaQuery("(min-width: 1280px)"); // --- site-nav --- the rail is a column from 1280 px (globals.css): its toolbar says so
   const mod = useModifierKey();
   const site = useTranslations("SiteRedesign");
+  const howItWorks = useTranslations("HowItWorks"); // --- panel-basics --- (the starter block's steps)
+  const customContent = useTranslations("CustomContent"); // --- panel-basics --- (Undo)
   const locale = useLocale(); // --- mode-search --- (the language of a mode's search words)
   const [presetName, setPresetName] = useState("");
   const [midiDrag, setMidiDrag] = useState(false);
   const [wallBreakDrag, setWallBreakDrag] = useState(false);
   const [search, setSearch] = useState("");
   const [advanced, setAdvanced] = useState(false);
+  // --- panel-basics --- the starter block (open unless the visitor closed it, or Show Advanced Options is on), the open
+  // named rows of the Recording group, and the address of the last visit on offer (a bare studio address only)
+  const [starterPref, setStarterPref] = useState<boolean | null>(null);
+  const [rows, setRows] = useState<Record<FoldRowId, boolean>>({ batch: false, bot: false, publish: false });
+  const [lastVisit, setLastVisit] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -399,6 +464,26 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
+  // --- panel-basics --- the starter block's open state is a per-visitor convenience (read after mounting: the first render
+  // matches the page's HTML)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STARTER_STORAGE_KEY);
+      if (stored === "open" || stored === "closed") setStarterPref(stored === "open");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const starterOpen = starterPref ?? !advanced;
+  const setStarterOpen = (open: boolean) => {
+    setStarterPref(open);
+    try {
+      localStorage.setItem(STARTER_STORAGE_KEY, open ? "open" : "closed");
+    } catch {
+      /* ignore */
+    }
+  };
+
   // --- colour-sort --- the Colour Sort block's labels live in their own namespace: the search and the palette read them there too
   const colourSortT = useTranslations("ColourSort");
   const beatMachineT = useTranslations("BeatMachine"); // --- beat-machine --- (its block's labels live in their own namespace too)
@@ -411,10 +496,13 @@ export default function Controls(props: ControlsProps) {
     if (!search) return true;
     const q = search.toLowerCase();
     const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : "";
-    return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    // --- panel-basics --- and the words a visitor types for it ("colour", "length", "hook", "logo": panelKeys.ts)
+    return key.toLowerCase().includes(q) || label.toLowerCase().includes(q) || settingSearchWords(key, locale).split(" ").some((word) => !!word && word.includes(q));
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
   const showAdvanced = advanced || !!search;
+  /** --- panel-basics --- Whether the control with this key shows: a basic one always, one behind the switch with it on (ADVANCED_KEYS). */
+  const shows = (key: string) => showAdvanced || !ADVANCED_KEY_SET.has(key);
 
   const modeNames: Record<ModeId, string> = {
     classic: t("modeClassic"),
@@ -512,6 +600,76 @@ export default function Controls(props: ControlsProps) {
 
   /* ------------------------------------------------------------ sections */
 
+  // --- panel-basics --- the controls the starter block shares with their home groups: the same labels and keys, so the
+  // search and the palette find each in its group (the starter block shows only while no group is open). `id` prefixes
+  // the fields' ids.
+  const ballColorControl = () =>
+    !props.ballImage &&
+    !props.ballEmoji &&
+    ballControlsOf(s.mode).color && (
+      <Searchable search={search} matches={matches} labelKey="ballColor">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-ink-2">{t("ballColor")}</span>
+            <button
+              type="button"
+              onClick={() => update({ rainbowBall: !s.rainbowBall })}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowBall ? rainbowBtn : offBtn}`}
+            >
+              {t("rainbowSettings")}
+            </button>
+          </div>
+          {!s.rainbowBall && <ColorPicker value={s.ballColor} onChange={(v) => update({ ballColor: v })} label={t("ballColor")} />}
+        </div>
+      </Searchable>
+    );
+  const ballSpeedControl = () => ballControlsOf(s.mode).speed && <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />;
+  const ballSizeControl = () => ballControlsOf(s.mode).size && <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />;
+  const durationControl = () =>
+    !props.simulationFound && (
+      <Searchable search={search} matches={matches} labelKey="videoDuration">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
+            <span>
+              {t("durationSpan")}
+              <Tooltip text={t("durationTip")} />
+            </span>
+            <span className="text-ink-3">{s.recordingDuration}s</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <SliderTrack settingKey="recordingDuration" label={t("durationSpan")} value={s.recordingDuration} range={RANGES.recordingDuration} onChange={(v) => update({ recordingDuration: v })} disabled={props.isRecording} /* --- unlimited-sizes --- */ />
+            <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration, "recordingDuration")} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- (--- unlimited-sizes --- any length above 0) */ />
+          </div>
+          <TrackEnds settingKey="recordingDuration" range={RANGES.recordingDuration} min={t("minDuration")} max={t("maxDuration")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- (120s: a comfort mark on the wide track) */ />
+        </div>
+      </Searchable>
+    );
+  const bannerTextControl = (key: "topText" | "bottomText", id = "") => {
+    const [tip, placeholder, value] = key === "topText" ? (["topTextTip", "topTextPlaceholder", s.topText] as const) : (["bottomTextTip", "bottomTextPlaceholder", s.bottomText] as const);
+    return (
+      <Searchable key={key} search={search} matches={matches} labelKey={key}>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2 flex items-center justify-between" htmlFor={`${id}${key}-input`}>
+            <span>
+              {t(key)}
+              <Tooltip text={t(tip)} />
+            </span>
+            {value && <span className="text-ink-3 text-xs truncate max-w-[120px]">{value}</span>}
+          </label>
+          <input
+            id={`${id}${key}-input`}
+            type="text"
+            value={value}
+            onChange={(e) => update(key === "topText" ? { topText: e.target.value } : { bottomText: e.target.value })}
+            placeholder={t(placeholder)}
+            maxLength={60}
+            className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
+          />
+        </div>
+      </Searchable>
+    );
+  };
+
   /** Picture Paint block: in the Mode row while Paint is the mode, and in the Visual section while the search box is in use. */
   const picturePaintSection = () => (
     <PicturePaintSection t={t} search={search} matches={matches} showAdvanced={showAdvanced} settings={s} update={update} picture={props.paintPicture} onUpload={props.onPaintPictureUpload} onRemove={props.onPaintPictureRemove} beat={props.paintBeat} />
@@ -519,36 +677,22 @@ export default function Controls(props: ControlsProps) {
 
   const ballSection = () => (
     <div className="space-y-4">
-      {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
-      <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
-      {showAdvanced && <FullBallLimitControl t={t} search={search} matches={matches} settings={s} update={update} /* --- unlimited-sizes --- (an advanced option) */ />}
-      {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
-      <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
-      {/* --- low-findings-2 --- a mode whose balls are its own (Colour Sort) leaves out the page's speed, size and colour (panelKeys.ts ballControlsOf()) */}
-      {ballControlsOf(s.mode).speed && <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />}
-      {ballControlsOf(s.mode).size && <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />}
-      {showAdvanced && ballControlsOf(s.mode).gravity /* --- review fix (blueprint) --- (Mode Lab's gravity is the Blueprint's) */ && (
-        <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} />
-      )}
-      {!props.ballImage && !props.ballEmoji && ballControlsOf(s.mode).color && (
-        <Searchable search={search} matches={matches} labelKey="ballColor">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-ink-2">{t("ballColor")}</span>
-              <button
-                type="button"
-                onClick={() => update({ rainbowBall: !s.rainbowBall })}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowBall ? rainbowBtn : offBtn}`}
-              >
-                {t("rainbowSettings")}
-              </button>
-            </div>
-            {!s.rainbowBall && <ColorPicker value={s.ballColor} onChange={(v) => update({ ballColor: v })} label={t("ballColor")} />}
-          </div>
-        </Searchable>
-      )}
+      {/* --- panel-basics --- the four a visitor changes first (speed, size, colour, count), then gravity (a basic: never
+          behind the switch), then the long editors. --- low-findings-2 --- a mode whose balls are its own (Colour Sort)
+          leaves out the page's speed, size and colour (panelKeys.ts ballControlsOf()) */}
+      {ballSpeedControl()}
+      {ballSizeControl()}
+      {ballColorControl()}
       {/* --- teams --- the ball count (1–6) replaced the "Two balls" switch; Color Match takes several balls too */}
       {MULTI_BALL_MODES.includes(s.mode) && <BallCountControl t={t} search={search} matches={matches} settings={s} update={update} />}
+      {ballControlsOf(s.mode).gravity /* --- review fix (blueprint) --- (Mode Lab's gravity is the Blueprint's) */ && (
+        <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} />
+      )}
+      {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
+      <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
+      {shows("fullBallLimit") && <FullBallLimitControl t={t} search={search} matches={matches} settings={s} update={update} /* --- unlimited-sizes --- (an advanced option) */ />}
+      {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
+      <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
       {/* --- gerald-conveyor --- the respawn timer of Classic and Multiply (a new ball drops in every N seconds) */}
       <RespawnControl t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- unlimited-sizes --- the swarm's ceiling, in every mode the escapes, the respawns or bounce math's copies add balls in */}
@@ -623,7 +767,7 @@ export default function Controls(props: ControlsProps) {
       {/* --- bead-hoops --- */}
       {s.mode === "hoops" && !!search && <HoopsSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
-      {showAdvanced && (
+      {shows("bouncier") && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
         <Slider t={t} search={search} matches={matches} labelKey="bouncier" tipKey="bouncierTip" value={s.bounciness} range={RANGES.bounciness} onChange={(v) => update(bouncinessPatch(v))} />
       )}
@@ -656,7 +800,7 @@ export default function Controls(props: ControlsProps) {
           )}
         </div>
       </Searchable>
-      {showAdvanced && (
+      {shows("customBallImage") && (
         <Searchable search={search} matches={matches} labelKey="customBallImage">
           <div className="space-y-3">
             <label className="text-sm font-medium text-ink-2">{t("customBallImage")}</label>
@@ -697,7 +841,7 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
-      {showAdvanced && <BallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
+      {shows(BALL_PHYSICS_EXTRA_KEYS[0]) && <BallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
     </div>
   );
 
@@ -713,12 +857,12 @@ export default function Controls(props: ControlsProps) {
         {hasWallCount && (
           <Slider t={t} search={search} matches={matches} labelKey="wallCount" tipKey="wallCountTip" value={s.wallCount} range={RANGES.wallCount} onChange={(v) => update({ wallCount: v })} />
         )}
-        {hasThickness && showAdvanced && (
+        {hasThickness && shows("wallThickness") && (
           <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} />
         )}
         {hasGapControls && (
           <>
-            {hasGapSize && showAdvanced && (
+            {hasGapSize && shows("gapSize") && (
               <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} />
             )}
             <Searchable search={search} matches={matches} labelKey="rotation">
@@ -779,7 +923,7 @@ export default function Controls(props: ControlsProps) {
             )}
           </div>
         </Searchable>
-        {showAdvanced && <WallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
+        {shows(WALL_PHYSICS_EXTRA_KEYS[0]) && <WallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
       </div>
     );
   };
@@ -849,16 +993,16 @@ export default function Controls(props: ControlsProps) {
       <WallWobbleSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- gerald-exit-splat --- the Splat barrier: wall hits leave solid splats of paint (ring modes) */}
       <SplatBarrierControls t={t} search={search} matches={matches} settings={s} update={update} />
-      {showAdvanced && (
+      {shows("cinematic") && (
         <Searchable search={search} matches={matches} labelKey="cinematic">
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
         </Searchable>
       )}
       {/* --- rigged --- the director's hard constraints: never escape and the forced winner, with the storytelling warning */}
-      {showAdvanced && <RiggedSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {shows("neverEscape") && <RiggedSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Picture Paint controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "paint" && !!search && picturePaintSection()}
-      {s.showTrails && showAdvanced && (
+      {s.showTrails && shows("trailThickness") && (
         <Slider t={t} search={search} matches={matches} labelKey="trailThickness" tipKey="trailThicknessTip" value={s.trailThickness} range={RANGES.trailThickness} onChange={(v) => update({ trailThickness: v })} display={`${s.trailThickness.toFixed(1)}x`} />
       )}
       <Searchable search={search} matches={matches} labelKey="wallBreakEffect">
@@ -986,7 +1130,7 @@ export default function Controls(props: ControlsProps) {
                 </div>
               </Searchable>
             )}
-            {showAdvanced && (
+            {shows("importMidi") && (
               <Searchable search={search} matches={matches} labelKey="importMidi">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-ink-2">{t("importMidi")}</label>
@@ -1166,7 +1310,7 @@ export default function Controls(props: ControlsProps) {
             </select>
           </div>
         </Searchable>
-        {showAdvanced && (
+        {shows("importWallBreak") && (
           <Searchable search={search} matches={matches} labelKey="importWallBreak">
             <div className="space-y-2">
               <label className="text-sm font-medium text-ink-2">{t("importWallBreak")}</label>
@@ -1208,6 +1352,17 @@ export default function Controls(props: ControlsProps) {
     );
   };
 
+  // --- panel-basics --- the Recording group fits one screen: the account row, the format, the clip length, the frame rate,
+  // the loops, then Batch Render, the Clip planner and Publish as named rows that open on demand (the search shows them as
+  // they are); the texts on the clip follow
+  const foldRow = (id: FoldRowId, labelKey: string, body: ReactNode) =>
+    search ? (
+      body
+    ) : (
+      <FoldRow id={id} label={t(labelKey)} tip={t(`${labelKey}Tip`)} open={rows[id]} onToggle={() => setRows((r) => ({ ...r, [id]: !r[id] }))}>
+        {body}
+      </FoldRow>
+    );
   const recordingSection = () => (
     <div className="space-y-3">
       {!search && <AccountRow /> /* --- paywall-gate --- */}
@@ -1231,25 +1386,37 @@ export default function Controls(props: ControlsProps) {
           </select>
         </div>
       </Searchable>
-      {!props.simulationFound && (
-        <Searchable search={search} matches={matches} labelKey="videoDuration">
+      {durationControl()}
+      {/* --- fast-render --- the fast export's frame rate */}
+      <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
+      <LoopSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- loop-foundation --- */}
+      {props.batch && foldRow("batch", "batchRender", <BatchSection t={t} search={search} matches={matches} batch={props.batch} />) /* --- batch-render --- */}
+      {props.bot && foldRow("bot", "viralBot", <BotSection t={t} search={search} matches={matches} bot={props.bot} />) /* --- viral-bot --- */}
+      {foldRow("publish", "publish", <PublishSection t={t} search={search} matches={matches} bot={props.bot} loopCaptionOf={loopCaptionContext(s) /* --- loop-foundation --- */} />) /* --- social-publish --- */}
+      {/* --- panel-basics --- the top and bottom text are basics (the page's tip "Add a hook" points at the top one), after the
+          rows so the group's first screen holds the format, the length and the three blocks; the starter block has the top
+          text too */}
+      {bannerTextControl("topText")}
+      {bannerTextControl("bottomText")}
+      {(s.topText || s.bottomText) && shows("textSize") && (
+        <Searchable search={search} matches={matches} labelKey="textSize">
           <div className="space-y-2">
             <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
               <span>
-                {t("durationSpan")}
-                <Tooltip text={t("durationTip")} />
+                {t("textSize")}
+                <Tooltip text={t("textSizeTip")} />
               </span>
-              <span className="text-ink-3">{s.recordingDuration}s</span>
+              <span className="text-ink-3">{s.textSize.toFixed(1)}×</span>
             </label>
             <div className="flex items-center gap-2">
-              <SliderTrack settingKey="recordingDuration" label={t("durationSpan")} value={s.recordingDuration} range={RANGES.recordingDuration} onChange={(v) => update({ recordingDuration: v })} disabled={props.isRecording} /* --- unlimited-sizes --- */ />
-              <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration, "recordingDuration")} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- (--- unlimited-sizes --- any length above 0) */ />
+              <SliderTrack settingKey="textSize" label={t("textSize")} value={s.textSize} range={RANGES.textSize} onChange={(v) => update({ textSize: v })} /* --- unlimited-sizes --- */ />
+              <NumberField value={s.textSize} onCommit={(v) => update({ textSize: v })} label={t("textSize")} range={RANGES.textSize} rules={rulesForRange(RANGES.textSize)} settingKey="textSize" /* --- uncap-all --- */ />
             </div>
-            <TrackEnds settingKey="recordingDuration" range={RANGES.recordingDuration} min={t("minDuration")} max={t("maxDuration")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- (120s: a comfort mark on the wide track) */ />
+            <TrackEnds settingKey="textSize" range={RANGES.textSize} min={t("minSize")} max={t("maxSize")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- */ />
           </div>
         </Searchable>
       )}
-      {showAdvanced && (
+      {shows("customWatermark") && (
         <Searchable search={search} matches={matches} labelKey="customWatermark">
           <div className="space-y-2 border-t border-line pt-3">
             <label className="text-sm font-medium text-ink-2 flex items-center justify-between" htmlFor="watermark-input">
@@ -1271,58 +1438,6 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
-      {showAdvanced &&
-        (
-          [
-            ["topText", "topTextTip", "topTextPlaceholder", s.topText, (v: string) => update({ topText: v })],
-            ["bottomText", "bottomTextTip", "bottomTextPlaceholder", s.bottomText, (v: string) => update({ bottomText: v })],
-          ] as const
-        ).map(([key, tip, placeholder, value, set]) => (
-          <Searchable key={key} search={search} matches={matches} labelKey={key}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-ink-2 flex items-center justify-between" htmlFor={`${key}-input`}>
-                <span>
-                  {t(key)}
-                  <Tooltip text={t(tip)} />
-                </span>
-                {value && <span className="text-ink-3 text-xs truncate max-w-[120px]">{value}</span>}
-              </label>
-              <input
-                id={`${key}-input`}
-                type="text"
-                value={value}
-                onChange={(e) => set(e.target.value)}
-                placeholder={t(placeholder)}
-                maxLength={60}
-                className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
-              />
-            </div>
-          </Searchable>
-        ))}
-      {(s.topText || s.bottomText) && showAdvanced && (
-        <Searchable search={search} matches={matches} labelKey="textSize">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
-              <span>
-                {t("textSize")}
-                <Tooltip text={t("textSizeTip")} />
-              </span>
-              <span className="text-ink-3">{s.textSize.toFixed(1)}×</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <SliderTrack settingKey="textSize" label={t("textSize")} value={s.textSize} range={RANGES.textSize} onChange={(v) => update({ textSize: v })} /* --- unlimited-sizes --- */ />
-              <NumberField value={s.textSize} onCommit={(v) => update({ textSize: v })} label={t("textSize")} range={RANGES.textSize} rules={rulesForRange(RANGES.textSize)} settingKey="textSize" /* --- uncap-all --- */ />
-            </div>
-            <TrackEnds settingKey="textSize" range={RANGES.textSize} min={t("minSize")} max={t("maxSize")} tip={t("comfortMarkTip")} /* --- unlimited-sizes --- */ />
-          </div>
-        </Searchable>
-      )}
-      {/* --- fast-render --- the fast export's frame rate */}
-      <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
-      <LoopSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- loop-foundation --- */}
-      {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
-      {props.bot && <BotSection t={t} search={search} matches={matches} bot={props.bot} /> /* --- viral-bot --- */}
-      <PublishSection t={t} search={search} matches={matches} bot={props.bot} loopCaptionOf={loopCaptionContext(s) /* --- loop-foundation --- */} /> {/* --- social-publish --- */}
     </div>
   );
 
@@ -1626,11 +1741,13 @@ export default function Controls(props: ControlsProps) {
       ...(props.onOpenModePicker ? [{ kind: "action" as const, section: "mode", key: "changeMode", label: t("modeDisplay"), sectionLabel: "" }] : []),
       ...modesOnShelf("all").filter((id) => id !== s.mode).map((id) => ({ kind: "mode" as const, section: "mode", key: id, label: modeNames[id], sectionLabel: "", words: modePaletteWords(id, locale) })),
     ];
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */)), ...modes];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */), (key) => settingSearchWords(key, locale) || undefined /* --- panel-basics --- */), ...modes];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, locale, paletteState, sections.length, !!props.project, !!props.onOpenModePicker]);
   const railIcons = Object.fromEntries(railItems.map((item) => [item.id, item.icon])) as Record<string, ReactNode>;
+  // --- panel-basics --- every group's name, for the search results (a group the rail leaves out in this mode included)
+  const groupLabels: Record<ControlSection, string> = { ball: t("ballPhysicsTab"), wall: t("wallSettingsTab"), visual: t("visualEffectsTab"), sound: t("customSoundTab"), teams: t("teamsTab"), obstacles: t("obstaclesTab"), captions: t("captionsTab"), timeline: t("timelineTab"), arenas: t("splitTab"), recording: t("recordingTab") };
 
   const choosePalette = (entry: PaletteEntry) => {
     setPaletteOpen(false);
@@ -1651,10 +1768,13 @@ export default function Controls(props: ControlsProps) {
     // under the panel, open or not: its entries open no group.
     const project = entry.kind === "control" && PROJECT_KEYS.includes(entry.key);
     if (!project) openGroup(entry.section as StudioSection);
+    // --- panel-basics --- a control of a named row of the Recording group opens its row
+    const row = entry.kind === "control" ? foldRowOf(entry.key) : null;
+    if (row) setRows((r) => (r[row] ? r : { ...r, [row]: true }));
     // (a section's controls are looked for among its own search results – two sections may name a control alike; a mode
     // block's show in the Ball or Visual section's results, the project file's apart, found by their keys and labels)
     const results = project || entry.section === "mode" || entry.section === "presets" ? null : `studio-results-${entry.section}`;
-    pendingFocus.current = entry.kind === "control" ? { label: entry.label, key: entry.key, block: project ? "studio-block-project" : `studio-block-${entry.section}`, results, searched: false } : null;
+    pendingFocus.current = entry.kind === "control" ? { label: entry.label, key: entry.key, block: project ? "studio-block-project" : entry.section === "mode" ? "studio-mode-own" /* --- panel-basics --- */ : `studio-block-${entry.section}`, results, searched: false } : null;
     setFocusTick((n) => n + 1);
   };
   useEffect(() => {
@@ -1689,6 +1809,8 @@ export default function Controls(props: ControlsProps) {
   const openSetting = useRef<(key: string) => void>(() => {});
   useEffect(() => {
     openSetting.current = (key) => {
+      const row = foldRowOf(key); // --- panel-basics --- (the fast export's Publish button: the Publish row)
+      if (row) setRows((r) => (r[row] ? r : { ...r, [row]: true }));
       const section = (Object.keys(SECTION_KEYS) as ControlSection[]).find((id) => SECTION_KEYS[id].includes(key));
       if (!section || !sections.some((item) => item.id === section)) return;
       const shown = paletteKeyGroups(paletteShown, [section], false).some((group) => group.keys.includes(key));
@@ -1708,6 +1830,101 @@ export default function Controls(props: ControlsProps) {
     window.addEventListener(OPEN_SETTING_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_SETTING_EVENT, onOpen);
   }, []);
+
+  // --- panel-basics --- Undo: a snapshot of the settings each time they rest for a moment after a change (UNDO_SETTLE_MS),
+  // restored through the page's own update path, within one mode (a mode switch builds its own settings: the history starts
+  // again there). The button sits beside Reset; Ctrl/Cmd+Z undoes too where the focus is not in a text field.
+  const undoRef = useRef<{ history: SimulatorSettings[]; settled: SimulatorSettings; timer: number; restoring: boolean }>({ history: [], settled: s, timer: 0, restoring: false });
+  const [undoable, setUndoable] = useState(false);
+  const [resetFlash, setResetFlash] = useState(false);
+  useEffect(() => {
+    const u = undoRef.current;
+    window.clearTimeout(u.timer);
+    if (s.mode !== u.settled.mode) {
+      u.history = [];
+      u.settled = s;
+      u.restoring = false;
+      setUndoable(false);
+      return;
+    }
+    if (u.restoring) {
+      // (the settings an undo put back are the new resting point, not a step of their own)
+      u.restoring = false;
+      u.settled = s;
+      setUndoable(u.history.length > 0);
+      return;
+    }
+    if (s === u.settled) return;
+    setUndoable(true);
+    u.timer = window.setTimeout(() => {
+      if (!undoPatch(u.settled, s)) return;
+      u.history = pushUndo(u.history, u.settled);
+      u.settled = s;
+    }, UNDO_SETTLE_MS);
+    return () => window.clearTimeout(u.timer);
+  }, [s]);
+  const settingsRef = useRef(s);
+  settingsRef.current = s;
+  const undo = useCallback(() => {
+    const u = undoRef.current;
+    window.clearTimeout(u.timer);
+    // a change still settling is undone first (back to where the settings last rested), then the history, newest first
+    let patch = undoPatch(u.settled, settingsRef.current);
+    if (!patch) {
+      while (u.history.length > 0 && !patch) patch = undoPatch(u.history.pop()!, settingsRef.current);
+    }
+    if (!patch) {
+      setUndoable(false);
+      return;
+    }
+    u.restoring = true;
+    setResetFlash(false);
+    update(patch);
+  }, [update]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "z" || e.defaultPrevented) return;
+      if (typesText(e.target) || document.querySelector("dialog[open]")) return;
+      e.preventDefault();
+      undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo]);
+  // (after Reset Category the Undo button stands out for a few seconds)
+  useEffect(() => {
+    if (!resetFlash) return;
+    const id = window.setTimeout(() => setResetFlash(false), 4000);
+    return () => window.clearTimeout(id);
+  }, [resetFlash]);
+
+  // --- panel-basics --- Continue where you left off: the studio's last address is kept in this browser (a bare address
+  // never wipes it), and a visit to the bare studio address offers it in the starter block until the visitor changes
+  // something (the address then has a query of its own).
+  // (this runs before the page mirrors its settings into the address: a bare arrival is seen as one, and a link is kept at
+  // once; a bare arrival's own defaults never replace the last visit until something is changed)
+  const visit = useRef<{ arrived: SimulatorSettings; bare: boolean; changed: boolean }>({ arrived: s, bare: false, changed: false });
+  useEffect(() => {
+    const v = visit.current;
+    v.bare = !window.location.search;
+    if (v.bare) setLastVisit(readStudioQuery());
+    else rememberStudioQuery(window.location.search);
+    const onHide = () => {
+      if (!v.bare || v.changed) rememberStudioQuery(window.location.search);
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
+  useEffect(() => {
+    const v = visit.current;
+    if (s === v.arrived && !v.changed) return;
+    v.changed = true;
+    const id = window.setTimeout(() => {
+      rememberStudioQuery(window.location.search);
+      setLastVisit(null);
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [s]);
 
   /** Opens the palette. --- review fix (site-redesign) --- a jump of the last one still looking for its control is dropped. */
   const openPalette = useCallback(() => {
@@ -1793,7 +2010,66 @@ export default function Controls(props: ControlsProps) {
     </div>
   );
 
-  const modePanel = () => (
+  // --- panel-basics --- The starter block, under the mode card while no other group is open: the three steps (pick a mode,
+  // make it yours, export and share), then the six settings a visitor changes first, with the controls of their home
+  // groups (the theme cards, the ball's colour, size and speed, the clip length, the top text). It folds away, and starts
+  // folded once Show Advanced Options is on. A visit to the bare studio address offers the last one's settings here.
+  const starterBlock = () => {
+    const resumeMode = lastVisit ? studioQueryMode(lastVisit) : null;
+    const step = (n: number, label: string, onClick: () => void) => (
+      <li className="min-w-0">
+        <button type="button" onClick={onClick} className="flex h-full w-full flex-col items-start gap-1 rounded-md border border-line bg-surface-2 px-2.5 py-2 text-left text-xs font-medium leading-tight text-ink-2 hover:border-line-strong hover:text-ink cursor-pointer">
+          <span className="num flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] text-ink">{n}</span>
+          <span className="min-w-0">{label}</span>
+        </button>
+      </li>
+    );
+    return (
+      <div className="space-y-3" data-testid="studio-starter">
+        <ol className="grid grid-cols-3 gap-1.5" data-testid="studio-steps">
+          {step(1, howItWorks("step1.title"), () => props.onOpenModePicker?.())}
+          {step(2, howItWorks("step2.title"), () => {
+            setStarterOpen(true);
+            window.setTimeout(() => document.getElementById("studio-starter-body")?.scrollIntoView({ block: "nearest" }), 0);
+          })}
+          {step(3, howItWorks("step3.title"), () => openGroup("recording"))}
+        </ol>
+        {lastVisit && resumeMode && resumeMode in modeNames && (
+          <a
+            href={`${window.location.pathname}${lastVisit}`}
+            className="flex items-center justify-between gap-3 rounded-md border border-accent-dim/60 bg-accent/10 px-3 py-2 text-sm text-ink hover:bg-accent/15"
+            data-testid="studio-continue"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium">{site("studio.continueLast")}</span>
+              <span className="block truncate text-xs text-ink-2">{modeNames[resumeMode as ModeId]}</span>
+            </span>
+            <IconChevronDown size={16} className="-rotate-90 text-ink-3" />
+          </a>
+        )}
+        <section className="rounded-lg border border-line" aria-labelledby="studio-starter-title">
+          <h3 id="studio-starter-title" className="m-0">
+            <button type="button" aria-expanded={starterOpen} aria-controls="studio-starter-body" onClick={() => setStarterOpen(!starterOpen)} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium text-ink hover:bg-surface-2 cursor-pointer">
+              <span>{howItWorks("step2.title")}</span>
+              <IconChevronDown size={16} className={cx("text-ink-3 transition-transform duration-150", starterOpen && "rotate-180")} />
+            </button>
+          </h3>
+          {starterOpen && (
+            <div id="studio-starter-body" className="space-y-4 border-t border-line px-3 pb-4 pt-3">
+              <ThemeCards t={t} search="" matches={matches} settings={s} update={update} />
+              {ballColorControl()}
+              {ballSizeControl()}
+              {ballSpeedControl()}
+              {durationControl()}
+              {bannerTextControl("topText", "starter-")}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  };
+
+  const modePanel = (own = modeSpecific()) => (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
         <span className="min-w-0 truncate text-md font-medium text-ink">{modeNames[s.mode]}</span>
@@ -1802,7 +2078,8 @@ export default function Controls(props: ControlsProps) {
           {t("modeDisplay")}
         </Button>
       </div>
-      {modeSpecific()}
+      {!section && starterBlock() /* --- panel-basics --- */}
+      {own && <div id="studio-mode-own">{own}</div> /* --- panel-basics --- (the palette looks for a mode's control here, not in the starter block) */}
     </div>
   );
 
@@ -1821,6 +2098,10 @@ export default function Controls(props: ControlsProps) {
             (id) =>
               sectionMatches(keysOf(id)) && (
                 <div key={id} id={`studio-results-${id}`} /* --- review fix (site-redesign) --- (the palette looks for a section's control among its own results) */>
+                  {/* --- panel-basics --- the group's name over its results: a found control says where it lives */}
+                  <h2 className="eyebrow mb-3 text-ink-3" data-results-group={id}>
+                    {groupLabels[id]}
+                  </h2>
                   {renderSection(id)}
                 </div>
               ),
@@ -1835,10 +2116,27 @@ export default function Controls(props: ControlsProps) {
       </section>
     );
     const sectionItem = section ? railItems.find((item) => item.id === section) : null;
+    // --- panel-basics --- a group that holds controls behind Show Advanced Options ends with a quiet row: how many, and a
+    // press turns the switch on
+    const hidden = sectionItem && !advanced ? advancedCount(sectionItem.id as ControlSection, paletteShown, { tones: s.hitSoundMode === "tones", musicTrack: !!props.musicTrack, onBeat: s.onBeat, breathing: s.breathingAmplitude > 0 }) : 0;
+    const advancedRow = hidden > 0 && (
+      <button type="button" onClick={() => setAdvancedPersist(true)} className="mt-4 flex w-full items-center justify-between gap-3 rounded-md border border-dashed border-line px-3 py-2 text-left text-sm text-ink-3 hover:border-line-strong hover:text-ink-2 cursor-pointer" data-advanced-row={hidden}>
+        <span>{t("showAdvancedOptions")}</span>
+        <span className="num rounded-full bg-surface-2 px-2 text-xs text-ink-2">{hidden}</span>
+      </button>
+    );
     return (
       <div className="space-y-6">
         {modeOpen && block("mode", t("modeSpan"), modePanel())}
-        {sectionItem && block(sectionItem.id, sectionItem.label, renderSection(sectionItem.id as ControlSection))}
+        {sectionItem &&
+          block(
+            sectionItem.id,
+            sectionItem.label,
+            <>
+              {renderSection(sectionItem.id as ControlSection)}
+              {advancedRow}
+            </>,
+          )}
         {presetsOpen && block("presets", t("savedPresetsSpan"), presetsPanel())}
         {!modeOpen && !sectionItem && !presetsOpen && <p className="py-8 text-center text-sm text-ink-3">{site("studio.panelEmpty")}</p>}
         {props.project && (
@@ -1903,6 +2201,20 @@ export default function Controls(props: ControlsProps) {
                   </button>
                 )}
               </div>
+              {/* --- panel-basics --- Undo (Ctrl/Cmd+Z where the focus is not in a text field), at the top of the panel beside its
+                  search: in a 340 px panel the foot holds Reset Category and the switch's label on one line, no more. After
+                  Reset Category it stands out for a moment. */}
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!undoable}
+                aria-label={customContent("undo")}
+                title={`${customContent("undo")} (${mod} Z)`}
+                className={cx("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11", resetFlash && undoable && "text-accent ring-1 ring-accent/60")}
+                data-testid="studio-undo"
+              >
+                <IconUndo size={18} />
+              </button>
               {phone && (
                 <button type="button" onClick={() => setSheetOpen(false)} aria-label={site("studio.closeSettings")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11">
                   <IconClose />
@@ -1914,7 +2226,16 @@ export default function Controls(props: ControlsProps) {
             </div>
             <div className="studio-panel-foot">
               {resettable && !search ? (
-                <Button variant="ghost" size="sm" className="-ml-2" icon={<IconReset size={16} />} onClick={() => props.onResetSection(resettable)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-2"
+                  icon={<IconReset size={16} />}
+                  onClick={() => {
+                    props.onResetSection(resettable);
+                    setResetFlash(true); // --- panel-basics --- (Undo, at the top of the panel, stands out for a moment)
+                  }}
+                >
                   {t("resetSection")}
                 </Button>
               ) : (

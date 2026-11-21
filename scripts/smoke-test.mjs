@@ -317,6 +317,16 @@ const pickModeCard = async (name) => {
   await page.locator('dialog [role="button"]', { hasText: name }).first().click();
 };
 
+/**
+ * --- panel-basics --- The Recording group's Batch Render, Clip planner and Publish blocks open from a named row (its
+ * data-recording-row: "batch", "bot", "publish"): opens the row on page `p` when it is closed (the group must be open).
+ */
+const openRecordingRow = async (p, id) => {
+  const row = p.locator(`[data-recording-row="${id}"]`);
+  await row.waitFor({ timeout: 10000 }).catch(() => {});
+  if ((await row.getAttribute("aria-expanded").catch(() => null)) === "false") await row.click();
+};
+
 /** Sets a React-controlled range input the way a user drag would (runs in the page). */
 const setRangeValue = (el, value) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -1890,6 +1900,7 @@ await smokeBlock("review-fix-recording-export", async () => {
   await page.evaluate(() => localStorage.setItem("jumpingballslive_batch_render", JSON.stringify({ v: 1, source: "list", list: "101", variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 10, sweepTo: 120, sweepSteps: 3 })));
   await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
+  await openRecordingRow(page, "batch"); // --- panel-basics ---
   const sweepSummary = await page.locator("[data-batch]").getByText(/clips? · 500×500/).first().innerText({ timeout: 10000 }).catch(() => "");
   check("the batch summary of a clip-length sweep names its longest clip", /up to 120 s each/.test(sweepSummary), `("${sweepSummary}")`);
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
@@ -6324,6 +6335,7 @@ const jrSeed = async () => (await canvasData()).seed;
   if (webCodecs) {
     await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
     await page.getByRole("button", { name: /Recording/ }).click();
+    await openRecordingRow(page, "batch"); // --- panel-basics ---
     const block = page.locator("[data-batch]");
     await block.waitFor({ timeout: 10000 });
     await block.getByRole("button", { name: "Seed list", exact: true }).click();
@@ -6393,6 +6405,7 @@ await smokeBlock("batch-render", async () => {
   const batchRows = () => page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), file: e.getAttribute("data-batch-file"), seed: e.getAttribute("data-batch-seed") })));
   const openBatch = async () => {
     await page.getByRole("button", { name: /Recording/ }).click();
+    await openRecordingRow(page, "batch"); // --- panel-basics ---
     await page.locator("[data-batch]").waitFor({ timeout: 10000 });
     return page.locator("[data-batch]");
   };
@@ -7301,6 +7314,7 @@ await smokeBlock("viral-bot", async () => {
   const botRows = () => page.locator("[data-bot-clip]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-clip"), recipe: e.getAttribute("data-bot-recipe"), score: Number(e.getAttribute("data-bot-score")), ending: e.getAttribute("data-bot-ending"), seed: e.getAttribute("data-bot-seed") })));
   const openBot = async () => {
     await page.getByRole("button", { name: /Recording/ }).click();
+    await openRecordingRow(page, "bot"); // --- panel-basics ---
     await page.locator("[data-bot]").waitFor({ timeout: 10000 });
     return page.locator("[data-bot]");
   };
@@ -7421,6 +7435,7 @@ await smokeBlock("viral-bot", async () => {
       await fp.reload({ waitUntil: "networkidle" });
       const openFree = async () => {
         await fp.getByRole("button", { name: /Recording/ }).click();
+        await openRecordingRow(fp, "bot"); // --- panel-basics ---
         await fp.locator("[data-bot]").waitFor({ timeout: 10000 });
         return fp.locator("[data-bot]");
       };
@@ -9428,6 +9443,7 @@ await smokeBlock("social-publish", async () => {
   const clipFile = { name: "smoke-clip.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(700 * 1024, 7) };
   const openPublish = async (p) => {
     await p.getByRole("button", { name: /Recording/ }).click();
+    await openRecordingRow(p, "publish"); // --- panel-basics ---
     await p.locator("[data-publish]").waitFor({ timeout: 15000 });
     return p.locator("[data-publish]");
   };
@@ -9920,6 +9936,7 @@ await smokeBlock("desktop-exe", async () => {
     );
     // In the app the Publish block offers YouTube through the relay (Google's sign-in does not take app:// as an origin)
     await dp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+    await openRecordingRow(dp, "publish"); // --- panel-basics ---
     const appYouTube = await dp.getByTestId("publish-app-youtube").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
     const directYouTube = await dp.locator('[data-publish-connect="youtube-direct"]').count();
     const ytSetup = await dp.getByTestId("publish-yt-settings").count();
@@ -11482,6 +11499,124 @@ await smokeBlock("studio-fit", async () => {
   check("studio-fit: no page errors", fitErrors.length === 0, fitErrors.length ? `\n   ${fitErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end studio-fit ---
+});
+
+await smokeBlock("panel-basics", async () => {
+// --- panel-basics --- The studio panel's basics, at 1280 px. The Mode group opens with the three steps and the starter block
+// (the theme cards, the ball's colour, size and speed, the clip length, the top text), gone once a group opens; Ball &
+// Physics starts with speed and size, shows Gravity with Show Advanced Options off and ends with a row that says how many
+// controls the switch adds and turns it on; a search result carries its group's name, and "colour", "length" and "hook"
+// find their settings; Recording shows Batch Render, the Clip planner and Publish as closed rows a press opens; Undo (the
+// button, and Ctrl+Z outside a text field) takes a change back; a bare studio address offers to continue the last visit.
+{
+  const pbErrors = [];
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => pbErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && pbErrors.push(`console: ${m.text()}`));
+    const rail = (name) => p.getByRole("toolbar").getByRole("button", { name, exact: true });
+    const query = () => new URL(p.url()).searchParams;
+    await p.goto(`${BASE}/en/simulator/?mode=pendulum&r=14`, { waitUntil: "networkidle" });
+    await p.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 });
+    await p.waitForTimeout(300);
+    // 1. the steps and the starter block
+    const starter = await p.evaluate(() => {
+      const box = document.querySelector('#studio-block-mode [data-testid="studio-starter"]');
+      if (!box) return null;
+      return {
+        steps: [...box.querySelectorAll('[data-testid="studio-steps"] button')].map((b) => (b.textContent ?? "").replace(/^\d/, "").trim()),
+        theme: !!box.querySelector('[role="group"][aria-label="Theme"]'),
+        sliders: [...box.querySelectorAll('input[type="range"][aria-label]')].map((i) => i.getAttribute("aria-label")),
+        colour: !!box.querySelector('input[type="color"]'),
+        topText: !!box.querySelector("#starter-topText-input"),
+        expanded: box.querySelector('[aria-controls="studio-starter-body"]')?.getAttribute("aria-expanded"),
+      };
+    });
+    check(
+      "panel basics: the Mode group opens with the three steps and the starter block (theme cards, ball colour, size and speed, clip length, top text)",
+      !!starter && starter.steps.join() === "Pick a Mode,Make It Yours,Export and Share" && starter.theme && starter.sliders.join() === "Ball Size,Ball Speed,Duration" && starter.colour && starter.topText && starter.expanded === "true",
+      `(${JSON.stringify(starter)})`,
+    );
+    // 2. Ball & Physics: the basics first, Gravity with the switch off, the row of what the switch adds
+    await rail("Ball & Physics").click();
+    await p.waitForTimeout(300);
+    const ball = await p.evaluate(() => {
+      const block = document.getElementById("studio-block-ball");
+      const sliders = [...block.querySelectorAll('input[type="range"][aria-label]')].map((i) => i.getAttribute("aria-label"));
+      const row = block.querySelector("[data-advanced-row]");
+      return { starter: !!document.querySelector('[data-testid="studio-starter"]'), first: sliders.slice(0, 2), gravity: sliders.includes("Gravity"), airDrag: sliders.includes("Air Drag"), row: row ? Number(row.getAttribute("data-advanced-row")) : 0, rowLast: !!row && !row.nextElementSibling };
+    });
+    await p.locator("#studio-block-ball [data-advanced-row]").click();
+    await p.waitForTimeout(300);
+    const after = await p.evaluate(() => ({ on: document.querySelector(".studio-panel-foot input.switch")?.checked, row: !!document.querySelector("[data-advanced-row]"), airDrag: !!document.querySelector('#studio-block-ball input[aria-label="Air Drag"]') }));
+    await p.locator(".studio-panel-foot input.switch").uncheck();
+    check(
+      "panel basics: Ball & Physics starts with speed and size, shows Gravity with the switch off, and ends with a row (8 controls) that turns the switch on",
+      !ball.starter && ball.first.join() === "Ball Speed,Ball Size" && ball.gravity && !ball.airDrag && ball.row === 8 && ball.rowLast && after.on === true && !after.row && after.airDrag,
+      `(${JSON.stringify(ball)}, after ${JSON.stringify(after)})`,
+    );
+    // 3. the search: the group's name over its results, and the words people type
+    const search = p.getByPlaceholder("Search settings...");
+    const results = async (q) => {
+      await search.fill(q);
+      await p.waitForTimeout(250);
+      return p.evaluate(() => ({ groups: [...document.querySelectorAll("[data-results-group]")].map((h) => h.textContent), keys: [...document.querySelectorAll("#studio-panel-body [data-search-key]")].map((el) => el.getAttribute("data-search-key")) }));
+    };
+    const colour = await results("colour");
+    const length = await results("length");
+    const hook = await results("hook");
+    await search.fill("");
+    check(
+      "panel basics: a search names each group over its results, and colour, length and hook find Ball Color, the clip's Duration and the top text",
+      colour.groups.includes("Ball & Physics") && colour.keys.includes("ballColor") && colour.keys.includes("wallColor") && length.groups.includes("Recording") && length.keys.includes("videoDuration") && hook.groups.join() === "Recording" && hook.keys.join() === "topText",
+      `(colour ${JSON.stringify(colour)}, length ${JSON.stringify(length)}, hook ${JSON.stringify(hook)})`,
+    );
+    // 4. Recording: the three named rows, closed, a press opens one
+    await rail("Recording").click();
+    await p.waitForTimeout(300);
+    const rows = await p.evaluate(() => ({ rows: [...document.querySelectorAll("#studio-block-recording [data-recording-row]")].map((b) => `${b.getAttribute("data-recording-row")}:${b.getAttribute("aria-expanded")}`), batch: !!document.querySelector("[data-batch]"), top: !!document.querySelector("#topText-input") }));
+    await p.locator('[data-recording-row="batch"]').click();
+    const opened = await p.locator("[data-batch]").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    check(
+      "panel basics: Recording shows Batch Render, the Clip planner and Publish as closed rows (a press opens one), and the top text with the switch off",
+      rows.rows.join() === "batch:false,bot:false,publish:false" && !rows.batch && rows.top && opened,
+      `(${JSON.stringify(rows)}, opened ${opened})`,
+    );
+    // 5. Undo: the button, then Ctrl+Z outside a text field
+    await rail("Ball & Physics").click();
+    await p.waitForTimeout(300);
+    const size = p.getByRole("slider", { name: "Ball Size", exact: true });
+    await size.evaluate(setRangeValue, "25");
+    await p.waitForFunction(() => new URL(location.href).searchParams.get("r") === "25", null, { timeout: 5000 }).catch(() => {});
+    const changed = query().get("r");
+    await p.waitForTimeout(700);
+    await p.getByTestId("studio-undo").click();
+    await p.waitForFunction(() => new URL(location.href).searchParams.get("r") === "14", null, { timeout: 5000 }).catch(() => {});
+    const undone = query().get("r");
+    await size.evaluate(setRangeValue, "20");
+    await p.waitForTimeout(700);
+    await p.getByTestId("studio-undo").focus();
+    await p.keyboard.press("Control+z");
+    await p.waitForFunction(() => new URL(location.href).searchParams.get("r") === "14", null, { timeout: 5000 }).catch(() => {});
+    const keyUndone = query().get("r");
+    check("panel basics: Undo takes a change back, and so does Ctrl+Z outside a text field", changed === "25" && undone === "14" && keyUndone === "14", `(r ${changed} → undo ${undone}; 20 → Ctrl+Z ${keyUndone})`);
+    // 6. a bare studio address offers the last visit
+    const bare = await ctx.newPage();
+    await bare.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    const offer = bare.getByTestId("studio-continue");
+    const offered = await offer.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const href = offered ? await offer.getAttribute("href") : null;
+    const offerText = offered ? (await offer.innerText()).replace(/\s+/g, " ") : "";
+    check("panel basics: a bare studio address offers to continue the last visit, in its mode", offered && /mode=pendulum/.test(href ?? "") && /Continue where you left off/.test(offerText) && /Pendulum/.test(offerText), `(${href}, "${offerText}")`);
+  } catch (err) {
+    check("panel-basics checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+  check("panel-basics: no page errors", pbErrors.length === 0, pbErrors.length ? `\n   ${pbErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end panel-basics ---
 });
 
 await smokeBlock("gerald-conveyor", async () => {
@@ -14694,6 +14829,7 @@ await smokeBlock("free-watermark", async () => {
       await free.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
       await free.reload({ waitUntil: "networkidle" });
       await free.getByRole("button", { name: /Recording/ }).click();
+      await openRecordingRow(free, "batch"); // --- panel-basics ---
       const block = free.locator("[data-batch]");
       await block.waitFor({ timeout: 10000 }).catch(() => {});
       await block.getByRole("button", { name: "Seed list", exact: true }).click().catch(() => {});
@@ -20186,6 +20322,7 @@ await smokeBlock("user-accounts", async () => {
     // The studio: the Publish block says who is signed in and opens the account in a dialog.
     await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
     await p.getByRole("button", { name: /Recording/i }).first().click();
+    await openRecordingRow(p, "publish"); // --- panel-basics ---
     const line = p.getByTestId("publish-account-line");
     await line.waitFor({ timeout: 10000 });
     await p.getByTestId("publish-account-open").click();

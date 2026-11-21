@@ -597,6 +597,14 @@ dialog.ui-dialog[open] {
       transform: none;
       margin-bottom: 0;
     }
+    /* --- panel-basics --- the notes (the free watermark, how the last export went) right under the transport bar, above
+       the Find block, so they are on the first screen */
+    .studio-notes {
+      order: 1;
+    }
+    .studio-finder {
+      order: 2;
+    }
     .studio-sheet-open .studio-transport {
       bottom: var(--studio-sheet-h);
       flex-wrap: nowrap;
@@ -823,6 +831,16 @@ dialog.ui-dialog[open] {
       height: auto;
       min-height: 44px;
     }
+  }
+
+  /* --- panel-basics --- a named row of the Recording group (FoldRow.tsx) is its block's heading: the block's own heading
+     line and its top rule are left out inside it */
+  .studio-fold-body > div > span:first-child:has(> [data-tip]) {
+    display: none;
+  }
+  .studio-fold-body > div:first-child {
+    border-top: 0;
+    padding-top: 0;
   }
 
   /* A control the command palette jumped to: a brief accent outline. */

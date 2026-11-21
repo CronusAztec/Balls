@@ -35,6 +35,7 @@ import pkg from "../package.json";
 import { paletteKeyGroups, type ControlSection } from "@/components/simulator/Controls";
 import { MODE_BLOCK_KEYS, MODE_BLOCK_KEY_SET, sectionKeyShown, wallControlsOf, type PanelShown } from "@/components/simulator/panelKeys";
 import { supportsObstacles } from "@/lib/physics/obstacleEditor";
+import { SETTING_SEARCH_WORDS, settingSearchWords } from "@/components/simulator/panelKeys"; // --- panel-basics ---
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -616,3 +617,47 @@ describe("design rules", () => {
     for (const layout of ["app/[locale]/layout.tsx", "app/(static)/layout.tsx"]) expect(fs.readFileSync(path.join(__dirname, "..", "src", layout), "utf8")).not.toMatch(/fonts\.googleapis/);
   });
 });
+
+/* --- panel-basics --- the words a visitor types for a setting: the panel's search and the palette find it by them */
+describe("command palette and panel search: the words people type", () => {
+  const PANEL: Omit<PanelShown, "mode"> = { ballPicture: false, showTrails: true, glassGates: false, wobblyWalls: false, simulationFound: false, bannerText: false, arenas: false, teams: false, captions: false, videoBackground: false, videoBeats: true, batch: true, bot: true };
+  const railOf = (mode: ModeId): ControlSection[] => ["ball", "wall", "visual", "sound", "teams", ...(supportsObstacles(mode) ? (["obstacles"] as const) : []), "captions", "timeline", "arenas", "recording"];
+  const entriesOf = (locale: "en" | "pl" | "es", catalog: { Controls: unknown }) => {
+    const controls = catalog.Controls as Record<string, unknown>;
+    const groups = paletteKeyGroups({ ...PANEL, mode: "classic" }, railOf("classic"), true).map((g) => ({ ...g, label: g.section }));
+    return paletteControlEntries(groups, (key) => (typeof controls[key] === "string" ? (controls[key] as string) : null), (key) => settingSearchWords(key, locale) || undefined);
+  };
+  const found = (entries: PaletteEntry[], query: string) => paletteMatches(entries, query, 200).filter((e) => e.kind === "control").map((e) => e.key);
+
+  it("finds a setting by the word a visitor types, in English on every page and in the page's language", () => {
+    const english = entriesOf("en", en);
+    expect(found(english, "colour")).toEqual(expect.arrayContaining(["ballColor", "wallColor", "colorTrail"]));
+    expect(found(english, "color")).toEqual(expect.arrayContaining(["ballColor", "wallColor", "colorTrail"]));
+    expect(found(english, "length")).toContain("videoDuration");
+    expect(found(english, "seconds")).toContain("videoDuration");
+    expect(found(english, "hook")).toEqual(["topText"]);
+    expect(found(english, "logo")).toEqual(["customWatermark"]);
+    expect(found(english, "share")).toContain("publish");
+    expect(found(entriesOf("pl", pl), "długość")).toContain("videoDuration");
+    expect(found(entriesOf("pl", pl), "length")).toContain("videoDuration");
+    expect(found(entriesOf("es", es), "gancho")).toEqual(["topText"]);
+    expect(settingSearchWords("topText", "es")).toBe(`${SETTING_SEARCH_WORDS.topText.es} ${SETTING_SEARCH_WORDS.topText.en}`);
+    expect(settingSearchWords("topText", "en")).toBe(SETTING_SEARCH_WORDS.topText.en);
+    expect(settingSearchWords("noSuchKey", "pl")).toBe("");
+  });
+
+  it("keeps the words lower case, each once, and away from the queries the palette answers in one way", () => {
+    for (const [key, words] of Object.entries(SETTING_SEARCH_WORDS)) {
+      for (const locale of SEARCH_LOCALES) {
+        const list = words[locale].split(" ");
+        expect(words[locale], `${key} ${locale}`).toBe(words[locale].toLowerCase().trim());
+        expect(new Set(list).size, `${key} ${locale}`).toBe(list.length);
+      }
+    }
+    // (the smoke suite types "grav" in Classic and expects one Gravity; no setting's word is a mode's name)
+    expect(found(entriesOf("en", en), "grav")).toEqual(["gravity", "rotatingGravity"]);
+    const modeNames = MODE_IDS.map((id) => (en.Modes as unknown as Record<string, { name: string }>)[id].name.toLowerCase());
+    for (const words of Object.values(SETTING_SEARCH_WORDS)) for (const word of words.en.split(" ")) expect(modeNames, word).not.toContain(word);
+  });
+});
+

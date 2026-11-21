@@ -22,6 +22,8 @@ import { IconClose, IconUpload, IconVideo, IconWave } from "@/components/ui/icon
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.sound in Controls.tsx). */
 export const VIDEO_BEATS_KEYS = ["vbSource", "vbMedia", "vbMarkers", "vbVideoBg", "vbVideoOpacity", "vbOnBeat", "vbOnBeatRange"];
+/** --- panel-basics --- The keys this block shows with Show Advanced Options only (Controls.tsx ADVANCED_KEYS: its row's count). */
+export const VIDEO_BEATS_ADVANCED_KEYS = ["vbOnBeatRange"] as const;
 
 const SOURCE_LABELS: Record<BeatSourceKind, string> = { bpm: "sourceBpm", song: "sourceSong", media: "sourceMedia", manual: "sourceManual" };
 const smallBtn = "px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
