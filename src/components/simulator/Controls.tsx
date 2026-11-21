@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, Searchable, Slider, SliderTrack, Toggle, TrackEnds, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives"; // --- unlimited-sizes --- (SliderTrack, TrackEnds: the hand-written tracks widen too)
@@ -124,7 +124,8 @@ import { useModifierKey } from "@/components/ui/useModifierKey";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
-import { modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import { StageModeContext } from "./studio/StageStrip"; // --- studio-fit --- the strip's mode arrows read the mode from here
+import { OPEN_SETTING_EVENT, modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
 import { modePaletteWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does, its shelf's among them
 import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
@@ -1466,9 +1467,12 @@ export default function Controls(props: ControlsProps) {
   // --- site-redesign --- the studio: the rail (a tab strip below 1280 px), the stage the page hands in, and the panel with
   // the open blocks – the Mode block, the open group (today's renderSection() output), Saved Presets, the project file –
   // under a pinned search field, the open group's Reset and Show Advanced Options below.
+  // --- studio-fit --- below 1280 px the rail is a strip that scrolls sideways: Recording (the clip's length and format) comes
+  // third there, after Mode and Ball & Physics, instead of a few swipes along (the order of the DOM, so the arrow keys agree)
+  const stripOrder = railColumn ? sections : [...sections.slice(0, 1), ...sections.filter((item) => item.id === "recording"), ...sections.slice(1).filter((item) => item.id !== "recording")];
   const railItems: (TabStripItem & { id: StudioSection })[] = [
     { id: "mode", label: t("modeSpan"), icon: <IconGrid /> },
-    ...sections,
+    ...stripOrder,
     { id: "presets", label: t("savedPresetsSpan"), icon: <IconBookmark /> },
   ];
   const isOpen = (id: StudioSection) => (id === "mode" ? modeOpen : id === "presets" ? presetsOpen : section === id);
@@ -1492,6 +1496,8 @@ export default function Controls(props: ControlsProps) {
     const searching = !!search;
     setSearch("");
     if (searching || !panelOpen || !isOpen(item)) return openGroup(item);
+    // --- studio-fit --- the Mode item of a Mode block already shown opens the mode picker (it used to hide the block)
+    if (item === "mode" && props.onOpenModePicker) return props.onOpenModePicker();
     // --- review fix (site-redesign) --- on a phone a press on an open tab puts the sheet away and keeps its blocks (the next
     // press brings them back): with the Mode block open from the start, the sheet used to stay up over the transport bar
     if (phone) return setSheetOpen(false);
@@ -1508,6 +1514,61 @@ export default function Controls(props: ControlsProps) {
     if (id === "mode") return;
     document.getElementById(`studio-block-${id}`)?.scrollIntoView({ block: "nearest" });
   }, [scrollTick]);
+
+  // --- studio-fit --- a mode picked anywhere (the picker, the strip's arrows, the palette: the event they all send) is seen
+  // at once: on a phone the sheet goes down
+  useEffect(() => {
+    const onPick = () => setSheetOpen(false);
+    window.addEventListener("jumpingballslive:select-mode", onPick);
+    return () => window.removeEventListener("jumpingballslive:select-mode", onPick);
+  }, []);
+
+  // --- studio-fit --- on a phone the open sheet leaves the whole stage in view, not dimmed, with the transport bar between
+  // them: the page goes to the studio's top, the bar stays on one line (it scrolls sideways), and the stage frame scales
+  // down until the strip, the frame and the bar fit above the sheet. A transform, so the canvas keeps its size: the run goes
+  // on and a found seed stays (Canvas.tsx measures itself on a window resize only). The empty part of the frame's box is
+  // taken back with a negative margin, so the bar follows the picture.
+  const studioRef = useRef<HTMLDivElement>(null);
+  const sheetUp = phone && sheetOpen;
+  const [stageFit, setStageFit] = useState<{ scale: number; shrink: number } | null>(null);
+  useLayoutEffect(() => {
+    const root = studioRef.current;
+    if (!sheetUp || !root) {
+      setStageFit(null);
+      return;
+    }
+    root.closest("main")?.scrollIntoView({ block: "start" });
+    const measure = () => {
+      const column = root.querySelector<HTMLElement>(".studio-stage-column");
+      const frame = root.querySelector<HTMLElement>(".stage-frame");
+      const transport = root.querySelector<HTMLElement>(".studio-transport");
+      const desk = root.querySelector<HTMLElement>(".studio-desk");
+      const area = frame?.parentElement;
+      if (!column || !frame || !transport || !desk || !area || !frame.offsetHeight) return;
+      const header = document.querySelector("header")?.getBoundingClientRect().height ?? 56;
+      const frameRect = frame.getBoundingClientRect(); // (scaled from its top: the top is where it was)
+      const above = frameRect.top - column.getBoundingClientRect().top;
+      // below the picture: the rest of its area, then whatever stands between it and the bar (the timeline's markers)
+      let below = area.getBoundingClientRect().bottom - frameRect.bottom;
+      for (let el = area.nextElementSibling; el && el !== transport; el = el.nextElementSibling) below += (el as HTMLElement).offsetHeight;
+      const room = Math.min(window.innerHeight, document.documentElement.clientHeight) - header - desk.offsetHeight - transport.offsetHeight - above - below;
+      const scale = Math.min(1, Math.max(0.3, Math.floor((room / frame.offsetHeight) * 100) / 100));
+      const shrink = Math.round(frame.offsetHeight * (1 - scale));
+      setStageFit((fit) => (fit && fit.scale === scale && fit.shrink === shrink ? fit : { scale, shrink }));
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    for (const sel of [".stage-frame", ".studio-transport", ".studio-desk"]) {
+      const el = root.querySelector(sel);
+      if (el) watch.observe(el);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      watch.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [sheetUp]);
+  const stageFitStyle = stageFit ? ({ "--studio-stage-scale": String(stageFit.scale), "--studio-stage-shrink": `${stageFit.shrink}px` } as CSSProperties) : undefined;
 
   // The command palette: every group, and the controls this mode's panel shows in them. --- review fix (site-redesign) --- the
   // mode's own block under the Mode group, the other groups without the other modes' blocks and without the controls the
@@ -1581,7 +1642,7 @@ export default function Controls(props: ControlsProps) {
     // A control to focus, or – the search tried – what shows its label (a disabled picker, an upload area, a heading).
     if (target && (target.focusable || pending.searched)) {
       pendingFocus.current = null;
-      target.el.scrollIntoView({ block: "center" });
+      scrollIntoPanel(target.el); // --- studio-fit --- (the panel alone scrolls where it can: the stage stays where it is)
       if (target.focusable) target.el.focus({ preventScroll: true });
       const row = target.el.closest<HTMLElement>("[data-search-key], [data-uncap-slider], .space-y-2, .space-y-3") ?? target.el;
       row.setAttribute("data-palette-hit", "");
@@ -1597,6 +1658,32 @@ export default function Controls(props: ControlsProps) {
     setSearch(pending.label);
     setFocusTick((n) => n + 1);
   }, [focusTick]);
+
+  // --- studio-fit --- the stage strip's TIME and FORMAT open their setting with the palette's own jump (its group opens, the
+  // control is focused and outlined); a setting the panel does not show right now (the length once a run is found) opens
+  // its group alone
+  const openSetting = useRef<(key: string) => void>(() => {});
+  useEffect(() => {
+    openSetting.current = (key) => {
+      const section = (Object.keys(SECTION_KEYS) as ControlSection[]).find((id) => SECTION_KEYS[id].includes(key));
+      if (!section || !sections.some((item) => item.id === section)) return;
+      const shown = paletteKeyGroups(paletteShown, [section], false).some((group) => group.keys.includes(key));
+      if (!shown || !t.has(key)) {
+        setSearch("");
+        openGroup(section);
+        return;
+      }
+      choosePalette({ kind: "control", section, key, label: t(key), sectionLabel: "" });
+    };
+  });
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const key = (e as CustomEvent<unknown>).detail;
+      if (typeof key === "string") openSetting.current(key);
+    };
+    window.addEventListener(OPEN_SETTING_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_SETTING_EVENT, onOpen);
+  }, []);
 
   /** Opens the palette. --- review fix (site-redesign) --- a jump of the last one still looking for its control is dropped. */
   const openPalette = useCallback(() => {
@@ -1740,32 +1827,40 @@ export default function Controls(props: ControlsProps) {
   };
 
 
+  // The rail: the palette's Search item, then the groups. --- studio-fit --- with its labels wherever it shows (no hover labels).
+  const rail = (
+    <div className="studio-rail">
+      <button type="button" onClick={openPalette} className="studio-rail-item studio-rail-search" aria-label={site("studio.search")} title={`${site("studio.search")} (${mod} K)`}>
+        <IconSearch />
+        <span className="studio-rail-label" aria-hidden="true">{site("studio.search")}</span>
+        <Kbd className="ml-auto max-2xl:hidden">{mod} K</Kbd>
+      </button>
+      <TabStrip
+        items={railItems}
+        active={panelOpen && !search ? openIds : null}
+        onSelect={select}
+        label={site("studio.rail")}
+        controls="studio-panel"
+        className="studio-rail-items"
+        itemClassName="studio-rail-item"
+        labelClassName="studio-rail-label"
+        orientation={railColumn ? "vertical" : undefined}
+      />
+    </div>
+  );
+
   return (
     <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
-      <div className="studio" data-studio-active={section ?? (modeOpen ? "mode" : "")}>
-        <div className="studio-stage">{props.stage}</div>
-        {/* --- review fix (site-redesign) --- a tap outside the open sheet (on the dimmed stage) puts it away */}
-        {phone && sheetOpen && <div className="studio-scrim" aria-hidden="true" onClick={() => setSheetOpen(false)} data-testid="studio-scrim" />}
+      {/* --- studio-fit --- where the rail is a column on the left (from 1280 px) it comes first, so the Tab order follows the
+          screen: rail, stage, panel; below that it heads the desk (the tab strip over the panel, or the sheet's peek). The
+          open sheet of a phone no longer dims the stage behind a scrim: the stage stays in view and in use. */}
+      <div ref={studioRef} className={cx("studio", sheetUp && "studio-sheet-open")} style={stageFitStyle} data-studio-active={section ?? (modeOpen ? "mode" : "")}>
+        {railColumn && rail}
+        <StageModeContext.Provider value={s.mode}>
+          <div className="studio-stage">{props.stage}</div>
+        </StageModeContext.Provider>
         <div className={cx("studio-desk", sheetOpen && "studio-desk-open")}>
-          <div className="studio-rail">
-            <button type="button" onClick={openPalette} className="studio-rail-item studio-rail-search" aria-label={site("studio.search")} title={`${site("studio.search")} (${mod} K)`}>
-              <IconSearch />
-              <span className="studio-rail-label" aria-hidden="true">{site("studio.search")}</span>
-              <Kbd className="ml-auto max-2xl:hidden">{mod} K</Kbd>
-            </button>
-            <TabStrip
-              items={railItems}
-              active={panelOpen && !search ? openIds : null}
-              onSelect={select}
-              label={site("studio.rail")}
-              controls="studio-panel"
-              className="studio-rail-items"
-              itemClassName="studio-rail-item"
-              labelClassName="studio-rail-label"
-              tooltipClassName="studio-rail-tip"
-              orientation={railColumn ? "vertical" : undefined}
-            />
-          </div>
+          {!railColumn && rail}
           <aside id="studio-panel" className="studio-panel" aria-label={t("controlsTitle")} hidden={phone && !sheetOpen}>
             <div className="studio-panel-search">
               <div className="relative min-w-0 flex-1">
@@ -1814,8 +1909,24 @@ export default function Controls(props: ControlsProps) {
   );
 }
 
+/**
+ * --- studio-fit --- Brings `el` to the middle of the panel's own scroll box where the panel scrolls on its own (beside the
+ * stage, in the desk column, in the phone's sheet), so the page and its stage stay where they are; where the page scrolls
+ * the panel along (768–899 px), the page scrolls.
+ */
+function scrollIntoPanel(el: HTMLElement): void {
+  const body = el.closest<HTMLElement>("#studio-panel-body");
+  if (!body || !/(auto|scroll)/.test(getComputedStyle(body).overflowY) || body.scrollHeight <= body.clientHeight) {
+    el.scrollIntoView({ block: "center" });
+    return;
+  }
+  const b = body.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  body.scrollTop += r.top + r.height / 2 - (b.top + b.height / 2);
+}
+
 /** What the palette may focus: a shown, enabled field, button or link. */
-const FOCUSABLE = 'input:not([type="hidden"]), select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'input:not([type="hidden"]), select, textarea, button, a[href], [tabindex]:not([tabindex="-1"]):not([data-tip])'; // --- studio-fit --- (an info tip is never the control a jump focuses)
 const usable = (el: Element | null): el is HTMLElement => el instanceof HTMLElement && el.getClientRects().length > 0 && !(el as HTMLInputElement).disabled;
 /** The element itself when the palette may focus it, else the first such element inside it. */
 function focusableIn(el: HTMLElement): HTMLElement | null {

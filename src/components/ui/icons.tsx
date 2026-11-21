@@ -105,6 +105,12 @@ export const IconChevronRight = (p: IconProps) => (
     <path d="m8 5.5 4.5 4.5L8 14.5" />
   </Icon>
 );
+// --- studio-fit --- the stage strip's step to the previous mode
+export const IconChevronLeft = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 5.5 7.5 10l4.5 4.5" />
+  </Icon>
+);
 export const IconArrowLeft = (p: IconProps) => (
   <Icon {...p}>
     <path d="M15.5 10h-11M9 5.5 4.5 10 9 14.5" />

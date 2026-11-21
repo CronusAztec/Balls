@@ -18,6 +18,7 @@ import {
   modeShelves,
   modesForFilter,
   modesOnShelf,
+  modeNeighbours,
   paletteControlEntries,
   paletteMatches,
   shelfOf,
@@ -124,6 +125,20 @@ describe("mode shelves", () => {
     expect(MODE_SHELF_IDS.filter((id) => /rhythm/i.test(headings[`modes${cap(id)}`]))).toEqual(["music"]);
     expect([headings.modesEscape, headings.modesBattle, headings.modesJourney]).toEqual(["Escape modes", "Battle modes", "Journey modes"]);
     expect([headings.modesMusic, headings.modesLoops, headings.modesSmash]).toEqual(["Music & rhythm modes", "Loop & pattern modes", "Smash & merge modes"]);
+  });
+
+  // --- studio-fit --- the stage strip's arrows
+  it("give every mode on the wall a previous and a next mode in the wall's order, round from the last to the first", () => {
+    const all = modesOnShelf("all");
+    all.forEach((mode, i) => expect(modeNeighbours(mode), mode).toEqual({ prev: all[(i - 1 + all.length) % all.length], next: all[(i + 1) % all.length] }));
+    expect(modeNeighbours(all[0])?.prev).toBe("blueprint"); // Mode Lab ends the wall
+    expect(modeNeighbours("blueprint")?.next).toBe(all[0]);
+    // stepping on from any mode visits every mode once and comes back
+    const seen: ModeId[] = [];
+    for (let at: ModeId = all[0]; seen.length <= all.length && !seen.includes(at); at = modeNeighbours(at)!.next) seen.push(at);
+    expect(seen).toEqual(all);
+    expect(modeNeighbours("classic", ["classic"])).toBeNull();
+    expect(modeNeighbours("classic", ["portal", "grow"])).toBeNull();
   });
 });
 

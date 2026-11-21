@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "./cx";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- studio-fit ---
 
 /*
  * --- site-redesign --- A strip of section switches: the studio's rail (vertical, ≥ 1280 px) and its tab strip
@@ -14,6 +15,8 @@ import { cx } from "./cx";
  * --- review fix (site-redesign) --- The hover label of an icon-only strip (`tooltipClassName`) is drawn in a fixed layer on
  * <body> beside the button – on mouse hover and keyboard focus – so the strip's own scroll box (the rail scrolls vertically,
  * which clips it sideways too) cannot cut it off; every item also carries its label as a title.
+ * --- studio-fit --- A pressed item that sits partly outside a strip that scrolls sideways (the studio's tab bar on a phone
+ * and in the desk column) is scrolled to the strip's middle: the strip alone moves, never the page.
  */
 export interface TabStripItem {
   id: string;
@@ -98,7 +101,10 @@ export default function TabStrip({
             aria-expanded={on}
             aria-controls={controls}
             tabIndex={index === activeIndex ? 0 : -1}
-            onClick={() => onSelect(item.id)}
+            onClick={(e) => {
+              onSelect(item.id);
+              revealInStrip(e.currentTarget);
+            }}
             onKeyDown={(e) => onKeyDown(e, index)}
             onPointerEnter={(e) => e.pointerType !== "touch" && showTip(item, e.currentTarget)}
             onPointerLeave={hideTip}
@@ -128,6 +134,18 @@ export default function TabStrip({
         )}
     </div>
   );
+}
+
+/** --- studio-fit --- Scrolls the strip around `el` sideways so that `el` is in full view (in the middle), when it is not. */
+function revealInStrip(el: HTMLElement): void {
+  let box = el.parentElement;
+  while (box && !(box.scrollWidth > box.clientWidth + 1 && /(auto|scroll)/.test(getComputedStyle(box).overflowX))) box = box.parentElement;
+  if (!box || box === document.body || box === document.documentElement) return;
+  const b = box.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  // (the strip's right edge fades out: an item under the fade counts as hidden)
+  if (r.left >= b.left && r.right <= b.right - 28) return;
+  box.scrollBy({ left: r.left + r.width / 2 - (b.left + b.width / 2), behavior: scrollBehavior() });
 }
 
 /** Whether the element has keyboard focus (:focus-visible), so a click does not leave a label hanging. */

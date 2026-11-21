@@ -16,12 +16,15 @@ import { paletteMatches, type PaletteEntry } from "@/lib/siteDesign";
  * --- mode-shelves --- Under the settings, the modes: "Change mode" (the picker) and every mode by its name and search
  * words, so "fight" or "pendulum" switches the mode from the keyboard. With nothing typed the list is the groups and
  * Change mode.
+ * --- studio-fit --- Its footer also lists the page's own keys (Space and R, the footer's words), so the shortcuts are
+ * seen where the keyboard is in use, not only at the bottom of the page.
  */
 /** The heading an entry is listed under: the groups, the settings, then the modes (the Change mode action first). */
 const listOf = (entry: PaletteEntry): "sections" | "controls" | "modes" => (entry.kind === "section" ? "sections" : entry.kind === "control" ? "controls" : "modes");
 
 export default function CommandPalette({ entries, icons, onChoose, onClose }: { entries: readonly PaletteEntry[]; icons: Record<string, ReactNode>; onChoose: (entry: PaletteEntry) => void; onClose: () => void }) {
   const t = useTranslations("SiteRedesign");
+  const keys = useTranslations("Footer"); // --- studio-fit --- the page's shortcuts, in the footer's words
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -120,7 +123,7 @@ export default function CommandPalette({ entries, icons, onChoose, onClose }: { 
           );
         })}
       </div>
-      <div className="hidden shrink-0 items-center gap-4 border-t border-line px-4 py-2.5 text-xs text-ink-3 sm:flex">
+      <div className="hidden shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-4 py-2.5 text-xs text-ink-3 sm:flex">
         <span className="flex items-center gap-1.5">
           <Kbd>↑</Kbd>
           <Kbd>↓</Kbd>
@@ -133,6 +136,13 @@ export default function CommandPalette({ entries, icons, onChoose, onClose }: { 
         <span className="flex items-center gap-1.5">
           <Kbd>Esc</Kbd>
           {t("studio.paletteClose")}
+        </span>
+        {/* --- studio-fit --- the page's shortcuts, at the right */}
+        <span role="group" className="ml-auto flex items-center gap-1.5" aria-label={keys("shortcuts")} data-testid="palette-shortcuts">
+          <Kbd>Space</Kbd>
+          {keys("pauseResume")}
+          <Kbd className="ml-2.5">R</Kbd>
+          {keys("restart")}
         </span>
       </div>
     </Dialog>
