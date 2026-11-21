@@ -63,6 +63,13 @@ export interface CollideSettings {
    * setting differs, so a default settings object is unchanged). The ring's fit shrinks the discs to make room.
    */
   ringCount?: number;
+  /**
+   * --- collide-pour --- Seconds after which the jar opens at the bottom and the orbs pour out, the smallest first and the
+   * biggest last as the opening widens; the run ends when the jar is empty (0 or absent: never, the run is endless). Not on the ring.
+   */
+  pourAt?: number;
+  /** --- collide-pour --- The notes on a 16th-note grid (120 BPM), more of them and louder as the orbs move faster (absent: off). */
+  pulse?: boolean;
 }
 
 export const DEFAULT_COLLIDE_SETTINGS: CollideSettings = {
@@ -75,6 +82,8 @@ export const DEFAULT_COLLIDE_SETTINGS: CollideSettings = {
   syncStart: false,
   antiCollisionAt: 0,
   ring: false,
+  pourAt: 0, // --- collide-pour ---
+  pulse: false,
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -85,9 +94,10 @@ export const COLLIDE_RANGES = {
   cpRestitution: { min: 0.7, max: 1, step: 0.01 },
   cpAntiCollisionAt: { min: 0, max: 120, step: 1 },
   cpRingCount: { min: 2, max: 36, step: 1 }, // --- unlimited-sizes --- (the comfort range ends at the old RING_MAX_BODIES; any count from 2 typed)
+  cpPourAt: { min: 0, max: 120, step: 0.5 }, // --- collide-pour ---
 } as const;
 
-/** The Collision Playground fields of the SimulatorSettings object (URL keys cpn, cpsz, cpc, cpg, cpe, cpsq, cpsy, cpac, cpr; --- unlimited-sizes --- cprc). */
+/** The Collision Playground fields of the SimulatorSettings object (URL keys cpn, cpsz, cpc, cpg, cpe, cpsq, cpsy, cpac, cpr; --- unlimited-sizes --- cprc; --- collide-pour --- cppo, cppl). */
 export interface CollideSettingFields {
   cpCount: number;
   cpSizeSpread: number;
@@ -99,6 +109,8 @@ export interface CollideSettingFields {
   cpAntiCollisionAt: number;
   cpRing: boolean;
   cpRingCount: number; // --- unlimited-sizes ---
+  cpPourAt: number; // --- collide-pour ---
+  cpPulse: boolean;
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -124,6 +136,9 @@ export function resolveCollideSettings(config: Partial<CollideSettings> | null |
     const n = memoryCeiling("cpRingCount", Math.round(clampNumber(config.ringCount, COLLIDE_RANGES.cpRingCount, RING_MAX_BODIES)));
     if (n !== RING_MAX_BODIES) out.ringCount = n;
   }
+  // --- collide-pour --- (the opening on the half-second steps of its slider)
+  if (config.pourAt !== undefined) out.pourAt = Math.round(2 * clampNumber(config.pourAt, COLLIDE_RANGES.cpPourAt, out.pourAt ?? 0)) / 2;
+  if (typeof config.pulse === "boolean") out.pulse = config.pulse;
   return out;
 }
 
@@ -139,15 +154,18 @@ export function collideSettingsOf(source: CollideSettingFields): CollideSettings
     syncStart: source.cpSyncStart,
     antiCollisionAt: source.cpAntiCollisionAt,
     ring: source.cpRing,
+    pourAt: source.cpPourAt, // --- collide-pour ---
+    pulse: source.cpPulse,
     ...(source.cpRingCount !== undefined && source.cpRingCount !== RING_MAX_BODIES ? { ringCount: source.cpRingCount } : {}), // --- unlimited-sizes --- (nothing at the default)
   };
 }
 
 /**
  * Writes resolved Collision Playground settings back into the SimulatorSettings field names (--- unlimited-sizes --- but the
- * ring's bodies, `cpRingCount`: settings.ts writes `ringCount` back on its own, out of the core defaults' literal).
+ * ring's bodies, `cpRingCount`: settings.ts writes `ringCount` back on its own, out of the core defaults' literal; --- collide-pour
+ * --- and the pour and the pulse, the same way: `collidePourFields()`).
  */
-export function collideSettingFields(settings: CollideSettings): Omit<CollideSettingFields, "cpRingCount"> {
+export function collideSettingFields(settings: CollideSettings): Omit<CollideSettingFields, "cpRingCount" | "cpPourAt" | "cpPulse"> {
   return {
     cpCount: settings.count,
     cpSizeSpread: settings.sizeSpread,
@@ -159,6 +177,17 @@ export function collideSettingFields(settings: CollideSettings): Omit<CollideSet
     cpAntiCollisionAt: settings.antiCollisionAt,
     cpRing: settings.ring,
   };
+}
+
+/** --- collide-pour --- The pour and the pulse in the SimulatorSettings field names (written by settings.ts outside the core literal). */
+export function collidePourFields(settings: Pick<CollideSettings, "pourAt" | "pulse">): Pick<CollideSettingFields, "cpPourAt" | "cpPulse"> {
+  return { cpPourAt: settings.pourAt ?? 0, cpPulse: settings.pulse ?? false };
+}
+
+/** --- collide-pour --- Whether a run of these settings ends: a jar that pours (not on the ring) ends empty; every other run is endless. */
+export function collideRunFinishes(settings: Partial<CollideSettings> | null | undefined): boolean {
+  const s = resolveCollideSettings(settings);
+  return (s.pourAt ?? 0) > 0 && !s.ring;
 }
 
 /* ------------------------------------------------------------------ constants */
@@ -225,6 +254,37 @@ const PENTATONIC = [0, 2, 4, 7, 9];
 export const ANTI_COLLISION_CHORD: readonly number[] = [130.81, 196, 261.63, 329.63];
 /** Hue buckets the renderer fills with one path each (the orbs are coloured by size, so a bucket is one colour). */
 export const HUE_BUCKETS = 24;
+// --- collide-pour ---
+/**
+ * The opening (its half width) grows over POUR_SORT_SEC from a little more than the smallest orb's radius (POUR_GAP_START × it) to
+ * a little more than the biggest's (POUR_GAP_SORTED × it) – each orb can leave only once it fits, so the small ones pour first and
+ * the biggest last – then over POUR_WIDEN_SEC more to POUR_GAP_END of the jar's radius: the bottom gone for the stragglers.
+ */
+export const POUR_SORT_SEC = 5;
+export const POUR_WIDEN_SEC = 2;
+export const POUR_GAP_START = 1.1;
+export const POUR_GAP_SORTED = 1.2;
+export const POUR_GAP_END = 0.5;
+
+/** --- collide-pour --- The opening's half width (px) `sec` seconds after it opened, for orbs of radii `minRadius` … `maxRadius` in a jar of `jarRadius`. */
+export function pourGapHalf(sec: number, minRadius: number, maxRadius: number, jarRadius: number): number {
+  const small = POUR_GAP_START * minRadius;
+  const big = Math.max(small, POUR_GAP_SORTED * maxRadius);
+  const wide = Math.max(big, POUR_GAP_END * jarRadius);
+  if (!(sec > 0)) return small;
+  if (sec <= POUR_SORT_SEC) return small + ((big - small) * sec) / POUR_SORT_SEC;
+  return big + (wide - big) * Math.min(1, (sec - POUR_SORT_SEC) / POUR_WIDEN_SEC);
+}
+/** While the jar pours, its walls keep this share of an orb's speed (the orbs settle into the opening) and gravity pulls at least this much. */
+export const POUR_WALL_DAMP = 0.4;
+export const POUR_GRAVITY_MIN = 1;
+/** The pulse: a grid step of a 16th note at 120 BPM (s), at most this many notes on a step, and the quietest share of a note's level. */
+export const PULSE_STEP_SEC = 0.125;
+export const PULSE_MAX_NOTES = 4;
+export const PULSE_FLOOR = 0.35;
+/** The chord the empty jar rings (the completion chord's root, C3). */
+export const POUR_CHORD_ROOT = 130.81;
+// --- end collide-pour ---
 
 /* ------------------------------------------------------------------ pure helpers */
 
@@ -408,6 +468,23 @@ export interface CollideView {
   antiTick: number;
   /** Bumped on every restart, so renderers can drop per-run caches. */
   generation: number;
+  // --- collide-pour ---
+  /** The jar is open (at `pourTick`) and the opening's half width (px; 0 while closed). */
+  pourActive: boolean;
+  pourTick: number;
+  gapHalf: number;
+  /** Per body: 0 inside, 1 leaving through the opening, 2 out of the jar. */
+  out: Uint8Array;
+  /** Bodies still inside, the run's end (the jar empty, at `emptyTick`) and the step of the last orb out. */
+  left: number;
+  empty: boolean;
+  emptyTick: number;
+  lastOutTick: number;
+  /** Per body: the speed of its last impact (px/s), for the sparks; the run's Ball Speed (px/s), and the kinetic energy's share of its peak so far (0–1). */
+  impactSpeed: Float32Array;
+  ballSpeed: number;
+  energyShare: number;
+  // --- end collide-pour ---
 }
 
 const EMPTY_F32 = new Float32Array(0);
@@ -443,6 +520,18 @@ export class CollideMode implements GameMode {
     antiActive: false,
     antiTick: -Infinity,
     generation: 0,
+    // --- collide-pour ---
+    pourActive: false,
+    pourTick: -Infinity,
+    gapHalf: 0,
+    out: new Uint8Array(0),
+    left: 0,
+    empty: false,
+    emptyTick: -Infinity,
+    lastOutTick: -Infinity,
+    impactSpeed: EMPTY_F32,
+    ballSpeed: 400,
+    energyShare: 0,
   };
   private n = 0;
   private firstId = 0;
@@ -479,6 +568,15 @@ export class CollideMode implements GameMode {
   private readonly sndOrder = new Int32Array(MAX_SOUNDS_PER_FRAME);
   private sndCount = 0;
   private ctx: ModeContext | null = null;
+  // --- collide-pour ---
+  /** The peak kinetic energy of the run so far (the pulse's reference), the pulse's last grid step, and the exits since the last sound (the biggest's pitch, how many). */
+  private energyPeak = 0;
+  private pulseStep = -1;
+  private timeSec = 0;
+  private exitFreq = 0;
+  private exitRadius = 0;
+  private exitCount = 0;
+  // --- end collide-pour ---
 
   getSettings(): CollideSettings {
     return this.settings;
@@ -493,7 +591,7 @@ export class CollideMode implements GameMode {
   }
   getProgress() {
     const v = this.view;
-    return { bodies: v.count, collisions: v.collisions, wallHits: v.wallHits, notes: v.notes, anti: v.antiActive, ring: v.settings.ring };
+    return { bodies: v.count, collisions: v.collisions, wallHits: v.wallHits, notes: v.notes, anti: v.antiActive, ring: v.settings.ring, left: v.left, empty: v.empty /* --- collide-pour --- */ };
   }
   /** Radii of the smallest and the biggest body (px) – the ends of the pitch ladder. */
   getRadiusRange(): { min: number; max: number } {
@@ -521,6 +619,20 @@ export class CollideMode implements GameMode {
     v.notes = 0;
     v.antiActive = false;
     v.antiTick = -Infinity;
+    // --- collide-pour ---
+    v.pourActive = false;
+    v.pourTick = -Infinity;
+    v.gapHalf = 0;
+    v.empty = false;
+    v.emptyTick = -Infinity;
+    v.lastOutTick = -Infinity;
+    v.energyShare = 0;
+    this.energyPeak = 0;
+    this.pulseStep = -1;
+    this.timeSec = 0;
+    this.exitFreq = 0;
+    this.exitRadius = 0;
+    this.exitCount = 0;
     this.steps = 0;
     this.sndCount = 0;
     this.ballSpeed = ctx.config.ballSpeed || 400;
@@ -544,6 +656,9 @@ export class CollideMode implements GameMode {
     v.impactNx = new Float32Array(n);
     v.impactNy = new Float32Array(n);
     v.impactAmount = new Float32Array(n);
+    v.impactSpeed = new Float32Array(n); // --- collide-pour ---
+    v.out = new Uint8Array(n);
+    v.left = n;
     this.ensureScratch(n);
     const radii = new Float64Array(n);
     this.computeRadii(radii, s.syncStart && !s.ring);
@@ -744,6 +859,8 @@ export class CollideMode implements GameMode {
       this.applyRadii(ctx);
     }
     this.wallRestitution = this.view.settings.restitution * ctx.getPhysicsExtras().wallBounciness;
+    if (this.view.pourActive) this.wallRestitution *= POUR_WALL_DAMP; // --- collide-pour --- (the orbs settle into the opening)
+    this.view.ballSpeed = speed;
     // A contact is only heard when clearly faster than the speed one sub-step of gravity gives a resting orb.
     const g = this.gravityAccel(ctx);
     this.minSoundSpeed = Math.max(25, 0.06 * speed, 3 * g * this.subSec);
@@ -809,6 +926,15 @@ export class CollideMode implements GameMode {
   private containerBounce(ball: Ball, k: number, field: CollideField, report: boolean, ctx?: ModeContext) {
     const e = this.wallRestitution;
     const r = ball.radius;
+    const v = this.view;
+    // --- collide-pour --- an orb on its way out (or out) is past the walls; one at the bottom that fits the opening starts to leave
+    if (v.pourActive && k >= 0 && k < v.out.length) {
+      if (v.out[k] > 0) return;
+      if (ball.y > field.cy && Math.abs(ball.x - field.cx) <= v.gapHalf - r && (field.kind === "circle" ? (ball.x - field.cx) ** 2 + (ball.y - field.cy) ** 2 > (field.radius - r) ** 2 : ball.y + r > field.bottom)) {
+        v.out[k] = 1;
+        return;
+      }
+    }
     if (field.kind === "circle") {
       const dx = ball.x - field.cx;
       const dy = ball.y - field.cy;
@@ -890,6 +1016,7 @@ export class CollideMode implements GameMode {
     v.impactNx[k] = nx;
     v.impactNy[k] = ny;
     v.impactAmount[k] = amount;
+    v.impactSpeed[k] = speed; // --- collide-pour --- (the sparks of the hardest contacts)
   }
 
   /** Offers a note to the frame's budget: kept while there is room, else it replaces the weakest when it is more energetic. */
@@ -950,6 +1077,9 @@ export class CollideMode implements GameMode {
 
   /** One contact: push the overlap apart (split by inverse mass, minus the slop) and, while approaching, exchange momentum. */
   private resolvePair(a: Ball, b: Ball, ka: number, kb: number, ctx: ModeContext) {
+    // --- collide-pour --- an orb leaving the jar meets nothing on its way out
+    const out = this.view.out;
+    if ((ka >= 0 && out[ka] > 0) || (kb >= 0 && out[kb] > 0)) return;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const minD = a.radius + b.radius;
@@ -1038,9 +1168,77 @@ export class CollideMode implements GameMode {
     const s = v.settings;
     this.steps++;
     const t = this.steps * (dtMs / 1000);
+    this.timeSec = t; // --- collide-pour --- (the pulse's clock)
     if (!v.antiActive && s.antiCollisionAt > 0 && t >= s.antiCollisionAt - 1e-9) this.switchToAntiCollision(ctx);
     if (this.ring) renormalizeRing(this.ring, v.antiActive);
+    this.pourStep(ctx, t); // --- collide-pour ---
   }
+
+  // --- collide-pour ---
+  /**
+   * The jar's finale and the pulse's energy, once a step: the jar opens at `pourAt` (a ratchet, gravity at least
+   * POUR_GRAVITY_MIN), the opening widens from the smallest orb's width to the biggest's and then wide (pourGapHalf()), an orb that has
+   * fallen past the jar's bottom is out (its pitch kept for the next sound), one that has left the picture rests below it, and
+   * the run ends when the jar is empty (the completion chord and confetti). Every number from the step counter and the orbs.
+   */
+  private pourStep(ctx: ModeContext, t: number) {
+    const v = this.view;
+    const s = v.settings;
+    const field = v.field;
+    const balls = ctx.getBalls();
+    // the kinetic energy (mass ∝ area) against its peak so far: the pulse's swell
+    if (s.pulse) {
+      let energy = 0;
+      for (let i = 0; i < balls.length; i++) {
+        const k = balls[i].id - this.firstId;
+        if (k < 0 || k >= this.n || v.out[k] > 0) continue;
+        const b = balls[i];
+        energy += (b.vx * b.vx + b.vy * b.vy) / this.invMass[k];
+      }
+      if (energy > this.energyPeak) this.energyPeak = energy;
+      v.energyShare = this.energyPeak > 0 ? energy / this.energyPeak : 0;
+    }
+    if (this.ring || !field || !((s.pourAt ?? 0) > 0) || v.empty) return;
+    if (!v.pourActive) {
+      if (t < (s.pourAt ?? 0) - 1e-9) return;
+      v.pourActive = true;
+      v.pourTick = v.tick;
+      const pull = Math.max(s.gravity, POUR_GRAVITY_MIN);
+      for (const b of balls) b.gravityScale = pull;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "ratchet", loopSec: 0.5, level: 0.8, melody: false });
+    }
+    v.gapHalf = pourGapHalf(t - (s.pourAt ?? 0), this.minRadius, this.maxRadius, field.radius);
+    const below = field.kind === "circle" ? field.cy + field.radius : field.bottom;
+    const floor = ctx.config.height;
+    for (let i = 0; i < balls.length; i++) {
+      const b = balls[i];
+      const k = b.id - this.firstId;
+      if (k < 0 || k >= this.n) continue;
+      if (v.out[k] === 1 && b.y - b.radius > below) {
+        v.out[k] = 2;
+        v.left--;
+        v.lastOutTick = v.tick;
+        this.exitCount++;
+        if (b.radius >= this.exitRadius) {
+          this.exitRadius = b.radius;
+          this.exitFreq = collidePitch(b.radius, this.minRadius, this.maxRadius);
+        }
+      }
+      // out of the picture: it rests below it (nothing more to integrate or draw)
+      if (v.out[k] === 2 && b.y - b.radius > floor) {
+        b.vx = 0;
+        b.vy = 0;
+        b.gravityScale = 0;
+      }
+    }
+    if (v.left <= 0) {
+      v.empty = true;
+      v.emptyTick = v.tick;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: POUR_CHORD_ROOT, level: 0.9, loopExact: true, melody: false });
+      ctx.spawnConfetti(field.cx, field.cy);
+    }
+  }
+  // --- end collide-pour ---
 
   /** "Collision System becomes ANTI-Collision": collisions off, a new colour for every orb and an accented chord. */
   private switchToAntiCollision(ctx: ModeContext) {
@@ -1061,6 +1259,19 @@ export class CollideMode implements GameMode {
    * frame) never piles up more simultaneous voices. Sound only: the physics never reads the budget.
    */
   flushPendingSounds(ctx: ModeContext) {
+    // --- collide-pour --- the pulse: the notes wait for the next 16th-note step, then its strongest go out, more and louder as
+    // the orbs move faster; the orbs that left the jar since the last sound pluck the biggest one's note
+    const pulse = !!this.view.settings.pulse;
+    if (pulse) {
+      const step = Math.floor(this.timeSec / PULSE_STEP_SEC + 1e-9);
+      if (step === this.pulseStep) return;
+      this.pulseStep = step;
+    }
+    if (this.exitCount > 0) {
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: this.exitFreq, level: Math.min(1, 0.55 + 0.1 * this.exitCount), loopBright: this.exitRadius < 0.5 * (this.minRadius + this.maxRadius), melody: false });
+      this.exitCount = 0;
+      this.exitRadius = 0;
+    }
     const count = this.sndCount;
     if (count === 0) return;
     const order = this.sndOrder;
@@ -1075,11 +1286,15 @@ export class CollideMode implements GameMode {
       }
       order[j + 1] = cur;
     }
-    for (let i = 0; i < count; i++) {
+    // --- collide-pour --- (the pulse: one to PULSE_MAX_NOTES of them by the energy, their level swelling with it)
+    const share = pulse ? Math.max(0, Math.min(1, this.view.energyShare)) : 1;
+    const play = pulse ? Math.min(count, 1 + Math.round((PULSE_MAX_NOTES - 1) * share)) : count;
+    const swell = pulse ? PULSE_FLOOR + (1 - PULSE_FLOOR) * Math.sqrt(share) : 1;
+    for (let i = 0; i < play; i++) {
       const slot = order[i];
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: this.sndFreq[slot], level: this.sndLevel[slot] });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: this.sndFreq[slot], level: Math.min(1, this.sndLevel[slot] * swell * (pulse ? 2 : 1)) });
     }
-    this.view.notes += count;
+    this.view.notes += play;
     this.sndCount = 0;
   }
 
@@ -1146,9 +1361,9 @@ export class CollideMode implements GameMode {
   shouldSkipWallCollision() {
     return true;
   }
-  /** The playground never finishes (the finder reports an endless run). */
+  /** The playground never finishes (the finder reports an endless run) – --- collide-pour --- but a jar that pours ends empty. */
   isFinished() {
-    return false;
+    return this.view.empty;
   }
   getState() {
     const v = this.view;

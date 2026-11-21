@@ -185,6 +185,9 @@ export interface CanvasLabels {
   // --- jdm-collisions ---
   /** Collision Playground: the caption of the anti-collision switch. */
   collideAnti?: string;
+  /** --- collide-pour --- The emptied jar's end card: its title and the orbs poured out. */
+  collideEmpty?: string;
+  collideEmptySub?: (n: number) => string;
   /** --- camera --- the badge over the escape replay. */
   replay?: string;
   // --- gerald-glass ---
@@ -214,6 +217,9 @@ export interface CanvasLabels {
   /** Circle Illusion: the whitespace picture is revealed; the cycles a lines / rings run finished after. */
   illusionRevealed?: string;
   illusionCycles?: (n: number) => string;
+  /** --- illusion-stage --- The staged build's end card: the balls made a circle, each on its straight line. */
+  illusionCircle?: string;
+  illusionCircleSub?: string;
   // --- odd-string-battle ---
   /** String Battle: the HUD title and thread count, the warning badge, the winner banner. */
   stringBattle?: StringBattleLabels;
@@ -486,6 +492,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   paintBeat: (bpm) => `♩ ${bpm} BPM`,
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
+  collideEmpty: "EMPTY!", // --- collide-pour ---
+  collideEmptySub: (n) => `All ${n} orbs poured out`,
   replay: "REPLAY", // --- camera ---
   // --- gerald-glass ---
   glassStage: (n) => `STAGE ${n}`,
@@ -507,6 +515,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-illusions ---
   illusionRevealed: "REVEALED!",
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
+  illusionCircle: "IT WAS A CIRCLE!", // --- illusion-stage ---
+  illusionCircleSub: "Every ball only moved in a straight line",
   powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
   vortex: DEFAULT_VORTEX_LABELS, // --- gerald-vortex ---
   journey: DEFAULT_JOURNEY_LABELS, // --- gerald-journey ---
@@ -2827,7 +2837,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-double-pendulum --- faces on the Double Pendulum's bobs too
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
-      if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
+      if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView, engine.getElapsedMs() /* --- illusion-stage --- (the balls that have joined) */), bobBodyColor, null);
       // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbView.circle ? scBodyColor : sbBodyColor, sbFaceLayout(sbView.settings.style)); // (--- string-circle --- the circle style's colours)
       if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
@@ -3261,12 +3271,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- jdm-illusions --- lines / rings run for a set number of cycles: the figure is back where it started.
         // (--- end-banner --- over the lower half: the figure starts, and so ends, with its bodies in the upper one)
-        if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635", 0.75);
+        // (--- illusion-stage --- the staged build's card names the trick: the circle was made of straight lines)
+        if (illusionView && illusionView.finished && illusionView.staged) bigBanner(L.illusionCircle ?? DEFAULT_LABELS.illusionCircle!, L.illusionCircleSub ?? DEFAULT_LABELS.illusionCircleSub!, "#a3e635", 0.75);
+        else if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635", 0.75);
         // --- odd-power-layers --- Power Layers: the ball fell out of the bottom – freedom, with the hits and the time.
         if (plView && plView.freed) {
           const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
           bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
         }
+        // --- collide-pour --- Collision Playground: the jar poured empty, the biggest orbs last
+        if (engine.isCollideMode() && engine.getCollideView().empty) bigBanner(L.collideEmpty ?? DEFAULT_LABELS.collideEmpty!, (L.collideEmptySub ?? DEFAULT_LABELS.collideEmptySub!)(engine.getCollideView().count), "#a3e635");
         // --- gerald-vortex --- Sound Vortex: every ball swallowed – pew! (from the last swallow, through the hold before the end)
         if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
@@ -3648,8 +3662,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("collideCollisions", String(view.collisions));
         setCanvasData("collideNotes", String(view.notes));
         setCanvasData("collideAnti", view.antiActive ? "1" : "0");
+        setCanvasData("collideLeft", String(view.left)); // --- collide-pour ---
+        setCanvasData("collideEmpty", view.empty ? "1" : "0");
       } else if (canvas.dataset.collideBodies !== undefined) {
-        for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
+        for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti", "collideLeft", "collideEmpty"]) delete canvas.dataset[key];
       }
       // --- jdm-double-pendulum --- pendulums, rods, strings, plucks, sparring hits, the energy drift (ppm) and the finish (data-dp-*) for tools and the smoke test.
       if (isDp) {
@@ -3681,6 +3697,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("illusionPattern", iv.pattern ? iv.pattern.id : "");
         setCanvasData("illusionFinished", iv.finished ? "1" : "0");
         setCanvasData("illusionCircleError", iv.circleError.toFixed(3));
+        setCanvasData("illusionJoined", String(iv.joined)); // --- illusion-stage ---
+        setCanvasData("illusionCircleShown", iv.revealed ? "1" : "0");
         setCanvasData("illusionProbe", iv.pattern ? `${Math.round(iv.pattern.probeX)},${Math.round(iv.pattern.probeY)}` : "");
         setCanvasData("illusionPaper", iv.type === "whitespace" ? `${Math.round(iv.cx)},${Math.round(iv.cy + 0.85 * iv.radius)}` : "");
       } else if (canvas.dataset.illusionType !== undefined) {

@@ -14,7 +14,7 @@ export interface CollisionPlaygroundSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const COLLISION_PLAYGROUND_KEYS = ["cpCount", "cpSizeSpread", "cpContainer", "cpGravity", "cpRestitution", "cpSquishy", "cpSyncStart", "cpAntiCollisionAt", "cpRing", "cpRingCount" /* --- unlimited-sizes --- */];
+export const COLLISION_PLAYGROUND_KEYS = ["cpCount", "cpSizeSpread", "cpContainer", "cpGravity", "cpRestitution", "cpSquishy", "cpSyncStart", "cpAntiCollisionAt", "cpRing", "cpRingCount" /* --- unlimited-sizes --- */, "cpPourAt", "cpPulse" /* --- collide-pour --- */];
 
 const CONTAINER_OPTIONS: Record<CollideContainer, { labelKey: string }> = {
   circle: { labelKey: "cpContainerCircle" },
@@ -91,6 +91,13 @@ export default function CollisionPlaygroundSection({ t, search, matches, setting
         onChange={(v) => update({ cpAntiCollisionAt: v })}
         display={s.cpAntiCollisionAt === 0 ? t("cpAntiOff") : `${s.cpAntiCollisionAt}s`}
       />
+      {/* --- collide-pour --- the jar's finale (not on the ring) and the notes on the beat */}
+      {(!s.cpRing || search) && (
+        <Slider t={t} search={search} matches={matches} labelKey="cpPourAt" tipKey="cpPourAtTip" value={s.cpPourAt} range={RANGES.cpPourAt} onChange={(v) => update({ cpPourAt: v })} display={s.cpPourAt === 0 ? t("cpAntiOff") : `${s.cpPourAt}s`} />
+      )}
+      <Searchable search={search} matches={matches} labelKey="cpPulse">
+        <Toggle t={t} labelKey="cpPulse" tipKey="cpPulseTip" value={s.cpPulse} onChange={(v) => update({ cpPulse: v })} />
+      </Searchable>
       <Searchable search={search} matches={matches} labelKey="cpRing">
         <Toggle t={t} labelKey="cpRing" tipKey="cpRingTip" value={s.cpRing} onChange={(v) => update({ cpRing: v })} />
       </Searchable>
