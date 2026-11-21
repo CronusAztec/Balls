@@ -84,6 +84,7 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 // --- merge-ring --- Merge Ring: the rainbow rim, the tier bodies and emblems, the halos, the ladder, the caption and the HUD
 import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, MergeRingLayer, trailStrokeUnderBody, trailUnderBody, type MergeRingLabels, type MergeRingRenderOptions } from "./mergeRingRenderer";
 import { plainTransform } from "./mergeRingGlow";
+import { FINAL_BANNER_DELAY_MS } from "@/lib/physics/modes/mergeRing"; // --- merge-ring-staged ---
 // --- spiral-glass --- Spiral Glass: the glass tiles, the rainbow line, the shards, the pops, the badge, the caption and the HUD
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
 // --- song-ring --- Song Ring: the note tiles, the wall, the hub, the playhead, the sparks, the count and the end banner
@@ -1414,6 +1415,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // the lethal blow) at factor 0.05, already slowed on the frame after the cue (ramp-in 0) – the engine's clock and its
       // fixed steps are untouched; bodies do not glide here, so modeSlowView stays false. The lethal cue starts the noir ink
       // flip's real clock (flRender.koStopMs), every cue the heavy hit's (flRender.heavyStopMs).
+      // --- merge-ring-staged --- the final form's merge plays in slow motion (the camera's dip; the engine's clock is untouched)
+      if (engine.isMergeRingMode()) {
+        const cue = mergeRingLayer.cameraCue(engine.getMergeRingView());
+        if (cue) cam.dip(cue.dipMs, cue.factor);
+      }
       if (engine.isFightLeagueMode()) {
         flKoStopMs += frameMs;
         flHeavyStopMs += frameMs;
@@ -3249,8 +3255,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- merge-ring --- Merge Ring: the final form (from its appearance, through the hold) or the overflow
         if (mergeRingView && (mergeRingView.finalMs >= 0 || mergeRingView.overflowMs >= 0)) {
           const MR = L.mergeRing ?? DEFAULT_MERGE_RING_LABELS;
-          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc", 0.2); // --- end-banner --- (over the chute: the final form and its burst are in the pile below)
-          else bigBanner(MR.overflowTitle, MR.overflowSub(MR.tier(Math.max(1, mergeRingView.topTier)), mergeRingView.merges), "#fb7185");
+          // (--- merge-ring-staged --- the final form's banner a beat after its merge: the slow motion and the flash first)
+          if (mergeRingView.finalMs >= 0) {
+            if (mergeRingView.timeMs >= mergeRingView.finalMs + FINAL_BANNER_DELAY_MS - 1e-6) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc", 0.2); // --- end-banner --- (over the chute: the final form and its burst are in the pile below)
+          } else bigBanner(MR.overflowTitle, MR.overflowSub(MR.tier(Math.max(1, mergeRingView.topTier)), mergeRingView.merges), "#fb7185");
         }
         // --- spiral-glass --- Spiral Glass: GLASS CLEARED (from the last tile, through the hold) or the TIMEOUT
         if (spiralGlassView && (spiralGlassView.clearedMs >= 0 || spiralGlassView.timeoutMs >= 0)) {

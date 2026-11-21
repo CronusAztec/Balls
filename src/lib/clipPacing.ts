@@ -33,8 +33,13 @@ import type { SimulatorSettings } from "@/lib/settings";
  *    19.0 s, none under 8 s, the first match at a median 0.7 s (4.1 s).
  *  - pendulum: a 24 s cycle with 20 swings of the slowest bob (the same swing rate as 51 in 60 s) – IN LINE! at 24.0 s.
  *  - polyrhythm: a 24 s cycle – IN PHASE! at 24.0 s (30.0 s: one frame after a 30 s clip's last).
- *  - mergeRing: 6 tiers, a ball every 0.6 s – FINAL FORM on 40 of 40 seeds at 17.0–26.5 s (7 tiers at 0.9 s: 44–76 s, 13 of
- *    24 an overflow).
+ *  - mergeRing (--- merge-ring-staged ---): its own 7 tiers, a ball every 0.4 s, three spawn tiers and gravity 3 – a verdict by
+ *    27 s on 58 of 60 seeds, 37 final forms (13.5–23.7 s) and 23 overflows (14.9–33.4 s): the question has two answers.
+ *    6 tiers at 0.6 s gave FINAL FORM on 40 of 40 at 17.0–26.5 s, a question with one answer; 7 tiers at 0.9 s ran 44–76 s,
+ *    13 of 24 an overflow. (The audit's 0.4 s, gravity 1.5 and three spawn tiers: 14 final forms and 15 overflows of 30.)
+ *  - territory (--- territory-swing ---; its run moved too: a power fires on the border, into the other colour): a reach of 4
+ *    tiles every 2 s – seeds 1–48, the phone world: a winner by 5 % or more on 37 (27 with the old powers at 3 and 3), both
+ *    sides ahead by 5 % at some point on 47 (6), 15 lead changes (4), 1,545 tiles flipped (221). Not its length: its promise.
  *  - spiralGlass: glass of 1 hit – GLASS CLEARED on 40 of 40 at 22.9–24.7 s (2 hits: 31.7–33.2 s), the first multiply at 7.3 s
  *    (11.1 s).
  *  - shatter (--- shatter-demolition ---, its run moved: a bounce no longer sticks to a ring): 6 rings of 36 segments that take 2
@@ -57,17 +62,29 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
     case "polyrhythm":
       return { prCycleSeconds: 24 };
     case "mergeRing":
-      return { mrTiers: 6, mrInterval: 0.6 };
+      return MERGE_RING_PACE; // --- merge-ring-staged ---
     case "spiralGlass":
       return { sgGlassHp: 1 };
     case "shatter":
       return SHATTER_PACE; // --- shatter-demolition ---
+    case "territory":
+      return TERRITORY_PACE; // --- territory-swing ---
     default:
       return NONE;
   }
 }
 
 const NONE: Partial<SimulatorSettings> = Object.freeze({});
+/**
+ * --- merge-ring-staged --- Merge Ring's page pace: the mode's seven tiers, a ball every 0.4 s (the chute's own pace: the next
+ * ball waits for the one before it), three spawn tiers and gravity 3 – a question with two answers inside the clip.
+ */
+const MERGE_RING_PACE: Partial<SimulatorSettings> = Object.freeze({ mrInterval: 0.4, mrSpawnTiers: 3, mrGravity: 3 });
+/**
+ * --- territory-swing --- Territory's page pace: a power every 2 s with a reach of 4 tiles (the mode's own 3 and 3 stay, so the
+ * bot's plans, which carry every mode's fields, are what they were).
+ */
+const TERRITORY_PACE: Partial<SimulatorSettings> = Object.freeze({ tyRadius: 4, tyPowerEvery: 2 });
 /**
  * --- shatter-demolition --- Shatter's page pace: six rings (a ball fits between them), 36 segments a ring, two hits a segment,
  * and (--- shatter-even-bricks ---) the inner rings in bricks as long as the outer ring's.

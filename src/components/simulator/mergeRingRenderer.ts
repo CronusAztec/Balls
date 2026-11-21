@@ -70,6 +70,35 @@ export const HALO_GROWTH = 2.4;
 export const FLASH_MS = 700;
 export const PULSE_MS = 900;
 export const RIM_SEGMENTS = 90;
+// --- merge-ring-staged ---
+/**
+ * The ring fills with the colour of the highest tier reached, a little stronger with every tier (draw only): the climb is seen
+ * from across the room, and the square is no longer a black disc with a pile at its foot. At most GLOW_ALPHA_MAX at the top.
+ */
+export const GLOW_ALPHA_MIN = 0.08;
+export const GLOW_ALPHA_MAX = 0.3;
+/** The warning line across the opening: red, its fill the overflow's clock, beating with the heartbeat for HEART_PULSE_MS. */
+export const WARN_COLOR = "#ff3b5c";
+export const HEART_PULSE_MS = 260;
+/** The final form's staging: the canvas slows the clock (`cameraCue()`: FINAL_DIP_MS of real time down to FINAL_DIP_FACTOR) and the whole ring flashes white for FINAL_FLASH_MS. */
+export const FINAL_DIP_MS = 1100;
+export const FINAL_DIP_FACTOR = 0.3;
+export const FINAL_FLASH_MS = 320;
+
+/** The ring's fill alpha for the top tier `top` of `tiers` (0 before any ball). */
+export function interiorGlowAlpha(top: number, tiers: number): number {
+  if (!(top >= 1)) return 0;
+  const k = tiers > 1 ? Math.min(1, (top - 1) / (tiers - 1)) : 1;
+  return GLOW_ALPHA_MIN + (GLOW_ALPHA_MAX - GLOW_ALPHA_MIN) * k;
+}
+
+/** How strongly the warning line shows (0–1) for a view: the larger of the pile's danger and the overflow's clock, full at the overflow. */
+export function warningLevel(view: Pick<MergeRingView, "danger" | "risk" | "overflowMs" | "finalMs">): number {
+  if (view.finalMs >= 0) return 0;
+  if (view.overflowMs >= 0) return 1;
+  return Math.max(view.danger, view.risk);
+}
+// --- end merge-ring-staged ---
 const TWO_PI = Math.PI * 2;
 
 /** The hue (degrees) of the rim at `angle` (radians) at time `timeMs`: the colours run once around and turn slowly. */
@@ -820,6 +849,10 @@ export class MergeRingLayer {
    * caption's glyphs and the ladder's box (w 0: nothing drawn).
    */
   readonly hudBox = { captionTop: Infinity, ladderX: 0, ladderY: 0, ladderW: 0, ladderH: 0 };
+  // --- merge-ring-staged --- the final form a camera cue was given for (its finalMs), the interior gradient's cache
+  private cuedFinalMs = -1;
+  private glowKey = "";
+  private glowFill: CanvasGradient | null = null;
 
   constructor(createCanvas: CanvasFactory = defaultCanvasFactory) {
     this.rim = new RimCache(createCanvas);
@@ -841,6 +874,7 @@ export class MergeRingLayer {
     const rainbow = view.settings.rainbow;
     ctx.save();
     ctx.globalAlpha = 1;
+    this.drawInterior(ctx, view); // --- merge-ring-staged ---
     ctx.lineCap = "butt";
     ctx.lineWidth = width;
     // The glowing rim from its bitmap (the glow is blurred once, not every frame); live without the glow or where the bitmap cannot help.
@@ -906,6 +940,99 @@ export class MergeRingLayer {
     ctx.restore();
   }
 
+  // --- merge-ring-staged ---
+  /** The ring's interior in the top tier's colour (a soft radial fill, cached per tier and layout), and the final form's white flash. */
+  private drawInterior(ctx: CanvasRenderingContext2D, view: MergeRingView) {
+    const L = view.layout!;
+    const alpha = interiorGlowAlpha(view.topTier, view.settings.tiers);
+    if (alpha > 0 && typeof ctx.createRadialGradient === "function") {
+      const color = tierColor(view.topTier);
+      const key = `${color}|${L.cx}|${L.cy}|${L.radius}`;
+      if (key !== this.glowKey || !this.glowFill) {
+        this.glowKey = key;
+        const g = ctx.createRadialGradient(L.cx, L.cy + 0.35 * L.radius, 0.1 * L.radius, L.cx, L.cy, L.radius);
+        g.addColorStop(0, color);
+        g.addColorStop(1, "rgba(0, 0, 0, 0)");
+        this.glowFill = g;
+      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = this.glowFill;
+      ctx.beginPath();
+      ctx.arc(L.cx, L.cy, L.radius, 0, TWO_PI);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    const age = view.timeMs - view.finalMs;
+    if (view.finalMs >= 0 && age >= 0 && age < FINAL_FLASH_MS) {
+      ctx.globalAlpha = 0.55 * (1 - age / FINAL_FLASH_MS);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(L.cx, L.cy, L.radius * 1.04, 0, TWO_PI);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /**
+   * The warning across the ring's opening: a red line that shows as the pile climbs to the opening, fills from both chute
+   * walls towards the middle as the overflow's clock runs (full: OVERFLOW), and beats with the heartbeat; the chute above it
+   * washes red with the danger.
+   */
+  private drawWarning(ctx: CanvasRenderingContext2D, view: MergeRingView) {
+    const L = view.layout!;
+    const level = warningLevel(view);
+    if (level <= 0.05) return;
+    const beat = view.timeMs - view.beatMs;
+    const pulse = beat >= 0 && beat < HEART_PULSE_MS ? 1 - beat / HEART_PULSE_MS : 0;
+    const x0 = L.cx - L.chuteHalf;
+    const x1 = L.cx + L.chuteHalf;
+    const lw = Math.max(3, 0.012 * L.side);
+    // the chute's red wash, deepest at the opening
+    if (typeof ctx.createLinearGradient === "function") {
+      const g = ctx.createLinearGradient(0, L.openY, 0, L.openY - 2.5 * L.chuteHalf);
+      g.addColorStop(0, `rgba(255, 59, 92, ${(0.32 * level + 0.18 * pulse).toFixed(3)})`);
+      g.addColorStop(1, "rgba(255, 59, 92, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x0, L.openY - 2.5 * L.chuteHalf, x1 - x0, 2.5 * L.chuteHalf);
+    }
+    // the line: dim across, bright where the overflow's clock has filled it (from both walls in)
+    ctx.lineCap = "round";
+    ctx.strokeStyle = `rgba(255, 59, 92, ${(0.35 + 0.35 * level + 0.3 * pulse).toFixed(3)})`;
+    ctx.lineWidth = lw * (1 + 0.5 * pulse);
+    ctx.beginPath();
+    ctx.moveTo(x0, L.openY);
+    ctx.lineTo(x1, L.openY);
+    ctx.stroke();
+    const fill = view.overflowMs >= 0 ? 1 : Math.min(1, view.risk);
+    if (fill > 0) {
+      const reach = 0.5 * (x1 - x0) * fill;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 0.55 * lw * (1 + 0.5 * pulse);
+      ctx.beginPath();
+      ctx.moveTo(x0, L.openY);
+      ctx.lineTo(x0 + reach, L.openY);
+      ctx.moveTo(x1, L.openY);
+      ctx.lineTo(x1 - reach, L.openY);
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * The camera's cue for the final form: once per final form, a slow-motion dip (FINAL_DIP_MS of real time down to
+   * FINAL_DIP_FACTOR) that the canvas hands to its camera as the merge lands – the merge, the flash and the chord play slowly
+   * before the banner (the engine's clock and its steps are untouched). Null on every other frame.
+   */
+  cameraCue(view: MergeRingView): { dipMs: number; factor: number } | null {
+    if (view.finalMs < 0) {
+      this.cuedFinalMs = -1;
+      return null;
+    }
+    if (this.cuedFinalMs === view.finalMs) return null;
+    this.cuedFinalMs = view.finalMs;
+    return { dipMs: FINAL_DIP_MS, factor: FINAL_DIP_FACTOR };
+  }
+  // --- end merge-ring-staged ---
+
   /** Over the balls the canvas drew: the dark bodies, their rims and their emblems (the final form pulsing). */
   drawBodies(ctx: CanvasRenderingContext2D, view: MergeRingView, balls: readonly Ball[], opts: MergeRingRenderOptions) {
     const L = view.layout;
@@ -936,13 +1063,17 @@ export class MergeRingLayer {
     ctx.restore();
   }
 
-  /** Over the balls: the halos of the merges (a big one's glow a gradient with the blur's profile, a small one's the shadow itself). */
+  /**
+   * Over the balls: the halos of the merges (a big one's glow a gradient with the blur's profile, a small one's the shadow
+   * itself), and (--- merge-ring-staged ---) the overflow's warning line across the opening, over the ball that sits in it.
+   */
   drawEffects(ctx: CanvasRenderingContext2D, view: MergeRingView) {
     const L = view.layout;
     if (!L) return;
     const now = view.timeMs;
     let m: ReturnType<typeof plainTransform> | undefined;
     ctx.save();
+    this.drawWarning(ctx, view); // --- merge-ring-staged ---
     const lw = Math.max(1.5, 0.004 * L.side);
     for (let i = 0; i < view.haloMs.length; i++) {
       const h = haloAt(now - view.haloMs[i]);

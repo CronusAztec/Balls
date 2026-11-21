@@ -2590,13 +2590,13 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `vortex` | a full funnel: balls weaving down the glowing rings | 1 | 16 s | `face=cute` | zoom 1.4 |
 | `journey` | Gerald bursting the first ring of a rings stage, the field still closed around him | 1 | 2 s | `js=rings-l,glass,pegs,home&face=cute` | x 0.5 · y 0.53 · zoom 1.4 |
 | `bullseye` | BULLSEYE: a ball stuck in the bull, the starburst | 1 | 3.5 s | `byi=0.4&byp=2&face=cute` | x 0.5 · y 0.56 · zoom 1.2 |
-| `mergeRing` | a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim | 1 | 12 s | `mri=0.4&mrs=3` | – |
+| `mergeRing` | a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim | 1 | 12 s | `mrg=1` | – |
 | `spiralGlass` | the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face | 1 | 30 s | `sgv=1.2` | – |
 | `songRing` | five of seven note tiles lit round the ring, the ball lighting the fifth in a burst of sparks, the playhead sweeping on | 1 | 8.87 s | – | – |
 | `sandPlate` | the sixth note's figure drawn in sand, the last loose grains streaming onto its lines, the dots climbing under the plate | 1 | 13.2 s | – | – |
 | `blueprint` | Ring Breaker: the swarm filling the arena as the last ring shatters | 1 | 11.9 s | `blp=ringBreaker` | – |
 | `beatDrop` | the ball landing on a pad on the beat in a burst of sparks | 1 | 12.6 s | `face=cute&bdd=1&bda=1` | x 0.38 · y 0.58 · zoom 1.8 |
-| `territory` | the territory map half painted, borders jagged | 1 | 14.5 s | `tyb=3&tybg=0` | x 0.5 · y 0.545 · zoom 1.1 |
+| `territory` | the territory map half painted, borders jagged, a blast and a whirl biting into the other side | 1 | 14.5 s | `tyb=3&tybg=0` | x 0.5 · y 0.545 · zoom 1.1 |
 | `maze` | the leader one turn from the exit, blood-red trails filling the maze behind it | 6 | 6.7 s | `mzn=4&mzbg=0&mzhud=0` | zoom 1.12 |
 | `conveyor` | balls riding the belt and dropping into the rainbow rings | 1 | 6.8 s | `cvi=1&cvn=12&face=cute` | x 0.481 · y 0.571 · zoom 1.154 |
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |

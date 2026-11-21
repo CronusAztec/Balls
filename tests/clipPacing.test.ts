@@ -26,7 +26,7 @@ import { createEngineForSettings } from "@/lib/simulation/finder";
  *  - nothing the crew's role-eval corpus pins moved: Classic's ring sounds and Accumulation's defaults stay as they were.
  */
 
-const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass", "shatter" /* --- shatter-demolition --- */];
+const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass", "shatter" /* --- shatter-demolition --- */, "territory" /* --- territory-swing --- */];
 const WORLDS = [
   { width: 800, height: 450 },
   { width: 450, height: 450 },
@@ -52,9 +52,10 @@ describe("the page's own defaults", () => {
     expect(clipPacingDefaults("accumulation")).toEqual({});
     expect(clipPacingDefaults("pendulum")).toEqual({ pwCycleSeconds: 24, pwBaseOscillations: 20 });
     expect(clipPacingDefaults("polyrhythm")).toEqual({ prCycleSeconds: 24 });
-    expect(clipPacingDefaults("mergeRing")).toEqual({ mrTiers: 6, mrInterval: 0.6 });
+    expect(clipPacingDefaults("mergeRing")).toEqual({ mrInterval: 0.4, mrSpawnTiers: 3, mrGravity: 3 }); // --- merge-ring-staged ---
     expect(clipPacingDefaults("spiralGlass")).toEqual({ sgGlassHp: 1 });
     expect(clipPacingDefaults("shatter")).toEqual({ wallCount: 6, shatterSegments: 36, shatterHits: 2, shatterEvenBricks: true }); // --- shatter-demolition --- (--- shatter-even-bricks ---)
+    expect(clipPacingDefaults("territory")).toEqual({ tyRadius: 4, tyPowerEvery: 2 }); // --- territory-swing ---
     for (const mode of MODE_IDS) {
       const own = clipPacingDefaults(mode);
       expect(Object.keys(own).length > 0, mode).toBe(PACED.includes(mode));
@@ -65,6 +66,7 @@ describe("the page's own defaults", () => {
     const multiply = defaultSettings("multiply");
     expect([multiply.gapSize, multiply.ballSpeed, multiply.wallCount, multiply.showGlow, multiply.screenShake, multiply.ringSound]).toEqual([0.3, 400, 7, false, 0, false]);
     expect([multiply.pwCycleSeconds, multiply.prCycleSeconds, multiply.mrTiers, multiply.sgGlassHp, multiply.colorMatchSegments, multiply.targetCount]).toEqual([60, 30, 7, 2, 12, 10]);
+    expect([multiply.mrInterval, multiply.mrSpawnTiers, multiply.mrGravity]).toEqual([0.9, 2, 1]); // --- merge-ring-staged ---
     // Classic, the page's first mode, is as it was
     const classic = defaultSettings("classic");
     expect([classic.wallCount, classic.gapSize, classic.ballSpeed]).toEqual([7, 0.4, 400]);
@@ -93,8 +95,8 @@ describe("the page's own defaults", () => {
     expect(settingsFromSearchParams(new URLSearchParams("mode=target&tc=10&s=400")).targetCount).toBe(10);
     expect(settingsFromSearchParams(new URLSearchParams("mode=pendulum&pwt=60&pwk=51")).pwCycleSeconds).toBe(60);
     // a preset that leaves the field out starts from the page's default, one that names it keeps it
-    expect(presetToSettings({ mode: "mergeRing" }).mrTiers).toBe(6);
-    expect(presetToSettings({ mode: "mergeRing", mrTiers: 7, mrInterval: 0.9 })).toMatchObject({ mrTiers: 7, mrInterval: 0.9 });
+    expect(presetToSettings({ mode: "mergeRing" }).mrInterval).toBe(0.4); // --- merge-ring-staged ---
+    expect(presetToSettings({ mode: "mergeRing", mrTiers: 6, mrInterval: 0.9 })).toMatchObject({ mrTiers: 6, mrInterval: 0.9 });
   });
 });
 
@@ -103,6 +105,8 @@ describe("the default run ends inside the default clip", () => {
   // (--- review fix B3 --- Shatter: seeds 1–24 in one world – its rings follow the shorter side only, 450 px in both worlds,
   // so the two worlds played the very same 12 runs twice)
   const INSIDE: Record<string, number> = { target: 24, colorMatch: 20, mergeRing: 24, spiralGlass: 24, shatter: 23 };
+  /** --- merge-ring-staged --- Merge Ring's final forms of those 24 runs (the rest overflowed). */
+  const MERGE_RING_FINALS = 16;
   const runsOf = (mode: string): [{ width: number; height: number }, number][] =>
     mode === "shatter" ? Array.from({ length: 24 }, (_, i) => [WORLDS[1], i + 1]) : WORLDS.flatMap((world) => Array.from({ length: 12 }, (_, i) => [world, i + 1] as [typeof world, number]));
 
@@ -123,9 +127,11 @@ describe("the default run ends inside the default clip", () => {
     for (const mode of ["pendulum", "polyrhythm"] as const) for (const world of WORLDS) for (const seed of [1, 7]) expect(endOf(mode, seed, world), mode).toBeCloseTo(24, 1);
   });
 
-  it("mergeRing and spiralGlass: their own endings, FINAL FORM and GLASS CLEARED, by 27 s on every seed", { timeout: 60000 }, () => {
+  // (--- merge-ring-staged --- Merge Ring's verdict is FINAL FORM or OVERFLOW now, the final form more often: a question with two answers)
+  it("mergeRing and spiralGlass: their own endings, a verdict of Merge Ring's and GLASS CLEARED, by 27 s on every seed", { timeout: 60000 }, () => {
     for (const mode of ["mergeRing", "spiralGlass"] as const) {
       let inside = 0;
+      let finals = 0;
       for (const world of WORLDS) {
         for (let seed = 1; seed <= 12; seed++) {
           const request = finderRequestOfSettings(defaultSettings(mode), world, 45);
@@ -137,11 +143,15 @@ describe("the default run ends inside the default clip", () => {
             if (engine.isSimulationFinished()) end = frame / 60;
           }
           if (end >= 0 && end <= 27) inside++;
-          if (mode === "mergeRing") expect(engine.getMergeRingView().finalMs, `seed ${seed}`).toBeGreaterThan(0);
-          else expect(engine.getSpiralGlassView().clearedMs, `seed ${seed}`).toBeGreaterThan(0);
+          if (mode === "mergeRing") {
+            const mr = engine.getMergeRingView();
+            expect(Math.max(mr.finalMs, mr.overflowMs), `seed ${seed}`).toBeGreaterThan(0);
+            if (mr.finalMs > 0) finals++;
+          } else expect(engine.getSpiralGlassView().clearedMs, `seed ${seed}`).toBeGreaterThan(0);
         }
       }
       expect(inside, mode).toBe(INSIDE[mode]);
+      if (mode === "mergeRing") expect(finals).toBe(MERGE_RING_FINALS);
     }
   });
 });

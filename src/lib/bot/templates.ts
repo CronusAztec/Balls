@@ -761,7 +761,8 @@ const CONVEYOR_OWN_COUNT = "its run ends 1.5 s after its last ball is out (ALL O
 function mergeRingSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const short = ctx.bucket === "short";
   const target = short ? Math.max(ctx.payoffTarget, 10.5) : ctx.payoffTarget;
-  return { mrTiers: short ? 5 : 6, mrGravity: 3, mrInterval: Math.round((10 * target) / (short ? 12.6 : 30)) / 10 };
+  // (--- merge-ring-staged --- its two spawn tiers written out, as measured: the page's pace spawns three now)
+  return { mrTiers: short ? 5 : 6, mrGravity: 3, mrInterval: Math.round((10 * target) / (short ? 12.6 : 30)) / 10, mrSpawnTiers: 2 };
 }
 
 /**

@@ -28,6 +28,7 @@ import {
   tierEmblem,
   tierRadius,
   tierScale,
+  HEART_HZ,
   type MergeRingSettings,
 } from "@/lib/physics/modes/mergeRing";
 import { DEFAULT_MERGE_RING_LABELS, HALO_MS, MERGE_RING_DATA_KEYS, MergeRingDataset, TIER_NAMES, drawEmblem, haloAt, polygonPoints, pulseScale, rimHue } from "@/components/simulator/mergeRingRenderer";
@@ -135,8 +136,9 @@ describe("settings, URL and presets", () => {
     expect(MERGE_RING_RANGES.mrGravity).toMatchObject({ min: 0.5, max: 3 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      // (--- clip-pacing --- in Merge Ring itself the page starts with 6 tiers and a ball every 0.6 s: lib/clipPacing.ts; the feature's own defaults stay)
-      expect(resolveMergeRingFields(d)).toEqual(mode === "mergeRing" ? { ...defaultMergeRingFields(), mrTiers: 6, mrInterval: 0.6 } : defaultMergeRingFields());
+      // (--- clip-pacing --- in Merge Ring itself the page starts with its own pace: lib/clipPacing.ts; the feature's own defaults stay –
+      // --- merge-ring-staged --- seven tiers, a ball every 0.4 s, three spawn tiers and gravity 3)
+      expect(resolveMergeRingFields(d)).toEqual(mode === "mergeRing" ? { ...defaultMergeRingFields(), mrInterval: 0.4, mrSpawnTiers: 3, mrGravity: 3 } : defaultMergeRingFields());
       const params = settingsToSearchParams(d);
       for (const key of ["mrt", "mri", "mrs", "mrg", "mrr"]) expect(params.has(key)).toBe(false);
       // the mode's own ball size, in Merge Ring only
@@ -160,22 +162,22 @@ describe("settings, URL and presets", () => {
   });
 
   it("round-trip through mrt / mri / mrs / mrg / mrr and presets", () => {
-    const s = { ...defaultSettings("mergeRing"), mrTiers: 9, mrInterval: 0.5, mrSpawnTiers: 3, mrGravity: 1.5, mrRainbow: false };
+    const s = { ...defaultSettings("mergeRing"), mrTiers: 9, mrInterval: 0.5, mrSpawnTiers: 1, mrGravity: 1.5, mrRainbow: false }; // (--- merge-ring-staged --- one spawn tier: three is the page's own now)
     const params = settingsToSearchParams(s);
     expect(params.get("mode")).toBe("mergeRing");
     expect(params.get("mrt")).toBe("9");
     expect(params.get("mri")).toBe("0.5");
-    expect(params.get("mrs")).toBe("3");
+    expect(params.get("mrs")).toBe("1");
     expect(params.get("mrg")).toBe("1.5");
     expect(params.get("mrr")).toBe("0");
     const back = settingsFromSearchParams(params);
     expect(back.mode).toBe("mergeRing");
-    expect(resolveMergeRingFields(back)).toEqual({ mrTiers: 9, mrInterval: 0.5, mrSpawnTiers: 3, mrGravity: 1.5, mrRainbow: false });
+    expect(resolveMergeRingFields(back)).toEqual({ mrTiers: 9, mrInterval: 0.5, mrSpawnTiers: 1, mrGravity: 1.5, mrRainbow: false });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=mergeRing&mrt=500&mri=abc&mrr=7&mrs=0&mrg=0"));
-    expect(resolveMergeRingFields(bad)).toEqual({ ...defaultMergeRingFields(), mrInterval: 0.6 /* (mri=abc: the page's own default) */, mrTiers: MAX_TIERS, mrSpawnTiers: 1, mrGravity: 0.5 });
+    expect(resolveMergeRingFields(bad)).toEqual({ ...defaultMergeRingFields(), mrInterval: 0.4 /* (mri=abc: the page's own default) */, mrTiers: MAX_TIERS, mrSpawnTiers: 1, mrGravity: 0.5 });
     const preset = presetToSettings({ mode: "mergeRing", mrTiers: 0, mrRainbow: "no", mrInterval: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveMergeRingFields(preset)).toMatchObject({ mrTiers: 5, mrRainbow: true, mrInterval: 9 }); // ("no" is not a boolean: the default stays)
-    expect(modeSettingsOfSettings(s).mergeRing).toEqual({ tiers: 9, interval: 0.5, spawnTiers: 3, gravity: 1.5, rainbow: false });
+    expect(modeSettingsOfSettings(s).mergeRing).toEqual({ tiers: 9, interval: 0.5, spawnTiers: 1, gravity: 1.5, rainbow: false });
   });
 
   it("the mode is registered: a rhythm card right after Bullseye, a hero moment, an AI prefix, bounce math's ball and collide lists", () => {
@@ -572,7 +574,7 @@ describe("the mode in the engine", () => {
     expect(maxTier).toBeGreaterThanOrEqual(5);
     expect(v.topTier).toBe(maxTier);
     expect(v.thuds).toBeGreaterThan(5);
-    const thuds = events.filter(({ ev }) => ev.thud);
+    const thuds = events.filter(({ ev }) => ev.thud && ev.frequency !== HEART_HZ); // (--- merge-ring-staged --- the heartbeat thuds too: not a landing)
     expect(thuds.length).toBe(v.thuds);
     for (const { ev } of thuds) {
       expect(ev.frequency).toBeGreaterThanOrEqual(thudPitch(1) - 1e-6);
