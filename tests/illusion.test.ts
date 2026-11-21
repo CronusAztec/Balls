@@ -7,6 +7,8 @@ import {
   LINE_CYCLE_SEC,
   RING_CYCLE_SEC,
   RING_TRAVERSALS,
+  STAGE_BREATH_SLOTS,
+  STAGE_ROLL_STEPS,
   WHITESPACE_DONE,
   WHITESPACE_STALL_COVERAGE,
   WHITESPACE_STALL_SEC,
@@ -302,70 +304,89 @@ describe("illusion lines maths", () => {
 /* ------------------------------------------------------------------ --- illusion-stage --- the staged build */
 
 describe("illusion lines: the staged build (illusion-stage)", () => {
-  it("plans the joins as opposite pairs every four slots, the reveal on a cycle boundary a cycle before the end", () => {
+  it("plans the joins as opposite pairs (two from the first frame, then every two slots up to four, every four after), the reveal on a cycle boundary a cycle before the end", () => {
     for (const direction of [1, -1]) {
       const plan = illusionStage(8, direction, 5);
-      // ball 0 first, then a ball every 4 slots (one second at speed 1): 0, 4, 9, 13, 18, 22, 27, 31
-      expect([...plan.joinSlot].sort((a, b) => a - b)).toEqual([0, 4, 9, 13, 18, 22, 27, 31]);
-      expect(plan.joinSlot[0]).toBe(0);
-      // the slot a ball joins at is one of its own rim touches
-      plan.joinSlot.forEach((slot, ball) => expect(lineTouch(slot, 8, direction).ball).toBe(ball));
+      // (D2 review) ball 0 and its partner from the first slot, the next two 2 slots on, then a ball every 4 slots (one second at speed 1)
+      expect([...plan.joinSlot].sort((a, b) => a - b)).toEqual([0, 0, 2, 6, 11, 15, 21, 25]);
+      expect([plan.joinSlot[0], plan.joinSlot[4]]).toEqual([0, 0]);
+      // the slot a ball joins at is one of its own rim touches (but the partner's that is there from the first frame)
+      plan.joinSlot.forEach((slot, ball) => expect(ball === 4 || lineTouch(slot, 8, direction).ball === ball).toBe(true));
       // joining in the order of their slots, every pair of joins is a pair of opposite balls on the hidden circle (i and i + 4)
       const order = plan.joinSlot.map((slot, ball) => ({ slot, ball })).sort((a, b) => a.slot - b.slot).map((x) => x.ball);
       for (let k = 0; k < 8; k += 2) expect(Math.abs(order[k] - order[k + 1])).toBe(4);
-      expect([plan.lastJoinSlot, plan.fadeSlot, plan.revealSlot]).toEqual([31, 56, 64]);
+      expect([plan.lastJoinSlot, plan.fadeSlot, plan.revealSlot]).toEqual([25, 56, 64]);
     }
     // a run that never ends reveals two cycles after the last join; a short one at its end at the latest
     expect(illusionStage(8, 1, 0).revealSlot).toBe(4 * 16);
     expect(illusionStage(8, 1, 3).revealSlot).toBe(3 * 16);
-    expect(illusionStage(3, 1, 5).joinSlot).toEqual([0, 4, 8]);
+    expect(illusionStage(3, 1, 5).joinSlot).toEqual([0, 4, 2]);
+    // the start look's four cycles: the tracks fade at 10 s, the circle comes at 12 s, a whole cycle of straight lines after the last join
+    expect([illusionStage(8, 1, 4).fadeSlot, illusionStage(8, 1, 4).revealSlot]).toEqual([40, 48]);
   });
 
-  it("starts with one ball, plays a faint ghost of the note on every slot still waiting for its ball, a ball's own note as it joins and reveals with a chord", () => {
+  it("starts with two balls, plays a faint ghost of the note on every slot still waiting for its ball, a ball's own note as it joins and reveals with a rolled chord after a breath", () => {
     const e = engineFor({ type: "lines", balls: 8, stage: true, cycles: 5 }, 1);
     const v = e.getIllusionView();
     expect([v.staged, v.joined, v.revealed]).toEqual([true, 0, false]);
-    expect(Array.from(v.joinSec).sort((a, b) => a - b)).toEqual([0, 1, 2.25, 3.25, 4.5, 5.5, 6.75, 7.75]);
+    expect(Array.from(v.joinSec).sort((a, b) => a - b)).toEqual([0, 0, 0.5, 1.5, 2.75, 3.75, 5.25, 6.25]);
     expect([v.fadeSec, v.revealSec]).toEqual([14, 16]);
     const log: { t: number; e: SoundEvent }[] = [];
     let steps = 0;
     let quiet = 0;
     let longest = 0;
+    let breath = 0;
     while (!e.isSimulationFinished() && steps < 40 * 60) {
       e.update(STEP, 0);
       steps++;
       const evs = e.consumeSoundEvents();
-      if (evs.length === 0) longest = Math.max(longest, ++quiet);
-      else quiet = 0;
+      if (evs.length === 0) quiet++;
+      else {
+        // (D2 review) the quiet that ends at the reveal is its breath (under the riser); every other one is the longest
+        if (Math.abs(e.getElapsedMs() / 1000 - v.revealSec) < 0.03) breath = quiet;
+        else longest = Math.max(longest, quiet);
+        quiet = 0;
+      }
       for (const ev of evs) log.push({ t: e.getElapsedMs() / 1000, e: ev });
-      if (steps === 60) expect(v.joined).toBe(1);
+      if (steps === 60) expect(v.joined).toBe(3);
     }
     // the end: five cycles of 4 s, the figure back where it started, the circle revealed
     expect(steps / 60).toBeCloseTo(5 * LINE_CYCLE_SEC, 1);
     expect([v.finished, v.joined, v.revealed, v.cyclesDone]).toEqual([true, 8, true, 5]);
-    // a sound every slot (0.25 s): no gap longer than one slot and a step
+    // a sound every slot (0.25 s): no gap longer than one slot and a step – but the breath before the reveal, its slots and a step
     expect(longest * STEP).toBeLessThanOrEqual(250 + STEP);
+    expect(breath * STEP).toBeLessThanOrEqual((STAGE_BREATH_SLOTS + 1) * 250 + STEP);
     // the eight joins: each ball's own note at its join second, at full level (no accent: its peak would hold the export's loudness down)
     const pitchOf = Array.from({ length: 8 }, (_, i) => pendulumPitch(i, 8, "up"));
     for (let i = 0; i < 8; i++) {
       const at = log.find((x) => !x.e.loop && Math.abs(x.t - v.joinSec[i]) < 0.03);
-      expect([i, at?.e.frequency, at?.e.accent]).toEqual([i, pitchOf[i], undefined]);
+      // (the two balls of the first frame sound together, as one chord event of their two notes)
+      const heard = at?.e.chord ?? [at?.e.frequency];
+      expect([i, heard.includes(pitchOf[i]), at?.e.accent]).toEqual([i, true, undefined]);
     }
     expect(log.some((x) => x.e.accent)).toBe(false);
-    // the waiting slots' ghost notes, faint, decorative and only before the last ball joined, each the waiting ball's own pitch: 12 at 8 balls
+    // the waiting slots' ghost notes, faint, decorative and only before the last ball joined, each the waiting ball's own pitch: GHOSTS at 8 balls
+    const GHOSTS = 7;
     const ghosts = log.filter((x) => x.e.loop === "pluck");
-    expect(ghosts).toHaveLength(12);
-    expect(ghosts.every((x) => x.t < 7.75 && x.e.ringVoice === "extra" && x.e.melody === false && x.e.level! < 0.5)).toBe(true);
+    expect(ghosts).toHaveLength(GHOSTS);
+    expect(ghosts.every((x) => x.t < 6.25 && x.e.ringVoice === "extra" && x.e.melody === false && x.e.level! < 0.5)).toBe(true);
     const pitches = Array.from({ length: 8 }, (_, i) => pendulumPitch(i, 8, "up"));
     expect(ghosts.every((x) => pitches.includes(x.e.frequency!))).toBe(true);
-    // the riser as the tracks fade, then a ding at the reveal, and every ball's note at once there and again under the end card
+    // the riser as the tracks fade, then a ding and the held pad at the reveal, and every ball's note at once under the end card
     const kinds = log.filter((x) => x.e.loop && x.e.loop !== "pluck").map((x) => [x.e.loop, Math.round(x.t)]);
-    expect(kinds).toEqual([["riser", 14], ["ding", 16], ["chord", 20]]);
+    expect(kinds).toEqual([["riser", 14], ["ding", 16], ["chord", 16], ["chord", 20]]);
+    expect(log.find((x) => x.e.loop === "chord" && x.t < 17)?.e.loopTremolo).toBe(true);
     const chords = log.filter((x) => (x.e.chord?.length ?? 0) === 4 && x.e.melody === false);
-    expect(chords.map((x) => Math.round(x.t))).toEqual([16, 20]);
-    // every note of a ball is its own pitch, as without the build
+    expect(chords.map((x) => Math.round(x.t))).toEqual([20]);
+    // (D2 review) the reveal's chord rolled up: the four chord notes one by one, STAGE_ROLL_STEPS steps apart, from the reveal
+    const roll = log.filter((x) => !x.e.loop && !x.e.chord && x.e.melody === false);
+    expect(roll.map((x) => x.e.frequency)).toEqual([pitchOf[0], pitchOf[2], pitchOf[4], pitchOf[7]]);
+    expect(roll.map((x) => Math.round((x.t - 16) * 60))).toEqual([0, 1, 2, 3].map((k) => 1 + k * STAGE_ROLL_STEPS));
+    // (D2 review) a breath before it: the last STAGE_BREATH_SLOTS rim touches before the reveal play no note
     const notes = log.filter((x) => !x.e.loop && x.e.melody !== false);
-    expect(notes.length).toBe(5 * 16 + 1 - 12);
+    expect(notes.filter((x) => x.t > 16 - STAGE_BREATH_SLOTS * 0.25 && x.t < 16)).toHaveLength(0);
+    // every note of a ball is its own pitch, as without the build
+    expect(notes.length).toBe(5 * 16 + 1 - GHOSTS - STAGE_BREATH_SLOTS);
     expect(new Set(notes.map((x) => Math.round(x.e.frequency!))).size).toBe(8);
   });
 
@@ -388,10 +409,10 @@ describe("illusion lines: the staged build (illusion-stage)", () => {
     expect(presetToSettings({ mode: "illusion", ilStage: true } as never).ilStage).toBe(true);
   });
 
-  it("is the page's start look: a bare visit builds the trick, reveals it at 16 s and ends at 20 s", () => {
-    expect(clipStartSettings("illusion")).toEqual({ ilStage: true, ilCycles: 5 });
+  it("is the page's start look: a bare visit builds the trick, reveals it at 12 s and ends at 16 s", () => {
+    expect(clipStartSettings("illusion")).toEqual({ ilStage: true, ilCycles: 4 });
     const s = illusionSettingsOf({ ...defaultSettings("illusion"), ...clipStartSettings("illusion") });
-    expect(illusionFixedDurationSec(s)).toBe(20);
+    expect(illusionFixedDurationSec(s)).toBe(16);
     expect(defaultSettings("illusion")).toMatchObject({ ilStage: false, ilCycles: 0 });
   });
 });
@@ -747,9 +768,9 @@ describe("illusion and the finder", () => {
 describe("illusion lines: the staged build drawn (illusion-stage)", () => {
   it("draws only the balls that have joined, every track waiting dim until its ball comes, and no circle before the reveal", () => {
     const e = engineFor({ type: "lines", balls: 8, stage: true, cycles: 5 }, 1);
-    run(e, 90); // 1.5 s: balls 0 and 4 have joined
+    run(e, 80); // 1.33 s: balls 0 and 4 (from the first frame) and 2 have joined
     const v = e.getIllusionView();
-    expect(v.joined).toBe(2);
+    expect(v.joined).toBe(3);
     const draw = (nowMs: number) => {
       const ctx = fakeCanvas(800, 600).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
       const layer = new IllusionLayer();
@@ -762,16 +783,16 @@ describe("illusion lines: the staged build drawn (illusion-stage)", () => {
     };
     const now = e.getElapsedMs();
     const a = draw(now);
-    // the bodies drawn: the two joined balls, a disc each (their bursts are over) – the six waiting ones not at all
+    // the bodies drawn: the three joined balls, a disc each (their bursts are over) – the five waiting ones not at all
     const bodyArcs = a.ctx.calls.slice(a.stageCalls).filter((c) => c.name === "arc").length;
-    expect(bodyArcs).toBe(2);
-    expect(a.faces).toBe(2);
+    expect(bodyArcs).toBe(3);
+    expect(a.faces).toBe(3);
     // no dashed circle before the reveal
     expect(a.ctx.calls.filter((c) => c.name === "setLineDash").length).toBe(0);
     expect([stageReveal(v, now), stageFade(v, now)]).toEqual([0, 0]);
-    expect([stageAppear(v, 0, now), stageAppear(v, 4, now), stageAppear(v, 1, now)]).toEqual([1, 1, 0]);
+    expect([stageAppear(v, 0, now), stageAppear(v, 4, now), stageAppear(v, 2, now), stageAppear(v, 1, now)]).toEqual([1, 1, 1, 0]);
     // after the reveal: every ball, the dashed circle, the tracks gone
-    run(e, 17 * 60 - 90);
+    run(e, 17 * 60 - 80);
     const b = draw(e.getElapsedMs());
     expect(b.faces).toBe(8);
     expect(b.ctx.calls.filter((c) => c.name === "setLineDash").length).toBeGreaterThan(0);

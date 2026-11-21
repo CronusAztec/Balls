@@ -58,6 +58,8 @@ export const STAGE_TAIL_ALPHA = 0.45;
 export const STAGE_WAITING_ALPHA = 0.1;
 export const STAGE_TRACK_ALPHA = 0.32;
 export const STAGE_FLASH = 0.32;
+/** (D2 review) A ghost touch's dot: its fill's alpha at its brightest (its ring at full). */
+export const STAGE_GHOST_FILL = 0.55;
 
 /** How far ball `i` of a staged build has appeared at `nowMs` (0 before it joins, 1 a moment after); 1 without the staged build. */
 export function stageAppear(view: IllusionView, i: number, nowMs: number): number {
@@ -377,11 +379,19 @@ export class IllusionLayer {
     if (ghostAge >= 0 && ghostAge < 1.5 * NOTE_FLASH_MS) {
       const k = 1 - ghostAge / (1.5 * NOTE_FLASH_MS);
       const r = view.r[view.ghostBall] ?? 4;
-      ctx.globalAlpha = 0.75 * k;
-      ctx.strokeStyle = view.colors[view.ghostBall] ?? "#ffffff";
-      ctx.lineWidth = Math.max(1.5, 0.25 * r);
+      // (D2 review) bright: a filled dot in the waiting ball's colour inside its ring, so an empty spoke visibly asks to be filled
+      const gx = view.cx + A * Math.cos(view.ghostAngle);
+      const gy = view.cy + A * Math.sin(view.ghostAngle);
+      ctx.fillStyle = view.colors[view.ghostBall] ?? "#ffffff";
+      ctx.globalAlpha = STAGE_GHOST_FILL * k;
       ctx.beginPath();
-      ctx.arc(view.cx + A * Math.cos(view.ghostAngle), view.cy + A * Math.sin(view.ghostAngle), r * (0.7 + 0.5 * (1 - k)), 0, TWO_PI);
+      ctx.arc(gx, gy, 0.8 * r, 0, TWO_PI);
+      ctx.fill();
+      ctx.globalAlpha = k;
+      ctx.strokeStyle = view.colors[view.ghostBall] ?? "#ffffff";
+      ctx.lineWidth = Math.max(2, 0.35 * r);
+      ctx.beginPath();
+      ctx.arc(gx, gy, r * (0.8 + 0.7 * (1 - k)), 0, TWO_PI);
       ctx.stroke();
     }
     if (reveal > 0) {

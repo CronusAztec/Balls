@@ -4240,7 +4240,7 @@ const instrumentOscillators = () =>
   await page.screenshot({ path: path.join(outDir, "sim-illusion-lines.png") });
 }
 {
-  // --- illusion-stage --- the staged build at 3×: one ball first, all eight by 2.6 s, the circle revealed at 5.3 s, the end at 6.7 s
+  // --- illusion-stage --- the staged build at 3×: two balls first (D2 review), all eight by 2.1 s, the circle revealed at 5.3 s, the end at 6.7 s
   await page.goto(`${BASE}/en/simulator/?mode=illusion&ilsg=1&ilc=5&ils=3`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(300);

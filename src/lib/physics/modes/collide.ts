@@ -261,19 +261,47 @@ export const HUE_BUCKETS = 24;
  * the biggest last – then over POUR_WIDEN_SEC more to POUR_GAP_END of the jar's radius: the bottom gone for the stragglers.
  */
 export const POUR_SORT_SEC = 5;
-export const POUR_WIDEN_SEC = 2;
-export const POUR_GAP_START = 1.1;
+export const POUR_WIDEN_SEC = 1; // (D2 review: 2 s left the last orbs dribbling out of an empty jar)
+export const POUR_GAP_START = 2; // (D2 review: 1.1× the smallest orb's radius read as a crack at phone size)
 export const POUR_GAP_SORTED = 1.2;
 export const POUR_GAP_END = 0.5;
+/**
+ * (D2 review) A pouring jar is laid out smaller and higher in the square: POUR_JAR_SCALE of the full jar, its top at the square's
+ * top margin, so about a third of the square under it is the catch floor where the poured orbs land and heap up – the smallest
+ * first at the bottom, the biggest on top – instead of vanishing through the picture's bottom edge.
+ */
+export const POUR_JAR_SCALE = 0.68;
+/** A poured orb keeps this share of its speed off the floor, the square's sides and the jar's outside, and slides this much less a floor contact. */
+export const POUR_FLOOR_RESTITUTION = 0.3;
+export const POUR_FLOOR_FRICTION = 0.85;
+/** An orb that starts to leave keeps this share of its sideways speed: the opening funnels the pour into a stream that heaps up under it. */
+export const POUR_EXIT_SIDEWAYS = 0.2;
+/** Once no more than this share of the orbs is left in the jar, the opening goes wide over POUR_TAIL_SEC: the stragglers drop together. */
+export const POUR_TAIL_SHARE = 0.1;
+export const POUR_TAIL_SEC = 0.5;
+/** The exit pluck's loudest level: under the grid's notes, so the pour does not set the clip's loudness (the normaliser's reference). */
+export const POUR_PLUCK_MAX = 0.35;
 
-/** --- collide-pour --- The opening's half width (px) `sec` seconds after it opened, for orbs of radii `minRadius` … `maxRadius` in a jar of `jarRadius`. */
-export function pourGapHalf(sec: number, minRadius: number, maxRadius: number, jarRadius: number): number {
+/**
+ * --- collide-pour --- The opening's half width (px) `sec` seconds after it opened, for orbs of radii `minRadius` … `maxRadius` in a jar
+ * of `jarRadius` – and (D2 review) `tailSec` seconds after the jar was down to its last POUR_TAIL_SHARE of orbs (negative: not yet),
+ * wide within POUR_TAIL_SEC from there.
+ */
+export function pourGapHalf(sec: number, minRadius: number, maxRadius: number, jarRadius: number, tailSec = -1): number {
   const small = POUR_GAP_START * minRadius;
   const big = Math.max(small, POUR_GAP_SORTED * maxRadius);
   const wide = Math.max(big, POUR_GAP_END * jarRadius);
-  if (!(sec > 0)) return small;
-  if (sec <= POUR_SORT_SEC) return small + ((big - small) * sec) / POUR_SORT_SEC;
-  return big + (wide - big) * Math.min(1, (sec - POUR_SORT_SEC) / POUR_WIDEN_SEC);
+  let gap: number;
+  if (!(sec > 0)) gap = small;
+  else if (sec <= POUR_SORT_SEC) gap = small + ((big - small) * sec) / POUR_SORT_SEC;
+  else gap = big + (wide - big) * Math.min(1, (sec - POUR_SORT_SEC) / POUR_WIDEN_SEC);
+  if (tailSec >= 0) gap = Math.max(gap, gap + (wide - gap) * Math.min(1, tailSec / POUR_TAIL_SEC));
+  return gap;
+}
+
+/** --- collide-pour --- (D2 review) Whether a run of resolved settings lays its jar out for the pour (smaller and higher, a catch floor under it). */
+export function collidePourLayout(s: Pick<CollideSettings, "pourAt" | "ring">): boolean {
+  return (s.pourAt ?? 0) > 0 && !s.ring;
 }
 /** While the jar pours, its walls keep this share of an orb's speed (the orbs settle into the opening) and gravity pulls at least this much. */
 export const POUR_WALL_DAMP = 0.4;
@@ -281,7 +309,21 @@ export const POUR_GRAVITY_MIN = 1;
 /** The pulse: a grid step of a 16th note at 120 BPM (s), at most this many notes on a step, and the quietest share of a note's level. */
 export const PULSE_STEP_SEC = 0.125;
 export const PULSE_MAX_NOTES = 4;
-export const PULSE_FLOOR = 0.35;
+/**
+ * (D2 review) The quietest share of a note's level and the gain over a plain collision note: the drop and the chaos, when the orbs
+ * move fastest, sound as loud as the pour (0.35 and 2× left them 10–15 LU under it, and the pour set the clip's loudness).
+ */
+export const PULSE_FLOOR = 0.6;
+export const PULSE_GAIN = 3;
+/**
+ * (D2 review) On the grid, the anti-collision switch's chord rings alone for this long (the grid's notes wait) with a bell over it,
+ * so it stands out against the grid it interrupts; and the empty jar's chord at this level (0.9 set the clip's true peak).
+ */
+export const ANTI_HUSH_SEC = 0.375;
+export const ANTI_BELL_LEVEL = 0.6;
+export const POUR_CHORD_LEVEL = 0.55;
+/** (D2 review) A grid note's loudest level: the sync landing's four loudest notes at full level set the clip's true peak. */
+export const PULSE_NOTE_MAX = 0.8;
 /** The chord the empty jar rings (the completion chord's root, C3). */
 export const POUR_CHORD_ROOT = 130.81;
 // --- end collide-pour ---
@@ -353,19 +395,28 @@ export interface CollideField {
   bottom: number;
   /** Side of the centred square the recorder crops to (the container is laid out in it). */
   side: number;
+  /** --- collide-pour --- (D2 review) The catch floor of a pouring jar: the square's sides and bottom, where the poured orbs heap. */
+  catchLeft: number;
+  catchRight: number;
+  catchBottom: number;
   /** The canvas the field was laid out for (a resize maps the orbs onto the new field isotropically). */
   canvasWidth: number;
   canvasHeight: number;
 }
 
-/** The container for a canvas of `width` × `height`: a circle or a square filling the centred square the recorder crops to, with a small margin. */
-export function buildCollideField(width: number, height: number, kind: CollideContainer): CollideField {
+/**
+ * The container for a canvas of `width` × `height`: a circle or a square filling the centred square the recorder crops to, with a
+ * small margin – --- collide-pour --- (D2 review) or, for a jar that pours (`pour`), POUR_JAR_SCALE of it at the square's top, the
+ * rest of the square a catch floor under it.
+ */
+export function buildCollideField(width: number, height: number, kind: CollideContainer, pour = false): CollideField {
   const side = Math.max(40, Math.min(width, height));
   const margin = Math.max(6, 0.03 * side);
-  const half = side / 2 - margin;
+  const full = side / 2 - margin;
+  const half = pour ? POUR_JAR_SCALE * full : full;
   const cx = width / 2;
-  const cy = height / 2;
-  return { kind, cx, cy, radius: half, left: cx - half, top: cy - half, right: cx + half, bottom: cy + half, side, canvasWidth: width, canvasHeight: height };
+  const cy = pour ? height / 2 - side / 2 + margin + half : height / 2;
+  return { kind, cx, cy, radius: half, left: cx - half, top: cy - half, right: cx + half, bottom: cy + half, side, canvasWidth: width, canvasHeight: height, catchLeft: cx - side / 2, catchRight: cx + side / 2, catchBottom: height / 2 + side / 2 };
 }
 
 /** Area inside the container (px²). */
@@ -576,6 +627,8 @@ export class CollideMode implements GameMode {
   private exitFreq = 0;
   private exitRadius = 0;
   private exitCount = 0;
+  /** (D2 review) The second the jar was down to its last POUR_TAIL_SHARE of orbs (−1: not yet). */
+  private tailAt = -1;
   // --- end collide-pour ---
 
   getSettings(): CollideSettings {
@@ -633,12 +686,13 @@ export class CollideMode implements GameMode {
     this.exitFreq = 0;
     this.exitRadius = 0;
     this.exitCount = 0;
+    this.tailAt = -1;
     this.steps = 0;
     this.sndCount = 0;
     this.ballSpeed = ctx.config.ballSpeed || 400;
     this.lastBallSpeed = this.ballSpeed;
     this.lastBallRadius = ctx.config.ballRadius || 8;
-    const field = buildCollideField(ctx.config.width, ctx.config.height, s.container);
+    const field = buildCollideField(ctx.config.width, ctx.config.height, s.container, collidePourLayout(s)); // --- collide-pour --- (D2 review: room for the pour)
     v.field = field;
     const n = collideBodyCount(s); // --- unlimited-sizes --- (the ring's bodies: a setting, 36 by default)
     this.n = n;
@@ -927,11 +981,16 @@ export class CollideMode implements GameMode {
     const e = this.wallRestitution;
     const r = ball.radius;
     const v = this.view;
-    // --- collide-pour --- an orb on its way out (or out) is past the walls; one at the bottom that fits the opening starts to leave
+    // --- collide-pour --- an orb on its way out is past the walls (one out lands on the catch floor); one at the bottom that fits the opening starts to leave
     if (v.pourActive && k >= 0 && k < v.out.length) {
+      if (v.out[k] === 2) {
+        this.catchBounce(ball, k, field, report, ctx);
+        return;
+      }
       if (v.out[k] > 0) return;
       if (ball.y > field.cy && Math.abs(ball.x - field.cx) <= v.gapHalf - r && (field.kind === "circle" ? (ball.x - field.cx) ** 2 + (ball.y - field.cy) ** 2 > (field.radius - r) ** 2 : ball.y + r > field.bottom)) {
         v.out[k] = 1;
+        ball.vx *= POUR_EXIT_SIDEWAYS; // (D2 review) a stream, not a spray
         return;
       }
     }
@@ -995,6 +1054,53 @@ export class CollideMode implements GameMode {
     }
   }
 
+  /**
+   * --- collide-pour --- (D2 review) A poured orb on the catch floor: it rests on the jar's outside, the square's sides and its bottom,
+   * keeping POUR_FLOOR_RESTITUTION of its speed and sliding less on every floor contact, so the poured orbs heap up under the
+   * opening in the order they left; a real landing is a note like a wall hit.
+   */
+  private catchBounce(ball: Ball, k: number, field: CollideField, report: boolean, ctx?: ModeContext) {
+    const e = POUR_FLOOR_RESTITUTION;
+    const r = ball.radius;
+    if (field.kind === "circle") {
+      const dx = ball.x - field.cx;
+      const dy = ball.y - field.cy;
+      const lim = field.radius + r;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < lim * lim) {
+        const d = Math.sqrt(d2);
+        const nx = d > 0 ? dx / d : 0;
+        const ny = d > 0 ? dy / d : 1;
+        ball.x = field.cx + nx * lim;
+        ball.y = field.cy + ny * lim;
+        const vn = ball.vx * nx + ball.vy * ny;
+        if (vn < 0) {
+          ball.vx -= (1 + e) * vn * nx;
+          ball.vy -= (1 + e) * vn * ny;
+        }
+      }
+    } else if (ball.y > field.cy && ball.y - r < field.bottom && ball.x + r > field.left && ball.x - r < field.right) {
+      ball.y = field.bottom + r;
+      if (ball.vy < 0) ball.vy = -ball.vy * e;
+    }
+    if (ball.x - r < field.catchLeft) {
+      ball.x = field.catchLeft + r;
+      if (ball.vx < 0) ball.vx = -ball.vx * e;
+    } else if (ball.x + r > field.catchRight) {
+      ball.x = field.catchRight - r;
+      if (ball.vx > 0) ball.vx = -ball.vx * e;
+    }
+    if (ball.y + r > field.catchBottom) {
+      ball.y = field.catchBottom - r;
+      if (ball.vy > 0) {
+        const vn = ball.vy;
+        ball.vy = -vn * e;
+        ball.vx *= POUR_FLOOR_FRICTION;
+        if (report) this.wallImpact(k, r, 0, 1, vn, ball, ctx);
+      }
+    }
+  }
+
   /** A wall impact of body k: counted, squashed and offered as a note – and, with `ctx`, a bounce-math bounce of `ball`. */
   private wallImpact(k: number, radius: number, nx: number, ny: number, speed: number, ball: Ball, ctx?: ModeContext) {
     if (speed < this.minSoundSpeed) return;
@@ -1035,7 +1141,7 @@ export class CollideMode implements GameMode {
   onPostSubStep(ctx: ModeContext) {
     const v = this.view;
     if (this.ring) this.stepRing(ctx);
-    else if (!v.antiActive) this.collideOrbs(ctx);
+    else if (!v.antiActive || v.pourActive) this.collideOrbs(ctx); // --- collide-pour --- (D2 review: the poured orbs heap up, ghosts or not)
     v.tick++;
   }
 
@@ -1058,7 +1164,12 @@ export class CollideMode implements GameMode {
       bodyOf[i] = k >= 0 && k < this.n ? k : -1;
     }
     const margin = Math.max(0.5, 0.2 * maxR);
-    this.hash.build(xs, ys, m, 2 * maxR + margin, field.left - maxR, field.top - maxR, field.right + maxR, field.bottom + maxR);
+    // --- collide-pour --- (D2 review) an open jar's grid reaches down over its catch floor
+    const pouring = this.view.pourActive;
+    const gridLeft = pouring ? Math.min(field.left, field.catchLeft) : field.left;
+    const gridRight = pouring ? Math.max(field.right, field.catchRight) : field.right;
+    const gridBottom = pouring ? Math.max(field.bottom, field.catchBottom) : field.bottom;
+    this.hash.build(xs, ys, m, 2 * maxR + margin, gridLeft - maxR, field.top - maxR, gridRight + maxR, gridBottom + maxR);
     const count = this.hash.collectContacts(xs, ys, rs, margin, this.pairs, ctx.config.unlimited ? COLLIDE_PAIR_BUDGET : Infinity); // --- unlimited --- (a bounded pile)
     const pairs = this.pairs.pairs;
     // Alternate the direction of the passes, so a push travels through a pile both ways.
@@ -1077,9 +1188,12 @@ export class CollideMode implements GameMode {
 
   /** One contact: push the overlap apart (split by inverse mass, minus the slop) and, while approaching, exchange momentum. */
   private resolvePair(a: Ball, b: Ball, ka: number, kb: number, ctx: ModeContext) {
-    // --- collide-pour --- an orb leaving the jar meets nothing on its way out
+    // --- collide-pour --- an orb leaving the jar meets nothing on its way out, and the jar and its catch floor never meet; (D2 review)
+    // the poured orbs stack on each other even after the anti-collision switch, while the ghosts in the jar still pass through
     const out = this.view.out;
-    if ((ka >= 0 && out[ka] > 0) || (kb >= 0 && out[kb] > 0)) return;
+    const oa = ka >= 0 ? out[ka] : 0;
+    const ob = kb >= 0 ? out[kb] : 0;
+    if (oa !== ob || oa === 1 || (oa === 0 && this.view.antiActive)) return;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const minD = a.radius + b.radius;
@@ -1102,7 +1216,8 @@ export class CollideMode implements GameMode {
     }
     const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
     if (rel >= 0) return;
-    const j = (-(1 + this.view.settings.restitution) * rel) / sum;
+    const e = oa === 2 ? POUR_FLOOR_RESTITUTION : this.view.settings.restitution; // --- collide-pour --- (D2 review: the heap settles)
+    const j = (-(1 + e) * rel) / sum;
     a.vx -= j * ima * nx;
     a.vy -= j * ima * ny;
     b.vx += j * imb * nx;
@@ -1207,9 +1322,8 @@ export class CollideMode implements GameMode {
       for (const b of balls) b.gravityScale = pull;
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "ratchet", loopSec: 0.5, level: 0.8, melody: false });
     }
-    v.gapHalf = pourGapHalf(t - (s.pourAt ?? 0), this.minRadius, this.maxRadius, field.radius);
+    v.gapHalf = pourGapHalf(t - (s.pourAt ?? 0), this.minRadius, this.maxRadius, field.radius, this.tailAt >= 0 ? t - this.tailAt : -1);
     const below = field.kind === "circle" ? field.cy + field.radius : field.bottom;
-    const floor = ctx.config.height;
     for (let i = 0; i < balls.length; i++) {
       const b = balls[i];
       const k = b.id - this.firstId;
@@ -1224,17 +1338,13 @@ export class CollideMode implements GameMode {
           this.exitFreq = collidePitch(b.radius, this.minRadius, this.maxRadius);
         }
       }
-      // out of the picture: it rests below it (nothing more to integrate or draw)
-      if (v.out[k] === 2 && b.y - b.radius > floor) {
-        b.vx = 0;
-        b.vy = 0;
-        b.gravityScale = 0;
-      }
     }
+    // (D2 review) the last few go out together: the opening widens to its widest within POUR_TAIL_SEC
+    if (this.tailAt < 0 && v.left <= POUR_TAIL_SHARE * v.count) this.tailAt = t;
     if (v.left <= 0) {
       v.empty = true;
       v.emptyTick = v.tick;
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: POUR_CHORD_ROOT, level: 0.9, loopExact: true, melody: false });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: POUR_CHORD_ROOT, level: POUR_CHORD_LEVEL, loopExact: true, melody: false });
       ctx.spawnConfetti(field.cx, field.cy);
     }
   }
@@ -1251,6 +1361,8 @@ export class CollideMode implements GameMode {
       if (k >= 0 && k < this.n) balls[i].color = ghostColor(v.hue[k]);
     }
     ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: ANTI_COLLISION_CHORD[0], accent: true, chord: [...ANTI_COLLISION_CHORD] });
+    // --- collide-pour --- (D2 review) on the grid, a bell over the chord (decorative: the crew's moments leave it out)
+    if (v.settings.pulse) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chime", frequency: 2 * ANTI_COLLISION_CHORD[3], level: ANTI_BELL_LEVEL, melody: false, ringVoice: "extra" });
   }
 
   /**
@@ -1268,12 +1380,18 @@ export class CollideMode implements GameMode {
       this.pulseStep = step;
     }
     if (this.exitCount > 0) {
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: this.exitFreq, level: Math.min(1, 0.55 + 0.1 * this.exitCount), loopBright: this.exitRadius < 0.5 * (this.minRadius + this.maxRadius), melody: false });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: this.exitFreq, level: Math.min(POUR_PLUCK_MAX, 0.2 + 0.05 * this.exitCount) /* (D2 review) under the grid */, loopBright: this.exitRadius < 0.5 * (this.minRadius + this.maxRadius), melody: false });
       this.exitCount = 0;
       this.exitRadius = 0;
     }
     const count = this.sndCount;
     if (count === 0) return;
+    // --- collide-pour --- (D2 review) the anti-collision chord rings alone for a moment: the grid's notes of those steps are let go
+    const s = this.view.settings;
+    if (pulse && this.view.antiActive && this.timeSec - s.antiCollisionAt < ANTI_HUSH_SEC) {
+      this.sndCount = 0;
+      return;
+    }
     const order = this.sndOrder;
     for (let i = 0; i < count; i++) order[i] = i;
     // Most energetic first (insertion sort of at most 12), so with the beat lock the strongest collision takes the slot.
@@ -1292,7 +1410,7 @@ export class CollideMode implements GameMode {
     const swell = pulse ? PULSE_FLOOR + (1 - PULSE_FLOOR) * Math.sqrt(share) : 1;
     for (let i = 0; i < play; i++) {
       const slot = order[i];
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: this.sndFreq[slot], level: Math.min(1, this.sndLevel[slot] * swell * (pulse ? 2 : 1)) });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: this.sndFreq[slot], level: pulse ? Math.min(PULSE_NOTE_MAX, this.sndLevel[slot] * swell * PULSE_GAIN) : Math.min(1, this.sndLevel[slot]) });
     }
     this.view.notes += play;
     this.sndCount = 0;
@@ -1307,7 +1425,7 @@ export class CollideMode implements GameMode {
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     const old = this.view.field;
     if (!sizeChanged || !old) return true;
-    const field = buildCollideField(ctx.config.width, ctx.config.height, old.kind);
+    const field = buildCollideField(ctx.config.width, ctx.config.height, old.kind, collidePourLayout(this.view.settings)); // --- collide-pour --- (D2 review)
     this.view.field = field;
     const k = field.side / old.side;
     const sx = ctx.config.width / old.canvasWidth;

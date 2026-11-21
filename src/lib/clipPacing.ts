@@ -184,20 +184,24 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    so the five bars fill the square's width: the marbles 7.1 px in radius in the page's 450 px square (the link base's ten
  *    bars: 4.7 px). (The link base: a seeded original phrase over 10 pentatonic bars, 19.2 s, no chord; its links, the bot's
  *    no-tube-conflict plans and the Marble Xylophone card keep it, and so does the fingerprint.)
- *  - illusion (--- illusion-stage ---): the eight lines build the trick and reveal it – one ball on its line, a ball joining every
- *    second on its first rim touch with its note (the dim tracks of the others waiting, their slots a faint ghost of it), all eight by
- *    7.8 s, the straight lines alone to 14 s, the tracks fading into the reveal at 16 s (a riser, then a ding, the completion
- *    chord and a flash as the rolling circle and its rainbow octagon come in), the end at 20.0 s under IT WAS A CIRCLE! (five
- *    cycles of 4 s): the same on every seed (the seed picks only the way the circle rolls), a sound every 0.25 s. (The link base:
+ *  - illusion (--- illusion-stage ---): the eight lines build the trick and reveal it – (D2 review) two balls across the hidden
+ *    circle from the first frame, the next two at 0.5 and 1.5 s, then a ball every second on its rim touch with its note, in
+ *    opposite pairs (the dim tracks of the others waiting, their slots a faint ghost of it and a bright dot on the rim), all eight
+ *    by 6.25 s, the straight lines alone to 10 s, the tracks fading into the reveal at 12 s (a riser and a breath of three silent
+ *    touches, then a ding, a held chord, the balls' notes rolled up and a flash as the rolling circle and its rainbow octagon come
+ *    in), the end at 16.0 s under IT WAS A CIRCLE! (four cycles of 4 s; five left 6 s without a new event between the last join and
+ *    the fade): the same on every seed (the seed picks only the way the circle rolls), a sound every 0.25 s but the breath. (The link base:
  *    eight balls on their lines from the first frame, a 4 s loop that never ends and never shows the circle; its links, the
  *    bot's reveal plans and the Hidden Heart card keep it, and so does the fingerprint.)
  *  - collide (--- collide-pour ---): a jar with a story – the 300 orbs drop together from a rainbow grid and squash on landing,
  *    break into chaos, pass through each other at 10 s (ANTI-COLLISION), and at 14 s the jar opens at the bottom: the opening
  *    widens from the smallest orb's width, so the small ones pour out first and the biggest last, a faint count of the orbs
- *    left behind them, a pluck for every handful out, and EMPTY! with the completion chord. The notes play on a 16th-note
- *    grid, swelling with the motion. Seeds 1–12 in the laptop (800 × 450) and phone (450 × 450) worlds: empty at 20.0–21.3 s on
- *    all 24 runs, median 20.9 s, 250 orbs still in at 16 s and about 110 at 18 s, the first tenth out under half the size of the
- *    last tenth (0.40–0.51), about 23 sounds a second (the link base: 720), never more than 0.9 s without one. (The link
+ *    left, a pluck for every handful out, and EMPTY! with the completion chord. (D2 review) The pouring jar sits smaller at the
+ *    square's top, so the pour is seen: a stream through the opening onto a catch floor, where the orbs heap up, the small ones
+ *    at the bottom and the biggest on top; the last tenth drops together. The notes play on a 16th-note grid, swelling with the
+ *    motion. Seeds 1–12 in the laptop (800 × 450) and phone (450 × 450) worlds: empty at 18.8–19.9 s on all 24 runs, median
+ *    19.5 s, about 200 orbs still in at 16 s and 26–28 at 18 s, the first tenth out about half the size of the last tenth
+ *    (0.42–0.58), about 24 sounds a second (the link base: 720), never more than 0.13 s without one. (The link
  *    base: a jar of orbs bouncing forever; its links, the bot's on-the-beat plans, timed by their own anti-collision second,
  *    and the fingerprint keep it.)
  */
@@ -264,8 +268,8 @@ const DRAWING_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ dmMach
 const WAVE_TANK_START: Partial<SimulatorSettings> = Object.freeze({ wtGaps: "2@13, 1@8, 7@9", wtWrap: 5, wtSpacing: 2.5 } as const);
 /** --- beat-machine-tunes --- Beat Machines' start look: Ode to Joy on the marble xylophone, the note counter on, a shorter drop. */
 const BEAT_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ bmSource: "tune", bmTune: "ode", bmCounter: true, bmDrop: 20 } as const);
-/** --- illusion-stage --- The Circle Illusion's start look: the lines' staged build, revealed at 16 s, over at 20 s. */
-const ILLUSION_START: Partial<SimulatorSettings> = Object.freeze({ ilStage: true, ilCycles: 5 } as const);
+/** --- illusion-stage --- The Circle Illusion's start look: the lines' staged build, revealed at 12 s, over at 16 s (D2 review: 4 cycles). */
+const ILLUSION_START: Partial<SimulatorSettings> = Object.freeze({ ilStage: true, ilCycles: 4 } as const);
 /** --- collide-pour --- Collision Playground's start look: the sync drop, squishy orbs, ANTI-COLLISION at 10 s, the jar pouring out from 14 s, notes on the beat. */
 const COLLIDE_START: Partial<SimulatorSettings> = Object.freeze({ cpSyncStart: true, cpSquishy: true, cpAntiCollisionAt: 10, cpPourAt: 14, cpPulse: true } as const);
 

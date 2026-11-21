@@ -53,8 +53,22 @@ export const POUR_COUNT_ALPHA = 0.32;
 /** The open jar's light: its alpha full and empty. */
 export const POUR_GLOW_FROM = 0.04;
 export const POUR_GLOW_TO = 0.2;
-export const POUR_COUNT_SIZE = 0.3;
+/** (D2 review) The count's size as a share of the jar's radius (it was 0.3 of the square: the whole picture of an empty jar). */
+export const POUR_COUNT_SIZE = 0.62;
+/** (D2 review) Once the jar opens, the ghosts turn back into their solid size colours over this long (simulation ms): the pour reads as a sweep from the small hues to the big ones. */
+export const POUR_SOLID_MS = 500;
 // --- end collide-pour ---
+
+/**
+ * How far the orbs are turned into ghosts (0 = their size colours drawn solid, 1 = the complementary ghosts drawn additive): up
+ * over ANTI_FADE_MS after the anti-collision switch – --- collide-pour --- (D2 review) and back down over POUR_SOLID_MS once the jar
+ * opens: an additive pile at its bottom was one white band, and the pour reads as a sweep from the small hues to the big ones.
+ */
+export function ghostBlend(view: CollideView): number {
+  let blend = view.antiActive ? Math.min(1, ticksAgoMs(view, view.antiTick) / ANTI_FADE_MS) : 0;
+  if (blend > 0 && view.pourActive) blend *= Math.max(0, 1 - ticksAgoMs(view, view.pourTick) / POUR_SOLID_MS);
+  return blend;
+}
 
 /** Simulation ms since sub-step `tick` (Infinity before the event). */
 export function ticksAgoMs(view: CollideView, tick: number): number {
@@ -159,12 +173,15 @@ function drawPourCount(ctx: CanvasRenderingContext2D, view: CollideView, o: Coll
   if (f.kind === "circle") ctx.arc(f.cx, f.cy, f.radius, 0, TWO_PI);
   else ctx.rect(f.left, f.top, f.right - f.left, f.bottom - f.top);
   ctx.fill();
-  ctx.globalAlpha = POUR_COUNT_ALPHA;
-  ctx.fillStyle = o.wallColor(0);
-  ctx.font = `900 ${Math.round(POUR_COUNT_SIZE * f.side)}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(String(Math.max(0, view.left)), f.cx, f.cy);
+  // (D2 review) the empty jar shows no 0 above the EMPTY! banner: its light alone
+  if (!view.empty && view.left > 0) {
+    ctx.globalAlpha = POUR_COUNT_ALPHA;
+    ctx.fillStyle = o.wallColor(0);
+    ctx.font = `900 ${Math.round(POUR_COUNT_SIZE * f.radius)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(view.left), f.cx, f.cy);
+  }
   ctx.restore();
 }
 
@@ -198,9 +215,17 @@ function drawOpenJar(ctx: CanvasRenderingContext2D, view: CollideView, o: Collid
     ctx.lineTo(rx, f.bottom);
   }
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  // (D2 review) the opening's lit edges big enough to read at phone size, with a halo
+  const cap = Math.max(4, 2.4 * thickness);
+  ctx.globalAlpha = 0.35;
   ctx.fillStyle = POUR_EDGE;
-  const cap = Math.max(2.5, 1.4 * thickness);
+  ctx.beginPath();
+  ctx.moveTo(lx + 2 * cap, ey);
+  ctx.arc(lx, ey, 2 * cap, 0, TWO_PI);
+  ctx.moveTo(rx + 2 * cap, ey);
+  ctx.arc(rx, ey, 2 * cap, 0, TWO_PI);
+  ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.beginPath();
   ctx.moveTo(lx + cap, ey);
   ctx.arc(lx, ey, cap, 0, TWO_PI);
@@ -220,7 +245,7 @@ export function drawCollideBodies(ctx: CanvasRenderingContext2D, balls: Ball[], 
   const start = view.bucketStart;
   const ring = view.settings.ring;
   const squishy = view.settings.squishy;
-  const blend = view.antiActive ? Math.min(1, ticksAgoMs(view, view.antiTick) / ANTI_FADE_MS) : 0;
+  const blend = ghostBlend(view);
   const tick = view.tick;
   const tickMs = view.tickMs;
   ctx.save();
