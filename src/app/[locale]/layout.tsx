@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
-import { NextIntlClientProvider, hasLocale } from "next-intl";
-import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { hasLocale } from "next-intl";
+import { getMessages, getTimeZone, getTranslations, setRequestLocale } from "next-intl/server";
+import SiteMessages from "@/components/site/SiteMessages"; // --- review fix (studio-first-open) ---
 import { routing } from "@/i18n/routing";
 import { SITE_NAME, SITE_URL, absoluteUrl } from "@/lib/site";
 import { pageMetadata } from "@/lib/seo"; // --- seo ---
@@ -59,11 +60,15 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
   const messages = await getMessages();
+  const timeZone = await getTimeZone(); // --- review fix (studio-first-open) --- (what next-intl's server provider passed on by itself)
   return (
     <html lang={locale} className={`dark ${fontVariables}`} style={{ colorScheme: "dark" }}>
       <body className="antialiased">
         {/* --- review fix (performance) --- only what the shared client components read (pages add their own: i18n/clientMessages.ts) */}
-        <NextIntlClientProvider messages={pickMessages(messages, SHARED_CLIENT_NAMESPACES)}>{children}</NextIntlClientProvider>
+        {/* --- review fix (studio-first-open) --- through a client module of the layout's own (SiteMessages.tsx says why) */}
+        <SiteMessages locale={locale} timeZone={timeZone} messages={pickMessages(messages, SHARED_CLIENT_NAMESPACES)}>
+          {children}
+        </SiteMessages>
         <Analytics />
         <PwaRegister />
       </body>

@@ -1,4 +1,5 @@
 import { buttonClass } from "@/components/ui/Button";
+import type { ReactNode } from "react";
 import { IconPlay } from "@/components/ui/icons";
 
 /*
@@ -16,6 +17,13 @@ import { IconPlay } from "@/components/ui/icons";
  * up, holds back clicks inside a boundary it has not hydrated yet, and a boundary whose script failed never is.) With
  * scripts off a noscript line says what is missing. Nothing here is recorded, and
  * nothing is kept but the one reload's flag, which goes once the studio has taken over.
+ * --- review fix (studio-first-open) --- Only a script or a stylesheet under /_next/static counts as the studio failing to
+ * load: a font the page preloads from there (a <link rel=preload>) that a filter or an extension blocks reloaded the page,
+ * then said the studio did not load while it was loading fine. The watch for the take-over goes on after the message (the
+ * studio may still come), so the reload's flag goes whenever the studio takes over and a later failure in the tab reloads
+ * once again. Drawn by React in the browser (the simulator layout's skeleton, shown on a client-side navigation into the
+ * studio), the skeleton has no inline script, which would not run: the layout hands it `fill`, the client part that puts in
+ * the mode instead (StudioLoading.tsx; imported there and not here, so the page's scripts are not what it waits for).
  */
 
 /** The sessionStorage flag of the one automatic reload. */
@@ -23,16 +31,24 @@ export const STUDIO_RELOAD_KEY = "jumpingballslive_studio_reload";
 /** How long the studio may take to take over once the page's scripts have all arrived. */
 export const STUDIO_LOAD_TIMEOUT_MS = 15000;
 
+/** --- review fix (studio-first-open) --- The mode whose poster and name the skeleton shows for the query `search`: ?mode= when it names one, Classic otherwise, none for a share code or the daily challenge (their mode is inside them). The skeleton React draws in the browser picks it with this (StudioLoading.tsx), the inline script the same way. */
+export function skeletonModeOf(search: string, names: Readonly<Record<string, string>>): string | null {
+  const query = new URLSearchParams(search);
+  const id = query.get("mode");
+  if (id && Object.prototype.hasOwnProperty.call(names, id)) return id;
+  return query.get("c") || query.get("daily") ? null : "classic";
+}
+
 /** The inline script: the mode's poster and name, then the watch over the load (see above). */
 export function skeletonScript(names: Readonly<Record<string, string>>, base: string): string {
   const data = JSON.stringify({ names, base, key: STUDIO_RELOAD_KEY, wait: STUDIO_LOAD_TIMEOUT_MS }).replace(/</g, "\\u003c");
   return `(function(){var root=document.currentScript&&document.currentScript.parentNode;if(!root||!root.hasAttribute||!root.hasAttribute("data-studio-skeleton"))return;var d=${data};
 var q=new URLSearchParams(location.search),id=q.get("mode");if(!(id&&Object.prototype.hasOwnProperty.call(d.names,id)))id=q.get("c")||q.get("daily")?null:"classic";
 var img=root.querySelector("[data-skeleton-poster]"),name=root.querySelector("[data-skeleton-name]");if(id){img.setAttribute("fetchpriority","high");img.src=d.base+"/modes/"+id+".webp";name.textContent=d.names[id];}
-var over=false,timer=0,watch=0;function stop(){over=true;clearTimeout(timer);clearInterval(watch);}
+var over=false,timer=0,watch=0;function stop(){over=true;clearTimeout(timer);}
 function fail(){if(over||!root.isConnected)return;stop();root.setAttribute("data-failed","");root.setAttribute("aria-busy","false");}
 function chunkFailed(){if(over||!root.isConnected)return;var again=false;try{if(!sessionStorage.getItem(d.key)){sessionStorage.setItem(d.key,"1");again=true;}}catch(e){}if(again){stop();location.reload();}else fail();}
-addEventListener("error",function(e){var t=e.target,src=t&&(t.src||t.href);if(typeof src==="string"&&src.indexOf("/_next/static/")>=0)chunkFailed();},true);
+addEventListener("error",function(e){var t=e.target,src=!t?"":t.tagName==="SCRIPT"?t.src:t.tagName==="LINK"&&t.rel==="stylesheet"?t.href:"";if(typeof src==="string"&&src.indexOf("/_next/static/")>=0)chunkFailed();},true);
 addEventListener("unhandledrejection",function(e){if(e.reason&&e.reason.name==="ChunkLoadError")chunkFailed();});
 function scripts(test){var s=document.querySelectorAll('script[src*="/_next/static/"]');for(var i=0;i<s.length;i++)if(test(performance.getEntriesByName(s[i].src)))return s[i].src;return "";}
 function pending(){return scripts(function(e){return !e.length;});}
@@ -40,11 +56,11 @@ function broken(){return scripts(function(e){return e.length>0&&e[e.length-1].re
 var probing=false;function probe(src){if(probing||typeof fetch!=="function")return;probing=true;fetch(src,{method:"HEAD",cache:"no-store"}).then(function(r){probing=false;if(r.status>=400)chunkFailed();},function(){probing=false;chunkFailed();});}
 function check(){if(over||!root.isConnected)return;if(broken())return chunkFailed();var s=pending();if(s&&performance.now()<60000){probe(s);timer=setTimeout(check,3000);return;}fail();}
 var button=root.querySelector("[data-skeleton-reload]");addEventListener("click",function(e){if(root.isConnected&&e.target instanceof Node&&button.contains(e.target))location.reload();},true);
-timer=setTimeout(check,d.wait);watch=setInterval(function(){if(!root.isConnected){stop();try{sessionStorage.removeItem(d.key);}catch(e){}}},500);
+timer=setTimeout(check,d.wait);watch=setInterval(function(){if(!root.isConnected){stop();clearInterval(watch);try{sessionStorage.removeItem(d.key);}catch(e){}}},500);
 if(broken())chunkFailed();})();`;
 }
 
-export default function StudioSkeleton({ names, base, labels }: { names: Readonly<Record<string, string>>; base: string; labels: { mode: string; start: string; failed: string; reload: string; noScript: string } }) {
+export default function StudioSkeleton({ names, base, labels, fill }: { names: Readonly<Record<string, string>>; base: string; labels: { mode: string; start: string; failed: string; reload: string; noScript: string }; fill?: ReactNode }) {
   return (
     <div className="studio-main group min-h-[calc(100svh-56px)]" data-studio-skeleton="" aria-busy="true">
       <div className="studio">
@@ -56,8 +72,8 @@ export default function StudioSkeleton({ names, base, labels }: { names: Readonl
               <span className="min-w-0 truncate text-sm font-medium text-ink" data-skeleton-name="" />
               <span aria-hidden="true" className="studio-skeleton-bar absolute inset-x-0 -bottom-px h-0.5 bg-accent group-data-[failed]:hidden" />
             </div>
-            {/* the stage frame at the studio's size (the area does not grow: the frame stays at the top, where the studio puts it) */}
-            <div className="studio-stage-area stage-vignette relative flex-none">
+            {/* the stage frame at the studio's size, at the top of the column, where the studio puts it (globals.css) */}
+            <div className="studio-stage-area stage-vignette relative">
               <div className="stage-frame relative overflow-hidden rounded-[var(--radius-stage)] border border-line bg-black">
                 {/* eslint-disable-next-line @next/next/no-img-element -- the poster the script names, in the frame's centred square (none: no picture, not a broken one's outline) */}
                 <img data-skeleton-poster="" alt="" width={360} height={360} decoding="async" className="absolute inset-0 h-full w-full object-contain [&:not([src])]:hidden" />
@@ -89,7 +105,7 @@ export default function StudioSkeleton({ names, base, labels }: { names: Readonl
           <div className="studio-panel max-md:hidden" />
         </div>
       </div>
-      <script dangerouslySetInnerHTML={{ __html: skeletonScript(names, base) }} />
+      {fill ?? <script dangerouslySetInnerHTML={{ __html: skeletonScript(names, base) }} />}
     </div>
   );
 }

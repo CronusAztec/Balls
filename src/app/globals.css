@@ -400,9 +400,13 @@ dialog.ui-dialog[open] {
     min-height: 100%;
     flex-direction: column;
   }
+  /* --- review fix (studio-first-open) --- the area is as tall as its frame and no taller: in a column taller than the stage
+     (900 px and wider, where the column fills the screen) the room left over goes below the notes. The frame used to be
+     centred in that room, so it moved whenever a block under the transport bar came or went (the Find block, a run's end
+     row), and the skeleton, which has none of them, put it up to 11 px higher than the studio that took over from it. */
   .studio-stage-area {
     display: flex;
-    flex: 1 1 auto;
+    flex: none;
     align-items: center;
     justify-content: center;
     padding: 12px;

@@ -19,6 +19,11 @@ import type { LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhe
  * frame is in view and the browser is idle (4 s at most), so it never freezes a first screen it is not on; with Save-Data or
  * a slow connection (2g, 3g) the picture stays, as with reduced motion. The dots under the frame are buttons: each shows its
  * mode in the frame.
+ * --- review fix (studio-first-open) --- The start comes in steps, each a task of its own with the browser free in between
+ * (a tap or a scroll is handled there): the engine's code in parts (ENGINE_STEPS), the preview's own module and the
+ * watermark's, the engine, and its first frame. The code in one import ran for about half a second at once on a mid-range
+ * phone, and the engine with its first frame for a quarter more, while the visitor was scrolling to the frame. Each later
+ * mode the frame rotates to gets its engine and first frame the same way.
  */
 
 const MODES: readonly ModeId[] = ["classic", "multiply", "drop", "grow"];
@@ -28,6 +33,40 @@ const FRAME_H = 480;
 
 /** --- studio-first-open --- The two modules the live frame needs, loaded together once the frame is half in view. */
 type PreviewModules = typeof import("./livePreviewEngine") & Pick<typeof import("@/lib/watermark/live"), "stampLiveFrame">;
+
+/**
+ * --- review fix (studio-first-open) --- The engine's code in steps, each run in a task of its own: the largest modes one by
+ * one, the other modes, the settings (with the rest of what they read), the engine. Each import runs only the code the ones
+ * before it have not run, and all of them name one chunk group ("live-preview"): the build splits the studio's code no
+ * further than for one import, and the chunks are fetched once.
+ */
+const ENGINE_STEPS: readonly (() => Promise<unknown>)[] = [
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/fightLeague"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/landClaim"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/stringBattle"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/orbGrid"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/territory"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/settings"),
+  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/engine"),
+];
+
+/** --- review fix (studio-first-open) --- Hands the rest of this turn to whatever waits (input, a frame): the caller goes on in a task of its own. */
+function nextTask(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (typeof scheduler?.yield === "function") return scheduler.yield();
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+/** --- review fix (studio-first-open) --- Runs `step` when the browser is idle (within `timeout` ms; without idle callbacks, after `fallbackMs`); returns its cancel. */
+function whenIdle(step: () => void, timeout: number, fallbackMs: number): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(step, { timeout });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(step, fallbackMs);
+  return () => window.clearTimeout(id);
+}
 
 /** --- studio-first-open --- The visitor asks to save data, or the connection is slow: the picture stays. */
 function lightweight(): boolean {
@@ -74,27 +113,32 @@ export default function LivePreview() {
     const frame = frameRef.current;
     if (!frame) return;
     let cancelled = false;
-    let idle = 0;
-    let timer = 0;
+    let cancelIdle = () => {};
     // (--- watermark-everywhere --- with the live watermark's module)
-    const load = () => {
-      Promise.all([import("./livePreviewEngine"), import("@/lib/watermark/live")])
-        .then(([engine, { stampLiveFrame }]) => {
+    // --- review fix (studio-first-open) --- the engine's code in steps (ENGINE_STEPS) with the browser free in between, then the
+    // preview's and the watermark's modules, then the frame, each in a task of its own
+    const load = async () => {
+      try {
+        for (const step of ENGINE_STEPS) {
+          await step();
+          await nextTask();
           if (cancelled) return;
-          modulesRef.current = { ...engine, stampLiveFrame };
-          setView("live");
-        })
-        .catch((err: unknown) => {
-          console.warn("Live preview unavailable:", err);
-          if (!cancelled) setView("still");
-        });
+        }
+        const [engine, { stampLiveFrame }] = await Promise.all([import(/* webpackChunkName: "live-preview" */ "./livePreviewEngine"), import(/* webpackChunkName: "live-preview" */ "@/lib/watermark/live")]);
+        await nextTask();
+        if (cancelled) return;
+        modulesRef.current = { ...engine, stampLiveFrame };
+        setView("live");
+      } catch (err: unknown) {
+        console.warn("Live preview unavailable:", err);
+        if (!cancelled) setView("still");
+      }
     };
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry || entry.intersectionRatio < 0.5) return;
         observer.disconnect();
-        if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(load, { timeout: 4000 });
-        else timer = window.setTimeout(load, 300);
+        cancelIdle = whenIdle(() => void load(), 4000, 300);
       },
       { threshold: 0.5 },
     );
@@ -102,8 +146,7 @@ export default function LivePreview() {
     return () => {
       cancelled = true;
       observer.disconnect();
-      if (idle) window.cancelIdleCallback(idle);
-      window.clearTimeout(timer);
+      cancelIdle();
     };
   }, [view]);
 
@@ -130,48 +173,74 @@ export default function LivePreview() {
       last = 0;
       schedule();
     };
-    try {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("no 2d context");
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = FRAME_W * dpr;
-      canvas.height = FRAME_H * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const engine = createPreviewEngine(mode, FRAME_W, FRAME_H);
-      const styles = getComputedStyle(frame);
-      const palette = {
-        background: "#000000",
-        wall: styles.getPropertyValue("--color-ink").trim() || "#f2f2ed",
-        ball: styles.getPropertyValue("--color-accent").trim() || "#b0f02a",
-        ballAlt: styles.getPropertyValue("--color-ink").trim() || "#f2f2ed",
-      };
-      const state = { acc: 0 };
-      // --- watermark-everywhere --- a free visitor's preview carries the watermark too, drawn into its pixels after each frame
-      // (lib/watermark/live.ts – the same gate and mark as the studio's canvas; the whole phone frame is its area)
-      const mark: LiveFrame = { canvas, ctx, nowMs: performance.now(), area: { x: 0, y: 0, width: canvas.width, height: canvas.height } };
-      drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
-      stampLiveFrame(mark);
-      setDrawn((shown) => shown ?? mode); // --- studio-first-open --- the first frame is drawn (and marked): the canvas fades in
-      tick = (now: number) => {
-        raf = 0;
-        if (cancelled || !visible || document.visibilityState !== "visible") return;
-        const frameMs = last ? Math.min(now - last, 100) : 16.666;
-        last = now;
-        stepPreview(engine, state, frameMs);
-        drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
-        mark.nowMs = now;
-        stampLiveFrame(mark); // --- watermark-everywhere --- (the frame's last pass)
-        schedule();
-      };
-      observer.observe(frame);
-      document.addEventListener("visibilitychange", onVisibility);
-      schedule();
-    } catch (err: unknown) {
+    const fail = (err: unknown) => {
       console.warn("Live preview unavailable:", err);
-      setView("still");
-    }
+      if (!cancelled) setView("still");
+    };
+    // --- review fix (studio-first-open) --- the engine when the browser is idle, its first frame at the next idle moment, then
+    // the loop: each a task of its own (the canvas keeps the last mode's frame, or stays faded out, until then)
+    let cancelStep = whenIdle(
+      () => {
+        if (cancelled) return;
+        let engine: ReturnType<typeof createPreviewEngine>;
+        try {
+          engine = createPreviewEngine(mode, FRAME_W, FRAME_H);
+        } catch (err: unknown) {
+          fail(err);
+          return;
+        }
+        cancelStep = whenIdle(
+          () => {
+            if (cancelled) return;
+            try {
+              const ctx = canvas.getContext("2d");
+              if (!ctx) throw new Error("no 2d context");
+              const dpr = Math.min(window.devicePixelRatio || 1, 2);
+              canvas.width = FRAME_W * dpr;
+              canvas.height = FRAME_H * dpr;
+              ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+              const styles = getComputedStyle(frame);
+              const palette = {
+                background: "#000000",
+                wall: styles.getPropertyValue("--color-ink").trim() || "#f2f2ed",
+                ball: styles.getPropertyValue("--color-accent").trim() || "#b0f02a",
+                ballAlt: styles.getPropertyValue("--color-ink").trim() || "#f2f2ed",
+              };
+              const state = { acc: 0 };
+              // --- watermark-everywhere --- a free visitor's preview carries the watermark too, drawn into its pixels after each frame
+              // (lib/watermark/live.ts – the same gate and mark as the studio's canvas; the whole phone frame is its area)
+              const mark: LiveFrame = { canvas, ctx, nowMs: performance.now(), area: { x: 0, y: 0, width: canvas.width, height: canvas.height } };
+              drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
+              stampLiveFrame(mark);
+              setDrawn((shown) => shown ?? mode); // --- studio-first-open --- the first frame is drawn (and marked): the canvas fades in
+              tick = (now: number) => {
+                raf = 0;
+                if (cancelled || !visible || document.visibilityState !== "visible") return;
+                const frameMs = last ? Math.min(now - last, 100) : 16.666;
+                last = now;
+                stepPreview(engine, state, frameMs);
+                drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
+                mark.nowMs = now;
+                stampLiveFrame(mark); // --- watermark-everywhere --- (the frame's last pass)
+                schedule();
+              };
+              observer.observe(frame);
+              document.addEventListener("visibilitychange", onVisibility);
+              schedule();
+            } catch (err: unknown) {
+              fail(err);
+            }
+          },
+          500,
+          0,
+        );
+      },
+      1000,
+      0,
+    );
     return () => {
       cancelled = true;
+      cancelStep();
       if (raf) cancelAnimationFrame(raf);
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
