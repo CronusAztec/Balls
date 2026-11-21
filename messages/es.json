@@ -832,6 +832,8 @@
     "glassHolesTip": "Desde la segunda etapa, algunos paneles tienen un agujero que la pelota debe esquivar para seguir rompiendo. Si cae por él, se salta ese panel (aún puede agrietarlo desde abajo).",
     "glassGates": "Puertas multiplicadoras",
     "glassGatesTip": "Una fila de tres puertas sobre el cristal de cada etapa: x2 DAÑO, x1.5 VELOCIDAD y x1.25 TAMAÑO, en un orden según la semilla. La puerta por la que cae Gerald le suma su multiplicador, sin límite salvo que pongas uno en el grupo Multiplicadores. El HUD lo muestra.",
+    "glassLead": "Cámara adelantada",
+    "glassLeadTip": "La cámara mantiene el panel que Gerald está rompiendo a un tercio de la altura del encuadre, así que los siguientes siempre se ven debajo. La partida es la misma, solo cambia el encuadre.",
     "glassRunSize": "Recorrido completo: {panes} paneles y hasta {hits} golpes en {stages} etapa(s), y después CASA.",
     "wallBreakSoundModeDefault": "Por defecto del modo ({name})",
     "modeMultipliers": "Multiplicadores",

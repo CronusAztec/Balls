@@ -36,6 +36,17 @@ import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- 
  * under k² the gravity), size grows the ball. With `gates` on, a row of multiplier gates – x2 DMG, x1.5 SPEED,
  * x1.25 SIZE in a seeded order – spans the shaft above the glass of every stage; the slot the ball falls through
  * stacks its multiplier on it through the run's cap (`ctx.getMultipliers()`), with the HUD badges and the arpeggio.
+ *
+ * --- glass-real --- (Lane E, E4) Glass that sounds like glass and a camera that shows what is coming, with the run untouched:
+ * every crack also rings the glassy crack voice (`plCrack`) an octave over the pane's note, louder as the pane breaks, and the
+ * shatter rings it at full strength (`glassCrackHz()`, rising with the rows and stages as the notes do); Gerald reaching HOME
+ * thuds a low C under the chord (`HOME_BOOM_HZ`). They are sounds of their own (`ringVoice: "extra"`, outside the step's sound
+ * limit), sent only by this mode through `GlassHitOptions.extra`, so the Journey's glass stages sound as they did. With `lead`
+ * (the settings' `glassLead`, URL `gll`; off by default) the camera leads (`leadCameraTarget()`): it keeps the glass the ball
+ * bounces on CAMERA_LEAD of the view below the top, so the ball hops in the upper third and the next panes – of the next stage
+ * too – are in view. It never moves a ball, but the crew's action track follows the camera on screen (lib/bot/actionTrack.ts),
+ * so it is an option: the page's start look, the card and the gallery's Gerald vs Glass turn it on, and every plan, link and
+ * fixture written without it frames the run as before.
  */
 
 export interface GlassSettings {
@@ -51,6 +62,8 @@ export interface GlassSettings {
   holes: boolean;
   /** --- gerald-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above the glass of every stage. */
   gates: boolean;
+  /** --- glass-real --- The camera leads: the glass the ball bounces on a third of the way down, the next panes in view. */
+  lead: boolean;
 }
 
 export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
@@ -60,6 +73,7 @@ export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
   moving: true,
   holes: true,
   gates: false,
+  lead: false, // --- glass-real ---
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -77,6 +91,7 @@ export interface GlassSettingFields {
   glassMoving: boolean;
   glassHoles: boolean;
   glassGates: boolean;
+  glassLead: boolean; // --- glass-real ---
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -104,17 +119,18 @@ export function resolveGlassSettings(config: Partial<GlassSettings> | null | und
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
   if (typeof config.gates === "boolean") out.gates = config.gates;
+  if (typeof config.lead === "boolean") out.lead = config.lead; // --- glass-real ---
   return out;
 }
 
 /** Picks the Glass Smash settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setGlassSettings()`. */
 export function glassSettingsOf(source: GlassSettingFields): GlassSettings {
-  return { rows: source.glassRows, hp: source.glassHp, stages: source.glassStages, moving: source.glassMoving, holes: source.glassHoles, gates: source.glassGates };
+  return { rows: source.glassRows, hp: source.glassHp, stages: source.glassStages, moving: source.glassMoving, holes: source.glassHoles, gates: source.glassGates, lead: source.glassLead };
 }
 
 /** Writes resolved Glass Smash settings back into the SimulatorSettings field names. */
 export function glassSettingFields(settings: GlassSettings): GlassSettingFields {
-  return { glassRows: settings.rows, glassHp: settings.hp, glassStages: settings.stages, glassMoving: settings.moving, glassHoles: settings.holes, glassGates: settings.gates };
+  return { glassRows: settings.rows, glassHp: settings.hp, glassStages: settings.stages, glassMoving: settings.moving, glassHoles: settings.holes, glassGates: settings.gates, glassLead: settings.lead };
 }
 
 /* ------------------------------------------------------------------ progression */
@@ -693,6 +709,26 @@ export const CAMERA_TAU = 0.14;
 export const CAMERA_FOLLOW = 0.36;
 /** Most sounds one 60 Hz step may queue. */
 export const MAX_GLASS_SOUNDS_PER_STEP = 4;
+// --- glass-real ---
+/** Where the leading camera keeps the glass the ball bounces on: this share of the view below its top (the ball above it). */
+export const CAMERA_LEAD = 0.36;
+/** The low thud under the HOME chord: C2. */
+export const HOME_BOOM_HZ = 65.406;
+/** The crack voice of a hit on `pane`: an octave over its note (so it climbs with the rows and the stages as the notes do). */
+export function glassCrackHz(pane: Pick<GlassPane, "pitch">): number {
+  return 2 * pane.pitch;
+}
+
+/**
+ * Where the leading camera wants to be (world offset, as `cameraTarget()`): the glass the ball bounces on (`floorY`, world y;
+ * the ground at HOME) CAMERA_LEAD of the view below the top of the field, never above the start nor past the ground at the
+ * bottom of the view – which is where `cameraTarget()` puts HOME, so the run ends on the same frame.
+ */
+export function leadCameraTarget(level: GlassLevel, floorY: number): number {
+  const f = level.field;
+  const home = cameraTarget(level, level.stages.length, 0);
+  return Math.max(0, Math.min(home, floorY - CAMERA_LEAD * f.height - f.top));
+}
 
 /**
  * Gravity (px/s²) for a view `viewH` px tall: GLASS_GRAVITY view heights per s², scaled by the Gravity setting (from 0.3×;
@@ -764,6 +800,8 @@ export interface GlassHitOptions {
   ballSpeed: number;
   /** --- bounce-math --- Reports the hit as a bounce of the ball (`ModeContext.noteBounce`). */
   noteBounce?: (ball: Ball) => void;
+  /** --- glass-real --- A sound of its own on top of the hit's (Glass Smash's crack voice), outside the step's limit; none without it. */
+  extra?: (event: SoundEvent) => void;
 }
 
 /**
@@ -797,6 +835,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
     ball.vy = (fromAbove ? 1 : -1) * impact * SHATTER_KEEP;
     o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true }, true);
     o.sound({ type: "gap", wallIndex: 0 }, true);
+    o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 1, melody: false, ringVoice: "extra" }); // --- glass-real ---
     return;
   }
   if (fromAbove) {
@@ -809,6 +848,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
     ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * o.random() - 1) * drift));
   }
   o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
+  o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 0.3 + 0.45 * paneDamage(pane), melody: false, ringVoice: "extra" }); // --- glass-real ---
 }
 
 /** Throws the shards of a shattered pane: 8–20 of them from around the impact, with the ball's momentum and a spin. */
@@ -1087,6 +1127,7 @@ export class GlassMode implements GameMode {
     timeMs: 0,
     ballSpeed: 400,
     noteBounce: (ball) => this.ctx!.noteBounce?.(ball),
+    extra: (event) => this.ctx!.addPendingSoundEvent(event), // --- glass-real --- (the crack voice: outside the step's limit)
   };
   /** Canvas size the level is laid out for (a resize rescales it). */
   private layoutW = 0;
@@ -1201,7 +1242,10 @@ export class GlassMode implements GameMode {
     const g = glassGravity(ctx.config.gravity, level.field.height) * k * k;
     ball.vy += g * dtSec;
     if (this.landedHome) {
-      if (walkToDoor(home, ball, level.field.height, dtSec)) reachDoor(v, home, ball, v.timeMs, this.sound);
+      if (walkToDoor(home, ball, level.field.height, dtSec)) {
+        reachDoor(v, home, ball, v.timeMs, this.sound);
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: HOME_BOOM_HZ, level: 1, melody: false, ringVoice: "extra" }); // --- glass-real --- the low thud under the chord
+      }
       return;
     }
     const reachY = glassReach(ball, dtSec);
@@ -1314,7 +1358,8 @@ export class GlassMode implements GameMode {
         }
       }
       // The camera eases toward the stage (or HOME) and never lets the ball out of the field.
-      const target = cameraTarget(level, v.stage, ball.y);
+      // (--- glass-real --- with `lead` it leads: the glass the ball bounces on stays CAMERA_LEAD down the view, the next panes below)
+      const target = v.settings.lead ? leadCameraTarget(level, this.floorY(level, ball)) : cameraTarget(level, v.stage, ball.y);
       v.cameraY += (target - v.cameraY) * (1 - Math.exp(-dt / CAMERA_TAU));
       const f = level.field;
       const margin = ball.radius + 4;
@@ -1327,6 +1372,16 @@ export class GlassMode implements GameMode {
     if (v.shardCount > 0) stepGlassShards(v, dt, glassGravity(ctx.config.gravity, level.field.height), level.field.left, level.field.right);
     // Three bursts of confetti from the doorway, then the run is over.
     if (v.homeReached) this.confettiDone = stepHomeCelebration(v, level.home, v.timeMs, this.confettiDone, ctx);
+  }
+
+  /** --- glass-real --- The world y of the glass the ball bounces on: the first unbroken pane below it, or the ground at HOME. */
+  private floorY(level: GlassLevel, ball: Ball): number {
+    const panes = level.panes;
+    for (let i = this.passCursor; i < panes.length; i++) {
+      const pane = panes[i];
+      if (!pane.shattered && pane.y > ball.y) return pane.y;
+    }
+    return level.home.groundY;
   }
 
   private findBall(ctx: ModeContext): Ball | null {

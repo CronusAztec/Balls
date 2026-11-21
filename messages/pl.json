@@ -832,6 +832,8 @@
     "glassHolesTip": "Od drugiego etapu część tafli ma dziurę, którą piłka musi ominąć, żeby dalej tłuc szkło. Wpadając w dziurę, pomija taflę (od spodu wciąż może ją pęknąć).",
     "glassGates": "Bramki mnożników",
     "glassGatesTip": "Rząd trzech bramek nad szkłem każdego etapu: x2 OBRAŻ., x1.5 PRĘDKOŚĆ i x1.25 ROZMIAR, w kolejności zależnej od ziarna. Bramka, przez którą przeleci Gerald, dokłada mu swój mnożnik, bez limitu, chyba że ustawisz go w grupie Mnożniki. HUD go pokazuje.",
+    "glassLead": "Kamera wyprzedzająca",
+    "glassLeadTip": "Kamera trzyma taflę, którą rozbija Gerald, na jednej trzeciej wysokości kadru, więc kolejne tafle zawsze widać pod nim. Przebieg zostaje ten sam, zmienia się tylko kadr.",
     "glassRunSize": "Cały bieg: tafle – {panes}, uderzenia – do {hits}, etapy – {stages}, a na końcu DOM.",
     "wallBreakSoundModeDefault": "Domyślny dla trybu ({name})",
     "modeMultipliers": "Mnożniki",

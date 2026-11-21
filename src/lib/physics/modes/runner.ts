@@ -32,6 +32,11 @@ import { memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * melody is loaded, the ToneGenerator decides), with dust particles; the finish plays a chord and the rising arpeggio.
  * A crash's low note only accompanies the tune (`SoundEvent.melody` false), so a melody moves on with the landings alone.
  * Deterministic: the course is drawn at init from `ctx.random()`; the particles use their own generator.
+ *
+ * --- runner-drums --- (Lane E, E4) With no song's beat to follow (the manual BPM), the beat the course is built on is heard:
+ * a kick on every beat (louder on the bar's first), a snare on beats 2 and 4 and a hat between two beats, through the Beat
+ * Drop drum voice (`bdDrum`), from the first beat to the finish line. They are sounds of their own (`ringVoice: "extra"`): a page
+ * playing the visitor's own song, melody or sample leaves them out, and they never move the square or use up a melody note.
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -850,6 +855,9 @@ export class RunnerMode implements GameMode {
   private readonly view: RunnerView = createView();
   private readonly clock = new BeatClock();
   private readonly beatSample = freshBeatSample();
+  /** --- runner-drums --- The last beat whose kick (and snare) went out, and the last whose off-beat hat did (−1: none yet). */
+  private drumBeat = -1;
+  private hatBeat = -1;
   private ballId = -1;
   private clockMs = 0;
   private stepStartSec = 0;
@@ -923,6 +931,8 @@ export class RunnerMode implements GameMode {
     const course = buildRunnerCourse(s, this.gravity, () => ctx.random());
     this.fx = mulberry32(Math.floor(ctx.random() * 0x7fffffff) + 1);
     this.clock.setConfig(runnerBeatConfig(s));
+    this.drumBeat = -1; // --- runner-drums ---
+    this.hatBeat = -1;
     this.clockMs = 0;
     this.stepStartSec = 0;
     this.sub = 0;
@@ -1313,6 +1323,7 @@ export class RunnerMode implements GameMode {
     this.clock.sample(now, this.beatSample);
     v.beatIndex = this.beatSample.index;
     v.beatPulse = this.beatSample.pulse;
+    this.drums(ctx); // --- runner-drums ---
     // The square's trail (one sample per step).
     if (v.alive) {
       v.trailX[v.trailHead] = v.x;
@@ -1324,6 +1335,24 @@ export class RunnerMode implements GameMode {
     if (v.crossed && !v.finished && now >= v.crossSec + FINISH_HOLD_SEC - 1e-9) v.finished = true;
     const ball = this.findBall(ctx);
     if (ball) this.place(ball);
+  }
+
+  // --- runner-drums ---
+  /** The drum kit on the course's own beat, while no song's beat is followed and until the finish line: kick, snare on 2 and 4, hat between. */
+  private drums(ctx: ModeContext) {
+    const b = this.beatSample;
+    if (!b.active || b.index < 0 || this.view.crossed || followsSongGrid(this.clock.getConfig())) return;
+    if (b.index > this.drumBeat) {
+      this.drumBeat = b.index;
+      this.hatBeat = Math.min(this.hatBeat, b.index - 1);
+      const inBar = b.index % 4;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, bdDrum: "kick", accent: inBar === 0, level: inBar === 0 ? 1 : 0.85, melody: false, ringVoice: "extra" });
+      if (inBar === 1 || inBar === 3) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, bdDrum: "snare", level: 0.8, melody: false, ringVoice: "extra" });
+    }
+    if (this.hatBeat < b.index && b.period > 0 && b.sinceBeat >= b.period / 2) {
+      this.hatBeat = b.index;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, bdDrum: "hat", level: 0.6, melody: false, ringVoice: "extra" });
+    }
   }
 
   private nextParticleSlot(): number {

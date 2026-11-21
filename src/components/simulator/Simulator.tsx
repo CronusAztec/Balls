@@ -964,8 +964,8 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
-  // A Glass Smash change invalidates a found seed too.
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates, s.glassLead]);
+  // A Glass Smash change invalidates a found seed too (--- glass-real --- but not the camera: the run is the same).
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);

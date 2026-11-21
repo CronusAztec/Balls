@@ -179,7 +179,8 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "gerald-glass",
     mode: "glass",
-    query: "mode=glass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Gerald&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
+    // (--- glass-real --- Lane E, E4: the leading camera, the next panes in view; the run is the same)
+    query: "mode=glass&glow=1&rwalls=0&gll=1&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Gerald&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
     previewAt: 11.5,
     name: { en: "Gerald at Sunset", pl: "Gerald o zachodzie słońca", es: "Gerald al atardecer" },
     description: {

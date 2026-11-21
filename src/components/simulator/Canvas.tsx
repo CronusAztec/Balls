@@ -992,6 +992,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const hue = st ? ((Math.round(st.hue) % 360) + 360) % 360 : 0;
       return (boxHueColors[hue] ??= `hsl(${hue}, 88%, 60%)`);
     };
+    const boxShapeGone = (ball: { id: number }) => !!engine.getBoxView().shapes.get(ball.id)?.done; // --- box-finale --- (a shape at 0 bursts: no face on it)
     const bobBodyColor = (ball: { color: string }) => ball.color;
     // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the renderer's options, refreshed per frame.
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
@@ -2122,7 +2123,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.stageLabel = GL.glassStage ?? DEFAULT_LABELS.glassStage!;
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
         glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- gerald-multipliers --- the gate labels
-        drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+        drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40, drawnBalls[0]); // (--- glass-real --- the ball's halo)
       }
       // --- odd-power-layers --- Power Layers: the navy playfield, the rainbow stack, the ceiling bar and the ball's halo under the ball.
       if (plView) {
@@ -2229,6 +2230,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         jrRender.showGlow = p.showGlow;
         jrRender.showTrails = p.showTrails;
         jrRender.bodyColor = p.rainbowBall ? `hsl(${Math.floor((0.08 * time) % 360)}, 100%, 55%)` : (drawnBalls[0]?.color ?? "#ffffff");
+        jrRender.ownFace = !faces.isActive(); // --- runner-look --- (the cube's own eyes, unless a character's face is on it)
         if (rrView) rrLayer.drawWorld(ctx, rrView, jrRender);
         if (pdView) pdLayer.drawWorld(ctx, pdView, jrRender);
       }
@@ -2818,7 +2820,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
       if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide || isMult)) {
         const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
-        faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
+        faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0, gone: boxShapeGone } : null);
       }
       // --- jdm-double-pendulum --- faces on the Double Pendulum's bobs too
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);

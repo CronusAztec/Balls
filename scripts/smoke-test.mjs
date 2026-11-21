@@ -6053,14 +6053,19 @@ const jrFrameRates = async (ms) => {
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
-/** Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). */
+/**
+ * Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). (--- runner-drums --- Lane E, E4:
+ * not the drum kit the runner plays on its beat without a song – the kick's body at 150 Hz and its click at 1800 Hz, the
+ * snare's body at 190 Hz, beatDropTones.ts KICK_TONE and SNARE_TONE; the hat is noise – which are not landing notes.)
+ */
 const jrInstrumentTones = () =>
   page.evaluate(() => {
     const log = [];
     window.__jrOsc = log;
     const start = OscillatorNode.prototype.start;
+    const drums = [150, 1800, 190];
     OscillatorNode.prototype.start = function () {
-      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      if (this.frequency.value !== 1 && !drums.includes(this.frequency.value)) log.push({ f: this.frequency.value, t: performance.now() });
       return start.apply(this, arguments);
     };
   });
