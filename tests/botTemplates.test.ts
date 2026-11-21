@@ -159,7 +159,8 @@ const GROUP_D_READY: readonly ModeId[] = ["drawingMachine", "blueprint"];
  * below plan them with the rest of the ready templates), and watched in a render of each. Paint stays experimental, its run ending
  * at its fill, and so do Spiral Glass, whose own question over the spiral a hook would stack on, and the Journey, whose own banners,
  * mini-map and clock crowd the screen (both watched in the render). --- templates --- (studio round 1, 10) Perfect Fit left the ready
- * ones: its box is full for its 0.15 s flash only before it bursts (G2, the payoff's state held).
+ * ones: its box is full for its 0.15 s flash only before it bursts (G2, the payoff's state held). --- finales-in-clip --- (B6) the box
+ * is held 0.85 s now and G2 passes; the template stays out until a review watches its renders again.
  */
 /**
  * --- song-ring --- Song Ring, bound when the mode was added: on the beat, its own notes the music, timed by its final chord
@@ -575,7 +576,7 @@ describe("the bot's own look", () => {
   // --- shatter-demolition --- (and Shatter's hits and segments, settings since: the mode's own one hit and 18 segments in every recipe's plan – no recipe plans Shatter)
   // --- sand-plate --- and Sand Plate's five fields since its mode was added, likewise
   // --- shatter-even-bricks --- (and Shatter's even bricks, a setting since: the mode's own off in every recipe's plan)
-  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields() };
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields(), mzFirstOut: false, pdGoal: 0 /* --- finales-in-clip --- */ };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -608,6 +609,8 @@ describe("the bot's own look", () => {
     expect(planned.map((p) => [p.recipe, resolveSongRingFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSongRingFields()]));
     // (--- sand-plate --- and Sand Plate's, likewise)
     expect(planned.map((p) => [p.recipe, resolveSandPlateFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSandPlateFields()]));
+    // (--- finales-in-clip --- and the maze's first-out rule and Paddle's goal, the two new fields: off and none in every plan)
+    expect(planned.map((p) => [p.recipe, p.settings.mzFirstOut, p.settings.pdGoal])).toEqual(planned.map((p) => [p.recipe, false, 0]));
   });
 
   it("is the default: look 'bot' plans what no look plans", () => {
@@ -1293,7 +1296,10 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
       expect([flag, outcomeFlagHolds(flag, on)]).toEqual([flag, true]);
     }
     // the ones the defaults leave off
-    for (const flag of ["growFinish", "dpFan", "vortexRings", "ringEscape"] as const) expect([flag, outcomeFlagHolds(flag, outcomeContextOfSettings(defaultSettings(FLAG_MODES[flag])))]).toEqual([flag, false]);
+    for (const flag of ["growFinish", "dpFan", "ringEscape"] as const) expect([flag, outcomeFlagHolds(flag, outcomeContextOfSettings(defaultSettings(FLAG_MODES[flag])))]).toEqual([flag, false]);
+    // (--- finales-in-clip --- the page plays the ring waves now: their flag holds on the defaults, and the stagger leaves it off)
+    expect(outcomeFlagHolds("vortexRings", outcomeContextOfSettings(defaultSettings("vortex")))).toBe(true);
+    expect(outcomeFlagHolds("vortexRings", outcomeContextOfSettings({ ...defaultSettings("vortex"), vxRelease: "stagger" }))).toBe(false);
     expect(outcomeFlagHolds("colourSortSettles", outcomeContextOfSettings({ ...defaultSettings("colourSort"), csRule: "bothWaysNotOwn" }))).toBe(false);
     const bound = BINDINGS.filter((b) => b.outcome);
     expect(bound.length).toBe(15);
@@ -1310,7 +1316,7 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     }
     // (the chaos fan's split, Grow's fill and the ring waves' bar line are not there on the defaults)
     expect(availableOutcomes("doublePendulum", outcomeContextOfSettings(defaultSettings("doublePendulum")))).not.toContain("diverges-at");
-    expect(availableOutcomes("vortex", outcomeContextOfSettings(defaultSettings("vortex")))).not.toContain("ring-on-bar");
+    expect(availableOutcomes("vortex", outcomeContextOfSettings({ ...defaultSettings("vortex"), vxRelease: "stagger" /* --- finales-in-clip --- (the page's are the rings now) */ }))).not.toContain("ring-on-bar");
   });
 
   it("lays a binding's own settings out in order: its seeded generator (else its patch), its outcome's flag on top, its tune, an atEnd clip's length, its mode", () => {
@@ -1501,8 +1507,8 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
 
   // --- templates --- (studio round 1, 10) the full box on screen for a flash before it bursts, its "Full!" before the box was full, while
   // G2 passed on the 1.4 s between the payoff and the clip's end: the payoff's state held is what G2 reads now
-  it("keeps Perfect Fit experimental: its box is full for the 0.15 s flash before it bursts, so G2 fails the payoff's state held, as it fails Paint's fill", () => {
-    expect(EXPERIMENTAL.perfectFit).toMatch(/0\.15 s flash.*0\.8 s G2 asks.*0 of 12 plans/);
+  it("keeps Perfect Fit experimental until a review watches its renders again, though its box is held 0.85 s now and G2 passes the payoff's state held", () => {
+    expect(EXPERIMENTAL.perfectFit).toMatch(/0\.15 s flash.*0\.8 s G2 asks.*0 of 12 plans.*held 0\.85 s now.*G2 passes/); // (--- finales-in-clip --- its history and the hold now)
     const t = templateById("fill-perfect-fit")!;
     expect([t.ready, t.binding.tier, templateRecipeById(t.id)]).toEqual([false, "experimental", undefined]);
     const r = plannedRecipe(t)!;
@@ -1510,12 +1516,12 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
       const plan = planClip(r, seed, platform, { copy, look: "simple", template: t.id, episode: 3, index: seed });
       const where = `${platform}/${seed}`;
       const clip = crewClipOfPlan(plan, { run: runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec) });
-      // seconds of clip after the payoff, but the box full for a flash of them
-      // (the payoff is the first frame the box is full: the flash's 0.15 s from its landing, less the frame's part already gone)
+      // seconds of clip after the payoff, the box full for 0.85 s of them (--- finales-in-clip --- the hold, a 0.15 s flash before)
+      // (the payoff is the first frame the box is full: the hold's 0.85 s from its landing, less the frame's part already gone)
       const held = payoffHoldSec(clip)!;
-      expect([where, plan.timing.clipSec - plan.payoff.atSec! >= CLARITY.shownAfterPayoffSec, held > 0.1 && held <= 0.15 + 1e-9]).toEqual([where, true, true]);
+      expect([where, plan.timing.clipSec - plan.payoff.atSec! >= CLARITY.shownAfterPayoffSec, held >= CLARITY.shownAfterPayoffSec && held <= 0.85 + 1e-9]).toEqual([where, true, true]);
       const g2 = clarityOf(clip).gates.find((g) => g.id === "G2")!;
-      expect([where, g2.problems, Number(g2.values.held) < CLARITY.shownAfterPayoffSec]).toEqual([where, ["payoffLandsBrief"], true]);
+      expect([where, g2.problems]).toEqual([where, []]);
       // and its words, where a look draws them, start on the payoff's own half second: before it only by less than half their
       // entrance (PAYOFF_WORDS_LEAD_SEC), never a whole half second early as the floored start had them
       const words = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "payoff");

@@ -1,5 +1,7 @@
 import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
+import { HOOPS_LOOK } from "@/lib/physics/hoopsFields"; // --- finales-in-clip ---
+import { drawingMachineLook } from "@/lib/physics/drawingMachineFields"; // --- finales-in-clip ---
 
 /*
  * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip: a
@@ -69,6 +71,24 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
       return SHATTER_PACE; // --- shatter-demolition ---
     case "territory":
       return TERRITORY_PACE; // --- territory-swing ---
+    // --- finales-in-clip --- (B6)
+    case "runner":
+      return RUNNER_PACE;
+    case "vortex":
+      return VORTEX_PACE;
+    case "bullseye":
+      return BULLSEYE_PACE;
+    case "race":
+      return RACE_PACE;
+    case "journey":
+      return JOURNEY_PACE;
+    case "orbGrid":
+      return ORB_GRID_PACE;
+    case "maze":
+      return MAZE_PACE;
+    case "paddle":
+      return PADDLE_PACE;
+    // --- end finales-in-clip ---
     default:
       return NONE;
   }
@@ -90,6 +110,24 @@ const TERRITORY_PACE: Partial<SimulatorSettings> = Object.freeze({ tyRadius: 4, 
  * and (--- shatter-even-bricks ---) the inner rings in bricks as long as the outer ring's.
  */
 const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, shatterSegments: 36, shatterHits: 2, shatterEvenBricks: true /* --- shatter-even-bricks --- (review fix B3) */ });
+// --- finales-in-clip --- (B6) the page paces of the modes whose finale fell after the default clip (measured: the comment above)
+/** Beat Runner: a level of 18 obstacles that takes an obstacle on most beats (the mode's own 24 at 0.6 stay). */
+const RUNNER_PACE: Partial<SimulatorSettings> = Object.freeze({ runnerObstacles: 18, runnerDensity: 0.85 });
+/** Sound Vortex: the ring release – rainbow rings of 6, 12 and 24 marbles, one cycle of 22.5 s (the mode's own stagger stays). */
+const VORTEX_PACE: Partial<SimulatorSettings> = Object.freeze({ vxRelease: "rings" } as const);
+/** Bullseye: ten shots, the last one steered into the bull (the mode's own 12 shots and no rig stay). */
+const BULLSEYE_PACE: Partial<SimulatorSettings> = Object.freeze({ byShots: 10, byPerfect: 10 });
+/** Race: a track of 6 screens (the mode's own 8 stay). */
+const RACE_PACE: Partial<SimulatorSettings> = Object.freeze({ rcTrackLength: 6 });
+/** Journey: five stages and home – rings, pegs, glass, multipliers, funnel (the mode's own seven stay). */
+const JOURNEY_PACE: Partial<SimulatorSettings> = Object.freeze({ journeyStages: "rings,pegs,glass,multipliers,funnel,home" });
+/** Bouncing Orbs: a 26 s cycle, so the landing, its card and its chord land inside the clip (the mode's own 30 s stay). */
+const ORB_GRID_PACE: Partial<SimulatorSettings> = Object.freeze({ ogCycle: 26 });
+/** Maze: the run ends at the first ball out, the clip limit 25 s (the mode's own: every ball out, 60 s). */
+const MAZE_PACE: Partial<SimulatorSettings> = Object.freeze({ mzFirstOut: true, mzDuration: 25 });
+/** Paddle Keep-Up: a goal of 20 catches – a win card or GAME OVER, the question every run answers (the mode's own: no goal). */
+const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
+// --- end finales-in-clip ---
 
 // --- clip-start --- (review fix B2)
 /**
@@ -132,6 +170,12 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return GROW_START; // --- grow-fill-clip ---
     case "multiply":
       return MULTIPLY_START; // --- multiply-race ---
+    // --- finales-in-clip --- (B6)
+    case "hoops":
+      return HOOPS_START;
+    case "drawingMachine":
+      return DRAWING_MACHINE_START;
+    // --- end finales-in-clip ---
     default:
       return NONE;
   }
@@ -146,6 +190,19 @@ const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulat
 const GROW_START: Partial<SimulatorSettings> = Object.freeze({ growLaw: "multiply", growStep: 4, growStart: 15, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true } as const);
 /** --- multiply-race --- Multiply's start look: the race to the limit (through the page's gap of 0.3: --- review fix (B5) ---). */
 const MULTIPLY_START: Partial<SimulatorSettings> = Object.freeze({ multiplyRace: true } as const);
+// --- finales-in-clip --- (B6; the crew's corpus runs both modes' link bases, so the page's start look carries them)
+/**
+ * Spinning Hoops' start look: the look its presets put on the page – the navy page, the rainbow hoops and the loop HUD's title
+ * and live counter – and a spin that starts at 0.5 turns a second: the first bead up at 4 s, all eight by 19 s, back down by
+ * 29 s (the link base, 0.13: nothing for 11 s, 5 sounds in the first 11, a clip without a word).
+ */
+const HOOPS_START: Partial<SimulatorSettings> = Object.freeze({ ...HOOPS_LOOK, backgroundColors: [...HOOPS_LOOK.backgroundColors], hpOmegaStart: 0.5 });
+/**
+ * Drawing Machines' start look: Earth and Venus on their dark sky – the five-petal rose and its star drawn in 14 s, with its chord
+ * bed and plucks (the link base, the harmonograph: one pale figure in 22.5 s over a drone, then the same one again).
+ */
+const DRAWING_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ dmMachine: "orbits" as const, ...drawingMachineLook("orbits") });
+// --- end finales-in-clip ---
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and

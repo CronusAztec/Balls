@@ -510,3 +510,18 @@ describe("Perfect Fit: the renderer", () => {
     expect(PERFECT_FIT_ENGLISH.lines(28)).toBe("28 lines cleared");
   });
 });
+
+// --- finales-in-clip --- (B6) the payoff, the full box, on screen long enough to read
+describe("--- finales-in-clip --- the full box held", () => {
+  it("holds every full box 0.85 s – its flash, then a glow and a sweep – inside the same 1.45 s completion: no box or seam moves", () => {
+    const plan = planPerfectFit(input());
+    expect(plan.loopSec).toBeCloseTo(3 * (12 * 0.55 + 1.45), 9);
+    for (const p of plan.puzzles) {
+      expect(p.flashSec).toBeGreaterThanOrEqual(0.85 - 1e-9);
+      expect(p.flashSec + p.scatterSec + p.fadeSec).toBeCloseTo(p.tEnd - p.tDone, 9);
+      // the box reads full (every cell resting) through the hold, and empty once its squares scatter
+      expect(occupiedCells(plan, p.tDone + 0.8)).toBe(60);
+      expect(occupiedCells(plan, p.tDone + p.flashSec + 0.05)).toBe(0);
+    }
+  });
+});

@@ -53,7 +53,9 @@ import {
  *    in on the way out. Ordinary "hit" events: melodies, instruments, hit samples, the beat lock and the music bed apply.
  *  - **The race**: the first ball through the exit wins (an escape in the team stats, the wall-break sound, a shake);
  *    the others keep going until every ball is out or the clip limit (`duration`) – then the ball closest to the exit
- *    wins if none got out. The run finishes `MZ_FINISH_HOLD_MS` after that, so the banner stays in the clip.
+ *    wins if none got out. The run finishes `MZ_FINISH_HOLD_MS` after that, so the banner stays in the clip. With
+ *    `firstOut` (--- finales-in-clip ---; the page's default, off in the mode's own) the run ends at the first ball out:
+ *    the race is over when it is won, and the balls still inside keep moving under the banner for the hold.
  *  - **The rig**: the forced winner (`config.forcedWinner`) steers along the shortest path whatever the brain, a touch
  *    faster, and the exit stays closed to the others until it is out – the win is certain.
  *
@@ -100,6 +102,8 @@ export interface MazeSettings {
   badge: boolean;
   /** The HUD: a distance-to-exit bar per ball. */
   hud: boolean;
+  /** --- finales-in-clip --- The run ends at the first ball out (then MZ_FINISH_HOLD_MS); off, it goes on until every ball is out. */
+  firstOut: boolean;
 }
 
 export const DEFAULT_MAZE_SETTINGS: MazeSettings = {
@@ -117,6 +121,7 @@ export const DEFAULT_MAZE_SETTINGS: MazeSettings = {
   duration: 60,
   badge: true,
   hud: true,
+  firstOut: false, // --- finales-in-clip --- (the mode's own: every ball out; the page starts with the first one out)
 };
 
 /**
@@ -150,6 +155,7 @@ export interface MazeSettingFields {
   mzDuration: number;
   mzBadge: boolean;
   mzHud: boolean;
+  mzFirstOut: boolean; // --- finales-in-clip ---
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -190,6 +196,7 @@ export function resolveMazeSettings(config: Partial<MazeSettings> | null | undef
   if (config.duration !== undefined) out.duration = snap(clampNumber(config.duration, R.mzDuration, out.duration), R.mzDuration.step, R.mzDuration.min);
   if (typeof config.badge === "boolean") out.badge = config.badge;
   if (typeof config.hud === "boolean") out.hud = config.hud;
+  if (typeof config.firstOut === "boolean") out.firstOut = config.firstOut; // --- finales-in-clip ---
   return out;
 }
 
@@ -210,6 +217,7 @@ export function mazeSettingsOf(source: MazeSettingFields): MazeSettings {
     duration: source.mzDuration,
     badge: source.mzBadge,
     hud: source.mzHud,
+    firstOut: source.mzFirstOut, // --- finales-in-clip ---
   };
 }
 
@@ -230,6 +238,7 @@ export function mazeSettingFields(settings: MazeSettings): MazeSettingFields {
     mzDuration: settings.duration,
     mzBadge: settings.badge,
     mzHud: settings.hud,
+    mzFirstOut: settings.firstOut, // --- finales-in-clip ---
   };
 }
 
@@ -258,6 +267,7 @@ export function resolveMazeFields(source: Partial<MazeSettingFields>): MazeSetti
       duration: source.mzDuration,
       badge: source.mzBadge,
       hud: source.mzHud,
+      firstOut: source.mzFirstOut, // --- finales-in-clip ---
     }),
   );
 }
@@ -268,7 +278,7 @@ function formatNumber(n: number) {
 }
 
 const NUMERIC_KEYS = { mzc: "mzCols", mzn: "mzBalls", mzg: "mzGravity", mzs: "mzSpeed", mzt: "mzTrail", mzf: "mzFog", mzd: "mzDuration" } as const;
-const BOOLEAN_KEYS = { mzto: "mzTrailOwn", mzbg: "mzBadge", mzhud: "mzHud" } as const;
+const BOOLEAN_KEYS = { mzto: "mzTrailOwn", mzbg: "mzBadge", mzhud: "mzHud", mzfo: "mzFirstOut" /* --- finales-in-clip --- */ } as const;
 const COLOR_KEYS = { mztc: "mzTrailColor", mzwc: "mzWallColor" } as const;
 
 /** Writes the fields that differ from `base` (the mode's defaults) into the URL. */
@@ -1069,7 +1079,7 @@ export class MazeMode implements GameMode {
       ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
       v.impacts++;
     } else ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: mazeNoteFrequency(0, v.entranceDist), accent: true });
-    if (v.exited >= v.count && v.endMs < 0) v.endMs = now;
+    if ((v.exited >= v.count || v.settings.firstOut) && v.endMs < 0) v.endMs = now; // (--- finales-in-clip --- or the first one out, with the rule on)
   }
 
   onPostSubStep() {}

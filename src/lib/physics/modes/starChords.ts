@@ -103,8 +103,10 @@ export interface StarChordsView {
   cycleTime: number;
   phase: ScPhaseName;
   phaseProgress: number;
-  /** Stars closed in this cycle (the HUD's "stars closed 3/5"). */
+  /** Stars closed in this cycle. */
   closed: number;
+  /** --- finales-in-clip --- Stars closing in this cycle: on their last chord or closed (the HUD's "stars closing 3/5"). */
+  closing: number;
   /** Chords drawn in this cycle, a cycle's chords (Σn), every chord of the run, and the last finished cycle's count (−1 before). */
   chordsThisCycle: number;
   chordsPerCycle: number;
@@ -154,6 +156,7 @@ export class StarChordsMode implements GameMode {
     phase: "draw",
     phaseProgress: 0,
     closed: 0,
+    closing: 0, // --- finales-in-clip ---
     chordsThisCycle: 0,
     chordsPerCycle: 0,
     totalChords: 0,
@@ -262,6 +265,7 @@ export class StarChordsMode implements GameMode {
     v.phase = "draw";
     v.phaseProgress = 0;
     v.closed = 0;
+    v.closing = 0; // --- finales-in-clip ---
     v.chordsThisCycle = 0;
     v.totalChords = 0;
     v.lastCycleChords = -1;
@@ -405,6 +409,7 @@ export class StarChordsMode implements GameMode {
     let earlyCount = 0;
     let chords = 0;
     let closed = 0;
+    let closing = 0; // --- finales-in-clip ---
     for (let i = 0; i < v.count; i++) {
       const n = v.stars[i].n;
       const total = this.totalsAt(i, t1);
@@ -418,6 +423,7 @@ export class StarChordsMode implements GameMode {
       const b = bouncesAt(tc, n, T);
       v.bounces[i] = b;
       chords += b;
+      if (b >= n / v.laps[i] - 1) closing++; // --- finales-in-clip --- (its pen on the star's last chord, or the star closed)
       // the reduced star closes every n / laps bounces: the first time this cycle is when its inner circle may appear
       if (b >= n / v.laps[i]) {
         closed++;
@@ -430,6 +436,7 @@ export class StarChordsMode implements GameMode {
     }
     v.chordsThisCycle = chords;
     v.closed = closed;
+    v.closing = Math.max(closing, closed); // --- finales-in-clip ---
     // The stars closed together in this step: the chord (once, however many cycles a long step crossed). Counted from the clock
     // against the count at the last step, like the bounces, so a closing on a step's boundary is counted exactly once.
     const closingsNow = closingsAt(t1, T, hold, fade, this.scratch);

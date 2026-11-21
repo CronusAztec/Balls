@@ -66,6 +66,7 @@ import { effectiveBallCount, teamResult } from "@/lib/teams";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MEMORY_CEILINGS } from "@/lib/uncap"; // --- uncap-all ---
 import { liveWorldOf } from "@/lib/simulation/world";
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest"; // --- finales-in-clip ---
 
 /**
  * Maze escape (lib/physics/mazeGrid.ts, lib/physics/modes/maze.ts; feature odd-maze): the seeded perfect maze (n − 1
@@ -465,7 +466,7 @@ describe("maze settings", () => {
     expect(MAZE_RANGES.mzTrail).toMatchObject({ min: 0, max: 1 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveMazeFields(d)).toEqual(defaultMazeFields());
+      expect(resolveMazeFields(d)).toEqual(mode === "maze" ? { ...defaultMazeFields(), mzFirstOut: true, mzDuration: 25 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts) */ : defaultMazeFields());
       const params = settingsToSearchParams(d);
       for (const key of ["mzc", "mzn", "mzb", "mzh", "mzg", "mzs", "mzt", "mztc", "mzto", "mzf", "mzwc", "mzd", "mzbg", "mzhud"]) expect(params.has(key)).toBe(false);
     }
@@ -511,7 +512,7 @@ describe("maze settings", () => {
     expect(params.get("mzhud")).toBe("0");
     expect(settingsFromSearchParams(params)).toEqual(s);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=maze&mzc=4&mzn=50&mzb=ai&mzh=x&mzg=9&mzs=-1&mzt=abc&mztc=red&mzwc=%23zzzzzz&mzd=5&mzbg=maybe"));
-    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 50, gravity: 9, speed: 0.25, duration: 10 });
+    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 50, gravity: 9, speed: 0.25, duration: 10, firstOut: true /* --- finales-in-clip --- (the page's) */ });
     // (uncap-all: the link keeps the typed 50 balls; the run builds its memory-safety ceiling)
     expect(resolveMazeSettings(mazeSettingsOf(bad)).balls).toBe(MEMORY_CEILINGS.mzBalls);
     const loaded = presetToSettings({ mode: "maze", mzCols: 100, mzBrain: "bounce", mzFog: "thick", mzTrailOwn: "on" } as unknown as Parameters<typeof presetToSettings>[0]);
@@ -913,5 +914,46 @@ describe("Find Simulation", () => {
     const rigged = await withFrames(() => findSimulation(request({ outcome: { ...outcome, team: 2 }, physicsConfig: { ...config, forcedWinner: 2 } }), () => undefined));
     expect(rigged.found).toBe(true);
     expect(rigged.seedsTested).toBe(1);
+  });
+});
+
+// --- finales-in-clip --- (B6) the race ends when it is won: the page's runs end at the first ball out
+describe("--- finales-in-clip --- the first ball out ends the run", () => {
+  const runOf = (seed: number, query: string) => {
+    const s = settingsFromSearchParams(new URLSearchParams(query));
+    const request = finderRequestOfSettings(s, { width: 450, height: 450 }, 70);
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+    let firstOutMs = -1;
+    while (!engine.isSimulationFinished() && engine.getElapsedMs() < 70_000) {
+      engine.update(1000 / 60, 0);
+      if (firstOutMs < 0 && engine.getMazeView().exited > 0) firstOutMs = engine.getElapsedMs();
+    }
+    return { view: engine.getMazeView(), endMs: engine.getElapsedMs(), firstOutMs };
+  };
+
+  it("is the page's rule with a 25 s limit (the mode's own: every ball out, 60 s), and travels as mzfo", () => {
+    expect(DEFAULT_MAZE_SETTINGS.firstOut).toBe(false);
+    expect([defaultSettings("maze").mzFirstOut, defaultSettings("maze").mzDuration]).toEqual([true, 25]);
+    const off = settingsFromSearchParams(new URLSearchParams("mode=maze&mzfo=0"));
+    expect(off.mzFirstOut).toBe(false);
+    expect(settingsToSearchParams(off).get("mzfo")).toBe("0");
+    expect(mazeSettingsOf(off).firstOut).toBe(false);
+    expect(presetToSettings({ mode: "maze" }).mzFirstOut).toBe(true);
+    expect(presetToSettings({ mode: "maze", mzFirstOut: false }).mzFirstOut).toBe(false);
+  });
+
+  it("ends the run the hold after the first ball out, where every ball out ran on; with none out by 25 s, the nearest wins", { timeout: 60_000 }, () => {
+    // seed 5: nobody out by the page's 25 s – the ball nearest the exit wins, the run over at 27.5 s (every ball out: 58.8 s)
+    const late = runOf(5, "mode=maze");
+    expect(late.view.verdict).toBe("time");
+    expect(late.endMs).toBeCloseTo(25_000 + MZ_FINISH_HOLD_MS, -2);
+    for (const seed of [1, 2, 3, 4, 6, 7]) {
+      const first = runOf(seed, "mode=maze");
+      expect(first.view.verdict, `seed ${seed}`).toBe("exit"); // (a ball out won it; another may follow it out in the hold)
+      expect(first.endMs - first.firstOutMs, `seed ${seed}`).toBeCloseTo(MZ_FINISH_HOLD_MS, -2);
+      const all = runOf(seed, "mode=maze&mzfo=0&mzd=60");
+      expect(all.firstOutMs, `seed ${seed}`).toBe(first.firstOutMs); // (the same race up to the win: the rule moves only its end)
+      expect(all.endMs, `seed ${seed}`).toBeGreaterThan(first.endMs);
+    }
   });
 });

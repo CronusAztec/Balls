@@ -843,10 +843,15 @@ export const PF_LIFT = 0.12;
 export const PF_TRAVEL = 0.15;
 export const PF_FALL = 0.25;
 export const PF_SQUASH = 0.08;
-/** A rectangle's completion: the flash, the scatter of its unit squares and the label's crossfade (s). */
-export const PF_FLASH_SEC = 0.15;
-export const PF_SCATTER_SEC = 0.8;
-export const PF_FADE_SEC = 0.5;
+/**
+ * A rectangle's completion: the full box held (its flash, then a glow and a sweep of light), the scatter of its unit squares
+ * and the label's crossfade (s). --- finales-in-clip --- (B6) the full box, the payoff, is held 0.85 s (it was a 0.15 s flash
+ * before the burst; the crew's G2 asks 0.8 s) inside the same 1.45 s: the scatter and the crossfade are quicker, every box
+ * and seam keeps its time.
+ */
+export const PF_FLASH_SEC = 0.85;
+export const PF_SCATTER_SEC = 0.4;
+export const PF_FADE_SEC = 0.2;
 /** A box without a plan is shown with its label this long, then fades like a completion (s). */
 export const PF_NO_WAY_SEC = 1.5;
 /** Tetris: each section's pieces fall this much faster than the last's; a clear's banner, the hard silence after it, the finale's flash and the empty well before the loop (s). */

@@ -84,6 +84,8 @@ export const PF_TRAY_ROW = 0.1;
 export const PF_TRAY_SCALE = 0.45;
 /** The highest a lifted or hovering piece's top edge goes (a share of the square from its top). */
 export const PF_LIFT_TOP = 0.01;
+/** --- finales-in-clip --- The white flash at the start of a full box's hold (s); the rest of the hold is its glow and sweep. */
+export const PF_HOLD_FLASH_SEC = 0.2;
 /** Tetris: the well's tallest share, its bottom and the counter's line. */
 export const PF_WELL_HEIGHT = 0.72;
 export const PF_WELL_BOTTOM = 0.835;
@@ -417,12 +419,40 @@ export class PerfectFitLayer {
       }
       this.drawPiece(ctx, paths, piece, x, y, g.cell * scale, sx, sy, 1);
     }
-    // the completion's flash over the full box
+    // the completion's flash over the full box (--- finales-in-clip --- a short flash, then the full box held in a glow while a
+    // band of light sweeps across it: the payoff on screen for the whole hold, drawn from the plan's clock alone)
     if (local >= p.tDone && local < scatterAt && p.flashSec > 0) {
+      const age = local - p.tDone;
+      const flash = Math.min(PF_HOLD_FLASH_SEC, p.flashSec);
+      const top = g.bottom - g.height;
       ctx.save();
-      ctx.globalAlpha = 0.85 * (1 - (local - p.tDone) / p.flashSec);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(g.left, g.bottom - g.height, g.width, g.height);
+      if (age < flash) {
+        ctx.globalAlpha = 0.85 * (1 - age / flash);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(g.left, top, g.width, g.height);
+      }
+      const k = age / p.flashSec;
+      // the glow: a bright rim round the box, strongest just after the flash
+      ctx.globalAlpha = 0.9 * Math.min(1, 3 * k) * (1 - 0.5 * k);
+      ctx.strokeStyle = "#fff4c2";
+      ctx.lineWidth = Math.max(2, 0.12 * g.cell);
+      ctx.shadowColor = "#ffd65a";
+      ctx.shadowBlur = Math.max(6, 0.6 * g.cell);
+      ctx.strokeRect(g.left, top, g.width, g.height);
+      ctx.shadowBlur = 0;
+      // the sweep: a slanted band of light crossing the box from left to right once over the hold
+      if (age >= flash && typeof ctx.createLinearGradient === "function") {
+        const u = (age - flash) / Math.max(1e-6, p.flashSec - flash);
+        const band = 0.35 * g.width;
+        const x = g.left - band + (g.width + 2 * band) * u;
+        const sweep = ctx.createLinearGradient(x - band, top, x + band, g.bottom);
+        sweep.addColorStop(0, "rgba(255, 255, 255, 0)");
+        sweep.addColorStop(0.5, "rgba(255, 255, 255, 0.38)");
+        sweep.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = sweep;
+        ctx.fillRect(g.left, top, g.width, g.height);
+      }
       ctx.restore();
     }
   }

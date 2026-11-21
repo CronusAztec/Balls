@@ -15,7 +15,7 @@ export interface MazeSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const MAZE_KEYS = ["mzBrain", "mzHand", "mzBalls", "mzCols", "mzSpeed", "mzGravity", "mzTrail", "mzTrailColor", "mzTrailOwn", "mzFog", "mzWallColor", "mzDuration", "mzBadge", "mzHud"];
+export const MAZE_KEYS = ["mzBrain", "mzHand", "mzBalls", "mzCols", "mzSpeed", "mzGravity", "mzTrail", "mzTrailColor", "mzTrailOwn", "mzFog", "mzWallColor", "mzDuration", "mzFirstOut" /* --- finales-in-clip --- */, "mzBadge", "mzHud"];
 
 const BRAIN_OPTIONS: Record<MazeBrain, { icon: string; labelKey: string; hintKey: string }> = {
   bounce: { icon: "🎱", labelKey: "mzBrainBounce", hintKey: "mzHintBounce" },
@@ -126,6 +126,10 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
         </div>
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="mzDuration" tipKey="mzDurationTip" value={s.mzDuration} range={RANGES.mzDuration} onChange={(v) => update({ mzDuration: v })} display={`${s.mzDuration}s`} />
+      {/* --- finales-in-clip --- the run ends at the first ball out */}
+      <Searchable search={search} matches={matches} labelKey="mzFirstOut">
+        <Toggle t={t} labelKey="mzFirstOut" tipKey="mzFirstOutTip" value={s.mzFirstOut} onChange={(v) => update({ mzFirstOut: v })} />
+      </Searchable>
       <Searchable search={search} matches={matches} labelKey="mzBadge">
         <Toggle t={t} labelKey="mzBadge" tipKey="mzBadgeTip" value={s.mzBadge} onChange={(v) => update({ mzBadge: v })} />
       </Searchable>

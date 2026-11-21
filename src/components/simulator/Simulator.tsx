@@ -1185,10 +1185,10 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration]);
+  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration, s.mzFirstOut /* --- finales-in-clip --- */]);
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration, s.mzGravity, s.mzSpeed]);
+  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration, s.mzFirstOut /* --- finales-in-clip --- */, s.mzGravity, s.mzSpeed]);
   useEffect(() => {
     engineRef.current?.setMazeSettings({ gravity: s.mzGravity, speed: s.mzSpeed, trail: s.mzTrail, trailColor: s.mzTrailColor, trailOwn: s.mzTrailOwn, fog: s.mzFog, wallColor: s.mzWallColor, badge: s.mzBadge, hud: s.mzHud });
   }, [s.mzGravity, s.mzSpeed, s.mzTrail, s.mzTrailColor, s.mzTrailOwn, s.mzFog, s.mzWallColor, s.mzBadge, s.mzHud]);
@@ -1967,7 +1967,7 @@ export default function Simulator() {
   rhythmBeatRef.current = rhythmBeat;
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */]);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */, s.pdGoal /* --- finales-in-clip --- */]);
   /** What the page engine's Beat Runner course was last planned from (null until the first settings pass). */
   const runnerPlanRef = useRef<RunnerPlan | null>(null);
   useEffect(() => {
@@ -1993,7 +1993,7 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */, s.gravity, s.ballRadius]);
+  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.pdMaxTempo /* --- unlimited-sizes --- */, s.pdGoal /* --- finales-in-clip --- */, s.gravity, s.ballRadius]);
   useEffect(() => {
     engineRef.current?.setRunnerSettings({ scale: s.scale, rootNote: s.rootNote });
     engineRef.current?.setPaddleSettings({ scale: s.scale, rootNote: s.rootNote });
@@ -4070,6 +4070,8 @@ export default function Simulator() {
         miss: t("JdmRhythm.miss"),
         gameOver: t("JdmRhythm.gameOver"),
         gameOverSub: (hits, best) => fill("JdmRhythm.gameOverSub", { hits, best }),
+        win: (n) => fill("JdmRhythm.win", { n }), // --- finales-in-clip ---
+        winSub: (best) => fill("JdmRhythm.winSub", { best }),
         streak: (n) => fill("JdmRhythm.streak", { n }),
         moveHint: t("JdmRhythm.moveHint"),
       },

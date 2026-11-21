@@ -822,7 +822,7 @@ function boxCountdownSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 
 /** Paddle Keep-Up's one life (no MISS! before the end): a weaker player in a short clip (GAME OVER 1–19 s in), a better one in a standard one (11–69 s). */
 function paddleSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { pdMisses: 0, pdSkill: ctx.bucket === "short" ? stepBetween(ctx.rng, 0.7, 0.75, 0.05) : stepBetween(ctx.rng, 0.85, 0.9, 0.05) };
+  return { pdMisses: 0, pdSkill: ctx.bucket === "short" ? stepBetween(ctx.rng, 0.7, 0.75, 0.05) : stepBetween(ctx.rng, 0.85, 0.9, 0.05), pdGoal: 0 /* --- finales-in-clip --- (its payoff is the GAME OVER: no goal, whatever the page's) */ };
 }
 // --- end of group B's settings
 
@@ -1115,7 +1115,7 @@ const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
  * stopped shape, so the binding is hidden.
  */
 const BOX_STOPS_FADED = "its payoff, the first shape at zero, is drawn faded (a stopped shape at 35 %, boxRenderer.ts) where its last hit left it, often a corner (under the watermark in the render watched), while the other shape bounces on bright to the clip's end: the eye follows the one that never stops; a race hook with payoff words in the short length did not change that (watched, 12/12 passing every gate), one shape ends its run at zero (shown 0.5 s, G2 asks 0.8 s), and no setting brightens a stopped shape";
-const PERFECT_FIT_FLASH = "its box is full only for the 0.15 s flash between its last piece's landing and its burst (polyominoPlan.ts PF_FLASH_SEC), so a resolved clip shows the fill that long, under the 0.8 s G2 asks, as Paint's fill; no setting holds it longer: 0 of 12 plans passed (4 plan seeds × 3 platforms; watched: 'Full!' came while the last piece was falling, the box burst a flash after it filled)";
+const PERFECT_FIT_FLASH = "its box was full only for a 0.15 s flash between its last piece's landing and its burst, under the 0.8 s G2 asks: 0 of 12 plans passed (4 plan seeds × 3 platforms; watched: 'Full!' came while the last piece was falling, the box burst a flash after it filled); --- finales-in-clip --- the box is held 0.85 s now (polyominoPlan.ts PF_FLASH_SEC) and G2 passes on the 3 plans measured, but it stays out until a review watches its plans' renders again";
 /**
  * --- templates --- (studio round 1, 11) The beat format's payoff is the drop or the last bar: a moment that stands out from the run (the
  * crew's G2, clarity.ts beatStandsOut). Beat Machines' marble phrase is one note at a time, its motifs over again (A, A', B, A, A, A':

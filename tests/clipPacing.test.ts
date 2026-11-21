@@ -5,7 +5,7 @@ import { FINGERPRINT_CONFIG, FINGERPRINT_MODE_SETTINGS } from "@/lib/agentKit/fi
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { RECIPES, SERIES_ROSTER } from "@/lib/bot/playbook";
 import { DEFAULT_RING_ESCAPE_FIELDS } from "@/lib/physics/ringEscape";
-import { clipPacingDefaults } from "@/lib/clipPacing";
+import { clipPacingDefaults, clipStartSettings } from "@/lib/clipPacing";
 import { COLOR_MATCH_SEGMENT_CHOICES, DEFAULT_COLOR_MATCH_SEGMENTS, isColorMatchSegments } from "@/lib/physics/modes/colorMatch";
 import { DEFAULT_MERGE_RING_SETTINGS } from "@/lib/physics/modes/mergeRing";
 import { DEFAULT_PENDULUM_SETTINGS } from "@/lib/physics/modes/pendulum";
@@ -26,7 +26,7 @@ import { createEngineForSettings } from "@/lib/simulation/finder";
  *  - nothing the crew's role-eval corpus pins moved: Classic's ring sounds and Accumulation's defaults stay as they were.
  */
 
-const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass", "shatter" /* --- shatter-demolition --- */, "territory" /* --- territory-swing --- */];
+const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass", "shatter" /* --- shatter-demolition --- */, "territory" /* --- territory-swing --- */, "runner", "vortex", "bullseye", "race", "journey", "orbGrid", "maze", "paddle" /* --- finales-in-clip --- */];
 const WORLDS = [
   { width: 800, height: 450 },
   { width: 450, height: 450 },
@@ -222,3 +222,54 @@ describe("Color Match's segments as a setting", () => {
     }
   });
 });
+
+// --- finales-in-clip --- (B6) the modes whose finale fell after the default clip: their page paces and start looks
+describe("--- finales-in-clip --- the finale inside the default clip", () => {
+  it("gives each mode its measured page pace, and Hoops and Drawing Machines a start look (their link bases stay: the crew's corpus runs them)", () => {
+    expect(clipPacingDefaults("runner")).toEqual({ runnerObstacles: 18, runnerDensity: 0.85 });
+    expect(clipPacingDefaults("vortex")).toEqual({ vxRelease: "rings" });
+    expect(clipPacingDefaults("bullseye")).toEqual({ byShots: 10, byPerfect: 10 });
+    expect(clipPacingDefaults("race")).toEqual({ rcTrackLength: 6 });
+    expect(clipPacingDefaults("journey")).toEqual({ journeyStages: "rings,pegs,glass,multipliers,funnel,home" });
+    expect(clipPacingDefaults("orbGrid")).toEqual({ ogCycle: 26 });
+    expect(clipPacingDefaults("maze")).toEqual({ mzFirstOut: true, mzDuration: 25 });
+    expect(clipPacingDefaults("paddle")).toEqual({ pdGoal: 20 });
+    expect(clipPacingDefaults("hoops")).toEqual({});
+    expect(clipPacingDefaults("drawingMachine")).toEqual({});
+    expect(clipStartSettings("hoops")).toEqual({ backgroundType: "solid", backgroundColors: ["#0b1020", "#0b1020"], themeId: "", rainbowWalls: true, showWallGlow: true, loopHud: true, hpOmegaStart: 0.5 });
+    expect(clipStartSettings("drawingMachine")).toEqual({ dmMachine: "orbits", backgroundType: "solid", backgroundColors: ["#05060c", "#05060c"], loopHud: true });
+    for (const mode of ["hoops", "drawingMachine"] as const) {
+      const start = { ...defaultSettings(mode), ...clipStartSettings(mode) } as SimulatorSettings;
+      expect(settingsFromSearchParams(settingsToSearchParams(start)), mode).toMatchObject(clipStartSettings(mode));
+    }
+  });
+
+  // measured when this was written (seeds 1–12, both worlds): every run over by 30.0 s, its end card and holds included –
+  // Beat Runner 20.1–24.1 s (before: 30.1–34.6 s, none by 30), Sound Vortex 22.5 s (29.1–31.0 s, 5 of 12), Bullseye 23.9–26.5 s
+  // (28.6–31.7 s, 6 of 12), Race 18.4–29.7 s, the podium on screen from 26.2 s at the latest (26.1–37.0 s, 10 of 12),
+  // Journey 17.4–23.6 s (26.1–38.5 s, 5 of 12), Maze 6.2–27.5 s (8.6–58.8 s, 8 of 12), Paddle Keep-Up 10.6–28.6 s, a win or
+  // a GAME OVER (10.6–43.0 s, 7 of 12, every one a GAME OVER)
+  it("ends every default run by 30 s, its end card included, never in the first 5 s", { timeout: 180_000 }, () => {
+    for (const mode of ["runner", "vortex", "bullseye", "race", "journey", "maze", "paddle"] as const) {
+      for (const world of WORLDS) {
+        for (let seed = 1; seed <= 6; seed++) {
+          const end = endOf(mode, seed, world, 40);
+          expect(end, `${mode} seed ${seed} ${world.width}`).toBeGreaterThan(5);
+          expect(end, `${mode} seed ${seed} ${world.width}`).toBeLessThanOrEqual(30);
+        }
+      }
+    }
+  });
+
+  it("lands Bullseye's last shot in the bull on every seed (before: no bullseye at all on 3 of 12)", () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const request = finderRequestOfSettings(defaultSettings("bullseye"), WORLDS[1], 40);
+      const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+      for (let frame = 1; frame <= 40 * 60 && !engine.isSimulationFinished(); frame++) engine.update(1000 / 60, 0);
+      const view = engine.getBullseyeView();
+      expect(view.perfectShot, `seed ${seed}`).toBe(9);
+      expect(view.bullseyes, `seed ${seed}`).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+

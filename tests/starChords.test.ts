@@ -545,9 +545,29 @@ describe("Chord Stars: the loop HUD and the caption", () => {
     const noHold = starEngine({ holdSec: 0 });
     frameLoop(noHold, 12 * 60, STEP_MS);
     expect(loopHudCount(noHold)).toEqual({ count: 5, total: 5 });
-    expect(hudCounterText(String(en.LoopHud.starChordsCounter), { count: 3, total: 5 })).toBe("stars closed 3/5");
+    expect(hudCounterText(String(en.LoopHud.starChordsCounter), { count: 3, total: 5 })).toBe("stars closing 3/5"); // --- finales-in-clip ---
     for (const locale of [en, pl, es]) expect(subtitleLines(String(locale.LoopHud.starChordsSubtitle))).toHaveLength(2);
     expect(subtitleLines("one line")).toEqual(["one line"]);
+  });
+
+  it("--- finales-in-clip --- counts the stars as they near closing: one by one in the cycle's last seconds, all five before the closing frame", () => {
+    const engine = starEngine();
+    frameLoop(engine, 9 * 60, STEP_MS); // 9 s: every pen still short of its star's last chord
+    expect(loopHudCount(engine)).toEqual({ count: 0, total: 5 });
+    const seen: number[] = [];
+    let firstAt = -1;
+    let allAt = -1;
+    for (let f = 9 * 60 + 1; f < 12 * 60; f++) {
+      frameLoop(engine, 1, STEP_MS);
+      const count = (loopHudCount(engine) as { count: number }).count;
+      if (seen.length === 0 || count !== seen[seen.length - 1]) seen.push(count);
+      if (count >= 1 && firstAt < 0) firstAt = f / 60;
+      if (count === 5 && allAt < 0) allAt = f / 60;
+      expect(engine.getStarChordsView().closed).toBe(0); // (none closed before the closing frame: every star closes at 12 s)
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(firstAt).toBeLessThan(10.5);
+    expect(allAt).toBeLessThan(11.9);
   });
 
   it("writes the loop-style caption from the balls: math and geometry tags after #satisfying #oddlysatisfying", () => {

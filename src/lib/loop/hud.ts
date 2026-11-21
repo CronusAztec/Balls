@@ -443,7 +443,7 @@ const FUNNEL_LAP_COUNTER = { count: 0, values: { lap: 0 } };
 export function loopHudCount(engine: {
   getCurrentModeName(): string;
   getGrowView(): { bounces: number };
-  getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
+  getStarChordsView?(): { closed: number; closing?: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars --- (--- finales-in-clip --- closing)
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
   getDoublePendulumView?(): { fan: { running: string } | null }; // --- chaos-fan ---
   getPolyrhythmView?(): { inLine: number; settings: { alignMeter: boolean } }; // --- phase-spiral ---
@@ -495,7 +495,9 @@ export function loopHudCount(engine: {
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
   if (engine.getCurrentModeName() === "starChords" && engine.getStarChordsView) {
     const v = engine.getStarChordsView();
-    return { count: v.phase === "fade" && v.phaseProgress >= STAR_CHORDS_HUD_RESET ? 0 : v.closed, total: v.count };
+    // --- finales-in-clip --- (B6) the stars count as they near closing – a star on its last chord – so the counter climbs in the
+    // cycle's last seconds instead of reading 0 until the closing frame
+    return { count: v.phase === "fade" && v.phaseProgress >= STAR_CHORDS_HUD_RESET ? 0 : (v.closing ?? v.closed), total: v.count };
   }
   // --- bead-hoops --- Spinning Hoops: the beads up of its hoops, at the spin's turns a second
   if (engine.getCurrentModeName() === "hoops" && engine.getHoopsView) {

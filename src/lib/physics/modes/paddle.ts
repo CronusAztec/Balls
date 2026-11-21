@@ -49,6 +49,11 @@ export interface PaddleSettings {
    * differs, so a default settings object is unchanged).
    */
   maxTempo?: number;
+  /**
+   * --- finales-in-clip --- The catches that win the game (a goal on screen from the first second, the run over with a win card
+   * once it is reached); 0 or absent: no goal, the game goes on until GAME OVER.
+   */
+  goal?: number;
   /** The Sound section's scale and root: the notes of the catches climb its degrees. */
   scale: ScaleId;
   rootNote: number;
@@ -72,6 +77,7 @@ export const PADDLE_RANGES = {
   pdSpin: { min: 0, max: 1, step: 0.05 },
   pdSpeedUp: { min: 0, max: 0.1, step: 0.005 },
   pdMaxTempo: { min: 1, max: 4, step: 0.1 }, // --- unlimited-sizes --- (the old MAX_TEMPO 2 is the default; any tempo from 1 typed)
+  pdGoal: { min: 0, max: 60, step: 5 }, // --- finales-in-clip --- (0: no goal; the slider in fives, any whole number of catches typed)
 } as const;
 
 /**
@@ -95,6 +101,7 @@ export interface PaddleFields {
   pdSpin: number;
   pdSpeedUp: number;
   pdMaxTempo: number; // --- unlimited-sizes ---
+  pdGoal: number; // --- finales-in-clip ---
 }
 
 export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | undefined): PaddleSettings {
@@ -112,12 +119,17 @@ export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | u
     const top = Math.round(1000 * clampNumber(config.maxTempo, R.pdMaxTempo, MAX_TEMPO)) / 1000;
     if (top !== MAX_TEMPO) out.maxTempo = top;
   }
+  // --- finales-in-clip --- the goal: a whole number from 0 up (no maximum), kept only when there is one
+  if (config.goal !== undefined) {
+    const goal = Math.round(clampNumber(config.goal, R.pdGoal, 0));
+    if (goal > 0) out.goal = goal;
+  }
   if (isScaleId(config.scale)) out.scale = config.scale;
   if (config.rootNote !== undefined) out.rootNote = normalizeRootNote(config.rootNote);
   return out;
 }
 
-export function paddleSettingsOf(source: Omit<PaddleFields, "pdMaxTempo"> & Partial<Pick<PaddleFields, "pdMaxTempo">> & { scale?: ScaleId; rootNote?: number }): PaddleSettings {
+export function paddleSettingsOf(source: Omit<PaddleFields, "pdMaxTempo" | "pdGoal"> & Partial<Pick<PaddleFields, "pdMaxTempo" | "pdGoal">> & { scale?: ScaleId; rootNote?: number }): PaddleSettings {
   return {
     auto: source.pdAuto,
     skill: source.pdSkill,
@@ -126,28 +138,34 @@ export function paddleSettingsOf(source: Omit<PaddleFields, "pdMaxTempo"> & Part
     spin: source.pdSpin,
     speedUp: source.pdSpeedUp,
     ...(source.pdMaxTempo !== undefined && source.pdMaxTempo !== MAX_TEMPO ? { maxTempo: source.pdMaxTempo } : {}), // --- unlimited-sizes --- (nothing at the default)
+    ...(source.pdGoal !== undefined && source.pdGoal > 0 ? { goal: source.pdGoal } : {}), // --- finales-in-clip --- (nothing without a goal)
     scale: source.scale ?? DEFAULT_PADDLE_SETTINGS.scale,
     rootNote: source.rootNote ?? DEFAULT_PADDLE_SETTINGS.rootNote,
   };
 }
 
 /** (--- unlimited-sizes --- without the top tempo, `pdMaxTempo`: the core defaults' literal leaves it out – resolvePaddleFields() adds it) */
-export function paddleSettingFields(settings: PaddleSettings): Omit<PaddleFields, "pdMaxTempo"> {
+export function paddleSettingFields(settings: PaddleSettings): Omit<PaddleFields, "pdMaxTempo" | "pdGoal"> {
   return { pdAuto: settings.auto, pdSkill: settings.skill, pdMisses: settings.misses, pdWidth: settings.width, pdSpin: settings.spin, pdSpeedUp: settings.speedUp };
 }
 
-export function defaultPaddleFields(): Omit<PaddleFields, "pdMaxTempo"> {
+export function defaultPaddleFields(): Omit<PaddleFields, "pdMaxTempo" | "pdGoal"> {
   return paddleSettingFields(DEFAULT_PADDLE_SETTINGS);
 }
 
-export function resolvePaddleFields(source: Partial<PaddleFields>): Omit<PaddleFields, "pdMaxTempo"> & Partial<Pick<PaddleFields, "pdMaxTempo">> {
-  const resolved = resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp, maxTempo: source.pdMaxTempo /* --- unlimited-sizes --- */ });
+export function resolvePaddleFields(source: Partial<PaddleFields>): Omit<PaddleFields, "pdMaxTempo" | "pdGoal"> & Partial<Pick<PaddleFields, "pdMaxTempo" | "pdGoal">> {
+  const resolved = resolvePaddleSettings({ auto: source.pdAuto, skill: source.pdSkill, misses: source.pdMisses, width: source.pdWidth, spin: source.pdSpin, speedUp: source.pdSpeedUp, maxTempo: source.pdMaxTempo /* --- unlimited-sizes --- */, goal: source.pdGoal /* --- finales-in-clip --- */ });
   // --- unlimited-sizes --- the top tempo where it is not the old 2, or where the source held something else (a junk value back to 2)
   const top = resolved.maxTempo ?? MAX_TEMPO;
-  return { ...paddleSettingFields(resolved), ...(top !== MAX_TEMPO || (source.pdMaxTempo !== undefined && source.pdMaxTempo !== top) ? { pdMaxTempo: top } : {}) };
+  return { ...paddleSettingFields(resolved), ...(top !== MAX_TEMPO || (source.pdMaxTempo !== undefined && source.pdMaxTempo !== top) ? { pdMaxTempo: top } : {}), ...(source.pdGoal !== undefined || goalOf(resolved) > 0 ? { pdGoal: goalOf(resolved) } : {}) /* --- finales-in-clip --- (where the source names one: a whole number from 0, junk back to none) */ };
 }
 
-const PADDLE_NUMERIC_KEYS = { pdsk: "pdSkill", pdm: "pdMisses", pdw: "pdWidth", pdsp: "pdSpin", pdu: "pdSpeedUp", pdmt: "pdMaxTempo" /* --- unlimited-sizes --- */ } as const;
+/** --- finales-in-clip --- The goal of resolved settings (0: none). */
+export function goalOf(settings: Pick<PaddleSettings, "goal">): number {
+  return settings.goal ?? 0;
+}
+
+const PADDLE_NUMERIC_KEYS = { pdsk: "pdSkill", pdm: "pdMisses", pdw: "pdWidth", pdsp: "pdSpin", pdu: "pdSpeedUp", pdmt: "pdMaxTempo" /* --- unlimited-sizes --- */, pdg: "pdGoal" /* --- finales-in-clip --- */ } as const;
 
 export function writePaddleParams(settings: PaddleFields, base: PaddleFields, params: URLSearchParams) {
   if (settings.pdAuto !== base.pdAuto) params.set("pda", settings.pdAuto ? "1" : "0");
@@ -439,6 +457,8 @@ export interface PaddleView {
   lastCeilingX: number;
   over: boolean;
   overSec: number;
+  /** --- finales-in-clip --- The goal was reached: the run is over (`over`) as a win, not a GAME OVER. */
+  won: boolean;
   finished: boolean;
   /** The controller's current plan (auto) – where it heads and whether it plans late (> 0) or early (< 0). */
   targetX: number;
@@ -487,6 +507,7 @@ function createView(): PaddleView {
     lastCeilingX: 0,
     over: false,
     overSec: -Infinity,
+    won: false, // --- finales-in-clip ---
     finished: false,
     targetX: PD_ASPECT / 2,
     timingError: 0,
@@ -599,6 +620,7 @@ export class PaddleMode implements GameMode {
     v.lastCeilingX = 0;
     v.over = false;
     v.overSec = -Infinity;
+    v.won = false; // --- finales-in-clip ---
     v.finished = false;
     v.partT0.fill(-Infinity);
     v.partNext = 0;
@@ -780,9 +802,12 @@ export class PaddleMode implements GameMode {
     const { scale, rootNote } = v.settings;
     if (Math.abs(dx) <= v.halfWidth + 0.35 * v.r) {
       const off = Math.max(-1, Math.min(1, dx / v.halfWidth));
-      v.hits++;
-      v.streak++;
-      v.bestStreak = Math.max(v.bestStreak, v.streak);
+      // --- finales-in-clip --- after the goal the ball keeps bouncing under the win card, but nothing more is counted
+      if (!v.won) {
+        v.hits++;
+        v.streak++;
+        v.bestStreak = Math.max(v.bestStreak, v.streak);
+      }
       v.tempo = paddleTempo(v.hits, v.settings.speedUp, v.settings.maxTempo); // --- unlimited-sizes ---
       this.g = this.baseG * v.tempo * v.tempo;
       const launch = launchOf(off, v.bvx, v.pvx, v.settings.spin, this.g, v.tempo, v.r);
@@ -798,8 +823,24 @@ export class PaddleMode implements GameMode {
       // The catch is the next note of the tune (a loaded melody's next note); everything else the game sounds – the walls,
       // the ceiling, the streak chime, a miss, the game over – accompanies it (`melody: false`) and never uses one up.
       this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch((v.hits - 1) % 15, scale, rootNote), ...(Math.abs(off) < 0.12 ? { accent: true } : {}) });
-      if (v.streak % STREAK_CHIME === 0) this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: v.streak, melody: false });
+      if (v.streak % STREAK_CHIME === 0 && !v.won) this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: v.streak, melody: false });
+      // --- finales-in-clip --- the goal: the run is over as a win – the chord on the tonic and the crowd's burst
+      const goal = v.settings.goal ?? 0;
+      if (goal > 0 && !v.over && v.hits >= goal) {
+        v.over = true;
+        v.won = true;
+        v.overSec = t;
+        const chord = rhythmChord(7, scale, rootNote);
+        this.sound(ctx, { type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
+        this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: goal, melody: false });
+        if (!this.silent) ctx.spawnConfetti(ctx.config.width / 2, ctx.config.height / 2);
+      }
       this.plan(t);
+      return;
+    }
+    // --- finales-in-clip --- a ball that gets past after the goal is not a miss: the game is won
+    if (v.won) {
+      v.phase = "missed";
       return;
     }
     // A miss: the ball falls past the platform.

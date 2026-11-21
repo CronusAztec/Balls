@@ -56,7 +56,7 @@ export const DAILY_POOL: readonly DailyPoolEntry[] = [
   { mode: "race", look: "glow=1" },
   { mode: "battle", look: "btn=10&glow=1" },
   { mode: "ctf", look: "glow=1" },
-  { mode: "vortex", look: "face=cute&glow=1" },
+  { mode: "vortex", look: "face=cute&glow=1&vxrl=stagger" }, // (--- finales-in-clip --- B6: the stagger release written out: the page plays the rings, whose end is the same on every seed)
   { mode: "runner", look: "face=cute&glow=1" },
   { mode: "paddle", look: "pdsp=1&glow=1" },
 ];

@@ -26,7 +26,7 @@ export interface JdmRhythmSectionProps {
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const RUNNER_KEYS = ["rrAutoJump", "rrObstacles", "rrSpeed", "rrJump", "rrDensity", "rrMix", "rrBeatSource"];
-export const PADDLE_KEYS = ["pdAuto", "pdSkill", "pdMisses", "pdWidth", "pdSpin", "pdSpeedUp", "pdMaxTempo" /* --- unlimited-sizes --- */];
+export const PADDLE_KEYS = ["pdAuto", "pdSkill", "pdMisses", "pdWidth", "pdSpin", "pdSpeedUp", "pdMaxTempo" /* --- unlimited-sizes --- */, "pdGoal" /* --- finales-in-clip --- */];
 export const JDM_RHYTHM_KEYS = [...RUNNER_KEYS, ...PADDLE_KEYS];
 
 const MIX_OPTIONS: Record<RunnerMix, { labelKey: string }> = {
@@ -136,6 +136,8 @@ export function PaddleSection({ t, search, matches, settings: s, update }: JdmRh
         <Slider t={t} search={search} matches={matches} labelKey="pdSkill" tipKey="pdSkillTip" value={s.pdSkill} range={RANGES.pdSkill} onChange={(v) => update({ pdSkill: v })} display={`${Math.round(100 * s.pdSkill)}%`} plays={skill} playsDisplay={`${Math.round(100 * skill)}%`} />
       )}
       <Slider t={t} search={search} matches={matches} labelKey="pdMisses" tipKey="pdMissesTip" value={s.pdMisses} range={RANGES.pdMisses} onChange={(v) => update({ pdMisses: v })} display={String(s.pdMisses)} />
+      {/* --- finales-in-clip --- the catches that win the game (0: none) */}
+      <Slider t={t} search={search} matches={matches} labelKey="pdGoal" tipKey="pdGoalTip" value={s.pdGoal} range={RANGES.pdGoal} onChange={(v) => update({ pdGoal: v })} display={s.pdGoal > 0 ? String(s.pdGoal) : t("pdGoalOff")} />
       <Slider t={t} search={search} matches={matches} labelKey="pdWidth" tipKey="pdWidthTip" value={s.pdWidth} range={RANGES.pdWidth} onChange={(v) => update({ pdWidth: v })} display={`${Math.round(100 * s.pdWidth)}%`} />
       <Slider t={t} search={search} matches={matches} labelKey="pdSpin" tipKey="pdSpinTip" value={s.pdSpin} range={RANGES.pdSpin} onChange={(v) => update({ pdSpin: v })} display={s.pdSpin.toFixed(2)} />
       <Slider t={t} search={search} matches={matches} labelKey="pdSpeedUp" tipKey="pdSpeedUpTip" value={s.pdSpeedUp} range={RANGES.pdSpeedUp} onChange={(v) => update({ pdSpeedUp: v })} display={`+${(100 * s.pdSpeedUp).toFixed(1)}%`} />
