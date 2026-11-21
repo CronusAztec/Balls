@@ -12218,7 +12218,10 @@ await smokeBlock("paywall-gate", async () => {
       await fp.getByTestId("unlock-dialog").locator("xpath=ancestor::dialog").getByRole("button", { name: "Close", exact: true }).click().catch(() => {});
       const closeClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
       // the batch: its block stays editable, Render batch carries the tag (the free-watermark block renders one)
+      // (--- panel-basics --- Batch Render opens from its row of the Recording group: the row starts closed)
+      await openRecordingRow(fp, "batch");
       const batch = fp.locator("[data-batch]");
+      await batch.waitFor({ timeout: 10000 }).catch(() => {});
       const batchButton = batch.getByRole("button", { name: /Render batch/ });
       const batchTag = await batchButton.locator("[data-watermark-tag]").count();
       const batchLock = await batchButton.locator("[data-pro-lock]").count();
@@ -12393,6 +12396,9 @@ await smokeBlock("paywall-gate", async () => {
         await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
         await p.waitForFunction(() => document.querySelectorAll("[data-pro-lock], [data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {}); // --- free-watermark ---
         await p.getByRole("button", { name: /Recording/ }).click();
+        // (--- panel-basics --- Render batch, the third tag, is in the Batch Render row of the Recording group: the row starts closed)
+        await openRecordingRow(p, "batch");
+        await p.locator("[data-batch]").waitFor({ timeout: 10000 }).catch(() => {});
         dropped[kind] = { locks: await lockCount(p), stored: await stored(p), account: await p.getByTestId("billing-account").innerText().catch(() => ""), status: await p.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null) };
         // --- free-watermark --- Record Video records (watermarked) instead of opening the Unlock dialog
         await p.getByRole("button", { name: /Record Video/ }).click();
