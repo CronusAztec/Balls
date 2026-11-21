@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { OPEN_SETTING_EVENT, aspectRatioLabel, modeNeighbours } from "@/lib/siteDesign";
 import { rememberRecentMode } from "@/lib/modeRecent";
@@ -16,7 +16,13 @@ import { IconChevronDown, IconChevronLeft, IconChevronRight } from "@/components
  * (the event a mode card sends; each arrow is named after the mode it leads to). The time and the format are buttons too:
  * each opens its setting in Recording (OPEN_SETTING_EVENT, answered by the panel with the palette's jump). The panel hands
  * the current mode in through StageModeContext, so the page needs no new prop.
+ * --- frame-guide --- A toggle after the format shows what the clip records on the stage: the centred square the recorder
+ * and the fast export keep (lib/recording/recorder.ts drawRecordingFrame), the rest of the stage dimmed. It marks the studio
+ * (data-frame-guide) and globals.css draws the guide over the stage frame: a page overlay, never on the canvas, so never
+ * recorded. The choice is a per-visitor convenience kept in this browser (read after mounting, never needed).
  */
+
+const FRAME_GUIDE_KEY = "jumpingballslive_frame_guide";
 
 /** The studio's current mode, provided by the panel (Controls.tsx) around the stage; null leaves the arrows out. */
 export const StageModeContext = createContext<ModeId | null>(null);
@@ -56,6 +62,31 @@ export default function StageStrip({
     const id = setInterval(read, 500);
     return () => clearInterval(id);
   }, [getSeed]);
+  // --- frame-guide ---
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [guide, setGuide] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(FRAME_GUIDE_KEY) === "on") setGuide(true);
+    } catch {
+      /* no storage: the guide starts off */
+    }
+  }, []);
+  useEffect(() => {
+    const studio = stripRef.current?.closest(".studio");
+    if (!studio) return;
+    studio.toggleAttribute("data-frame-guide", guide);
+    return () => studio.removeAttribute("data-frame-guide");
+  }, [guide]);
+  const toggleGuide = () => {
+    const next = !guide;
+    setGuide(next);
+    try {
+      localStorage.setItem(FRAME_GUIDE_KEY, next ? "on" : "off");
+    } catch {
+      /* not kept: it still applies on this page */
+    }
+  };
   const ratio = aspectRatioLabel(resolution);
   const readout = "flex shrink-0 items-baseline gap-2 whitespace-nowrap";
   // --- studio-fit --- a readout that opens its setting: the same line, in a button with a hover plate
@@ -67,7 +98,7 @@ export default function StageStrip({
   };
   const openSetting = (key: "videoDuration" | "videoResolution") => window.dispatchEvent(new CustomEvent(OPEN_SETTING_EVENT, { detail: key }));
   return (
-    <div className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-line px-3 sm:gap-5 sm:px-4 [@media(pointer:coarse)]:h-12" data-testid="stage-strip">
+    <div ref={stripRef} className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-line px-3 sm:gap-5 sm:px-4 [@media(pointer:coarse)]:h-12" data-testid="stage-strip">
       {/* --- studio-fit --- the mode button stays the strip's first button (the picker's way in), the arrows follow it */}
       {/* --- review fix (studio-fit) --- a long mode name gives way (it ends in an ellipsis, its title the whole name): the
           readouts after it keep their width, the clip length and the format are never pushed off the strip */}
@@ -110,11 +141,25 @@ export default function StageStrip({
       <button type="button" onClick={() => openSetting("videoResolution")} title={controls("videoResolution")} className={`${readoutButton} hidden @[38rem]:flex`} data-testid="stage-format">
         <span className={readout}>
           <span className="eyebrow text-ink-3">{t("studio.format")}</span>
+          {/* --- frame-guide --- (review fix) below 60rem a format with a ratio shows the ratio alone (9:16), so the guide's
+              toggle beside it never takes the mode name's room, a found run's long seed shown too */}
           <span className="num text-sm text-ink-2">
-            {resolution.replace("x", "×")}
-            {ratio && <span className="text-ink-3"> · {ratio}</span>}
+            <span className={ratio ? "hidden @[60rem]:inline" : undefined}>{resolution.replace("x", "×")}</span>
+            {ratio && (
+              <span className="text-ink-2 @[60rem]:text-ink-3">
+                <span className="hidden @[60rem]:inline"> · </span>
+                {ratio}
+              </span>
+            )}
           </span>
         </span>
+      </button>
+      {/* --- frame-guide --- the guide's toggle, right after the format it shows */}
+      <button type="button" onClick={toggleGuide} aria-pressed={guide} aria-label={t("studio.frameGuide")} title={t("studio.frameGuide")} className={`-ml-2 hidden h-8 w-7 shrink-0 items-center justify-center rounded-md hover:bg-surface-2 hover:text-ink cursor-pointer sm:-ml-4 @[38rem]:inline-flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-9 ${guide ? "bg-surface-2 text-accent" : "text-ink-3"}`} data-testid="stage-frame-guide">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true" focusable="false">
+          <path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" />
+          <rect x="7" y="7" width="6" height="6" rx="1" />
+        </svg>
       </button>
       <span className={`${readout} ml-auto hidden @[50rem]:flex`}>
         {fpsReadout}

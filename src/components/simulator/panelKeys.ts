@@ -269,6 +269,18 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   return true;
 }
 
+/**
+ * --- review fix (panel-basics) --- Whether a key the panel's search box matched shows a control among the results: the
+ * mode's own block shows there (in the Ball or Visual results), a search alias shows what it names, any other key as
+ * sectionKeyShown() says. A group whose matches all fail this gets no heading in the results.
+ */
+export function searchKeyShown(key: string, p: PanelShown, multipliers: boolean): boolean {
+  if ((MODE_BLOCK_KEYS[p.mode] ?? []).includes(key)) return true;
+  if (key === "twoBalls") return sectionKeyShown("ballCount", p, multipliers);
+  if (SEARCH_ALIASES.has(key)) return true;
+  return sectionKeyShown(key, p, multipliers);
+}
+
 /*
  * --- panel-basics --- The words a visitor types for a control besides its label: "colour" for a label that says Color,
  * "length" or "seconds" for the clip's Duration, "hook" or "title" for the top text, "logo" for the watermark. Like the

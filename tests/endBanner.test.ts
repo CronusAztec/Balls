@@ -577,12 +577,23 @@ describe("the verdict's hold", () => {
     const simulator = fs.readFileSync(path.join(process.cwd(), "src/components/simulator/Simulator.tsx"), "utf8");
     const at = simulator.indexOf('{t("Simulator.restartSimulation")}');
     expect(at).toBeGreaterThan(0);
+    // --- run-end --- nothing over the square once a run is over: the stage frame holds no Restart button and no overlay for
+    // a finished run but the daily challenge's own result panel; Restart Simulation is in the transport bar under it (no
+    // scrim, nothing positioned over anything), and what to do next (RunEndCard) under the bar
+    const frameAt = simulator.indexOf('className="stage-frame');
+    const barAt = simulator.indexOf('className="studio-transport');
+    expect(frameAt).toBeGreaterThan(0);
+    expect(barAt).toBeGreaterThan(frameAt);
+    const frame = simulator.slice(frameAt, barAt);
+    expect(frame).not.toMatch(/restartSimulation|RunEndCard/);
+    expect(frame.match(/finished && !isRecording/g) ?? []).toHaveLength(1);
+    expect(frame).toMatch(/\{isStarted && finished && !isRecording && daily\.result && <DailyResultPanel/);
+    expect(at).toBeGreaterThan(barAt);
     const overlay = simulator.slice(simulator.lastIndexOf("{isStarted && finished && !isRecording && (", at), at);
-    // along the bottom edge, the taps passing through to the canvas except on the button: no scrim over the whole square
-    expect(overlay).toMatch(/pointer-events-none absolute inset-x-0 bottom-0 flex justify-center/);
+    expect(overlay).toMatch(/<Button variant="primary" size="sm" onClick=\{restart\}/);
     expect(overlay).not.toMatch(/className=\{scrim\}/);
-    expect(overlay).not.toMatch(/inset-0/);
-    expect(overlay).toMatch(/className="pointer-events-auto"/);
+    expect(overlay).not.toMatch(/absolute|inset-/);
+    expect(simulator.slice(at)).toMatch(/\{isStarted && finished && !isRecording && runEnd && \(\s*<RunEndCard/);
   });
 });
 

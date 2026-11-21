@@ -1,4 +1,4 @@
-import type { SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { isAttributionParam } from "@/lib/analytics/attribution";
 
 /*
@@ -53,6 +53,15 @@ export function typesText(target: EventTarget | null): boolean {
   return !["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"].includes(type);
 }
 
+/**
+ * --- studio-play --- Whether Space on a keyboard event's target presses that control itself (a button, a link, a switch,
+ * a tab, a summary): the page's Space shortcut (start, pause, resume) leaves it to the browser then.
+ */
+export function pressesItself(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== "function") return false;
+  return !!(target as Element).closest('button, a[href], summary, [role="button"], [role="switch"], [role="checkbox"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"], [role="slider"]');
+}
+
 /** --- panel-basics --- The storage key of the studio's last address query. */
 export const LAST_STUDIO_KEY = "jumpingballslive_last_studio";
 
@@ -94,10 +103,21 @@ const store = (): Store | null => {
   }
 };
 
+/**
+ * --- review fix (panel-basics) --- Whether a query is the one the studio writes for a bare arrival (the default mode with
+ * its defaults, nothing else): after a reload or Back that address is no longer bare, and it must not replace the last
+ * visit, nor be offered as one (it opens what the bare address opens).
+ */
+export function isBareStudioQuery(query: string): boolean {
+  bareQuery ??= `?${settingsToSearchParams(defaultSettings()).toString()}`;
+  return query === bareQuery;
+}
+let bareQuery: string | undefined;
+
 /** Remembers the studio's address query (only one worth offering: a bare address never wipes the last one). */
 export function rememberStudioQuery(search: string): void {
   const query = studioQueryOf(search);
-  if (!query) return;
+  if (!query || isBareStudioQuery(query)) return;
   try {
     store()?.setItem(LAST_STUDIO_KEY, query);
   } catch {
@@ -108,7 +128,8 @@ export function rememberStudioQuery(search: string): void {
 /** The remembered query, or null (none, unreadable, damaged). */
 export function readStudioQuery(): string | null {
   try {
-    return studioQueryOf(store()?.getItem(LAST_STUDIO_KEY));
+    const query = studioQueryOf(store()?.getItem(LAST_STUDIO_KEY));
+    return query && !isBareStudioQuery(query) ? query : null;
   } catch {
     return null;
   }

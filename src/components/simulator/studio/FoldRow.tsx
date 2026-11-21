@@ -11,6 +11,9 @@ import { cx } from "@/components/ui/cx";
  * block's info tip (globals.css leaves the block's own heading line out inside it). Once opened, the block stays mounted
  * while the row is closed again, so what it holds is kept. The page opens a row itself when the command palette or
  * another button lands in it; while the search box is in use the page shows the blocks as they are, without rows.
+ * --- review fix (panel-basics) --- The info tip is the row's sibling of the button, not inside it (no control inside a
+ * control: Enter on the tip shows the tip): the button holds the label and stretches over the whole row (its ::after), the
+ * tip sits above that stretch, the chevron lets a press through to it.
  */
 export default function FoldRow({ id, label, tip, open, onToggle, children }: { id: string; label: string; tip?: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   const bodyId = useId();
@@ -18,18 +21,24 @@ export default function FoldRow({ id, label, tip, open, onToggle, children }: { 
   if (open && !seen) setSeen(true);
   return (
     <div className="border-t border-line pt-1" data-fold-row={id}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={onToggle}
-        data-recording-row={id}
-        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-1 rounded-md px-2 py-2 text-left text-sm font-medium text-ink-2 hover:bg-surface-2 hover:text-ink cursor-pointer"
-      >
-        <span>{label}</span>
-        {tip && <Tooltip text={tip} />}
-        <IconChevronDown size={16} className={cx("ml-auto text-ink-3 transition-transform duration-150", open && "rotate-180")} />
-      </button>
+      <div className="relative -mx-2 flex w-[calc(100%+1rem)] items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-ink-2 hover:bg-surface-2 hover:text-ink">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={onToggle}
+          data-recording-row={id}
+          className="min-w-0 text-left cursor-pointer after:absolute after:inset-0 after:rounded-md after:content-['']"
+        >
+          {label}
+        </button>
+        {tip && (
+          <span className="relative z-10 inline-flex">
+            <Tooltip text={tip} />
+          </span>
+        )}
+        <IconChevronDown size={16} aria-hidden="true" className={cx("pointer-events-none ml-auto text-ink-3 transition-transform duration-150", open && "rotate-180")} />
+      </div>
       {(open || seen) && (
         <div id={bodyId} hidden={!open} className="studio-fold-body pb-2 pt-1">
           {children}
