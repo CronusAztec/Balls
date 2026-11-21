@@ -25,43 +25,51 @@ export interface HeroMoment {
   camera?: HeroCamera;
   /** The mode's colour ("#rrggbb"): the card's edge glow. */
   tint: string;
+  /**
+   * --- card-looks --- The settings the mode card's link carries instead of `query` (on top of HERO_BASE_QUERY, like it): the
+   * picture's look on top of the page's start pace, where the picture's own settings end no run inside the default clip or the
+   * start look plays better (measured: the line's comment). Absent: the card links to `query`.
+   */
+  card?: string;
+  /** --- card-looks --- false: the card's link leaves the picture's seed out (that run does not end inside the clip, holds included). */
+  cardSeed?: false;
 }
 
 /** What every hero moment shares: ball and wall glow and the trails on (first in the link, so an entry leaves these keys alone). */
 export const HERO_BASE_QUERY = "glow=1&trails=1&wglow=1";
 
 export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
-  classic: { moment: "the ring field about to break: the inner ring bursting in a white flash, the rest still closed", query: "wbreak=all&r=11", seed: 1, atSec: 2.65, tint: "#c04dff" },
-  accumulation: { moment: "frozen balls ringing the spiked arena, the live ball racing its last 0.2 s", query: "spikes=1&at=3&r=11&wt=4", seed: 5, atSec: 10.25, camera: { zoom: 1.1 }, tint: "#ff4fd8" },
+  classic: { moment: "the ring field about to break: the inner ring bursting in a white flash, the rest still closed", query: "wbreak=all&r=11", seed: 1, atSec: 2.65, tint: "#c04dff", card: "gap=1&s=500&shake=0.3&wbreak=all&resn=1&r=11" /* --- card-looks --- (the start look's pace, clip-start: the picture's own settings end no run of 8 by 45 s; this one 7 of 8 by 27 s, seed 1 out at 18.1 s) */ },
+  accumulation: { moment: "frozen balls ringing the spiked arena, the live ball racing its last 0.2 s", query: "spikes=1&at=3&r=11&wt=4", seed: 5, atSec: 10.25, camera: { zoom: 1.1 }, tint: "#ff4fd8", card: "at=3&gap=0.35&s=450&spikes=1&wt=4" /* --- card-looks --- (the start look's pace with the spikes: 8 of 8 by 27 s, the picture's 3 of 8; seed 5 out at 16.4 s) */ },
   multiply: { moment: "the arena packed with rainbow balls, the first ones spilling out of the gap", query: "rball=1&r=10&gap=0.6&msc=5", seed: 2, atSec: 10, tint: "#ffd23f" },
   lines: { moment: "the string art fanned: rainbow lines from the ball to the rim", query: "rlines=1&ldot=1&r=10", seed: 1, atSec: 28, tint: "#4dd2ff" },
   paint: { moment: "the circle two-thirds painted in thick rainbow strokes", query: "r=14&g=100", seed: 1, atSec: 10, tint: "#ff7a3d" },
-  target: { moment: "the countdown at 4: a correct hit bursting a numbered segment of the ring", query: "r=11&wt=5&tt=1.6&tc=10&s=400" /* --- clip-pacing --- (as picked: ten numbers at speed 400) */, seed: 6, atSec: 18.4, camera: { zoom: 1.1 }, tint: "#ff4d6d" },
+  target: { moment: "the countdown at 4: a correct hit bursting a numbered segment of the ring", query: "r=11&wt=5&tt=1.6&tc=10&s=400" /* --- clip-pacing --- (as picked: ten numbers at speed 400) */, seed: 6, atSec: 18.4, camera: { zoom: 1.1 }, tint: "#ff4d6d", card: "r=11&wt=5&tt=1.6" /* --- card-looks --- (the page's seven numbers at speed 700: 8 of 8 by 27 s, the picture's 0 of 8; seed 6 done at 13.3 s) */ },
   portal: { moment: "a teleport: the ball bursting out of a portal in a spray of sparks", query: "r=11&wt=5&tt=1.6", seed: 1, atSec: 14.6, camera: { zoom: 1.1 }, tint: "#7c5cff" },
   shatter: { moment: "rings of rainbow segments, the ball smashing through them in a shower of shards", query: "r=11" /* --- review fix B3 --- (the page's pace, six rings of even bricks: the ball bursts through the last ring at 11.8 s, every ring cracked and lit) */, seed: 3, atSec: 11.8, tint: "#5ce1e6" },
-  colorMatch: { moment: "a colour match shattering a segment of the ring", query: "r=11&wt=5&tt=1.6&cms=12&cmc=7&s=400" /* --- clip-pacing --- (as picked: twelve segments in seven colours at speed 400) */, seed: 1, atSec: 16, camera: { zoom: 1.1 }, tint: "#ffb703" },
+  colorMatch: { moment: "a colour match shattering a segment of the ring", query: "r=11&wt=5&tt=1.6&cms=12&cmc=7&s=400" /* --- clip-pacing --- (as picked: twelve segments in seven colours at speed 400) */, seed: 1, atSec: 16, camera: { zoom: 1.1 }, tint: "#ffb703", card: "r=11&wt=5&tt=1.6" /* --- card-looks --- (the page's eight segments in three colours: 7 of 8 by 27 s, the picture's 0 of 8; seed 1 out at 13.6 s) */ },
   grow: { moment: "the ball grown to fill most of its ring, the rainbow lines fanned", query: "glines=1&rlines=1&rball=1", seed: 1, atSec: 46, tint: "#93d119" },
   drop: { moment: "balls raining through the coloured pegs", query: "dbc=16&dsi=0.2&dsv=0.7", seed: 1, atSec: 4, tint: "#4cc9f0" },
-  box: { moment: "fat squares mid-polyrhythm, the wall they just hit lit up", query: "bxa=1&bxgr=3&bxn=4", seed: 1, atSec: 17, tint: "#f72585" },
-  pendulum: { moment: "the pendulum wave in a perfect fan", query: "pwn=20&pwk=24&pwt=40&pwtr=0.5", seed: 1, atSec: 1, tint: "#9d4edd" },
-  polyrhythm: { moment: "sixteen voices fanned out along their chords in a rainbow wave", query: "prl=arcs&prcs=30" /* --- clip-pacing --- (as picked: the 30 s cycle) */, seed: 1, atSec: 3, tint: "#3ddc97" },
+  box: { moment: "fat squares mid-polyrhythm, the wall they just hit lit up", query: "bxa=1&bxgr=3&bxn=4", seed: 1, atSec: 17, tint: "#f72585", card: "bxn=4" /* --- card-looks --- (the page's tall box and growth: at zero by 30 s on 7 of 8, the square box 0 of 8, a median 37 s; seed 1 at 29.2 s) */ },
+  pendulum: { moment: "the pendulum wave in a perfect fan", query: "pwn=20&pwk=24&pwt=40&pwtr=0.5", seed: 1, atSec: 1, tint: "#9d4edd", card: "pwn=20&pwtr=0.5" /* --- card-looks --- (the page's 24 s cycle: IN LINE! at 24.0 s, the picture's at 40.0 s) */ },
+  polyrhythm: { moment: "sixteen voices fanned out along their chords in a rainbow wave", query: "prl=arcs&prcs=30" /* --- clip-pacing --- (as picked: the 30 s cycle) */, seed: 1, atSec: 3, tint: "#3ddc97", card: "prl=arcs" /* --- card-looks --- (the page's 24 s cycle: IN PHASE! at 24.0 s, the picture's at the 30 s clip's last frame) */ },
   collide: { moment: "squishy orbs colliding in the circle", query: "cpsq=1&cpn=60", seed: 1, atSec: 6, tint: "#80ffdb" },
   glass: { moment: "a full glass smash: the pane under Gerald shattering, shards in the air", query: "face=cute", seed: 1, atSec: 12.75, camera: { x: 0.5, y: 0.44, zoom: 1.55 }, tint: "#b8c0ff" },
   multipliers: { moment: "a swarm of clones pouring through the gates, HOME counting up", query: "mpsb=3&mprw=10", seed: 1, atSec: 5.5, camera: { x: 0.5, y: 0.54, zoom: 1.205 }, tint: "#ffd60a" },
   doublePendulum: { moment: "the double pendulum flung wide over the lit harp strings, its rainbow trail behind", query: "dprs=0&dpa1=150&dpa2=120&dptr=8", seed: 1, atSec: 8.6, tint: "#ff006e" },
   illusion: { moment: "the hidden heart emerging from the painted arena", query: "ilt=whitespace&ilpt=heart", seed: 1, atSec: 18, camera: { zoom: 1.1 }, tint: "#22d3ee" },
-  stringBattle: { moment: "String Circle: flag balls with their strings fanned to the rim", query: "sbst=circle&sbh=0", seed: 1, atSec: 14, camera: { x: 0.5, y: 0.56, zoom: 1.2 }, tint: "#00f5d4" },
+  stringBattle: { moment: "String Circle: flag balls with their strings fanned to the rim", query: "sbst=circle&sbh=0", seed: 1, atSec: 14, camera: { x: 0.5, y: 0.56, zoom: 1.2 }, tint: "#00f5d4", card: "sbst=circle&sbh=0&sbd=25" /* --- card-looks --- (the circle with the mode's own Clip Limit: judged at 25.0 s on every seed, its hold inside the clip; the circle alone ran 31–43 s, 0 of 8 by 30 s) */ },
   powerLayers: { moment: "a big hit shattering a band of the rainbow stack", query: "pll=400&plb=none&plp=0", seed: 1, atSec: 5.6, camera: { x: 0.5, y: 0.58, zoom: 1.55 }, tint: "#ff5400" },
-  race: { moment: "racers mid-track through the flippers and pegs, the leader crowned", query: "rcn=10&rcst=0&rcmm=0", seed: 1, atSec: 5, camera: { x: 0.569, y: 0.451, zoom: 1.667 }, tint: "#ef233c" },
-  battle: { moment: "squares clashing with HP bars, a KO blast", query: "btn=12", seed: 1, atSec: 5.8, tint: "#ff4d4d" },
-  ctf: { moment: "CAPTURE!: a flag carried home, the score ticking over", query: "ctfn=3", seed: 1, atSec: 6, tint: "#3a86ff" },
-  runner: { moment: "the runner in the air over the spikes, on the beat", query: "rrn=40&rrd=1&face=cute", seed: 1, atSec: 3.6, camera: { x: 0.43, y: 0.52, zoom: 1.8 }, tint: "#06d6a0" },
-  paddle: { moment: "a catch on the platform, sparks flying", query: "pdsk=1&pdsp=1", seed: 1, atSec: 8.6, camera: { x: 0.55, y: 0.756, zoom: 2.2 }, tint: "#ffbe0b" },
-  vortex: { moment: "a full funnel: balls weaving down the glowing rings", query: "face=cute", seed: 1, atSec: 16, camera: { zoom: 1.4 }, tint: "#00bbf9" },
+  race: { moment: "racers mid-track through the flippers and pegs, the leader crowned", query: "rcn=10&rcst=0&rcmm=0", seed: 1, atSec: 5, camera: { x: 0.569, y: 0.451, zoom: 1.667 }, tint: "#ef233c", card: "rcst=0&rcmm=0" /* --- card-looks --- (the page's eight racers: a median 29.6 s, ten racers 29.9 s; seed 1 finishes at 27.1 s, with ten 30.9 s) */ },
+  battle: { moment: "squares clashing with HP bars, a KO blast", query: "btn=12", seed: 1, atSec: 5.8, tint: "#ff4d4d", cardSeed: false /* --- card-looks --- (seed 1's winner at 29.1 s leaves no room for the 3 s hold: the card leaves the seed out) */ },
+  ctf: { moment: "CAPTURE!: a flag carried home, the score ticking over", query: "ctfn=3", seed: 1, atSec: 6, tint: "#3a86ff", card: "" /* --- card-looks --- (the page's two a side: a median 23 s, three a side 27 s, the 3 s hold past the clip; seed 1 won at 15.1 s) */ },
+  runner: { moment: "the runner in the air over the spikes, on the beat", query: "rrn=40&rrd=1&face=cute", seed: 1, atSec: 3.6, camera: { x: 0.43, y: 0.52, zoom: 1.8 }, tint: "#06d6a0", card: "rrd=1&face=cute" /* --- card-looks --- (the page's 24 obstacles at the picture's density: LEVEL COMPLETE by 27 s on 6 of 6, the page's own 0 of 6 and the picture's 40 obstacles 38–40 s; seed 1 at 25.1 s) */ },
+  paddle: { moment: "a catch on the platform, sparks flying", query: "pdsk=1&pdsp=1", seed: 1, atSec: 8.6, camera: { x: 0.55, y: 0.756, zoom: 2.2 }, tint: "#ffbe0b", card: "pdsp=1" /* --- card-looks --- (the page's paddle skill: GAME OVER by 27 s on 4 of 8, the page's own 2 of 8 and the picture's perfect paddle never; seed 1 at 24.7 s) */ },
+  vortex: { moment: "a full funnel: balls weaving down the glowing rings", query: "face=cute", seed: 1, atSec: 16, camera: { zoom: 1.4 }, tint: "#00bbf9", cardSeed: false /* --- card-looks --- (its runs end at 29–31 s on any seed, seed 1 at 30.9 s: the card leaves the seed out) */ },
   journey: { moment: "Gerald bursting the first ring of a rings stage, the field still closed around him", query: "js=rings-l,glass,pegs,home&face=cute", seed: 1, atSec: 2, camera: { x: 0.5, y: 0.53, zoom: 1.4 } /* --- low-findings --- (the stage label framed out) */, tint: "#93d119" },
   bullseye: { moment: "BULLSEYE: a ball stuck in the bull, the starburst", query: "byi=0.4&byp=2&face=cute", seed: 1, atSec: 3.5, camera: { x: 0.5, y: 0.56, zoom: 1.2 } /* --- low-findings --- (the corner counters framed out) */, tint: "#ef476f" },
-  mergeRing: { moment: "a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim", query: "mrg=1" /* --- clip-pacing --- (as picked: seven tiers, a ball every 0.4 s, three spawn tiers – --- merge-ring-staged --- the page's own pace now – and gravity 1, the page's is 3) */, seed: 1, atSec: 12, tint: "#f472b6" }, // --- merge-ring ---
-  spiralGlass: { moment: "the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face", query: "sgv=1.2&sgh=2" /* --- clip-pacing --- (as picked: glass of two hits) */, seed: 1, atSec: 30, tint: "#e879f9" }, // --- spiral-glass ---
+  mergeRing: { moment: "a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim", query: "mrg=1" /* --- clip-pacing --- (as picked: seven tiers, a ball every 0.4 s, three spawn tiers – --- merge-ring-staged --- the page's own pace now – and gravity 1, the page's is 3) */, seed: 1, atSec: 12, tint: "#f472b6", card: "" /* --- card-looks --- (the page's gravity 3: a verdict by 27 s on 8 of 8, gravity 1 on 5 of 8; seed 1 at 20.5 s) */ }, // --- merge-ring ---
+  spiralGlass: { moment: "the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face", query: "sgv=1.2&sgh=2" /* --- clip-pacing --- (as picked: glass of two hits) */, seed: 1, atSec: 30, tint: "#e879f9", card: "sgv=1.2" /* --- card-looks --- (the page's glass of one hit: GLASS CLEARED at 19.3–19.9 s, two hits 26–27 s, past the banner's room; seed 1 at 19.8 s) */ }, // --- spiral-glass ---
   songRing: { moment: "five of seven note tiles lit round the ring, the ball lighting the fifth in a burst of sparks, the playhead sweeping on", query: "", seed: 1, atSec: 8.87, tint: "#a78bfa" }, // --- song-ring ---
   sandPlate: { moment: "the sixth note's figure drawn in sand, the last loose grains streaming onto its lines, the dots climbing under the plate", query: "", seed: 1, atSec: 11.2, tint: "#34d399" }, // --- sand-plate --- (--- review fix (C3) --- 1.2 s into the sixth note of 2 s)
   blueprint: { moment: "Ring Breaker: the swarm filling the arena as the last ring shatters", query: "blp=ringBreaker", seed: 1, atSec: 11.9, tint: "#22d3ee" }, // --- blueprint --- (Mode Lab's card: a catalog game with every ball on screen; --- review fix (blueprint) --- 11.9 s since the rings sit inside a solid rim and seed 1 ends at 12.0 s)
@@ -89,6 +97,25 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
 export function missingHeroModes(table: Readonly<Record<string, HeroMoment | undefined>> = HERO_MOMENTS, ids: readonly string[] = MODE_IDS): string[] {
   return ids.filter((id) => !table[id]);
 }
+
+// --- card-looks ---
+/**
+ * The link of a mode's card (a query string without "?"): the mode, the shared look, the picture's settings – or its `card`
+ * settings, the look on top of the page's start pace – and the picture's seed, so a laptop's stage (the 800 × 450 world the
+ * pictures are rendered in) plays the very run the card shows. The seed stays out where that run does not end inside the clip
+ * (`cardSeed: false`). The modes wall, the studio's mode picker and the landing page's picture row link here.
+ */
+export function cardQuery(mode: ModeId, table: Readonly<Record<string, HeroMoment | undefined>> = HERO_MOMENTS): string {
+  const entry = table[mode];
+  if (!entry) throw new Error(`The mode "${mode}" has no hero moment – add one to HERO_MOMENTS (src/lib/thumbnails/heroMoments.ts).`);
+  return [`mode=${mode}`, HERO_BASE_QUERY, entry.card ?? entry.query, entry.cardSeed === false ? "" : `seed=${entry.seed}`].filter(Boolean).join("&");
+}
+
+/** The studio link of a mode's card, relative to the locale (for next-intl's Link): `/simulator?<cardQuery>`. */
+export function cardHref(mode: ModeId): string {
+  return `/simulator?${cardQuery(mode)}`;
+}
+// --- end card-looks ---
 
 /** The simulator link (a query string without "?") of a mode's hero moment: the mode, the shared look, its keys and its seed. */
 export function heroQuery(mode: ModeId, table: Readonly<Record<string, HeroMoment | undefined>> = HERO_MOMENTS): string {

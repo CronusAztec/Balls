@@ -9,6 +9,7 @@ import LivePreview from "./LivePreview";
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- paywall-gate ---
 import { assetPath } from "@/lib/site"; // --- studio-first-open ---
 import type { ModeId } from "@/lib/physics/types";
+import { cardHref } from "@/lib/thumbnails/heroMoments"; // --- card-looks ---
 
 /*
  * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action, the way
@@ -57,7 +58,7 @@ export default function Hero() {
               const name = modes(`${id}.name`);
               return (
                 <li key={id} className="min-w-0">
-                  <Link href={`/simulator?mode=${id}`} className="group block rounded-lg" aria-label={t("hero.previewOpen", { mode: name })}>
+                  <Link href={cardHref(id) /* --- card-looks --- the look its picture shows */} className="group block rounded-lg" aria-label={t("hero.previewOpen", { mode: name })}>
                     <span aria-hidden="true" className="block aspect-square rounded-lg border border-line bg-surface-2 bg-cover bg-center transition-colors duration-150 group-hover:border-line-strong" style={{ backgroundImage: `url("${assetPath(`/modes/${id}.webp`)}")` }} />
                     <span className="mt-1.5 block text-xs leading-tight text-ink-2 group-hover:text-ink">{name}</span>
                   </Link>

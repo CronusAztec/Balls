@@ -5771,7 +5771,13 @@
       "paletteEmpty": "Nothing matches “{query}”.",
       "paletteMove": "move",
       "paletteOpen": "open",
-      "paletteClose": "close"
+      "paletteClose": "close",
+      "looks": "Looks",
+      "makeClip": "Make me a clip",
+      "makeClipAnother": "Another clip",
+      "makeClipBusy": "Making your clip…",
+      "makeClipTip": "Plans a clip of this mode and opens it, ready to record.",
+      "makeClipNote": "Plans a run that ends on time, adds a hook and sets the length, in one press."
     },
     "dialog": {
       "close": "Close"

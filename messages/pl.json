@@ -5771,7 +5771,13 @@
       "paletteEmpty": "Nic nie pasuje do „{query}”.",
       "paletteMove": "wybór",
       "paletteOpen": "otwórz",
-      "paletteClose": "zamknij"
+      "paletteClose": "zamknij",
+      "looks": "Style",
+      "makeClip": "Zrób mi klip",
+      "makeClipAnother": "Kolejny klip",
+      "makeClipBusy": "Robię twój klip…",
+      "makeClipTip": "Planuje klip w tym trybie i otwiera go, gotowy do nagrania.",
+      "makeClipNote": "Jednym kliknięciem planuje przebieg, który kończy się na czas, dodaje hook i ustawia długość."
     },
     "dialog": {
       "close": "Zamknij"

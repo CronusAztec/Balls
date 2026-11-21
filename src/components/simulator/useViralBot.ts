@@ -9,7 +9,9 @@ import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import type { BotWorld } from "@/lib/bot/finderRequest";
 import { batchTextFiles, type ModeNames, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
-import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
+import { localIsoDate, parseIsoDate, planDaySteps, planTemplateSteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
+import { MAKE_CLIP_ENDING, makeClipPick } from "@/lib/bot/makeClip"; // --- make-clip ---
+import type { ModeId } from "@/lib/physics/types"; // --- make-clip ---
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelLengthAndEnding, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import { clarityJudges } from "@/lib/bot/templates"; // --- bot-templates ---
 import type { PlanClarity } from "@/lib/bot/clarityLines"; // --- bot-templates --- (a type only: the module loads when a clip's lines are opened)
@@ -66,6 +68,16 @@ export interface BotPanelProps {
   /** --- bot-templates --- A clip's clarity lines (null: not asked for yet); `onClarity` asks for them (its "Why this clip" opened). */
   clarity: (clip: ClipPlan) => BotClarity | null;
   onClarity: (id: string) => void;
+  /**
+   * --- make-clip --- "Make me a clip": plans one clip for `mode` (lib/bot/makeClip.ts picks the template; each press after the
+   * first is "Another", the next turn) and opens it on the page as Open in simulator does. Resolves with the clip, or null when
+   * nothing was planned (the page busy, no template, the planning stopped). Plans nothing while `disabled` or another plan runs.
+   */
+  makeClip: (mode: ModeId) => Promise<ClipPlan | null>;
+  /** --- make-clip --- A clip is being made. */
+  making: boolean;
+  /** --- make-clip --- The last clip made on this page (null: none yet). */
+  lastMade: ClipPlan | null;
 }
 
 export interface UseViralBotOptions {
@@ -324,6 +336,44 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     [nextCommit],
   );
 
+  /* ---------------------------------------------------------- --- make-clip --- one clip, planned and opened */
+  // Not part of the stored plan: the Bot section's list stays the visitor's own. Each press is the next turn of the visit.
+  const [making, setMaking] = useState(false);
+  const [lastMade, setLastMade] = useState<ClipPlan | null>(null);
+  const makeTurn = useRef(0);
+  const makeSalt = useRef("");
+  const makeClip = useCallback(
+    async (mode: ModeId): Promise<ClipPlan | null> => {
+      const l = latest.current;
+      if (l.disabled || abortRef.current) return null;
+      if (!makeSalt.current) makeSalt.current = Date.now().toString(36);
+      const platform = stateRef.current.options.platform;
+      const pick = makeClipPick(mode, platform, makeTurn.current, makeSalt.current);
+      if (!pick) return null;
+      makeTurn.current += 1;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setMaking(true);
+      try {
+        const clip = await runSliced(planTemplateSteps(pick.template, pick.planSeed, platform, { ...baseOptions(), ending: MAKE_CLIP_ENDING }), () => {}, controller.signal);
+        latest.current.applySettings(clip.settings);
+        await nextCommit();
+        await latest.current.selectMelody(clip.melodyId);
+        await nextCommit();
+        latest.current.pinSeed(clip.seed);
+        setLastMade(clip);
+        return clip;
+      } catch {
+        return null; // (stopped, or a template that no longer plans: the page stays as it was)
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
+        setMaking(false);
+      }
+    },
+    [baseOptions, nextCommit],
+  );
+  // --- end make-clip ---
+
   /* ---------------------------------------------------------- render all */
   const [render, setRender] = useState<BotRenderState>({ status: "idle", total: 0, done: 0, zip: true, watermarked: 0 });
   const lastRendered = useRef<RenderedClip[]>([]);
@@ -461,5 +511,9 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     onClear,
     clarity: (clip) => clarityRef.current.get(clip) ?? null, // --- bot-templates ---
     onClarity: (id) => void onClarity(id),
+    // --- make-clip ---
+    makeClip,
+    making,
+    lastMade,
   };
 }

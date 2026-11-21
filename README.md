@@ -1464,6 +1464,14 @@ Feature viral-bot: the owner asked for "a bot that makes videos like project.jdm
 research is [docs/virality-playbook.md](docs/virality-playbook.md); the bot is that playbook as code, in three layers around
 one planner. Everything is client-side or runs on your own machine / runner – there is no server.
 
+- **Make me a clip** – --- make-clip --- the studio's one press into the planner: a primary button in the Mode block's starter
+  area, a button on the ready screen and `?make=1` on a studio address. `src/lib/bot/makeClip.ts` picks a ready template – the
+  page's mode's own, those that end resolved first, else another mode's from the series the daily bot plans – and
+  `useViralBot`'s `makeClip` plans it (the template's Simple look, the resolved ending where it plays one) and opens it as Open
+  in simulator does: its settings, its hook, its melody, its seed pinned and the clip length its run needs; the page then plays
+  it. The next press is "Another clip" (the next template of the mode, a new plan seed). It plans nothing while the page
+  records, renders a batch or a fast export, races in split screen or plays a daily challenge, and the clip is no part of the
+  Bot section's stored plan. Free clips keep the watermark: the export's own seal decides it, as for every recording.
 - **Playbook** – `src/lib/bot/playbook.ts` turns the playbook's recipe (§3) into data: the families (`escape`, `rhythm`,
   `battle`), platforms and their length buckets (short 8–15 s, standard 15–30 s – the Reels default –, long 60–90 s), the safe
   zone (`SAFE_ZONE`: clear of the bottom 20 % and the right 12 % of the 1080×1920 frame), the payoff band (80–90 % of the clip,
@@ -2551,6 +2559,15 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   payoff on screen" line in every caption `.txt` and a Covers list in `posting-schedule.md` carry it (translated, `ViralBot.cover`;
   the manual posting steps say to set that frame as the cover); the CLI posts it as Instagram's `thumb_offset`, and the publish
   relay takes it as `coverMs` – TikTok's `video_cover_timestamp_ms` (1 s without it) and Instagram's `thumb_offset`.
+- **The card's link** – --- card-looks --- a card opens the look its picture shows (`cardQuery()`, `cardHref()`): the modes
+  wall's cards and the landing page's phone pictures link there, and a card of another mode in the studio's picker sends it with
+  the select-mode event (the page switches the mode, puts the link's settings on it and pins its seed once they are on). The
+  link carries the shared look, the entry's settings and its seed, so a laptop's 800 × 450 stage plays the very run the card
+  shows. Where the picture's settings end no run inside the default clip, or the start look plays better, the entry's `card`
+  holds the look on the page's start pace instead (14 modes, measured with the finder's engine on seeds 1–8 in both worlds; each
+  line says what it measured), and `cardSeed: false` leaves the seed out where its run does not end inside the clip with its
+  holds (Square Battle Royale, Sound Vortex). The studio's Looks row offers the same look as As pictured (`src/content/looks.ts`,
+  `src/lib/studioLooks.ts`, `tests/studioLooks.test.ts`).
 - **Tests** – `tests/modeThumbnails.test.ts`: a hero moment for every `MODE_IDS` id and nothing else, complete entries, links
   that open their mode with glow, trails and their seed and no caption, text or watermark, every own key changing the run (no
   typo, no no-op), the frame's geometry and budget, the still schedule, the pictures on disk (WebP, 480 × 480, under 60 KB), the
