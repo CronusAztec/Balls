@@ -591,7 +591,8 @@ describe("Metronomes & Polyrhythms settings", () => {
   });
 
   it("map to and from the SimulatorSettings fields, with the defaults in every mode", () => {
-    for (const mode of MODE_IDS) expect(polyrhythmSettingsOf(defaultSettings(mode))).toEqual(DEFAULT_POLYRHYTHM_SETTINGS);
+    // (--- clip-pacing --- in the polyrhythm itself the page starts with a 24 s cycle: lib/clipPacing.ts; the mode's own defaults stay)
+    for (const mode of MODE_IDS) expect(polyrhythmSettingsOf(defaultSettings(mode))).toEqual(mode === "polyrhythm" ? { ...DEFAULT_POLYRHYTHM_SETTINGS, cycleSeconds: 24 } : DEFAULT_POLYRHYTHM_SETTINGS);
     expect(polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS)).toEqual({ prCount: 16, prLayout: "rings", prArcStyle: "chords", prTempos: "harmonic", prCustom: "3,4,5,7", prCycleSeconds: 30, prBaseBpm: 60, prBpmStep: 1, prPolygon: false, prAccentEvery: 0, prPitchBy: "index", prNumbers: false, prCycles: 1, prArms: 1, prAlignMeter: false, prTrail: 0.18, prLoopSound: false, prPalette: "rainbow" /* --- phase-spiral --- */ });
   });
 
@@ -621,6 +622,6 @@ describe("Metronomes & Polyrhythms settings", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=polyrhythm&prn=1&prl=cube&pras=x&prt=fast&prcu=%3Cb%3E2%2C3&prcs=0&prb=9&prbs=99&pra=-1&prpb=loud&prc=50"));
     expect(polyrhythmSettingsOf(fromUrl)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 2, custom: "2,3", cycleSeconds: 1, baseBpm: 20, bpmStep: 99, accentEvery: 0, cycles: 50 }); // --- uncap-all --- (prbs=99, prc=50 kept)
     const preset = presetToSettings({ mode: "polyrhythm", prCount: 1000, prLayout: "spiral", prTempos: "arithmetic", prCustom: 12, prPolygon: "yes", prCycles: 2 } as unknown as Partial<SimulatorSettings>);
-    expect(polyrhythmSettingsOf(preset)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 1000, layout: "spiral", tempos: "arithmetic", cycles: 2 }); // --- uncap-all --- (prCount 1000 kept)
+    expect(polyrhythmSettingsOf(preset)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, cycleSeconds: 24 /* (left out: the page's own default) */, count: 1000, layout: "spiral", tempos: "arithmetic", cycles: 2 }); // --- uncap-all --- (prCount 1000 kept)
   });
 });

@@ -132,6 +132,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     countdownTotal: s.targetCount,
     countdownRandom: s.countdownRandom,
     colorMatchColorCount: s.colorMatchColorCount,
+    colorMatchSegmentCount: s.colorMatchSegments, // --- colour-match-segments ---
     accumulationTimerMax: 1000 * s.accumulationTime,
     spikesEnabled: s.spikesEnabled,
     spikeCount: s.spikeCount,

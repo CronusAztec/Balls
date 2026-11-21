@@ -62,6 +62,8 @@ import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourney
 // --- gerald-bullseye --- the Bullseye mode
 import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
 // --- merge-ring --- the Merge Ring mode
+import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing ---
+import { DEFAULT_COLOR_MATCH_SEGMENTS, isColorMatchSegments } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
 import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readMergeRingParams, resolveMergeRingFields, writeMergeRingParams, type MergeRingFields } from "@/lib/physics/modes/mergeRing";
 // --- spiral-glass --- the Spiral Glass mode
 import { SPIRAL_GLASS_RANGES, defaultSpiralGlassFields, readSpiralGlassParams, resolveSpiralGlassFields, spiralGlassModeDefaults, writeSpiralGlassParams, type SpiralGlassFields } from "@/lib/physics/modes/spiralGlass";
@@ -227,6 +229,8 @@ export interface SimulatorSettings {
   targetCount: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
+  /** --- colour-match-segments --- Color Match: segments of the ring – 6, 8, 12, 16 or 24 (URL `cms`). */
+  colorMatchSegments: number;
   growRate: number;
   growCenterDot: boolean;
   growLines: boolean;
@@ -1493,12 +1497,15 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     cpRingCount: RING_MAX_BODIES,
     pdMaxTempo: MAX_TEMPO,
     flBoutCap: FL_BOUT_CAP_SEC,
+    colorMatchSegments: DEFAULT_COLOR_MATCH_SEGMENTS, // --- colour-match-segments --- (the mode's own 12; out here too, past the fast-path limit)
+    // --- clip-pacing --- last: the page's own defaults of the modes whose default run did not end inside a 30 s clip
+    ...clipPacingDefaults(mode),
   };
 }
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */> {
   return {
     mode,
     gravity: 300,
@@ -1940,6 +1947,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   }
   if (settings.rainbowWallMode !== base.rainbowWallMode) params.set("rwmode", settings.rainbowWallMode);
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
+  if (settings.colorMatchSegments !== base.colorMatchSegments) params.set("cms", String(settings.colorMatchSegments)); // --- colour-match-segments ---
   if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
   if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
   if (settings.boxShape !== base.boxShape) params.set("bxs", settings.boxShape);
@@ -2078,6 +2086,9 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (rw === "pulse" || rw === "gradient") settings.rainbowWallMode = rw;
   const wb = params.get("wbreak");
   if (wb && (WALL_BREAK_STYLES as readonly string[]).includes(wb)) settings.wallBreakStyle = wb as WallBreakStyle;
+  // --- colour-match-segments ---
+  const cms = params.get("cms");
+  if (cms !== null && cms.trim() !== "" && isColorMatchSegments(Number(cms))) settings.colorMatchSegments = Number(cms);
   const res = params.get("res");
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
@@ -2638,6 +2649,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   }
   merged.recordingResolution = (RESOLUTIONS as readonly string[]).includes(preset.recordingResolution as string) ? (preset.recordingResolution as string) : defaults.recordingResolution;
   merged.wallBreakStyle = (WALL_BREAK_STYLES as readonly string[]).includes(preset.wallBreakStyle as string) ? (preset.wallBreakStyle as WallBreakStyle) : defaults.wallBreakStyle;
+  merged.colorMatchSegments = isColorMatchSegments(preset.colorMatchSegments) ? preset.colorMatchSegments : defaults.colorMatchSegments; // --- colour-match-segments --- (one of the five counts)
   merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
   for (const key of ["topText", "bottomText", "watermarkText"] as const) {
     const text = preset[key] as unknown;

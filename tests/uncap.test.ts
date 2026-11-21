@@ -706,7 +706,8 @@ describe("uncap-all: Find Simulation says when a run never ends", () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(424_242);
     try {
       for (const mode of ["paint", "target"] as const) {
-        const result = await findSimulation({ ...request(60, {}, mode), maxSeeds: 6 }, () => {});
+        // (--- clip-pacing --- Countdown's ten numbers at ball speed 400, its defaults when this was written: the page's own are 7 at 700 now, and end inside the horizon)
+        const result = await findSimulation({ ...request(60, mode === "target" ? { targetCount: 10, ballSpeed: 400 } : {}, mode), maxSeeds: 6 }, () => {});
         expect([mode, result.found, result.neverEnded]).toEqual([mode, false, undefined]);
         expect(result.duration).toBeGreaterThan(60);
       }

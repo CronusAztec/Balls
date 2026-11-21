@@ -720,7 +720,9 @@ describe("bounce math in the engine", () => {
     const hits: SoundEvent[] = [];
     run(engine, 3, () => hits.push(...engine.consumeSoundEvents().filter((e) => e.type === "hit")));
     expect(hits.length).toBeGreaterThan(0);
-    for (const e of hits) expect(e.frequency).toBeCloseTo(2 * wallHitFrequency(e.wallIndex), 6);
+    // (--- ring-looks --- Classic's tone climbs towards the way out: the wall tone counted from the outermost ring in)
+    const walls = engine.getCircularWalls().length;
+    for (const e of hits) expect(e.frequency).toBeCloseTo(2 * wallHitFrequency(walls - 1 - e.wallIndex), 6);
     expect(bounceHitEvent(2, {})).toEqual({ type: "hit", wallIndex: 2 });
     expect(pitchedFrequency(800, 1e9)).toBe(PITCH_MAX_HZ);
   });

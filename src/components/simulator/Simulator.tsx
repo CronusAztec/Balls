@@ -407,6 +407,7 @@ export default function Simulator() {
     engine.setCountdownTotal(s.targetCount);
     engine.setCountdownRandomOrder(s.countdownRandom);
     engine.setColorMatchColorCount(s.colorMatchColorCount);
+    engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -820,12 +821,13 @@ export default function Simulator() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.setColorMatchColorCount(s.colorMatchColorCount);
+    engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments --- (a new count restarts the ring, like the colours do)
     if (s.mode === "colorMatch" && engine.getCurrentModeName() === "colorMatch") {
       engine.initColorMatch();
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.colorMatchColorCount]);
+  }, [s.colorMatchColorCount, s.colorMatchSegments]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -2053,7 +2055,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -3481,6 +3483,7 @@ export default function Simulator() {
           countdownTotal: settings.targetCount,
           countdownRandom: settings.countdownRandom,
           colorMatchColorCount: settings.colorMatchColorCount,
+          colorMatchSegmentCount: settings.colorMatchSegments, // --- colour-match-segments ---
           accumulationTimerMax: 1000 * settings.accumulationTime,
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,
@@ -3711,9 +3714,9 @@ export default function Simulator() {
       segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
-      ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
+      ballsAtRest: (n) => t("Simulator.canvasBallsAtRest", { count: n }), // --- end-banner --- (counted: "1 ball at rest")
       boxDone: t("Simulator.canvasBoxDone"),
-      boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
+      boxCounted: (n) => t("Simulator.canvasBoxCounted", { count: n }),
       pendulumDone: t("Simulator.canvasPendulumDone"),
       pendulumInLine: (n, cycles) => t("Simulator.canvasPendulumInLine", { count: n, cycles }),
       polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
@@ -3746,13 +3749,14 @@ export default function Simulator() {
       },
       outgrew: t("Simulator.canvasMpOutgrew"),
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
-      madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
-      madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
-      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
+      // (--- end-banner --- counted in the page's language: "1 clone along the way", "1 Gerald llegó a casa")
+      madeItHome: (n) => t("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
+      madeItHomeSub: (clones) => t("Simulator.canvasMpMadeItHomeSub", { count: clones }),
+      madeItHomeLost: (lost) => t("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
-      dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
-      dpHits: (n) => fill("Simulator.canvasDpHits", { count: n }),
+      dpPlucks: (n) => t("Simulator.canvasDpPlucks", { count: n }),
+      dpHits: (n) => t("Simulator.canvasDpHits", { count: n }),
       dpChaos: (seconds) => fill("Simulator.canvasDpChaos", { seconds }),
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
@@ -3787,7 +3791,7 @@ export default function Simulator() {
         warningBottom: t("Simulator.canvasPlWarningBottom"),
         layersLeft: (n) => fill("Simulator.canvasPlLayersLeft", { count: n }),
         freedom: t("Simulator.canvasPlFreedom"),
-        freedomSub: (hits, seconds) => fill("Simulator.canvasPlFreedomSub", { hits, seconds }),
+        freedomSub: (hits, seconds) => t("Simulator.canvasPlFreedomSub", { hits, seconds }),
       },
       // --- jdm-arena-games ---
       arena: {
@@ -3823,7 +3827,7 @@ export default function Simulator() {
         swallowed: (n, total) => fill("Vortex.canvasSwallowed", { count: n, total }),
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
-        doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+        doneSub: (balls, notes) => t("Vortex.canvasDoneSub", { balls, notes }),
         funnelTitle: t("Vortex.canvasTitleFunnel"), // --- funnel-spin ---
         lapTime: (seconds) => fill("Vortex.canvasLapTime", { value: seconds }),
       },
@@ -3841,7 +3845,7 @@ export default function Simulator() {
         },
         home: t("Journey.canvasHome"),
         homeTitle: t("Journey.canvasHomeTitle"),
-        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        homeSub: (stages, seconds, score) => (score > 0 ? t("Journey.canvasHomeSubScore", { stages, seconds, score }) : t("Journey.canvasHomeSub", { stages, seconds })),
         score: (points) => fill("Journey.canvasScore", { points }),
       },
       // --- gerald-bullseye ---
@@ -3862,9 +3866,9 @@ export default function Simulator() {
         top: t("MergeRing.canvasTop"),
         tier: (k) => t(`MergeRing.tier${Math.max(1, Math.min(10, k))}`),
         finalTitle: t("MergeRing.canvasFinal"),
-        finalSub: (merges, seconds) => fill("MergeRing.canvasFinalSub", { merges, seconds }),
+        finalSub: (merges, seconds) => t("MergeRing.canvasFinalSub", { merges, seconds }),
         overflowTitle: t("MergeRing.canvasOverflow"),
-        overflowSub: (top, merges) => fill("MergeRing.canvasOverflowSub", { top, merges }),
+        overflowSub: (top, merges) => t("MergeRing.canvasOverflowSub", { top, merges }),
       },
       // --- spiral-glass ---
       spiralGlass: {
@@ -3875,7 +3879,7 @@ export default function Simulator() {
         clearedTitle: t("SpiralGlass.canvasCleared"),
         clearedSub: (count, seconds) => fill("SpiralGlass.canvasClearedSub", { count, seconds }),
         timeoutTitle: t("SpiralGlass.canvasTimeout"),
-        timeoutSub: (tiles) => fill("SpiralGlass.canvasTimeoutSub", { tiles }),
+        timeoutSub: (tiles) => t("SpiralGlass.canvasTimeoutSub", { tiles }),
       },
       // --- song-ring ---
       songRing: {
@@ -4324,9 +4328,10 @@ export default function Simulator() {
               <span className="num">{t("Simulator.stopRecording")}</span>
             </button>
           )}
+          {/* --- end-banner --- the run is over: the mode's verdict stays readable (no dim over the square, the button under it) */}
           {isStarted && finished && !isRecording && (
-            <div className={scrim}>
-              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />}>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-linear-to-t from-bg/90 via-bg/50 to-transparent px-3 pb-3 pt-10">
+              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />} className="pointer-events-auto">
                 {t("Simulator.restartSimulation")}
               </Button>
             </div>

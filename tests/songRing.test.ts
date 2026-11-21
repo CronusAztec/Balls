@@ -4,6 +4,10 @@ import {
   BAND_MIN,
   DEFAULT_SONG_RING_SETTINGS,
   END_HOLD_MS,
+  FIRST_NOTE_MAX_SEC,
+  FIRST_NOTE_MIN_SEC,
+  HUB_DRAWN,
+  LAUNCH_MARGIN,
   LIGHT_DING_LEVEL,
   LIGHT_DING_OCTAVES,
   LIGHT_TICK_HZ,
@@ -17,6 +21,7 @@ import {
   SONG_RING_RANGES,
   SONG_RING_SONGS,
   SONG_RING_TUNES,
+  SPAWN_AT_HUB,
   SURPRISE_TUNES,
   TICK_COOLDOWN_MS,
   TICK_HZ,
@@ -28,9 +33,11 @@ import {
   buildSongRingTiles,
   defaultSongRingFields,
   earliestHit,
+  finalChordOf,
   hitBudget,
   isSongRingSong,
   latestHit,
+  launchTurn,
   resolveSongRingFields,
   resolveSongRingSettings,
   songRingModeDefaults,
@@ -60,6 +67,12 @@ import { fakeGraph } from "./fakeAudio";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_SEARCH_WORDS, modeSearchWords } from "@/lib/modeSearch";
 import { MODE_SHELVES, MODE_SINCE, modesOnShelf } from "@/lib/siteDesign";
+import { planTemplate } from "@/lib/bot/planner";
+import type { BotCopy } from "@/lib/bot/copy";
+import { runSync } from "@/lib/insights/score";
+import { crewClipOfPlan } from "@/lib/crew/clip";
+import { beatStandsOut, clarityOf } from "@/lib/crew/clarity";
+import { STUDIO_RENDER_WORLD } from "@/lib/agentKit/studioKit";
 import fs from "fs";
 import path from "path";
 import en from "../messages/en.json";
@@ -365,7 +378,7 @@ describe("the ring's geometry", () => {
 /* ------------------------------------------------------------------ the mode */
 
 describe("the mode in the engine", () => {
-  it("starts with one ball in the middle of a dark ring, the playhead at the top, and no engine rings or obstacles", () => {
+  it("starts with one ball on the hub's edge of a dark ring, flying straight out, the playhead at the top, and no engine rings or obstacles", () => {
     const engine = songEngine({}, 3);
     const v = engine.getSongRingView();
     expect(engine.isSongRingMode()).toBe(true);
@@ -373,7 +386,11 @@ describe("the mode in the engine", () => {
     expect(engine.getObstacles()).toEqual([]);
     expect(engine.getBalls().length).toBe(1);
     const ball = engine.getBalls()[0];
-    expect([ball.x, ball.y]).toEqual([400, 300]);
+    // (off the count in the hub: the first frame reads "0/7", never a ball over its slash)
+    const L = v.layout!;
+    expect(Math.hypot(ball.x - 400, ball.y - 300)).toBeCloseTo(SPAWN_AT_HUB * HUB_DRAWN * L.hub, 9);
+    expect(Math.hypot(ball.x - 400, ball.y - 300) - ball.radius).toBeGreaterThan(HUB_DRAWN * L.hub);
+    expect(wrapPi(Math.atan2(ball.vy, ball.vx) - Math.atan2(ball.y - 300, ball.x - 400))).toBeCloseTo(0, 9);
     expect(ball.gravityScale).toBe(0);
     expect(Math.hypot(ball.vx, ball.vy)).toBeCloseTo(1.2 * 2 * RING_AT * 600, 6);
     expect(v).toMatchObject({ song: "twinkle", total: 7, lit: 0, hits: 0, notes: 0, head: 0, phase: "collect", completeMs: -1, chordMs: -1, finished: false });
@@ -434,6 +451,43 @@ describe("the mode in the engine", () => {
     expect(seen.length).toBeGreaterThan(6);
     expect(lit).toBeGreaterThanOrEqual(4);
     expect(lit).toBe(Array.from(v.litMs).filter((ms) => ms >= 0).length);
+  });
+
+  it("sings in the first second: the first ball is launched at a tile the playhead reaches 0.2 to 1 s after the ball lights it", () => {
+    // the aim: inside a tile whose start the playhead crosses in the window, off its edges, every tile there as likely as its arc
+    const twinkle = buildSongRingTiles(SONG_RING_TUNES.twinkle);
+    for (const draw of [0, 0.1, 0.37, 0.5, 0.82, 1]) {
+      const turn = launchTurn(twinkle, 0.21, 4, draw);
+      const tile = tileAt(twinkle, turn);
+      const w = twinkle.end[tile] - twinkle.start[tile];
+      expect(twinkle.start[tile] * 4).toBeGreaterThanOrEqual(0.21 + FIRST_NOTE_MIN_SEC);
+      expect(twinkle.start[tile] * 4).toBeLessThanOrEqual(0.21 + FIRST_NOTE_MAX_SEC);
+      expect(turn - twinkle.start[tile]).toBeGreaterThanOrEqual(LAUNCH_MARGIN * w - 1e-12);
+      expect(twinkle.end[tile] - turn).toBeGreaterThanOrEqual(LAUNCH_MARGIN * w - 1e-12);
+    }
+    expect([0.1, 0.9].map((d) => tileAt(twinkle, launchTurn(twinkle, 0.21, 4, d)))).toEqual([1, 2]);
+    // no tile starts in the window (a long note across it): the first one to start after it, on the next lap if need be
+    const long = buildSongRingTiles({ id: "twinkle", notes: [[60, 3], [62, 4], [64, 1]], bass: [], root: 48, minor: false });
+    expect([0, 0.5, 1].map((d) => tileAt(long, launchTurn(long, 0.21, 4, d)))).toEqual([1, 1, 1]);
+    const wrap = buildSongRingTiles({ id: "twinkle", notes: [[60, 1], [62, 7]], bass: [], root: 48, minor: false });
+    expect([0, 0.5, 1].map((d) => tileAt(wrap, launchTurn(wrap, 0.5, 4, d)))).toEqual([0, 0, 0]);
+    // in the engine, every tune and every seed: the first sung note comes in the window after the first hit
+    for (const song of SURPRISE_TUNES) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const engine = songEngine({ song }, seed);
+        const v = engine.getSongRingView();
+        const L = v.layout!;
+        const hitSec = (L.reach - SPAWN_AT_HUB * HUB_DRAWN * L.hub) / (1.2 * 2 * L.radius);
+        let first = -1;
+        for (let i = 1; i <= 60 * 3 && first < 0; i++) {
+          engine.update(STEP, 0);
+          if (engine.consumeSoundEvents().some((ev) => ev.loop === "pluck")) first = engine.getElapsedMs() / 1000;
+        }
+        expect(first).toBeGreaterThanOrEqual(hitSec + FIRST_NOTE_MIN_SEC - STEP / 1000);
+        expect(first).toBeLessThanOrEqual(hitSec + FIRST_NOTE_MAX_SEC + STEP / 1000);
+        expect(first).toBeLessThan(1.5);
+      }
+    }
   });
 
   it("the playhead plays what is lit, in the tune's order, each note where its tile starts on the lap", () => {
@@ -552,6 +606,9 @@ describe("the mode in the engine", () => {
     // the chord: once, on the tune's root, and nothing ticks after it
     expect(kinds(events, "chord").map(({ ev }) => [ev.frequency, ev.loopMinor])).toEqual([[midiToFrequency(48), false]]);
     expect(kinds(events, "chord").every(at(v.chordMs))).toBe(true);
+    // …accented, with its four notes (C major: C3 E3 G3 C4), the largest moment of the run: no event before it is accented or a chord
+    expect(kinds(events, "chord").map(({ ev }) => [ev.accent, ev.chord])).toEqual([[true, [48, 52, 55, 60].map(midiToFrequency)]]);
+    expect(events.filter(({ t, ev }) => t * 1000 < v.chordMs - STEP && (ev.accent || (ev.chord?.length ?? 0) > 1))).toEqual([]);
     expect(events.filter(({ t, ev }) => t * 1000 > v.chordMs + STEP && ev.orb === "click")).toEqual([]);
     // the finale is louder and denser than anything before it
     const rate = (from: number, to: number) => events.filter(({ t }) => t * 1000 >= from && t * 1000 < to).length / ((to - from) / 1000);
@@ -560,6 +617,8 @@ describe("the mode in the engine", () => {
     const elise = songEngine({ song: "elise" }, 2);
     const minor = run(elise, 80).events;
     expect(kinds(minor, "chord").map(({ ev }) => [ev.frequency, ev.loopMinor])).toEqual([[midiToFrequency(45), true]]);
+    expect(kinds(minor, "chord").map(({ ev }) => ev.chord)).toEqual([[45, 48, 52, 57].map(midiToFrequency)]);
+    expect(finalChordOf(SONG_RING_TUNES.mountain)).toEqual([47, 50, 54, 59].map(midiToFrequency));
   });
 
   it("the help keeps a run on its plan: no note hangs, none comes in a rush, and a nudged rebound still leaves inside the scatter", { timeout: 60_000 }, () => {
@@ -741,6 +800,25 @@ describe("the finder", () => {
       expect(Math.abs(found.finishedAt - result.duration)).toBeLessThan(0.02);
     }
   }, 120_000);
+});
+
+/* ------------------------------------------------------------------ the studio */
+
+describe("the studio", () => {
+  // the template's plans read as the studio reads them (studioKit's runOfPlan: the run with its payoff's moment), so gate G2's
+  // "a beat's payoff stands out" is measured: the final chord, accented and four notes wide, outdoes the finale lap before it
+  it("on-the-beat-song-ring passes every clarity gate with its payoff's moment measured, in every language and the studio's world", { timeout: 120_000 }, () => {
+    const copies = { en: en.ViralBot, pl: pl.ViralBot, es: es.ViralBot } as unknown as Record<"en" | "pl" | "es", BotCopy>;
+    for (const [locale, seed, world] of [["en", 1, undefined], ["pl", 2, STUDIO_RENDER_WORLD], ["es", 3, undefined], ["en", 4, STUDIO_RENDER_WORLD]] as const) {
+      const plan = planTemplate("on-the-beat-song-ring", seed, "reels", { copy: copies[locale], locale, episode: 3, index: seed, ...(world ? { world } : {}) });
+      expect(plan.payoff.atSec).not.toBeNull();
+      const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
+      const where = `${locale}/${seed}`;
+      expect([where, run.moment?.accent, run.moment?.chordMax]).toEqual([where, true, 4]);
+      expect([where, beatStandsOut(run.moment!)]).toEqual([where, true]);
+      expect([where, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([where, []]);
+    }
+  });
 });
 
 /* ------------------------------------------------------------------ the renderer */

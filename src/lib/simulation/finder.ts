@@ -94,6 +94,8 @@ export interface ModeSettings {
   countdownTotal: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
+  /** --- colour-match-segments --- Color Match's segments (absent: the mode's own 12). */
+  colorMatchSegmentCount?: number;
   accumulationTimerMax: number;
   spikesEnabled: boolean;
   spikeCount: number;
@@ -588,7 +590,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
     engine.setCountdownTotal(settings.countdownTotal);
     engine.setCountdownRandomOrder(settings.countdownRandom);
   }
-  if (mode === "colorMatch") engine.setColorMatchColorCount(settings.colorMatchColorCount);
+  if (mode === "colorMatch") {
+    engine.setColorMatchColorCount(settings.colorMatchColorCount);
+    if (settings.colorMatchSegmentCount !== undefined) engine.setColorMatchSegmentCount(settings.colorMatchSegmentCount); // --- colour-match-segments ---
+  }
   if (mode === "accumulation") {
     engine.setAccumulationTimerMax(settings.accumulationTimerMax);
     engine.setSpikesEnabled(settings.spikesEnabled);

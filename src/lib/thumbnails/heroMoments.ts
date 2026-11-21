@@ -36,15 +36,15 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   multiply: { moment: "the arena packed with rainbow balls, the first ones spilling out of the gap", query: "rball=1&r=10&gap=0.6&msc=5", seed: 2, atSec: 10, tint: "#ffd23f" },
   lines: { moment: "the string art fanned: rainbow lines from the ball to the rim", query: "rlines=1&ldot=1&r=10", seed: 1, atSec: 28, tint: "#4dd2ff" },
   paint: { moment: "the circle two-thirds painted in thick rainbow strokes", query: "r=14&g=100", seed: 1, atSec: 10, tint: "#ff7a3d" },
-  target: { moment: "the countdown at 4: a correct hit bursting a numbered segment of the ring", query: "r=11&wt=5&tt=1.6", seed: 6, atSec: 18.4, camera: { zoom: 1.1 }, tint: "#ff4d6d" },
+  target: { moment: "the countdown at 4: a correct hit bursting a numbered segment of the ring", query: "r=11&wt=5&tt=1.6&tc=10&s=400" /* --- clip-pacing --- (as picked: ten numbers at speed 400) */, seed: 6, atSec: 18.4, camera: { zoom: 1.1 }, tint: "#ff4d6d" },
   portal: { moment: "a teleport: the ball bursting out of a portal in a spray of sparks", query: "r=11&wt=5&tt=1.6", seed: 1, atSec: 14.6, camera: { zoom: 1.1 }, tint: "#7c5cff" },
   shatter: { moment: "rings of rainbow segments, the ball smashing through them in a shower of shards", query: "r=11", seed: 1, atSec: 16, tint: "#5ce1e6" },
-  colorMatch: { moment: "a colour match shattering a segment of the ring", query: "r=11&wt=5&tt=1.6", seed: 1, atSec: 16, camera: { zoom: 1.1 }, tint: "#ffb703" },
+  colorMatch: { moment: "a colour match shattering a segment of the ring", query: "r=11&wt=5&tt=1.6&cms=12&cmc=7&s=400" /* --- clip-pacing --- (as picked: twelve segments in seven colours at speed 400) */, seed: 1, atSec: 16, camera: { zoom: 1.1 }, tint: "#ffb703" },
   grow: { moment: "the ball grown to fill most of its ring, the rainbow lines fanned", query: "glines=1&rlines=1&rball=1", seed: 1, atSec: 46, tint: "#93d119" },
   drop: { moment: "balls raining through the coloured pegs", query: "dbc=16&dsi=0.2&dsv=0.7", seed: 1, atSec: 4, tint: "#4cc9f0" },
   box: { moment: "fat squares mid-polyrhythm, the wall they just hit lit up", query: "bxa=1&bxgr=3&bxn=4", seed: 1, atSec: 17, tint: "#f72585" },
   pendulum: { moment: "the pendulum wave in a perfect fan", query: "pwn=20&pwk=24&pwt=40&pwtr=0.5", seed: 1, atSec: 1, tint: "#9d4edd" },
-  polyrhythm: { moment: "sixteen voices fanned out along their chords in a rainbow wave", query: "prl=arcs", seed: 1, atSec: 3, tint: "#3ddc97" },
+  polyrhythm: { moment: "sixteen voices fanned out along their chords in a rainbow wave", query: "prl=arcs&prcs=30" /* --- clip-pacing --- (as picked: the 30 s cycle) */, seed: 1, atSec: 3, tint: "#3ddc97" },
   collide: { moment: "squishy orbs colliding in the circle", query: "cpsq=1&cpn=60", seed: 1, atSec: 6, tint: "#80ffdb" },
   glass: { moment: "a full glass smash: the pane under Gerald shattering, shards in the air", query: "face=cute", seed: 1, atSec: 12.75, camera: { x: 0.5, y: 0.44, zoom: 1.55 }, tint: "#b8c0ff" },
   multipliers: { moment: "a swarm of clones pouring through the gates, HOME counting up", query: "mpsb=3&mprw=10", seed: 1, atSec: 5.5, camera: { x: 0.5, y: 0.54, zoom: 1.205 }, tint: "#ffd60a" },
@@ -60,8 +60,8 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   vortex: { moment: "a full funnel: balls weaving down the glowing rings", query: "face=cute", seed: 1, atSec: 16, camera: { zoom: 1.4 }, tint: "#00bbf9" },
   journey: { moment: "Gerald bursting the first ring of a rings stage, the field still closed around him", query: "js=rings-l,glass,pegs,home&face=cute", seed: 1, atSec: 2, camera: { x: 0.5, y: 0.53, zoom: 1.4 } /* --- low-findings --- (the stage label framed out) */, tint: "#93d119" },
   bullseye: { moment: "BULLSEYE: a ball stuck in the bull, the starburst", query: "byi=0.4&byp=2&face=cute", seed: 1, atSec: 3.5, camera: { x: 0.5, y: 0.56, zoom: 1.2 } /* --- low-findings --- (the corner counters framed out) */, tint: "#ef476f" },
-  mergeRing: { moment: "a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim", query: "mri=0.4&mrs=3", seed: 1, atSec: 12, tint: "#f472b6" }, // --- merge-ring ---
-  spiralGlass: { moment: "the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face", query: "sgv=1.2", seed: 1, atSec: 30, tint: "#e879f9" }, // --- spiral-glass ---
+  mergeRing: { moment: "a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim", query: "mri=0.4&mrs=3&mrt=7" /* --- clip-pacing --- (as picked: seven tiers) */, seed: 1, atSec: 12, tint: "#f472b6" }, // --- merge-ring ---
+  spiralGlass: { moment: "the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face", query: "sgv=1.2&sgh=2" /* --- clip-pacing --- (as picked: glass of two hits) */, seed: 1, atSec: 30, tint: "#e879f9" }, // --- spiral-glass ---
   songRing: { moment: "five of seven note tiles lit round the ring, the ball lighting the fifth in a burst of sparks, the playhead sweeping on", query: "", seed: 1, atSec: 8.87, tint: "#a78bfa" }, // --- song-ring ---
   blueprint: { moment: "Ring Breaker: the swarm filling the arena as the last ring shatters", query: "blp=ringBreaker", seed: 1, atSec: 11.9, tint: "#22d3ee" }, // --- blueprint --- (Mode Lab's card: a catalog game with every ball on screen; --- review fix (blueprint) --- 11.9 s since the rings sit inside a solid rim and seed 1 ends at 12.0 s)
   beatDrop: { moment: "the ball landing on a pad on the beat in a burst of sparks", query: "face=cute&bdd=1&bda=1", seed: 1, atSec: 12.6, camera: { x: 0.38, y: 0.58, zoom: 1.8 }, tint: "#b5179e" },

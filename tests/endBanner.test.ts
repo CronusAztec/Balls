@@ -3,10 +3,15 @@ import path from "path";
 import { IntlMessageFormat } from "intl-messageformat";
 import { describe, expect, it } from "vitest";
 import {
+  END_BANNER_BOTTOM,
+  END_BANNER_HOLD_MS,
   END_BANNER_IN_MS,
   END_BANNER_MIN_CONTRAST,
+  END_BANNER_PLATE,
   END_BANNER_SUB_COLOR,
+  END_BANNER_TOP,
   EndBannerLayer,
+  accumulationBannerAt,
   contrast,
   drawEndBannerStrip,
   endBannerEntrance,
@@ -20,13 +25,15 @@ import {
 } from "@/components/simulator/endBanner";
 import { BEAT_DROP_ON_TIME_MS, DEFAULT_BEAT_DROP_LABELS } from "@/components/simulator/beatDropRenderer";
 import { FL_NOIR_TIMER_GAP, FL_NOIR_TITLE_W, flNoirTitleWidth } from "@/components/simulator/fightLeague/noir";
-import { drawGlassWorld, type GlassRenderOptions } from "@/components/simulator/glassRenderer";
-import { MAZE_BANNER_FULL_MS, mazeBannerPhase } from "@/components/simulator/mazeRenderer";
+import { GLASS_LABEL_AT, drawGlassWorld, glassDots, glassLabelX, type GlassRenderOptions } from "@/components/simulator/glassRenderer";
+import { MAZE_BANNER_FULL_MS, mazeBannerPhase, mazeStripPlace } from "@/components/simulator/mazeRenderer";
+import { gateLabelHidden } from "@/components/simulator/multiplierRenderer";
 import { PODIUM_REST_BOTTOM, PODIUM_REST_TOP, podiumRestRows } from "@/components/simulator/raceRenderer";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
-import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout";
+import { BADGE_HEIGHT, BADGE_INSET, badgeMetrics } from "@/lib/watermark/layout";
+import { LiveHud, liveBadgeBox, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
 import { fakeCanvas, type FakeCall } from "./fakeCanvas";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -365,8 +372,9 @@ describe("the end lines' copy", () => {
     expect(format("en", "Simulator", "canvasGlassHomeSub", { panes: 32, stages: 4 })).toBe("32 panes smashed in 4 stages");
     expect(format("en", "Simulator", "canvasGlassHomeSub", { panes: 1, stages: 1 })).toBe("1 pane smashed in 1 stage");
     expect(format("en", "Simulator", "canvasIllusionCycles", { count: 1 })).toBe("Back where it started after 1 cycle");
-    expect(format("en", "Simulator", "canvasRingsOut", { rings: 7, time: "62.4" })).toBe("7 rings in 62.4 s");
-    expect(format("en", "Simulator", "canvasRingsOut", { rings: 1, time: "3.0" })).toBe("1 ring in 3.0 s");
+    // (one spelling of the unit in English end lines: "44.7s", as Merge Ring, Spiral Glass and Power Layers write it)
+    expect(format("en", "Simulator", "canvasRingsOut", { rings: 7, time: "62.4" })).toBe("7 rings in 62.4s");
+    expect(format("en", "Simulator", "canvasRingsOut", { rings: 1, time: "3.0" })).toBe("1 ring in 3.0s");
 
     expect(format("pl", "Simulator", "canvasAfterTeleports", { count: 1 })).toBe("Po 1 teleportacji");
     expect(format("pl", "Simulator", "canvasAfterTeleports", { count: 3 })).toBe("Po 3 teleportacjach");
@@ -484,7 +492,7 @@ describe("Fight League's noir title", () => {
 });
 
 describe("Glass Smash's stage label", () => {
-  it("is drawn under the middle of its line, not at the wall where the watermark badge sits", () => {
+  it("is drawn under its line left of the stage dots, past the wall where the watermark badge sits", () => {
     const settings = defaultSettings("glass");
     const request = finderRequestOfSettings(settings, { width: 800, height: 450 }, 60);
     const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, 7);
@@ -494,10 +502,10 @@ describe("Glass Smash's stage label", () => {
     expect(level.stages.length).toBeGreaterThan(1);
     const canvas = fakeCanvas(800, 450);
     const ctx = canvas.ctx;
-    const aligned: { text: string; x: number; align: string }[] = [];
+    const aligned: { text: string; x: number; align: string; width: number }[] = [];
     const logged = ctx.fillText as (...args: unknown[]) => unknown;
     ctx.fillText = (...args: unknown[]) => {
-      aligned.push({ text: String(args[0]), x: Number(args[1]), align: ctx.textAlign });
+      aligned.push({ text: String(args[0]), x: Number(args[1]), align: ctx.textAlign, width: (ctx.measureText as (t: string) => { width: number })(String(args[0])).width });
       return logged(...args);
     };
     const opts: GlassRenderOptions = { wallColor: () => "#ffffff", wallThickness: 2, showGlow: false, stageLabel: (n) => `STAGE ${n}`, homeLabel: "HOME" };
@@ -505,9 +513,206 @@ describe("Glass Smash's stage label", () => {
     drawGlassWorld(ctx as unknown as CanvasRenderingContext2D, view, opts, -1e6, 1e6);
     const labels = aligned.filter((a) => a.text.startsWith("STAGE "));
     expect(labels.length).toBe(level.stages.length - 1);
+    const f = level.field;
+    const dots = glassDots(f, level.stages.length);
     for (const label of labels) {
       expect(label.align).toBe("center");
-      expect(label.x).toBe(level.field.cx);
+      // 30 % of the shaft in from its left wall: under the middle the name scrolled onto the stage dots (two seconds a stage)
+      expect(label.x).toBeCloseTo(f.left + GLASS_LABEL_AT * f.width, 6);
+      expect(label.x).toBe(glassLabelX(f, level.stages.length, label.width));
+      // its box misses the dots at the top centre, with air between
+      expect(label.x + label.width / 2).toBeLessThan(dots.x0 - dots.r);
+      // and it is clear of the wall, where the line scrolls through the badge's corner: a 9:16 export's badge ends 31 % of the
+      // square in (8.5 % + at most a quarter of the side: the maze's strip keeps the same room)
+      const square = { left: 400 - 225, side: 450 };
+      expect(label.x - label.width / 2).toBeGreaterThan(square.left + 0.31 * square.side);
+    }
+    // a long row of dots pushes the name further left, never past the wall
+    const many = glassLabelX(f, 14, 50);
+    expect(many).toBeLessThan(f.left + GLASS_LABEL_AT * f.width);
+    expect(many + 25).toBeLessThan(glassDots(f, 14).x0);
+    expect(glassLabelX(f, 60, 50)).toBe(f.left + 4 + 25);
+  });
+});
+
+/* ------------------------------------------------------------------ the review of the end banners (modes lane B1) */
+
+describe("the verdict's hold", () => {
+  it("keeps a verdict that came with the last step on screen for 1.5 s before the end screen: 2 s in a recording", () => {
+    expect(END_BANNER_HOLD_MS).toBe(1500);
+    const canvas = fakeCanvas(1080, 1080);
+    const g = canvas.ctx as unknown as CanvasRenderingContext2D;
+    const layer = new EndBannerLayer();
+    const words = { title: "SETTLED!", sub: "All 24 balls at rest", color: "#a3e635" };
+    expect(layer.fresh()).toBe(false); // nothing shown: nothing to wait for
+    let frames = 0;
+    do {
+      layer.draw(g, words, 540, 540, 1080, 1000 / 60);
+      layer.endFrame();
+      frames++;
+    } while (layer.fresh() && frames < 1000);
+    // the first frame is age 0: fresh for the 90 frames of 1.5 s, then no longer
+    expect(frames).toBe(91);
+    // a paused run (no frame time) waits with it; a frame without the banner ends the wait
+    const paused = new EndBannerLayer();
+    for (let i = 0; i < 300; i++) {
+      paused.draw(g, words, 540, 540, 1080, 0);
+      paused.endFrame();
+    }
+    expect(paused.fresh()).toBe(true);
+    paused.endFrame();
+    expect(paused.fresh()).toBe(false);
+  });
+
+  it("is the canvas' own hold of the end screen, live and in the fast export, where nothing else holds the ending", () => {
+    // the page's finish detection and the export's end tracker both ask holdsEndScreen()
+    expect(canvasSource).toMatch(/holdsEndScreen: \(\) => \(cinematicRef\.current\?\.holdsEndScreen\(\) \?\? false\) \|\| \(captionLayerRef\.current\?\.holdsEndScreen\(\) \?\? false\) \|\| endBannerHoldRef\.current/);
+    expect(canvasSource).toMatch(/holdsEndScreen: \(\) => cam\.holdsEndScreen\(\) \|\| captionLayer\.holdsEndScreen\(\) \|\| endBannerHoldRef\.current/);
+    // not with captions of its own (the planner set the clip's length), a roster or a multipliers finish (the page holds those)
+    expect(canvasSource).toMatch(/endBannerHoldRef\.current = bannerFresh && !captionsRef\.current && !teamLayer\.isActive\(\) && !engine\.endsWithMultiplierFinish\(\);/);
+    expect(canvasSource).toMatch(/if \(layer\.fresh\(\)\) bannerFresh = true;/);
+  });
+
+  it("no longer dims the square or covers the verdict with the page's Restart button", () => {
+    const simulator = fs.readFileSync(path.join(process.cwd(), "src/components/simulator/Simulator.tsx"), "utf8");
+    const at = simulator.indexOf('{t("Simulator.restartSimulation")}');
+    expect(at).toBeGreaterThan(0);
+    const overlay = simulator.slice(simulator.lastIndexOf("{isStarted && finished && !isRecording && (", at), at);
+    // along the bottom edge, the taps passing through to the canvas except on the button: no scrim over the whole square
+    expect(overlay).toMatch(/pointer-events-none absolute inset-x-0 bottom-0 flex justify-center/);
+    expect(overlay).not.toMatch(/className=\{scrim\}/);
+    expect(overlay).not.toMatch(/inset-0/);
+    expect(overlay).toMatch(/className="pointer-events-auto"/);
+  });
+});
+
+describe("the plate", () => {
+  it("lets nothing under it be read: 97 % opaque", () => {
+    expect(END_BANNER_PLATE.alpha).toBeGreaterThanOrEqual(0.97);
+    // a gate label of the multipliers' board (#22c55e-like, bright) through the plate: a contrast under 1.25 against the plate itself
+    const through = (v: number) => END_BANNER_PLATE.alpha * 12 + (1 - END_BANNER_PLATE.alpha) * v;
+    expect(contrast(luminance(through(255), through(255), through(255)), luminance(12, 12, 12))).toBeLessThan(1.25);
+  });
+
+  it("hides a multipliers gate label the plate's edge would cut, and no other", () => {
+    // a plate from 400 to 600 (board y), labels 30 px tall
+    expect(gateLabelHidden(500, 30, 400, 600)).toBe(true); // under it
+    expect(gateLabelHidden(395, 30, 400, 600)).toBe(true); // across its upper edge
+    expect(gateLabelHidden(620, 30, 400, 600)).toBe(true); // across its lower edge
+    expect(gateLabelHidden(360, 30, 400, 600)).toBe(false);
+    expect(gateLabelHidden(640, 30, 400, 600)).toBe(false);
+    // no plate (the board still running): every label
+    expect(gateLabelHidden(500, 30, Number.NaN, Number.NaN)).toBe(false);
+    expect(gateLabelHidden(500, 30, undefined, undefined)).toBe(false);
+    expect(canvasSource).toMatch(/multRender\.quietTop = multBoard && multBoard\.done && endBanners\[0\]\.shown \? endBanners\[0\]\.rect\.y \+ multTop : NaN;/);
+  });
+});
+
+describe("a banner beside its payoff, round two", () => {
+  it("puts GLASS CLEARED under the spiral's centre and FINAL FORM over the chute", () => {
+    expect(canvasSource).toMatch(/bigBanner\(SG\.clearedTitle, [^\n]*"#f8fafc", 0\.82\)/);
+    expect(canvasSource).toMatch(/bigBanner\(MR\.finalTitle, [^\n]*"#f8fafc", 0\.2\)/);
+    // the overflow fills the whole ring: its banner stays in the middle
+    expect(canvasSource).toMatch(/else bigBanner\(MR\.overflowTitle, [^\n]*"#fb7185"\);/);
+  });
+
+  it("puts Accumulation's card over the top or the bottom of the ring, wherever it covers fewer frozen balls", () => {
+    const side = 1000;
+    const cy = 500;
+    const ball = (y: number) => ({ y, radius: 20 });
+    expect(accumulationBannerAt([], cy, side)).toBe(END_BANNER_TOP);
+    // three balls under the top band, one under the bottom one: the bottom
+    expect(accumulationBannerAt([ball(150), ball(200), ball(260), ball(800)], cy, side)).toBe(END_BANNER_BOTTOM);
+    // the other way round: the top
+    expect(accumulationBannerAt([ball(180), ball(760), ball(820), ball(880)], cy, side)).toBe(END_BANNER_TOP);
+    // even: the top; balls in the middle count for neither
+    expect(accumulationBannerAt([ball(180), ball(820), ball(500), ball(450)], cy, side)).toBe(END_BANNER_TOP);
+    // a ball that only touches a band counts
+    expect(accumulationBannerAt([ball(300), ball(305)], cy, side)).toBe(END_BANNER_BOTTOM);
+    expect(canvasSource).toMatch(/bigBanner\(L\.escaped, L\.afterFrozenBalls\(frozen\), "#4ECDC4", accumulationBannerAt\(engine\.getFrozenBalls\(\), cy, minDim\)\)/);
+  });
+});
+
+describe("the maze's strip and the watermark badge", () => {
+  it("leaves both bottom corners to the badge, in a 9:16 export and in a square one", () => {
+    for (const frame of [
+      { width: 1080, height: 1920 },
+      { width: 1080, height: 1080 },
+      { width: 1920, height: 1080 },
+    ]) {
+      const portrait = frame.height > frame.width;
+      const side = 1080;
+      // the canvas square the recorder copies, 1:1 at 1080 px, and the badge as the video layout sizes it: a quarter of the side wide at most
+      const box = liveBadgeBox({ area: { x: 0, y: 0, width: side, height: side }, recording: frame });
+      const badge = { width: Math.round(0.25 * side), height: badgeMetrics(side).height };
+      // the strip as the maze draws it under itself, with a long name
+      const canvas = fakeCanvas(side, side);
+      const strip = { x: 0, y: 0, w: 0, h: 0 };
+      const place = mazeStripPlace(portrait);
+      drawEndBannerStrip(canvas.ctx as unknown as CanvasRenderingContext2D, "Bartholomew the Third wins! · 12.4s", "#22d3ee", place.centre * side, 0.955 * side, side, place.maxWidth * side, strip);
+      expect(strip.w).toBeLessThanOrEqual(place.maxWidth * side + 1e-6);
+      const hud = new LiveHud().reset(1);
+      hud.block(strip.x, strip.y, strip.w, strip.h);
+      const out: LivePlacement = { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: false };
+      // the left side's six seconds, then the right side's: the badge keeps its bottom corner both times
+      expect([frame.width, frame.height, placeLiveBadge(box, badge.width, badge.height, 0, hud, out).corner, out.free]).toEqual([frame.width, frame.height, "bottom-left", true]);
+      expect([frame.width, frame.height, placeLiveBadge(box, badge.width, badge.height, 6000, hud, out).corner, out.free]).toEqual([frame.width, frame.height, "bottom-right", true]);
+      // the strip it replaced – 40 % of the side on the square's centre – held both corners of a 9:16 export
+      if (portrait) {
+        const wide = new LiveHud().reset(1);
+        wide.block(0.3 * side, strip.y, 0.4 * side, strip.h);
+        expect(placeLiveBadge(box, badge.width, badge.height, 6000, wide, out).corner).not.toBe("bottom-right");
+      }
+    }
+  });
+
+  it("is told by the canvas when the frame is a 9:16 export", () => {
+    expect(canvasSource).toMatch(/portrait: !!mazeExport && mazeExport\.height > mazeExport\.width/);
+    expect(mazeStripPlace(true).centre).toBeLessThan(0.5); // the safe zone of a 9:16 frame is not centred
+    expect(mazeStripPlace(false).centre).toBe(0.5);
+  });
+});
+
+describe("the end lines' copy, round two", () => {
+  it("counts clones, balls home and balls lost as a person would", () => {
+    expect(format("en", "Simulator", "canvasMpMadeItHome", { count: 1, name: "Gerald" })).toBe("1 Gerald made it home");
+    expect(format("en", "Simulator", "canvasMpMadeItHomeSub", { count: 1 })).toBe("1 clone along the way");
+    expect(format("en", "Simulator", "canvasMpMadeItHomeSub", { count: 67 })).toBe("67 clones along the way");
+    expect(format("es", "Simulator", "canvasMpMadeItHome", { count: 1, name: "Gerald" })).toBe("1 Gerald llegó a casa");
+    expect(format("es", "Simulator", "canvasMpMadeItHome", { count: 56, name: "Gerald" })).toBe("56 Gerald llegaron a casa");
+    expect(format("es", "Simulator", "canvasMpMadeItHomeSub", { count: 1 })).toBe("1 clon por el camino");
+    expect(format("es", "Simulator", "canvasMpMadeItHomeLost", { count: 1 })).toBe("1 perdido");
+    expect(format("es", "Simulator", "canvasMpMadeItHomeLost", { count: 3 })).toBe("3 perdidos");
+    expect(format("pl", "Simulator", "canvasMpMadeItHome", { count: 1, name: "Gerald" })).toBe("Gerald w domu: 1");
+    expect(format("pl", "Simulator", "canvasMpMadeItHomeSub", { count: 1 })).toBe("Klony po drodze: 1");
+  });
+
+  it("counts balls at rest, shapes, strings, hits, merges, tiles, stages and notes", () => {
+    expect(format("en", "Simulator", "canvasBallsAtRest", { count: 1 })).toBe("1 ball at rest");
+    expect(format("en", "Simulator", "canvasBallsAtRest", { count: 24 })).toBe("All 24 balls at rest");
+    expect(format("en", "Simulator", "canvasBoxCounted", { count: 1 })).toBe("1 shape reached zero");
+    expect(format("es", "Simulator", "canvasBoxCounted", { count: 1 })).toBe("La forma llegó a cero");
+    expect(format("pl", "Simulator", "canvasBoxCounted", { count: 5 })).toBe("Wszystkie kształty (5) doszły do zera");
+    expect(format("en", "Simulator", "canvasDpPlucks", { count: 1 })).toBe("1 string plucked");
+    expect(format("en", "Simulator", "canvasDpHits", { count: 1 })).toBe("1 hit");
+    expect(format("es", "Simulator", "canvasDpHits", { count: 1 })).toBe("1 golpe");
+    expect(format("en", "Simulator", "canvasPlFreedomSub", { hits: 1, seconds: "8.8" })).toBe("1 hit · 8.8s");
+    expect(format("en", "Simulator", "canvasPlFreedomSub", { hits: 10, seconds: "16.7" })).toBe("10 hits · 16.7s");
+    expect(format("en", "MergeRing", "canvasFinalSub", { merges: 43, seconds: "44.7" })).toBe("43 merges in 44.7s");
+    expect(format("en", "MergeRing", "canvasOverflowSub", { top: "Hexagon", merges: 1 })).toBe("Top tier Hexagon after 1 merge");
+    expect(format("pl", "MergeRing", "canvasFinalSub", { merges: 22, seconds: "21.7" })).toBe("22 fuzje w 21.7 s");
+    expect(format("pl", "MergeRing", "canvasFinalSub", { merges: 25, seconds: "21.7" })).toBe("25 fuzji w 21.7 s");
+    expect(format("es", "MergeRing", "canvasFinalSub", { merges: 1, seconds: "9.0" })).toBe("1 fusión en 9.0 s");
+    expect(format("en", "SpiralGlass", "canvasTimeoutSub", { tiles: 1 })).toBe("1 tile left");
+    expect(format("es", "SpiralGlass", "canvasTimeoutSub", { tiles: 1 })).toBe("Queda 1 loseta");
+    expect(format("es", "SpiralGlass", "canvasTimeoutSub", { tiles: 22 })).toBe("Quedan 22 losetas");
+    expect(format("en", "Journey", "canvasHomeSub", { stages: 1, seconds: "12.0" })).toBe("1 stage in 12.0s");
+    expect(format("en", "Journey", "canvasHomeSubScore", { stages: 5, seconds: "31.4", score: 40 })).toBe("5 stages in 31.4s · 40 pts");
+    expect(format("en", "Vortex", "canvasDoneSub", { balls: 1, notes: 1 })).toBe("1 ball swallowed · 1 note");
+    expect(format("es", "Vortex", "canvasDoneSub", { balls: 12, notes: 30 })).toBe("12 bolas tragadas · 30 notas");
+    // none of them is left with a bracket placeholder the page no longer fills
+    for (const [namespace, key] of [["Simulator", "canvasMpMadeItHome"], ["Simulator", "canvasMpMadeItHomeSub"], ["Simulator", "canvasMpMadeItHomeLost"], ["Simulator", "canvasBallsAtRest"], ["Simulator", "canvasBoxCounted"], ["Simulator", "canvasDpPlucks"], ["Simulator", "canvasDpHits"], ["Simulator", "canvasPlFreedomSub"], ["MergeRing", "canvasFinalSub"], ["MergeRing", "canvasOverflowSub"], ["SpiralGlass", "canvasTimeoutSub"], ["Journey", "canvasHomeSub"], ["Journey", "canvasHomeSubScore"], ["Vortex", "canvasDoneSub"]] as const) {
+      for (const locale of ["en", "pl", "es"]) expect(String(CATALOGS[locale][namespace][key]), `${locale} ${namespace}.${key}`).not.toMatch(/\[[a-z]+\]/);
     }
   });
 });

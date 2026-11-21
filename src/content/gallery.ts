@@ -41,10 +41,25 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Ocho anillos magenta giran alrededor de una bola cian, y cada pared que atraviesa estalla en chispas, confeti y una onda expansiva.",
     },
   },
+  // --- ring-looks --- Classic paced for a clip, as a card (the page's own defaults stay: the bot's plans and their share links,
+  // and a recorded crew eval's briefs, read them): gap 1.0 at ball speed 500 brings 34 of 40 seeds out by 27 s (the defaults:
+  // 0), with the ring sounds; seed 7 breaks its seven rings at 1.6, 3.4, 3.5, 8.2, 11.1, 12.3 and 17.3 s and is out at 18.1 s
+  {
+    id: "ring-ladder",
+    mode: "classic",
+    query: "mode=classic&s=500&gap=1&shake=0.3&glow=1&wbreak=all&resn=1&seed=7",
+    previewAt: 8.4,
+    name: { en: "Ring Ladder", pl: "Drabina pierścieni", es: "Escalera de anillos" },
+    description: {
+      en: "Seven rainbow rings with wide gaps and a fast ball. Every ring it breaks climbs a note, and the way out lands the chord.",
+      pl: "Siedem tęczowych pierścieni z szerokimi przerwami i szybka piłka. Każdy rozbity pierścień to nuta wyżej, a wyjście kończy się akordem.",
+      es: "Siete anillos arcoíris con huecos anchos y una bola rápida. Cada anillo que rompe sube una nota y la salida cierra con un acorde.",
+    },
+  },
   {
     id: "galaxy-pendulum",
     mode: "pendulum",
-    query: "mode=pendulum&pwn=30&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
+    query: "mode=pendulum&pwn=30&pwk=51&pwt=60&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
     previewAt: 12,
     name: { en: "Aurora Galaxy Wave", pl: "Galaktyka zorzy", es: "Galaxia boreal" },
     description: {

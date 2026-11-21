@@ -133,7 +133,8 @@ import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type Hoo
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
-import { EndBannerLayer, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -653,6 +654,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
   captionsRef.current = captions;
   const captionLayerRef = useRef<CaptionLayer | null>(null);
+  /** --- end-banner --- A verdict that came with the run's last step is still being read (the frame drawn last): the end screen waits. */
+  const endBannerHoldRef = useRef(false);
   // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
   const wobbleAmountRef = useRef(wallWobble);
   wobbleAmountRef.current = wallWobble;
@@ -819,7 +822,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       flLayerRef.current?.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
     },
     // --- end themes
-    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
+    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false) || endBannerHoldRef.current, // --- camera --- (--- captions --- and the question's answer; --- end-banner --- and a verdict not read yet)
     getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-gerald-odd) ---
   }));
 
@@ -1060,6 +1063,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const conveyorData = new ConveyorDataset();
     // --- end-banner --- the modes' end banners (endBanner.ts): a frame shows one, seldom two (a mode's own and OUTGREW THE ARENA)
     const endBanners = [new EndBannerLayer()];
+    // --- ring-looks --- Countdown's ring as its renderer reads it (filled every frame: nothing allocated)
+    const countdownView: CountdownRingView = { total: 0, target: 0, hit: new Set<number>(), flashes: [], map: [], complete: false };
     let endBannerMid = false; // (one in the middle of the square this frame: the teams' winner banner goes lower)
     // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
     const orbLayer = new OrbGridLayer();
@@ -1673,6 +1678,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const shatterSegments = isShatter ? engine.getShatterSegments() : null;
       const sectorBatch = ringBatch && isShatter ? new Path2D() : null; // --- review fix (recording-export) --- (Shatter's segments of thousands of rings: one fill)
 
+      // --- ring-looks --- Classic: the ring the ball is in lit in its own colour, under the rings (ringModesRenderer.ts). Not in
+      // the Ring Escape poster's pure black look (its rainbow by ring), a loop clip, a roster's race or a replay.
+      const classicRings = engine.getCurrentModeName() === "classic" && !isShatter && !ringRainbow && !loopHudRef.current && !teamLayer.isActive() && !replay ? engine.getRingEscapeView() : null;
+      const classicRingColor = (index: number) => wallColor(index);
+      if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0) {
+        const k = classicRings.escaped;
+        drawClassicFloor(ctx, cx, cy, walls[k].radius, classicRingColor(k), walls.length > 1 && k === walls.length - 1, engine.getElapsedMs());
+      }
+
       // Walls
       for (let i = 0; i < walls.length; i++) {
         if (broken.has(i)) continue;
@@ -1732,6 +1746,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
       ctx.globalAlpha = 1;
+      // --- ring-looks --- Classic: the ring just broken thrown out as a shock ring in its colour, on the simulation clock
+      if (classicRings && classicRings.escaped > 0 && classicRings.escaped <= walls.length) {
+        const k = classicRings.escaped - 1;
+        drawRingBurst(ctx, cx, cy, walls[k].radius, classicRingColor(k), engine.getElapsedMs() - (classicRings.outMs >= 0 ? classicRings.outMs : classicRings.enteredMs));
+      }
 
       // Obstacles (pegs, bars and straight walls – Ball Drop) in the wall colour; recent hits glow like the walls.
       const obstacles = engine.getObstacles();
@@ -2163,42 +2182,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       multRender.showTrails = p.showTrails;
       multRender.rainbowBall = p.rainbowBall;
       multRender.time = time;
+      // --- end-banner --- (the board done: a gate label the end banner's plate would cut in half is not drawn – the plate of the frame before, in the board's own y)
+      multRender.quietTop = multBoard && multBoard.done && endBanners[0].shown ? endBanners[0].rect.y + multTop : NaN;
+      multRender.quietBottom = multRender.quietTop + endBanners[0].rect.h;
       if (multBoard) drawMultipliersBoard(ctx, multBoard, multRender, multLabels, multTop, multBottom);
       if (multView.orbs.length > 0) drawPickupOrbs(ctx, multView, engine.getElapsedMs(), multLabels, time);
 
-      // Color Match segments
-      if (engine.isColorMatchMode()) {
-        const segments = engine.getColorMatchSegments();
-        if (walls.length > 0 && !broken.has(0)) {
-          const rot = rotations[0] || 0;
-          const radius = walls[0].radius;
-          ctx.lineWidth = Math.max(10, p.wallThickness + 8);
-          for (const seg of segments) {
-            if (seg.broken) continue;
-            ctx.globalAlpha = 0.85;
-            ctx.strokeStyle = seg.color;
-            if (wobble.strokeArc(ctx, 0, cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005)) continue; // --- jdm-illusions ---
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005);
-            ctx.stroke();
-          }
-          ctx.save();
-          ctx.globalAlpha = 0.4;
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 1.5;
-          for (const seg of segments) {
-            if (seg.broken) continue;
-            const a = seg.startAngle + rot;
-            const r0 = radius - p.wallThickness / 2 - 4;
-            const r1 = radius + p.wallThickness / 2 + 4;
-            ctx.beginPath();
-            ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-            ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-            ctx.stroke();
-          }
-          ctx.restore();
-          ctx.globalAlpha = 1;
-        }
+      // Color Match segments (--- ring-looks --- the ball's colour lit, the others dim, a match bursting: ringModesRenderer.ts)
+      if (engine.isColorMatchMode() && walls.length > 0) {
+        drawColorMatchRing(ctx, engine.getColorMatchSegments(), engine.getColorMatchBallColor(), broken.has(0), cx, cy, walls[0].radius, rotations[0] || 0, p.wallThickness, engine.getElapsedMs(), wobble);
+        ctx.globalAlpha = 1;
       }
 
       // Paint: the rainbow trail – or, with a picture loaded, the picture revealed through the brush mask (Picture Paint)
@@ -2257,86 +2250,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (layers) paintTrail.release(); // --- review fix (performance) ---
       } else paintTrail.release(); // --- review fix (performance) ---
 
-      // Target segments
-      if (engine.isCountdownMode()) {
-        const total = engine.getCountdownTotal();
-        const target = engine.getCountdownTarget();
-        const hit = engine.getCountdownHit();
-        const flashes = engine.getCountdownWrongFlashes();
-        const map = engine.getCountdownSegmentMap();
-        const wall = walls[0];
-        if (wall) {
-          const step = TWO_PI / total;
-          const radius = wall.radius;
-          const thickness = Math.max(8, 0.06 * radius);
-          const labelR = radius + Math.max(12, 0.08 * radius);
-          const fontSize = Math.max(10, 0.03 * Math.min(size.width, size.height));
-          const startAngle = -Math.PI / 2;
-          const flashBySegment: Record<number, number> = {};
-          for (const f of flashes) {
-            const t = Math.min(1, Math.max(0, f.time / 400));
-            if (flashBySegment[f.segment] === undefined || t > flashBySegment[f.segment]) flashBySegment[f.segment] = t;
-          }
-          const pulse = 0.5 + 0.3 * Math.sin(0.005 * time);
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          for (let s = 0; s < total; s++) {
-            const number = map[s] ?? total - s;
-            const a0 = startAngle + s * step;
-            const a1 = a0 + step;
-            const mid = (a0 + a1) / 2;
-            const flash = flashBySegment[number];
-            let color: string, alpha: number, shadow: string, blur: number;
-            if (hit.has(number)) [color, alpha, shadow, blur] = ["#22c55e", 0.7, "#22c55e", 12];
-            else if (number === target) [color, alpha, shadow, blur] = ["#facc15", pulse, "#facc15", 12];
-            else if (flash !== undefined) [color, alpha, shadow, blur] = ["#ef4444", 0.3 + 0.6 * flash, "#ef4444", 12 * flash];
-            else [color, alpha, shadow, blur] = ["#333333", 0.4, "", 0];
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = thickness;
-            if (shadow) {
-              ctx.shadowColor = shadow;
-              ctx.shadowBlur = blur;
-            }
-            ctx.beginPath();
-            wobble.pathArc(ctx, 0, cx, cy, radius, a0 + 0.02, a1 - 0.02); // --- jdm-illusions --- (the segments follow a wobbling wall)
-            ctx.stroke();
-            ctx.restore();
-            const lx = cx + labelR * Math.cos(mid);
-            const ly = cy + labelR * Math.sin(mid);
-            ctx.save();
-            if (hit.has(number)) {
-              ctx.fillStyle = "#22c55e";
-              ctx.globalAlpha = 0.9;
-            } else if (number === target) {
-              ctx.fillStyle = "#facc15";
-              ctx.globalAlpha = 1;
-              ctx.shadowColor = "#facc15";
-              ctx.shadowBlur = 8;
-            } else {
-              ctx.fillStyle = "#666666";
-              ctx.globalAlpha = 0.6;
-            }
-            ctx.fillText(String(number), lx, ly);
-            ctx.restore();
-          }
-          ctx.save();
-          ctx.strokeStyle = "#555555";
-          ctx.lineWidth = 1;
-          ctx.globalAlpha = 0.3;
-          const rIn = radius - thickness / 2;
-          const rOut = radius + thickness / 2;
-          for (let s = 0; s < total; s++) {
-            const a = startAngle + s * step;
-            ctx.beginPath();
-            ctx.moveTo(cx + rIn * Math.cos(a), cy + rIn * Math.sin(a));
-            ctx.lineTo(cx + rOut * Math.cos(a), cy + rOut * Math.sin(a));
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
+      // Target segments (--- ring-looks --- a bright tile per number, the next one pulsing, its number huge behind the ball: ringModesRenderer.ts)
+      if (engine.isCountdownMode() && walls[0]) {
+        countdownView.total = engine.getCountdownTotal();
+        countdownView.target = engine.getCountdownTarget();
+        countdownView.hit = engine.getCountdownHit();
+        countdownView.flashes = engine.getCountdownWrongFlashes();
+        countdownView.map = engine.getCountdownSegmentMap();
+        countdownView.complete = engine.isCountdownComplete();
+        drawCountdownRing(ctx, countdownView, cx, cy, walls[0].radius, engine.getElapsedMs(), wobble);
       }
 
       // Portals
@@ -2498,19 +2420,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const drawStrings = (points: { x: number; y: number }[]) => drawStringArt(ctx, points, drawnBalls.length > 0 ? drawnBalls[0] : null, p.rainbowLines, p.lineColor, time);
       if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
 
-      // Frozen balls (Accumulation)
+      // Frozen balls (Accumulation) (--- ring-looks --- ice with a frost burst, the timer's digits faint behind them: ringModesRenderer.ts)
       if (engine.isAccumulationMode()) {
-        for (const f of engine.getFrozenBalls()) {
-          ctx.globalAlpha = 0.6;
-          ctx.fillStyle = f.color;
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.radius, 0, TWO_PI);
-          ctx.fill();
-          ctx.strokeStyle = "rgba(150, 200, 255, 0.5)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
+        const frozen = engine.getFrozenBalls();
+        drawAccumulationField(ctx, frozen, engine.getAccumulationTimer(), engine.getAccumulationTimerMax(), engine.hasAccumulationEscaped(), frozen.length > 0 ? (labelsRef.current ?? DEFAULT_LABELS).frozenCount(frozen.length) : "", cx, cy, walls[0]?.radius ?? arena, engine.getElapsedMs());
+        ctx.globalAlpha = 1;
       }
 
       // Center dot (Grow / Lines) and Grow strings
@@ -2826,6 +2740,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
+      // --- ring-looks --- Color Match: a halo of the ball's colour of the moment; Accumulation: the timer as a ring round the live ball
+      if (isColorMatch && matchColor && !engine.hasColorMatchEscaped()) for (let i = 0; i < balls.length && i < 16; i++) drawColorMatchHalo(ctx, balls[i].x, balls[i].y, balls[i].radius, matchColor);
+      if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0 && balls.length === 1) drawColorMatchHalo(ctx, balls[0].x, balls[0].y, balls[0].radius, classicRingColor(classicRings.escaped)); // (Classic: a halo of the ring to beat)
+      if (engine.isAccumulationMode() && !engine.hasAccumulationEscaped()) {
+        for (const ball of balls) {
+          if (ball.frozen) continue;
+          drawAccumulationTimerRing(ctx, ball.x, ball.y, ball.radius, engine.getAccumulationTimer(), engine.getAccumulationTimerMax(), engine.getElapsedMs());
+          break;
+        }
+      }
       if (brView && !brLayer.drawsBodies(brView) && brView.images > 1) brLayer.drawBodies(ctx, brView, balls, brRender, true); // --- brick-rebuild --- (the page's ball look: the kaleidoscope's images of its real balls)
       // --- gerald-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
@@ -3068,7 +2992,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // the badge moves to the top-right corner when the scoreboard – the HUD off – sits in the top-left one; the captions start below them)
       if (mazeView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
-        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 /* --- end-banner --- (the banner's entrance) */ }));
+        const mazeExport = recordingRef.current ? exportSizeRef.current : null; // --- end-banner --- (a 9:16 export: the strip keeps between its badge's corners)
+        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 /* --- end-banner --- (the banner's entrance) */, portrait: !!mazeExport && mazeExport.height > mazeExport.width }));
       }
       // --- orb-grid --- Bouncing Orbs: "1089 bouncing orbs" at the top of the square the recorder crops to – on the right while the
       // teams scoreboard holds the top-left corner; the top captions start below it
@@ -3118,32 +3043,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         };
         if (engine.isAccumulationMode()) {
           const frozen = engine.getFrozenBalls().length;
-          if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4");
-          else {
-            const timer = engine.getAccumulationTimer();
-            const max = engine.getAccumulationTimerMax();
-            const seconds = Math.max(0, timer / 1000);
-            const ratio = Math.max(0, timer / max);
-            const fs = Math.max(18, 0.06 * minDim);
-            const sfs = 0.45 * fs;
-            blocks.push({
-              height: fs + (frozen > 0 ? 1.2 * sfs : 0),
-              draw: (y) => {
-                ctx.save();
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = `rgb(${Math.round(255 * (1 - ratio))}, ${Math.round(255 * ratio)}, 80)`;
-                ctx.fillText(seconds.toFixed(1) + "s", cx, y + 0.5 * fs);
-                if (frozen > 0) {
-                  ctx.font = `${sfs}px sans-serif`;
-                  ctx.fillStyle = "#999";
-                  ctx.fillText(L.frozenCount(frozen), cx, y + fs + 0.6 * sfs);
-                }
-                ctx.restore();
-              },
-            });
-          }
+          // (--- end-banner --- the card counts the frozen balls: it goes over the top or the bottom of the ring, wherever it covers fewer of them)
+          if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4", accumulationBannerAt(engine.getFrozenBalls(), cy, minDim));
+          // (--- ring-looks --- the timer and the frozen count are the field's own now: big and faint behind the balls)
         }
         if (engine.isPaintMode()) {
           const paint = engine.getPaintState();
@@ -3230,6 +3132,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // ending, as in every clip the bot and the studio plan, which stay as they were
         if (engine.getCurrentModeName() === "classic" && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) {
           const ringView = engine.getRingEscapeView();
+          // --- ring-looks --- the rings left: a pip per ring in its colour, in the square's top-left corner (the same clips as
+          // the end card: a roster's scoreboard has that corner, a clip's captions count its walls themselves)
+          if (ringView && ringView.rings > 1 && !replay) {
+            const rainbowRings = !!ringEscapeRef.current?.rainbow;
+            modeTopHud = Math.max(modeTopHud, drawRingPips(ctx, ringView.rings, ringView.escaped, (i) => (rainbowRings ? ringRainbowColor(i, ringView.rings, 1) : wallColor(i)), cx - minDim / 2, cy - minDim / 2, minDim, teamInset));
+          }
           if (ringView && ringRunOut(ringView)) bigBanner(L.escaped, (L.ringsOut ?? DEFAULT_LABELS.ringsOut!)(ringView.rings, (ringView.outMs / 1000).toFixed(1)), "#a3e635");
         }
         // --- gerald-multipliers --- the outgrow finish and the "N Gerald made it home" banner (--- end-banner --- the shared
@@ -3298,13 +3206,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- merge-ring --- Merge Ring: the final form (from its appearance, through the hold) or the overflow
         if (mergeRingView && (mergeRingView.finalMs >= 0 || mergeRingView.overflowMs >= 0)) {
           const MR = L.mergeRing ?? DEFAULT_MERGE_RING_LABELS;
-          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc");
+          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc", 0.2); // --- end-banner --- (over the chute: the final form and its burst are in the pile below)
           else bigBanner(MR.overflowTitle, MR.overflowSub(MR.tier(Math.max(1, mergeRingView.topTier)), mergeRingView.merges), "#fb7185");
         }
         // --- spiral-glass --- Spiral Glass: GLASS CLEARED (from the last tile, through the hold) or the TIMEOUT
         if (spiralGlassView && (spiralGlassView.clearedMs >= 0 || spiralGlassView.timeoutMs >= 0)) {
           const SG = L.spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS;
-          if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc");
+          if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc", 0.82); // --- end-banner --- (under the spiral's centre, where the last glass breaks)
           else bigBanner(SG.timeoutTitle, SG.timeoutSub(spiralGlassView.tilesLeft), "#fb7185");
         }
         // --- song-ring --- Song Ring: the tune's name, only now (from the final chord, through the hold), or the TIMEOUT
@@ -3338,65 +3246,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
-          const ballColor = engine.getColorMatchBallColor();
-          if (engine.hasColorMatchEscaped()) bigBanner(L.matched, L.segmentsCleared(prog.total), "#22c55e");
-          else {
-            const fs = Math.max(18, 0.045 * minDim);
-            const sfs = 0.5 * fs;
-            const dot = 0.4 * sfs;
-            blocks.push({
-              height: fs + sfs + (2 * dot + 6) + 4,
-              draw: (y) => {
-                ctx.save();
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.fillStyle = "#fff";
-                ctx.fillText(`${prog.broken} / ${prog.total}`, cx, y + 0.5 * fs);
-                const ly = y + fs + 0.6 * sfs;
-                ctx.font = `${sfs}px sans-serif`;
-                ctx.fillStyle = "#aaa";
-                ctx.fillText(L.matchColour, cx, ly);
-                const dy = ly + 0.5 * sfs + dot + 4;
-                ctx.fillStyle = ballColor;
-                ctx.shadowColor = ballColor;
-                ctx.shadowBlur = 6;
-                ctx.beginPath();
-                ctx.arc(cx, dy, dot, 0, TWO_PI);
-                ctx.fill();
-                ctx.restore();
-              },
-            });
-          }
+          if (engine.hasColorMatchEscaped()) bigBanner(L.matched, L.segmentsCleared(prog.total), "#22c55e"); // (--- ring-looks --- the counter and the rule are the ring's own now)
         }
-        if (engine.isCountdownMode()) {
-          const target = engine.getCountdownTarget();
-          const total = engine.getCountdownTotal();
-          const hitCount = engine.getCountdownHit().size;
-          if (engine.isCountdownComplete()) bigBanner(L.complete, L.segmentsHitInOrder(total), "#22c55e");
-          else {
-            const fs = Math.max(28, 0.1 * minDim);
-            const sfs = 0.25 * fs;
-            blocks.push({
-              height: fs + 1.1 * sfs,
-              draw: (y) => {
-                ctx.save();
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = "#facc15";
-                ctx.shadowColor = "#facc15";
-                ctx.shadowBlur = 15;
-                ctx.fillText(String(target), cx, y + 0.5 * fs);
-                ctx.shadowBlur = 0;
-                ctx.font = `${sfs}px sans-serif`;
-                ctx.fillStyle = "#888";
-                ctx.fillText(`${hitCount}/${total}`, cx, y + fs + 0.5 * sfs);
-                ctx.restore();
-              },
-            });
-          }
-        }
+        if (engine.isCountdownMode() && engine.isCountdownComplete()) bigBanner(L.complete, L.segmentsHitInOrder(engine.getCountdownTotal()), "#22c55e"); // (--- ring-looks --- the number to hit is the ring's own now)
         if (replay) blocks.length = 0; // --- camera --- the mode banners wait for the end of the escape replay
         // (--- end-banner --- a banner with a place of its own is not part of the stack in the middle)
         let totalH = 0;
@@ -3425,12 +3277,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- end-banner --- a banner not drawn this frame plays its entrance again the next time; one in the middle of the
         // square moves the teams' winner banner lower
         endBannerMid = false;
+        let bannerFresh = false;
         for (const layer of endBanners) {
           layer.endFrame();
           if (!layer.shown) continue;
+          if (layer.fresh()) bannerFresh = true;
           const mid = (layer.rect.y + layer.rect.h / 2 - squareTop) / minDim;
           if (mid > 0.34 && mid < 0.64) endBannerMid = true;
         }
+        // --- end-banner --- a verdict that came with the run's last step stays up END_BANNER_HOLD_MS before the end screen (and
+        // the end of a recording): the page and the fast export ask holdsEndScreen(). Not where the page holds the ending
+        // itself (a roster's winner banner, a multipliers finish: the holds would add up) and not in a clip with captions of
+        // its own, whose length the planner set (the bot's and the studio's clips stay as they were).
+        endBannerHoldRef.current = bannerFresh && !captionsRef.current && !teamLayer.isActive() && !engine.endsWithMultiplierFinish();
         if (p.watermarkText) {
           ctx.save();
           const fs = Math.max(14, 0.045 * minDim);
@@ -4146,7 +4005,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setSongProgress: (v) => {
           songProgressRef.current = v;
         },
-        holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
+        holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen() || endBannerHoldRef.current, // (--- end-banner --- a verdict not read yet)
         slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         hud: () => liveHud, // --- low-findings --- (the HUD the last frame reported, in canvas px)
         stepOnce: realTimeStepper.step, // --- slow-motion --- (a driver that paces the steps with the switch off: one whole step, its time scale)
