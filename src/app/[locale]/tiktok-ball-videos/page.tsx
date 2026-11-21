@@ -42,7 +42,8 @@ export default async function TikTokPage({ params }: { params: Promise<{ locale:
         <p>{t("p8", v)}</p>
       </section>
       <div className="not-prose border-t border-line pt-8">
-        <Link href="/simulator?mode=classic" className={buttonClass({ variant: "primary", size: "md" })} data-track="cta_click" data-track-id="tiktok_cta">
+        {/* --- site-nav --- (under 640 px the label may wrap: in Polish and Spanish it is wider than a 320 px screen) */}
+        <Link href="/simulator?mode=classic" className={buttonClass({ variant: "primary", size: "md", className: "max-w-full max-sm:h-auto max-sm:py-2 max-sm:whitespace-normal" })} data-track="cta_click" data-track-id="tiktok_cta">
           {t("cta")}
           <IconArrowRight size={16} />
         </Link>

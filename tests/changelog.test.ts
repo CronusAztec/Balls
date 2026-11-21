@@ -9,6 +9,9 @@ import sitemap from "@/app/sitemap";
 import { DESKTOP_VERSION } from "@/lib/desktop/release";
 import { WHATS_NEW_STORAGE_KEY, claimWhatsNew, compareVersions, whatsNewDecision, type SeenStore } from "@/lib/desktop/whatsNew";
 import { SITE_NAME, pageUrl } from "@/lib/site";
+import { MODE_IDS, type ModeId } from "@/lib/physics/types";
+import { MODE_CARD_ORDER } from "@/lib/modes";
+import { MODE_SINCE, MODE_SINCE_BASELINE } from "@/lib/siteDesign";
 import * as changelogScript from "../scripts/changelog.mjs";
 import { ghCalls, releaseBody } from "../scripts/release/publish-downloads.mjs";
 import en from "../messages/en.json";
@@ -49,7 +52,59 @@ describe("the changelog data", () => {
     expect(file.releases.length).toBeGreaterThan(0);
     for (const r of file.releases) {
       expect(Object.keys(r).sort(), String(r.id)).toEqual(["date", "headline", "id", "items", "product", "version"]);
-      for (const item of r.items as Record<string, unknown>[]) expect(Object.keys(item).sort(), String(r.id)).toEqual(["kind", "text"]);
+      // --- site-nav --- an item that announces modes also names them ("modes", optional; its own case below holds it to the rules)
+      for (const item of r.items as Record<string, unknown>[]) expect(Object.keys(item).sort(), String(r.id)).toEqual("modes" in item ? ["kind", "modes", "text"] : ["kind", "text"]);
+    }
+  });
+
+  // --- site-nav --- the "Try it" links of the /changelog page
+  it("names the modes an item announces: known modes with a card, each named in the item's English text, in the release each arrived in", () => {
+    const names = en.Modes as unknown as Record<string, { name: string }>;
+    const tagged: { release: string; product: string; version: string; mode: ModeId }[] = [];
+    for (const r of CHANGELOG) {
+      r.items.forEach((item, i) => {
+        if (item.modes === undefined) return;
+        const label = `${r.id}.${i}`;
+        expect(Array.isArray(item.modes), label).toBe(true);
+        expect(item.modes.length, label).toBeGreaterThan(0);
+        expect(new Set(item.modes).size, label).toBe(item.modes.length);
+        for (const mode of item.modes) {
+          expect(MODE_IDS, `${label} ${mode}`).toContain(mode);
+          expect(MODE_CARD_ORDER, `${label} ${mode}`).toContain(mode);
+          expect(item.text.en, `${label} names ${names[mode].name}`).toContain(names[mode].name);
+          tagged.push({ release: r.id, product: r.product, version: r.version, mode });
+        }
+        // in the order the sentence names them, so the links read as the sentence does
+        const at = item.modes.map((mode) => item.text.en.indexOf(names[mode].name));
+        expect(at, label).toEqual([...at].sort((a, b) => a - b));
+      });
+    }
+    // The website: every mode is announced once, in the release it arrived in (MODE_SINCE, which the wall's Newest sort and
+    // "New" badge read); of the ten modes of the first release, the three its note names.
+    const site = tagged.filter((x) => x.product === "site");
+    expect(new Set(site.map((x) => x.mode)).size).toBe(site.length);
+    for (const x of site) expect(MODE_SINCE[x.mode], `${x.release} ${x.mode}`).toBe(x.version);
+    const released = MODE_CARD_ORDER.filter((mode) => MODE_SINCE[mode] !== MODE_SINCE_BASELINE && CHANGELOG.some((r) => r.product === "site" && r.version === MODE_SINCE[mode]));
+    expect(site.filter((x) => x.version !== MODE_SINCE_BASELINE).map((x) => x.mode).sort()).toEqual([...released].sort());
+    expect(released.length).toBeGreaterThanOrEqual(38);
+    expect(site.filter((x) => x.version === MODE_SINCE_BASELINE).map((x) => x.mode).sort()).toEqual(["classic", "multiply", "paint"]);
+    // The Windows app: a mode it announces arrived on the website first, in a release no later than the app's.
+    const app = tagged.filter((x) => x.product === "app");
+    expect(app.length).toBeGreaterThan(0);
+    const dateOf = (product: string, version: string) => CHANGELOG.find((r) => r.product === product && r.version === version)?.date ?? "";
+    for (const x of app) expect(dateOf("site", MODE_SINCE[x.mode]) <= dateOf("app", x.version), `${x.release} ${x.mode}`).toBe(true);
+  });
+
+  it("the page links each announced mode to the studio, by its name, and CHANGELOG.md does not read the field", () => {
+    const page = read("src/app/[locale]/changelog/page.tsx");
+    expect(page).toContain("{item.modes && item.modes.length > 0 && (");
+    expect(page).toContain("href={`/simulator?mode=${mode}`}");
+    expect(page).toContain('aria-label={gallery("tryAria", { name: modes(`${mode}.name`) })}');
+    const withoutModes = CHANGELOG.map((r) => ({ ...r, items: r.items.map(({ kind, text }) => ({ kind, text })) }));
+    expect(changelogScript.renderChangelog(withoutModes)).toBe(changelogScript.renderChangelog(CHANGELOG));
+    for (const m of [en, pl, es] as unknown as { Gallery: { tryIt: string; tryAria: string } }[]) {
+      expect(m.Gallery.tryIt.length).toBeGreaterThan(3);
+      expect(m.Gallery.tryAria).toContain("{name}");
     }
   });
 

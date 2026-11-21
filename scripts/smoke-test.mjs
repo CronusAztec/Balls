@@ -387,6 +387,58 @@ check("root redirects to a locale", /\/(en|pl|es)\/$/.test(page.url()), `(${page
   // --- review fix (site-static) --- the root redirect page keeps a title of its own (page metadata) and its favicon
   const html = await (await page.request.get(`${BASE}/`)).text();
   check("the root redirect page has a title and a favicon under the base path", /<title>[^<]+<\/title>/.test(html) && html.includes(`href="${BASE_PATH}/icon.svg"`), `(${(/<title>[^<]*<\/title>/.exec(html) || ["no title"])[0]})`);
+  // --- site-nav --- the bare address carries the home page's link preview (a scraper does not follow the redirect): the
+  // English home page's title and description, its card as og:image and Twitter image, /en/ as the canonical address
+  const home = await (await page.request.get(`${BASE}/en/`)).text();
+  const meta = (doc, re) => (re.exec(doc) || ["", ""])[1];
+  const head = (doc) => ({
+    title: meta(doc, /<title>([^<]+)<\/title>/),
+    description: meta(doc, /<meta name="description" content="([^"]+)"/),
+    canonical: meta(doc, /<link rel="canonical" href="([^"]+)"/),
+    ogImage: meta(doc, /<meta property="og:image" content="([^"]+)"/),
+    ogTitle: meta(doc, /<meta property="og:title" content="([^"]+)"/),
+    card: meta(doc, /<meta name="twitter:card" content="([^"]+)"/),
+    twitterImage: meta(doc, /<meta name="twitter:image" content="([^"]+)"/),
+  });
+  const root = head(html);
+  const en = head(home);
+  const picture = root.ogImage ? await page.request.get(root.ogImage) : null;
+  check(
+    "the root address has the home page's link preview: title, description, card and Twitter card, canonical /en/, and stays out of search results",
+    root.title.length > 20 && JSON.stringify(root) === JSON.stringify(en) && root.canonical === `${BASE}/en/` && root.ogImage === `${BASE}/og/en/home.png` && root.twitterImage === root.ogImage && root.card === "summary_large_image" && !!picture && picture.ok() && /image\/png/.test(picture.headers()["content-type"] ?? "") && /<meta name="robots" content="noindex"/.test(html) && !/<meta name="robots" content="noindex"/.test(home),
+    `(${JSON.stringify(root)}, picture ${picture?.status()})`,
+  );
+}
+{
+  // --- site-nav --- an address typed without its language is no dead end: a known page moves on to the same page in the
+  // browser's language with the query and the hash kept, and an unknown one stays a 404 in that language
+  const visits = {};
+  for (const [name, locale, link] of [["pricing", "en-US", "/pricing/"], ["studio", "pl-PL", "/simulator/?mode=fightLeague#stage"], ["noSlash", "es-ES", "/gallery"], ["unknown", "pl-PL", "/no-such-page/"]]) {
+    const typed = await browser.newContext({ locale, viewport: { width: 1280, height: 800 } });
+    try {
+      const tp = await typed.newPage();
+      const res = await tp.goto(`${BASE}${link}`, { waitUntil: "domcontentloaded" });
+      if (name !== "unknown") await tp.waitForURL(/\/(en|pl|es)\/(simulator|pricing|gallery)\//, { timeout: 10000 }).catch(() => {});
+      // (the address as the redirect left it, before the page it leads to tidies its own query)
+      const url = tp.url().slice(BASE.length);
+      await tp.waitForLoadState("networkidle").catch(() => {});
+      await tp.waitForFunction(() => document.querySelectorAll("h1").length > 0, null, { timeout: 10000 }).catch(() => {});
+      if (name === "unknown") await tp.waitForFunction(() => document.documentElement.lang === "pl", null, { timeout: 5000 }).catch(() => {});
+      visits[name] = { first: res.status(), url, lang: await tp.evaluate(() => document.documentElement.lang), exits: await tp.$$eval("main a", (links) => links.map((a) => a.getAttribute("href") ?? "")) };
+    } finally {
+      await typed.close().catch(() => {});
+    }
+  }
+  check(
+    "an address without a language moves on to that page in the browser's language, query and hash kept (/pricing/, /simulator/?mode=…, /gallery)",
+    visits.pricing.url === "/en/pricing/" && visits.pricing.lang === "en" && visits.studio.url === "/pl/simulator/?mode=fightLeague#stage" && visits.studio.lang === "pl" && visits.noSlash.url === "/es/gallery/" && Object.values(visits).every((v) => v.first === 404),
+    `(${JSON.stringify(Object.fromEntries(Object.entries(visits).map(([k, v]) => [k, `${v.first} ${v.url} ${v.lang}`])))})`,
+  );
+  check(
+    "an unknown address without a language stays a 404 in the browser's language, with three ways back: home, the studio and the modes wall",
+    visits.unknown.url === "/no-such-page/" && visits.unknown.lang === "pl" && visits.unknown.exits.join() === [`${BASE_PATH}/pl/`, `${BASE_PATH}/pl/simulator/`, `${BASE_PATH}/pl/#modes`].join(),
+    `(${visits.unknown.url}, lang ${visits.unknown.lang}, exits ${visits.unknown.exits.join(" ")})`,
+  );
 }
 for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/modes/drop.webp", "/modes/box.webp", "/modes/pendulum.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
   const res = await page.request.get(`${BASE}${asset}`);
@@ -631,6 +683,209 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
     same && deep && addresses && lists,
     `(${JSON.stringify(runs)})`,
   );
+}
+// --- site-nav --- The header. The wordmark keeps its full width on the narrowest phones and the page does not scroll sideways
+// (it ended in an ellipsis under 390 px); at 768 px the links are in the menu (they wrapped to two lines and squeezed the
+// wordmark to "J…"); from 1024 px the bar lists Modes, Gallery, the Windows app, Pricing and About on one line, each on one
+// line, and the Changelog from 1280 px. Modes leads to the wall from every page; the studio has one link, the call to action.
+{
+  const bar = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  try {
+    const bp = await bar.newPage();
+    const measure = () =>
+      bp.evaluate(() => {
+        const header = document.querySelector("header");
+        const logo = header.querySelector("a.font-display");
+        const range = document.createRange();
+        range.selectNodeContents(logo.querySelector("span"));
+        const shown = (el) => el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden";
+        const links = [...header.querySelectorAll("nav a")].filter((a) => shown(a) && !a.closest('[data-testid="mobile-menu"]'));
+        const items = [...header.querySelectorAll(":scope > div > *")].filter(shown).map((el) => el.getBoundingClientRect());
+        return {
+          logo: Math.round(logo.getBoundingClientRect().width) - Math.round(range.getBoundingClientRect().width),
+          links: links.map((a) => `${(a.textContent ?? "").trim()}>${a.getAttribute("href")}`),
+          twoLines: links.filter((a) => a.scrollHeight > a.clientHeight + 1 || a.scrollWidth > a.clientWidth + 1 || a.getBoundingClientRect().height > header.getBoundingClientRect().height).length,
+          overlap: items.some((box, i) => i > 0 && box.left < items[i - 1].right - 1),
+          menu: shown(header.querySelector("button[aria-controls]")),
+          sideways: document.documentElement.scrollWidth - window.innerWidth,
+          studioLinks: [...header.querySelectorAll("a")].filter((a) => shown(a) && !a.closest('[data-testid="mobile-menu"]') && /\/simulator\/$/.test(a.getAttribute("href") ?? "")).length,
+        };
+      });
+    const seen = {};
+    for (const locale of ["en", "pl", "es"]) {
+      for (const width of [320, 360, 768, 1024, 1280]) {
+        await bp.setViewportSize({ width, height: 780 });
+        await bp.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "domcontentloaded" });
+        await bp.locator("header a.font-display").waitFor({ timeout: 10000 });
+        seen[`${locale}@${width}`] = await measure();
+      }
+    }
+    const whole = Object.values(seen).every((m) => m.logo >= 0 && m.sideways <= 0 && !m.overlap && m.twoLines === 0);
+    const menuBelow = ["en", "pl", "es"].every((l) => [320, 360, 768].every((w) => seen[`${l}@${w}`].menu && seen[`${l}@${w}`].links.length === 0) && [1024, 1280].every((w) => !seen[`${l}@${w}`].menu));
+    const names = (m) => m.links.map((link) => link.split(">")[0]).join();
+    const barLinks = names(seen["en@1024"]) === "Modes,Gallery,Windows app,Pricing,About" && names(seen["en@1280"]) === "Modes,Gallery,Windows app,Pricing,About,Changelog" && ["pl", "es"].every((l) => seen[`${l}@1024`].links.length === 5 && seen[`${l}@1280`].links.length === 6);
+    const oneStudioLink = Object.entries(seen).every(([key, m]) => m.studioLinks === (Number(key.split("@")[1]) >= 390 ? 1 : 0));
+    check(
+      "header: the wordmark is whole and nothing wraps, overlaps or scrolls sideways from 320 to 1280 px in English, Polish and Spanish; the links are in the menu below 1024 px",
+      whole && menuBelow,
+      `(${JSON.stringify(Object.fromEntries(Object.entries(seen).map(([k, m]) => [k, `logo${m.logo >= 0 ? "+" : ""}${m.logo} side${m.sideways} wrap${m.twoLines}${m.overlap ? " overlap" : ""}${m.menu ? " menu" : ""}`])))})`,
+    );
+    check(
+      "header: the bar lists Modes, Gallery, Windows app, Pricing and About from 1024 px and the Changelog from 1280 px, with one link to the studio (the call to action)",
+      barLinks && oneStudioLink && seen["en@1280"].links[0] === `Modes>${BASE_PATH}/en/#modes`,
+      `(1024: ${seen["en@1024"].links.join(" ")}; 1280: ${seen["en@1280"].links.join(" ")})`,
+    );
+    // Modes: on the landing page a plain "#modes" (nothing loads), from another page the landing page at its wall; the address
+    // drops the hash once the wall is shown
+    await bp.setViewportSize({ width: 1280, height: 800 });
+    await bp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+    const onLanding = await bp.locator("header nav a", { hasText: "Modes" }).first().getAttribute("href");
+    await bp.goto(`${BASE}/en/pricing/`, { waitUntil: "networkidle" });
+    await bp.locator("header nav a", { hasText: "Modes" }).first().click();
+    await bp.waitForURL(/\/en\/(#modes)?$/, { timeout: 15000 }).catch(() => {});
+    await bp.waitForFunction(() => location.hash === "" && !!document.querySelector("#modes"), null, { timeout: 10000 }).catch(() => {});
+    await bp.waitForTimeout(1200);
+    const atWall = await bp.evaluate(() => ({ url: `${location.pathname}${location.search}${location.hash}`, top: Math.round(document.querySelector("#modes")?.getBoundingClientRect().top ?? -999) }));
+    check("header: Modes leads to the modes wall, from the landing page (#modes) and from another page", onLanding === "#modes" && atWall.url === `${BASE_PATH}/en/` && atWall.top >= 56 && atWall.top <= 260, `(landing href ${onLanding}, from pricing ${JSON.stringify(atWall)})`);
+
+    // The menu at 390 px: Modes and the Changelog are in it, the page behind is inert and does not scroll, Tab stays in the
+    // header and the sheet, Escape closes it with the focus back on the menu button and the page where it was.
+    await bp.setViewportSize({ width: 390, height: 844 });
+    await bp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+    await bp.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" }));
+    await bp.getByRole("button", { name: "Open menu" }).click();
+    await bp.waitForTimeout(350);
+    const opened = await bp.evaluate(() => ({
+      items: [...document.querySelectorAll('[data-testid="mobile-menu"] nav a')].map((a) => (a.textContent ?? "").trim()),
+      inert: [...document.querySelectorAll("main, footer")].map((el) => el.hasAttribute("inert")),
+      header: document.querySelector("header").hasAttribute("inert"),
+      overflow: getComputedStyle(document.documentElement).overflowY,
+      y: Math.round(window.scrollY),
+    }));
+    const stops = [];
+    for (let i = 0; i < 18; i++) {
+      await bp.keyboard.press("Tab");
+      stops.push(await bp.evaluate(() => (document.activeElement === document.body ? "body" : document.activeElement.closest("header") ? "header" : "page")));
+    }
+    await bp.mouse.move(195, 500);
+    await bp.mouse.wheel(0, 700);
+    await bp.waitForTimeout(350);
+    const wheeled = await bp.evaluate(() => Math.round(window.scrollY));
+    await bp.keyboard.press("Escape");
+    await bp.waitForTimeout(350);
+    const closed = await bp.evaluate(() => ({
+      expanded: document.querySelector("header button[aria-controls]").getAttribute("aria-expanded"),
+      focus: document.activeElement === document.querySelector("header button[aria-controls]"),
+      inert: document.querySelectorAll("main[inert], footer[inert]").length,
+      overflow: document.documentElement.style.overflow,
+      y: Math.round(window.scrollY),
+    }));
+    check(
+      "menu: Modes and the Changelog are in the sheet; while it is open the page behind is inert and does not scroll, and Tab stays in the header and the sheet",
+      opened.items.join() === "Modes,Gallery,Windows app,Pricing,About,Changelog,Account" && opened.inert.length === 2 && opened.inert.every(Boolean) && !opened.header && opened.overflow === "hidden" && opened.y === 600 && wheeled === 600 && !stops.includes("page") && stops.filter((x) => x === "header").length >= 14,
+      `(${JSON.stringify(opened)}, wheel ${wheeled}, stops ${stops.join(",")})`,
+    );
+    check("menu: Escape closes it, the focus returns to the menu button, the page is live again and where it was", closed.expanded === "false" && closed.focus && closed.inert === 0 && closed.overflow === "" && closed.y === 600, `(${JSON.stringify(closed)})`);
+  } finally {
+    await bar.close().catch(() => {});
+  }
+}
+// --- site-nav --- The hero's "See the modes" is there for every visitor and goes to the wall; the footer lists only shortcuts
+// that work on its page ("/" on the landing page, the studio's three in the studio, none elsewhere); the studio's back arrow
+// returns to the card the visitor left from the landing page, and is a link to the wall for a visitor who came another way.
+{
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const heroLinks = await page.$$eval("section[aria-labelledby=hero-title] a", (links) => links.map((a) => `${(a.textContent ?? "").trim()}>${a.getAttribute("href")}`));
+  const shortcutsOf = () => page.$$eval("footer p[aria-label]", (rows) => rows.map((p) => [...p.querySelectorAll("kbd")].map((k) => (k.textContent ?? "").trim()).join("+")));
+  const shortcuts = { landing: await shortcutsOf() };
+  await page.goto(`${BASE}/en/pricing/`, { waitUntil: "networkidle" });
+  shortcuts.pricing = await shortcutsOf();
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  shortcuts.studio = await shortcutsOf();
+  check(
+    "hero: See the modes sits between the primary action and the download, and links to the wall",
+    heroLinks.slice(0, 3).map((link) => link.split(">")[1]).join() === [`${BASE_PATH}/en/simulator/`, "#modes", `${BASE_PATH}/en/download/`].join() && heroLinks[1].startsWith("See the modes>"),
+    `(${heroLinks.join(" | ")})`,
+  );
+  check(
+    "footer: the shortcut line lists only keys that work on the page: / on the landing page, Space, R and the palette's in the studio, none elsewhere",
+    shortcuts.landing.join() === "/" && shortcuts.pricing.length === 0 && shortcuts.studio.length === 1 && /^Space\+R\+.+K$/.test(shortcuts.studio[0]),
+    `(${JSON.stringify(shortcuts)})`,
+  );
+  // the back arrow
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  await page.getByTestId("modes-sort").selectOption("az");
+  await page.waitForTimeout(600);
+  await page.locator('#modes [data-mode-card="waveTank"]').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(900);
+  const left = await page.evaluate(() => ({ y: Math.round(window.scrollY), url: `${location.search}${location.hash}` }));
+  await page.locator('#modes [data-mode-card="waveTank"]').click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const arrow = page.locator("header a", { hasText: "Back" }).first();
+  const arrowHref = await arrow.getAttribute("href");
+  await arrow.click();
+  await page.waitForURL(/\/en\/\?sort=az$/, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1800);
+  const returned = await page.evaluate(() => ({ y: Math.round(window.scrollY), url: `${location.search}${location.hash}` }));
+  await page.goForward().catch(() => {});
+  await page.waitForTimeout(800);
+  const forward = new URL(page.url()).pathname;
+  await page.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+  await page.locator("header a", { hasText: "Back" }).first().click();
+  await page.waitForFunction(() => /\/en\/$/.test(location.pathname) && location.hash === "" && !!document.querySelector("#modes"), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const fresh = await page.evaluate(() => ({ url: `${location.pathname}${location.search}${location.hash}`, top: Math.round(document.querySelector("#modes")?.getBoundingClientRect().top ?? -999) }));
+  check(
+    "studio: the back arrow returns to the card the visitor left on the landing page (a step back in history), and is a link to the wall otherwise",
+    arrowHref === `${BASE_PATH}/en/#modes` && left.y > 1500 && Math.abs(returned.y - left.y) <= 2 && returned.url === left.url && forward === `${BASE_PATH}/en/simulator/` && fresh.url === `${BASE_PATH}/en/` && fresh.top >= 56 && fresh.top <= 260,
+    `(href ${arrowHref}, left ${JSON.stringify(left)}, returned ${JSON.stringify(returned)}, forward ${forward}, fresh ${JSON.stringify(fresh)})`,
+  );
+}
+// --- site-nav --- The gallery on a phone: two cards a row from 360 px with every name in full and no sideways scroll, the first
+// row's pictures load with the page, and the shelf chips (radio buttons, no script needed) show one shelf's presets.
+{
+  const phone = await browser.newContext({ viewport: { width: 360, height: 780 }, javaScriptEnabled: false });
+  try {
+    const gp = await phone.newPage();
+    const layout = {};
+    for (const locale of ["en", "pl", "es"]) {
+      await gp.goto(`${BASE}/${locale}/gallery/`, { waitUntil: "load" });
+      layout[locale] = await gp.evaluate(() => {
+        const cards = [...document.querySelectorAll("[data-gallery-card]")];
+        return {
+          cards: cards.length,
+          columns: new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size,
+          cut: cards.filter((c) => { const h = c.querySelector("h2"); return h.scrollWidth > h.clientWidth + 1 || h.scrollHeight > h.clientHeight + 1 || getComputedStyle(h).textOverflow === "ellipsis"; }).length,
+          sideways: document.documentElement.scrollWidth - window.innerWidth,
+          eager: [...document.querySelectorAll("[data-gallery-card] img")].map((img) => img.getAttribute("loading")).indexOf("lazy"),
+        };
+      });
+    }
+    const chips = await gp.$$eval('[data-testid="gallery-filter"] label', (labels) => labels.map((l) => l.getAttribute("for")));
+    const shown = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.closest("li").getAttribute("data-shelf")));
+    const total = (await shown()).length;
+    const perShelf = {};
+    for (const id of chips.slice(1)) {
+      await gp.locator(`label[for="${id}"]`).click();
+      const list = await shown();
+      perShelf[id.replace("gallery-shelf-", "")] = { n: list.length, own: list.every((shelf) => `gallery-shelf-${shelf}` === id), label: Number(((await gp.locator(`label[for="${id}"] span`).textContent()) ?? "").trim()) };
+    }
+    await gp.locator('label[for="gallery-shelf-all"]').click();
+    const backToAll = (await shown()).length;
+    check(
+      "gallery: two cards a row at 360 px in English, Polish and Spanish, every name in full, no sideways scroll, and the first row's pictures are not lazy",
+      Object.values(layout).every((l) => l.cards >= 19 && l.columns === 2 && l.cut === 0 && l.sideways <= 0 && l.eager === 4),
+      `(${JSON.stringify(layout)})`,
+    );
+    check(
+      "gallery: the shelf chips are radio buttons that show one shelf's presets with scripts off, each with its count, and All shows every preset again",
+      chips[0] === "gallery-shelf-all" && chips.length >= 4 && Object.values(perShelf).every((x) => x.n > 0 && x.own && x.label === x.n) && Object.values(perShelf).reduce((sum, x) => sum + x.n, 0) === total && backToAll === total,
+      `(${chips.join(" ")}, ${JSON.stringify(perShelf)}, all ${total} → ${backToAll})`,
+    );
+  } finally {
+    await phone.close().catch(() => {});
+  }
 }
 await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 await page.screenshot({ path: path.join(outDir, "landing.png"), fullPage: true });
@@ -1743,6 +1998,38 @@ await page.getByRole("button", { name: /English/ }).click();
 await page.getByRole("button", { name: /Español/ }).click(); // --- review fix (ui-i18n) --- a disclosure list of buttons, not an ARIA menu
 await page.waitForURL(/\/es\/simulator\//);
 check("language switch to Spanish", page.url().includes("/es/simulator/"), `(${page.url()})`);
+// --- site-nav --- a language switch keeps the visitor's place: the page, its query, its hash and how far it was scrolled, from
+// the header's list and from the footer's language links (with a shelf chosen on the landing page, the wall does not take over)
+{
+  await page.goto(`${BASE}/en/pricing/?x=1#restore`, { waitUntil: "networkidle" });
+  await page.evaluate(() => window.scrollTo({ top: 1400, behavior: "instant" }));
+  await page.waitForTimeout(300);
+  await page.locator("header").getByRole("button", { name: /English/ }).first().click();
+  await page.getByRole("button", { name: /Polski/ }).click();
+  await page.waitForURL(/\/pl\/pricing\//, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  const header = await page.evaluate(() => ({ url: `${location.pathname}${location.search}${location.hash}`, y: Math.round(window.scrollY), lang: document.documentElement.lang }));
+  await page.goto(`${BASE}/en/?family=battle`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+  await page.waitForTimeout(400);
+  const bottom = await page.evaluate(() => Math.round(window.scrollY));
+  const hrefs = await page.$$eval("footer a[lang]", (links) => links.map((a) => a.getAttribute("href")));
+  await page.locator('footer a[lang="es"]').click();
+  await page.waitForURL(/\/es\/\?family=battle$/, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const footer = await page.evaluate(() => ({ url: `${location.pathname}${location.search}${location.hash}`, y: Math.round(window.scrollY), cards: document.querySelectorAll("#modes [data-mode-card]").length, footerInView: document.querySelector('footer a[lang="es"]').getBoundingClientRect().top < window.innerHeight }));
+  check(
+    "language switch: the header's list keeps the query, the hash and the scroll position",
+    header.url === `${BASE_PATH}/pl/pricing/?x=1#restore` && header.lang === "pl" && Math.abs(header.y - 1400) < 400,
+    `(${JSON.stringify(header)})`,
+  );
+  check(
+    "language switch: a footer language link keeps the query and the place on the landing page with a shelf chosen (its href is the plain page)",
+    hrefs.join() === [`${BASE_PATH}/en/`, `${BASE_PATH}/pl/`, `${BASE_PATH}/es/`].join() && footer.url === `${BASE_PATH}/es/?family=battle` && footer.cards === 8 && bottom > 1500 && Math.abs(footer.y - bottom) < 400 && footer.footerInView,
+    `(hrefs ${hrefs.join(" ")}, bottom ${bottom}, ${JSON.stringify(footer)})`,
+  );
+}
 });
 
 await smokeBlock("mode-card", async () => {
@@ -19688,6 +19975,30 @@ await smokeBlock("changelog", async () => {
   await page.waitForTimeout(600);
   const landed = await page.evaluate((id) => Math.round(document.getElementById(id)?.getBoundingClientRect().top ?? -999), anchorId);
   check("changelog: a release anchor scrolls the section below the sticky header", landed >= 56 && landed <= 200, `(#${anchorId} top ${landed}px, first ${firstId})`);
+
+  // --- site-nav --- an item that announces modes offers each one in the studio ("Try it"), by its name in the page's language
+  {
+    const tried = {};
+    for (const locale of ["en", "pl", "es"]) {
+      await page.goto(`${BASE}/${locale}/changelog/`, { waitUntil: "networkidle" });
+      tried[locale] = await page.$$eval('[data-testid="changelog-try"]', (rows) => rows.map((row) => ({ release: row.closest("section")?.id ?? "", label: (row.querySelector("span")?.textContent ?? "").trim(), links: [...row.querySelectorAll("a")].map((a) => `${(a.textContent ?? "").trim()}>${a.getAttribute("href")}`) })));
+    }
+    const merge = tried.en.find((row) => row.release === "site-1-12-0");
+    const sameModes = ["pl", "es"].every((l) => tried[l].length === tried.en.length && tried[l].every((row, i) => row.links.map((x) => x.split("mode=")[1]).join() === tried.en[i].links.map((x) => x.split("mode=")[1]).join()));
+    await page.goto(`${BASE}/en/changelog/#site-1-12-0`, { waitUntil: "networkidle" });
+    await page.locator('#site-1-12-0 [data-testid="changelog-try"] a').first().click();
+    await page.waitForURL(/\/en\/simulator\/\?mode=mergeRing/, { timeout: 15000 }).catch(() => {});
+    const opened = await page.getByTestId("stage-strip").getByRole("button").first().locator("span.font-medium").first().innerText({ timeout: 15000 }).catch(() => "");
+    check(
+      "changelog: a release that announces modes links each one to the studio (Try it), in every language, and the link opens that mode",
+      tried.en.length >= 20 && tried.en.every((row) => row.label === "Try it" && row.links.length > 0 && row.links.every((x) => /^.+>.*\/en\/simulator\/\?mode=[A-Za-z]+$/.test(x))) && merge?.links[0] === `Merge Ring>${BASE_PATH}/en/simulator/?mode=mergeRing` && sameModes && tried.pl[0].label === "Wypróbuj" && tried.es[0].label === "Pruébalo" && opened === "Merge Ring",
+      `(${tried.en.length} items, ${JSON.stringify(merge)}, pl ${tried.pl.length}, es ${tried.es.length}, opened "${opened}")`,
+    );
+    // the download page names its version's notes
+    await page.goto(`${BASE}/en/download/`, { waitUntil: "networkidle" });
+    const notes = await page.getByTestId("download-whats-new").evaluate((a) => ({ text: (a.textContent ?? "").trim(), href: a.getAttribute("href") })).catch(() => null);
+    check("changelog: the download page links to the notes of the Windows app version it offers", !!notes && notes.text === `What's new in ${newestApp}` && notes.href === `${BASE_PATH}/en/changelog/#app-${newestApp.replace(/\./g, "-")}`, `(${JSON.stringify(notes)}, newest app ${newestApp})`);
+  }
 
   // every release stays on the page, the older ones too, with their items visible and no script needed
   const plain = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 900 } });

@@ -32,7 +32,11 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
         <JsonLd data={breadcrumbs} />
         <Navbar variant="studio" />
         {/* --- review fix (site-static) --- the page's main heading for search and screen readers, outside the Suspense boundary */}
-        <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
+        {/* --- site-nav --- in a landmark of its own (the page's main is inside the studio, which renders in the browser only): a
+            heading outside every landmark is passed over by landmark navigation */}
+        <section aria-label={t("SimulatorPage.heading")}>
+          <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
+        </section>
         <div id="content">
           <Suspense fallback={<div className="flex h-[calc(100svh-56px)] items-center justify-center text-sm text-ink-3">…</div>}>
             <Simulator />

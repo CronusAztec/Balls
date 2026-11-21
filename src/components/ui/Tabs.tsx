@@ -33,6 +33,7 @@ export default function TabStrip({
   itemClassName,
   labelClassName,
   tooltipClassName,
+  orientation,
 }: {
   items: readonly TabStripItem[];
   /** The open item – or items, where several can be open at once (the studio's rail). */
@@ -48,6 +49,8 @@ export default function TabStrip({
   labelClassName?: string;
   /** Classes of the hover label (shown where the text label is hidden); leave out for none. */
   tooltipClassName?: string;
+  /** --- site-nav --- "vertical" where the strip stands as a column (the studio's rail on a wide screen): a toolbar is read as a row otherwise. */
+  orientation?: "vertical";
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   // The hover label: which item, and the button's right edge and middle in the viewport (it hides on any scroll or resize).
@@ -81,7 +84,7 @@ export default function TabStrip({
     refs.current[next]?.focus();
   };
   return (
-    <div role="toolbar" aria-label={label} className={className}>
+    <div role="toolbar" aria-label={label} aria-orientation={orientation} className={className}>
       {items.map((item, index) => {
         const on = isOn(item.id);
         return (

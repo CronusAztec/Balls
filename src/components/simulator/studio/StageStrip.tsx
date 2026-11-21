@@ -56,7 +56,7 @@ export default function StageStrip({
       <span className={`${readout} hidden sm:flex`} title={seed?.pinned ? t("studio.seedPinned") : undefined}>
         <span className="eyebrow text-ink-3">{t("studio.seed")}</span>
         <span className="num text-sm text-ink-2">{seed ? seed.seed : "—"}</span>
-        {seed?.pinned && <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-label={t("studio.seedPinned")} />}
+        {seed?.pinned && <span role="img" className="h-1.5 w-1.5 rounded-full bg-accent" aria-label={t("studio.seedPinned")} />}
       </span>
       <span className={readout}>
         <span className="eyebrow text-ink-3">{t("studio.time")}</span>

@@ -7,6 +7,7 @@ import type { ModeId } from "@/lib/physics/types";
 import { MODE_SHELF_IDS, MODE_SORT_IDS, SHOW_SHELF_EVENT, WALL_QUERY_MAX, isNewMode, modeShelves, shelfOf, sortModes, wallStateFromSearch, wallStateToSearch, type ModeSort, type ShelfId } from "@/lib/siteDesign";
 import { searchModes, type ModeSearchItem } from "@/lib/modeSearch"; // --- mode-search ---
 import { readRecentModes, rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
+import { takeHandedState } from "@/lib/siteTrail"; // --- site-nav --- a language switch hands the wall's history state over
 import { BUILD_VERSION } from "@/lib/buildInfo";
 import { assetPath } from "@/lib/site";
 import Button from "@/components/ui/Button";
@@ -46,11 +47,14 @@ function scrollerOf(el: HTMLElement): HTMLElement | null {
  * holds it has shown the wall before (Back, Forward, a reload), so the wall leaves the scroll position alone there.
  */
 const WALL_HISTORY_KEY = "jblWall";
+function wallHistoryOf(state: unknown): { q: string } | null {
+  const kept: unknown = state && typeof state === "object" ? (state as Record<string, unknown>)[WALL_HISTORY_KEY] : null;
+  const q = kept && typeof kept === "object" ? (kept as { q?: unknown }).q : null;
+  return typeof q === "string" ? { q: q.slice(0, WALL_QUERY_MAX) } : null;
+}
 function wallHistory(): { q: string } | null {
   try {
-    const kept: unknown = (window.history.state as Record<string, unknown> | null)?.[WALL_HISTORY_KEY];
-    const q = kept && typeof kept === "object" ? (kept as { q?: unknown }).q : null;
-    return typeof q === "string" ? { q: q.slice(0, WALL_QUERY_MAX) } : null;
+    return wallHistoryOf(window.history.state);
   } catch {
     return null;
   }
@@ -176,9 +180,11 @@ export default function ModesOverview({
   // Back and Forward, and a link to a shelf clicked on this very page (the footer's)
   useEffect(() => {
     if (picker) return;
+    // --- site-nav --- (a language switch shows this page again under a new history state: the old one comes handed over)
+    const handed = wallHistoryOf(takeHandedState("/"));
     const read = (arriving: boolean) => {
       const state = wallStateFromSearch(window.location.search);
-      const kept = wallHistory();
+      const kept = wallHistory() ?? (arriving ? handed : null);
       setShelf(state.shelf);
       setSort(state.sort);
       // (an entry the wall never marked, a link of this page to "#modes" for one, keeps the search it shows)

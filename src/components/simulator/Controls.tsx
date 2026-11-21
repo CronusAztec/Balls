@@ -347,6 +347,7 @@ export default function Controls(props: ControlsProps) {
   const pendingFocus = useRef<{ label: string; key: string; block: string; results: string | null; searched: boolean } | null>(null);
   const [focusTick, setFocusTick] = useState(0);
   const phone = useMediaQuery("(max-width: 767.98px)");
+  const railColumn = useMediaQuery("(min-width: 1280px)"); // --- site-nav --- the rail is a column from 1280 px (globals.css): its toolbar says so
   const mod = useModifierKey();
   const site = useTranslations("SiteRedesign");
   const locale = useLocale(); // --- mode-search --- (the language of a mode's search words)
@@ -1752,6 +1753,7 @@ export default function Controls(props: ControlsProps) {
               itemClassName="studio-rail-item"
               labelClassName="studio-rail-label"
               tooltipClassName="studio-rail-tip"
+              orientation={railColumn ? "vertical" : undefined}
             />
           </div>
           <aside id="studio-panel" className="studio-panel" aria-label={t("controlsTitle")} hidden={phone && !sheetOpen}>

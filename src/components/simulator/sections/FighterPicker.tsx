@@ -154,7 +154,9 @@ export default function FighterPicker({ t, slot, value, onChange }: FighterPicke
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`${t("flPickerOpen", { slot: letter })}: ${name}`}
+        // --- site-nav --- the name starts with what the button shows (the fighter, its division), then says what it does: a
+        // voice user says what they see
+        aria-label={`${[name, scopeChip].filter(Boolean).join(" ")}. ${t("flPickerOpen", { slot: letter })}`}
         data-testid={`fl-fighter-${letter}`}
         data-value={value}
         className="flex w-full min-h-11 items-center gap-2.5 rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-left cursor-pointer hover:bg-surface-3 focus-visible:border-accent"

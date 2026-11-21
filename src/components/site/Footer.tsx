@@ -7,6 +7,7 @@ import { SITE_NAME } from "@/lib/site";
 import { BUILD_COMMIT, BUILD_COMMIT_DATE, buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
 import { LEGAL_NAME, LEGAL_VAT_ID } from "@/lib/operator"; // --- build-identity --- the imprint line (empty until the owner sets NEXT_PUBLIC_LEGAL_NAME); --- legal-audit --- the VAT number after it
 import { SHOW_SHELF_EVENT, modeShelves } from "@/lib/siteDesign";
+import { useSwitchLocale } from "./useSwitchLocale"; // --- site-nav ---
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 import Kbd from "@/components/ui/Kbd";
 import { useModifierKey } from "@/components/ui/useModifierKey";
@@ -19,6 +20,9 @@ import { cx } from "@/components/ui/cx";
  * on that shelf (/?family=battle#modes), not one mode of it. Clicked on the landing page itself, where the wall is already
  * mounted, the link asks the wall to show the shelf (SHOW_SHELF_EVENT) and the wall does it in place, unless the click
  * opens the link in a new tab.
+ * --- site-nav --- A language link keeps the page's query, hash and scroll position (useSwitchLocale.ts; its href is the
+ * plain page, for a new tab and for a browser without scripts). The shortcut line lists only keys that work on the page
+ * it is on: the studio's three in the studio, "/" for the mode search on the landing page, and nothing anywhere else.
  */
 
 const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", battle: "modesBattle", music: "modesMusic", loops: "modesLoops", smash: "modesSmash", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
@@ -32,6 +36,9 @@ export default function Footer() {
   const locale = useLocale();
   const pathname = usePathname();
   const mod = useModifierKey();
+  const switchLocale = useSwitchLocale();
+  const inStudio = pathname === "/simulator" || pathname.startsWith("/simulator/"); // (the static export's paths end in a slash)
+  const onLanding = pathname === "/";
 
   const product = [
     { href: "/simulator", label: s("nav.studio") },
@@ -111,7 +118,18 @@ export default function Footer() {
           <ul className="mt-4 space-y-3">
             {LOCALE_OPTIONS.map((opt) => (
               <li key={opt.code}>
-                <Link href={pathname} locale={opt.code} lang={opt.code} aria-current={opt.code === locale ? "true" : undefined} className={cx(linkClass, opt.code === locale && "text-ink")}>
+                <Link
+                  href={pathname}
+                  locale={opt.code}
+                  lang={opt.code}
+                  aria-current={opt.code === locale ? "true" : undefined}
+                  className={cx(linkClass, opt.code === locale && "text-ink")}
+                  onClick={(e) => {
+                    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    if (opt.code !== locale) switchLocale(opt.code);
+                  }}
+                >
                   {opt.label}
                 </Link>
               </li>
@@ -143,15 +161,24 @@ export default function Footer() {
               </Link>
             </p>
           </div>
-          <p className="hidden items-center gap-2 sm:flex" aria-label={t("shortcuts")}>
-            <span>{t("shortcuts")}</span>
-            <Kbd>Space</Kbd>
-            <span>{t("pauseResume")}</span>
-            <Kbd>R</Kbd>
-            <span>{t("restart")}</span>
-            <Kbd>{mod} K</Kbd>
-            <span>{s("studio.search")}</span>
-          </p>
+          {inStudio && (
+            <p className="hidden items-center gap-2 sm:flex" aria-label={t("shortcuts")}>
+              <span>{t("shortcuts")}</span>
+              <Kbd>Space</Kbd>
+              <span>{t("pauseResume")}</span>
+              <Kbd>R</Kbd>
+              <span>{t("restart")}</span>
+              <Kbd>{mod} K</Kbd>
+              <span>{s("studio.search")}</span>
+            </p>
+          )}
+          {onLanding && (
+            <p className="hidden items-center gap-2 sm:flex" aria-label={t("shortcuts")}>
+              <span>{t("shortcuts")}</span>
+              <Kbd>/</Kbd>
+              <span>{s("modesWall.search")}</span>
+            </p>
+          )}
         </div>
       </div>
     </footer>

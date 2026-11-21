@@ -1,6 +1,7 @@
 import data from "./changelog.json";
 import { SITE_NAME } from "@/lib/site";
 import type { Locale } from "@/i18n/routing";
+import type { ModeId } from "@/lib/physics/types";
 import { appReleaseId, releaseId, siteReleaseId, type ChangeProduct } from "./changelogId";
 
 /*
@@ -12,6 +13,8 @@ import { appReleaseId, releaseId, siteReleaseId, type ChangeProduct } from "./ch
  * the page anchor and a CSS-safe slug: "<product>-<version with dashes>", e.g. "app-1-3-0". The newest "app" release must be
  * DESKTOP_VERSION and the newest "site" release the package.json version: tests/changelog.test.ts checks the shape, the
  * order, every language and those two; tests/copyStyle.test.ts holds the text to docs/COPY-STYLE.md.
+ * --- site-nav --- An item that announces modes names them in `modes` (their ids, in the order its sentence does): the
+ * page then offers "Try it" links that open each one in the studio. CHANGELOG.md and the release notes do not read it.
  */
 
 export { appReleaseId, releaseId, siteReleaseId };
@@ -25,6 +28,8 @@ export type LocalizedText = Record<Locale, string>;
 export interface ChangeItem {
   kind: ChangeKind;
   text: LocalizedText;
+  /** --- site-nav --- The modes this item announces, each named in its English text: the page links them to the studio. */
+  modes?: readonly ModeId[];
 }
 
 export interface ChangelogRelease {

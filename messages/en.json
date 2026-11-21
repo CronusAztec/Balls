@@ -2740,7 +2740,7 @@
     "title": "Page not found",
     "description": "The page you are looking for does not exist or has moved.",
     "home": "Go to the home page",
-    "simulator": "Open the simulator"
+    "simulator": "Open the studio"
   },
   "Privacy": {
     "title": "Privacy Policy",
@@ -3119,7 +3119,7 @@
     "p6": "{siteName} is a small independent project. New modes and settings appear because creators ask for them. Write in through the <feedback>feedback page</feedback>.",
     "h2_4": "Where it is going",
     "p7": "The core stays free. More modes, more effects, fewer steps between an idea and a posted clip. Go make a ball smash through some walls.",
-    "cta": "Open the simulator",
+    "cta": "Open the studio",
     "toolTitle": "What {siteName} is",
     "toolP1": "A browser tool for the bouncing-ball videos that fill TikTok, Reels and Shorts. Pick a mode, change a few settings and watch it play. When the clip is ready, record it and download it. An idea becomes a video in a couple of minutes.",
     "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off. Viewers want to know how it ends, so they keep watching.",

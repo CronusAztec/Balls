@@ -2740,7 +2740,7 @@
     "title": "Página no encontrada",
     "description": "La página que buscas no existe o se ha movido.",
     "home": "Ir a la página de inicio",
-    "simulator": "Abrir el simulador"
+    "simulator": "Abrir el estudio"
   },
   "Privacy": {
     "title": "Política de privacidad",
@@ -3119,7 +3119,7 @@
     "p6": "{siteName} es un proyecto pequeño e independiente. Los nuevos modos y ajustes llegan porque los piden los creadores. Escríbenos desde la <feedback>página de comentarios</feedback>.",
     "h2_4": "Hacia dónde va",
     "p7": "Lo esencial sigue siendo gratis. Más modos, más efectos y menos pasos entre una idea y un clip publicado. Ve y haz que una pelota rompa unas cuantas paredes.",
-    "cta": "Abrir el simulador",
+    "cta": "Abrir el estudio",
     "toolTitle": "Qué es {siteName}",
     "toolP1": "Una herramienta web para los vídeos de pelotas rebotando que llenan TikTok, Reels y Shorts. Elige un modo, cambia algunos ajustes y míralo en acción. Cuando el clip esté listo, grábalo y descárgalo. Una idea se convierte en vídeo en un par de minutos.",
     "toolP2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, pasa algo. La gente quiere saber cómo acaba, así que sigue mirando.",

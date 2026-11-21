@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import http from "http";
+import vm from "vm";
 import { spawn, type ChildProcess } from "child_process";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { createTranslator } from "next-intl";
@@ -9,6 +10,8 @@ import { MODE_IDS, isModeId } from "@/lib/physics/types";
 import { MODE_CARD_ORDER } from "@/lib/modes";
 import sitemap from "@/app/sitemap";
 import manifest from "@/app/manifest";
+import { KNOWN_ROUTES, bestLocale, localeOfPath, unprefixedRedirectScript, unprefixedTarget } from "@/lib/localeRedirect"; // --- site-nav ---
+import { handOverState, pageBefore, resetTrail, takeHandedState, visitPage } from "@/lib/siteTrail"; // --- site-nav ---
 import { loadDotEnv } from "../scripts/dotenv.mjs";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -192,7 +195,151 @@ describe("static 404 page", () => {
     const metadata = layout.slice(layout.indexOf("export const metadata"), layout.indexOf("};", layout.indexOf("export const metadata")));
     expect(metadata).not.toMatch(/^\s*title:/m);
     expect(metadata).toMatch(/icons: \{ icon: assetPath\("\/icon\.svg"\)/);
-    expect(fs.readFileSync(path.join(ROOT, "src/app/(static)/page.tsx"), "utf8")).toContain("export const metadata: Metadata = { title: SITE_NAME };");
+    // --- site-nav --- the root page's head is the English home page's, title included (tests/seo.test.ts reads what it holds)
+    const root = fs.readFileSync(path.join(ROOT, "src/app/(static)/page.tsx"), "utf8");
+    expect(root).toContain("export async function generateMetadata(): Promise<Metadata> {");
+    expect(root).toMatch(/return pageMetadata\(\{ locale, path: "", title: t\("metaTitle", \{ siteName: SITE_NAME \}\)/);
+  });
+});
+
+/* --- site-nav --- an address typed without its language is sent on to the page it names, by the 404 page */
+describe("an address without a language (lib/localeRedirect.ts)", () => {
+  /** What the 404 page's inline script does at an address: the address it replaces the location with, or null. */
+  const scripted = (at: { pathname: string; search?: string; hash?: string }, languages: string[] | undefined, basePath = "", language = "") => {
+    let replaced: string | null = null;
+    const location = { pathname: at.pathname, search: at.search ?? "", hash: at.hash ?? "", replace: (to: string) => void (replaced = to) };
+    vm.runInNewContext(unprefixedRedirectScript(basePath), { location, navigator: { languages, language } });
+    return replaced;
+  };
+
+  it("knows every page under src/app/[locale], and nothing else", () => {
+    const dir = path.join(ROOT, "src/app/[locale]");
+    const pages = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && fs.existsSync(path.join(dir, d.name, "page.tsx"))).map((d) => d.name).sort();
+    expect([...KNOWN_ROUTES].sort()).toEqual(pages);
+    expect(pages).toEqual(expect.arrayContaining(["simulator", "gallery", "pricing", "download", "changelog"]));
+    // (a route named like a language would never reach the 404 page)
+    for (const route of KNOWN_ROUTES) expect(["en", "pl", "es"], route).not.toContain(route);
+  });
+
+  it("picks the language the browser asks for first, as the root page does, and the default when it asks for none of ours", () => {
+    expect(bestLocale(["pl-PL", "pl", "en-US"])).toBe("pl");
+    expect(bestLocale(["de-DE", "es-419", "en"])).toBe("es");
+    expect(bestLocale(["EN-gb"])).toBe("en");
+    expect(bestLocale(["de", "fr"])).toBe("en");
+    expect(bestLocale([])).toBe("en");
+    expect(bestLocale(undefined)).toBe("en");
+    // "plt" and "english" are not Polish and English
+    expect(bestLocale(["plt", "english", "es"])).toBe("es");
+  });
+
+  it("sends a known page on to its address with the language, the query and the hash kept", () => {
+    expect(unprefixedTarget({ pathname: "/pricing/" }, ["pl-PL"])).toBe("/pl/pricing/");
+    expect(unprefixedTarget({ pathname: "/pricing" }, ["pl-PL"])).toBe("/pl/pricing/");
+    expect(unprefixedTarget({ pathname: "/simulator/", search: "?mode=fightLeague&seed=7", hash: "#x" }, ["es-ES", "en"])).toBe("/es/simulator/?mode=fightLeague&seed=7#x");
+    expect(unprefixedTarget({ pathname: "/changelog/", hash: "#app-1-7-0" }, ["de"])).toBe("/en/changelog/#app-1-7-0");
+    expect(unprefixedTarget({ pathname: "/Balls/gallery/" }, ["pl"], "/Balls")).toBe("/Balls/pl/gallery/");
+    for (const route of KNOWN_ROUTES) expect(unprefixedTarget({ pathname: `/${route}/` }, ["en"]), route).toBe(`/en/${route}/`);
+  });
+
+  it("leaves a real 404 alone: an address with a language, an unknown page, a deeper path, another site's folder", () => {
+    for (const pathname of ["/pl/this-page-does-not-exist/", "/en/nothing-here/", "/en/pricing/", "/nope/", "/", "/pricing/extra/", "/de/pricing/", "/404/", "/Pricing/", "/simulator.html"]) {
+      expect(unprefixedTarget({ pathname }, ["pl"]), pathname).toBeNull();
+    }
+    // under a base path only that folder's pages are ours
+    expect(unprefixedTarget({ pathname: "/Balls/nope/" }, ["pl"], "/Balls")).toBeNull();
+    expect(unprefixedTarget({ pathname: "/Balls/pl/pricing/" }, ["pl"], "/Balls")).toBeNull();
+  });
+
+  it("reads the language an address names, or none", () => {
+    expect(localeOfPath("/pl/this-page-does-not-exist/")).toBe("pl");
+    expect(localeOfPath("/Balls/es/x/", "/Balls")).toBe("es");
+    expect(localeOfPath("/pricing/")).toBeNull();
+    expect(localeOfPath("/plain/")).toBeNull();
+    expect(localeOfPath("/")).toBeNull();
+  });
+
+  it("the 404 page's inline script decides exactly as the function does", () => {
+    const places = [
+      { pathname: "/pricing/" },
+      { pathname: "/pricing" },
+      { pathname: "/simulator/", search: "?mode=fightLeague", hash: "#modes" },
+      { pathname: "/pl/this-page-does-not-exist/" },
+      { pathname: "/nope/" },
+      { pathname: "/pricing/extra/" },
+      { pathname: "/" },
+      { pathname: "/Balls/gallery/", search: "?a=1" },
+      { pathname: "/Balls/nope/" },
+    ];
+    for (const languages of [["pl-PL", "en"], ["es"], ["de", "fr"], [], undefined]) {
+      for (const base of ["", "/Balls"]) {
+        for (const at of places) expect(scripted(at, languages, base), `${JSON.stringify(at)} ${JSON.stringify(languages)} ${base}`).toBe(unprefixedTarget(at, languages, base));
+      }
+    }
+    // a browser that only has navigator.language
+    expect(scripted({ pathname: "/pricing/" }, undefined, "", "pl-PL")).toBe("/pl/pricing/");
+    expect(scripted({ pathname: "/pricing/" }, [], "", "es")).toBe("/es/pricing/");
+    // it is in the 404 page's HTML, before the page itself, and it is plain ES5 (no arrow, no let or const)
+    const page = fs.readFileSync(path.join(ROOT, "src/components/site/NotFoundStatic.tsx"), "utf8");
+    expect(page.indexOf("unprefixedRedirectScript(BASE_PATH)")).toBeGreaterThan(0);
+    expect(page.indexOf("unprefixedRedirectScript(BASE_PATH)")).toBeLessThan(page.indexOf("<NotFoundContent />"));
+    expect(unprefixedRedirectScript("")).not.toMatch(/=>|\b(let|const)\b/);
+  });
+
+  it("the 404 page speaks the browser's language at an address without one, and offers the wall as a third way back", () => {
+    const page = fs.readFileSync(path.join(ROOT, "src/components/site/NotFoundStatic.tsx"), "utf8");
+    expect(page).toContain("localeOfPath(window.location.pathname, BASE_PATH) ?? bestLocale(");
+    const content = fs.readFileSync(path.join(ROOT, "src/components/site/NotFoundContent.tsx"), "utf8");
+    expect((content.match(/<Link href="[^"]+"/g) ?? []).sort()).toEqual(['<Link href="/"', '<Link href="/#modes"', '<Link href="/simulator"']);
+    for (const m of [en, pl, es]) expect(m.SiteRedesign.hero.seeModes.length).toBeGreaterThan(5);
+  });
+});
+
+/* --- site-nav --- the studio's back arrow asks which page came before */
+describe("the page before this one (lib/siteTrail.ts)", () => {
+  it("is none on the first page, then the page the visitor left, and a page reported twice counts once", () => {
+    resetTrail();
+    expect(pageBefore()).toBeNull();
+    visitPage("/");
+    expect(pageBefore()).toBeNull();
+    visitPage("/simulator");
+    expect(pageBefore()).toBe("/");
+    visitPage("/simulator");
+    expect(pageBefore()).toBe("/");
+    visitPage("/gallery");
+    expect(pageBefore()).toBe("/simulator");
+    visitPage("/simulator");
+    expect(pageBefore()).toBe("/gallery");
+    resetTrail();
+    expect(pageBefore()).toBeNull();
+  });
+
+  it("hands a history state over to the same page once, for a moment: a language switch keeps the wall's search and place", () => {
+    resetTrail();
+    expect(takeHandedState("/")).toBeNull();
+    const state = { jblWall: { q: "fight" } };
+    handOverState("/", state, 1000);
+    expect(takeHandedState("/", 1500)).toBe(state);
+    expect(takeHandedState("/", 1600)).toBeNull(); // taken once
+    handOverState("/pricing", state, 1000);
+    expect(takeHandedState("/", 1500)).toBeNull(); // another page's
+    expect(takeHandedState("/pricing", 1600)).toBeNull(); // and that ask used it up
+    handOverState("/", state, 1000);
+    expect(takeHandedState("/", 11_000)).toBeNull(); // too late: the switch never arrived
+    handOverState("/", state, 1000);
+    expect(takeHandedState("/", 10_999)).toBe(state);
+    const hook = fs.readFileSync(path.join(ROOT, "src/components/site/useSwitchLocale.ts"), "utf8");
+    expect(hook).toContain("handOverState(pathname, window.history.state);");
+    expect(hook).toContain("{ locale: code, scroll: false }");
+    expect(hook).toContain("pathname + search + hash");
+    const wall = fs.readFileSync(path.join(ROOT, "src/components/site/ModesOverview.tsx"), "utf8");
+    expect(wall).toContain('wallHistoryOf(takeHandedState("/"))');
+  });
+
+  it("the header reports every page, and the studio's back arrow goes back in history only to the landing page", () => {
+    const navbar = fs.readFileSync(path.join(ROOT, "src/components/site/Navbar.tsx"), "utf8");
+    expect(navbar).toContain("useEffect(() => visitPage(pathname), [pathname]);");
+    expect(navbar).toMatch(/pageBefore\(\) !== "\/"\) return;\s+e\.preventDefault\(\);\s+window\.history\.back\(\);/);
+    expect(navbar).toContain('<Link href="/#modes" onClick={goBack}');
   });
 });
 

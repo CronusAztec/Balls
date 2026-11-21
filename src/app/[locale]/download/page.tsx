@@ -6,6 +6,7 @@ import JsonLd from "@/components/site/JsonLd";
 import { SITE_NAME } from "@/lib/site";
 import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"; // --- seo ---
 import { DESKTOP_VERSION, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
+import { appReleaseId } from "@/content/changelogId"; // --- site-nav --- the anchor of this version's notes
 import { buttonClass } from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation"; // --- legal-copy ---
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- legal-copy --- the price in the free note comes from the plans
@@ -22,6 +23,7 @@ import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconUsers
  * to check the SHA-256 or scan the file); the third-party software and sound notices close the page.
  * --- desktop-autorelease --- the version line is the build-time version (DESKTOP_VERSION): a release bumps it in the same push
  * that deploys the site. GitHub is not involved: the downloads come from jumpingballslive.com's own host (src/lib/desktop/release.ts).
+ * --- site-nav --- the version line links to that version's notes on the changelog ("What's new in 1.7.0").
  */
 
 const REQUIREMENTS = ["os", "gpu", "disk", "ram"] as const;
@@ -45,6 +47,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Desktop" });
   const fix = await getTranslations({ locale, namespace: "DesktopAiFix" }); // --- desktop-ai-fix ---
+  const whatsNew = await getTranslations({ locale, namespace: "WhatsNew" }); // --- site-nav --- the app's own words for its notes
   const v = { siteName: SITE_NAME };
   // --- seo --- (builders in lib/seo.ts: the version, the release notes link and the date of the newest release come with it) and the trail Home > Download
   const appJsonLd = softwareApplicationJsonLd({ locale, description: t("metaDescription", v), downloadUrl: latestAssetUrl(SETUP_ASSET), version: DESKTOP_VERSION }); // --- desktop-ai-fix ---
@@ -103,8 +106,13 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
         </p>
         {/* --- desktop-ai-fix --- the version, the one-time model download, and the manual step for 1.0.2 installs */}
         <div className="mt-4 max-w-[680px] space-y-1.5 text-sm text-ink-2" data-testid="download-notes">
-          <p className="font-medium text-ink" data-testid="download-version">
-            {fix("downloadVersion", { version: DESKTOP_VERSION })}
+          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="font-medium text-ink" data-testid="download-version">
+              {fix("downloadVersion", { version: DESKTOP_VERSION })}
+            </span>
+            <Link href={`/changelog#${appReleaseId(DESKTOP_VERSION)}`} className="font-medium text-accent hover:text-accent-strong" data-testid="download-whats-new">
+              {whatsNew("title", { version: DESKTOP_VERSION })}
+            </Link>
           </p>
           <p>{fix("downloadModelNote")}</p>
         </div>

@@ -12,7 +12,7 @@ import { routing, type Locale } from "@/i18n/routing";
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
 import { BUILD_COMMIT, buildLabel } from "@/lib/buildInfo";
 import { buttonClass } from "@/components/ui/Button";
-import { IconDownload } from "@/components/ui/icons";
+import { IconDownload, IconPlay } from "@/components/ui/icons";
 
 /*
  * --- changelog --- What changed, newest first. A static, indexable reading page: a line with the newest version of the website
@@ -22,6 +22,8 @@ import { IconDownload } from "@/components/ui/icons";
  * page, the older ones too, with no script needed. The data is src/content/changelog.json (text is plain, {siteName} is
  * filled in by entryText); the chrome text is the Changelog namespace. The filter chips are radio buttons styled as chips: they
  * work without scripts (the site is static), the CSS hides the other product's releases.
+ * --- site-nav --- An item that announces modes (its `modes` in the data) ends with "Try it" and a link per mode, which
+ * opens that mode in the studio: what is new is one tap from where it is announced.
  */
 
 const KIND_STYLE: Record<ChangeKind, string> = { new: "text-accent", improved: "text-ink-2", fixed: "text-warn" };
@@ -42,6 +44,8 @@ export default async function ChangelogPage({ params }: { params: Promise<{ loca
   const lang: Locale = hasLocale(routing.locales, locale) ? locale : routing.defaultLocale;
   const t = await getTranslations({ locale, namespace: "Changelog" });
   const site = await getTranslations({ locale, namespace: "SiteRedesign" });
+  const gallery = await getTranslations({ locale, namespace: "Gallery" }); // --- site-nav --- "Try it"
+  const modes = await getTranslations({ locale, namespace: "Modes" });
   const v = { siteName: SITE_NAME };
   /** "Website 1.10.0" / "Windows app 1.3.0" */
   const nameOf = (r: ChangelogRelease) => t(r.product === "app" ? "releaseApp" : "releaseSite", { version: r.version });
@@ -139,7 +143,28 @@ export default async function ChangelogPage({ params }: { params: Promise<{ loca
                     {r.items.map((item, i) => (
                       <li key={i} className="grid gap-1 border-t border-line py-3 first:border-t-0 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
                         <span className={`eyebrow ${KIND_STYLE[item.kind]}`}>{t(KIND_KEY[item.kind])}</span>
-                        <p className="text-md text-ink-2">{entryText(item.text[lang])}</p>
+                        <div className="min-w-0">
+                          <p className="text-md text-ink-2">{entryText(item.text[lang])}</p>
+                          {/* --- site-nav --- the modes the item announces, each a link into the studio (a div: an item stays one paragraph) */}
+                          {item.modes && item.modes.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="changelog-try">
+                              <span className="inline-flex items-center gap-1.5 text-ink-3">
+                                <IconPlay size={14} />
+                                {gallery("tryIt")}
+                              </span>
+                              {item.modes.map((mode) => (
+                                <Link
+                                  key={mode}
+                                  href={`/simulator?mode=${mode}`}
+                                  aria-label={gallery("tryAria", { name: modes(`${mode}.name`) })}
+                                  className="font-medium text-accent hover:text-accent-strong [@media(pointer:coarse)]:-my-2.5 [@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-2.5"
+                                >
+                                  {modes(`${mode}.name`)}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

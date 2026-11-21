@@ -9,9 +9,9 @@ import LivePreview from "./LivePreview";
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- paywall-gate ---
 
 /*
- * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action and the
- * Windows app; on the right, from 1024 px, the live mini simulation in its 9:16 frame. A row of mono readouts underlines
- * the claim with numbers instead of adjectives.
+ * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action, the way
+ * to the modes wall and the Windows app; on the right, from 1024 px, the live mini simulation in its 9:16 frame. A row of
+ * mono readouts underlines the claim with numbers instead of adjectives.
  */
 export default function Hero() {
   const t = useTranslations("SiteRedesign");
@@ -33,20 +33,18 @@ export default function Hero() {
               {t("nav.openStudio")}
               <IconArrowRight size={18} />
             </StudioLink>
-            <DownloadAppButton
-              label={desktop("heroButton")}
-              note={desktop("heroNote")}
-              fallback={
-                <a href="#modes" className={buttonClass({ variant: "secondary", size: "md" })}>
-                  {t("hero.seeModes")}
-                </a>
-              }
-            />
+            {/* --- site-nav --- the way to the wall, for every visitor (it used to show only inside the Windows app). Second, so a
+                phone keeps it on the first row beside the primary action and the hero grows by nothing. */}
+            <a href="#modes" className={buttonClass({ variant: "ghost", size: "md" })}>
+              {t("hero.seeModes")}
+            </a>
+            <DownloadAppButton label={desktop("heroButton")} note={desktop("heroNote")} />
           </div>
           {/* --- paywall-gate --- what is free and what Pro costs, under the call to action */}
           <p className="mt-4 max-w-[46ch] text-sm text-ink-3" data-testid="hero-pricing">
             {billing("landing.line", { price: formatUsd(PLANS.monthly.usd, locale) })}{" "}
-            <Link href="/pricing" className="font-medium text-accent hover:text-accent-strong" data-track="cta_click" data-track-id="hero_pricing">
+            {/* --- site-nav --- (on a touch screen the link's target is 44 px high: the padding is taken back by the margin, so the line keeps its height) */}
+            <Link href="/pricing" className="font-medium text-accent hover:text-accent-strong [@media(pointer:coarse)]:-my-3 [@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-3" data-track="cta_click" data-track-id="hero_pricing">
               {billing("landing.link")}
             </Link>
           </p>
