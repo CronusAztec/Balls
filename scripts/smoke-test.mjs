@@ -6122,13 +6122,13 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   );
 }
 {
-  // The default course (24 obstacles) at 8× to its end screen.
+  // The default course (--- finales-in-clip --- the page's 18 obstacles at density 0.85; the mode's own 24) at 8× to its end screen.
   await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   const data = await canvasData();
-  check("beat runner: the default course at 8× ends on its end screen", end && data.rrFinished === "1" && Number(data.rrEvents) >= 24 && data.rrOnBeat === data.rrEvents && data.rrDeaths === "0", `(end screen=${end}, landings ${data.rrLandings}/${data.rrEvents}, on beat ${data.rrOnBeat})`);
+  check("beat runner: the default course at 8× ends on its end screen", end && data.rrFinished === "1" && Number(data.rrEvents) >= 18 && data.rrOnBeat === data.rrEvents && data.rrDeaths === "0", `(end screen=${end}, landings ${data.rrLandings}/${data.rrEvents}, on beat ${data.rrOnBeat})`);
   await page.screenshot({ path: path.join(outDir, "sim-runner-complete.png") });
 }
 {
@@ -6154,8 +6154,9 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   check("beat runner by hand: Escape pauses", await page.getByRole("button", { name: /Resume/ }).isVisible());
 }
 {
-  // The finder times an auto run: 30 s, and the found run ends where it promised.
-  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  // The finder times an auto run: 30 s, and the found run ends where it promised (--- finales-in-clip --- on the mode's own course
+  // of 24 obstacles at density 0.6, whose runs last 30–35 s: the page's own ends at 20–24 s, inside its clip)
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=24&rrd=0.6`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -6223,8 +6224,9 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   check("paddle keep-up by hand: the arrow keys move the platform, no finder", x1 > x0 + 0.1 && x2 < x1 - 0.1 && finder === 0, `(x ${x0} → ${x1} → ${x2}, finder buttons ${finder})`);
 }
 {
-  // The finder finds a 30 s game over and the game keeps the promise.
-  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  // The finder finds a 30 s game over and the game keeps the promise (--- finales-in-clip --- without a goal: the page's goal of 20
+  // ends every run by 28.6 s, on a win or a GAME OVER).
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdg=0`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -6421,7 +6423,7 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.waitForTimeout(400);
   const restarted = await jrSeed();
   check("classic: a BPM change keeps a found seed (R restarts the found run)", classicFound && !!found && restarted === found && /(^|&)bpm=128(&|$)/.test(page.url()), `(found ${found}, after the BPM and R ${restarted})`);
-  await page.goto(`${BASE}/en/simulator/?mode=runner&qz=1`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=24&rrd=0.6&qz=1` /* --- finales-in-clip --- (the mode's own course: a 30 s run to find) */, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const runnerFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const runnerSeed = await jrSeed();
@@ -17198,7 +17200,7 @@ await smokeBlock("chord-stars", async () => {
 // URL (a preset, the drawing time), the search box; three cycles at 4× – every cycle draws Σn chords (data-sc-last-cycle-chords
 // by the run's clock and data-sc-layer-last, what the canvas' chord layer drew of the cycle, against the stars' point counts),
 // every star closes together, the loop contract's cycle – at 30+ fps; the loop HUD's title and
-// amber "stars closed N/5" counter drawn on the canvas; the plucks on the balls' pentatonic pitches and the chord on A2
+// amber "stars closing N/5" counter (--- finales-in-clip --- a star counts on its last chord) drawn on the canvas; the plucks on the balls' pentatonic pitches and the chord on A2
 // (OscillatorNode.start instrumented); Find Simulation's Best star set (a coprime set and the loop fitted to the clip) and a fast
 // export of whole loops.
 {
@@ -17305,8 +17307,8 @@ await smokeBlock("chord-stars", async () => {
   const chord = [110, 165].every((p) => heard.osc.some((f) => near(f, p)));
   check("chord stars plucks every ball on its own pentatonic pitch (A, C♯, F♯, B, E) and plays the chord on A2", plucked.length === 5 && chord, `(${heard.osc.length} oscillators, plucked ${plucked.join("/")}, chord=${chord})`);
   const title = heard.hud.some((t) => t.text === "stars that close together");
-  const counter = heard.hud.filter((t) => /^stars closed \d\/5$/.test(t.text)).map((t) => t.fill);
-  check("the loop HUD draws its title and the amber 'stars closed N/5' counter", title && counter.length > 0 && counter.every((f) => f === "#f2c46a") && run.loopHud === "1", `(title=${title}, counters=${counter.length} ${counter[0] ?? ""}, flag=${run.loopHud})`);
+  const counter = heard.hud.filter((t) => /^stars closing \d\/5$/.test(t.text)).map((t) => t.fill);
+  check("the loop HUD draws its title and the amber 'stars closing N/5' counter", title && counter.length > 0 && counter.every((f) => f === "#f2c46a") && run.loopHud === "1", `(title=${title}, counters=${counter.length} ${counter[0] ?? ""}, flag=${run.loopHud})`);
 }
 {
   // Find Simulation: the best of the random coprime star sets, the loop fitted to a 40 s clip (3 loops of 10.333 s drawing).
@@ -17359,7 +17361,7 @@ await smokeBlock("chord-stars", async () => {
     const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
     const loops = Number(await panel.getAttribute("data-fast-loops"));
     const status = await panel.getAttribute("data-fast-export");
-    const hud = await page.evaluate(() => window.__scExportHud.filter((t) => /^stars closed \d\/5$/.test(t)).length);
+    const hud = await page.evaluate(() => window.__scExportHud.filter((t) => /^stars closing \d\/5$/.test(t)).length);
     check(
       "a Chord Stars fast export lasts two whole 5 s loops (within one frame) and carries the HUD's counter",
       status === "done" && bytes > 10000 && loops === 2 && Math.abs(cycle - 5) < 0.002 && Math.abs(seconds - 10) <= 1 / 30 + 0.002 && hud >= 10,
