@@ -6208,8 +6208,8 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   const tones = await page.evaluate(() => window.__jrOsc);
   await page.screenshot({ path: path.join(outDir, "sim-paddle-over.png") });
   check(
-    "paddle keep-up: a note per catch, GAME OVER after the allowed misses",
-    end && data.pdFinished === "1" && data.pdOver === "1" && data.pdMisses === "3" && data.pdAllowed === "2" && Number(data.pdHits) >= 1 && tones.length >= Number(data.pdHits) && data.pdAuto === "1",
+    "paddle keep-up: a note per catch, the win at the page's goal of 20 or GAME OVER after the allowed misses",
+    end && data.pdFinished === "1" && data.pdOver === "1" && (data.pdWon === "1" ? data.pdHits === "20" && Number(data.pdMisses) <= 2 : data.pdMisses === "3") /* (--- finales-in-clip --- the page's goal) */ && data.pdAllowed === "2" && Number(data.pdHits) >= 1 && tones.length >= Number(data.pdHits) && data.pdAuto === "1",
     `(end screen=${end}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("pd"))))}, ${tones.length} tones)`,
   );
 }
@@ -15592,7 +15592,7 @@ const orbBoxPixels = (box) =>
   const data = await canvasData();
   await timingCheck(
     "orbGrid rhythm (the default): a 12 × 12 field moves fluidly – every frame at its own time, the drawn heights off a smooth arc by under 2 % of the apex",
-    data.ogModel === "rhythm" && data.ogSettled === "0" && data.ogCycle === "30000" && data.ogPeriod === "30000" && data.ogGroups === "23" && smooth(first),
+    data.ogModel === "rhythm" && data.ogSettled === "0" && data.ogCycle === "26000" && data.ogPeriod === "26000" /* (--- finales-in-clip --- the page's 26 s cycle) */ && data.ogGroups === "23" && smooth(first),
     measured(first),
     `(${data.ogModel}, ${note(first)}; cycle ${data.ogCycle} ms, in phase every ${data.ogPeriod} ms, ${data.ogGroups} groups, ${data.ogSettled} settled${loadNote()})`,
     async () => {
@@ -15691,8 +15691,9 @@ const orbBoxPixels = (box) =>
   );
 }
 {
-  // Find Simulation: In phase at 30 s, answered at once by the cycle maths (any seed is in phase at every cycle's end), kept by the run.
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  // Find Simulation: In phase at 30 s, answered at once by the cycle maths (any seed is in phase at every cycle's end), kept by the run
+  // (--- finales-in-clip --- a 30 s cycle named: the page's is 26 s).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogCycle=30`, { waitUntil: "networkidle" });
   const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
   await page.locator("#find-outcome").selectOption("resolves-at", { timeout: 5000 }).catch(() => {});
   await page.locator("#find-escape-at").evaluate(setRangeValue, "30").catch(() => {});
@@ -15747,7 +15748,7 @@ const orbBoxPixels = (box) =>
   const fresh = await runLine();
   check(
     "orbGrid: the run line follows the Model switch – after Rhythm → Decay it reads what a fresh decay load reads, and back on Rhythm the rhythm line",
-    /^144 orbs · 23 groups · .* · in phase every 30\.0s$/.test(rhythmLine) && /^144 orbs · every orb at rest after about \d+\.\ds · in phase at about 5\.0s$/.test(fresh) && decayPressed === "true" && switched === fresh && back === rhythmLine,
+    /^144 orbs · 23 groups · .* · in phase every 26\.0s$/.test(rhythmLine) /* (--- finales-in-clip --- the page's 26 s cycle) */ && /^144 orbs · every orb at rest after about \d+\.\ds · in phase at about 5\.0s$/.test(fresh) && decayPressed === "true" && switched === fresh && back === rhythmLine,
     `(rhythm "${rhythmLine}"; after Decay "${switched}" (pressed=${decayPressed}); a fresh decay load "${fresh}"; back on Rhythm "${back}")`,
   );
 }
@@ -18792,7 +18793,7 @@ await smokeBlock("funnel-spin", async () => {
   const info = { release: await section.getAttribute("data-fs-release"), view: await section.getAttribute("data-fs-view"), marbles: await section.getAttribute("data-fs-marbles"), cycle: await section.getAttribute("data-fs-cycle") };
   check(
     "the Ring of 24 preset travels in the link (rings, perspective, the loop, the navy page, the loop HUD) and the Funnel block reads it",
-    query.get("mode") === "vortex" && query.get("vxrl") === "rings" && query.get("vxv") === "perspective" && query.get("vxl") === "1" && query.get("lh") === "1" && query.get("bg1") === "#060914" && !query.has("vxw") && info.release === "rings" && info.view === "perspective" && info.marbles === "42" && Math.abs(Number(info.cycle) - 22.517) < 0.01,
+    query.get("mode") === "vortex" && !query.has("vxrl") /* (--- finales-in-clip --- the rings are the page's release: the link leaves them out) */ && query.get("vxv") === "perspective" && query.get("vxl") === "1" && query.get("lh") === "1" && query.get("bg1") === "#060914" && !query.has("vxw") && info.release === "rings" && info.view === "perspective" && info.marbles === "42" && Math.abs(Number(info.cycle) - 22.517) < 0.01,
     `(${query.toString()}, ${JSON.stringify(info)})`,
   );
   // the controls → the URL: the waves typed, the elevation and the spin friction moved
@@ -18913,7 +18914,7 @@ await smokeBlock("funnel-spin", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-funnel-spin-galaxy.png") });
   await timingCheck(
     "Galaxy (a ring of 360 from above) keeps 30+ fps: the funnel layer draws the marbles, no sprite made a frame",
-    galaxyQuery.get("vxw") === "360" && galaxyQuery.get("vxrl") === "rings" && !galaxyQuery.has("vxv") && data.vortexRelease === "rings" && data.vortexView === "top" && data.vortexWaveSizes === "360" && Number(data.vortexInFlight) >= 300 && made.canvases < 10,
+    galaxyQuery.get("vxw") === "360" && !galaxyQuery.has("vxrl") /* (--- finales-in-clip --- the rings are the page's release: the link leaves them out) */ && !galaxyQuery.has("vxv") && data.vortexRelease === "rings" && data.vortexView === "top" && data.vortexWaveSizes === "360" && Number(data.vortexInFlight) >= 300 && made.canvases < 10,
     fpsOk(fps, 6, 30),
     `(${JSON.stringify({ query: galaxyQuery.toString().slice(0, 160), view: data.vortexView, inFlight: data.vortexInFlight, canvasesMade: made.canvases })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
