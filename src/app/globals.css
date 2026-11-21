@@ -588,6 +588,15 @@ dialog.ui-dialog[open] {
         transform 200ms var(--ease-out),
         margin-bottom 200ms var(--ease-out);
     }
+    /* --- review fix (studio-fit) --- while the canvas re-measures itself on a window resize, the frame at its full size, and
+       the scale back without a transition (Controls.tsx) */
+    .studio-sheet-open[data-stage-measure] .stage-frame {
+      transition: none;
+    }
+    .studio-sheet-open[data-stage-measure=""] .stage-frame {
+      transform: none;
+      margin-bottom: 0;
+    }
     .studio-sheet-open .studio-transport {
       bottom: var(--studio-sheet-h);
       flex-wrap: nowrap;
@@ -782,12 +791,16 @@ dialog.ui-dialog[open] {
       width: 18px;
       height: 18px;
     }
+    /* --- review fix (studio-fit) --- as narrow as its longest word, from 3.5rem (five items show at 390 px) up to 4.75rem
+       ("personalizado" on a line of its own): a word is never split, a label too long for two lines ends in an ellipsis
+       after a whole word */
     .studio-rail-label,
     .studio-rail-search .studio-rail-label {
       display: -webkit-box;
-      max-width: 3.75rem;
+      width: min-content;
+      min-width: 3.5rem;
+      max-width: 4.75rem;
       overflow: hidden;
-      overflow-wrap: anywhere;
       font-size: 11px;
       line-height: 12px;
       text-align: center;

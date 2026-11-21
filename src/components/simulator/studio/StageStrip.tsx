@@ -69,11 +69,13 @@ export default function StageStrip({
   return (
     <div className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-line px-3 sm:gap-5 sm:px-4 [@media(pointer:coarse)]:h-12" data-testid="stage-strip">
       {/* --- studio-fit --- the mode button stays the strip's first button (the picker's way in), the arrows follow it */}
-      <div className="-ml-1.5 flex min-w-0 shrink-0 items-center gap-0.5">
-        <button type="button" onClick={onOpenModePicker} aria-haspopup="dialog" className="group flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-1.5 text-left hover:bg-surface-2 cursor-pointer [@media(pointer:coarse)]:h-11" title={t("studio.changeMode")}>
-          <span className="eyebrow text-ink-3 max-sm:hidden">{t("studio.mode")}</span>
-          <span className="max-w-[9rem] truncate text-sm font-medium text-ink sm:max-w-[12rem]">{modeName}</span>
-          <IconChevronDown size={16} className="text-ink-3 group-hover:text-ink-2" />
+      {/* --- review fix (studio-fit) --- a long mode name gives way (it ends in an ellipsis, its title the whole name): the
+          readouts after it keep their width, the clip length and the format are never pushed off the strip */}
+      <div className="-ml-1.5 flex min-w-0 shrink items-center gap-0.5">
+        <button type="button" onClick={onOpenModePicker} aria-haspopup="dialog" className="group flex h-8 min-w-0 shrink items-center gap-2 rounded-md px-1.5 text-left hover:bg-surface-2 cursor-pointer [@media(pointer:coarse)]:h-11" title={t("studio.changeMode")}>
+          <span className="eyebrow shrink-0 text-ink-3 max-sm:hidden">{t("studio.mode")}</span>
+          <span className="min-w-0 max-w-[9rem] truncate text-sm font-medium text-ink sm:max-w-[12rem]" title={modeName}>{modeName}</span>
+          <IconChevronDown size={16} className="shrink-0 text-ink-3 group-hover:text-ink-2" />
         </button>
         {near && (
           <>

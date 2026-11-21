@@ -331,6 +331,26 @@ export function paletteKeyGroups(p: PanelShown, sectionIds: readonly ControlSect
   return groups;
 }
 
+// --- review fix (studio-fit) --- The canvas measures its bitmap from its on-screen box on a window resize (the address bar
+// of a phone's browser coming and going is one). With the stage scaled down above the open sheet that box is the scaled one:
+// the bitmap would shrink for good, and a recording with it. For that resize the frame is drawn at its full size, and the
+// scale comes back before the next paint, without its transition. The listener is added when this module loads, before
+// the canvas adds its own: a window's resize listeners run in the order they were added.
+let scaledStudio: HTMLElement | null = null;
+let settleFrame = 0;
+function unscaleForResize(): void {
+  const root = scaledStudio;
+  if (!root) return;
+  root.setAttribute("data-stage-measure", "");
+  cancelAnimationFrame(settleFrame);
+  settleFrame = requestAnimationFrame(() => {
+    root.setAttribute("data-stage-measure", "settle");
+    void root.querySelector<HTMLElement>(".stage-frame")?.offsetWidth;
+    root.removeAttribute("data-stage-measure");
+  });
+}
+if (typeof window !== "undefined") window.addEventListener("resize", unscaleForResize, { capture: true });
+
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
   const t = useTranslations("Controls");
@@ -1563,9 +1583,13 @@ export default function Controls(props: ControlsProps) {
       if (el) watch.observe(el);
     }
     window.addEventListener("resize", measure);
+    scaledStudio = root; // --- review fix (studio-fit) --- (see unscaleForResize())
     return () => {
       watch.disconnect();
       window.removeEventListener("resize", measure);
+      if (scaledStudio === root) scaledStudio = null;
+      cancelAnimationFrame(settleFrame);
+      root.removeAttribute("data-stage-measure");
     };
   }, [sheetUp]);
   const stageFitStyle = stageFit ? ({ "--studio-stage-scale": String(stageFit.scale), "--studio-stage-shrink": `${stageFit.shrink}px` } as CSSProperties) : undefined;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { cx } from "./cx";
 
 /*
@@ -13,12 +14,16 @@ import { cx } from "./cx";
  * left or right edge near a side, and opens below the icon near the top. A tap on it is its own: the label around it
  * neither checks its switch nor focuses its field. (`data-tip` keeps it out of the "first control" a dialog or the
  * palette focuses.)
+ * --- review fix (studio-fit) --- Where its box is too short for it above or below the icon (the phone's sheet, a phone
+ * held sideways), the bubble is drawn in a layer of its own over the page, on the side of the icon with more room in the
+ * window. The text stays in place for screen readers: that layer is a copy they do not read.
  */
 export default function Tooltip({ text }: { text: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
-  const [place, setPlace] = useState<{ x: "center" | "start" | "end"; below: boolean }>({ x: "center", below: false });
+  const [place, setPlace] = useState<Place>({ x: "center", below: false, layer: null });
+  const [hover, setHover] = useState(false);
   /** Where the bubble fits: measured before it shows (it is always rendered, see-through while hidden). */
   const measure = () => {
     const icon = ref.current;
@@ -27,20 +32,47 @@ export default function Tooltip({ text }: { text: string }) {
     const r = icon.getBoundingClientRect();
     const box = clipBox(icon);
     const mid = r.left + r.width / 2;
-    const half = bubble.offsetWidth / 2 + 8;
+    const width = bubble.offsetWidth;
+    const height = bubble.offsetHeight;
+    const half = width / 2 + 8;
     const x = mid - half < box.left ? "start" : mid + half > box.right ? "end" : "center";
-    const below = r.top - bubble.offsetHeight - 8 < box.top;
-    setPlace((p) => (p.x === x && p.below === below ? p : { x, below }));
+    // --- review fix (studio-fit) --- above the icon where it fits in its box, else below, else in the layer over the page
+    let next: Place;
+    if (height <= r.top - box.top - 8) next = { x, below: false, layer: null };
+    else if (height <= box.bottom - r.bottom - 8) next = { x, below: true, layer: null };
+    else {
+      const top0 = topEdge();
+      const top = r.top - 8 - top0 >= window.innerHeight - r.bottom - 8 ? r.top - 8 - height : r.bottom + 8;
+      const host = icon.closest("dialog") ?? document.body;
+      const origin = fixedOrigin(host);
+      next = {
+        x,
+        below: false,
+        layer: {
+          left: Math.round(Math.max(8, Math.min(window.innerWidth - width - 8, mid - width / 2)) - origin.left),
+          top: Math.round(Math.max(top0 + 8, Math.min(window.innerHeight - height - 8, top)) - origin.top),
+          host,
+        },
+      };
+    }
+    setPlace((p) => (p.x === next.x && p.below === next.below && p.layer?.left === next.layer?.left && p.layer?.top === next.layer?.top && p.layer?.host === next.layer?.host ? p : next));
   };
-  // A tap anywhere else closes an open bubble.
+  // A tap anywhere else closes an open bubble. --- review fix (studio-fit) --- a bubble in the layer follows a scroll.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", measure, { capture: true, passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", measure, { capture: true });
+      window.removeEventListener("resize", measure);
+    };
   }, [open]);
+  const bubbleClass = "pointer-events-none z-50 w-56 max-w-[calc(100vw-32px)] rounded-md border border-line bg-surface-3 px-2.5 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-ink whitespace-normal";
   const onClick = (e: MouseEvent<HTMLSpanElement>) => {
     // (inside a <label> a click would check its switch or focus its field: the tap is the tooltip's alone)
     e.preventDefault();
@@ -61,7 +93,12 @@ export default function Tooltip({ text }: { text: string }) {
       tabIndex={0}
       data-tip=""
       data-open={open ? "true" : undefined}
-      onPointerEnter={(e) => e.pointerType !== "touch" && measure()}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "touch") return;
+        measure();
+        setHover(true);
+      }}
+      onPointerLeave={() => setHover(false)}
       onFocus={(e) => {
         // (a tap focuses it too: only the keyboard's focus opens it, the tap's click toggles it)
         if (!focusVisible(e.currentTarget)) return;
@@ -80,27 +117,82 @@ export default function Tooltip({ text }: { text: string }) {
       <span
         ref={bubbleRef}
         className={cx(
-          "pointer-events-none absolute z-50 w-56 max-w-[calc(100vw-32px)] rounded-md border border-line bg-surface-3 px-2.5 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-ink whitespace-normal opacity-0 transition-opacity duration-150 group-hover/tip:opacity-100 group-data-[open=true]/tip:opacity-100",
+          bubbleClass,
+          "absolute opacity-0 transition-opacity duration-150",
+          !place.layer && "group-hover/tip:opacity-100 group-data-[open=true]/tip:opacity-100",
           place.below ? "top-full mt-2" : "bottom-full mb-2",
           place.x === "start" ? "-left-1" : place.x === "end" ? "-right-1" : "left-1/2 -translate-x-1/2",
         )}
       >
         {text}
       </span>
+      {place.layer &&
+        (open || hover) &&
+        createPortal(
+          <span aria-hidden="true" data-tip-layer="" className={cx(bubbleClass, "fixed animate-fadeIn")} style={{ left: place.layer.left, top: place.layer.top }}>
+            {text}
+          </span>,
+          place.layer.host,
+        )}
     </span>
   );
 }
 
-/** The box that would cut the bubble off: the nearest ancestor that clips its overflow, else the window below the header. */
-function clipBox(el: HTMLElement): { left: number; right: number; top: number } {
-  for (let at = el.parentElement; at && at !== document.body && at !== document.documentElement; at = at.parentElement) {
+/** Where the bubble shows: beside the icon in its box, or (`layer`) at a place over the page, in `host`. */
+interface Place {
+  x: "center" | "start" | "end";
+  below: boolean;
+  layer: { left: number; top: number; host: HTMLElement } | null;
+}
+
+/** Where a fixed box at left 0, top 0 inside `host` shows in the window (0, 0 unless the host's transform holds it). */
+function fixedOrigin(host: HTMLElement): { left: number; top: number } {
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden";
+  host.appendChild(probe);
+  const r = probe.getBoundingClientRect();
+  probe.remove();
+  return { left: r.left, top: r.top };
+}
+
+/** The top of the window's free area: under the header and under the studio's tab strip where it sticks below it. */
+function topEdge(): number {
+  let top = Math.max(0, document.querySelector("header")?.getBoundingClientRect().bottom ?? 0);
+  const rail = document.querySelector<HTMLElement>(".studio-rail");
+  if (rail && getComputedStyle(rail).position === "sticky") {
+    const r = rail.getBoundingClientRect();
+    if (r.width > r.height && Math.abs(r.top - top) <= 1) top = r.bottom;
+  }
+  return top;
+}
+
+/**
+ * The box that would cut the bubble off: across, the nearest ancestor that clips across; down, the nearest one that clips
+ * down (a page that only clips sideways, `overflow-x: clip`, cuts nothing above or below), and never above the header and
+ * the tab strip stuck under it.
+ */
+function clipBox(el: HTMLElement): { left: number; right: number; top: number; bottom: number } {
+  const box = { left: 0, right: window.innerWidth, top: topEdge(), bottom: window.innerHeight };
+  let across = false;
+  let down = false;
+  for (let at = el.parentElement; at && at !== document.body && at !== document.documentElement && !(across && down); at = at.parentElement) {
     const style = getComputedStyle(at);
-    if (/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) {
-      const r = at.getBoundingClientRect();
-      return { left: Math.max(0, r.left), right: Math.min(window.innerWidth, r.right), top: Math.max(0, r.top) };
+    const clipsX = !across && style.overflowX !== "visible";
+    const clipsY = !down && style.overflowY !== "visible";
+    if (!clipsX && !clipsY) continue;
+    const r = at.getBoundingClientRect();
+    if (clipsX) {
+      box.left = Math.max(box.left, r.left);
+      box.right = Math.min(box.right, r.right);
+      across = true;
+    }
+    if (clipsY) {
+      box.top = Math.max(box.top, r.top);
+      box.bottom = Math.min(box.bottom, r.bottom);
+      down = true;
     }
   }
-  return { left: 0, right: window.innerWidth, top: document.querySelector("header")?.getBoundingClientRect().bottom ?? 0 };
+  return box;
 }
 
 /** Whether the element has keyboard focus (:focus-visible), so a tap does not open and then close it again. */

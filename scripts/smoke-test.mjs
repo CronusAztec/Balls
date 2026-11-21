@@ -11290,6 +11290,46 @@ await smokeBlock("studio-fit", async () => {
       fit.open && fit.frame[0] >= fit.header && fit.frame[1] <= fit.transport[0] + 1 && fit.transport[1] <= fit.deskTop + 1 && fit.frame[2] >= 150 && fit.pauseReachable && fit.canvasOnTop && !fit.scrim && t2 > t1 && sizeAfter === sizeBefore,
       `(${JSON.stringify(fit)}, time ${t1} → ${t2}, canvas ${sizeBefore} → ${sizeAfter})`,
     );
+    // --- review fix (studio-fit) --- a window resize while the sheet is open (a phone's address bar coming and going) leaves
+    // the canvas' bitmap at its full size, and the stage fitted above the sheet again
+    await p.setViewportSize({ width: 390, height: 788 });
+    await p.waitForTimeout(400);
+    await p.setViewportSize({ width: 390, height: 844 });
+    await p.waitForTimeout(700);
+    const resized = await p.evaluate(() => {
+      const c = document.querySelector("main canvas");
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      return { bitmap: c.width, want: Math.round(c.offsetWidth * dpr), frameBottom: Math.round(document.querySelector(".stage-frame").getBoundingClientRect().bottom), transportTop: Math.round(document.querySelector(".studio-transport").getBoundingClientRect().top), scale: getComputedStyle(document.querySelector(".stage-frame")).transform };
+    });
+    check("phone: a window resize with the sheet open keeps the canvas' bitmap at its full size and the stage above the sheet", resized.bitmap === resized.want && resized.frameBottom <= resized.transportTop + 1 && resized.scale !== "none", `(${JSON.stringify(resized)})`);
+    // an info tip of a row in the middle of the short sheet shows whole (in the panel, or over the stage where the sheet has no room)
+    const midTip = await p.evaluate(() => {
+      const body = document.getElementById("studio-panel-body");
+      const tip = [...body.querySelectorAll("[data-tip]")].find((el) => el.getClientRects().length > 0 && el.closest("label, .space-y-2") && el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop > body.clientHeight);
+      if (!tip) return false;
+      tip.setAttribute("data-smoke-tip", "");
+      const b = body.getBoundingClientRect();
+      body.scrollTop += tip.getBoundingClientRect().top - (b.top + b.height * 0.55);
+      return true;
+    });
+    let tipShown = { found: midTip };
+    if (midTip) {
+      await p.locator("[data-smoke-tip]").tap();
+      await p.waitForTimeout(300);
+      tipShown = await p.evaluate(() => {
+        const tip = document.querySelector("[data-smoke-tip]");
+        const bubble = document.querySelector("[data-tip-layer]") ?? tip.querySelector("span");
+        const r = bubble.getBoundingClientRect();
+        // (hit testing honours every clip: the bubble answers at its four corners only where it is drawn)
+        bubble.style.pointerEvents = "auto";
+        const corners = [[r.left + 3, r.top + 3], [r.right - 3, r.top + 3], [r.left + 3, r.bottom - 3], [r.right - 3, r.bottom - 3]];
+        const whole = corners.every(([x, y]) => x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight && bubble.contains(document.elementFromPoint(x, y)));
+        bubble.style.pointerEvents = "";
+        return { found: true, open: tip.getAttribute("data-open"), whole, rect: [Math.round(r.top), Math.round(r.bottom)], layer: bubble.hasAttribute("data-tip-layer"), opacity: getComputedStyle(bubble).opacity };
+      });
+      await p.locator("#studio-panel-body").tap({ position: { x: 4, y: 4 } }).catch(() => {});
+    }
+    check("phone: the info tip of a row in the middle of the open sheet shows whole", tipShown.found && tipShown.open === "true" && tipShown.whole && Number(tipShown.opacity) > 0.9, `(${JSON.stringify(tipShown)})`);
     // the tab strip
     const strip = await p.evaluate(() => {
       const rail = document.querySelector(".studio-rail");
