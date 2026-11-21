@@ -226,6 +226,18 @@ export const BAND_MAX = 0.086;
 export const HUB_AT = 0.045;
 /** A rebound leaves within this of the inward normal (radians): the ring modes' scatter. */
 export const SCATTER = Math.PI / 3;
+/** The hub is drawn this many times the layout's `hub` wide (the count fits inside it). */
+export const HUB_DRAWN = 3;
+/** A ball starts on the hub's edge along its launch, this share of the drawn hub's radius out: the count in the hub stays clear. */
+export const SPAWN_AT_HUB = 1.15;
+/**
+ * The first ball is launched at a tile the playhead reaches this soon after the ball lights it (s, the least and the most), so
+ * the tune sings within the first second or so instead of waiting most of a lap; `LAUNCH_MARGIN` keeps the aim off the tile's
+ * edges (a share of its arc on each side).
+ */
+export const FIRST_NOTE_MIN_SEC = 0.2;
+export const FIRST_NOTE_MAX_SEC = 1;
+export const LAUNCH_MARGIN = 0.2;
 
 export interface SongRingLayout {
   /** The world the layout was built for. */
@@ -319,6 +331,42 @@ export function tileAt(tiles: Pick<SongRingTiles, "count" | "start" | "end">, tu
   const u = turn - Math.floor(turn);
   for (let i = 0; i < tiles.count; i++) if (u >= tiles.start[i] && u < tiles.end[i]) return i;
   return tiles.count - 1;
+}
+
+/**
+ * The share of a lap the first ball is launched toward, from the seed's one draw (0 … 1): inside a tile whose start the
+ * playhead crosses `FIRST_NOTE_MIN_SEC` to `FIRST_NOTE_MAX_SEC` after the ball reaches the wall `hitSec` in (each such tile
+ * as likely as its arc is long); when no tile starts in that window, the first one to start after it.
+ */
+export function launchTurn(tiles: Pick<SongRingTiles, "count" | "start" | "end">, hitSec: number, lapSec: number, draw: number): number {
+  const lap = Math.max(1e-6, lapSec);
+  const lo = (hitSec + FIRST_NOTE_MIN_SEC) / lap;
+  const hi = (hitSec + FIRST_NOTE_MAX_SEC) / lap;
+  // (where the playhead first crosses each tile's start at or after `lo`, in laps since the start)
+  const due = (i: number) => tiles.start[i] + Math.ceil(lo - tiles.start[i] - 1e-12);
+  let total = 0;
+  let first = 0;
+  for (let i = 0; i < tiles.count; i++) {
+    if (due(i) <= hi) total += tiles.end[i] - tiles.start[i];
+    if (due(i) < due(first)) first = i;
+  }
+  const inWindow = (i: number) => (total > 0 ? due(i) <= hi : i === first);
+  if (total <= 0) total = tiles.end[first] - tiles.start[first];
+  let at = Math.max(0, Math.min(1, draw)) * total;
+  let last = first;
+  for (let i = 0; i < tiles.count; i++) {
+    if (!inWindow(i)) continue;
+    last = i;
+    const w = tiles.end[i] - tiles.start[i];
+    if (at <= w) return tiles.start[i] + w * (LAUNCH_MARGIN + (1 - 2 * LAUNCH_MARGIN) * (at / w));
+    at -= w;
+  }
+  return tiles.start[last] + (tiles.end[last] - tiles.start[last]) * (1 - LAUNCH_MARGIN);
+}
+
+/** The final chord's four notes (Hz): the tune's root, its third (minor or major), its fifth and its octave. */
+export function finalChordOf(tune: Pick<SongRingTune, "root" | "minor">): number[] {
+  return [0, tune.minor ? 3 : 4, 7, 12].map((step) => midiToFrequency(tune.root + step));
 }
 
 /** A tile's hue (degrees): the lowest note violet, through blue, green and gold to the highest in pink. */
@@ -555,13 +603,17 @@ export class SongRingMode implements GameMode {
     v.finishedMs = -1;
     v.sparkCount = 0;
     this.rebuild(ctx);
-    // The balls leave the centre evenly spread, the first in the seed's direction (the engine then adds no default ball).
+    // The balls leave the hub's edge evenly spread (the count in the hub stays clear), the first toward a tile the playhead
+    // reaches soon after the ball lights it, the seed's draw picking where (the engine then adds no default ball).
     const L = this.layout!;
-    const a = ctx.random() * TWO_PI;
     const speed = this.speedPx();
+    const from = Math.min(SPAWN_AT_HUB * HUB_DRAWN * L.hub, 0.5 * L.reach);
+    const a = angleOf(launchTurn(v.tiles, (L.reach - from) / speed, s.lapSec, ctx.random()));
     for (let i = 0; i < s.balls; i++) {
       const dir = a + (i * TWO_PI) / s.balls;
-      ctx.addBall({ x: L.cx, y: L.cy, vx: Math.cos(dir) * speed, vy: Math.sin(dir) * speed, radius: L.ballRadius, radiusScale: L.side / TUNED_SIDE, color: i === 0 ? ctx.config.ballColor || "#FFFFFF" : EXTRA_BALL_COLORS[(i - 1) % EXTRA_BALL_COLORS.length], gravityScale: 0 });
+      const x = L.cx + Math.cos(dir) * from;
+      const y = L.cy + Math.sin(dir) * from;
+      ctx.addBall({ x, y, vx: Math.cos(dir) * speed, vy: Math.sin(dir) * speed, radius: L.ballRadius, radiusScale: L.side / TUNED_SIDE, color: i === 0 ? ctx.config.ballColor || "#FFFFFF" : EXTRA_BALL_COLORS[(i - 1) % EXTRA_BALL_COLORS.length], gravityScale: 0 });
     }
     v.balls = ctx.getBalls().length;
   }
@@ -871,7 +923,9 @@ export class SongRingMode implements GameMode {
         v.chordMs = now;
         v.head = 0;
         ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "bedStop", melody: false });
-        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: midiToFrequency(this.tune.root), level: 1, loopMinor: this.tune.minor, loopExact: true, melody: false });
+        // (accented, with its four notes: the run's one chord, the largest moment of the clip; the tone generator voices "chord"
+        // from its root and colour alone, so the notes only say what it plays)
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: midiToFrequency(this.tune.root), level: 1, loopMinor: this.tune.minor, loopExact: true, melody: false, accent: true, chord: finalChordOf(this.tune) });
         ctx.noteImpact?.();
         ctx.spawnConfetti(L.cx, L.cy);
         for (let i = 0; i < v.total; i++) v.playMs[i] = now;

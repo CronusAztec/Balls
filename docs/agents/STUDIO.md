@@ -161,7 +161,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
 | | Beat Machines | | | `on-the-beat-beat-machine`: its payoff note repeats a bar heard twice before (G2) |
 | | Wave Tank | | | `on-the-beat-wave-tank`: its last 1.5 s play what every moment did (G2) |
-| | Song Ring | its final chord, after the phrase played whole, when the ring names the tune (its run's end less its 1.5 s hold); its hook asks to name the tune, its count of the notes lit is its countdown | `on-the-beat-song-ring` | |
+| | Song Ring | its final chord, after the phrase played whole, when the ring names the tune (its run's end less its 1.5 s hold): the run's one accented event and its one four-note chord, so it outdoes the finale lap before it (G2, read with the payoff's moment); its hook asks to name the tune, its count of the notes lit is its countdown | `on-the-beat-song-ring` | |
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |

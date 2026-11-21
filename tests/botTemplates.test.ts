@@ -2241,7 +2241,7 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // (--- templates --- studio round 1, 10 and 11: Perfect Fit, Beat Machines and the Wave Tank experimental, Ball Drop's one variant
     // hidden; Collision Playground ready, timed by its drop)
     // (--- templates --- studio2 review round 2, 17: Bouncing Shapes experimental, the aim format's Bullseye ready)
-    // (--- song-ring --- Song Ring ready on the beat, timed by its final chord: 12 of 12 plans a language pass every gate)
+    // (--- song-ring --- Song Ring ready on the beat, timed by its final chord: 28 of 28 plans pass every gate read with the payoff's moment)
     expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [1, 2, 0], lineUp: [8, 0, 0], onTheBeat: [2, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
     // 35 modes as 44 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden; 17: 44 until Bouncing Shapes'; --- song-ring --- 43 until Song Ring's)
     expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 44]);

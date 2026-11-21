@@ -802,8 +802,9 @@ studio's tools say, one in the release notes, and one the first part of this rou
 - The Spiral Glass badge is the clip's own count of the balls, which its hook does not ask about. It stays on screen with the
   overlay off by design (its tip says so), so it now costs the Simple score its text on screen; the template stays ready.
 
-**Song Ring, bound when the mode was added** **[observed: its 4 plan seeds × 3 platforms in the Simple look in English, Polish
-and Spanish (the same counts in each), plan seeds 5–8 in the studio's 800×450 world, and 400 seeds of its default run]**. Song
+**Song Ring, bound when the mode was added** **[observed: 28 plans read as the studio reads them, with the payoff's moment
+(plan seeds 1–24 across English, Polish and Spanish, the three platforms and the worlds 800×600, 800×450 and 450×450), and 400
+seeds of its default run]**. Song
 Ring (`on-the-beat-song-ring`) joins the on the beat format with settings of its own: the mode's defaults, standard clips,
 resolved. Its payoff is its final chord, 1.5 s before its run's end: the phrase has just played whole and the ring names the
 tune. Its hook is its own ("Name the tune before it ends.", "Zgadnij melodię, zanim się skończy.", "Adivina la melodía antes
@@ -811,13 +812,14 @@ del final."), its post is its format's ("Which song should it play next?"), and 
 
 | | Measured |
 | --- | --- |
-| Plans passing every gate | 12 of 12 in each language, and 12 of 12 on plan seeds 5–8 at 800×450 |
+| Plans passing every gate | 28 of 28, gate G2 measured on the payoff's moment as the studio does (`studioKit.ts` runOfPlan): plan seeds 1–4 in English, 5–8 in Polish and 9–12 in Spanish at 800×600, 13–16 at 800×450 and 17–20 at 450×450 on Reels, 21–24 on TikTok and on Shorts |
 | Simple score | 91 (90–91) |
-| Checklist score | 92 (90–96): 16 of 20 for a payoff close to the clip's end on half the plans, 8 of 10 for the length on Shorts |
-| Clip length | 16.4–22.5 s |
+| Checklist score | 94 (90–96): 16 of 20 for a payoff close to the clip's end on some plans, 8 of 10 for the length on Shorts |
+| Clip length | 18.2–23.2 s |
 | Countdown | the mode's own count of the notes lit in the hub ("3/7"), credited as the HUD's (`hudShowsCountdown`, `MODE_HUDS` counts) |
-| The default run over 400 seeds | it ends 14.5–23.7 s in (median 20.6 s, 399 of 400 between 15 and 25 s); the last note lights 8.3–17.5 s in (median 14.4 s); the longest wait for a note is 4.4 s at the median and 9.6 s at most; 3.7 sound events a second at the median (3.6–3.9 from the 10th to the 90th percentile), never more than 0.8 s of silence; the same numbers at 450×450, 800×450 and 800×600, as the ring, the ball and its speed scale with the square |
-| The same run without the help (`srh=0`) | over 400 seeds it ends 10.2–40.0 s in, 222 of them between 15 and 25 s, and a note waits up to 28.9 s |
+| The payoff's moment | the final chord is the run's one accented event and its one chord (four notes: root, third, fifth, octave), so it stands out from the finale lap before it (`beatStandsOut`: a chord larger than any before) |
+| The default run over 400 seeds at 800×450 | it ends 15.0–24.3 s in (median 20.4 s, 399 of 400 between 15 and 25 s); the last note lights 8.8–18.1 s in (median 14.2 s); the first sung note comes 0.5–1.0 s in (median 0.5 s); the longest wait for a note is 4.6 s at the median and 8.3 s at most; 3.8 sound events a second at the median (3.7–4.0 from the 10th to the 90th percentile), never more than 0.8 s of silence; the same within 0.3 s over 100 seeds at 450×450, as the ring, the ball and its speed scale with the square |
+| The same run without the help (`srh=0`) | over 400 seeds it ends 10.3–46.0 s in, 219 of them between 15 and 25 s, and a note waits up to 32.0 s |
 
 - Watched, a Simple clip of plan seed 1 on Reels (21.8 s, rendered at 1080×1920): the hook stands at the top of the square for
   2.5 s while the first two tiles light, the count in the hub goes from 1/7 to 7/7, the last tile lights at 15.1 s, the
@@ -827,6 +829,12 @@ del final."), its post is its format's ("Which song should it play next?"), and 
   snapped to the page's scale). The finale is the loudest part, 74–75 dB a second against 67–71 before it.
 - A fault no gate measures: until that flag the bot's pages, which play in a pentatonic scale, would have turned the phrase
   into another tune. `tests/songRing.test.ts` holds it.
+- Corrected after review: the first count, 12 of 12 in each language, was read without the payoff's moment (the readiness tests
+  of `tests/botTemplates.test.ts` call runSync without it), so G2 never ran. Read as the studio reads it, every plan failed G2
+  (`payoffLandsPlain`: 2–3 sounds at the chord against 7–9 in the finale lap) while the chord was one plain event. It is now
+  accented and four notes wide, and `tests/songRing.test.ts` reads four plans the studio's way. The same review moved the ball's
+  start onto the hub's edge (the first frame read "0●7" with the ball over the count) and aims the first ball at a tile the
+  playhead reaches 0.2–1 s after it lights (the first sung note came 2.0 s in at the median, 3.0 s at most).
 - The whole table: 35 ready bindings as 44 templates, 49 of 49 modes bound. On the beat has 2 ready bindings of 8.
 
 **Where the templates are offered** (AI studio steps 7 and 8):
