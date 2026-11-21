@@ -687,7 +687,8 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
   const same = Object.values(runs).every((r) => Math.abs(r.after.y - r.before.y) <= 2 && r.after.cards === r.before.cards && r.after.q === r.before.q && r.after.url === r.before.url);
   const deep = Object.values(runs).every((r) => r.before.y > 600);
   const addresses = runs.shelf.before.url === "?family=loops" && runs.sort.before.url === "?sort=az" && runs.search.before.url === "" && runs.typed.before.url === "?family=battle";
-  const lists = runs.shelf.before.cards === 11 && runs.search.before.q === "fight" && runs.search.before.cards === 8 && runs.typed.before.q === "claims" && runs.typed.before.cards >= 1 && runs.typed.before.cards < 8;
+  // (--- sand-plate --- the Loops shelf holds 12 cards since Sand Plate joined it: lib/siteDesign.ts MODE_SHELVES)
+  const lists = runs.shelf.before.cards === 12 && runs.search.before.q === "fight" && runs.search.before.cards === 8 && runs.typed.before.q === "claims" && runs.typed.before.cards >= 1 && runs.typed.before.cards < 8;
   check(
     "modes wall: Back from the studio returns to the same scroll position with a shelf, a sort and a search set; the address keeps the shelf and the sort, never \"#modes\" or the search",
     same && deep && addresses && lists,
