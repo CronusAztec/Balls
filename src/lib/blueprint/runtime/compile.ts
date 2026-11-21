@@ -34,7 +34,7 @@ export interface CompiledRule {
   of: number;
   /** ballHit: the other's body (≥ 0), or −1 with `relation`. */
   withBody: number;
-  relation: "any" | "same" | "sameTier" | "sameTeam" | "otherTeam";
+  relation: "any" | "same" | "sameTier" | "sameTeam" | "otherTeam" | "smaller";
   /** countReached: the variable counted (≥ 0), or −1 with spec.what. */
   whatVar: number;
   actions: CompiledAction[];
@@ -68,7 +68,7 @@ export function compileBlueprint(bp: Blueprint): CompiledBlueprint {
   const byTrigger = Object.fromEntries(TRIGGERS.map((t) => [t, [] as number[]])) as Record<Trigger, number[]>;
   const rules = bp.rules.map((r, index): CompiledRule => {
     byTrigger[r.when].push(index);
-    const isRelation = r.with === "any" || r.with === "same" || r.with === "sameTier" || r.with === "sameTeam" || r.with === "otherTeam";
+    const isRelation = r.with === "any" || r.with === "same" || r.with === "sameTier" || r.with === "sameTeam" || r.with === "otherTeam" || r.with === "smaller";
     return {
       index,
       spec: r,

@@ -178,6 +178,28 @@ describe("blueprint runtime: contacts and the events of a step", () => {
     // (nothing listens to a wall, a peg or a contact here: only the tiles' events and the start were queued)
     expect(r.stats.events).toBeLessThanOrEqual(2 * 96 + 1);
   });
+
+  // --- blueprint-catalog-c2 --- the `smaller` relation: self is always the bigger ball, whichever was faster
+  it("matches `with: smaller` with the bigger ball as self, whichever was faster, and never two balls the same size", () => {
+    // a big slow ball and a small fast one meet head on: the rule grows the bigger (self) and recolours the smaller (other)
+    const bp = (bigSpeed: number, smallSpeed: number) =>
+      spec({ arena: { gravity: { x: 0, y: 0 } }, bodies: [{ id: "big", radius: 30 }, { id: "small", radius: 15, color: 1 }], spawners: [{ body: "big", at: "left", dir: "right", speed: bigSpeed }, { body: "small", at: "right", dir: "left", speed: smallSpeed }], vars: [{ id: "hits" }], rules: [{ when: "ballHit", with: "smaller", maxFires: 1, do: [{ act: "grow", target: "self", by: 5 }, { act: "recolor", target: "other", color: 3 }, { act: "var", id: "hits" }] }] });
+    for (const [bigSpeed, smallSpeed] of [[50, 400], [400, 50]]) {
+      const r = run(bp(bigSpeed, smallSpeed), 3);
+      const [big, small] = r.world.balls;
+      expect([r.vars[0], big.r, small.r, big.color, small.color], `${bigSpeed} vs ${smallSpeed}`).toEqual([1, 35, 15, 0, 3]);
+    }
+    // two balls of one size never match: the contact happens, the rule never fires
+    const same = spec({ arena: { gravity: { x: 0, y: 0 } }, bodies: [{ id: "ball", radius: 30 }], spawners: [{ body: "ball", at: "left", dir: "right", speed: 200 }, { body: "ball", at: "right", dir: "left", speed: 200 }], vars: [{ id: "hits" }, { id: "touches" }], rules: [{ when: "ballHit", with: "smaller", do: [{ act: "var", id: "hits" }] }, { when: "ballHit", do: [{ act: "var", id: "touches" }] }] });
+    const s = run(same, 2);
+    expect([s.vars[0], s.vars[1] >= 1]).toEqual([0, true]);
+    // a size that passes on a touch (Hot Potato's bomb): the bigger gives its size to the smaller, and the next touch passes it on
+    const pass = spec({ arena: { gravity: { x: 0, y: 0 } }, bodies: [{ id: "holder", radius: 40 }, { id: "ball", radius: 25 }], spawners: [{ body: "holder", at: "left", dir: "right", speed: 200 }, { body: "ball", at: "right", dir: "left", speed: 200 }], vars: [{ id: "passes" }], rules: [{ when: "ballHit", with: "smaller", do: [{ act: "grow", target: "self", by: "25 - size" }, { act: "grow", target: "other", by: "40 - size" }, { act: "var", id: "passes" }] }] });
+    const p = run(pass, 6);
+    const sizes = p.world.balls.map((b) => b.r).sort((a, b) => a - b);
+    expect(p.vars[0]).toBeGreaterThanOrEqual(2);
+    expect(sizes).toEqual([25, 40]);
+  });
 });
 
 describe("blueprint runtime: its contracts", () => {

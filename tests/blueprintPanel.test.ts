@@ -54,6 +54,9 @@ describe("blueprint panel: a slider says its unit", () => {
       tierClimb: ["", "s", "pxPerSec2"],
       plinkoRace: ["deg", "degPerSec", ""],
       growEscape: ["px", "deg", "px"],
+      // --- blueprint-catalog-c2 --- (Thin Ice's melt is a timer's seconds; Hot Potato's first fuse a variable's seconds, shown bare)
+      thinIce: ["", "", "", "s"],
+      hotPotato: [""],
     });
   });
 

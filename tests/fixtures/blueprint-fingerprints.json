@@ -242,6 +242,100 @@
       "tilesBroken": 0,
       "sounds": 53,
       "peakBalls": 1
+    },
+    "thinIce": {
+      "digest": "d65fb2ec",
+      "samples": [
+        [
+          66268,
+          463768
+        ],
+        [
+          366615,
+          402656
+        ],
+        [
+          64258,
+          447199
+        ],
+        [
+          327745,
+          456580
+        ],
+        [
+          30714,
+          426823
+        ],
+        [
+          132161,
+          397647
+        ],
+        [
+          241038,
+          436651
+        ],
+        [
+          141205,
+          302028
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 1232,
+      "result": "GREEN STAYS DRY",
+      "winner": 2,
+      "spawned": 6,
+      "escaped": 4,
+      "tilesBroken": 8,
+      "sounds": 59,
+      "peakBalls": 6
+    },
+    "hotPotato": {
+      "digest": "8ae2b5cd",
+      "samples": [
+        [
+          396408,
+          402607
+        ],
+        [
+          225924,
+          516203
+        ],
+        [
+          331790,
+          408375
+        ],
+        [
+          194477,
+          502308
+        ],
+        [
+          331954,
+          402154
+        ],
+        [
+          395198,
+          363968
+        ],
+        [
+          156017,
+          261920
+        ],
+        [
+          169375,
+          365643
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 1014,
+      "result": "BLUE SURVIVES",
+      "winner": 1,
+      "spawned": 11,
+      "escaped": 0,
+      "tilesBroken": 0,
+      "sounds": 61,
+      "peakBalls": 7
     }
   }
 }

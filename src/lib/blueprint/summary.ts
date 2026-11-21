@@ -72,7 +72,7 @@ function countName(c: Ctx, what: string): SummaryPhrase {
 }
 
 /** A ballHit rule's head by its `with` relation (a body id: "When a ball touches a ball called …"). */
-const BALL_HIT_HEADS: Readonly<Record<string, string>> = { any: "when.ballHit", same: "when.ballHitSame", sameTier: "when.ballHitSameTier", sameTeam: "when.ballHitSameTeam", otherTeam: "when.ballHitOtherTeam" };
+const BALL_HIT_HEADS: Readonly<Record<string, string>> = { any: "when.ballHit", same: "when.ballHitSame", sameTier: "when.ballHitSameTier", sameTeam: "when.ballHitSameTeam", otherTeam: "when.ballHitOtherTeam", smaller: "when.ballHitSmaller" /* --- blueprint-catalog-c2 --- */ };
 
 /** A rule's trigger, with its filters after it ("When a ball hits the wall, every 3rd time"). */
 function ruleHead(c: Ctx, r: BlueprintRule): SummaryPhrase {

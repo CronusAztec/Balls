@@ -837,6 +837,27 @@ del final."), its post is its format's ("Which song should it play next?"), and 
   playhead reaches 0.2–1 s after it lights (the first sung note came 2.0 s in at the median, 3.0 s at most).
 - The whole table: 35 ready bindings as 44 templates, 49 of 49 modes bound. On the beat has 2 ready bindings of 8.
 
+**Mode Lab's Thin Ice and Hot Potato, two games added as data (new modes lane, C2)** **[observed: plans read as the studio
+reads them, with the payoff's moment: 24 for Thin Ice and 16 for Hot Potato, plan seeds across English, Polish and Spanish, the
+three platforms and the worlds 800×600, 800×450 and 450×450; and 100 seeds of each game's default run]**. Two contests, so the
+battle family offers them (`--family all` or `battle`), each a variant of the Mode Lab's binding with its own hook.
+
+| Template | Its own words | Simple | Checklist | Pass every gate |
+| --- | --- | --- | --- | --- |
+| lab-game-blueprint-thin-ice | Thin Ice; standard only; "Bounces crack the ice. Who stays dry?" ("Odbicia kruszą lód. Kto zostanie suchy?", "El hielo se agrieta. ¿Quién sigue seco?") | 90 (87–91) | 84 (82–86) | 24/24 |
+| lab-game-blueprint-hot-potato | Hot Potato; standard only; "Touch passes the bomb. Last one wins." (hidden: below) | 90 (87–91) | 86 (82–86) | 6/16 |
+
+- Thin Ice over 100 seeds: the first ball falls 0.7–14.1 s in (median 1.8 s: a ball slides off the broken edge or drops
+  through the first hole), the last colour stands 7.0–27.9 s in (median 17.3 s, 72 of 100 between 15 and 25 s), 3.1 sounds a
+  second at the median (only the landings on the ice, the breaks and the falls sound), and each colour wins 30 to 38 of the 100.
+- Hot Potato over 100 seeds: the last ball stands 16.0–20.6 s in (median 17.5 s, 100 of 100 between 15 and 25 s), the last
+  two pass the bomb at least once on every seed, 3.7 sounds a second at the median, and each colour wins 28 to 39 of the 100.
+- Hot Potato waits, hidden with its reason (`LAB_GAME_HIDDEN`): the game's title block takes the top of the square, and at
+  the bottom its hook hid the moving balls on more than half of its samples on 10 of 16 plans (G5, `hookPushedOverAction`),
+  with hooks of 29 to 52 characters alike. Its balls fly all over the ring, and a smaller ring (0.84 and 0.76 of the square)
+  failed as often. It needs a game whose action leaves one edge of the square clear, or a hook placed off the action.
+- The whole table: 35 ready bindings as 45 templates.
+
 **Where the templates are offered** (AI studio steps 7 and 8):
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped

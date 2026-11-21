@@ -107,7 +107,7 @@ export function renderBlueprintDocs(): string {
 
   p("## Triggers (`when`)", "", table(["Trigger", "Fires"], TRIGGERS.map((t) => [code(t), TRIGGER_DOCS[t]])));
   p(
-    "A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),",
+    "A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`, `smaller`),",
     "`every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.",
     "An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its",
     "rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands",

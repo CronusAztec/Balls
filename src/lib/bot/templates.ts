@@ -1041,6 +1041,9 @@ export const LAB_GAMES = [
   { id: "tierClimb", family: "rhythm" },
   { id: "plinkoRace", family: "rhythm" },
   { id: "growEscape", family: "escape" },
+  // --- blueprint-catalog-c2 --- Thin Ice and Hot Potato, two contests (the catalog's battle series)
+  { id: "thinIce", family: "battle" },
+  { id: "hotPotato", family: "battle" },
 ] as const satisfies readonly { id: string; family: BotFamily }[];
 /** A built-in Mode Lab game's catalog id (lib/blueprint/catalog BlueprintCatalogId, held to it by tests/botTemplates.test.ts). */
 export type LabGameId = (typeof LAB_GAMES)[number]["id"];
@@ -1060,7 +1063,7 @@ const labGameVariant = (id: LabGameId): VariantOwn => ({ patch: { blPreset: id }
  * about 9 s in and Grow or Go ends about 14 s in, so a standard clip took the seeds that drag – four balls waiting 8 s for the last
  * rings, the racers resting 10 s on the bowl's floor for the exit, a ball 4 bounces big after 17 s (watched) – the short length.
  */
-const LAB_GAME_BUCKETS: Readonly<Record<LabGameId, readonly LengthBucket[]>> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
+const LAB_GAME_BUCKETS: Readonly<Record<LabGameId, readonly LengthBucket[]>> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"], thinIce: ["standard"], hotPotato: ["standard"] /* --- blueprint-catalog-c2 --- (their last colour stands about 18 s in) */ };
 /**
  * The games hidden after they were watched, each with its reason: Colour Conquest's 24 balls collide and convert each other, and the
  * page's run of them parted from the planner's – rendered twice, its run ended 0.8 s after the plan's finish once, and the other time
@@ -1071,6 +1074,8 @@ const LAB_GAME_HIDDEN: Readonly<Partial<Record<LabGameId, string>>> = {
   conquer: "its 24 balls collide and convert each other, and the page's run parted from the planner's: rendered twice, it ended 0.8 s after the planned finish once and had two colours left at the clip's end the other time (13 s; planned to end 11 s in), so its ending never came (watched)",
   // --- templates --- (studio2 review round 2, 8)
   tierClimb: "no edge of the square is clear for its hook: the game's title block takes the top (G5), where the rain also falls and the first orbs merge into a 2 about 1 s in, and at the bottom the hook hid the moving orbs on 3 of its 4 samples on 9 of 12 plans (1.5 s of its 2; 1 s on the other 3), the merges into 3 and 4 behind \"into a bigger one.\" at 1.6-2.4 s (watched): the hook covers the very thing it describes (crew/clarity.ts hookPushedOverAction)",
+  // --- blueprint-catalog-c2 ---
+  hotPotato: "no edge of the square is clear for its hook: the game's title block takes the top (G5), and at the bottom the hook hid the moving balls on more than half of its samples on 10 of 16 plans (1.5-2 s of its 2; plan seeds 1-16 in en, pl and es at 800x600, 800x450 and 450x450, measured with the plan tool): six balls and the spark fly all over the ring, and a smaller ring (0.84 and 0.76 of the square) failed as often (crew/clarity.ts hookPushedOverAction)",
 };
 /** What the viewer's screen view sees of each game, in neutral words. */
 const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
@@ -1080,6 +1085,9 @@ const LAB_GAME_SCENES: Readonly<Record<LabGameId, string>> = {
   tierClimb: "small orbs raining into a round bowl",
   plinkoRace: "four balls in four colours dropping through pegs into a bowl with one turning exit",
   growEscape: "one ball inside a turning rim with one gap",
+  // --- blueprint-catalog-c2 ---
+  thinIce: "balls in three colours hopping on one row of ice panes over an opening at the bottom",
+  hotPotato: "balls in three colours inside a circle, one of them big and orange",
 };
 // --- end of group D's settings
 
