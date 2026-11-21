@@ -383,6 +383,8 @@ export const SLOW_VIEW_MODES: readonly ModeId[] = ["classic", "accumulation", "m
 (SLOW_VIEW_MODES as ModeId[]).push("territory");
 // --- odd-maze --- the Maze slows down when the first ball reaches the exit (the near-miss hook): its balls glide between steps too
 (SLOW_VIEW_MODES as ModeId[]).push("maze");
+// --- merge-ring-staged --- (review fix B4) Merge Ring's final merge plays in slow motion (the camera's dip): its balls glide between steps too
+(SLOW_VIEW_MODES as ModeId[]).push("mergeRing");
 
 export function slowViewEligible(mode: ModeId | null | undefined): boolean {
   return !!mode && SLOW_VIEW_MODES.includes(mode);

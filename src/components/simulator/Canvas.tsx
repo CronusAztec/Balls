@@ -1417,7 +1417,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // flip's real clock (flRender.koStopMs), every cue the heavy hit's (flRender.heavyStopMs).
       // --- merge-ring-staged --- the final form's merge plays in slow motion (the camera's dip; the engine's clock is untouched)
       if (engine.isMergeRingMode()) {
-        const cue = mergeRingLayer.cameraCue(engine.getMergeRingView());
+        const mrCamView = engine.getMergeRingView();
+        // (review fix B4) from the final merge on, its balls are drawn between steps: the dip runs a step only every few frames
+        cam.modeSlowView = mrCamView.finalMs >= 0;
+        const cue = mergeRingLayer.cameraCue(mrCamView);
         if (cue) cam.dip(cue.dipMs, cue.factor);
       }
       if (engine.isFightLeagueMode()) {
@@ -1437,6 +1440,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // every few frames, so the raw positions would stand still and jump)
       const replay = cam.replayView();
       const slow = replay ? null : cam.slowView(engine, accumulator / 16.666);
+      // --- merge-ring-staged --- (review fix B4) the final merge's flash, halos and pulse at the time the balls are drawn at
+      mergeRingLayer.timeOffsetMs = slow && engine.isMergeRingMode() ? -(1 - Math.max(0, Math.min(1, accumulator / 16.666))) * 16.666 : 0;
       const walls = replay ? replay.walls : slow ? slow.walls : engine.getCircularWalls();
       const rotations = replay ? replay.rotations : slow ? slow.rotations : engine.getWallRotations();
       const broken = replay ? replay.broken : engine.getBrokenWalls();

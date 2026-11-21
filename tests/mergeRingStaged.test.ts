@@ -10,11 +10,13 @@ import {
   HEART_HZ,
   HEART_SLOW_MS,
   OVERFLOW_MS,
+  OVERFLOW_STING_HZ,
   heartbeatMs,
 } from "@/lib/physics/modes/mergeRing";
 import { FINAL_DIP_FACTOR, FINAL_DIP_MS, FINAL_FLASH_MS, GLOW_ALPHA_MAX, GLOW_ALPHA_MIN, MergeRingLayer, interiorGlowAlpha, warningLevel } from "@/components/simulator/mergeRingRenderer";
 import { defaultSettings, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
+import { slowViewEligible } from "@/lib/simulation/camera";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import { fakeCanvas } from "./fakeCanvas";
@@ -191,5 +193,45 @@ describe("the staged ending", () => {
     // the line across the opening was drawn (a stroke from one chute wall to the other)
     const L = view.layout!;
     expect(a).toContain(`[${L.cx - L.chuteHalf},${L.openY}]`);
+  });
+});
+
+// --- merge-ring-staged --- (review fix B4)
+describe("the ending's picture and sound (review fix B4)", () => {
+  it("draws the final merge's balls between steps: Merge Ring is a slow-view mode, and the flash follows the drawn time", () => {
+    expect(slowViewEligible("mergeRing")).toBe(true);
+    const layer = new MergeRingLayer(() => null);
+    expect(layer.timeOffsetMs).toBe(0);
+    const engine = pageEngine(5);
+    for (let i = 0; i < 6 * 60; i++) engine.update(STEP, 0);
+    const base = engine.getMergeRingView();
+    const view = { ...base, finalMs: base.timeMs - 100 };
+    const opts = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: false, darkBodies: true };
+    const flashAt = (offset: number) => {
+      const canvas = fakeCanvas(450, 450);
+      layer.timeOffsetMs = offset;
+      layer.drawWorld(canvas.ctx as unknown as CanvasRenderingContext2D, view, opts);
+      return JSON.stringify(canvas.ctx.calls);
+    };
+    // 10 ms earlier in the flash: a brighter white than at the engine's own time
+    expect(flashAt(-10)).not.toBe(flashAt(0));
+    expect(flashAt(-10)).toBe(flashAt(-10));
+  });
+
+  it("ends an overflow on a sting under its banner: the crash and the chord's minor ending, held, at the overflow's step", () => {
+    let found = false;
+    for (let seed = 1; seed <= 24 && !found; seed++) {
+      const { events, view, endMs } = runOf(pageEngine(seed), 45);
+      if (view.overflowMs < 0) {
+        expect(events.some(({ ev }) => ev.loop === "chord" && ev.loopMinor), `seed ${seed}`).toBe(false);
+        continue;
+      }
+      found = true;
+      const last = events.filter(({ t }) => t === endMs).map(({ ev }) => ev);
+      expect(last.some((ev) => ev.type === "gap")).toBe(true);
+      const chord = last.find((ev) => ev.loop === "chord");
+      expect(chord).toMatchObject({ frequency: OVERFLOW_STING_HZ, loopMinor: true, loopTremolo: true, melody: false });
+    }
+    expect(found).toBe(true);
   });
 });

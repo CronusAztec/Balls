@@ -1628,7 +1628,7 @@
     "tyPowerPainter": "Painter",
     "tyPowerGhost": "Ghost",
     "tyHintNone": "None: classic pong wars – bounce off an enemy tile and convert the tile you hit.",
-    "tyHintVortex": "Vortex: the ball's path curves, and on every power tick it drags a whirl whose two spiral arms convert the enemy tiles within the reach.",
+    "tyHintVortex": "Vortex: the ball's path curves. On every power tick it arms, and on its next bounce off an enemy tile it lets go a whirl whose four spiral arms convert the enemy tiles within the reach.",
     "tyHintBomber": "Bomber: on every power tick the ball arms and blows on its next bounce off an enemy tile – every tile within the reach turns its colour, nearby balls are blown away and the board shakes. One bounce can flip the board.",
     "tyHintPainter": "Painter: on every power tick the ball dashes straight through enemy territory, painting a one-tile trail.",
     "tyHintGhost": "Ghost: a fast, weightless ball that passes through enemy tiles without bouncing and converts the 3×3 block it is in on every wall bounce.",

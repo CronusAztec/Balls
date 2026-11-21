@@ -1628,7 +1628,7 @@
     "tyPowerPainter": "Pintor",
     "tyPowerGhost": "Fantasma",
     "tyHintNone": "Ninguno: el pong wars clásico; la bola rebota en una casilla rival y convierte la que golpea.",
-    "tyHintVortex": "Vórtice: la trayectoria de la bola se curva y, en cada pulso de poder, arrastra un remolino cuyos dos brazos en espiral convierten las casillas rivales a su alcance.",
+    "tyHintVortex": "Vórtice: la trayectoria de la bola se curva. En cada pulso de poder se carga y, en su siguiente rebote contra una casilla rival, suelta un remolino cuyos cuatro brazos en espiral convierten las casillas rivales a su alcance.",
     "tyHintBomber": "Bombardero: en cada pulso de poder la bola se arma y explota en su siguiente rebote contra una casilla rival; todas las casillas a su alcance pasan a su color, las bolas cercanas salen despedidas y el tablero tiembla. Un rebote puede darle la vuelta al tablero.",
     "tyHintPainter": "Pintor: en cada pulso de poder la bola atraviesa en línea recta el territorio rival y deja un rastro pintado de una casilla de ancho.",
     "tyHintGhost": "Fantasma: una bola rápida e ingrávida que atraviesa las casillas rivales sin rebotar y convierte el bloque de 3×3 en el que está en cada rebote contra la pared.",

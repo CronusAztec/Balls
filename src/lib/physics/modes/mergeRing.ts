@@ -348,6 +348,8 @@ export const HEART_SLOW_MS = 800;
 export const HEART_FAST_MS = 300;
 /** The heartbeat's pitch (G2: under the merge notes, apart from the landing thuds' C2 ladder). */
 export const HEART_HZ = 98;
+/** --- merge-ring-staged --- (review fix B4) The overflow's sting: the completion chord's minor ending on this root (the heartbeat's pitch). */
+export const OVERFLOW_STING_HZ = HEART_HZ;
 /**
  * --- merge-ring-staged --- The final form is staged: the canvas slows the clock for its merge and flashes, and the banner
  * comes this long (simulation ms) after it – over the flash, not on top of the merge.
@@ -1126,6 +1128,10 @@ export class MergeRingMode implements GameMode {
         v.overflowMs = this.clockMs;
         v.finished = true;
         v.finishedMs = this.clockMs;
+        // --- merge-ring-staged --- (review fix B4) the overflow's sting under its banner: the wall-break crash and the
+        // completion chord's minor "fail" ending on the heartbeat's pitch, held with its tremolo (the heartbeat stops here)
+        ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: OVERFLOW_STING_HZ, level: 1, loopMinor: true, loopTremolo: true, melody: false });
       }
     }
     this.notePressure(ctx, balls, L, risk);
