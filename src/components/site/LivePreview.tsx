@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { assetPath } from "@/lib/site";
 import type { ModeId } from "@/lib/physics/types";
 import { cx } from "@/components/ui/cx";
+import { cardHref } from "@/lib/thumbnails/heroMoments"; // --- card-looks ---
 import type { LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhere ---
 
 /*
@@ -14,6 +15,9 @@ import type { LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhe
  * scrolled out of view or the tab is hidden. With prefers-reduced-motion, or when the engine cannot start, the frame shows
  * the mode's preview picture instead (a background picture, not an <img>: the mode cards stay the page's only <img> of
  * each preview). A click opens the playing mode in the studio.
+ * --- card-looks --- (E1 review) in the look and on the seed its card opens (heroMoments.ts cardHref): the frame shows the
+ * card's picture under reduced motion, Save-Data, a slow connection or a failed engine, and until the engine has drawn, and
+ * the picture the visitor liked opens as it was pictured.
  * --- studio-first-open --- The picture is always there, under the canvas, and the canvas fades in over it once it has drawn
  * its first frame (it was black for seconds while the engine loaded). The engine's chunk loads only when at least half the
  * frame is in view and the browser is idle (4 s at most), so it never freezes a first screen it is not on; with Save-Data or
@@ -255,7 +259,7 @@ export default function LivePreview() {
       {/* --- perf-pass --- the "Live" / "9:16" badges sit over the frame but outside the link: a link whose accessible name does not contain its
           visible text fails WCAG 2.5.3 (label in name), and the badges are decoration, so the link carries no text and is named by its label */}
       <div className="relative">
-        <Link href={`/simulator?mode=${mode}`} className="group block rounded-[var(--radius-stage)]" aria-label={t("hero.previewOpen", { mode: name })} data-testid="live-preview">
+        <Link href={cardHref(mode)} className="group block rounded-[var(--radius-stage)]" aria-label={t("hero.previewOpen", { mode: name })} data-testid="live-preview">
           <div ref={frameRef} className="relative aspect-[9/16] overflow-hidden rounded-[var(--radius-stage)] border border-line-strong bg-black transition-colors duration-150 group-hover:border-ink-3">
             <div aria-hidden="true" className="absolute inset-0 bg-black bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url("${assetPath(`/modes/${picture}.webp`)}")` }} />
             {view === "live" && <canvas ref={canvasRef} className={cx("absolute inset-0 h-full w-full transition-opacity duration-500", drawn ? "opacity-100" : "opacity-0")} aria-hidden="true" />}

@@ -21,6 +21,8 @@ export interface MakeClipProps {
   made: boolean;
   /** Recording, a batch, a split-screen race, a daily challenge or the page still loading: no clip can be made now. */
   disabled: boolean;
+  /** The clip is of the page's mode (false: the mode has no clip plan yet, so the press makes another mode's clip). */
+  own: boolean;
 }
 
 export default function MakeClipButton({ make, variant = "primary", size = "md", block = false, className, testId }: { make: MakeClipProps; variant?: ButtonVariant; size?: ButtonSize; block?: boolean; className?: string; testId: string }) {
@@ -31,8 +33,11 @@ export default function MakeClipButton({ make, variant = "primary", size = "md",
       size={size}
       block={block}
       className={className}
-      onClick={make.onMake}
-      disabled={make.disabled || make.busy}
+      // (E1 review) while it plans the button keeps its focus, so a keyboard or a screen reader stays on it: it is marked
+      // disabled and ignores a press instead of being disabled outright
+      onClick={make.busy ? undefined : make.onMake}
+      disabled={make.disabled}
+      aria-disabled={make.busy || undefined}
       aria-busy={make.busy || undefined}
       title={t("makeClipTip")}
       icon={<IconSparkle size={16} className={make.busy ? "animate-pulse" : undefined} />}
