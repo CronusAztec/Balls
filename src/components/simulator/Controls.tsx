@@ -215,6 +215,11 @@ export interface ControlsProps {
   /** Loads a Bouncing Orbs preset (the Presets group): the mode first when another one is on, then the preset's fields (left out without it). */
   onOrbGridPreset?: (fields: OrbGridFields) => void;
   // --- end orb-grid ---
+  /**
+   * --- studio-undo --- Puts a whole settings snapshot on the page through the path presets take (the page's
+   * loadPresetSettings): Reset All, and Undo back across a mode switch. Left out, both stay within one mode as before.
+   */
+  onApplySettings?: (settings: SimulatorSettings) => void;
   /** --- loop-foundation --- The loop families' clip slots of the Sound section (the owner's own clips; left out without it). */
   loopClips?: LoopClipsPanelProps;
 }
@@ -1860,17 +1865,24 @@ export default function Controls(props: ControlsProps) {
   // --- panel-basics --- Undo: a snapshot of the settings each time they rest for a moment after a change (UNDO_SETTLE_MS),
   // restored through the page's own update path, within one mode (a mode switch builds its own settings: the history starts
   // again there). The button sits beside Reset; Ctrl/Cmd+Z undoes too where the focus is not in a text field.
-  const undoRef = useRef<{ history: SimulatorSettings[]; settled: SimulatorSettings; timer: number; restoring: boolean; found: boolean }>({ history: [], settled: s, timer: 0, restoring: false, found: props.simulationFound });
+  // --- studio-undo --- With the page's onApplySettings the history goes on across a mode switch: the mode left behind is a
+  // step at once (as it was last seen, and where it last rested), and an undo to a step of another mode puts that whole
+  // snapshot back through the path presets take. A batch render's settings are never steps (the history starts after it).
+  const undoRef = useRef<{ history: SimulatorSettings[]; settled: SimulatorSettings; last: SimulatorSettings; timer: number; restoring: boolean; found: boolean }>({ history: [], settled: s, last: s, timer: 0, restoring: false, found: props.simulationFound });
   const [undoable, setUndoable] = useState(false);
   const [resetFlash, setResetFlash] = useState(false);
+  const applySettingsRef = useRef(props.onApplySettings);
+  applySettingsRef.current = props.batchRunning ? undefined : props.onApplySettings;
   useEffect(() => {
     const u = undoRef.current;
     window.clearTimeout(u.timer);
+    const last = u.last;
+    u.last = s;
     // --- review fix (panel-basics) --- a found run is a new resting point, as a mode switch is: the finder's own change (the
     // clip's length it sets) is no step to take back, and nothing before the find is either (Undo is off while it is found)
     const foundNow = props.simulationFound && !u.found;
     u.found = props.simulationFound;
-    if (s.mode !== u.settled.mode || foundNow) {
+    if ((s.mode !== u.settled.mode && !props.onApplySettings) || foundNow || props.batchRunning) {
       u.history = [];
       u.settled = s;
       u.restoring = false;
@@ -1884,6 +1896,14 @@ export default function Controls(props: ControlsProps) {
       setUndoable(u.history.length > 0);
       return;
     }
+    if (s.mode !== u.settled.mode) {
+      // --- studio-undo --- a mode switch: the mode left behind becomes the newest step at once
+      u.history = pushUndo(u.history, u.settled);
+      if (last.mode === u.settled.mode && undoPatch(u.settled, last)) u.history = pushUndo(u.history, last);
+      u.settled = s;
+      setUndoable(true);
+      return;
+    }
     if (s === u.settled) return;
     setUndoable(true);
     u.timer = window.setTimeout(() => {
@@ -1892,7 +1912,8 @@ export default function Controls(props: ControlsProps) {
       u.settled = s;
     }, UNDO_SETTLE_MS);
     return () => window.clearTimeout(u.timer);
-  }, [s, props.simulationFound]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s, props.simulationFound, props.batchRunning]);
   const settingsRef = useRef(s);
   settingsRef.current = s;
   const undo = useCallback(() => {
@@ -1900,18 +1921,28 @@ export default function Controls(props: ControlsProps) {
     if (u.found) return; // --- review fix (panel-basics) --- (the found run's settings are kept: its clip length included)
     window.clearTimeout(u.timer);
     // a change still settling is undone first (back to where the settings last rested), then the history, newest first
-    let patch = undoPatch(u.settled, settingsRef.current);
-    if (!patch) {
-      while (u.history.length > 0 && !patch) patch = undoPatch(u.history.pop()!, settingsRef.current);
+    const now = settingsRef.current;
+    let patch = undoPatch(u.settled, now);
+    let whole: SimulatorSettings | null = null; // --- studio-undo --- (a step of another mode)
+    while (!patch && !whole && u.history.length > 0) {
+      const step = u.history.pop()!;
+      if (step.mode === now.mode) patch = undoPatch(step, now);
+      else if (applySettingsRef.current) whole = step;
     }
-    if (!patch) {
+    if (!patch && !whole) {
       setUndoable(false);
       return;
     }
     u.restoring = true;
     setResetFlash(false);
-    update(patch);
+    if (whole) applySettingsRef.current?.(whole);
+    else if (patch) update(patch);
   }, [update]);
+  /** --- studio-undo --- Reset All: every setting of this mode back to its default (Undo, standing out for a moment, takes it back). */
+  const resetAll = () => {
+    applySettingsRef.current?.(defaultSettings(s.mode));
+    setResetFlash(true);
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "z" || e.defaultPrevented) return;
@@ -2276,23 +2307,28 @@ export default function Controls(props: ControlsProps) {
             <div id="studio-panel-body" className="studio-panel-body">
               {panelBody()}
             </div>
-            <div className="studio-panel-foot">
-              {resettable && !search ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="-ml-2"
-                  icon={<IconReset size={16} />}
-                  onClick={() => {
-                    props.onResetSection(resettable);
-                    setResetFlash(true); // --- panel-basics --- (Undo, at the top of the panel, stands out for a moment)
-                  }}
-                >
-                  {t("resetSection")}
-                </Button>
-              ) : (
-                <span />
-              )}
+            <div className="studio-panel-foot flex-wrap">
+              {/* --- studio-undo --- Reset All beside the group's reset (the switch goes to a line of its own where both do not fit) */}
+              <div className="-ml-2 flex flex-wrap items-center gap-x-1">
+                {resettable && !search && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<IconReset size={16} />}
+                    onClick={() => {
+                      props.onResetSection(resettable);
+                      setResetFlash(true); // --- panel-basics --- (Undo, at the top of the panel, stands out for a moment)
+                    }}
+                  >
+                    {t("resetSection")}
+                  </Button>
+                )}
+                {props.onApplySettings && !search && (
+                  <Button variant="ghost" size="sm" icon={<IconReset size={16} />} onClick={resetAll} disabled={props.batchRunning} title={t("resetAllTip")} data-testid="studio-reset-all">
+                    {t("resetAll")}
+                  </Button>
+                )}
+              </div>
               <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink [@media(pointer:coarse)]:min-h-11">
                 <input ref={advancedSwitchRef} type="checkbox" className="switch" checked={advanced} onChange={(e) => setAdvancedPersist(e.target.checked)} />
                 <span>{t("showAdvancedOptions")}</span>

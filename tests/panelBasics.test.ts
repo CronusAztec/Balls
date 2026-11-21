@@ -16,7 +16,7 @@ import { VIDEO_BEATS_ADVANCED_KEYS } from "@/components/simulator/sections/Video
 import { BALL_PHYSICS_EXTRA_KEYS, WALL_PHYSICS_EXTRA_KEYS } from "@/components/simulator/sections/PhysicsExtrasSection";
 import { defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { searchKeyShown } from "@/components/simulator/panelKeys";
-import { LAST_STUDIO_KEY, LAST_STUDIO_MAX, UNDO_LIMIT, isBareStudioQuery, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
+import { LAST_STUDIO_KEY, LAST_STUDIO_MAX, UNDO_LIMIT, isBareStudioQuery, pressesItself, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
 
 /*
  * --- panel-basics --- The studio panel's basics: what Show Advanced Options holds back in each group and how many (the row
@@ -147,6 +147,14 @@ describe("the undo history", () => {
     expect(typesText(el("INPUT", "checkbox"))).toBe(false);
     expect(typesText(el("BUTTON"))).toBe(false);
     expect(typesText(null)).toBe(false);
+  });
+  // --- studio-play --- the page's Space (start, pause, resume) leaves a focused control's own Space to it
+  it("leaves Space to a focused button, link or switch, and takes it anywhere else", () => {
+    const at = (match: boolean) => ({ closest: (sel: string) => (match && /button/.test(sel) ? {} : null) }) as unknown as EventTarget;
+    expect(pressesItself(at(true))).toBe(true);
+    expect(pressesItself(at(false))).toBe(false);
+    expect(pressesItself(null)).toBe(false);
+    expect(pressesItself({} as EventTarget)).toBe(false);
   });
 });
 

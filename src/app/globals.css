@@ -833,6 +833,22 @@ dialog.ui-dialog[open] {
     }
   }
 
+  /* --- frame-guide --- what the clip records (StageStrip.tsx's toggle): the centred square of the stage the recorder and the
+     fast export keep, outlined, the rest dimmed. A page overlay over the canvas, so it is never recorded; taps pass through. */
+  .studio[data-frame-guide] .stage-frame::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 50%;
+    aspect-ratio: 1 / 1;
+    max-width: 100%;
+    translate: -50% 0;
+    outline: 1px dashed color-mix(in srgb, var(--color-accent) 80%, transparent);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.5);
+    pointer-events: none;
+  }
+
   /* A control the command palette jumped to: a brief accent outline. */
   [data-palette-hit] {
     outline: 2px solid var(--color-accent);

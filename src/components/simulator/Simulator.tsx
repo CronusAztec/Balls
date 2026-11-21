@@ -22,6 +22,9 @@ import Tooltip from "./Tooltip";
 // --- site-redesign --- the studio's stage: strip, transport bar, mode picker
 import StageStrip from "./studio/StageStrip";
 import ModePicker from "./studio/ModePicker";
+import RunEndCard from "./studio/RunEndCard"; // --- run-end --- what to do next once a run is over (under the stage)
+import { linkSeedOf, linkWithSeed, withLinkSeed } from "@/lib/runLink"; // --- run-link --- the pinned seed in the address and the share link
+import { pressesItself } from "@/lib/studioMemory"; // --- studio-play --- (Space leaves a focused control to the browser)
 import Button from "@/components/ui/Button";
 import Segmented from "@/components/ui/Segmented"; // --- review fix (site-redesign) --- the playback speeds (32 px targets, 44 px on touch)
 import { IconCheck, IconClose, IconLink, IconPause, IconPlay, IconRecord, IconRestart, IconStop, IconTarget, IconWarning } from "@/components/ui/icons";
@@ -2304,18 +2307,6 @@ export default function Simulator() {
     [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.musicVolume, settings.musicDucking, settings.musicDuckRelease, settings.musicLoop, settings.musicStartOffset, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode, settings.ballFace, settings.faceOverImage, settings.ballName, settings.nameLabel, settings.ballSquash, settings.faceSounds],
   );
 
-  // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
-  useEffect(() => {
-    const handler = (e: Event) => {
-      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
-      const mode = (e as CustomEvent<ModeId>).detail;
-      changeMode(mode);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
-    };
-    window.addEventListener("jumpingballslive:select-mode", handler);
-    return () => window.removeEventListener("jumpingballslive:select-mode", handler);
-  }, [changeMode]);
-
   /* ------------------------------------------------------------ start / pause / loop */
 
   const start = useCallback(async () => {
@@ -2329,6 +2320,21 @@ export default function Simulator() {
     setAudioEnabled(true);
     setIsPaused(false);
   }, []);
+
+  // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
+  // --- studio-play --- every sender of the event is a visitor's pick (the picker, the palette, the stage strip's arrows, a
+  // mode card): the new mode plays at once (a press, so its sound may start). A mode from a link or a preset waits as before.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
+      const mode = (e as CustomEvent<ModeId>).detail;
+      changeMode(mode);
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
+      if (!isRecording) start().catch(() => undefined); // (a browser that refuses the sound leaves the run waiting for Start)
+    };
+    window.addEventListener("jumpingballslive:select-mode", handler);
+    return () => window.removeEventListener("jumpingballslive:select-mode", handler);
+  }, [changeMode, start, isRecording]);
   // --- analytics --- sim_start: the first run of this page load (the mode and how the studio was reached – no settings, no seed);
   // share_open for a daily-challenge link that opened the page itself. Both do nothing without a statistics script (lib/analytics/track.ts).
   useEffect(() => {
@@ -2541,6 +2547,8 @@ export default function Simulator() {
 
   // Elapsed time readout (written directly to the DOM to avoid re-renders).
   useEffect(() => {
+    // --- studio-undo --- a run set back to its start (a mode, a preset, Reset All, an undo) reads 0.0s again
+    if (!isStarted && timeLabelRef.current) timeLabelRef.current.textContent = "0.0s";
     if (!isStarted || isPaused || finished) return;
     const id = setInterval(() => {
       const el = timeLabelRef.current;
@@ -2555,13 +2563,17 @@ export default function Simulator() {
   }, [isStarted, isPaused, finished]);
 
   // Keyboard shortcuts: Space = pause/resume, R = restart.
+  // --- studio-play --- Space also starts a run that has not started (when Start Simulator would), and leaves a focused
+  // button, link or switch to the browser: Space presses that control
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.code === "Space") {
+        if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || pressesItself(e.target) || document.querySelector("dialog[open]")) return;
         e.preventDefault();
         if (isStarted) setIsPaused((p) => !p);
+        else if (!isSearching && !isRecording) start().catch(() => undefined); // (as the Start button would)
       } else if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         restart();
@@ -2569,7 +2581,7 @@ export default function Simulator() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isStarted, restart]);
+  }, [isStarted, restart, start, isSearching, isRecording]);
 
   // Auto-pause when the simulator scrolls out of view or the tab is hidden (not while recording).
   useEffect(() => {
@@ -3313,7 +3325,10 @@ export default function Simulator() {
   // --- review fix (recording-export) --- (a share code decoded while a batch runs is not put over the batch's settings)
   const shareCode = useShareCodeLoader(searchParams.toString(), (shared) => {
     trackShareOpen("code"); // --- analytics --- (a share link that decoded: how the studio was reached)
-    if (!batchActiveRef.current) loadPresetSettings(shared);
+    if (!batchActiveRef.current) {
+      loadPresetSettings(shared);
+      repinLinkSeed.current = true; // --- run-link --- (the code's settings let a pinned seed go: the link's seed is pinned again after them)
+    }
   });
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
@@ -3408,6 +3423,15 @@ export default function Simulator() {
     if (urlSeed !== null) pinBotSeed(urlSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engineReady]);
+  // --- run-link --- a ?c= link with a seed: the code's settings arrive after the seed was pinned, and the effects above let a
+  // pinned seed go on a change that makes another run; the link's seed is pinned again after them (this effect runs later)
+  const repinLinkSeed = useRef(false);
+  useEffect(() => {
+    if (!repinLinkSeed.current || !engineReady) return;
+    repinLinkSeed.current = false;
+    if (urlSeed !== null) pinBotSeed(urlSeed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, engineReady]);
   // --- end viral-bot ---
   // --- daily-gallery --- the daily challenge on the page (after the page's seed effects: its seed is pinned last)
   const daily = useDailyChallenge({
@@ -3421,6 +3445,28 @@ export default function Simulator() {
     finished,
   });
   // --- end daily-gallery ---
+
+  // --- run-link --- the seed the address and the share link carry (lib/runLink.ts): the engine's pinned seed (a found run, a
+  // link's or the clip planner's seed; a setting that makes another run lets it go), and the link's own until the page has
+  // pinned it. The engine is read every 400 ms and after each settings change, and the address is written after the settings
+  // mirror and the daily challenge's marker (both above), so a reload, a bookmark and the language switch keep the run.
+  const [pinnedSeed, setPinnedSeed] = useState<number | null>(null);
+  useEffect(() => {
+    const read = () => setPinnedSeed(engineRef.current?.getPinnedSeed() ?? null);
+    read();
+    const id = window.setInterval(read, 400);
+    return () => window.clearInterval(id);
+  }, [engineReady]);
+  const dailyOn = !!daily.active;
+  const currentLinkSeed = useCallback(
+    () => (urlSeedPinned.current ? linkSeedOf({ pinned: engineRef.current?.getPinnedSeed() ?? null, arenaCount: settings.arenaCount, daily: dailyOn }) : urlSeed),
+    [settings.arenaCount, dailyOn, urlSeed],
+  );
+  useEffect(() => {
+    const now = window.location.search.replace(/^\?/, "");
+    const next = withLinkSeed(now, currentLinkSeed());
+    if (next !== now) window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
+  }, [pinnedSeed, settings, currentLinkSeed, engineReady]);
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -3673,18 +3719,61 @@ export default function Simulator() {
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
-  const copyShareLink = useCallback(async () => {
-    try {
-      const choice = shortShareLink.get() ?? (await shortShareLink.make()); // --- project-files --- the short ?c= link (the long one without CompressionStream)
-      await navigator.clipboard.writeText(choice.link);
-      setShareTooLarge(choice.tooLarge); // --- unlimited-sizes --- (and the long one for settings too big for a code, said under the canvas)
-      track("share_copy"); // --- analytics --- (README "Analytics events")
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable */
+  // --- run-end --- the run that just ended, for the card under the stage: its length (the engine's finish), the seed a link
+  // to it carries (none in a split-screen race: its arenas keep theirs) and whether it is pinned
+  const [runEnd, setRunEnd] = useState<{ seconds: number; seed: number | null; pinned: boolean } | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!finished || !isStarted || !engine) {
+      setRunEnd(null);
+      return;
     }
-  }, [shortShareLink]);
+    const at = engine.getFinishedAtMs();
+    setRunEnd({ seconds: (at >= 0 ? at : engine.getElapsedMs()) / 1000, seed: settings.arenaCount > 1 ? null : engine.getSeed(), pinned: engine.getPinnedSeed() !== null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished, isStarted]);
+  /** --- run-end --- New run: the pinned seed goes (with the found run's promise) and another run plays with the same settings. */
+  const newRun = useCallback(() => {
+    engineRef.current?.setSeed(null);
+    setSearchResult(null);
+    restartRun(false);
+  }, [restartRun]);
+  /** --- run-link --- The found run's close button: the run's seed goes with it. */
+  const unpinFound = useCallback(() => {
+    engineRef.current?.setSeed(null);
+    setSearchResult(null);
+  }, []);
+
+  // --- run-link --- the copied link carries the pinned seed (`runSeed`: the end card's link to the run just watched, null for
+  // none), and on a phone the button opens the system share sheet where there is one (the clipboard when it is closed with
+  // an error, not when the visitor cancels it). "Link copied!" shows as a chip for 2 s at every width.
+  const shareCopiedTimer = useRef(0);
+  const copyShareLink = useCallback(
+    async (runSeed?: number | null) => {
+      try {
+        const choice = shortShareLink.get() ?? (await shortShareLink.make()); // --- project-files --- the short ?c= link (the long one without CompressionStream)
+        const link = linkWithSeed(choice.link, runSeed !== undefined ? runSeed : currentLinkSeed());
+        setShareTooLarge(choice.tooLarge); // --- unlimited-sizes --- (and the long one for settings too big for a code, said under the canvas)
+        if (typeof navigator.share === "function" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches) {
+          try {
+            await navigator.share({ url: link });
+            track("share_copy"); // --- analytics --- (README "Analytics events")
+            return;
+          } catch (err) {
+            if ((err as { name?: string } | null)?.name === "AbortError") return;
+          }
+        }
+        await navigator.clipboard.writeText(link);
+        track("share_copy"); // --- analytics --- (README "Analytics events")
+        setShareCopied(true);
+        window.clearTimeout(shareCopiedTimer.current);
+        shareCopiedTimer.current = window.setTimeout(() => setShareCopied(false), 2000);
+      } catch {
+        /* clipboard unavailable */
+      }
+    },
+    [shortShareLink, currentLinkSeed],
+  );
 
   /* ------------------------------------------------------------ canvas labels */
 
@@ -4255,7 +4344,14 @@ export default function Simulator() {
         resolution={s.recordingResolution}
         fpsReadout={<FpsReadout canvasRef={canvasRef} className="num text-sm text-ink-2" />}
       />
-      <div className="studio-stage-area stage-vignette">
+      <div className="studio-stage-area stage-vignette relative">
+        {/* --- run-link --- "Link copied!" as a chip for 2 s at every width, over the foot of the stage (a page overlay, never recorded) */}
+        {shareCopied && (
+          <span className="pointer-events-none absolute bottom-3 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-3 px-3 py-1.5 text-sm font-medium text-ink shadow-lg ring-1 ring-line-strong animate-fadeIn" role="status" data-testid="share-copied">
+            <IconCheck size={14} className="text-accent" />
+            {t("Simulator.shareLinkCopied")}
+          </span>
+        )}
         <div className="stage-frame relative overflow-hidden rounded-[var(--radius-stage)] border border-line bg-black">
           {engineReady && engineRef.current && (
             <Canvas
@@ -4328,14 +4424,8 @@ export default function Simulator() {
               <span className="num">{t("Simulator.stopRecording")}</span>
             </button>
           )}
-          {/* --- end-banner --- the run is over: the mode's verdict stays readable (no dim over the square, the button under it) */}
-          {isStarted && finished && !isRecording && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-linear-to-t from-bg/90 via-bg/50 to-transparent px-3 pb-3 pt-10">
-              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />} className="pointer-events-auto">
-                {t("Simulator.restartSimulation")}
-              </Button>
-            </div>
-          )}
+          {/* --- end-banner --- the run is over: the mode's verdict stays readable. --- run-end --- nothing over the canvas at
+              all now: Restart Simulation is in the transport bar and what to do next under it (the run-end card) */}
           {/* --- daily-gallery --- a finished daily run: its result and the invitation to share it (never on the canvas, so never recorded) */}
           {isStarted && finished && !isRecording && daily.result && <DailyResultPanel result={daily.result} />}
           {isSearching && (
@@ -4405,9 +4495,16 @@ export default function Simulator() {
       )}
       <div className="studio-transport @container" role="group" aria-label={t("SiteRedesign.studio.transport")}>
         <div className="flex items-center gap-1.5">
-          {!isStarted && !isSearching && !(searchResult && !searchResult.found) && (
+          {/* --- studio-play --- Start stays after a Find that found nothing (the miss is said under the bar and over the canvas) */}
+          {!isStarted && !isSearching && (
             <Button variant="primary" size="sm" onClick={start} icon={<IconPlay size={16} />}>
               {t("Simulator.startSimulator")}
+            </Button>
+          )}
+          {/* --- run-end --- the run is over: Restart Simulation where Start and Pause were (it was over the canvas) */}
+          {isStarted && finished && !isRecording && (
+            <Button variant="primary" size="sm" onClick={restart} title={t("Simulator.restartTooltip")} icon={<IconRestart size={16} />}>
+              {t("Simulator.restartSimulation")}
             </Button>
           )}
           {isStarted && !finished && (
@@ -4421,7 +4518,7 @@ export default function Simulator() {
             </Button>
           )}
         </div>
-        <div className={isStarted ? "flex items-center" : "invisible hidden items-center @[40rem]:flex"}>
+        <div className={isStarted && !finished /* --- run-end --- (no speeds for a run that is over: the bar keeps to one line on a phone) */ ? "flex items-center" : "invisible hidden items-center @[40rem]:flex"}>
           <Segmented label={t("SiteRedesign.studio.speed")} size="xs" mono options={SPEED_OPTIONS} value={simSpeed} onChange={setSimSpeed} />
         </div>
         <div className="ml-auto flex items-center gap-1.5">
@@ -4432,22 +4529,35 @@ export default function Simulator() {
               </span>
             </Button>
           )}
+          {/* --- studio-play --- Record always says what it does, Fast export where the bar has room; both have a title */}
           <Button
             variant={isRecording ? "danger" : "secondary"}
             size="sm"
             onClick={toggleRecording}
             disabled={!(recordingSupported && !fastRunning && !batchRender.running) /* --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch) */}
             icon={isRecording ? <IconStop size={16} /> : <IconRecord size={16} className="text-danger" />}
+            title={isRecording ? t("Simulator.stopRecordingTooltip") : t("Simulator.recordTooltip")}
           >
-            <span className="sr-only @[44rem]:not-sr-only">{isRecording ? t("Controls.stopExport") : t("Controls.recordVideo")}</span>
+            <span>{isRecording ? t("Controls.stopExport") : t("Controls.recordVideo")}</span>
             {!isRecording && <WatermarkBadge compact /> /* --- free-watermark --- (was the paywall's lock) */}
           </Button>
-          <FastExportButton {...fastExportPanel} labelClassName="sr-only @[60rem]:not-sr-only" /* --- fast-render --- */ />
-          <Button variant="ghost" size="sm" onClick={copyShareLink} icon={shareCopied ? <IconCheck size={16} className="text-accent" /> : <IconLink size={16} />}>
+          <FastExportButton {...fastExportPanel} labelClassName="sr-only @[50rem]:not-sr-only" /* --- fast-render --- */ />
+          <Button variant="ghost" size="sm" onClick={() => void copyShareLink()} title={t("Simulator.shareLink")} icon={shareCopied ? <IconCheck size={16} className="text-accent" /> : <IconLink size={16} />}>
             <span className="sr-only @[68rem]:not-sr-only">{shareCopied ? t("Simulator.shareLinkCopied") : t("Simulator.shareLink")}</span>
           </Button>
         </div>
       </div>
+      {/* --- run-end --- what to do next once the run is over: under the bar, never on the canvas (so never recorded) */}
+      {isStarted && finished && !isRecording && runEnd && (
+        <RunEndCard
+          seconds={runEnd.seconds}
+          pinned={runEnd.pinned}
+          exportDisabled={(fastExportPanel.disabled || handPlayed) && !(recordingSupported && !fastRunning && !batchRender.running)}
+          onExport={() => void (fastExportPanel.disabled || handPlayed ? toggleRecording() : startFastExport())}
+          onCopyLink={() => void copyShareLink(runEnd.seed)}
+          onNewRun={newRun}
+        />
+      )}
 
       {finderShown && (
         <div className="studio-finder" data-testid="finder-strip">
@@ -4534,7 +4644,8 @@ export default function Simulator() {
                   </p>
                 )}
               </div>
-              <button type="button" onClick={() => setSearchResult(null)} className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={t("Controls.clearSearch")}>
+              {/* --- run-link --- closing the found run lets its seed go (the next run is a new one, the address drops the seed) */}
+              <button type="button" onClick={unpinFound} className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={t("Controls.clearSearch")}>
                 <IconClose size={14} />
               </button>
             </div>
@@ -4645,6 +4756,7 @@ export default function Simulator() {
           stage={stage} // --- site-redesign ---
           onOpenModePicker={openModePicker} // --- site-redesign ---
           onOrbGridPreset={applyOrbGridPreset} // --- orb-grid ---
+          onApplySettings={loadPresetSettings} // --- studio-undo --- (Reset All, and Undo back across a mode switch)
         />
       </ProjectDropZone>
       <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />

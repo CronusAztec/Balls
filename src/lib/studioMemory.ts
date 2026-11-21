@@ -53,6 +53,15 @@ export function typesText(target: EventTarget | null): boolean {
   return !["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"].includes(type);
 }
 
+/**
+ * --- studio-play --- Whether Space on a keyboard event's target presses that control itself (a button, a link, a switch,
+ * a tab, a summary): the page's Space shortcut (start, pause, resume) leaves it to the browser then.
+ */
+export function pressesItself(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== "function") return false;
+  return !!(target as Element).closest('button, a[href], summary, [role="button"], [role="switch"], [role="checkbox"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"], [role="slider"]');
+}
+
 /** --- panel-basics --- The storage key of the studio's last address query. */
 export const LAST_STUDIO_KEY = "jumpingballslive_last_studio";
 

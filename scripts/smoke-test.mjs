@@ -1097,6 +1097,34 @@ await page.keyboard.press("Space");
 await page.keyboard.press("KeyR");
 await page.waitForTimeout(300);
 check("R restarts (still running)", await page.getByRole("button", { name: /Pause/ }).isVisible());
+// --- studio-play --- Space starts a run that has not started; --- run-link --- a link's seed stays in the address (so a
+// reload, a bookmark and the language switch keep the run); --- run-end --- a finished run leaves the canvas uncovered:
+// Restart Simulation in the bar, the run's length and what to do next under it (New run while the seed is pinned)
+await page.goto(`${BASE}/en/simulator/?mode=classic&wc=1&gap=1&dur=10&seed=7`, { waitUntil: "networkidle" });
+{
+  await page.waitForTimeout(600);
+  const seedKept = new URL(page.url()).searchParams.get("seed");
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Space");
+  const spaceStarted = await page.getByRole("button", { name: /^Pause/ }).waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  check("Space starts a run that has not started, and a link's seed stays in the address", spaceStarted && seedKept === "7", `(started ${spaceStarted}, seed ${seedKept})`);
+  await page.getByRole("button", { name: "8x", exact: true }).click().catch(() => {});
+  const ended = await page.getByTestId("run-end").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const hits = await page.evaluate(() => {
+    const c = document.querySelector("main canvas")?.getBoundingClientRect();
+    return c ? [[0.5, 0.5], [0.5, 0.9], [0.15, 0.9]].map(([x, y]) => document.elementFromPoint(c.left + c.width * x, c.top + c.height * y)?.tagName ?? null) : [];
+  });
+  const restartInBar = await page.locator(".studio-transport").getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false);
+  const card = ended ? (await page.getByTestId("run-end").innerText()).replace(/\s+/g, " ") : "";
+  check(
+    "a finished run: nothing over the canvas, Restart Simulation in the bar, and under it the run's length, Export this run, Copy link to this run and New run",
+    ended && hits.length === 3 && hits.every((h) => h === "CANVAS") && restartInBar && /Run over · \d+\.\d s/.test(card) && /Export this run/.test(card) && /Copy link to this run/.test(card) && /New run/.test(card),
+    `(ended ${ended}, at the canvas ${hits.join(",")}, restart in the bar ${restartInBar}, "${card.slice(0, 160)}")`,
+  );
+}
+await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(300);
 
 // 4. Controls: search box, advanced options, preset save/load
 await page.getByPlaceholder("Search settings...").fill("gravity");
@@ -1773,7 +1801,7 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 const bedForRecording = await uploadMusicBed(2);
 await page.getByRole("button", { name: /Recording/ }).click();
 await page.locator("#resolution-select").selectOption("500x500");
-const durationSlider = page.locator('input[aria-label="Duration"]');
+const durationSlider = page.locator('input[aria-label="Clip Length"]'); // --- studio-play --- (the clip's length, apart from Find's Run Length)
 await durationSlider.evaluate((el) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
   setter.call(el, "10");
@@ -11394,11 +11422,11 @@ await smokeBlock("studio-fit", async () => {
     });
     // TIME opens the clip length in Recording, focused, with the stage still in view
     await p.getByTestId("stage-time").click();
-    await p.waitForFunction(() => document.activeElement?.closest("#studio-block-recording") && /Duration/.test(document.activeElement?.getAttribute("aria-label") ?? ""), null, { timeout: 5000 }).catch(() => {});
+    await p.waitForFunction(() => document.activeElement?.closest("#studio-block-recording") && /Clip Length/.test(document.activeElement?.getAttribute("aria-label") ?? ""), null, { timeout: 5000 }).catch(() => {});
     const timeJump = await p.evaluate(() => ({ focus: document.activeElement?.getAttribute("aria-label") ?? null, inRecording: !!document.activeElement?.closest("#studio-block-recording"), frameTop: Math.round(document.querySelector(".stage-frame").getBoundingClientRect().top), frameBottom: Math.round(document.querySelector(".stage-frame").getBoundingClientRect().bottom), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) }));
     check(
       "1024 px: the desk is a column beside the stage (tab strip on top with labels, panel under it to the bottom), and TIME opens the clip length in Recording with the stage still in view",
-      columns.desk[0] >= columns.frameRight && columns.desk[1] === 56 && columns.desk[2] === columns.h - 56 && columns.railTop === 56 && Math.abs(columns.panel[0] - columns.desk[0]) <= 1 && columns.panel[2] === columns.h && columns.frameBottom <= columns.h && columns.labels >= 4 && timeJump.focus === "Duration" && timeJump.inRecording && timeJump.frameTop >= 56 && timeJump.frameBottom <= columns.h && timeJump.pressed.includes("recording"),
+      columns.desk[0] >= columns.frameRight && columns.desk[1] === 56 && columns.desk[2] === columns.h - 56 && columns.railTop === 56 && Math.abs(columns.panel[0] - columns.desk[0]) <= 1 && columns.panel[2] === columns.h && columns.frameBottom <= columns.h && columns.labels >= 4 && timeJump.focus === "Clip Length" && timeJump.inRecording && timeJump.frameTop >= 56 && timeJump.frameBottom <= columns.h && timeJump.pressed.includes("recording"),
       `(${JSON.stringify(columns)}, ${JSON.stringify(timeJump)})`,
     );
     // the arrows step to the wall's next and previous mode, named after it
@@ -11535,7 +11563,7 @@ await smokeBlock("panel-basics", async () => {
     });
     check(
       "panel basics: the Mode group opens with the three steps and the starter block (theme cards, ball colour, size and speed, clip length, top text)",
-      !!starter && starter.steps.join() === "Pick a Mode,Make It Yours,Export and Share" && starter.theme && starter.sliders.join() === "Ball Size,Ball Speed,Duration" && starter.colour && starter.topText && starter.expanded === "true",
+      !!starter && starter.steps.join() === "Pick a Mode,Make It Yours,Export and Share" && starter.theme && starter.sliders.join() === "Ball Size,Ball Speed,Clip Length" && starter.colour && starter.topText && starter.expanded === "true",
       `(${JSON.stringify(starter)})`,
     );
     // 2. Ball & Physics: the basics first, Gravity with the switch off, the row of what the switch adds
