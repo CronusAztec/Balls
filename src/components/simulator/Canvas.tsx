@@ -134,7 +134,7 @@ import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
-import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
+import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawEndGhost, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks --- (--- end-ghost --- review fix B2)
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -1685,6 +1685,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0) {
         const k = classicRings.escaped;
         drawClassicFloor(ctx, cx, cy, walls[k].radius, classicRingColor(k), walls.length > 1 && k === walls.length - 1, engine.getElapsedMs());
+      } else if (classicRings && walls.length > 0 && classicRings.escaped >= walls.length) {
+        drawEndGhost(ctx, cx, cy, walls[walls.length - 1].radius, classicRingColor(walls.length - 1)); // --- end-ghost --- (review fix B2) the last ring under ESCAPED!
       }
 
       // Walls

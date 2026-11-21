@@ -48,7 +48,7 @@ export class AccumulationMode implements GameMode {
       const balls = ctx.getBalls();
       const active = balls.find((b) => !b.frozen);
       if (active) {
-        this.freezeSound(ctx); // --- ring-voices --- (the timer's freeze is heard: the thump a step lower per ball frozen, the crack over it)
+        this.freezeSound(ctx, false); // --- ring-voices --- (the timer's freeze is heard: the thump a step lower per ball frozen, the crack over it)
         this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color, atMs: ctx.getElapsedMs() });
         ctx.setBalls(balls.filter((b) => b.id !== active.id));
       }
@@ -87,7 +87,7 @@ export class AccumulationMode implements GameMode {
             if (d < -Math.PI) d += TWO_PI;
             const tolerance = 0.06 * (1 - 0.6 * ((wall.radius - dist) / this.spikeLength)) + Math.atan2(active.radius, dist);
             if (Math.abs(d) < tolerance) {
-              this.freezeSound(ctx); // --- ring-voices --- (a spike's freeze: a thump and a crack where the engine's tone was)
+              this.freezeSound(ctx, true); // --- ring-voices --- (a spike's freeze: a thump and a crack where the engine's tone was)
               this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color, atMs: ctx.getElapsedMs() });
               ctx.setBalls(balls.filter((b) => b.id !== active!.id));
               ctx.setBounceSpeedMultiplier(1);
@@ -128,7 +128,7 @@ export class AccumulationMode implements GameMode {
             ball.vy = (ball.vy / speed) * target;
           }
           if (ctx.isBouncierEnabled()) ctx.setBounceSpeedMultiplier(mult + (ctx.getBouncierIncrement?.() ?? 0.03)); // --- uncap-all --- (the Bounciness' gain, no ceiling)
-          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(this.frozenBalls.indexOf(frozen)), level: 0.5, loopBright: true, melody: false }); // --- ring-voices --- (a plink off the ice)
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(this.frozenBalls.indexOf(frozen)), level: 0.5, loopBright: true, melody: false, ringVoice: "contact" }); // --- ring-voices --- (a plink off the ice)
         }
       }
     }
@@ -137,7 +137,7 @@ export class AccumulationMode implements GameMode {
   /** --- ring-voices --- A bounce off the ring: a pluck that climbs as the ball's timer runs down, instead of the engine's tone. */
   onWallHit(ctx?: ModeContext, _ball?: Ball, wallIndex = 0): WallHitResult | void {
     if (!ctx || this.escaped) return;
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: timerPluckHz(this.timer, this.timerMax), level: 0.7, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: timerPluckHz(this.timer, this.timerMax), level: 0.7, melody: false, ringVoice: "contact" });
     return { suppressSound: true };
   }
   onGapPass() {
@@ -158,7 +158,7 @@ export class AccumulationMode implements GameMode {
       ctx.getBrokenWalls().add(0);
       ctx.spawnConfetti(active.x, active.y);
       // --- ring-voices --- the way out resolves on the chord (still the "gap" event the camera's shake and the finder count)
-      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false });
+      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false, ringVoice: "contact" });
     }
   }
 
@@ -235,11 +235,15 @@ export class AccumulationMode implements GameMode {
     }
   }
 
-  /** --- ring-voices --- A freeze on a spike: a thump a step lower for every ball already frozen, a glassy crack over it. */
-  private freezeSound(ctx: ModeContext) {
+  /**
+   * --- ring-voices --- A freeze: a thump a step lower for every ball already frozen, a glassy crack over it. On a spike the
+   * thump stands for the hit the engine's tone was (a "contact"); the timer's freeze had no sound, and the crack is on top of
+   * either: those are "extra" (review fix B2: a visitor's own sound leaves them out, the crew's measured moments do not count them).
+   */
+  private freezeSound(ctx: ModeContext, onSpike: boolean) {
     const frozen = this.frozenBalls.length;
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: freezeThumpHz(frozen), level: 0.9, melody: false });
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(frozen), level: 0.6, loopBright: true, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: freezeThumpHz(frozen), level: 0.9, melody: false, ringVoice: onSpike ? "contact" : "extra" });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(frozen), level: 0.6, loopBright: true, melody: false, ringVoice: "extra" });
   }
 
   private spawnBall(ctx: ModeContext) {

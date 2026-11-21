@@ -88,7 +88,7 @@ import { ESCAPE_AT_TOLERANCE_SEC } from "@/lib/simulation/outcomes"; // --- low-
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
-import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+import { loopPlayOptions, ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- loop-foundation --- --- ring-voices --- (review fix B2)
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
 import { growFillSettingsOf } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
@@ -145,6 +145,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
+import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
 import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
@@ -329,7 +330,13 @@ export default function Simulator() {
   // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
   const [dailyAtLoad] = useState(() => dailyFromParam(searchParams.get(DAILY_PARAM)));
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
-  const [settings, setSettings] = useState<SimulatorSettings>(() => (dailyAtLoad ? dailySettings(dailyAtLoad) : settingsFromSearchParams(new URLSearchParams(searchParams.toString()))));
+  const [settings, setSettings] = useState<SimulatorSettings>(() => {
+    if (dailyAtLoad) return dailySettings(dailyAtLoad);
+    const params = new URLSearchParams(searchParams.toString());
+    const linked = settingsFromSearchParams(params);
+    // --- clip-start --- (review fix B2) a bare studio visit starts Classic in its start look (a link is read as it was written)
+    return isBareStudioVisit(params, settingsToSearchParams(linked).toString()) ? { ...linked, ...clipStartSettings(linked.mode) } : linked;
+  });
   const [engineReady, setEngineReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -2248,6 +2255,7 @@ export default function Simulator() {
       audioRef.current?.resetBeatGrid();
       const fresh = {
         ...defaultSettings(mode),
+        ...clipStartSettings(mode), // --- clip-start --- (review fix B2) a mode picked on the page starts in its start look
         ...musicSettingsOf(settings),
         recordingResolution: settings.recordingResolution,
         watermarkText: settings.watermarkText,
@@ -2349,7 +2357,11 @@ export default function Simulator() {
       const engine = engineRef.current;
       const audio = audioRef.current;
       if (engine && audio) {
-        for (const ev of engine.consumeSoundEvents()) {
+        const ownSound = audio.hasOwnSound(); // --- ring-voices --- (review fix B2)
+        for (const raw of engine.consumeSoundEvents()) {
+          // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
+          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
+          if (!ev) continue;
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
           if (ev.race) {
             audio.playRaceArpeggio(ev.race, ev.frequency);
@@ -3708,10 +3720,10 @@ export default function Simulator() {
       segmentsDestroyed: (b, total) => fill("Simulator.canvasSegmentsDestroyed", { broken: b, total }),
       segmentsShattered: t("Simulator.canvasSegmentsShattered"),
       matched: t("Simulator.canvasMatched"),
-      segmentsCleared: (total) => fill("Simulator.canvasSegmentsCleared", { total }),
+      segmentsCleared: (total) => t("Simulator.canvasSegmentsCleared", { total }), // --- review fix (B2) --- (a plural in every language: "7 segmentów")
       matchColour: t("Simulator.canvasMatchColour"),
       complete: t("Simulator.canvasComplete"),
-      segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
+      segmentsHitInOrder: (total) => t("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
       ballsAtRest: (n) => t("Simulator.canvasBallsAtRest", { count: n }), // --- end-banner --- (counted: "1 ball at rest")

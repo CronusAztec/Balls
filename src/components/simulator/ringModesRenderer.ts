@@ -222,6 +222,7 @@ export function drawColorMatchRing(
   const detail = segments.length <= DETAIL_CAP;
   let left = 0;
   if (!open) drawRingFloor(ctx, cx, cy, radius, ballColor);
+  else drawEndGhost(ctx, cx, cy, radius, ballColor, segments, rotation); // --- end-ghost --- (review fix B2) the cleared ring under the banner
   ctx.save();
   ctx.lineCap = "butt";
   for (const seg of segments) {
@@ -330,6 +331,7 @@ export function drawAccumulationField(
   nowMs: number,
 ): void {
   if (!escaped) drawRingFloor(ctx, cx, cy, radius, FLOOR_COLORS.accumulation);
+  else drawEndGhost(ctx, cx, cy, radius, FLOOR_COLORS.accumulation); // --- end-ghost --- (review fix B2) the ring it got out of, under the banner
   ctx.save();
   if (!escaped) {
     const ratio = timerMaxMs > 0 ? clamp01(timerMs / timerMaxMs) : 0;
@@ -531,3 +533,60 @@ export function drawRingBurst(ctx: CanvasRenderingContext2D, cx: number, cy: num
   ctx.stroke();
   ctx.restore();
 }
+
+/* ------------------------------------------------------------------ the arena under an end banner */
+
+// --- end-ghost --- (review fix B2)
+/** How strong the cleared ring's ghost and the floor under it are while an end banner is up. */
+export const END_GHOST = { ring: 0.34, floor: 0.16 } as const;
+
+/**
+ * The arena under an end banner (Classic's, Color Match's and Accumulation's verdicts): the floor kept, fainter, and the ring
+ * the ball beat as a ghost – so the verdict sits on the place the run happened, not on an empty dark square. With `segments`
+ * (Color Match) each segment's arc in its own colour, where its burst threw it; without, the whole ring in `color`, with a
+ * white core. Read only from the run's state: every render agrees. Two or three strokes a frame (one per segment up to
+ * DETAIL_CAP, one ring past it).
+ */
+export function drawEndGhost(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: string,
+  segments?: readonly Pick<ColorMatchSegment, "startAngle" | "endAngle" | "color">[],
+  rotation = 0,
+): void {
+  if (!(radius > 0)) return;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = END_GHOST.floor;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, TWO_PI);
+  ctx.fill();
+  const width = Math.max(3, 0.05 * radius);
+  ctx.lineCap = "butt";
+  ctx.globalAlpha = END_GHOST.ring;
+  if (segments && segments.length > 0 && segments.length <= DETAIL_CAP) {
+    const r = radius * 1.08;
+    ctx.lineWidth = width;
+    for (const seg of segments) {
+      ctx.strokeStyle = seg.color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, seg.startAngle + rotation + 0.02, seg.endAngle + rotation - 0.02);
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, TWO_PI);
+    ctx.stroke();
+    ctx.globalAlpha = 0.6 * END_GHOST.ring;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1, 0.3 * width);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// --- end end-ghost ---

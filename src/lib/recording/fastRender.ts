@@ -5,7 +5,7 @@ import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited
 import { EXPORT_CATCH_UP_CHUNK, OfflineRealTime } from "@/lib/simulation/realTime"; // --- slow-motion ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
-import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+import { loopPlayOptions, ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- loop-foundation --- --- ring-voices --- (review fix B2)
 import { normaliseExportMix } from "@/lib/audio/loudness"; // --- loop-foundation ---
 import { WholeLoopCut } from "@/lib/loop/loopContract"; // --- loop-foundation ---
 import type { LoopHudFrame } from "@/lib/loop/hud"; // --- loop-foundation ---
@@ -305,7 +305,10 @@ export function fastRenderSupported(): boolean {
 }
 
 /** Plays one engine sound event through `audio` – the page's dispatch (the sound loop in Simulator.tsx); keep the two in step. */
-export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak: () => void) {
+export function playSoundEvent(audio: ToneGenerator, raw: SoundEvent, onWallBreak: () => void) {
+  // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip, as on the page
+  const ev = raw.ringVoice ? ringVoiceEvent(raw, audio.hasOwnSound()) : raw;
+  if (!ev) return;
   // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
   if (ev.race) {
     audio.playRaceArpeggio(ev.race, ev.frequency);

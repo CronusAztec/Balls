@@ -69,15 +69,15 @@ export class TargetMode implements GameMode {
       // bounce and the break): the camera's shake, the finder and the teams' counts read them as before.
       this.wrongFlash.push({ segment: number, time: COUNTDOWN_FLASH_MS, right: true });
       const step = countdownStepHz(this.target);
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "step", frequency: step, level: 0.8, accent: this.complete, melody: false });
-      if (this.complete) ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false });
-      else ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "ding", frequency: step, level: 0.5, melody: false });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "step", frequency: step, level: 0.8, accent: this.complete, melody: false, ringVoice: "contact" });
+      if (this.complete) ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false, ringVoice: "contact" });
+      else ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "ding", frequency: step, level: 0.5, melody: false, ringVoice: "contact" });
       if (ctx.isBouncierEnabled()) ctx.setBounceSpeedMultiplier(1);
       return { suppressGlow: true, resetBouncier: true, suppressSound: true };
     }
     if (!this.hit.has(number)) this.wrongFlash.push({ segment: number, time: COUNTDOWN_FLASH_MS });
     // --- ring-voices --- any other bounce: a soft pluck an octave under the step the run is waiting for
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: countdownSeekHz(this.target), level: 0.45, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: countdownSeekHz(this.target), level: 0.45, melody: false, ringVoice: "contact" });
     return { suppressGlow: true, suppressSound: true };
   }
   onGapPass() {

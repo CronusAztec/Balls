@@ -18,11 +18,13 @@ import { midiToFrequency } from "@/lib/audio/scales";
  *    a thump a step lower for every ball already frozen (`freezeThumpHz()`) with a glassy crack over it, the way out the chord.
  *
  * A bounce is one "hit" event and a break one "gap" event, as before these voices: the modes swap the sound each event
- * makes, never how many there are. The one sound that is an event of its own is Accumulation's freeze (two, the thump and
- * the crack), the mode's key moment, which played nothing: the teams' bounce counts are Classic's, Shatter's and Color
- * Match's, and the planner's facts read the first sound (a bounce, long before a timer runs out) and the last one only in
- * the rhythm modes' lastNote clips, so no plan and no measured moment of the crew moves. A tick of the timer is not sent:
- * the bounces climb as it runs down instead.
+ * makes, never how many there are, and each carries `ringVoice: "contact"`. The sounds that are events of their own are
+ * Accumulation's freeze (the thump and the crack; on a spike the thump is the hit the engine's tone was), marked
+ * `ringVoice: "extra"`: the crew's measured moments leave the extras out (lib/insights/score.ts: they counted them, and the
+ * role eval's corpus moved – review fix B2), and the planner's facts read the first sound (a bounce, long before a timer
+ * runs out) and the last one only in the rhythm modes' lastNote clips. A tick of the timer is not sent: the bounces climb
+ * as it runs down instead. A visitor who brought a sound of their own (a song to slice, a melody, a hit sample, a
+ * wall-break clip) hears it instead of these voices, as in Classic (lib/audio/loopEvents.ts `ringVoiceEvent()`).
  *
  * All in C major pentatonic, like Classic's ring sounds (ringEscape.ts). Pure: the modes call these with their own state,
  * never with a random draw, and a sound never moves a ball – a seed's run and its fingerprint are what they were.

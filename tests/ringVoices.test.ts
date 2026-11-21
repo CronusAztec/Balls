@@ -5,7 +5,12 @@ import { wallHitFrequency } from "@/lib/audio/sampler";
 import { COLOUR_WRAP, colourChordHz, colourNoteHz, countdownSeekHz, countdownStepHz, freezeThumpHz, icePlinkHz, timerPluckHz } from "@/lib/physics/ringVoices";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId, SoundEvent } from "@/lib/physics/types";
-import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- ring-voices --- (review fix B2)
+import { playSoundEvent } from "@/lib/recording/fastRender";
+import { MOMENT_AFTER_SEC, MOMENT_BEFORE_SEC, payoffMomentSync } from "@/lib/insights/score";
+import { COLOR_MATCH_COLORS, colorMatchColor, colorMatchColorOf } from "@/lib/physics/modes/colorMatch";
+import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 
 /*
@@ -313,5 +318,113 @@ describe("Classic's plain tone (--- ring-looks ---)", () => {
     const last = hits[hits.length - 1].event.frequency!;
     expect(last).toBeGreaterThan(first);
     for (let i = 1; i < hits.length; i++) if (hits[i].event.wallIndex > hits[i - 1].event.wallIndex) expect(hits[i].event.frequency!).toBeGreaterThan(hits[i - 1].event.frequency!);
+  });
+});
+
+// --- ring-voices --- (review fix B2) the visitor's own sound, the extras the crew does not count, Color Match's spread hues
+describe("a visitor's own sound (review fix B2)", () => {
+  /** A fake tone generator: what the fast export's dispatcher asks of it. */
+  function sink(own: boolean) {
+    const calls: string[] = [];
+    const audio = {
+      hasOwnSound: () => own,
+      playLoop: (kind: string) => calls.push(`loop:${kind}`),
+      playWallHit: (_w: number, frequency?: number, _a?: boolean, _c?: unknown, _l?: number, melody = true) => calls.push(`hit:${frequency === undefined ? "plain" : "pitched"}:${melody ? "melody" : "accompaniment"}`),
+      playGapPass: () => calls.push("gap"),
+      playMultiplier: () => calls.push("multiplier"),
+      playInteraction: () => calls.push("interaction"),
+    };
+    return { calls, audio: audio as unknown as Parameters<typeof playSoundEvent>[0] };
+  }
+
+  it("plays a Countdown bounce as a plain hit with the melody's note, and a right hit still breaks with the face's reaction", () => {
+    const { log } = runOf(engineOf("target", 7), 30);
+    const events = log.map((l) => l.event);
+    expect(events.length).toBeGreaterThan(10);
+    expect(events.every((e) => e.ringVoice === "contact")).toBe(true);
+    const own = sink(true);
+    let breaks = 0;
+    for (const ev of events) playSoundEvent(own.audio, ev, () => breaks++);
+    // event for event: a bounce is a plain hit that uses up a melody note (the song slicer and the sample take it there), a
+    // right hit's break the plain break, the wall-break clip and the face's wide eyes
+    expect(own.calls.filter((c) => c.startsWith("loop:"))).toEqual([]);
+    expect(own.calls.filter((c) => c.startsWith("hit:")).every((c) => c === "hit:plain:melody")).toBe(true);
+    expect(own.calls.filter((c) => c.startsWith("hit:")).length).toBe(events.filter((e) => e.type === "hit").length);
+    expect(own.calls.filter((c) => c === "gap").length).toBe(events.filter((e) => e.type === "gap").length);
+    expect(breaks).toBe(events.filter((e) => e.type === "gap").length);
+    expect(breaks).toBeGreaterThan(0);
+    // without a sound of the visitor's own: the mode's voices, as before
+    const plain = sink(false);
+    for (const ev of events) playSoundEvent(plain.audio, ev, () => {});
+    expect(plain.calls.every((c) => c.startsWith("loop:"))).toBe(true);
+    expect(plain.calls.length).toBe(events.length);
+  });
+
+  it("leaves Accumulation's freeze out under a visitor's own sound, and the crew's measured moment never counts it", () => {
+    const { log } = runOf(engineOf("accumulation", 3), 30);
+    const extras = log.filter((l) => l.event.ringVoice === "extra");
+    expect(extras.length).toBeGreaterThanOrEqual(2); // a timer's freeze: the thump and the crack, both extra
+    expect(ringVoiceEvent(extras[0].event, true)).toBeNull();
+    expect(ringVoiceEvent(extras[0].event, false)).toBe(extras[0].event);
+    const contact = log.find((l) => l.event.ringVoice === "contact")!.event;
+    expect(ringVoiceEvent(contact, true)).toEqual({ type: contact.type, wallIndex: contact.wallIndex });
+    const unmarked: SoundEvent = { type: "hit", wallIndex: 0 };
+    expect(ringVoiceEvent(unmarked, true)).toBe(unmarked);
+    // the moment around the first freeze counts the bounces alone
+    const at = extras[0].atMs / 1000;
+    const moment = payoffMomentSync(defaultSettings("accumulation"), 3, { width: 800, height: 450 }, at);
+    const around = log.filter((l) => l.atMs / 1000 >= at - MOMENT_BEFORE_SEC - 1e-9 && l.atMs / 1000 <= at + MOMENT_AFTER_SEC + 1e-9);
+    expect(moment.sounds).toBe(around.filter((l) => l.event.ringVoice !== "extra").length);
+    expect(around.some((l) => l.event.ringVoice === "extra")).toBe(true);
+  });
+});
+
+describe("Color Match's colours (review fix B2)", () => {
+  it("spreads a few colours round the wheel – red, green and blue for three – and leaves seven as the palette", () => {
+    expect([0, 1, 2].map((i) => colorMatchColorOf(i, 3).color)).toEqual([COLOR_MATCH_COLORS[0].color, COLOR_MATCH_COLORS[3].color, COLOR_MATCH_COLORS[4].color]);
+    expect([0, 1].map((i) => colorMatchColorOf(i, 2).color)).toEqual([COLOR_MATCH_COLORS[0].color, COLOR_MATCH_COLORS[4].color]);
+    for (const count of [2, 3, 4, 5, 6]) {
+      const hues = Array.from({ length: count }, (_, i) => colorMatchColorOf(i, count).hue);
+      expect(new Set(hues).size).toBe(count);
+      // no two neighbours closer than 60° on the wheel up to five colours
+      if (count <= 5) for (let i = 1; i < count; i++) expect(hues[i] - hues[i - 1]).toBeGreaterThanOrEqual(60);
+    }
+    for (let i = 0; i < 9; i++) expect(colorMatchColorOf(i, 7)).toEqual(colorMatchColor(i));
+  });
+
+  it("paints the default ring and ball in those colours, the logic by index as before", () => {
+    const engine = engineOf("colorMatch", 7);
+    const segments = engine.getColorMatchSegments();
+    expect(new Set(segments.map((s) => s.color))).toEqual(new Set(["#ef4444", "#22c55e", "#3b82f6"]));
+    for (const s of segments) expect(s.color).toBe(colorMatchColorOf(s.colorIndex, 3).color);
+    expect(["#ef4444", "#22c55e", "#3b82f6"]).toContain(engine.getColorMatchBallColor());
+  });
+});
+
+describe("the page's start look (review fix B2)", () => {
+  it("starts a bare studio visit and a mode picked on the page in Classic's Ring Ladder pace and Accumulation's quicker timer, never a link", () => {
+    expect(clipStartSettings("classic")).toEqual({ gapSize: 1, ballSpeed: 500, screenShake: 0.3, showGlow: true, wallBreakStyle: "all", ringSound: true });
+    expect(clipStartSettings("accumulation")).toEqual({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true });
+    expect(clipStartSettings("target")).toEqual({});
+    // the link base is what it was: the start look is written into the page's own link
+    const start = { ...defaultSettings("classic"), ...clipStartSettings("classic") } as SimulatorSettings;
+    expect(settingsToSearchParams(start).toString()).toBe("mode=classic&s=500&gap=1&shake=0.3&glow=1&wbreak=all&resn=1");
+    expect(settingsFromSearchParams(settingsToSearchParams(start))).toMatchObject(clipStartSettings("classic"));
+    const bare = (q: string) => isBareStudioVisit(new URLSearchParams(q), settingsToSearchParams(settingsFromSearchParams(new URLSearchParams(q))).toString());
+    expect(bare("")).toBe(true);
+    expect(bare("utm_source=tiktok&lang=pl")).toBe(true);
+    for (const q of ["mode=classic", "seed=12", "daily=2026-11-21", "c=q1bKzU9JVbJSSs5JLC7OTFbSUSpSstI1rQUA", "s=500", "gap=0.4&wc=3"]) expect(bare(q), q).toBe(false);
+  });
+
+  it("ends inside the clip: Classic's start look is out by 27 s on most seeds, where the link base never is", () => {
+    let start = 0;
+    let base = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const paced = runOf(engineOf("classic", seed, clipStartSettings("classic")), 27);
+      if (paced.finished) start++;
+      if (runOf(engineOf("classic", seed), 27).finished) base++;
+    }
+    expect(base).toBe(0);
+    expect(start).toBeGreaterThanOrEqual(5);
   });
 });

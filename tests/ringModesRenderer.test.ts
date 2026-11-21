@@ -7,6 +7,7 @@ import {
   COUNTDOWN_COLORS,
   DETAIL_CAP,
   DIM_ALPHA,
+  END_GHOST,
   FLOOR_ALPHA,
   FLOOR_COLORS,
   FROST_BURST_MS,
@@ -21,6 +22,7 @@ import {
   drawColorMatchHalo,
   drawColorMatchRing,
   drawCountdownRing,
+  drawEndGhost,
   drawRingBurst,
   drawRingFloor,
   drawRingPips,
@@ -189,10 +191,14 @@ describe("Color Match's ring", () => {
     expect(arcsOf(during).length).toBe(1); // one arc past the ring: the burst
     expect(arcsOf(after).length).toBe(0);
     expect(texts(during.drawn)).toEqual(["7"]);
-    // the ring open (every segment matched): no ring, no read-out – the banner's moment
+    // the ring open (every segment matched): no live ring, no read-out – the banner's moment, over the cleared ring's ghost
+    // (--- end-ghost --- review fix B2: a faint floor and each segment faint in its own colour, no longer an empty square)
     const open = recorder();
     drawColorMatchRing(open.g, ring(), "#ef4444", true, 540, 540, 400, 0, 2, 5000, arcs);
-    expect(open.drawn.length).toBe(0);
+    expect(open.drawn.map((d) => d.name)).toEqual(["fill", ...ring().map(() => "stroke")]);
+    expect(texts(open.drawn)).toEqual([]);
+    expect(open.drawn.slice(1).map((d) => d.stroke)).toEqual(ring().map((seg) => seg.color));
+    expect(open.drawn.every((d) => d.alpha <= END_GHOST.ring)).toBe(true);
   });
 
   it("puts a halo of the ball's colour round the ball, and the canvas no longer writes a grey 'Match colour:' through it", () => {
@@ -404,5 +410,35 @@ describe("Classic's light", () => {
     expect(canvasSource).toMatch(/balls\.length === 1\) drawColorMatchHalo\(ctx, balls\[0\]\.x, balls\[0\]\.y, balls\[0\]\.radius, classicRingColor\(classicRings\.escaped\)\)/);
     // not in the Ring Escape poster's pure black look, a loop clip, a roster's race or a replay
     expect(canvasSource).toMatch(/engine\.getCurrentModeName\(\) === "classic" && !isShatter && !ringRainbow && !loopHudRef\.current && !teamLayer\.isActive\(\) && !replay \? engine\.getRingEscapeView\(\) : null/);
+  });
+});
+
+// --- end-ghost --- (review fix B2)
+describe("the arena under an end banner", () => {
+  it("keeps a faint floor and the cleared ring as a ghost, with a white core, never an empty square", () => {
+    const { ctx, g, drawn } = recorder();
+    drawEndGhost(g, 540, 540, 400, "#3c78ff");
+    expect(drawn.map((d) => [d.name, d.name === "fill" ? d.fill : d.stroke])).toEqual([
+      ["fill", "#3c78ff"],
+      ["stroke", "#3c78ff"],
+      ["stroke", "#ffffff"],
+    ]);
+    expect(drawn[0].alpha).toBe(END_GHOST.floor);
+    expect(drawn[1].alpha).toBe(END_GHOST.ring);
+    expect(END_GHOST.floor).toBeGreaterThan(0);
+    expect(balanced(ctx)).toBe(true);
+    // a ring of no size draws nothing
+    const none = recorder();
+    drawEndGhost(none.g, 540, 540, 0, "#3c78ff");
+    expect(none.drawn.length).toBe(0);
+  });
+
+  it("is what Accumulation's escape and Classic's way out leave under the banner", () => {
+    const escaped = recorder();
+    drawAccumulationField(escaped.g, [], 0, 3000, true, "", 540, 540, 400, 9000);
+    expect(escaped.drawn.map((d) => d.name)).toEqual(["fill", "stroke", "stroke"]);
+    expect(escaped.drawn[1].stroke).toBe(FLOOR_COLORS.accumulation);
+    expect(texts(escaped.drawn)).toEqual([]);
+    expect(canvasSource).toMatch(/classicRings\.escaped >= walls\.length\) \{\s*drawEndGhost\(ctx, cx, cy, walls\[walls\.length - 1\]\.radius, classicRingColor\(walls\.length - 1\)\)/);
   });
 });

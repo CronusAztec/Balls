@@ -60,6 +60,24 @@ export function colorMatchColor(index: number): { hue: number; color: string } {
   return { hue, color: `#${hex2(f(0))}${hex2(f(8))}${hex2(f(4))}` };
 }
 
+// --- review fix (B2) --- spread hues
+/**
+ * The palette entries a run of `count` colours (2–6) shows, spread round the colour wheel so dimmed segments of two colours
+ * never read as one brown: red and blue, red, green and blue, then yellow and purple join, orange last. Seven or more use the
+ * palette in order (the fingerprint's recipe and the bot's template run seven).
+ */
+const SPREAD_SLOTS: Record<number, readonly number[]> = { 2: [0, 4], 3: [0, 3, 4], 4: [0, 2, 3, 4], 5: [0, 2, 3, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
+
+/**
+ * Colour `index` of a run of `count` colours, as it is drawn: the logic only ever compares indices (a ball matches a segment of
+ * its own index) and the sounds follow the index, so this changes nothing but the paint.
+ */
+export function colorMatchColorOf(index: number, count: number): { hue: number; color: string } {
+  const slots = SPREAD_SLOTS[count];
+  return colorMatchColor(slots && index >= 0 && index < slots.length ? slots[index] : index);
+}
+// --- end review fix (B2) ---
+
 /** Color Match: the ball changes colour on every bounce and only breaks matching segments. */
 export class ColorMatchMode implements GameMode {
   readonly name = "colorMatch";
@@ -76,7 +94,7 @@ export class ColorMatchMode implements GameMode {
     this.escaped = false;
     this.matchCount = 0;
     this.ballColorIndex = Math.floor(ctx.random() * this.colorCount);
-    this.ballColor = colorMatchColor(this.ballColorIndex);
+    this.ballColor = colorMatchColorOf(this.ballColorIndex, this.colorCount); // --- review fix (B2) --- (hues spread for a few colours)
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
@@ -133,7 +151,7 @@ export class ColorMatchMode implements GameMode {
     if (!segment) return;
     if (segment.broken) {
       // --- ring-voices --- a bounce off the bare ring where a segment was: the ball's own colour, an octave down and soft
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: colourNoteHz(this.ballColorIndex) / 2, level: 0.35, melody: false });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: colourNoteHz(this.ballColorIndex) / 2, level: 0.35, melody: false, ringVoice: "contact" });
       return { suppressSound: true };
     }
     // --- rigged --- the last intact segment of a ring the rig keeps closed to this ball does not break: the ring never opens
@@ -149,17 +167,17 @@ export class ColorMatchMode implements GameMode {
       // finder and the teams' counts read them as before.
       const all = this.segments.every((s) => s.broken);
       const triad = colourChordHz(this.ballColorIndex);
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: triad[0], level: 1, loopBright: true, melody: false });
-      if (all) ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false });
-      else ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "impact", frequency: triad[0], chord: triad, level: 0.8, melody: false });
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: triad[0], level: 1, loopBright: true, melody: false, ringVoice: "contact" });
+      if (all) ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false, ringVoice: "contact" });
+      else ctx.addPendingSoundEvent({ type: "gap", wallIndex, loop: "impact", frequency: triad[0], chord: triad, level: 0.8, melody: false, ringVoice: "contact" });
       ctx.creditWallBreak?.(ball); // --- teams --- the segment counts for the ball that broke it
       if (all) ctx.getBrokenWalls().add(wallIndex);
       return { resetBouncier: true, suppressSound: true };
     }
     this.ballColorIndex = (this.ballColorIndex + 1) % this.colorCount;
-    this.ballColor = colorMatchColor(this.ballColorIndex);
+    this.ballColor = colorMatchColorOf(this.ballColorIndex, this.colorCount); // --- review fix (B2) --- (hues spread for a few colours)
     // --- ring-voices --- the bounce plays the colour the ball turns: the cycle of colours is a scale
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: colourNoteHz(this.ballColorIndex), level: 0.6, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: colourNoteHz(this.ballColorIndex), level: 0.6, melody: false, ringVoice: "contact" });
     return { suppressSound: true };
   }
   onGapPass() {
@@ -209,7 +227,7 @@ export class ColorMatchMode implements GameMode {
     this.segments = [];
     for (let i = 0; i < this.segmentCount; i++) {
       const colorIndex = i % this.colorCount;
-      const c = colorMatchColor(colorIndex);
+      const c = colorMatchColorOf(colorIndex, this.colorCount); // --- review fix (B2) ---
       this.segments.push({ index: i, startAngle: i * step, endAngle: (i + 1) * step, color: c.color, hue: c.hue, colorIndex, broken: false, brokenMs: -1 });
     }
   }

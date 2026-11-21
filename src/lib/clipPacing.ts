@@ -58,5 +58,45 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
 }
 
 const NONE: Partial<SimulatorSettings> = Object.freeze({});
+
+// --- clip-start --- (review fix B2)
+/**
+ * The page's start look of a mode whose link base cannot move: what a visitor gets when the page itself starts the mode (a
+ * bare studio visit, a mode picked on the page – Simulator.tsx), on top of `defaultSettings(mode)`. Never applied to a link:
+ * links, presets, project files, share codes and the bot's plans are written against `defaultSettings(mode)`, which stays as
+ * it was (the crew's role-eval corpus pins Classic's and Accumulation's defaults byte for byte: tests/fixtures/crew), so a page
+ * in its start look writes these fields into its own link and a shared link replays the run it showed.
+ *
+ * Measured with the seed finder's own engine, seeds 1–50 in the laptop (800 × 450) and phone (450 × 450) worlds:
+ *  - classic: the Ring Ladder card's run (gap 1.0 at ball speed 500, the ring sounds, a light shake, the glow, every break
+ *    effect) – 87 of 100 runs out by 27 s, none within 5 s, median 17.7 s (the link base: 0 of 100, 82 still running at
+ *    60 s), a note per ring and the chord at the way out, so a first visit sees and hears its ending inside the clip.
+ *  - accumulation: a 3 s timer, gap 0.35 and ball speed 450 – 76 of 100 runs out by 27 s (the link base: 72), median 17.7 s
+ *    (14.3 s), and 8 of 100 out within the first 5 s (14): the first ball's luck with the gap, which only a physics change
+ *    removes.
+ */
+export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
+  switch (mode) {
+    case "classic":
+      return CLASSIC_START;
+    case "accumulation":
+      return ACCUMULATION_START;
+    default:
+      return NONE;
+  }
+}
+const CLASSIC_START: Partial<SimulatorSettings> = Object.freeze({ gapSize: 1, ballSpeed: 500, screenShake: 0.3, showGlow: true, wallBreakStyle: "all", ringSound: true } as const);
+const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true } as const);
+
+/**
+ * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and
+ * no setting of its own – only what is not a setting (the language, the campaign tags). Any of them makes it a link, read as
+ * it was written.
+ */
+export function isBareStudioVisit(params: URLSearchParams, linkedQuery: string): boolean {
+  for (const key of ["mode", "seed", "daily", "c"]) if (params.has(key)) return false;
+  return linkedQuery === "mode=classic";
+}
+// --- end clip-start ---
 /** The look the ring modes start with, render only: a glow round the ball (the bot's own look has it: planner.ts). The camera stays off in every mode. */
 const RING_LOOK = { showGlow: true } as const;

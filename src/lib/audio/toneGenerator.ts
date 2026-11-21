@@ -378,6 +378,14 @@ export class ToneGenerator {
   getCustomNoteCount() {
     return this.customNotes.length;
   }
+  /**
+   * --- ring-voices --- (review fix B2) True when the visitor brought a sound of their own: a song for the slicer, a melody, the
+   * hit sample, a wall-break clip. A ring mode's own voices then give way to the plain bounce and break (loopEvents.ts
+   * `ringVoiceEvent()`), so what the visitor chose is what plays, as in Classic.
+   */
+  hasOwnSound(): boolean {
+    return this.slicer.isActive() || this.customNotes.length > 0 || (this.hitSoundMode === "sample" && !!this.hitSampleUrl) || !!this.wallBreakSoundUrl;
+  }
   /** --- beat-machine --- The loaded melody's pitches (Hz), in order (the Beat Machines' "melody" source plans from them). */
   getCustomNotes(): readonly number[] {
     return this.customNotes;
