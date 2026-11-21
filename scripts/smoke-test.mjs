@@ -9952,6 +9952,8 @@ await smokeBlock("desktop-exe", async () => {
     };
     const accountsNote = await publishOutcome("Publish to your accounts");
     const noAccounts = /waiting in the Publish block/.test(accountsNote);
+    // --- review fix (panel-basics) --- and it shows that block: the Recording group's Publish row opens (the block mounts with it)
+    const publishShown = await dp.locator("[data-publish]").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
     const quickNote = await publishOutcome("Publish to TikTok (quick share)");
     const shareNote = /upload page opened/.test(quickNote);
     // (the folder opens once the share has run: the note above shows after it)
@@ -9959,11 +9961,12 @@ await smokeBlock("desktop-exe", async () => {
     const { reveals, opened } = await dp.evaluate(() => ({ reveals: window.__fakeDesktop.state.reveals.slice(), opened: window.__fakeDesktop.state.opened.slice() }));
     check(
       "desktop-exe: the Library publishes through the Publish feature – to the ticked accounts (or says where to tick them) and a quick share of the clip's platform",
-      publishButtons.join("|") === "Publish to your accounts|Publish to TikTok (quick share)" && noAccounts && shareNote && reveals.includes("lib-1") && opened.includes("https://www.tiktok.com/upload"),
-      `(buttons ${JSON.stringify(publishButtons)}, no accounts note ${noAccounts} "${accountsNote}", share note ${shareNote} "${quickNote}", revealed ${JSON.stringify(reveals)}, opened ${JSON.stringify(opened)})`,
+      publishButtons.join("|") === "Publish to your accounts|Publish to TikTok (quick share)" && noAccounts && publishShown && shareNote && reveals.includes("lib-1") && opened.includes("https://www.tiktok.com/upload"),
+      `(buttons ${JSON.stringify(publishButtons)}, no accounts note ${noAccounts} "${accountsNote}", Publish block shown ${publishShown}, share note ${shareNote} "${quickNote}", revealed ${JSON.stringify(reveals)}, opened ${JSON.stringify(opened)})`,
     );
     // In the app the Publish block offers YouTube through the relay (Google's sign-in does not take app:// as an origin)
-    await dp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+    // --- review fix (panel-basics) --- (the Library's note opened the Recording group already: a press on it would close it)
+    if (!(await dp.locator("#studio-block-recording").count())) await dp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
     await openRecordingRow(dp, "publish"); // --- panel-basics ---
     const appYouTube = await dp.getByTestId("publish-app-youtube").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
     const directYouTube = await dp.locator('[data-publish-connect="youtube-direct"]').count();
