@@ -63,12 +63,17 @@ describe("links do not prefetch by default", () => {
     expect(() => warm.onFocus()).not.toThrow();
   });
 
-  it("is on the links that lead to the studio only: the hero button, the header's studio link and call to action, and the mobile sheet's", () => {
+  it("is on the links that lead to the studio only: the hero button, the header's call to action and the mobile sheet's", () => {
     expect(read("src/components/site/Hero.tsx")).toContain("<StudioLink");
     expect(read("src/components/site/StudioLink.tsx")).toContain('useWarmUp("/simulator")');
     const navbar = read("src/components/site/Navbar.tsx");
     expect((navbar.match(/\{\.\.\.warm\}/g) ?? []).length).toBe(2);
-    expect(navbar).toContain('link.href === "/simulator" ? warm : {}');
+    // --- site-nav --- the header has one link to the studio, its call to action (in the bar and in the sheet): each is warmed
+    // up, and the list of destinations holds none
+    const studioLinks = navbar.split("\n").filter((line) => line.includes('<Link href="/simulator"'));
+    expect(studioLinks).toHaveLength(2);
+    for (const line of studioLinks) expect(line).toContain("{...warm}");
+    expect(navbar).not.toMatch(/href: "\/simulator"/);
   });
 
   it("is the only Link the site uses: nothing imports next/link or next-intl's navigation directly, and no page opts back in", () => {

@@ -125,7 +125,7 @@ import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
 import { modesOnShelf, paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
-import { modeSearchWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does
+import { modePaletteWords } from "@/lib/modeSearch"; // --- mode-search --- the palette finds a mode by the words the picker does, its shelf's among them
 import { rememberRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
 
@@ -350,6 +350,7 @@ export default function Controls(props: ControlsProps) {
   const pendingFocus = useRef<{ label: string; key: string; block: string; results: string | null; searched: boolean } | null>(null);
   const [focusTick, setFocusTick] = useState(0);
   const phone = useMediaQuery("(max-width: 767.98px)");
+  const railColumn = useMediaQuery("(min-width: 1280px)"); // --- site-nav --- the rail is a column from 1280 px (globals.css): its toolbar says so
   const mod = useModifierKey();
   const site = useTranslations("SiteRedesign");
   const locale = useLocale(); // --- mode-search --- (the language of a mode's search words)
@@ -1534,11 +1535,11 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    // --- mode-shelves --- the modes too, after the settings: Change mode (the picker), then every other mode by its name and
-    // its search words, in the picker's order (no section name: "mode" must not find all of them)
+    // --- mode-shelves --- the modes too, after the settings: Change mode (the picker), then every other mode by its name, its
+    // search words and its shelf's ("fight", "walka"), in the picker's order (no section name: "mode" must not find all of them)
     const modes: PaletteEntry[] = [
       ...(props.onOpenModePicker ? [{ kind: "action" as const, section: "mode", key: "changeMode", label: t("modeDisplay"), sectionLabel: "" }] : []),
-      ...modesOnShelf("all").filter((id) => id !== s.mode).map((id) => ({ kind: "mode" as const, section: "mode", key: id, label: modeNames[id], sectionLabel: "", words: modeSearchWords(id, locale) })),
+      ...modesOnShelf("all").filter((id) => id !== s.mode).map((id) => ({ kind: "mode" as const, section: "mode", key: id, label: modeNames[id], sectionLabel: "", words: modePaletteWords(id, locale) })),
     ];
     return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */)), ...modes];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
@@ -1762,6 +1763,7 @@ export default function Controls(props: ControlsProps) {
               itemClassName="studio-rail-item"
               labelClassName="studio-rail-label"
               tooltipClassName="studio-rail-tip"
+              orientation={railColumn ? "vertical" : undefined}
             />
           </div>
           <aside id="studio-panel" className="studio-panel" aria-label={t("controlsTitle")} hidden={phone && !sheetOpen}>

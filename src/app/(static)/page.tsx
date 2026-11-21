@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { routing } from "@/i18n/routing";
-import { BASE_PATH, SITE_NAME } from "@/lib/site";
+import { BASE_PATH, SITE_NAME, absoluteUrl } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo"; // --- site-nav ---
+import { MODE_CARD_ORDER } from "@/lib/modes";
 
 /**
  * The static export has no middleware, so "/" is a tiny page that sends the visitor to the
@@ -22,7 +25,15 @@ const redirectScript = `(function () {
 })();`;
 
 // --- review fix (ui-i18n) --- the title moved here from the (static) layout (the 404 page sets its own)
-export const metadata: Metadata = { title: SITE_NAME };
+// --- site-nav --- The bare address is the one a visitor types and the one a clip's watermark prints. Pasted into a chat it
+// used to show a bare name and no picture: a link preview does not follow the redirect below. So this page carries the
+// English home page's head (title, description, card, Twitter card), built by the helper every page uses, with /en/ as its
+// canonical address. The (static) layout still keeps it out of search results.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = routing.defaultLocale;
+  const t = await getTranslations({ locale, namespace: "Layout" });
+  return pageMetadata({ locale, path: "", title: t("metaTitle", { siteName: SITE_NAME }), description: t("metaDescription", { count: MODE_CARD_ORDER.length }), image: "home", fallbackImageUrl: absoluteUrl("/og.png") });
+}
 
 export default function RootRedirect() {
   const fallback = `${BASE_PATH}/${routing.defaultLocale}/`;

@@ -155,6 +155,14 @@
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
   }
+  /* --- site-nav --- A link or a control the Tab key reaches stops clear of the 56 px sticky header, with 16 px of air
+     (going backwards through a page it used to end up under the header). A scroll margin on the controls, not a scroll
+     padding on the page: with a padding, focusing a control of the sticky header itself scrolls the page up at every
+     Tab. :where() adds no weight, so a card or a section keeps a larger margin of its own. Not in the studio: it places
+     its own scrolls (the stage under the header, the panel's blocks). */
+  :where(main:not(.studio-main), footer) :where(a, button, input, select, textarea, summary, [tabindex]) {
+    scroll-margin-top: 4.5rem;
+  }
 
   body {
     background: var(--color-bg);

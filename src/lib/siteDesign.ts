@@ -144,8 +144,9 @@ export function sortModes(modes: readonly ModeId[], sort: ModeSort, nameOf: (mod
 }
 
 /**
- * The window event a link to a shelf sends when it is clicked on the landing page itself (the footer's Modes column): the
- * wall is already there, so it shows that shelf (the detail is the shelf id) while the link moves the address and the page.
+ * The window event a link to a shelf sends when it is clicked (the footer's Modes column; the detail is the shelf id, the
+ * event can be cancelled). On the landing page the wall is already there: it shows that shelf, goes to its own top and
+ * cancels the event, and the link then stays on the page. Anywhere else nobody answers and the link opens the landing page.
  */
 export const SHOW_SHELF_EVENT = "jumpingballslive:show-shelf";
 

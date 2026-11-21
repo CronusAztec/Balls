@@ -27,7 +27,7 @@ import {
   type PaletteEntry,
   type PaletteGroup,
 } from "@/lib/siteDesign";
-import { MODE_SEARCH_WORDS, SEARCH_LOCALES, SHELF_SEARCH_WORDS, modeSearchWords, searchModes, type ModeSearchItem } from "@/lib/modeSearch"; // --- mode-search ---
+import { MODE_SEARCH_WORDS, SEARCH_LOCALES, SHELF_SEARCH_WORDS, modePaletteWords, modeSearchWords, searchModes, type ModeSearchItem } from "@/lib/modeSearch"; // --- mode-search ---
 import { RECENT_MODES_KEY, RECENT_MODES_MAX, parseRecentModes, readRecentModes, rememberRecentMode, withRecentMode } from "@/lib/modeRecent"; // --- mode-shelves ---
 import changelog from "@/content/changelog.json";
 import pkg from "../package.json";
@@ -263,6 +263,51 @@ describe("mode search", () => {
     }
   });
 
+  // --- review fix (mode-shelves) --- a visitor types the plural or the form their language bends the word into
+  it("finds a plural or an inflected word: fights, races, battles, walki, peleas", () => {
+    expect(find("en", "fights")).toEqual(find("en", "fight"));
+    expect(find("en", "fighting")).toEqual(find("en", "fight"));
+    expect(find("en", "races")).toEqual(["race", "maze"]);
+    expect(find("en", "battles")).toEqual(find("en", "battle"));
+    expect(find("en", "battle")).toEqual(["battle", "stringBattle", ...modesOnShelf("battle").filter((m) => m !== "battle" && m !== "stringBattle")]);
+    expect(find("en", "duels")).toEqual(["fightLeague", "stringBattle"]);
+    expect(find("en", "songs")).toEqual(modesOnShelf("music"));
+    expect(find("en", "loops")).toEqual(modesOnShelf("loops"));
+    expect(find("en", "merging")[0]).toBe("mergeRing");
+    expect([...find("en", "merging")].sort()).toEqual([...modesOnShelf("smash")].sort());
+    expect(find("pl", "walki")).toEqual(modesOnShelf("battle"));
+    expect(find("pl", "bitwy")).toEqual(find("pl", "bitwa"));
+    expect(find("pl", "bitwa").length).toBe(modesOnShelf("battle").length);
+    expect(find("pl", "pojedynki")).toEqual(["fightLeague", "stringBattle"]);
+    expect(find("pl", "muzyczne")).toEqual(modesOnShelf("music"));
+    expect(find("pl", "drużyna")).toEqual(expect.arrayContaining(["ctf", "territory", "landClaim"]));
+    expect(find("es", "peleas")).toEqual(modesOnShelf("battle"));
+    expect(find("es", "luchas")).toEqual(modesOnShelf("battle"));
+    expect(find("es", "batallas")).toEqual(find("es", "batalla"));
+    expect(find("es", "batalla").length).toBe(modesOnShelf("battle").length);
+    expect(find("es", "duelos")).toEqual(["fightLeague", "stringBattle"]);
+    expect(find("es", "canciones")).toEqual(modesOnShelf("music"));
+    // (a form of a word never lists a mode twice)
+    for (const q of ["fight", "walka", "pelea", "loop", "music"]) for (const locale of SEARCH_LOCALES) expect(new Set(find(locale, q)).size, `${locale} ${q}`).toBe(find(locale, q).length);
+    // four letters in common are the least: three find nothing more than the word did
+    expect(find("en", "racks")).toEqual([]);
+    expect(find("en", "fig")).toEqual(find("en", "fight"));
+  });
+
+  it("finds every mode first by its English name on the Polish and the Spanish page", () => {
+    for (const locale of ["pl", "es"] as const) for (const item of itemsOf("en")) expect(find(locale, item.name)[0], `${locale} "${item.name}"`).toBe(item.id);
+  });
+
+  it("passes over a word that says nothing, and its start while it is typed, but finds no mode by such words alone", () => {
+    for (const locale of ["pl", "es"] as const) {
+      for (const typed of ["capture t", "capture th", "capture the", "capture the f", "capture the flag"]) expect(find(locale, typed), `${locale} "${typed}"`).toEqual(["ctf"]);
+      expect(find(locale, "the"), locale).toEqual([]);
+      expect(find(locale, "of the"), locale).toEqual([]);
+    }
+    expect(find("en", "capture the flag")).toEqual(["ctf"]);
+    expect(find("en", "fight zzz the")).toEqual([]);
+  });
+
   it("gives every mode for an empty search, nothing for nonsense, and never the same mode twice", () => {
     const all = modesOnShelf("all");
     expect(find("en", "")).toEqual(all);
@@ -313,6 +358,32 @@ describe("command palette: the modes", () => {
     expect(keys("merge ring")).toEqual(["mergeRing"]);
     expect(keys("duel", "mode")).toEqual(["fightLeague", "stringBattle"]);
     expect(keys("change")).toEqual(["changeMode"]);
+  });
+
+  // --- review fix (mode-shelves) --- the palette's mode entries carry the shelf's words too (Controls.tsx hands it modePaletteWords)
+  it("finds the modes of a shelf by the shelf's words, as the picker does, in every language", () => {
+    const CATALOGS = { en, pl, es } as const;
+    const modeKeys = (locale: keyof typeof CATALOGS, query: string) => {
+      const local = CATALOGS[locale].Modes as unknown as Record<string, { name: string }>;
+      const list: PaletteEntry[] = [
+        { kind: "control", section: "ball", key: "gravity", label: "Gravity", sectionLabel: "Ball & Physics" },
+        ...modesOnShelf("all").map((id): PaletteEntry => ({ kind: "mode", section: "mode", key: id, label: local[id].name, sectionLabel: "", words: modePaletteWords(id, locale) })),
+      ];
+      return paletteMatches(list, query, 200).filter((e) => e.kind === "mode").map((e) => e.key);
+    };
+    expect(modePaletteWords("fightLeague", "pl")).toBe(`${modeSearchWords("fightLeague", "pl")} ${SHELF_SEARCH_WORDS.battle.pl} ${SHELF_SEARCH_WORDS.battle.en}`);
+    expect(modePaletteWords("fightLeague", "en")).toBe(`${modeSearchWords("fightLeague", "en")} ${SHELF_SEARCH_WORDS.battle.en}`);
+    expect([...modeKeys("en", "fight")].sort()).toEqual([...modesOnShelf("battle")].sort());
+    expect(modeKeys("en", "fight")[0]).toBe("fightLeague");
+    expect([...modeKeys("en", "loop")].sort()).toEqual([...modesOnShelf("loops")].sort());
+    expect([...modeKeys("en", "merge")].sort()).toEqual([...modesOnShelf("smash")].sort());
+    expect(modeKeys("en", "merge")[0]).toBe("mergeRing");
+    expect(modeKeys("en", "music")).toEqual(expect.arrayContaining(modesOnShelf("music")));
+    expect([...modeKeys("pl", "walka")].sort()).toEqual([...modesOnShelf("battle")].sort());
+    expect([...modeKeys("pl", "pętla")].sort()).toEqual([...modesOnShelf("loops")].sort());
+    expect([...modeKeys("es", "pelea")].sort()).toEqual([...modesOnShelf("battle")].sort());
+    // a setting's name still lists no mode, with the shelves' words in
+    for (const q of ["grav", "gravity", "gravity variation", "export project", "speed", "size", "wall", "trail"]) for (const locale of SEARCH_LOCALES) expect(modeKeys(locale, q), `${locale} ${q}`).toEqual([]);
   });
 
   it("does not answer to a setting's or a group's name with every mode", () => {

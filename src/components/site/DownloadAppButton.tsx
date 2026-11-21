@@ -7,12 +7,12 @@ import { buttonClass } from "@/components/ui/Button";
 import { IconDownload } from "@/components/ui/icons";
 
 /* --- desktop-exe --- "Download for Windows" on the landing page (links the download page; hidden inside the app itself).
-   --- site-redesign --- the hero's secondary button; `fallback` shows instead inside the app. The hero (a server component)
-   passes the labels, so the landing page's client messages leave the Desktop namespace out (i18n/clientMessages.ts). */
-export default function DownloadAppButton({ label, note, fallback = null }: { label: string; note: string; fallback?: React.ReactNode }) {
+   --- site-redesign --- the hero's secondary button. The hero (a server component) passes the labels, so the landing
+   page's client messages leave the Desktop namespace out (i18n/clientMessages.ts). */
+export default function DownloadAppButton({ label, note }: { label: string; note: string }) {
   const [inApp, setInApp] = useState(false);
   useEffect(() => setInApp(isDesktopApp()), []);
-  if (inApp) return <>{fallback}</>;
+  if (inApp) return null;
   return (
     <Link href="/download" className={buttonClass({ variant: "secondary", size: "md" })} title={note} data-testid="hero-download" data-track="cta_click" data-track-id="hero_download">
       <IconDownload size={18} />

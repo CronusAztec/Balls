@@ -109,7 +109,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
             </h2>
             <p className="mt-2 max-w-[680px] text-md text-ink-2">{t("why")}</p>
             {/* relative: the table's sr-only labels are absolutely positioned and would otherwise escape this scroller and widen the page on a phone */}
-            <div className="relative mt-6 overflow-x-auto">
+            {/* --- site-nav --- a tab stop with a name: on a phone the table scrolls sideways, and the arrow keys must reach it */}
+            <div className="relative mt-6 overflow-x-auto" tabIndex={0} role="group" aria-labelledby="pricing-compare">
               <table className="w-full min-w-[480px] border-collapse text-left text-md" data-testid="pricing-compare">
                 <caption className="sr-only">{t("compare.title")}</caption>
                 <thead>

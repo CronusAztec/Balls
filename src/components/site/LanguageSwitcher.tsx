@@ -2,9 +2,8 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { useParams } from "next/navigation";
-import { usePathname, useRouter } from "@/i18n/navigation";
 import { LOCALE_OPTIONS, type Locale } from "@/i18n/routing";
+import { useSwitchLocale } from "./useSwitchLocale"; // --- site-nav ---
 import { IconCheck, IconChevronDown, IconGlobe } from "@/components/ui/icons";
 import { cx } from "@/components/ui/cx";
 
@@ -12,13 +11,11 @@ import { cx } from "@/components/ui/cx";
  * Language switcher. --- site-redesign --- A quiet ghost button (globe, language name, chevron) that discloses the list of
  * languages – a disclosure (button + list of buttons), not an ARIA menu: the arrow keys move between them, Escape closes it
  * and returns to the button, tabbing out of it closes it. In the header's mobile sheet the languages are a plain row. The
- * page keeps its query string when the language changes.
+ * page keeps its query string, its hash and its scroll position when the language changes (useSwitchLocale.ts).
  */
 export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMenu?: boolean }) {
   const locale = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useParams();
+  const switchLocale = useSwitchLocale();
   const t = useTranslations("SiteRedesign");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -42,9 +39,7 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
   const switchTo = (code: Locale) => {
     setOpen(false);
     if (code === locale) return;
-    const search = typeof window !== "undefined" ? window.location.search : "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.replace({ pathname: (pathname + search) as any, params: params as Record<string, string> } as never, { locale: code });
+    switchLocale(code);
   };
 
   const onMenuKey = (e: KeyboardEvent<HTMLUListElement>) => {

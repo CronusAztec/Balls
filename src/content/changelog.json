@@ -115,7 +115,10 @@
             "en": "The app now has Mode Lab, with six new games built from rules. Each game has its own sliders and ends by itself.",
             "pl": "Aplikacja ma teraz Laboratorium trybów z sześcioma nowymi grami zbudowanymi z reguł. Każda gra ma własne suwaki i kończy się sama.",
             "es": "La app ya tiene el Lab de modos, con seis juegos nuevos hechos de reglas. Cada juego tiene sus propios deslizadores y termina solo."
-          }
+          },
+          "modes": [
+            "blueprint"
+          ]
         },
         {
           "kind": "improved",
@@ -250,7 +253,10 @@
             "en": "Mode Lab brings six new games built from rules. Glass that hatches balls, rings that double every ball and a race through pegs. Every game ends by itself.",
             "pl": "Laboratorium trybów to sześć nowych gier zbudowanych z reguł. Szkło, z którego wykluwają się kulki, pierścienie, które podwajają każdą kulkę, i wyścig przez kołki. Każda gra kończy się sama.",
             "es": "El Lab de modos trae seis juegos nuevos hechos de reglas. Cristal que hace nacer bolas, anillos que duplican cada bola y una carrera entre clavos. Cada juego termina solo."
-          }
+          },
+          "modes": [
+            "blueprint"
+          ]
         },
         {
           "kind": "new",
@@ -464,7 +470,10 @@
             "en": "Merge Ring is a new rhythm mode. Balls drop through a chute into a rainbow ring and two of the same tier fuse into the next one. The run ends with the final form or an overflow.",
             "pl": "Pierścień fuzji to nowy tryb rytmiczny. Kulki spadają rynną do tęczowego pierścienia, a dwie tego samego poziomu łączą się w kolejny. Bieg kończy ostateczna forma albo przepełnienie.",
             "es": "Anillo de fusión es un nuevo modo rítmico. Las bolas caen por un conducto a un anillo arcoíris y dos del mismo nivel se fusionan en el siguiente. La tirada termina con la forma final o un desborde."
-          }
+          },
+          "modes": [
+            "mergeRing"
+          ]
         },
         {
           "kind": "new",
@@ -480,7 +489,10 @@
             "en": "Spiral Glass is a new rhythm mode. Balls circle a spiral of frosted glass and chip it away from the outside in, and every lap past the badge adds a ball. The run ends when the glass is cleared.",
             "pl": "Szklana spirala to nowy tryb rytmiczny. Kulki krążą po spirali z matowego szkła i wykruszają je od zewnątrz, a każde okrążenie obok odznaki dodaje kulkę. Bieg kończy się, gdy szkło zniknie.",
             "es": "Espiral de cristal es un nuevo modo rítmico. Las bolas giran por una espiral de cristal esmerilado y la rompen de fuera hacia dentro. Cada vuelta por la insignia añade una bola y la tirada termina sin cristal."
-          }
+          },
+          "modes": [
+            "spiralGlass"
+          ]
         },
         {
           "kind": "improved",
@@ -965,7 +977,12 @@
             "en": "The app includes the modes added since 1.0.3, such as Focus Shot, Brick Smash and Colour Sort.",
             "pl": "Aplikacja ma tryby dodane od wersji 1.0.3, na przykład Strzał w ognisko, Rozbij cegły i Sortowanie kolorów.",
             "es": "La app incluye los modos añadidos desde la versión 1.0.3, como Tiro al foco, Rompeladrillos y Clasificar colores."
-          }
+          },
+          "modes": [
+            "ellipseFoci",
+            "brickRebuild",
+            "colourSort"
+          ]
         }
       ]
     },
@@ -986,7 +1003,10 @@
             "en": "Beat Machines joins the modes. Sound Vortex can now send rings of marbles down in waves.",
             "pl": "Maszyny rytmu dołączają do trybów, a Dźwiękowy wir potrafi teraz zrzucać pierścienie kulek falami.",
             "es": "Las Máquinas de ritmo se suman a los modos, y el Vórtice sonoro envía ahora anillos de canicas en oleadas."
-          }
+          },
+          "modes": [
+            "beatMachine"
+          ]
         },
         {
           "kind": "new",
@@ -1010,7 +1030,12 @@
             "en": "Brick Smash, Perfect Fit and Wave Tank join the modes.",
             "pl": "Rozbij cegły, Idealne dopasowanie i Basen falowy dołączają do trybów.",
             "es": "Rompeladrillos, Encaje perfecto y Cubeta de ondas se suman a los modos."
-          }
+          },
+          "modes": [
+            "brickRebuild",
+            "perfectFit",
+            "waveTank"
+          ]
         },
         {
           "kind": "new",
@@ -1018,7 +1043,10 @@
             "en": "The Drawing Machines mode draws with pendulums, or with Earth and Venus.",
             "pl": "Tryb Maszyny rysujące rysuje wahadłami albo ruchem Ziemi i Wenus.",
             "es": "El modo Máquinas de dibujo dibuja con péndulos, o con la Tierra y Venus."
-          }
+          },
+          "modes": [
+            "drawingMachine"
+          ]
         },
         {
           "kind": "improved",
@@ -1063,7 +1091,11 @@
             "en": "Focus Shot and Colour Sort join the modes.",
             "pl": "Strzał w ognisko i Sortowanie kolorów dołączają do trybów.",
             "es": "Tiro al foco y Clasificar colores se suman a los modos."
-          }
+          },
+          "modes": [
+            "ellipseFoci",
+            "colourSort"
+          ]
         },
         {
           "kind": "new",
@@ -1164,7 +1196,11 @@
             "en": "Chord Stars and Spinning Hoops join the modes.",
             "pl": "Gwiazdy cięciw i Wirujące obręcze dołączają do trybów.",
             "es": "Estrellas de cuerdas y Aros giratorios se suman a los modos."
-          }
+          },
+          "modes": [
+            "starChords",
+            "hoops"
+          ]
         },
         {
           "kind": "improved",
@@ -1217,7 +1253,12 @@
             "en": "Mode pictures arrive too, along with new modes such as Conveyor Belt, Bouncing Orbs and Land Claim.",
             "pl": "Pojawiają się też obrazki trybów oraz nowe tryby, na przykład Taśmociąg, Skaczące kule i Podbój terenu.",
             "es": "Llegan también las imágenes de los modos y modos nuevos, como Cinta transportadora, Esferas saltarinas y Conquista de terreno."
-          }
+          },
+          "modes": [
+            "conveyor",
+            "orbGrid",
+            "landClaim"
+          ]
         },
         {
           "kind": "improved",
@@ -1286,7 +1327,10 @@
             "en": "Bouncing Orbs fills a field with thousands of orbs that bounce on their own spot, with a metronome and polyrhythms.",
             "pl": "Skaczące kule wypełniają pole tysiącami kul, z których każda odbija się w swoim miejscu, z metronomem i polirytmami.",
             "es": "El modo Esferas saltarinas llena un campo con miles de esferas que rebotan cada una en su sitio, con metrónomo y polirritmos."
-          }
+          },
+          "modes": [
+            "orbGrid"
+          ]
         },
         {
           "kind": "new",
@@ -1294,7 +1338,10 @@
             "en": "Land Claim lets balls knock blocks off columns for their colour. The most blocks wins.",
             "pl": "W Podboju terenu piłki strącają bloki z kolumn dla swojego koloru. Wygrywa ten, kto zbierze najwięcej.",
             "es": "En Conquista de terreno, las pelotas derriban bloques de las columnas para su color. Gana quien consiga más."
-          }
+          },
+          "modes": [
+            "landClaim"
+          ]
         },
         {
           "kind": "new",
@@ -1302,7 +1349,10 @@
             "en": "Fight League is a duel mode where each fighter is a ball with its own weapon and ability.",
             "pl": "Liga walk to tryb pojedynków, w którym każdy wojownik jest piłką z własną bronią i zdolnością.",
             "es": "La Liga de combate es un modo de duelos en el que cada luchador es una pelota con su propia arma y habilidad."
-          }
+          },
+          "modes": [
+            "fightLeague"
+          ]
         },
         {
           "kind": "new",
@@ -1347,7 +1397,11 @@
             "en": "Territory and Maze Escape join the modes.",
             "pl": "Terytorium i Ucieczka z labiryntu dołączają do trybów.",
             "es": "Territorio y Escape del laberinto se suman a los modos."
-          }
+          },
+          "modes": [
+            "territory",
+            "maze"
+          ]
         },
         {
           "kind": "new",
@@ -1355,7 +1409,10 @@
             "en": "Conveyor Belt drops a new ball every few seconds. Classic and Multiply can respawn balls on a timer.",
             "pl": "Taśmociąg zrzuca nową piłkę co kilka sekund. Klasyczny i Mnożenie mogą odradzać piłki co ustalony czas.",
             "es": "Cinta transportadora suelta una pelota nueva cada pocos segundos. Clásico y Multiplicar pueden reponer pelotas con un temporizador."
-          }
+          },
+          "modes": [
+            "conveyor"
+          ]
         },
         {
           "kind": "new",
@@ -1416,7 +1473,11 @@
             "en": "Territory and Maze Escape come to the app.",
             "pl": "Terytorium i Ucieczka z labiryntu trafiają do aplikacji.",
             "es": "Territorio y Escape del laberinto llegan a la app."
-          }
+          },
+          "modes": [
+            "territory",
+            "maze"
+          ]
         },
         {
           "kind": "improved",
@@ -1575,7 +1636,12 @@
             "en": "Sound Vortex, Bullseye and Journey join the modes.",
             "pl": "Dźwiękowy wir, W dziesiątkę i Podróż dołączają do trybów.",
             "es": "Vórtice sonoro, Diana y Viaje se suman a los modos."
-          }
+          },
+          "modes": [
+            "vortex",
+            "bullseye",
+            "journey"
+          ]
         },
         {
           "kind": "new",
@@ -1583,7 +1649,10 @@
             "en": "Beat Drop lands on every beat. Follow the beat of a song, a video or markers you place.",
             "pl": "Spadanie w rytm ląduje równo z rytmem. Podążaj za rytmem piosenki, wideo albo własnych znaczników.",
             "es": "Caída al ritmo aterriza en cada pulso. Sigue el ritmo de una canción, de un vídeo o de marcas que coloques tú."
-          }
+          },
+          "modes": [
+            "beatDrop"
+          ]
         },
         {
           "kind": "new",
@@ -1676,7 +1745,12 @@
             "en": "Square Racing Grand Prix, Square Battle Royale and Capture the Flag join the modes.",
             "pl": "Wyścig kwadratów Grand Prix, Battle Royale kwadratów i Zdobądź flagę dołączają do trybów.",
             "es": "Gran Premio de Cuadrados, Battle Royale de cuadrados y Captura la bandera se suman a los modos."
-          }
+          },
+          "modes": [
+            "race",
+            "battle",
+            "ctf"
+          ]
         },
         {
           "kind": "new",
@@ -1684,7 +1758,12 @@
             "en": "String Battle, Power Layers and Circle Illusion join the modes.",
             "pl": "Bitwa na nici, Warstwy mocy i Iluzja okręgu dołączają do trybów.",
             "es": "Batalla de hilos, Capas de poder e Ilusión del círculo se suman a los modos."
-          }
+          },
+          "modes": [
+            "stringBattle",
+            "powerLayers",
+            "illusion"
+          ]
         },
         {
           "kind": "new",
@@ -1692,7 +1771,12 @@
             "en": "Beat Runner, Paddle Keep-Up and Double Pendulum Harp join the modes.",
             "pl": "Bieg w rytmie, Piłka na platformie i Harfa z podwójnym wahadłem dołączają do trybów.",
             "es": "Carrera al ritmo, Pelota en la plataforma y Arpa de doble péndulo se suman a los modos."
-          }
+          },
+          "modes": [
+            "runner",
+            "paddle",
+            "doublePendulum"
+          ]
         }
       ]
     },
@@ -1713,7 +1797,12 @@
             "en": "Ball Drop, Bouncing Shapes and Pendulum Wave join the modes.",
             "pl": "Spadające piłki, Odbijające się kształty i Fala wahadeł dołączają do trybów.",
             "es": "Caída de pelotas, Formas que rebotan y Onda de péndulos se suman a los modos."
-          }
+          },
+          "modes": [
+            "drop",
+            "box",
+            "pendulum"
+          ]
         },
         {
           "kind": "new",
@@ -1721,7 +1810,11 @@
             "en": "Metronomes & Polyrhythms brings hundreds of ticking voices, and Collision Playground hundreds of bumping orbs.",
             "pl": "Metronomy i polirytmy to setki tykających głosów, a Poligon zderzeń to setki zderzających się kul.",
             "es": "El modo Metrónomos y polirritmos trae cientos de voces que marcan el pulso, y Parque de colisiones, cientos de esferas que chocan."
-          }
+          },
+          "modes": [
+            "polyrhythm",
+            "collide"
+          ]
         },
         {
           "kind": "new",
@@ -1729,7 +1822,11 @@
             "en": "Glass Smash and Multipliers join the modes. A ball drops through floors of glass, and gates clone balls into hundreds.",
             "pl": "Rozbijanie szkła i Mnożniki dołączają do trybów. Piłka spada przez piętra ze szkła, a bramki klonują piłki aż do setek.",
             "es": "Rompecristales y Multiplicadores se suman a los modos. Una pelota cae por pisos de cristal, y unas puertas clonan las pelotas hasta cientos."
-          }
+          },
+          "modes": [
+            "glass",
+            "multipliers"
+          ]
         },
         {
           "kind": "new",
@@ -1790,7 +1887,12 @@
             "en": "Ring modes where a ball bounces its way out, such as Classic, Multiply and Paint.",
             "pl": "Tryby z pierścieniami, w których piłka wybija sobie drogę na zewnątrz, na przykład Klasyczny, Mnożenie i Malowanie.",
             "es": "Modos con anillos en los que una pelota rebota hasta salir, como Clásico, Multiplicar y Pintar."
-          }
+          },
+          "modes": [
+            "classic",
+            "multiply",
+            "paint"
+          ]
         },
         {
           "kind": "new",

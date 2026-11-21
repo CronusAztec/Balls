@@ -14,6 +14,8 @@ import { cx } from "@/components/ui/cx";
  * ending in an ellipsis ("Harfa z podwójnym wahadłem" needs two lines of a phone's card; in the gallery the tag is a mode's
  * name, which used to squeeze the preset's). The name stays first in the markup, so a card still reads name, tag, one-liner.
  * While a picture loads, its square shows a faint ring on the surface colour, not a black hole.
+ * --- site-nav --- `priority` loads a card's picture with the page (the gallery's first row, its largest paint), where every
+ * other card waits until it is scrolled near.
  */
 export default function PosterCard({
   image,
@@ -25,6 +27,7 @@ export default function PosterCard({
   footer,
   current = false,
   headingLevel = "h4",
+  priority = false,
 }: {
   image: string;
   alt: string;
@@ -36,6 +39,8 @@ export default function PosterCard({
   current?: boolean;
   /** The name's heading level in the page outline (h4 under a family heading, h2 on the gallery). */
   headingLevel?: "h2" | "h3" | "h4";
+  /** The picture is in the first screen: it loads at once, ahead of the page's other pictures. */
+  priority?: boolean;
 }) {
   const Heading = headingLevel;
   return (
@@ -44,7 +49,7 @@ export default function PosterCard({
         {/* --- mode-shelves --- the placeholder a loading picture covers */}
         <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-1/4 w-1/4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-line" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image} alt={alt} loading="lazy" decoding="async" width={360} height={360} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90" />
+        <img src={image} alt={alt} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} decoding="async" width={360} height={360} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90" />
         {badge && <span className="absolute left-2 top-2">{badge}</span>}
       </div>
       <div className="mt-3 flex flex-col-reverse gap-0.5">

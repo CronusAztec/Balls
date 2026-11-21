@@ -2768,7 +2768,7 @@
     "title": "Nie znaleziono strony",
     "description": "Strona, której szukasz, nie istnieje lub została przeniesiona.",
     "home": "Przejdź do strony głównej",
-    "simulator": "Otwórz symulator"
+    "simulator": "Otwórz studio"
   },
   "Privacy": {
     "title": "Polityka prywatności",
@@ -3147,7 +3147,7 @@
     "p6": "{siteName} to mały, niezależny projekt. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Napisz przez <feedback>stronę opinii</feedback>.",
     "h2_4": "Dokąd zmierzamy",
     "p7": "Podstawa zostaje darmowa. Więcej trybów, więcej efektów i mniej kroków od pomysłu do opublikowanego klipu. Śmiało, niech piłka rozbije kilka ścian.",
-    "cta": "Otwórz symulator",
+    "cta": "Otwórz studio",
     "toolTitle": "Czym jest {siteName}",
     "toolP1": "Przeglądarkowe narzędzie do filmów z odbijającą się piłką, którymi pełne są TikTok, Reels i Shorts. Wybierz tryb, zmień kilka ustawień i patrz, jak gra. Gdy klip jest gotowy, nagraj go i pobierz. Pomysł staje się filmem w parę minut.",
     "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej.",

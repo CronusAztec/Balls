@@ -255,6 +255,39 @@ describe("every page's head", () => {
   });
 });
 
+/* --- site-nav --- the bare address: what a link preview shows for the address a clip's watermark prints */
+describe("the root page's head", () => {
+  it("is the English home page's: title, description, the home card and the Twitter card, with /en/ as the canonical address", async () => {
+    const root = (await import("@/app/(static)/page")) as unknown as { generateMetadata: () => Promise<Metadata> };
+    const md = await root.generateMetadata();
+    const home = await headOf(pages.find((p) => p.name === "home") as Page, "en");
+    expect(md.title).toBe(home.title);
+    expect(String(md.title)).toContain(SITE_NAME);
+    expect(String(md.title)).not.toBe(SITE_NAME);
+    expect(md.description).toBe(home.description);
+    expect(length(String(md.description))).toBeGreaterThanOrEqual(70);
+    expect(md.alternates?.canonical).toBe(pageUrl("en"));
+    expect(md.alternates?.canonical).toBe(`${SITE_URL}/en/`);
+    expect(md.openGraph).toEqual(home.openGraph);
+    expect(md.twitter).toEqual(home.twitter);
+    const og = md.openGraph as unknown as OpenGraphHead;
+    expect(og.images).toHaveLength(1);
+    expect(og.images[0].url).toBe(`${SITE_URL}/og/en/home.png`);
+    expect(pngInfo(publicFile(og.images[0].url))).toMatchObject({ width: OG_SIZE.width, height: OG_SIZE.height });
+    expect((md.twitter as { card?: string }).card).toBe("summary_large_image");
+    expect(JSON.stringify(md)).not.toMatch(/[{}]\w*siteName|\{count\}/);
+  });
+
+  it("stays out of search results (the layout's robots), and still sends the visitor on to their language", () => {
+    const layout = fs.readFileSync(path.join(ROOT, "src/app/(static)/layout.tsx"), "utf8");
+    expect(layout).toMatch(/export const metadata: Metadata = \{\s+robots: \{ index: false \},/);
+    const page = fs.readFileSync(path.join(ROOT, "src/app/(static)/page.tsx"), "utf8");
+    expect(page).toContain('location.replace(${JSON.stringify(BASE_PATH)} + "/" + pick + "/" + location.search + location.hash);');
+    expect(page).toContain('<meta httpEquiv="refresh"');
+    expect(page).not.toMatch(/robots:/);
+  });
+});
+
 describe("pageMetadata", () => {
   it("takes the card from the path, a card page's key or a ready picture, and falls back to the default card", async () => {
     const base = { locale: "pl", description: "d".repeat(80) };

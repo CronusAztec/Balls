@@ -50,7 +50,7 @@ export interface TrackEnv {
 }
 
 /** The `data-track-id` values of `cta_click` (a closed list: markup cannot invent a value). */
-export const CTA_IDS = ["hero_studio", "hero_download", "hero_pricing", "nav_studio", "nav_gallery", "nav_download", "nav_pricing", "nav_cta", "gallery_try", "tiktok_cta", "footer_install"] as const;
+export const CTA_IDS = ["hero_studio", "hero_download", "hero_pricing", "nav_gallery", "nav_download", "nav_pricing", "nav_cta", "gallery_try", "tiktok_cta", "footer_install"] as const; // --- site-nav --- (nav_studio left with the header's second studio link: the call to action, nav_cta, is the one that stayed)
 
 /** Props with a closed set of values, keyed "event.prop"; any other value is dropped. (Props missing here are open: mode, res, secs, feature.) */
 export const PROP_VALUES: Readonly<Record<string, readonly string[]>> = {
