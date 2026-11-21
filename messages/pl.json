@@ -1517,6 +1517,28 @@
     "sgHud": "HUD spirali",
     "sgHudTip": "Tytuł i liczba płytek w rogu, pierścień postępu i pytanie nad spiralą. Wyłączony: tylko szkło, kulki i ich licznik. SZKŁO ZBITE pokazuje się zawsze.",
     "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",
+    "modeSongRing": "Pierścień melodii",
+    "srTitle": "Pierścień melodii",
+    "srDesc": "Pierścień jest wyłożony nutami melodii. Kulka zapala nutę, a wskazówka gra wszystkie zapalone nuty przy każdym okrążeniu. Ostatnia nuta odtwarza całą melodię.",
+    "srSong": "Melodia",
+    "srSongTip": "Melodia na pierścieniu. Niespodzianka pozwala wybrać ją ziarnu. Tytuł pojawia się na ekranie dopiero na końcu, więc widzowie mogą zgadywać.",
+    "srSong_twinkle": "Twinkle Twinkle",
+    "srSong_ode": "Oda do radości",
+    "srSong_elise": "Dla Elizy",
+    "srSong_jacques": "Panie Janie",
+    "srSong_mountain": "Król Gór",
+    "srSong_surprise": "Niespodzianka",
+    "srLapSec": "Czas okrążenia",
+    "srLapSecTip": "Ile sekund wskazówka potrzebuje na jedno okrążenie pierścienia. Krótsze okrążenie gra melodię szybciej. Zwykły zakres suwaka to 2–8, a wpisana liczba może go przekroczyć.",
+    "srSpeed": "Prędkość kulki",
+    "srSpeedTip": "Jak szybko leci kulka, w szerokościach pierścienia na sekundę. Szybsza kulka prędzej znajduje nuty, więc bieg jest krótszy.",
+    "srBalls": "Kulki",
+    "srBallsTip": "Ile kulek lata w pierścieniu. Więcej kulek szybciej znajduje nuty. Zwykły zakres suwaka to 1–6, a wpisana liczba może go przekroczyć.",
+    "srHelp": "Pomoc",
+    "srHelpTip": "Jak często odbicie jest lekko korygowane, gdy nuta wypada za wcześnie albo za późno. Przy 0 decyduje czysty przypadek i ostatnia nuta może długo czekać. Przy 1 każdy bieg trzyma to samo tempo.",
+    "srLive": "Nuty na żywo",
+    "srLiveTip": "Nuta brzmi w chwili, gdy kulka ją zapala. Wyłączone: trafienie to ciche stuknięcie, a nuty gra tylko wskazówka, więc melodia zostaje czysta.",
+    "srRunInfo": "Jedno okrążenie co {lap} s. Ziarno decyduje, które nuty kulka znajdzie najpierw, więc Znajdź symulację może trafić w długość klipu.",
     "modeBlueprint": "Laboratorium trybów",
     "blTitle": "Laboratorium trybów",
     "blDesc": "Każda gra tutaj powstaje z reguł, przez które kulki pękają, łączą się albo mnożą. Wybierz grę i ustaw jej suwaki. Udostępniony link do gry też otworzy się tutaj.",
@@ -2582,6 +2604,10 @@
     "spiralGlass": {
       "name": "Szklana spirala",
       "description": "Kulki krążą po szklanej spirali i wykruszają ją od zewnątrz. Każde okrążenie dodaje kulkę. Czy kulka się pomnoży?"
+    },
+    "songRing": {
+      "name": "Pierścień melodii",
+      "description": "Kulka zapala melodię nuta po nucie, z każdym odbiciem. Zgadniesz ją, zanim zabrzmi cała?"
     },
     "blueprint": {
       "name": "Laboratorium trybów",
@@ -4258,6 +4284,7 @@
       "perfectFit": "klocki",
       "mergeRing": "kulki",
       "spiralGlass": "kulki",
+      "songRing": "kulka",
       "blueprint": "kulki"
     },
     "looks": {
@@ -4287,6 +4314,7 @@
       "conveyor": "Piłki: {count}. Czy wszystkie uciekną?",
       "collide": "Zderzenia grają nuty. Potem się przenikają.",
       "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą.",
+      "songRing": "Zgadnij melodię, zanim się skończy.",
       "hatchery": "Każda rozbita płytka wykluwa nową kulkę.",
       "ringBreaker": "Każdy rozbity pierścień podwaja kulki.",
       "conquer": "Zderzenie przejmuje. Wygrywa ostatni kolor.",
@@ -4406,6 +4434,18 @@
     "canvasClearedSub": "x[count] w [seconds] s",
     "canvasTimeout": "KONIEC CZASU",
     "canvasTimeoutSub": "Zostało płytek: [tiles]"
+  },
+  "SongRing": {
+    "caption": "ZGADNIJ MELODIĘ",
+    "canvasCount": "[lit]/[total]",
+    "canvasDoneSub": "[notes] nut w [seconds] s",
+    "canvasTimeout": "KONIEC CZASU",
+    "canvasTimeoutSub": "Nuty: [lit] z [total]",
+    "song_twinkle": "TWINKLE TWINKLE",
+    "song_ode": "ODA DO RADOŚCI",
+    "song_elise": "DLA ELIZY",
+    "song_jacques": "PANIE JANIE",
+    "song_mountain": "KRÓL GÓR"
   },
   "Blueprint": {
     "canvasArenaFull": "ARENA PEŁNA",

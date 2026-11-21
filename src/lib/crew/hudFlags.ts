@@ -148,6 +148,9 @@ export const MODE_HUDS: readonly ModeHud[] = [
   // count popping up over the ball that brought it (spiralGlassRenderer.ts drawEffects), which its overlay switch (sgHud) leaves on: the
   // Simple look's and the template's in both looks. It counts up, the balls, not down to GLASS CLEARED (its words name no claim: "the number")
   { mode: "spiralGlass", counts: false, words: "a badge at the spiral's entrance with the number of balls (x1, x2…), each new number popping up over a ball" },
+  // --- song-ring --- Song Ring's count in the hub of its ring ("3/7": songRingRenderer.ts drawOverlay), which no setting switches off: the
+  // notes lit of the tune's, so it counts to the moment the tune is whole – the countdown the Playbook credits (planner.ts hudShowsCountdown)
+  { mode: "songRing", counts: true, words: "a count of the notes lit in the middle of the ring (1/7, 2/7…), a short line under it" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings
@@ -198,6 +201,8 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "mergeRing", at: "finish", leadSec: 2, words: "a FINAL FORM banner with the merges and the time (or OVERFLOW)" },
   // (--- crew --- studio2 review round 2, 19: its sub-line is the badge's number and the time, "x7 in 17.7s" – TIME'S UP's the tiles left)
   { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the number of balls (x n) and the time (or TIME'S UP with the tiles left)" },
+  // --- song-ring --- the tune's name on a dark plate across the ring, from its final chord (END_HOLD_MS before the run's end)
+  { mode: "songRing", at: "finish", leadSec: 1.5, words: "a banner across the ring naming the tune, with the notes and the time (or TIME'S UP with the notes found)" },
   { mode: "conveyor", at: "finish", leadSec: 1.5, words: "a final banner with the balls loaded and escaped" },
   { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
   { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },

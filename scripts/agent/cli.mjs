@@ -29,7 +29,7 @@
  *   bp-check     a Blueprint played headless on four seeds: playable, endless or broken, with feedback   (deterministic)
  *   bp-link      a Blueprint's link code, simulator link and share code
  *   bp-docs      docs/agents/BLUEPRINTS.md as the code generates it, and whether the committed one is current
- *   templates    --- studio --- the formats, the 48 modes' bindings, the ready templates and their words, the Simple look
+ *   templates    --- studio --- the formats, the 49 modes' bindings, the ready templates and their words, the Simple look
  *   plan         clips planned by the bot's planner from a template, recipe or mode: .agent-out/studio/<studio>/plan.json
  *   score        a link's or a studio clip's Playbook and Simple scores, gates and clutter by the app's rules  (deterministic)
  *   review       the crew's panel with you playing each role: the next brief, or your verdict checked and applied

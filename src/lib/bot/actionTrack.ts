@@ -203,12 +203,13 @@ function modeStakeCells(engine: ReturnType<typeof createEngineForSettings>, mode
  * Smash's bricks standing – "900 bricks" under the box with the loop HUD off (brickRebuildRenderer.ts drawCounters), the loop HUD's
  * counter line with it on – and Spiral Glass's badge at the spiral's entrance, the balls' count ("x7": spiralGlassRenderer.ts drawEffects).
  */
-export const COUNTER_MODES: readonly SimulatorSettings["mode"][] = ["brickRebuild", "spiralGlass"];
+export const COUNTER_MODES: readonly SimulatorSettings["mode"][] = ["brickRebuild", "spiralGlass", "songRing" /* --- song-ring --- (the notes lit, in the hub: "3/7") */];
 
 /** The number a mode's own counter draws now (COUNTER_MODES), null in another mode. */
 function modeCounter(engine: ReturnType<typeof createEngineForSettings>, mode: SimulatorSettings["mode"]): number | null {
   if (mode === "brickRebuild") return engine.getBrickRebuildHudCount();
   if (mode === "spiralGlass") return engine.getSpiralGlassView().count;
+  if (mode === "songRing") return engine.getSongRingView().lit; // --- song-ring ---
   return null;
 }
 // --- end of the modes' own counters
