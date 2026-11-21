@@ -846,7 +846,7 @@ export interface SimulatorSettings {
   // --- sand-plate --- Sand Plate (lib/physics/modes/sandPlate.ts): sand on a ringing plate, every new note shakes it into a finer figure
   /** Notes in a run, one figure each, 3–12 (URL `spn`). */
   spNotes: number;
-  /** Seconds a note rings, 1–5 (URL `sps`). */
+  /** Seconds a note rings, 1–5 (URL `spt`). */
   spNoteSec: number;
   /** Grains of sand on the plate, 500–10,000 (URL `spg`). */
   spGrains: number;
@@ -2032,7 +2032,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeMergeRingParams(settings, base, params); // --- merge-ring ---: mrt, mri, mrs, mrg, mrr
   writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr (--- templates --- the overlay's sghud is a BOOLEAN_URL_KEYS key)
   writeSongRingParams(settings, base, params); // --- song-ring ---: srt, srl, srv, srb, srh, srn
-  writeSandPlateParams(settings, base, params); // --- sand-plate ---: spn, sps, spg, spk, spl
+  writeSandPlateParams(settings, base, params); // --- sand-plate ---: spn, spt, spg, spk, spl
   writeBlueprintParams(settings, base, params); // --- blueprint ---: blp, bls, blv
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
@@ -2699,6 +2699,9 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.shatterHits = isShatterHits(preset.shatterHits) ? preset.shatterHits : defaults.shatterHits; // --- shatter-demolition --- (one of the picks)
   merged.shatterSegments = isShatterSegments(preset.shatterSegments) ? preset.shatterSegments : defaults.shatterSegments;
   merged.shatterEvenBricks = typeof preset.shatterEvenBricks === "boolean" ? preset.shatterEvenBricks : defaults.shatterEvenBricks; // --- shatter-even-bricks ---
+  merged.multiplyRace = typeof preset.multiplyRace === "boolean" ? preset.multiplyRace : defaults.multiplyRace; // --- review fix (B5) --- (a real boolean, like the link's mrace: 1 or "false" falls back to the default)
+  merged.growCenterDot = typeof preset.growCenterDot === "boolean" ? preset.growCenterDot : defaults.growCenterDot; // --- review fix (B5) --- (Grow's two switches too)
+  merged.growLines = typeof preset.growLines === "boolean" ? preset.growLines : defaults.growLines;
   merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
   for (const key of ["topText", "bottomText", "watermarkText"] as const) {
     const text = preset[key] as unknown;

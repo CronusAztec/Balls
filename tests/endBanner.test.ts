@@ -590,7 +590,7 @@ describe("the verdict's hold", () => {
     expect(frame).toMatch(/\{isStarted && finished && !isRecording && daily\.result && <DailyResultPanel/);
     expect(at).toBeGreaterThan(barAt);
     const overlay = simulator.slice(simulator.lastIndexOf("{isStarted && finished && !isRecording && (", at), at);
-    expect(overlay).toMatch(/<Button variant="primary" size="sm" onClick=\{restart\}/);
+    expect(overlay).toMatch(/<Button ref=\{restartButtonRef\} variant="primary" size="sm" onClick=\{restart\}/); // (a run that ends hands the keyboard focus to it)
     expect(overlay).not.toMatch(/className=\{scrim\}/);
     expect(overlay).not.toMatch(/absolute|inset-/);
     expect(simulator.slice(at)).toMatch(/\{isStarted && finished && !isRecording && runEnd && \(\s*<RunEndCard/);

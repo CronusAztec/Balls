@@ -115,8 +115,9 @@ export class SwarmLayer {
   /**
    * Over the balls: an escape's flash where it left the ring, the count in the middle with its "×2" pop (hidden under a race's
    * end banner; at least `ballsNow`, the balls on the field), and a full swarm's burst – the ring flashing white and a shockwave.
+   * `withCount` false leaves the count out (--- review fix (B5) --- the canvas draws it with `drawCount()` over the confetti).
    */
-  drawEffects(ctx: CanvasRenderingContext2D, view: MultiplyView, cx: number, cy: number, R: number, base: string, ballsNow = 0) {
+  drawEffects(ctx: CanvasRenderingContext2D, view: MultiplyView, cx: number, cy: number, R: number, base: string, ballsNow = 0, withCount = true) {
     if (!(R > 0)) return;
     const now = view.timeMs;
     const color = generationColor(view.topGen, base);
@@ -132,34 +133,7 @@ export class SwarmLayer {
       ctx.arc(view.escapeX, view.escapeY, 0.06 * R + 0.22 * R * p, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // the count: big digits in the middle, popping at every doubling
-    if (view.fullMs < 0) {
-      const pop = view.doubledMs >= 0 ? doublePopScale(now - view.doubledMs) : 1;
-      const fs = Math.max(16, 0.34 * R) * pop;
-      ctx.font = `bold ${Math.round(fs)}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = Math.max(3, 0.1 * fs);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-      ctx.globalAlpha = 0.92;
-      const text = String(Math.floor(Math.max(view.count, ballsNow))); // (before the first step the view has not counted the start ball yet)
-      ctx.strokeText(text, cx, cy);
-      ctx.fillStyle = pop > 1.01 ? "#ffffff" : color;
-      ctx.fillText(text, cx, cy);
-      const da = now - view.doubledMs;
-      if (view.doubledMs >= 0 && da >= 0 && da < DOUBLE_POP_MS && view.doubled >= 2) {
-        const k = da / DOUBLE_POP_MS;
-        const small = Math.max(12, 0.13 * R);
-        ctx.font = `bold ${Math.round(small)}px sans-serif`;
-        ctx.globalAlpha = 0.95 * (1 - k);
-        ctx.lineWidth = Math.max(2, 0.12 * small);
-        const y = cy - 0.62 * fs - 0.25 * R * k;
-        ctx.strokeText("×2", cx, y);
-        ctx.fillStyle = color;
-        ctx.fillText("×2", cx, y);
-      }
-    }
+    if (withCount) this.drawCount(ctx, view, cx, cy, R, base, ballsNow);
     // a race's full swarm: the ring flashes white and a shockwave leaves it
     const fa = now - view.fullMs;
     if (view.fullMs >= 0 && fa >= 0 && fa < FULL_BURST_MS) {
@@ -182,6 +156,60 @@ export class SwarmLayer {
         ctx.arc(cx, cy, R * (1 + 0.6 * e), 0, Math.PI * 2);
         ctx.stroke();
       }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * The count: big digits in the middle, popping at every doubling, with its "×2" (hidden under a race's end banner). --- review
+   * fix (B5) --- white digits on a soft dark disc, the newest generation's colour as their outline and the "×2": the canvas draws
+   * it after the particles, so an escape's confetti at the centre and the new balls under it never hide it.
+   */
+  drawCount(ctx: CanvasRenderingContext2D, view: MultiplyView, cx: number, cy: number, R: number, base: string, ballsNow = 0) {
+    if (!(R > 0) || view.fullMs >= 0) return;
+    const now = view.timeMs;
+    const color = generationColor(view.topGen, base);
+    const pop = view.doubledMs >= 0 ? doublePopScale(now - view.doubledMs) : 1;
+    const fs = Math.max(16, 0.34 * R) * pop;
+    const text = String(Math.floor(Math.max(view.count, ballsNow))); // (before the first step the view has not counted the start ball yet)
+    ctx.save();
+    // the disc: a soft shade a little wider than the digits (one gradient a frame)
+    const dr = 0.42 * fs + 0.2 * fs * Math.max(0, text.length - 1);
+    if (typeof ctx.createRadialGradient === "function") {
+      const shade = ctx.createRadialGradient(cx, cy, 0, cx, cy, dr);
+      shade.addColorStop(0, "rgba(0, 0, 0, 0.55)");
+      shade.addColorStop(0.65, "rgba(0, 0, 0, 0.4)");
+      shade.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = shade;
+      ctx.beginPath();
+      ctx.arc(cx, cy, dr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.font = `bold ${Math.round(fs)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = Math.max(4, 0.14 * fs);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.strokeText(text, cx, cy);
+    ctx.lineWidth = Math.max(2, 0.06 * fs);
+    ctx.strokeStyle = color;
+    ctx.strokeText(text, cx, cy);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(text, cx, cy);
+    const da = now - view.doubledMs;
+    if (view.doubledMs >= 0 && da >= 0 && da < DOUBLE_POP_MS && view.doubled >= 2) {
+      const k = da / DOUBLE_POP_MS;
+      const small = Math.max(12, 0.13 * R);
+      ctx.font = `bold ${Math.round(small)}px sans-serif`;
+      ctx.globalAlpha = 0.95 * (1 - k);
+      ctx.lineWidth = Math.max(2, 0.12 * small);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+      const y = cy - 0.62 * fs - 0.25 * R * k;
+      ctx.strokeText("×2", cx, y);
+      ctx.fillStyle = color;
+      ctx.fillText("×2", cx, y);
     }
     ctx.restore();
   }

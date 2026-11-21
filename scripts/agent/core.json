@@ -508,7 +508,7 @@
     {
       "id": "modes-deterministic",
       "title": "Every mode steps deterministically",
-      "what": "All 49 modes boot, stay finite and replay exactly from a seed: the extras.test BASELINE fingerprints, no Math.random or clock in a mode, init() resets every field. Mode Lab's Blueprint interpreter (src/lib/blueprint/**) is part of the blueprint mode.",
+      "what": "All 50 modes boot, stay finite and replay exactly from a seed: the extras.test BASELINE fingerprints, no Math.random or clock in a mode, init() resets every field. Mode Lab's Blueprint interpreter (src/lib/blueprint/**) is part of the blueprint mode.",
       "code": [
         "src/lib/physics/**",
         "src/lib/blueprint/**"

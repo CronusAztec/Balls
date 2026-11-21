@@ -229,7 +229,7 @@
     "spawnCount": "Liczba nowych piłek",
     "spawnCountTip": "Ile nowych piłek pojawia się za każdym razem, gdy jedna ucieknie przez ścianę.",
     "swarmRace": "Wyścig do limitu",
-    "swarmRaceTip": "Pierwsza piłka leci prosto w szczelinę, każda ucieczka gra wyższą nutę, a przebieg kończy się wybuchem, gdy rój dojdzie do swojego limitu roju.",
+    "swarmRaceTip": "Pierwsza piłka leci prosto w szczelinę, każda ucieczka gra wyższą nutę, a przebieg kończy się wybuchem, gdy rój osiągnie Limit roju.",
     "lineColor": "Kolor linii",
     "rainbowSettings": "Tęcza",
     "targetCount": "Liczba celów",

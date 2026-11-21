@@ -225,25 +225,26 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   // --- grow-fill-clip --- Grow's start look as a card (the page's own defaults stay: the bot's fill-grow plans and the crew's
-  // corpus read them): the multiply law at 8 % a bounce, the run ending at the fill; seed 7 is full at 16.5 s (15.6 s here)
+  // corpus read them): the multiply law at 4 % a bounce from 15 % of the ring (--- review fix (B5) ---), the run ending at the
+  // fill; seed 7 is full at 19.0 s and over at 19.5 s
   {
     id: "fill-the-ring",
     mode: "grow",
-    query: "mode=grow&gLaw=multiply&gFill=finish&gStep=8&gHue=1&gMark=1&gPitch=1&seed=7",
-    previewAt: 14.8,
+    query: "mode=grow&gLaw=multiply&gFill=finish&gStep=4&gStart=15&gHue=1&gMark=1&gPitch=1&seed=7",
+    previewAt: 17.5,
     name: { en: "Fill the Ring", pl: "Wypełnij pierścień", es: "Llena el anillo" },
     description: {
-      en: "A small ball grows 8% with every bounce, its note dropping and its colour warming as it swells, until it fills the ring and lands the chord.",
-      pl: "Mała piłka rośnie o 8% z każdym odbiciem, jej nuta opada, a kolor się ociepla, aż wypełni cały pierścień i zabrzmi akord.",
-      es: "Una pelota pequeña crece un 8 % con cada rebote, su nota baja y su color se calienta hasta que llena el anillo y suena el acorde.",
+      en: "A small ball grows 4% with every bounce, its note dropping and its colour warming as it swells, until it fills the ring and lands the chord.",
+      pl: "Mała piłka rośnie o 4% z każdym odbiciem, jej nuta opada, a kolor się ociepla, aż wypełni cały pierścień i zabrzmi akord.",
+      es: "Una pelota pequeña crece un 4 % con cada rebote, su nota baja y su color se calienta hasta que llena el anillo y suena el acorde.",
     },
   },
   // --- multiply-race --- Multiply's start look as a card (the page's own defaults stay, as Grow's): the race to the limit through
-  // a gap of 0.6; seed 7's swarm reaches 200 at 16.6 s (12.6 s here)
+  // the page's gap of 0.3 (--- review fix (B5) --- with its pacer); seed 7's swarm reaches 200 at 15.8 s, the run over at 17.3 s
   {
     id: "swarm-race",
     mode: "multiply",
-    query: "mode=multiply&gap=0.6&mrace=1&seed=7",
+    query: "mode=multiply&mrace=1&seed=7",
     previewAt: 9,
     name: { en: "Swarm Race", pl: "Wyścig roju", es: "Carrera del enjambre" },
     description: {

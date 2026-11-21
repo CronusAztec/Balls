@@ -26,7 +26,9 @@ export const MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS = MULTIPLY_MAX_BALLS;
  * Race to the limit (`race`, the settings' `multiplyRace`, URL `mrace`; off by default, so every old link and plan replays):
  *  - the start ball leaves through the gap at once: init places it in the centre aimed where the gap will be when it gets
  *    there (a flight under gravity, searched over 720 directions and refined; one seeded draw picks the spot inside the gap),
- *    so the first split comes within about a second on every seed;
+ *    so the first split comes within about a second on every seed; after it a pacer keeps one ball at a time aimed at the gap
+ *    (--- review fix (B5) ---: RACE_AIM_PATIENCE_MS), and the race's balls pass through each other, so the count climbs
+ *    without stalling;
  *  - the swarm's own voice instead of a blip a bounce: an escape plays the rising arpeggio of the count (one per
  *    RACE_ESCAPE_GAP_MS), a bounce a soft pluck on the pentatonic ladder by the ball's generation (one per RACE_BOUNCE_GAP_MS),
  *    thicker – a fifth, then an octave over it – as the swarm doubles;
@@ -41,6 +43,13 @@ export const RACE_HOLD_MS = 1500;
 /** The bounce plucks' ladder (C major pentatonic from C4) and the final chord's root (C3). */
 export const RACE_LADDER_HZ: readonly number[] = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0];
 export const RACE_CHORD_HZ = 130.81;
+/**
+ * --- review fix (B5) --- A race's pacer: one ball at a time is aimed at the gap from the centre – a new ball of the escape that
+ * ends the last aimed flight (its seeded direction drawn as before, then replaced) – so an escape comes about every 0.4 s however
+ * the rest of the swarm bounces, and the count climbs steadily instead of sitting still for 4–8 s. A flight that has not left
+ * after RACE_AIM_PATIENCE_MS hands the pacer to the next escape.
+ */
+export const RACE_AIM_PATIENCE_MS = 1500;
 /** The aim's search: directions tried, and the flight's time step (s) and longest flight (s). */
 const AIM_DIRECTIONS = 720;
 const AIM_DT = 1 / 600;
@@ -152,7 +161,17 @@ export class MultiplyMode implements GameMode {
   private race = false;
   private lastEscapeNoteMs = -Infinity;
   private lastBounceNoteMs = -Infinity;
+  /** --- review fix (B5) --- The race's pacer: the aimed ball in flight (−1: none) and when it left the centre. */
+  private aimedId = -1;
+  private aimedMs = -Infinity;
   private readonly view: MultiplyView = { count: 0, limit: Infinity, escapes: 0, genOf: new Map(), topGen: 0, timeMs: 0, escapeMs: -1, escapeX: 0, escapeY: 0, doubled: 1, doubledMs: -1, race: false, fullMs: -1, finished: false };
+  /**
+   * --- review fix (B5) --- A race's balls pass through each other: the swarm's new balls all start in the centre, and a ball
+   * aimed at the gap was knocked off its line by the crowd (the count then sat still for 4–8 s). Off the race, the classic rebound.
+   */
+  get ballsPassThrough(): boolean {
+    return this.race;
+  }
   /** Race to the limit (see above); applies from the next init (the aimed start ball). */
   setRace(on: boolean) {
     this.race = on;
@@ -188,6 +207,8 @@ export class MultiplyMode implements GameMode {
     v.finished = false;
     this.lastEscapeNoteMs = -Infinity;
     this.lastBounceNoteMs = -Infinity;
+    this.aimedId = -1; // --- review fix (B5) ---
+    this.aimedMs = -Infinity;
     if (this.race) this.launchAimed(ctx);
   }
   // --- multiply-race ---
@@ -212,6 +233,13 @@ export class MultiplyMode implements GameMode {
       ctx.addBall({ x: cx, y: cy, vx: Math.cos(dir) * speed, vy: Math.sin(dir) * speed, radius: r, color: slot === 0 ? ctx.config.ballColor || "#FFFFFF" : startBallColor(slot, ctx.config), team: slot });
       ctx.getLastWallLayer().set(ctx.getNextId() - 1, -1);
     }
+  }
+  /** --- review fix (B5) --- The direction from the centre that brings a ball of radius `r` at `speed` to the middle of the gap (`fallback` with no gap). */
+  private aimFromCentre(ctx: ModeContext, wall: { radius: number; gaps: { startAngle: number; endAngle: number }[] }, speed: number, r: number, fallback: number): number {
+    const gap = wall.gaps[0];
+    if (!gap) return fallback;
+    const spin = (ctx.config.rotationSpeed ?? 1) * 0.8; // (the engine turns ring 0 this way: PhysicsEngine.wallRotationRate)
+    return aimAtGap(speed, ctx.config.gravity ?? 0, wall.radius - r, (gap.startAngle + gap.endAngle) / 2 + (ctx.getWallRotations()[0] ?? 0), spin);
   }
   // --- end multiply-race ---
   onPreUpdate() {}
@@ -263,14 +291,19 @@ export class MultiplyMode implements GameMode {
         if (!this.race) ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         const before = balls.length;
+        // --- review fix (B5) --- the pacer passes to this escape when it ends the aimed flight, or that flight has run too long
+        if (ball.id === this.aimedId) this.aimedId = -1;
+        const aimOne = this.race && (this.aimedId < 0 || now - this.aimedMs > RACE_AIM_PATIENCE_MS);
         for (let i = 0; i < this.spawnCount; i++) {
           if (!unlimited && balls.length >= swarmLimit) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS) (--- unlimited --- lifted with No limits on) (--- unlimited-sizes --- the setting's)
           const left = ceiling === null ? Infinity : ceiling - balls.length - (ctx.crowdBalls?.() ?? 0); // --- review fix (unlimited-sizes) ---
           if (!(left >= 1)) break;
-          const a = ctx.random() * Math.PI * 2;
+          let a = ctx.random() * Math.PI * 2;
           // --- gerald-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
           const size = ball.mult ? ball.mult.size : 1;
+          const aimed = aimOne && i === 0 && !(unlimited && (ctx.unlimitedRoom?.() ?? 1) <= 0); // --- review fix (B5) --- the pacer: the first new ball heads for the gap
+          if (aimed) a = this.aimFromCentre(ctx, wall, speed, (ctx.config.ballRadius || 8) * size, a);
           // --- unlimited --- no room left for full-physics balls: the rest of this escape's balls fan out as crowd balls
           if (unlimited && (ctx.unlimitedRoom?.() ?? 1) <= 0) {
             ctx.spawnCrowd?.(Math.min(this.spawnCount - i, left), cx, cy, speed, (ctx.config.ballRadius || 8) * size, a, ball.team ?? 0);
@@ -287,6 +320,10 @@ export class MultiplyMode implements GameMode {
             ...(ball.team !== undefined ? { team: ball.team } : {}),
             ...(ball.mult ? { mult: copyMultipliers(ball.mult), radiusScale: size, gravityScale: ball.mult.gravity } : {}),
           });
+          if (aimed) {
+            this.aimedId = ctx.getNextId() - 1;
+            this.aimedMs = now;
+          }
         }
         // --- multiply-race --- the new balls' generation (the canvas colours them by it)
         for (let k = before; k < balls.length; k++) v.genOf.set(balls[k].id, gen);

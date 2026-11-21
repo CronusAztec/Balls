@@ -2597,14 +2597,14 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | --- | --- | --- | --- | --- | --- |
 | `classic` | the ring field about to break: the inner ring bursting in a white flash, the rest still closed | 1 | 2.65 s | `wbreak=all&r=11` | – |
 | `accumulation` | frozen balls ringing the spiked arena, the live ball racing its last 0.2 s | 5 | 10.25 s | `spikes=1&at=3&r=11&wt=4` | zoom 1.1 |
-| `multiply` | the arena packed with rainbow balls, the first ones spilling out of the gap | 2 | 10 s | `rball=1&r=10&gap=0.6&msc=5` | – |
+| `multiply` | the race near its limit: the ring packed with balls in their generations' colours, the count over 180 in the middle | 2 | 18.6 s | `mrace=1` | – |
 | `lines` | the string art fanned: rainbow lines from the ball to the rim | 1 | 28 s | `rlines=1&ldot=1&r=10` | – |
 | `paint` | the circle two-thirds painted in thick rainbow strokes | 1 | 10 s | `r=14&g=100` | – |
 | `target` | the countdown at 4: a correct hit bursting a numbered segment of the ring | 6 | 18.4 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `portal` | a teleport: the ball bursting out of a portal in a spray of sparks | 1 | 14.6 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 3 | 11.8 s | `r=11` | – |
 | `colorMatch` | a colour match shattering a segment of the ring | 1 | 16 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
-| `grow` | the ball grown to fill most of its ring, the rainbow lines fanned | 1 | 46 s | `glines=1&rlines=1&rball=1` | – |
+| `grow` | the ball warmed to amber a bounce from filling its ring, the meter round the rim nearly closed, its hit markers fading | 1 | 19.6 s | `gLaw=multiply&gFill=finish&gStep=4&gStart=15&gHue=1&gMark=1&gPitch=1` | – |
 | `drop` | balls raining through the coloured pegs | 1 | 4 s | `dbc=16&dsi=0.2&dsv=0.7` | – |
 | `box` | fat squares mid-polyrhythm, the wall they just hit lit up | 1 | 17 s | `bxa=1&bxgr=3&bxn=4` | – |
 | `pendulum` | the pendulum wave in a perfect fan | 1 | 1 s | `pwn=20&pwk=24&pwt=40&pwtr=0.5` | – |

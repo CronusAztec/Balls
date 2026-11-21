@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { clipPacingDefaults, clipStartSettings } from "@/lib/clipPacing";
 import { GALLERY } from "@/content/gallery";
-import { GROW_BURST_MS, GrowLayer, growBurstAt, growCoverage } from "@/components/simulator/growRenderer";
+import { GROW_BURST_MS, GROW_FULL_SNAP_PX, GrowLayer, growBurstAt, growCoverage, growMeterShare, growShowsShare } from "@/components/simulator/growRenderer";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -26,8 +26,8 @@ function engineOf(seed: number, patch: Partial<SimulatorSettings> = {}, world = 
 }
 
 describe("the start look", () => {
-  it("is the multiply law at 8 %, the run ending at the fill, colour, markers and pitch by size – the link base untouched", () => {
-    expect(START).toEqual({ growLaw: "multiply", growStep: 8, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true });
+  it("is the multiply law at 4 % from 15 % of the ring, the run ending at the fill, colour, markers and pitch by size – the link base untouched", () => {
+    expect(START).toEqual({ growLaw: "multiply", growStep: 4, growStart: 15, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true });
     const d = defaultSettings("grow");
     expect([d.growLaw, d.growOnFill, d.growHue, d.growMarkers, d.growPitch]).toEqual(["approach", "stay", false, false, false]);
     expect(settingsToSearchParams(d).toString()).toBe("mode=grow");
@@ -49,7 +49,7 @@ describe("the start look", () => {
           for (const ev of engine.consumeSoundEvents()) events.push({ t: engine.getElapsedMs(), ev });
         }
         const v = engine.getGrowView();
-        // measured when this was written (seeds 1–20, both worlds): full at 16.2–19.5 s
+        // measured when this was written (seeds 1–12, both worlds): full at 17.6–20.2 s (--- review fix (B5) --- from 15 % at 4 %)
         expect(v.firstFillMs, `seed ${seed}`).toBeGreaterThan(15_000);
         expect(v.firstFillMs, `seed ${seed}`).toBeLessThan(25_000);
         expect(v.phase).toBe("done");
@@ -101,5 +101,39 @@ describe("how full the ring is, on screen (every Grow run)", () => {
     // the burst is over GROW_BURST_MS after the fill: fewer strokes
     const later = draw(v.lastFillMs + GROW_BURST_MS + 50);
     expect(later.filter((c) => c.name === "stroke").length).toBeLessThan(atFill.filter((c) => c.name === "stroke").length);
+  });
+});
+
+describe("--- review fix (B5) --- the share's number", () => {
+  const ball = (radius: number): Ball => ({ id: 1, radius }) as unknown as Ball;
+
+  it("is drawn only where a fill can happen, and reads full within 1.5 px of the cap", () => {
+    const classic = engineOf(3).getGrowView();
+    expect([classic.law, classic.onFill]).toEqual(["approach", "stay"]);
+    expect(growShowsShare(classic)).toBe(false);
+    const start = engineOf(3, START).getGrowView();
+    expect(growShowsShare(start)).toBe(true);
+    expect(growShowsShare({ ...classic, onFill: "finish" })).toBe(true);
+    const growing = { ...start, phase: "grow" as const, cap: 150 };
+    expect(growMeterShare(growing, [ball(150 - GROW_FULL_SNAP_PX)])).toBe(1);
+    expect(growMeterShare(growing, [ball(145)])).toBeCloseTo(145 / 150, 9);
+    expect(growMeterShare({ ...growing, phase: "hold" as const }, [ball(10)])).toBe(1);
+  });
+
+  it("sits inside the ring under its top edge, over the ball, and the classic Grow draws no number", () => {
+    const texts = (patch: Partial<SimulatorSettings>) => {
+      const engine = engineOf(7, patch);
+      for (let i = 0; i < 5 * 60; i++) engine.update(STEP, 0);
+      const v = engine.getGrowView();
+      const canvas = fakeCanvas(450, 450);
+      new GrowLayer().drawEffects(canvas.ctx as unknown as CanvasRenderingContext2D, v, engine.getElapsedMs(), "#4af0ff", 225, 225, engine.getBalls());
+      return { v, calls: canvas.ctx.calls.filter((c) => c.name === "fillText") };
+    };
+    const { v, calls } = texts(START);
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0].args[0])).toMatch(/^\d+%$/);
+    expect(Number(calls[0].args[2])).toBeGreaterThan(225 - v.ring);
+    expect(Number(calls[0].args[2])).toBeLessThan(225 - 0.5 * v.ring);
+    expect(texts({}).calls).toEqual([]);
   });
 });

@@ -229,7 +229,7 @@
     "spawnCount": "Pelotas generadas",
     "spawnCountTip": "Cuántas pelotas nuevas aparecen cada vez que una escapa de una pared.",
     "swarmRace": "Carrera al límite",
-    "swarmRaceTip": "La primera pelota va directa al hueco, cada escape suena una nota más alta y la partida termina con una explosión cuando el enjambre llega a su límite del enjambre.",
+    "swarmRaceTip": "La primera pelota va directa al hueco, cada escape suena una nota más alta y la partida termina con una explosión cuando el enjambre llega al Límite del enjambre.",
     "lineColor": "Color de línea",
     "rainbowSettings": "Arcoíris",
     "targetCount": "Número de objetivos",

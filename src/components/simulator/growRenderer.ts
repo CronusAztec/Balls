@@ -62,6 +62,23 @@ export function growCoverage(balls: readonly Ball[], cap: number): number {
   return Math.min(1, r / cap);
 }
 
+// --- review fix (B5) ---
+/** Within this many px of the cap the meter reads full: the classic law only closes in on the cap and would read 97–99 % for ever. */
+export const GROW_FULL_SNAP_PX = 1.5;
+
+/** The meter's share, 0–1: `growCoverage()` while growing, snapped to full within GROW_FULL_SNAP_PX of the cap; full in the hold and the shrink. */
+export function growMeterShare(view: GrowView, balls: readonly Ball[]): number {
+  if (view.phase !== "grow") return 1;
+  const f = growCoverage(balls, view.cap);
+  return f < 1 && view.cap * (1 - f) <= GROW_FULL_SNAP_PX + 1e-9 ? 1 : f;
+}
+
+/** The share's number ("63%") is drawn only where a fill can happen: a law that reaches its cap, or a fill that finishes or loops. */
+export function growShowsShare(view: GrowView): boolean {
+  return view.law !== "approach" || view.onFill !== "stay";
+}
+// --- end review fix (B5) ---
+
 /** The burst of a fill `ageMs` (simulation ms) after it: its 0–1 progress, or null outside it. */
 export function growBurstAt(ageMs: number): number | null {
   return ageMs >= 0 && ageMs < GROW_BURST_MS ? ageMs / GROW_BURST_MS : null;
@@ -113,7 +130,7 @@ export class GrowLayer {
   drawWorld(ctx: CanvasRenderingContext2D, view: GrowView, balls: readonly Ball[], nowMs: number, color: string, cx: number, cy: number) {
     const R = view.ring;
     if (!(R > 0)) return;
-    const f = view.phase === "grow" ? growCoverage(balls, view.cap) : 1;
+    const f = growMeterShare(view, balls); // --- review fix (B5) --- (full within 1.5 px of the cap)
     const fill = lastFillOf(view);
     const burst = fill >= 0 ? growBurstAt(nowMs - fill) : null;
     ctx.save();
@@ -150,25 +167,35 @@ export class GrowLayer {
       ctx.arc(cx, cy, mr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, f));
       ctx.stroke();
     }
-    // the number over the ring: "63%" (no words: it reads the same in every language)
-    const fs = Math.max(12, 0.16 * R);
-    ctx.globalAlpha = 0.92;
-    ctx.font = `bold ${Math.round(fs)}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.lineWidth = Math.max(2, 0.12 * fs);
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
-    const text = `${Math.floor(100 * Math.min(1, f) + 1e-9)}%`;
-    const ty = cy - mr - 0.8 * lw;
-    ctx.strokeText(text, cx, ty);
-    ctx.fillStyle = burst !== null ? "#ffffff" : color;
-    ctx.fillText(text, cx, ty);
     ctx.restore();
   }
 
-  /** Over the balls: a fill's burst – the ring flashing white and a shockwave leaving it in the ball's colour. */
-  drawEffects(ctx: CanvasRenderingContext2D, view: GrowView, nowMs: number, color: string, cx: number, cy: number) {
+  /**
+   * Over the balls: the share's number and a fill's burst – the ring flashing white and a shockwave leaving it in the ball's
+   * colour. `balls` are the run's balls (the share while growing; without them it reads 0 % until the hold).
+   */
+  drawEffects(ctx: CanvasRenderingContext2D, view: GrowView, nowMs: number, color: string, cx: number, cy: number, balls: readonly Ball[] = []) {
     const R = view.ring;
+    // --- review fix (B5) --- the number "63%" inside the ring under its top edge, white over the ball (no words: it reads the same
+    // in every language): clear of the captions' band over the ring, and only where a fill can happen
+    if (R > 0 && growShowsShare(view)) {
+      const f = growMeterShare(view, balls);
+      const fs = Math.max(12, 0.16 * R);
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.font = `bold ${Math.round(fs)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(2, 0.14 * fs);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.65)";
+      const text = `${Math.floor(100 * Math.min(1, f) + 1e-9)}%`;
+      const ty = cy - R + 0.1 * R;
+      ctx.strokeText(text, cx, ty);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(text, cx, ty);
+      ctx.restore();
+    }
     const fill = lastFillOf(view);
     const p = fill >= 0 && R > 0 ? growBurstAt(nowMs - fill) : null;
     if (p === null) return;

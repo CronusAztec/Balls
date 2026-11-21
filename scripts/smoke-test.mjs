@@ -687,7 +687,8 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
   const same = Object.values(runs).every((r) => Math.abs(r.after.y - r.before.y) <= 2 && r.after.cards === r.before.cards && r.after.q === r.before.q && r.after.url === r.before.url);
   const deep = Object.values(runs).every((r) => r.before.y > 600);
   const addresses = runs.shelf.before.url === "?family=loops" && runs.sort.before.url === "?sort=az" && runs.search.before.url === "" && runs.typed.before.url === "?family=battle";
-  const lists = runs.shelf.before.cards === 11 && runs.search.before.q === "fight" && runs.search.before.cards === 8 && runs.typed.before.q === "claims" && runs.typed.before.cards >= 1 && runs.typed.before.cards < 8;
+  // (--- sand-plate --- the Loops shelf holds 12 cards since Sand Plate joined it: lib/siteDesign.ts MODE_SHELVES)
+  const lists = runs.shelf.before.cards === 12 && runs.search.before.q === "fight" && runs.search.before.cards === 8 && runs.typed.before.q === "claims" && runs.typed.before.cards >= 1 && runs.typed.before.cards < 8;
   check(
     "modes wall: Back from the studio returns to the same scroll position with a shelf, a sort and a search set; the address keeps the shelf and the sort, never \"#modes\" or the search",
     same && deep && addresses && lists,
@@ -7624,11 +7625,17 @@ await smokeBlock("viral-bot", async () => {
       const kept = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
       const keptRow = await rowOf();
       const keptChoice = { template: await fp.locator("#bot-template").inputValue().catch(() => null), simple: await fbot.getByRole("switch", { name: "Simple look" }).getAttribute("aria-checked").catch(() => null) };
+      // (--- panel-basics --- the studio's own last address, lib/studioMemory.ts LAST_STUDIO_KEY, is the page's and not the bot's:
+      // it may be written while the bot plans, and holds a studio query, nothing of the bot's)
+      const STUDIO_KEY = "jumpingballslive_last_studio";
       const storedKeys = await fp.evaluate((before) => Object.keys(localStorage).filter((k) => !before.includes(k)), keysBefore);
+      const botKeys = storedKeys.filter((k) => k !== STUDIO_KEY);
+      const studioQuery = await fp.evaluate((key) => localStorage.getItem(key), STUDIO_KEY);
+      const studioOnlyAddress = studioQuery === null || (studioQuery.startsWith("?") && !!new URLSearchParams(studioQuery).get("mode"));
       check(
         "viral bot: the Template choice, the Simple switch and the template's plan survive a reload, in the bot's own storage only",
-        kept && JSON.stringify(keptRow) === JSON.stringify(row) && keptChoice.template === TEMPLATE && keptChoice.simple === "true" && storedKeys.length === 1 && storedKeys[0] === BOT_KEY,
-        `(${JSON.stringify(keptChoice)}; ${JSON.stringify(storedKeys)})`,
+        kept && JSON.stringify(keptRow) === JSON.stringify(row) && keptChoice.template === TEMPLATE && keptChoice.simple === "true" && botKeys.length === 1 && botKeys[0] === BOT_KEY && studioOnlyAddress,
+        `(${JSON.stringify(keptChoice)}; ${JSON.stringify(storedKeys)}; the studio's address ${JSON.stringify(studioQuery?.slice(0, 80) ?? null)})`,
       );
       const freeCodecs = await fp.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
       if (freeCodecs) {
@@ -8413,6 +8420,8 @@ const bdInstrument = () =>
 {
   // ⚡ Fast export of a 10 s clip at 120 BPM (landings 0.5 … 9 s: nine kicks on beats 1 and 3): rendered offline, every kick
   // goes through the export's own audio, the clip ends with the run and a second export of the same seed renders the same frames.
+  // --- end-banner --- (B1 review) the run ends at 9.6 s, its verdict is up from the last landing (9 s) and holds the end screen
+  // END_BANNER_HOLD_MS (1.5 s), then the recorder's 0.5 s: the clip is 11.0 s (it was 10.1 s, the run's end and the 0.5 s)
   await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
   if (webCodecs) {
@@ -8437,7 +8446,7 @@ const bdInstrument = () =>
     const b = await exportOnce();
     check(
       "a beat drop fast export plays the kicks through the export's audio, ends with the run and replays the same frames",
-      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 9 && a.seconds < 11 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
+      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 10 && a.seconds < 12 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
       `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
     );
   } else check("without WebCodecs the beat drop has no fast export to check (Record Video is covered above)", true);
@@ -9151,7 +9160,9 @@ await smokeBlock("unlimited", async () => {
   await slowToggle.click();
   await page.waitForTimeout(300);
   const turnedOn = await switchState();
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // (--- studio-play --- the mode picked in the picker above plays at once: Start Simulator is there only for a run that waits)
+  const startAgain = page.getByRole("button", { name: /Start Simulator/ });
+  if (await startAgain.isVisible().catch(() => false)) await startAgain.click();
   await page.waitForTimeout(1000);
   const canvasOn = await page.evaluate(() => document.querySelector("main canvas")?.dataset.slowMotion ?? null);
   check(
@@ -11381,10 +11392,12 @@ await smokeBlock("review-fix-site-redesign", async () => {
     const picked = await stripClear(p, false);
     const sheet = () =>
       p.evaluate(() => {
-        const start = [...document.querySelectorAll("button")].find((b) => /Start Simulator/.test(b.textContent ?? ""));
+        // the transport's play control: Start Simulator, or its Pause once the run plays (--- studio-play --- a mode picked in
+        // the picker plays at once)
+        const start = [...document.querySelectorAll("button")].find((b) => /Start Simulator/.test(b.textContent ?? "")) ?? [...document.querySelectorAll(".studio-transport button")].find((b) => (b.textContent ?? "").trim() === "Pause");
         const r = start?.getBoundingClientRect();
         const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
-        return { open: document.getElementById("studio-panel")?.hidden === false, startReachable: !!start && start.contains(hit), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) };
+        return { open: document.getElementById("studio-panel")?.hidden === false, control: (start?.textContent ?? "").trim(), startReachable: !!start && start.contains(hit), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) };
       });
     const tab = p.getByRole("toolbar").getByRole("button", { name: "Ball & Physics", exact: true });
     await tab.tap();
@@ -12587,7 +12600,10 @@ await smokeBlock("paywall-gate", async () => {
       await fp.getByTestId("unlock-dialog").locator("xpath=ancestor::dialog").getByRole("button", { name: "Close", exact: true }).click().catch(() => {});
       const closeClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
       // the batch: its block stays editable, Render batch carries the tag (the free-watermark block renders one)
+      // (--- panel-basics --- Batch Render opens from its row of the Recording group: the row starts closed)
+      await openRecordingRow(fp, "batch");
       const batch = fp.locator("[data-batch]");
+      await batch.waitFor({ timeout: 10000 }).catch(() => {});
       const batchButton = batch.getByRole("button", { name: /Render batch/ });
       const batchTag = await batchButton.locator("[data-watermark-tag]").count();
       const batchLock = await batchButton.locator("[data-pro-lock]").count();
@@ -12762,6 +12778,9 @@ await smokeBlock("paywall-gate", async () => {
         await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
         await p.waitForFunction(() => document.querySelectorAll("[data-pro-lock], [data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {}); // --- free-watermark ---
         await p.getByRole("button", { name: /Recording/ }).click();
+        // (--- panel-basics --- Render batch, the third tag, is in the Batch Render row of the Recording group: the row starts closed)
+        await openRecordingRow(p, "batch");
+        await p.locator("[data-batch]").waitFor({ timeout: 10000 }).catch(() => {});
         dropped[kind] = { locks: await lockCount(p), stored: await stored(p), account: await p.getByTestId("billing-account").innerText().catch(() => ""), status: await p.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null) };
         // --- free-watermark --- Record Video records (watermarked) instead of opening the Unlock dialog
         await p.getByRole("button", { name: /Record Video/ }).click();
@@ -15634,20 +15653,40 @@ await smokeBlock("desktop-ai-fix", async () => {
 {
   const DESKTOP_VERSION = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version; // --- desktop-autorelease --- one source of truth
   // --- desktop-autorelease --- every locale shows the build-time version (desktop/package.json's, bumped with src/lib/desktop/release.ts
-  // by npm run release:desktop in the push that deploys the site); nothing asks GitHub, and there is no release-notes link
+  // by npm run release:desktop in the push that deploys the site); nothing asks GitHub, and no release-notes link leads to GitHub
+  // or off the site: the version's "What's new" link opens the site's own changelog (/changelog#app-<version>, the changelog
+  // block), and the only GitHub addresses on the page are the files of the installers-only downloads repository's latest release
+  // (desktop-exe)
+  const downloads = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download").replace(/\/+$/, "");
+  const GITHUB_HOST = /(^|\.)(github\.com|github\.io|githubusercontent\.com)$/i;
   for (const locale of ["en", "pl", "es"]) {
+    const askedGitHub = [];
+    const onRequest = (r) => {
+      try {
+        if (GITHUB_HOST.test(new URL(r.url()).hostname)) askedGitHub.push(r.url());
+      } catch {}
+    };
+    page.on("request", onRequest);
     await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
-    const notes = await page.evaluate(() => ({
-      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
-      update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
-      all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
-      whatsNew: document.querySelectorAll('[data-testid="download-whats-new"]').length,
-    }));
+    page.off("request", onRequest);
+    const notes = await page.evaluate(({ downloads, basePath, github }) => {
+      const githubHost = new RegExp(github, "i");
+      const links = [...document.querySelectorAll("a[href]")].map((a) => ({ url: new URL(a.getAttribute("href") ?? "", location.href), notes: !!a.closest('[data-testid="download-notes"]') }));
+      return {
+        version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
+        update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
+        all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
+        // a link of the version's notes that leaves the site (another origin, or a path outside the site's base path)
+        notesOffSite: links.filter((l) => l.notes && (l.url.origin !== location.origin || !l.url.pathname.startsWith(`${basePath}/`))).map((l) => l.url.href),
+        // a GitHub address that is not a file of the downloads repository's latest release (a release-notes page, the source)
+        github: links.filter((l) => githubHost.test(l.url.hostname) && !l.url.href.startsWith(`${downloads}/`)).map((l) => l.url.href),
+      };
+    }, { downloads, basePath: BASE_PATH, github: GITHUB_HOST.source });
     check(
       // --- legal-copy --- the 1.0.2 note was stale from 1.0.3 on: the page shows the version and the model note, and no update note
       `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION} and the one-time model download, with no stale note for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update === "" && notes.all.length > notes.version.length + 40 && !/1\.0\.2/.test(notes.all) && notes.whatsNew === 0,
-      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update === "" && notes.all.length > notes.version.length + 40 && !/1\.0\.2/.test(notes.all) && notes.notesOffSite.length === 0 && notes.github.length === 0 && askedGitHub.length === 0,
+      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}", notes' links off the site ${JSON.stringify(notes.notesOffSite)}, GitHub links ${JSON.stringify(notes.github)}, GitHub asked ${JSON.stringify(askedGitHub)})`,
     );
   }
 
@@ -16673,8 +16712,12 @@ await smokeBlock("watermark-everywhere", async () => {
                 return n / (d.length / 4);
               };
               // the pill's own fill, left of the logo (one 70 % layer over the light background: about 100; two stacked: about 45)
-              const pill = (r) => {
-                const d = g.getImageData(Math.round(r.x + 0.08 * bh), Math.round(r.y + 0.36 * bh), Math.max(1, Math.round(0.16 * bh)), Math.max(1, Math.round(0.28 * bh))).data;
+              // --- watermark-everywhere --- (D0) in a right corner the pill is anchored to the region's right edge and is wider than
+              // the region (its text sets its width), so its own fill is the padding right of the text, the same distance in from
+              // that edge: from the region's left edge the sample fell on the logo (about 179, the 6.9 s frame of the tier-2 dry run)
+              const pill = (r, corner) => {
+                const x = corner.endsWith("right") ? r.x + r.w - 0.24 * bh : r.x + 0.08 * bh;
+                const d = g.getImageData(Math.round(x), Math.round(r.y + 0.36 * bh), Math.max(1, Math.round(0.16 * bh)), Math.max(1, Math.round(0.28 * bh))).data;
                 let s = 0;
                 for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
                 return s / (d.length / 4);
@@ -16711,7 +16754,7 @@ await smokeBlock("watermark-everywhere", async () => {
                     targets.shift();
                     g.drawImage(v, 0, 0);
                     const found = Object.entries(regions).filter(([, r]) => dark(r) >= 0.2).map(([k]) => k);
-                    frames.push({ t: +meta.mediaTime.toFixed(2), found, pill: found.length === 1 ? +pill(regions[found[0]]).toFixed(1) : null, bars: sq.y > 0.1 * H ? +barTexture().toFixed(4) : null, darks: Object.fromEntries(Object.entries(regions).map(([k, r]) => [k, +dark(r).toFixed(3)])) });
+                    frames.push({ t: +meta.mediaTime.toFixed(2), found, pill: found.length === 1 ? +pill(regions[found[0]], found[0]).toFixed(1) : null, bars: sq.y > 0.1 * H ? +barTexture().toFixed(4) : null, darks: Object.fromEntries(Object.entries(regions).map(([k, r]) => [k, +dark(r).toFixed(3)])) });
                   }
                   if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
                   else done();
@@ -21249,16 +21292,17 @@ await smokeBlock("sand-plate", async () => {
   const block = page.getByTestId("sand-plate");
   const spToggle = (label) => block.getByRole("switch", { name: switchName(label) });
   const spSlider = (label) => block.locator(`input[aria-label="${label}"]`);
-  // (--- review fix (C3) --- a note length of 2.5 s: 2 s is the default now, which a link leaves out)
-  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=9&sps=2.5&spg=4000&spk=1.4&spl=1`, { waitUntil: "networkidle" });
+  // (--- review fix (C3) --- a note length of 2.5 s: 2 s is the default now, which a link leaves out) (--- link-keys --- under `spt`:
+  // `sps` is the splat size's key)
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=9&spt=2.5&spg=4000&spk=1.4&spl=1`, { waitUntil: "networkidle" });
   {
-    const values = { spn: await spSlider("Notes").inputValue(), sps: await spSlider("Note Length").inputValue(), spg: await spSlider("Grains").inputValue(), spk: await spSlider("Shake").inputValue() };
+    const values = { spn: await spSlider("Notes").inputValue(), spt: await spSlider("Note Length").inputValue(), spg: await spSlider("Grains").inputValue(), spk: await spSlider("Shake").inputValue() };
     const loop = await spToggle("Loop").getAttribute("aria-checked");
     const runText = await page.getByTestId("sand-plate-run").innerText();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
     check(
       "sand plate loads from the URL",
-      values.spn === "9" && values.sps === "2.5" && values.spg === "4000" && values.spk === "1.4" && loop === "true" && /24\.3 s/.test(runText) && noRingControls,
+      values.spn === "9" && values.spt === "2.5" && values.spg === "4000" && values.spk === "1.4" && loop === "true" && /24\.3 s/.test(runText) && noRingControls,
       `(${JSON.stringify(values)}, loop=${loop}, "${runText}", no ring controls=${noRingControls})`,
     );
   }
@@ -21270,7 +21314,7 @@ await smokeBlock("sand-plate", async () => {
     const query = page.url().split("?")[1] || "";
     check(
       "sand plate mirrors into the URL",
-      /(^|&)spn=5(&|$)/.test(query) && /(^|&)spg=2000(&|$)/.test(query) && /(^|&)sps=2\.5(&|$)/.test(query) && /(^|&)spk=1\.4(&|$)/.test(query) && !/(^|&)spl=/.test(query),
+      /(^|&)spn=5(&|$)/.test(query) && /(^|&)spg=2000(&|$)/.test(query) && /(^|&)spt=2\.5(&|$)/.test(query) && !/(^|&)sps=/.test(query) && /(^|&)spk=1\.4(&|$)/.test(query) && !/(^|&)spl=/.test(query),
       `(${query})`,
     );
   }
@@ -21282,7 +21326,7 @@ await smokeBlock("sand-plate", async () => {
 }
 {
   // A fast run at 8×: four notes of 1 s, a figure each, then the full chord on the last one and the end.
-  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=4&sps=1`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=4&spt=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const notes = new Set();
