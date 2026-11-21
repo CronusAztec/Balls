@@ -1533,7 +1533,7 @@
     "srSpeed": "Prędkość kulki",
     "srSpeedTip": "Jak szybko leci kulka, w szerokościach pierścienia na sekundę. Szybsza kulka prędzej znajduje nuty, więc bieg jest krótszy.",
     "srBalls": "Kulki",
-    "srBallsTip": "Ile kulek lata w pierścieniu. Więcej kulek szybciej znajduje nuty. Zwykły zakres suwaka to 1–6, a wpisana liczba może go przekroczyć.",
+    "srBallsTip": "Ile kulek lata w pierścieniu. Więcej kulek szybciej znajduje nuty. Zwykły zakres suwaka to 1–6, a wpisana liczba może go przekroczyć. Przebieg buduje najwyżej 5000.",
     "srHelp": "Pomoc",
     "srHelpTip": "Jak często odbicie jest lekko korygowane, gdy nuta wypada za wcześnie albo za późno. Przy 0 decyduje czysty przypadek i ostatnia nuta może długo czekać. Przy 1 każdy bieg trzyma to samo tempo.",
     "srLive": "Nuty na żywo",

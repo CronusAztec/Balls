@@ -1533,7 +1533,7 @@
     "srSpeed": "Velocidad de la bola",
     "srSpeedTip": "A qué velocidad vuela la bola, en anchos de anillo por segundo. Una bola más rápida encuentra antes las notas, así que la tirada es más corta.",
     "srBalls": "Bolas",
-    "srBallsTip": "Cuántas bolas vuelan dentro del anillo. Más bolas encuentran antes las notas. El rango habitual del deslizador es de 1 a 6, y un número escrito puede superarlo.",
+    "srBallsTip": "Cuántas bolas vuelan dentro del anillo. Más bolas encuentran antes las notas. El rango habitual del deslizador es de 1 a 6, y un número escrito puede superarlo. Una partida crea como mucho 5000.",
     "srHelp": "Ayuda",
     "srHelpTip": "Cada cuánto se corrige un poco un rebote cuando una nota llega demasiado pronto o demasiado tarde. En 0 es puro azar y la última nota puede tardar mucho. En 1 todas las tiradas llevan el mismo ritmo.",
     "srLive": "Notas en directo",

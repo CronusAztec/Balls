@@ -1533,7 +1533,7 @@
     "srSpeed": "Ball Speed",
     "srSpeedTip": "How fast the ball flies, in ring widths per second. A faster ball finds the notes sooner, so the run gets shorter.",
     "srBalls": "Balls",
-    "srBallsTip": "How many balls fly in the ring. More balls find the notes sooner. The slider's usual range is 1 to 6, and a typed number goes past it.",
+    "srBallsTip": "How many balls fly in the ring. More balls find the notes sooner. The slider's usual range is 1 to 6, and a typed number goes past it. A run builds at most 5,000.",
     "srHelp": "Help",
     "srHelpTip": "How often a bounce is nudged when a note comes too early or too late. At 0 it is pure chance, and the last note can take a long time. At 1 every run keeps the same pace.",
     "srLive": "Live Notes",
