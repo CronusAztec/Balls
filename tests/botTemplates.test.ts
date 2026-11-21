@@ -1758,7 +1758,7 @@ describe("one ending: a mode's own end banner", () => {
     // Bullseye's callout leaves, its final banner stays; a roster's banner at the same end as the mode's own is one
     expect(endBannersIn(s("bullseye"), { ending: "resolved", payoffSec: 5, clipSec: 30.5, runEndSec: 30 }).map((b) => [b.start, b.end])).toEqual([[5, 6.5], [27.5, 30.5]]);
     expect(endBannersIn({ ...s("territory"), teams: SERIES_ROSTER.slice(0, 2).map((r) => ({ ...r })) } as SimulatorSettings, { ending: "resolved", payoffSec: 20, clipSec: 21, runEndSec: 20 })).toHaveLength(1);
-    // Classic draws none (its escape has no banner)
+    // Classic draws none in a plan (its ESCAPED! is the page's alone: Canvas.tsx leaves it out of a clip with captions)
     expect(endBannersIn(s("classic"), { ending: "resolved", payoffSec: 10, clipSec: 12, runEndSec: 11 })).toEqual([]);
     // in a stranger's words: no word of the intent, no claim's (the screen view holds no intent: tests/crewDossier.test.ts)
     for (const b of MODE_END_BANNERS) expect([b.mode, b.words.length > 10, /payoff|template|intent|idea/i.test(b.words), CLAIMS.filter((c) => new RegExp(`\\b${c}\\b`, "i").test(b.words))]).toEqual([b.mode, true, false, []]);

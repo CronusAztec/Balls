@@ -3299,11 +3299,14 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 await page.evaluate(() => {
   const osc = [];
   const clips = [];
+  const cracks = []; // --- glass-real --- (E4 review) the crack voice's sine pings (its partials: the note's octave, a glassy shimmer, a tick)
   window.__glassOsc = osc;
   window.__glassClips = clips;
+  window.__glassCracks = cracks;
   const start = OscillatorNode.prototype.start;
   OscillatorNode.prototype.start = function () {
-    if (this.frequency.value !== 1) osc.push(this.frequency.value);
+    // (the pane notes are the instrument's, a triangle by default; the crack voice sounds since the E4 review, in sines of its own)
+    if (this.frequency.value !== 1) (this.type === "sine" ? cracks : osc).push(this.frequency.value);
     return start.apply(this, arguments);
   };
   const bufferStart = AudioBufferSourceNode.prototype.start;
@@ -3349,10 +3352,13 @@ await page.waitForTimeout(400);
   const data = await canvasData();
   const pitches = await page.evaluate(() => window.__glassOsc);
   const clips = await page.evaluate(() => window.__glassClips);
+  const cracks = await page.evaluate(() => window.__glassCracks); // --- glass-real --- (E4 review)
   const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
   const onScale = midis.length > 0 && midis.every((m) => m >= 48 && m <= 84 && [0, 2, 4, 5, 7, 9, 11].includes(m % 12));
   await timingCheck("simulator mode=glass smashes panes at 30+ fps", Number(data.glassHits) >= 8 && Number(data.glassShattered) >= 3 && data.glassPanes === "36" && data.glassStages === "4", fpsOk(fr, 10, 30), `(${data.glassHits} hits, ${data.glassShattered}/${data.glassPanes} shattered, stage ${data.glassStage}/${data.glassStages}, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
   check("glass pane hits play scale degrees and shatters play the glass clip", onScale && new Set(midis).size >= 3 && clips.length >= 1 && clips.every((d) => d > 0.6 && d < 0.8), `(${pitches.length} tones, ${new Set(midis).size} distinct degrees, ${clips.length} glass clips)`);
+  // --- glass-real --- (E4 review) and the glass cracks under them: the crack voice of every hit, four pings each, with the mode's own clip
+  check("glass pane hits crack with the glass's own voice beside the glass clip", cracks.length >= 4 * Math.min(8, Number(data.glassHits) || 0) && Number(data.glassHits) >= 8, `(${cracks.length} crack pings for ${data.glassHits} hits)`);
   await page.screenshot({ path: path.join(outDir, "sim-glass.png") });
 }
 await page.goto(`${BASE}/en/simulator/?mode=glass&glr=3&glhp=1&gls=2&face=cute&bn=Gerald`, { waitUntil: "networkidle" });
@@ -4240,7 +4246,7 @@ const instrumentOscillators = () =>
   await page.screenshot({ path: path.join(outDir, "sim-illusion-lines.png") });
 }
 {
-  // --- illusion-stage --- the staged build at 3×: one ball first, all eight by 2.6 s, the circle revealed at 5.3 s, the end at 6.7 s
+  // --- illusion-stage --- the staged build at 3×: two balls first (D2 review), all eight by 2.1 s, the circle revealed at 5.3 s, the end at 6.7 s
   await page.goto(`${BASE}/en/simulator/?mode=illusion&ilsg=1&ilc=5&ils=3`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(300);

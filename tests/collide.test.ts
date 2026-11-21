@@ -9,6 +9,10 @@ import {
   DEFAULT_COLLIDE_SETTINGS,
   HUE_BUCKETS,
   MAX_SOUNDS_PER_FRAME,
+  ANTI_HUSH_SEC,
+  POUR_JAR_SCALE,
+  POUR_PLUCK_MAX,
+  POUR_TAIL_SHARE,
   PULSE_MAX_NOTES,
   PULSE_STEP_SEC,
   MAX_SQUASH,
@@ -18,6 +22,7 @@ import {
   buildCollideField,
   collideLevel,
   collidePitch,
+  collidePourLayout,
   collideSettingFields,
   collideSettingsOf,
   fieldArea,
@@ -42,7 +47,7 @@ import { createEngineForSettings, findSimulation, runNeverFinishes, type ModeSet
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing"; // --- collide-pour ---
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
-import { drawCollideArena, drawCollideBodies } from "@/components/simulator/collideRenderer";
+import { POUR_SOLID_MS, drawCollideArena, drawCollideBodies, ghostBlend } from "@/components/simulator/collideRenderer";
 import { fakeCanvas } from "./fakeCanvas";
 
 /* ------------------------------------------------------------------ helpers */
@@ -950,5 +955,111 @@ describe("Collision Playground: the open jar drawn (collide-pour)", () => {
     const bodies = fakeCanvas(800, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
     drawCollideBodies(bodies, e.getBalls(), v, o);
     expect(bodies.calls.filter((c) => c.name === "stroke").length).toBeLessThanOrEqual(2);
+  });
+});
+
+/* ------------------------------------------------------------------ --- collide-pour --- (D2 review) the pour seen on screen */
+
+describe("Collision Playground: the pour seen on screen (collide-pour, D2 review)", () => {
+  const startLook = (): SimulatorSettings => ({ ...defaultSettings("collide"), ...clipStartSettings("collide") }) as SimulatorSettings;
+  const phoneEngine = (seed: number) => {
+    const s = startLook();
+    return createEngineForSettings(physicsConfigOfSettings(s, { width: 450, height: 450 } as never), "collide", modeSettingsOfSettings(s), seed);
+  };
+
+  it("lays a pouring jar out smaller at the top of the square, a catch floor of a third of the square under it", () => {
+    const full = buildCollideField(450, 450, "circle");
+    const jar = buildCollideField(450, 450, "circle", true);
+    expect(jar.radius).toBeCloseTo(POUR_JAR_SCALE * full.radius, 9);
+    expect(jar.cy - jar.radius).toBeCloseTo(full.cy - full.radius, 9);
+    expect((jar.catchBottom - (jar.cy + jar.radius)) / jar.side).toBeGreaterThan(0.3);
+    expect([jar.catchLeft, jar.catchRight, jar.catchBottom]).toEqual([0, 450, 450]);
+    const wide = buildCollideField(800, 450, "box", true);
+    expect([wide.catchLeft, wide.catchRight, wide.catchBottom, wide.cx]).toEqual([175, 625, 450, 400]);
+    // only a jar that pours: the link base and the ring keep the full container
+    expect(collidePourLayout(resolveCollideSettings({}))).toBe(false);
+    expect(collidePourLayout(resolveCollideSettings({ pourAt: 14 }))).toBe(true);
+    expect(collidePourLayout(resolveCollideSettings({ pourAt: 14, ring: true }))).toBe(false);
+    expect(phoneEngine(1).getCollideView().field!.radius).toBeCloseTo(jar.radius, 9);
+  });
+
+  it("heaps the poured orbs on the floor inside the square, the first out lowest, drops the last tenth within a second and keeps the plucks under the grid", { timeout: 120_000 }, () => {
+    const e = phoneEngine(7);
+    const v = e.getCollideView();
+    const f = v.field!;
+    const order: number[] = [];
+    const seen = new Uint8Array(v.count);
+    let tailAt = -1;
+    let plucks = 0;
+    for (let k = 0; k < 40 * 60 && !e.isSimulationFinished(); k++) {
+      e.update(1000 / 60, 0);
+      for (const ev of e.consumeSoundEvents()) {
+        if (ev.loop !== "pluck") continue;
+        plucks++;
+        expect(ev.level!).toBeLessThanOrEqual(POUR_PLUCK_MAX);
+      }
+      if (tailAt < 0 && v.left <= POUR_TAIL_SHARE * v.count) tailAt = e.getElapsedMs() / 1000;
+      for (const ball of e.getBalls()) {
+        const i = ball.id - v.firstId;
+        if (v.out[i] === 2 && !seen[i]) {
+          seen[i] = 1;
+          order.push(i);
+        }
+      }
+    }
+    expect([v.empty, order.length]).toEqual([true, v.count]);
+    expect(plucks).toBeGreaterThan(10);
+    // the stragglers: from the last tenth to EMPTY! within a second and a half
+    expect(e.getElapsedMs() / 1000 - tailAt).toBeLessThan(1.5);
+    // a second later every orb lies in the square, outside the jar, under it
+    for (let k = 0; k < 60; k++) e.update(1000 / 60, 0);
+    const balls = e.getBalls();
+    const byIndex = new Map(balls.map((b) => [b.id - v.firstId, b]));
+    for (const b of balls) {
+      expect(b.x - b.radius).toBeGreaterThanOrEqual(f.catchLeft - 1e-6);
+      expect(b.x + b.radius).toBeLessThanOrEqual(f.catchRight + 1e-6);
+      expect(b.y + b.radius).toBeLessThanOrEqual(f.catchBottom + 1e-6);
+      expect(Math.hypot(b.x - f.cx, b.y - f.cy)).toBeGreaterThan(f.radius + b.radius - 1);
+    }
+    // the heap: the first tenth out lies lower (nearer the floor) than the last tenth, which landed on top
+    const tenth = Math.floor(order.length / 10);
+    const meanY = (ids: number[]) => ids.reduce((a, i) => a + byIndex.get(i)!.y, 0) / ids.length;
+    expect(meanY(order.slice(0, tenth))).toBeGreaterThan(meanY(order.slice(-tenth)));
+  });
+
+  it("lets the anti-collision chord ring alone on the grid, a bell over it, and keeps the grid as loud as the pour", { timeout: 120_000 }, () => {
+    const e = phoneEngine(3);
+    const log: { t: number; e: SoundEvent }[] = [];
+    for (let k = 0; k < 12 * 60; k++) {
+      e.update(1000 / 60, 0);
+      for (const ev of e.consumeSoundEvents()) log.push({ t: e.getElapsedMs() / 1000, e: ev });
+    }
+    const chord = log.find((x) => x.e.chord && x.e.accent)!;
+    expect(chord.t).toBeCloseTo(10, 1);
+    const bell = log.find((x) => x.e.loop === "chime")!;
+    expect([Math.abs(bell.t - chord.t) < 0.02, bell.e.ringVoice, bell.e.melody]).toEqual([true, "extra", false]);
+    const notes = log.filter((x) => !x.e.loop && !x.e.chord);
+    expect(notes.filter((x) => x.t >= chord.t && x.t < chord.t + ANTI_HUSH_SEC - 1e-9)).toHaveLength(0);
+    expect(notes.filter((x) => x.t >= chord.t + ANTI_HUSH_SEC && x.t < chord.t + 1).length).toBeGreaterThan(0);
+    // the grid's notes in the drop reach well over a plain collision note's level (PULSE_FLOOR × PULSE_GAIN at the least)
+    const drop = notes.filter((x) => x.t > 0.5 && x.t < 3);
+    expect(Math.max(...drop.map((x) => x.e.level ?? 1))).toBeGreaterThan(2 * COLLIDE_SOFT_LEVEL);
+  });
+
+  it("draws the open jar's orbs solid again and no count once it is empty", { timeout: 120_000 }, () => {
+    const e = phoneEngine(2);
+    const v = e.getCollideView();
+    let ghostAtSwitch = 0;
+    for (let k = 0; k < 40 * 60 && !e.isSimulationFinished(); k++) {
+      e.update(1000 / 60, 0);
+      e.consumeSoundEvents();
+      if (k === 12 * 60) ghostAtSwitch = ghostBlend(v);
+      if (v.pourActive && (v.tick - v.pourTick) * v.tickMs > POUR_SOLID_MS) expect(ghostBlend(v)).toBe(0);
+    }
+    expect(ghostAtSwitch).toBe(1);
+    expect(v.empty).toBe(true);
+    const ctx = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawCollideArena(ctx, v, { wallColor: () => "#ffffff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: false, trailThickness: 1 });
+    expect(ctx.calls.filter((c) => c.name === "fillText")).toHaveLength(0);
   });
 });

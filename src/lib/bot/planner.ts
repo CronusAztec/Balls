@@ -21,6 +21,7 @@ import { END_HOLD_MS as SONG_RING_END_HOLD_MS } from "@/lib/physics/modes/songRi
 import { resolveSandPlateSettings, sandPlateChordSec, sandPlateCycleSec } from "@/lib/physics/modes/sandPlate"; // --- sand-plate ---
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 import { BANNER_WITH_PAYOFF_SEC, endBannersIn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4) a mode's own ending
+import { endBannerHoldMs } from "@/lib/endHold"; // --- end-hold ---
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- templates --- (AI studio step 4) the maze's balls go by their colours
 import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip";
 import {
@@ -685,14 +686,20 @@ const MAX_ACCEPTED = 3;
 /* Holds the page adds after a run's end before the end screen (Simulator.tsx; the fast export follows it). */
 const HOLD_SEC = { teams: 3, stringBattle: 3, arena: 3, multipliers: 2, stop: 0.5 } as const;
 
-/** The holds after a run's own end (s), the recorder's stop included (--- insights --- exported: a scored clip's length without an export). */
-export function endHoldsSec(s: SimulatorSettings): number {
+/**
+ * The holds after a run's own end (s), the recorder's stop included (--- insights --- exported: a scored clip's length without an export).
+ * --- end-hold --- (Lane E, E5) With the end banner's hold (lib/endHold.ts) where the page and the fast export hold it: a clip
+ * without captions of its own (`captioned`: the settings' own captions; every plan passes true, its hook drawn on it, so a plan's
+ * length is what it was). Merge Ring's OVERFLOW, which a plan cannot know, is left out.
+ */
+export function endHoldsSec(s: SimulatorSettings, captioned = s.captions.length > 0): number {
+  const banner = endBannerHoldMs({ mode: s.mode, captioned, loopHud: s.loopHud }) / 1000; // --- end-hold --- (with the post holds: the longest plays)
   let pre = 0;
   if (s.mode === "stringBattle") pre = HOLD_SEC.stringBattle;
   else if (s.mode === "battle" || s.mode === "ctf") pre = HOLD_SEC.arena;
   else if (s.mode === "fightLeague") pre = FL_FINALE_SEC + FL_WIN_HOLD_SEC; // --- fl-overhaul --- (Stage 6) the KO finale and the winner's card
   const teamsPlay = s.teams.length > 0 && ["classic", "multiply", "lines", "grow", "shatter", "colorMatch"].includes(s.mode);
-  const post = Math.max(teamsPlay ? HOLD_SEC.teams : 0, s.mode === "multipliers" ? HOLD_SEC.multipliers : 0);
+  const post = Math.max(teamsPlay ? HOLD_SEC.teams : 0, s.mode === "multipliers" ? HOLD_SEC.multipliers : 0, banner);
   return pre + post + HOLD_SEC.stop;
 }
 
@@ -913,7 +920,9 @@ export function* simulateFactsSteps(request: FinderRequest, seed: number, recipe
     const sec = elapsed / 1000;
     // (a race's 3-2-1 beeps come before anything moves: its first impact counts from the start)
     if (facts.firstImpactSec < 0 && events.length > 0 && !(request.mode === "race" && engine.getRaceProgress().phase === "countdown")) facts.firstImpactSec = sec;
-    if (facts.lastSoundSec !== undefined && events.length > 0) facts.lastSoundSec = sec; // --- templates --- (lastNote)
+    // --- templates --- (lastNote) --- end-sting --- (Lane E, E5) the last note of the run's contacts: a sound of the mode's own
+    // (ringVoice "extra": Ball Drop's SETTLED! chord on the silent settle) is no note of the run, as the crew's moments read it
+    if (facts.lastSoundSec !== undefined && events.some((e) => e.ringVoice !== "extra")) facts.lastSoundSec = sec;
     if (analytic && (facts.firstImpactSec >= 0 || sec >= 2)) break; // the timing is known: only the first impact is measured
     if (facts.firstEscapeSec < 0 && engine.getFirstEscapeMs() >= 0) {
       facts.firstEscapeSec = sec;
@@ -1035,12 +1044,12 @@ function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSetti
   if (!facts || facts.finishSec < 0) return null;
   // A square race goes on after its winner crosses (the others finish, then the podium): the clip is cut at the payoff's
   // 85 % mark instead – unless the run is over (podium included) before that anyway.
-  if (settings.mode === "race") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  if (settings.mode === "race") return facts.finishSec + endHoldsSec(settings, true) <= payoff / PAYOFF_MID ? facts.finishSec : null;
   // --- templates --- after the last note the board only settles, silent: the clip is cut at the payoff's 85 % mark, or played
   // to the run's own end when that comes first
-  if (recipe.strategy === "lastNote") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  if (recipe.strategy === "lastNote") return facts.finishSec + endHoldsSec(settings, true) <= payoff / PAYOFF_MID ? facts.finishSec : null;
   // --- templates --- (AI studio step 4) a mark mode whose run goes on after its mark (the other shots, the other shape), as the race
-  if (recipe.strategy === "finish" && MARK_RUNS_ON.includes(settings.mode)) return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  if (recipe.strategy === "finish" && MARK_RUNS_ON.includes(settings.mode)) return facts.finishSec + endHoldsSec(settings, true) <= payoff / PAYOFF_MID ? facts.finishSec : null;
   return facts.finishSec;
 }
 
@@ -1088,10 +1097,10 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
     // --- fl-overhaul --- (Stage 6) one fight: the clip puts the KO at 85 % and is cut in the winner's card (it never runs past
     // the run's own end: the finale, the card's hold and the recorder's stop)
     recordingDuration = clampInt(Math.max(payoff / PAYOFF_MID, payoff + 1), R_DUR.min, R_DUR.max);
-    clipSec = Math.min(recordingDuration, payoff + endHoldsSec(settings));
+    clipSec = Math.min(recordingDuration, payoff + endHoldsSec(settings, true)); // (--- end-hold --- a plan draws its captions)
   } else if (end !== null) {
     // (--- templates --- AI studio step 3: a loop's seam ends the page's whole-loop export right there, no stop after it)
-    const natural = end + (recipe.strategy === "outcome" && facts?.outcomeRun?.seam ? 0 : endHoldsSec(settings));
+    const natural = end + (recipe.strategy === "outcome" && facts?.outcomeRun?.seam ? 0 : endHoldsSec(settings, true)); // (--- end-hold --- a plan draws its captions)
     recordingDuration = clampInt(Math.ceil(natural), R_DUR.min, R_DUR.max);
     clipSec = Math.min(recordingDuration, natural);
   } else {

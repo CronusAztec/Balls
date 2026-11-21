@@ -322,6 +322,20 @@ export function lineTouch(slot: number, count: number, direction: number): { bal
 /** Slots (rim touches) between two balls joining the staged build: two beats (a ball every second at the default 8 balls and speed). */
 export const STAGE_JOIN_SLOTS = 4;
 /**
+ * (D2 review) The opening: the first ball and its partner across the hidden circle are there from the first frame, and the next
+ * ones join every STAGE_OPEN_SLOTS slots until STAGE_OPEN_BALLS are in (four lines by 1.5 s at 8 balls; one ball alone for a
+ * second read as an empty picture).
+ */
+export const STAGE_OPEN_SLOTS = 2;
+export const STAGE_OPEN_BALLS = 4;
+/** (D2 review) The rim touches before the reveal hold their notes (a breath under the riser's end), so the reveal lands by contrast. */
+export const STAGE_BREATH_SLOTS = 3;
+/** (D2 review) The reveal's chord rolled up note by note, this many steps apart, at this level each: louder than a note without one big peak. */
+export const STAGE_ROLL_STEPS = 3;
+export const STAGE_ROLL_LEVEL = 0.75;
+/** (D2 review) The reveal's held pad under the roll (the completion chord with its 2 s hold), soft. */
+export const STAGE_PAD_LEVEL = 0.12;
+/**
  * The staged build's levels: a slot whose ball has not joined yet plays that ball's note as a faint ghost (a ghost touch), the
  * reveal a ding and every ball's note at once with the riser before them, and the end that chord once more under the end card.
  * (The chord is the balls' own voice, shared out like Pendulum Wave's: the loop family's kick, impact and completion chord set
@@ -346,22 +360,36 @@ export interface IllusionStagePlan {
 
 /**
  * --- illusion-stage --- The staged build of `count` balls rolling `direction` (±1) for `cycles` cycles (0: never ending): ball 0
- * joins at the first slot, then a ball every STAGE_JOIN_SLOTS slots – the ball that touches the rim there, or the next one that
- * has not joined yet – so they join as opposite pairs of the hidden circle (at 8 balls: a line, a cross, a star, the circle). The
- * reveal comes on the cycle boundary a cycle before the end (and at least a whole cycle after the last ball joined: the straight
- * lines are seen first), or two cycles after the last join when the run never ends; the tracks fade over the half cycle before it.
+ * and (an even count) its partner across the hidden circle are there from the first slot – (D2 review) two balls from the first
+ * frame –, then a ball every STAGE_OPEN_SLOTS slots until STAGE_OPEN_BALLS are in and every STAGE_JOIN_SLOTS slots after: the
+ * ball that touches the rim there, or the next one that has not joined yet, and after it its partner on that one's next touch,
+ * so they join as opposite pairs of the hidden circle (at 8 balls: a cross, a star of four, the circle). The reveal comes on the
+ * cycle boundary a cycle before the end (and at least a whole cycle after the last ball joined: the straight lines are seen
+ * first), or two cycles after the last join when the run never ends; the tracks fade over the half cycle before it.
  */
 export function illusionStage(count: number, direction: number, cycles: number): IllusionStagePlan {
   const n = Math.max(1, Math.floor(count));
   const slotsPerCycle = 2 * n;
   const joinSlot = new Array<number>(n).fill(-1);
+  const half = n % 2 === 0 ? n / 2 : 0;
+  joinSlot[0] = 0;
+  let joined = 1;
+  if (half > 0) {
+    joinSlot[half] = 0;
+    joined = 2;
+  }
   let m = 0;
   let last = 0;
-  for (let k = 0; k < n; k++) {
-    if (k > 0) m += STAGE_JOIN_SLOTS;
-    while (joinSlot[lineTouch(m, n, direction).ball] >= 0) m++;
-    joinSlot[lineTouch(m, n, direction).ball] = m;
+  let partner = -1;
+  while (joined < n) {
+    m += joined < STAGE_OPEN_BALLS ? STAGE_OPEN_SLOTS : STAGE_JOIN_SLOTS;
+    if (partner >= 0) while (lineTouch(m, n, direction).ball !== partner) m++;
+    else while (joinSlot[lineTouch(m, n, direction).ball] >= 0) m++;
+    const ball = lineTouch(m, n, direction).ball;
+    joinSlot[ball] = m;
+    joined++;
     last = m;
+    partner = partner < 0 && half > 0 && joinSlot[(ball + half) % n] < 0 ? (ball + half) % n : -1;
   }
   const joinedCycle = Math.ceil((last + 1) / slotsPerCycle);
   const revealCycle = cycles > 0 ? Math.min(cycles, Math.max(joinedCycle + 1, cycles - 1)) : joinedCycle + 2;
@@ -614,8 +642,9 @@ export class IllusionMode implements GameMode {
   // lines: steps per cycle (the slot clock is (step · 2N) / cycleSteps, divided last so whole slots land exactly)
   private lineSteps = 240;
   private finalSlot = Infinity;
-  /** --- illusion-stage --- The staged build's slots (null: off). */
+  /** --- illusion-stage --- The staged build's slots (null: off), and (D2 review) the step the reveal's roll started (−1: none). */
   private stagePlan: IllusionStagePlan | null = null;
+  private rollStep = -1;
   // rings: steps per cycle (the traversal clock is (step · RING_TRAVERSALS) / cycleSteps)
   private ringSteps = 1440;
   private finalTraversal = Infinity;
@@ -712,6 +741,7 @@ export class IllusionMode implements GameMode {
     v.ghostAngle = 0;
     v.ghostBall = 0;
     this.stagePlan = null;
+    this.rollStep = -1;
     v.cycleSec = illusionCycleSeconds(s);
     this.sps = 60;
     this.width = ctx.config.width;
@@ -1016,10 +1046,14 @@ export class IllusionMode implements GameMode {
         continue;
       }
       v.lastHitStep[touch.ball] = step + 1;
-      this.queueNote(this.pitch[touch.ball], 1, false); // (--- illusion-stage --- a joining ball's first note is its own, unaccented: an accent's +4 dB set the export's true peak and held its loudness down; the join is seen)
+      // --- illusion-stage --- (D2 review) the touches just before the reveal keep their notes: a breath under the riser's end
+      const breath = plan !== null && m >= plan.revealSlot - STAGE_BREATH_SLOTS && m < plan.revealSlot;
+      if (!breath) this.queueNote(this.pitch[touch.ball], 1, false); // (--- illusion-stage --- a joining ball's first note is its own, unaccented: an accent's +4 dB set the export's true peak and held its loudness down; the join is seen)
+      // --- illusion-stage --- (D2 review) the balls there from the first frame sound together on its first touch
+      if (plan && m === 0) for (let i = 0; i < n; i++) if (i !== touch.ball && plan.joinSlot[i] === 0) this.queueNote(this.pitch[i], 1, false);
       ctx.recordWallContact?.(0, normalizeAngle(touch.angle + v.rotation), 0.8, 1000 * m * slotSec);
     }
-    if (plan) this.stageStep(ctx, plan, lo, hi, ghost);
+    if (plan) this.stageStep(ctx, plan, lo, hi, ghost, step);
     if (hi > 0) v.cyclesDone = Math.floor((hi - 1) / (2 * n));
     if (final) {
       v.finished = true;
@@ -1040,7 +1074,7 @@ export class IllusionMode implements GameMode {
    * a decorative voice the crew's measured moments leave out), the riser as the tracks start to fade, and the reveal – a ding on
    * the top ball's note and every ball's note at once. Every count from the slot clock, so a replay hears the same.
    */
-  private stageStep(ctx: ModeContext, plan: IllusionStagePlan, lo: number, hi: number, ghost: number) {
+  private stageStep(ctx: ModeContext, plan: IllusionStagePlan, lo: number, hi: number, ghost: number, step: number) {
     const v = this.view;
     let joined = 0;
     for (let i = 0; i < v.count; i++) if (plan.joinSlot[i] < hi) joined++;
@@ -1053,8 +1087,24 @@ export class IllusionMode implements GameMode {
     if (plan.revealSlot >= lo && plan.revealSlot < hi) {
       v.revealed = true;
       this.emit(ctx, { type: "hit", wallIndex: 0, loop: "ding", frequency: this.pitch[v.count - 1], level: STAGE_DING_LEVEL, melody: false });
-      this.emit(ctx, this.stageChord());
+      // (D2 review) a soft held pad under it, and the balls' chord rolled up note by note from here (the chord in one block was
+      // barely louder than a note: its voices share one note's level)
+      this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chord", frequency: root, loopExact: true, loopTremolo: true, level: STAGE_PAD_LEVEL, melody: false });
+      this.rollStep = step;
     }
+    // the reveal's roll: one chord note every STAGE_ROLL_STEPS steps
+    if (this.rollStep >= 0) {
+      const k = (step - this.rollStep) / STAGE_ROLL_STEPS;
+      const notes = this.stageChordNotes();
+      if (Number.isInteger(k) && k >= 0 && k < notes.length) this.emit(ctx, { type: "hit", wallIndex: 0, frequency: notes[k], level: STAGE_ROLL_LEVEL, melody: false });
+      if (k >= notes.length) this.rollStep = -1;
+    }
+  }
+
+  /** The reveal's and the end card's chord notes: the first, third and fifth ball's and the top one's (every ball's below five). */
+  private stageChordNotes(): number[] {
+    const n = this.pitch.length;
+    return n >= 5 ? [this.pitch[0], this.pitch[2], this.pitch[4], this.pitch[n - 1]] : [...this.pitch];
   }
 
   /**
@@ -1063,8 +1113,7 @@ export class IllusionMode implements GameMode {
    * grows with their number (four at full level peaked 6 dB over a note and set the export's true peak).
    */
   private stageChord(): SoundEvent {
-    const n = this.pitch.length;
-    const pick = n >= 5 ? [this.pitch[0], this.pitch[2], this.pitch[4], this.pitch[n - 1]] : [...this.pitch];
+    const pick = this.stageChordNotes();
     return { type: "hit", wallIndex: 0, frequency: pick[0], chord: pick, level: STAGE_CHORD_LEVEL, melody: false };
   }
 

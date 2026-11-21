@@ -450,7 +450,8 @@ describe("Power Layers on the engine", () => {
 
   it("plays a rising note per level, a chord and a whoosh on a big hit, a fanfare when the stack is gone and a whoosh at freedom", () => {
     const run = runToEnd(engineFor());
-    const hits = run.sounds.filter((s) => s.event.type === "hit" && !s.event.plCrack);
+    // (--- end-sting --- Lane E, E5: FREEDOM!'s completion chord is a sound of its own, ringVoice "extra": left out here, checked below)
+    const hits = run.sounds.filter((s) => s.event.type === "hit" && !s.event.plCrack && s.event.ringVoice !== "extra");
     expect(hits).toHaveLength(7);
     const notes = hits.map((s) => Math.round(frequencyToMidi(s.event.frequency!)));
     expect(notes).toEqual([60, 62, 64, 65, 67, 69, 72]);
@@ -465,6 +466,8 @@ describe("Power Layers on the engine", () => {
     expect(run.sounds.some((s) => s.event.type === "multiplier" && s.atMs === hits[6].atMs)).toBe(true);
     const gaps = run.sounds.filter((s) => s.event.type === "gap");
     expect(gaps[gaps.length - 1].atMs).toBeCloseTo(run.freedMs, 6);
+    const sting = run.sounds.filter((s) => s.event.ringVoice === "extra");
+    expect(sting.map((s) => [s.event.loop, s.atMs])).toEqual([["chord", gaps[gaps.length - 1].atMs]]);
     // Chaos: a hit that destroys nothing still plays its note, softly.
     for (let seed = 1; seed <= 40; seed++) {
       const engine = engineFor({ sequence: "random" }, seed);

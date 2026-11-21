@@ -463,7 +463,7 @@ const NO_ROSTER: readonly TeamEntry[] = []; // --- odd-string-battle ---
 
 const DEFAULT_LABELS: CanvasLabels = {
   escaped: "ESCAPED!",
-  ringsOut: (rings, seconds) => `${rings} ring${rings !== 1 ? "s" : ""} in ${seconds} s`, // --- end-banner ---
+  ringsOut: (rings, seconds) => `${rings} ring${rings !== 1 ? "s" : ""} in ${seconds}s`, // --- end-banner --- (Lane E, E5: "36.7s", as the page's English line, not "62.5 s")
   afterFrozenBalls: (n) => `After ${n} frozen ball${n !== 1 ? "s" : ""}`,
   frozenCount: (n) => `Frozen: ${n}`,
   painted: (pct) => `${pct}% painted`,
@@ -505,12 +505,12 @@ const DEFAULT_LABELS: CanvasLabels = {
   outgrew: "OUTGREW THE ARENA",
   outgrewSub: (size) => `SIZE ${size}`,
   madeItHome: (n) => `${n} Gerald made it home`,
-  madeItHomeSub: (clones) => `${clones} clones along the way`,
+  madeItHomeSub: (clones) => `${clones} clone${clones === 1 ? "" : "s"} along the way`, // (Lane E, E5: "1 clone", as the page's plural)
   madeItHomeLost: (lost) => `${lost} lost`,
   // --- jdm-double-pendulum ---
   dpDone: "TIME!",
-  dpPlucks: (n) => `${n} strings plucked`,
-  dpHits: (n) => `${n} hits`,
+  dpPlucks: (n) => `${n} string${n === 1 ? "" : "s"} plucked`,
+  dpHits: (n) => `${n} hit${n === 1 ? "" : "s"}`,
   dpChaos: (seconds) => `${seconds}s of chaos`,
   // --- jdm-illusions ---
   illusionRevealed: "REVEALED!",
@@ -2969,6 +2969,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
+      // --- hud-alpha --- (Lane E, E5) the counters, titles and banners over the square at full opacity: the camera pass's 0.6 (the
+      // rings' alpha, set before it and restored with it) left every mid-run counter 60 % opaque; the flashes above keep it
+      ctx.globalAlpha = 1;
       // --- gerald-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       modeTopHud = 0; // --- review fix (modes-gerald-odd) ---
       if (glassView) modeTopHud = Math.max(modeTopHud, drawGlassOverlay(ctx, glassView, glassRender));
@@ -3573,7 +3576,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Audio-reactive outer ring
       const intensity = audioRef.current;
       if (intensity > 0.3) {
-        ctx.strokeStyle = `rgba(6, 182, 212, ${0.5 * intensity})`;
+        ctx.strokeStyle = `rgba(6, 182, 212, ${0.3 * intensity})`; // (--- hud-alpha --- 0.5 at the pass's old 0.6: as bright as it was)
         ctx.lineWidth = 3 + 4 * intensity;
         ctx.beginPath();
         ctx.arc(cx, cy, arena + 20 * intensity, 0, TWO_PI);

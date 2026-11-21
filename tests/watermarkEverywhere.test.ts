@@ -641,12 +641,13 @@ describe("the wiring: every live canvas stamps its frames last, offline canvases
     // sealed once a capture (free-watermark's gate), before the run is rendered, the mark built ahead (one that cannot be drawn stops it)
     expect(src).toMatch(/const seal = await sealWatermark\(\);\s*prepareStamp\(seal, \{ width: size, height: size \}\);[\s\S]*?await renderStills\(/);
     // the card: stamped right after it is framed – over everything – and before it is encoded
-    expect(src).toMatch(/drawHeroThumbnail\(ctx, canvas, [^;]*\);\s*stampFrame\(ctx, seal, \{ width: size, height: size, clipMs: sec \* 1000 \}\);/);
+    // (--- still-hud --- Lane E, E5: with the frame's HUD report, so the badge keeps clear of it as the fast export's does)
+    expect(src).toMatch(/drawHeroThumbnail\(ctx, canvas, [^;]*\);\s*stampFrame\(ctx, seal, \{ width: size, height: size, clipMs: sec \* 1000, hud \}\);/);
     const stamped = src.indexOf("stampFrame(ctx, seal");
     expect(src.indexOf("out.toDataURL(")).toBeGreaterThan(stamped);
     expect(src.indexOf("encodeUnderBudget(out")).toBeGreaterThan(stamped);
     // the raw world: stamped right after it is copied, before it is encoded
-    expect(src).toMatch(/rawCtx\.drawImage\(canvas, 0, 0, world\.width, world\.height\);\s*stampFrame\(rawCtx, seal, \{ width: world\.width, height: world\.height, clipMs: sec \* 1000 \}\);\s*\}\s*frame\.raw = raw\.toDataURL\(/);
+    expect(src).toMatch(/rawCtx\.drawImage\(canvas, 0, 0, world\.width, world\.height\);\s*stampFrame\(rawCtx, seal, \{ width: world\.width, height: world\.height, clipMs: sec \* 1000, hud: rawHud \}\);\s*\}\s*frame\.raw = raw\.toDataURL\(/);
     // the result says whether the pictures carry the mark, and the card generator refuses pictures that do
     expect(src).toMatch(/watermarked: sealVerdict\(seal\) === "marked"/);
     expect(read("scripts/generate-mode-previews.mjs")).toMatch(/if \(result\.watermarked\) throw new Error\(/);
