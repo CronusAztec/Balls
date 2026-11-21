@@ -11,6 +11,7 @@ import { FAQ_KEYS } from "@/lib/faq";
 import { faqPrices } from "@/lib/faqValues"; // --- legal-copy ---
 import JsonLd from "@/components/site/JsonLd";
 import DailyChallengeCard from "@/components/site/DailyChallengeCard"; // --- daily-gallery ---
+import HomeGallery from "@/components/site/HomeGallery"; // --- home-looks ---
 import { SITE_NAME } from "@/lib/site";
 import { organizationJsonLd, webApplicationJsonLd, webSiteJsonLd } from "@/lib/seo"; // --- seo ---
 import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
@@ -41,7 +42,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     featureList: [layout("featuresModes", { count: MODE_CARD_ORDER.length }), ...(layout.raw("features") as string[])],
   });
 
-  // --- site-redesign --- hero (with the live preview), today's challenge, the modes wall, how it works, the FAQ
+  // --- site-redesign --- hero (with the live preview), --- home-looks --- the gallery's row, today's challenge, the modes wall, how it works, the FAQ
   return (
     <NextIntlClientProvider messages={clientMessages}>
       <div className="min-h-screen bg-bg text-ink">
@@ -52,6 +53,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <Navbar />
         <main id="content">
           <Hero />
+          {/* --- home-looks --- six finished looks of the gallery, right under the hero */}
+          <HomeGallery />
           {/* --- daily-gallery --- today's challenge, below the hero */}
           <DailyChallengeCard />
           <ModesOverview />

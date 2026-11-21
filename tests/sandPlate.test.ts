@@ -169,10 +169,10 @@ describe("Sand Plate: settings, link and presets", () => {
     expect([...settingsToSearchParams(d).keys()].filter((k) => k.startsWith("sp"))).toEqual([]);
     const s = { ...d, spNotes: 9, spNoteSec: 2.5, spGrains: 5000, spShake: 1.4, spLoop: true };
     const params = settingsToSearchParams(s);
-    expect([params.get("spn"), params.get("sps"), params.get("spg"), params.get("spk"), params.get("spl")]).toEqual(["9", "2.5", "5000", "1.4", "1"]);
+    expect([params.get("spn"), params.get("spt"), params.get("spg"), params.get("spk"), params.get("spl")]).toEqual(["9", "2.5", "5000", "1.4", "1"]); // --- link-keys --- (the note length's own key: `sps` is the splat size's)
     const back = settingsFromSearchParams(params);
     expect([back.spNotes, back.spNoteSec, back.spGrains, back.spShake, back.spLoop]).toEqual([9, 2.5, 5000, 1.4, true]);
-    const bad = settingsFromSearchParams(new URLSearchParams("mode=sandPlate&spn=abc&sps=0&spg=-1&spk=x&spl=7"));
+    const bad = settingsFromSearchParams(new URLSearchParams("mode=sandPlate&spn=abc&spt=0&spg=-1&spk=x&spl=7"));
     expect([bad.spNotes, bad.spNoteSec, bad.spGrains, bad.spShake, bad.spLoop]).toEqual([8, 1, 500, 1, false]);
     const preset = presetToSettings({ mode: "sandPlate", spNotes: "11", spLoop: 1 } as never);
     expect([preset.spNotes, preset.spLoop]).toEqual([11, false]);

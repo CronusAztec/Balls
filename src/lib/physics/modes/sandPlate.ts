@@ -76,7 +76,7 @@ export const SAND_PLATE_RANGES = {
   spShake: { min: 0.3, max: 3, step: 0.1 },
 } as const;
 
-/** The Sand Plate fields of the SimulatorSettings object (URL keys spn, sps, spg, spk, spl). */
+/** The Sand Plate fields of the SimulatorSettings object (URL keys spn, spt, spg, spk, spl). */
 export interface SandPlateFields {
   spNotes: number;
   spNoteSec: number;
@@ -139,9 +139,10 @@ function formatNumber(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-const NUMERIC_KEYS = { spn: "spNotes", sps: "spNoteSec", spg: "spGrains", spk: "spShake" } as const;
+// --- link-keys --- the note length is `spt`: `sps` is the splat barrier's size (lib/physics/exitSplat.ts), written into every link
+const NUMERIC_KEYS = { spn: "spNotes", spt: "spNoteSec", spg: "spGrains", spk: "spShake" } as const;
 
-/** Writes the fields that differ from `base` (the mode's defaults) into the URL: spn, sps, spg, spk and spl. */
+/** Writes the fields that differ from `base` (the mode's defaults) into the URL: spn, spt, spg, spk and spl. */
 export function writeSandPlateParams(settings: SandPlateFields, base: SandPlateFields, params: URLSearchParams) {
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field]));
   if (settings.spLoop !== base.spLoop) params.set("spl", settings.spLoop ? "1" : "0");

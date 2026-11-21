@@ -4833,7 +4833,10 @@
     "tryIt": "Wypróbuj",
     "tryAria": "Wypróbuj: {name}",
     "outro": "Zmieniłeś coś i efekt Ci się podoba? Skopiuj link do udostępnienia pod płótnem, a Twoje ustawienia pójdą razem z nim.",
-    "cta": "Zacznij od zera"
+    "cta": "Zacznij od zera",
+    "filterLabel": "Filtruj presety według rodziny lub trybu",
+    "homeTitle": "Zacznij od gotowego presetu",
+    "homeAll": "Zobacz całą galerię"
   },
   "Pwa": {
     "installApp": "Zainstaluj aplikację",

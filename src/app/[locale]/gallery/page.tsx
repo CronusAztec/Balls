@@ -11,7 +11,8 @@ import { routing, type Locale } from "@/i18n/routing";
 import { GALLERY, galleryHref } from "@/content/gallery";
 import { SITE_NAME, assetPath, pageUrl } from "@/lib/site";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo"; // --- seo ---
-import { MODE_SHELF_IDS, shelfOf, type ShelfId } from "@/lib/siteDesign"; // --- site-nav ---
+import { MODE_SHELF_IDS, modesOnShelf, shelfOf, type ShelfId } from "@/lib/siteDesign"; // --- site-nav ---
+import type { ModeId } from "@/lib/physics/types"; // --- gallery-every-mode ---
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight, IconPlay } from "@/components/ui/icons";
 
@@ -24,6 +25,12 @@ import { IconArrowRight, IconPlay } from "@/components/ui/icons";
  * and the modes wall's shelf chips filter the presets by their mode's shelf. The chips are radio buttons styled as chips,
  * as on the changelog: they work without scripts, and the CSS hides the cards of the other shelves. The chosen shelf goes
  * into the address (?family=music, GalleryShelfMemory.tsx), so Back from a preset and a reload show it again.
+ * --- gallery-every-mode --- Every mode has a preset now, so a second row of chips names the modes of the chosen shelf (of the
+ * chosen mode's shelf; none under All, where fifty chips would push the cards out of the first screen), each with its number
+ * of presets when it has more than one. A mode chip is a radio of the same group
+ * as the shelves, so one filter is on at a time and nothing can be filtered to an empty list. Its rules are this page's own
+ * (modeFilterCss: one per mode, not a class each in the site's stylesheet); its shelf's chip keeps an outline while it is on,
+ * and the mode goes into the address as ?mode=classic.
  */
 
 /** Hides every card that is not on the chosen shelf (each class is written out: the CSS is built from the source text). */
@@ -38,6 +45,29 @@ const SHELF_FILTER: Record<ShelfId, string> = {
 };
 const CHIP_CLASS =
   "inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-line px-3 text-sm font-medium whitespace-nowrap text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent [@media(pointer:coarse)]:min-h-11";
+/** --- gallery-every-mode --- A mode chip: the shelf chip a size smaller (on a touch screen it keeps the 44 px target). */
+const MODE_CHIP_CLASS =
+  "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line px-2.5 text-xs font-medium whitespace-nowrap text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent [@media(pointer:coarse)]:min-h-11";
+/**
+ * --- gallery-every-mode --- The page's own rules for the mode chips: All hides the mode row; a mode chip on hides the other
+ * modes' cards; a shelf chip on (or a mode chip on, by its shelf) keeps the mode row to that shelf's modes; a mode chip on
+ * outlines its shelf's chip.
+ * Mode and shelf ids are plain words, so the selectors need no quotes.
+ */
+function modeFilterCss(modes: readonly ModeId[], shelves: readonly ShelfId[]): string {
+  const root = "#gallery-filter";
+  // (under All the row is hidden: a shelf opens its modes, so the first screen keeps its cards and not a wall of fifty chips)
+  const rules: string[] = [`${root}:has(#gallery-shelf-all:checked) [data-testid=gallery-mode-chips]{display:none}`];
+  for (const shelf of shelves) rules.push(`${root}:has(#gallery-shelf-${shelf}:checked) [data-mode-chip]:not([data-shelf=${shelf}]){display:none}`);
+  for (const mode of modes) {
+    const shelf = shelfOf(mode);
+    rules.push(`${root}:has(#gallery-mode-${mode}:checked) [data-gallery-item]:not([data-mode=${mode}]){display:none}`);
+    rules.push(`${root}:has(#gallery-mode-${mode}:checked) [data-mode-chip]:not([data-shelf=${shelf}]){display:none}`);
+    rules.push(`${root}:has(#gallery-mode-${mode}:checked) label[for=gallery-shelf-${shelf}]{border-color:var(--color-accent);color:var(--color-ink)}`);
+  }
+  return rules.join("\n");
+}
+
 /** How many cards load their picture with the page: the first row at the widest layout (four columns). */
 const FIRST_ROW = 4;
 
@@ -62,6 +92,10 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
   const v = { siteName: SITE_NAME, count: GALLERY.length };
   // --- site-nav --- the shelves that hold a preset, in the wall's order, each with its number of presets
   const shelves = MODE_SHELF_IDS.map((id) => ({ id, count: GALLERY.filter((preset) => shelfOf(preset.mode) === id).length })).filter((shelf) => shelf.count > 0);
+  // --- gallery-every-mode --- the modes that hold a preset, in the wall's order, each with its number of presets
+  const modeChips = modesOnShelf("all")
+    .map((id) => ({ id, count: GALLERY.filter((preset) => preset.mode === id).length }))
+    .filter((chip) => chip.count > 0);
   // --- seo --- the list (builders in lib/seo.ts) and the trail Home > Gallery
   const listJsonLd = itemListJsonLd({ name: t("title", v), items: GALLERY.map((preset) => ({ name: preset.name[lang], url: `${pageUrl(locale, "/simulator")}?${preset.query}` })) });
   const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("badge"), path: "/gallery" }]);
@@ -80,26 +114,42 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
             <p className="mt-4 text-lg leading-relaxed text-ink-2">{t("intro", v)}</p>
           </header>
           {/* The filter: the radios (each before its label), then the list. :has() on the wrapper hides the other shelves' cards. */}
-          <div className={shelves.map((shelf) => SHELF_FILTER[shelf.id]).join(" ")} data-testid="gallery-filter">
+          <div id="gallery-filter" className={shelves.map((shelf) => SHELF_FILTER[shelf.id]).join(" ")} data-testid="gallery-filter">
+            <style dangerouslySetInnerHTML={{ __html: modeFilterCss(modeChips.map((chip) => chip.id), shelves.map((shelf) => shelf.id)) }} />
             {/* (min-w-0: a fieldset is as wide as its content by default, and the row would widen a phone's page instead of scrolling) */}
-            <fieldset className="-mx-4 mt-10 flex min-w-0 gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
-              <legend className="sr-only">{site("modesWall.filterLabel")}</legend>
+            <fieldset className="mt-10 min-w-0">
+              <legend className="sr-only">{t("filterLabel")}</legend>
               <GalleryShelfMemory name="gallery-shelf" />
-              {[{ id: "all" as const, count: GALLERY.length }, ...shelves].map((shelf) => (
-                <span key={shelf.id} className="contents">
-                  <input type="radio" name="gallery-shelf" id={`gallery-shelf-${shelf.id}`} value={shelf.id} defaultChecked={shelf.id === "all"} className="peer sr-only" />
-                  <label htmlFor={`gallery-shelf-${shelf.id}`} className={CHIP_CLASS}>
-                    {shelf.id === "all" ? site("modesWall.all") : site(`families.${shelf.id}`)}
-                    <span className="num text-xs opacity-70">{shelf.count}</span>
-                  </label>
-                </span>
-              ))}
+              <div className="-mx-4 flex min-w-0 gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
+                {[{ id: "all" as const, count: GALLERY.length }, ...shelves].map((shelf) => (
+                  <span key={shelf.id} className="contents">
+                    <input type="radio" name="gallery-shelf" id={`gallery-shelf-${shelf.id}`} value={shelf.id} defaultChecked={shelf.id === "all"} className="peer sr-only" />
+                    <label htmlFor={`gallery-shelf-${shelf.id}`} className={CHIP_CLASS}>
+                      {shelf.id === "all" ? site("modesWall.all") : site(`families.${shelf.id}`)}
+                      <span className="num text-xs opacity-70">{shelf.count}</span>
+                    </label>
+                  </span>
+                ))}
+              </div>
+              {/* --- gallery-every-mode --- the chosen shelf's modes, the chips a size smaller: one line that scrolls sideways on a
+                  touch screen, as the shelves do on a phone, wrapped from 640 px for a mouse, which has no sideways scroll */}
+              <div className="-mx-4 mt-2 flex min-w-0 gap-1.5 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [@media(pointer:fine)]:sm:flex-wrap [&::-webkit-scrollbar]:hidden" data-testid="gallery-mode-chips">
+                {modeChips.map((chip) => (
+                  <span key={chip.id} className="contents" data-mode-chip={chip.id} data-shelf={shelfOf(chip.id)}>
+                    <input type="radio" name="gallery-shelf" id={`gallery-mode-${chip.id}`} value={`mode:${chip.id}`} className="peer sr-only" />
+                    <label htmlFor={`gallery-mode-${chip.id}`} className={MODE_CHIP_CLASS}>
+                      {modes(`${chip.id}.name`)}
+                      {chip.count > 1 && <span className="num opacity-70">{chip.count}</span>}
+                    </label>
+                  </span>
+                ))}
+              </div>
             </fieldset>
             <ul className="mt-8 grid grid-cols-1 gap-x-4 gap-y-10 min-[360px]:grid-cols-2 sm:gap-x-6 lg:grid-cols-3 xl:grid-cols-4" data-testid="gallery-grid">
               {GALLERY.map((preset, index) => {
                 const name = preset.name[lang];
                 return (
-                  <li key={preset.id} className="flex min-w-0" data-shelf={shelfOf(preset.mode)}>
+                  <li key={preset.id} className="flex min-w-0" data-shelf={shelfOf(preset.mode)} data-mode={preset.mode} data-gallery-item="">
                     <article
                       id={preset.id}
                       className="group relative flex w-full min-w-0 scroll-mt-24 flex-col"

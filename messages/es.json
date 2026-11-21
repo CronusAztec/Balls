@@ -4833,7 +4833,10 @@
     "tryIt": "Pruébalo",
     "tryAria": "Pruébalo: {name}",
     "outro": "¿Has cambiado algo y te encanta el resultado? Copia el enlace para compartir bajo el lienzo y tu configuración irá con él.",
-    "cta": "Empezar desde cero"
+    "cta": "Empezar desde cero",
+    "filterLabel": "Filtrar presets por familia o modo",
+    "homeTitle": "Empieza con un preset listo",
+    "homeAll": "Ver toda la galería"
   },
   "Pwa": {
     "installApp": "Instalar la aplicación",

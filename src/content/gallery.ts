@@ -304,7 +304,423 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Trescientos orbes blandos como gelatina se aplastan y estiran entre sí en un círculo pastel, y cada choque es una nota suave según su tamaño.",
     },
   },
+  // --- gallery-every-mode --- (Lane E, E2) a finished look for every mode that had none: each a measured run (the seed's end
+  // inside its clip where the mode ends), a theme or a pace of its own, and its card picture (GALLERY=<id> npm run previews)
+  // --- gallery-every-mode --- seed 8: the run ends at 17.1 s of its 30 s clip in the 800 × 450 world (17.1 s in a phone's 450 × 450)
+  {
+    id: "frozen-spikes",
+    mode: "accumulation",
+    query: "mode=accumulation&s=450&wt=4&gap=0.35&at=3&glow=1&rwalls=0&spikes=1&cc=%234cc9f0&bc=%23ffffff&bc2=%2372efdd&lc=%2390e0ef&theme=ocean&bgt=gradient&bg1=%23001d3d&bg2=%23005f73&ps=bubbles&trc=%234cc9f0%2C%2380ffdb&seed=8",
+    previewAt: 15,
+    name: { en: "Frozen Spikes", pl: "Lodowe kolce", es: "Púas heladas" },
+    description: {
+      en: "Every ball that fails to escape in time freezes in place, in ocean blues. The frozen pile closes in on the next one.",
+      pl: "Każda piłka, która nie ucieknie na czas, zamarza w miejscu, w odcieniach oceanu. Zamarznięty stos osacza następną.",
+      es: "Cada bola que no escapa a tiempo se congela en su sitio, en tonos de océano. La pila helada acorrala a la siguiente.",
+    },
+  },
+  // --- gallery-every-mode --- seed 7: the run ends at 20.3 s of its 30 s clip in the 800 × 450 world (20.3 s in a phone's 450 × 450)
+  {
+    id: "sunset-countdown",
+    mode: "target",
+    query: "mode=target&r=11&wt=5&tt=1.6&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=7",
+    previewAt: 16,
+    name: { en: "Sunset Countdown", pl: "Odliczanie o zachodzie", es: "Cuenta atrás al atardecer" },
+    description: {
+      en: "Numbered targets glow on sunset rings. The ball has to hit them in order, and each correct hit breaks one.",
+      pl: "Ponumerowane cele świecą na pierścieniach w barwach zachodu. Piłka musi trafiać je po kolei, a każde trafienie jeden rozbija.",
+      es: "Los objetivos numerados brillan en anillos color atardecer. La bola debe darles en orden y cada acierto rompe uno.",
+    },
+  },
+  // --- gallery-every-mode --- seed 7: the run ends at 25.1 s of its 30 s clip in the 800 × 450 world (25.1 s in a phone's 450 × 450)
+  {
+    id: "aurora-portals",
+    mode: "portal",
+    query: "mode=portal&r=11&wt=5&tt=1.6&glow=1&wglow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=7",
+    previewAt: 14,
+    name: { en: "Aurora Portals", pl: "Portale zorzy", es: "Portales de aurora" },
+    description: {
+      en: "The ball jumps from portal to twin portal under northern lights. After a few trips each pair burns out and the way opens.",
+      pl: "Piłka skacze z portalu do bliźniaczego portalu pod zorzą polarną. Po kilku przejściach każda para się wypala i droga się otwiera.",
+      es: "La bola salta de un portal a su gemelo bajo la aurora boreal. Tras unos viajes cada par se apaga y se abre el camino.",
+    },
+  },
+  // --- gallery-every-mode --- seed 8: the run ends at 22.6 s of its 30 s clip in the 800 × 450 world (22.6 s in a phone's 450 × 450)
+  {
+    id: "candy-match",
+    mode: "colorMatch",
+    query: "mode=colorMatch&r=11&wt=5&tt=1.6&wglow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&seed=8",
+    previewAt: 14,
+    name: { en: "Candy Match", pl: "Cukierkowe dopasowanie", es: "Combinación de caramelo" },
+    description: {
+      en: "The ball changes colour on every bounce in a candy-pink arena. A segment breaks only when the colours match.",
+      pl: "Piłka zmienia kolor przy każdym odbiciu na cukierkowej arenie. Segment pęka tylko wtedy, gdy kolory się zgadzają.",
+      es: "La bola cambia de color en cada rebote en una arena color caramelo. Un segmento solo se rompe si los colores coinciden.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 22.9 s of its 30 s clip in the 800 × 450 world (22.9 s in a phone's 450 × 450)
+  {
+    id: "neon-flag-raid",
+    mode: "ctf",
+    query: "mode=ctf&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=2",
+    previewAt: 10,
+    name: { en: "Neon Flag Raid", pl: "Neonowy rajd po flagę", es: "Asalto de neón" },
+    description: {
+      en: "Two neon teams of squares race for each other's flag. Grab it, carry it home and the score ticks over.",
+      pl: "Dwie neonowe drużyny kwadratów walczą o flagę rywala. Zdobądź ją, donieś do bazy i wynik rośnie.",
+      es: "Dos equipos de cuadrados de neón corren a por la bandera rival. Atrápala, llévala a casa y sube el marcador.",
+    },
+  },
+  // --- gallery-every-mode --- seed 4: the run ends at 24.1 s of its 30 s clip in the 800 × 450 world (24.1 s in a phone's 450 × 450)
+  {
+    id: "retro-runner",
+    mode: "runner",
+    query: "mode=runner&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&face=cute&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&rrd=1&seed=4",
+    previewAt: 8,
+    name: { en: "Retro Runner", pl: "Retro biegacz", es: "Corredor retro" },
+    description: {
+      en: "A cute square runs and jumps to the beat in retro colours. Every landing hits a beat, right to the finish.",
+      pl: "Uroczy kwadrat biegnie i skacze w rytm w kolorach retro. Każde lądowanie trafia w beat, aż do mety.",
+      es: "Un cuadrado adorable corre y salta al ritmo en colores retro. Cada aterrizaje cae en el beat hasta la meta.",
+    },
+  },
+  // --- gallery-every-mode --- seed 6: the run ends at 26.1 s of its 30 s clip in the 800 × 450 world (26.1 s in a phone's 450 × 450)
+  {
+    id: "sunset-keep-up",
+    mode: "paddle",
+    query: "mode=paddle&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&pdsp=1&seed=6",
+    previewAt: 10,
+    name: { en: "Sunset Keep-Up", pl: "Odbijanie o zachodzie", es: "Toques al atardecer" },
+    description: {
+      en: "A sliding platform keeps the ball in the air against a sunset sky. Every catch plays a note until it misses.",
+      pl: "Przesuwana platforma utrzymuje piłkę w powietrzu na tle zachodzącego słońca. Każde złapanie gra nutę, aż do pudła.",
+      es: "Una plataforma móvil mantiene la bola en el aire bajo un cielo de atardecer. Cada toque suena hasta el primer fallo.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 21.8 s of its 30 s clip in the 800 × 450 world (21.8 s in a phone's 450 × 450)
+  {
+    id: "pastel-commute",
+    mode: "journey",
+    query: "mode=journey&glow=1&rwalls=0&cc=%23ffc8dd&bc=%23bde0fe&bc2=%23cdb4db&lc=%23ffafcc&face=cute&theme=pastel&bgt=gradient&bg1=%232b2d42&bg2=%234a4e69&ps=petals&trc=%23a2d2ff%2C%23ffc8dd&js=rings-l%2Cglass%2Cpegs%2Chome&seed=2",
+    previewAt: 6,
+    name: { en: "Pastel Commute", pl: "Pastelowa droga do domu", es: "Vuelta a casa pastel" },
+    description: {
+      en: "Gerald bounces home through rings, glass and pegs in soft pastel colours. Every stage opens on the next.",
+      pl: "Gerald odbija się w drodze do domu przez pierścienie, szkło i kołki w miękkich pastelach. Każdy etap prowadzi do następnego.",
+      es: "Gerald rebota de vuelta a casa entre anillos, cristal y clavos en suaves tonos pastel. Cada etapa da paso a la siguiente.",
+    },
+  },
+  // --- gallery-every-mode --- seed 8: the run ends at 12.2 s of its 15 s clip in the 800 × 450 world (12.2 s in a phone's 450 × 450)
+  {
+    id: "candy-darts",
+    mode: "bullseye",
+    query: "mode=bullseye&glow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&dur=15&face=cute&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&byi=0.4&byp=2&seed=8",
+    previewAt: 5,
+    name: { en: "Candy Darts", pl: "Cukierkowe rzutki", es: "Dardos de caramelo" },
+    description: {
+      en: "Balls fire through the pegs onto a candy dartboard. Every ring scores, and a centre hit bursts into confetti.",
+      pl: "Piłki lecą przez kołki na cukierkową tarczę. Każdy pierścień daje punkty, a trafienie w środek wybucha konfetti.",
+      es: "Las bolas cruzan los clavos hacia una diana de caramelo. Cada anillo puntúa y un tiro al centro estalla en confeti.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: Beat Drop plans its run to the clip, so it lands its last beat at 29.6 s of its 30 s clip
+  {
+    id: "neon-drop",
+    mode: "beatDrop",
+    query: "mode=beatDrop&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&bdd=1&bda=1&seed=2",
+    previewAt: 12,
+    name: { en: "Neon Beat Drop", pl: "Neonowy beat drop", es: "Beat drop de neón" },
+    description: {
+      en: "Neon pads fly in just before each beat, so every landing of the ball hits it. Made for a music edit.",
+      pl: "Neonowe platformy wlatują tuż przed każdym beatem, więc każde lądowanie piłki trafia w rytm. Stworzone pod montaż muzyczny.",
+      es: "Plataformas de neón llegan justo antes de cada beat, así que cada aterrizaje cae en el ritmo. Hecho para edits musicales.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 30 s of its 34 s clip in the 800 × 450 world (30 s in a phone's 450 × 450)
+  {
+    id: "turf-war",
+    mode: "territory",
+    query: "mode=territory&glow=1&tyb=3&tybg=0&seed=2",
+    previewAt: 16,
+    name: { en: "Turf War", pl: "Wojna o teren", es: "Guerra de territorio" },
+    description: {
+      en: "Teams of balls paint the tile map their colour while blasts and whirls bite into the other side. One bounce can flip the board.",
+      pl: "Drużyny piłek malują mapę kafelków na swój kolor, a wybuchy i wiry wgryzają się w stronę rywala. Jedno odbicie może odwrócić planszę.",
+      es: "Equipos de bolas pintan el mapa de su color mientras explosiones y remolinos muerden el lado rival. Un rebote puede darle la vuelta.",
+    },
+  },
+  // --- gallery-every-mode --- seed 7: the run ends at 21.7 s of its 30 s clip in the 800 × 450 world (21.7 s in a phone's 450 × 450)
+  {
+    id: "red-maze-race",
+    mode: "maze",
+    query: "mode=maze&glow=1&mzn=4&mzbg=0&mzhud=0&seed=7",
+    previewAt: 12,
+    name: { en: "Four in the Maze", pl: "Czwórka w labiryncie", es: "Cuatro en el laberinto" },
+    description: {
+      en: "Four balls drop into a glowing maze and race for the exit, painting every corridor red behind them.",
+      pl: "Cztery piłki wpadają do świecącego labiryntu i ścigają się do wyjścia, malując za sobą każdy korytarz na czerwono.",
+      es: "Cuatro bolas caen en un laberinto luminoso y corren hacia la salida, pintando de rojo cada pasillo a su paso.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 22.4 s of its 30 s clip in the 800 × 450 world (24.9 s in a phone's 450 × 450)
+  {
+    id: "pastel-conveyor",
+    mode: "conveyor",
+    query: "mode=conveyor&glow=1&rwalls=0&cc=%23ffc8dd&bc=%23bde0fe&bc2=%23cdb4db&lc=%23ffafcc&face=cute&theme=pastel&bgt=gradient&bg1=%232b2d42&bg2=%234a4e69&ps=petals&trc=%23a2d2ff%2C%23ffc8dd&cvi=1&cvn=12&seed=2",
+    previewAt: 10,
+    name: { en: "Pastel Conveyor", pl: "Pastelowa taśma", es: "Cinta pastel" },
+    description: {
+      en: "A belt drops a new ball into the pastel rings every second. The pile grows and the counter keeps score.",
+      pl: "Taśma co sekundę zrzuca nową piłkę do pastelowych pierścieni. Stos rośnie, a licznik liczy punkty.",
+      es: "Una cinta deja caer una bola nueva en los anillos pastel cada segundo. La pila crece y el contador lleva la cuenta.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "aurora-orbs",
+    mode: "orbGrid",
+    query: "mode=orbGrid&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&ogC=44&ogR=43&ogS=0.8&ogB=0.882&ogD=corner&ogRhythm=corner&ogHud=0&seed=3",
+    previewAt: 14.5,
+    name: { en: "Orb Wave", pl: "Fala kul", es: "Ola de orbes" },
+    description: {
+      en: "Nearly two thousand orbs bounce on their own spot. Waves roll out from one corner until every orb lands together.",
+      pl: "Prawie dwa tysiące kul odbija się każda w swoim miejscu. Fale toczą się od rogu, aż wszystkie wylądują razem.",
+      es: "Casi dos mil orbes rebotan cada uno en su sitio. Las olas salen de una esquina hasta que todos aterrizan a la vez.",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 17 s of its 25 s clip in the 800 × 450 world (17 s in a phone's 450 × 450)
+  {
+    id: "thunder-duel",
+    mode: "fightLeague",
+    query: "mode=fightLeague&glow=1&dur=25&seed=2",
+    previewAt: 9.5,
+    name: { en: "Thunder Duel", pl: "Pojedynek gromów", es: "Duelo del trueno" },
+    description: {
+      en: "Thor and Loki duel as balls on the black stage, each with his own weapon. The clip ends on the knockout.",
+      pl: "Thor i Loki walczą jako piłki na czarnej scenie, każdy własną bronią. Klip kończy się nokautem.",
+      es: "Thor y Loki se enfrentan como bolas en el escenario negro, cada uno con su arma. El clip termina con el KO.",
+    },
+  },
+  // --- gallery-every-mode --- seed 1: the run ends at 8.2 s of its 12 s clip in the 800 × 450 world (8 s in a phone's 450 × 450)
+  {
+    id: "flag-wall",
+    mode: "landClaim",
+    query: "mode=landClaim&glow=1&two=1&dur=12&teams=France*0055a4*%F0%9F%87%AB%F0%9F%87%B7%2CBrazil*009c3b*%F0%9F%87%A7%F0%9F%87%B7%2CSpain*aa151b*%F0%9F%87%AA%F0%9F%87%B8%2CColombia*fcd116*%F0%9F%87%A8%F0%9F%87%B4&tn=0&tsb=0&lcm=claim&lch=0&seed=1",
+    previewAt: 5,
+    name: { en: "Four Flags", pl: "Cztery flagi", es: "Cuatro banderas" },
+    description: {
+      en: "France, Brazil, Spain and Colombia knock blocks off the wall for their colour. Most blocks wins in a few seconds.",
+      pl: "Francja, Brazylia, Hiszpania i Kolumbia strącają klocki ze ściany dla swojego koloru. Po kilku sekundach wygrywa ta z największą liczbą.",
+      es: "Francia, Brasil, España y Colombia tiran bloques del muro para su color. En unos segundos gana quien tenga más.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "colour-bullseye",
+    mode: "colourSort",
+    query: "mode=colourSort&trails=1&lh=0&seed=1",
+    previewAt: 9,
+    name: { en: "Colour Bullseye", pl: "Kolorowa tarcza", es: "Diana de colores" },
+    description: {
+      en: "Ninety mixed balls slip through one-way gates on turning rings. They sort into a bullseye of colours, then mix again.",
+      pl: "Dziewięćdziesiąt piłek przelatuje przez jednokierunkowe bramki na wirujących pierścieniach. Układają się w kolorową tarczę i znów się mieszają.",
+      es: "Noventa bolas mezcladas cruzan puertas de un solo sentido en anillos que giran. Se ordenan en una diana de colores y vuelven a mezclarse.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "golden-stars",
+    mode: "starChords",
+    query: "mode=starChords&glow=1&cc=%23d4af37&bc=%23fff4d6&bc2=%23b8860b&lc=%23f5d77a&theme=luxe&bgt=gradient&bg1=%230f0c05&bg2=%232b2111&trc=%23ffd700%2C%23b8860b&lh=0&seed=1",
+    previewAt: 12.3,
+    name: { en: "Golden Stars", pl: "Złote gwiazdy", es: "Estrellas doradas" },
+    description: {
+      en: "Balls draw five star polygons in gold inside one circle. Every star closes on the same frame with a chord.",
+      pl: "Piłki rysują złotem pięć gwiaździstych wielokątów w jednym kole. Wszystkie gwiazdy domykają się w tej samej klatce z akordem.",
+      es: "Las bolas dibujan en dorado cinco polígonos estrellados dentro de un círculo. Todas se cierran en el mismo fotograma con un acorde.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "rising-beads",
+    mode: "hoops",
+    query: "mode=hoops&glow=1&bg1=%230b1020&bg2=%230b1020&seed=1",
+    previewAt: 12.9,
+    name: { en: "Rising Beads", pl: "Wspinające się koraliki", es: "Cuentas que suben" },
+    description: {
+      en: "Eight hoops spin faster and faster. One by one the beads climb, biggest hoop first, until all eight line up.",
+      pl: "Osiem obręczy kręci się coraz szybciej. Koraliki wspinają się po kolei, od największej obręczy, aż cała ósemka stanie w linii.",
+      es: "Ocho aros giran cada vez más rápido. Las cuentas suben una a una, desde el aro más grande, hasta alinearse las ocho.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "comet-volley",
+    mode: "ellipseFoci",
+    query: "mode=ellipseFoci&glow=1&lh=0&efTr=0.45&seed=2",
+    previewAt: 2.2,
+    name: { en: "Comet Volley", pl: "Salwa komet", es: "Ráfaga de cometas" },
+    description: {
+      en: "Seventy-two balls fire from one focus of an elliptical pool, trailing like comets. They all land on the other focus at once.",
+      pl: "Siedemdziesiąt dwie piłki wylatują z jednego ogniska eliptycznego stołu, ciągnąc ogony jak komety. Wszystkie trafiają naraz w drugie ognisko.",
+      es: "Setenta y dos bolas salen de un foco de una mesa elíptica con estelas de cometa. Todas llegan a la vez al otro foco.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "marble-tune",
+    mode: "beatMachine",
+    query: "mode=beatMachine&glow=1&lh=0&seed=1",
+    previewAt: 3.5,
+    name: { en: "Marble Xylophone", pl: "Kulkowy ksylofon", es: "Xilófono de canicas" },
+    description: {
+      en: "Marbles drop from their tubes onto tuned bars and ride the lift back up. Every note lands right on the beat.",
+      pl: "Kulki spadają z rurek na nastrojone sztabki i wracają windą na górę. Każda nuta trafia idealnie w rytm.",
+      es: "Las canicas caen de sus tubos sobre barras afinadas y vuelven a subir en el ascensor. Cada nota cae justo en el beat.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "seven-gaps",
+    mode: "waveTank",
+    query: "mode=waveTank&glow=1&lh=0&wtR=56&wtT=42&seed=1",
+    previewAt: 22,
+    name: { en: "Seven Gaps", pl: "Siedem szczelin", es: "Siete rendijas" },
+    description: {
+      en: "Waves squeeze through one, two, then seven gaps and fan into sharp beams. A row of bells plays the water.",
+      pl: "Fale przeciskają się przez jedną, dwie, a potem siedem szczelin i rozchodzą się w ostre promienie. Rząd dzwonków gra wodę.",
+      es: "Las olas pasan por una, dos y luego siete rendijas y se abren en haces nítidos. Una fila de campanas toca el agua.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "emblem-smash",
+    mode: "brickRebuild",
+    query: "mode=brickRebuild&trails=1&glow=1&lh=0&brV=600&seed=1",
+    previewAt: 9,
+    name: { en: "Emblem Smash", pl: "Rozbity emblemat", es: "Emblema roto" },
+    description: {
+      en: "Fast balls multiply and tear through a picture made of bricks. Then it rebuilds, one colour layer at a time.",
+      pl: "Szybkie piłki mnożą się i przebijają przez obrazek z cegieł. Potem odbudowuje się warstwa po warstwie, kolor po kolorze.",
+      es: "Bolas rápidas se multiplican y atraviesan una imagen de ladrillos. Luego se reconstruye, capa a capa y color a color.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "harmonograph",
+    mode: "drawingMachine",
+    query: "mode=drawingMachine&glow=1&lh=0&seed=1",
+    previewAt: 15,
+    name: { en: "Harmonograph", pl: "Harmonograf", es: "Harmonógrafo" },
+    description: {
+      en: "Three pendulums swing one pen across the paper. As they slow down, the line spirals in towards the centre.",
+      pl: "Trzy wahadła prowadzą jedno pióro po papierze. Gdy zwalniają, linia zwija się spiralą do środka.",
+      es: "Tres péndulos mueven una pluma sobre el papel. Al frenar, la línea se enrosca en espiral hacia el centro.",
+    },
+  },
+  // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
+  {
+    id: "perfect-box",
+    mode: "perfectFit",
+    query: "mode=perfectFit&glow=1&lh=0&seed=1",
+    previewAt: 5.1,
+    name: { en: "Perfect Box", pl: "Idealne pudełko", es: "Caja perfecta" },
+    description: {
+      en: "Glossy pieces drop straight down into a box and fill it exactly. Not one square is left over.",
+      pl: "Błyszczące klocki spadają prosto do pudełka i wypełniają je co do kratki. Nie zostaje ani jedno wolne pole.",
+      es: "Piezas brillantes caen en línea recta dentro de una caja y la llenan exacta. No sobra ni un solo cuadro.",
+    },
+  },
+  // --- gallery-every-mode --- seed 7: the run ends at 21.3 s of its 30 s clip in the 800 × 450 world (21.3 s in a phone's 450 × 450)
+  {
+    id: "neon-merge",
+    mode: "mergeRing",
+    query: "mode=mergeRing&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=7",
+    previewAt: 15,
+    name: { en: "Neon Merge", pl: "Neonowe łączenie", es: "Fusión de neón" },
+    description: {
+      en: "Balls drop into a neon ring and fuse tier by tier. Will the final form appear before the ring overflows?",
+      pl: "Piłki wpadają do neonowego pierścienia i łączą się poziom po poziomie. Czy ostateczna forma zdąży, zanim pierścień się przepełni?",
+      es: "Las bolas caen en un anillo de neón y se fusionan nivel a nivel. ¿Llegará la forma final antes de que se desborde?",
+    },
+  },
+  // --- gallery-every-mode --- seed 3: the run ends at 19.9 s of its 30 s clip in the 800 × 450 world (19.9 s in a phone's 450 × 450)
+  {
+    id: "sunset-spiral",
+    mode: "spiralGlass",
+    query: "mode=spiralGlass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&sgv=1.2&seed=3",
+    previewAt: 14,
+    name: { en: "Sunset Spiral", pl: "Spirala o zachodzie", es: "Espiral al atardecer" },
+    description: {
+      en: "Balls circle a glass spiral in sunset colours and chip it away from the outside in. Every lap adds a ball.",
+      pl: "Piłki krążą po szklanej spirali w barwach zachodu i kruszą ją od zewnątrz do środka. Każde okrążenie dokłada piłkę.",
+      es: "Las bolas giran sobre una espiral de cristal en tonos de atardecer y la pican de fuera hacia dentro. Cada vuelta suma una bola.",
+    },
+  },
+  // --- gallery-every-mode --- seed 3: the run ends at 21.8 s of its 30 s clip in the 800 × 450 world (21.8 s in a phone's 450 × 450)
+  {
+    id: "aurora-song",
+    mode: "songRing",
+    query: "mode=songRing&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=3",
+    previewAt: 9,
+    name: { en: "Aurora Song", pl: "Pieśń zorzy", es: "Canción de aurora" },
+    description: {
+      en: "A ball lights up a tune one bounce at a time under northern lights. Can you name it before the ring plays it whole?",
+      pl: "Piłka zapala melodię odbicie po odbiciu pod zorzą polarną. Zgadniesz ją, zanim pierścień zagra całość?",
+      es: "Una bola enciende una melodía rebote a rebote bajo la aurora boreal. ¿La adivinas antes de que el anillo la toque entera?",
+    },
+  },
+  // --- gallery-every-mode --- seed 2: the run ends at 17.8 s of its 30 s clip in the 800 × 450 world (17.8 s in a phone's 450 × 450)
+  {
+    id: "sand-mandala",
+    mode: "sandPlate",
+    query: "mode=sandPlate&glow=1&seed=2",
+    previewAt: 17.5,
+    name: { en: "Sand Mandala", pl: "Piaskowa mandala", es: "Mandala de arena" },
+    description: {
+      en: "Every new note shakes the sand into a finer figure. The last chord floods the plate with colour and leaves a mandala.",
+      pl: "Każda nowa nuta układa piasek w drobniejszy wzór. Ostatni akord zalewa płytę kolorem i zostawia mandalę.",
+      es: "Cada nota nueva sacude la arena en una figura más fina. El último acorde inunda la placa de color y deja un mandala.",
+    },
+  },
+  // --- gallery-every-mode --- seed 3: the run ends at 19.6 s of its 30 s clip in the 800 × 450 world (18.7 s in a phone's 450 × 450)
+  {
+    id: "thin-ice",
+    mode: "blueprint",
+    query: "mode=blueprint&glow=1&blp=thinIce&seed=3",
+    previewAt: 10,
+    name: { en: "Thin Ice", pl: "Cienki lód", es: "Hielo fino" },
+    description: {
+      en: "Every bounce cracks the ice and balls fall through the holes. The last colour still dry wins.",
+      pl: "Każde odbicie kruszy lód, a piłki wpadają w przeręble. Wygrywa ostatni kolor, który zostanie suchy.",
+      es: "Cada rebote agrieta el hielo y las bolas caen por los agujeros. Gana el último color que siga seco.",
+    },
+  },
+  // --- gallery-every-mode --- seed 5: the run ends at 19.4 s of its 30 s clip in the 800 × 450 world (19.4 s in a phone's 450 × 450)
+  {
+    id: "hot-potato",
+    mode: "blueprint",
+    query: "mode=blueprint&glow=1&blp=hotPotato&seed=5",
+    previewAt: 10,
+    name: { en: "Hot Potato", pl: "Gorący ziemniak", es: "Patata caliente" },
+    description: {
+      en: "A touch passes the swelling bomb to the next ball. Whoever holds it when the fuse runs out is gone.",
+      pl: "Jeden dotyk przekazuje puchnącą bombę następnej piłce. Kto trzyma ją, gdy lont się dopali, odpada.",
+      es: "Un toque pasa la bomba que se hincha a la siguiente bola. Quien la tenga cuando se acabe la mecha, queda fuera.",
+    },
+  },
 ];
+
+/**
+ * --- home-looks --- The landing page's row under the hero, "Start from a finished look" (HomeGallery.tsx): six presets of six
+ * shelves whose pictures read at a card's size, the newest modes among them.
+ */
+export const HOME_GALLERY_IDS: readonly string[] = ["neon-escape", "web-dominion", "aurora-song", "sand-mandala", "neon-merge", "hot-potato"];
+
+/** The presets of the landing page's row, in its order. */
+export function homeGallery(): GalleryPreset[] {
+  return HOME_GALLERY_IDS.map((id) => GALLERY.find((preset) => preset.id === id)).filter((preset): preset is GalleryPreset => !!preset);
+}
 
 /** The simulator link of a preset, relative to the locale (for next-intl's Link): `/simulator?<query>`. */
 export function galleryHref(preset: Pick<GalleryPreset, "query">): string {
