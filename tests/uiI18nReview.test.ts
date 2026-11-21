@@ -47,7 +47,7 @@ function* strings(tree: unknown, prefix = ""): Generator<[string, string]> {
 
 describe("settings search: the escape modes' Mode-row controls", () => {
   it("lists every label key the block renders, for its own mode, and every key has a label in every language", () => {
-    expect(Object.keys(ESCAPE_MODE_KEYS_BY_MODE).sort()).toEqual(["accumulation", "colorMatch", "grow", "lines", "multiply", "target"]);
+    expect(Object.keys(ESCAPE_MODE_KEYS_BY_MODE).sort()).toEqual(["accumulation", "colorMatch", "grow", "lines", "multiply", "shatter" /* --- shatter-demolition --- */, "target"]);
     expect([...ESCAPE_MODE_KEYS].sort()).toEqual([...new Set(Object.values(ESCAPE_MODE_KEYS_BY_MODE).flat())].sort());
     for (const [locale, messages] of Object.entries(LOCALES)) {
       const controls = messages.Controls as Record<string, string>;

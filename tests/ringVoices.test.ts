@@ -355,9 +355,11 @@ describe("a visitor's own sound (review fix B2)", () => {
     expect(breaks).toBeGreaterThan(0);
     // without a sound of the visitor's own: the mode's voices, as before
     const plain = sink(false);
-    for (const ev of events) playSoundEvent(plain.audio, ev, () => {});
+    let plainBreaks = 0;
+    for (const ev of events) playSoundEvent(plain.audio, ev, () => plainBreaks++);
     expect(plain.calls.every((c) => c.startsWith("loop:"))).toBe(true);
     expect(plain.calls.length).toBe(events.length);
+    expect(plainBreaks).toBe(breaks); // the face reacts to every break with the mode's own voice too
   });
 
   it("leaves Accumulation's freeze out under a visitor's own sound, and the crew's measured moment never counts it", () => {

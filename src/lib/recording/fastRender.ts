@@ -309,6 +309,7 @@ export function playSoundEvent(audio: ToneGenerator, raw: SoundEvent, onWallBrea
   // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip, as on the page
   const ev = raw.ringVoice ? ringVoiceEvent(raw, audio.hasOwnSound()) : raw;
   if (!ev) return;
+  if (ev.ringVoice === "contact" && ev.type === "gap") onWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too, as on the page)
   // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
   if (ev.race) {
     audio.playRaceArpeggio(ev.race, ev.frequency);

@@ -37,6 +37,11 @@ import type { SimulatorSettings } from "@/lib/settings";
  *    24 an overflow).
  *  - spiralGlass: glass of 1 hit – GLASS CLEARED on 40 of 40 at 22.9–24.7 s (2 hits: 31.7–33.2 s), the first multiply at 7.3 s
  *    (11.1 s).
+ *  - shatter (--- shatter-demolition ---, its run moved: a bounce no longer sticks to a ring): 6 rings of 36 segments that take 2
+ *    hits – 96 of 100 runs (seeds 1–50, both worlds) end by 27 s with the 1.5 s collapse, 62 of them between 15 and 25 s,
+ *    median 18.6 s, none within 8 s; about 10 hits a second, at most 2 in a frame. The old 10 rings sit closer than the ball
+ *    is wide (15 px apart for a 16 px ball in the laptop world): wedged, it touched two rings every pass. With the fix and the
+ *    old defaults (10 rings of 18 one-hit segments) a run was over in a median 10.1 s; 6 rings of one hit, 7.2 s.
  */
 export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -52,12 +57,16 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
       return { mrTiers: 6, mrInterval: 0.6 };
     case "spiralGlass":
       return { sgGlassHp: 1 };
+    case "shatter":
+      return SHATTER_PACE; // --- shatter-demolition ---
     default:
       return NONE;
   }
 }
 
 const NONE: Partial<SimulatorSettings> = Object.freeze({});
+/** --- shatter-demolition --- Shatter's page pace: six rings (a ball fits between them), 36 segments a ring, two hits a segment. */
+const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, shatterSegments: 36, shatterHits: 2 });
 
 // --- clip-start --- (review fix B2)
 /**

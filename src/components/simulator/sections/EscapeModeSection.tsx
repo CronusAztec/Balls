@@ -3,6 +3,7 @@
 import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import Tooltip from "../Tooltip";
 import { COLOR_MATCH_SEGMENT_CHOICES } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
+import { SHATTER_HIT_CHOICES, SHATTER_SEGMENT_CHOICES } from "@/lib/physics/modes/shatter"; // --- shatter-demolition ---
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import type { ModeId } from "@/lib/physics/types";
 import GrowFillSection, { GROW_FILL_KEYS } from "./GrowFillSection"; // --- loop-foundation ---
@@ -25,6 +26,7 @@ export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   lines: ["lineColor", "centerDot"],
   target: ["targetCount", "randomOrder"],
   colorMatch: ["colorCount", "segmentCount"],
+  shatter: ["shatterHits", "shatterSegments"], // --- shatter-demolition ---
   grow: ["growthRate", "centerDot", "growLines", "lineColor"],
 };
 ESCAPE_MODE_KEYS_BY_MODE.grow?.push(...GROW_FILL_KEYS); // --- loop-foundation --- (Grow's fill and loop)
@@ -116,6 +118,34 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
               </div>
             </div>
           </Searchable>
+        </div>
+      );
+    // --- shatter-demolition --- the hits a segment takes and the segments a ring has: two picks (the mode holds 1–5 and 4–36)
+    case "shatter":
+      return (
+        <div className="space-y-3 pt-2">
+          {(
+            [
+              ["shatterHits", SHATTER_HIT_CHOICES, s.shatterHits, (v: number) => update({ shatterHits: v })],
+              ["shatterSegments", SHATTER_SEGMENT_CHOICES, s.shatterSegments, (v: number) => update({ shatterSegments: v })],
+            ] as const
+          ).map(([key, choices, value, pick]) => (
+            <Searchable key={key} search={search} matches={matches} labelKey={key}>
+              <div className="space-y-2" data-testid={`shatter-${key === "shatterHits" ? "hits" : "segments"}`} data-shatter-value={value}>
+                <label className="text-sm font-medium text-ink-2">
+                  {t(key)}
+                  <Tooltip text={t(`${key}Tip`)} />
+                </label>
+                <div className="grid grid-cols-5 gap-1" role="group" aria-label={t(key)}>
+                  {choices.map((count) => (
+                    <button type="button" key={count} onClick={() => pick(count)} aria-pressed={value === count} className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${value === count ? onBtn : offBtn}`} data-shatter-option={count}>
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Searchable>
+          ))}
         </div>
       );
     case "grow":

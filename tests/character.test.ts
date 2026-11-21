@@ -57,7 +57,7 @@ import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { MODE_IDS } from "@/lib/physics/types";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 /**
  * Ball characters (lib/character, the "Gerald" persona): the settings and their URL / preset validation, the face
@@ -601,8 +601,8 @@ describe("character tracker", () => {
  * sound event reaches the FaceLayer as a wall break and the layer advances the characters once per frame (a cat face
  * with sounds on). Counts the first ball's expressions (before its escape), its visible blinks, the hits and the chirps.
  */
-function pageRun(mode: ModeId, seed: number, seconds: number) {
-  const s = defaultSettings(mode);
+function pageRun(mode: ModeId, seed: number, seconds: number, patch: Partial<SimulatorSettings> = {}) {
+  const s = { ...defaultSettings(mode), ...patch };
   const engine = new PhysicsEngine({
     gravity: s.gravity,
     damping: 0,
@@ -671,7 +671,9 @@ describe("characters on a real run", () => {
   });
 
   it("shatter: a burst of segment breaks startles the face now and then, and it still blinks and winces between", () => {
-    const run = pageRun("shatter", 1234, 12);
+    // (--- shatter-demolition --- its page defaults before the demolition: ten rings, where a big face ball is wedged and breaks
+    // segment after segment; the six rings it starts with now break one a second or two, too few to make a burst)
+    const run = pageRun("shatter", 1234, 12, { wallCount: 10 });
     // Shatter breaks a segment every few hundred ms, each a "gap" event.
     expect(run.wallBreaks).toBeGreaterThan(10);
     expect(run.frames).toBeGreaterThan(5 * 60);

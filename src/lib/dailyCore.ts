@@ -46,7 +46,7 @@ export interface DailyPoolEntry {
 export const DAILY_POOL: readonly DailyPoolEntry[] = [
   { mode: "classic", look: "wc=5&s=500&glow=1&wbreak=all" },
   { mode: "portal", look: "glow=1&wbreak=shockwave" },
-  { mode: "shatter", look: "wc=14&glow=1&wbreak=shatter" },
+  { mode: "shatter", look: "wc=14&glow=1&wbreak=shatter&shh=1&shs=18" }, // (--- shatter-demolition --- its deals' own segments: one hit each, 18 a ring, as before the page's demolition defaults)
   { mode: "target", look: "tc=6&s=400" }, // (--- clip-pacing --- its deals' own pace: Countdown's page default is ball speed 700 now, and its glow is on by default)
   { mode: "drop", look: "dbc=16&dsi=0.2&dsv=0.7&glow=1" },
   { mode: "box", look: "bxs=dvd&glow=1" },

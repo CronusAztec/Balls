@@ -562,7 +562,8 @@ describe("the bot's own look", () => {
   // --- colour-match-segments --- (and Color Match's segment count, a setting since: the mode's own twelve in every recipe's plan – no recipe plans Color Match)
   // --- song-ring --- And Song Ring's six fields since its mode was added (`srSong` … `srLive`, at their defaults in every other mode's
   // settings): the digest is of the plan without them too, and every plan below is checked to carry them at those defaults.
-  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, ...defaultSongRingFields() };
+  // --- shatter-demolition --- (and Shatter's hits and segments, settings since: the mode's own one hit and 18 segments in every recipe's plan – no recipe plans Shatter)
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, ...defaultSongRingFields() };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -589,6 +590,7 @@ describe("the bot's own look", () => {
     // (--- templates --- AI studio step 4b: the two keys the digest leaves out, as every default has them: the overlays shown)
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
     expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
+    expect(planned.map((p) => [p.recipe, p.settings.shatterHits, p.settings.shatterSegments])).toEqual(planned.map((p) => [p.recipe, 1, 18])); // --- shatter-demolition ---
     // (--- song-ring --- and Song Ring's fields, which the digest leaves out too: at their defaults in every plan)
     expect(planned.map((p) => [p.recipe, resolveSongRingFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSongRingFields()]));
   });

@@ -1249,6 +1249,10 @@ export class PhysicsEngine {
   hasShatterEscaped() {
     return this.shatterMode.hasEscaped();
   }
+  /** --- shatter-demolition --- The collapse after the escape (when the ball got out, each ring's stagger and fall), for the canvas. */
+  getShatterView() {
+    return this.shatterMode.getView();
+  }
   getShatterSegmentsPerWall() {
     return this.shatterMode.getSegmentsPerWall();
   }

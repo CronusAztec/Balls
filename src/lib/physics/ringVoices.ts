@@ -85,3 +85,31 @@ export function freezeThumpHz(frozen: number): number {
 export function icePlinkHz(frozen: number): number {
   return midiToFrequency(degreeToMidi(14 - (whole(frozen) % 5), COLOUR_ROOT_MIDI));
 }
+
+// --- shatter-demolition ---
+/** A5: the chip of the innermost ring; every ring out is a pentatonic degree higher. */
+const SHATTER_ROOT_MIDI = 69;
+/** Degrees the chips climb at most (a hundred rings stay in register: the top ring of a long run sits two octaves up). */
+export const SHATTER_SPAN = 10;
+
+/**
+ * Shatter's glass (lib/physics/modes/shatter.ts), every note something on screen: a chip of a segment of ring `ring` (0 the
+ * innermost) – a crack a pentatonic degree higher for every ring out, so the demolition climbs as the ball works outwards
+ * (`shatterChipHz()`); a segment that falls – the same crack an octave lower over a thump (`shatterBreakHz()`); a bounce that
+ * chips nothing – the crack two octaves under, soft; and after the escape the collapse – a falling run, one crack per ring
+ * from the top down, inside out (`shatterFallHz()`).
+ */
+export function shatterChipHz(ring: number): number {
+  return midiToFrequency(degreeToMidi(Math.min(SHATTER_SPAN, whole(ring)), SHATTER_ROOT_MIDI));
+}
+
+/** A segment of ring `ring` falling: its chip an octave lower. */
+export function shatterBreakHz(ring: number): number {
+  return shatterChipHz(ring) / 2;
+}
+
+/** Step `step` of the collapse's falling run (0 the first ring to fall): from two octaves over A5 a pentatonic degree down a step, never under A4. */
+export function shatterFallHz(step: number): number {
+  return midiToFrequency(degreeToMidi(Math.max(-5, SHATTER_SPAN - whole(step)), SHATTER_ROOT_MIDI));
+}
+// --- end shatter-demolition ---

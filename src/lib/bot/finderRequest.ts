@@ -137,8 +137,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     spikesEnabled: s.spikesEnabled,
     spikeCount: s.spikeCount,
     multiplySpawnCount: s.multiplySpawnCount,
-    shatterSegmentsPerWall: d.shatterSegmentsPerWall,
-    shatterHpPerSegment: d.shatterHpPerSegment,
+    shatterSegmentsPerWall: s.shatterSegments, // --- shatter-demolition --- (settings now: the mode's own 18 and 1 unless the page says otherwise)
+    shatterHpPerSegment: s.shatterHits,
     growRate: s.growRate,
     portalCount: d.portalCount,
     twoBalls: s.twoBalls,

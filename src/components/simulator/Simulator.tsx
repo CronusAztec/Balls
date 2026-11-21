@@ -415,6 +415,8 @@ export default function Simulator() {
     engine.setCountdownRandomOrder(s.countdownRandom);
     engine.setColorMatchColorCount(s.colorMatchColorCount);
     engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
+    engine.setShatterSegmentsPerWall(s.shatterSegments); // --- shatter-demolition --- (the segments and their hits, before the rings are built)
+    engine.setShatterHpPerSegment(s.shatterHits);
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -835,6 +837,18 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.colorMatchColorCount, s.colorMatchSegments]);
+  // --- shatter-demolition --- Shatter: new hits or segments build the rings anew (like Color Match's segments)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setShatterSegmentsPerWall(s.shatterSegments);
+    engine.setShatterHpPerSegment(s.shatterHits);
+    if (s.mode === "shatter" && engine.getCurrentModeName() === "shatter") {
+      engine.initShatter();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.shatterHits, s.shatterSegments]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -2062,7 +2076,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.shatterHits, s.shatterSegments /* --- shatter-demolition --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -2362,6 +2376,7 @@ export default function Simulator() {
           // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
           const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
           if (!ev) continue;
+          if (ev.ringVoice === "contact" && ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too: its own voice skips the plain path below)
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
           if (ev.race) {
             audio.playRaceArpeggio(ev.race, ev.frequency);
@@ -3500,8 +3515,8 @@ export default function Simulator() {
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,
           multiplySpawnCount: settings.multiplySpawnCount,
-          shatterSegmentsPerWall: engine.getShatterSegmentsPerWall(),
-          shatterHpPerSegment: engine.getShatterHpPerSegment(),
+          shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
+          shatterHpPerSegment: settings.shatterHits,
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
