@@ -288,6 +288,11 @@ export class BeatMachineLayer {
     if (side > 0) {
       ctx.fillStyle = BM_STAGE_LOOK.backdrop;
       ctx.fillRect(view.frame.cx - side / 2, view.frame.cy - side / 2, side, side);
+      // --- review fix (D1) --- the lights stay inside the square (a wide stage showed the keys' light past its left edge)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(view.frame.cx - side / 2, view.frame.cy - side / 2, side, side);
+      ctx.clip();
       const keysY = this.wy(view, m.bars[0]?.top ?? 0);
       const midX = this.wx(view, ((m.bars[0]?.x ?? 0) + (m.bars[m.bars.length - 1]?.x ?? 0)) / 2);
       ctx.fillStyle = BM_STAGE_LOOK.light;
@@ -301,6 +306,7 @@ export class BeatMachineLayer {
       ctx.ellipse(midX, this.wy(view, m.tubes[0]?.exitY ?? 0), side * 0.32, side * 0.16, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+      ctx.restore();
     }
     // the floor
     ctx.beginPath();

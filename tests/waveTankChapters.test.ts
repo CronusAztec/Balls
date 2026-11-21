@@ -5,7 +5,7 @@ import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { sectionRootHz, waveTankSettingsOf, type WaveTankSettings } from "@/lib/physics/waveTank";
 import { WT_BELL_CHORD_BELLS, WT_FRONT_COLUMNS, WT_GLOW_FLOOR } from "@/lib/physics/modes/waveTank";
-import { WT_WATER, WaveTankLayer, glowStep } from "@/components/simulator/waveTankRenderer";
+import { WT_LOOK, WT_WATER, WaveTankLayer, glowStep } from "@/components/simulator/waveTankRenderer";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
@@ -80,6 +80,33 @@ describe("the Wave Tank's chapters (wave-chapters)", () => {
     expect(events.filter((x) => x.e.loop === "scan").length).toBe(v.strikes);
   });
 
+  // --- review fix (D1) --- the start look's gaps are centred, so its bells ring in mirrored pairs of equal amplitude: a chord counts
+  // an amplitude once and flashes both twins (it flashed bells 2, 4 and 1 while 8, 6 and 9, as loud, stayed brass)
+  it("flashes a chord's bells in mirrored pairs where the gaps are centred, with at most three pitches", () => {
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    let checked = 0;
+    let pairs = 0;
+    for (let k = 0; k < 26 * 60; k++) {
+      engine.update(STEP, 0);
+      const chimes = engine.consumeSoundEvents().filter((e) => e.loop === "chime");
+      if (chimes.length === 0) continue;
+      const view = engine.getWaveTankView();
+      const n = view.bells;
+      const lit = Array.from({ length: n }, (_, b) => view.bellStrikeSec[b] === view.chordSec);
+      expect(chimes.length).toBeLessThanOrEqual(WT_BELL_CHORD_BELLS);
+      expect(new Set(chimes.map((e) => e.frequency)).size).toBe(chimes.length);
+      expect(lit.filter(Boolean).length).toBeGreaterThanOrEqual(chimes.length);
+      for (let b = 0; b < n; b++) {
+        if (b === n - 1 - b || Math.abs(view.bellAmp[b] - view.bellAmp[n - 1 - b]) > 1e-9 * view.bellAmp[b]) continue;
+        expect([view.chordSec, b, lit[b]]).toEqual([view.chordSec, b, lit[n - 1 - b]]);
+        if (lit[b]) pairs++;
+      }
+      checked++;
+    }
+    expect(checked).toBeGreaterThanOrEqual(8);
+    expect(pairs).toBeGreaterThan(0);
+  });
+
   it("keeps a sound going: no stretch longer than half a second without one", () => {
     const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
     let quiet = 0;
@@ -143,6 +170,38 @@ describe("the lit water (wave-glow)", () => {
     expect(a.layer.waterLight).toBeLessThanOrEqual(WT_WATER.length - 1);
     expect(draw().calls).toEqual(a.calls);
     expect([glowStep(0, 1, 6), glowStep(1, 1, 6), glowStep(5, 1, 6), glowStep(0.5, 0, 6)]).toEqual([0, 5, 5, 0]);
+  });
+
+  // --- review fix (D1) --- the crests of the ridges behind the wall stood taller than their spacing and their faces covered the
+  // golden bar drawn after the first one: it is drawn after the last of them now, as a paddle standing a crest above the water
+  it("draws the wave-maker after the water behind the wall and before the wall, standing above the water line", () => {
+    const engine = wtEngine(startLook(), 1);
+    run(engine, 4 * 60);
+    const view = engine.getWaveTankView();
+    const ctx = fakeCanvas(800, 600).getContext("2d") as unknown as Record<string, unknown>;
+    // (the fills in order, each with its colour and the y of its path's points)
+    const fills: string[] = [];
+    const ys: number[][] = [];
+    let path: number[] = [];
+    const logged = new Proxy(ctx, {
+      get(target, key) {
+        if (key === "beginPath") return () => { path = []; };
+        if (key === "moveTo" || key === "lineTo") return (_x: number, y: number) => { path.push(y); };
+        if (key === "fill") return () => { fills.push(String(target.fillStyle)); ys.push(path); };
+        const value = target[key as string];
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    }) as unknown as CanvasRenderingContext2D;
+    new WaveTankLayer().drawStage(logged, view, view.timeSec, { dpr: 1, showGlow: false, background: "#070b17" });
+    const paddle = fills.indexOf(WT_LOOK.sourceGlow);
+    const wall = fills.indexOf(WT_LOOK.slateFace);
+    expect(paddle).toBeGreaterThan(0);
+    expect(wall).toBeGreaterThan(paddle);
+    // no water face is drawn between the paddle and the wall: every ridge behind the wall came before it
+    expect(fills.slice(paddle + 1, wall).some((f) => (WT_WATER as readonly string[]).includes(f))).toBe(false);
+    // the paddle stands up from the water line: its top edge (its last two points) above its foot (its first two)
+    const [footL, footR, topR, topL] = ys[paddle];
+    expect(Math.max(topR, topL)).toBeLessThan(Math.min(footL, footR) - 2);
   });
 });
 

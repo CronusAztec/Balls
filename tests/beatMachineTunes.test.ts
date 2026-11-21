@@ -160,6 +160,15 @@ describe("the tune in the plan and the engine", () => {
     expect(next).not.toBeNull();
     expect(a.layer.nextKey).toBe(next!.wait <= view.plan.beatSec ? next!.slot : -1);
     expect(draw().calls.map((c) => c.name)).toEqual(a.calls.map((c) => c.name));
+    // --- review fix (D1) --- the stage's lights are clipped to the square: a wide stage showed the keys' light past its left edge
+    const names = a.calls.map((c) => c.name);
+    const firstEllipse = names.indexOf("ellipse");
+    const clip = names.lastIndexOf("clip", firstEllipse);
+    expect(clip).toBeGreaterThan(0);
+    const square = a.calls.slice(0, clip).reverse().find((c) => c.name === "rect")!.args as number[];
+    const { cx, cy, side } = view.frame;
+    expect(square).toEqual([cx - side / 2, cy - side / 2, side, side]);
+    expect(names.slice(clip, firstEllipse)).not.toContain("restore");
   });
 });
 

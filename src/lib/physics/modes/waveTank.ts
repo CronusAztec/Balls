@@ -113,6 +113,8 @@ export const WT_CHORD_LEVEL = 0.9;
 export const WT_BELL_CHORD_SEC = 1;
 export const WT_BELL_CHORD_BELLS = 3;
 export const WT_BELL_CHORD_LEVEL = 0.85;
+/** --- review fix (D1) --- Bells whose amplitudes differ by at most this share are twins: one pitch of the chord, both flashed. */
+export const WT_BELL_TWIN = 1e-4;
 
 /** Where the tank sits in the world: its centre and the side of the page's centred square (world px). */
 export interface WaveTankFrame {
@@ -843,17 +845,19 @@ export class WaveTankMode implements GameMode {
     if (index === this.lastChord) return;
     this.lastChord = index;
     if (!v.climax || t <= 0 || v.bells < 1) return;
-    // the loudest bells, loudest first (no list made: a few passes over the row)
+    // the loudest bells, loudest first (no list made: a few passes over the row); --- review fix (D1) --- an amplitude counts
+    // once: its twins (the mirrored bells of centred gaps, equal within WT_BELL_TWIN) flash with it, and the chord's three
+    // pitches are three distinct amplitudes
     let rung = 0;
     let below = Infinity;
     for (let k = 0; k < Math.min(WT_BELL_CHORD_BELLS, v.bells); k++) {
       let best = -1;
-      for (let b = 0; b < v.bells; b++) if (v.bellAmp[b] < below && (best < 0 || v.bellAmp[b] > v.bellAmp[best])) best = b;
+      for (let b = 0; b < v.bells; b++) if (v.bellAmp[b] < below * (1 - WT_BELL_TWIN) && (best < 0 || v.bellAmp[b] > v.bellAmp[best])) best = b;
       if (best < 0) break;
       below = v.bellAmp[best];
       const level = Math.min(1, v.bellAmp[best] / v.reference);
       if (bellGain(v.bellAmp[best], v.reference) < SCAN_FLOOR) break;
-      v.bellStrikeSec[best] = t;
+      for (let b = 0; b < v.bells; b++) if (Math.abs(v.bellAmp[b] - below) <= WT_BELL_TWIN * below) v.bellStrikeSec[b] = t;
       this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chime", frequency: v.bellHz[best], level: WT_BELL_CHORD_LEVEL * level, melody: false });
       rung++;
     }

@@ -1121,14 +1121,21 @@ const PERFECT_FIT_FLASH = "its box is full only for the 0.15 s flash between its
  * crew's G2, clarity.ts beatStandsOut). Beat Machines' marble phrase is one note at a time, its motifs over again (A, A', B, A, A, A':
  * beatMachinePlan.ts), so the note its payoff was timed by – the loop's note nearest 85 % – was the bar heard at 2 s and 14 s, as loud
  * (measured on two renders: 18.0–18.75 s matched 2.0–2.75 s and 14.0–14.75 s to 0.1 dB), with no payoff words and a still picture;
- * the tonic at the loop's end is one more note. No setting accents a bar of it.
+ * the tonic at the loop's end is one more note. (--- review fix (D1) --- re-measured after Lane D's D1: every marble machine now
+ * accents a phrase's first beat with a chime an octave up, a decorative voice the crew's moment does not count, and the known tunes
+ * end on a chord – the start look's, not the plans', which play the seeded phrase. The payoff still plays 1–3 sounds against the
+ * run's busiest 3, one at a time, no accent: 0 of 12 plans – 4 plan seeds × reels, shorts and tiktok – pass G2.)
  */
-const BEAT_MACHINE_PLAIN = "its marble phrase is one note at a time, its motifs over again, so the payoff (the loop's note nearest 85 %) repeats the bar heard twice before it, as loud, with no chord or accent – nothing a viewer could tell from the rest (measured on two renders: 18.0-18.75 s matched 2.0-2.75 s and 14.0-14.75 s to 0.1 dB); no setting accents a bar: 0 of 12 plans stand out (G2)";
+const BEAT_MACHINE_PLAIN = "its marble phrase is one note at a time, its motifs over again, so the payoff (the loop's note nearest 85 %) repeats a bar heard before it, as loud – nothing a viewer could tell from the rest (measured on two renders: 18.0-18.75 s matched 2.0-2.75 s and 14.0-14.75 s to 0.1 dB); the phrase starts' octave chimes are decorative and never on the payoff, and the known tunes' chord is the page's start look, not the plans' seeded phrase: re-measured, the payoff plays 1-3 sounds against the run's busiest 3, no chord, no accent, and 0 of 12 plans stand out (G2)";
 /**
  * --- templates --- (studio round 1, 11) The Wave Tank's bells strike at the scan's rate from its first second to its last, one at a time:
  * the clip's last 1.5 s (atEnd) play what every moment before them played (7 strikes a moment against the run's busiest 7).
+ * (--- review fix (D1) --- re-measured after Lane D's D1: the link base the plans run now strikes the wall with a three-note chord at
+ * every section change and rings the bells' chords in the grating's climax, 15–25 s. A clip ending in the climax stands out – 1 of
+ * 12 plans, reels seed 4 (13 sounds against 9) – and every other ends on the scan's lone strikes, 7–10 sounds against the run's
+ * busiest 9–12, after a three-note strike no chord there outdoes.)
  */
-const WAVE_TANK_PLAIN = "its bells strike at the scan's rate from the first second to the last, one at a time: the clip's last 1.5 s, its payoff, play what every moment before them played (7 strikes against the run's busiest 7), no chord, no accent; 0 of 12 plans stand out (G2)";
+const WAVE_TANK_PLAIN = "its bells strike at the scan's rate from the first second to the last, one at a time: the clip's last 1.5 s, its payoff, play what the moments before them played, and the wall's three-note strike at each section change comes before it and outdoes any chord there; only a clip that ends in the grating's climax (its bells' chords, 15-25 s) stands out: re-measured, 7-10 sounds against the run's busiest 9-12 elsewhere, 1 of 12 plans stand out (G2)";
 /**
  * --- templates --- (studio round 1, 11) Ball Drop's rain, looped (DROP_RAIN), plays as many notes at the clip's end as at its busiest
  * moments before, one at a time: its last 1.5 s are one more stretch of rain (19–46 notes a moment against the run's busiest 25–41).

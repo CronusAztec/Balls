@@ -63,6 +63,8 @@ export const WT_BELL_RADIUS = 0.011;
 export const WT_FLASH_SEC = 0.18;
 export const WT_WALL_FLASH_SEC = 0.6;
 export const WT_SOURCE_PULSE = 0.45;
+/** --- review fix (D1) --- The wave-maker's bar stands this many WT_HEIGHT above the water (the projection's back lift). */
+export const WT_SOURCE_LIFT = 2;
 /** The glow's gamma (under 1 lifts the half-lit stripes) and the share of a crest's local amplitude a line must pass to count as a crest. */
 export const WT_GLOW_GAMMA = 0.75;
 export const WT_CREST_SHARE = 0.45;
@@ -226,6 +228,8 @@ export class WaveTankLayer {
       if (r > 0 && r < R - 1 && baseY - lastBase < minGap) continue;
       lastBase = baseY;
       if (!wallDrawn && z > view.barrierZ1) {
+        // --- review fix (D1) --- the wave-maker after the last ridge behind the wall: their crests no longer cover it
+        this.drawSource(ctx, view, p, line, t);
         this.drawWall(ctx, view, p, line, t);
         wallDrawn = true;
       }
@@ -235,10 +239,12 @@ export class WaveTankLayer {
       const light = this.drawRidge(ctx, view, p, r, line, bottom, lines && z < view.barrierZ0);
       lightSum += light;
       lightCount++;
-      if (r === 0 && lines) this.drawSource(ctx, view, p, line, t);
     }
     this.waterLight = lightCount > 0 ? lightSum / lightCount : 0;
-    if (!wallDrawn) this.drawWall(ctx, view, p, line, t);
+    if (!wallDrawn) {
+      this.drawSource(ctx, view, p, line, t);
+      this.drawWall(ctx, view, p, line, t);
+    }
     if (!lines) this.drawPointSources(ctx, view, p, side, t);
     this.drawScreen(ctx, view, p, side, line);
     this.drawBells(ctx, view, p, t, side, opts);
@@ -353,13 +359,34 @@ export class WaveTankLayer {
     return light / Math.max(1, S);
   }
 
-  /** The wave-maker: a golden bar along the back, brighter and thicker as it pushes (the source's own cycle). */
+  /**
+   * The wave-maker: a golden paddle along the back, standing a crest's height (WT_SOURCE_LIFT) above the water, brighter and
+   * thicker as it pushes (the source's own cycle). --- review fix (D1) --- drawn after the ridges behind the wall and lifted
+   * over their crests, whose faces hid the bar at the water line.
+   */
   private drawSource(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, line: number, t: number) {
     const pulse = 0.5 + 0.5 * Math.cos(2 * Math.PI * view.frequency * t);
-    const a = projectTank(p, -0.5, 0, view.sourceZ, PT);
+    const lift = WT_SOURCE_LIFT * WT_HEIGHT;
+    // the paddle's face, from the water line up to the bar
+    const w0 = projectTank(p, -0.5, 0, view.sourceZ, PT);
+    const w0x = w0.x;
+    const w0y = w0.y;
+    const w1 = projectTank(p, 0.5, 0, view.sourceZ, PT2);
+    const w1x = w1.x;
+    const w1y = w1.y;
+    const a = projectTank(p, -0.5, lift, view.sourceZ, PT);
     const ax = a.x;
     const ay = a.y;
-    const b = projectTank(p, 0.5, 0, view.sourceZ, PT2);
+    const b = projectTank(p, 0.5, lift, view.sourceZ, PT2);
+    ctx.globalAlpha = 0.35 + 0.2 * pulse;
+    ctx.fillStyle = WT_LOOK.sourceGlow;
+    ctx.beginPath();
+    ctx.moveTo(w0x, w0y);
+    ctx.lineTo(w1x, w1y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(ax, ay);
+    ctx.closePath();
+    ctx.fill();
     ctx.globalAlpha = 0.25 + 0.3 * pulse;
     ctx.strokeStyle = WT_LOOK.sourceGlow;
     ctx.lineWidth = (5 + 4 * pulse) * line;
