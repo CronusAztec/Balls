@@ -7,14 +7,25 @@ import { modesForFilter } from "@/lib/siteDesign";
 import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
 import LivePreview from "./LivePreview";
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- paywall-gate ---
+import { assetPath } from "@/lib/site"; // --- studio-first-open ---
+import type { ModeId } from "@/lib/physics/types";
 
 /*
  * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action, the way
  * to the modes wall and the Windows app; on the right, from 1024 px, the live mini simulation in its 9:16 frame. A row of
  * mono readouts underlines the claim with numbers instead of adjectives.
+ * --- studio-first-open --- Below 1024 px the live frame comes after the text, under the first screen, so a row of four
+ * well-known modes' pictures sits right under the buttons there: the first screen of a phone shows pictures, not only text,
+ * and each opens its mode in the studio. (Background pictures, like the live frame's, not <img>: the mode cards stay the
+ * page's only <img> of each preview, and a hidden row loads none.)
  */
+
+/** --- studio-first-open --- The modes of the phone's picture row: an escape, a battle, a maze and a rhythm machine. */
+export const HERO_MODES: readonly ModeId[] = ["classic", "fightLeague", "maze", "songRing"];
+
 export default function Hero() {
   const t = useTranslations("SiteRedesign");
+  const modes = useTranslations("Modes"); // --- studio-first-open --- (server-side: the picture row's names)
   const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (server-side: the button's labels as props)
   const billing = useTranslations("Billing"); // --- paywall-gate --- (server-side: the line under the call to action)
   const locale = useLocale();
@@ -40,6 +51,20 @@ export default function Hero() {
             </a>
             <DownloadAppButton label={desktop("heroButton")} note={desktop("heroNote")} />
           </div>
+          {/* --- studio-first-open --- below 1024 px: four modes' pictures, each a way into the studio with that mode */}
+          <ul className="mt-6 grid max-w-md grid-cols-4 gap-2 sm:gap-3 lg:hidden" data-testid="hero-modes">
+            {HERO_MODES.map((id) => {
+              const name = modes(`${id}.name`);
+              return (
+                <li key={id} className="min-w-0">
+                  <Link href={`/simulator?mode=${id}`} className="group block rounded-lg" aria-label={t("hero.previewOpen", { mode: name })}>
+                    <span aria-hidden="true" className="block aspect-square rounded-lg border border-line bg-surface-2 bg-cover bg-center transition-colors duration-150 group-hover:border-line-strong" style={{ backgroundImage: `url("${assetPath(`/modes/${id}.webp`)}")` }} />
+                    <span className="mt-1.5 block text-xs leading-tight text-ink-2 group-hover:text-ink">{name}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
           {/* --- paywall-gate --- what is free and what Pro costs, under the call to action */}
           <p className="mt-4 max-w-[46ch] text-sm text-ink-3" data-testid="hero-pricing">
             {billing("landing.line", { price: formatUsd(PLANS.monthly.usd, locale) })}{" "}

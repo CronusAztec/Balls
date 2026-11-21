@@ -24,7 +24,10 @@
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
     "metaTitle": "Simulador de física de pelotas, {count} modos – {siteName}",
-    "metaDescription": "Simulador de física de pelotas con {count} modos. Jugar y exportar es gratis, sin registro ni instalación. MP4 vertical para TikTok. Pro quita la marca de agua."
+    "metaDescription": "Simulador de física de pelotas con {count} modos. Jugar y exportar es gratis, sin registro ni instalación. MP4 vertical para TikTok. Pro quita la marca de agua.",
+    "notLoaded": "No se pudo cargar el estudio.",
+    "reload": "Recargar",
+    "noScript": "El estudio necesita JavaScript. Actívalo y recarga la página."
   },
   "Layout": {
     "metaTitle": "Simulador satisfactorio de pelotas – {siteName}",

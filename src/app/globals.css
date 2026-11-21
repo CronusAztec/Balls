@@ -851,6 +851,27 @@ dialog.ui-dialog[open] {
     pointer-events: none;
   }
 
+  /* --- studio-first-open --- the studio skeleton's load bar (StudioSkeleton.tsx): it fills most of the strip while the page's
+     scripts load, on the compositor, so a busy main thread does not stop it. With reduced motion it stands still at a third. */
+  @keyframes studio-skeleton-load {
+    from {
+      transform: scaleX(0.04);
+    }
+    to {
+      transform: scaleX(0.92);
+    }
+  }
+  .studio-skeleton-bar {
+    transform-origin: left center;
+    animation: studio-skeleton-load 12s cubic-bezier(0.1, 0.7, 0.2, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .studio-skeleton-bar {
+      transform: scaleX(0.33);
+      animation: none;
+    }
+  }
+
   /* A control the command palette jumped to: a brief accent outline. */
   [data-palette-hit] {
     outline: 2px solid var(--color-accent);

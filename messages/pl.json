@@ -24,7 +24,10 @@
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
     "metaTitle": "Symulator fizyki piłki z {count} trybami – {siteName}",
-    "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny."
+    "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny.",
+    "notLoaded": "Nie udało się wczytać studia.",
+    "reload": "Odśwież",
+    "noScript": "Studio potrzebuje JavaScriptu. Włącz go i odśwież stronę."
   },
   "Layout": {
     "metaTitle": "Satysfakcjonujący symulator fizyki piłki – {siteName}",

@@ -24,7 +24,10 @@
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
     "metaTitle": "Ball Physics Simulator, {count} Modes – {siteName}",
-    "metaDescription": "Ball physics simulator with {count} modes. Free to play and export, no sign-up, no install. Vertical MP4 for TikTok. Pro removes the watermark."
+    "metaDescription": "Ball physics simulator with {count} modes. Free to play and export, no sign-up, no install. Vertical MP4 for TikTok. Pro removes the watermark.",
+    "notLoaded": "The studio did not load.",
+    "reload": "Reload",
+    "noScript": "The studio needs JavaScript. Turn it on and reload the page."
   },
   "Layout": {
     "metaTitle": "Satisfying Ball Physics Simulator – {siteName}",
