@@ -9001,7 +9001,9 @@ await smokeBlock("unlimited", async () => {
   await slowToggle.click();
   await page.waitForTimeout(300);
   const turnedOn = await switchState();
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // (--- studio-play --- the mode picked in the picker above plays at once: Start Simulator is there only for a run that waits)
+  const startAgain = page.getByRole("button", { name: /Start Simulator/ });
+  if (await startAgain.isVisible().catch(() => false)) await startAgain.click();
   await page.waitForTimeout(1000);
   const canvasOn = await page.evaluate(() => document.querySelector("main canvas")?.dataset.slowMotion ?? null);
   check(
