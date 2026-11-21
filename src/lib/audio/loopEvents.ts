@@ -26,11 +26,13 @@ export interface LoopPlayOptions {
   chord?: readonly number[];
   /** The drone's pen speed (0–1). */
   speed?: number;
+  /** --- song-ring --- The pitch as given: not snapped to the Sound section's scale (a note of a fixed tune). */
+  exact?: boolean;
 }
 
 /** The `playLoop()` options a loop sound event carries (its duration, glide target, brightness, chord; `accent` = a last step). */
 export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
   // --- ellipse-foci --- (the groove bed's minor chords) --- colour-sort --- (the completion chord's tremolo and minor colour)
   // --- drawing-machine --- (a drone's pen speed: its ripple and scratch)
-  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor, speed: ev.loopSpeed, ...(ev.loopChip ? { chip: true } : {}) /* --- perfect-fit --- (the chip ladder) */ };
+  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor, speed: ev.loopSpeed, ...(ev.loopChip ? { chip: true } : {}) /* --- perfect-fit --- (the chip ladder) */, ...(ev.loopExact ? { exact: true } : {}) /* --- song-ring --- (a fixed tune's note) */ };
 }

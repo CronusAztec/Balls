@@ -53,6 +53,8 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 import { MergeRingMode, type MergeRingSettings, type MergeRingView } from "./modes/mergeRing";
 // --- spiral-glass --- Spiral Glass (balls circling a glass spiral, chipping it away from the outside in)
 import { SpiralGlassMode, type SpiralGlassSettings, type SpiralGlassView } from "./modes/spiralGlass";
+// --- song-ring --- Song Ring (a ball lighting the notes of a tune that line a ring, a playhead playing what is lit)
+import { SongRingMode, type SongRingSettings, type SongRingView } from "./modes/songRing";
 // --- blueprint --- Mode Lab (a game mode as data, played by the Blueprint interpreter)
 import { BlueprintMode, type BlueprintProgress, type BlueprintSettings, type ResolvedBlueprint } from "./modes/blueprint";
 import type { BlueprintView } from "@/lib/blueprint/runtime/view";
@@ -328,6 +330,8 @@ export class PhysicsEngine {
   readonly mergeRingMode = new MergeRingMode();
   // --- spiral-glass ---
   readonly spiralGlassMode = new SpiralGlassMode();
+  // --- song-ring ---
+  readonly songRingMode = new SongRingMode();
   // --- blueprint ---
   readonly blueprintMode = new BlueprintMode();
   // --- beat-drop ---
@@ -742,6 +746,10 @@ export class PhysicsEngine {
   initSpiralGlass() {
     this.activateMode(this.spiralGlassMode, "none");
   }
+  // --- song-ring --- the mode owns its ring of note tiles (no engine rings, no obstacles)
+  initSongRing() {
+    this.activateMode(this.songRingMode, "none");
+  }
   // --- blueprint --- the Blueprint's world owns its arena, obstacles and tiles (no engine rings, no obstacles)
   initBlueprint() {
     this.activateMode(this.blueprintMode, "none");
@@ -892,6 +900,9 @@ export class PhysicsEngine {
       // --- spiral-glass ---
       case "spiralGlass":
         return this.initSpiralGlass();
+      // --- song-ring ---
+      case "songRing":
+        return this.initSongRing();
       // --- blueprint ---
       case "blueprint":
         return this.initBlueprint();
@@ -1873,6 +1884,25 @@ export class PhysicsEngine {
     return this.spiralGlassMode.getProgress();
   }
   // --- end spiral-glass ---
+  // --- song-ring ---
+  isSongRingMode() {
+    return this.currentMode === this.songRingMode;
+  }
+  getSongRingSettings(): SongRingSettings {
+    return this.songRingMode.getSettings();
+  }
+  /** The tune, the lap, the speed, the balls, the help and the live notes apply on the next `initSongRing()`. */
+  setSongRingSettings(settings: Partial<SongRingSettings>) {
+    this.songRingMode.setSettings(settings);
+  }
+  /** Live Song Ring state (layout, tiles, what is lit, the playhead, the sparks, the finale, the timeout) for the canvas and the HUD; the same object every call. */
+  getSongRingView(): SongRingView {
+    return this.songRingMode.getView();
+  }
+  getSongRingProgress() {
+    return this.songRingMode.getProgress();
+  }
+  // --- end song-ring ---
   // --- blueprint ---
   isBlueprintMode() {
     return this.currentMode === this.blueprintMode;

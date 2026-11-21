@@ -86,7 +86,7 @@ const FIXTURES: readonly (readonly [SimulatorSettings, boolean])[] = MODE_IDS.fl
 const where = (s: SimulatorSettings, picture: boolean) => `${s.mode} ${JSON.stringify({ neverEscape: s.neverEscape, ballCount: s.ballCount, twoBalls: s.twoBalls, teams: s.teams.length, gravity: s.gravity, picture })}`;
 
 describe("outcomeContextOfSettings (--- outcome-context ---)", () => {
-  it("gives the very context the Simulator page's inline expression gave, and so the same outcome lists, on every fixture of all 48 modes", () => {
+  it("gives the very context the Simulator page's inline expression gave, and so the same outcome lists, on every fixture of all 49 modes", () => {
     expect(new Set(FIXTURES.map(([s]) => s.mode)).size).toBe(MODE_IDS.length);
     expect(FIXTURES.length).toBeGreaterThan(400);
     for (const [s, picture] of FIXTURES) {

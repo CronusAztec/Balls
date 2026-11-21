@@ -1517,6 +1517,28 @@
     "sgHud": "HUD de la espiral",
     "sgHudTip": "El título y las losetas que quedan en la esquina, el anillo de progreso y la pregunta sobre la espiral. Desactivado: solo el cristal, las bolas y su contador. CRISTAL LIMPIO se muestra siempre.",
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
+    "modeSongRing": "Anillo de melodías",
+    "srTitle": "Anillo de melodías",
+    "srDesc": "El anillo está forrado con las notas de una melodía. La bola enciende una nota y la aguja toca todas las notas encendidas en cada vuelta. La última nota hace sonar la melodía entera.",
+    "srSong": "Melodía",
+    "srSongTip": "La melodía del anillo. Sorpresa deja que la semilla elija una. El título solo aparece en pantalla al final, para que el público pueda adivinar.",
+    "srSong_twinkle": "Estrellita",
+    "srSong_ode": "Himno de la alegría",
+    "srSong_elise": "Para Elisa",
+    "srSong_jacques": "Frère Jacques",
+    "srSong_mountain": "Rey de la montaña",
+    "srSong_surprise": "Sorpresa",
+    "srLapSec": "Tiempo de vuelta",
+    "srLapSecTip": "Segundos que tarda la aguja en dar una vuelta al anillo. Una vuelta más corta toca la melodía más rápido. El rango habitual del deslizador es de 2 a 8, y un número escrito puede superarlo.",
+    "srSpeed": "Velocidad de la bola",
+    "srSpeedTip": "A qué velocidad vuela la bola, en anchos de anillo por segundo. Una bola más rápida encuentra antes las notas, así que la tirada es más corta.",
+    "srBalls": "Bolas",
+    "srBallsTip": "Cuántas bolas vuelan dentro del anillo. Más bolas encuentran antes las notas. El rango habitual del deslizador es de 1 a 6, y un número escrito puede superarlo. Una partida crea como mucho 5000.",
+    "srHelp": "Ayuda",
+    "srHelpTip": "Cada cuánto se corrige un poco un rebote cuando una nota llega demasiado pronto o demasiado tarde. En 0 es puro azar y la última nota puede tardar mucho. En 1 todas las tiradas llevan el mismo ritmo.",
+    "srLive": "Notas en directo",
+    "srLiveTip": "La nota suena en cuanto la bola la enciende. Desactivado: el golpe es un toque suave y solo la aguja toca las notas, así que la melodía se oye limpia.",
+    "srRunInfo": "Una vuelta cada {lap} s. La semilla decide qué notas encuentra antes la bola, así que Buscar simulación puede dar con la duración de tu clip.",
     "modeBlueprint": "Lab de modos",
     "blTitle": "Lab de modos",
     "blDesc": "Cada juego de aquí nace de reglas que hacen que las bolas se rompan, se fusionen o se multipliquen. Elige un juego y ajusta sus controles. Un enlace compartido de un juego también se abre aquí.",
@@ -2582,6 +2604,10 @@
     "spiralGlass": {
       "name": "Espiral de cristal",
       "description": "Las bolas giran por una espiral de cristal y la rompen de fuera hacia dentro. Cada vuelta añade una bola. ¿Se multiplicará la bola?"
+    },
+    "songRing": {
+      "name": "Anillo de melodías",
+      "description": "Una bola enciende una melodía nota a nota, rebote a rebote. ¿La adivinas antes de que suene entera?"
     },
     "blueprint": {
       "name": "Lab de modos",
@@ -4258,6 +4284,7 @@
       "perfectFit": "las piezas",
       "mergeRing": "las bolas",
       "spiralGlass": "las bolas",
+      "songRing": "la bola",
       "blueprint": "las bolas"
     },
     "looks": {
@@ -4287,6 +4314,7 @@
       "conveyor": "{count} pelotas. ¿Saldrán todas?",
       "collide": "Cada choque suena. Luego se atraviesan.",
       "doublePendulum": "Mismo inicio. Mira cómo se separan.",
+      "songRing": "Adivina la melodía antes del final.",
       "hatchery": "Cada cristal roto hace nacer una bola.",
       "ringBreaker": "Cada anillo roto duplica las bolas.",
       "conquer": "Un choque convierte. Gana el último color.",
@@ -4406,6 +4434,18 @@
     "canvasClearedSub": "x[count] en [seconds] s",
     "canvasTimeout": "SE ACABÓ EL TIEMPO",
     "canvasTimeoutSub": "Quedan [tiles] losetas"
+  },
+  "SongRing": {
+    "caption": "ADIVINA LA MELODÍA",
+    "canvasCount": "[lit]/[total]",
+    "canvasDoneSub": "[notes] notas en [seconds] s",
+    "canvasTimeout": "SE ACABÓ EL TIEMPO",
+    "canvasTimeoutSub": "[lit] de [total] notas",
+    "song_twinkle": "ESTRELLITA",
+    "song_ode": "HIMNO DE LA ALEGRÍA",
+    "song_elise": "PARA ELISA",
+    "song_jacques": "FRÈRE JACQUES",
+    "song_mountain": "REY DE LA MONTAÑA"
   },
   "Blueprint": {
     "canvasArenaFull": "ARENA LLENA",

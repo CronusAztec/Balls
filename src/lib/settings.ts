@@ -65,6 +65,8 @@ import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBull
 import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readMergeRingParams, resolveMergeRingFields, writeMergeRingParams, type MergeRingFields } from "@/lib/physics/modes/mergeRing";
 // --- spiral-glass --- the Spiral Glass mode
 import { SPIRAL_GLASS_RANGES, defaultSpiralGlassFields, readSpiralGlassParams, resolveSpiralGlassFields, spiralGlassModeDefaults, writeSpiralGlassParams, type SpiralGlassFields } from "@/lib/physics/modes/spiralGlass";
+// --- song-ring --- the Song Ring mode
+import { SONG_RING_RANGES, defaultSongRingFields, readSongRingParams, resolveSongRingFields, songRingModeDefaults, writeSongRingParams, type SongRingFields, type SongRingSong } from "@/lib/physics/modes/songRing";
 // --- blueprint --- Mode Lab: a game mode as data (a Blueprint)
 import { BLUEPRINT_ENGINE_KEYS, BLUEPRINT_RANGES, blueprintModeDefaults, defaultBlueprintFields, readBlueprintParams, resolveBlueprintFields, writeBlueprintParams, type BlueprintFields } from "@/lib/physics/modes/blueprint";
 // --- beat-drop --- the Beat Drop mode
@@ -812,6 +814,20 @@ export interface SimulatorSettings {
    */
   sgHud: boolean;
   // --- end spiral-glass ---
+  // --- song-ring --- Song Ring (lib/physics/modes/songRing.ts): a ball lights the notes of a tune lining a ring, a playhead plays what is lit
+  /** The tune: twinkle | ode | elise | jacques | mountain, or surprise (the seed picks) (URL `srt`). */
+  srSong: SongRingSong;
+  /** Seconds one lap of the playhead takes, 2–8 (URL `srl`). */
+  srLapSec: number;
+  /** Speed of the balls, ring widths a second, 0.4–4 (URL `srv`). */
+  srSpeed: number;
+  /** Balls in the ring, 1–6 (URL `srb`). */
+  srBalls: number;
+  /** 0–1: how often a rebound is nudged when a note comes early or late (URL `srh`). */
+  srHelp: number;
+  /** The hit that lights a tile plays its note at once (URL `srn`). */
+  srLive: boolean;
+  // --- end song-ring ---
   // --- blueprint --- Mode Lab (lib/physics/modes/blueprint.ts): a game mode described as data, played by one sandboxed interpreter
   /** The catalog entry played when there is no spec of a link (lib/blueprint/catalog; URL `blp`). */
   blPreset: string;
@@ -1462,6 +1478,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- spiral-glass --- the feature's fields, and the mode's own ball size (radius 11) in Spiral Glass only (out here too)
     ...defaultSpiralGlassFields(),
     ...spiralGlassModeDefaults(mode),
+    // --- song-ring --- the feature's fields (out here too; the mode changes no core default)
+    ...defaultSongRingFields(),
+    ...songRingModeDefaults(mode),
     // --- blueprint --- the feature's fields (out here too; a Blueprint sizes and colours its own balls)
     ...defaultBlueprintFields(),
     ...blueprintModeDefaults(mode),
@@ -1479,7 +1498,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */> {
   return {
     mode,
     gravity: 300,
@@ -1691,6 +1710,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...MERGE_RING_RANGES, // --- merge-ring ---
   ...SPIRAL_GLASS_RANGES, // --- spiral-glass ---
+  ...SONG_RING_RANGES, // --- song-ring ---
   ...BLUEPRINT_RANGES, // --- blueprint --- (none: a Blueprint's sliders are the spec's own)
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
@@ -1968,6 +1988,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeMergeRingParams(settings, base, params); // --- merge-ring ---: mrt, mri, mrs, mrg, mrr
   writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr (--- templates --- the overlay's sghud is a BOOLEAN_URL_KEYS key)
+  writeSongRingParams(settings, base, params); // --- song-ring ---: srt, srl, srv, srb, srh, srn
   writeBlueprintParams(settings, base, params); // --- blueprint ---: blp, bls, blv
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
@@ -2147,6 +2168,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readMergeRingParams(params, settings); // --- merge-ring --- (clamped onto the sliders; bad values fall back)
   readSpiralGlassParams(params, settings); // --- spiral-glass --- (clamped onto the sliders; bad values fall back)
+  readSongRingParams(params, settings); // --- song-ring --- (a known tune, clamped onto the sliders; bad values fall back)
   readBlueprintParams(params, settings); // --- blueprint --- (a known catalog id, a plausible code, clean slider values)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
@@ -2383,6 +2405,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   bullseye: rangeKeys(BULLSEYE_RANGES),
   mergeRing: rangeKeys(MERGE_RING_RANGES), // --- merge-ring --- (the tiers, the interval, the spawn tiers and the gravity; the rainbow rim is the picture's)
   spiralGlass: rangeKeys(SPIRAL_GLASS_RANGES), // --- spiral-glass --- (the turns, the hit points, the speed, the ball cap and the chip time; the rainbow line is the picture's)
+  songRing: ["srSong", ...rangeKeys(SONG_RING_RANGES), "srLive"], // --- song-ring --- (the tune, the lap, the speed, the balls and the help are the run's; the live notes its sound events)
   blueprint: [...BLUEPRINT_ENGINE_KEYS], // --- blueprint --- (the catalog entry, the link's spec and its slider values: every one is the run's)
   beatDrop: rangeKeys(BEAT_DROP_RANGES),
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
@@ -2673,6 +2696,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveMergeRingFields(merged)); // --- merge-ring --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveSpiralGlassFields(merged)); // --- spiral-glass --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveSongRingFields(merged)); // --- song-ring --- a known tune, clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBlueprintFields(merged)); // --- blueprint --- a known catalog id, a plausible code, clean slider values
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans

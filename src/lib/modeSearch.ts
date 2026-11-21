@@ -80,6 +80,7 @@ export const MODE_SEARCH_WORDS: Record<ModeId, Words> = {
   perfectFit: { en: "pieces puzzle blocks fill", pl: "klocki układanka wypełnianie", es: "piezas rompecabezas bloques" },
   mergeRing: { en: "fuse fusion tiers overflow", pl: "łączenie scalanie fuzja poziomy", es: "fusionar fusión niveles" },
   spiralGlass: { en: "chip laps frosted", pl: "szkło okrążenia kruszenie", es: "vidrio vueltas astillar" },
+  songRing: { en: "guess name piano playhead quiz", pl: "zgadnij pianino wskazówka quiz", es: "adivina piano aguja quiz" },
   blueprint: { en: "mode lab custom experiments", pl: "własne eksperymenty", es: "propios experimentos" },
 };
 

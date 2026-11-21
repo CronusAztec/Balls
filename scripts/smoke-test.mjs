@@ -20297,6 +20297,85 @@ await smokeBlock("spiral-glass", async () => {
 // --- end spiral-glass ---
 });
 
+await smokeBlock("song-ring", async () => {
+// --- song-ring ---
+// Song Ring ("can you name the tune?"): the preview image and the card under the rhythm heading; URL → the Song Ring block of the
+// Mode row (the tune, lap time, ball speed, balls, help, live notes, the run summary), controls → URL and the search box, no ring
+// controls; a fast run at 8× (a fast ball, a 2 s lap) lights every note, plays the phrase whole and ends on its chord – and the
+// canvas names the tune only from that chord on (data-song-*).
+{
+  const res = await page.request.get(`${BASE}/modes/songRing.webp`);
+  check("asset /modes/songRing.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Song Ring card is on the landing page", (await page.locator('img[src$="/modes/songRing.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("song-ring");
+  const srToggle = (label) => block.getByRole("switch", { name: switchName(label) });
+  const srSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  const srTune = (song) => block.locator(`[data-sr-song="${song}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=songRing&srt=ode&srl=3&srv=1.6&srb=2&srh=0.35&srn=1`, { waitUntil: "networkidle" });
+  {
+    const values = { srl: await srSlider("Lap Time").inputValue(), srv: await srSlider("Ball Speed").inputValue(), srb: await srSlider("Balls").inputValue(), srh: await srSlider("Help").inputValue() };
+    const live = await srToggle("Live Notes").getAttribute("aria-checked");
+    const tune = { ode: await srTune("ode").getAttribute("aria-pressed"), twinkle: await srTune("twinkle").getAttribute("aria-pressed"), label: (await srTune("ode").innerText()).trim() };
+    const runText = await page.getByTestId("song-ring-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "song ring loads from the URL",
+      values.srl === "3" && values.srv === "1.6" && values.srb === "2" && values.srh === "0.35" && live === "true" && tune.ode === "true" && tune.twinkle === "false" && tune.label === "Ode to Joy" && /every 3 s\b/.test(runText) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, live=${live}, ${JSON.stringify(tune)}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await srSlider("Lap Time").evaluate(setRangeValue, "5");
+  await srSlider("Balls").evaluate(setRangeValue, "3");
+  await srTune("elise").click();
+  await srToggle("Live Notes").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "song ring mirrors into the URL",
+      /(^|&)srl=5(&|$)/.test(query) && /(^|&)srb=3(&|$)/.test(query) && /(^|&)srt=elise(&|$)/.test(query) && /(^|&)srv=1\.6(&|$)/.test(query) && /(^|&)srh=0\.35(&|$)/.test(query) && !/(^|&)srn=/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("lap time");
+  const found = await page.locator('input[aria-label="Lap Time"]').isVisible();
+  const helpHidden = !(await page.locator('input[aria-label="Help"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the song ring controls", found && helpHidden, `(found=${found}, Help hidden=${helpHidden})`);
+}
+{
+  // A fast run at 8×: Twinkle's seven notes, a fast ball and a 2 s lap: the tune is whole and its chord has fallen within the budget.
+  await page.goto(`${BASE}/en/simulator/?mode=songRing&srv=2.4&srl=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  let litMax = 0;
+  const namedEarly = [];
+  const phases = [];
+  const deadline = Date.now() + 90_000;
+  let data = await canvasData();
+  while (Date.now() < deadline) {
+    data = await canvasData();
+    litMax = Math.max(litMax, Number(data.songLit) || 0);
+    if (data.songPhase && phases.at(-1) !== data.songPhase) phases.push(data.songPhase);
+    if (data.songChord !== "1" && data.songTune) namedEarly.push(data.songTune);
+    if (data.songFinished === "1") break;
+    await page.waitForTimeout(100);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-song-ring.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check(
+    "song ring: a fast run lights every note, plays the tune whole and names it only at its chord",
+    done && data.songFinished === "1" && data.songChord === "1" && data.songComplete === "1" && data.songTimeout === "0" && data.songLit === "7" && data.songTotal === "7" && litMax === 7 && Number(data.songNotes) >= 7 && Number(data.songHits) >= 7 && data.songBalls === "1" && data.songPhase === "chord" && namedEarly.length === 0 && data.songTune === "twinkle" && Number(data.songFinishedMs) > 0,
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("song"))))}, lit reached ${litMax}, phases ${phases.join(">")}, named early ${JSON.stringify(namedEarly)})`,
+  );
+}
+// --- end song-ring ---
+});
+
 await smokeBlock("blueprint", async () => {
 // --- blueprint ---
 // 51. Mode Lab (Blueprints: games made of rules): the preview image and the card under the lab heading; a catalog link → the

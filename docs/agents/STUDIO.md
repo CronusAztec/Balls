@@ -45,7 +45,7 @@ plain code.
 | Tool | Use it to |
 | --- | --- |
 | `research` | Read the research brief, offline: the trend summary, the playbook and the local inspire dataset by its searches |
-| `templates` | See the ten formats, all 48 modes' bindings and tiers (a binding that waits says why: `waits`), the ready templates with their words, the Simple look |
+| `templates` | See the ten formats, all 49 modes' bindings and tiers (a binding that waits says why: `waits`), the ready templates with their words, the Simple look |
 | `plan` | Plan clips with the bot's planner, deterministically, into a studio's plan.json: a template by its id, a mode's ready templates, or one of each format first |
 | `review` | Play the crew's roles: take the next brief, answer it, get the next one or the decision |
 | `render` | With `plan` and `clip`: render a planned clip as the crew left it, watermarked, with its melody and sheets |
@@ -92,10 +92,10 @@ argument.
 
 ## Every mode's templates
 
-`src/lib/bot/templates.ts` binds each of the 48 modes to one of ten formats. A format promises one thing the run must
+`src/lib/bot/templates.ts` binds each of the 49 modes to one of ten formats. A format promises one thing the run must
 visibly do, its claim (G4 and the viewer check it): get out, smash, fill, count, who wins, aim, line up, on the beat, reveal
 and Mode Lab game. A binding whose own hook and payoff promise another thing claims that instead (`ModeBinding.claim`,
-`templateClaimOf`): the conveyor, whose hook asks whether its stated balls all get out, claims out. 34 of the 48 bindings are ready, as 43 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
+`templateClaimOf`): the conveyor, whose hook asks whether its stated balls all get out, claims out. 35 of the 49 bindings are ready, as 44 templates. A template's id is `<format>-<mode>[-<variant>]`, and its clips'
 files carry it. `plan` takes one by its id, a mode's ready templates with `"mode"`, or, with neither, one of each format
 first. The `templates` tool has each template's words in one locale; a binding that waits has its reason (`waits`: an
 experimental one's measured reason, a proven one's hidden variants with theirs), and `plan` refuses its mode or a template's
@@ -104,13 +104,13 @@ id with it.
 Who wins is the battle family: the arenas, the races and Fight League, whose fighters are third-party characters. Its 10
 templates are offered only when that family is asked for (`"family":"all"` or `"battle"`), and only when the owner asks for
 it: `plan` refuses one named by its id, its mode or its recipe without it, as `viral-bot.mjs --template` does. The default
-menus offer the other 33 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
+menus offer the other 34 templates, as the daily bot leaves its battles out. The bracket is ready for the website's Bot
 section, which plans and renders long clips, but not in the studio: it fills the long length only (60–90 s), and render plays
 60 s at most. `viral-bot.mjs` renders no template: `viral-bot.mjs --dry-run --template <id>` plans one, and its daily
 rotation renders the bracket's recipe, in the bot look, only when it is asked for long clips and the battle family
 (`viral-bot.mjs --bucket long --family all`, or `battle`). The
 listing names it with that reason (`notInStudio`), and the brainstormer's menu and `plan` leave it out (the mode route plans
-Fight League's other three): `plan` covers 42 of the 43 ready templates. Since the studio2 review's second round (18) the studio keeps
+Fight League's other three): `plan` covers 43 of the 44 ready templates. Since the studio2 review's second round (18) the studio keeps
 every clip to the lengths render plays: the brainstormer's menu offers each template its short and standard lengths only, the
 panel drops a planned clip past 60 s before any role looks at it (`tooLong`, the plan route's `"bucket":"long"` included), and
 the reviewer's `changeLength` names short or standard only (`maxClipSec` on the panel, `RENDER_MAX_SEC`).
@@ -161,6 +161,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
 | | Beat Machines | | | `on-the-beat-beat-machine`: its payoff note repeats a bar heard twice before (G2) |
 | | Wave Tank | | | `on-the-beat-wave-tank`: its last 1.5 s play what every moment did (G2) |
+| | Song Ring | its final chord, after the phrase played whole, when the ring names the tune (its run's end less its 1.5 s hold); its hook asks to name the tune, its count of the notes lit is its countdown | `on-the-beat-song-ring` | |
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |

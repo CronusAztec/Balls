@@ -152,6 +152,7 @@ import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-j
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
+import { songRingSettingsOf } from "@/lib/physics/modes/songRing"; // --- song-ring ---
 import { blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 import { BLUEPRINT_CATALOG_IDS } from "@/lib/blueprint/catalog"; // --- blueprint --- (the catalog entries' canvas texts)
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
@@ -437,6 +438,7 @@ export default function Simulator() {
     engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- gerald-bullseye ---
     engine.setMergeRingSettings(mergeRingSettingsOf(s)); // --- merge-ring ---
     engine.setSpiralGlassSettings(spiralGlassSettingsOf(s)); // --- spiral-glass ---
+    engine.setSongRingSettings(songRingSettingsOf(s)); // --- song-ring ---
     engine.setBlueprintSettings(blueprintSettingsOf(s)); // --- blueprint ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
@@ -1622,6 +1624,23 @@ export default function Simulator() {
     engineRef.current?.setSpiralGlassSettings({ rainbow: s.sgRainbow });
   }, [s.sgRainbow]);
   // --- end spiral-glass ---
+  // --- song-ring --- Song Ring: a change of the tune, the lap, the speed, the balls, the help or the live notes restarts the run
+  // (its loop voices with it) and drops a found seed; nothing follows live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setSongRingSettings(songRingSettingsOf(s));
+    if (s.mode === "songRing" && engine.getCurrentModeName() === "songRing") {
+      engine.initSongRing();
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.srSong, s.srLapSec, s.srSpeed, s.srBalls, s.srHelp, s.srLive]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.srSong, s.srLapSec, s.srSpeed, s.srBalls, s.srHelp, s.srLive]);
+  // --- end song-ring ---
   // --- blueprint --- Mode Lab: another catalog entry, a link's spec or a slider value restarts the run and drops a found seed
   // (every setting of a Blueprint is its run's; nothing follows live).
   useEffect(() => {
@@ -2122,6 +2141,7 @@ export default function Simulator() {
         engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setMergeRingSettings({ rainbow: arena.mrRainbow }); // --- merge-ring --- (the rainbow rim follows live; the rest waits for a restart)
         engine.setSpiralGlassSettings({ rainbow: arena.sgRainbow }); // --- spiral-glass --- (the rainbow line follows live; the rest waits for a restart)
+        engine.setSongRingSettings(songRingSettingsOf(arena)); // --- song-ring --- (an arena's tune, lap, speed, balls and help apply at its next restart: nothing is live)
         engine.setBlueprintSettings(blueprintSettingsOf(arena)); // --- blueprint --- (an arena's Blueprint applies at its next restart: nothing of a Blueprint is live)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
@@ -3494,6 +3514,7 @@ export default function Simulator() {
           bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
           mergeRing: mergeRingSettingsOf(settings), // --- merge-ring --- (every run ends with the final form or an overflow)
           spiralGlass: spiralGlassSettingsOf(settings), // --- spiral-glass --- (every run ends with the glass cleared or a timeout)
+          songRing: songRingSettingsOf(settings), // --- song-ring --- (every run ends with the final chord or a timeout)
           blueprint: blueprintSettingsOf(settings), // --- blueprint --- (every Blueprint ends by a finish condition or its timeout)
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
@@ -3855,6 +3876,15 @@ export default function Simulator() {
         clearedSub: (count, seconds) => fill("SpiralGlass.canvasClearedSub", { count, seconds }),
         timeoutTitle: t("SpiralGlass.canvasTimeout"),
         timeoutSub: (tiles) => fill("SpiralGlass.canvasTimeoutSub", { tiles }),
+      },
+      // --- song-ring ---
+      songRing: {
+        caption: t("SongRing.caption"),
+        count: (lit, total) => fill("SongRing.canvasCount", { lit, total }),
+        song: (id) => t(`SongRing.song_${id}`),
+        doneSub: (notes, seconds) => fill("SongRing.canvasDoneSub", { notes, seconds }),
+        timeoutTitle: t("SongRing.canvasTimeout"),
+        timeoutSub: (lit, total) => fill("SongRing.canvasTimeoutSub", { lit, total }),
       },
       // --- blueprint --- Mode Lab: the badges, the clock, the team names and every catalog entry's own texts (a spec of a
       // link speaks its author's words)

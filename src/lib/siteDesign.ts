@@ -50,7 +50,7 @@ export const MODE_SHELVES: Record<ModeId, ShelfId> = {
   // battle: fights, team games and races with a winner, Fight League first
   fightLeague: "battle", battle: "battle", stringBattle: "battle", ctf: "battle", territory: "battle", landClaim: "battle", race: "battle", maze: "battle",
   // music: every hit is a note or lands on a beat
-  drop: "music", beatDrop: "music", beatMachine: "music", runner: "music", paddle: "music", doublePendulum: "music", vortex: "music", collide: "music", box: "music",
+  songRing: "music", drop: "music", beatDrop: "music", beatMachine: "music", runner: "music", paddle: "music", doublePendulum: "music", vortex: "music", collide: "music", box: "music",
   // loops: motion that comes back round, and runs that draw a pattern
   pendulum: "loops", polyrhythm: "loops", orbGrid: "loops", hoops: "loops", starChords: "loops", ellipseFoci: "loops", waveTank: "loops", drawingMachine: "loops", illusion: "loops", lines: "loops", paint: "loops",
   // smash: things that merge, fit, score or break
@@ -100,6 +100,7 @@ export const MODE_SINCE: Record<ModeId, string> = {
   beatMachine: "1.8.0", waveTank: "1.8.0", brickRebuild: "1.8.0", drawingMachine: "1.8.0", perfectFit: "1.8.0",
   mergeRing: "1.12.0", spiralGlass: "1.12.0",
   blueprint: "1.15.0",
+  songRing: "1.18.0",
 };
 
 /** "1.17.0" → [1, 17, 0]; anything else (a development build's "0.0.0-dev") → null. */

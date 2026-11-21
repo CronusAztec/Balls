@@ -15,7 +15,7 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
- * the 48 modes to one of them (MODE_TEMPLATES: a Record over ModeId, so a new mode without a binding fails the type check),
+ * the 49 modes to one of them (MODE_TEMPLATES: a Record over ModeId, so a new mode without a binding fails the type check),
  * the adapter that turns a binding into a recipe the planner plans unchanged (templateRecipeById), and the Simple look
  * (SIMPLE_LOOK, the one-line-at-a-time text plan) that keeps a clip calm.
  *
@@ -50,7 +50,7 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    the other 12 are declared, experimental and hidden with the reason measured and watched – no setting
  *    answers it yet, their format's copy is written – (docs/virality-playbook.md §5): Perfect Fit, Beat Machines and the Wave Tank
  *    joined them in the studio's first review round (10 and 11), and Bouncing Shapes, ready from step 4, in the studio2 review's
- *    second (17: its payoff a stopped shape the mode draws faded, the other one bouncing on bright). 48 of 48 are bound: every binding is ready, or experimental with
+ *    second (17: its payoff a stopped shape the mode draws faded, the other one bouncing on bright). --- song-ring --- Song Ring joined ready on the beat, timed by its final chord. 49 of 49 are bound: every binding is ready, or experimental with
  *    its reason, or (the square race, Ball Drop) proven with its one variant hidden with its reason. A trial binding plans once it
  *    leaves the table, where its strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn:
  *    Classic's one ring).
@@ -482,7 +482,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | LabGameId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | "songRing" /* --- song-ring --- */ | LabGameId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -661,6 +661,8 @@ export function brickSettleSec(bucket: LengthBucket): number {
  * same bricks under its title, which the checklist does not credit: no HUD of the crew's counts there, as before.
  */
 const BRICKS_LEFT = { kind: "walls", source: "hud" } as const;
+/** --- song-ring --- Song Ring's countdown: the mode's own count of the notes lit, in the hub of its ring ("3/7"). */
+const NOTES_LIT = { kind: "walls", source: "hud" } as const;
 /** What the viewer's screen view sees of Brick Smash, in neutral words: its balls, the wall, and – the balls multiply – the new ball a few bricks bring. */
 function brickSmashScene(s: SimulatorSettings): string {
   const more = s.brEvery > 1 ? `, a new ball for every ${s.brEvery} bricks broken` : s.brEvery === 1 ? ", a new ball for every brick broken" : "";
@@ -1246,8 +1248,8 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
 };
 
 /**
- * Every mode's binding (the plan's coverage: getOut 7, smash 4, fill 3, count 4, whoWins 8, aim 3, lineUp 8, onTheBeat 7,
- * reveal 3, labGame 1 – 48 of 48). Looping modes never bind to "finish" (it never fires there).
+ * Every mode's binding (the plan's coverage: getOut 7, smash 4, fill 3, count 4, whoWins 8, aim 3, lineUp 8, onTheBeat 8,
+ * reveal 3, labGame 1 – 49 of 49). Looping modes never bind to "finish" (it never fires there).
  */
 export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // getOut
@@ -1318,6 +1320,8 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   beatDrop: bind("beatDrop", later("onTheBeat", "atEnd", { musicFirst: true, hookKey: "hookB", note: "its run is its recording: the last landing a second before the clip's end, its banner on it (atEnd: the plan's 'finish' never comes before the clip does)", scene: () => "one ball bouncing down from platform to platform as each flies in" })),
   beatMachine: bind("beatMachine", later("onTheBeat", "outcome", { outcome: "no-tube-conflict", needs: "bmMarbles", generate: beatMachineSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "one loop a clip, its seeded phrase one no tube needs a spare marble for (a run of its own: a note of its last bars)", scene: () => "marbles dropping from tubes onto a row of tuned bars and rolling back" })),
   runner: bind("runner", later("onTheBeat", "finish", { musicFirst: true, note: "LEVEL COMPLETE 1.6 s before its run's end" })),
+  // --- song-ring --- (its own notes the music; timed by its final chord, END_HOLD_MS before its run's end: planner.ts payoffSecOf)
+  songRing: bind("songRing", later("onTheBeat", "finish", { musicFirst: true, countdown: NOTES_LIT, buckets: ["standard"], endings: ["resolved"], hookKey: "own.songRing", payoffWords: false, note: "its own hook asks to name the tune before it ends; the payoff is the final chord after the phrase played whole, when the ring names the tune (no payoff words beside its banner); its format's post asks which song it should play next", scene: () => "one ball inside a ring lined with coloured bars of different heights, a bright spoke sweeping round it, a count in the middle" })),
   vortex: bind("vortex", later("onTheBeat", "outcome", { outcome: "ring-on-bar", needs: "vortexRings", generate: vortexSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "hook", note: "two rings, the last one swallowed on a bar line (a run of its own), the final banner a second later", scene: () => "rings of balls spiralling down a whirlpool towards a hole in its middle" })),
   // (--- templates --- studio2 review round 2, 9: ten orbs, a bump a note a viewer hears, and a hook of its own that says the switch is coming)
   collide: bind("collide", later("onTheBeat", "fixed", { generate: collideSettings, musicFirst: true, buckets: ["short", "standard"], endings: ["resolved"], hookKey: "own.collide", note: "the drop: its anti-collision switch at the payoff, every orb a new colour, a flash, ANTI-COLLISION and an accented chord (studio round 1, 11: its clip's end had played what the whole run did); ten orbs, so every bump is a note a viewer hears, and its own hook says they will pass through (studio2 review round 2, 9)", scene: (s) => `${s.cpCount} orbs of different sizes bumping around inside a circle` })),
