@@ -593,7 +593,7 @@ describe("Beat Runner settings", () => {
     for (const key of Object.keys(RUNNER_RANGES) as (keyof typeof RUNNER_RANGES)[]) expect(RANGES[key]).toEqual(RUNNER_RANGES[key]);
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveRunnerFields(d)).toEqual(defaultRunnerFields());
+      expect(resolveRunnerFields(d)).toEqual(mode === "runner" ? { ...defaultRunnerFields(), runnerObstacles: 18, runnerDensity: 0.85 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts) */ : defaultRunnerFields());
       const params = settingsToSearchParams(d);
       for (const key of ["rra", "rrn", "rrsp", "rrj", "rrd", "rrm", "rrbs"]) expect(params.has(key)).toBe(false);
     }
@@ -614,7 +614,7 @@ describe("Beat Runner settings", () => {
     const junk = settingsFromSearchParams(new URLSearchParams("mode=runner&rra=yes&rrn=9999&rrsp=-4&rrj=abc&rrd=0.333&rrm=lava&rrbs=radio"));
     expect(resolveRunnerFields(junk)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 5000, runnerSpeed: 6, runnerDensity: 0.35 }); // --- uncap-all --- (rrn=9999 builds at most the memory-safety ceiling)
     const preset = presetToSettings({ mode: "runner", runnerObstacles: 2, runnerMix: "nope" as never, runnerAutoJump: "no" as never, runnerJump: 3.14159 });
-    expect(resolveRunnerFields(preset)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 4, runnerJump: 3.1 });
+    expect(resolveRunnerFields(preset)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 4, runnerJump: 3.1, runnerDensity: 0.85 /* --- finales-in-clip --- (the page's) */ });
     expect(resolveRunnerSettings({ grid: { bpm: 0, beatTimes: [], duration: 0 } }).grid).toBeNull();
   });
 

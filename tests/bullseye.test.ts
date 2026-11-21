@@ -127,7 +127,7 @@ describe("settings, URL and presets", () => {
     expect(BULLSEYE_RANGES.byRings).toMatchObject({ min: 3, max: 10 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveBullseyeFields(d)).toEqual(defaultBullseyeFields());
+      expect(resolveBullseyeFields(d)).toEqual(mode === "bullseye" ? { ...defaultBullseyeFields(), byShots: 10, byPerfect: 10 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts) */ : defaultBullseyeFields());
       const params = settingsToSearchParams(d);
       for (const key of ["bys", "byi", "byc", "byr", "bym", "byp"]) expect(params.has(key)).toBe(false);
     }
@@ -156,7 +156,7 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("bullseye");
     expect(resolveBullseyeFields(back)).toEqual({ byShots: 20, byInterval: 0.8, byChaos: 0.85, byRings: 6, byTargetMoving: true, byPerfect: 7 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=bullseye&bys=500&byr=abc&bym=7&byi=0"));
-    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 500, byInterval: 0.3 }); // --- uncap-all --- (bys=500 kept)
+    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 500, byInterval: 0.3, byPerfect: 10 /* --- finales-in-clip --- (the page's) */ }); // --- uncap-all --- (bys=500 kept)
     const preset = presetToSettings({ mode: "bullseye", byShots: 0, byTargetMoving: "no", byChaos: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveBullseyeFields(preset)).toMatchObject({ byShots: 1, byTargetMoving: false, byChaos: 9 }); // --- uncap-all --- (kept; every candidate deflector is in play past 1)
   });

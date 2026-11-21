@@ -130,7 +130,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | | Spiral Glass | GLASS CLEARED, its overlay off in both looks (`sgHud`); its hook asks what the banner answers | `smash-spiral-glass` | |
 | fill | Paint | | | `fill-paint`: its run ends at its fill, shown 0.5 s (G2) |
 | | Grow | the measured fill, in the short length only (a standard clip often found no fill in time), at its fastest growth; no trails or glow on a ball the ring's size | `fill-grow` | `fill-grow-fills`: the fill that ends the run, shown 0.5 s (G2) |
-| | Perfect Fit | | | `fill-perfect-fit`: its box is full for its 0.15 s flash only, then bursts (G2) |
+| | Perfect Fit | | | `fill-perfect-fit`: its box was full for a 0.15 s flash only, then burst (G2); held 0.85 s now, it waits for a review of its renders |
 | count | Multiply | the measured fill | `count-multiply` | |
 | | Multipliers | the run's finish | `count-multipliers` | |
 | | Conveyor Belt | ALL OUT! and its chord, the last ball out (its mark); its hook states its own count, its post asks whether they all got out, so it claims out, not count (`ModeBinding.claim`) | `count-conveyor` | |

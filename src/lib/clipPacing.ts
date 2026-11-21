@@ -1,5 +1,7 @@
 import type { ModeId } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
+import { HOOPS_LOOK } from "@/lib/physics/hoopsFields"; // --- finales-in-clip ---
+import { drawingMachineLook } from "@/lib/physics/drawingMachineFields"; // --- finales-in-clip ---
 
 /*
  * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip: a
@@ -69,6 +71,24 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
       return SHATTER_PACE; // --- shatter-demolition ---
     case "territory":
       return TERRITORY_PACE; // --- territory-swing ---
+    // --- finales-in-clip --- (B6)
+    case "runner":
+      return RUNNER_PACE;
+    case "vortex":
+      return VORTEX_PACE;
+    case "bullseye":
+      return BULLSEYE_PACE;
+    case "race":
+      return RACE_PACE;
+    case "journey":
+      return JOURNEY_PACE;
+    case "orbGrid":
+      return ORB_GRID_PACE;
+    case "maze":
+      return MAZE_PACE;
+    case "paddle":
+      return PADDLE_PACE;
+    // --- end finales-in-clip ---
     default:
       return NONE;
   }
@@ -90,6 +110,24 @@ const TERRITORY_PACE: Partial<SimulatorSettings> = Object.freeze({ tyRadius: 4, 
  * and (--- shatter-even-bricks ---) the inner rings in bricks as long as the outer ring's.
  */
 const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, shatterSegments: 36, shatterHits: 2, shatterEvenBricks: true /* --- shatter-even-bricks --- (review fix B3) */ });
+// --- finales-in-clip --- (B6) the page paces of the modes whose finale fell after the default clip (measured: the comment above)
+/** Beat Runner: a level of 18 obstacles that takes an obstacle on most beats (the mode's own 24 at 0.6 stay). */
+const RUNNER_PACE: Partial<SimulatorSettings> = Object.freeze({ runnerObstacles: 18, runnerDensity: 0.85 });
+/** Sound Vortex: the ring release – rainbow rings of 6, 12 and 24 marbles, one cycle of 22.5 s (the mode's own stagger stays). */
+const VORTEX_PACE: Partial<SimulatorSettings> = Object.freeze({ vxRelease: "rings" } as const);
+/** Bullseye: ten shots, the last one steered into the bull (the mode's own 12 shots and no rig stay). */
+const BULLSEYE_PACE: Partial<SimulatorSettings> = Object.freeze({ byShots: 10, byPerfect: 10 });
+/** Race: a track of 6 screens (the mode's own 8 stay). */
+const RACE_PACE: Partial<SimulatorSettings> = Object.freeze({ rcTrackLength: 6 });
+/** Journey: five stages and home – rings, pegs, glass, multipliers, funnel (the mode's own seven stay). */
+const JOURNEY_PACE: Partial<SimulatorSettings> = Object.freeze({ journeyStages: "rings,pegs,glass,multipliers,funnel,home" });
+/** Bouncing Orbs: a 26 s cycle, so the landing, its card and its chord land inside the clip (the mode's own 30 s stay). */
+const ORB_GRID_PACE: Partial<SimulatorSettings> = Object.freeze({ ogCycle: 26 });
+/** Maze: the run ends at the first ball out, the clip limit 25 s (the mode's own: every ball out, 60 s). */
+const MAZE_PACE: Partial<SimulatorSettings> = Object.freeze({ mzFirstOut: true, mzDuration: 25 });
+/** Paddle Keep-Up: a goal of 20 catches – a win card or GAME OVER, the question every run answers (the mode's own: no goal). */
+const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
+// --- end finales-in-clip ---
 
 // --- clip-start --- (review fix B2)
 /**
@@ -132,6 +170,20 @@ const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, s
  *    celebration over by 27 s on 24 of 24 (seeds 1–12, both worlds), median 23.6 s (19.8–25.5 s), never more than 0.7 s without a
  *    sound (the link base: 4 of 24, a median 29.6 s, 26.3–32.7 s, HOME cut off on 7). The link base stays: the crew's
  *    role-eval corpus plays Glass Smash at it.
+ *  - waveTank (--- wave-chapters ---): the clip opens on the double slit's stripes and climbs to the grating's beams – 2 gaps
+ *    for 13 s, 1 gap for 8 s, 7 gaps for 9 s, the first section wrapping 5 s across the loop point, the gaps 2.5 wavelengths
+ *    apart (all seven still inside the tank). The loop stays 30 s, so a 30 s clip is one whole loop: the 2-gap fan from the
+ *    first frame (5 s of it already behind the wall; its stripes reach the front edge's pillars within a second), the single
+ *    gap's even spread from 8 s, the grating's beams and the bells' chords from 16 s to 25 s, and the stripes forming again
+ *    into the seam. (The link base: 1 gap for the first 5 s, the beams at 15–25 s, then 1 gap again; its links and the Seven
+ *    Gaps card keep it.) The water has no randomness, so every seed plays this run.
+ *  - beatMachine (--- beat-machine-tunes ---): the marble xylophone plays Ode to Joy (its first period, 32 beats at 100 BPM, on
+ *    five bars tuned to its notes) with the note counter on, and every loop ends on the tune's chord over its bass with its
+ *    name on the end banner: a loop of 34 beats, 20.4 s, so a 30 s clip is one whole loop that ends 2.4 s after the chord –
+ *    the same on every seed (a tune draws no random number). A drop of 20 % instead of 28 % makes the machine's box less tall,
+ *    so the five bars fill the square's width: the marbles 7.1 px in radius in the page's 450 px square (the link base's ten
+ *    bars: 4.7 px). (The link base: a seeded original phrase over 10 pentatonic bars, 19.2 s, no chord; its links, the bot's
+ *    no-tube-conflict plans and the Marble Xylophone card keep it, and so does the fingerprint.)
  */
 export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -147,6 +199,16 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return BOX_START; // --- box-finale ---
     case "glass":
       return GLASS_START; // --- glass-real ---
+    // --- finales-in-clip --- (B6)
+    case "hoops":
+      return HOOPS_START;
+    case "drawingMachine":
+      return DRAWING_MACHINE_START;
+    // --- end finales-in-clip ---
+    case "waveTank":
+      return WAVE_TANK_START; // --- wave-chapters ---
+    case "beatMachine":
+      return BEAT_MACHINE_START; // --- beat-machine-tunes ---
     default:
       return NONE;
   }
@@ -165,6 +227,23 @@ const MULTIPLY_START: Partial<SimulatorSettings> = Object.freeze({ multiplyRace:
 const BOX_START: Partial<SimulatorSettings> = Object.freeze({ boxAspect: 1, boxSpeedRatio: "4:5:6", ballSpeed: 575, ballRadius: 11 } as const);
 /** --- glass-real --- Glass Smash's start look: the leading camera, and gravity 500 so the smash reaches HOME inside the clip. */
 const GLASS_START: Partial<SimulatorSettings> = Object.freeze({ glassLead: true, gravity: 500 } as const);
+// --- finales-in-clip --- (B6; the crew's corpus runs both modes' link bases, so the page's start look carries them)
+/**
+ * Spinning Hoops' start look: the look its presets put on the page – the navy page, the rainbow hoops and the loop HUD's title
+ * and live counter – and a spin that starts at 0.5 turns a second: the first bead up at 4 s, all eight by 19 s, back down by
+ * 29 s (the link base, 0.13: nothing for 11 s, 5 sounds in the first 11, a clip without a word).
+ */
+const HOOPS_START: Partial<SimulatorSettings> = Object.freeze({ ...HOOPS_LOOK, backgroundColors: [...HOOPS_LOOK.backgroundColors], hpOmegaStart: 0.5 });
+/**
+ * Drawing Machines' start look: Earth and Venus on their dark sky – the five-petal rose and its star drawn in 14 s, with its chord
+ * bed and plucks (the link base, the harmonograph: one pale figure in 22.5 s over a drone, then the same one again).
+ */
+const DRAWING_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ dmMachine: "orbits" as const, ...drawingMachineLook("orbits") });
+// --- end finales-in-clip ---
+/** --- wave-chapters --- The Wave Tank's start look: stripes first, the beams last (one whole 30 s loop a clip). */
+const WAVE_TANK_START: Partial<SimulatorSettings> = Object.freeze({ wtGaps: "2@13, 1@8, 7@9", wtWrap: 5, wtSpacing: 2.5 } as const);
+/** --- beat-machine-tunes --- Beat Machines' start look: Ode to Joy on the marble xylophone, the note counter on, a shorter drop. */
+const BEAT_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ bmSource: "tune", bmTune: "ode", bmCounter: true, bmDrop: 20 } as const);
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and

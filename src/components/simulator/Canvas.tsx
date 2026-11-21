@@ -7,7 +7,7 @@ import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
-import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
+import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, DEFAULT_BEAT_MACHINE_LABELS, beatMachineBannerShows, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineLabels, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
 import { WAVE_TANK_DATA_KEYS, WaveTankLayer, waveTankExtentPx, writeWaveTankDataset, type WaveTankRenderOptions } from "./waveTankRenderer"; // --- wave-tank ---
 import { BRICK_REBUILD_DATA_KEYS, BrickRebuildLayer, brickRebuildExtentPx, writeBrickRebuildDataset, type BrickRebuildRenderOptions } from "./brickRebuildRenderer"; // --- brick-rebuild ---
 import { DRAWING_MACHINE_DATA_KEYS, DrawingMachineLayer, drawingMachineExtentPx, writeDrawingMachineDataset, type DrawingMachineRenderOptions } from "./drawingMachineRenderer"; // --- drawing-machine ---
@@ -249,6 +249,9 @@ export interface CanvasLabels {
   // --- sand-plate ---
   /** Sand Plate: the end banner's title and its line. */
   sandPlate?: SandPlateLabels;
+  // --- beat-machine-tunes ---
+  /** Beat Machines: the line under a known tune's name on its end banner. */
+  beatMachine?: BeatMachineLabels;
   // --- grow-fill-clip ---
   /** Grow: the fill that ends the run, FULL! and the time it took. */
   growFull?: string;
@@ -512,6 +515,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   spiralGlass: DEFAULT_SPIRAL_GLASS_LABELS, // --- spiral-glass ---
   songRing: DEFAULT_SONG_RING_LABELS, // --- song-ring ---
   sandPlate: DEFAULT_SAND_PLATE_LABELS, // --- sand-plate ---
+  beatMachine: DEFAULT_BEAT_MACHINE_LABELS, // --- beat-machine-tunes ---
   growFull: "FULL!", // --- grow-fill-clip ---
   growFullSub: (seconds) => `Filled the ring in ${seconds}s`,
   swarmFull: (count) => `${count} BALLS`, // --- multiply-race ---
@@ -3304,6 +3308,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const SR = L.songRing ?? DEFAULT_SONG_RING_LABELS;
           if (songRingView.chordMs >= 0) bigBanner(SR.song(songRingView.song), SR.doneSub(songRingView.total, completeSeconds(songRingView)), "#fde68a");
           else bigBanner(SR.timeoutTitle, SR.timeoutSub(songRingView.lit, songRingView.total), "#fb7185");
+        }
+        // --- beat-machine-tunes --- Beat Machines: a known tune's name from its last note's chord to the loop's end, over the tubes
+        // (the keys and the marbles stay in sight)
+        if (machineView && beatMachineBannerShows(machineView, machineT)) {
+          bigBanner((L.songRing ?? DEFAULT_SONG_RING_LABELS).song(machineView.plan.tune!.tune), (L.beatMachine ?? DEFAULT_BEAT_MACHINE_LABELS).tuneSub(machineView.plan.notes.length), "#fde68a", 0.2);
         }
         // --- sand-plate --- Sand Plate: from just after the full chord, at the foot of the square over the dots (the plate has risen
         // out of its way, so the final figure stays whole above it: sandPlateBannerShows(), drawnFrame())

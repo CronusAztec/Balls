@@ -36,6 +36,9 @@ export interface JdmRhythmLabels {
   miss: string;
   gameOver: string;
   gameOverSub: (hits: number, best: number) => string;
+  /** --- finales-in-clip --- The win card of a goal reached: "20 CATCHES!" and its line. */
+  win?: (n: number) => string;
+  winSub?: (best: number) => string;
   streak: (n: number) => string;
   moveHint: string;
 }
@@ -51,6 +54,8 @@ export const DEFAULT_JDM_RHYTHM_LABELS: JdmRhythmLabels = {
   miss: "MISS!",
   gameOver: "GAME OVER",
   gameOverSub: (hits, best) => `Score ${hits} · best streak ${best}`,
+  win: (n) => `${n} CATCHES!`, // --- finales-in-clip ---
+  winSub: (best) => `Goal reached · best streak ${best}`,
   streak: (n) => `${n} in a row`,
   moveHint: "← → or the pointer moves the platform",
 };
@@ -703,6 +708,16 @@ export class PaddleLayer {
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#f4f4f5";
     ctx.fillText(String(view.hits), cx, f.top + 0.55 * band);
+    // --- finales-in-clip --- the goal beside the score ("/20", no words), gold once it is reached
+    const goal = view.settings.goal ?? 0;
+    if (goal > 0) {
+      const w = ctx.measureText(String(view.hits)).width;
+      ctx.font = `800 ${0.26 * band}px sans-serif`;
+      ctx.textAlign = "left";
+      ctx.fillStyle = view.won ? GOLD : "rgba(244, 244, 245, 0.55)";
+      ctx.fillText(`/${goal}`, cx + w / 2 + 0.04 * band, f.top + 0.62 * band);
+      ctx.textAlign = "center";
+    }
     const lfs = 0.2 * band;
     ctx.font = `700 ${lfs}px sans-serif`;
     ctx.fillStyle = "rgba(244, 244, 245, 0.6)";
@@ -735,18 +750,19 @@ export class PaddleLayer {
       bannerText(ctx, L.miss, cx, f.top + 0.5 * s, 0.09 * s * (1 + 0.15 * Math.max(0, 1 - missAge / 0.15)), "#f87171");
       ctx.globalAlpha = 1;
     }
-    // GAME OVER.
+    // GAME OVER (--- finales-in-clip --- or the win card of a goal reached: gold, over a lighter veil).
     if (view.over) {
       const age = Math.max(0, t - view.overSec);
       const k = Math.min(1, age / 0.3);
-      ctx.globalAlpha = 0.55 * k;
+      ctx.globalAlpha = (view.won ? 0.35 : 0.55) * k;
       ctx.fillStyle = "#000";
       ctx.fillRect(f.left, f.top, f.width, s);
       ctx.globalAlpha = 1;
       const base = 0.11 * s * (0.6 + 0.4 * k);
-      const size = fitFont(ctx, L.gameOver, base, 0.92 * f.width);
-      bannerText(ctx, L.gameOver, cx, f.top + 0.42 * s, size, "#f87171");
-      const sub = L.gameOverSub(view.hits, view.bestStreak);
+      const title = view.won ? (L.win ?? DEFAULT_JDM_RHYTHM_LABELS.win!)(view.hits) : L.gameOver;
+      const size = fitFont(ctx, title, base, 0.92 * f.width);
+      bannerText(ctx, title, cx, f.top + 0.42 * s, size, view.won ? GOLD : "#f87171");
+      const sub = view.won ? (L.winSub ?? DEFAULT_JDM_RHYTHM_LABELS.winSub!)(view.bestStreak) : L.gameOverSub(view.hits, view.bestStreak);
       subText(ctx, sub, cx, f.top + 0.42 * s + 0.85 * base, fitFont(ctx, sub, 0.34 * base, 0.92 * f.width, 700));
     }
     ctx.restore();
@@ -756,7 +772,7 @@ export class PaddleLayer {
 /* ------------------------------------------------------------------ the canvas dataset (tools and the smoke test) */
 
 export const RUNNER_DATA_KEYS = ["rrEvents", "rrCleared", "rrLandings", "rrOnBeat", "rrJumps", "rrDeaths", "rrAttempt", "rrAuto", "rrBpm", "rrAlive", "rrCrossed", "rrFinished", "rrEndSec", "rrX", "rrCamX", "rrObstacles", "rrParticles"];
-export const PADDLE_DATA_KEYS = ["pdHits", "pdMisses", "pdAllowed", "pdStreak", "pdBest", "pdOver", "pdFinished", "pdEndSec", "pdAuto", "pdTempo", "pdX", "pdWalls", "pdCeiling", "pdInPlay", "pdParticles"];
+export const PADDLE_DATA_KEYS = ["pdHits", "pdMisses", "pdAllowed", "pdStreak", "pdBest", "pdOver", "pdFinished", "pdEndSec", "pdAuto", "pdTempo", "pdX", "pdWalls", "pdCeiling", "pdInPlay", "pdParticles", "pdGoal", "pdWon" /* --- finales-in-clip --- */];
 
 export function writeRunnerDataset(view: RunnerView, layer: RunnerLayer, set: (key: string, value: string) => void) {
   set("rrEvents", String(view.course.events.length));
@@ -794,4 +810,6 @@ export function writePaddleDataset(view: PaddleView, layer: PaddleLayer, set: (k
   set("pdCeiling", String(view.ceilingHits));
   set("pdInPlay", view.inPlay ? "1" : "0");
   set("pdParticles", String(layer.particlesDrawn));
+  set("pdGoal", String(view.settings.goal ?? 0)); // --- finales-in-clip ---
+  set("pdWon", view.won ? "1" : "0");
 }

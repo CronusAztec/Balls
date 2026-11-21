@@ -734,11 +734,12 @@ describe("funnel spin-up: settings, URL and presets", () => {
   });
 
   it("round-trips through vxrl / vxv / vxw / vxwi / vxfd / vxe / vxsf / vxfl / vxh / vxrg / vxlr, uncapped from each minimum", () => {
-    const s = { ...defaultSettings("vortex"), vxRelease: "rings" as const, vxView: "perspective" as const, vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true };
+    // (--- finales-in-clip --- the ring release is the page's default now: the stagger is the release a link writes)
+    const s = { ...defaultSettings("vortex"), vxRelease: "stagger" as const, vxView: "perspective" as const, vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true };
     const params = settingsToSearchParams(s);
-    expect(Object.fromEntries(["vxrl", "vxv", "vxw", "vxwi", "vxfd", "vxe", "vxsf", "vxfl", "vxh", "vxrg", "vxlr"].map((k) => [k, params.get(k)]))).toEqual({ vxrl: "rings", vxv: "perspective", vxw: "1,2,4,8", vxwi: "3.25", vxfd: "2.5", vxe: "40", vxsf: "0.0125", vxfl: "7", vxh: "18", vxrg: "2", vxlr: "1" });
+    expect(Object.fromEntries(["vxrl", "vxv", "vxw", "vxwi", "vxfd", "vxe", "vxsf", "vxfl", "vxh", "vxrg", "vxlr"].map((k) => [k, params.get(k)]))).toEqual({ vxrl: "stagger", vxv: "perspective", vxw: "1,2,4,8", vxwi: "3.25", vxfd: "2.5", vxe: "40", vxsf: "0.0125", vxfl: "7", vxh: "18", vxrg: "2", vxlr: "1" });
     const back = settingsFromSearchParams(params);
-    expect(resolveFunnelSpinFields(back)).toEqual({ vxRelease: "rings", vxView: "perspective", vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true });
+    expect(resolveFunnelSpinFields(back)).toEqual({ vxRelease: "stagger", vxView: "perspective", vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true });
     // bad values fall back, values past a slider are kept (uncapped), values under a minimum are lifted onto it
     const bad = settingsFromSearchParams(new URLSearchParams("mode=vortex&vxrl=spiral&vxv=side&vxw=a,b&vxwi=500&vxe=-5&vxfl=0&vxsf=x&vxh=99"));
     expect(resolveFunnelSpinFields(bad)).toMatchObject({ vxRelease: "stagger", vxView: "top", vxWaves: "6, 12, 24", vxWaveInterval: 500, vxElevation: 0, vxFirstLap: 0.1, vxSpinFriction: 0.02, vxHoleSize: 99 });
@@ -1170,6 +1171,6 @@ describe("funnel spin-up: the loop, the sounds and the finder", () => {
     expect(loopHudCount(vortexEngine())).toBeNull();
     const ctxFor = loopCaptionContext({ ...defaultSettings("vortex"), vxRelease: "rings", vxWaves: "6, 12, 24" } as never);
     expect(ctxFor).toMatchObject({ mode: "vortex", hookKey: "funnelSpin", factKey: "funnelSpinFact", count: 24 });
-    expect(loopCaptionContext({ ...defaultSettings("vortex") } as never).hookKey).not.toBe("funnelSpin");
+    expect(loopCaptionContext({ ...defaultSettings("vortex"), vxRelease: "stagger" /* --- finales-in-clip --- (the page plays the rings now) */ } as never).hookKey).not.toBe("funnelSpin");
   });
 });

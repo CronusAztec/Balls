@@ -722,6 +722,8 @@ export interface SimulatorSettings {
   pdSpeedUp: number;
   /** --- unlimited-sizes --- The most tempo the speed-up reaches, 2× by default (URL `pdmt`). */
   pdMaxTempo: number;
+  /** --- finales-in-clip --- Paddle: the catches that win the game, 0 = no goal (URL `pdg`). */
+  pdGoal: number;
   // --- end jdm-rhythm-runner ---
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, components/simulator/splitScreenCanvas.tsx)
   /** Arenas on the canvas: 1 (the single view), 2 or 4 (URL `ac`). */
@@ -969,6 +971,8 @@ export interface SimulatorSettings {
   mzBadge: boolean;
   /** The distance-to-exit HUD (URL `mzhud`). */
   mzHud: boolean;
+  /** --- finales-in-clip --- The run ends at the first ball out (URL `mzfo`). */
+  mzFirstOut: boolean;
   // --- end odd-maze ---
   // --- gerald-conveyor --- Conveyor Belt (lib/physics/modes/conveyor.ts) and the respawn timer of Classic and Multiply (lib/physics/respawn.ts)
   /** Seconds between two balls on the belt, 0.5–10 on the slider, any number from 0.5 typed (URL `cvi`). */
@@ -1342,6 +1346,8 @@ export interface SimulatorSettings {
   /** Melody source (URL `bmSrc`) and the typed list (URL `bmN`). */
   bmSource: BeatMachineFields["bmSource"];
   bmNotes: string;
+  /** --- beat-machine-tunes --- The known tune of the "tune" source (URL `bmT`). */
+  bmTune: BeatMachineFields["bmTune"];
   /** Marbles: loop beats (URL `bmL`). */
   bmLoopBeats: number;
   /** The phrase bass (URL `bmBs`) and the loop HUD's note counter (URL `bmC`). */
@@ -1525,6 +1531,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultGrowthCapFields(),
     cpRingCount: RING_MAX_BODIES,
     pdMaxTempo: MAX_TEMPO,
+    pdGoal: 0, // --- finales-in-clip --- (no goal in the mode's own; Paddle's page default is clipPacing's)
     flBoutCap: FL_BOUT_CAP_SEC,
     colorMatchSegments: DEFAULT_COLOR_MATCH_SEGMENTS, // --- colour-match-segments --- (the mode's own 12; out here too, past the fast-path limit)
     shatterHits: DEFAULT_SHATTER_HITS, // --- shatter-demolition --- (the mode's own; Shatter's page default is clipPacing's)
@@ -1537,7 +1544,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,

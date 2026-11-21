@@ -1662,13 +1662,14 @@ describe("Bouncing Orbs: the panel's run line follows the model and every settin
   it("re-plans on a switch from Rhythm to Decay: the line reads what a fresh decay load reads, and back", () => {
     const rhythm = panelOf();
     const decay = panelOf({ ogModel: "decay" });
-    expect(freshLine(rhythm)).toBe("144 orbs · 23 groups · 51–73 bounces a cycle · in phase every 30.0s");
+    expect(freshLine(rhythm)).toBe("144 orbs · 23 groups · 51–73 bounces a cycle · in phase every 26.0s"); // --- finales-in-clip --- (the page's 26 s cycle: lib/clipPacing.ts)
     expect(freshLine(decay)).toBe("144 orbs · every orb at rest after about 26.9s · in phase at about 5.0s");
     expect(orbGridSummaryKey(decay)).not.toBe(orbGridSummaryKey(rhythm));
     expect(keptPlans(rhythm, decay).line).toBe(freshLine(decay));
     expect(keptPlans(decay, rhythm).line).toBe(freshLine(rhythm));
-    // (the line a kept rhythm plan gave the decay model: a field that does settle, resolving at 5 s – not at the cycle's 30 s)
-    expect(orbGridRunLine(t, summaryOf(rhythm), null)).toBe("144 orbs · never settles – the clip ends the run · in phase at about 30.0s");
+    // (the line a kept rhythm plan gave the decay model: a field that does settle, resolving at 5 s – not at the cycle's 30 s;
+    // --- finales-in-clip --- the page's cycle is 26 s now)
+    expect(orbGridRunLine(t, summaryOf(rhythm), null)).toBe("144 orbs · never settles – the clip ends the run · in phase at about 26.0s");
   });
 
   it("keeps no stale plan: a change of any setting the summaries read reads like a fresh load of the new settings", () => {

@@ -204,7 +204,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "grand-prix",
     mode: "race",
-    query: "mode=race&glow=1&rcn=10&seed=1689637060",
+    query: "mode=race&glow=1&rcn=10&rcl=8&seed=1689637060" /* --- finales-in-clip --- (B6: the 8-screen track written out, the page has 6) */,
     previewAt: 6,
     name: { en: "Ten-Racer Grand Prix", pl: "Grand Prix dziesięciu", es: "Gran Premio de diez" },
     description: {
@@ -257,7 +257,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "neon-vortex",
     mode: "vortex",
-    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxn=20&seed=199343859",
+    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxn=20&vxrl=stagger&seed=199343859" /* --- finales-in-clip --- (B6: the stagger release written out, the page plays the rings) */,
     previewAt: 13,
     name: { en: "Neon Vortex", pl: "Neonowy wir", es: "Vórtice de neón" },
     description: {
@@ -385,7 +385,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "retro-runner",
     mode: "runner",
-    query: "mode=runner&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&face=cute&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&rrd=1&seed=4",
+    query: "mode=runner&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&face=cute&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&rrn=24&rrd=1&seed=4" /* --- finales-in-clip --- (B6: 24 obstacles written out, the page has 18) */,
     previewAt: 8,
     name: { en: "Retro Runner", pl: "Retro biegacz", es: "Corredor retro" },
     description: {
@@ -398,7 +398,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "sunset-keep-up",
     mode: "paddle",
-    query: "mode=paddle&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&pdsp=1&seed=6",
+    query: "mode=paddle&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&pdsp=1&pdg=0&seed=6" /* --- finales-in-clip --- (B6: no goal written out, the page plays to 20) */,
     previewAt: 10,
     name: { en: "Sunset Keep-Up", pl: "Odbijanie o zachodzie", es: "Toques al atardecer" },
     description: {
@@ -424,7 +424,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "candy-darts",
     mode: "bullseye",
-    query: "mode=bullseye&glow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&dur=15&face=cute&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&byi=0.4&byp=2&seed=8",
+    query: "mode=bullseye&glow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&dur=15&face=cute&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&bys=12&byi=0.4&byp=2&seed=8" /* --- finales-in-clip --- (B6: 12 shots written out, the page has 10) */,
     previewAt: 5,
     name: { en: "Candy Darts", pl: "Cukierkowe rzutki", es: "Dardos de caramelo" },
     description: {
@@ -465,7 +465,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "red-maze-race",
     mode: "maze",
-    query: "mode=maze&glow=1&mzn=4&mzbg=0&mzhud=0&seed=7",
+    query: "mode=maze&glow=1&mzn=4&mzd=60&mzbg=0&mzhud=0&mzfo=0&seed=7" /* --- finales-in-clip --- (B6: every ball out and the 60 s limit written out; the page ends at the first one out, 25 s at most) */,
     previewAt: 12,
     name: { en: "Four in the Maze", pl: "Czwórka w labiryncie", es: "Cuatro en el laberinto" },
     description: {
@@ -491,7 +491,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "aurora-orbs",
     mode: "orbGrid",
-    query: "mode=orbGrid&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&ogC=44&ogR=43&ogS=0.8&ogB=0.882&ogD=corner&ogRhythm=corner&ogHud=0&seed=3",
+    query: "mode=orbGrid&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&ogC=44&ogR=43&ogS=0.8&ogB=0.882&ogCycle=30&ogD=corner&ogRhythm=corner&ogHud=0&seed=3" /* --- finales-in-clip --- (B6: the 30 s cycle written out, the page has 26) */,
     previewAt: 14.5,
     name: { en: "Orb Wave", pl: "Fala kul", es: "Ola de orbes" },
     description: {

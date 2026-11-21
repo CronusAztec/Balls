@@ -66,6 +66,19 @@ describe("the mode cards' links (card-looks)", () => {
       for (const [key, value] of Object.entries(clipStartSettings(id))) expect(s[key as keyof SimulatorSettings], `${id} ${key}`).toEqual(value);
     }
   });
+
+  // --- review fix (D1) --- a card is a link, read as written: a mode the page starts in a look of its own (clipStartSettings) opens
+  // that look from its card too (the Beat Machine's card opened the seeded phrase with no tune, counter or chord, the Wave Tank's on
+  // one gap), and keeps the loop HUD that carries the start look's counter
+  it("opens every mode with a start look in that look, the loop HUD on where the start look leaves it", () => {
+    const staged = MODE_IDS.filter((id) => Object.keys(clipStartSettings(id)).length > 0);
+    expect(staged).toEqual(expect.arrayContaining(["classic", "accumulation", "waveTank", "beatMachine"]));
+    for (const id of staged) {
+      const s = settingsFromSearchParams(new URLSearchParams(cardQuery(id)));
+      for (const [key, value] of Object.entries(clipStartSettings(id))) expect(s[key as keyof SimulatorSettings], `${id} ${key}`).toEqual(value);
+      if (clipStartSettings(id).loopHud === undefined) expect([id, s.loopHud]).toEqual([id, startLook(id).loopHud]);
+    }
+  });
 });
 
 describe("the select-mode event's detail (card-looks)", () => {

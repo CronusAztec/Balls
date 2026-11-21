@@ -12,12 +12,12 @@ export type JdmRhythmFields = RunnerFields & PaddleFields;
 
 export const JDM_RHYTHM_RANGES = { ...RUNNER_RANGES, ...PADDLE_RANGES } as const;
 
-export function defaultJdmRhythmFields(): Omit<JdmRhythmFields, "pdMaxTempo"> /* --- unlimited-sizes --- (settings.ts adds it, out of the core literal) */ {
+export function defaultJdmRhythmFields(): Omit<JdmRhythmFields, "pdMaxTempo" | "pdGoal"> /* --- unlimited-sizes --- (settings.ts adds it, out of the core literal; --- finales-in-clip --- the goal too) */ {
   return { ...defaultRunnerFields(), ...defaultPaddleFields() };
 }
 
 /** Clamped numbers, known options, real booleans (URL parameters and presets alike). */
-export function resolveJdmRhythmFields(source: Partial<JdmRhythmFields>): Omit<JdmRhythmFields, "pdMaxTempo"> & Partial<Pick<JdmRhythmFields, "pdMaxTempo">> /* --- unlimited-sizes --- (the top tempo only where it is not the old 2) */ {
+export function resolveJdmRhythmFields(source: Partial<JdmRhythmFields>): Omit<JdmRhythmFields, "pdMaxTempo" | "pdGoal"> & Partial<Pick<JdmRhythmFields, "pdMaxTempo" | "pdGoal">> /* --- unlimited-sizes --- (the top tempo only where it is not the old 2; --- finales-in-clip --- the goal where the source has one) */ {
   return { ...resolveRunnerFields(source), ...resolvePaddleFields(source) };
 }
 

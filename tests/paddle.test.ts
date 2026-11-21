@@ -27,12 +27,14 @@ import {
   platformVelocity,
   predictLanding,
   resolvePaddleFields,
+  resolvePaddleSettings, // --- finales-in-clip ---
   type PaddleSettings,
 } from "@/lib/physics/modes/paddle";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest"; // --- finales-in-clip ---
 import { frequencyToMidi } from "@/lib/audio/scales";
 import { rhythmDegreeMidi } from "@/lib/physics/modes/jdmRhythm";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
@@ -433,9 +435,9 @@ describe("Paddle Keep-Up settings", () => {
     for (const key of Object.keys(PADDLE_RANGES) as (keyof typeof PADDLE_RANGES)[]) expect(RANGES[key]).toEqual(PADDLE_RANGES[key]);
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolvePaddleFields(d)).toEqual(defaultPaddleFields());
+      expect(resolvePaddleFields(d)).toEqual({ ...defaultPaddleFields(), pdGoal: mode === "paddle" ? 20 : 0 } /* --- finales-in-clip --- (the page's goal in Paddle: lib/clipPacing.ts; none in the others) */);
       const params = settingsToSearchParams(d);
-      for (const key of ["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu"]) expect(params.has(key)).toBe(false);
+      for (const key of ["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu", "pdg"]) expect(params.has(key)).toBe(false);
     }
   });
 
@@ -445,8 +447,8 @@ describe("Paddle Keep-Up settings", () => {
     expect(Object.fromEntries(["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu"].map((k) => [k, params.get(k)]))).toEqual({ pda: "0", pdsk: "0.85", pdm: "5", pdw: "0.2", pdsp: "0.25", pdu: "0.035" });
     expect(resolvePaddleFields(settingsFromSearchParams(params))).toEqual(resolvePaddleFields(s));
     const junk = settingsFromSearchParams(new URLSearchParams("mode=paddle&pda=maybe&pdsk=7&pdm=-3&pdw=x&pdsp=0.61&pdu=1"));
-    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1 }); // --- uncap-all --- (no maximum)
-    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9 });
+    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1, pdGoal: 20 /* --- finales-in-clip --- (the page's) */ }); // --- uncap-all --- (no maximum)
+    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9, pdGoal: 20 /* --- finales-in-clip --- (the page's) */ });
     expect(paddleSettingsOf({ ...defaultSettings("paddle"), scale: "minor", rootNote: 4 })).toMatchObject({ scale: "minor", rootNote: 4, skill: 0.7 });
   });
 });
@@ -552,5 +554,59 @@ describe("Paddle Keep-Up with a melody", () => {
     // Everything else with the bounce instrument: a tone per wall, ceiling and miss bounce, the game-over chord, the chimes.
     const accompaniment = graph.oscillators.filter((o) => o.type === "triangle");
     expect(accompaniment.length).toBeGreaterThanOrEqual(view.wallHits + view.ceilingHits + view.misses + 3);
+  });
+});
+
+// --- finales-in-clip --- (B6) a goal of catches: the page's runs end on a win card or a GAME OVER, inside the default clip
+describe("Paddle Keep-Up's goal", () => {
+  const runOf = (seed: number, patch: Partial<ReturnType<typeof defaultSettings>> = {}) => {
+    const s = { ...defaultSettings("paddle"), ...patch };
+    const request = finderRequestOfSettings(s, { width: 450, height: 450 }, 60);
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+    const events: SoundEvent[] = [];
+    while (!engine.isSimulationFinished() && engine.getElapsedMs() < 60_000) {
+      engine.update(1000 / 60, 0);
+      events.push(...engine.consumeSoundEvents());
+    }
+    return { view: engine.getPaddleView(), endMs: engine.getElapsedMs(), events };
+  };
+
+  it("is 20 catches on the page, none in the mode's own and in a link that says 0; any whole number from 0 up travels", () => {
+    expect(defaultSettings("paddle").pdGoal).toBe(20);
+    expect(defaultSettings("classic").pdGoal).toBe(0);
+    expect(resolvePaddleSettings({}).goal).toBeUndefined();
+    expect(resolvePaddleSettings({ goal: 37.4 }).goal).toBe(37);
+    expect(resolvePaddleSettings({ goal: 5000 }).goal).toBe(5000);
+    expect(resolvePaddleSettings({ goal: -4 }).goal).toBeUndefined();
+    const off = settingsFromSearchParams(new URLSearchParams("mode=paddle&pdg=0"));
+    expect(off.pdGoal).toBe(0);
+    expect(settingsToSearchParams(off).get("pdg")).toBe("0");
+    expect(paddleSettingsOf(off).goal).toBeUndefined();
+    expect(settingsFromSearchParams(settingsToSearchParams({ ...defaultSettings("paddle"), pdGoal: 45 })).pdGoal).toBe(45);
+  });
+
+  it("ends a run at the goal with a win: the chord, nothing counted after it, no GAME OVER from a later miss", () => {
+    const { view, endMs, events } = runOf(1, { pdSkill: 1 });
+    expect(view.won).toBe(true);
+    expect(view.over).toBe(true);
+    expect(view.hits).toBe(20);
+    expect(view.misses).toBe(0);
+    expect(endMs / 1000).toBeCloseTo(view.overSec + 2.2, 1);
+    expect(events.some((e) => e.type === "multiplier" && e.multiplier === 20)).toBe(true);
+    expect(events.filter((e) => e.type === "gap")).toEqual([]); // (the GAME OVER's crash never plays)
+  });
+
+  it("answers the question on the page's runs: wins and GAME OVERs, every run over by 29 s (measured: 9 wins of 16)", { timeout: 60_000 }, () => {
+    let wins = 0;
+    let losses = 0;
+    for (let seed = 1; seed <= 16; seed++) {
+      const { view, endMs } = runOf(seed);
+      expect(view.finished, `seed ${seed}`).toBe(true);
+      expect(endMs, `seed ${seed}`).toBeLessThan(29_000);
+      if (view.won) wins++;
+      else losses++;
+    }
+    expect(wins).toBe(9);
+    expect(losses).toBe(7);
   });
 });

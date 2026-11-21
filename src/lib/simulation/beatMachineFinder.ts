@@ -34,7 +34,7 @@ export interface BeatMachineFound {
 
 /** A plan of `settings` drawing its phrase from `random` (the mode's init does the same with the engine's seeded random). */
 export function beatMachinePlanOf(settings: BeatMachineSettings, random: () => number): BeatMachinePlan {
-  const phrase = buildPhrase({ variant: settings.variant, source: settings.source, slots: settings.variant === "stairs" ? settings.steps : settings.bars, loopBeats: settings.loopBeats, melody: settings.melody, custom: settings.notes, scale: settings.scale, root: settings.root }, random);
+  const phrase = buildPhrase({ variant: settings.variant, source: settings.source, slots: settings.variant === "stairs" ? settings.steps : settings.bars, loopBeats: settings.loopBeats, melody: settings.melody, custom: settings.notes, scale: settings.scale, root: settings.root, tune: settings.tune /* --- beat-machine-tunes --- */ }, random);
   return planBeatMachine({ variant: settings.variant, bpm: settings.bpm, steps: settings.steps, stepDxPct: settings.stepDx, stepDyPct: settings.stepDy, bars: settings.bars, dropPct: settings.dropPct, rebound: settings.rebound, perTube: settings.perTube, returnBeats: settings.returnBeats, loopBeats: settings.loopBeats, bass: settings.bass, phrase });
 }
 

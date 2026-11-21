@@ -191,6 +191,26 @@ export class StarChordsLayer {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+    // --- finales-in-clip --- (B6) the countdown to the closing: a bright arc just outside the circle from the top, round with the
+    // cycle's clock and complete on the closing frame (no words: it reads the same in every language)
+    if (view.phase === "draw" && view.cycleSec > 0) {
+      const k = Math.max(0, Math.min(1, view.cycleTime / view.cycleSec));
+      const r = f.radius + Math.max(3, 2.2 * ctx.lineWidth);
+      ctx.save();
+      ctx.lineWidth = Math.max(1.5, 0.9 * ctx.lineWidth);
+      ctx.strokeStyle = "#ffffff";
+      ctx.globalAlpha = 0.12;
+      ctx.beginPath();
+      ctx.arc(f.cx, f.cy, r, 0, 2 * Math.PI);
+      ctx.stroke();
+      if (k > 0) {
+        ctx.globalAlpha = 0.55 + 0.4 * k * k;
+        ctx.beginPath();
+        ctx.arc(f.cx, f.cy, r, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * k);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   /** The inner circles: faint all the time ("on"), or appearing – brighter, with a soft halo – as each star closes ("closed"). */
