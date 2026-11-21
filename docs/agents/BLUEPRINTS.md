@@ -50,7 +50,7 @@ obstacles<=8:[{kind:peg|bumper|pegGrid|pegRing|bar|spinner,x,y,...}],vars<=4:[{i
 spawners<=6:[{body,at:center|top|random|rim,count 1-8,speed,dir,startSec,everySec,maxTotal}],
 rules<=16:[{when,of,every,chance,cooldownSec,maxFires,do<=4:[{act,...}]}],
 finish:{any<=3:[{when,...,say}],timeoutSec 5-180,winner},hud<=2:[{show,label}],look,sound}
-when: start timer beat bar wallHit obstacleHit tileHit tileBroken ballHit escape ringPass countReached; ballHit with:body|any|same|sameTier|sameTeam|otherTeam; timer sec; countReached what,atLeast|atMost
+when: start timer beat bar wallHit obstacleHit tileHit tileBroken ballHit escape ringPass countReached; ballHit with:body|any|same|sameTier|sameTeam|otherTeam|smaller; timer sec; countReached what,atLeast|atMost
 act (target self|other|all): spawn{body,count,at,speed,dir} split{into} merge remove grow{by} speed{scale} recolor{color} tier{by} team{to} damage{amount} var{id,op,value} impulse{dir,amount} fx{kind} sound{voice}
 finish when: escaped tilesCleared ringsCleared count tier teamsLeft; winner none|firstOut|lastOut|mostBalls|highestTier|lastBall; what: balls|tiles|rings|escaped|teams|tier|time|fit|var
 Formulas (text) in count,speed,by,scale,amount,value: n t b r balls tiles escaped tier size speed vars; + - * / ^ min max clamp sin
@@ -69,12 +69,12 @@ say: {winner} {time} {balls} {var}
 | `obstacleHit` | a ball (self) hits a peg, bumper, bar or spinner |
 | `tileHit` | a ball (self) hits a tile (every hit chips 1 HP off it) |
 | `tileBroken` | a ball (self) breaks a tile (the `tile` spawn point is where it was) |
-| `ballHit` | two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names), other the second |
+| `ballHit` | two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names, or with `smaller` the bigger one), other the second |
 | `escape` | a ball (self) leaves the arena through an exit or past the last ring |
 | `ringPass` | a ball (self) passes outward through a ring's gap |
 | `countReached` | a count (`what`) crosses `atLeast` or `atMost` (fires again only after it goes back) |
 
-A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`),
+A rule's filters: `of` (self's body), `with` (ballHit: a body id or `any`, `same`, `sameTier`, `sameTeam`, `otherTeam`, `smaller`),
 `every` (every n-th match), `chance` (0-1, a seeded draw), `cooldownSec`, `maxFires` (0: no limit). Rules run in list order.
 An event an action causes (a tile a `damage` breaks) waits for the next step, so rules never recurse. Every event runs its
 rules even when an earlier rule removed its ball that step (actions on that ball are refused; a spawn `at` `tile` still lands
@@ -1109,6 +1109,574 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 
  "vars": [
   {
    "id": "bounces"
+  }
+ ]
+}
+```
+
+### Thin Ice (`thinIce`)
+
+Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins.
+
+Link: `?mode=blueprint&blp=thinIce` · digest `d65fb2ec` · check: playable, median end 18.86 s, outcomes "GREEN STAYS DRY", "GOLD STAYS DRY".
+
+```text
+"Thin Ice": "Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins."
+Arena: a circle with an exit, gravity 0, 200 px/s², bounce 1.
+Bodies: green (15 px, team 2), gold (15 px, team 3), purple (15 px, team 4).
+Tiles: 1 × 11 glass tiles in a grid, 8 HP.
+Start: (per) greens at the left at 100 px/s; (per) greens at the right at 100 px/s; (per) golds at the left at 100 px/s; (per) golds at the right at 100 px/s; (per) purples at the left at 100 px/s; (per) purples at the right at 100 px/s.
+Rule: when a ball hits a tile: (melt) damage to the tile.
+Rule: every 12 s: melt + 1.
+Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the latest "THE ICE HELD"; the winner is mostBalls.
+```
+
+```json
+{
+ "arena": {
+  "exits": [
+   {
+    "atDeg": 180,
+    "widthDeg": 110
+   }
+  ],
+  "gravity": {
+   "x": 0,
+   "y": 200
+  },
+  "size": 0.95
+ },
+ "bodies": [
+  {
+   "color": 2,
+   "id": "green",
+   "radius": 15,
+   "team": 2
+  },
+  {
+   "color": 3,
+   "id": "gold",
+   "radius": 15,
+   "team": 3
+  },
+  {
+   "color": 4,
+   "id": "purple",
+   "radius": 15,
+   "team": 4
+  }
+ ],
+ "finish": {
+  "any": [
+   {
+    "atMost": 1,
+    "say": "{winner} STAYS DRY",
+    "when": "teamsLeft"
+   }
+  ],
+  "timeoutSay": "THE ICE HELD",
+  "timeoutSec": 90,
+  "winner": "mostBalls"
+ },
+ "hud": [
+  {
+   "label": "dry",
+   "show": "balls"
+  },
+  {
+   "label": "ice",
+   "show": "tiles"
+  }
+ ],
+ "look": {
+  "background": "#07111f",
+  "palette": [
+   "#7fd8ff",
+   "#4dabf7",
+   "#51cf66",
+   "#ffd43b",
+   "#b197fc",
+   "#22d3ee"
+  ],
+  "teamNames": [
+   "RED",
+   "BLUE",
+   "GREEN",
+   "GOLD",
+   "PURPLE",
+   "CYAN"
+  ]
+ },
+ "meta": {
+  "author": "builtin",
+  "description": "Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins.",
+  "family": "battle",
+  "name": "Thin Ice"
+ },
+ "params": [
+  {
+   "at": "vars[0].start",
+   "id": "per",
+   "label": "balls per side",
+   "max": 3,
+   "min": 1
+  },
+  {
+   "at": "tiles.hp",
+   "id": "hp",
+   "label": "ice strength",
+   "max": 15,
+   "min": 3
+  },
+  {
+   "at": "tiles.cols",
+   "id": "cols",
+   "label": "panes of ice",
+   "max": 14,
+   "min": 6
+  },
+  {
+   "at": "rules[1].sec",
+   "id": "melt",
+   "label": "melt every",
+   "max": 40,
+   "min": 6
+  }
+ ],
+ "rules": [
+  {
+   "do": [
+    {
+     "act": "damage",
+     "amount": "melt"
+    }
+   ],
+   "when": "tileHit"
+  },
+  {
+   "do": [
+    {
+     "act": "var",
+     "id": "melt"
+    }
+   ],
+   "sec": 12,
+   "when": "timer"
+  }
+ ],
+ "sound": {
+  "root": 2,
+  "scale": "pentatonic",
+  "voices": {
+   "ballHit": "none",
+   "obstacleHit": "none",
+   "wallHit": "none"
+  }
+ },
+ "spawners": [
+  {
+   "at": "left",
+   "body": "green",
+   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "right",
+   "body": "green",
+   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "left",
+   "body": "gold",
+   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "right",
+   "body": "gold",
+   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "left",
+   "body": "purple",
+   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "right",
+   "body": "purple",
+   "count": "per",
+   "speed": 100
+  }
+ ],
+ "tiles": {
+  "area": {
+   "h": 0.1,
+   "w": 1.6,
+   "x": -0.98,
+   "y": 0.4
+  },
+  "cols": 11,
+  "hp": 8,
+  "pitchBy": "none",
+  "rows": 1
+ },
+ "v": 1,
+ "vars": [
+  {
+   "id": "per",
+   "start": 1
+  },
+  {
+   "id": "melt"
+  }
+ ]
+}
+```
+
+### Hot Potato (`hotPotato`)
+
+One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.
+
+Link: `?mode=blueprint&blp=hotPotato` · digest `cde1a9a9` · check: playable, median end 17.6 s, outcomes "BLUE SURVIVES", "GREEN SURVIVES", "PURPLE SURVIVES".
+
+```text
+"Hot Potato": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out."
+Arena: a circle, no gravity, bounce 1.
+Bodies: spark (22 px), blue (22 px, team 1), green (22 px, team 2), purple (22 px, team 4).
+Start: 2 blues at random places at 300 px/s; 2 greens at random places at 300 px/s; 2 purples at random places at 300 px/s; 1 spark at the center at 380 px/s.
+Rule: when a ball touches a smaller ball (at most every 0.25 s): grow it by (22 - size) px, then recolour it (team), then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0).
+Rule: when a ball touches a smaller ball (at most every 0.25 s): a hit note, then a burst.
+Rule: when spark touches another ball: a merge note, then fuse = (length * 0.88 ^ (6 - left)).
+Rule: when spark touches another ball: remove it, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0), then lit = 1.
+Rule: every 0.1 s: fuse + (-0.1 * lit).
+Rule: every 0.5 s: a hit note.
+Rule: when fuse reaches 0.05 or less: a gap note, then a flash, then left + -1, then a shake.
+Rule: when fuse reaches 0.05 or less: grow every ball by (-999 * min(1, floor((size - 22) / 10 + 0.5))) px, then lit = 0, then spawn (min(1, balls - 1)) sparks at the center, then fuse = 0.
+Rule: every 0.25 s: speed every ball × (300 * 1.1 ^ (6 - left) / max(speed, 1)), then grow every ball by (min(1, floor((size - 22) / 10 + 0.5)) * (32 + 12 * (1 - fuse / length) + 2 * cos(pi * n) - size)) px.
+Rule: every 0.25 s: speed every ball × (1.6 * 300 * 1.1 ^ (6 - left) / max(speed, 1)).
+Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest "THE FUSE IS STILL LIT"; the winner is lastBall.
+```
+
+```json
+{
+ "arena": {
+  "size": 0.92
+ },
+ "bodies": [
+  {
+   "id": "spark",
+   "radius": 22
+  },
+  {
+   "color": 1,
+   "id": "blue",
+   "radius": 22,
+   "team": 1
+  },
+  {
+   "color": 2,
+   "id": "green",
+   "radius": 22,
+   "team": 2
+  },
+  {
+   "color": 4,
+   "id": "purple",
+   "radius": 22,
+   "team": 4
+  }
+ ],
+ "finish": {
+  "any": [
+   {
+    "atMost": 1,
+    "say": "{winner} SURVIVES",
+    "when": "count"
+   }
+  ],
+  "timeoutSay": "THE FUSE IS STILL LIT",
+  "timeoutSec": 60,
+  "winner": "lastBall"
+ },
+ "hud": [
+  {
+   "label": "fuse",
+   "show": "fuse"
+  },
+  {
+   "label": "left",
+   "show": "left"
+  }
+ ],
+ "look": {
+  "palette": [
+   "#ff5a1f",
+   "#4dabf7",
+   "#51cf66",
+   "#ffd43b",
+   "#b197fc",
+   "#22d3ee"
+  ],
+  "rim": 3,
+  "teamNames": [
+   "RED",
+   "BLUE",
+   "GREEN",
+   "GOLD",
+   "PURPLE",
+   "CYAN"
+  ],
+  "trail": true
+ },
+ "meta": {
+  "author": "builtin",
+  "description": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.",
+  "family": "battle",
+  "name": "Hot Potato"
+ },
+ "params": [
+  {
+   "at": "vars[3].start",
+   "id": "fuse",
+   "label": "first fuse",
+   "max": 8,
+   "min": 1.5,
+   "step": 0.5
+  }
+ ],
+ "rules": [
+  {
+   "cooldownSec": 0.25,
+   "do": [
+    {
+     "act": "grow",
+     "by": "22 - size"
+    },
+    {
+     "act": "recolor",
+     "color": "team"
+    },
+    {
+     "act": "grow",
+     "by": "32 + 12 * (1 - fuse / length) - size",
+     "target": "other"
+    },
+    {
+     "act": "recolor",
+     "color": 0,
+     "target": "other"
+    }
+   ],
+   "when": "ballHit",
+   "with": "smaller"
+  },
+  {
+   "cooldownSec": 0.25,
+   "do": [
+    {
+     "act": "sound",
+     "pitch": 5
+    },
+    {
+     "act": "fx"
+    }
+   ],
+   "when": "ballHit",
+   "with": "smaller"
+  },
+  {
+   "do": [
+    {
+     "act": "sound",
+     "voice": "merge"
+    },
+    {
+     "act": "var",
+     "id": "fuse",
+     "op": "set",
+     "value": "length * 0.88 ^ (6 - left)"
+    }
+   ],
+   "of": "spark",
+   "when": "ballHit"
+  },
+  {
+   "do": [
+    {
+     "act": "remove"
+    },
+    {
+     "act": "grow",
+     "by": "32 + 12 * (1 - fuse / length) - size",
+     "target": "other"
+    },
+    {
+     "act": "recolor",
+     "color": 0,
+     "target": "other"
+    },
+    {
+     "act": "var",
+     "id": "lit",
+     "op": "set"
+    }
+   ],
+   "of": "spark",
+   "when": "ballHit"
+  },
+  {
+   "do": [
+    {
+     "act": "var",
+     "id": "fuse",
+     "value": "-0.1 * lit"
+    }
+   ],
+   "sec": 0.1,
+   "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "sound",
+     "pitch": -4
+    }
+   ],
+   "sec": 0.5,
+   "when": "timer"
+  },
+  {
+   "atMost": 0.05,
+   "do": [
+    {
+     "act": "sound",
+     "voice": "gap"
+    },
+    {
+     "act": "fx",
+     "kind": "flash"
+    },
+    {
+     "act": "var",
+     "id": "left",
+     "value": -1
+    },
+    {
+     "act": "fx",
+     "kind": "shake"
+    }
+   ],
+   "what": "fuse",
+   "when": "countReached"
+  },
+  {
+   "atMost": 0.05,
+   "do": [
+    {
+     "act": "grow",
+     "by": "-999 * min(1, floor((size - 22) / 10 + 0.5))",
+     "target": "all"
+    },
+    {
+     "act": "var",
+     "id": "lit",
+     "op": "set",
+     "value": 0
+    },
+    {
+     "act": "spawn",
+     "at": "center",
+     "body": "spark",
+     "count": "min(1, balls - 1)",
+     "speed": 380
+    },
+    {
+     "act": "var",
+     "id": "fuse",
+     "op": "set",
+     "value": 0
+    }
+   ],
+   "what": "fuse",
+   "when": "countReached"
+  },
+  {
+   "do": [
+    {
+     "act": "speed",
+     "scale": "300 * 1.1 ^ (6 - left) / max(speed, 1)",
+     "target": "all"
+    },
+    {
+     "act": "grow",
+     "by": "min(1, floor((size - 22) / 10 + 0.5)) * (32 + 12 * (1 - fuse / length) + 2 * cos(pi * n) - size)",
+     "target": "all"
+    }
+   ],
+   "sec": 0.25,
+   "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "speed",
+     "scale": "1.6 * 300 * 1.1 ^ (6 - left) / max(speed, 1)",
+     "target": "all"
+    }
+   ],
+   "of": "spark",
+   "sec": 0.25,
+   "when": "timer"
+  }
+ ],
+ "sound": {
+  "root": 2,
+  "scale": "pentatonic",
+  "voices": {
+   "ballHit": "none",
+   "wallHit": "none"
+  }
+ },
+ "spawners": [
+  {
+   "at": "random",
+   "body": "blue",
+   "count": 2
+  },
+  {
+   "at": "random",
+   "body": "green",
+   "count": 2
+  },
+  {
+   "at": "random",
+   "body": "purple",
+   "count": 2
+  },
+  {
+   "body": "spark",
+   "speed": 380
+  }
+ ],
+ "v": 1,
+ "vars": [
+  {
+   "id": "fuse",
+   "start": 4
+  },
+  {
+   "id": "lit"
+  },
+  {
+   "id": "left",
+   "start": 6
+  },
+  {
+   "id": "length",
+   "start": 4
   }
  ]
 }

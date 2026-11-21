@@ -8,16 +8,18 @@ import type { Blueprint } from "../schema";
 import { conquer } from "./conquer";
 import { growEscape } from "./growEscape";
 import { hatchery } from "./hatchery";
+import { hotPotato } from "./hotPotato"; // --- blueprint-catalog-c2 ---
 import { plinkoRace } from "./plinkoRace";
 import { ringBreaker } from "./ringBreaker";
+import { thinIce } from "./thinIce"; // --- blueprint-catalog-c2 ---
 import { tierClimb } from "./tierClimb";
 
 /** The catalog's ids, in the order Mode Lab lists them. */
-export const BLUEPRINT_CATALOG_IDS = ["hatchery", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape"] as const;
+export const BLUEPRINT_CATALOG_IDS = ["hatchery", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape", "thinIce", "hotPotato"] as const;
 export type BlueprintCatalogId = (typeof BLUEPRINT_CATALOG_IDS)[number];
 
 /** Each entry's spec, as written (the compact form). */
-export const BLUEPRINT_CATALOG: Readonly<Record<BlueprintCatalogId, unknown>> = { hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape };
+export const BLUEPRINT_CATALOG: Readonly<Record<BlueprintCatalogId, unknown>> = { hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape, thinIce, hotPotato };
 
 export function isBlueprintCatalogId(value: unknown): value is BlueprintCatalogId {
   return typeof value === "string" && (BLUEPRINT_CATALOG_IDS as readonly string[]).includes(value);

@@ -4307,7 +4307,9 @@
       "conquer": "Conquista de colores",
       "tierClimb": "Escalada de niveles",
       "plinkoRace": "Carrera entre clavos",
-      "growEscape": "Crece o escapa"
+      "growEscape": "Crece o escapa",
+      "thinIce": "Hielo fino",
+      "hotPotato": "Patata caliente"
     },
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
@@ -4322,7 +4324,9 @@
       "conquer": "Un choque convierte. Gana el último color.",
       "tierClimb": "Bolas iguales se funden en una mayor.",
       "plinkoRace": "Entre clavos. Gana la primera en salir.",
-      "growEscape": "Más grande en cada rebote. ¿Aún cabe?"
+      "growEscape": "Más grande en cada rebote. ¿Aún cabe?",
+      "thinIce": "El hielo se agrieta. ¿Quién sigue seco?",
+      "hotPotato": "Un toque pasa la bomba. ¿Quién queda?"
     },
     "ownPayoffs": {
       "journey": "¡En casa! 🏠"
@@ -4522,6 +4526,7 @@
         "ballHitSameTier": "Cuando chocan dos bolas del mismo nivel",
         "ballHitSameTeam": "Cuando chocan dos bolas del mismo equipo",
         "ballHitOtherTeam": "Cuando chocan bolas de dos equipos",
+        "ballHitSmaller": "Cuando una bola toca a otra más pequeña",
         "ballHitBody": "Cuando {who} toca la bola {other}",
         "escape": "Cuando {who} escapa",
         "ringPass": "Cuando {who} atraviesa un anillo",
@@ -4713,6 +4718,33 @@
         "grow": "Crecimiento por rebote",
         "exit": "Ancho de la salida",
         "size": "Tamaño inicial"
+      }
+    },
+    "thinIce": {
+      "name": "Hielo fino",
+      "description": "Cada bote agrieta el hielo. Quien lo atraviesa queda fuera. Gana el último color que sigue seco.",
+      "line": "Cada bote agrieta el hielo",
+      "hud0": "secas",
+      "hud1": "hielo",
+      "say0": "EL [winner] SIGUE SECO",
+      "timeoutSay": "EL HIELO AGUANTÓ",
+      "params": {
+        "per": "Bolas por lado",
+        "hp": "Grosor del hielo",
+        "cols": "Placas de hielo",
+        "melt": "Deshielo cada"
+      }
+    },
+    "hotPotato": {
+      "name": "Patata caliente",
+      "description": "Una bola lleva la bomba y un toque la pasa. Quien la tenga cuando se acabe la mecha queda fuera.",
+      "line": "Pasa la bomba antes de que se acabe la mecha",
+      "hud0": "mecha",
+      "hud1": "quedan",
+      "say0": "EL [winner] SOBREVIVE",
+      "timeoutSay": "LA MECHA SIGUE ENCENDIDA",
+      "params": {
+        "fuse": "Primera mecha"
       }
     }
   },

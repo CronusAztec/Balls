@@ -66,7 +66,7 @@ const bpCode: JsonSchema = {
   maxLength: LINK_MAX_CHARS,
   description: "A Blueprint link code (b1.…), or a Mode Lab link / query string holding bls=b1.… or blp=<catalog id> (never fetched); its slider values (blv) are applied and its Slow motion switch (smo=0) read, as the page plays them.",
 };
-const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape)." };
+const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape, thinIce, hotPotato)." };
 const bpLite: JsonSchema = { type: "object", description: "A Blueprint in the Lite form (enum words only: the app's small local model writes it)." };
 // --- review fix (blueprint) --- the sliders a game is played with, as a link's blv writes them
 const bpParams: JsonSchema = {

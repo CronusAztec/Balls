@@ -4307,7 +4307,9 @@
       "conquer": "Colour Conquest",
       "tierClimb": "Tier Climb",
       "plinkoRace": "Peg Race",
-      "growEscape": "Grow or Go"
+      "growEscape": "Grow or Go",
+      "thinIce": "Thin Ice",
+      "hotPotato": "Hot Potato"
     },
     "ownHooks": {
       "mergeRing": "How far can it merge?",
@@ -4322,7 +4324,9 @@
       "conquer": "One hit converts. Last colour wins.",
       "tierClimb": "Matching orbs merge into a bigger one.",
       "plinkoRace": "Through the pegs. First one out wins.",
-      "growEscape": "Bigger every bounce. Will it still fit?"
+      "growEscape": "Bigger every bounce. Will it still fit?",
+      "thinIce": "Bounces crack the ice. Who stays dry?",
+      "hotPotato": "Touch passes the bomb. Last one wins."
     },
     "ownPayoffs": {
       "journey": "Home! 🏠"
@@ -4522,6 +4526,7 @@
         "ballHitSameTier": "When two balls of the same tier touch",
         "ballHitSameTeam": "When two team-mates touch",
         "ballHitOtherTeam": "When balls of two teams touch",
+        "ballHitSmaller": "When a ball touches a smaller one",
         "ballHitBody": "When {who} touches a ball called {other}",
         "escape": "When {who} escapes",
         "ringPass": "When {who} gets through a ring",
@@ -4713,6 +4718,33 @@
         "grow": "Growth per bounce",
         "exit": "Exit width",
         "size": "Starting size"
+      }
+    },
+    "thinIce": {
+      "name": "Thin Ice",
+      "description": "Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins.",
+      "line": "Every bounce cracks the ice",
+      "hud0": "dry",
+      "hud1": "ice",
+      "say0": "[winner] STAYS DRY",
+      "timeoutSay": "THE ICE HELD",
+      "params": {
+        "per": "Balls per side",
+        "hp": "Ice strength",
+        "cols": "Panes of ice",
+        "melt": "Melt every"
+      }
+    },
+    "hotPotato": {
+      "name": "Hot Potato",
+      "description": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.",
+      "line": "Pass the bomb before the fuse runs out",
+      "hud0": "fuse",
+      "hud1": "left",
+      "say0": "[winner] SURVIVES",
+      "timeoutSay": "THE FUSE IS STILL LIT",
+      "params": {
+        "fuse": "First fuse"
       }
     }
   },

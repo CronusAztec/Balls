@@ -65,7 +65,7 @@ export const TRIGGER_DOCS: Readonly<Record<Trigger, string>> = {
   obstacleHit: "a ball (self) hits a peg, bumper, bar or spinner",
   tileHit: "a ball (self) hits a tile (every hit chips 1 HP off it)",
   tileBroken: "a ball (self) breaks a tile (the `tile` spawn point is where it was)",
-  ballHit: "two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names), other the second",
+  ballHit: "two balls start to touch (once a contact): self is the one that was faster before (or the one `of` names, or with `smaller` the bigger one), other the second",
   escape: "a ball (self) leaves the arena through an exit or past the last ring",
   ringPass: "a ball (self) passes outward through a ring's gap",
   countReached: "a count (`what`) crosses `atLeast` or `atMost` (fires again only after it goes back)",
@@ -74,8 +74,12 @@ export const TRIGGER_DOCS: Readonly<Record<Trigger, string>> = {
 /** Triggers that are about a ball: their actions' `self` is that ball (the others act on every ball of `of`). */
 export const BALL_TRIGGERS: ReadonlySet<Trigger> = new Set(["wallHit", "obstacleHit", "tileHit", "tileBroken", "ballHit", "escape", "ringPass"]);
 
-/** `with` of a ballHit rule: a body id, or one of these relations of the other ball to self. */
-export const WITH_RELATIONS = ["any", "same", "sameTier", "sameTeam", "otherTeam"] as const;
+/**
+ * `with` of a ballHit rule: a body id, or one of these relations of the other ball to self. --- blueprint-catalog-c2 ---
+ * `smaller`: the other ball is smaller than self, so self is always the bigger of the two (a size that marks one ball – Hot
+ * Potato's bomb carrier – passes on a touch, and a bigger ball can eat a smaller one).
+ */
+export const WITH_RELATIONS = ["any", "same", "sameTier", "sameTeam", "otherTeam", "smaller"] as const;
 export type WithRelation = (typeof WITH_RELATIONS)[number];
 
 /** What a count reads (countReached, a count finish, the HUD): these, or a variable's id. */

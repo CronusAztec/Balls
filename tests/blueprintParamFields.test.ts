@@ -89,6 +89,10 @@ describe("Mode Lab: each slider's number field is bounded by the language, not b
       // (Peg Race's peg rows: its grid of 7 columns stops at the obstacle ceiling, 6 rows – the slider's end is the language's here)
       plinkoRace: { exit: { min: 1, max: 180 }, spin: {}, rows: { min: 1, max: Math.floor(BLUEPRINT_LIMITS.obstacles / 7), integer: true } },
       growEscape: { grow: {}, exit: { min: 1, max: 180 }, size: { min: 0, above: true, max: BLUEPRINT_RADIUS_CEILING } },
+      // --- blueprint-catalog-c2 --- (Thin Ice's balls a side: a variable its spawners count by, as Colour Conquest's; its panes of
+      // ice stop at the language's column ceiling; Hot Potato's first fuse is a plain variable)
+      thinIce: { per: { min: 0, max: BLUEPRINT_LIMITS.perSpawn, integer: true }, hp: { min: 1, integer: true }, cols: { min: 1, max: BLUEPRINT_LIMITS.tileCols, integer: true }, melt: { min: 0, above: true } },
+      hotPotato: { fuse: {} },
     });
     for (const id of BLUEPRINT_CATALOG_IDS) {
       const bp = catalogBlueprint(id);

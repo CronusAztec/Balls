@@ -132,7 +132,7 @@ export function blueprintJsonSchema(): JsonSchema {
           {
             when: words(TRIGGERS, TRIGGERS.map((t) => `${t}: ${TRIGGER_DOCS[t]}`).join("; ")),
             of: { type: ["string", "null"], description: "self's body id" },
-            with: { type: "string", description: "ballHit: a body id, or any|same|sameTier|sameTeam|otherTeam" },
+            with: { type: "string", description: "ballHit: a body id, or any|same|sameTier|sameTeam|otherTeam|smaller" },
             sec: over("timer: seconds", 0),
             what: { type: "string", description: `countReached: ${COUNT_REFS.join("|")} or a variable id` },
             atLeast: { type: ["number", "null"] },

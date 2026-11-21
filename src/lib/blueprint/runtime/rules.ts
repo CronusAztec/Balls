@@ -21,20 +21,22 @@ import type { CompiledRule } from "./compile";
 import type { BlueprintRun } from "./run";
 import type { WorldBall } from "./world";
 
-/** What a ballHit rule matches on: a ball's body, tier and team when its event was taken. */
+/** What a ballHit rule matches on: a ball's body, tier, team and radius (--- blueprint-catalog-c2 --- `smaller`) when its event was taken. */
 export interface BallFacts {
   body: number;
   tier: number;
   team: number;
+  r: number;
 }
 
-const factsA: BallFacts = { body: 0, tier: 0, team: 0 };
-const factsB: BallFacts = { body: 0, tier: 0, team: 0 };
+const factsA: BallFacts = { body: 0, tier: 0, team: 0, r: 0 };
+const factsB: BallFacts = { body: 0, tier: 0, team: 0, r: 0 };
 
 function noteFacts(out: BallFacts, b: WorldBall): BallFacts {
   out.body = b.body;
   out.tier = b.tier;
   out.team = b.team;
+  out.r = b.r;
   return out;
 }
 
@@ -84,6 +86,9 @@ export function matches(rule: CompiledRule, self: BallFacts, other: BallFacts): 
       return other.team === self.team;
     case "otherTeam":
       return other.team !== self.team;
+    // --- blueprint-catalog-c2 --- (self the bigger: of two balls the same size, neither)
+    case "smaller":
+      return other.r < self.r;
     default:
       return true;
   }
