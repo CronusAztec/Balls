@@ -1519,6 +1519,28 @@
     "sgHud": "Spiral HUD",
     "sgHudTip": "The title and tiles left in the corner, the progress ring and the question over the spiral. Off: just the glass, the balls and their count. GLASS CLEARED shows either way.",
     "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",
+    "modeSongRing": "Song Ring",
+    "srTitle": "Song Ring",
+    "srDesc": "The ring is lined with the notes of a tune. The ball lights a note, and the hand plays every lit note on each lap. The last note plays the tune whole.",
+    "srSong": "Tune",
+    "srSongTip": "The tune on the ring. Surprise lets the seed pick one. The canvas names it only at the end, so viewers can guess.",
+    "srSong_twinkle": "Twinkle Twinkle",
+    "srSong_ode": "Ode to Joy",
+    "srSong_elise": "Für Elise",
+    "srSong_jacques": "Frère Jacques",
+    "srSong_mountain": "Mountain King",
+    "srSong_surprise": "Surprise",
+    "srLapSec": "Lap Time",
+    "srLapSecTip": "Seconds the hand takes to go once round the ring. A shorter lap plays the tune faster. The slider's usual range is 2 to 8, and a typed number goes past it.",
+    "srSpeed": "Ball Speed",
+    "srSpeedTip": "How fast the ball flies, in ring widths per second. A faster ball finds the notes sooner, so the run gets shorter.",
+    "srBalls": "Balls",
+    "srBallsTip": "How many balls fly in the ring. More balls find the notes sooner. The slider's usual range is 1 to 6, and a typed number goes past it. A run builds at most 5,000.",
+    "srHelp": "Help",
+    "srHelpTip": "How often a bounce is nudged when a note comes too early or too late. At 0 it is pure chance, and the last note can take a long time. At 1 every run keeps the same pace.",
+    "srLive": "Live Notes",
+    "srLiveTip": "A note sounds the moment the ball lights it. Off: the hit is a soft tick and only the hand plays the notes, so the tune stays clear.",
+    "srRunInfo": "One lap every {lap} s. The seed decides which notes the ball finds first, so Find Simulation can hit your clip length.",
     "modeBlueprint": "Mode Lab",
     "blTitle": "Mode Lab",
     "blDesc": "Every game here is built from rules that make balls break, merge or multiply. Pick a game and tune its sliders. A shared game link opens here too.",
@@ -2584,6 +2606,10 @@
     "spiralGlass": {
       "name": "Spiral Glass",
       "description": "Balls circle a glass spiral and chip it away from the outside in. Every lap adds a ball. Will it multiply?"
+    },
+    "songRing": {
+      "name": "Song Ring",
+      "description": "A ball lights up a tune one bounce at a time. Can you name it before it is whole?"
     },
     "blueprint": {
       "name": "Mode Lab",
@@ -4260,6 +4286,7 @@
       "perfectFit": "the pieces",
       "mergeRing": "the balls",
       "spiralGlass": "the balls",
+      "songRing": "the ball",
       "blueprint": "the balls"
     },
     "looks": {
@@ -4289,6 +4316,7 @@
       "conveyor": "{count} balls. Will they all get out?",
       "collide": "Bumps play notes. Then they slip through.",
       "doublePendulum": "Same start. Watch them split.",
+      "songRing": "Name the tune before it ends.",
       "hatchery": "Every broken tile hatches a new ball.",
       "ringBreaker": "Every broken ring doubles the balls.",
       "conquer": "One hit converts. Last colour wins.",
@@ -4408,6 +4436,18 @@
     "canvasClearedSub": "x[count] in [seconds]s",
     "canvasTimeout": "TIME'S UP",
     "canvasTimeoutSub": "{tiles, plural, one {# tile left} other {# tiles left}}"
+  },
+  "SongRing": {
+    "caption": "NAME THE TUNE",
+    "canvasCount": "[lit]/[total]",
+    "canvasDoneSub": "[notes] notes in [seconds] s",
+    "canvasTimeout": "TIME'S UP",
+    "canvasTimeoutSub": "[lit] of [total] notes",
+    "song_twinkle": "TWINKLE TWINKLE",
+    "song_ode": "ODE TO JOY",
+    "song_elise": "FÜR ELISE",
+    "song_jacques": "FRÈRE JACQUES",
+    "song_mountain": "MOUNTAIN KING"
   },
   "Blueprint": {
     "canvasArenaFull": "ARENA FULL",

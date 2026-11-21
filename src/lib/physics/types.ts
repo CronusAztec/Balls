@@ -97,6 +97,8 @@ export const MODE_IDS = [
   "mergeRing",
   // --- spiral-glass --- Spiral Glass (balls circle a glass spiral and chip it away from the outside in, multiplying every lap)
   "spiralGlass",
+  // --- song-ring --- Song Ring (a ball lights the notes of a tune lining a ring, and a playhead plays what is lit every lap)
+  "songRing",
   // --- blueprint --- Mode Lab (a game mode described as data – a Blueprint – played by one sandboxed interpreter)
   "blueprint",
 ] as const;
@@ -491,6 +493,13 @@ export interface SoundEvent {
   /** A "step" of the progress ladder on the chip voice (square, Perfect Fit's Tetris pieces) instead of the sine ladder. */
   loopChip?: boolean;
   // --- end perfect-fit ---
+  // --- song-ring ---
+  /**
+   * A loop sound played at its pitch as given, never snapped to the Sound section's scale: a note of a fixed tune (Song Ring's
+   * phrase, its bed and its chord), which a pentatonic scale would turn into another tune.
+   */
+  loopExact?: boolean;
+  // --- end song-ring ---
   // --- string-battle-alive ---
   /**
    * A sound of the String Battle's final duel (`ToneGenerator.playStringDuel()`, lib/audio/stringDuelTones.ts) instead of a

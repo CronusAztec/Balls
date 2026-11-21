@@ -56,7 +56,7 @@ import { CREW_ROLES, PANEL_DEPTHS, ROLE_SPECS, SHARED_RUBRIC, refusalsBeforeRule
 
 /*
  * --- studio --- Claude's studio in the agent toolbox (docs/agents/STUDIO.md, C5 of the AI studio plan): the studio kit
- * (src/lib/agentKit/studioKit.ts) on real plans – templates lists the 48 bindings, plan is deterministic, review holds Claude to
+ * (src/lib/agentKit/studioKit.ts) on real plans – templates lists the 49 bindings, plan is deterministic, review holds Claude to
  * the crew's rules (the role order, one fix round, the evidence keys, the fixed list of fixes and their bounds, a harmful fix
  * reverted) and reaches the decision the app's in-process panel reaches on the same scripted verdicts, render v3 picks the clip
  * the crew left with its melody, the research names no other creator – and the CLI end to end on a studio folder of its own.
@@ -184,11 +184,11 @@ describe("the brainstormer's menu, ranked (--- studio ---)", () => {
 });
 
 describe("templates (--- studio ---)", () => {
-  it("lists the ten formats and all 48 bindings with their tiers; the ready templates with their words, the battle family only when asked", () => {
+  it("lists the ten formats and all 49 bindings with their tiers; the ready templates with their words, the battle family only when asked", () => {
     const t = studioTemplates({}, copy);
     expect(t.formats.map((f) => f.id)).toEqual([...TEMPLATE_FORMAT_IDS]);
-    expect(t.bindings).toHaveLength(48);
-    expect(t.counts).toMatchObject({ formats: 10, bindings: 48 });
+    expect(t.bindings).toHaveLength(49);
+    expect(t.counts).toMatchObject({ formats: 10, bindings: 49 });
     for (const b of t.bindings) expect(["proven", "trial", "experimental"], b.mode).toContain(b.tier);
     expect(t.templates.length).toBeGreaterThan(5);
     for (const x of t.templates) {

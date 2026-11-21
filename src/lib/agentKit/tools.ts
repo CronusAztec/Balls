@@ -487,7 +487,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "templates",
     title: "Viral templates",
-    description: "The ten formats (get out, smash, fill, count, who wins, aim, line up, on the beat, reveal, Mode Lab game) with their claims, all 48 modes' bindings with their tiers, the ready templates with their copy in one locale, the Simple look, the clarity gates and the Simple score's weights. Writes nothing.",
+    description: "The ten formats (get out, smash, fill, count, who wins, aim, line up, on the beat, reveal, Mode Lab game) with their claims, all 49 modes' bindings with their tiers, the ready templates with their copy in one locale, the Simple look, the clarity gates and the Simple score's weights. Writes nothing.",
     input: {
       type: "object",
       additionalProperties: false,

@@ -14,6 +14,7 @@ import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-p
 import { WT_MODELS, WT_SOURCES } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { SB_LIFE_RULES } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 import { SCOREBOARD_POSITIONS } from "@/lib/teams"; // --- low-findings-2 ---
+import { SONG_RING_SONGS } from "@/lib/physics/modes/songRing"; // --- song-ring ---
 import { BLUEPRINT_PRESET_IDS, blueprintParamBounds, blueprintSettingsOf, resolveBlueprintSpec } from "@/lib/physics/modes/blueprint"; // --- review fix (blueprint) --- (--- unlimited-sizes --- a slider's real bound: the language's)
 
 /*
@@ -64,6 +65,7 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   wtSource: WT_SOURCES, // --- wave-tank --- (a wave-maker and a barrier, or point sources)
   sbLife: SB_LIFE_RULES, // --- string-battle-alive --- (the String Battle's life rule: alive while a thread holds, or the lives; sbDuel is its duel switch)
   scoreboardPosition: SCOREBOARD_POSITIONS, // --- low-findings-2 --- (a core setting: the teams scoreboard's corner)
+  srSong: SONG_RING_SONGS, // --- song-ring --- (Song Ring's tune: the five built-in phrases, or the seed's pick)
   blPreset: BLUEPRINT_PRESET_IDS, // --- review fix (blueprint) --- (Mode Lab's game: the catalog's ids, so a model's grammar and a refusal name them)
 };
 
@@ -248,6 +250,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   bullseye: "by",
   mergeRing: "mr", // --- merge-ring ---
   spiralGlass: "sg", // --- spiral-glass ---
+  songRing: "sr", // --- song-ring ---
   blueprint: "bl", // --- blueprint --- (the catalog entry and the slider values; a spec is the Blueprint tools', never a patch's: PATCH_EXCLUDED)
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---

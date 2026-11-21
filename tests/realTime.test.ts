@@ -562,8 +562,8 @@ describe("the fast export's real-time scheduler (--- slow-motion ---)", () => {
 describe("the engine's step time scale (--- slow-motion ---)", () => {
   const baseline = parseBaselineLiteral(fs.readFileSync(path.join(ROOT, BASELINE_FILE), "utf8"));
 
-  it("is 1 on every default step of all 48 modes, whose fingerprints stay their BASELINE entries", { timeout: 60_000 }, () => {
-    expect(MODE_IDS.length).toBe(48);
+  it("is 1 on every default step of all 49 modes, whose fingerprints stay their BASELINE entries", { timeout: 60_000 }, () => {
+    expect(MODE_IDS.length).toBe(49); // --- song-ring --- (48 before Song Ring)
     for (const mode of MODE_IDS) {
       const engine = createEngineForSettings(FINGERPRINT_CONFIG, mode, FINGERPRINT_MODE_SETTINGS, FINGERPRINT_SEED);
       expect(engine.getStepTimeScale(), mode).toBe(1);

@@ -46,6 +46,7 @@ import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- geral
 import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import type { MergeRingSettings } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import type { SpiralGlassSettings } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
+import type { SongRingSettings } from "@/lib/physics/modes/songRing"; // --- song-ring ---
 import type { BlueprintSettings } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
@@ -184,6 +185,9 @@ export interface ModeSettings {
   // --- spiral-glass ---
   /** Spiral Glass: turns, hit points, speed, ball cap, rainbow line and chip time (see modes/spiralGlass.ts); the defaults when left out. Every run ends with GLASS CLEARED or a TIMEOUT, and the seed moves when the bands break open and the laps line up, so the finder searches it. */
   spiralGlass?: Partial<SpiralGlassSettings>;
+  // --- song-ring ---
+  /** Song Ring: the tune, the lap, the speed, the balls, the help and the live notes (see modes/songRing.ts); the defaults when left out. Every run ends with the final chord or a timeout, and the seed moves which notes are found first and when the tune is whole, so the finder searches it. */
+  songRing?: Partial<SongRingSettings>;
   // --- blueprint ---
   /** Mode Lab: the catalog entry, a link's spec and its slider values (see modes/blueprint.ts); the defaults when left out. Every Blueprint ends by a finish condition or its timeout (180 s at most), and the seed moves its spawns, draws and chances, so the finder searches it. */
   blueprint?: Partial<BlueprintSettings>;
@@ -634,6 +638,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- gerald-bullseye ---
   if (mode === "mergeRing") engine.setMergeRingSettings(settings.mergeRing ?? {}); // --- merge-ring ---
   if (mode === "spiralGlass") engine.setSpiralGlassSettings(settings.spiralGlass ?? {}); // --- spiral-glass ---
+  if (mode === "songRing") engine.setSongRingSettings(settings.songRing ?? {}); // --- song-ring ---
   if (mode === "blueprint") engine.setBlueprintSettings(settings.blueprint ?? {}); // --- blueprint ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---

@@ -1452,7 +1452,7 @@ export class ToneGenerator {
         case "chime":
         case "scan":
         case "step": {
-          const pitch = this.snap(f ?? 440);
+          const pitch = opts.exact ? (f ?? 440) : this.snap(f ?? 440); // --- song-ring --- (a fixed tune's note keeps its pitch)
           const t60 = kind === "pluck" ? pluckT60(this.loopBudget.onsetRate(time), !!opts.dense) : 1.5;
           const verdict = this.loopBudget.note(time, pitch, time + LOOP_PLUCK.attack + t60 + LOOP_PLUCK.tail);
           if (verdict.action === "drop") return;
@@ -1486,7 +1486,7 @@ export class ToneGenerator {
           return;
         case "chord":
           if (slot && this.loopClips.play(ctx, out, slot, time, { level: l })) return;
-          scheduleCompletionChord(ctx, out, this.snap(f ?? 98), time, { level: l, minor: opts.minor, tremolo: opts.tremolo });
+          scheduleCompletionChord(ctx, out, opts.exact ? (f ?? 98) : this.snap(f ?? 98) /* --- song-ring --- */, time, { level: l, minor: opts.minor, tremolo: opts.tremolo });
           this.musicBed.duck(time);
           return;
         case "riser":
@@ -1510,7 +1510,7 @@ export class ToneGenerator {
           return;
         case "bed": {
           // starts the groove bed on the chord root `frequency`, or re-voices a playing one
-          const root = Math.round(frequencyToMidi(this.snap(f ?? 130.81)));
+          const root = Math.round(frequencyToMidi(opts.exact ? (f ?? 130.81) : this.snap(f ?? 130.81))); // --- song-ring --- (a fixed tune's own root)
           if (slot && this.loopClips.has(slot)) {
             if (!this.loopBed) this.loopClips.play(ctx, this.masterGain, slot, time, { level: l });
             return;

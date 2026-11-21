@@ -71,6 +71,9 @@ export type { MergeRingSettings, MergeRingLayout, MergeRingView } from "./mergeR
 // --- spiral-glass ---
 export { SpiralGlassMode } from "./spiralGlass";
 export type { SpiralGlassSettings, SpiralGlassLayout, SpiralGlassView } from "./spiralGlass";
+// --- song-ring ---
+export { SongRingMode } from "./songRing";
+export type { SongRingSettings, SongRingLayout, SongRingView } from "./songRing";
 // --- blueprint ---
 export { BlueprintMode } from "./blueprint";
 export type { BlueprintSettings, BlueprintFields, BlueprintProgress, ResolvedBlueprint } from "./blueprint";

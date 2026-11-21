@@ -227,6 +227,7 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   mrTiers: 10,
   sgTurns: 24,
   sgMaxBalls: 500,
+  srBalls: ENTITY_CEILING, // --- song-ring --- the balls in the ring (an entity each: its own trail, drawing and wall test)
   ballCount: CROWD_BALL_CEILING,
   multiplySpawnCount: CROWD_BALL_CEILING,
   wallCount: RING_CEILING,

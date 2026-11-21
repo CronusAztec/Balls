@@ -89,6 +89,7 @@ import { STUDIO_RENDER_WORLD, studioTemplates } from "@/lib/agentKit/studioKit";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint } from "@/lib/blueprint/catalog"; // --- templates --- (AI studio step 6)
 import { END_HOLD_SEC as LAB_END_HOLD_SEC } from "@/lib/physics/modes/blueprint";
 import { OWN_HOOK_FIELD, OWN_PAYOFF_FIELD } from "@/lib/bot/copy";
+import { defaultSongRingFields, resolveSongRingFields } from "@/lib/physics/modes/songRing"; // --- song-ring ---
 import { crowding, drawnHookText, endBannersShown, overlaysOf, SIMPLE_TRAIL_THICKNESS, textOverActionSec, wordCount } from "@/lib/crew/simplicity";
 
 /*
@@ -159,7 +160,13 @@ const GROUP_D_READY: readonly ModeId[] = ["drawingMachine", "blueprint"];
  * mini-map and clock crowd the screen (both watched in the render). --- templates --- (studio round 1, 10) Perfect Fit left the ready
  * ones: its box is full for its 0.15 s flash only before it bursts (G2, the payoff's state held).
  */
-const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY];
+/**
+ * --- song-ring --- Song Ring, bound when the mode was added: on the beat, its own notes the music, timed by its final chord
+ * (END_HOLD_MS before its run's end), its count of the notes lit the countdown. Measured as the groups above: 12 of 12 plans pass
+ * every gate in en, pl and es, and 12 of 12 on plan seeds 5-8 in the studio's world (docs/virality-playbook.md §5).
+ */
+const SONG_RING_READY: readonly ModeId[] = ["songRing"];
+const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY, ...SONG_RING_READY];
 /** --- templates --- (AI studio step 3) The variants without a recipe of proven bindings: Classic's one ring (ring-at), Grow's fill that ends the run (fills-by). */
 const OWN_VARIANTS = ["get-out-classic-ring", "fill-grow-fills"];
 /**
@@ -230,7 +237,8 @@ describe("the bindings", () => {
       expect(recipeById(id)).toBeUndefined();
     }
     const perFormat = Object.fromEntries(TEMPLATE_FORMAT_IDS.map((f) => [f, BINDINGS.filter((b) => b.format === f).length]));
-    expect(perFormat).toEqual({ getOut: 7, smash: 4, fill: 3, count: 4, whoWins: 8, aim: 3, lineUp: 8, onTheBeat: 7, reveal: 3, labGame: 1 });
+    // (--- song-ring --- Song Ring is the on-the-beat format's eighth binding)
+    expect(perFormat).toEqual({ getOut: 7, smash: 4, fill: 3, count: 4, whoWins: 8, aim: 3, lineUp: 8, onTheBeat: 8, reveal: 3, labGame: 1 });
     for (const f of TEMPLATE_FORMAT_IDS) {
       expect(TEMPLATE_FORMATS[f].id).toBe(f);
       expect(CLAIMS).toContain(TEMPLATE_FORMATS[f].claim);
@@ -270,11 +278,12 @@ describe("the bindings", () => {
     }
     expect(allTemplates().filter((t) => t.binding.tier === "proven" && !t.ready).map((t) => t.id)).toEqual(HIDDEN_VARIANTS);
     expect(allTemplates().filter((t) => t.ready).length).toBe(ready.length);
-    expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(32);
+    // (--- song-ring --- 33 bindings without a recipe with Song Ring's, 32 before; the 14 not ready are the same 14)
+    expect(BINDINGS.filter((b) => b.tier !== "proven")).toHaveLength(33);
     expect(BINDINGS.filter((b) => b.tier === "trial").map((b) => b.mode).sort()).toEqual([...TRIAL_READY].sort());
     // (--- templates --- AI studio step 5: the square race the one proven binding not ready, Ball Drop's ready on the beat; studio round
     // 1, 11: Ball Drop's not ready again, its one variant hidden)
-    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(34 - TRIAL_READY.length);
+    expect(BINDINGS.filter((b) => !b.ready)).toHaveLength(35 - TRIAL_READY.length);
   });
 
   it("hides a variant whose plans fail a gate on every seed, with its reason: the square race's count-in fails G1 on every plan", () => {
@@ -317,8 +326,9 @@ describe("the bindings", () => {
       expect([seed, run.moment!.sounds >= 3, (run.moment!.quietTailSec ?? 0) < 0.5, run.moment!.chordMax, run.moment!.accent]).toEqual([seed, true, true, 1, false]);
       expect([seed, g2.problems]).toEqual([seed, ["payoffLandsPlain"]]);
     }
-    // the beat format's ready template is Collision Playground's, timed by its drop (group C below)
-    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat").map((t) => t.id)).toEqual(["on-the-beat-collide"]);
+    // the beat format's ready templates are Collision Playground's, timed by its drop (group C below), and – --- song-ring --- – Song
+    // Ring's, timed by its final chord
+    expect(readyTemplates("all").filter((t) => t.format.id === "onTheBeat").map((t) => t.id)).toEqual(["on-the-beat-collide", "on-the-beat-song-ring"]);
     // the reason it was hidden still holds for its recipe's run: timed by its last note, every plan fails G2 – a lone note fewer than
     // the run's usual moment over a board at rest, and the clip ends on silence
     for (const seed of [1, 2, 3, 4]) {
@@ -550,7 +560,9 @@ describe("the bot's own look", () => {
    * is of the plan without them – the recorded numbers unchanged –, and every plan below is checked to carry both as true.
    */
   // --- colour-match-segments --- (and Color Match's segment count, a setting since: the mode's own twelve in every recipe's plan – no recipe plans Color Match)
-  const OVERLAY_DEFAULTS: Readonly<Record<string, boolean | number>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12 };
+  // --- song-ring --- And Song Ring's six fields since its mode was added (`srSong` … `srLive`, at their defaults in every other mode's
+  // settings): the digest is of the plan without them too, and every plan below is checked to carry them at those defaults.
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, ...defaultSongRingFields() };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -577,6 +589,8 @@ describe("the bot's own look", () => {
     // (--- templates --- AI studio step 4b: the two keys the digest leaves out, as every default has them: the overlays shown)
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
     expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
+    // (--- song-ring --- and Song Ring's fields, which the digest leaves out too: at their defaults in every plan)
+    expect(planned.map((p) => [p.recipe, resolveSongRingFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSongRingFields()]));
   });
 
   it("is the default: look 'bot' plans what no look plans", () => {
@@ -1303,9 +1317,9 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
 
   it("adapts a binding without a recipe: its own settings inside RANGES and canonical, its mode, its strategy and outcome, its format's family and copy key", () => {
     const own = allTemplates().filter((t) => t.binding.variants.find((v) => v.id === t.id)!.recipe === null);
-    // (the 32 bindings without a recipe and – --- templates --- AI studio step 3 – two variants of proven ones that play their own way;
-    // --- templates --- AI studio step 6: Mode Lab's binding has a variant per catalog game)
-    expect(own.length).toBe(32 + (BLUEPRINT_CATALOG_IDS.length - 1) + OWN_VARIANTS.length);
+    // (the 33 bindings without a recipe – --- song-ring --- 32 before Song Ring's – and – --- templates --- AI studio step 3 – two variants
+    // of proven ones that play their own way; --- templates --- AI studio step 6: Mode Lab's binding has a variant per catalog game)
+    expect(own.length).toBe(33 + (BLUEPRINT_CATALOG_IDS.length - 1) + OWN_VARIANTS.length);
     for (const t of own) {
       const b = variantBinding(t.binding, t.binding.variants.find((v) => v.id === t.id));
       const r = plannedRecipe(t);
@@ -1638,10 +1652,11 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
     // step 6: each Mode Lab game's rule)
     // (--- templates --- studio round 1, 12: and the conveyor's, its own count; studio2 review round 2, 9: and Collision Playground's,
     // which says the switch is coming)
-    expect(own.sort()).toEqual(["own.box", "own.collide", "own.conveyor", "own.doublePendulum", "own.mergeRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
+    // (--- song-ring --- and Song Ring's, which asks to name the tune)
+    expect(own.sort()).toEqual(["own.box", "own.collide", "own.conveyor", "own.doublePendulum", "own.mergeRing", "own.songRing", "own.spiralGlass", ...BLUEPRINT_CATALOG_IDS.map((id) => `own.${id}`)].sort());
     for (const locale of ["en", "pl", "es"] as const) {
       const hooks = (COPY[locale] as unknown as { ownHooks: Record<string, string> }).ownHooks;
-      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "conveyor", "collide", "doublePendulum", ...BLUEPRINT_CATALOG_IDS]]);
+      expect([locale, Object.keys(hooks)]).toEqual([locale, ["mergeRing", "box", "spiralGlass", "conveyor", "collide", "doublePendulum", "songRing", ...BLUEPRINT_CATALOG_IDS]]);
       for (const [key, text] of Object.entries(hooks)) {
         const where = `${locale} ${key}: "${text}"`;
         expect([where, wordCount(text) <= SIMPLE_TEXT.hookWordsMax, [...text].length <= (locale === "en" ? 42 : 52), simpleHookText(text) === text, evenCaptionLines(text, 1.2).length <= 2]).toEqual([where, true, true, true, true]);
@@ -2211,7 +2226,7 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     }
   });
 
-  it("binds 48 of 48: every binding ready, or experimental with its reason, or – the square race and Ball Drop – proven with its one variant hidden with its reason", () => {
+  it("binds 49 of 49: every binding ready, or experimental with its reason, or – the square race and Ball Drop – proven with its one variant hidden with its reason", () => {
     expect(BINDINGS).toHaveLength(MODE_IDS.length);
     const perFormat: Record<string, [number, number, number]> = {};
     for (const b of BINDINGS) {
@@ -2226,9 +2241,10 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // (--- templates --- studio round 1, 10 and 11: Perfect Fit, Beat Machines and the Wave Tank experimental, Ball Drop's one variant
     // hidden; Collision Playground ready, timed by its drop)
     // (--- templates --- studio2 review round 2, 17: Bouncing Shapes experimental, the aim format's Bullseye ready)
-    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [1, 2, 0], lineUp: [8, 0, 0], onTheBeat: [1, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
-    // 34 modes as 43 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden; 17: 44 until Bouncing Shapes')
-    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([34, 43]);
+    // (--- song-ring --- Song Ring ready on the beat, timed by its final chord: 12 of 12 plans a language pass every gate)
+    expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [1, 2, 0], lineUp: [8, 0, 0], onTheBeat: [2, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
+    // 35 modes as 44 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden; 17: 44 until Bouncing Shapes'; --- song-ring --- 43 until Song Ring's)
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 44]);
   });
 });
 

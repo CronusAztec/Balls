@@ -86,6 +86,8 @@ import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, Merg
 import { plainTransform } from "./mergeRingGlow";
 // --- spiral-glass --- Spiral Glass: the glass tiles, the rainbow line, the shards, the pops, the badge, the caption and the HUD
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
+// --- song-ring --- Song Ring: the note tiles, the wall, the hub, the playhead, the sparks, the count and the end banner
+import { DEFAULT_SONG_RING_LABELS, SONG_RING_DATA_KEYS, SongRingDataset, SongRingLayer, completeSeconds, type SongRingLabels, type SongRingRenderOptions } from "./songRingRenderer";
 // --- blueprint --- Mode Lab: a Blueprint's arena, tiles, obstacles, ball labels, HUD and end banner
 import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
@@ -237,6 +239,9 @@ export interface CanvasLabels {
   // --- spiral-glass ---
   /** Spiral Glass: the HUD title, the tiles left, the badge, the caption and the end banners. */
   spiralGlass?: SpiralGlassLabels;
+  // --- song-ring ---
+  /** Song Ring: the count, the caption under it, the tunes' names and the end banners. */
+  songRing?: SongRingLabels;
   // --- blueprint ---
   /** Mode Lab: ARENA FULL, the clock, the banner's subline, the team names and the catalog entries' own texts. */
   blueprint?: BlueprintLabels;
@@ -490,6 +495,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   mergeRing: DEFAULT_MERGE_RING_LABELS, // --- merge-ring ---
   spiralGlass: DEFAULT_SPIRAL_GLASS_LABELS, // --- spiral-glass ---
+  songRing: DEFAULT_SONG_RING_LABELS, // --- song-ring ---
   blueprint: DEFAULT_BLUEPRINT_LABELS, // --- blueprint ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
@@ -1043,6 +1049,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const spiralGlassLayer = new SpiralGlassLayer();
     const spiralGlassRender: SpiralGlassRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const spiralGlassData = new SpiralGlassDataset();
+    // --- song-ring --- the Song Ring layer, its per-frame options and the data-song-* writer
+    const songRingLayer = new SongRingLayer();
+    const songRingRender: SongRingRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
+    const songRingData = new SongRingDataset();
     // --- blueprint --- the Mode Lab layer, its per-frame options and the data-blueprint-* writer
     const blueprintLayer = new BlueprintLayer();
     const blueprintRender: BlueprintRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
@@ -1603,6 +1613,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const mergeRingView = engine.isMergeRingMode() ? engine.getMergeRingView() : null; // --- merge-ring ---
       const spiralGlassView = engine.isSpiralGlassMode() ? engine.getSpiralGlassView() : null; // --- spiral-glass ---
+      const songRingView = engine.isSongRingMode() ? engine.getSongRingView() : null; // --- song-ring ---
       const blueprintView = engine.isBlueprintMode() ? engine.getBlueprintView() : null; // --- blueprint ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
@@ -2092,6 +2103,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         spiralGlassRender.wallThickness = p.wallThickness;
         spiralGlassRender.showWallGlow = p.showWallGlow;
         spiralGlassLayer.drawWorld(ctx, spiralGlassView, spiralGlassRender);
+      }
+      // --- song-ring --- Song Ring: the note tiles, the wall, the hub and the playhead under the balls.
+      if (songRingView) {
+        songRingRender.wallAlpha = circleAlpha;
+        songRingRender.wallThickness = p.wallThickness;
+        songRingRender.showWallGlow = p.showWallGlow;
+        songRingLayer.drawWorld(ctx, songRingView, songRingRender);
       }
       // --- blueprint --- Mode Lab: the arena's floor, the tiles, the obstacles, the rings and the rim under the balls.
       if (blueprintView) {
@@ -2750,6 +2768,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
       if (spiralGlassView) spiralGlassLayer.drawEffects(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS); // --- spiral-glass --- the shards, the pops and the badge over the balls
+      if (songRingView) songRingLayer.drawEffects(ctx, songRingView); // --- song-ring --- the sparks and the chord's flash over the balls
       if (blueprintView) blueprintLayer.drawEffects(ctx, blueprintView); // --- blueprint --- the balls' tiers or hit points, the spec's flash
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
       if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
@@ -2879,6 +2898,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- spiral-glass --- Spiral Glass: the tiles left, the progress ring and the caption (screen space, part of the recording).
       // (--- templates --- AI studio step 4b: none of them with its overlay switched off; the badge and GLASS CLEARED stay)
       if (spiralGlassView && p.sgHud) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- song-ring --- Song Ring: the count of the notes lit and the caption under it, in the hub (screen space, part of the recording).
+      if (songRingView) songRingLayer.drawOverlay(ctx, songRingView, (labelsRef.current ?? DEFAULT_LABELS).songRing ?? DEFAULT_SONG_RING_LABELS);
       // --- blueprint --- Mode Lab: the title, the HUD counters, the clock, ARENA FULL and the end banner (screen space, part of the recording).
       // (--- review fix (blueprint) --- a recorded or exported frame keeps the HUD inside the square: the clip is the square alone)
       if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, recordingRef.current || !!offline);
@@ -3178,6 +3199,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const SG = L.spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS;
           if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc", 0.82); // --- end-banner --- (under the spiral's centre, where the last glass breaks)
           else bigBanner(SG.timeoutTitle, SG.timeoutSub(spiralGlassView.tilesLeft), "#fb7185");
+        }
+        // --- song-ring --- Song Ring: the tune's name, only now (from the final chord, through the hold), or the TIMEOUT
+        if (songRingView && (songRingView.chordMs >= 0 || songRingView.timeoutMs >= 0)) {
+          const SR = L.songRing ?? DEFAULT_SONG_RING_LABELS;
+          if (songRingView.chordMs >= 0) bigBanner(SR.song(songRingView.song), SR.doneSub(songRingView.total, completeSeconds(songRingView)), "#fde68a");
+          else bigBanner(SR.timeoutTitle, SR.timeoutSub(songRingView.lit, songRingView.total), "#fb7185");
         }
         // --- blueprint --- (Mode Lab's end banner is its overlay's: blueprintLayer.drawOverlay(), opaque, on a dark band)
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
@@ -3797,6 +3824,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of SPIRAL_GLASS_DATA_KEYS) delete canvas.dataset[key];
         delete canvas.dataset.spiralHud; // --- templates ---
       }
+      // --- song-ring --- lit, total, hits, notes, nudges, balls, phase, complete, chord, timeout, finished, the tune once named (data-song-*)
+      if (songRingView) songRingData.write(songRingView, setCanvasData);
+      else if (canvas.dataset.songLit !== undefined) for (const key of SONG_RING_DATA_KEYS) delete canvas.dataset[key];
       // --- blueprint --- name, catalog, finished, reason, result, banner, HUD, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
       if (blueprintView) blueprintData.write(blueprintView, setCanvasData, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS);
       else if (canvas.dataset.blueprintFinished !== undefined) for (const key of BLUEPRINT_DATA_KEYS) delete canvas.dataset[key];
@@ -3901,6 +3931,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           mergeRingLayer.noteHud(hud);
         }
         if (spiralGlassView && p.sgHud) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass --- (--- templates --- AI studio step 4b: none switched off)
+        if (songRingView) songRingLayer.noteHud(hud); // --- song-ring --- (the count in the hub; the mode has no title block)
         if (blueprintView) blueprintLayer.noteHud(hud, liveSquare, titleInset); // --- blueprint --- (the title, the HUD counters, the clock and ARENA FULL)
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");

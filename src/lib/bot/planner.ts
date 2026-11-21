@@ -17,6 +17,7 @@ import { atEndPayoffSec, FILL_OUTCOMES, outcomeRunOf, payoffWindow, strategyOutc
 // --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
 import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
 import { CLEAR_HOLD_MS as SPIRAL_CLEAR_HOLD_MS } from "@/lib/physics/modes/spiralGlass"; // --- templates --- (AI studio step 3)
+import { END_HOLD_MS as SONG_RING_END_HOLD_MS } from "@/lib/physics/modes/songRing"; // --- song-ring ---
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 import { BANNER_WITH_PAYOFF_SEC, endBannersIn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4) a mode's own ending
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- templates --- (AI studio step 4) the maze's balls go by their colours
@@ -1005,6 +1006,8 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
     else if (settings.mode === "drop") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - DROP_REST_SEC) : -1;
     // --- templates --- (AI studio step 3) Spiral Glass ends CLEAR_HOLD_MS after its GLASS CLEARED (the flash, the chord): the clear is the payoff
     else if (settings.mode === "spiralGlass") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SPIRAL_CLEAR_HOLD_MS / 1000) : -1;
+    // --- song-ring --- Song Ring ends END_HOLD_MS after its final chord (the phrase played whole, the tune named): the chord is the payoff
+    else if (settings.mode === "songRing") sec = facts.finishSec >= 0 ? Math.max(0, facts.finishSec - SONG_RING_END_HOLD_MS / 1000) : -1;
     // --- templates --- (AI studio step 4) a mark mode's own moment (MARK_MODES: the first bullseye, the first shape at zero, the final form, GAME OVER, the last ball out)
     else if (MARK_MODES.includes(settings.mode)) sec = facts.markSec ?? -1;
     else sec = facts.finishSec;
@@ -1558,7 +1561,7 @@ const hudShowsCountdown = (s: SimulatorSettings): boolean => {
   if (s.mode === "stringBattle") return s.sbHud;
   if (s.mode === "fightLeague") return s.flHud; // --- fl-overhaul --- (Stage 6) the HP bars
   if (s.mode === "brickRebuild") return !s.loopHud; // --- templates --- (studio2 review round 2, 15) the bricks left under the box, drawn with the loop HUD off
-  return ["powerLayers", "battle", "race", "ctf", "glass", "multipliers"].includes(s.mode);
+  return ["powerLayers", "battle", "race", "ctf", "glass", "multipliers", "songRing" /* --- song-ring --- (the notes lit of the tune's, in the hub) */].includes(s.mode);
 };
 
 const luminance = (hex: string) => {

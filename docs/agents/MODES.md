@@ -132,7 +132,7 @@ Simple 80 or more and Playbook 75 or more, in en, pl and es) and a watched Simpl
 | --- | --- | --- | --- | --- |
 | 63 | `src/lib/bot/templates.ts` | `MODE_TEMPLATES`, `<id>: bind("<id>"` | The mode's binding: its format, the strategy that times its payoff and the outcome it waits for (a looping mode never binds to `"finish"`), a settings patch or a seeded generator (`ctx.rng`, every value on its `RANGES` step, no mode default changed) that switches on the context flag its outcome needs, the one HUD it keeps and its scene line. Words of its own go in row 66. | **typed** (`Record<ModeId, ModeBinding>`), and `tests/botTemplates.test.ts` checks its ids, settings and outcomes |
 | 64 | `src/lib/bot/templates.ts` | `EXPERIMENTAL`, `<id>:` | Only for a binding whose plans do not pass yet: its measured reason, over 80 characters. It keeps every template of the binding hidden. | **tested**: `tests/botTemplates.test.ts`, which lets the table only shrink (row 65) |
-| 65 | `tests/botTemplates.test.ts` | `expect(perFormat).toEqual({`, `EXPERIMENTAL_PINNED`, `"<id>"` | The pinned numbers a new binding changes: its format's count in "binds every mode once" and in "binds 48 of 48", the ready bindings and templates beside them, and for a binding in row 64 the mode in `EXPERIMENTAL_PINNED`, the shrink-only list. Each is a deliberate edit of a pinned list: the commit carries `Test-Change: tests/botTemplates.test.ts - <reason>`. | **tested**: these tests fail until then |
+| 65 | `tests/botTemplates.test.ts` | `expect(perFormat).toEqual({`, `EXPERIMENTAL_PINNED`, `"<id>"` | The pinned numbers a new binding changes: its format's count in "binds every mode once" and in "binds 49 of 49", the ready bindings and templates beside them, and for a binding in row 64 the mode in `EXPERIMENTAL_PINNED`, the shrink-only list. Each is a deliberate edit of a pinned list: the commit carries `Test-Change: tests/botTemplates.test.ts - <reason>`. | **tested**: these tests fail until then |
 | 66 | `messages/en.json` | `"things": {`, `"<id>":` | `ViralBot.things.<id>`, the one- or two-word noun its format's `{thing}` takes, in `MODE_IDS` order, and the same in `messages/pl.json` and `messages/es.json`. A binding whose run its format's words do not describe adds its own under `ViralBot.ownHooks` and `ViralBot.ownPosts`. Follow `docs/COPY-STYLE.md`. | **tested**: `tests/botFormatCopy.test.ts` (all three locales), `tests/i18nParity.test.ts` |
 | 67 | `docs/agents/STUDIO.md` | `## Every mode's templates`, `\| <Title> \|`, `-<kebab>` | The mode's row in the table, with each of its template ids, ready or waiting, and the counts above the table. | **tested**: `tests/agentStudio.test.ts` (every template id named) |
 | 68 | `docs/virality-playbook.md` | `### The viral templates and the Simple look`, `<Title>` | The binding's measured numbers in §5: the seeds planned, the gates passed, the median Simple and Playbook scores, what the watched clip showed, and the whole table's counts per format; README's bot section has the same counts. | **none** |
@@ -147,6 +147,22 @@ row 47. A visitor also finds a mode by searching and by sorting on its arrival.
 | 69 | `src/lib/siteDesign.ts` | `MODE_SHELVES` | The shelf the card stands on: `escape`, `battle`, `music`, `loops`, `smash`, `journey` or `lab`. Write the entry on its shelf's line, where the card should stand among its neighbours: the written order is the Featured order. | **typed** |
 | 70 | `src/lib/siteDesign.ts` | `MODE_SINCE` | The website version the mode ships in, for the Newest sort and the card's "New" badge. | **typed**, and `tests/siteRedesign.test.ts` once a release note names the mode |
 | 71 | `src/lib/modeSearch.ts` | `MODE_SEARCH_WORDS` | A few search words in English, Polish and Spanish: what the mode shows, and the parts of its English name its id does not spell. Never a word that names a setting of the panel. | **typed**, and `tests/siteRedesign.test.ts` |
+
+## What the crew and the planner know of the mode
+
+Song Ring (`songRing`) found these when it was added: none is typed, and the first three change what the crew is told of
+every clip of the mode.
+
+| # | File | Look for | Add | Caught by |
+| --- | --- | --- | --- | --- |
+| 72 | `src/lib/crew/hudFlags.ts` | `MODE_HUDS`, `MODE_END_BANNERS`, `mode: "<id>"` | What the mode always draws over its square, in plain words: its own HUD (with `counts: true` only when it counts to the payoff: then the mode also joins `hudShowsCountdown` of row 73's file and its binding takes `countdown` from the HUD) and its end banner with the seconds it leads the run's end by. A counter the crew should read goes in `COUNTER_MODES` of `src/lib/bot/actionTrack.ts` too. | **partly**: `tests/crewSimplicity.test.ts` holds `counts` and the planner together; a missing entry: none |
+| 73 | `src/lib/bot/planner.ts` | `export function payoffSecOf`, `MARK_MODES` | Where the payoff is when it is not the run's last step: a mode that holds after its payoff (a banner, a chord) gives the moment here, as the finish less its hold or as its mark. Without it a template times the payoff at the end of the hold. | **none** |
+| 74 | `src/lib/desktop/ai/settingsPatch.ts` | `SETTING_OPTIONS` | Only for a setting that takes one of a list of words (Song Ring's `srSong`): its options, so the app's AI names them, a patch with another word is refused and the `modes` tool can try another value in a link. | **none** (the `modes` tool then shows `roundTrip` null for it) |
+| 75 | `tests/botTemplates.test.ts` | `OVERLAY_DEFAULTS` | The mode's new settings fields. Every plan's settings carry them, so the recipes' pinned digests leave them out at their defaults (spread the mode's default fields in) and the test checks that every plan carries them. A deliberate edit: the commit carries `Test-Change: tests/botTemplates.test.ts - <reason>`. | **tested**: the digests fail until then |
+
+A mode that plays a fixed tune through the loop voices marks its pitched events `loopExact` (`SoundEvent` in
+`src/lib/physics/types.ts`), or a page whose Sound section plays in a scale, as every clip the bot plans does, snaps the tune
+into another one.
 
 ## Checking the mode as you go
 

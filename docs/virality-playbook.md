@@ -802,6 +802,33 @@ studio's tools say, one in the release notes, and one the first part of this rou
 - The Spiral Glass badge is the clip's own count of the balls, which its hook does not ask about. It stays on screen with the
   overlay off by design (its tip says so), so it now costs the Simple score its text on screen; the template stays ready.
 
+**Song Ring, bound when the mode was added** **[observed: its 4 plan seeds × 3 platforms in the Simple look in English, Polish
+and Spanish (the same counts in each), plan seeds 5–8 in the studio's 800×450 world, and 400 seeds of its default run]**. Song
+Ring (`on-the-beat-song-ring`) joins the on the beat format with settings of its own: the mode's defaults, standard clips,
+resolved. Its payoff is its final chord, 1.5 s before its run's end: the phrase has just played whole and the ring names the
+tune. Its hook is its own ("Name the tune before it ends.", "Zgadnij melodię, zanim się skończy.", "Adivina la melodía antes
+del final."), its post is its format's ("Which song should it play next?"), and it draws no payoff words beside the name.
+
+| | Measured |
+| --- | --- |
+| Plans passing every gate | 12 of 12 in each language, and 12 of 12 on plan seeds 5–8 at 800×450 |
+| Simple score | 91 (90–91) |
+| Checklist score | 92 (90–96): 16 of 20 for a payoff close to the clip's end on half the plans, 8 of 10 for the length on Shorts |
+| Clip length | 16.4–22.5 s |
+| Countdown | the mode's own count of the notes lit in the hub ("3/7"), credited as the HUD's (`hudShowsCountdown`, `MODE_HUDS` counts) |
+| The default run over 400 seeds | it ends 14.5–23.7 s in (median 20.6 s, 399 of 400 between 15 and 25 s); the last note lights 8.3–17.5 s in (median 14.4 s); the longest wait for a note is 4.4 s at the median and 9.6 s at most; 3.7 sound events a second at the median (3.6–3.9 from the 10th to the 90th percentile), never more than 0.8 s of silence; the same numbers at 450×450, 800×450 and 800×600, as the ring, the ball and its speed scale with the square |
+| The same run without the help (`srh=0`) | over 400 seeds it ends 10.2–40.0 s in, 222 of them between 15 and 25 s, and a note waits up to 28.9 s |
+
+- Watched, a Simple clip of plan seed 1 on Reels (21.8 s, rendered at 1080×1920): the hook stands at the top of the square for
+  2.5 s while the first two tiles light, the count in the hub goes from 1/7 to 7/7, the last tile lights at 15.1 s, the
+  playhead swings to the top and the phrase plays whole, and at 19.8 s the shared end banner names the tune over the ring
+  ("TWINKLE TWINKLE", "7 notes in 15.1 s"). The planned page plays in D pentatonic, and the phrase is still Twinkle: its
+  finale's notes read C5 C5 G5 G5 A5 A5 G5 off the rendered audio, each within a cent (`loopExact`: a fixed tune is never
+  snapped to the page's scale). The finale is the loudest part, 74–75 dB a second against 67–71 before it.
+- A fault no gate measures: until that flag the bot's pages, which play in a pentatonic scale, would have turned the phrase
+  into another tune. `tests/songRing.test.ts` holds it.
+- The whole table: 35 ready bindings as 44 templates, 49 of 49 modes bound. On the beat has 2 ready bindings of 8.
+
 **Where the templates are offered** (AI studio steps 7 and 8):
 
 - **The website's Bot section.** A Template choice beside the daily rotation lists the chosen series' ready templates, grouped
