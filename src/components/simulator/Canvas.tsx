@@ -89,7 +89,7 @@ import { FINAL_BANNER_DELAY_MS } from "@/lib/physics/modes/mergeRing"; // --- me
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
 // --- song-ring --- Song Ring: the note tiles, the wall, the hub, the playhead, the sparks, the count and the end banner
 import { DEFAULT_SONG_RING_LABELS, SONG_RING_DATA_KEYS, SongRingDataset, SongRingLayer, completeSeconds, type SongRingLabels, type SongRingRenderOptions } from "./songRingRenderer";
-import { DEFAULT_SAND_PLATE_LABELS, SAND_PLATE_DATA_KEYS, SandPlateDataset, SandPlateLayer, type SandPlateLabels } from "./sandPlateRenderer"; // --- sand-plate ---
+import { DEFAULT_SAND_PLATE_LABELS, SAND_PLATE_DATA_KEYS, SandPlateDataset, SandPlateLayer, sandPlateBannerShows, type SandPlateLabels } from "./sandPlateRenderer"; // --- sand-plate ---
 // --- blueprint --- Mode Lab: a Blueprint's arena, tiles, obstacles, ball labels, HUD and end banner
 import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
@@ -3272,8 +3272,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           if (songRingView.chordMs >= 0) bigBanner(SR.song(songRingView.song), SR.doneSub(songRingView.total, completeSeconds(songRingView)), "#fde68a");
           else bigBanner(SR.timeoutTitle, SR.timeoutSub(songRingView.lit, songRingView.total), "#fb7185");
         }
-        // --- sand-plate --- Sand Plate: from the full chord on, at the foot of the square over the dots (the final figure stays in view above it)
-        if (sandPlateView && sandPlateView.chordSec >= 0 && !sandPlateView.shaking) {
+        // --- sand-plate --- Sand Plate: from just after the full chord, at the foot of the square over the dots (the plate has risen
+        // out of its way, so the final figure stays whole above it: sandPlateBannerShows(), drawnFrame())
+        if (sandPlateView && sandPlateBannerShows(sandPlateView)) {
           const SP = L.sandPlate ?? DEFAULT_SAND_PLATE_LABELS;
           bigBanner(SP.doneTitle, SP.doneSub(sandPlateView.settings.notes), "#fde68a", 0.92);
         }

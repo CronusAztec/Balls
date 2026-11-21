@@ -9,8 +9,9 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * hops in a seeded direction, as far as the plate moves under it (|w|), so the sand leaves the shaking parts and comes to
  * rest on the still lines (w = 0): within about a second it has drawn the note's figure. Every `noteSec` the next, higher
  * note of the scale rings a finer figure: the sand leaps off the old lines and flows into the new ones. The last note is the
- * highest and its figure the finest; `FINALE_DELAY_SEC` after it the full chord lands, the plate flashes and every line
- * floods with colour (the canvas paints the grains by where they lie, every note's hue at once), and the run ends
+ * highest and its figure the finest, a centred mandala with no corner-to-corner line (`SAND_PLATE_FINALE`); `FINALE_DELAY_SEC`
+ * after it the full chord lands, the plate flashes and every line floods with colour (the canvas paints the grains by where
+ * they lie, every note's hue at once), and the run ends
  * `FINALE_HOLD_SEC` after the last note's own time (`cycleSec()`): the length is set by the settings, never by the seed
  * (the finder's `fixedRunDurationSec`). With Loop on, the sand is shaken back to its first scatter over the last
  * `SHAKE_SEC` and the run starts again at the seam, identical (the loop contract: `cycleSeconds()`, `loopSeams()`).
@@ -18,7 +19,11 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * The figures climb a ladder of intricacy (`SAND_PLATE_LADDER`, levels of similar fineness): the run starts `START_LEVEL`
  * rungs up, because the simplest figures (a cross, four arcs) are plain and settle slowly, and the hop is scaled to the
  * figure's spacing (`hopOf()`: a fine figure's lines lie close, so its grains hop less). A small floor hop keeps every grain
- * shimmering, so a settled line is a few pixels wide, not a hairline, and the picture never stands still.
+ * shimmering, so a settled line is a few pixels wide, not a hairline, and the picture never stands still; it follows the
+ * square of how hard the plate rings (up to full), so after the chord, when the plate rings down to `FINALE_DRIVE`, the last
+ * figure draws its lines thinner still and holds them to the end. No corner-to-corner line survives a note change
+ * (`arrangeFigures()`: a figure whose lines take the diagonal the last one took is mirrored onto the other), so every note
+ * moves the brightest stroke too.
  *
  * The grains are the mode's own state (as Bouncing Orbs and Wave Tank own theirs): two Float32Arrays of positions in plate
  * units, a byte of heat a grain for the canvas, and the first scatter kept for the loop. The engine holds one placeholder
@@ -27,16 +32,17 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * (MEMORY_CEILINGS.spGrains) and so has the note count (spNotes: the figures and the dots).
  *
  * Randomness: `ctx.random()` only, all in `init()`, in this order: the grains' generator seed (one draw), the key (one draw),
- * then per note its candidate figure, its sign and its mirror (three draws). The grains' first scatter and every hop's
- * direction come from that generator, seeded once (mulberry32), so a seed replays byte for byte and the engine's other draws
+ * then per note its candidate figure, its sign and its mirror (three draws, the last note's too, though its figure is the
+ * rung's mandala); `arrangeFigures()` then turns the draws into the figures, with no draw of its own. The grains' first
+ * scatter and every hop's direction come from that generator, seeded once (mulberry32), so a seed replays byte for byte and the engine's other draws
  * never shift it; a loop's seam reseeds it with the same seed.
  *
  * Sound (every pitched event `loopExact`: the scale is the mode's own, never snapped; all under 800 Hz): a note opens with a
  * struck bar at its pitch, and the plate's hum (the section root, an octave down) glides to it. While the sand flows, soft
  * plucks of the note's triad follow every `ARP_SEC`, as loud as the share of grains still moving, and a hiss of moving sand
  * fades as they settle (quiet means the figure is done). The finale plays the completion chord on the key's root with an
- * impact and a chime, then the hiss and the hum stop. About 3 events a second; a short rest between a settled figure and
- * the next note. Every note's strike is bounce math's "bounce" trigger, on the placeholder ball.
+ * impact and a chime, then the hiss and the hum stop. About 3.5 events a second at the defaults; a short rest between a
+ * settled figure and the next note. Every note's strike is bounce math's "bounce" trigger, on the placeholder ball.
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -55,8 +61,8 @@ export interface SandPlateSettings {
 }
 
 export const DEFAULT_SAND_PLATE_SETTINGS: SandPlateSettings = {
-  notes: 7,
-  noteSec: 2.5,
+  notes: 8, // --- review fix (C3) --- (eight notes of 2 s: a new figure every 2 s, the run 17.8 s)
+  noteSec: 2,
   grains: 3000,
   shake: 1,
   loop: false,
@@ -177,6 +183,12 @@ export const SAND_PLATE_LADDER: readonly (readonly (readonly [number, number])[]
   [[6, 7], [4, 9]],
   [[7, 8], [6, 9]],
 ];
+/**
+ * --- review fix (C3) --- The last note's figure, by its rung: a mandala (m + n even, the sign +1), symmetric about both
+ * diagonals and with no line along either, as fine as its rung or finer, so the finale reads as a centred picture unlike the
+ * figures before it. (3, 5) is a circle on a cross, (5, 7) rings within rings, (7, 9) rounded squares within squares.
+ */
+export const SAND_PLATE_FINALE: readonly (readonly [number, number])[] = [[3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [3, 7], [5, 7], [5, 7], [5, 7], [7, 9], [7, 9]];
 /** The rung the first note rings: the simplest figures are plain and settle slowly. */
 export const START_LEVEL = 3;
 /** The hop at full amplitude (plate widths a 60 Hz step) of a figure whose larger index is 3, before the Shake setting. */
@@ -193,8 +205,10 @@ export const KICK_SEC = 0.15;
 /** After the last note: the chord lands FINALE_DELAY_SEC in, and the run ends FINALE_HOLD_SEC after the note's own time. */
 export const FINALE_DELAY_SEC = 1.3;
 export const FINALE_HOLD_SEC = 1.8;
-/** The plate stops ringing over this long after the chord (the figure holds, shimmering at the floor hop). */
+/** The plate rings down over this long after the chord, to FINALE_DRIVE: the figure holds, crisp, still shimmering a little. */
 export const FINALE_DAMP_SEC = 0.5;
+/** --- review fix (C3) --- How hard the plate still rings after the chord: the floor hop follows its square, so the last lines grow thinner, never wider. */
+export const FINALE_DRIVE = 0.3;
 /** With Loop on: the sand is shaken back to its first scatter over the cycle's last SHAKE_SEC. */
 export const SHAKE_SEC = 0.6;
 /** The keys the seed picks from (MIDI roots: G3, A3, B♭3, C4, D4) and the major scale's steps. */
@@ -232,6 +246,43 @@ export interface SandFigure {
 export function plateWave(f: SandFigure, x: number, y: number): number {
   const u = f.mirror ? 1 - x : x;
   return Math.cos(f.n * Math.PI * u) * Math.cos(f.m * Math.PI * y) + f.sign * Math.cos(f.m * Math.PI * u) * Math.cos(f.n * Math.PI * y);
+}
+
+/**
+ * --- review fix (C3) --- The corner-to-corner lines of a figure as drawn: 1 the diagonal from the top left, 2 the one from the
+ * top right, 3 both, 0 none. With m + n odd a figure has exactly one (the sign picks which, the mirror swaps it); with m + n
+ * even, both (sign −1) or none (sign +1).
+ */
+export function figureDiagonals(f: SandFigure): number {
+  const bits = (f.m + f.n) % 2 === 1 ? (f.sign < 0 ? 1 : 2) : f.sign < 0 ? 3 : 0;
+  return f.mirror && (bits === 1 || bits === 2) ? 3 - bits : bits;
+}
+
+/**
+ * --- review fix (C3) --- Turns a run's drawn figures into the ones it plays (in place, no draw of its own): the last note rings
+ * its rung's mandala (`SAND_PLATE_FINALE`), and no corner-to-corner line survives a note change. A figure with one diagonal
+ * that the note before had too is mirrored onto the other; a figure with m + n even keeps both diagonals only when neither
+ * neighbour has one to share (else the sign +1 leaves it none).
+ */
+export function arrangeFigures(figures: SandFigure[]) {
+  const N = figures.length;
+  for (let k = 0; k < N; k++) {
+    const f = figures[k];
+    if (k === N - 1) {
+      const [m, n] = SAND_PLATE_FINALE[rungOf(k)];
+      f.m = m;
+      f.n = n;
+      f.sign = 1;
+      f.mirror = false;
+      continue;
+    }
+    const before = k > 0 ? figureDiagonals(figures[k - 1]) : 0;
+    if ((f.m + f.n) % 2 === 0) {
+      const next = figures[k + 1];
+      const nextHasOne = k + 1 < N - 1 && (next.m + next.n) % 2 === 1;
+      if (before !== 0 || nextHasOne) f.sign = 1;
+    } else if (figureDiagonals(f) & before) f.mirror = !f.mirror;
+  }
 }
 
 /** The hop at full amplitude for a figure (plate widths a step): BASE_HOP scaled to its spacing and by the Shake setting. */
@@ -329,8 +380,10 @@ export interface SandPlateView {
   cycleSec: number;
   note: number;
   noteStartSec: number;
-  /** How hard the plate rings now (0 … 1 + KICK). */
+  /** How hard the plate rings now (FINALE_DRIVE … 1 + KICK). */
   drive: number;
+  /** --- review fix (C3) --- The cycle time the plate was last struck (a note's bar or a pluck that sounded; −1 before): the canvas' glow flashes with it. */
+  strikeSec: number;
   /** The share of grains still moving, and the most of a note so far (the canvas' flow). */
   moving: number;
   /** The chord: the cycle time it landed (−1 before), and how many chords landed in all. */
@@ -394,6 +447,7 @@ export class SandPlateMode implements GameMode {
       note: 0,
       noteStartSec: 0,
       drive: 0,
+      strikeSec: -1,
       moving: 1,
       chordSec: -1,
       chords: 0,
@@ -442,6 +496,7 @@ export class SandPlateMode implements GameMode {
       v.figures.push({ m: pick[0], n: pick[1], sign, mirror });
       v.noteHz.push(sandNoteHz(v.keyMidi, k));
     }
+    arrangeFigures(v.figures); // --- review fix (C3) --- (the mandala at the end, a new diagonal at every note)
     v.generation++;
     v.settings = { ...s };
     v.timeSec = 0;
@@ -450,6 +505,7 @@ export class SandPlateMode implements GameMode {
     v.note = 0;
     v.noteStartSec = 0;
     v.drive = 0;
+    v.strikeSec = -1;
     v.moving = 1;
     v.chordSec = -1;
     v.chords = 0;
@@ -560,9 +616,9 @@ export class SandPlateMode implements GameMode {
     // the chord: the last note's figure is drawn, FINALE_DELAY_SEC in
     const chordAt = sandPlateChordSec(s);
     const chord = k === N - 1 && local + EPS >= chordAt;
-    // how hard the plate rings: the onset's kick, then steady; after the chord it stops over FINALE_DAMP_SEC
+    // how hard the plate rings: the onset's kick, then steady; after the chord it rings down to FINALE_DRIVE over FINALE_DAMP_SEC
     let drive = 1 + KICK * Math.exp(-tau / KICK_SEC);
-    if (chord) drive *= Math.max(0, 1 - (local - chordAt) / FINALE_DAMP_SEC);
+    if (chord) drive = FINALE_DRIVE + (drive - FINALE_DRIVE) * Math.max(0, 1 - (local - chordAt) / FINALE_DAMP_SEC);
     v.drive = drive;
     // the loop's shake: the cycle's last SHAKE_SEC carries every grain back to its first scatter
     const shakeFrom = C - SHAKE_SEC;
@@ -582,6 +638,8 @@ export class SandPlateMode implements GameMode {
     const K = hopOf(f, v.settings.shake);
     const settle = SETTLE_SHARE * K;
     const warm = HEAT_WARM_SHARE * K;
+    const quiet = Math.min(1, drive);
+    const floor = FLOOR_HOP * quiet * quiet;
     let moving = 0;
     const gx = v.gx;
     const gy = v.gy;
@@ -595,7 +653,8 @@ export class SandPlateMode implements GameMode {
       if (d > settle) moving++;
       heat[i] = d > warm ? 2 : d > settle ? 1 : 0;
       const th = rng() * TWO_PI;
-      const step = d + FLOOR_HOP;
+      // (--- review fix (C3) --- the floor hop follows the square of the plate's ring, up to full: a quieter plate draws thinner lines)
+      const step = d + floor;
       gx[i] = foldUnit(x + step * Math.cos(th));
       gy[i] = foldUnit(y + step * Math.sin(th));
     }
@@ -624,6 +683,7 @@ export class SandPlateMode implements GameMode {
     this.scatter();
     v.seams++;
     v.chordSec = -1;
+    v.strikeSec = -1;
     this.soundedNote = -1;
     this.plucks = 0;
     this.hissQuiet = false;
@@ -643,6 +703,7 @@ export class SandPlateMode implements GameMode {
       this.hissQuiet = false;
       this.hissMid = false;
       v.onsets++;
+      v.strikeSec = local;
       const hz = v.noteHz[this.soundedNote];
       this.emit(ctx, { type: "hit", wallIndex: 0, loop: "bar", frequency: hz, level: BAR_LEVEL, loopExact: true, melody: false });
       this.emit(ctx, { type: "hit", wallIndex: 0, loop: "root", frequency: hz / 2, level: HUM_LEVEL, loopExact: true, melody: false });
@@ -657,6 +718,7 @@ export class SandPlateMode implements GameMode {
       while (this.plucks < ARP_COUNT && tau + EPS >= (this.plucks + 1) * ARP_SEC && !chord) {
         const j = this.plucks++;
         if (v.moving < ARP_MIN_MOVING) continue;
+        v.strikeSec = local;
         this.emit(ctx, { type: "hit", wallIndex: 0, loop: "pluck", frequency: sandPluckHz(v.keyMidi, k, j), level: PLUCK_FLOOR + PLUCK_RANGE * v.moving, loopExact: true, melody: false });
         if (j === 1 && !this.hissMid) {
           this.hissMid = true;

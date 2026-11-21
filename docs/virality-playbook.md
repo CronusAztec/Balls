@@ -867,25 +867,35 @@ battle family offers them (`--family all` or `battle`), each a variant of the Mo
   failed as often. It needs a game whose action leaves one edge of the square clear, or a hook placed off the action.
 - The whole table: 35 ready bindings as 45 templates.
 
-**Sand Plate, a new mode bound when it was added (new modes lane, C3)** **[observed: plans read as the studio reads them,
-with the payoff's moment: plan seeds 1–4 on reels, TikTok and Shorts in English, Polish and Spanish, 36 plans; 30 seeds of the
-default run headless; one 1080×1920 render watched (seed 3)]**. A reveal with a hook of its own, timed by its full chord.
+**Sand Plate, a new mode bound when it was added (new modes lane, C3; measured again after its review)** **[observed: plans
+read as the studio reads them, with the payoff's moment: plan seeds 1–4 on reels, TikTok and Shorts in English, Polish and
+Spanish, 36 plans; 30 seeds of the default run headless; two 1080×1920 renders watched (seeds 3 and 5)]**. A reveal with a hook
+of its own, timed by its full chord.
 
 | Template | Its own words | Simple | Checklist | Pass every gate |
 | --- | --- | --- | --- | --- |
-| reveal-sand-plate | standard only; "Every note draws a new shape." ("Każda nuta rysuje nowy wzór.", "Cada nota dibuja una figura nueva.") | 89 (89–89) | 77 (75–77) | 36/36 |
+| reveal-sand-plate | standard only; "Every note draws a new shape." ("Każda nuta rysuje nowy wzór.", "Cada nota dibuja una figura nueva.") | 88 (88–88) | 82 (80–82) | 36/36 |
 
-- The run's length is its settings', never the seed's: 7 notes of 2.5 s and the finale's 1.8 s hold, 19.3 s; the full chord
-  lands 16.3 s in on the last, finest figure (the payoff at 82 % of a 19.8 s clip), the plate flashes, colour floods its lines
-  and THE FINAL SHAPE rises at the foot of the square, held 3 s to the end. Every note is a visible event: the sand leaps off the
-  old lines and settles on the new ones within about a second (a quarter to two fifths of the grains still flying 0.25 s into
-  a note, a tenth by its end).
-- 2.5 to 3 sound events a second (a struck bar and the plate's hum on every note, plucks and a hiss that fade as the sand
-  settles), every pitch under 800 Hz; the render measured −20.4 LUFS, no silence, the first sound at 0.03 s.
+- The run's length is its settings', never the seed's: 8 notes of 2 s and the finale's 1.8 s hold, 17.8 s; the full chord
+  lands 15.3 s in on the last, finest figure, a centred mandala with no corner-to-corner line (the payoff at 84 % of an 18.3 s
+  clip), the plate flashes, colour floods its lines, the plate rises a little and THE FINAL SHAPE comes in under it 0.45 s
+  later, held about 2 s to the end with none of the figure covered. Every note is a visible event: the sand leaps off the old
+  lines and settles on the new ones within about a second (26–38 % of the grains still flying 0.25 s into a note, 10–13 % at
+  its end, p10–p90), the brightest stroke moves too (no diagonal line survives a note change: 0 of 210 changes over 30 seeds,
+  against 88 of 180 before the review), and the parts of the plate that shake glow in the note's colour, their lobes taking
+  turns about once a second, so a settled figure still moves.
+- The review measured the 2.5 s notes of the first build as mostly still (motion at 2 Hz: mean 0.0046, median 0.0029; the
+  sand about 80 % on its lines 1 s into a note) and the last figure blurring in its hold (the share of grains on its lines
+  falling from 0.80 at the chord to 0.53–0.56 at the end). Now the same render (seed 5) measures mean 0.0067 and median
+  0.0047: better, still about half a ring mode's, since the 16 × 16 cells the motion is measured on average the swapping lobes
+  of a fine figure away. The last figure sharpens in its hold instead: 0.79 of the grains on its lines at the chord, 0.86 at
+  the end (0.83 at least, 30 of 30 seeds), as the floor hop follows the square of the plate's ring.
+- About 3.7 sound events a second (3.5–3.8 over 30 seeds: a struck bar and the plate's hum on every note, plucks and a hiss
+  that fade as the sand settles), every pitch under 800 Hz; the render measured −19.4 LUFS, no silence, the first sound at
+  0.03 s, the longest quiet 2 s (the hold after the chord).
 - 30 seeds, the same in the phone's 450×450 world and the laptop's 800×450 (the sand lives in plate units): every run ends
-  19.3 s in with its chord at 16.3 s, 2.44–3.06 sound events a second (median 2.85), the longest quiet 2.5 s (the hold after
-  the chord), 21–36 % of the grains flying 0.25 s into a note and 9–12 % at its end (p10–p90), four final figures (5,7 and
-  5,8, either sign) and all five keys, no grain ever off the plate, 0.5 ms a step with the engine.
+  17.8 s in with its chord at 15.3 s, one final figure (7, 9) and all five keys, no grain ever off the plate, about 0.5 ms a
+  step.
 - Its format's own hook asks to guess the picture, and a figure of sand is none a viewer can name, so the binding speaks its
   own (`own.sandPlate`). Its post is the format's ("What did you think it was drawing?").
 - The whole table: 36 ready bindings as 46 templates, 50 of 50 modes bound. Reveal has 2 ready bindings of 4.
