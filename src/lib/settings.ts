@@ -2699,6 +2699,9 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.shatterHits = isShatterHits(preset.shatterHits) ? preset.shatterHits : defaults.shatterHits; // --- shatter-demolition --- (one of the picks)
   merged.shatterSegments = isShatterSegments(preset.shatterSegments) ? preset.shatterSegments : defaults.shatterSegments;
   merged.shatterEvenBricks = typeof preset.shatterEvenBricks === "boolean" ? preset.shatterEvenBricks : defaults.shatterEvenBricks; // --- shatter-even-bricks ---
+  merged.multiplyRace = typeof preset.multiplyRace === "boolean" ? preset.multiplyRace : defaults.multiplyRace; // --- review fix (B5) --- (a real boolean, like the link's mrace: 1 or "false" falls back to the default)
+  merged.growCenterDot = typeof preset.growCenterDot === "boolean" ? preset.growCenterDot : defaults.growCenterDot; // --- review fix (B5) --- (Grow's two switches too)
+  merged.growLines = typeof preset.growLines === "boolean" ? preset.growLines : defaults.growLines;
   merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
   for (const key of ["topText", "bottomText", "watermarkText"] as const) {
     const text = preset[key] as unknown;

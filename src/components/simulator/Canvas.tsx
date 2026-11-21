@@ -2845,8 +2845,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- gerald-journey --- the glass stages' shards over the ball
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
-      if (growView) growLayer.drawEffects(ctx, growView, engine.getElapsedMs(), growColor, cx, cy); // --- grow-fill-clip --- a fill's flash and shockwave
-      if (swarmView) swarmLayer.drawEffects(ctx, swarmView, cx, cy, walls[0]?.radius ?? 0, engine.config.ballColor || "#ffffff", engine.getBalls().length); // --- multiply-race --- an escape's flash, the count and its ×2, the full swarm's burst
+      if (growView) growLayer.drawEffects(ctx, growView, engine.getElapsedMs(), growColor, cx, cy, engine.getBalls()); // --- grow-fill-clip --- a fill's flash and shockwave (--- review fix (B5) --- and the share's number, over the ball)
+      if (swarmView) swarmLayer.drawEffects(ctx, swarmView, cx, cy, walls[0]?.radius ?? 0, engine.config.ballColor || "#ffffff", engine.getBalls().length, false); // --- multiply-race --- an escape's flash and the full swarm's burst (--- review fix (B5) --- the count after the particles)
       if (spiralGlassView) spiralGlassLayer.drawEffects(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS); // --- spiral-glass --- the shards, the pops and the badge over the balls
       if (songRingView) songRingLayer.drawEffects(ctx, songRingView); // --- song-ring --- the sparks and the chord's flash over the balls
       if (sandPlateView) sandPlateLayer.drawEffects(ctx, sandPlateView); // --- sand-plate --- the chord's flash on the plate
@@ -2939,6 +2939,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
       }
       ctx.globalAlpha = 1;
+      if (swarmView) swarmLayer.drawCount(ctx, swarmView, cx, cy, walls[0]?.radius ?? 0, engine.config.ballColor || "#ffffff", engine.getBalls().length); // --- review fix (B5) --- Multiply's count over the escapes' confetti
       ctx.restore(); // camera
 
       // Bouncing Shapes: a DVD logo in a corner lights up the whole frame (screen space, part of the recording).

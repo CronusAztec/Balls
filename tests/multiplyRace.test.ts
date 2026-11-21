@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { clipPacingDefaults, clipStartSettings } from "@/lib/clipPacing";
 import { GALLERY } from "@/content/gallery";
-import { RACE_BOUNCE_GAP_MS, RACE_CHORD_HZ, RACE_ESCAPE_GAP_MS, RACE_HOLD_MS, aimAtGap, flightTo, raceChord, racePluckHz } from "@/lib/physics/modes/multiply";
+import { MultiplyMode, RACE_BOUNCE_GAP_MS, RACE_CHORD_HZ, RACE_ESCAPE_GAP_MS, RACE_HOLD_MS, aimAtGap, flightTo, raceChord, racePluckHz } from "@/lib/physics/modes/multiply";
 import { DOUBLE_POP_MS, SWARM_PALETTE, SwarmLayer, doublePopScale, generationColor, swarmShare } from "@/components/simulator/multiplySwarmRenderer";
-import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { modeDetail } from "@/lib/agentKit/modeCatalog";
+import en from "../messages/en.json";
 import { createEngineForSettings, runNeverFinishes } from "@/lib/simulation/finder";
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -14,7 +16,8 @@ import { fakeCanvas } from "./fakeCanvas";
 /*
  * --- multiply-race --- Multiply as a clip (lib/physics/modes/multiply.ts, components/simulator/multiplySwarmRenderer.ts):
  *  - the link base plays as it did (the bot's count-multiply plans and the crew's corpus run it); the race to the limit is a
- *    setting (`multiplyRace`, URL `mrace`) that the studio's start look and the Swarm Race card turn on, with a gap of 0.6;
+ *    setting (`multiplyRace`, URL `mrace`) that the studio's start look and the Swarm Race card turn on (--- review fix (B5) ---
+ *    through the page's gap of 0.3, with a pacer that keeps one ball aimed at the gap and balls that pass through each other);
  *  - the race's start ball leaves through the gap at once, the swarm reaches its limit and the run ends inside the clip;
  *  - its sound is the swarm's own: an arpeggio per escape and a pluck per bounce, each gated, the chord at the limit;
  *  - every run's balls carry their generation, which the canvas colours, and its count doubles on a meter.
@@ -49,9 +52,9 @@ describe("the link base and the start look", () => {
     expect([d.multiplyRace, d.gapSize, d.multiplySpawnCount, d.swarmLimit]).toEqual([false, 0.3, 3, 200]);
     expect(settingsToSearchParams(d).toString()).toBe("mode=multiply");
     expect(clipPacingDefaults("multiply")).toEqual({});
-    expect(START).toEqual({ multiplyRace: true, gapSize: 0.6 });
+    expect(START).toEqual({ multiplyRace: true });
     const start = { ...d, ...START } as SimulatorSettings;
-    expect(settingsToSearchParams(start).toString()).toBe("mode=multiply&gap=0.6&mrace=1");
+    expect(settingsToSearchParams(start).toString()).toBe("mode=multiply&mrace=1");
     expect(settingsFromSearchParams(settingsToSearchParams(start))).toMatchObject(START);
     const card = GALLERY.find((p) => p.id === "swarm-race")!;
     expect(settingsFromSearchParams(new URLSearchParams(card.query))).toMatchObject({ mode: "multiply", ...START });
@@ -62,6 +65,14 @@ describe("the link base and the start look", () => {
     expect(outcomeContextOfSettings(start).endless).toBe(false);
     // a plan's request is what it was: no race key unless the race is on
     expect("multiplyRace" in finderRequestOfSettings(d, PHONE, 30).modeSettings).toBe(false);
+  });
+
+  it("--- review fix (B5) --- resolves the race in presetToSettings: a real boolean or the default, so links, presets and files agree", () => {
+    expect(presetToSettings({ mode: "multiply", multiplyRace: true }).multiplyRace).toBe(true);
+    expect(presetToSettings({ mode: "multiply" }).multiplyRace).toBe(false);
+    for (const bad of [1, "true", "false", null]) expect(presetToSettings({ mode: "multiply", multiplyRace: bad } as unknown as Partial<SimulatorSettings>).multiplyRace, String(bad)).toBe(false);
+    expect(modeDetail("multiply", en)!.linkProblems.filter((problem) => problem.startsWith("multiplyRace"))).toEqual([]);
+    expect(modeDetail("grow", en)!.linkProblems).toEqual([]);
   });
 
   it("plays the link base as before: a crash per escape, no end, and no race sounds", () => {
@@ -97,8 +108,41 @@ describe("the race to the limit", () => {
       expect(endMs).toBeCloseTo(view.fullMs + RACE_HOLD_MS, -2);
       if (endMs <= 27_000) inside++;
     }
-    // measured when this was written (seeds 1–30, both worlds): 30 of 30 over by 27 s, median 17.7 s
+    // measured when this was written (seeds 1–30, both worlds): 30 of 30 over by 27 s, median 17.7 s (--- review fix (B5) --- with
+    // the pacer through the gap of 0.3: 30 of 30 over at 17.3–24.4 s, median 19.5 s)
     expect(inside).toBe(5);
+  });
+
+  it("--- review fix (B5) --- keeps the count climbing: a pacer aimed at the gap and balls passing through each other", { timeout: 60_000 }, () => {
+    for (const world of [PHONE, LAPTOP]) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const engine = engineOf(seed, START, world);
+        let peak = 0;
+        let rise = 0;
+        let still = 0;
+        for (let i = 1; i <= 10 * 60; i++) {
+          engine.update(STEP, 0);
+          const n = engine.getMultiplyView().count;
+          if (n > peak) {
+            still = Math.max(still, engine.getElapsedMs() - rise);
+            peak = n;
+            rise = engine.getElapsedMs();
+          }
+        }
+        still = Math.max(still, engine.getElapsedMs() - rise);
+        // measured when this was written (seeds 1–30): never still for more than 1.6 s in the first 10 s (before: 3–8 s)
+        expect(still, `seed ${seed} ${world.width}`).toBeLessThan(2500);
+        const { endMs, finished } = runOf(engine, 40);
+        expect(finished, `seed ${seed}`).toBe(true);
+        expect(endMs, `seed ${seed}`).toBeGreaterThan(15_000);
+        expect(endMs, `seed ${seed}`).toBeLessThan(25_000);
+      }
+    }
+    // only a race passes through: the link base keeps its rebounds
+    const mode = new MultiplyMode();
+    expect(mode.ballsPassThrough).toBe(false);
+    mode.setRace(true);
+    expect(mode.ballsPassThrough).toBe(true);
   });
 
   it("ends at the Swarm Limit as set, never at a slider's maximum", () => {
