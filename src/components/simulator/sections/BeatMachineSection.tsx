@@ -6,7 +6,8 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { inputClass } from "@/components/ui/Field";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { BM_PRESET_IDS, BM_PRESET_LABELS, BM_SOURCES, BM_VARIANTS, BM_NOTES_MAX, beatMachinePresetPatch, beatMachineVariantPatch, type BmPresetId, type BmSource, type BmVariant } from "@/lib/physics/beatMachine";
+import { BM_PRESET_IDS, BM_PRESET_LABELS, BM_SOURCES, BM_TUNES, BM_VARIANTS, BM_NOTES_MAX, beatMachinePresetPatch, beatMachineTunePatch, beatMachineVariantPatch, type BmPresetId, type BmSource, type BmVariant } from "@/lib/physics/beatMachine";
+import { tuneLoop } from "@/lib/simulation/beatMachineTunes";
 
 /*
  * --- beat-machine --- The Beat Machines controls (lib/physics/beatMachine.ts), in the Mode row while the mode is active (and in the
@@ -14,6 +15,9 @@ import { BM_PRESET_IDS, BM_PRESET_LABELS, BM_SOURCES, BM_VARIANTS, BM_NOTES_MAX,
  * melody), the machine (marbles or stairs), the tempo and where the notes come from (a seeded original phrase, a scale run, the
  * loaded melody or a typed list); the staircase's steps, their offsets and the return beats; the marble machine's bars, drop
  * height, rebound, marbles per tube (auto: as many as the tune needs), loop beats and phrase bass; and the HUD's note counter.
+ * --- beat-machine-tunes --- With the known-tune source, a row of small tune chips (Ode to Joy, Twinkle Twinkle, Frère Jacques,
+ * Für Elise, the Mountain King): a chip picks the tune at its own tempo with the counter on; the tune brings its own bars and
+ * loop, so the Bars and Loop beats sliders step aside.
  * The labels live in the `BeatMachine` namespace (the search and the command palette read them there too: Controls.tsx).
  * Simulator.tsx hands the settings to the engine and re-plans the run when one of them changes (the counter follows live);
  * the bars' and the steps' pitches follow the Sound section's scale and root.
@@ -28,11 +32,11 @@ export interface BeatMachineSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const BEAT_MACHINE_KEYS = ["bmPreset", "bmVariant", "bmBpm", "bmSource", "bmNotes", "bmSteps", "bmStepDx", "bmStepDy", "bmReturn", "bmBars", "bmDrop", "bmRebound", "bmPerTube", "bmLoopBeats", "bmBass", "bmCounter"];
+export const BEAT_MACHINE_KEYS = ["bmPreset", "bmVariant", "bmBpm", "bmSource", "bmTune" /* --- beat-machine-tunes --- */, "bmNotes", "bmSteps", "bmStepDx", "bmStepDy", "bmReturn", "bmBars", "bmDrop", "bmRebound", "bmPerTube", "bmLoopBeats", "bmBass", "bmCounter"];
 
 const VARIANT_LABELS: Record<BmVariant, string> = { marbles: "variantMarbles", stairs: "variantStairs" };
-const SOURCE_LABELS: Record<BmSource, string> = { original: "sourceOriginal", scale: "sourceScale", melody: "sourceMelody", custom: "sourceCustom" };
-const SOURCE_HINTS: Record<BmSource, string> = { original: "sourceOriginalHint", scale: "sourceScaleHint", melody: "sourceMelodyHint", custom: "sourceCustomHint" };
+const SOURCE_LABELS: Record<BmSource, string> = { original: "sourceOriginal", scale: "sourceScale", melody: "sourceMelody", custom: "sourceCustom", tune: "sourceTune" };
+const SOURCE_HINTS: Record<BmSource, string> = { original: "sourceOriginalHint", scale: "sourceScaleHint", melody: "sourceMelodyHint", custom: "sourceCustomHint", tune: "sourceTuneHint" };
 
 const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
@@ -60,7 +64,8 @@ function useBeatMachineTranslator(t: Translate): Translate {
 export default function BeatMachineSection({ t: controls, search, matches, settings: s, update }: BeatMachineSectionProps) {
   const t = useBeatMachineTranslator(controls);
   const stairs = s.bmVariant === "stairs";
-  const beats = stairs ? s.bmSteps + s.bmReturn : s.bmLoopBeats;
+  const tune = !stairs && s.bmSource === "tune"; // --- beat-machine-tunes --- (its own bars and loop)
+  const beats = stairs ? s.bmSteps + s.bmReturn : tune ? tuneLoop(s.bmTune).loopBeats : s.bmLoopBeats;
   const loopSec = s.bmBpm > 0 ? (beats * 60) / s.bmBpm : NaN;
   const applyPreset = (id: BmPresetId) => update(beatMachinePresetPatch(id));
   return (
@@ -88,7 +93,24 @@ export default function BeatMachineSection({ t: controls, search, matches, setti
           {t(stairs ? "loopNoteStairs" : "loopNoteMarbles", { beats, loop: short(loopSec, 2), steps: s.bmSteps, back: s.bmReturn })}
         </p>
       )}
-      <ButtonRow t={t} search={search} matches={matches} labelKey="bmSource" tipKey="bmSourceTip" values={BM_SOURCES} labels={SOURCE_LABELS} value={s.bmSource} onChange={(bmSource) => update({ bmSource })} hint={search ? undefined : t(SOURCE_HINTS[s.bmSource])} />
+      <ButtonRow t={t} search={search} matches={matches} labelKey="bmSource" tipKey="bmSourceTip" values={BM_SOURCES} labels={SOURCE_LABELS} value={s.bmSource} onChange={(bmSource) => update(bmSource === "tune" ? beatMachineTunePatch(s.bmTune) : { bmSource })} hint={search ? undefined : t(SOURCE_HINTS[s.bmSource])} />
+      {(s.bmSource === "tune" || (!!search && matches("bmTune"))) && (
+        <Searchable search={search} matches={matches} labelKey="bmTune">
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium text-ink-2 flex items-center">
+              {t("bmTune")}
+              <Tooltip text={t("bmTuneTip")} />
+            </span>
+            <div className="flex flex-wrap gap-1" role="group" aria-label={t("bmTune")} data-testid="bm-tunes">
+              {BM_TUNES.map((id) => (
+                <button key={id} type="button" onClick={() => update(beatMachineTunePatch(id))} aria-pressed={s.bmSource === "tune" && s.bmTune === id} className={`${pick(s.bmSource === "tune" && s.bmTune === id)} px-2`} data-bm-tune={id}>
+                  {t(`tune_${id}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Searchable>
+      )}
       {(s.bmSource === "custom" || (!!search && matches("bmNotes"))) && (
         <Searchable search={search} matches={matches} labelKey="bmNotes">
           <label className="block space-y-1.5">
@@ -110,11 +132,11 @@ export default function BeatMachineSection({ t: controls, search, matches, setti
       )}
       {(!stairs || !!search) && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="bmBars" tipKey="bmBarsTip" value={s.bmBars} range={RANGES.bmBars} onChange={(v) => update({ bmBars: v })} display={String(s.bmBars)} />
+          {(!tune || !!search) && <Slider t={t} search={search} matches={matches} labelKey="bmBars" tipKey="bmBarsTip" value={s.bmBars} range={RANGES.bmBars} onChange={(v) => update({ bmBars: v })} display={String(s.bmBars)} />}
           <Slider t={t} search={search} matches={matches} labelKey="bmDrop" tipKey="bmDropTip" value={s.bmDrop} range={RANGES.bmDrop} onChange={(v) => update({ bmDrop: v })} display={`${short(s.bmDrop, 1)}%`} />
           <Slider t={t} search={search} matches={matches} labelKey="bmRebound" tipKey="bmReboundTip" value={s.bmRebound} range={RANGES.bmRebound} onChange={(v) => update({ bmRebound: v })} display={short(s.bmRebound, 2)} />
           <Slider t={t} search={search} matches={matches} labelKey="bmPerTube" tipKey="bmPerTubeTip" value={s.bmPerTube} range={RANGES.bmPerTube} onChange={(v) => update({ bmPerTube: v })} display={s.bmPerTube > 0 ? String(s.bmPerTube) : t("perTubeAuto")} />
-          <Slider t={t} search={search} matches={matches} labelKey="bmLoopBeats" tipKey="bmLoopBeatsTip" value={s.bmLoopBeats} range={RANGES.bmLoopBeats} onChange={(v) => update({ bmLoopBeats: v })} display={String(s.bmLoopBeats)} />
+          {(!tune || !!search) && <Slider t={t} search={search} matches={matches} labelKey="bmLoopBeats" tipKey="bmLoopBeatsTip" value={s.bmLoopBeats} range={RANGES.bmLoopBeats} onChange={(v) => update({ bmLoopBeats: v })} display={String(s.bmLoopBeats)} />}
           <Searchable search={search} matches={matches} labelKey="bmBass">
             <Toggle t={t} labelKey="bmBass" tipKey="bmBassTip" value={s.bmBass} onChange={(v) => update({ bmBass: v })} />
           </Searchable>

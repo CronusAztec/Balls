@@ -4147,6 +4147,10 @@ export default function Simulator() {
         doneTitle: t("SandPlate.canvasTitle"),
         doneSub: (notes) => t("SandPlate.canvasDoneSub", { count: notes }),
       },
+      // --- beat-machine-tunes --- (the tune's name is Song Ring's)
+      beatMachine: {
+        tuneSub: (notes) => t("BeatMachine.canvasTuneSub", { count: notes }),
+      },
       // --- blueprint --- Mode Lab: the badges, the clock, the team names and every catalog entry's own texts (a spec of a
       // link speaks its author's words)
       blueprint: {

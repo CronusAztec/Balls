@@ -1,5 +1,6 @@
-import type { BeatMachineView } from "@/lib/physics/modes/beatMachine";
+import { isPhraseStart, type BeatMachineView } from "@/lib/physics/modes/beatMachine";
 import { BM_TIME_EPS, marblePosition, marbleState, stairsPosition, type BeatMachinePlan } from "@/lib/simulation/beatMachinePlan";
+import { frequencyToMidi } from "@/lib/audio/scales";
 
 /*
  * --- beat-machine --- Beat Machines' picture (lib/physics/modes/beatMachine.ts runs it), drawn in world px under the page's
@@ -13,7 +14,16 @@ import { BM_TIME_EPS, marblePosition, marbleState, stairsPosition, type BeatMach
  *   marbles and base caps, the rainbow bars (a struck bar brightens, glows and dips 2 px for a moment) and the glossy marbles,
  *   each with a white specular dot and a soft glow in its colour.
  *
- * Nothing is allocated per frame: no gradients (the gloss is two flat circles), the shared scratch points, one path a layer.
+ * --- beat-machine-tunes --- The marble machine is drawn to read on a phone: a warm lit stage fills the page's square behind
+ * it; the bars are glowing keys BM_KEY_TALL times as tall as the plan's bar (hanging under the bar's top, where the marbles
+ * strike, a gloss band on top and a shade at the foot), each with its note's name; the key
+ * a marble is about to strike glows for the beat before it (the next note lit: the marbles falling onto their keys and the
+ * one waiting at the foot of the next note's tube ringed in white), and a strike rings it – a white flash, a ring
+ * spreading from the point of contact, larger on a phrase's accented first beat; the marbles are drawn BM_MARBLE_DRAWN times
+ * their plan size, with a comet trail while they fall and bounce. All of it reads the plan at the frame's own time.
+ *
+ * Nothing is allocated per frame: no gradients (the gloss is two flat circles), the shared scratch points, one path a layer
+ * (the keys' names are made once a plan).
  */
 
 /** What the canvas hands the layer each frame. */
@@ -27,7 +37,7 @@ export interface BeatMachineRenderOptions {
 /** The staircase's colours (the clip's): panel, border, dots, track, ball, progress dots. */
 export const BM_STAIRS_LOOK = { panel: "#0f1a28", border: "#1f2c3a", grid: "rgba(255, 255, 255, 0.05)", track: "#2a3b48", ball: "#ffe7a8", ballGlow: "rgba(255, 231, 168, 0.22)", dotOn: "#ffe7a8", dotOff: "rgba(255, 255, 255, 0.16)" } as const;
 /** The marble machine's colours: the brass of the floor, rail and lift; the tubes' pale outline. */
-export const BM_MARBLES_LOOK = { brass: "#8c7350", brassDark: "#5e4c33", tube: "rgba(255, 240, 220, 0.38)", cap: "rgba(255, 240, 220, 0.55)" } as const;
+export const BM_MARBLES_LOOK = { brass: "#c39a5c", brassDark: "#7a6040", tube: "rgba(255, 240, 220, 0.55)", cap: "rgba(255, 240, 220, 0.75)" } as const;
 /** Seconds a struck bar (or a landed step) glows, and the bar's dip (2 px of the 720 px clip, in plan units) and its spring. */
 export const BM_GLOW_SEC = 0.3;
 export const BM_DIP_UNITS = 2 / 720;
@@ -38,9 +48,28 @@ export const BM_TRAIL_STEP_SEC = 0.018;
 /** The dot grid's spacing (units) and the panel's padding round the plan's box. */
 export const BM_GRID_UNITS = 0.04;
 export const BM_PANEL_PAD = 0.05;
+// --- beat-machine-tunes ---
+/** The marble machine's stage: the square's warm backdrop and its two lights (behind the keys, behind the tubes). */
+export const BM_STAGE_LOOK = { backdrop: "#3b2a1d", light: "#8a603a", spot: "#c08a4f", keyShade: "rgba(0, 0, 0, 0.28)", gloss: "rgba(255, 255, 255, 0.3)", ring: "#ffffff", label: "rgba(255, 255, 255, 0.92)" } as const;
+/** A key's drawn height (× the plan's bar), its drawn width (share of the bar pitch: the marbles pass between keys) and the label's size (share of the key's height). */
+export const BM_KEY_TALL = 2.5;
+export const BM_KEY_W_SHARE = 0.56;
+export const BM_KEY_LABEL = 0.36;
+/** The marbles' drawn size (× the plan's radius), their trail (points, seconds apart) while they fall and bounce. */
+export const BM_MARBLE_DRAWN = 1.15;
+export const BM_MARBLE_TRAIL_POINTS = 6;
+export const BM_MARBLE_TRAIL_SEC = 0.022;
+/** Seconds a strike's ring spreads, its reach (marble radii; an accent's farther), and how long before its note a key is lit. */
+export const BM_RING_SEC = 0.42;
+export const BM_RING_REACH = 5;
+export const BM_ACCENT_REACH = 8;
+export const BM_NEXT_BEATS = 1;
+/** The note names of the keys (a tune's bars). */
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 
 const POINT = { x: 0, y: 0 };
 const MARBLE = marbleState();
+const TRAIL = marbleState();
 
 /** The latest note time (s) ≤ t of a slot from the view's log, or −1. */
 function sinceNote(view: BeatMachineView, slot: number, t: number): number {
@@ -68,6 +97,14 @@ export class BeatMachineLayer {
   rungsDrawn = 0;
   glowing = 0;
   litDot = -1;
+  /** --- beat-machine-tunes --- The key lit for the next note (−1: none), the last tube with a marble lit (−1: none), strike rings drawn, marbles with a trail. */
+  nextKey = -1;
+  litMarble = -1;
+  rings = 0;
+  trails = 0;
+  /** The keys' note names, made once a plan. */
+  private labelsOf: BeatMachinePlan | null = null;
+  private labels: string[] = [];
 
   private wx(view: BeatMachineView, u: number) {
     const f = view.frame;
@@ -246,6 +283,25 @@ export class BeatMachineLayer {
     const r = m.radius;
     const hair = Math.max(1, 1 / Math.max(1e-6, opts.dpr));
     ctx.save();
+    // --- beat-machine-tunes --- the stage: the square's warm backdrop, a light behind the keys and a spot behind the tubes
+    const side = view.frame.side > 0 ? view.frame.side : 0;
+    if (side > 0) {
+      ctx.fillStyle = BM_STAGE_LOOK.backdrop;
+      ctx.fillRect(view.frame.cx - side / 2, view.frame.cy - side / 2, side, side);
+      const keysY = this.wy(view, m.bars[0]?.top ?? 0);
+      const midX = this.wx(view, ((m.bars[0]?.x ?? 0) + (m.bars[m.bars.length - 1]?.x ?? 0)) / 2);
+      ctx.fillStyle = BM_STAGE_LOOK.light;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.ellipse(midX, keysY, side * 0.5, side * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = BM_STAGE_LOOK.spot;
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.ellipse(midX, this.wy(view, m.tubes[0]?.exitY ?? 0), side * 0.32, side * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     // the floor
     ctx.beginPath();
     roundRect(ctx, this.wx(view, m.floorLeft), this.wy(view, m.floorY), (m.floorRight - m.floorLeft) * k, 0.014 * k, 0.005 * k);
@@ -262,7 +318,7 @@ export class BeatMachineLayer {
     ctx.lineTo(liftL, this.wy(view, topY));
     ctx.moveTo(liftR, this.wy(view, m.floorY));
     ctx.lineTo(liftR, this.wy(view, topY));
-    ctx.lineWidth = Math.max(hair, 0.004 * k);
+    ctx.lineWidth = Math.max(hair, 0.005 * k);
     ctx.strokeStyle = BM_MARBLES_LOOK.brass;
     ctx.stroke();
     const height = footY - (m.railY + r);
@@ -278,7 +334,7 @@ export class BeatMachineLayer {
       ctx.lineTo(liftR, wy);
       rungs++;
     }
-    ctx.lineWidth = Math.max(hair, 0.003 * k);
+    ctx.lineWidth = Math.max(hair, 0.0035 * k);
     ctx.strokeStyle = BM_MARBLES_LOOK.brassDark;
     ctx.stroke();
     this.rungsDrawn = rungs;
@@ -286,11 +342,11 @@ export class BeatMachineLayer {
     ctx.beginPath();
     ctx.moveTo(this.wx(view, m.liftX + railHalf), this.wy(view, m.railY + r));
     ctx.lineTo(this.wx(view, m.railLeft - r), this.wy(view, m.railY + r));
-    ctx.lineWidth = Math.max(hair, 0.005 * k);
+    ctx.lineWidth = Math.max(hair, 0.006 * k);
     ctx.strokeStyle = BM_MARBLES_LOOK.brass;
     ctx.lineCap = "round";
     ctx.stroke();
-    // the tubes: thin pale outlines with a base cap
+    // the tubes: pale glass outlines with a base cap
     const half = r + 0.003;
     ctx.beginPath();
     for (const tube of m.tubes) {
@@ -303,7 +359,7 @@ export class BeatMachineLayer {
       ctx.moveTo(rr, top);
       ctx.lineTo(rr, bottom);
     }
-    ctx.lineWidth = hair;
+    ctx.lineWidth = Math.max(hair, 0.0025 * k);
     ctx.strokeStyle = BM_MARBLES_LOOK.tube;
     ctx.stroke();
     ctx.beginPath();
@@ -315,43 +371,114 @@ export class BeatMachineLayer {
     ctx.lineWidth = Math.max(hair, 0.004 * k);
     ctx.strokeStyle = BM_MARBLES_LOOK.cap;
     ctx.stroke();
-    // the bars: a struck bar brightens, glows and dips
+    // --- beat-machine-tunes --- the next note's key, lit for the beat before its strike
+    const P = plan.loopSec;
+    const tl = P > 0 ? t - Math.floor((t + BM_TIME_EPS) / P) * P : 0;
+    const next = nextNoteAfter(plan, tl);
+    this.nextKey = next && next.wait <= BM_NEXT_BEATS * plan.beatSec ? next.slot : -1;
+    // the keys: tall glowing bars hanging under the bar's top (where the marbles strike); a struck key flashes and rings
+    const keyH = BM_KEY_TALL * m.barH;
+    const keyW = Math.min(m.barW, BM_KEY_W_SHARE * m.pitch);
+    const labels = this.keyLabels(plan);
     let glowing = 0;
+    let rings = 0;
     for (let b = 0; b < m.bars.length; b++) {
       const bar = m.bars[b];
       const since = sinceNote(view, b, t);
       const glow = since < BM_GLOW_SEC ? 1 - since / BM_GLOW_SEC : 0;
       const dip = since < BM_DIP_SEC ? BM_DIP_UNITS * Math.sin((Math.PI * since) / BM_DIP_SEC) : 0;
       if (glow > 0) glowing++;
-      const x = this.wx(view, bar.x - m.barW / 2);
+      const x = this.wx(view, bar.x - keyW / 2);
       const y = this.wy(view, bar.top + dip);
+      const w = keyW * k;
+      const h = keyH * k;
+      const lit = b === this.nextKey && glow === 0;
       ctx.beginPath();
-      roundRect(ctx, x, y, m.barW * k, m.barH * k, 0.25 * m.barH * k);
+      roundRect(ctx, x, y, w, h, 0.18 * w);
       ctx.fillStyle = bar.color;
       ctx.shadowColor = bar.color;
-      ctx.shadowBlur = glow > 0 ? (opts.showGlow ? 26 : 16) * glow : 0;
+      ctx.shadowBlur = glow > 0 ? (opts.showGlow ? 30 : 20) * glow : lit ? 12 : 0;
       ctx.fill();
-      if (glow > 0) {
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 0.45 * glow;
+      ctx.shadowBlur = 0;
+      // the gloss band on top and the shade at the foot
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = BM_STAGE_LOOK.gloss;
+      ctx.fillRect(x, y, w, 0.22 * h);
+      ctx.fillStyle = BM_STAGE_LOOK.keyShade;
+      ctx.fillRect(x, y + 0.78 * h, w, 0.22 * h);
+      if (glow > 0 || lit) {
+        ctx.globalAlpha = glow > 0 ? 0.55 * glow : 0.18;
         ctx.fillStyle = "#ffffff";
-        ctx.fill();
+        ctx.fillRect(x, y, w, h);
         ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      if (labels.length > b && h > 14) {
+        ctx.fillStyle = BM_STAGE_LOOK.label;
+        ctx.font = `bold ${Math.round(Math.min(w * 0.62, h * BM_KEY_LABEL))}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labels[b], x + w / 2, y + 0.58 * h);
+      }
+      // the strike's ring, spreading from the point of contact (farther on a phrase's first beat)
+      if (since < BM_RING_SEC) {
+        const u = since / BM_RING_SEC;
+        const accent = P > 0 && isPhraseStart(((view.lastNoteSec[b] % P) + P) % P / Math.max(1e-9, plan.beatSec));
+        const reach = (accent ? BM_ACCENT_REACH : BM_RING_REACH) * r * k;
+        ctx.strokeStyle = accent ? BM_STAGE_LOOK.ring : bar.color;
+        ctx.globalAlpha = (accent ? 0.9 : 0.7) * (1 - u);
+        ctx.lineWidth = Math.max(hair, (accent ? 0.006 : 0.004) * k);
+        ctx.beginPath();
+        ctx.ellipse(this.wx(view, bar.x), this.wy(view, bar.top), Math.max(1, reach * (0.3 + 0.7 * u)), Math.max(1, 0.45 * reach * (0.3 + 0.7 * u)), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        rings++;
       }
     }
     this.glowing = glowing;
+    this.rings = rings;
     ctx.restore();
+  }
+
+  /** --- beat-machine-tunes --- The keys' note names (each bar's pitch: a known tune's own, or the Sound section's scale), made once a plan. */
+  private keyLabels(plan: BeatMachinePlan): string[] {
+    if (this.labelsOf === plan) return this.labels;
+    this.labelsOf = plan;
+    this.labels = plan.marbles ? plan.marbles.bars.map((bar) => NOTE_NAMES[((Math.round(frequencyToMidi(bar.frequency)) % 12) + 12) % 12]) : [];
+    return this.labels;
   }
 
   private drawMarbles(ctx: CanvasRenderingContext2D, view: BeatMachineView, plan: BeatMachinePlan, t: number, opts: BeatMachineRenderOptions) {
     const m = plan.marbles!;
     const k = view.frame.scale;
-    const r = m.radius * k;
+    const r = m.radius * k * BM_MARBLE_DRAWN;
+    this.litMarble = -1;
     let drawn = 0;
+    let trails = 0;
     ctx.save();
     for (let b = 0; b < m.tubes.length; b++) {
       const color = m.bars[b].color;
       const count = m.tubes[b].count;
+      // --- beat-machine-tunes --- the comet trails of the marbles falling onto their key and bouncing off it
+      for (let i = 0; i < count; i++) {
+        marblePosition(plan, b, i, t, MARBLE);
+        if (MARBLE.idle || MARBLE.segment > 1) continue;
+        trails++;
+        ctx.fillStyle = color;
+        for (let j = BM_MARBLE_TRAIL_POINTS; j >= 1; j--) {
+          const at = t - j * BM_MARBLE_TRAIL_SEC;
+          if (at < 0) continue;
+          marblePosition(plan, b, i, at, TRAIL);
+          if (TRAIL.idle) continue;
+          const u = 1 - j / (BM_MARBLE_TRAIL_POINTS + 1);
+          ctx.globalAlpha = 0.32 * u;
+          ctx.beginPath();
+          ctx.arc(this.wx(view, TRAIL.x), this.wy(view, TRAIL.y), r * (0.4 + 0.5 * u), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
       // the soft glow (one path for the tube's marbles), the bodies, the gloss and the specular dots
       ctx.beginPath();
       for (let i = 0; i < count; i++) {
@@ -361,7 +488,7 @@ export class BeatMachineLayer {
         ctx.moveTo(x + r * 1.8, y);
         ctx.arc(x, y, r * (opts.showGlow ? 2.2 : 1.8), 0, Math.PI * 2);
       }
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = 0.2;
       ctx.fillStyle = color;
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -383,7 +510,7 @@ export class BeatMachineLayer {
         ctx.moveTo(x + 0.55 * r, y);
         ctx.arc(x, y, 0.55 * r, 0, Math.PI * 2);
       }
-      ctx.globalAlpha = 0.28;
+      ctx.globalAlpha = 0.3;
       ctx.fillStyle = "#ffffff";
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -397,11 +524,68 @@ export class BeatMachineLayer {
       }
       ctx.fillStyle = "#ffffff";
       ctx.fill();
+      // --- beat-machine-tunes --- the next marbles lit: every marble falling onto its key, and the one waiting at the foot of
+      // the next note's tube
+      for (let i = 0; i < count; i++) {
+        marblePosition(plan, b, i, t, MARBLE);
+        const falling = !MARBLE.idle && MARBLE.segment === 0;
+        const waiting = b === this.nextKey && MARBLE.idle && MARBLE.slot === 0;
+        if (!falling && !waiting) continue;
+        ctx.strokeStyle = BM_STAGE_LOOK.ring;
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = Math.max(1, 0.25 * r);
+        ctx.beginPath();
+        ctx.arc(this.wx(view, MARBLE.x), this.wy(view, MARBLE.y), 1.45 * r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        this.litMarble = b;
+      }
       drawn += count;
     }
     ctx.restore();
     this.marblesDrawn = drawn;
+    this.trails = trails;
   }
+}
+
+// --- beat-machine-tunes ---
+/** The end banner's line under a known tune's name (the name itself is Song Ring's: `SongRingLabels.song`). */
+export interface BeatMachineLabels {
+  tuneSub: (notes: number) => string;
+}
+export const DEFAULT_BEAT_MACHINE_LABELS: BeatMachineLabels = { tuneSub: (notes) => `${notes} notes, every one on the beat` };
+
+/**
+ * Whether the end banner is up at simulation time `t`: a known tune's marble machine, from its last note (the chord) to the
+ * loop's end – in every loop, so a clip of whole loops ends on it and each pass names the tune again.
+ */
+export function beatMachineBannerShows(view: BeatMachineView, t: number): boolean {
+  const plan = view.plan;
+  if (!plan.tune || !plan.marbles || !(t > 0) || !(plan.loopSec > 0)) return false;
+  const tl = t - Math.floor((t + BM_TIME_EPS) / plan.loopSec) * plan.loopSec;
+  return tl >= plan.tune.lastBeat * plan.beatSec - BM_TIME_EPS;
+}
+
+const NEXT = { slot: -1, wait: 0 };
+/** The next note after loop time `tl` (its bar and the seconds until it; the loop wraps), or null for a plan with no notes. */
+export function nextNoteAfter(plan: BeatMachinePlan, tl: number): { slot: number; wait: number } | null {
+  const ev = plan.events;
+  let lo = 0;
+  let hi = ev.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ev[mid].t <= tl + BM_TIME_EPS) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = pass === 0 ? lo : 0; i < (pass === 0 ? ev.length : lo); i++) {
+      if (ev[i].kind !== "note") continue;
+      NEXT.slot = ev[i].slot;
+      NEXT.wait = ev[i].t - tl + (pass === 0 ? 0 : plan.loopSec);
+      return NEXT;
+    }
+  }
+  return null;
 }
 
 /** How far the machine reaches above and below its centre (world px, the stairs' panel and dots included): the loop HUD keeps clear of it. */
@@ -414,7 +598,7 @@ export function beatMachineExtentPx(view: BeatMachineView): number {
 }
 
 /** The canvas' data-bm-* keys (cleared when another mode runs). */
-export const BEAT_MACHINE_DATA_KEYS = ["bmVariant", "bmTime", "bmLoop", "bmLoopIndex", "bmBpm", "bmNotes", "bmPlayed", "bmSounds", "bmSeams", "bmSeamNotes", "bmSeamSounds", "bmSeamError", "bmBalls", "bmMarbles", "bmSpares", "bmConflicts", "bmInFlight", "bmInFlightMax", "bmReleases", "bmLifts", "bmGlides", "bmBasses", "bmSource", "bmNan", "bmLit", "bmRungs", "bmGlowing", "bmDrawn"] as const;
+export const BEAT_MACHINE_DATA_KEYS = ["bmVariant", "bmTime", "bmLoop", "bmLoopIndex", "bmBpm", "bmNotes", "bmPlayed", "bmSounds", "bmSeams", "bmSeamNotes", "bmSeamSounds", "bmSeamError", "bmBalls", "bmMarbles", "bmSpares", "bmConflicts", "bmInFlight", "bmInFlightMax", "bmReleases", "bmLifts", "bmGlides", "bmBasses", "bmSource", "bmNan", "bmLit", "bmRungs", "bmGlowing", "bmDrawn", "bmTune", "bmAccents", "bmChords", "bmNextKey", "bmLitMarble", "bmRings", "bmTrails"] as const;
 
 /** Mirrors a Beat Machines run onto the canvas' dataset (data-bm-*), for tools and the smoke test. */
 export function writeBeatMachineDataset(view: BeatMachineView, layer: BeatMachineLayer, set: (key: string, value: string) => void) {
@@ -447,4 +631,12 @@ export function writeBeatMachineDataset(view: BeatMachineView, layer: BeatMachin
   set("bmRungs", String(layer.rungsDrawn));
   set("bmGlowing", String(layer.glowing));
   set("bmDrawn", String(plan.marbles ? layer.marblesDrawn : 1));
+  // --- beat-machine-tunes ---
+  set("bmTune", plan.tune ? plan.tune.tune : "");
+  set("bmAccents", String(view.accents));
+  set("bmChords", String(view.chords));
+  set("bmNextKey", String(layer.nextKey));
+  set("bmLitMarble", String(layer.litMarble));
+  set("bmRings", String(layer.rings));
+  set("bmTrails", String(layer.trails));
 }

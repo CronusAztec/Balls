@@ -1,0 +1,165 @@
+import { describe, expect, it, vi } from "vitest";
+import { fakeCanvas } from "./fakeCanvas";
+import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
+import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
+import type { PhysicsEngine } from "@/lib/physics/engine";
+import { sectionRootHz, waveTankSettingsOf, type WaveTankSettings } from "@/lib/physics/waveTank";
+import { WT_BELL_CHORD_BELLS, WT_FRONT_COLUMNS, WT_GLOW_FLOOR } from "@/lib/physics/modes/waveTank";
+import { WT_WATER, WaveTankLayer, glowStep } from "@/components/simulator/waveTankRenderer";
+import { clipStartSettings } from "@/lib/clipPacing";
+import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+
+/*
+ * --- wave-chapters --- --- wave-glow --- The Wave Tank as a clip (lib/physics/modes/waveTank.ts, components/simulator/
+ * waveTankRenderer.ts, lib/clipPacing.ts): every section change is heard (the wall's strike and a step on the new root, the
+ * completion chord into the climax), the climax rings the loudest bells together once a second, the water carries its
+ * interference pattern (the glow) and the screen across the front edge, the picture is lit by it, and the start look opens on
+ * the double slit's stripes and climbs to the grating's beams inside one 30 s loop. None of it moves the pinned ball.
+ */
+
+vi.setConfig({ testTimeout: 120_000 });
+
+const config: PhysicsConfig = { width: 800, height: 600, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#ffffff", ballRadius: 8, audioIntensity: 0 };
+const base: ModeSettings = { bouncierEnabled: false, countdownTotal: 10, countdownRandom: false, colorMatchColorCount: 7, accumulationTimerMax: 4000, spikesEnabled: false, spikeCount: 6, multiplySpawnCount: 3, shatterSegmentsPerWall: 18, shatterHpPerSegment: 1, growRate: 5, portalCount: 3, twoBalls: false, drop: {}, box: {} };
+const STEP = 1000 / 60;
+
+function wtEngine(patch: Partial<WaveTankSettings> = {}, seed = 7): PhysicsEngine {
+  return createEngineForSettings(config, "waveTank", { ...base, waveTank: patch }, seed);
+}
+
+/** The engine settings of the page's start look. */
+function startLook(): Partial<WaveTankSettings> {
+  return waveTankSettingsOf({ ...defaultSettings("waveTank"), ...clipStartSettings("waveTank") } as SimulatorSettings);
+}
+
+/** Steps `engine` `frames` times, collecting every sound event with the time it came. */
+function run(engine: PhysicsEngine, frames: number): { t: number; e: SoundEvent }[] {
+  const out: { t: number; e: SoundEvent }[] = [];
+  for (let k = 0; k < frames; k++) {
+    engine.update(STEP, 0);
+    for (const e of engine.consumeSoundEvents()) out.push({ t: engine.getElapsedMs() / 1000, e });
+  }
+  return out;
+}
+
+describe("the Wave Tank's chapters (wave-chapters)", () => {
+  it("strikes the wall and steps on the new root at every section change, and rings the completion chord into the climax", () => {
+    const engine = wtEngine({ cols: 64 }, 1);
+    const events = run(engine, 30 * 60);
+    const v = engine.getWaveTankView();
+    // the default sections: 1 gap wrapping to 5 s, 2 gaps to 15 s, 7 gaps (the climax) to 25 s, then 1 gap again
+    const impacts = events.filter((x) => x.e.loop === "impact");
+    expect(impacts.map((x) => Math.round(x.t))).toEqual([5, 15, 25]);
+    expect(v.impacts).toBe(3);
+    for (const x of impacts) expect(x.e.chord?.length).toBe(3);
+    const steps = events.filter((x) => x.e.loop === "step");
+    const chords = events.filter((x) => x.e.loop === "chord");
+    expect(steps.map((x) => Math.round(x.t))).toEqual([5, 25]);
+    expect(chords.map((x) => Math.round(x.t))).toEqual([15]);
+    // the step climbs on the section's own root (I, IV, V: never snapped to the bells' scale), the chord on the climax's
+    expect(steps.map((x) => x.e.frequency)).toEqual([8 * sectionRootHz(1), 8 * sectionRootHz(0)]);
+    expect([...steps, ...chords].every((x) => x.e.loopExact === true && x.e.melody === false)).toBe(true);
+    expect(chords[0].e.frequency).toBeCloseTo(2 * sectionRootHz(2), 9);
+  });
+
+  it("rings the three loudest bells together once a second in the climax, and only there", () => {
+    const engine = wtEngine({ cols: 64 }, 1);
+    const events = run(engine, 30 * 60);
+    const v = engine.getWaveTankView();
+    const chimes = events.filter((x) => x.e.loop === "chime");
+    expect(chimes.length).toBeGreaterThan(0);
+    // every chime falls inside the climax (15 to 25 s), at most three on one whole second, each a bell's own pitch
+    expect(chimes.every((x) => x.t >= 15 - 1e-6 && x.t < 25 - 1e-6)).toBe(true);
+    const bySecond = new Map<number, number>();
+    for (const x of chimes) bySecond.set(Math.floor(x.t + 1e-9), (bySecond.get(Math.floor(x.t + 1e-9)) ?? 0) + 1);
+    expect([...bySecond.values()].every((n) => n >= 1 && n <= WT_BELL_CHORD_BELLS)).toBe(true);
+    expect(bySecond.size).toBeGreaterThanOrEqual(8);
+    expect(chimes.every((x) => v.bellHz.includes(x.e.frequency!))).toBe(true);
+    expect(v.chords).toBe(bySecond.size);
+    // the scanned bells are as many as before: a chime is never a strike
+    expect(events.filter((x) => x.e.loop === "scan").length).toBe(v.strikes);
+  });
+
+  it("keeps a sound going: no stretch longer than half a second without one", () => {
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    let quiet = 0;
+    let longest = 0;
+    for (let k = 0; k < 30 * 60; k++) {
+      engine.update(STEP, 0);
+      if (engine.consumeSoundEvents().length === 0) longest = Math.max(longest, ++quiet);
+      else quiet = 0;
+    }
+    expect(longest * STEP).toBeLessThan(500);
+  });
+});
+
+describe("the lit water (wave-glow)", () => {
+  it("carries the smoothed amplitude at every ridge sample and across the front edge, finite and from the floor up", () => {
+    for (const patch of [{ cols: 64 }, { model: "huygens" as const }]) {
+      const engine = wtEngine(patch, 1);
+      run(engine, 6 * 60);
+      const v = engine.getWaveTankView();
+      expect(v.glow.length).toBe(v.heights.length);
+      expect(v.front.length).toBe(WT_FRONT_COLUMNS);
+      expect(Array.from(v.glow).every((g) => Number.isFinite(g) && g >= 0)).toBe(true);
+      expect(Array.from(v.front).every((g) => Number.isFinite(g) && g >= 0)).toBe(true);
+      expect(v.glowReference).toBeGreaterThanOrEqual(WT_GLOW_FLOOR);
+      expect(Math.max(...v.front)).toBeGreaterThan(0.05);
+    }
+  });
+
+  it("shows the double slit's stripes on the screen: a bright middle band between dark ones, bright again at the sides", () => {
+    // the start look's two gaps on the page's grid, 6 s in: the middle (the zeroth order) bright, a dark band on each side of
+    // it (the first minima), the screen's brightest column more than twice its darkest
+    const engine = wtEngine(startLook(), 1);
+    run(engine, 6 * 60);
+    const v = engine.getWaveTankView();
+    expect(v.gaps).toBe(2);
+    const front = Array.from(v.front);
+    const max = Math.max(...front);
+    const n = front.length;
+    expect(max).toBeGreaterThan(2 * Math.min(...front));
+    expect(Math.max(...front.slice(n / 2 - 4, n / 2 + 4))).toBeGreaterThan(0.6 * max);
+    expect(Math.min(...front.slice(4, n / 2 - 4))).toBeLessThan(0.4 * max);
+    expect(Math.min(...front.slice(n / 2 + 4, n - 4))).toBeLessThan(0.4 * max);
+    expect(Math.max(front[0], front[1])).toBeGreaterThan(0.5 * max);
+  });
+
+  it("lights the picture by the pattern: the water in its six light steps, the pillars of the screen, the same frame twice", () => {
+    // the climax's beams on the page's grid
+    const engine = wtEngine(startLook(), 1);
+    run(engine, 24 * 60);
+    const view = engine.getWaveTankView();
+    const draw = () => {
+      const canvas = fakeCanvas(800, 600);
+      const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args?: unknown[] }[] };
+      const layer = new WaveTankLayer();
+      layer.drawStage(ctx, view, view.timeSec, { dpr: 1, showGlow: false, background: "#070b17" });
+      return { layer, calls: ctx.calls.map((c) => c.name) };
+    };
+    const a = draw();
+    expect(a.layer.litPillars).toBeGreaterThan(0);
+    expect(a.layer.waterLight).toBeGreaterThan(1);
+    expect(a.layer.waterLight).toBeLessThanOrEqual(WT_WATER.length - 1);
+    expect(draw().calls).toEqual(a.calls);
+    expect([glowStep(0, 1, 6), glowStep(1, 1, 6), glowStep(5, 1, 6), glowStep(0.5, 0, 6)]).toEqual([0, 5, 5, 0]);
+  });
+});
+
+describe("the Wave Tank's start look (wave-chapters)", () => {
+  it("opens on two gaps, climbs to the grating's beams and loops in 30 s; its link carries the look and replays it", () => {
+    const start = clipStartSettings("waveTank");
+    expect(start).toEqual({ wtGaps: "2@13, 1@8, 7@9", wtWrap: 5, wtSpacing: 2.5 });
+    const engine = wtEngine({ ...startLook(), cols: 64 }, 1);
+    const v = engine.getWaveTankView();
+    expect([v.loopSec, v.gaps]).toEqual([30, 2]);
+    // all seven gaps of the climax fit in the tank at 2.5 wavelengths apart
+    run(engine, 17 * 60);
+    expect([engine.getWaveTankView().gaps, engine.getWaveTankView().gapX.length, engine.getWaveTankView().climax]).toEqual([7, 7, true]);
+    const page = { ...defaultSettings("waveTank"), ...start } as SimulatorSettings;
+    const link = settingsToSearchParams(page);
+    expect(settingsFromSearchParams(link)).toMatchObject(start);
+    // the link base is what it was
+    expect(defaultSettings("waveTank")).toMatchObject({ wtGaps: "1, 2, 7", wtWrap: 5, wtSpacing: 2 });
+  });
+});

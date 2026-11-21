@@ -2,6 +2,7 @@ import type { Ball, GameMode, LoopSeams, ModeContext, SoundEvent } from "../type
 import { BOARD_BALL_CEILING } from "@/lib/uncap";
 import { resolveBeatMachineSettings, type BeatMachineSettings } from "../beatMachine";
 import {
+  BM_BASS_BEATS,
   BM_EVENT_KINDS,
   BM_TIME_EPS,
   buildPhrase,
@@ -34,12 +35,21 @@ import {
  * that holds its time – the live page and the fast export's offline twin play the same events: the marbles' strikes are tuned
  * bars ("bar") with the phrase bass every two bars ("bass"); the staircase's landings are pentatonic plucks ("pluck") and its
  * return trip a reset glide ("glide") that ends at the loop point. Every note is also bounce math's "bounce" trigger.
+ *
+ * --- beat-machine-tunes --- The marble machine accents the first beat of every two-bar phrase (its strike at full level, a chime
+ * an octave over it: `ringVoice` "extra", a layer on the strike, never a contact of its own), and a known tune (the "tune"
+ * source) plays every note at its exact pitch (`loopExact`: the Sound section's scale never turns it into another tune) and
+ * closes its loop with the completion chord on its last note over its own bass, while the canvas shows the tune's name.
  */
 
 /** A note's level (the bar strike and the pluck), the bass's and the glide's. */
 export const BM_NOTE_LEVEL = 0.9;
 export const BM_BASS_LEVEL = 0.8;
 export const BM_GLIDE_LEVEL = 1;
+/** --- beat-machine-tunes --- A phrase's first strike, the chime an octave over it, and a known tune's closing chord. */
+export const BM_ACCENT_LEVEL = 1;
+export const BM_ACCENT_CHIME_LEVEL = 0.45;
+export const BM_CHORD_LEVEL = 1;
 /** Notes a step emits at most (the voice budget merges and drops past 6 a tick anyway). */
 export const BM_NOTES_PER_STEP = 6;
 /** Seams the view keeps the note count of (the smoke test's notes × loops), and checks against t = 0 (`seamError`). */
@@ -66,6 +76,8 @@ export interface BeatMachineFrame {
   ux: number;
   uy: number;
   scale: number;
+  /** --- beat-machine-tunes --- The page's centred square's side (world px): the backdrop the renderer lights fills it. */
+  side: number;
 }
 
 /** What the canvas, the HUD, the smoke test and the tests read of a run (the same object every call). */
@@ -104,6 +116,10 @@ export interface BeatMachineView {
   nonFinite: number;
   /** Engine balls placed (the stairs' ball, or the marbles up to the board's ceiling). */
   balls: number;
+  /** --- beat-machine-tunes --- Accented strikes and closing chords played, and the last chord's time (s; −1: none yet). */
+  accents: number;
+  chords: number;
+  chordSec: number;
 }
 
 const POINT = { x: 0, y: 0 };
@@ -112,6 +128,14 @@ const MARBLE = marbleState();
 /** A zero count for every event kind. */
 function emptyCounts(): Record<BmEvent["kind"], number> {
   return Object.fromEntries(BM_EVENT_KINDS.map((kind) => [kind, 0])) as Record<BmEvent["kind"], number>;
+}
+
+// --- beat-machine-tunes ---
+/** Whether a note on `beat` opens a two-bar phrase (every BM_BASS_BEATS beats from the loop's start). */
+export function isPhraseStart(beat: number): boolean {
+  if (!(beat >= 0)) return false;
+  const r = beat % BM_BASS_BEATS;
+  return r < 1e-6 || BM_BASS_BEATS - r < 1e-6;
 }
 
 export class BeatMachineMode implements GameMode {
@@ -145,13 +169,13 @@ export class BeatMachineMode implements GameMode {
   private perLoop: Record<BmEvent["kind"], number> = emptyCounts();
 
   constructor() {
-    const plan = planBeatMachine({ variant: "stairs", bpm: 80, steps: 1, stepDxPct: 7.5, stepDyPct: 7.9, bars: 2, dropPct: 28, rebound: 0.3, perTube: 0, returnBeats: 0, loopBeats: 1, bass: false, phrase: { notes: [{ beat: 0, slot: 0, frequency: 262 }], source: "scale", slotHz: [262] } });
+    const plan = planBeatMachine({ variant: "stairs", bpm: 80, steps: 1, stepDxPct: 7.5, stepDyPct: 7.9, bars: 2, dropPct: 28, rebound: 0.3, perTube: 0, returnBeats: 0, loopBeats: 1, bass: false, phrase: { notes: [{ beat: 0, slot: 0, frequency: 262 }], source: "scale", slotHz: [262], tune: null } });
     this.view = {
       generation: 0,
       settings: resolveBeatMachineSettings(null),
       plan,
       source: "original",
-      frame: { cx: 400, cy: 225, ux: 0, uy: 0, scale: 400 },
+      frame: { cx: 400, cy: 225, ux: 0, uy: 0, scale: 400, side: 450 },
       timeSec: 0,
       loop: 0,
       seams: 0,
@@ -170,6 +194,9 @@ export class BeatMachineMode implements GameMode {
       seamError: 0,
       nonFinite: 0,
       balls: 0,
+      accents: 0,
+      chords: 0,
+      chordSec: -1,
     };
   }
 
@@ -202,7 +229,7 @@ export class BeatMachineMode implements GameMode {
     const s = this.settings;
     const v = this.view;
     // the seeded choices, in their documented order: the original phrase's draws
-    const phrase = buildPhrase({ variant: s.variant, source: s.source, slots: s.variant === "stairs" ? s.steps : s.bars, loopBeats: s.loopBeats, melody: s.melody, custom: s.notes, scale: s.scale, root: s.root }, () => ctx.random());
+    const phrase = buildPhrase({ variant: s.variant, source: s.source, slots: s.variant === "stairs" ? s.steps : s.bars, loopBeats: s.loopBeats, melody: s.melody, custom: s.notes, scale: s.scale, root: s.root, tune: s.tune /* --- beat-machine-tunes --- */ }, () => ctx.random());
     const plan = planBeatMachine({ variant: s.variant, bpm: s.bpm, steps: s.steps, stepDxPct: s.stepDx, stepDyPct: s.stepDy, bars: s.bars, dropPct: s.dropPct, rebound: s.rebound, perTube: s.perTube, returnBeats: s.returnBeats, loopBeats: s.loopBeats, bass: s.bass, phrase });
     v.generation++;
     v.settings = { ...s };
@@ -226,6 +253,9 @@ export class BeatMachineMode implements GameMode {
     v.inFlight = 0;
     v.seamError = 0;
     v.nonFinite = 0;
+    v.accents = 0;
+    v.chords = 0;
+    v.chordSec = -1;
     this.stepStart = 0;
     this.sub = 0;
     this.steps = 0;
@@ -305,6 +335,7 @@ export class BeatMachineMode implements GameMode {
     v.frame.ux = (b.x0 + b.x1) / 2;
     v.frame.uy = (b.y0 + b.y1) / 2 + below / 2;
     v.frame.scale = scale;
+    v.frame.side = side;
   }
 
   private wx(u: number) {
@@ -571,10 +602,26 @@ export class BeatMachineMode implements GameMode {
     const v = this.view;
     const plan = v.plan;
     switch (e.kind) {
-      case "note":
+      case "note": {
         this.countNote(e, at, L, ctx, true);
-        if (plan.variant === "stairs") this.emit(ctx, { type: "hit", wallIndex: 0, loop: "pluck", frequency: e.frequency, level: BM_NOTE_LEVEL, loopBright: true, melody: false });
-        else this.emit(ctx, { type: "hit", wallIndex: 0, loop: "bar", frequency: e.frequency, level: BM_NOTE_LEVEL, melody: false });
+        const exact = plan.tune !== null || v.source === "tune"; // --- beat-machine-tunes --- (a known tune keeps its pitches)
+        if (plan.variant === "stairs") this.emit(ctx, { type: "hit", wallIndex: 0, loop: "pluck", frequency: e.frequency, level: BM_NOTE_LEVEL, loopBright: true, melody: false, ...(exact ? { loopExact: true } : {}) });
+        else {
+          // --- beat-machine-tunes --- the first beat of a two-bar phrase rings louder, with a chime an octave over it
+          const accent = isPhraseStart(plan.notes[e.note]?.beat ?? -1);
+          this.emit(ctx, { type: "hit", wallIndex: 0, loop: "bar", frequency: e.frequency, level: accent ? BM_ACCENT_LEVEL : BM_NOTE_LEVEL, melody: false, ...(exact ? { loopExact: true } : {}) });
+          if (accent) {
+            v.accents++;
+            this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chime", frequency: 2 * e.frequency, level: BM_ACCENT_CHIME_LEVEL, melody: false, ringVoice: "extra", ...(exact ? { loopExact: true } : {}) });
+          }
+        }
+        return;
+      }
+      case "chord":
+        // --- beat-machine-tunes --- the known tune's last note: the completion chord on its root (its own colour)
+        v.chords++;
+        v.chordSec = at;
+        this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chord", frequency: e.frequency, level: BM_CHORD_LEVEL, loopExact: true, ...(plan.tune?.minor ? { loopMinor: true } : {}), melody: false });
         return;
       case "glide":
         v.glides++;

@@ -121,6 +121,20 @@ const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, s
  *    more than 1.6 s in the first 10 s, about 5 sounds a second, never more than 0.42 s without one (the link base: the first
  *    escape at a median 18.3 s, 6 balls at 30 s, never an end). The link base stays for the same reason as Grow's: the bot's
  *    count-multiply plans in the crew's corpus run it.
+ *  - waveTank (--- wave-chapters ---): the clip opens on the double slit's stripes and climbs to the grating's beams – 2 gaps
+ *    for 13 s, 1 gap for 8 s, 7 gaps for 9 s, the first section wrapping 5 s across the loop point, the gaps 2.5 wavelengths
+ *    apart (all seven still inside the tank). The loop stays 30 s, so a 30 s clip is one whole loop: the 2-gap fan from the
+ *    first frame (5 s of it already behind the wall; its stripes reach the front edge's pillars within a second), the single
+ *    gap's even spread from 8 s, the grating's beams and the bells' chords from 16 s to 25 s, and the stripes forming again
+ *    into the seam. (The link base: 1 gap for the first 5 s, the beams at 15–25 s, then 1 gap again; its links and the Seven
+ *    Gaps card keep it.) The water has no randomness, so every seed plays this run.
+ *  - beatMachine (--- beat-machine-tunes ---): the marble xylophone plays Ode to Joy (its first period, 32 beats at 100 BPM, on
+ *    five bars tuned to its notes) with the note counter on, and every loop ends on the tune's chord over its bass with its
+ *    name on the end banner: a loop of 34 beats, 20.4 s, so a 30 s clip is one whole loop that ends 2.4 s after the chord –
+ *    the same on every seed (a tune draws no random number). A drop of 20 % instead of 28 % makes the machine's box less tall,
+ *    so the five bars fill the square's width: the marbles 7.1 px in radius in the page's 450 px square (the link base's ten
+ *    bars: 4.7 px). (The link base: a seeded original phrase over 10 pentatonic bars, 19.2 s, no chord; its links, the bot's
+ *    no-tube-conflict plans and the Marble Xylophone card keep it, and so does the fingerprint.)
  */
 export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -132,6 +146,10 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return GROW_START; // --- grow-fill-clip ---
     case "multiply":
       return MULTIPLY_START; // --- multiply-race ---
+    case "waveTank":
+      return WAVE_TANK_START; // --- wave-chapters ---
+    case "beatMachine":
+      return BEAT_MACHINE_START; // --- beat-machine-tunes ---
     default:
       return NONE;
   }
@@ -146,6 +164,10 @@ const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulat
 const GROW_START: Partial<SimulatorSettings> = Object.freeze({ growLaw: "multiply", growStep: 4, growStart: 15, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true } as const);
 /** --- multiply-race --- Multiply's start look: the race to the limit (through the page's gap of 0.3: --- review fix (B5) ---). */
 const MULTIPLY_START: Partial<SimulatorSettings> = Object.freeze({ multiplyRace: true } as const);
+/** --- wave-chapters --- The Wave Tank's start look: stripes first, the beams last (one whole 30 s loop a clip). */
+const WAVE_TANK_START: Partial<SimulatorSettings> = Object.freeze({ wtGaps: "2@13, 1@8, 7@9", wtWrap: 5, wtSpacing: 2.5 } as const);
+/** --- beat-machine-tunes --- Beat Machines' start look: Ode to Joy on the marble xylophone, the note counter on, a shorter drop. */
+const BEAT_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ bmSource: "tune", bmTune: "ode", bmCounter: true, bmDrop: 20 } as const);
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and
