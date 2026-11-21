@@ -18,7 +18,7 @@ import type { ModeId } from "@/lib/physics/types";
 export const END_BANNER_HOLD_MS = 1500;
 
 /** The modes whose end banner comes with the run's last step (Merge Ring: its OVERFLOW only, see `endBannerHoldMs()`). */
-export const END_BANNER_HOLD_MODES: readonly ModeId[] = ["accumulation", "portal", "shatter", "colorMatch", "target", "drop", "box", "pendulum", "polyrhythm", "grow", "mergeRing"];
+export const END_BANNER_HOLD_MODES: readonly ModeId[] = ["accumulation", "portal", "shatter", "colorMatch", "target", "drop", "box", "pendulum", "polyrhythm", "grow", "mergeRing", "lines", "paint", "collide", "illusion" /* --- string-art --- --- paint-full --- (Lane D, D3: STRING ART!, FULL CANVAS!, EMPTY! and IT WAS A CIRCLE! come with their runs' last step too) */];
 
 /** What decides the hold: the mode, whether the clip has captions of its own or the loop HUD, and (Merge Ring) how its run ended. */
 export interface EndBannerHoldContext {

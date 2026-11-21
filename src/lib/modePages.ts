@@ -159,8 +159,8 @@ export const MODE_FIRST_SETTINGS: Readonly<Partial<Record<ModeId, readonly strin
   ellipseFoci: ["Controls.efPreset", "Controls.efCount", "Controls.efEccentricity"],
   sandPlate: ["Controls.spNotes", "Controls.spGrains", "Controls.spShake"],
   illusion: ["Controls.ilType", "Controls.ilBalls", "Controls.ilPattern"],
-  lines: ["Controls.centerDot"],
-  paint: ["Controls.picturePaint", "Controls.paintBrush", "Controls.paintGuided"],
+  lines: ["Controls.centerDot", "Controls.lnStrings" /* --- string-art --- */],
+  paint: ["Controls.paintGuide" /* --- paint-full --- */, "Controls.picturePaint", "Controls.paintBrush"],
   mergeRing: ["Controls.mrTiers", "Controls.mrInterval", "Controls.mrSpawnTiers"],
   bullseye: ["Controls.byShots", "Controls.byRings", "Controls.byTargetMoving"],
   spiralGlass: ["Controls.sgTurns", "Controls.sgGlassHp", "Controls.sgMaxBalls"],
@@ -195,7 +195,7 @@ export const MODE_PAGE_INTROS: readonly ModeId[] = ["accumulation", "colorMatch"
  * Spanish social cards are drawn from the same moment rendered in that language (public/og/modes/<locale>/<slug>.jpg), so a
  * link preview never shows English words to a Polish or Spanish reader. Every other card has no words and serves every language.
  */
-export const MODE_CARD_WORDS: readonly ModeId[] = ["accumulation", "battle", "brickRebuild", "bullseye", "colorMatch", "ctf", "illusion", "mergeRing", "multipliers", "paint", "perfectFit", "portal", "race", "songRing", "spiralGlass", "territory"];
+export const MODE_CARD_WORDS: readonly ModeId[] = ["accumulation", "battle", "brickRebuild", "bullseye", "colorMatch", "ctf", "illusion", "lines" /* --- string-art --- (its strings counter) */, "mergeRing", "multipliers", "paint", "perfectFit", "portal", "race", "songRing", "spiralGlass", "territory"];
 
 /** The social card of a mode page in a language: its own picture for a mode with words in a language other than English. */
 export function modeOgImagePathIn(mode: ModeId, locale: string): string {

@@ -204,6 +204,15 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    (0.42–0.58), about 24 sounds a second (the link base: 720), never more than 0.13 s without one. (The link
  *    base: a jar of orbs bouncing forever; its links, the bot's on-the-beat plans, timed by their own anti-collision second,
  *    and the fingerprint keep it.)
+ *  - lines (--- string-art ---): rainbow string art that finishes – Rainbow Lines, ball speed 700 and Strings to Finish at 64: every
+ *    bounce a note of the ring's circular keyboard, each bounce point tied to the next (the art) and to the ball (the fan), and at
+ *    the 64th string the finished picture flashes with the completion chord under STRING ART!. Seeds 1–12, both worlds (the ring
+ *    follows the shorter side): finished at 21.6–24.7 s on 24 of 24, median 23.4 s, about 2.8 notes a second, never 0.7 s without
+ *    one (the link base: white strings that never end, 1.6 blips a second, up to 2.3 s without one).
+ *  - paint (--- paint-full ---): the full canvas inside the clip – a ball of 12 at speed 600 with Guide to the Gaps (each rebound
+ *    turned up to 30° toward the biggest patch under 97 % painted, a brush 1.3 × the ball): full at 16.9–25.0 s on 24 of 24, median
+ *    19.7 s, with a chime at each quarter and the chord at the full canvas (the link base: 80 % at 30 s, full in 73–118 s; ball 12
+ *    and speed 600 alone: 93 % at 30 s, full on none by 27 s).
  */
 export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -233,6 +242,10 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return ILLUSION_START; // --- illusion-stage ---
     case "collide":
       return COLLIDE_START; // --- collide-pour ---
+    case "lines":
+      return LINES_START; // --- string-art ---
+    case "paint":
+      return PAINT_START; // --- paint-full ---
     default:
       return NONE;
   }
@@ -272,6 +285,10 @@ const BEAT_MACHINE_START: Partial<SimulatorSettings> = Object.freeze({ bmSource:
 const ILLUSION_START: Partial<SimulatorSettings> = Object.freeze({ ilStage: true, ilCycles: 4 } as const);
 /** --- collide-pour --- Collision Playground's start look: the sync drop, squishy orbs, ANTI-COLLISION at 10 s, the jar pouring out from 14 s, notes on the beat. */
 const COLLIDE_START: Partial<SimulatorSettings> = Object.freeze({ cpSyncStart: true, cpSquishy: true, cpAntiCollisionAt: 10, cpPourAt: 14, cpPulse: true } as const);
+/** --- string-art --- Lines' start look: rainbow strings, ball speed 700, the art finished after 64 strings (about 23 s). */
+const LINES_START: Partial<SimulatorSettings> = Object.freeze({ rainbowLines: true, ballSpeed: 700, lnStrings: 64 } as const);
+/** --- paint-full --- Paint's start look: a ball of 12 at speed 600 with Guide to the Gaps (the full canvas in about 24 s). */
+const PAINT_START: Partial<SimulatorSettings> = Object.freeze({ ballRadius: 12, ballSpeed: 600, paintGuide: true } as const);
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and

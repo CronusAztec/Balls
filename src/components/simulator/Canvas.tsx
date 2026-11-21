@@ -52,6 +52,9 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+import { drawLinesArt } from "./linesRenderer"; // --- string-art ---
+import { drawPaintFull, drawPaintProgressRing, drawTopPill, paintShownShare } from "./paintRenderer"; // --- paint-full ---
+import { drawPortalGhost, drawPortals } from "./portalRenderer"; // --- portal-charges ---
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 // --- string-battle-alive --- the FINAL DUEL's banner, trails, ring flash, punch and slow-motion dips; every fighter's live threads
@@ -151,6 +154,15 @@ export interface CanvasLabels {
   painted: (pct: number) => string;
   teleports: string;
   afterTeleports: (n: number) => string;
+  /** --- portal-charges --- The teleports so far (the pill above the ring and the end card's line). */
+  portalTeleports?: (n: number) => string;
+  /** --- paint-full --- The full canvas' end card: its title and the time it took. */
+  paintFull?: string;
+  paintFullSub?: (seconds: string) => string;
+  /** --- string-art --- Lines: the strings so far of the goal (the pill above the ring), and the finished art's end card. */
+  linesCount?: (count: number, total: number) => string;
+  linesDone?: string;
+  linesDoneSub?: (n: number) => string;
   shattered: string;
   segmentsDestroyed: (broken: number, total: number) => string;
   segmentsShattered: string;
@@ -469,6 +481,12 @@ const DEFAULT_LABELS: CanvasLabels = {
   painted: (pct) => `${pct}% painted`,
   teleports: "teleports",
   afterTeleports: (n) => `After ${n} teleport${n !== 1 ? "s" : ""}`,
+  portalTeleports: (n) => `Teleports: ${n}`, // --- portal-charges ---
+  paintFull: "FULL CANVAS!", // --- paint-full ---
+  paintFullSub: (seconds) => `100% painted in ${seconds}s`,
+  linesCount: (count, total) => `Strings ${count}/${total}`, // --- string-art ---
+  linesDone: "STRING ART!",
+  linesDoneSub: (n) => `${n} strings, one ball`,
   shattered: "SHATTERED!",
   segmentsDestroyed: (b, t) => `${b}/${t} segments destroyed`,
   segmentsShattered: "segments shattered",
@@ -2273,8 +2291,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const points = engine.getPaintPoints();
         const balls = engine.getBalls();
         const radius = balls.length > 0 ? balls[0].radius : 8;
-        const lineWidth = 2 * radius;
         const paint = engine.getPaintState();
+        // (--- paint-full --- the stroke as wide as the dab the coverage counts: the ball itself, or Guide to the Gaps' wider brush)
+        const lineWidth = 2 * (!paint.picture && points.length > 0 ? points[points.length - 1].r : radius);
         const picture = paint.picture ? paintImageRef.current : null;
         const baseRadii = engine.getWallBaseRadii();
         const R = baseRadii.length > 0 ? baseRadii[0] : walls.length > 0 ? walls[0].radius : arena;
@@ -2322,6 +2341,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.globalAlpha = 1;
         }
         if (layers) paintTrail.release(); // --- review fix (performance) ---
+        // --- paint-full --- classic Paint: the canvas painted round the ring, and once it is full its last specks filling in under a flash
+        if (!layers) {
+          const pv = engine.getPaintProgressView();
+          const ro = { cx, cy, radius: R, nowMs: engine.getElapsedMs() };
+          if (pv.done) {
+            const g = engine.getPaintGrid();
+            drawPaintFull(ctx, g.grid, g.size, pv, ro);
+          }
+          drawPaintProgressRing(ctx, paintShownShare(paint.coverage, pv, ro.nowMs), pv, ro);
+        }
       } else paintTrail.release(); // --- review fix (performance) ---
 
       // Target segments (--- ring-looks --- a bright tile per number, the next one pulsing, its number huge behind the ball: ringModesRenderer.ts)
@@ -2335,65 +2364,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         drawCountdownRing(ctx, countdownView, cx, cy, walls[0].radius, engine.getElapsedMs(), wobble);
       }
 
-      // Portals
+      // Portals (--- portal-charges --- swirling mouths with their charges, a jump's beam, a burnt-out pair crumbling, and after the escape
+      // the ring ghosted with its open exits under the end card: portalRenderer.ts)
       if (engine.isPortalMode()) {
-        const portals = engine.getPortals();
         const wall = walls[0];
-        if (wall && !broken.has(0)) {
-          for (const portal of portals) {
-            if (portal.exhausted) continue;
-            const drawPortal = (angle: number) => {
-              const a0 = angle - portal.halfWidth;
-              const a1 = angle + portal.halfWidth;
-              ctx.save();
-              ctx.lineWidth = Math.max(6, 0.04 * wall.radius);
-              ctx.strokeStyle = portal.color;
-              ctx.shadowColor = portal.color;
-              ctx.shadowBlur = 16;
-              ctx.globalAlpha = 0.85;
-              ctx.beginPath();
-              ctx.arc(cx, cy, wall.radius, a0, a1);
-              ctx.stroke();
-              ctx.lineWidth = Math.max(3, 0.02 * wall.radius);
-              ctx.globalAlpha = 0.4;
-              ctx.beginPath();
-              ctx.arc(cx, cy, wall.radius - Math.max(4, 0.025 * wall.radius), a0, a1);
-              ctx.stroke();
-              ctx.restore();
-              const px = cx + wall.radius * Math.cos(angle);
-              const py = cy + wall.radius * Math.sin(angle);
-              ctx.save();
-              ctx.fillStyle = portal.color;
-              ctx.shadowColor = portal.color;
-              ctx.shadowBlur = 10;
-              ctx.globalAlpha = 0.9;
-              ctx.translate(px, py);
-              ctx.rotate(angle);
-              const d = Math.max(4, 0.025 * wall.radius);
-              ctx.beginPath();
-              ctx.moveTo(0, -d);
-              ctx.lineTo(d, 0);
-              ctx.lineTo(0, d);
-              ctx.lineTo(-d, 0);
-              ctx.closePath();
-              ctx.fill();
-              ctx.restore();
-            };
-            drawPortal(portal.angleA);
-            drawPortal(portal.angleB);
-            const r = 0.92 * wall.radius;
-            ctx.save();
-            ctx.strokeStyle = portal.color;
-            ctx.globalAlpha = 0.15;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 6]);
-            ctx.beginPath();
-            ctx.moveTo(cx + r * Math.cos(portal.angleA), cy + r * Math.sin(portal.angleA));
-            ctx.lineTo(cx + r * Math.cos(portal.angleB), cy + r * Math.sin(portal.angleB));
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.restore();
-          }
+        if (wall) {
+          const po = { cx, cy, radius: wall.radius, nowMs: engine.getElapsedMs(), wallThickness: p.wallThickness };
+          if (!broken.has(0)) drawPortals(ctx, engine.getPortals(), engine.getPortalLastJump(), po);
+          else drawPortalGhost(ctx, engine.getPortals(), po, wallColor(0));
         }
       }
 
@@ -2492,7 +2470,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- review fix (performance) --- one path per colour (per hue bucket with Rainbow Lines), not a stroke and a fill per point
       // (camera: the strings end at the ball where it is drawn, replayed or between steps)
       const drawStrings = (points: { x: number; y: number }[]) => drawStringArt(ctx, points, drawnBalls.length > 0 ? drawnBalls[0] : null, p.rainbowLines, p.lineColor, time);
-      if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
+      // --- string-art --- Lines: the finished art (each bounce to the next), the fan to the ball, the ring as a keyboard (linesRenderer.ts;
+      // Grow keeps the plain fan below)
+      if (engine.isLinesMode()) drawLinesArt(ctx, engine.getLinesView(), drawnBalls.length > 0 ? drawnBalls[0] : null, { rainbow: p.rainbowLines, lineColor: p.lineColor, nowMs: engine.getElapsedMs(), cx, cy, radius: walls[0]?.radius ?? arena, showGlow: p.showGlow });
 
       // Frozen balls (Accumulation) (--- ring-looks --- ice with a frost burst, the timer's digits faint behind them: ringModesRenderer.ts)
       if (engine.isAccumulationMode()) {
@@ -3135,83 +3115,71 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4", accumulationBannerAt(engine.getFrozenBalls(), cy, minDim));
           // (--- ring-looks --- the timer and the frozen count are the field's own now: big and faint behind the balls)
         }
+        // --- paint-full --- Paint's counter in a pill above the ring, off the painting (it swells as a milestone passes), and the full
+        // canvas' card (classic Paint, in a clip without captions, a loop HUD or a roster: their words are its ending)
+        const pillFs = Math.max(14, 0.042 * minDim);
+        const PILL_AT = 0.065;
         if (engine.isPaintMode()) {
           const paint = engine.getPaintState();
-          const coverage = paint.coverage;
-          const fs = Math.max(16, 0.05 * minDim);
+          const pv = engine.getPaintProgressView();
+          const nowMs = engine.getElapsedMs();
+          const coverage = paint.picture ? paint.coverage : paintShownShare(paint.coverage, pv, nowMs);
           const pct = Math.round(100 * coverage);
-          const done = coverage >= COVERAGE_DONE;
+          const done = paint.coverage >= COVERAGE_DONE;
           const color = done ? "#4ECDC4" : "#ffffff";
+          const popAge = nowMs - pv.milestoneMs;
+          const pop = popAge >= 0 && popAge < 400 ? 1 - popAge / 400 : 0;
           // Picture Paint: a second line with the beat the ball moves to and the schedule (on schedule / behind / ahead)
           const hints: string[] = [];
           if (paint.picture && paint.beatActive) hints.push(L.paintBeat(Math.round(paint.bpm)));
           if (paint.picture && paint.pace && !done) hints.push(paint.pace === "behind" ? L.paintBehind : paint.pace === "ahead" ? L.paintAhead : L.paintOnSchedule);
           const hint = hints.join(" · ");
           const hintColor = paint.pace === "behind" ? "#f59e0b" : paint.pace === "ahead" ? "#38bdf8" : ACCENT;
-          const sfs = 0.5 * fs;
+          const sfs = 0.5 * pillFs;
+          const pillH = 1.45 * pillFs + (hint ? 1.4 * sfs : 0);
           blocks.push({
-            height: fs + (hint ? 1.4 * sfs : 0),
+            height: pillH,
+            at: PILL_AT + (hint ? (0.7 * sfs) / minDim : 0),
             draw: (y) => {
-              ctx.save();
-              ctx.font = `bold ${fs}px sans-serif`;
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              const text = L.painted(pct);
-              const w = ctx.measureText(text).width + 0.8 * fs;
-              const h = 1.4 * fs;
-              const x0 = cx - w / 2;
-              const y0 = y + 0.5 * fs - h / 2;
-              const rad = h / 2;
-              ctx.globalAlpha = 0.55;
-              ctx.fillStyle = "#000000";
-              ctx.beginPath();
-              ctx.moveTo(x0 + rad, y0);
-              ctx.lineTo(x0 + w - rad, y0);
-              ctx.arcTo(x0 + w, y0, x0 + w, y0 + rad, rad);
-              ctx.arcTo(x0 + w, y0 + h, x0 + w - rad, y0 + h, rad);
-              ctx.lineTo(x0 + rad, y0 + h);
-              ctx.arcTo(x0, y0 + h, x0, y0 + h - rad, rad);
-              ctx.arcTo(x0, y0, x0 + rad, y0, rad);
-              ctx.closePath();
-              ctx.fill();
-              ctx.globalAlpha = 0.9;
-              ctx.fillStyle = color;
-              if (done) {
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 15;
-              }
-              ctx.fillText(text, cx, y + 0.5 * fs);
+              drawTopPill(ctx, L.painted(pct), cx, y + 0.725 * pillFs, pillFs, color, pop, done);
               if (hint) {
-                ctx.shadowBlur = 0;
-                ctx.font = `600 ${sfs}px sans-serif`;
-                ctx.fillStyle = hintColor;
-                ctx.fillText(hint, cx, y + fs + 0.9 * sfs);
-              }
-              ctx.restore();
-            },
-          });
-        }
-        if (engine.isPortalMode()) {
-          const count = engine.getPortalTeleportCount();
-          if (engine.hasPortalEscaped()) bigBanner(L.escaped, L.afterTeleports(count), "#6c5ce7");
-          else {
-            const fs = Math.max(18, 0.06 * minDim);
-            const sfs = 0.45 * fs;
-            blocks.push({
-              height: fs + 1.2 * sfs,
-              draw: (y) => {
                 ctx.save();
-                ctx.font = `bold ${fs}px sans-serif`;
+                ctx.font = `600 ${sfs}px sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillStyle = "#6c5ce7";
-                ctx.fillText(String(count), cx, y + 0.5 * fs);
-                ctx.font = `${sfs}px sans-serif`;
-                ctx.fillStyle = "#888";
-                ctx.fillText(L.teleports, cx, y + fs + 0.5 * sfs);
+                ctx.fillStyle = hintColor;
+                ctx.fillText(hint, cx, y + 1.45 * pillFs + 0.7 * sfs);
                 ctx.restore();
-              },
-            });
+              }
+            },
+          });
+          if (done && !paint.picture && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) bigBanner(L.paintFull ?? DEFAULT_LABELS.paintFull!, (L.paintFullSub ?? DEFAULT_LABELS.paintFullSub!)((pv.doneMs / 1000).toFixed(1)), "#4ECDC4");
+        }
+        // --- portal-charges --- Portal's teleports in a pill above the ring (no longer a dim number over the ring's middle), and on
+        // the end card over the ghosted ring
+        if (engine.isPortalMode()) {
+          const count = engine.getPortalTeleportCount();
+          const teleports = (L.portalTeleports ?? DEFAULT_LABELS.portalTeleports!)(count);
+          if (engine.hasPortalEscaped()) bigBanner(L.escaped, teleports, "#6c5ce7");
+          else {
+            const jump = engine.getPortalLastJump();
+            const age = engine.getElapsedMs() - jump.ms;
+            const pop = jump.portal >= 0 && age >= 0 && age < 400 ? 1 - age / 400 : 0;
+            blocks.push({ height: 1.45 * pillFs, at: PILL_AT, draw: (y) => drawTopPill(ctx, teleports, cx, y + 0.725 * pillFs, pillFs, "#ffffff", pop) });
+          }
+        }
+        // --- string-art --- Lines with Strings to Finish: the strings so far of the goal in a pill above the ring, and the finished
+        // art's card (not in a clip with captions, a loop HUD or a roster)
+        if (engine.isLinesMode()) {
+          const lv = engine.getLinesView();
+          if (lv.target > 0) {
+            if (lv.finished && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) bigBanner(L.linesDone ?? DEFAULT_LABELS.linesDone!, (L.linesDoneSub ?? DEFAULT_LABELS.linesDoneSub!)(lv.strings), "#a3e635");
+            else if (!lv.finished) {
+              const age = engine.getElapsedMs() - lv.lastKeyMs;
+              const pop = age >= 0 && age < 250 ? 1 - age / 250 : 0;
+              const text = (L.linesCount ?? DEFAULT_LABELS.linesCount!)(lv.strings, lv.target);
+              blocks.push({ height: 1.45 * pillFs, at: PILL_AT, draw: (y) => drawTopPill(ctx, text, cx, y + 0.725 * pillFs, pillFs, "#ffffff", 0.5 * pop) });
+            }
           }
         }
         // --- shatter-demolition --- Shatter's rings to go: a pip per ring in its colour, the ones the ball has left hollow (the

@@ -2,6 +2,7 @@ import { growFillSettingsOf, growRunFinishes } from "@/lib/physics/growFill";
 import { hoopsSettingsOf } from "@/lib/physics/hoopsFields";
 import { boxSettingsOf } from "@/lib/physics/modes/box";
 import { csSortSettles } from "@/lib/physics/modes/colourSort";
+import { collideSettingsOf } from "@/lib/physics/modes/collide"; // --- collide-pour ---
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
 import { flShowKind, flSideCount } from "@/lib/physics/modes/fightLeague";
@@ -60,6 +61,8 @@ export function outcomeContextOfSettings(s: SimulatorSettings, page: OutcomeCont
       hoops: hoopsSettingsOf(s), // --- bead-hoops --- (the return loops forever)
       landClaim: landClaimSettingsOf(s), // --- land-claim-pyramid --- (a looping pyramid never ends)
       multiplyRace: s.multiplyRace, // --- multiply-race --- (the race ends at the swarm's limit)
+      collide: collideSettingsOf(s), // --- collide-pour --- (a jar that pours ends empty)
+      lines: { strings: s.lnStrings }, // --- string-art --- (Strings to Finish ends the run)
     }) || rigNeverFinishes(s.mode, s);
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);

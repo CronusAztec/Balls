@@ -10,6 +10,7 @@ import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSetti
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
 import { collideRunFinishes, type CollideSettings } from "@/lib/physics/modes/collide"; // --- collide-pour --- (collideRunFinishes)
+import { resolveLinesStrings } from "@/lib/physics/modes/lines"; // --- string-art ---
 // --- gerald-glass ---
 import type { GlassSettings } from "@/lib/physics/modes/glass";
 // --- gerald-multipliers ---
@@ -175,6 +176,10 @@ export interface ModeSettings {
    * (no picture) always ends at `COVERAGE_DONE` and is searched like any mode.
    */
   paintPicture?: boolean;
+  /** --- paint-full --- Classic Paint's Guide to the Gaps: every rebound turned toward the largest unpainted patch (absent: off). */
+  paintGuide?: boolean;
+  /** --- string-art --- Lines: Strings to Finish (absent or 0: endless). */
+  lines?: { strings: number };
   // --- gerald-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
@@ -370,11 +375,12 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */ & Partial<Pick<ModeSettings, "multiplyRace">> /* --- multiply-race --- */ & Partial<Pick<ModeSettings, "collide">> /* --- collide-pour --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */ & Partial<Pick<ModeSettings, "multiplyRace">> /* --- multiply-race --- */ & Partial<Pick<ModeSettings, "collide">> /* --- collide-pour --- */ & Partial<Pick<ModeSettings, "lines">> /* --- string-art --- */): boolean {
   if (mode === "landClaim") return lcPyramidLoops(resolveLandClaimSettings(settings.landClaim)); // --- land-claim-pyramid --- (a looping pyramid never ends; its outcomes search the first cycle)
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
   if (mode === "multiply" && settings.multiplyRace === true) return false; // --- multiply-race --- (the race ends at the swarm's limit)
   if (mode === "hoops") return resolveHoopsSettings(settings.hoops).returnLoop; // --- bead-hoops --- (the return loops forever)
+  if (mode === "lines" && resolveLinesStrings(settings.lines?.strings) > 0) return false; // --- string-art --- (the run ends with its last string)
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
@@ -627,6 +633,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   }
   if (mode === "grow") engine.setGrowRate(settings.growRate);
   if (mode === "portal") engine.setPortalCount(settings.portalCount);
+  if (mode === "lines") engine.setLinesStrings(settings.lines?.strings ?? 0); // --- string-art ---
+  if (mode === "paint") engine.setPaintGuide(settings.paintGuide === true); // --- paint-full ---
   if (mode === "drop") engine.setDropSettings(settings.drop);
   if (mode === "box") engine.setBoxSettings(settings.box);
   if (mode === "pendulum") engine.setPendulumSettings(settings.pendulum ?? {});

@@ -23,7 +23,7 @@ export interface EscapeModeSectionProps {
 export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   accumulation: ["accumulationEscape", "spikes", "spikeCount"],
   multiply: ["spawnCount", "swarmRace" /* --- multiply-race --- */],
-  lines: ["lineColor", "centerDot"],
+  lines: ["lineColor", "centerDot", "lnStrings" /* --- string-art --- */],
   target: ["targetCount", "randomOrder"],
   colorMatch: ["colorCount", "segmentCount"],
   shatter: ["shatterHits", "shatterSegments"], // --- shatter-demolition ---
@@ -84,6 +84,8 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
               <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.linesCenterDot} onChange={(v) => update({ linesCenterDot: v })} />
             </div>
           </Searchable>
+          {/* --- string-art --- the run ends after this many strings with a flash of the finished picture and a chord (0: never) */}
+          <Slider t={t} search={search} matches={matches} labelKey="lnStrings" tipKey="lnStringsTip" value={s.lnStrings} range={RANGES.lnStrings} onChange={(v) => update({ lnStrings: v })} display={s.lnStrings === 0 ? t("ilCyclesNever") : String(s.lnStrings)} />
         </div>
       );
     case "target":
