@@ -38,10 +38,13 @@ import type { SimulatorSettings } from "@/lib/settings";
  *  - spiralGlass: glass of 1 hit – GLASS CLEARED on 40 of 40 at 22.9–24.7 s (2 hits: 31.7–33.2 s), the first multiply at 7.3 s
  *    (11.1 s).
  *  - shatter (--- shatter-demolition ---, its run moved: a bounce no longer sticks to a ring): 6 rings of 36 segments that take 2
- *    hits – 96 of 100 runs (seeds 1–50, both worlds) end by 27 s with the 1.5 s collapse, 62 of them between 15 and 25 s,
- *    median 18.6 s, none within 8 s; about 10 hits a second, at most 2 in a frame. The old 10 rings sit closer than the ball
- *    is wide (15 px apart for a 16 px ball in the laptop world): wedged, it touched two rings every pass. With the fix and the
- *    old defaults (10 rings of 18 one-hit segments) a run was over in a median 10.1 s; 6 rings of one hit, 7.2 s.
+ *    hits, and (--- shatter-even-bricks --- review fix B3) the inner rings in bricks as long as the outer ring's – 47 of 50
+ *    runs (seeds 1–50; the rings follow the shorter side, the same 450 px in both worlds) end by 27 s with the 1.5 s collapse,
+ *    median 13.3 s, the ball out of the smallest ring at a median 3.2 s; about 10 hits a second, at most 2 in a frame. With
+ *    36 segments on every ring the smallest one held the ball for half the run (out at a median 8.9 s, the run 18.6 s), and
+ *    3 hits a segment ran a median 35 s. The old 10 rings sit closer than the ball is wide (15 px apart for a 16 px ball):
+ *    wedged, it touched two rings every pass. With the fix and the old defaults (10 rings of 18 one-hit segments) a run was
+ *    over in a median 10.1 s; 6 rings of one hit, 7.2 s.
  */
 export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -65,8 +68,11 @@ export function clipPacingDefaults(mode: ModeId): Partial<SimulatorSettings> {
 }
 
 const NONE: Partial<SimulatorSettings> = Object.freeze({});
-/** --- shatter-demolition --- Shatter's page pace: six rings (a ball fits between them), 36 segments a ring, two hits a segment. */
-const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, shatterSegments: 36, shatterHits: 2 });
+/**
+ * --- shatter-demolition --- Shatter's page pace: six rings (a ball fits between them), 36 segments a ring, two hits a segment,
+ * and (--- shatter-even-bricks ---) the inner rings in bricks as long as the outer ring's.
+ */
+const SHATTER_PACE: Partial<SimulatorSettings> = Object.freeze({ wallCount: 6, shatterSegments: 36, shatterHits: 2, shatterEvenBricks: true /* --- shatter-even-bricks --- (review fix B3) */ });
 
 // --- clip-start --- (review fix B2)
 /**

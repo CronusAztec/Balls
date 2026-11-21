@@ -418,6 +418,7 @@ export default function Simulator() {
     engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
     engine.setShatterSegmentsPerWall(s.shatterSegments); // --- shatter-demolition --- (the segments and their hits, before the rings are built)
     engine.setShatterHpPerSegment(s.shatterHits);
+    engine.setShatterEvenBricks(s.shatterEvenBricks); // --- shatter-even-bricks ---
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -845,12 +846,13 @@ export default function Simulator() {
     if (!engine) return;
     engine.setShatterSegmentsPerWall(s.shatterSegments);
     engine.setShatterHpPerSegment(s.shatterHits);
+    engine.setShatterEvenBricks(s.shatterEvenBricks); // --- shatter-even-bricks ---
     if (s.mode === "shatter" && engine.getCurrentModeName() === "shatter") {
       engine.initShatter();
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.shatterHits, s.shatterSegments]);
+  }, [s.shatterHits, s.shatterSegments, s.shatterEvenBricks]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -2095,7 +2097,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.shatterHits, s.shatterSegments /* --- shatter-demolition --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.shatterHits, s.shatterSegments /* --- shatter-demolition --- */, s.shatterEvenBricks /* --- shatter-even-bricks --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -3537,6 +3539,7 @@ export default function Simulator() {
           multiplySpawnCount: settings.multiplySpawnCount,
           shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
           shatterHpPerSegment: settings.shatterHits,
+          shatterEvenBricks: settings.shatterEvenBricks, // --- shatter-even-bricks ---
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,

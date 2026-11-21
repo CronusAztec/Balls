@@ -54,7 +54,7 @@ describe("the page's own defaults", () => {
     expect(clipPacingDefaults("polyrhythm")).toEqual({ prCycleSeconds: 24 });
     expect(clipPacingDefaults("mergeRing")).toEqual({ mrTiers: 6, mrInterval: 0.6 });
     expect(clipPacingDefaults("spiralGlass")).toEqual({ sgGlassHp: 1 });
-    expect(clipPacingDefaults("shatter")).toEqual({ wallCount: 6, shatterSegments: 36, shatterHits: 2 }); // --- shatter-demolition ---
+    expect(clipPacingDefaults("shatter")).toEqual({ wallCount: 6, shatterSegments: 36, shatterHits: 2, shatterEvenBricks: true }); // --- shatter-demolition --- (--- shatter-even-bricks ---)
     for (const mode of MODE_IDS) {
       const own = clipPacingDefaults(mode);
       expect(Object.keys(own).length > 0, mode).toBe(PACED.includes(mode));
@@ -100,17 +100,19 @@ describe("the page's own defaults", () => {
 
 describe("the default run ends inside the default clip", () => {
   // seeds 1–12, both worlds: how many of the 24 runs end by 27 s (measured when this was written; the seeds are fixed)
-  const INSIDE: Record<string, number> = { target: 24, colorMatch: 20, mergeRing: 24, spiralGlass: 24, shatter: 22 };
+  // (--- review fix B3 --- Shatter: seeds 1–24 in one world – its rings follow the shorter side only, 450 px in both worlds,
+  // so the two worlds played the very same 12 runs twice)
+  const INSIDE: Record<string, number> = { target: 24, colorMatch: 20, mergeRing: 24, spiralGlass: 24, shatter: 23 };
+  const runsOf = (mode: string): [{ width: number; height: number }, number][] =>
+    mode === "shatter" ? Array.from({ length: 24 }, (_, i) => [WORLDS[1], i + 1]) : WORLDS.flatMap((world) => Array.from({ length: 12 }, (_, i) => [world, i + 1] as [typeof world, number]));
 
   for (const mode of ["target", "colorMatch", "shatter" /* --- shatter-demolition --- (its collapse included) */] as const) {
     it(`${mode}: most seeds are out by 27 s, none in the first 5 s`, () => {
       let inside = 0;
-      for (const world of WORLDS) {
-        for (let seed = 1; seed <= 12; seed++) {
-          const end = endOf(mode, seed, world);
-          if (end >= 0 && end <= 27) inside++;
-          if (end >= 0) expect(end, `${mode} seed ${seed}`).toBeGreaterThan(5);
-        }
+      for (const [world, seed] of runsOf(mode)) {
+        const end = endOf(mode, seed, world);
+        if (end >= 0 && end <= 27) inside++;
+        if (end >= 0) expect(end, `${mode} seed ${seed}`).toBeGreaterThan(5);
       }
       expect(inside).toBe(INSIDE[mode]);
       expect(inside).toBeGreaterThanOrEqual(20); // (five in six: before, none of them was)

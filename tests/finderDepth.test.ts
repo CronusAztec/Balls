@@ -17,7 +17,7 @@ import es from "../messages/es.json";
 
 /** Shatter's runs of 10 rings of 18 one-hit segments (its page defaults before --- shatter-demolition ---) last ~4–45 s: a 6 s target lies inside them, and a seed costs a few ms. */
 function request(patch: Partial<FinderRequest> = {}): FinderRequest {
-  const s = { ...defaultSettings("shatter"), wallCount: 10, shatterHits: 1, shatterSegments: 18 };
+  const s = { ...defaultSettings("shatter"), wallCount: 10, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false /* --- shatter-even-bricks --- (every ring its 18, as then) */ };
   return { ...finderRequestOfSettings(s, { width: 800, height: 450 }, 10), targetDurationSec: 6.001, toleranceSec: 0.0001, maxSeeds: 10, ...patch };
 }
 

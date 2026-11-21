@@ -1275,6 +1275,13 @@ export class PhysicsEngine {
   setShatterHpPerSegment(n: number) {
     this.shatterMode.setHpPerSegment(n);
   }
+  // --- shatter-even-bricks --- (review fix B3) the inner rings cut into bricks as long as the outer ring's
+  getShatterEvenBricks() {
+    return this.shatterMode.getEvenBricks();
+  }
+  setShatterEvenBricks(on: boolean) {
+    this.shatterMode.setEvenBricks(on);
+  }
   isColorMatchMode() {
     return this.currentMode === this.colorMatchMode;
   }

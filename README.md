@@ -2568,7 +2568,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `paint` | the circle two-thirds painted in thick rainbow strokes | 1 | 10 s | `r=14&g=100` | – |
 | `target` | the countdown at 4: a correct hit bursting a numbered segment of the ring | 6 | 18.4 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `portal` | a teleport: the ball bursting out of a portal in a spray of sparks | 1 | 14.6 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
-| `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 1 | 16 s | `r=11` | – |
+| `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 3 | 11.8 s | `r=11` | – |
 | `colorMatch` | a colour match shattering a segment of the ring | 1 | 16 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `grow` | the ball grown to fill most of its ring, the rainbow lines fanned | 1 | 46 s | `glines=1&rlines=1&rball=1` | – |
 | `drop` | balls raining through the coloured pegs | 1 | 4 s | `dbc=16&dsi=0.2&dsv=0.7` | – |

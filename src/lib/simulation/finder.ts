@@ -103,6 +103,8 @@ export interface ModeSettings {
   multiplySpawnCount: number;
   shatterSegmentsPerWall: number;
   shatterHpPerSegment: number;
+  /** --- shatter-even-bricks --- Shatter's inner rings cut into bricks as long as the outer ring's (absent: every ring the same count). */
+  shatterEvenBricks?: boolean;
   growRate: number;
   portalCount: number;
   twoBalls: boolean;
@@ -614,6 +616,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "shatter") {
     engine.setShatterSegmentsPerWall(settings.shatterSegmentsPerWall);
     engine.setShatterHpPerSegment(settings.shatterHpPerSegment);
+    engine.setShatterEvenBricks(settings.shatterEvenBricks === true); // --- shatter-even-bricks ---
   }
   if (mode === "grow") engine.setGrowRate(settings.growRate);
   if (mode === "portal") engine.setPortalCount(settings.portalCount);

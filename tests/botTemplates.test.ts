@@ -573,7 +573,8 @@ describe("the bot's own look", () => {
   // settings): the digest is of the plan without them too, and every plan below is checked to carry them at those defaults.
   // --- shatter-demolition --- (and Shatter's hits and segments, settings since: the mode's own one hit and 18 segments in every recipe's plan – no recipe plans Shatter)
   // --- sand-plate --- and Sand Plate's five fields since its mode was added, likewise
-  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, ...defaultSongRingFields(), ...defaultSandPlateFields() };
+  // --- shatter-even-bricks --- (and Shatter's even bricks, a setting since: the mode's own off in every recipe's plan)
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields() };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -601,6 +602,7 @@ describe("the bot's own look", () => {
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
     expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
     expect(planned.map((p) => [p.recipe, p.settings.shatterHits, p.settings.shatterSegments])).toEqual(planned.map((p) => [p.recipe, 1, 18])); // --- shatter-demolition ---
+    expect(planned.map((p) => [p.recipe, p.settings.shatterEvenBricks])).toEqual(planned.map((p) => [p.recipe, false])); // --- shatter-even-bricks ---
     // (--- song-ring --- and Song Ring's fields, which the digest leaves out too: at their defaults in every plan)
     expect(planned.map((p) => [p.recipe, resolveSongRingFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSongRingFields()]));
     // (--- sand-plate --- and Sand Plate's, likewise)

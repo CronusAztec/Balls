@@ -81,16 +81,18 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   {
-    // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as picked: the page's default is 2 hits and 36 now)
+    // (--- review fix B3 --- the page's pace, six rings of even two-hit bricks: the old twelve rings sit closer than the ball is
+    // wide, and with the push-out fix its seed played a 6 s run; seed 103 plays 18.0 s, a ring out at 0.9, 3.9, 7.5, 15.1, 15.9
+    // and 16.4 s, then the collapse)
     id: "sunset-shatter",
     mode: "shatter",
-    query: "mode=shatter&wc=12&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&shh=1&shs=18&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1067410279",
-    previewAt: 3,
+    query: "mode=shatter&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=103",
+    previewAt: 16.5,
     name: { en: "Sunset Shatter", pl: "Rozbicie o zachodzie", es: "Estallido al atardecer" },
     description: {
-      en: "Twelve walls of cracked segments under a violet-to-rose sky: every bounce chips one away until the ball smashes its way out in a shower of petals.",
-      pl: "Dwanaście ścian z pękniętych segmentów pod fioletoworóżowym niebem: każde odbicie odłupuje kawałek, aż piłka przebije się na zewnątrz w deszczu płatków.",
-      es: "Doce muros de segmentos agrietados bajo un cielo violeta y rosa: cada rebote arranca un trozo hasta que la bola se abre paso entre una lluvia de pétalos.",
+      en: "Six walls of cracked bricks under a violet-to-rose sky. Every bounce chips one until the ball smashes its way out in a shower of petals.",
+      pl: "Sześć ścian z pękniętych cegieł pod fioletoworóżowym niebem. Każde odbicie odłupuje kawałek, aż piłka przebije się na zewnątrz w deszczu płatków.",
+      es: "Seis muros de ladrillos agrietados bajo un cielo violeta y rosa. Cada rebote arranca un trozo hasta que la bola se abre paso entre una lluvia de pétalos.",
     },
   },
   {
