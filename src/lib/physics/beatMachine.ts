@@ -1,5 +1,6 @@
 import { atLeastMin, memoryCeiling } from "@/lib/uncap";
 import { BM_SOURCES, BM_VARIANTS, isBmSource, isBmVariant, type BmSource, type BmVariant } from "@/lib/simulation/beatMachinePlan";
+import { BM_TUNES, BM_TUNE_VERSES, isBmTune, type BmTune } from "@/lib/simulation/beatMachineTunes";
 import type { ScaleId } from "@/lib/audio/scales";
 
 /*
@@ -8,8 +9,8 @@ import type { ScaleId } from "@/lib/audio/scales";
  * (`bm…`), the presets and the clip's look. Nothing here touches the engine.
  */
 
-export { BM_SOURCES, BM_VARIANTS, isBmSource, isBmVariant };
-export type { BmSource, BmVariant };
+export { BM_SOURCES, BM_VARIANTS, BM_TUNES, isBmSource, isBmVariant, isBmTune };
+export type { BmSource, BmVariant, BmTune };
 
 /** What the mode runs (the page's fields, its Sound section's scale and root, and the loaded melody). */
 export interface BeatMachineSettings {
@@ -29,6 +30,8 @@ export interface BeatMachineSettings {
   /** Where the notes come from, and the typed list. */
   source: BmSource;
   notes: string;
+  /** --- beat-machine-tunes --- The known tune of the "tune" source. */
+  tune: BmTune;
   /** Marbles: the loop's beats (32 at 100 BPM: 19.2 s). */
   loopBeats: number;
   /** The phrase bass every two bars (marbles). */
@@ -62,9 +65,11 @@ export interface BeatMachineFields {
   bmReturn: number;
   /** Marbles per tube: 0 = auto, else 1–50 on the slider (URL `bmMt`). */
   bmPerTube: number;
-  /** original | scale | melody | custom (URL `bmSrc`), and the typed list (URL `bmN`). */
+  /** original | scale | melody | custom | tune (URL `bmSrc`), and the typed list (URL `bmN`). */
   bmSource: BmSource;
   bmNotes: string;
+  /** --- beat-machine-tunes --- The known tune: ode | twinkle | jacques | elise | mountain (URL `bmT`). */
+  bmTune: BmTune;
   /** Loop beats, 1–1024 on the slider (URL `bmL`). */
   bmLoopBeats: number;
   /** The phrase bass (URL `bmBs`) and the loop HUD's note counter (URL `bmC`). */
@@ -88,6 +93,7 @@ export const DEFAULT_BEAT_MACHINE_FIELDS: Readonly<BeatMachineFields> = {
   bmPerTube: 0,
   bmSource: "original",
   bmNotes: "",
+  bmTune: "ode",
   bmLoopBeats: 32,
   bmBass: true,
   bmCounter: false,
@@ -112,7 +118,7 @@ const WHOLE_KEYS: readonly NumberKey[] = ["bmSteps", "bmBars", "bmReturn", "bmPe
 /** The fields the mode's engine reads (every number: the plan is physics). */
 export const BM_ENGINE_KEYS: readonly NumberKey[] = ["bmBpm", "bmSteps", "bmStepDx", "bmStepDy", "bmBars", "bmDrop", "bmRebound", "bmReturn", "bmPerTube", "bmLoopBeats"];
 /** The fields a change of which re-plans and restarts the run (the counter follows live). */
-export const BM_RESTART_FIELDS: readonly (keyof BeatMachineFields)[] = ["bmVariant", "bmBpm", "bmSteps", "bmStepDx", "bmStepDy", "bmBars", "bmDrop", "bmRebound", "bmReturn", "bmPerTube", "bmSource", "bmNotes", "bmLoopBeats", "bmBass"];
+export const BM_RESTART_FIELDS: readonly (keyof BeatMachineFields)[] = ["bmVariant", "bmBpm", "bmSteps", "bmStepDx", "bmStepDy", "bmBars", "bmDrop", "bmRebound", "bmReturn", "bmPerTube", "bmSource", "bmNotes", "bmTune" /* --- beat-machine-tunes --- */, "bmLoopBeats", "bmBass"];
 /** The longest typed list kept (characters). */
 export const BM_NOTES_MAX = 4000;
 
@@ -153,6 +159,7 @@ export function resolveBeatMachineFields(source: Partial<Record<keyof BeatMachin
     bmPerTube: numberOf("bmPerTube", s.bmPerTube),
     bmSource: isBmSource(s.bmSource) ? s.bmSource : d.bmSource,
     bmNotes: notesOf(s.bmNotes, d.bmNotes),
+    bmTune: isBmTune(s.bmTune) ? s.bmTune : d.bmTune, // --- beat-machine-tunes ---
     bmLoopBeats: numberOf("bmLoopBeats", s.bmLoopBeats),
     bmBass: bool(s.bmBass, d.bmBass),
     bmCounter: bool(s.bmCounter, d.bmCounter),
@@ -174,6 +181,7 @@ export function beatMachineSettingsOf(s: BeatMachineFields & { scale?: ScaleId |
     returnBeats: s.bmReturn,
     source: s.bmSource,
     notes: s.bmNotes,
+    tune: s.bmTune,
     loopBeats: s.bmLoopBeats,
     bass: s.bmBass,
     counter: s.bmCounter,
@@ -198,6 +206,7 @@ function beatMachineSettingFields(s: BeatMachineSettings): BeatMachineFields {
     bmPerTube: s.perTube,
     bmSource: s.source,
     bmNotes: s.notes,
+    bmTune: s.tune,
     bmLoopBeats: s.loopBeats,
     bmBass: s.bass,
     bmCounter: s.counter,
@@ -262,6 +271,15 @@ export function beatMachineHudKeys(variant: BmVariant): { title: string; subtitl
     : { title: "BeatMachine.canvasTitleMarbles", subtitle: "BeatMachine.canvasSubtitleMarbles", counter: "BeatMachine.canvasCounterMarbles" };
 }
 
+// --- beat-machine-tunes ---
+/**
+ * The patch of a tune chip on the panel: the marble xylophone playing that known tune at its own tempo, with the note counter
+ * on (the HUD shows it: the loop HUD too).
+ */
+export function beatMachineTunePatch(tune: BmTune): Partial<BeatMachineFields> & { loopHud: boolean } {
+  return { bmVariant: "marbles", bmSource: "tune", bmTune: tune, bmBpm: BM_TUNE_VERSES[tune].bpm, bmCounter: true, loopHud: true };
+}
+
 /* ------------------------------------------------------------------ presets */
 
 export const BM_PRESET_IDS = ["eightSteps", "scaleStairs", "xylophone", "yourMelody"] as const;
@@ -303,7 +321,7 @@ function formatNumber(n: number) {
 export const BM_URL_KEYS: Readonly<Record<string, NumberKey>> = { bmBpm: "bmBpm", bmSt: "bmSteps", bmDx: "bmStepDx", bmDy: "bmStepDy", bmB: "bmBars", bmDh: "bmDrop", bmRb: "bmRebound", bmRt: "bmReturn", bmMt: "bmPerTube", bmL: "bmLoopBeats" };
 const BOOL_KEYS: Readonly<Record<string, "bmBass" | "bmCounter">> = { bmBs: "bmBass", bmC: "bmCounter" };
 
-/** Writes the fields that differ from `base` (the mode's defaults): bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC. */
+/** Writes the fields that differ from `base` (the mode's defaults): bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmT, bmL, bmBs, bmC. */
 export function writeBeatMachineParams(settings: BeatMachineFields, base: BeatMachineFields, params: URLSearchParams) {
   if (settings.bmVariant !== base.bmVariant) params.set("bmV", settings.bmVariant);
   // --- low-findings-2 --- the tempo against the one a reader assumes: the written variant's own (80 for the stairs), else the base's
@@ -311,6 +329,7 @@ export function writeBeatMachineParams(settings: BeatMachineFields, base: BeatMa
   for (const [key, field] of Object.entries(BM_URL_KEYS)) if (settings[field] !== (field === "bmBpm" ? bpmBase : base[field])) params.set(key, formatNumber(settings[field]));
   if (settings.bmSource !== base.bmSource) params.set("bmSrc", settings.bmSource);
   if (settings.bmNotes !== base.bmNotes) params.set("bmN", settings.bmNotes);
+  if (settings.bmTune !== base.bmTune) params.set("bmT", settings.bmTune); // --- beat-machine-tunes ---
   for (const [key, field] of Object.entries(BOOL_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
 }
 
@@ -330,6 +349,8 @@ export function readBeatMachineParams(params: URLSearchParams, settings: BeatMac
   if (source !== null) next.bmSource = source;
   const notes = params.get("bmN");
   if (notes !== null) next.bmNotes = notes;
+  const tune = params.get("bmT"); // --- beat-machine-tunes ---
+  if (tune !== null) next.bmTune = tune;
   for (const [key, field] of Object.entries(BOOL_KEYS)) {
     const raw = params.get(key);
     if (raw === "1") next[field] = true;

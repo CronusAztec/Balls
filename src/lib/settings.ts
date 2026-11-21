@@ -1344,6 +1344,8 @@ export interface SimulatorSettings {
   /** Melody source (URL `bmSrc`) and the typed list (URL `bmN`). */
   bmSource: BeatMachineFields["bmSource"];
   bmNotes: string;
+  /** --- beat-machine-tunes --- The known tune of the "tune" source (URL `bmT`). */
+  bmTune: BeatMachineFields["bmTune"];
   /** Marbles: loop beats (URL `bmL`). */
   bmLoopBeats: number;
   /** The phrase bass (URL `bmBs`) and the loop HUD's note counter (URL `bmC`). */

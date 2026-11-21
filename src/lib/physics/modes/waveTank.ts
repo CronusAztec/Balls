@@ -40,6 +40,17 @@ import { SCAN_FLOOR } from "@/lib/audio/loopTones";
  * two octaves, low to high left to right – as loud as (|u| / max)^1.5 of the smoothed amplitude under it, and a strike under
  * −40 dB is skipped. Under the bells a section root ("root": a sine + 2f, ~13 dB under them) crossfades over 1 s at every
  * section change. Every strike is bounce math's "bounce".
+ *
+ * --- wave-chapters --- Each section is a chapter you hear: at every change the wall is struck ("impact", the new root's
+ * triad two octaves up) and a step on the new root climbs ("step"); the change into the list's last section – the climax,
+ * the grating's beams by default – rings the completion chord instead, and in that section the three loudest bells ring
+ * together once a second ("chime", their own pitches), so the end of the loop is louder than its start.
+ *
+ * --- wave-glow --- The lit water: besides the instant heights the view carries the time-averaged amplitude (the interference
+ * pattern itself: bright where crests meet crests, dark where crests meet troughs) at every ridge sample (`glow`) and across the
+ * front edge (`front`). The grid model follows u² on a lattice of at most WT_GLOW_COLS columns (a mean square smoothed over
+ * WT_GLOW_TAU, warmed through the pre-roll's last seconds like the bells); the Huygens model reads it off its phasors (|phasor|).
+ * Neither touches the water, the bells or the placeholder ball.
  */
 
 /** One unit of Wave speed in tank widths a second. */
@@ -86,6 +97,24 @@ export const WT_SEAMS_CHECKED = 8;
 export const WT_ROOT_LEVEL = 1;
 /** Huygens phasor caches kept (one per section the ridges met lately). */
 export const WT_PHASOR_CACHE = 6;
+// --- wave-glow ---
+/** The glow lattice's columns at most (its rows follow the tank's depth), its follower's time constant (s), the front edge's columns. */
+export const WT_GLOW_COLS = 96;
+export const WT_GLOW_TAU = 0.4;
+export const WT_FRONT_COLUMNS = 64;
+/** The glow's reference: the brightest sample this far past the wall (a share of the water behind it), never under this floor (/ A). */
+export const WT_GLOW_FAR_SHARE = 0.2;
+export const WT_GLOW_FLOOR = 0.05;
+// --- wave-chapters ---
+/** The wall's strike at a section change, the root's step and the climax's chord (levels), and the climax's bell chord: every this many seconds, this many bells. */
+export const WT_IMPACT_LEVEL = 0.8;
+export const WT_STEP_LEVEL = 0.85;
+export const WT_CHORD_LEVEL = 0.9;
+export const WT_BELL_CHORD_SEC = 1;
+export const WT_BELL_CHORD_BELLS = 3;
+export const WT_BELL_CHORD_LEVEL = 0.85;
+/** --- review fix (D1) --- Bells whose amplitudes differ by at most this share are twins: one pitch of the chord, both flashed. */
+export const WT_BELL_TWIN = 1e-4;
 
 /** Where the tank sits in the world: its centre and the side of the page's centred square (world px). */
 export interface WaveTankFrame {
@@ -164,6 +193,23 @@ export interface WaveTankView {
   seamError: number;
   /** Sub-steps the water lags the clock by (0 unless an extreme step outran WT_MAX_SUBSTEPS_PER_STEP). */
   lag: number;
+  /**
+   * --- wave-glow --- The water's brightness: the smoothed amplitude (/ A) at every ridge sample (ridge by ridge, like
+   * `heights`) and across the front edge (WT_FRONT_COLUMNS, left to right), and the reference the picture scales them by (the
+   * brightest sample past the wall's near field, at least WT_GLOW_FLOOR).
+   */
+  glow: Float32Array;
+  front: Float32Array;
+  glowReference: number;
+  /**
+   * --- wave-chapters --- The last section change (simulation s; −1: none yet), whether the section in force is the climax (the
+   * list's last, with more than one section), the wall's strikes sent, the bell chords rung and the last one (s; −1: none).
+   */
+  changeSec: number;
+  climax: boolean;
+  impacts: number;
+  chords: number;
+  chordSec: number;
 }
 
 const PHASOR: Phasor = { c: 0, s: 0 };
@@ -181,6 +227,8 @@ interface PrerollSnapshot {
   amp: Float32Array;
   level: Float32Array;
   reference: number;
+  /** --- wave-glow --- the glow lattice's mean squares. */
+  glowEnv: Float32Array;
 }
 let prerollCache: PrerollSnapshot | null = null;
 /** Forgets the kept start (tests: the next init pre-rolls). */
@@ -233,6 +281,14 @@ export class WaveTankMode implements GameMode {
   private rootStopPending = false;
   private probeStart: ArrayLike<number> = new Float32Array(0);
   private lastSection = -1;
+  /** --- wave-glow --- The grid's glow lattice (columns × rows over the whole tank, x across, z from the wave-maker to the front) and its mean squares. */
+  private glowCols = 0;
+  private glowRows = 0;
+  private glowEnv = new Float32Array(0);
+  /** The Huygens front edge's amplitudes by section (WT_FRONT_COLUMNS each). */
+  private frontCache = new Map<number, Float32Array>();
+  /** --- wave-chapters --- The last bell chord's index on the WT_BELL_CHORD_SEC grid. */
+  private lastChord = -1;
 
   constructor() {
     const settings = resolveWaveTankSettings(null);
@@ -289,6 +345,14 @@ export class WaveTankMode implements GameMode {
       seams: 0,
       seamError: -1,
       lag: 0,
+      glow: new Float32Array(0),
+      front: new Float32Array(WT_FRONT_COLUMNS),
+      glowReference: WT_GLOW_FLOOR,
+      changeSec: -1,
+      climax: false,
+      impacts: 0,
+      chords: 0,
+      chordSec: -1,
     };
   }
 
@@ -385,6 +449,20 @@ export class WaveTankMode implements GameMode {
     v.lag = 0;
     v.maxAbs = 0;
     v.nonFinite = 0;
+    // --- wave-chapters ---
+    v.changeSec = -1;
+    v.climax = false;
+    v.impacts = 0;
+    v.chords = 0;
+    v.chordSec = -1;
+    this.lastChord = -1;
+    // --- wave-glow ---
+    v.glowReference = WT_GLOW_FLOOR;
+    v.front.fill(0);
+    this.frontCache.clear();
+    this.glowCols = 0;
+    this.glowRows = 0;
+    this.glowEnv = new Float32Array(0);
     this.lastEmit = -1e-9;
     this.rootPending = s.bass;
     this.rootStopPending = false;
@@ -412,6 +490,10 @@ export class WaveTankMode implements GameMode {
       this.pointGain = pointSourceGain(WT_AMPLITUDE, speed, size.h);
       if (s.source === "line") field.setLineSource(v.sourceZ);
       else field.setLineSource(null);
+      // --- wave-glow --- the glow lattice (followed through the pre-roll's last seconds with the bells)
+      this.glowCols = Math.max(2, Math.min(WT_GLOW_COLS, size.cols));
+      this.glowRows = Math.max(2, Math.round(this.glowCols * (depth - v.sourceZ)));
+      this.glowEnv = new Float32Array(this.glowCols * this.glowRows);
       const budget = Math.floor(WT_PREROLL_BUDGET / Math.max(1, size.cells));
       const transits = Math.round(((WT_PREROLL_TRANSITS * (depth + 1)) / speed) * 60) * this.k;
       const pre = Math.max(0, Math.min(this.nLoop, transits, budget));
@@ -420,7 +502,7 @@ export class WaveTankMode implements GameMode {
       v.prerollSec = pre / (60 * this.k);
       const warm = Math.round(2 / this.dt); // the bells' follower runs over the pre-roll's last 2 s
       const key = prerollKey(s, size.cells, pre);
-      const hit = prerollCache !== null && prerollCache.key === key && prerollCache.u.length === field.u.length && prerollCache.env.length === this.env.length ? prerollCache : null;
+      const hit = prerollCache !== null && prerollCache.key === key && prerollCache.u.length === field.u.length && prerollCache.env.length === this.env.length && prerollCache.glowEnv.length === this.glowEnv.length ? prerollCache : null;
       if (hit) {
         // the same run again (Start after a preset, a restart, the fast export's engine): the t = 0 state is a pure function of
         // the settings, so the copy is bit for bit what the pre-roll would give
@@ -432,6 +514,7 @@ export class WaveTankMode implements GameMode {
         v.bellAmp.set(hit.amp);
         v.bellLevel.set(hit.level);
         v.reference = hit.reference;
+        this.glowEnv.set(hit.glowEnv); // --- wave-glow ---
         this.n = 0;
         this.applySection(this.sectionAtStep(0));
         v.prerollReused = true;
@@ -440,7 +523,7 @@ export class WaveTankMode implements GameMode {
           this.advance(1);
           if (this.n % this.k === 0 && -this.n <= warm) this.listen(this.n / this.k / 60, 1 / 60);
         }
-        prerollCache = size.cells <= WT_PREROLL_CACHE_CELLS ? { key, u: field.u.slice(), prev: field.prev.slice(), steps: field.steps, env: this.env.slice(), peak: this.peak, amp: v.bellAmp.slice(), level: v.bellLevel.slice(), reference: v.reference } : null;
+        prerollCache = size.cells <= WT_PREROLL_CACHE_CELLS ? { key, u: field.u.slice(), prev: field.prev.slice(), steps: field.steps, env: this.env.slice(), peak: this.peak, amp: v.bellAmp.slice(), level: v.bellLevel.slice(), reference: v.reference, glowEnv: this.glowEnv.slice() /* --- wave-glow --- */ } : null;
       }
     } else {
       this.k = 1;
@@ -506,6 +589,7 @@ export class WaveTankMode implements GameMode {
     v.sampleX = new Float32Array(samples);
     for (let s = 0; s < samples; s++) v.sampleX[s] = sampleXOf(s, samples);
     v.heights = new Float32Array(r * samples);
+    v.glow = new Float32Array(r * samples); // --- wave-glow ---
     this.phasorCache.clear();
     this.layoutKey = `${r}x${samples}`;
     this.ridgeStamp = Number.NaN;
@@ -616,6 +700,66 @@ export class WaveTankMode implements GameMode {
     this.peak = Math.max(loudest, this.peak * Math.exp(-Math.max(0, dtSec) / WT_PEAK_DECAY_SEC), WT_REF_FLOOR);
     v.reference = this.peak;
     for (let b = 0; b < v.bells; b++) v.bellLevel[b] = Math.min(1, v.bellAmp[b] / this.peak);
+    // --- wave-glow --- the grid's lattice follows u² (the Huygens model reads its glow off the phasors)
+    const field = this.field;
+    const G = this.glowEnv;
+    if (field && G.length > 0) {
+      const a = 1 - Math.exp(-Math.max(0, dtSec) / WT_GLOW_TAU);
+      const C = this.glowCols;
+      const R = this.glowRows;
+      for (let j = 0; j < R; j++) {
+        const gz = this.glowZ(j);
+        for (let i = 0; i < C; i++) {
+          const u = field.sample(-0.5 + (i + 0.5) / C, gz);
+          const sq = Number.isFinite(u) ? u * u : 0;
+          G[j * C + i] += (sq - G[j * C + i]) * a;
+        }
+      }
+    }
+  }
+
+  // --- wave-glow ---
+  /** Depth (tank widths) of the glow lattice's row `j`: from the wave-maker to the front edge. */
+  private glowZ(j: number): number {
+    const v = this.view;
+    return v.sourceZ + ((v.depth - v.sourceZ) * (j + 0.5)) / Math.max(1, this.glowRows);
+  }
+
+  /** The grid's smoothed amplitude (/ A) at tank point (x, z): the lattice's mean square, bilinear, as √(2·ms). */
+  private glowAt(x: number, z: number): number {
+    const C = this.glowCols;
+    const R = this.glowRows;
+    if (C < 2 || R < 2) return 0;
+    const v = this.view;
+    const fx = Math.max(0, Math.min(C - 1, (x + 0.5) * C - 0.5));
+    const fz = Math.max(0, Math.min(R - 1, ((z - v.sourceZ) / Math.max(1e-9, v.depth - v.sourceZ)) * R - 0.5));
+    const i0 = Math.min(C - 2, Math.floor(fx));
+    const j0 = Math.min(R - 2, Math.floor(fz));
+    const tx = fx - i0;
+    const tz = fz - j0;
+    const G = this.glowEnv;
+    const k = j0 * C + i0;
+    const ms = (G[k] * (1 - tx) + G[k + 1] * tx) * (1 - tz) + (G[k + C] * (1 - tx) + G[k + C + 1] * tx) * tz;
+    return ms > 0 ? Math.sqrt(2 * ms) / WT_AMPLITUDE : 0;
+  }
+
+  /** The Huygens front edge of section `sec` (|phasor| across the front, made once per section). */
+  private frontOf(sec: number): Float32Array {
+    const hit = this.frontCache.get(sec);
+    if (hit) return hit;
+    const v = this.view;
+    const out = new Float32Array(WT_FRONT_COLUMNS);
+    const z = v.depth - WT_BELL_INSET;
+    for (let i = 0; i < WT_FRONT_COLUMNS; i++) {
+      this.phasorAt(-0.5 + (i + 0.5) / WT_FRONT_COLUMNS, z, sec, PHASOR);
+      out[i] = Math.hypot(PHASOR.c, PHASOR.s) / WT_AMPLITUDE;
+    }
+    if (this.frontCache.size >= WT_PHASOR_CACHE) {
+      const oldest = this.frontCache.keys().next().value;
+      if (oldest !== undefined) this.frontCache.delete(oldest);
+    }
+    this.frontCache.set(sec, out);
+    return out;
   }
 
   onPreUpdate() {}
@@ -661,6 +805,7 @@ export class WaveTankMode implements GameMode {
     if (v.section !== this.lastSection) {
       this.lastSection = v.section;
       if (this.settings.bass) this.rootPending = true;
+      this.chapter(ctx, t1); // --- wave-chapters ---
     }
     if (this.rootStopPending) {
       this.rootStopPending = false;
@@ -674,7 +819,52 @@ export class WaveTankMode implements GameMode {
       this.emit(ctx, { type: "hit", wallIndex: 0, loop: "root", frequency: v.rootHz, level: WT_ROOT_LEVEL, melody: false });
     }
     this.strike(ctx, this.lastEmit, t1);
+    this.bellChord(ctx, t1); // --- wave-chapters ---
     this.lastEmit = t1;
+  }
+
+  // --- wave-chapters ---
+  /**
+   * A section change heard: the wall struck (the new root's triad two octaves up) and a step on the new root – or, into the
+   * climax, the completion chord on it. The step and the chord keep their pitch (the roots are I, IV and V, not the bells' scale).
+   */
+  private chapter(ctx: ModeContext, t: number) {
+    const v = this.view;
+    v.changeSec = t;
+    v.impacts++;
+    const root = sectionRootHz(v.section);
+    this.emit(ctx, { type: "hit", wallIndex: 0, loop: "impact", chord: [4 * root, 5 * root, 6 * root], level: WT_IMPACT_LEVEL, melody: false });
+    if (v.climax) this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chord", frequency: 2 * root, level: WT_CHORD_LEVEL, loopExact: true, melody: false });
+    else this.emit(ctx, { type: "hit", wallIndex: 0, loop: "step", frequency: 8 * root, level: WT_STEP_LEVEL, loopExact: true, melody: false });
+  }
+
+  /** In the climax the three loudest bells ring together once every WT_BELL_CHORD_SEC (on the run's clock), each at its pitch. */
+  private bellChord(ctx: ModeContext, t: number) {
+    const v = this.view;
+    const index = Math.floor((t + 1e-9) / WT_BELL_CHORD_SEC);
+    if (index === this.lastChord) return;
+    this.lastChord = index;
+    if (!v.climax || t <= 0 || v.bells < 1) return;
+    // the loudest bells, loudest first (no list made: a few passes over the row); --- review fix (D1) --- an amplitude counts
+    // once: its twins (the mirrored bells of centred gaps, equal within WT_BELL_TWIN) flash with it, and the chord's three
+    // pitches are three distinct amplitudes
+    let rung = 0;
+    let below = Infinity;
+    for (let k = 0; k < Math.min(WT_BELL_CHORD_BELLS, v.bells); k++) {
+      let best = -1;
+      for (let b = 0; b < v.bells; b++) if (v.bellAmp[b] < below * (1 - WT_BELL_TWIN) && (best < 0 || v.bellAmp[b] > v.bellAmp[best])) best = b;
+      if (best < 0) break;
+      below = v.bellAmp[best];
+      const level = Math.min(1, v.bellAmp[best] / v.reference);
+      if (bellGain(v.bellAmp[best], v.reference) < SCAN_FLOOR) break;
+      for (let b = 0; b < v.bells; b++) if (Math.abs(v.bellAmp[b] - below) <= WT_BELL_TWIN * below) v.bellStrikeSec[b] = t;
+      this.emit(ctx, { type: "hit", wallIndex: 0, loop: "chime", frequency: v.bellHz[best], level: WT_BELL_CHORD_LEVEL * level, melody: false });
+      rung++;
+    }
+    if (rung > 0) {
+      v.chords++;
+      v.chordSec = t;
+    }
   }
 
   /** The section in force at the field's clock, its gaps, and a change logged on its exact frame. */
@@ -687,6 +877,7 @@ export class WaveTankMode implements GameMode {
         if (v.changeFrames.length < WT_LOG_CAP) v.changeFrames.push(frame);
       }
       v.section = index;
+      v.climax = v.schedule.sections.length > 1 && index === v.schedule.sections.length - 1; // --- wave-chapters ---
       const sec = v.schedule.sections[index];
       v.gaps = sec.gaps;
       v.sectionWidth = sec.width;
@@ -763,11 +954,17 @@ export class WaveTankMode implements GameMode {
     const h = v.heights;
     let max = 0;
     let bad = 0;
+    const glow = v.glow; // --- wave-glow ---
     if (this.field) {
       for (let r = 0; r < R; r++) {
         const z = v.ridgeZ[r];
-        for (let s = 0; s < S; s++) h[r * S + s] = this.field.sample(v.sampleX[s], z) / WT_AMPLITUDE;
+        for (let s = 0; s < S; s++) {
+          h[r * S + s] = this.field.sample(v.sampleX[s], z) / WT_AMPLITUDE;
+          glow[r * S + s] = this.glowAt(v.sampleX[s], z);
+        }
       }
+      const zf = v.depth - WT_BELL_INSET;
+      for (let i = 0; i < WT_FRONT_COLUMNS; i++) v.front[i] = this.glowAt(-0.5 + (i + 0.5) / WT_FRONT_COLUMNS, zf);
     } else {
       const t = this.n / 60;
       const theta = this.phaseAt(this.n);
@@ -779,9 +976,28 @@ export class WaveTankMode implements GameMode {
         const sec = sectionAtFrame(v.schedule, Math.floor((t - delay) * 60 + 1e-9));
         const cache = this.phasorsOf(sec);
         const base = r * S;
-        for (let s = 0; s < S; s++) h[base + s] = (cache[2 * (base + s)] * cos + cache[2 * (base + s) + 1] * sin) / WT_AMPLITUDE;
+        for (let s = 0; s < S; s++) {
+          const c = cache[2 * (base + s)];
+          const q = cache[2 * (base + s) + 1];
+          h[base + s] = (c * cos + q * sin) / WT_AMPLITUDE;
+          glow[base + s] = Math.hypot(c, q) / WT_AMPLITUDE;
+        }
+      }
+      const zf = v.depth - WT_BELL_INSET;
+      const delay = v.source === "points" ? Math.abs(zf - v.barrierZ0) / v.speed : Math.max(0, zf - v.barrierZ0) / v.speed;
+      v.front.set(this.frontOf(sectionAtFrame(v.schedule, Math.floor((t - delay) * 60 + 1e-9))));
+    }
+    // --- wave-glow --- the picture's reference: the brightest sample past the wall's near field
+    const far = v.barrierZ1 + WT_GLOW_FAR_SHARE * (v.depth - v.barrierZ1);
+    let bright = WT_GLOW_FLOOR;
+    for (let r = 0; r < R; r++) {
+      if (v.ridgeZ[r] < far) continue;
+      for (let s = 0; s < S; s++) {
+        const g = glow[r * S + s];
+        if (g > bright && Number.isFinite(g)) bright = g;
       }
     }
+    v.glowReference = bright;
     for (let i = 0; i < R * S; i++) {
       const a = h[i];
       if (!Number.isFinite(a)) bad++;

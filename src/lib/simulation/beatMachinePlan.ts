@@ -1,4 +1,5 @@
 import { SCALE_INTERVALS, frequencyToMidi, midiToFrequency, type ScaleId } from "@/lib/audio/scales";
+import { isBmTune, tuneBarMidis, tuneLoop, type BmTune, type BmTuneLoop } from "./beatMachineTunes";
 
 /*
  * --- beat-machine --- The Beat Machines' planner (pure, no DOM, no engine): kinetic music machines in which every note is a
@@ -28,15 +29,17 @@ import { SCALE_INTERVALS, frequencyToMidi, midiToFrequency, type ScaleId } from 
  *
  * The phrase (`buildPhrase()`): the loaded melody, a seeded original phrase (the only random draws; see
  * `originalMarblePhrase()` / `originalStairsDegrees()` for their order), a scale run or a typed list. Pitches come from the
- * Sound section's scale and root (its "free" chromatic scale plays the machine's major pentatonic).
+ * Sound section's scale and root (its "free" chromatic scale plays the machine's major pentatonic). --- beat-machine-tunes ---
+ * Or a known tune (lib/simulation/beatMachineTunes.ts): its verse, its own bars (its pitches, exact) and its own loop (the
+ * verse and a short coda), its bass line, and the chord on its last note ("chord", the loop's end).
  */
 
 /* ------------------------------------------------------------------ options */
 
 export const BM_VARIANTS = ["marbles", "stairs"] as const;
 export type BmVariant = (typeof BM_VARIANTS)[number];
-/** Where the notes come from: a seeded original phrase, a scale run, the loaded melody or a typed list. */
-export const BM_SOURCES = ["original", "scale", "melody", "custom"] as const;
+/** Where the notes come from: a seeded original phrase, a scale run, the loaded melody, a typed list or a known tune (--- beat-machine-tunes ---). */
+export const BM_SOURCES = ["original", "scale", "melody", "custom", "tune"] as const;
 export type BmSource = (typeof BM_SOURCES)[number];
 
 export function isBmVariant(value: unknown): value is BmVariant {
@@ -306,6 +309,8 @@ export interface BmPhraseInput {
   custom: string;
   scale: ScaleId | string;
   root: number;
+  /** --- beat-machine-tunes --- The known tune of the "tune" source (an unknown one: the first, Ode to Joy). */
+  tune?: BmTune | string;
 }
 
 /** The phrase built and the source it really came from (a loaded melody or a typed list that is empty falls back to the original). */
@@ -314,6 +319,8 @@ export interface BmPhrase {
   source: BmSource;
   /** The slots' pitches (Hz): the bars' (marbles) or the ladder's (stairs). */
   slotHz: number[];
+  /** --- beat-machine-tunes --- The known tune's loop (the "tune" source), else null. */
+  tune: BmTuneLoop | null;
 }
 
 /**
@@ -331,6 +338,8 @@ export function buildPhrase(input: BmPhraseInput, random: () => number): BmPhras
   let source: BmSource = input.source;
   if (source === "melody" && melody.length === 0) source = "original";
   if (source === "custom" && !tokens.some((t) => t !== null)) source = "original";
+  // --- beat-machine-tunes --- a known tune: its own notes, bars and loop
+  const tune = source === "tune" ? tuneLoop(isBmTune(input.tune) ? input.tune : "ode") : null;
   if (input.variant === "stairs") {
     const steps = Math.max(1, Math.floor(input.slots));
     const ladder: number[] = [];
@@ -341,6 +350,7 @@ export function buildPhrase(input: BmPhraseInput, random: () => number): BmPhras
       let frequency = ladder[k];
       if (degrees) frequency = ladderFrequency(degrees[k], Math.min(steps, 10), input.scale, input.root);
       else if (source === "melody") frequency = melody[k % melody.length];
+      else if (tune) frequency = midiToFrequency(tune.notes[k % tune.notes.length].midi); // --- beat-machine-tunes ---
       else if (source === "custom") {
         const token = tokens[k % tokens.length];
         if (token && "frequency" in token) frequency = token.frequency;
@@ -348,7 +358,13 @@ export function buildPhrase(input: BmPhraseInput, random: () => number): BmPhras
       }
       notes.push({ beat: k, slot: k, frequency });
     }
-    return { notes, source, slotHz: ladder };
+    return { notes, source, slotHz: ladder, tune: null };
+  }
+  if (tune) {
+    // --- beat-machine-tunes --- a bar for each of the tune's pitches, every note on its own bar (the loop is the tune's)
+    const midis = tuneBarMidis(tune);
+    const slotHz = midis.map((m) => midiToFrequency(m));
+    return { notes: tune.notes.map((n) => ({ beat: n.beat, slot: midis.indexOf(n.midi), frequency: midiToFrequency(n.midi) })), source, slotHz, tune };
   }
   const bars = Math.max(1, Math.floor(input.slots));
   const barHz = barFrequencies(bars, input.scale, input.root);
@@ -365,7 +381,7 @@ export function buildPhrase(input: BmPhraseInput, random: () => number): BmPhras
       raw.push({ beat, slot: "slot" in token ? Math.min(bars - 1, token.slot) : nearestBar(token.frequency, barHz) });
     }
   } else raw = originalMarblePhrase(bars, loopBeats, random, intervals.length);
-  return { notes: raw.map((n) => ({ beat: n.beat, slot: n.slot, frequency: barHz[n.slot] })), source, slotHz: barHz };
+  return { notes: raw.map((n) => ({ beat: n.beat, slot: n.slot, frequency: barHz[n.slot] })), source, slotHz: barHz, tune: null };
 }
 
 /* ------------------------------------------------------------------ paths and segments */
@@ -505,14 +521,15 @@ export function segmentAt(segments: readonly BmSegment[], t: number): BmSegment 
 
 /* ------------------------------------------------------------------ events */
 
-export const BM_EVENT_KINDS = ["note", "release", "lift", "catch", "tip", "glide", "bass"] as const;
+export const BM_EVENT_KINDS = ["note", "release", "lift", "catch", "tip", "glide", "bass", "chord" /* --- beat-machine-tunes --- */] as const;
 export type BmEventKind = (typeof BM_EVENT_KINDS)[number];
 
 /**
  * Something the machine does at `t` (seconds into the loop, 0 ≤ t < loop): a **note** (a marble strikes its bar / the ball
  * lands on a step: `slot`, `frequency`, `note` – its index in the phrase), a marble's **release** from its tube, a marble
  * picked up by a lift **rung**, the stairs' hook **catch** and **tip**, the reset **glide** (from `frequency` to `toFrequency`
- * over `seconds`, ending at the loop point) and the **bass** of the phrase (every BM_BASS_BEATS beats).
+ * over `seconds`, ending at the loop point) and the **bass** of the phrase (every BM_BASS_BEATS beats; a known tune's own bass
+ * line), and a known tune's **chord** on its last note (`frequency`: its root).
  */
 export interface BmEvent {
   t: number;
@@ -660,6 +677,8 @@ export interface BeatMachinePlan {
   conflicts: number;
   /** Marbles: the most out of their tubes at once in a loop. */
   inFlightMax: number;
+  /** --- beat-machine-tunes --- The known tune the plan plays (its loop, bass and chord), else null. */
+  tune: BmTuneLoop | null;
 }
 
 /** The gravity (units / s²) of a hop of `T` seconds dropping `dy` whose apex is `apex` above its take-off. */
@@ -798,6 +817,7 @@ function planStairs(input: BmPlanInput): BeatMachinePlan {
     spares: 0,
     conflicts: 0,
     inFlightMax: 1,
+    tune: null, // --- beat-machine-tunes --- (the staircase plays a tune's notes a step each, with no chord of its own)
   };
 }
 
@@ -825,10 +845,12 @@ function mod(a: number, b: number): number {
 }
 
 function planMarbles(input: BmPlanInput): BeatMachinePlan {
-  const N = Math.max(1, Number.isFinite(input.bars) ? Math.floor(input.bars) : 10);
+  // --- beat-machine-tunes --- a known tune brings its own bars (its pitches) and its own loop (the verse and its coda)
+  const tune = input.phrase.tune;
+  const N = tune ? Math.max(1, input.phrase.slotHz.length) : Math.max(1, Number.isFinite(input.bars) ? Math.floor(input.bars) : 10);
   const bpm = input.bpm > 0 && Number.isFinite(input.bpm) ? input.bpm : 100;
   const T = 60 / bpm;
-  const loopBeats = Math.max(1, Number.isFinite(input.loopBeats) ? Math.round(input.loopBeats) : 32);
+  const loopBeats = tune ? tune.loopBeats : Math.max(1, Number.isFinite(input.loopBeats) ? Math.round(input.loopBeats) : 32);
   const P = loopBeats * T;
   const p = BM_BAR_PITCH;
   const r = BM_MARBLE_R_SHARE * p;
@@ -974,7 +996,10 @@ function planMarbles(input: BmPlanInput): BeatMachinePlan {
     events.push(event(mod(jr.release, P), "release", jr.tube, 0, jr.note));
     events.push(event(mod(jr.liftAt, P), "lift", jr.tube, 0, jr.note));
   }
-  if (input.bass) {
+  if (input.bass && tune) {
+    // --- beat-machine-tunes --- the tune's own bass line
+    for (const b of tune.bass) if (b.beat < loopBeats - BM_TIME_EPS) events.push(event(b.beat * T, "bass", 0, midiToFrequency(b.midi)));
+  } else if (input.bass) {
     for (let beat = 0; beat < loopBeats; beat += BM_BASS_BEATS) {
       // the window's lowest note, its pitch class in the bass register (55–110 Hz)
       let low = Infinity;
@@ -986,6 +1011,8 @@ function planMarbles(input: BmPlanInput): BeatMachinePlan {
       events.push(event(beat * T, "bass", 0, f));
     }
   }
+  // --- beat-machine-tunes --- the chord on the tune's last note
+  if (tune && tune.lastBeat < loopBeats - BM_TIME_EPS) events.push(event(tune.lastBeat * T, "chord", 0, midiToFrequency(tune.chordRoot)));
   events.sort((a, b) => a.t - b.t || BM_EVENT_KINDS.indexOf(a.kind) - BM_EVENT_KINDS.indexOf(b.kind) || a.note - b.note);
   const settleSec = Math.sqrt((2 * 2 * r) / g);
   const ballCount = tubes.reduce((sum, tube) => sum + tube.count, 0);
@@ -1029,6 +1056,7 @@ function planMarbles(input: BmPlanInput): BeatMachinePlan {
     spares,
     conflicts,
     inFlightMax,
+    tune,
   };
 }
 

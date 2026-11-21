@@ -5,17 +5,26 @@ import type { WaveTankView } from "@/lib/physics/modes/waveTank";
  *
  * - the water as `ridges` horizontal ridge lines (40 by default), each a row of the height field lifted up in a simple
  *   perspective – a camera above the front edge looking down at the tank at Perspective tilt (30°), the depth setting each
- *   line's height on the page and its width – drawn back to front; under every line its outline is filled with the page's
- *   colour down past the front edge, so the lines behind a crest are hidden (Joy Division style). A line is 1 px of the clip,
- *   pale blue-white (#c8d6ff), brighter where the water is higher and a little dimmer far away;
- * - the wave-maker as a thin golden line (#f2c879) – the farthest ridge – or, with point sources, golden dots;
- * - the barrier as a slate wall (#5a6488) standing on the water with dark notches at the gaps, between the ridges behind it
- *   and those in front of it;
- * - the bells: dim brass dots on a thin rail under the front edge, each with an amber halo (#f2c46a) whose alpha follows the
- *   smoothed amplitude under it, flashing when the scanning cursor strikes it.
+ *   line's height on the page and its width – drawn back to front, each one's face filled down to where the next one's line
+ *   can reach, so the lines behind a crest are hidden;
+ * - --- wave-glow --- the water lit by its own interference: a face's colour is the time-averaged amplitude under it (the
+ *   view's `glow`), from deep navy where crests meet troughs to bright sky blue where crests meet crests, in WT_WATER's six
+ *   steps, so the pattern itself is the picture – one gap a single bright fan, two gaps bright and dark stripes, a grating its
+ *   sharp beams. The ridge lines are shaded by height on top: the crests near white and wider, the slopes cyan, the troughs
+ *   dim. The water between the wave-maker and the wall is the incoming wave, drawn at a steady middle light;
+ * - the wave-maker as a golden bar along the back that pulses with the wave it makes (at the source's own frequency) – or,
+ *   with point sources, pulsing golden dots;
+ * - the barrier as a light slate wall standing on the water, its gaps glowing where the water squeezes through; at a section
+ *   change the wall flashes and the new gaps burst open (the moment you also hear: the mode's "impact");
+ * - --- wave-glow --- the screen: in front of the water a row of WT_FRONT_COLUMNS light pillars, each as tall and as bright as
+ *   the water's amplitude at the front edge above it – the double slit's photographic plate, its stripes standing up;
+ * - the bells on a rail under the pillars: brass dots with amber halos as loud as the water over them, flashing when the
+ *   scanning cursor (or, in the climax, the bells' chord) strikes them.
  *
- * Nothing is allocated per frame: no gradients, the projected points in one reused buffer, four paths a ridge (the brightness
- * steps). The pure projection (`waveTankProjection()`) is shared with the HUD's extent and the tests.
+ * Nothing is allocated per frame: no gradients, the projected points and the steps in reused buffers, a few paths a ridge
+ * (the glow's six steps, the height's three). Everything reads the view at simulation time `t`, so the live canvas, the fast
+ * export and the render queue draw the same frame. The pure projection (`waveTankProjection()`) is shared with the HUD's
+ * extent and the tests.
  */
 
 export interface WaveTankRenderOptions {
@@ -23,28 +32,44 @@ export interface WaveTankRenderOptions {
   dpr: number;
   /** Ball Glow: larger halos. */
   showGlow: boolean;
-  /** The page's colour (the hidden-line fill). */
+  /** The page's colour (under the screen). */
   background: string;
 }
 
-/** The clip's colours: the ridges, the wave-maker, the barrier (top, face, notches), the bells and their halo, the rail. */
-export const WT_LOOK = { ridge: "#c8d6ff", source: "#f2c879", slate: "#5a6488", slateFace: "#3c4463", notch: "#0d1222", brass: "#8a6d3b", brassLit: "#ffd98a", halo: "#f2c46a", rail: "#3a3020", edge: "#232b48" } as const;
+/** The clip's colours: the wave-maker, the wall (top, face, flash), the gaps' light, the bells and their halo, the rail, the tank's glass edges, the screen's panel. */
+export const WT_LOOK = { source: "#ffd36b", sourceGlow: "#ffb020", slate: "#9aa6cf", slateFace: "#6d7aa8", wallFlash: "#ffffff", gapLight: "#bdf4ff", brass: "#b88a3e", brassLit: "#ffe3a3", halo: "#ffc65a", rail: "#5a4524", edge: "#4b6cb7", screen: "#060c1c" } as const;
+/** --- wave-glow --- The water's six light steps (dark to bright) and the ridge lines' three (trough, slope, crest). */
+export const WT_WATER = ["#081633", "#0c2c66", "#11469a", "#1767cc", "#1e93ee", "#5cccff"] as const;
+export const WT_LINES = ["#2f5fb3", "#7fd8ff", "#f2fdff"] as const;
+/** The incoming wave's light step (between the wave-maker and the wall). */
+export const WT_INCOMING_STEP = 3;
+/** The pillars' reference at least (× the incoming wave's amplitude). */
+export const WT_PILLAR_FLOOR = 0.45;
+/** The pillars' four light steps (dim to white). */
+export const WT_PILLARS = ["#1d6fd1", "#36b4f5", "#9be7ff", "#ffffff"] as const;
 /** Height of a ridge per unit of amplitude (tank widths), and the most |u| a ridge shows (spikes past it are cut). */
-export const WT_HEIGHT = 0.035;
+export const WT_HEIGHT = 0.045;
 export const WT_HEIGHT_CLIP = 6;
 /** The camera's distance from the tank's centre (tank widths): the back edge comes out about 0.7 × the front's width at 30°. */
 export const WT_CAMERA = 3;
-/** The tank's front edge spans this share of the square; the picture (water, wall and bells) at most this share of its height. */
+/** The tank's front edge spans this share of the square; the picture (water, wall, screen and bells) at most this share of its height. */
 export const WT_FIT_WIDTH = 0.94;
-export const WT_FIT_HEIGHT = 0.8;
-/** The wall's height (tank widths), the bells' drop under the front edge and their radius (shares of the square). */
-export const WT_WALL_HEIGHT = 0.022;
-export const WT_BELL_DROP = 0.045;
-export const WT_BELL_RADIUS = 0.0085;
-/** Seconds a struck bell flashes. */
+export const WT_FIT_HEIGHT = 0.86;
+/** The wall's height (tank widths), the bells' drop under the front edge (the screen's height) and their radius (shares of the square). */
+export const WT_WALL_HEIGHT = 0.026;
+export const WT_BELL_DROP = 0.12;
+export const WT_BELL_RADIUS = 0.011;
+/** Seconds a struck bell flashes, the wall's flash at a section change, and the wave-maker's pulse depth (0–1). */
 export const WT_FLASH_SEC = 0.18;
-/** The ridge strokes' brightness steps (alpha). */
-export const WT_STEP_ALPHA = [0.3, 0.5, 0.74, 1] as const;
+export const WT_WALL_FLASH_SEC = 0.6;
+export const WT_SOURCE_PULSE = 0.45;
+/** --- review fix (D1) --- The wave-maker's bar stands this many WT_HEIGHT above the water (the projection's back lift). */
+export const WT_SOURCE_LIFT = 2;
+/** The glow's gamma (under 1 lifts the half-lit stripes) and the share of a crest's local amplitude a line must pass to count as a crest. */
+export const WT_GLOW_GAMMA = 0.75;
+export const WT_CREST_SHARE = 0.45;
+/** The ridge strokes' brightness (alpha) per line step. */
+export const WT_STEP_ALPHA = [0.4, 0.7, 0.95] as const;
 
 /** The projection of a frame: tank (x, h, z) → world px. */
 export interface WaveTankProjection {
@@ -99,7 +124,7 @@ export function waveTankProjection(view: WaveTankView, out?: WaveTankProjection)
   const yHigh = Math.max(backTop, wallTop, frontBase);
   const yLowTank = Math.min(frontLow, frontBase);
   const byWidth = (WT_FIT_WIDTH * side) / Math.max(1e-6, 2 * frontHalf);
-  // the bells hang WT_BELL_DROP of the square under the front edge, plus their halo
+  // the screen and the bells hang WT_BELL_DROP of the square under the front edge, plus their halo
   const bellsPx = (WT_BELL_DROP + 3 * WT_BELL_RADIUS) * side;
   const byHeight = (WT_FIT_HEIGHT * side - bellsPx) / Math.max(1e-6, yHigh - yLowTank);
   p.scale = Math.max(1e-6, Math.min(byWidth, byHeight));
@@ -129,47 +154,61 @@ export function waveTankExtentPx(view: WaveTankView): number {
   return Math.max(view.frame.cy - p.top, p.bottom - view.frame.cy);
 }
 
+/** --- wave-glow --- The light step (0 … steps − 1) of an amplitude against the picture's reference. */
+export function glowStep(amplitude: number, reference: number, steps: number): number {
+  const q = reference > 0 && amplitude > 0 ? Math.min(1, amplitude / reference) ** WT_GLOW_GAMMA : 0;
+  return Math.min(steps - 1, Math.floor(q * steps));
+}
+
 const PT = { x: 0, y: 0 };
 const PT2 = { x: 0, y: 0 };
 /** The tank's two side edges (x), and a halo's three rings: radius (bell radii) and alpha. */
 const SIDES = [-0.5, 0.5] as const;
 const HALO_RINGS = [3.4, 2.3, 1.55] as const;
-const HALO_ALPHAS = [0.14, 0.24, 0.42] as const;
+const HALO_ALPHAS = [0.16, 0.28, 0.5] as const;
 
 export class WaveTankLayer {
-  /** Ridges and strokes drawn last frame, bells lit (level ≥ 0.25) and flashing (for tools and the smoke test). */
+  /** Ridges and strokes drawn last frame, bells lit (level ≥ 0.25) and flashing, pillars lit (step ≥ 2) (for tools and the smoke test). */
   ridgesDrawn = 0;
   strokes = 0;
   litBells = 0;
   flashing = 0;
+  litPillars = 0;
+  /** --- wave-glow --- The light step of each sample of the ridge being drawn, its line step, and the frame's water light (mean step, 0–5). */
+  waterLight = 0;
+  /** Where the front ridge's face ends (world px): the screen's top, which covers what the faces behind it spilled past it. */
+  private frontBottom = 0;
   private pts = new Float32Array(0);
-  private buckets = new Uint8Array(0);
+  private glowSteps = new Uint8Array(0);
+  private lineSteps = new Uint8Array(0);
   private readonly edges: number[] = [];
   private readonly proj = {} as WaveTankProjection;
 
-  /** The whole tank at simulation time `t` (s): the ridges back to front with the wall among them, then the bells. */
+  /** The whole tank at simulation time `t` (s): the ridges back to front with the wall among them, then the screen and the bells. */
   drawStage(ctx: CanvasRenderingContext2D, view: WaveTankView, t: number, opts: WaveTankRenderOptions) {
     const p = waveTankProjection(view, this.proj);
     const R = view.ridges;
     const S = view.samples;
     if (this.pts.length < 2 * S) {
       this.pts = new Float32Array(2 * S);
-      this.buckets = new Uint8Array(S);
+      this.glowSteps = new Uint8Array(S);
+      this.lineSteps = new Uint8Array(S);
     }
     const side = view.frame.side;
-    const line = Math.max(1 / Math.max(1, opts.dpr), (1.05 * side) / 720);
-    const fillBottom = p.bottom + 4;
+    const line = Math.max(1 / Math.max(1, opts.dpr), (1.6 * side) / 720);
     const lines = view.source === "line";
     let wallDrawn = !lines;
     this.ridgesDrawn = 0;
     this.strokes = 0;
+    let lightSum = 0;
+    let lightCount = 0;
     ctx.save();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    // the tank's side edges, faint, under everything
+    // the tank's glass side edges, under everything
     ctx.strokeStyle = WT_LOOK.edge;
-    ctx.lineWidth = line;
-    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 1.5 * line;
+    ctx.globalAlpha = 0.7;
     ctx.beginPath();
     for (const x of SIDES) {
       projectTank(p, x, 0, view.sourceZ, PT);
@@ -189,25 +228,55 @@ export class WaveTankLayer {
       if (r > 0 && r < R - 1 && baseY - lastBase < minGap) continue;
       lastBase = baseY;
       if (!wallDrawn && z > view.barrierZ1) {
-        this.drawWall(ctx, view, p, line);
+        // --- review fix (D1) --- the wave-maker after the last ridge behind the wall: their crests no longer cover it
+        this.drawSource(ctx, view, p, line, t);
+        this.drawWall(ctx, view, p, line, t);
         wallDrawn = true;
       }
-      this.drawRidge(ctx, view, p, r, line, fillBottom, opts.background, r === 0 && lines);
+      // the face reaches down to where the next ridge's deepest trough can be; the front one's down to the front edge (or its
+      // own trough, when it dips under it): under it is the screen
+      const bottom = r < R - 1 ? projectTank(p, 0, -WT_HEIGHT * this.dipOf(view, r + 1), view.ridgeZ[r + 1], PT).y + 2 * line : -1;
+      const light = this.drawRidge(ctx, view, p, r, line, bottom, lines && z < view.barrierZ0);
+      lightSum += light;
+      lightCount++;
     }
-    if (!wallDrawn) this.drawWall(ctx, view, p, line);
-    if (!lines) this.drawPointSources(ctx, view, p, side);
+    this.waterLight = lightCount > 0 ? lightSum / lightCount : 0;
+    if (!wallDrawn) {
+      this.drawSource(ctx, view, p, line, t);
+      this.drawWall(ctx, view, p, line, t);
+    }
+    if (!lines) this.drawPointSources(ctx, view, p, side, t);
+    this.drawScreen(ctx, view, p, side, line);
     this.drawBells(ctx, view, p, t, side, opts);
     ctx.restore();
   }
 
-  /** One ridge: its outline filled with the page's colour down past the front (hiding what lies behind), then its strokes by brightness. */
-  private drawRidge(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, r: number, line: number, fillBottom: number, background: string, golden: boolean) {
+  /** How deep ridge `r`'s lowest trough is (amplitude units, 0 … WT_HEIGHT_CLIP): the face behind it need reach no lower. */
+  private dipOf(view: WaveTankView, r: number): number {
+    const S = view.samples;
+    let low = 0;
+    for (let s = r * S, end = s + S; s < end; s++) {
+      const u = view.heights[s];
+      if (u < low) low = u;
+    }
+    return Math.min(WT_HEIGHT_CLIP, Number.isFinite(low) ? -low : WT_HEIGHT_CLIP);
+  }
+
+  /**
+   * One ridge: its face filled by the water's light step under each sample (one path a step) down to `bottom` (−1: the front
+   * ridge, down to the front edge or its own lowest point), then its line by height (one path a step). Returns the ridge's mean
+   * light step.
+   */
+  private drawRidge(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, r: number, line: number, bottomAt: number, incoming: boolean): number {
     const S = view.samples;
     const z = view.ridgeZ[r];
     const base = r * S;
     const pts = this.pts;
-    const buckets = this.buckets;
-    const far = view.ridges > 1 ? r / (view.ridges - 1) : 1;
+    const gs = this.glowSteps;
+    const ls = this.lineSteps;
+    const ref = Math.max(1e-6, view.glowReference);
+    const glow = view.glow;
+    let light = 0;
     for (let s = 0; s < S; s++) {
       let u = view.heights[base + s];
       if (!Number.isFinite(u)) u = 0;
@@ -216,51 +285,131 @@ export class WaveTankLayer {
       projectTank(p, view.sampleX[s], u * WT_HEIGHT, z, PT);
       pts[2 * s] = PT.x;
       pts[2 * s + 1] = PT.y;
-      const q = Math.min(1, Math.max(0, 0.38 + 0.28 * u));
-      buckets[s] = Math.min(3, Math.floor(q * 4));
+      const g = glow.length > base + s ? glow[base + s] : 0;
+      const step = incoming ? WT_INCOMING_STEP : glowStep(Number.isFinite(g) ? g : 0, ref, WT_WATER.length);
+      gs[s] = step;
+      light += step;
+      // the line: a crest (the upper part of a lit swing), a slope, or a trough
+      ls[s] = u > WT_CREST_SHARE * Math.max(g, 1e-6) && (incoming || g > 0.2 * ref) ? 2 : u > 0 ? 1 : 0;
+    }
+    let bottom = bottomAt;
+    if (bottom < 0) {
+      bottom = p.frontY;
+      for (let s = 0; s < S; s++) if (pts[2 * s + 1] > bottom) bottom = pts[2 * s + 1];
+      bottom += 0.5 * line;
+      this.frontBottom = bottom;
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = background;
-    ctx.beginPath();
-    ctx.moveTo(pts[0], pts[1]);
-    for (let s = 1; s < S; s++) ctx.lineTo(pts[2 * s], pts[2 * s + 1]);
-    ctx.lineTo(pts[2 * (S - 1)], fillBottom);
-    ctx.lineTo(pts[0], fillBottom);
-    ctx.closePath();
-    ctx.fill();
-    ctx.lineWidth = golden ? 1.6 * line : line;
-    ctx.strokeStyle = golden ? WT_LOOK.source : WT_LOOK.ridge;
-    const fade = golden ? 1 : 0.6 + 0.4 * far;
-    for (let b = 0; b < 4; b++) {
+    // the face, step by step: each run of samples on one step is a band from the line down to `bottom`
+    for (let k = 0; k < WT_WATER.length; k++) {
+      let any = false;
+      ctx.beginPath();
+      let s = 0;
+      while (s < S) {
+        if (gs[s] !== k) {
+          s++;
+          continue;
+        }
+        const s0 = s;
+        while (s + 1 < S && gs[s + 1] === k) s++;
+        // half a sample past each end, so neighbouring runs meet without a seam
+        const a = s0 > 0 ? s0 - 0.5 : 0;
+        const b = s < S - 1 ? s + 0.5 : S - 1;
+        const ax = lerpAt(pts, a, 0);
+        const ay = lerpAt(pts, a, 1);
+        ctx.moveTo(ax, bottom);
+        ctx.lineTo(ax, ay);
+        for (let q = s0; q <= s; q++) ctx.lineTo(pts[2 * q], pts[2 * q + 1]);
+        ctx.lineTo(lerpAt(pts, b, 0), lerpAt(pts, b, 1));
+        ctx.lineTo(lerpAt(pts, b, 0), bottom);
+        ctx.closePath();
+        any = true;
+        s++;
+      }
+      if (!any) continue;
+      ctx.fillStyle = WT_WATER[k];
+      ctx.fill();
+    }
+    // the line by height: troughs dim, slopes cyan, crests near white and wider
+    for (let k = 0; k < WT_LINES.length; k++) {
       let open = false;
       let any = false;
       ctx.beginPath();
       for (let s = 0; s < S - 1; s++) {
-        const seg = Math.max(buckets[s], buckets[s + 1]);
-        if (seg !== b && !golden) {
+        const seg = Math.max(ls[s], ls[s + 1]);
+        if (seg !== k) {
           open = false;
           continue;
         }
-        if (golden && b !== 3) break;
         if (!open) ctx.moveTo(pts[2 * s], pts[2 * s + 1]);
         ctx.lineTo(pts[2 * s + 2], pts[2 * s + 3]);
         open = true;
         any = true;
       }
       if (!any) continue;
-      ctx.globalAlpha = (golden ? 1 : WT_STEP_ALPHA[b]) * fade;
+      ctx.strokeStyle = WT_LINES[k];
+      // (the crests a little wider: a second, soft glow stroke under them cost a fifth of the frame in a software canvas)
+      ctx.globalAlpha = WT_STEP_ALPHA[k];
+      ctx.lineWidth = k === 2 ? 1.8 * line : line;
       ctx.stroke();
       this.strokes++;
     }
+    ctx.globalAlpha = 1;
     this.ridgesDrawn++;
+    return light / Math.max(1, S);
   }
 
-  /** The barrier: a slate wall on the water across the tank, its top face and front face, with dark notches at the gaps. */
-  private drawWall(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, line: number) {
+  /**
+   * The wave-maker: a golden paddle along the back, standing a crest's height (WT_SOURCE_LIFT) above the water, brighter and
+   * thicker as it pushes (the source's own cycle). --- review fix (D1) --- drawn after the ridges behind the wall and lifted
+   * over their crests, whose faces hid the bar at the water line.
+   */
+  private drawSource(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, line: number, t: number) {
+    const pulse = 0.5 + 0.5 * Math.cos(2 * Math.PI * view.frequency * t);
+    const lift = WT_SOURCE_LIFT * WT_HEIGHT;
+    // the paddle's face, from the water line up to the bar
+    const w0 = projectTank(p, -0.5, 0, view.sourceZ, PT);
+    const w0x = w0.x;
+    const w0y = w0.y;
+    const w1 = projectTank(p, 0.5, 0, view.sourceZ, PT2);
+    const w1x = w1.x;
+    const w1y = w1.y;
+    const a = projectTank(p, -0.5, lift, view.sourceZ, PT);
+    const ax = a.x;
+    const ay = a.y;
+    const b = projectTank(p, 0.5, lift, view.sourceZ, PT2);
+    ctx.globalAlpha = 0.35 + 0.2 * pulse;
+    ctx.fillStyle = WT_LOOK.sourceGlow;
+    ctx.beginPath();
+    ctx.moveTo(w0x, w0y);
+    ctx.lineTo(w1x, w1y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(ax, ay);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.25 + 0.3 * pulse;
+    ctx.strokeStyle = WT_LOOK.sourceGlow;
+    ctx.lineWidth = (5 + 4 * pulse) * line;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1 - WT_SOURCE_PULSE * (1 - pulse);
+    ctx.strokeStyle = WT_LOOK.source;
+    ctx.lineWidth = 2.4 * line;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    this.strokes++;
+  }
+
+  /** The barrier: a light slate wall on the water across the tank, its gaps lit; at a section change it flashes and the gaps burst. */
+  private drawWall(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, line: number, t: number) {
     const z0 = view.barrierZ0;
     const z1 = view.barrierZ1;
     const hTop = WT_WALL_HEIGHT;
     const half = view.gapWidth / 2;
+    const since = view.changeSec >= 0 ? t - view.changeSec : Infinity;
+    const flash = since >= 0 && since < WT_WALL_FLASH_SEC ? 1 - since / WT_WALL_FLASH_SEC : 0;
     // the solid spans between the gaps (x from −½ to ½)
     const edges = this.edges;
     edges.length = 0;
@@ -287,6 +436,12 @@ export class WaveTankLayer {
       ctx.lineTo(PT.x, PT.y);
       ctx.closePath();
       ctx.fill();
+      if (flash > 0) {
+        ctx.globalAlpha = 0.85 * flash;
+        ctx.fillStyle = WT_LOOK.wallFlash;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       // top face
       ctx.fillStyle = WT_LOOK.slate;
       ctx.beginPath();
@@ -301,35 +456,39 @@ export class WaveTankLayer {
       ctx.closePath();
       ctx.fill();
     }
-    // the notches: the gaps' openings, dark, at the water line
-    ctx.fillStyle = WT_LOOK.notch;
+    // the gaps: light where the water squeezes through (a halo, then the opening), bursting open after a change
+    const burst = 1 + 1.6 * flash;
     for (let i = 1; i + 1 < edges.length; i += 2) {
       const a = edges[i];
       const b = edges[i + 1];
       if (!(b > a)) continue;
+      const mid = projectTank(p, (a + b) / 2, hTop * 0.5, (z0 + z1) / 2, PT);
+      const mx = mid.x;
+      const my = mid.y;
+      const w = Math.max(2 * line, Math.abs(projectTank(p, b, 0, z1, PT2).x - projectTank(p, a, 0, z1, PT).x));
+      ctx.fillStyle = WT_LOOK.gapLight;
+      ctx.globalAlpha = 0.28 * burst;
       ctx.beginPath();
-      projectTank(p, a, 0, z0, PT);
-      ctx.moveTo(PT.x, PT.y);
-      projectTank(p, b, 0, z0, PT);
-      ctx.lineTo(PT.x, PT.y);
-      projectTank(p, b, 0, z1, PT);
-      ctx.lineTo(PT.x, PT.y + line);
-      projectTank(p, a, 0, z1, PT);
-      ctx.lineTo(PT.x, PT.y + line);
-      ctx.closePath();
+      ctx.ellipse(mx, my, 1.4 * w * burst, 0.9 * w * burst, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = Math.min(1, 0.85 + 0.15 * flash);
+      ctx.beginPath();
+      ctx.ellipse(mx, my, 0.55 * w, 0.35 * w, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
   }
 
-  /** Point sources (no barrier): golden dots where the gaps would be. */
-  private drawPointSources(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, side: number) {
-    const r = 0.007 * side;
+  /** Point sources (no barrier): golden dots where the gaps would be, pulsing with the wave they make. */
+  private drawPointSources(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, side: number, t: number) {
+    const pulse = 0.5 + 0.5 * Math.cos(2 * Math.PI * view.frequency * t);
+    const r = 0.008 * side;
     ctx.fillStyle = WT_LOOK.source;
     for (const g of view.gapX) {
       projectTank(p, g, 0, view.barrierZ0, PT);
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = 0.2 + 0.25 * pulse;
       ctx.beginPath();
-      ctx.arc(PT.x, PT.y, 2.2 * r, 0, Math.PI * 2);
+      ctx.arc(PT.x, PT.y, (2 + 1.2 * pulse) * r, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.beginPath();
@@ -338,7 +497,60 @@ export class WaveTankLayer {
     }
   }
 
-  /** The bells on their rail: amber halos by the smoothed amplitude, dim brass dots, a flash on a strike. */
+  /**
+   * --- wave-glow --- The screen in front of the water: WT_FRONT_COLUMNS pillars standing on the bells' rail, each as tall and
+   * as bright as the water's amplitude at the front edge above it (against the row's brightest), one path a light step.
+   */
+  private drawScreen(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, side: number, line: number) {
+    const n = view.front.length;
+    this.litPillars = 0;
+    if (n === 0) return;
+    // against the row's brightest, but never under WT_PILLAR_FLOOR of the incoming wave: a row that is even everywhere (one narrow
+    // gap) stands half tall, a grating's beams full height
+    let ref = WT_PILLAR_FLOOR;
+    for (let i = 0; i < n; i++) if (view.front[i] > ref && Number.isFinite(view.front[i])) ref = view.front[i];
+    const left = projectTank(p, -0.5, 0, view.depth, PT).x;
+    const right = projectTank(p, 0.5, 0, view.depth, PT2).x;
+    const w = (right - left) / n;
+    const floor = p.bellY - WT_BELL_RADIUS * side * 1.6;
+    // the screen's panel: the page's colour from under the water to under the bells (the faces behind the front one reach past it)
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = WT_LOOK.screen;
+    ctx.fillRect(left - 2 * line, Math.max(p.frontY, this.frontBottom), right - left + 4 * line, p.bellY + 3 * WT_BELL_RADIUS * side - Math.max(p.frontY, this.frontBottom));
+    const tall = Math.max(2, floor - p.frontY - 3 * line);
+    for (let k = 0; k < WT_PILLARS.length; k++) {
+      let any = false;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const a = Number.isFinite(view.front[i]) ? Math.max(0, view.front[i]) : 0;
+        const q = a / ref;
+        const step = glowStep(a, ref, WT_PILLARS.length);
+        if (step !== k) continue;
+        if (k === 0 && q < 0.04) continue;
+        const h = tall * Math.max(0.04, q);
+        ctx.rect(left + i * w + 0.12 * w, floor - h, 0.76 * w, h);
+        any = true;
+        if (k >= 2) this.litPillars++;
+      }
+      if (!any) continue;
+      ctx.fillStyle = WT_PILLARS[k];
+      ctx.globalAlpha = 0.25;
+      ctx.fill();
+      ctx.globalAlpha = 0.55 + 0.15 * k;
+      ctx.fill();
+    }
+    // the screen's base line
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = WT_LOOK.edge;
+    ctx.lineWidth = line;
+    ctx.beginPath();
+    ctx.moveTo(left, floor + 0.5 * line);
+    ctx.lineTo(right, floor + 0.5 * line);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /** The bells on their rail: amber halos by the smoothed amplitude, brass dots, a flash on a strike. */
   private drawBells(ctx: CanvasRenderingContext2D, view: WaveTankView, p: WaveTankProjection, t: number, side: number, opts: WaveTankRenderOptions) {
     const n = view.bells;
     const r = WT_BELL_RADIUS * side * Math.min(1, 11 / Math.max(1, n)) ** 0.5;
@@ -379,22 +591,31 @@ export class WaveTankLayer {
       ctx.globalAlpha = 1;
       ctx.fillStyle = flash > 0 ? WT_LOOK.brassLit : WT_LOOK.brass;
       ctx.beginPath();
-      ctx.arc(x, y, r * (1 + 0.25 * flash), 0, Math.PI * 2);
+      ctx.arc(x, y, r * (1 + 0.3 * flash), 0, Math.PI * 2);
       ctx.fill();
       if (flash > 0) {
-        ctx.globalAlpha = 0.6 * flash;
+        ctx.globalAlpha = 0.7 * flash;
         ctx.strokeStyle = WT_LOOK.brassLit;
         ctx.lineWidth = Math.max(1 / Math.max(1, opts.dpr), 0.3 * r);
         ctx.beginPath();
-        ctx.arc(x, y, r * (1.6 + 1.2 * (1 - flash)), 0, Math.PI * 2);
+        ctx.arc(x, y, r * (1.6 + 1.4 * (1 - flash)), 0, Math.PI * 2);
         ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1;
   }
 }
 
+/** The point `i` (a fractional sample index) of an interleaved x, y buffer, coordinate `c` (0: x, 1: y), linearly between samples. */
+function lerpAt(pts: Float32Array, i: number, c: 0 | 1): number {
+  const a = Math.floor(i);
+  const f = i - a;
+  if (f <= 0) return pts[2 * a + c];
+  return pts[2 * a + c] * (1 - f) + pts[2 * (a + 1) + c] * f;
+}
+
 /** The canvas' data-wt-* keys (cleared when another mode runs). */
-export const WAVE_TANK_DATA_KEYS = ["wtModel", "wtSource", "wtTime", "wtLoop", "wtLoopIndex", "wtSection", "wtGaps", "wtChanges", "wtSectionChanges", "wtSeams", "wtSeamError", "wtNan", "wtMax", "wtGrid", "wtSubsteps", "wtClamped", "wtPreroll", "wtFreq", "wtLambda", "wtCycles", "wtBells", "wtLevels", "wtReference", "wtStrikes", "wtSkipped", "wtCursor", "wtSounds", "wtRoots", "wtRootHz", "wtRidges", "wtSamples", "wtDrawn", "wtStrokes", "wtLit", "wtFlashing", "wtLag", "wtTilt"] as const;
+export const WAVE_TANK_DATA_KEYS = ["wtModel", "wtSource", "wtTime", "wtLoop", "wtLoopIndex", "wtSection", "wtGaps", "wtChanges", "wtSectionChanges", "wtSeams", "wtSeamError", "wtNan", "wtMax", "wtGrid", "wtSubsteps", "wtClamped", "wtPreroll", "wtFreq", "wtLambda", "wtCycles", "wtBells", "wtLevels", "wtReference", "wtStrikes", "wtSkipped", "wtCursor", "wtSounds", "wtRoots", "wtRootHz", "wtRidges", "wtSamples", "wtDrawn", "wtStrokes", "wtLit", "wtFlashing", "wtLag", "wtTilt", "wtGlowRef", "wtWaterLight", "wtPillars", "wtImpacts", "wtChords", "wtClimax"] as const;
 
 /** Mirrors a Wave Tank run onto the canvas' dataset (data-wt-*), for tools and the smoke test. */
 export function writeWaveTankDataset(view: WaveTankView, layer: WaveTankLayer, set: (key: string, value: string) => void) {
@@ -437,4 +658,11 @@ export function writeWaveTankDataset(view: WaveTankView, layer: WaveTankLayer, s
   set("wtFlashing", String(layer.flashing));
   set("wtLag", String(view.lag));
   set("wtTilt", String(view.settings.tilt));
+  // --- wave-glow --- --- wave-chapters ---
+  set("wtGlowRef", view.glowReference.toFixed(3));
+  set("wtWaterLight", layer.waterLight.toFixed(2));
+  set("wtPillars", String(layer.litPillars));
+  set("wtImpacts", String(view.impacts));
+  set("wtChords", String(view.chords));
+  set("wtClimax", view.climax ? "1" : "0");
 }
