@@ -40,7 +40,9 @@ export default function AccountRow({ className }: { className?: string }) {
       <span className={cx("inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line", pro ? "text-accent" : "text-ink-3")}>
         <IconLock size={15} />
       </span>
-      <span className="min-w-0 flex-1 text-sm text-ink" data-testid="billing-account-text" aria-live="polite">
+      {/* --- studio-fit --- (a floor for the text: in the 340 px panel the buttons move to a line of their own instead of
+          squeezing it to a word a line) */}
+      <span className="min-w-[10rem] flex-1 text-sm text-ink" data-testid="billing-account-text" aria-live="polite">
         {text}
       </span>
       <span className="flex shrink-0 items-center gap-1">

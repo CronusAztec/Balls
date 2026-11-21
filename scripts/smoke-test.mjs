@@ -11028,9 +11028,10 @@ await smokeBlock("odd-maze", async () => {
 await smokeBlock("review-fix-site-redesign", async () => {
 // --- review fix (site-redesign) --- the studio's review fixes: the command palette reaches a control its group does not show
 // (Show Advanced Options off, the collapsed Project file block) and offers no other mode's controls, and a rail click right
-// after it shows that group; the icon rail's hover labels are drawn on top at 1280–1535 px; picking a mode keeps the stage
-// strip below the sticky header; on a phone the open tab puts the sheet away (and so does a tap on the scrim); the hit
-// targets are 32 px (44 px on touch); and the static 404 page ships none of the simulator's catalog.
+// after it shows that group; the rail shows its labels at 1280 px (--- studio-fit --- it was an icon column with hover
+// labels up to 1535 px); picking a mode keeps the stage strip below the sticky header; on a phone the open tab puts the
+// sheet away (and so does its close button, --- studio-fit --- with Start in reach while it is open); the hit targets are
+// 32 px (44 px on touch); and the static 404 page ships none of the simulator's catalog.
 {
   const srErrors = [];
   const watchSr = (p) => {
@@ -11114,27 +11115,25 @@ await smokeBlock("review-fix-site-redesign", async () => {
     await p.locator(".studio-panel-foot input.switch").uncheck();
     check("palette: Export project focuses its button in the collapsed block; with advanced options on Gravity is focused in Ball & Physics", exportFocus.tag === "BUTTON" && exportFocus.text === "Export project" && inGroup.inBall && inGroup.name === "Gravity" && inGroup.search === "", `(export ${JSON.stringify(exportFocus)}, advanced ${JSON.stringify(inGroup)})`);
 
-    // 3. The icon rail (1280–1535 px): hovering an icon shows its label on top of the stage, not clipped by the rail; every
-    // item carries its label as a title too.
+    // 3. The rail at 1280 px: every item shows its label beside its icon, in full and inside the rail (no hover label is
+    // needed or drawn), and every item carries its label as a title too. --- studio-fit --- (the icon rail of 1280–1535 px,
+    // whose hover labels this step checked, is gone: the labels show from 1280 px)
     await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
     await railButton(p, "Visual Effects").hover();
     await p.waitForTimeout(400);
-    const tip = await p.evaluate(() => {
-      const el = document.querySelector("[data-tab-tip]");
+    const labels = await p.evaluate(() => {
       const rail = document.querySelector(".studio-rail")?.getBoundingClientRect();
-      if (!el || !rail) return null;
-      const b = el.getBoundingClientRect();
-      el.style.pointerEvents = "auto";
-      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-      el.style.pointerEvents = "";
-      return { text: el.textContent, left: Math.round(b.left), railRight: Math.round(rail.right), width: Math.round(b.width), onTop: el.contains(hit), opacity: getComputedStyle(el).opacity };
+      return [...document.querySelectorAll('[role="toolbar"] button')].map((b) => {
+        const l = b.querySelector("span");
+        const r = l?.getBoundingClientRect();
+        const hit = r ? document.elementFromPoint(r.left + Math.min(8, r.width / 2), r.top + r.height / 2) : null;
+        return { text: l?.textContent ?? "", shown: !!r && r.width > 20 && r.left >= rail.left && r.right <= rail.right && !!l && l.contains(hit), full: !!l && l.scrollWidth <= l.clientWidth + 1 };
+      });
     });
     const titles = await p.$$eval('[role="toolbar"] button', (bs) => bs.every((b) => !!b.title && b.title === (b.querySelector("span")?.textContent ?? "")));
-    await p.screenshot({ path: path.join(outDir, "rail-tooltip-1280.png"), clip: { x: 0, y: 0, width: 420, height: 520 } }).catch(() => {});
-    await p.mouse.move(700, 450);
-    await p.waitForTimeout(200);
-    const tipGone = (await p.locator("[data-tab-tip]").count()) === 0;
-    check("icon rail at 1280 px: the hover label shows beside the icon, on top and unclipped, and goes on leave; every item has a title", !!tip && tip.text === "Visual Effects" && tip.onTop && tip.left >= tip.railRight && tip.width > 40 && Number(tip.opacity) > 0.9 && titles && tipGone, `(${JSON.stringify(tip)}, titles ${titles}, gone ${tipGone})`);
+    await p.screenshot({ path: path.join(outDir, "rail-labels-1280.png"), clip: { x: 0, y: 0, width: 420, height: 520 } }).catch(() => {});
+    const noHoverLabel = (await p.locator("[data-tab-tip]").count()) === 0;
+    check("rail at 1280 px: every item shows its label beside its icon, in full and inside the rail, with no hover label; every item has a title", labels.length >= 11 && labels.some((l) => l.text === "Visual Effects") && labels.every((l) => l.shown && l.full) && titles && noHoverLabel, `(${JSON.stringify(labels.filter((l) => !l.shown || !l.full))}, titles ${titles}, no hover label ${noHoverLabel})`);
 
     // 4. Hit targets at 1280 px: the speeds (once started), the number fields, the Outcome picker, Change mode, the Face and
     // Rainbow choices, Play today's seed – 32 px at least.
@@ -11168,8 +11167,9 @@ await smokeBlock("review-fix-site-redesign", async () => {
     await desk.close().catch(() => {});
   }
 
-  // 6. A phone (390×844, touch): picking a mode keeps the strip below the header; the open tab puts the sheet away (the
-  // transport bar is reachable again) and brings it back; a tap on the scrim puts it away too; the touch targets are 44 px.
+  // 6. A phone (390×844, touch): picking a mode keeps the strip below the header; the open tab puts the sheet away and brings
+  // it back, the close button puts it away too, and Start stays in reach while it is open (--- studio-fit --- the open sheet
+  // no longer covers the transport bar behind a scrim); the touch targets are 44 px.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
     const p = await phone.newPage();
@@ -11196,14 +11196,14 @@ await smokeBlock("review-fix-site-redesign", async () => {
     await tab.tap();
     await p.waitForTimeout(400);
     const reopened = await sheet();
-    await p.getByTestId("studio-scrim").tap({ position: { x: 195, y: 120 } });
+    await p.getByRole("button", { name: "Close the settings", exact: true }).tap();
     await p.waitForTimeout(400);
-    const scrimmed = await sheet();
+    const closedByButton = await sheet();
     check("phone: picking a mode leaves the stage strip below the header", picked.scrollY === 0 && picked.stripTop >= 56 && picked.stripHit, `(${JSON.stringify(picked)})`);
     check(
-      "phone: a tap on the open tab puts the sheet away (Start reachable), the next brings it back, a tap on the scrim puts it away",
-      opened.open && !opened.startReachable && opened.pressed.includes("ball") && !closed.open && closed.startReachable && reopened.open && reopened.pressed.includes("ball") && !scrimmed.open && scrimmed.startReachable,
-      `(opened ${JSON.stringify(opened)}, closed ${JSON.stringify(closed)}, reopened ${JSON.stringify(reopened)}, scrim ${JSON.stringify(scrimmed)})`,
+      "phone: a tap on the open tab puts the sheet away, the next brings it back, the close button puts it away, and Start is in reach throughout",
+      opened.open && opened.startReachable && opened.pressed.includes("ball") && !closed.open && closed.startReachable && reopened.open && reopened.startReachable && reopened.pressed.includes("ball") && !closedByButton.open && closedByButton.startReachable,
+      `(opened ${JSON.stringify(opened)}, closed ${JSON.stringify(closed)}, reopened ${JSON.stringify(reopened)}, close button ${JSON.stringify(closedByButton)})`,
     );
     check("phone (touch): the tab strip's items, the panel's buttons and number fields are 44 px or more", touch.tabs.length > 5 && touch.tabs.every((h) => h >= 44) && touch.panel >= 44 && touch.fields >= 44, `(${JSON.stringify(touch)})`);
   } catch (err) {
@@ -11229,6 +11229,219 @@ await smokeBlock("review-fix-site-redesign", async () => {
   check("site-redesign review checks: no page errors", srErrors.length === 0, srErrors.length ? `\n   ${srErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end review fix (site-redesign) ---
+});
+
+await smokeBlock("studio-fit", async () => {
+// --- studio-fit --- The studio fits every screen. A phone (390×844, touch) keeps the whole stage in view above the open
+// sheet, not dimmed, with the transport bar in reach, the run going on and the canvas unmeasured; its tab strip shows five
+// or more items with their labels, Recording third, fades where it scrolls on and brings a pressed item into view; the
+// Mode item of an open Mode block opens the picker, and a pick puts the sheet away. From 900 px the desk is a column beside
+// the stage (tab strip on top, panel scrolling in it). The strip's TIME opens the clip length in Recording, its arrows step
+// to the wall's next mode, an info tip opens by keyboard (Escape closes it) and by a tap that leaves its switch alone, the
+// palette lists the page's keys, and at 1280 px the Tab order meets the rail before the stage.
+{
+  const fitErrors = [];
+  const watchFit = (p) => {
+    p.on("pageerror", (e) => fitErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && fitErrors.push(`console: ${m.text()}`));
+  };
+  const hydrated = (p) => p.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const p = await phone.newPage();
+    watchFit(p);
+    await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await hydrated(p);
+    await p.getByRole("button", { name: /Start Simulator/ }).tap();
+    await p.waitForTimeout(1200);
+    const canvasSize = () => p.evaluate(() => { const c = document.querySelector("main canvas"); return `${c?.width}x${c?.height}`; });
+    const sizeBefore = await canvasSize();
+    const tabs = p.getByRole("toolbar").getByRole("button");
+    await tabs.filter({ hasText: "Ball & Physics" }).tap();
+    await p.waitForTimeout(700);
+    const fit = await p.evaluate(() => {
+      const rect = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+      const frame = rect(".stage-frame");
+      const transport = rect(".studio-transport");
+      const desk = rect(".studio-desk");
+      const header = document.querySelector("header").getBoundingClientRect().bottom;
+      const pause = [...document.querySelectorAll(".studio-transport button")].find((b) => /Pause/.test(b.textContent ?? ""));
+      const pr = pause?.getBoundingClientRect();
+      const canvas = document.querySelector("main canvas").getBoundingClientRect();
+      const centre = document.elementFromPoint(canvas.left + canvas.width / 2, canvas.top + canvas.height / 2);
+      return {
+        open: document.getElementById("studio-panel")?.hidden === false,
+        frame: [Math.round(frame.top), Math.round(frame.bottom), Math.round(frame.width)],
+        transport: [Math.round(transport.top), Math.round(transport.bottom)],
+        deskTop: Math.round(desk.top),
+        header: Math.round(header),
+        pauseReachable: !!pr && pause.contains(document.elementFromPoint(pr.left + pr.width / 2, pr.top + pr.height / 2)),
+        canvasOnTop: !!centre && !!centre.closest(".stage-frame"),
+        scrim: !!document.querySelector('[data-testid="studio-scrim"]'),
+      };
+    });
+    const t1 = await p.evaluate(() => parseFloat(document.querySelector(".tabular-nums")?.textContent ?? "0"));
+    await p.waitForTimeout(1200);
+    const t2 = await p.evaluate(() => parseFloat(document.querySelector(".tabular-nums")?.textContent ?? "0"));
+    const sizeAfter = await canvasSize();
+    await p.screenshot({ path: path.join(outDir, "studio-fit-phone-sheet.png") }).catch(() => {});
+    check(
+      "phone: with the sheet open the whole stage is in view above the transport bar and the sheet, not dimmed, Pause in reach, the run going on and the canvas not measured again",
+      fit.open && fit.frame[0] >= fit.header && fit.frame[1] <= fit.transport[0] + 1 && fit.transport[1] <= fit.deskTop + 1 && fit.frame[2] >= 150 && fit.pauseReachable && fit.canvasOnTop && !fit.scrim && t2 > t1 && sizeAfter === sizeBefore,
+      `(${JSON.stringify(fit)}, time ${t1} → ${t2}, canvas ${sizeBefore} → ${sizeAfter})`,
+    );
+    // the tab strip
+    const strip = await p.evaluate(() => {
+      const rail = document.querySelector(".studio-rail");
+      const r = rail.getBoundingClientRect();
+      const items = [...rail.querySelectorAll("[data-section]")];
+      const inView = [rail.querySelector(".studio-rail-search"), ...items].filter((b) => { const x = b.getBoundingClientRect(); return x.left >= r.left - 1 && x.right <= r.right - 20; });
+      return { order: items.slice(0, 3).map((b) => b.getAttribute("data-section")), inView: inView.length, labelled: inView.every((b) => { const l = b.querySelector(".studio-rail-label"); return !!l && l.getBoundingClientRect().height >= 10 && l.getBoundingClientRect().top > b.querySelector("svg").getBoundingClientRect().bottom - 1; }), scrolls: rail.scrollWidth > rail.clientWidth, fade: getComputedStyle(rail).maskImage.includes("gradient") || getComputedStyle(rail).webkitMaskImage?.includes("gradient") };
+    });
+    await tabs.filter({ hasText: "Saved Presets" }).tap();
+    await p.waitForTimeout(800);
+    const last = await p.evaluate(() => { const rail = document.querySelector(".studio-rail").getBoundingClientRect(); const b = document.querySelector('[data-section="presets"]').getBoundingClientRect(); return { pressed: document.querySelector('[data-section="presets"]').getAttribute("aria-pressed"), inView: b.left >= rail.left && b.right <= rail.right - 20 }; });
+    check(
+      "phone: the tab strip shows five or more items, each icon over its label, Recording third, fades where it scrolls on, and a pressed item at its end comes into view",
+      strip.order.join() === "mode,ball,recording" && strip.inView >= 5 && strip.labelled && strip.scrolls && strip.fade && last.pressed === "true" && last.inView,
+      `(${JSON.stringify(strip)}, last ${JSON.stringify(last)})`,
+    );
+    // the Mode item of the open Mode block opens the picker; a pick puts the sheet away and shows the mode
+    await tabs.filter({ hasText: /^Mode$/ }).tap();
+    await p.waitForTimeout(600);
+    const picker = (await p.locator("dialog[open]").count()) === 1;
+    await p.locator('dialog [role="button"]', { hasText: "Portal" }).first().tap();
+    await p.waitForTimeout(900);
+    const picked = await p.evaluate(() => ({ open: document.getElementById("studio-panel")?.hidden === false, mode: new URL(location.href).searchParams.get("mode"), dialog: !!document.querySelector("dialog[open]") }));
+    check("phone: the Mode item of the open Mode block opens the picker, and a pick puts the sheet away so the new mode is seen", picker && picked.mode === "portal" && !picked.open && !picked.dialog, `(picker ${picker}, ${JSON.stringify(picked)})`);
+  } catch (err) {
+    check("studio-fit phone checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await phone.close().catch(() => {});
+  }
+
+  const tablet = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+  try {
+    const p = await tablet.newPage();
+    watchFit(p);
+    await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await hydrated(p);
+    await p.waitForTimeout(300);
+    const columns = await p.evaluate(() => {
+      const rect = (sel) => document.querySelector(sel).getBoundingClientRect();
+      const frame = rect(".stage-frame");
+      const desk = rect(".studio-desk");
+      const rail = rect(".studio-rail");
+      const panel = rect(".studio-panel");
+      return { frameRight: Math.round(frame.right), frameBottom: Math.round(frame.bottom), desk: [Math.round(desk.left), Math.round(desk.top), Math.round(desk.height)], railTop: Math.round(rail.top), panel: [Math.round(panel.left), Math.round(panel.top), Math.round(panel.bottom)], h: innerHeight, labels: [...document.querySelectorAll('[role="toolbar"] .studio-rail-label')].filter((l) => l.getBoundingClientRect().width > 10).length };
+    });
+    // TIME opens the clip length in Recording, focused, with the stage still in view
+    await p.getByTestId("stage-time").click();
+    await p.waitForFunction(() => document.activeElement?.closest("#studio-block-recording") && /Duration/.test(document.activeElement?.getAttribute("aria-label") ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const timeJump = await p.evaluate(() => ({ focus: document.activeElement?.getAttribute("aria-label") ?? null, inRecording: !!document.activeElement?.closest("#studio-block-recording"), frameTop: Math.round(document.querySelector(".stage-frame").getBoundingClientRect().top), frameBottom: Math.round(document.querySelector(".stage-frame").getBoundingClientRect().bottom), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) }));
+    check(
+      "1024 px: the desk is a column beside the stage (tab strip on top with labels, panel under it to the bottom), and TIME opens the clip length in Recording with the stage still in view",
+      columns.desk[0] >= columns.frameRight && columns.desk[1] === 56 && columns.desk[2] === columns.h - 56 && columns.railTop === 56 && Math.abs(columns.panel[0] - columns.desk[0]) <= 1 && columns.panel[2] === columns.h && columns.frameBottom <= columns.h && columns.labels >= 4 && timeJump.focus === "Duration" && timeJump.inRecording && timeJump.frameTop >= 56 && timeJump.frameBottom <= columns.h && timeJump.pressed.includes("recording"),
+      `(${JSON.stringify(columns)}, ${JSON.stringify(timeJump)})`,
+    );
+    // the arrows step to the wall's next and previous mode, named after it
+    const next = await p.getByTestId("stage-mode-next").getAttribute("aria-label");
+    await p.getByTestId("stage-mode-next").click();
+    await p.waitForTimeout(800);
+    const shownNext = await p.getByTestId("stage-strip").getByRole("button").first().locator("span.font-medium").innerText();
+    const prev = await p.getByTestId("stage-mode-prev").getAttribute("aria-label");
+    await p.getByTestId("stage-mode-prev").click();
+    await p.waitForTimeout(800);
+    const shownPrev = await p.getByTestId("stage-strip").getByRole("button").first().locator("span.font-medium").innerText();
+    check("stage strip: the arrows after the mode step to the next and the previous mode of the wall, each named after it", !!next && shownNext === next && prev === "Classic" && shownPrev === "Classic", `(next ${next} → ${shownNext}, prev ${prev} → ${shownPrev})`);
+    // the rail's Mode item opens the picker while the Mode block shows
+    await p.getByRole("toolbar").getByRole("button", { name: "Mode", exact: true }).click();
+    await p.waitForTimeout(500);
+    const railPicker = await p.evaluate(() => ({ dialog: !!document.querySelector("dialog[open]"), block: !!document.getElementById("studio-block-mode") }));
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(300);
+    check("rail: the Mode item opens the mode picker when the Mode block shows, and leaves the block in place", railPicker.dialog && railPicker.block, `(${JSON.stringify(railPicker)})`);
+    // an info tip: the keyboard opens it, Escape closes it; a click opens it and leaves the switch of its label alone
+    await p.getByRole("toolbar").getByRole("button", { name: "Ball & Physics", exact: true }).click();
+    await p.waitForTimeout(400);
+    await p.locator('#studio-panel input[placeholder="Search settings..."]').focus();
+    let tabbed = null;
+    for (let i = 0; i < 12 && !tabbed; i++) {
+      await p.keyboard.press("Tab");
+      tabbed = await p.evaluate(() => {
+        const el = document.activeElement;
+        if (!el?.hasAttribute("data-tip")) return null;
+        const b = el.querySelector("span").getBoundingClientRect();
+        const box = document.getElementById("studio-panel-body").getBoundingClientRect();
+        return { open: el.getAttribute("data-open"), opacity: getComputedStyle(el.querySelector("span")).opacity, inside: b.left >= box.left - 1 && b.right <= box.right + 1 && b.top >= box.top - 1 };
+      });
+    }
+    await p.waitForTimeout(250);
+    const tipOpacity = await p.evaluate(() => getComputedStyle(document.activeElement.querySelector("span")).opacity);
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(250);
+    const escaped = await p.evaluate(() => ({ open: document.activeElement?.getAttribute("data-open") ?? null, opacity: getComputedStyle(document.activeElement.querySelector("span")).opacity }));
+    const switchTip = p.locator('label:has([role="switch"]) [data-tip], label:has(input[type="checkbox"]) [data-tip]').first();
+    const switchOf = (tip) => tip.evaluate((el) => { const sw = el.closest("label").querySelector('[role="switch"], input[type="checkbox"]'); return sw ? (sw.getAttribute("aria-checked") ?? String(sw.checked)) : null; });
+    let clicked = { any: false };
+    if (await switchTip.count()) {
+      const before = await switchOf(switchTip);
+      await switchTip.click();
+      await p.waitForTimeout(250);
+      clicked = { any: true, before, after: await switchOf(switchTip), open: await switchTip.getAttribute("data-open") };
+    } else {
+      const tip = p.locator("#studio-panel-body [data-tip]").first();
+      await tip.click();
+      await p.waitForTimeout(250);
+      clicked = { any: false, open: await tip.getAttribute("data-open") };
+    }
+    check(
+      "info tips: Tab stops on one and shows it inside the panel, Escape hides it, a click opens it and leaves the switch of its label as it was",
+      !!tabbed && tabbed.open === "true" && tabbed.inside && Number(tipOpacity) > 0.9 && escaped.open === null && Number(escaped.opacity) < 0.1 && clicked.open === "true" && (!clicked.any || clicked.before === clicked.after),
+      `(tab ${JSON.stringify(tabbed)} opacity ${tipOpacity}, escape ${JSON.stringify(escaped)}, click ${JSON.stringify(clicked)})`,
+    );
+    // the palette's footer lists the page's keys
+    await p.keyboard.press("Control+k");
+    await p.waitForTimeout(400);
+    const keys = await p.$$eval('[data-testid="palette-shortcuts"] kbd', (ks) => ks.map((k) => (k.textContent ?? "").trim()));
+    const keysLabel = await p.getByTestId("palette-shortcuts").getAttribute("aria-label").catch(() => null);
+    await p.keyboard.press("Escape");
+    check("palette: its footer lists the page's shortcuts, Space and R", keys.join() === "Space,R" && keysLabel === "Keyboard shortcuts", `(${keys.join()}, ${keysLabel})`);
+  } catch (err) {
+    check("studio-fit tablet checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await tablet.close().catch(() => {});
+  }
+
+  // at 1280 px the rail is the left column: the Tab order meets it before the stage
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const p = await desk.newPage();
+    watchFit(p);
+    await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await hydrated(p);
+    await p.waitForTimeout(300);
+    const order = await p.evaluate(() => {
+      const rail = document.querySelector('[role="toolbar"]');
+      const strip = document.querySelector('[data-testid="stage-strip"]');
+      const panel = document.getElementById("studio-panel");
+      return { railFirst: !!(rail.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING), panelLast: !!(strip.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING), railLeft: Math.round(document.querySelector(".studio-rail").getBoundingClientRect().left) };
+    });
+    await p.locator('header a[href$="/en/"]').first().focus();
+    const stops = [];
+    for (let i = 0; i < 60 && !stops.includes("panel"); i++) {
+      await p.keyboard.press("Tab");
+      stops.push(await p.evaluate(() => (document.activeElement?.closest('[role="toolbar"], .studio-rail') ? "rail" : document.activeElement?.closest('[data-testid="stage-strip"]') ? "strip" : document.activeElement?.closest("#studio-panel") ? "panel" : "other")));
+    }
+    check("1280 px: the Tab order follows the screen, the rail on the left before the stage and the panel after it", order.railFirst && order.panelLast && order.railLeft === 0 && stops.indexOf("rail") >= 0 && stops.indexOf("rail") < stops.indexOf("strip") && stops.indexOf("strip") < stops.lastIndexOf("panel"), `(${JSON.stringify(order)}, ${stops.join(",")})`);
+  } catch (err) {
+    check("studio-fit desktop checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await desk.close().catch(() => {});
+  }
+  check("studio-fit: no page errors", fitErrors.length === 0, fitErrors.length ? `\n   ${fitErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end studio-fit ---
 });
 
 await smokeBlock("gerald-conveyor", async () => {

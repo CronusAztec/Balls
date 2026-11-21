@@ -365,18 +365,23 @@ dialog.ui-dialog[open] {
 
 /*
  * --- site-redesign --- The studio workspace (Controls.tsx + Simulator.tsx). Three zones: the rail, the stage, the panel.
- *  ≥ 1280 px  rail 64 px (220 px with labels from 1536 px) | stage | panel 380 px, rail and panel sticky under the header
- *  768–1279   the stage, then the rail as a horizontal tab strip (sticky under the header) and the panel below it
+ *  ≥ 1280 px  rail with its labels, 200 px (240 px from 1536 px) | stage | panel 340 px (380 px from 1536 px), rail and
+ *             panel sticky under the header
+ *  900–1279   stage | the desk, a sticky column of 340 px: the tab strip on top, the panel scrolling under it
+ *  768–899    the stage, then the rail as a horizontal tab strip (sticky under the header) and the panel below it
  *  < 768      the stage first, the transport bar sticky at the bottom, the tab strip as the peek of a bottom sheet that
- *             opens to 70 % of the height with the panel
+ *             opens to half the height with the panel; the stage stays in view above it (scaled down to fit)
  * The canvas frame is sized from the viewport only (svh, the stage column's width), never from the content around it, so
  * the canvas changes size exactly when the window does – the moment the canvas re-measures itself.
+ * --- studio-fit --- The tab strip of the phone and of the desk column stacks each item's icon over its label (five or six
+ * show at once) and fades out at its right edge, the sign that it scrolls on.
  */
 @layer components {
   .studio {
     --studio-h: calc(100svh - 56px);
     --studio-chrome: 216px;
     --studio-rail-h: 52px;
+    --studio-sheet-h: max(50svh, 20rem); /* --- studio-fit --- the open sheet of a phone, its tab strip included */
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "stage" "desk";
@@ -487,11 +492,7 @@ dialog.ui-dialog[open] {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .studio-rail-search .studio-rail-label,
-  .studio-rail-tip {
-    display: none;
-  }
-  .studio-scrim {
+  .studio-rail-search .studio-rail-label {
     display: none;
   }
 
@@ -560,7 +561,7 @@ dialog.ui-dialog[open] {
       bottom: -5px;
     }
     .studio-panel {
-      height: calc(70svh - var(--studio-rail-h));
+      height: calc(var(--studio-sheet-h) - var(--studio-rail-h));
       border-top: 1px solid var(--color-line-strong);
       border-radius: var(--radius-panel) var(--radius-panel) 0 0;
       box-shadow: var(--shadow-float);
@@ -577,21 +578,65 @@ dialog.ui-dialog[open] {
       bottom: var(--studio-rail-h);
       z-index: 20;
     }
-    /* --- review fix (site-redesign) --- the open sheet's scrim: the stage dims a little, and a tap on it puts the sheet away
-       (the header stays above it) */
-    .studio-scrim {
-      position: fixed;
-      inset: 0;
-      z-index: 29;
-      display: block;
-      background: rgb(5 5 6 / 0.4);
+    /* --- studio-fit --- the open sheet: the stage frame scales down from its top (Controls.tsx measures the scale that
+       fits, and the shrink it takes back), and the transport bar sits on one line right above the sheet */
+    .studio-sheet-open .stage-frame {
+      transform: scale(var(--studio-stage-scale, 1));
+      transform-origin: top center;
+      margin-bottom: calc(-1 * var(--studio-stage-shrink, 0px));
+      transition:
+        transform 200ms var(--ease-out),
+        margin-bottom 200ms var(--ease-out);
+    }
+    .studio-sheet-open .studio-transport {
+      bottom: var(--studio-sheet-h);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-right: 32px;
+      scrollbar-width: none;
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+  }
+
+  /* --- studio-fit --- 900–1279 px: stage | desk. The desk is a sticky column the height of the screen under the header:
+     the tab strip on top, the panel under it scrolling on its own, so the canvas stays in view while a slider moves. */
+  @media (900px <= width < 1280px) {
+    .studio {
+      grid-template-columns: minmax(0, 1fr) 340px;
+      grid-template-areas: "stage desk";
+    }
+    .studio-stage-column {
+      min-height: var(--studio-h);
+    }
+    .studio-desk {
+      position: sticky;
+      top: 56px;
+      display: flex;
+      height: var(--studio-h);
+      flex-direction: column;
+      align-self: start;
+      border-left: 1px solid var(--color-line);
+    }
+    .studio-rail {
+      position: static;
+      flex: none;
+      border-top: 0;
+    }
+    .studio-panel {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .studio-panel-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
     }
   }
 
   /* Desktop: rail | stage | panel. */
   @media (width >= 1280px) {
     .studio {
-      grid-template-columns: 64px minmax(0, 1fr) 380px;
+      grid-template-columns: 200px minmax(0, 1fr) 340px;
       grid-template-areas: "rail stage panel";
       min-height: var(--studio-h);
     }
@@ -614,7 +659,7 @@ dialog.ui-dialog[open] {
       overflow-y: auto;
       border-block: 0;
       border-right: 1px solid var(--color-line);
-      padding: 12px 8px;
+      padding: 12px;
     }
     .studio-rail-items {
       flex-direction: column;
@@ -622,19 +667,25 @@ dialog.ui-dialog[open] {
     .studio-rail-search {
       margin-bottom: 8px;
     }
+    /* --- studio-fit --- every item with its label from 1280 px (an icon column of twelve unnamed icons up to 1535 px was
+       learnt one hover at a time) */
     .studio-rail-item {
-      width: 48px;
-      height: 44px;
-      justify-content: center;
-      padding: 0;
+      width: 100%;
+      height: auto;
+      min-height: 36px;
+      justify-content: flex-start;
+      padding: 6px 10px;
     }
-    .studio-rail-item .studio-rail-label {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
+    /* (a long label takes a second line rather than an ellipsis: "Arenas y pantalla dividida") */
+    .studio-rail-label {
+      display: -webkit-box;
+      line-height: 1.3;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .studio-rail-search .studio-rail-label {
+      display: -webkit-box;
     }
     .studio-rail-item[aria-pressed="true"] {
       background: var(--color-surface-2);
@@ -642,16 +693,11 @@ dialog.ui-dialog[open] {
     .studio-rail-item[aria-pressed="true"]::after {
       inset-inline: auto;
       inset-block: 10px;
-      left: -8px;
+      left: -12px;
       bottom: auto;
       top: 10px;
       width: 2px;
       height: auto;
-    }
-    /* --- review fix (site-redesign) --- the hover label of the icon rail, drawn by TabStrip in a fixed layer on <body> at
-       the button's right edge (the rail's own scroll box clipped it sideways) */
-    .studio-rail-tip {
-      display: block;
     }
     .studio-panel {
       grid-area: panel;
@@ -676,30 +722,6 @@ dialog.ui-dialog[open] {
   @media (width >= 1536px) {
     .studio {
       grid-template-columns: 240px minmax(0, 1fr) 380px;
-    }
-    .studio-rail {
-      padding: 12px;
-    }
-    .studio-rail-item {
-      width: 100%;
-      height: 36px;
-      justify-content: flex-start;
-      padding: 0 10px;
-    }
-    .studio-rail-item .studio-rail-label {
-      position: static;
-      width: auto;
-      height: auto;
-      clip-path: none;
-    }
-    .studio-rail-search .studio-rail-label {
-      display: inline;
-    }
-    .studio-rail-item[aria-pressed="true"]::after {
-      left: -12px;
-    }
-    .studio-rail-tip {
-      display: none;
     }
   }
 
@@ -728,6 +750,65 @@ dialog.ui-dialog[open] {
     .studio-panel-body button:has(> svg:only-child),
     .studio-panel-body input[type="color"] {
       min-width: 44px;
+    }
+  }
+
+  /* --- studio-fit --- the tab strip of a phone (the sheet's peek) and of the desk column (900–1279 px): each item's icon
+     over its label in two short lines, so five or six items show at once, and a fade at the right edge where the strip
+     scrolls on (an empty end of the strip's own width lets the last item leave the fade) */
+  @media (width < 768px), (900px <= width < 1280px) {
+    .studio {
+      --studio-rail-h: 62px;
+    }
+    .studio-rail {
+      height: var(--studio-rail-h);
+      padding: 4px 6px;
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+    .studio-rail-items::after {
+      content: "";
+      flex: none;
+      width: 22px;
+    }
+    .studio-rail-item {
+      height: 52px;
+      min-width: 3.5rem;
+      flex-direction: column;
+      justify-content: center;
+      gap: 3px;
+      padding: 0 6px;
+    }
+    .studio-rail-item svg {
+      width: 18px;
+      height: 18px;
+    }
+    .studio-rail-label,
+    .studio-rail-search .studio-rail-label {
+      display: -webkit-box;
+      max-width: 3.75rem;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      font-size: 11px;
+      line-height: 12px;
+      text-align: center;
+      text-wrap: balance;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .studio-rail-item[aria-pressed="true"] {
+      background: var(--color-surface-2);
+    }
+    .studio-rail-item[aria-pressed="true"]::after {
+      inset-inline: 10px;
+      bottom: -4px;
+    }
+  }
+  /* --- studio-fit --- (the labelled rail on a touch screen: 44 px items that still grow for a label on two lines) */
+  @media (width >= 1280px) and (pointer: coarse) {
+    .studio-rail-item {
+      height: auto;
+      min-height: 44px;
     }
   }
 

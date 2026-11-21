@@ -82,6 +82,16 @@ export function modesOnShelf(shelf: ShelfId | "all"): ModeId[] {
   return shelf === "all" ? shelves.flatMap((f) => f.modes) : (shelves.find((f) => f.id === shelf)?.modes ?? []);
 }
 
+/**
+ * --- studio-fit --- The modes before and after `mode` in the wall's order (every shelf, Featured), round from the last to
+ * the first: the stage strip's arrows step through them. Null for a mode the wall does not show.
+ */
+export function modeNeighbours(mode: ModeId, order: readonly ModeId[] = modesOnShelf("all")): { prev: ModeId; next: ModeId } | null {
+  const at = order.indexOf(mode);
+  if (at < 0 || order.length < 2) return null;
+  return { prev: order[(at - 1 + order.length) % order.length], next: order[(at + 1) % order.length] };
+}
+
 /*
  * --- mode-shelves --- When each mode arrived: the website version whose release notes first name it
  * (src/content/changelog.json; tests/siteRedesign.test.ts compares the two). The ten ring modes were there at 1.0.0, the
@@ -149,6 +159,13 @@ export function sortModes(modes: readonly ModeId[], sort: ModeSort, nameOf: (mod
  * cancels the event, and the link then stays on the page. Anywhere else nobody answers and the link opens the landing page.
  */
 export const SHOW_SHELF_EVENT = "jumpingballslive:show-shelf";
+
+/**
+ * --- studio-fit --- The window event the stage strip's readouts send to open a setting (the detail is its search key,
+ * "videoDuration" or "videoResolution"): the panel answers with the command palette's own jump, the setting's group opens
+ * and the control takes the focus.
+ */
+export const OPEN_SETTING_EVENT = "jumpingballslive:open-setting";
 
 /** What the modes wall keeps in the address: the shelf, the search and the sort. */
 export interface WallState {

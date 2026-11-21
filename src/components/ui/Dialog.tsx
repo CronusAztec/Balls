@@ -47,7 +47,7 @@ export default function Dialog({ onClose, title, hideTitle = false, children, cl
     if (!dialog) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!dialog.open) dialog.showModal();
-    const first = initialFocus?.current ?? dialog.querySelector<HTMLElement>("[data-autofocus], input, select, textarea, button:not([data-dialog-close]), [href], [tabindex]:not([tabindex='-1'])");
+    const first = initialFocus?.current ?? dialog.querySelector<HTMLElement>("[data-autofocus], input, select, textarea, button:not([data-dialog-close]), [href], [tabindex]:not([tabindex='-1']):not([data-tip])"); // --- studio-fit --- (an info tip is no first control)
     first?.focus();
     const onCancel = (e: Event) => {
       e.preventDefault();
