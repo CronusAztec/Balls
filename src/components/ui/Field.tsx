@@ -11,8 +11,10 @@ export const inputClass =
   "w-full h-9 rounded-md border border-line bg-surface-1 px-3 text-md text-ink placeholder:text-ink-3 transition-colors duration-150 hover:border-line-strong focus:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11";
 export const textareaClass =
   "w-full rounded-md border border-line bg-surface-1 px-3 py-2 text-md leading-relaxed text-ink placeholder:text-ink-3 transition-colors duration-150 hover:border-line-strong focus:border-accent-dim resize-y";
+// --- select-chevron --- (Lane E, E5) the arrow's SVG with no space and no quote in it (%20, %27): a space split the class in two and
+// the escaped quotes hid it from Tailwind, so no select drew its arrow
 export const selectClass =
-  "w-full h-9 rounded-md border border-line bg-surface-1 pl-3 pr-8 text-md text-ink cursor-pointer appearance-none bg-[length:16px_16px] bg-[position:right_8px_center] bg-no-repeat transition-colors duration-150 hover:border-line-strong focus:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 bg-[image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23a8a8b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5.5 8 4.5 4.5L14.5 8'/%3E%3C/svg%3E\")]";
+  "w-full h-9 rounded-md border border-line bg-surface-1 pl-3 pr-8 text-md text-ink cursor-pointer appearance-none bg-[length:16px_16px] bg-[position:right_8px_center] bg-no-repeat transition-colors duration-150 hover:border-line-strong focus:border-accent-dim disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 bg-[image:url(data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2020%2020%27%20fill=%27none%27%20stroke=%27%23a8a8b0%27%20stroke-width=%271.5%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3E%3Cpath%20d=%27m5.5%208%204.5%204.5L14.5%208%27/%3E%3C/svg%3E)]";
 
 export function Label({ className, children, ...rest }: LabelHTMLAttributes<HTMLLabelElement> & { children: ReactNode }) {
   return (

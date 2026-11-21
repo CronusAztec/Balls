@@ -7,18 +7,17 @@ import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 
 /*
- * --- review fix (blueprint) --- The Mode Lab card's name reads in full next to its family tag in every language. A
- * poster card (src/components/site/PosterCard.tsx) puts the name (the ui face, 500, 14 px, truncated with an ellipsis)
- * and the tag (the mono face, 12 px, upper case, 0.08em tracking) on one line, 12 px apart (gap-3). The tag shows from
- * 640 px on, and the narrowest cards it shows on are at 640 px: the modes wall's (ModesOverview.tsx: a 24 px gutter
- * each side, three columns 16 px apart), (640 − 2 × 24 − 2 × 16) / 3 ≈ 186.7 px, and the studio's Change mode picker's
- * (ModePicker.tsx: the same wall in a dialog of min(960 px, 100vw − 32 px) with 24 px of padding and a thin scrollbar,
- * allowed 12 px), (608 − 2 × 24 − 12 − 2 × 16) / 3 = 172 px. Below 640 px the name is alone on two columns: the
- * picker's at 360 px (16 px of padding) is (328 − 2 × 16 − 16) / 2 = 140 px. "Laboratorium trybów" next to
- * LABORATORIUM, and "Laboratorio de modos" next to LABORATORIO, took 243 px and were cut to "Laboratorium t…" at every
- * desktop width. With the tag "Lab" in both, "Laboratorio de modos" still took 175.9 px, over the picker's 172, so
- * Spanish calls it "Lab de modos". The text is measured in Chromium with the site's own font files (src/app/fonts.ts,
- * each with its unicode range); the check is skipped when Chromium cannot start (a failure with JBL_REQUIRE_BROWSER=1).
+ * --- review fix (blueprint) --- The Mode Lab card's name reads in full next to its family tag in every language. The poster card
+ * (src/components/site/PosterCard.tsx) puts the name in the ui face (500, 14 px) and the tag in the mono face (12 px, upper case,
+ * 0.08em tracking). It was one line with the name cut by an ellipsis: "Laboratorium trybów" next to LABORATORIUM, and "Laboratorio
+ * de modos" next to LABORATORIO, took 243 px and read "Laboratorium t…" at every desktop width, so the tag became "Lab" and Spanish
+ * says "Lab de modos". (--- mode-shelves --- Since the site lane's shelves the tag sits on a small line of its own above the name,
+ * on phones too, and a long name wraps instead of ending in an ellipsis, so neither is cut at any width.) The check keeps the old
+ * card's bound, which is stricter: the name, the 12 px between and the tag on one line of the narrowest wall card at 640 px (the
+ * modes wall: a 24 px gutter each side, three columns 16 px apart, (640 − 2 × 24 − 2 × 16) / 3 ≈ 186.7 px) and of the Change mode
+ * picker's ((608 − 2 × 24 − 12 − 2 × 16) / 3 = 172 px), and the name alone on a phone's two columns at 360 px
+ * ((328 − 2 × 16 − 16) / 2 = 140 px). The text is measured in Chromium with the site's own font files (src/app/fonts.ts, each with
+ * its unicode range); the check is skipped when Chromium cannot start (a failure with JBL_REQUIRE_BROWSER=1).
  */
 
 const ROOT = path.resolve(__dirname, "..");

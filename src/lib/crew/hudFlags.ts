@@ -192,13 +192,17 @@ export const BANNER_WITH_PAYOFF_SEC = 1;
  * crew --- (AI studio step 5) A rhythm field of Bouncing Orbs calls IN PHASE as its orbs land together, for 1.8 s.
  */
 export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
+  // (--- end-banner --- Lane E, E5: Classic's ESCAPED! with the rings and the time is left out on purpose. Canvas.tsx draws it only
+  // in a clip without captions, a loop HUD or a roster, and every plan the bot or the studio makes has captions, so no plan shows it;
+  // listed, the planner would read it as the clip's own ending before its captions exist and leave the payoff without words.)
   { mode: "accumulation", at: "payoff", words: "an ESCAPED! banner with the frozen balls" },
   { mode: "portal", at: "payoff", words: "an ESCAPED! banner with the teleports" },
   { mode: "shatter", at: "payoff", words: "a SHATTERED! banner with the segments broken" },
   { mode: "powerLayers", at: "payoff", words: "a FREEDOM! banner with the hits and the time" },
   { mode: "journey", at: "payoff", when: (s) => s.journeyHud !== false /* --- crew --- (AI studio step 4b) the overlay's card */, words: "a HOME! card with the stages, the time and the score" },
   { mode: "race", at: "payoff", words: "a callout naming the first across the line" },
-  { mode: "maze", at: "payoff", words: "a banner naming the first ball to leave, with its time and a line under it" },
+  // (--- end-banner --- Lane E, E5: the strip under the maze while the others run on since B1, the 25 s limit's TIME'S UP since B6)
+  { mode: "maze", at: "payoff", words: "a banner naming the first ball to leave, with its time and a line under it, then a strip under the maze while the others run on (or TIME'S UP naming the closest ball)" },
   { mode: "bullseye", at: "payoff", forSec: 1.5, words: "a big BULLSEYE! callout" },
   { mode: "bullseye", at: "finish", leadSec: 2.5, words: "a final banner with the total and the best shot" },
   { mode: "mergeRing", at: "finish", leadSec: 2, words: "a FINAL FORM banner with the merges and the time (or OVERFLOW)" },

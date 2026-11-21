@@ -433,6 +433,15 @@ export function crackPitch(k: number, j: number, destroyed: number, scale: Scale
   return midiToFrequency(degreeMidi(levelDegree(k, scale) + n + climb, scale, rootNote));
 }
 
+// --- end-sting --- (Lane E, E5)
+/** The root of the completion chord at FREEDOM!: the level's tonic moved by octaves into 98–196 Hz, the chord's own register. */
+export function plTonicHz(scale: ScaleId, rootNote: number): number {
+  let f = midiToFrequency(degreeMidi(0, scale, rootNote));
+  while (f >= 196) f /= 2;
+  while (f < 98) f *= 2;
+  return f;
+}
+
 /** The fanfare chord when the stack is gone: the tonic triad and the octave, an octave above level 1. */
 export function fanfareChord(scale: ScaleId, rootNote: number): number[] {
   const n = levelScale(scale).length;
@@ -1072,6 +1081,9 @@ export class PowerLayersMode implements GameMode {
     ctx.spawnConfetti(x, f.bottom - 0.08 * f.height);
     this.spawnBurst(v.freedX, v.freedSec);
     ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
+    // --- end-sting --- (Lane E, E5) FREEDOM! rings: the completion chord on the level's tonic under the whoosh, through the banner
+    // (a sound of its own, ringVoice "extra": the crew's moments count the contacts alone, so they read as before)
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: plTonicHz(v.settings.scale, v.settings.rootNote), level: 1, melody: false, ringVoice: "extra" });
     if (ball) ctx.setBalls(ctx.getBalls().filter((b) => b !== ball));
   }
 
