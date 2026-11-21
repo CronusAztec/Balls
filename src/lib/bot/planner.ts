@@ -688,9 +688,10 @@ const HOLD_SEC = { teams: 3, stringBattle: 3, arena: 3, multipliers: 2, stop: 0.
 
 /**
  * The holds after a run's own end (s), the recorder's stop included (--- insights --- exported: a scored clip's length without an export).
- * --- end-hold --- (Lane E, E5) With the end banner's hold (lib/endHold.ts) where the page and the fast export hold it: a clip
- * without captions of its own (`captioned`: the settings' own captions; every plan passes true, its hook drawn on it, so a plan's
- * length is what it was). Merge Ring's OVERFLOW, which a plan cannot know, is left out.
+ * --- end-hold --- (Lane E, E5; E5 review) With the end banner's hold (lib/endHold.ts: the canvas' own, one 1.5 s, the same
+ * END_BANNER_HOLD_MS the canvas waits for) where the canvas holds it: a clip without captions of its own (`captioned`: the
+ * settings' own captions; every plan passes true, its hook drawn on it, so a plan's length is what it was). Merge Ring's
+ * OVERFLOW, which a plan cannot know, is left out.
  */
 export function endHoldsSec(s: SimulatorSettings, captioned = s.captions.length > 0): number {
   const banner = endBannerHoldMs({ mode: s.mode, captioned, loopHud: s.loopHud }) / 1000; // --- end-hold --- (with the post holds: the longest plays)

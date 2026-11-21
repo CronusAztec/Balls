@@ -1,20 +1,23 @@
 import type { ModeId } from "@/lib/physics/types";
 
 /*
- * --- end-hold --- (Lane E, E5) The end banner's hold. An ending whose banner comes with the run's last step (Accumulation's
- * and Portal's ESCAPED!, SHATTERED!, MATCHED, Countdown's COMPLETE, Ball Drop's SETTLED!, COUNTED DOWN!, the
- * pendulums back in line, every dot aligned, Grow's FULL! and Merge Ring's OVERFLOW) had only the recorder's half-second stop on
- * screen, so a recording or an export whose run ended in its last second cut the banner as it came in. It holds its final picture
- * END_BANNER_HOLD_MS before the end screen: the page's finish detection (Simulator.tsx), the fast export (`fastExportEndHolds()`,
- * the same holds), the found run's clip and the planner (lib/bot/planner.ts `endHoldsSec()`) all read it here, so they agree.
+ * --- end-hold --- (Lane E, E5; E5 review) The end banner's hold, as a length. An ending whose banner comes with the run's last
+ * step (Accumulation's and Portal's ESCAPED!, SHATTERED!, MATCHED, Countdown's COMPLETE, Ball Drop's SETTLED!, COUNTED DOWN!,
+ * the pendulums back in line, every dot aligned, Grow's FULL! and Merge Ring's OVERFLOW) keeps its final picture
+ * END_BANNER_HOLD_MS before the end screen. The canvas holds it itself: its EndBannerLayer is `fresh()` that long and the canvas
+ * reports it as `holdsEndScreen()`, which the page's finish detection, the fast export's end tracker, the batch render and the
+ * app's render queue all wait for (components/simulator/endBanner.ts, which reads END_BANNER_HOLD_MS from here). Nothing else
+ * holds it: a second timer after that one froze these endings 3.5 s (E5 review).
  *
- * Not in a clip with captions of its own (every clip the bot and the studio plan: their words are its ending, the crew's gate G2
- * holds a payoff 0.8 s, and their runs stay as they were) nor in a loop clip (its seam ends it), as Classic's ESCAPED! card. The
- * modes whose banner comes earlier keep their own holds (Glass Smash's and Journey's celebration, Merge Ring's FINAL FORM, the
- * maze's, Bullseye's, the arenas'...). Measured on the start looks, seeds 1–4: each of these banners came on the run's last frame.
+ * What cannot draw reads the hold here instead: the planner's clip length (lib/bot/planner.ts `endHoldsSec()`, which the
+ * insights' clip length reads too) and a found run's recording length (Simulator.tsx). A clip with captions of its own has no
+ * such hold (the canvas holds nothing under captions: every clip the bot and the studio plan, whose words are its ending), nor
+ * does a loop clip (its seam ends it). The modes whose banner comes earlier keep their own holds (Glass Smash's and Journey's
+ * celebration, Merge Ring's FINAL FORM, the maze's, Bullseye's, the arenas'...). Measured on the start looks, seeds 1–4: each
+ * of these banners came on the run's last frame.
  */
 
-/** How long the final picture of such an ending stays before the end screen (ms). */
+/** How long the final picture of such an ending stays before the end screen (ms of frame time): the canvas' banner hold. */
 export const END_BANNER_HOLD_MS = 1500;
 
 /** The modes whose end banner comes with the run's last step (Merge Ring: its OVERFLOW only, see `endBannerHoldMs()`). */
@@ -36,24 +39,4 @@ export function endBannerHoldMs(c: EndBannerHoldContext): number {
   if (c.captioned || c.loopHud || !(END_BANNER_HOLD_MODES as readonly string[]).includes(c.mode)) return 0;
   if (c.mode === "mergeRing" && !c.mergeRingOverflow) return 0;
   return END_BANNER_HOLD_MS;
-}
-
-/** What the end banner's hold reads of the clip: its captions of its own and the loop HUD. */
-export interface EndHoldClip {
-  captioned: boolean;
-  loopHud: boolean;
-}
-/** Before the page has read its settings: no hold. */
-export const NO_END_HOLD_CLIP: EndHoldClip = { captioned: true, loopHud: false };
-
-/** What the hold reads of the engine (PhysicsEngine): its mode and how a Merge Ring run ended. */
-export interface EndHoldEngine {
-  getCurrentModeName(): string;
-  isMergeRingMode(): boolean;
-  getMergeRingView(): { overflowMs: number };
-}
-
-/** The end banner's hold of this finished run (ms): the page's finish detection and the fast export's holds read it alike. */
-export function endBannerHoldOf(engine: EndHoldEngine, clip: EndHoldClip): number {
-  return endBannerHoldMs({ mode: engine.getCurrentModeName(), captioned: clip.captioned, loopHud: clip.loopHud, mergeRingOverflow: engine.isMergeRingMode() && engine.getMergeRingView().overflowMs >= 0 });
 }
