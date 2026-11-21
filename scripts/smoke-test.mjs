@@ -7530,11 +7530,17 @@ await smokeBlock("viral-bot", async () => {
       const kept = await fp.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
       const keptRow = await rowOf();
       const keptChoice = { template: await fp.locator("#bot-template").inputValue().catch(() => null), simple: await fbot.getByRole("switch", { name: "Simple look" }).getAttribute("aria-checked").catch(() => null) };
+      // (--- panel-basics --- the studio's own last address, lib/studioMemory.ts LAST_STUDIO_KEY, is the page's and not the bot's:
+      // it may be written while the bot plans, and holds a studio query, nothing of the bot's)
+      const STUDIO_KEY = "jumpingballslive_last_studio";
       const storedKeys = await fp.evaluate((before) => Object.keys(localStorage).filter((k) => !before.includes(k)), keysBefore);
+      const botKeys = storedKeys.filter((k) => k !== STUDIO_KEY);
+      const studioQuery = await fp.evaluate((key) => localStorage.getItem(key), STUDIO_KEY);
+      const studioOnlyAddress = studioQuery === null || (studioQuery.startsWith("?") && !!new URLSearchParams(studioQuery).get("mode"));
       check(
         "viral bot: the Template choice, the Simple switch and the template's plan survive a reload, in the bot's own storage only",
-        kept && JSON.stringify(keptRow) === JSON.stringify(row) && keptChoice.template === TEMPLATE && keptChoice.simple === "true" && storedKeys.length === 1 && storedKeys[0] === BOT_KEY,
-        `(${JSON.stringify(keptChoice)}; ${JSON.stringify(storedKeys)})`,
+        kept && JSON.stringify(keptRow) === JSON.stringify(row) && keptChoice.template === TEMPLATE && keptChoice.simple === "true" && botKeys.length === 1 && botKeys[0] === BOT_KEY && studioOnlyAddress,
+        `(${JSON.stringify(keptChoice)}; ${JSON.stringify(storedKeys)}; the studio's address ${JSON.stringify(studioQuery?.slice(0, 80) ?? null)})`,
       );
       const freeCodecs = await fp.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
       if (freeCodecs) {
