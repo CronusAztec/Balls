@@ -16335,8 +16335,12 @@ await smokeBlock("watermark-everywhere", async () => {
                 return n / (d.length / 4);
               };
               // the pill's own fill, left of the logo (one 70 % layer over the light background: about 100; two stacked: about 45)
-              const pill = (r) => {
-                const d = g.getImageData(Math.round(r.x + 0.08 * bh), Math.round(r.y + 0.36 * bh), Math.max(1, Math.round(0.16 * bh)), Math.max(1, Math.round(0.28 * bh))).data;
+              // --- watermark-everywhere --- (D0) in a right corner the pill is anchored to the region's right edge and is wider than
+              // the region (its text sets its width), so its own fill is the padding right of the text, the same distance in from
+              // that edge: from the region's left edge the sample fell on the logo (about 179, the 6.9 s frame of the tier-2 dry run)
+              const pill = (r, corner) => {
+                const x = corner.endsWith("right") ? r.x + r.w - 0.24 * bh : r.x + 0.08 * bh;
+                const d = g.getImageData(Math.round(x), Math.round(r.y + 0.36 * bh), Math.max(1, Math.round(0.16 * bh)), Math.max(1, Math.round(0.28 * bh))).data;
                 let s = 0;
                 for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
                 return s / (d.length / 4);
@@ -16373,7 +16377,7 @@ await smokeBlock("watermark-everywhere", async () => {
                     targets.shift();
                     g.drawImage(v, 0, 0);
                     const found = Object.entries(regions).filter(([, r]) => dark(r) >= 0.2).map(([k]) => k);
-                    frames.push({ t: +meta.mediaTime.toFixed(2), found, pill: found.length === 1 ? +pill(regions[found[0]]).toFixed(1) : null, bars: sq.y > 0.1 * H ? +barTexture().toFixed(4) : null, darks: Object.fromEntries(Object.entries(regions).map(([k, r]) => [k, +dark(r).toFixed(3)])) });
+                    frames.push({ t: +meta.mediaTime.toFixed(2), found, pill: found.length === 1 ? +pill(regions[found[0]], found[0]).toFixed(1) : null, bars: sq.y > 0.1 * H ? +barTexture().toFixed(4) : null, darks: Object.fromEntries(Object.entries(regions).map(([k, r]) => [k, +dark(r).toFixed(3)])) });
                   }
                   if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
                   else done();
