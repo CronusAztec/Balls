@@ -5713,6 +5713,7 @@
       "speed": "Prędkość odtwarzania",
       "rail": "Grupy ustawień",
       "panelEmpty": "Wybierz grupę, aby ją edytować. Wszystko, co zmienisz, zostaje w linku.",
+      "continueLast": "Wróć do ostatniej sesji",
       "closeSettings": "Zamknij ustawienia",
       "paletteTitle": "Szukaj ustawień, grup i trybów",
       "palettePlaceholder": "Przejdź do ustawienia, grupy lub trybu…",

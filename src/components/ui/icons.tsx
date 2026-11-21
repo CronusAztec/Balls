@@ -181,6 +181,13 @@ export const IconReset = (p: IconProps) => (
     <path d="M4.5 4.5v4h4" />
   </Icon>
 );
+/** --- panel-basics --- Undo: an arrow turning back. */
+export const IconUndo = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7.5 4.5 4 8l3.5 3.5" />
+    <path d="M4 8h8a4 4 0 0 1 0 8h-2.5" />
+  </Icon>
+);
 export const IconFolder = (p: IconProps) => (
   <Icon {...p}>
     <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.2l1.6 1.8h6.2A1.5 1.5 0 0 1 17 8.3v6.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />

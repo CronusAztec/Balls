@@ -25,6 +25,8 @@ export interface SongSlicerSectionProps {
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.sound in Controls.tsx). */
 export const SONG_SLICER_KEYS = ["sliceSong", "sliceEnabled", "sliceLength", "sliceLoop", "sliceFade"];
+/** --- panel-basics --- The keys this block shows with Show Advanced Options only (Controls.tsx ADVANCED_KEYS: its row's count). */
+export const SONG_SLICER_ADVANCED_KEYS = ["sliceFade"] as const;
 
 /**
  * "Song slicer" block of the Sound section: upload any audio file and every bounce plays

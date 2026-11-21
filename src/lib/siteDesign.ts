@@ -257,9 +257,10 @@ export interface PaletteGroup {
  * --- review fix (site-redesign) --- The palette's control entries, group by group: every key with a label, once (the first
  * group that lists it keeps it), and one entry per label within a group – two keys named alike there (a search alias, a
  * block's heading and its control) would offer the same thing twice, and a control named like its group is the group's own
- * entry. `labelOf` gives a key's label, or null for none.
+ * entry. `labelOf` gives a key's label, or null for none. --- panel-basics --- `wordsOf`, the words an entry answers to besides
+ * its label.
  */
-export function paletteControlEntries(groups: readonly PaletteGroup[], labelOf: (key: string) => string | null): PaletteEntry[] {
+export function paletteControlEntries(groups: readonly PaletteGroup[], labelOf: (key: string) => string | null, wordsOf?: (key: string) => string | undefined): PaletteEntry[] {
   const keys = new Set<string>();
   const out: PaletteEntry[] = [];
   for (const group of groups) {
@@ -272,7 +273,8 @@ export function paletteControlEntries(groups: readonly PaletteGroup[], labelOf: 
       const folded = fold(label);
       if (labels.has(folded)) continue;
       labels.add(folded);
-      out.push({ kind: "control", section: group.section, key, label, sectionLabel: group.label });
+      const words = wordsOf?.(key); // --- panel-basics --- (the words a visitor types for it: components/simulator/panelKeys.ts)
+      out.push({ kind: "control", section: group.section, key, label, sectionLabel: group.label, ...(words ? { words } : {}) });
     }
   }
   return out;

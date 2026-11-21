@@ -73,6 +73,40 @@ function ThemeCard({ label, selected, edited, onClick, children }: { label: stri
 }
 
 /**
+ * --- panel-basics --- The theme cards with their heading: the first block of the Visual section, and the starter block's
+ * (Controls.tsx) too, so a look is one click away on the first screen.
+ */
+export function ThemeCards({ t, search, matches, settings: s, update }: Omit<ThemeSectionProps, "image">) {
+  const intact = isThemeIntact(s);
+  const edited = !!themeById(s.themeId) && !intact;
+  const pickTheme = (theme: Theme) => update(themePatch(theme, s));
+  const pickDefault = () => update(plainLookPatch(s, defaultSettings(s.mode)));
+  return (
+    <Searchable search={search} matches={matches} labelKey="theme">
+      <div className="space-y-2" data-testid="theme-section">
+        <label className="text-sm font-medium text-ink-2 flex items-center justify-between gap-2">
+          <span>
+            {t("theme")}
+            <Tooltip text={t("themeTip")} />
+          </span>
+          {edited && <span className="text-xs font-normal text-ink-3 truncate" data-testid="theme-edited">{t("themeEdited")}</span>}
+        </label>
+        <div className="grid grid-cols-4 gap-1.5" role="group" aria-label={t("theme")}>
+          <ThemeCard label={t("themeDefault")} selected={!s.themeId} edited={false} onClick={pickDefault}>
+            <Swatch background="#0a0a0a" ring={{ background: "conic-gradient(#f43f5e, #facc15, #4ade80, #22d3ee, #818cf8, #f43f5e)", WebkitMask: "radial-gradient(circle, transparent 11px, #000 12px)", mask: "radial-gradient(circle, transparent 11px, #000 12px)" }} ball="#ffffff" ball2="#ff3366" />
+          </ThemeCard>
+          {THEMES.map((theme) => (
+            <ThemeCard key={theme.id} label={t(theme.nameKey)} selected={s.themeId === theme.id} edited={s.themeId === theme.id && edited} onClick={() => pickTheme(theme)}>
+              <Swatch background={backgroundCss(theme.background.type, theme.background.colors)} ring={{ border: `2px solid ${theme.circleColor}`, boxShadow: `0 0 6px ${theme.circleColor}66` }} ball={theme.ballColor} ball2={theme.ballColor2} />
+            </ThemeCard>
+          ))}
+        </div>
+      </div>
+    </Searchable>
+  );
+}
+
+/**
  * "Theme" block at the top of the Visual section: the theme cards (one click merges a curated palette into
  * the settings – see lib/themes.ts), the background (solid, gradient or an uploaded picture with its dim), the
  * particle style of the bursts and the colour-trail colours. Everything stays individually editable; the
@@ -80,39 +114,15 @@ function ThemeCard({ label, selected, edited, onClick, children }: { label: stri
  */
 export default function ThemeSection({ t, search, matches, settings: s, update, image }: ThemeSectionProps) {
   const [drag, setDrag] = useState(false);
-  const intact = isThemeIntact(s);
-  const edited = !!themeById(s.themeId) && !intact;
   const colors = s.backgroundColors;
   const setColor = (i: 0 | 1, value: string) => update({ backgroundColors: i === 0 ? [value, colors[1]] : [colors[0], value] });
   const customTrail = s.trailColors.length === 2;
   const showTrail = (s.showTrails && s.colorTrail) || !!search;
-  const pickTheme = (theme: Theme) => update(themePatch(theme, s));
-  const pickDefault = () => update(plainLookPatch(s, defaultSettings(s.mode)));
   const hex = (value: string) => normalizeHexColor(value) ?? "#ffffff";
 
   return (
     <>
-      <Searchable search={search} matches={matches} labelKey="theme">
-        <div className="space-y-2" data-testid="theme-section">
-          <label className="text-sm font-medium text-ink-2 flex items-center justify-between gap-2">
-            <span>
-              {t("theme")}
-              <Tooltip text={t("themeTip")} />
-            </span>
-            {edited && <span className="text-xs font-normal text-ink-3 truncate" data-testid="theme-edited">{t("themeEdited")}</span>}
-          </label>
-          <div className="grid grid-cols-4 gap-1.5" role="group" aria-label={t("theme")}>
-            <ThemeCard label={t("themeDefault")} selected={!s.themeId} edited={false} onClick={pickDefault}>
-              <Swatch background="#0a0a0a" ring={{ background: "conic-gradient(#f43f5e, #facc15, #4ade80, #22d3ee, #818cf8, #f43f5e)", WebkitMask: "radial-gradient(circle, transparent 11px, #000 12px)", mask: "radial-gradient(circle, transparent 11px, #000 12px)" }} ball="#ffffff" ball2="#ff3366" />
-            </ThemeCard>
-            {THEMES.map((theme) => (
-              <ThemeCard key={theme.id} label={t(theme.nameKey)} selected={s.themeId === theme.id} edited={s.themeId === theme.id && edited} onClick={() => pickTheme(theme)}>
-                <Swatch background={backgroundCss(theme.background.type, theme.background.colors)} ring={{ border: `2px solid ${theme.circleColor}`, boxShadow: `0 0 6px ${theme.circleColor}66` }} ball={theme.ballColor} ball2={theme.ballColor2} />
-              </ThemeCard>
-            ))}
-          </div>
-        </div>
-      </Searchable>
+      <ThemeCards t={t} search={search} matches={matches} settings={s} update={update} />
 
       <Searchable search={search} matches={matches} labelKey="themeBackground">
         <div className="space-y-2">

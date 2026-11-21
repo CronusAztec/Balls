@@ -34,6 +34,8 @@ export interface MusicSectionProps {
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.sound in Controls.tsx). */
 export const MUSIC_BED_KEYS = ["musicBed", "musicVolume", "musicDucking", "musicDuckRelease", "musicLoop", "musicStartOffset"];
+/** --- panel-basics --- The keys this block shows with Show Advanced Options only (Controls.tsx ADVANCED_KEYS: its row's count). */
+export const MUSIC_ADVANCED_KEYS = ["musicDuckRelease", "musicStartOffset"] as const;
 
 /**
  * Thin bar that follows the duck gain while the bed plays: it dips on every bounce and swells

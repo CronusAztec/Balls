@@ -5713,6 +5713,7 @@
       "speed": "Playback speed",
       "rail": "Control groups",
       "panelEmpty": "Pick a group to edit it. Everything you change is kept in the link.",
+      "continueLast": "Continue where you left off",
       "closeSettings": "Close the settings",
       "paletteTitle": "Search settings, groups and modes",
       "palettePlaceholder": "Jump to a setting, a group or a mode…",

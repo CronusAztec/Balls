@@ -5713,6 +5713,7 @@
       "speed": "Velocidad de reproducción",
       "rail": "Grupos de controles",
       "panelEmpty": "Elige un grupo para editarlo. Todo lo que cambies se guarda en el enlace.",
+      "continueLast": "Sigue donde lo dejaste",
       "closeSettings": "Cerrar los ajustes",
       "paletteTitle": "Buscar ajustes, grupos y modos",
       "palettePlaceholder": "Ir a un ajuste, un grupo o un modo…",
