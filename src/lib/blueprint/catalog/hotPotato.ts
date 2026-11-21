@@ -1,7 +1,7 @@
 /*
  * --- blueprint-catalog-c2 --- Catalog: Hot Potato (battle). Six balls in three colours fly round one ring with a lit bomb: the
  * spark (an orange ball) starts in the middle, and the first ball it touches holds the bomb. The holder is the big orange ball,
- * swelling as its fuse burns down (the HUD's fuse, in seconds). Touching a smaller ball passes the bomb on (`with: "smaller"`:
+ * swelling as its fuse burns down (the HUD's fuse, in whole seconds). Touching a smaller ball passes the bomb on (`with: "smaller"`:
  * the bigger ball of the two is always the holder). When the fuse runs out the holder bursts and is out, the others speed up,
  * and a fresh spark flies out of the middle with a shorter fuse (12 % shorter each round). The last ball left wins for its
  * colour.
@@ -36,7 +36,7 @@ export const hotPotato = {
   ],
   vars: [
     { id: "fuse", start: 4 },
-    { id: "lit", start: 0 },
+    { id: "secs", start: 4 },
     { id: "left", start: 6 },
     { id: "length", start: 4 },
   ],
@@ -52,20 +52,21 @@ export const hotPotato = {
     { when: "ballHit", with: "smaller", cooldownSec: 0.25, do: [{ act: "sound", voice: "hit", pitch: 5 }, { act: "fx", kind: "burst" }] },
     // the spark lights the bomb on the first ball it touches: this round's fuse, 12 % shorter than the last
     { when: "ballHit", of: "spark", do: [{ act: "sound", voice: "merge", pitch: 0 }, { act: "var", id: "fuse", op: "set", value: "length * 0.88 ^ (6 - left)" }] },
-    { when: "ballHit", of: "spark", do: [{ act: "remove", target: "self" }, { act: "grow", target: "other", by: `${SWELL} - size` }, { act: "recolor", target: "other", color: 0 }, { act: "var", id: "lit", op: "set", value: 1 }] },
-    // the fuse burns while the bomb is lit, and ticks twice a second
-    { when: "timer", sec: 0.1, do: [{ act: "var", id: "fuse", op: "add", value: "-0.1 * lit" }] },
+    { when: "ballHit", of: "spark", do: [{ act: "remove", target: "self" }, { act: "grow", target: "other", by: `${SWELL} - size` }, { act: "recolor", target: "other", color: 0 }] },
+    // the fuse burns while the bomb is lit (while no spark is out: then the balls are the players left), the HUD shows its whole
+    // seconds, and it ticks twice a second
+    { when: "timer", sec: 0.1, do: [{ act: "var", id: "fuse", op: "add", value: "-0.1 * (1 - min(1, balls - left))" }, { act: "var", id: "secs", op: "set", value: "ceil(fuse)" }] },
     { when: "timer", sec: 0.5, do: [{ act: "sound", voice: "hit", pitch: -4 }] },
     // the burst: the holder pops, the others speed up, and a new spark flies out while two balls or more are left (the fuse
-    // reads 0 until the spark lights the next one: its last tenth of a second could have left it a hair under 0, "-0.0")
+    // reads 0 until the spark lights the next one)
     { when: "countReached", what: "fuse", atMost: 0.05, do: [{ act: "sound", voice: "gap", pitch: 0 }, { act: "fx", kind: "flash" }, { act: "var", id: "left", op: "add", value: -1 }, { act: "fx", kind: "shake" }] },
-    { when: "countReached", what: "fuse", atMost: 0.05, do: [{ act: "grow", target: "all", by: `-999 * ${HOLDS}` }, { act: "var", id: "lit", op: "set", value: 0 }, { act: "spawn", body: "spark", count: "min(1, balls - 1)", at: "center", speed: 380 }, { act: "var", id: "fuse", op: "set", value: 0 }] },
+    { when: "countReached", what: "fuse", atMost: 0.05, do: [{ act: "grow", target: "all", by: `-999 * ${HOLDS}` }, { act: "spawn", body: "spark", count: "min(1, balls - 1)", at: "center", speed: 380 }, { act: "var", id: "fuse", op: "set", value: 0 }] },
     // every ball at the round's pace (the spark faster), and the bomb swelling with its fuse, throbbing twice a second
     { when: "timer", sec: 0.25, do: [{ act: "speed", target: "all", scale: `${PACE} / max(speed, 1)` }, { act: "grow", target: "all", by: `${HOLDS} * (${SWELL} + 2 * cos(pi * n) - size)` }] },
     { when: "timer", sec: 0.25, of: "spark", do: [{ act: "speed", target: "all", scale: `1.6 * ${PACE} / max(speed, 1)` }] },
   ],
   finish: { any: [{ when: "count", what: "balls", atMost: 1, say: "{winner} SURVIVES" }], winner: "lastBall", timeoutSec: 60, timeoutSay: "THE FUSE IS STILL LIT" },
-  hud: [{ show: "fuse", label: "fuse" }, { show: "left", label: "left" }],
+  hud: [{ show: "secs", label: "fuse" }, { show: "left", label: "left" }],
   look: { palette: ["#ff5a1f", "#4dabf7", "#51cf66", "#ffd43b", "#b197fc", "#22d3ee"], rim: 3, trail: true, teamNames: ["RED", "BLUE", "GREEN", "GOLD", "PURPLE", "CYAN"] },
   sound: { scale: "pentatonic", root: 2, voices: { wallHit: "none", ballHit: "none", spawn: "none" } },
   params: [{ id: "fuse", label: "first fuse", at: "vars[3].start", min: 1.5, max: 8, step: 0.5 }],

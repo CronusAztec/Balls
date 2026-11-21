@@ -1340,7 +1340,7 @@ Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the late
 
 One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.
 
-Link: `?mode=blueprint&blp=hotPotato` · digest `cde1a9a9` · check: playable, median end 17.6 s, outcomes "BLUE SURVIVES", "GREEN SURVIVES", "PURPLE SURVIVES".
+Link: `?mode=blueprint&blp=hotPotato` · digest `8ae2b5cd` · check: playable, median end 17.6 s, outcomes "BLUE SURVIVES", "GREEN SURVIVES", "PURPLE SURVIVES".
 
 ```text
 "Hot Potato": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out."
@@ -1350,11 +1350,11 @@ Start: 2 blues at random places at 300 px/s; 2 greens at random places at 300 px
 Rule: when a ball touches a smaller ball (at most every 0.25 s): grow it by (22 - size) px, then recolour it (team), then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0).
 Rule: when a ball touches a smaller ball (at most every 0.25 s): a hit note, then a burst.
 Rule: when spark touches another ball: a merge note, then fuse = (length * 0.88 ^ (6 - left)).
-Rule: when spark touches another ball: remove it, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0), then lit = 1.
-Rule: every 0.1 s: fuse + (-0.1 * lit).
+Rule: when spark touches another ball: remove it, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0).
+Rule: every 0.1 s: fuse + (-0.1 * (1 - min(1, balls - left))), then secs = (ceil(fuse)).
 Rule: every 0.5 s: a hit note.
 Rule: when fuse reaches 0.05 or less: a gap note, then a flash, then left + -1, then a shake.
-Rule: when fuse reaches 0.05 or less: grow every ball by (-999 * min(1, floor((size - 22) / 10 + 0.5))) px, then lit = 0, then spawn (min(1, balls - 1)) sparks at the center, then fuse = 0.
+Rule: when fuse reaches 0.05 or less: grow every ball by (-999 * min(1, floor((size - 22) / 10 + 0.5))) px, then spawn (min(1, balls - 1)) sparks at the center, then fuse = 0.
 Rule: every 0.25 s: speed every ball × (300 * 1.1 ^ (6 - left) / max(speed, 1)), then grow every ball by (min(1, floor((size - 22) / 10 + 0.5)) * (32 + 12 * (1 - fuse / length) + 2 * cos(pi * n) - size)) px.
 Rule: every 0.25 s: speed every ball × (1.6 * 300 * 1.1 ^ (6 - left) / max(speed, 1)).
 Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest "THE FUSE IS STILL LIT"; the winner is lastBall.
@@ -1404,7 +1404,7 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
  "hud": [
   {
    "label": "fuse",
-   "show": "fuse"
+   "show": "secs"
   },
   {
    "label": "left",
@@ -1517,11 +1517,6 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
      "act": "recolor",
      "color": 0,
      "target": "other"
-    },
-    {
-     "act": "var",
-     "id": "lit",
-     "op": "set"
     }
    ],
    "of": "spark",
@@ -1532,7 +1527,13 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
     {
      "act": "var",
      "id": "fuse",
-     "value": "-0.1 * lit"
+     "value": "-0.1 * (1 - min(1, balls - left))"
+    },
+    {
+     "act": "var",
+     "id": "secs",
+     "op": "set",
+     "value": "ceil(fuse)"
     }
    ],
    "sec": 0.1,
@@ -1579,12 +1580,6 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
      "act": "grow",
      "by": "-999 * min(1, floor((size - 22) / 10 + 0.5))",
      "target": "all"
-    },
-    {
-     "act": "var",
-     "id": "lit",
-     "op": "set",
-     "value": 0
     },
     {
      "act": "spawn",
@@ -1668,7 +1663,8 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
    "start": 4
   },
   {
-   "id": "lit"
+   "id": "secs",
+   "start": 4
   },
   {
    "id": "left",
