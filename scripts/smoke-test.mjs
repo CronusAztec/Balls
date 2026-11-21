@@ -963,8 +963,9 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
       `(${chips.join(" ")}, ${JSON.stringify(perShelf)}, all ${total} → ${backToAll})`,
     );
     // --- gallery-every-mode --- the mode chips, scripts off: a chip for every mode with a preset, none shown under All, a shelf
-    // shows its own modes, one filter at a time (a mode chip shows only its mode's presets), and a mode keeps its shelf's row
-    // and outlines the shelf's chip
+    // shows its own modes, a mode chip shows only its mode's presets and keeps its shelf's row and its shelf's chip on, and
+    // (E2 review: the mode chips are a radio group of their own) a mode left on under another shelf hides nothing there, and
+    // the row's All chip shows the whole shelf again
     const modeChips = await gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip]', (els) => els.map((el) => ({ mode: el.getAttribute("data-mode-chip"), shelf: el.getAttribute("data-shelf") })));
     const visibleChips = () => gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip] label', (labels) => labels.filter((l) => l.getBoundingClientRect().width > 0).map((l) => l.closest("[data-mode-chip]").getAttribute("data-mode-chip")));
     const shownModes = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-mode")));
@@ -972,23 +973,26 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
     await gp.locator('label[for="gallery-shelf-lab"]').click();
     await gp.locator('label[for="gallery-mode-blueprint"]').click();
     await gp.waitForTimeout(400); // (the chips' colours ease over 150 ms)
-    const lab = { shown: await shownModes(), chips: await visibleChips(), shelfChecked: await gp.$$eval('input[id^="gallery-shelf-"]:checked', (els) => els.length), outline: await gp.$eval('label[for="gallery-shelf-lab"]', (l) => getComputedStyle(l).borderColor) };
+    const lab = { shown: await shownModes(), chips: await visibleChips(), shelfChecked: await gp.$$eval('input[id^="gallery-shelf-"]:checked', (els) => els.map((el) => el.value).join()), outline: await gp.$eval('label[for="gallery-shelf-lab"]', (l) => getComputedStyle(l).borderColor) };
     await gp.locator('label[for="gallery-shelf-music"]').click();
-    const music = { chips: await visibleChips(), modeChecked: await gp.$$eval('input[id^="gallery-mode-"]:checked', (els) => els.length) };
+    const musicModes = modeChips.filter((c) => c.shelf === "music").map((c) => c.mode);
+    const music = { chips: await visibleChips(), shown: await shownModes(), modeChecked: await gp.$$eval('input[name="gallery-mode"]:checked', (els) => els.map((el) => el.value).join()) };
     await gp.locator('label[for="gallery-mode-songRing"]').click();
     const song = { shown: await shownModes(), chips: await visibleChips() };
+    await gp.locator('label[for="gallery-mode-all"]').click();
+    const wholeShelf = (await shownModes()).length;
     await gp.locator('label[for="gallery-shelf-all"]').click();
-    const musicModes = modeChips.filter((c) => c.shelf === "music").map((c) => c.mode);
     check(
-      "gallery: a mode chip for every mode, scripts off: none under All, a shelf shows its own modes, a mode chip shows only that mode's presets (Mode Lab's two games), and one filter is on at a time",
-      modeChips.length >= 50 && allChips === 0 && lab.shown.length === 2 && lab.shown.every((m) => m === "blueprint") && lab.chips.join() === "blueprint" && lab.shelfChecked === 0 && lab.outline === "rgb(176, 240, 42)" && music.modeChecked === 0 && music.chips.join() === musicModes.join() && song.shown.join() === "songRing" && song.chips.join() === musicModes.join() && (await shown()).length === total,
-      `(${modeChips.length} chips, ${allChips} shown, lab ${JSON.stringify(lab)}, music ${JSON.stringify(music)}, song ${JSON.stringify(song)})`,
+      "gallery: a mode chip for every mode, scripts off: none under All, a shelf shows its own modes, a mode chip shows only that mode's presets (Mode Lab's two games) with its shelf's chip on, a mode left on hides nothing under another shelf, and All shows the shelf again",
+      modeChips.length >= 50 && allChips === 0 && lab.shown.length === 2 && lab.shown.every((m) => m === "blueprint") && lab.chips.join() === "blueprint" && lab.shelfChecked === "lab" && lab.outline === "rgb(176, 240, 42)" && music.modeChecked === "blueprint" && music.chips.join() === musicModes.join() && music.shown.length === perShelf.music?.n && music.shown.every((m) => musicModes.includes(m)) && song.shown.join() === "songRing" && song.chips.join() === musicModes.join() && wholeShelf === perShelf.music?.n && (await shown()).length === total,
+      `(${modeChips.length} chips, ${allChips} shown, lab ${JSON.stringify(lab)}, music ${JSON.stringify(music)}, song ${JSON.stringify(song)}, all ${wholeShelf})`,
     );
   } finally {
     await phone.close().catch(() => {});
   }
 }
-// --- gallery-every-mode --- a mode chip goes into the address (?mode=sandPlate in place of the shelf) and a reload shows it again
+// --- gallery-every-mode --- a mode chip goes into the address next to its shelf (?family=loops&mode=sandPlate) and a reload shows
+// it again; an older address that names the mode alone opens its shelf with it (E2 review: the mode chips are a group of their own)
 {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
@@ -996,7 +1000,7 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
     await gp.goto(`${BASE}/en/gallery/?family=music`, { waitUntil: "networkidle" });
     await gp.waitForFunction(() => { const el = document.querySelector('[data-testid="gallery-filter"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 }).catch(() => {});
     await gp.waitForTimeout(300);
-    const at = () => gp.evaluate(() => ({ checked: document.querySelector('input[name="gallery-shelf"]:checked')?.value ?? null, search: location.search, shown: [...document.querySelectorAll("[data-gallery-card]")].filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-card")), sideways: document.documentElement.scrollWidth - window.innerWidth }));
+    const at = () => gp.evaluate(() => ({ checked: `${document.querySelector('input[name="gallery-shelf"]:checked')?.value ?? ""}/${document.querySelector('input[name="gallery-mode"]:checked')?.value ?? ""}`, search: location.search, shown: [...document.querySelectorAll("[data-gallery-card]")].filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-card")), sideways: document.documentElement.scrollWidth - window.innerWidth }));
     const music = await at();
     await gp.locator('label[for="gallery-shelf-loops"]').tap();
     await gp.locator('label[for="gallery-mode-sandPlate"]').tap();
@@ -1005,13 +1009,55 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
     await gp.reload({ waitUntil: "networkidle" });
     await gp.waitForTimeout(800);
     const reloaded = await at();
+    await gp.goto(`${BASE}/en/gallery/?mode=sandPlate`, { waitUntil: "networkidle" });
+    await gp.waitForTimeout(800);
+    const older = await at();
+    await gp.locator('label[for="gallery-shelf-music"]').tap();
+    await gp.waitForTimeout(300);
+    const another = await at();
     check(
-      "gallery: a mode chip goes into the address in place of the shelf (?mode=sandPlate) and a reload shows its presets again, with no sideways scroll on a phone",
-      music.checked === "music" && picked.checked === "mode:sandPlate" && picked.search === "?mode=sandPlate" && picked.shown.join() === "sand-mandala" && reloaded.checked === "mode:sandPlate" && reloaded.shown.join() === "sand-mandala" && picked.sideways <= 0,
-      `(music ${music.checked}, picked ${JSON.stringify(picked)}, reloaded ${JSON.stringify(reloaded)})`,
+      "gallery: a mode chip goes into the address next to its shelf (?family=loops&mode=sandPlate), a reload shows its presets again, an address with the mode alone opens its shelf with it, another shelf starts on its All chip, and a phone has no sideways scroll",
+      music.checked === "music/all" && picked.checked === "loops/sandPlate" && picked.search === "?family=loops&mode=sandPlate" && picked.shown.join() === "sand-mandala" && reloaded.checked === "loops/sandPlate" && reloaded.shown.join() === "sand-mandala" && older.checked === "loops/sandPlate" && older.shown.join() === "sand-mandala" && another.checked === "music/all" && another.search === "?family=music" && another.shown.length > 1 && picked.sideways <= 0,
+      `(music ${music.checked}, picked ${JSON.stringify(picked)}, reloaded ${JSON.stringify(reloaded)}, older ${JSON.stringify(older)}, another ${JSON.stringify(another)})`,
     );
   } finally {
     await phone.close().catch(() => {});
+  }
+}
+// --- gallery-every-mode --- (E2 review) the keyboard alone reaches every mode chip: Tab to the shelves, the arrows to Music,
+// Tab to the mode row, the arrows to Song Ring; the arrows stay in the mode row and step only through the shown shelf's chips
+{
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const gp = await desk.newPage();
+    await gp.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
+    await gp.waitForFunction(() => { const el = document.querySelector('[data-testid="gallery-filter"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 }).catch(() => {});
+    const focused = () => gp.evaluate(() => (document.activeElement instanceof HTMLInputElement ? `${document.activeElement.name}:${document.activeElement.value}` : (document.activeElement?.tagName ?? "")));
+    let start = "";
+    for (let i = 0; i < 60 && !start.startsWith("gallery-shelf:"); i++) {
+      await gp.keyboard.press("Tab");
+      start = await focused();
+    }
+    const shelfOrder = await gp.$$eval('input[name="gallery-shelf"]', (els) => els.map((el) => el.value));
+    for (let i = 0; i < shelfOrder.indexOf("music") && (await focused()) !== "gallery-shelf:music"; i++) await gp.keyboard.press("ArrowRight");
+    const onMusic = await focused();
+    await gp.keyboard.press("Tab");
+    const inModes = await focused();
+    await gp.keyboard.press("ArrowRight");
+    const picked = { focus: await focused(), search: await gp.evaluate(() => location.search), shown: await gp.$$eval("[data-gallery-card]", (cards) => [...new Set(cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-mode")))]) };
+    const musicModes = await gp.$$eval('[data-mode-chip][data-shelf="music"]', (els) => els.map((el) => el.getAttribute("data-mode-chip")));
+    const stepped = new Set();
+    for (let i = 0; i <= musicModes.length + 1; i++) {
+      await gp.keyboard.press("ArrowRight");
+      stepped.add(await focused());
+    }
+    check(
+      "gallery: the keyboard alone picks Song Ring: one Tab stop for the shelves, one for the mode row, and the arrows step through every chip of the shown shelf and no other",
+      start === "gallery-shelf:all" && onMusic === "gallery-shelf:music" && inModes === "gallery-mode:all" && picked.focus === "gallery-mode:songRing" && picked.search === "?family=music&mode=songRing" && picked.shown.join() === "songRing" && [...stepped].every((f) => f === "gallery-mode:all" || musicModes.includes(f.replace("gallery-mode:", ""))) && stepped.size === musicModes.length + 1,
+      `(start ${start}, music ${onMusic}, row ${inModes}, picked ${JSON.stringify(picked)}, arrows ${[...stepped].join(" ")})`,
+    );
+  } finally {
+    await desk.close().catch(() => {});
   }
 }
 await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
@@ -8571,6 +8617,22 @@ await smokeBlock("daily-gallery", async () => {
         return { scrolls: !!list && list.scrollWidth > list.clientWidth + 40, sideways: document.documentElement.scrollWidth - window.innerWidth, title: document.querySelector('[data-testid="home-gallery"] h2')?.textContent ?? "", tries: document.querySelectorAll('[data-testid="home-gallery-try"]').length };
       });
       check("home looks (pl, 390 px): the row scrolls sideways and the page does not, in Polish", phoneRow.scrolls && phoneRow.sideways <= 0 && phoneRow.title === "Zacznij od gotowego presetu" && phoneRow.tries >= 4, `(${JSON.stringify(phoneRow)})`);
+      // (E2 review) the row's pictures come after the page's other requests, and Back from its last card shows that card again
+      const low = await hp.$$eval('[data-testid="home-gallery"] img', (imgs) => imgs.map((img) => img.getAttribute("fetchpriority")));
+      const lastCard = hp.locator("[data-home-look]").last();
+      const lastId = await lastCard.getAttribute("data-home-look");
+      await lastCard.scrollIntoViewIfNeeded();
+      await hp.waitForTimeout(600);
+      const rowLeft = () => hp.evaluate((id) => ({ left: Math.round(document.querySelector('[data-testid="home-gallery"] ul')?.scrollLeft ?? 0), inView: (() => { const r = document.querySelector(`[data-home-look="${id}"]`)?.getBoundingClientRect(); return !!r && r.left >= -1 && r.right <= window.innerWidth + 1; })() }), lastId);
+      const before = await rowLeft();
+      await lastCard.getByTestId("home-gallery-try").tap();
+      await hp.waitForURL(/\/pl\/simulator\//, { timeout: 15000 }).catch(() => {});
+      await hp.waitForTimeout(800);
+      await hp.goBack();
+      await hp.waitForFunction(() => /\/pl\/$/.test(location.pathname) && !!document.querySelector("[data-home-look]"), null, { timeout: 15000 }).catch(() => {});
+      await hp.waitForTimeout(800);
+      const after = await rowLeft();
+      check("home looks (pl, 390 px): the row's pictures load at low priority, and Back from its last card shows the row where it was, that card in view", low.length >= 4 && low.every((v) => v === "low") && before.left > 0 && before.inView && Math.abs(after.left - before.left) <= 4 && after.inView, `(${lastId}: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}, priority ${low.join()})`);
     } finally {
       await phone.close().catch(() => {});
     }

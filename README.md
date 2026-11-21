@@ -1782,12 +1782,15 @@ Feature daily-gallery: a challenge a day and a page of curated presets, both bui
   `blp=hotPotato`); each new one is a measured run whose seed ends inside its clip in the 800 × 450 world and a phone's 450 × 450
   where the mode ends (its comment says when), with a theme or a pace of its own. The script takes the card pictures with the
   still camera, as for the mode cards (the run rendered offline and stepped to `previewAt`, so a busy machine takes the same
-  picture), the whole world scaled to 640 × 360 WebP under 36 KB. The gallery page's second row of chips names the modes (the
-  chosen shelf's, every mode's under All): radios of the shelves' group, filtered by the page's own rules, the mode kept in
-  the address as `?mode=<id>`.
+  picture), the 360 × 360 square a card shows (the centred square of the world, or the preset's `camera` where the action is
+  small or a caption would put English words on the Polish and Spanish pages) as WebP under 36 KB. The gallery page's second
+  row of chips names the chosen shelf's modes after an All chip: a radio group of its own (one Tab stop, the arrows step
+  through the shown chips), filtered by the page's own rules together with its shelf, the mode kept in the address as
+  `?family=<shelf>&mode=<id>`.
 - **Landing row** – --- home-looks --- `src/components/site/HomeGallery.tsx`, right under the hero: "Start from a finished
   look", the six presets of `HOME_GALLERY_IDS` (one a shelf) as the gallery's cards, each opening its preset with its seed,
-  and a link to the gallery. It scrolls sideways below 1024 px; its pictures are lazy, in fixed squares.
+  and a link to the gallery. It scrolls sideways below 1024 px and keeps its sideways position for Back (`HomeGalleryRow.tsx`,
+  in the history entry's state); its pictures are lazy and low priority, in fixed squares, and carry no words.
 - **Copy** – the `Daily` and `Gallery` namespaces in `messages/*.json` (the navbar and footer links use `Gallery.navLabel`); the smoke test opens
   the gallery, Try it, the landing card, `daily=` links, the button, a finished daily run and its share link.
 ### Changelog

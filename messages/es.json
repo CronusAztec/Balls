@@ -4834,7 +4834,8 @@
     "tryAria": "Pruébalo: {name}",
     "outro": "¿Has cambiado algo y te encanta el resultado? Copia el enlace para compartir bajo el lienzo y tu configuración irá con él.",
     "cta": "Empezar desde cero",
-    "filterLabel": "Filtrar presets por familia o modo",
+    "filterLabel": "Filtrar presets por familia",
+    "modeFilterLabel": "Filtrar los presets de la familia por modo",
     "homeTitle": "Empieza con un preset listo",
     "homeAll": "Ver toda la galería"
   },
