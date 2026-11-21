@@ -134,8 +134,10 @@ export function useHeroStill(options: HeroStillOptions): void {
             scale,
             times: request.times,
             onFrame: (canvas, sec, info) => {
+              // --- still-hud --- (Lane E, E5) the badge clear of the HUD the frame drew (an anchored banner, a counter), as the fast export's
+              const hud = info.hud ? { report: info.hud, source: { x: rect.x * scale, y: rect.y * scale, side: rect.side * scale } } : null;
               drawHeroThumbnail(ctx, canvas, scale, rect, size, { tint: request.tint ?? "#93d119", backdrop: stageBackdrop(canvas) });
-              stampFrame(ctx, seal, { width: size, height: size, clipMs: sec * 1000 }); // --- watermark-everywhere --- (last, over the frame)
+              stampFrame(ctx, seal, { width: size, height: size, clipMs: sec * 1000, hud }); // --- watermark-everywhere --- (last, over the frame)
               let frame: HeroStillFrame;
               if (request.format === "png") {
                 const dataUrl = out.toDataURL("image/png");
@@ -151,8 +153,10 @@ export function useHeroStill(options: HeroStillOptions): void {
                 raw.height = world.height;
                 const rawCtx = raw.getContext("2d");
                 if (rawCtx) {
+                  const side = Math.min(world.width, world.height); // --- still-hud --- (the raw world's centred square, in canvas px)
+                  const rawHud = info.hud ? { report: info.hud, source: { x: ((world.width - side) / 2) * scale, y: ((world.height - side) / 2) * scale, side: side * scale } } : null;
                   rawCtx.drawImage(canvas, 0, 0, world.width, world.height);
-                  stampFrame(rawCtx, seal, { width: world.width, height: world.height, clipMs: sec * 1000 }); // --- watermark-everywhere ---
+                  stampFrame(rawCtx, seal, { width: world.width, height: world.height, clipMs: sec * 1000, hud: rawHud }); // --- watermark-everywhere ---
                 }
                 frame.raw = raw.toDataURL("image/png");
               }

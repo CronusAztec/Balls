@@ -210,6 +210,8 @@ export const REST_DISTANCE = 3;
  * at the top for this long, while every released ball is at rest, is the sign that the rest cannot enter.
  */
 export const REST_TIME_MS = 1000;
+/** --- end-sting --- (Lane E, E5) The root of the completion chord at SETTLED!: C3. */
+export const DROP_SETTLED_HZ = 130.8128;
 /** Candidate spots tried for a release before it waits for the next step (the top must be clear of other balls). */
 const SPAWN_ATTEMPTS = 6;
 /** Most hit sounds one 60 Hz step may queue (40 balls raining can touch more obstacles than that; the rest still bounce and glow). */
@@ -360,6 +362,9 @@ export class DropMode implements GameMode {
       if (full) this.target = this.released;
       this.finished = true;
       ctx.spawnConfetti((field.left + field.right) / 2, field.bottom - 0.15 * (field.bottom - field.top));
+      // --- end-sting --- (Lane E, E5) SETTLED! rings: the completion chord on C3 as the banner comes in, so the clip does not end
+      // on the second of silence the rest check takes (a sound of its own, ringVoice "extra": the crew's moments read as before)
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" });
     } else {
       this.anchorBalls(balls);
       this.restMs = 0;

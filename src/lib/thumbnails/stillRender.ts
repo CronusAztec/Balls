@@ -1,5 +1,6 @@
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { FastRenderHost, OfflineCanvasDriver, OfflineFrameRenderer } from "@/lib/recording/fastRender";
+import type { LiveHud } from "@/lib/watermark/liveLayout"; // --- still-hud ---
 import { EXPORT_EPOCH_MS, SIM_FPS, SIM_FRAME_MS, seededRandom, simFrameTimeMs } from "@/lib/recording/fastRenderPlan";
 
 /*
@@ -47,7 +48,7 @@ export interface StillRenderOptions {
   /** The seconds of the run to hand over (any order). */
   times: readonly number[];
   /** Called with the canvas while it shows second `sec` (and the frame's clock), in ascending order. */
-  onFrame: (canvas: HTMLCanvasElement, sec: number, info: { clockMs: number; finished: boolean; engine: PhysicsEngine }) => void | Promise<void>;
+  onFrame: (canvas: HTMLCanvasElement, sec: number, info: { clockMs: number; finished: boolean; engine: PhysicsEngine; hud?: LiveHud | null /* --- still-hud --- */ }) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -121,7 +122,8 @@ export async function renderStills(options: StillRenderOptions): Promise<{ frame
         for (const ev of engine.consumeSoundEvents()) if (ev.type === "gap") renderer.noteWallBreak();
       });
       while (next < schedule.length && schedule[next].frame === simFrame) {
-        await options.onFrame(renderer.canvas, schedule[next].sec, { clockMs: clock.ms, finished: engine.isSimulationFinished(), engine });
+        // --- still-hud --- (Lane E, E5) the HUD this frame drew, as the fast export's compositor reads it: the still's badge keeps clear of it
+        await options.onFrame(renderer.canvas, schedule[next].sec, { clockMs: clock.ms, finished: engine.isSimulationFinished(), engine, hud: renderer.hud?.() ?? null });
         next++;
       }
       if (performance.now() - lastYield > 32) {
