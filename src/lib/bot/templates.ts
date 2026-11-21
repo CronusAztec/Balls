@@ -772,7 +772,8 @@ function mergeRingSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
  */
 function mazeSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const cols = forBucket(ctx, { short: [8, 10], standard: [11, 13], long: [14, 16] });
-  return { mzCols: intBetween(ctx.rng, cols[0], cols[1]), mzBalls: intBetween(ctx.rng, 3, 4), mzTrailOwn: true };
+  // (--- finales-in-clip --- review fix: the run as measured – every ball out, 60 s at most – whatever the page's first-out pace)
+  return { mzCols: intBetween(ctx.rng, cols[0], cols[1]), mzBalls: intBetween(ctx.rng, 3, 4), mzTrailOwn: true, mzFirstOut: false, mzDuration: 60 };
 }
 
 /** Territory's countdown, on its 5 s step, at or after the payoff target: its board's verdict comes as it ends (a cut clip ends 1 s before). */
@@ -807,7 +808,8 @@ function landClaimSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
 function bullseyeSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const rings = forBucket(ctx, { short: [4, 5], standard: [6, 7], long: [7, 8] });
   const byShots = ctx.bucket === "short" ? 16 : 20;
-  return { byRings: intBetween(ctx.rng, rings[0], rings[1]), byChaos: stepBetween(ctx.rng, 0.6, 0.75, 0.05), byShots, byInterval: Math.round((10 * (ctx.payoffTarget / 0.85 + 4)) / byShots) / 10 };
+  // (--- finales-in-clip --- review fix: no rigged shot, as measured – its payoff is the physics' own first bullseye, whatever the page's)
+  return { byRings: intBetween(ctx.rng, rings[0], rings[1]), byChaos: stepBetween(ctx.rng, 0.6, 0.75, 0.05), byShots, byInterval: Math.round((10 * (ctx.payoffTarget / 0.85 + 4)) / byShots) / 10, byPerfect: 0 };
 }
 
 /**

@@ -62,6 +62,21 @@ export const RING_FLASH_MS = 450;
 export const POPUP_MS = 1100;
 export const BULLSEYE_MS = 1800;
 export const RECOIL_MS = 220;
+/**
+ * --- finales-in-clip --- (review fix) The final card and a BULLSEYE! of the last shots never share the field (the page's last shot is
+ * the bull's: they came up together, the callout over the card's top edge). Once every shot has landed the callout holds and fades
+ * out by `BULLSEYE_CARD_MS` (world ms after its bullseye) and the card comes up then – about 1.5 s of the run's 2.5 s hold, the
+ * bullseye's slow motion included, before the clip's end.
+ */
+export const BULLSEYE_CARD_MS = 1100;
+const BULLSEYE_CARD_FADE_MS = 300;
+
+/** Whether the final card is up (Canvas.tsx): every shot landed, and no BULLSEYE! of the last shots still on the field. */
+export function bullseyeCardShown(view: Pick<BullseyeView, "allLanded" | "timeMs" | "bullseyeMs">): boolean {
+  if (!view.allLanded) return false;
+  const age = view.timeMs - view.bullseyeMs;
+  return !(age >= 0 && age < BULLSEYE_CARD_MS);
+}
 const TWO_PI = Math.PI * 2;
 const RAYS = 12;
 
@@ -285,13 +300,14 @@ export class BullseyeLayer {
     ctx.fillStyle = "#ffffff";
     ctx.fillText(String(view.total), L.right - pad, top + 1.9 * fs);
 
-    // The callout: pops in, holds, fades.
+    // The callout: pops in, holds, fades (--- finales-in-clip --- review fix: once every shot has landed, gone by BULLSEYE_CARD_MS for the card).
     const age = view.timeMs - view.bullseyeMs;
-    if (age >= 0 && age < BULLSEYE_MS) {
+    const life = view.allLanded ? BULLSEYE_CARD_MS : BULLSEYE_MS;
+    if (age >= 0 && age < life) {
       const u = age / BULLSEYE_MS;
       const pop = age < 160 ? 0.6 + 0.55 * (age / 160) : age < 280 ? 1.15 - 0.15 * ((age - 160) / 120) : 1;
       const big = Math.max(24, 0.1 * L.fieldWidth) * pop;
-      ctx.globalAlpha = u < 0.75 ? 1 : 1 - (u - 0.75) / 0.25;
+      ctx.globalAlpha = view.allLanded ? Math.min(1, (life - age) / BULLSEYE_CARD_FADE_MS) : u < 0.75 ? 1 : 1 - (u - 0.75) / 0.25;
       ctx.textAlign = "center";
       ctx.font = `900 ${big.toFixed(1)}px sans-serif`;
       ctx.lineWidth = Math.max(3, 0.12 * big);

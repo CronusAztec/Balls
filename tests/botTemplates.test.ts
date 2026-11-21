@@ -39,6 +39,7 @@ import {
   type ClipPlan,
 } from "@/lib/bot/planner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
+import { clipPacingDefaults } from "@/lib/clipPacing"; // --- finales-in-clip --- (review fix)
 import { ACTION_GRID, ACTION_STEP_SEC, BANNER_MODES, STAKE_MODES, actionCellsOf, actionTrackSync, actionUnder, isActionTrack, modeBannersDrawn, stakeUnder, type ActionTrack } from "@/lib/bot/actionTrack";
 import { SERIES_ROSTER } from "@/lib/bot/playbook";
 import { parseBotState } from "@/lib/bot/store";
@@ -581,25 +582,39 @@ describe("the bot's own look", () => {
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
 
+  // (--- finales-in-clip --- review fix: the recipes are planned once, for the digests and for the fields the digest leaves out,
+  // which are checked in a test of their own, so a digest that moved does not hide them)
+  let plannedOnce: { recipes: (readonly [string, ClipPlan, ClipPlan])[]; searched: (readonly [string, ClipPlan])[]; day: ReturnType<typeof planDay> } | undefined;
+  const planRecipes = () =>
+    (plannedOnce ??= {
+      recipes: BOT_DIGESTS.map(([id]) => {
+        const r = recipeById(id)!;
+        const first = planClip(r, 7, "reels", { copy: COPY.en, search: false, siteUrl: SITE, episode: 4, index: 2 });
+        const second = planClip(r, 11, "tiktok", { copy: COPY.pl, locale: "pl", search: false, siteUrl: SITE, episode: 9, index: 1, ending: "cliffhanger" });
+        return [id, first, second] as const;
+      }),
+      searched: BOT_SEARCH_DIGESTS.map(([id]) => [id, planClip(recipeById(id)!, 3, "shorts", { copy, siteUrl: SITE, maxSeeds: 6, episode: 2 })] as const),
+      day: planDay("2026-10-20", "reels", 3, { copy, siteUrl: SITE, search: false, family: "all" }),
+    });
+
   it("plans every recipe byte for byte as before the templates (no search, a search, a day)", { timeout: 120_000 }, () => {
     expect(BOT_DIGESTS.map(([id]) => id)).toEqual(RECIPES.map((r) => r.id));
-    const planned: ClipPlan[] = [];
-    for (const [id, a, b] of BOT_DIGESTS) {
-      const r = recipeById(id)!;
-      const first = planClip(r, 7, "reels", { copy: COPY.en, search: false, siteUrl: SITE, episode: 4, index: 2 });
-      const second = planClip(r, 11, "tiktok", { copy: COPY.pl, locale: "pl", search: false, siteUrl: SITE, episode: 9, index: 1, ending: "cliffhanger" });
-      planned.push(first, second);
+    const { recipes, searched: searches, day } = planRecipes();
+    for (const [index, [id, a, b]] of BOT_DIGESTS.entries()) {
+      const [, first, second] = recipes[index];
       expect(digest(first), id).toBe(a);
       expect(digest(second), id).toBe(b);
     }
-    for (const [id, d] of BOT_SEARCH_DIGESTS) {
-      const searched = planClip(recipeById(id)!, 3, "shorts", { copy, siteUrl: SITE, maxSeeds: 6, episode: 2 });
-      planned.push(searched);
+    for (const [index, [id, d]] of BOT_SEARCH_DIGESTS.entries()) {
+      const searched = searches[index][1];
       expect(digest(searched), id).toBe(d);
     }
-    const day = planDay("2026-10-20", "reels", 3, { copy, siteUrl: SITE, search: false, family: "all" });
-    planned.push(...day.clips);
     expect(digest(day)).toBe(BOT_DAY_DIGEST);
+  });
+
+  it("carries the fields the digest leaves out at their defaults in every plan (no search, a search, a day)", { timeout: 120_000 }, () => {
+    const { recipes, searched, day } = planRecipes();
+    const planned: ClipPlan[] = [...recipes.flatMap(([, first, second]) => [first, second]), ...searched.map(([, plan]) => plan), ...day.clips];
     // (--- templates --- AI studio step 4b: the two keys the digest leaves out, as every default has them: the overlays shown)
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
     expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
@@ -2069,7 +2084,9 @@ describe("group C: line up and on the beat", () => {
       const plan = hiddenPlanOf(id);
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
       // (--- templates --- studio round 1, 11: every gate but G2 passes; their payoffs do not stand out from their runs either)
-      expect([id, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.problems.join("+")), plan.captionRoles.includes("hook")]).toEqual([id, true, ["payoffLandsPlain"], true]);
+      // (--- vortex-finale --- review fix B6: the vortex's last ring now goes down on an accented deep pew and a closing chord – its
+      // payoff stands out and G2 passes too; it stays experimental for its title, which no setting switches off)
+      expect([id, plan.timing.found, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.problems.join("+")), plan.captionRoles.includes("hook")]).toEqual([id, true, id === "on-the-beat-vortex" ? [] : ["payoffLandsPlain"], true]);
       expect(() => planTemplate(id, 1, "reels", { copy, search: false }), id).toThrow(/ready template/);
     }
   });
@@ -2278,6 +2295,39 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
 });
 
 // --- templates --- (studio2 review round 2, 7-12) what the second review round watched in the renders, measured and fixed at the root
+// --- finales-in-clip --- (review fix) The page paces of B6 (lib/clipPacing.ts) are a first visit's run, not the runs the templates
+// were measured on: a ready template of a paced mode plays each paced field it does not set itself at the mode's own value – the
+// value every other mode's settings carry (Bullseye's rigged 10th shot steered aim-bullseye's payoff into the bull, and the maze's
+// first-out rule and 25 s limit ended who-wins-maze's plans 0.5 s before their clips).
+describe("--- finales-in-clip --- the templates keep the runs they were measured on", () => {
+  const B6_PACED: readonly ModeId[] = ["runner", "vortex", "bullseye", "race", "journey", "orbGrid", "maze", "paddle"];
+  it("plays every paced field a ready template does not set at the mode's own value", { timeout: 120_000 }, () => {
+    const own = defaultSettings("classic") as unknown as Record<string, unknown>;
+    const ready = readyTemplates("all").filter((t) => B6_PACED.includes(t.mode));
+    expect(ready.map((t) => t.id).sort()).toEqual(["aim-bullseye", "get-out-journey", "line-up-orb-grid", "who-wins-maze"]);
+    for (const t of ready) {
+      const paced = Object.keys(clipPacingDefaults(t.mode));
+      expect(paced.length, t.id).toBeGreaterThan(0);
+      const setByTemplate = new Set<string>();
+      for (const bucket of ["short", "standard", "long"] as const) {
+        const ctx: RecipeContext = { rng: seededRandom(5), bucket, ending: "resolved", payoffTarget: 16, roster: SERIES_ROSTER, planSeed: 5 };
+        for (const key of Object.keys({ ...t.binding.patch, ...t.binding.generate?.(ctx), ...(t.recipe ? t.recipe.settings({ ...ctx, rng: seededRandom(5) }) : {}) })) setByTemplate.add(key);
+      }
+      for (const seed of [1, 2]) {
+        for (const platform of ["reels", "shorts"] as const) {
+          const plan = planTemplate(t.id, seed, platform, { copy, search: false });
+          const s = plan.settings as unknown as Record<string, unknown>;
+          for (const field of paced.filter((f) => !setByTemplate.has(f))) expect([t.id, field, s[field]]).toEqual([t.id, field, own[field]]);
+        }
+      }
+    }
+    // the two the review found: no rigged shot in aim-bullseye, every ball out within 60 s in who-wins-maze
+    const aim = planTemplate("aim-bullseye", 1, "reels", { copy, search: false });
+    const maze = planTemplate("who-wins-maze", 1, "reels", { copy, search: false });
+    expect([aim.settings.byPerfect, maze.settings.mzFirstOut, maze.settings.mzDuration]).toEqual([0, false, 60]);
+  });
+});
+
 describe("the second review round, findings 7-12: the clip's end, the hook's edge, a beat to hear, a leader to back, the post's words, a climax heard", () => {
   /** A template's plan on its platforms, rotating by seed. */
   const planAt = (id: string, seed: number, options: Partial<Parameters<typeof planTemplate>[3]> = {}) => {

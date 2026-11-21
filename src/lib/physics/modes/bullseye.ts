@@ -29,7 +29,7 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * switch off (`config.slowMotion === false`, link `smo=0`) a bullseye opens no window and the world clock keeps time with the
  * simulation clock: a deterministic variant of the run, the same for the page, the finder and every export.
  *
- * Rigging hook: `perfect` (1-based shot number, 0 = off) makes the director steer that shot into the bull: it is aimed
+ * Rigging hook: `perfect` (1-based shot number, 0 = off, −1 = the last shot) makes the director steer that shot into the bull: it is aimed
  * at a free spot of the bull, steered gently while it bounces through the deflectors (a lateral acceleration of at most
  * `STEER_ACCEL` × g toward the velocity that lands it there) and exactly once it is below them; it flies through the
  * stuck balls and, should the bull be full, stacks on them. It always scores 10, deterministically for a seed.
@@ -76,8 +76,11 @@ export const BULLSEYE_RANGES = {
   byInterval: { min: 0.3, max: 4, step: 0.1 },
   byChaos: { min: 0, max: 1, step: 0.05 },
   byRings: { min: 3, max: 10, step: 1 },
-  byPerfect: { min: 0, max: 30, step: 1 },
+  byPerfect: { min: -1, max: 30, step: 1 } /* --- finales-in-clip --- (review fix) −1: the last shot (BULLSEYE_LAST_SHOT) */,
 } as const;
+
+/** --- finales-in-clip --- (review fix) `byPerfect` −1: the director steers the last shot, whatever the number of shots. */
+export const BULLSEYE_LAST_SHOT = -1;
 
 /** The Bullseye fields of the SimulatorSettings object (URL keys bys, byi, byc, byr, bym, byp). */
 export interface BullseyeFields {
@@ -188,8 +191,9 @@ export function readBullseyeParams(params: URLSearchParams, settings: BullseyeFi
   Object.assign(settings, resolveBullseyeFields(next));
 }
 
-/** The shot (0-based) the director steers into the bull, or −1 (off, or beyond the last shot). */
+/** The shot (0-based) the director steers into the bull, or −1 (off, or beyond the last shot); `perfect` −1 is the last shot. */
 export function perfectShotIndex(settings: Pick<BullseyeSettings, "perfect" | "shots">): number {
+  if (settings.perfect === BULLSEYE_LAST_SHOT) return settings.shots >= 1 ? settings.shots - 1 : -1; // --- finales-in-clip --- (review fix)
   return settings.perfect >= 1 && settings.perfect <= settings.shots ? settings.perfect - 1 : -1;
 }
 

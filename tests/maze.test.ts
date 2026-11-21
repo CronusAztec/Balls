@@ -466,7 +466,7 @@ describe("maze settings", () => {
     expect(MAZE_RANGES.mzTrail).toMatchObject({ min: 0, max: 1 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveMazeFields(d)).toEqual(mode === "maze" ? { ...defaultMazeFields(), mzFirstOut: true, mzDuration: 25 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts) */ : defaultMazeFields());
+      expect(resolveMazeFields(d)).toEqual(mode === "maze" ? { ...defaultMazeFields(), mzFirstOut: true, mzDuration: 25, mzCols: 14 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts; review fix: 14 columns) */ : defaultMazeFields());
       const params = settingsToSearchParams(d);
       for (const key of ["mzc", "mzn", "mzb", "mzh", "mzg", "mzs", "mzt", "mztc", "mzto", "mzf", "mzwc", "mzd", "mzbg", "mzhud"]) expect(params.has(key)).toBe(false);
     }
@@ -944,14 +944,15 @@ describe("--- finales-in-clip --- the first ball out ends the run", () => {
 
   it("ends the run the hold after the first ball out, where every ball out ran on; with none out by 25 s, the nearest wins", { timeout: 60_000 }, () => {
     // seed 5: nobody out by the page's 25 s – the ball nearest the exit wins, the run over at 27.5 s (every ball out: 58.8 s)
-    const late = runOf(5, "mode=maze");
+    // (--- finales-in-clip --- review fix: measured in the mode's own 12 columns, written out; the page's are 14)
+    const late = runOf(5, "mode=maze&mzc=12");
     expect(late.view.verdict).toBe("time");
     expect(late.endMs).toBeCloseTo(25_000 + MZ_FINISH_HOLD_MS, -2);
     for (const seed of [1, 2, 3, 4, 6, 7]) {
-      const first = runOf(seed, "mode=maze");
+      const first = runOf(seed, "mode=maze&mzc=12");
       expect(first.view.verdict, `seed ${seed}`).toBe("exit"); // (a ball out won it; another may follow it out in the hold)
       expect(first.endMs - first.firstOutMs, `seed ${seed}`).toBeCloseTo(MZ_FINISH_HOLD_MS, -2);
-      const all = runOf(seed, "mode=maze&mzfo=0&mzd=60");
+      const all = runOf(seed, "mode=maze&mzc=12&mzfo=0&mzd=60");
       expect(all.firstOutMs, `seed ${seed}`).toBe(first.firstOutMs); // (the same race up to the win: the rule moves only its end)
       expect(all.endMs, `seed ${seed}`).toBeGreaterThan(first.endMs);
     }

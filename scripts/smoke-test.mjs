@@ -5751,12 +5751,13 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   );
   if (podium) await page.screenshot({ path: path.join(outDir, "sim-race-long-podium.png") });
 }
-// The finder times races: every seed builds another track, so a 30 s run is found among the seeds.
+// The finder times races: every seed builds another track, so a run of the target's length is found among the seeds (--- finder-target ---
+// review fix B6: the page's track of 6 screens ends its races at 18–30 s, so the target is the mode's own 22 s – lib/clipPacing.ts).
 await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
-await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
 {
-  const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
-  check("finder finds a 30 s race", found);
+  const found = await page.getByText(/Ready to start simulation for (21\.[5-9]|22\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  check("finder finds a 22 s race on the page's track", found);
   // --- review fix (modes-rhythm) --- another world can play a race out differently (float rounding). --- world --- The frame's
   // shape decides the world (lib/simulation/world.ts): a resize that keeps it (16:9 → 16:9) keeps the found race – the drawing
   // rescales, the run is the same – and a resize into the square frame (a narrow window) changes the world, so it drops the
@@ -6160,10 +6161,10 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   check("beat runner by hand: Escape pauses", await page.getByRole("button", { name: /Resume/ }).isVisible());
 }
 {
-  // The finder times an auto run: 30 s, and the found run ends where it promised (--- finales-in-clip --- on the mode's own course
-  // of 24 obstacles at density 0.6, whose runs last 30–35 s: the page's own ends at 20–24 s, inside its clip)
-  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=24&rrd=0.6`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  // The finder times an auto run, and the found run ends where it promised (--- finder-target --- review fix B6: on the page's own
+  // course of 18 obstacles, whose runs end at 20–25 s, the finder's target is the mode's own 22 s – lib/clipPacing.ts)
+  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
   const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
@@ -6174,7 +6175,7 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
     await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.rrFinished === "1", null, { timeout: 30000 }).catch(() => {});
     data = await canvasData();
   }
-  check("the finder finds a 30s beat runner and the run keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.rrEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", ends at ${data.rrEndSec}s)`);
+  check("the finder finds a 22s beat runner on the page's course and the run keeps the promise", ready && Math.abs(promised - 22) <= 0.5 && Math.abs(Number(data.rrEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", ends at ${data.rrEndSec}s)`);
 }
 {
   // Paddle Keep-Up: the block from the URL; a perfect controller hides the finder.
@@ -6230,10 +6231,10 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   check("paddle keep-up by hand: the arrow keys move the platform, no finder", x1 > x0 + 0.1 && x2 < x1 - 0.1 && finder === 0, `(x ${x0} → ${x1} → ${x2}, finder buttons ${finder})`);
 }
 {
-  // The finder finds a 30 s game over and the game keeps the promise (--- finales-in-clip --- without a goal: the page's goal of 20
-  // ends every run by 28.6 s, on a win or a GAME OVER).
-  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdg=0`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  // The finder finds a game and the game keeps the promise (--- finder-target --- review fix B6: the page's goal of 20 ends every run
+  // by 29 s, on a win or a GAME OVER, so the finder's target is the mode's own 28 s – lib/clipPacing.ts).
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 28s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
   const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
@@ -6244,7 +6245,7 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
     await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.pdFinished === "1", null, { timeout: 30000 }).catch(() => {});
     data = await canvasData();
   }
-  check("the finder finds a 30s paddle game and the game keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.pdEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", game over + hold at ${data.pdEndSec}s)`);
+  check("the finder finds a 28s paddle game and the game keeps the promise", ready && Math.abs(promised - 28) <= 0.5 && Math.abs(Number(data.pdEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", game over + hold at ${data.pdEndSec}s)`);
 }
 {
   // 1080×1920 recordings (the default resolution) of both modes.
@@ -6429,8 +6430,8 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.waitForTimeout(400);
   const restarted = await jrSeed();
   check("classic: a BPM change keeps a found seed (R restarts the found run)", classicFound && !!found && restarted === found && /(^|&)bpm=128(&|$)/.test(page.url()), `(found ${found}, after the BPM and R ${restarted})`);
-  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=24&rrd=0.6&qz=1` /* --- finales-in-clip --- (the mode's own course: a 30 s run to find) */, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  await page.goto(`${BASE}/en/simulator/?mode=runner&qz=1` /* --- finder-target --- (review fix B6: the page's course, its own 22 s run to find) */, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
   const runnerFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const runnerSeed = await jrSeed();
   await page.getByRole("button", { name: /Custom Sound/ }).click();
@@ -7116,7 +7117,7 @@ await smokeBlock("gerald-vortex", async () => {
 }
 {
   const vxToggle = (label) => page.getByTestId("sound-vortex").getByRole("switch", { name: switchName(label) });
-  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=6&vxs=0.5&vxr=16&vxd=8&vxg=2&vxds=0.8`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=stagger&vxn=6&vxs=0.5&vxr=16&vxd=8&vxg=2&vxds=0.8` /* --- finales-in-clip --- (review fix: the stagger release named; the page's is the rings) */, { waitUntil: "networkidle" });
   {
     const values = { vxn: await sliderValue("Vortex Balls"), vxs: await sliderValue("Entry Stagger"), vxr: await sliderValue("Sound Rings"), vxd: await sliderValue("Spiral Time"), vxg: await sliderValue("Central Pull"), vxds: await sliderValue("Depth Cue") };
     const loop = await vxToggle("Respawn Loop").getAttribute("aria-checked");
@@ -7152,7 +7153,7 @@ await smokeBlock("gerald-vortex", async () => {
 }
 {
   // A short run at 1×: 3 balls 0.5 s apart, 12 rings, 5 s spirals – ring notes on C major, pews from G6, the end.
-  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=3&vxs=0.5&vxd=5&face=cute`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=stagger&vxn=3&vxs=0.5&vxd=5&face=cute` /* --- finales-in-clip --- (review fix: the stagger release named) */, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const log = [];
     window.__vxOsc = log;
@@ -7203,8 +7204,9 @@ await smokeBlock("gerald-vortex", async () => {
   );
 }
 {
-  // The finder: the seed's tempo spreads the default run around 30 s – a found seed keeps its promise.
-  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  // The finder: the seed's tempo spreads the stagger's run around 30 s – a found seed keeps its promise (--- finales-in-clip --- review
+  // fix: the stagger release named; the page's is the rings, checked below).
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=stagger`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -7220,6 +7222,28 @@ await smokeBlock("gerald-vortex", async () => {
     "the finder finds a sound vortex seed for 30s and the run keeps the promise",
     ready && Math.abs(promised - 30) <= 0.5 && data.vortexFinished === "1" && Math.abs(Number(data.vortexFinishedMs) / 1000 - promised) < 0.1 && data.vortexSwallowed === "12",
     `(ready=${ready}, "${readyText}", finished at ${data.vortexFinishedMs} ms, swallowed ${data.vortexSwallowed})`,
+  );
+}
+{
+  // --- finder-target --- --- vortex-finale --- (review fix B6) The page's ring release lasts its cycle, 22.5 s, on every seed: the
+  // finder's target is that (lib/clipPacing.ts), and the run ends on its last ring – all 42 marbles down, the hole's flash and the
+  // PEW! card from the last swallow, a second before the run finishes.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 22\.5s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.vortexFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the page's ring release: the finder finds its 22.5s run, and the last ring goes down before the end",
+    ready && Math.abs(promised - 22.5) <= 0.5 && data.vortexFinished === "1" && data.vortexSwallowed === "42" && Number(data.vortexDoneMs) > 0 && Number(data.vortexDoneMs) < Number(data.vortexFinishedMs),
+    `(ready=${ready}, "${readyText}", finished at ${data.vortexFinishedMs} ms, last ring down at ${data.vortexDoneMs} ms, swallowed ${data.vortexSwallowed})`,
   );
 }
 {
@@ -7257,7 +7281,7 @@ await smokeBlock("gerald-vortex", async () => {
   // ⚡ Fast export of a short run (3 balls, 3 s spirals, about 5 s): rendered offline, every pew goes through the export's own
   // audio (the ToneGenerator's offline twin – OscillatorNode.start is instrumented), the clip ends half a second after the run
   // instead of at the 10 s clip length, and a second export of the same seed renders the same frames.
-  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=3&vxs=0.5&vxd=3&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=stagger&vxn=3&vxs=0.5&vxd=3&dur=10&res=500x500&xfps=30` /* --- finales-in-clip --- (review fix: the stagger release named) */, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
   if (webCodecs) {
     await page.evaluate(() => {
@@ -7927,9 +7951,10 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
   );
 }
 {
-  // The finder: the seed moves the default route's length (the rings above all) around the default 30 s clip – a found seed keeps its promise.
+  // The finder: the seed moves the default route's length (the rings above all) – a found seed keeps its promise (--- finder-target ---
+  // review fix B6: the page's route of five stages and HOME ends at 15–28 s, so the target is the mode's own 21 s – lib/clipPacing.ts).
   await page.goto(`${BASE}/en/simulator/?mode=journey`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  await page.getByRole("button", { name: /Find 21s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
   const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
@@ -7941,8 +7966,8 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
     data = await canvasData();
   }
   check(
-    "the finder finds a 30s journey seed and the run keeps the promise",
-    ready && Math.abs(promised - 30) <= 0.5 && data.journeyFinished === "1" && data.journeyHome === "1" && Math.abs(Number(data.journeyFinishedMs) / 1000 - promised) < 0.1 && data.journeySwooshes === "7",
+    "the finder finds a 21s journey seed and the run keeps the promise",
+    ready && Math.abs(promised - 21) <= 0.5 && data.journeyFinished === "1" && data.journeyHome === "1" && Math.abs(Number(data.journeyFinishedMs) / 1000 - promised) < 0.1 && data.journeySwooshes === "5" /* (--- finales-in-clip --- the page's five stages and HOME) */,
     `(ready=${ready}, "${readyText}", finished at ${data.journeyFinishedMs} ms, swooshes ${data.journeySwooshes})`,
   );
 }
@@ -8160,9 +8185,10 @@ await smokeBlock("gerald-bullseye", async () => {
   );
 }
 {
-  // The finder: the seed moves the run length (the last flight, the bullseyes' slow motion) – a found seed keeps its promise.
+  // The finder: the seed moves the run length (the last flight, the bullseyes' slow motion) – a found seed keeps its promise (---
+  // finder-target --- review fix B6: the page's ten shots end at 23.6–28 s, so the target is the mode's own 25 s – lib/clipPacing.ts).
   await page.goto(`${BASE}/en/simulator/?mode=bullseye`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  await page.getByRole("button", { name: /Find 25s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
   const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
@@ -8174,8 +8200,8 @@ await smokeBlock("gerald-bullseye", async () => {
     data = await canvasData();
   }
   check(
-    "the finder finds a bullseye seed for 30s and the run keeps the promise",
-    ready && Math.abs(promised - 30) <= 0.5 && data.bullseyeFinished === "1" && Math.abs(Number(data.bullseyeFinishedMs) / 1000 - promised) < 0.1 && data.bullseyeLanded === "12",
+    "the finder finds a bullseye seed for 25s and the run keeps the promise",
+    ready && Math.abs(promised - 25) <= 0.5 && data.bullseyeFinished === "1" && Math.abs(Number(data.bullseyeFinishedMs) / 1000 - promised) < 0.1 && data.bullseyeLanded === "10" /* (--- finales-in-clip --- the page's ten shots) */,
     `(ready=${ready}, "${readyText}", finished at ${data.bullseyeFinishedMs} ms, landed ${data.bullseyeLanded})`,
   );
 }
@@ -11189,7 +11215,7 @@ await smokeBlock("odd-maze", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-maze.png") });
   await timingCheck(
     "simulator mode=maze drops the balls into the maze, paints their trail and runs at 30+ fps",
-    early.mzBalls === "3" && early.mzCols === "12" && early.mzRows === "17" && Number(early.mzVisited) > 5 && Number(early.mzStamped) > 5 && Number(early.mzNotes) >= 3 && early.mzBadge === "1" && early.mzHud === "1" && early.mzClear === "1" && early.mzLeaks === "0",
+    early.mzBalls === "3" && early.mzCols === "14" && early.mzRows === "20" /* --- finales-in-clip --- (review fix: the page's 14 columns) */ && Number(early.mzVisited) > 5 && Number(early.mzStamped) > 5 && Number(early.mzNotes) >= 3 && early.mzBadge === "1" && early.mzHud === "1" && early.mzClear === "1" && early.mzLeaks === "0",
     fpsOk(fps, 8, 30),
     `(${JSON.stringify({ visited: early.mzVisited, paint: early.mzPaint, notes: early.mzNotes, dist: early.mzDist, clear: early.mzClear, leaks: early.mzLeaks })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),

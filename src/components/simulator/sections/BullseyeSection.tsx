@@ -2,7 +2,7 @@
 
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { bullseyeNominalRunSec, bullseyeSettingsOf, fieldChaos, perfectShotIndex } from "@/lib/physics/modes/bullseye";
+import { BULLSEYE_LAST_SHOT, bullseyeNominalRunSec, bullseyeSettingsOf, fieldChaos, perfectShotIndex } from "@/lib/physics/modes/bullseye";
 import { SlowMotionOffNote, SlowMotionPointer } from "./UnlimitedSection"; // --- slow-motion ---
 
 export interface BullseyeSectionProps {
@@ -47,11 +47,11 @@ export default function BullseyeSection({ t, search, matches, settings: s, updat
       <Searchable search={search} matches={matches} labelKey="byTargetMoving">
         <Toggle t={t} labelKey="byTargetMoving" tipKey="byTargetMovingTip" value={s.byTargetMoving} onChange={(v) => update({ byTargetMoving: v })} />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="byPerfect" tipKey="byPerfectTip" value={s.byPerfect} range={RANGES.byPerfect} onChange={(v) => update({ byPerfect: v })} display={s.byPerfect > 0 ? `#${s.byPerfect}` : t("byPerfectOff")} />
+      <Slider t={t} search={search} matches={matches} labelKey="byPerfect" tipKey="byPerfectTip" value={s.byPerfect} range={RANGES.byPerfect} onChange={(v) => update({ byPerfect: v })} display={s.byPerfect > 0 ? `#${s.byPerfect}` : s.byPerfect === BULLSEYE_LAST_SHOT ? t("byPerfectLast") /* --- finales-in-clip --- (review fix) */ : t("byPerfectOff")} />
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="bullseye-run">
           {t("byRunInfo", { shots: s.byShots, seconds: bullseyeNominalRunSec(by).toFixed(1) })}
-          {s.byPerfect > 0 && " " + (perfect >= 0 ? t("byPerfectInfo", { shot: perfect + 1 }) : t("byPerfectBeyond", { shots: s.byShots }))}
+          {s.byPerfect !== 0 && " " + (perfect >= 0 ? t("byPerfectInfo", { shot: perfect + 1 }) : t("byPerfectBeyond", { shots: s.byShots }))}
         </p>
       )}
     </div>

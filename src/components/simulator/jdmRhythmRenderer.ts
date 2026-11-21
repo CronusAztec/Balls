@@ -54,7 +54,7 @@ export const DEFAULT_JDM_RHYTHM_LABELS: JdmRhythmLabels = {
   miss: "MISS!",
   gameOver: "GAME OVER",
   gameOverSub: (hits, best) => `Score ${hits} · best streak ${best}`,
-  win: (n) => `${n} CATCHES!`, // --- finales-in-clip ---
+  win: (n) => `${n} ${n === 1 ? "CATCH" : "CATCHES"}!`, // --- finales-in-clip --- (review fix: one catch)
   winSub: (best) => `Goal reached · best streak ${best}`,
   streak: (n) => `${n} in a row`,
   moveHint: "← → or the pointer moves the platform",
@@ -581,8 +581,19 @@ export function paddleControllerTag(auto: string, skill: number): string {
   return `${auto} · ${Math.round(100 * playedSkill(skill))}%`;
 }
 
+/**
+ * --- paddle-look --- (review fix) Paddle Keep-Up's field in colour: lit in the walls' colour (brighter for a moment after a catch),
+ * the score drawn big behind the play, and from `PD_STREAK_FROM` catches in a row a comet behind the ball, longer with every catch
+ * and gold from 10 (`PD_STREAK_DOTS` dots, no list). Everything is read from the view at the frame's simulation time.
+ */
+export const PD_STREAK_FROM = 3;
+const PD_STREAK_DOTS = 10;
+
 export class PaddleLayer {
   particlesDrawn = 0;
+  /** --- paddle-look --- The big score's text, made again only when the score changes. */
+  private scoreHits = -1;
+  private scoreText = "";
 
   drawWorld(ctx: CanvasRenderingContext2D, view: PaddleView, o: JdmRhythmRenderOptions) {
     const f = view.field;
@@ -595,6 +606,29 @@ export class PaddleLayer {
     // The field.
     ctx.fillStyle = "rgba(9, 11, 26, 0.9)";
     ctx.fillRect(f.left, Y(PD_CEILING), f.width, Y(1) - Y(PD_CEILING));
+    // --- paddle-look --- (review fix) lit in the walls' colour, a flash brighter after a catch, and the score big behind the play
+    const catchAge = t - view.lastHitSec;
+    const glow = catchAge >= 0 && catchAge < 0.35 ? 1 - catchAge / 0.35 : 0;
+    const tint = ctx.createLinearGradient(0, Y(PD_CEILING), 0, Y(PD_PLATFORM));
+    tint.addColorStop(0, o.wallColor(0, 0.22 + 0.14 * glow));
+    tint.addColorStop(1, o.wallColor(0, 0.05));
+    ctx.fillStyle = tint;
+    ctx.fillRect(f.left, Y(PD_CEILING), f.width, Y(PD_PLATFORM) - Y(PD_CEILING));
+    if (view.hits !== this.scoreHits) {
+      this.scoreHits = view.hits;
+      this.scoreText = String(view.hits);
+    }
+    const big = Math.min(0.62 * f.width, 0.3 * s) * (1 + 0.12 * glow);
+    ctx.font = `900 ${big.toFixed(1)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const overFade = view.over ? Math.max(0, 1 - (t - view.overSec) / 0.3) : 1; // (gone under the win card and GAME OVER)
+    if (overFade > 0) {
+      ctx.globalAlpha = (0.18 + 0.22 * glow) * overFade;
+      ctx.fillStyle = view.won || view.streak >= 10 ? GOLD : o.wallColor(0);
+      ctx.fillText(this.scoreText, X(PD_ASPECT / 2), Y(0.47));
+      ctx.globalAlpha = 1;
+    }
     // The miss zone under the platform: red, brighter right after a miss.
     const missAge = t - view.lastMissSec;
     const missFlash = missAge >= 0 && missAge < 0.6 ? 1 - missAge / 0.6 : 0;
@@ -672,6 +706,29 @@ export class PaddleLayer {
     // The sweet spot in the middle of the platform.
     ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
     ctx.fillRect(X(view.px) - 0.12 * pw, py + 0.3 * ph, 0.24 * pw, 0.4 * ph);
+    // --- paddle-look --- (review fix) the streak's comet behind the ball, inside the field
+    if (view.inPlay && !view.over && view.streak >= PD_STREAK_FROM) {
+      const speed = Math.hypot(view.bvx, view.bvy);
+      if (speed > 1e-6) {
+        const len = Math.min(0.3, 0.05 + 0.015 * view.streak);
+        const ux = -view.bvx / speed;
+        const uy = -view.bvy / speed;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(f.left, Y(PD_CEILING), f.width, Y(1) - Y(PD_CEILING));
+        ctx.clip();
+        ctx.fillStyle = view.streak >= 10 ? GOLD : o.wallColor(0);
+        for (let k = PD_STREAK_DOTS; k >= 1; k--) {
+          const u = k / PD_STREAK_DOTS;
+          ctx.globalAlpha = 0.6 * (1 - u) + 0.05;
+          ctx.beginPath();
+          ctx.arc(X(view.bx + ux * len * u), Y(view.by + uy * len * u), Math.max(1, view.r * s * (1 - 0.75 * u)), 0, TWO_PI);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+    }
     // Sparks of the catches.
     let drawn = 0;
     for (let k = 0; k < MAX_PD_PARTICLES; k++) {
@@ -690,8 +747,11 @@ export class PaddleLayer {
     this.particlesDrawn = drawn;
   }
 
-  /** The score and lives above the field, the streak, "MISS!" and "GAME OVER" (screen space, part of the recording). */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: PaddleView, L: JdmRhythmLabels) {
+  /**
+   * The score and lives above the field, the streak, "MISS!" and "GAME OVER" (screen space, part of the recording).
+   * (--- paddle-look --- review fix: `exporting` – a recording or an export – leaves the controller's AUTO tag out of the clip.)
+   */
+  drawOverlay(ctx: CanvasRenderingContext2D, view: PaddleView, L: JdmRhythmLabels, exporting = false) {
     const f = view.field;
     const s = f.size;
     const cx = f.left + f.width / 2;
@@ -736,12 +796,12 @@ export class PaddleLayer {
     ctx.globalAlpha = 1;
     // The streak (right) and the controller (auto) or the controls hint (manual).
     ctx.textAlign = "right";
-    ctx.font = `700 ${0.18 * band}px sans-serif`;
+    ctx.font = `800 ${(exporting ? 0.24 : 0.18) * band}px sans-serif`; // (--- paddle-look --- review fix: bigger in a clip, where the AUTO tag under it is left out)
     ctx.fillStyle = view.streak >= 10 ? GOLD : "rgba(244, 244, 245, 0.75)";
-    if (view.streak >= 2) ctx.fillText(L.streak(view.streak), f.left + 0.97 * f.width, f.top + 0.36 * band);
+    if (view.streak >= 2) ctx.fillText(L.streak(view.streak), f.left + 0.97 * f.width, f.top + (exporting ? 0.5 : 0.36) * band);
     ctx.fillStyle = "rgba(244, 244, 245, 0.5)";
     ctx.font = `600 ${0.15 * band}px sans-serif`;
-    ctx.fillText(view.settings.auto ? paddleControllerTag(L.auto, view.settings.skill) : "", f.left + 0.97 * f.width, f.top + 0.68 * band); // --- uncap-all --- (review fix) (the Skill it plays)
+    if (!exporting) ctx.fillText(view.settings.auto ? paddleControllerTag(L.auto, view.settings.skill) : "", f.left + 0.97 * f.width, f.top + 0.68 * band); // --- uncap-all --- (review fix) (the Skill it plays)
     if (!view.settings.auto && t < 3) subText(ctx, L.moveHint, cx, f.top + 0.45 * s, Math.max(12, fitFont(ctx, L.moveHint, 0.035 * s, 0.92 * f.width, 700)), GOLD);
     // MISS!
     const missAge = t - view.lastMissSec;

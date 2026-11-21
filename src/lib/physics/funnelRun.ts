@@ -138,6 +138,11 @@ export interface FunnelView {
   lapSec: number;
   /** Sound events queued so far (a fast export's parity check). */
   sounds: number;
+  /**
+   * --- vortex-finale --- (review fix) A run without the loop: when its last marble went down the hole (simulation ms; −1 until
+   * then) – the deep pew and the closing chord play, the hole flashes and the end card comes up (the run still ends at its cycle).
+   */
+  doneMs: number;
 }
 
 export function createFunnelView(): FunnelView {
@@ -182,6 +187,7 @@ export function createFunnelView(): FunnelView {
     newestWave: -1,
     lapSec: Infinity,
     sounds: 0,
+    doneMs: -1, // --- vortex-finale ---
   };
 }
 
@@ -297,6 +303,7 @@ export class FunnelRingRun {
     fv.newestWave = -1;
     fv.lapSec = Infinity;
     fv.sounds = 0;
+    fv.doneMs = -1; // --- vortex-finale ---
     // the waves and their marbles' slots and colours (the rainbow around each ring)
     fv.waveCount = waves.length;
     let slot = 0;
@@ -525,6 +532,15 @@ export class FunnelRingRun {
     if (this.swallowedIds.size > 0) {
       for (let i = balls.length - 1; i >= 0; i--) if (this.swallowedIds.has(balls[i].id)) balls.splice(i, 1);
       this.swallowedIds.clear();
+    }
+    // --- vortex-finale --- (review fix) the last marble of a run without the loop is down: a deep pew and the bed's chord, closed
+    if (!s.loop && fv.doneMs < 0 && fv.waveCount > 0 && this.allSwallowed(v)) {
+      fv.doneMs = this.clockMs;
+      const c = this.progression[this.chord % Math.max(1, this.progression.length)] ?? { root: FS_BED_ROOT_MIDI, minor: false };
+      const root = c.root + 12;
+      const chord = [midiToFrequency(root), midiToFrequency(root + (c.minor ? 3 : 4)), midiToFrequency(root + 7), midiToFrequency(root + 12)];
+      this.emit(ctx, v, { type: "hit", wallIndex: v.field.ringCount, frequency: midiToFrequency(root + 12), pew: true, accent: true, melody: false });
+      this.emit(ctx, v, { type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
     }
     // the rolling hiss follows the marbles' total speed
     if (start || this.steps % FS_HISS_EVERY_STEPS === 0) {

@@ -148,7 +148,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
-import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
+import { clipPacingFindSec, clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6)
 import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
 import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
@@ -385,7 +385,7 @@ export default function Simulator() {
   // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
   const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
-  const [findDuration, setFindDuration] = useState(30);
+  const [findDuration, setFindDuration] = useState(() => clipPacingFindSec(settings)); // --- finder-target --- (review fix B6) a paced mode at its page pace: its own run length
   // --- unlimited-sizes --- the search's tolerance and its seeds are the visitor's too (number fields in the finder strip)
   const [findTolerance, setFindTolerance] = useState(0.5);
   const [findMaxSeeds, setFindMaxSeeds] = useState(1000);
@@ -2353,6 +2353,7 @@ export default function Simulator() {
       fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
       fresh.slowMotion = themeLookRef.current.slowMotion; // --- slow-motion --- (review fix) the switch carries over like Wide sliders above it: a new mode never turns it back on
       setSettings(fresh);
+      setFindDuration(clipPacingFindSec(fresh)); // --- finder-target --- (review fix B6) a paced mode's own run length to find
       if (engine) {
         engine.setConfig({
           gravity: fresh.gravity,
@@ -4070,7 +4071,7 @@ export default function Simulator() {
         miss: t("JdmRhythm.miss"),
         gameOver: t("JdmRhythm.gameOver"),
         gameOverSub: (hits, best) => fill("JdmRhythm.gameOverSub", { hits, best }),
-        win: (n) => fill("JdmRhythm.win", { n }), // --- finales-in-clip ---
+        win: (n) => t("JdmRhythm.win", { n }), // --- finales-in-clip --- (review fix: plural-aware, ICU: "1 CATCH!", "22 ZŁAPANIA!")
         winSub: (best) => fill("JdmRhythm.winSub", { best }),
         streak: (n) => fill("JdmRhythm.streak", { n }),
         moveHint: t("JdmRhythm.moveHint"),

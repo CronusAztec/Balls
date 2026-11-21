@@ -465,7 +465,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "red-maze-race",
     mode: "maze",
-    query: "mode=maze&glow=1&mzn=4&mzd=60&mzbg=0&mzhud=0&mzfo=0&seed=7" /* --- finales-in-clip --- (B6: every ball out and the 60 s limit written out; the page ends at the first one out, 25 s at most) */,
+    query: "mode=maze&glow=1&mzc=12&mzn=4&mzd=60&mzbg=0&mzhud=0&mzfo=0&seed=7" /* --- finales-in-clip --- (B6: every ball out and the 60 s limit written out; the page ends at the first one out, 25 s at most) (review fix: and its 12 columns; the page's are 14) */,
     previewAt: 12,
     name: { en: "Four in the Maze", pl: "Czwórka w labiryncie", es: "Cuatro en el laberinto" },
     description: {
