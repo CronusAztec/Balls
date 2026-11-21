@@ -12,7 +12,7 @@
  */
 
 /** --- studio-first-open --- Namespaces no client component of the studio reads: the simulator page leaves them out. */
-export const SERVER_ONLY_NAMESPACES = ["Privacy", "Terms", "Press", "Disclaimer", "About", "TikTokBallVideos", "Licences", "Changelog", "ChangelogLive", "Layout", "Seo", "SimulatorPage", "Editorial", "FAQ", "Feedback", "NotFound"] as const;
+export const SERVER_ONLY_NAMESPACES = ["Privacy", "Terms", "Press", "Disclaimer", "About", "TikTokBallVideos", "Licences", "Changelog", "ChangelogLive", "Layout", "Seo", "SimulatorPage", "Editorial", "FAQ", "Feedback", "NotFound", "ModePage" /* --- mode-pages --- the mode pages are drawn on the server */] as const;
 
 /** --- studio-first-open --- The simulator page's namespaces: every one of `all` but the server-only ones. */
 export function studioClientNamespaces(all: readonly string[]): string[] {

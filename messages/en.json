@@ -4839,6 +4839,24 @@
     "homeTitle": "Start from a finished look",
     "homeAll": "See the whole gallery"
   },
+  "ModePage": {
+    "metaTitle": "{name} simulation – {siteName}",
+    "metaMore": "Make the clip free in your browser, no account.",
+    "metaShort": "Free in your browser.",
+    "cardAlt": "A frame of {name}, a ball simulation on {siteName}",
+    "open": "Open in the studio",
+    "openNamed": "Open {name} in the studio",
+    "looksJump": "See its looks",
+    "howTitle": "How it plays",
+    "looksTitle": "Start from a look",
+    "looksIntro": "Each look opens the studio with its own settings. A card opens the very run in its picture.",
+    "otherLooks": "Or open it as",
+    "settingsTitle": "First settings to change",
+    "basicsAlso": "Every mode also starts with the basics.",
+    "basicsOnly": "The studio's first block holds the basics every mode starts with.",
+    "relatedTitle": "Related modes",
+    "allModes": "See every mode"
+  },
   "Pwa": {
     "installApp": "Install app",
     "installAppTip": "Install {siteName} on this device. It opens in its own window and starts from your home screen. The home page works offline, and so does the simulator once its files have downloaded in the background.",
@@ -5750,7 +5768,8 @@
         "az": "A to Z"
       },
       "new": "New",
-      "recent": "Recent"
+      "recent": "Recent",
+      "about": "About {name}"
     },
     "studio": {
       "search": "Search settings",
@@ -5783,7 +5802,8 @@
       "makeClipTip": "Plans a clip and opens it, ready to record.",
       "makeClipNote": "Plans a run that ends on time, adds a hook and sets the length, in one press.",
       "makeClipOther": "{mode} has no clip plan yet, so you get a clip of another mode.",
-      "makeClipOtherShort": "You get a clip of another mode."
+      "makeClipOtherShort": "You get a clip of another mode.",
+      "aboutMode": "About this mode"
     },
     "dialog": {
       "close": "Close"

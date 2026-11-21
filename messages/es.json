@@ -4839,6 +4839,24 @@
     "homeTitle": "Empieza con un preset listo",
     "homeAll": "Ver toda la galería"
   },
+  "ModePage": {
+    "metaTitle": "{name}: simulación – {siteName}",
+    "metaMore": "Haz el clip gratis en tu navegador, sin cuenta.",
+    "metaShort": "Gratis en tu navegador.",
+    "cardAlt": "Un fotograma de {name}, una simulación de bolas en {siteName}",
+    "open": "Abrir en el estudio",
+    "openNamed": "Abrir {name} en el estudio",
+    "looksJump": "Ver sus estilos",
+    "howTitle": "Cómo se juega",
+    "looksTitle": "Empieza con un estilo",
+    "looksIntro": "Cada estilo abre el estudio con sus propios ajustes. Una tarjeta abre justo la partida de su imagen.",
+    "otherLooks": "O ábrelo como",
+    "settingsTitle": "Qué cambiar primero",
+    "basicsAlso": "Todos los modos empiezan también con lo básico.",
+    "basicsOnly": "El primer bloque del estudio tiene lo básico con lo que empieza cada modo.",
+    "relatedTitle": "Modos parecidos",
+    "allModes": "Ver todos los modos"
+  },
   "Pwa": {
     "installApp": "Instalar la aplicación",
     "installAppTip": "Instala {siteName} en este dispositivo. Se abre en su propia ventana y arranca desde la pantalla de inicio. La página de inicio funciona sin conexión, y el simulador también cuando sus archivos se han descargado en segundo plano.",
@@ -5750,7 +5768,8 @@
         "az": "Alfabético"
       },
       "new": "Nuevo",
-      "recent": "Recientes"
+      "recent": "Recientes",
+      "about": "Sobre el modo {name}"
     },
     "studio": {
       "search": "Buscar ajustes",
@@ -5783,7 +5802,8 @@
       "makeClipTip": "Planifica un clip y lo abre, listo para grabar.",
       "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración.",
       "makeClipOther": "El modo {mode} aún no tiene plan de clip, así que te tocará un clip de otro modo.",
-      "makeClipOtherShort": "Te tocará un clip de otro modo."
+      "makeClipOtherShort": "Te tocará un clip de otro modo.",
+      "aboutMode": "Sobre este modo"
     },
     "dialog": {
       "close": "Cerrar"

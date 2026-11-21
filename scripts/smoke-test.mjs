@@ -8715,6 +8715,80 @@ await smokeBlock("daily-gallery", async () => {
 // --- end daily-gallery ---
 });
 
+// --- mode-pages --- (Lane E, E3) A page for every mode: three of them, each in another language (a phone for Polish), with
+// its own title, canonical address, social card and main button, its looks, settings and related modes, no sideways scroll;
+// Open in the studio opens the mode in the look and on the seed of its picture. The wall's info button and the studio's About
+// this mode reach a page, and the sitemap lists the pages in every language.
+await smokeBlock("mode-pages", async () => {
+  const visits = [
+    ["en", "pendulum", "pendulum", false],
+    ["pl", "song-ring", "songRing", true],
+    ["es", "fight-league", "fightLeague", false],
+  ];
+  const pages = [];
+  for (const [locale, slug, mode, phone] of visits) {
+    const ctx = await browser.newContext(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } });
+    try {
+      const p = await ctx.newPage();
+      const res = await p.goto(`${BASE}/${locale}/modes/${slug}/`, { waitUntil: "networkidle" });
+      const head = await p.evaluate(() => ({
+        title: document.title,
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+        hreflang: document.querySelectorAll('link[rel="alternate"][hreflang]').length,
+        og: document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
+        h1: document.querySelector("h1")?.textContent ?? "",
+        lang: document.documentElement.lang,
+        mode: document.querySelector("[data-mode-page]")?.getAttribute("data-mode-page") ?? "",
+        looks: document.querySelectorAll("[data-mode-page-look]").length,
+        related: document.querySelectorAll("[data-mode-page-related]").length,
+        settings: document.querySelectorAll('[data-testid="mode-page-settings"] dt').length,
+        open: document.querySelector('[data-testid="mode-page-open"]')?.getAttribute("href") ?? "",
+        sideways: document.documentElement.scrollWidth - window.innerWidth,
+        picture: (() => { const img = document.querySelector("header img"); return !!img && img.complete && img.naturalWidth > 0; })(),
+      }));
+      const card = await p.request.get(new URL(new URL(head.og || "/", BASE).pathname, BASE).href);
+      const seed = new URL(head.open || "/", BASE).searchParams.get("seed");
+      const open = p.getByTestId("mode-page-open");
+      if (phone) await open.tap();
+      else await open.click();
+      const opened = await p
+        .waitForFunction(([m, sd]) => new URLSearchParams(location.search).get("mode") === m && document.querySelector("main canvas")?.getAttribute("data-seed") === sd, [mode, seed], { timeout: 20000 })
+        .then(() => true)
+        .catch(() => false);
+      pages.push({ locale, slug, status: res?.status() ?? 0, ...head, card: card.ok() && /image\/jpeg/.test(card.headers()["content-type"] ?? ""), seed, opened });
+    } finally {
+      await ctx.close().catch(() => {});
+    }
+  }
+  const named = { pendulum: "Pendulum Wave", songRing: "Pierścień melodii", fightLeague: "Liga de combate" };
+  check(
+    "mode pages: three pages in English, Polish and Spanish, each with its own title, canonical address, hreflang set, social card, looks, settings and related modes, no sideways scroll, and Open in the studio opens the mode on the seed of its picture",
+    pages.length === 3 &&
+      pages.every((x) => x.status === 200 && x.mode && x.h1 === named[x.mode] && x.title.startsWith(x.h1) && x.canonical.endsWith(`/${x.locale}/modes/${x.slug}/`) && x.hreflang >= 4 && /\/og\/modes\/[a-z-]+\.jpg$/.test(x.og) && x.card && x.lang === x.locale && x.looks >= 1 && x.related === 4 && x.settings >= 1 && x.picture && x.sideways <= 0 && /^\S*\/simulator\/\?/.test(x.open) && !!x.seed && x.opened),
+    `(${JSON.stringify(pages)})`,
+  );
+  // the ways in: the wall's info button, the studio's About this mode, the sitemap
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const info = page.locator('#modes [data-mode-info="maze"]');
+  await info.scrollIntoViewIfNeeded();
+  const infoLabel = (await info.getAttribute("aria-label").catch(() => "")) ?? "";
+  await info.click();
+  const fromWall = await page.waitForURL(/\/en\/modes\/maze\/$/, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate`, { waitUntil: "networkidle" });
+  const about = page.getByTestId("studio-mode-about");
+  const aboutShown = await about.waitFor({ state: "visible", timeout: 20000 }).then(() => true).catch(() => false);
+  if (aboutShown) await about.click();
+  const fromStudio = aboutShown && (await page.waitForURL(/\/en\/modes\/sand-plate\/$/, { timeout: 15000 }).then(() => true).catch(() => false));
+  const sitemapXml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
+  const modeLocs = (sitemapXml.match(/<loc>[^<]*\/modes\/[a-z-]+\/<\/loc>/g) ?? []).length;
+  check(
+    "mode pages: the wall's info button and the studio's About this mode open a mode's page, and the sitemap lists a page for every mode in every language",
+    infoLabel === "About Maze Escape" && fromWall && fromStudio && modeLocs >= 150 && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/modes/pendulum/`)),
+    `(info "${infoLabel}" ${fromWall}, studio ${aboutShown}/${fromStudio}, ${modeLocs} mode pages in the sitemap)`,
+  );
+});
+// --- end mode-pages ---
+
 await smokeBlock("pwa", async () => {
 // --- pwa --- Installable offline app: the manifest, the icons, the offline page and the worker are served and linked; the worker
 // takes over and precaches the app shell in a versioned cache; offline (a local proxy in front of the server drops every

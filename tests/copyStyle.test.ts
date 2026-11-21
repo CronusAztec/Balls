@@ -27,7 +27,7 @@ function flatten(node: unknown, prefix = "", out: Record<string, string> = {}): 
   return out;
 }
 
-const SITE_NAMESPACES = ["Headings", "Navbar", "SimulatorPage", "Layout", "HowItWorks", "Modes", "FAQ", "Editorial", "Footer", "NotFound", "Feedback", "TikTokBallVideos", "About", "Gallery", "Pwa", "Daily", "Billing", "Watermark", "DesktopLink", "SiteRedesign", "Changelog", "ChangelogLive", "WhatsNew" /* --- changelog --- */, "Seo" /* --- seo --- the social cards' copy */, "Press" /* --- press --- the press page */];
+const SITE_NAMESPACES = ["Headings", "Navbar", "SimulatorPage", "Layout", "HowItWorks", "Modes", "FAQ", "Editorial", "Footer", "NotFound", "Feedback", "TikTokBallVideos", "About", "Gallery", "Pwa", "Daily", "Billing", "Watermark", "DesktopLink", "SiteRedesign", "Changelog", "ChangelogLive", "WhatsNew" /* --- changelog --- */, "Seo" /* --- seo --- the social cards' copy */, "Press" /* --- press --- the press page */, "ModePage" /* --- mode-pages --- the page of every mode */];
 const DOWNLOAD_PREFIXES = ["Desktop.metaTitle", "Desktop.metaDescription", "Desktop.badge", "Desktop.title", "Desktop.intro", "Desktop.setup", "Desktop.portable", "Desktop.requirements", "Desktop.smartScreen", "Desktop.features", "Desktop.privacy", "DesktopAiFix.download", "Desktop.update" /* --- low-findings-2 --- (the Windows app's update banner) */];
 const SECTION_INTRO = /^Controls\.[A-Za-z]+Desc$/;
 const TIPS = ["boxSpeedRatioTip", "pwLayoutTip", "prLayoutTip", "glassGatesTip", "captionsTip", "captionTypeTip", "sbRuleTip", "batchRenderTip", "mzBrainTip", "exitBehaviorTip", "splatBarrierTip", "ogRhythmTip", "scStarPresetsTip", "flMakeClipTip"].map((k) => `Controls.${k}`).concat(["BatchRender.listHint", "ViralBot.manual.steps"]);
