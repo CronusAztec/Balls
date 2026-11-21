@@ -834,10 +834,12 @@ dialog.ui-dialog[open] {
   }
 
   /* --- frame-guide --- what the clip records (StageStrip.tsx's toggle): the centred square of the stage the recorder and the
-     fast export keep, outlined, the rest dimmed. A page overlay over the canvas, so it is never recorded; taps pass through. */
+     fast export keep, outlined, the rest dimmed. A page overlay over the canvas, so it is never recorded; taps pass through.
+     (review fix) It sits on layer 1, under the page's own controls on the stage (the REC pill, the ready line: z-10). */
   .studio[data-frame-guide] .stage-frame::after {
     content: "";
     position: absolute;
+    z-index: 1;
     inset-block: 0;
     left: 50%;
     aspect-ratio: 1 / 1;

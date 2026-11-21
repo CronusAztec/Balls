@@ -3780,6 +3780,33 @@ export default function Simulator() {
     setRunEnd({ seconds: (at >= 0 ? at : engine.getElapsedMs()) / 1000, seed: settings.arenaCount > 1 ? null : engine.getSeed(), pinned: engine.getPinnedSeed() !== null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished, isStarted]);
+  // --- run-end --- (review fix) a run that ends while a control of the bar has the focus hands it to Restart Simulation: the
+  // speeds hide and Pause goes at the finish, and the keyboard would drop to the page and skip Restart on the next Tab. Only a
+  // focus the finish took away moves (a Find or Record button that still shows keeps it), and a click elsewhere forgets the bar.
+  const transportRef = useRef<HTMLDivElement>(null);
+  const restartButtonRef = useRef<HTMLButtonElement>(null);
+  const transportFocused = useRef(false);
+  useEffect(() => {
+    const inBar = (e: Event) => !!transportRef.current && e.target instanceof Node && transportRef.current.contains(e.target);
+    const onFocusIn = (e: FocusEvent) => {
+      transportFocused.current = inBar(e);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (!inBar(e)) transportFocused.current = false;
+    };
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, []);
+  useEffect(() => {
+    if (!finished || !transportFocused.current) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected || (active instanceof HTMLElement && !!transportRef.current?.contains(active) && (active.offsetParent === null || getComputedStyle(active).visibility === "hidden"));
+    if (lost) restartButtonRef.current?.focus({ preventScroll: true });
+  }, [finished]);
   /** --- run-end --- New run: the pinned seed goes (with the found run's promise) and another run plays with the same settings. */
   const newRun = useCallback(() => {
     engineRef.current?.setSeed(null);
@@ -4470,7 +4497,7 @@ export default function Simulator() {
             <button
               type="button"
               onClick={toggleRecording}
-              className="absolute left-3 top-3 inline-flex h-8 items-center gap-2 rounded-full bg-bg/80 pl-2.5 pr-3 text-xs font-medium text-ink ring-1 ring-danger/60 hover:bg-bg cursor-pointer"
+              className="absolute left-3 top-3 z-10 inline-flex h-8 items-center gap-2 rounded-full bg-bg/80 pl-2.5 pr-3 text-xs font-medium text-ink ring-1 ring-danger/60 hover:bg-bg cursor-pointer" /* --- frame-guide --- (review fix) over the guide's dimming */
               aria-label={t("Simulator.stopRecordingTooltip")}
             >
               <span className="h-2.5 w-2.5 rounded-full bg-danger animate-[var(--animate-rec)]" />
@@ -4517,7 +4544,7 @@ export default function Simulator() {
           )}
           {/* The ready screen: the status over the paused first frame (the Start button is the transport bar's). */}
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
-            <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-bg/40 p-3 sm:p-4">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center bg-bg/40 p-3 sm:p-4" /* --- frame-guide --- (review fix) over the guide's dimming */>
               <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
                 <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
@@ -4526,7 +4553,7 @@ export default function Simulator() {
           )}
           {/* --- obstacle-editor --- with a layout in play the ready screen shrinks to a bar at the top, so the obstacles stay visible and draggable */}
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3" data-testid="obstacle-ready-bar">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-3" data-testid="obstacle-ready-bar">
               <div className="flex flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 ring-1 ring-line">
                 <span className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
                 {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
@@ -4546,7 +4573,7 @@ export default function Simulator() {
           <TimelineBar keyframes={s.keyframes} clipSec={s.recordingDuration} getEngine={getTimelineEngine} />
         </div>
       )}
-      <div className="studio-transport @container" role="group" aria-label={t("SiteRedesign.studio.transport")}>
+      <div ref={transportRef} className="studio-transport @container" role="group" aria-label={t("SiteRedesign.studio.transport")}>
         <div className="flex items-center gap-1.5">
           {/* --- studio-play --- Start stays after a Find that found nothing (the miss is said under the bar and over the canvas) */}
           {!isStarted && !isSearching && (
@@ -4556,7 +4583,7 @@ export default function Simulator() {
           )}
           {/* --- run-end --- the run is over: Restart Simulation where Start and Pause were (it was over the canvas) */}
           {isStarted && finished && !isRecording && (
-            <Button variant="primary" size="sm" onClick={restart} title={t("Simulator.restartTooltip")} icon={<IconRestart size={16} />}>
+            <Button ref={restartButtonRef} variant="primary" size="sm" onClick={restart} title={t("Simulator.restartTooltip")} icon={<IconRestart size={16} />}>
               {t("Simulator.restartSimulation")}
             </Button>
           )}
