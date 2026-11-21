@@ -514,6 +514,17 @@ export interface SoundEvent {
   sbDuelBpm?: number;
   sbDuelSpeed?: number;
   // --- end string-battle-alive ---
+  // --- ring-voices --- (review fix B2)
+  /**
+   * A ring mode's own voice (lib/physics/ringVoices.ts: Countdown, Color Match, Accumulation; Shatter's glass). "contact"
+   * stands for the plain bounce ("hit") or break ("gap") the engine would have sent: a page whose visitor brought a sound of
+   * their own (a song to slice, a melody, a hit sample, a wall-break clip: `ToneGenerator.hasOwnSound()`) plays that plain
+   * event instead (lib/audio/loopEvents.ts `ringVoiceEvent()`). "extra" is a sound with no contact behind it (Accumulation's
+   * freeze, Shatter's collapse): such a page leaves it out, and the crew's measured moments do not count it
+   * (lib/insights/score.ts), so they read what the run played before it was heard.
+   */
+  ringVoice?: "contact" | "extra";
+  // --- end ring-voices ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)

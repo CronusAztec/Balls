@@ -222,6 +222,7 @@ export function drawColorMatchRing(
   const detail = segments.length <= DETAIL_CAP;
   let left = 0;
   if (!open) drawRingFloor(ctx, cx, cy, radius, ballColor);
+  else drawEndGhost(ctx, cx, cy, radius, ballColor, segments, rotation); // --- end-ghost --- (review fix B2) the cleared ring under the banner
   ctx.save();
   ctx.lineCap = "butt";
   for (const seg of segments) {
@@ -330,6 +331,7 @@ export function drawAccumulationField(
   nowMs: number,
 ): void {
   if (!escaped) drawRingFloor(ctx, cx, cy, radius, FLOOR_COLORS.accumulation);
+  else drawEndGhost(ctx, cx, cy, radius, FLOOR_COLORS.accumulation); // --- end-ghost --- (review fix B2) the ring it got out of, under the banner
   ctx.save();
   if (!escaped) {
     const ratio = timerMaxMs > 0 ? clamp01(timerMs / timerMaxMs) : 0;
@@ -429,7 +431,9 @@ export function ringPipLayout(sx: number, sy: number, side: number, rings: numbe
 /**
  * Classic's rings left, in the HUD pass at full opacity: the number, then one pip per ring (the innermost first) in the
  * ring's own colour – a broken ring's pip is a faint outline. More than PIP_CAP rings: the number alone. Returns the bottom
- * edge of what it drew (the top captions start below it).
+ * edge of what it drew (the top captions start below it). --- review fix (B3) --- In the square's top-right corner: the
+ * top-left one is the plain patch of background where a recording's watermark tiles are measured (scripts/smoke-test.mjs
+ * wmRegions: a Pro recording must show it flat), which the row made busy.
  */
 export const PIP_CAP = 24;
 export function drawRingPips(ctx: CanvasRenderingContext2D, rings: number, escaped: number, colorOf: (index: number) => string, sx: number, sy: number, side: number, inset: number): number {
@@ -447,11 +451,15 @@ export function drawRingPips(ctx: CanvasRenderingContext2D, rings: number, escap
   ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
   const text = String(left);
   const cy = lay.y + lay.fs / 2;
-  ctx.strokeText(text, lay.x, cy);
+  // right-aligned: the row ends as far from the square's right edge as it started from the left one
+  const textW = ctx.measureText(text).width;
+  const rowW = textW + (rings <= PIP_CAP ? 0.45 * lay.fs + (rings - 1) * lay.step + lay.w : 0);
+  const x = sx + side - (lay.x - sx) - rowW;
+  ctx.strokeText(text, x, cy);
   ctx.fillStyle = left > 0 ? "#ffffff" : "#a3e635";
-  ctx.fillText(text, lay.x, cy);
+  ctx.fillText(text, x, cy);
   if (rings <= PIP_CAP) {
-    const x0 = lay.x + ctx.measureText(text).width + 0.45 * lay.fs;
+    const x0 = x + textW + 0.45 * lay.fs;
     for (let i = 0; i < rings; i++) {
       const x = x0 + i * lay.step;
       const y = cy - lay.h / 2;
@@ -531,3 +539,60 @@ export function drawRingBurst(ctx: CanvasRenderingContext2D, cx: number, cy: num
   ctx.stroke();
   ctx.restore();
 }
+
+/* ------------------------------------------------------------------ the arena under an end banner */
+
+// --- end-ghost --- (review fix B2)
+/** How strong the cleared ring's ghost and the floor under it are while an end banner is up. */
+export const END_GHOST = { ring: 0.34, floor: 0.16 } as const;
+
+/**
+ * The arena under an end banner (Classic's, Color Match's and Accumulation's verdicts): the floor kept, fainter, and the ring
+ * the ball beat as a ghost – so the verdict sits on the place the run happened, not on an empty dark square. With `segments`
+ * (Color Match) each segment's arc in its own colour, where its burst threw it; without, the whole ring in `color`, with a
+ * white core. Read only from the run's state: every render agrees. Two or three strokes a frame (one per segment up to
+ * DETAIL_CAP, one ring past it).
+ */
+export function drawEndGhost(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: string,
+  segments?: readonly Pick<ColorMatchSegment, "startAngle" | "endAngle" | "color">[],
+  rotation = 0,
+): void {
+  if (!(radius > 0)) return;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = END_GHOST.floor;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, TWO_PI);
+  ctx.fill();
+  const width = Math.max(3, 0.05 * radius);
+  ctx.lineCap = "butt";
+  ctx.globalAlpha = END_GHOST.ring;
+  if (segments && segments.length > 0 && segments.length <= DETAIL_CAP) {
+    const r = radius * 1.08;
+    ctx.lineWidth = width;
+    for (const seg of segments) {
+      ctx.strokeStyle = seg.color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, seg.startAngle + rotation + 0.02, seg.endAngle + rotation - 0.02);
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, TWO_PI);
+    ctx.stroke();
+    ctx.globalAlpha = 0.6 * END_GHOST.ring;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1, 0.3 * width);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// --- end end-ghost ---

@@ -26,7 +26,7 @@ import { createEngineForSettings } from "@/lib/simulation/finder";
  *  - nothing the crew's role-eval corpus pins moved: Classic's ring sounds and Accumulation's defaults stay as they were.
  */
 
-const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass"];
+const PACED: ModeId[] = ["target", "colorMatch", "pendulum", "polyrhythm", "mergeRing", "spiralGlass", "shatter" /* --- shatter-demolition --- */];
 const WORLDS = [
   { width: 800, height: 450 },
   { width: 450, height: 450 },
@@ -54,6 +54,7 @@ describe("the page's own defaults", () => {
     expect(clipPacingDefaults("polyrhythm")).toEqual({ prCycleSeconds: 24 });
     expect(clipPacingDefaults("mergeRing")).toEqual({ mrTiers: 6, mrInterval: 0.6 });
     expect(clipPacingDefaults("spiralGlass")).toEqual({ sgGlassHp: 1 });
+    expect(clipPacingDefaults("shatter")).toEqual({ wallCount: 6, shatterSegments: 36, shatterHits: 2 }); // --- shatter-demolition ---
     for (const mode of MODE_IDS) {
       const own = clipPacingDefaults(mode);
       expect(Object.keys(own).length > 0, mode).toBe(PACED.includes(mode));
@@ -99,9 +100,9 @@ describe("the page's own defaults", () => {
 
 describe("the default run ends inside the default clip", () => {
   // seeds 1–12, both worlds: how many of the 24 runs end by 27 s (measured when this was written; the seeds are fixed)
-  const INSIDE: Record<string, number> = { target: 24, colorMatch: 20, mergeRing: 24, spiralGlass: 24 };
+  const INSIDE: Record<string, number> = { target: 24, colorMatch: 20, mergeRing: 24, spiralGlass: 24, shatter: 22 };
 
-  for (const mode of ["target", "colorMatch"] as const) {
+  for (const mode of ["target", "colorMatch", "shatter" /* --- shatter-demolition --- (its collapse included) */] as const) {
     it(`${mode}: most seeds are out by 27 s, none in the first 5 s`, () => {
       let inside = 0;
       for (const world of WORLDS) {

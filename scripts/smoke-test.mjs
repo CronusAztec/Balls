@@ -3482,7 +3482,7 @@ await smokeBlock("captions", async () => {
 // its progress bar at 0 %, whatever the run's clock (here 8×) says.
 {
   const shatterCap = ["wc*t*0*0*s*1*93d119*000000", "q*c*0*0*p*1.3*ffffff*000000*Will it escape?*YES!"].join(",");
-  await page.goto(`${BASE}/en/simulator/?mode=shatter&cap=${encodeURIComponent(shatterCap)}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=10&cap=${encodeURIComponent(shatterCap)}`, { waitUntil: "networkidle" }); // (--- shatter-demolition --- ten walls, as before its page default of six)
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const escaped = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.captionReveal === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);

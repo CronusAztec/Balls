@@ -79,7 +79,7 @@ function run(engine: PhysicsEngine, frames: number, untilFinished = false) {
   const counts: Record<string, number> = { hit: 0, gap: 0, merge: 0, split: 0 };
   for (let i = 0; i < frames; i++) {
     engine.update(STEP, 0);
-    for (const e of engine.consumeSoundEvents()) counts[e.type]++;
+    for (const e of engine.consumeSoundEvents()) if (e.ringVoice !== "extra") counts[e.type]++; // (--- shatter-demolition --- a mode's extra voice, Shatter's collapse, is no contact)
     if (untilFinished && engine.isSimulationFinished()) break;
   }
   return counts;

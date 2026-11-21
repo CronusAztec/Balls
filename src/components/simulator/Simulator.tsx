@@ -88,7 +88,7 @@ import { ESCAPE_AT_TOLERANCE_SEC } from "@/lib/simulation/outcomes"; // --- low-
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
-import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+import { loopPlayOptions, ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- loop-foundation --- --- ring-voices --- (review fix B2)
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
 import { growFillSettingsOf } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
@@ -145,6 +145,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
+import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
 import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
@@ -330,7 +331,13 @@ export default function Simulator() {
   // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
   const [dailyAtLoad] = useState(() => dailyFromParam(searchParams.get(DAILY_PARAM)));
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
-  const [settings, setSettings] = useState<SimulatorSettings>(() => (dailyAtLoad ? dailySettings(dailyAtLoad) : settingsFromSearchParams(new URLSearchParams(searchParams.toString()))));
+  const [settings, setSettings] = useState<SimulatorSettings>(() => {
+    if (dailyAtLoad) return dailySettings(dailyAtLoad);
+    const params = new URLSearchParams(searchParams.toString());
+    const linked = settingsFromSearchParams(params);
+    // --- clip-start --- (review fix B2) a bare studio visit starts Classic in its start look (a link is read as it was written)
+    return isBareStudioVisit(params, settingsToSearchParams(linked).toString()) ? { ...linked, ...clipStartSettings(linked.mode) } : linked;
+  });
   const [engineReady, setEngineReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -409,6 +416,8 @@ export default function Simulator() {
     engine.setCountdownRandomOrder(s.countdownRandom);
     engine.setColorMatchColorCount(s.colorMatchColorCount);
     engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
+    engine.setShatterSegmentsPerWall(s.shatterSegments); // --- shatter-demolition --- (the segments and their hits, before the rings are built)
+    engine.setShatterHpPerSegment(s.shatterHits);
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -830,6 +839,18 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.colorMatchColorCount, s.colorMatchSegments]);
+  // --- shatter-demolition --- Shatter: new hits or segments build the rings anew (like Color Match's segments)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setShatterSegmentsPerWall(s.shatterSegments);
+    engine.setShatterHpPerSegment(s.shatterHits);
+    if (s.mode === "shatter" && engine.getCurrentModeName() === "shatter") {
+      engine.initShatter();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.shatterHits, s.shatterSegments]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -2074,7 +2095,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.shatterHits, s.shatterSegments /* --- shatter-demolition --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -2268,6 +2289,7 @@ export default function Simulator() {
       audioRef.current?.resetBeatGrid();
       const fresh = {
         ...defaultSettings(mode),
+        ...clipStartSettings(mode), // --- clip-start --- (review fix B2) a mode picked on the page starts in its start look
         ...musicSettingsOf(settings),
         recordingResolution: settings.recordingResolution,
         watermarkText: settings.watermarkText,
@@ -2369,7 +2391,12 @@ export default function Simulator() {
       const engine = engineRef.current;
       const audio = audioRef.current;
       if (engine && audio) {
-        for (const ev of engine.consumeSoundEvents()) {
+        const ownSound = audio.hasOwnSound(); // --- ring-voices --- (review fix B2)
+        for (const raw of engine.consumeSoundEvents()) {
+          // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
+          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
+          if (!ev) continue;
+          if (ev.ringVoice === "contact" && ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too: its own voice skips the plain path below)
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
           if (ev.race) {
             audio.playRaceArpeggio(ev.race, ev.frequency);
@@ -3508,8 +3535,8 @@ export default function Simulator() {
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,
           multiplySpawnCount: settings.multiplySpawnCount,
-          shatterSegmentsPerWall: engine.getShatterSegmentsPerWall(),
-          shatterHpPerSegment: engine.getShatterHpPerSegment(),
+          shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
+          shatterHpPerSegment: settings.shatterHits,
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
@@ -3729,10 +3756,10 @@ export default function Simulator() {
       segmentsDestroyed: (b, total) => fill("Simulator.canvasSegmentsDestroyed", { broken: b, total }),
       segmentsShattered: t("Simulator.canvasSegmentsShattered"),
       matched: t("Simulator.canvasMatched"),
-      segmentsCleared: (total) => fill("Simulator.canvasSegmentsCleared", { total }),
+      segmentsCleared: (total) => t("Simulator.canvasSegmentsCleared", { total }), // --- review fix (B2) --- (a plural in every language: "7 segmentów")
       matchColour: t("Simulator.canvasMatchColour"),
       complete: t("Simulator.canvasComplete"),
-      segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
+      segmentsHitInOrder: (total) => t("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
       ballsAtRest: (n) => t("Simulator.canvasBallsAtRest", { count: n }), // --- end-banner --- (counted: "1 ball at rest")

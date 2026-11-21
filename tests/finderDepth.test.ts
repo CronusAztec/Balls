@@ -15,9 +15,9 @@ import es from "../messages/es.json";
  * whole batch (50 seeds) and the search is deterministic (Date.now is pinned, so the seeds are too).
  */
 
-/** Shatter's default runs last ~3–35 s: a 6 s target lies inside them, and a seed costs a few ms. */
+/** Shatter's runs of 10 rings of 18 one-hit segments (its page defaults before --- shatter-demolition ---) last ~4–45 s: a 6 s target lies inside them, and a seed costs a few ms. */
 function request(patch: Partial<FinderRequest> = {}): FinderRequest {
-  const s = defaultSettings("shatter");
+  const s = { ...defaultSettings("shatter"), wallCount: 10, shatterHits: 1, shatterSegments: 18 };
   return { ...finderRequestOfSettings(s, { width: 800, height: 450 }, 10), targetDurationSec: 6.001, toleranceSec: 0.0001, maxSeeds: 10, ...patch };
 }
 
@@ -104,11 +104,13 @@ describe("finder-depth: the run-length search goes on past maxSeeds while its wa
   });
 
   it("never changes a match the first pass finds, and a match found deeper is the one a larger maxSeeds finds", async () => {
-    const hit = request({ targetDurationSec: 6, toleranceSec: 0.5 });
+    // (--- shatter-demolition --- a 9 s target: Shatter's runs moved when a bounce stopped sticking to its ring, and a 6 s one now
+    // matches inside a first pass of 10)
+    const hit = request({ targetDurationSec: 9, toleranceSec: 0.5 });
     const plain = await findSimulation({ ...hit, maxSeeds: 1000 }, () => {}, undefined, frames(1).now, frames(1).schedule);
     expect(plain.found).toBe(true);
-    // Pinned seeds: the first match is the 12th seed – inside a first pass of 20, past one of 10.
-    expect(plain.seedsTested).toBe(12);
+    // Pinned seeds: the first match is the 19th seed – inside a first pass of 20, past one of 10.
+    expect(plain.seedsTested).toBe(19);
     const inFirstPass = await findSimulation({ ...hit, maxSeeds: 20, depthBudgetMs: FINDER_DEPTH_BUDGET_MS }, () => {}, undefined, frames(1).now, frames(1).schedule);
     expect(inFirstPass).toEqual(plain);
     const withoutBudget = await findSimulation({ ...hit, maxSeeds: 20 }, () => {}, undefined, frames(1).now, frames(1).schedule);

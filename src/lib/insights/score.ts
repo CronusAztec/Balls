@@ -7,6 +7,7 @@ import { actionTrackSteps, actionTrackSync } from "@/lib/bot/actionTrack"; // --
 import { botRecipeById } from "@/lib/bot/templates"; // --- templates --- (a plan's recipe may be a template's)
 import { settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import type { ClipFeatures } from "@/lib/recording/clipFeatures";
+import type { SoundEvent } from "@/lib/physics/types"; // --- ring-voices --- (review fix B2)
 import { recordingTextLayout } from "@/lib/recording/recorder";
 import { linkParams } from "@/lib/recording/batch"; // --- insights --- (review fix) a Library clip's link, read for the hook it draws
 import { SHARE_CODE_PARAM } from "@/lib/shareCode";
@@ -425,7 +426,7 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
     engine.update(step, 0);
     elapsed += stepPlaybackMs(engine, step);
     const sec = elapsed / 1000;
-    const events = engine.consumeSoundEvents();
+    const events = contactSounds(engine.consumeSoundEvents()); // --- ring-voices --- (review fix B2)
     const inMoment = sec >= from - 1e-9 && sec <= to + 1e-9;
     if (inMoment) {
       for (const e of events) {
@@ -509,6 +510,19 @@ export function* payoffMomentSteps(settings: SimulatorSettings, seed: number, wo
     ...(silentTailSec !== null ? { silentTailSec } : {}), // --- crew --- (studio2 review round 2, 12)
   };
 }
+
+// --- ring-voices --- (review fix B2)
+/**
+ * A step's sound events without a mode's extra voices (`SoundEvent.ringVoice` "extra": Accumulation's freeze, Shatter's
+ * collapse), which have no bounce or break behind them: the moment counts what the run's contacts play, as it did before those
+ * voices were heard, so the crew's measured moments (tests/fixtures/crew, which a recorded eval answers) stay what they were.
+ * The same array when there is none (no allocation on the common step).
+ */
+function contactSounds(events: SoundEvent[]): SoundEvent[] {
+  for (const e of events) if (e.ringVoice === "extra") return events.filter((x) => x.ringVoice !== "extra");
+  return events;
+}
+// --- end ring-voices ---
 
 /**
  * The run of a clip's seed in slices, as runFactsOf() follows it (the same pauses); null when `signal` aborts it. With `clipSec`,

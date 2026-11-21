@@ -81,9 +81,10 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   {
+    // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as picked: the page's default is 2 hits and 36 now)
     id: "sunset-shatter",
     mode: "shatter",
-    query: "mode=shatter&wc=12&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1067410279",
+    query: "mode=shatter&wc=12&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&shh=1&shs=18&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1067410279",
     previewAt: 3,
     name: { en: "Sunset Shatter", pl: "Rozbicie o zachodzie", es: "Estallido al atardecer" },
     description: {
