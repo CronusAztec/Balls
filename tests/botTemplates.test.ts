@@ -549,7 +549,8 @@ describe("the bot's own look", () => {
    * `sgHud`: true, the overlay shown), so a plan's JSON is the one recorded with those two keys added and nothing else: the digest
    * is of the plan without them – the recorded numbers unchanged –, and every plan below is checked to carry both as true.
    */
-  const OVERLAY_DEFAULTS: Readonly<Record<string, boolean>> = { journeyHud: true, sgHud: true };
+  // --- colour-match-segments --- (and Color Match's segment count, a setting since: the mode's own twelve in every recipe's plan – no recipe plans Color Match)
+  const OVERLAY_DEFAULTS: Readonly<Record<string, boolean | number>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12 };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -575,6 +576,7 @@ describe("the bot's own look", () => {
     expect(digest(day)).toBe(BOT_DAY_DIGEST);
     // (--- templates --- AI studio step 4b: the two keys the digest leaves out, as every default has them: the overlays shown)
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
+    expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
   });
 
   it("is the default: look 'bot' plans what no look plans", () => {

@@ -721,7 +721,7 @@ function spiralGlassSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
  * out 17–36 s in: the standard length's): the outcome strategy's seed search picks the seed whose escape the clip cuts before.
  */
 function colorMatchSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { colorMatchColorCount: 2, ballSpeed: stepBetween(ctx.rng, 600, 800, 10) };
+  return { colorMatchColorCount: 2, colorMatchSegments: 12 /* --- colour-match-segments --- (its twelve, as measured: the page's own default is 8 now) */, ballSpeed: stepBetween(ctx.rng, 600, 800, 10) };
 }
 
 /** Paint's fastest coverage on the sliders: the biggest ball, at the top speed, without gravity (95 % painted 21–33 s in). */

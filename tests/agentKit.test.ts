@@ -144,7 +144,7 @@ describe("mode catalog (--- agent-cli ---)", () => {
   it("gives a mode's fields with defaults, ranges and link keys read from the site's own link writer", () => {
     const mr = modeDetail("mergeRing", en);
     expect(mr?.prefix).toBe("mr");
-    expect(mr?.fieldList.find((f) => f.key === "mrTiers")).toEqual({ key: "mrTiers", default: 7, range: { min: 5, max: 10, step: 1 }, url: "mrt", engine: true, roundTrip: true, resolved: true });
+    expect(mr?.fieldList.find((f) => f.key === "mrTiers")).toEqual({ key: "mrTiers", default: 6 /* --- clip-pacing --- (the page's own default: lib/clipPacing.ts) */, range: { min: 5, max: 10, step: 1 }, url: "mrt", engine: true, roundTrip: true, resolved: true });
     expect(modeDetail("target", en)?.fieldList.find((f) => f.key === "targetCount")?.url).toBe("tc");
     expect(modeDetail("nope", en)).toBeNull();
     expect(commonPrefix(["sgTurns", "sgTilt"])).toBe("sg");

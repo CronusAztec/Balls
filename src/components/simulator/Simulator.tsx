@@ -406,6 +406,7 @@ export default function Simulator() {
     engine.setCountdownTotal(s.targetCount);
     engine.setCountdownRandomOrder(s.countdownRandom);
     engine.setColorMatchColorCount(s.colorMatchColorCount);
+    engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -818,12 +819,13 @@ export default function Simulator() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.setColorMatchColorCount(s.colorMatchColorCount);
+    engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments --- (a new count restarts the ring, like the colours do)
     if (s.mode === "colorMatch" && engine.getCurrentModeName() === "colorMatch") {
       engine.initColorMatch();
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.colorMatchColorCount]);
+  }, [s.colorMatchColorCount, s.colorMatchSegments]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -2034,7 +2036,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -3461,6 +3463,7 @@ export default function Simulator() {
           countdownTotal: settings.targetCount,
           countdownRandom: settings.countdownRandom,
           colorMatchColorCount: settings.colorMatchColorCount,
+          colorMatchSegmentCount: settings.colorMatchSegments, // --- colour-match-segments ---
           accumulationTimerMax: 1000 * settings.accumulationTime,
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,

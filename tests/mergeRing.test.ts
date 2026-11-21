@@ -135,7 +135,8 @@ describe("settings, URL and presets", () => {
     expect(MERGE_RING_RANGES.mrGravity).toMatchObject({ min: 0.5, max: 3 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveMergeRingFields(d)).toEqual(defaultMergeRingFields());
+      // (--- clip-pacing --- in Merge Ring itself the page starts with 6 tiers and a ball every 0.6 s: lib/clipPacing.ts; the feature's own defaults stay)
+      expect(resolveMergeRingFields(d)).toEqual(mode === "mergeRing" ? { ...defaultMergeRingFields(), mrTiers: 6, mrInterval: 0.6 } : defaultMergeRingFields());
       const params = settingsToSearchParams(d);
       for (const key of ["mrt", "mri", "mrs", "mrg", "mrr"]) expect(params.has(key)).toBe(false);
       // the mode's own ball size, in Merge Ring only
@@ -171,7 +172,7 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("mergeRing");
     expect(resolveMergeRingFields(back)).toEqual({ mrTiers: 9, mrInterval: 0.5, mrSpawnTiers: 3, mrGravity: 1.5, mrRainbow: false });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=mergeRing&mrt=500&mri=abc&mrr=7&mrs=0&mrg=0"));
-    expect(resolveMergeRingFields(bad)).toEqual({ ...defaultMergeRingFields(), mrTiers: MAX_TIERS, mrSpawnTiers: 1, mrGravity: 0.5 });
+    expect(resolveMergeRingFields(bad)).toEqual({ ...defaultMergeRingFields(), mrInterval: 0.6 /* (mri=abc: the page's own default) */, mrTiers: MAX_TIERS, mrSpawnTiers: 1, mrGravity: 0.5 });
     const preset = presetToSettings({ mode: "mergeRing", mrTiers: 0, mrRainbow: "no", mrInterval: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveMergeRingFields(preset)).toMatchObject({ mrTiers: 5, mrRainbow: true, mrInterval: 9 }); // ("no" is not a boolean: the default stays)
     expect(modeSettingsOfSettings(s).mergeRing).toEqual({ tiers: 9, interval: 0.5, spawnTiers: 3, gravity: 1.5, rainbow: false });

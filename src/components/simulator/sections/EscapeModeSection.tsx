@@ -1,6 +1,8 @@
 "use client";
 
-import { ColorPicker, Searchable, Slider, Toggle, offBtn, rainbowBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import Tooltip from "../Tooltip";
+import { COLOR_MATCH_SEGMENT_CHOICES } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import type { ModeId } from "@/lib/physics/types";
 import GrowFillSection, { GROW_FILL_KEYS } from "./GrowFillSection"; // --- loop-foundation ---
@@ -22,7 +24,7 @@ export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   multiply: ["spawnCount"],
   lines: ["lineColor", "centerDot"],
   target: ["targetCount", "randomOrder"],
-  colorMatch: ["colorCount"],
+  colorMatch: ["colorCount", "segmentCount"],
   grow: ["growthRate", "centerDot", "growLines", "lineColor"],
 };
 ESCAPE_MODE_KEYS_BY_MODE.grow?.push(...GROW_FILL_KEYS); // --- loop-foundation --- (Grow's fill and loop)
@@ -91,6 +93,29 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
       return (
         <div className="space-y-3 pt-2">
           <Slider t={t} search={search} matches={matches} labelKey="colorCount" tipKey="colorCountTip" value={s.colorMatchColorCount} range={RANGES.colorMatchColorCount} onChange={(v) => update({ colorMatchColorCount: v })} />
+          {/* --- colour-match-segments --- the ring's segments: a pick of five counts (the mode holds 6 to 24) */}
+          <Searchable search={search} matches={matches} labelKey="segmentCount">
+            <div className="space-y-2" data-testid="color-match-segments" data-cm-segments={s.colorMatchSegments}>
+              <label className="text-sm font-medium text-ink-2">
+                {t("segmentCount")}
+                <Tooltip text={t("segmentCountTip")} />
+              </label>
+              <div className="grid grid-cols-5 gap-1" role="group" aria-label={t("segmentCount")}>
+                {COLOR_MATCH_SEGMENT_CHOICES.map((count) => (
+                  <button
+                    type="button"
+                    key={count}
+                    onClick={() => update({ colorMatchSegments: count })}
+                    aria-pressed={s.colorMatchSegments === count}
+                    className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.colorMatchSegments === count ? onBtn : offBtn}`}
+                    data-cm-segments-option={count}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Searchable>
         </div>
       );
     case "grow":

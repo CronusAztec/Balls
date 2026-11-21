@@ -222,6 +222,8 @@
     "randomOrderTip": "Mezcla la posición de los números de objetivo en la pared.",
     "colorCount": "Número de colores",
     "colorCountTip": "Cuántos colores distintos tienen los segmentos de la pared. Menos colores = más fácil de igualar.",
+    "segmentCount": "Segmentos",
+    "segmentCountTip": "Cuántos segmentos tiene el anillo. Con menos segmentos la partida es más corta. Un número nuevo la empieza otra vez.",
     "ballSpeed": "Velocidad de la pelota",
     "ballSpeedTip": "Qué tan rápido se mueve la pelota. Valores altos hacen la simulación más enérgica.",
     "ballSize": "Tamaño de la pelota",

@@ -1,13 +1,17 @@
-import type { GameMode, ModeContext } from "../types";
+import type { Ball, GameMode, ModeContext, WallHitResult } from "../types";
 import { arenaRadius, passableGap, TWO_PI } from "../types";
 import { ringPassRadius } from "../ballStats";
 import { cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
+import { RING_CHORD_HZ } from "../ringEscape";
+import { freezeThumpHz, icePlinkHz, timerPluckHz } from "../ringVoices"; // --- ring-voices ---
 
 export interface FrozenBall {
   x: number;
   y: number;
   radius: number;
   color: string;
+  /** --- ring-voices --- Simulation time (ms) the ball froze: the canvas bursts its frost from then. */
+  atMs: number;
 }
 
 /**
@@ -44,7 +48,7 @@ export class AccumulationMode implements GameMode {
       const balls = ctx.getBalls();
       const active = balls.find((b) => !b.frozen);
       if (active) {
-        this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color });
+        this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color, atMs: ctx.getElapsedMs() });
         ctx.setBalls(balls.filter((b) => b.id !== active.id));
       }
       ctx.setBounceSpeedMultiplier(1);
@@ -82,9 +86,9 @@ export class AccumulationMode implements GameMode {
             if (d < -Math.PI) d += TWO_PI;
             const tolerance = 0.06 * (1 - 0.6 * ((wall.radius - dist) / this.spikeLength)) + Math.atan2(active.radius, dist);
             if (Math.abs(d) < tolerance) {
-              this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color });
+              this.freezeSound(ctx); // --- ring-voices --- (a spike's freeze: a thump and a crack where the engine's tone was)
+              this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color, atMs: ctx.getElapsedMs() });
               ctx.setBalls(balls.filter((b) => b.id !== active!.id));
-              ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0 });
               ctx.setBounceSpeedMultiplier(1);
               this.spawnBall(ctx);
               this.timer = this.timerMax;
@@ -123,13 +127,18 @@ export class AccumulationMode implements GameMode {
             ball.vy = (ball.vy / speed) * target;
           }
           if (ctx.isBouncierEnabled()) ctx.setBounceSpeedMultiplier(mult + (ctx.getBouncierIncrement?.() ?? 0.03)); // --- uncap-all --- (the Bounciness' gain, no ceiling)
-          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0 });
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(this.frozenBalls.indexOf(frozen)), level: 0.5, loopBright: true, melody: false }); // --- ring-voices --- (a plink off the ice)
         }
       }
     }
   }
 
-  onWallHit() {}
+  /** --- ring-voices --- A bounce off the ring: a pluck that climbs as the ball's timer runs down, instead of the engine's tone. */
+  onWallHit(ctx?: ModeContext, _ball?: Ball, wallIndex = 0): WallHitResult | void {
+    if (!ctx || this.escaped) return;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: timerPluckHz(this.timer, this.timerMax), level: 0.7, melody: false });
+    return { suppressSound: true };
+  }
   onGapPass() {
     return true;
   }
@@ -147,7 +156,8 @@ export class AccumulationMode implements GameMode {
       this.escaped = true;
       ctx.getBrokenWalls().add(0);
       ctx.spawnConfetti(active.x, active.y);
-      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
+      // --- ring-voices --- the way out resolves on the chord (still the "gap" event the camera's shake and the finder count)
+      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0, loop: "chord", frequency: RING_CHORD_HZ, level: 1, melody: false });
     }
   }
 
@@ -222,6 +232,13 @@ export class AccumulationMode implements GameMode {
       f.x = newCx + (f.x - oldCx) * sx;
       f.y = newCy + (f.y - oldCy) * sy;
     }
+  }
+
+  /** --- ring-voices --- A freeze on a spike: a thump a step lower for every ball already frozen, a glassy crack over it. */
+  private freezeSound(ctx: ModeContext) {
+    const frozen = this.frozenBalls.length;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: freezeThumpHz(frozen), level: 0.9, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: icePlinkHz(frozen), level: 0.6, loopBright: true, melody: false });
   }
 
   private spawnBall(ctx: ModeContext) {

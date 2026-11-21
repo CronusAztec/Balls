@@ -44,7 +44,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "galaxy-pendulum",
     mode: "pendulum",
-    query: "mode=pendulum&pwn=30&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
+    query: "mode=pendulum&pwn=30&pwk=51&pwt=60&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
     previewAt: 12,
     name: { en: "Aurora Galaxy Wave", pl: "Galaktyka zorzy", es: "Galaxia boreal" },
     description: {

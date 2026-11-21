@@ -132,6 +132,7 @@ import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { drawAccumulationField, drawAccumulationTimerRing, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -1052,6 +1053,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const conveyorData = new ConveyorDataset();
     // --- end-banner --- the modes' end banners (endBanner.ts): a frame shows one, seldom two (a mode's own and OUTGREW THE ARENA)
     const endBanners = [new EndBannerLayer()];
+    // --- ring-looks --- Countdown's ring as its renderer reads it (filled every frame: nothing allocated)
+    const countdownView: CountdownRingView = { total: 0, target: 0, hit: new Set<number>(), flashes: [], map: [], complete: false };
     let endBannerMid = false; // (one in the middle of the square this frame: the teams' winner banner goes lower)
     // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
     const orbLayer = new OrbGridLayer();
@@ -2153,39 +2156,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multBoard) drawMultipliersBoard(ctx, multBoard, multRender, multLabels, multTop, multBottom);
       if (multView.orbs.length > 0) drawPickupOrbs(ctx, multView, engine.getElapsedMs(), multLabels, time);
 
-      // Color Match segments
-      if (engine.isColorMatchMode()) {
-        const segments = engine.getColorMatchSegments();
-        if (walls.length > 0 && !broken.has(0)) {
-          const rot = rotations[0] || 0;
-          const radius = walls[0].radius;
-          ctx.lineWidth = Math.max(10, p.wallThickness + 8);
-          for (const seg of segments) {
-            if (seg.broken) continue;
-            ctx.globalAlpha = 0.85;
-            ctx.strokeStyle = seg.color;
-            if (wobble.strokeArc(ctx, 0, cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005)) continue; // --- jdm-illusions ---
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005);
-            ctx.stroke();
-          }
-          ctx.save();
-          ctx.globalAlpha = 0.4;
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 1.5;
-          for (const seg of segments) {
-            if (seg.broken) continue;
-            const a = seg.startAngle + rot;
-            const r0 = radius - p.wallThickness / 2 - 4;
-            const r1 = radius + p.wallThickness / 2 + 4;
-            ctx.beginPath();
-            ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-            ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-            ctx.stroke();
-          }
-          ctx.restore();
-          ctx.globalAlpha = 1;
-        }
+      // Color Match segments (--- ring-looks --- the ball's colour lit, the others dim, a match bursting: ringModesRenderer.ts)
+      if (engine.isColorMatchMode() && walls.length > 0) {
+        drawColorMatchRing(ctx, engine.getColorMatchSegments(), engine.getColorMatchBallColor(), broken.has(0), cx, cy, walls[0].radius, rotations[0] || 0, p.wallThickness, engine.getElapsedMs(), wobble);
+        ctx.globalAlpha = 1;
       }
 
       // Paint: the rainbow trail – or, with a picture loaded, the picture revealed through the brush mask (Picture Paint)
@@ -2244,86 +2218,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (layers) paintTrail.release(); // --- review fix (performance) ---
       } else paintTrail.release(); // --- review fix (performance) ---
 
-      // Target segments
-      if (engine.isCountdownMode()) {
-        const total = engine.getCountdownTotal();
-        const target = engine.getCountdownTarget();
-        const hit = engine.getCountdownHit();
-        const flashes = engine.getCountdownWrongFlashes();
-        const map = engine.getCountdownSegmentMap();
-        const wall = walls[0];
-        if (wall) {
-          const step = TWO_PI / total;
-          const radius = wall.radius;
-          const thickness = Math.max(8, 0.06 * radius);
-          const labelR = radius + Math.max(12, 0.08 * radius);
-          const fontSize = Math.max(10, 0.03 * Math.min(size.width, size.height));
-          const startAngle = -Math.PI / 2;
-          const flashBySegment: Record<number, number> = {};
-          for (const f of flashes) {
-            const t = Math.min(1, Math.max(0, f.time / 400));
-            if (flashBySegment[f.segment] === undefined || t > flashBySegment[f.segment]) flashBySegment[f.segment] = t;
-          }
-          const pulse = 0.5 + 0.3 * Math.sin(0.005 * time);
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          for (let s = 0; s < total; s++) {
-            const number = map[s] ?? total - s;
-            const a0 = startAngle + s * step;
-            const a1 = a0 + step;
-            const mid = (a0 + a1) / 2;
-            const flash = flashBySegment[number];
-            let color: string, alpha: number, shadow: string, blur: number;
-            if (hit.has(number)) [color, alpha, shadow, blur] = ["#22c55e", 0.7, "#22c55e", 12];
-            else if (number === target) [color, alpha, shadow, blur] = ["#facc15", pulse, "#facc15", 12];
-            else if (flash !== undefined) [color, alpha, shadow, blur] = ["#ef4444", 0.3 + 0.6 * flash, "#ef4444", 12 * flash];
-            else [color, alpha, shadow, blur] = ["#333333", 0.4, "", 0];
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = thickness;
-            if (shadow) {
-              ctx.shadowColor = shadow;
-              ctx.shadowBlur = blur;
-            }
-            ctx.beginPath();
-            wobble.pathArc(ctx, 0, cx, cy, radius, a0 + 0.02, a1 - 0.02); // --- jdm-illusions --- (the segments follow a wobbling wall)
-            ctx.stroke();
-            ctx.restore();
-            const lx = cx + labelR * Math.cos(mid);
-            const ly = cy + labelR * Math.sin(mid);
-            ctx.save();
-            if (hit.has(number)) {
-              ctx.fillStyle = "#22c55e";
-              ctx.globalAlpha = 0.9;
-            } else if (number === target) {
-              ctx.fillStyle = "#facc15";
-              ctx.globalAlpha = 1;
-              ctx.shadowColor = "#facc15";
-              ctx.shadowBlur = 8;
-            } else {
-              ctx.fillStyle = "#666666";
-              ctx.globalAlpha = 0.6;
-            }
-            ctx.fillText(String(number), lx, ly);
-            ctx.restore();
-          }
-          ctx.save();
-          ctx.strokeStyle = "#555555";
-          ctx.lineWidth = 1;
-          ctx.globalAlpha = 0.3;
-          const rIn = radius - thickness / 2;
-          const rOut = radius + thickness / 2;
-          for (let s = 0; s < total; s++) {
-            const a = startAngle + s * step;
-            ctx.beginPath();
-            ctx.moveTo(cx + rIn * Math.cos(a), cy + rIn * Math.sin(a));
-            ctx.lineTo(cx + rOut * Math.cos(a), cy + rOut * Math.sin(a));
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
+      // Target segments (--- ring-looks --- a bright tile per number, the next one pulsing, its number huge behind the ball: ringModesRenderer.ts)
+      if (engine.isCountdownMode() && walls[0]) {
+        countdownView.total = engine.getCountdownTotal();
+        countdownView.target = engine.getCountdownTarget();
+        countdownView.hit = engine.getCountdownHit();
+        countdownView.flashes = engine.getCountdownWrongFlashes();
+        countdownView.map = engine.getCountdownSegmentMap();
+        countdownView.complete = engine.isCountdownComplete();
+        drawCountdownRing(ctx, countdownView, cx, cy, walls[0].radius, engine.getElapsedMs(), wobble);
       }
 
       // Portals
@@ -2485,19 +2388,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const drawStrings = (points: { x: number; y: number }[]) => drawStringArt(ctx, points, drawnBalls.length > 0 ? drawnBalls[0] : null, p.rainbowLines, p.lineColor, time);
       if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
 
-      // Frozen balls (Accumulation)
+      // Frozen balls (Accumulation) (--- ring-looks --- ice with a frost burst, the timer's digits faint behind them: ringModesRenderer.ts)
       if (engine.isAccumulationMode()) {
-        for (const f of engine.getFrozenBalls()) {
-          ctx.globalAlpha = 0.6;
-          ctx.fillStyle = f.color;
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.radius, 0, TWO_PI);
-          ctx.fill();
-          ctx.strokeStyle = "rgba(150, 200, 255, 0.5)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
+        const frozen = engine.getFrozenBalls();
+        drawAccumulationField(ctx, frozen, engine.getAccumulationTimer(), engine.getAccumulationTimerMax(), engine.hasAccumulationEscaped(), frozen.length > 0 ? (labelsRef.current ?? DEFAULT_LABELS).frozenCount(frozen.length) : "", cx, cy, walls[0]?.radius ?? arena, engine.getElapsedMs());
+        ctx.globalAlpha = 1;
       }
 
       // Center dot (Grow / Lines) and Grow strings
@@ -2813,6 +2708,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
+      // --- ring-looks --- Color Match: a halo of the ball's colour of the moment; Accumulation: the timer as a ring round the live ball
+      if (isColorMatch && matchColor && !engine.hasColorMatchEscaped()) for (let i = 0; i < balls.length && i < 16; i++) drawColorMatchHalo(ctx, balls[i].x, balls[i].y, balls[i].radius, matchColor);
+      if (engine.isAccumulationMode() && !engine.hasAccumulationEscaped()) {
+        for (const ball of balls) {
+          if (ball.frozen) continue;
+          drawAccumulationTimerRing(ctx, ball.x, ball.y, ball.radius, engine.getAccumulationTimer(), engine.getAccumulationTimerMax(), engine.getElapsedMs());
+          break;
+        }
+      }
       if (brView && !brLayer.drawsBodies(brView) && brView.images > 1) brLayer.drawBodies(ctx, brView, balls, brRender, true); // --- brick-rebuild --- (the page's ball look: the kaleidoscope's images of its real balls)
       // --- gerald-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
@@ -3105,31 +3009,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const frozen = engine.getFrozenBalls().length;
           // (--- end-banner --- the card counts the frozen balls: it goes over the top or the bottom of the ring, wherever it covers fewer of them)
           if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4", accumulationBannerAt(engine.getFrozenBalls(), cy, minDim));
-          else {
-            const timer = engine.getAccumulationTimer();
-            const max = engine.getAccumulationTimerMax();
-            const seconds = Math.max(0, timer / 1000);
-            const ratio = Math.max(0, timer / max);
-            const fs = Math.max(18, 0.06 * minDim);
-            const sfs = 0.45 * fs;
-            blocks.push({
-              height: fs + (frozen > 0 ? 1.2 * sfs : 0),
-              draw: (y) => {
-                ctx.save();
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = `rgb(${Math.round(255 * (1 - ratio))}, ${Math.round(255 * ratio)}, 80)`;
-                ctx.fillText(seconds.toFixed(1) + "s", cx, y + 0.5 * fs);
-                if (frozen > 0) {
-                  ctx.font = `${sfs}px sans-serif`;
-                  ctx.fillStyle = "#999";
-                  ctx.fillText(L.frozenCount(frozen), cx, y + fs + 0.6 * sfs);
-                }
-                ctx.restore();
-              },
-            });
-          }
+          // (--- ring-looks --- the timer and the frozen count are the field's own now: big and faint behind the balls)
         }
         if (engine.isPaintMode()) {
           const paint = engine.getPaintState();
@@ -3216,6 +3096,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // ending, as in every clip the bot and the studio plan, which stay as they were
         if (engine.getCurrentModeName() === "classic" && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) {
           const ringView = engine.getRingEscapeView();
+          // --- ring-looks --- the rings left: a pip per ring in its colour, in the square's top-left corner (the same clips as
+          // the end card: a roster's scoreboard has that corner, a clip's captions count its walls themselves)
+          if (ringView && ringView.rings > 1 && !replay) {
+            const rainbowRings = !!ringEscapeRef.current?.rainbow;
+            modeTopHud = Math.max(modeTopHud, drawRingPips(ctx, ringView.rings, ringView.escaped, (i) => (rainbowRings ? ringRainbowColor(i, ringView.rings, 1) : wallColor(i)), cx - minDim / 2, cy - minDim / 2, minDim, teamInset));
+          }
           if (ringView && ringRunOut(ringView)) bigBanner(L.escaped, (L.ringsOut ?? DEFAULT_LABELS.ringsOut!)(ringView.rings, (ringView.outMs / 1000).toFixed(1)), "#a3e635");
         }
         // --- gerald-multipliers --- the outgrow finish and the "N Gerald made it home" banner (--- end-banner --- the shared
@@ -3318,65 +3204,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
-          const ballColor = engine.getColorMatchBallColor();
-          if (engine.hasColorMatchEscaped()) bigBanner(L.matched, L.segmentsCleared(prog.total), "#22c55e");
-          else {
-            const fs = Math.max(18, 0.045 * minDim);
-            const sfs = 0.5 * fs;
-            const dot = 0.4 * sfs;
-            blocks.push({
-              height: fs + sfs + (2 * dot + 6) + 4,
-              draw: (y) => {
-                ctx.save();
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.fillStyle = "#fff";
-                ctx.fillText(`${prog.broken} / ${prog.total}`, cx, y + 0.5 * fs);
-                const ly = y + fs + 0.6 * sfs;
-                ctx.font = `${sfs}px sans-serif`;
-                ctx.fillStyle = "#aaa";
-                ctx.fillText(L.matchColour, cx, ly);
-                const dy = ly + 0.5 * sfs + dot + 4;
-                ctx.fillStyle = ballColor;
-                ctx.shadowColor = ballColor;
-                ctx.shadowBlur = 6;
-                ctx.beginPath();
-                ctx.arc(cx, dy, dot, 0, TWO_PI);
-                ctx.fill();
-                ctx.restore();
-              },
-            });
-          }
+          if (engine.hasColorMatchEscaped()) bigBanner(L.matched, L.segmentsCleared(prog.total), "#22c55e"); // (--- ring-looks --- the counter and the rule are the ring's own now)
         }
-        if (engine.isCountdownMode()) {
-          const target = engine.getCountdownTarget();
-          const total = engine.getCountdownTotal();
-          const hitCount = engine.getCountdownHit().size;
-          if (engine.isCountdownComplete()) bigBanner(L.complete, L.segmentsHitInOrder(total), "#22c55e");
-          else {
-            const fs = Math.max(28, 0.1 * minDim);
-            const sfs = 0.25 * fs;
-            blocks.push({
-              height: fs + 1.1 * sfs,
-              draw: (y) => {
-                ctx.save();
-                ctx.font = `bold ${fs}px sans-serif`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillStyle = "#facc15";
-                ctx.shadowColor = "#facc15";
-                ctx.shadowBlur = 15;
-                ctx.fillText(String(target), cx, y + 0.5 * fs);
-                ctx.shadowBlur = 0;
-                ctx.font = `${sfs}px sans-serif`;
-                ctx.fillStyle = "#888";
-                ctx.fillText(`${hitCount}/${total}`, cx, y + fs + 0.5 * sfs);
-                ctx.restore();
-              },
-            });
-          }
-        }
+        if (engine.isCountdownMode() && engine.isCountdownComplete()) bigBanner(L.complete, L.segmentsHitInOrder(engine.getCountdownTotal()), "#22c55e"); // (--- ring-looks --- the number to hit is the ring's own now)
         if (replay) blocks.length = 0; // --- camera --- the mode banners wait for the end of the escape replay
         // (--- end-banner --- a banner with a place of its own is not part of the stack in the middle)
         let totalH = 0;
