@@ -407,6 +407,7 @@ describe("the page: footer stamp, imprint and the jbl-build meta tag", () => {
     vi.doMock("@/i18n/navigation", () => ({
       Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => createElement("a", { href: `/${locale}${href}`, ...rest }, children),
       usePathname: () => "/",
+      useRouter: () => ({ replace: () => {} }), // the footer's language links switch through the router (useSwitchLocale.ts); nothing is clicked here
     }));
     const { default: Footer } = await import("@/components/site/Footer");
     const html = renderToStaticMarkup(
