@@ -3946,9 +3946,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (canvas.dataset.flMatch !== undefined) for (const key of FIGHT_LEAGUE_DATA_KEYS) delete canvas.dataset[key];
       // --- loop-foundation --- Grow's run (data-grow-*) and the loop contract's cycle and seams of any looping run (data-loop-*)
       if (growView) writeGrowDataset(growView, engine.getBalls(), setCanvasData);
+      else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
       if (swarmView) writeSwarmDataset(swarmView, setCanvasData); // --- multiply-race ---
       else if (canvas.dataset.swarmCount !== undefined) for (const key of SWARM_DATA_KEYS) delete canvas.dataset[key];
-      else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
       // --- colour-sort --- the phase, the census, the loop's counts and the checks (data-cs-*)
       if (csView) writeColourSortDataset(csView, setCanvasData);
       else if (canvas.dataset.csPhase !== undefined) for (const key of COLOUR_SORT_DATA_KEYS) delete canvas.dataset[key];
