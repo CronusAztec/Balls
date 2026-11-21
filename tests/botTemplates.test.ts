@@ -170,7 +170,8 @@ const SONG_RING_READY: readonly ModeId[] = ["songRing"];
 /**
  * --- sand-plate --- Sand Plate, bound when the mode was added: a reveal with its own hook, timed by its full chord on the last,
  * finest figure (the run's fixed length less the finale's hold). Measured as the groups above: 36 of 36 plans (plan seeds 1-4, the
- * three platforms, en, pl and es) pass every gate, Simple 89, Playbook 75 to 77 (docs/virality-playbook.md §5).
+ * three platforms, en, pl and es) pass every gate, Simple 89, Playbook 75 to 77 (docs/virality-playbook.md §5); measured again
+ * after the C3 review (eight notes of 2 s): 36 of 36, Simple 88, Playbook 80 to 82.
  */
 const SAND_PLATE_READY: readonly ModeId[] = ["sandPlate"];
 const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY, ...SONG_RING_READY, ...SAND_PLATE_READY];

@@ -20880,7 +20880,8 @@ await smokeBlock("sand-plate", async () => {
   const block = page.getByTestId("sand-plate");
   const spToggle = (label) => block.getByRole("switch", { name: switchName(label) });
   const spSlider = (label) => block.locator(`input[aria-label="${label}"]`);
-  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=9&sps=2&spg=4000&spk=1.4&spl=1`, { waitUntil: "networkidle" });
+  // (--- review fix (C3) --- a note length of 2.5 s: 2 s is the default now, which a link leaves out)
+  await page.goto(`${BASE}/en/simulator/?mode=sandPlate&spn=9&sps=2.5&spg=4000&spk=1.4&spl=1`, { waitUntil: "networkidle" });
   {
     const values = { spn: await spSlider("Notes").inputValue(), sps: await spSlider("Note Length").inputValue(), spg: await spSlider("Grains").inputValue(), spk: await spSlider("Shake").inputValue() };
     const loop = await spToggle("Loop").getAttribute("aria-checked");
@@ -20888,7 +20889,7 @@ await smokeBlock("sand-plate", async () => {
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
     check(
       "sand plate loads from the URL",
-      values.spn === "9" && values.sps === "2" && values.spg === "4000" && values.spk === "1.4" && loop === "true" && /19\.8 s/.test(runText) && noRingControls,
+      values.spn === "9" && values.sps === "2.5" && values.spg === "4000" && values.spk === "1.4" && loop === "true" && /24\.3 s/.test(runText) && noRingControls,
       `(${JSON.stringify(values)}, loop=${loop}, "${runText}", no ring controls=${noRingControls})`,
     );
   }
@@ -20900,7 +20901,7 @@ await smokeBlock("sand-plate", async () => {
     const query = page.url().split("?")[1] || "";
     check(
       "sand plate mirrors into the URL",
-      /(^|&)spn=5(&|$)/.test(query) && /(^|&)spg=2000(&|$)/.test(query) && /(^|&)sps=2(&|$)/.test(query) && /(^|&)spk=1\.4(&|$)/.test(query) && !/(^|&)spl=/.test(query),
+      /(^|&)spn=5(&|$)/.test(query) && /(^|&)spg=2000(&|$)/.test(query) && /(^|&)sps=2\.5(&|$)/.test(query) && /(^|&)spk=1\.4(&|$)/.test(query) && !/(^|&)spl=/.test(query),
       `(${query})`,
     );
   }

@@ -81,7 +81,7 @@ export const MODE_SEARCH_WORDS: Record<ModeId, Words> = {
   mergeRing: { en: "fuse fusion tiers overflow", pl: "łączenie scalanie fuzja poziomy", es: "fusionar fusión niveles" },
   spiralGlass: { en: "chip laps frosted", pl: "szkło okrążenia kruszenie", es: "vidrio vueltas astillar" },
   songRing: { en: "guess name piano playhead quiz", pl: "zgadnij pianino wskazówka quiz", es: "adivina piano aguja quiz" },
-  sandPlate: { en: "chladni pattern vibration resonance grains", pl: "piasek płyta chladni wzór drgania", es: "arena placa chladni figura vibración" },
+  sandPlate: { en: "chladni cymatics resonance mandala", pl: "piasek chladni cymatyka figury rezonans mandala", es: "chladni cimática figuras resonancia mandala" }, // --- review fix (C3) --- (what the plate shows, no word of its panel)
   blueprint: { en: "mode lab custom experiments", pl: "własne eksperymenty", es: "propios experimentos" },
 };
 
