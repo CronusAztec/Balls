@@ -2,7 +2,7 @@ import vm from "vm";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { STUDIO_LOAD_TIMEOUT_MS, STUDIO_RELOAD_KEY, skeletonScript } from "@/components/simulator/studio/StudioSkeleton";
+import { STUDIO_LOAD_TIMEOUT_MS, STUDIO_RELOAD_KEY, skeletonModeOf, skeletonScript } from "@/components/simulator/studio/StudioSkeleton";
 import { MODE_IDS } from "@/lib/physics/types";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -89,7 +89,7 @@ function page(search: string, opts: { stored?: string | null; scripts?: { src: s
   };
 }
 
-const scriptError = (src: string) => ({ target: { src } });
+const scriptError = (src: string) => ({ target: { tagName: "SCRIPT", src } });
 
 describe("the studio skeleton's script", () => {
   it("shows the poster and the name of the mode the address names, Classic otherwise, and none for a share code or the daily challenge", () => {
@@ -128,7 +128,7 @@ describe("the studio skeleton's script", () => {
     expect(second.captured.click).toBe(true);
     // without sessionStorage there is no automatic reload: the message straight away
     const blocked = page("", { storage: "throws" });
-    blocked.fire("error", scriptError("http://x/_next/static/css/app.css"));
+    blocked.fire("error", { target: { tagName: "LINK", rel: "stylesheet", href: "http://x/_next/static/css/app.css" } });
     expect([blocked.reloads(), blocked.failed()]).toEqual([0, true]);
     // a script that failed before the skeleton's script ran (its resource timing has the error status): the same, at once
     const early = page("", { scripts: [{ src: "http://x/_next/static/chunks/page.js", loaded: true, status: 404 }] });
@@ -183,6 +183,63 @@ describe("the studio skeleton's script", () => {
     ok.fire("error", scriptError("http://x/_next/static/chunks/late.js"));
     ok.advance(60000);
     expect([ok.reloads(), ok.failed()]).toEqual([0, false]);
+  });
+
+  // --- review fix (studio-first-open) ---
+  it("takes no font, preload or image under /_next/static for the studio failing to load", () => {
+    const fonts = page("");
+    fonts.fire("error", { target: { tagName: "LINK", rel: "preload", href: "http://x/_next/static/media/5a0c43ffa288c21a-s.p.woff2" } });
+    fonts.fire("error", { target: { tagName: "LINK", rel: "preload", href: "http://x/_next/static/chunks/page.js" } });
+    fonts.fire("error", { target: { tagName: "IMG", src: "http://x/_next/static/media/logo.png" } });
+    expect([fonts.reloads(), fonts.failed(), fonts.store.has(STUDIO_RELOAD_KEY)]).toEqual([0, false, false]);
+    // ... while a stylesheet or a script does
+    fonts.fire("error", { target: { tagName: "LINK", rel: "stylesheet", href: "http://x/_next/static/css/app.css" } });
+    expect(fonts.reloads()).toBe(1);
+  });
+
+  it("keeps watching after it said the studio did not load: a studio that takes over then forgets the reload", () => {
+    const late = page("", { stored: "1" });
+    late.fire("error", scriptError("http://x/_next/static/chunks/app/page.js"));
+    expect([late.reloads(), late.failed()]).toEqual([0, true]);
+    late.advance(5000);
+    expect(late.store.get(STUDIO_RELOAD_KEY)).toBe("1");
+    late.root.isConnected = false;
+    late.advance(600);
+    expect(late.store.has(STUDIO_RELOAD_KEY)).toBe(false);
+    // ... as after the 15 s wait
+    const slow = page("", { stored: "1" });
+    slow.advance(STUDIO_LOAD_TIMEOUT_MS);
+    expect(slow.failed()).toBe(true);
+    slow.root.isConnected = false;
+    slow.advance(600);
+    expect(slow.store.has(STUDIO_RELOAD_KEY)).toBe(false);
+  });
+
+  it("names the same mode as the skeleton React draws on a client-side navigation", () => {
+    for (const search of ["", "?mode=maze&seed=7", "?mode=fightLeague", "?mode=nope", "?mode=constructor", "?seed=12", "?c=abc", "?daily=2026-11-21", "?mode=maze&c=abc"]) {
+      const p = page(search);
+      const id = skeletonModeOf(search, NAMES);
+      expect([p.img.src, p.name.textContent], search).toEqual(id ? [`/base/modes/${id}.webp`, NAMES[id]] : ["", ""]);
+    }
+  });
+
+  it("is the simulator layout's fallback too, drawn by React with the mode filled in by a client part only the layout imports", () => {
+    const src = (...parts: string[]) => fs.readFileSync(path.join(__dirname, "..", "src", ...parts), "utf8");
+    const layout = src("app", "[locale]", "simulator", "layout.tsx");
+    expect(layout).toMatch(/<Suspense\s+fallback=\{/);
+    expect(layout).toMatch(/<StudioSkeleton [^>]*fill=\{<SkeletonModeFill names=\{names\} base=\{BASE_PATH\} \/>\} \/>/);
+    expect(layout).toContain("<StudioLoadingHeader />");
+    expect(src("components", "simulator", "studio", "StudioSkeleton.tsx")).toContain("{fill ?? <script dangerouslySetInnerHTML");
+    expect(src("components", "simulator", "studio", "StudioLoading.tsx")).toMatch(/^"use client";/);
+    // a client module the page imports as well is listed with the page's scripts (the whole studio), so the fallback would
+    // wait for them: the page and the skeleton never import the loading screen's client parts
+    for (const file of [src("app", "[locale]", "simulator", "page.tsx"), src("components", "simulator", "studio", "StudioSkeleton.tsx")]) expect(file).not.toMatch(/from "[^"]*StudioLoading"/);
+    expect(layout).not.toMatch(/from "@\/components\/site\/Navbar"/);
+    // ... and the locale layout's message provider, drawn again on every client-side navigation, is not the one the pages use
+    const locale = src("app", "[locale]", "layout.tsx");
+    expect(locale).toMatch(/<SiteMessages locale=\{locale\} timeZone=\{timeZone\} messages=\{pickMessages\(messages, SHARED_CLIENT_NAMESPACES\)\}>/);
+    expect(locale).not.toContain("NextIntlClientProvider");
+    expect(src("components", "site", "SiteMessages.tsx")).toMatch(/^"use client";/);
   });
 
   it("names every mode, has a poster for each, and its strings exist in every language", () => {
