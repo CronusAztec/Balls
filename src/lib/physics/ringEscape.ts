@@ -2,6 +2,7 @@ import type { PhysicsConfig } from "./types";
 import { atLeastMin } from "@/lib/uncap";
 import { LOOP_BASE_MIDI, degreeToMidi, scalarDegree } from "@/lib/audio/loopPitch";
 import { midiToFrequency } from "@/lib/audio/scales";
+import { wallHitFrequency } from "@/lib/audio/sampler"; // --- ring-looks ---
 
 /*
  * --- ring-escape --- Ring Escape (the loop family's oldest reel, "it takes three seconds to get through the first one 🔊"): a
@@ -365,3 +366,14 @@ export const RING_ESCAPE_PRESET = {
   backgroundColors: ["#000000", "#000000"] as string[],
   loopHud: false,
 };
+
+/**
+ * --- ring-looks --- Classic's plain bounce tone with the ring sounds off: the engine's wall tone (800 Hz, 80 Hz lower a
+ * step, never under 300 Hz) counted from the outermost ring in, so ring `wallIndex` of `count` sounds higher the nearer it
+ * is to the way out and the run climbs as it escapes (the engine's own order sank).
+ */
+export function classicToneHz(wallIndex: number, count: number): number {
+  const rings = Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1;
+  const k = Number.isFinite(wallIndex) ? Math.max(0, Math.min(rings - 1, Math.floor(wallIndex))) : 0;
+  return wallHitFrequency(rings - 1 - k);
+}

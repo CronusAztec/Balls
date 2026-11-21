@@ -48,6 +48,7 @@ export class AccumulationMode implements GameMode {
       const balls = ctx.getBalls();
       const active = balls.find((b) => !b.frozen);
       if (active) {
+        this.freezeSound(ctx); // --- ring-voices --- (the timer's freeze is heard: the thump a step lower per ball frozen, the crack over it)
         this.frozenBalls.push({ x: active.x, y: active.y, radius: active.radius, color: active.color, atMs: ctx.getElapsedMs() });
         ctx.setBalls(balls.filter((b) => b.id !== active.id));
       }

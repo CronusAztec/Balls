@@ -1,5 +1,6 @@
 import type { Ball, GameMode, ModeContext, WallHitResult } from "../types";
-import { RING_CHORD_HZ, RingTimer, ringPluckHz, ringPluckLevel, ringStepHz, type RingEscapeView } from "../ringEscape"; // --- ring-escape ---
+import { RING_CHORD_HZ, RingTimer, classicToneHz, ringPluckHz, ringPluckLevel, ringStepHz, type RingEscapeView } from "../ringEscape"; // --- ring-escape ---
+import { pitchedFrequency } from "../bounceMathRuntime"; // --- ring-looks --- (a bounce's pitch with the ball's pitch shift, as the engine's tone)
 
 /** Classic: a ball works its way out through concentric rings, each with one gap. */
 export class ClassicMode implements GameMode {
@@ -19,11 +20,20 @@ export class ClassicMode implements GameMode {
   /**
    * --- ring-escape --- With the ring sounds on (`config.ringSound`), a bounce off ring `wallIndex` is the loop family's
    * pentatonic pluck at that ring's degree instead of the engine's tone (the inner half bright: the small rings). Without a
-   * context (the Journey's rings chamber calls it bare) or with the sounds off: nothing, as always.
+   * context (the Journey's rings chamber calls it bare): nothing, as always.
+   *
+   * --- ring-looks --- With the sounds off, the engine's own tone, one "hit" as before (a melody loaded still plays its next
+   * note on it, the teams still count it), but climbing as the ball works outwards (`classicToneHz()`): the innermost ring
+   * low, the way out high. The engine's tone ran the other way, 80 Hz lower for every ring nearer the way out.
    */
   onWallHit(ctx?: ModeContext, ball?: Ball, wallIndex = 0, angle = 0): WallHitResult | void {
-    if (!ctx || !ball || !ctx.config.ringSound) return;
+    if (!ctx || !ball) return;
     const count = ctx.getCircularWalls().length;
+    if (!ctx.config.ringSound) {
+      const hz = classicToneHz(wallIndex, count);
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex, frequency: ball.pitchShift ? pitchedFrequency(hz, ball.pitchShift) : hz });
+      return { suppressSound: true };
+    }
     const radial = ball.vx * Math.cos(angle) + ball.vy * Math.sin(angle);
     ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: ringPluckHz(wallIndex, count), level: ringPluckLevel(radial, ctx.config.ballSpeed || 400), loopBright: 2 * wallIndex < count, melody: false });
     return { suppressSound: true };

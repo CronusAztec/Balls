@@ -14,7 +14,10 @@ import type { SimulatorSettings } from "@/lib/settings";
  * answers byte for byte), the daily deals, the split-screen arenas, the characters' reactions: a new default there is a new
  * run in all of them. Measured for the day its default can move: gap 1.0 rad at ball speed 500 with the seven rings brings
  * 88 of 100 seeds out by 27 s (now: 0), median 18.2 s, none under 8 s, the first ring broken at a median 1.1 s (6.5 s); a
- * link gets that run today with `gap=1&s=500`. Accumulation runs in the same recipes, and its length is the luck of one
+ * link gets that run today with `gap=1&s=500`, and the gallery's Ring Ladder card plays it with the ring sounds. (Tried as
+ * the default: every ring recipe names its own gap and speed, so no plan's run moves, but their share links are written
+ * against the defaults – `s=500` falls out, `gap=0.4` comes in – and so are the briefs a recorded crew eval answered.)
+ * Accumulation runs in the same recipes, and its length is the luck of one
  * gap: a 3 s timer, gap 0.35 and speed 450 bring 79 of 100 in (now 63).
  *
  * Only page defaults: the modes' own constants (DEFAULT_PENDULUM_SETTINGS, DEFAULT_MERGE_RING_SETTINGS …) and the

@@ -16,7 +16,9 @@ import { COUNTDOWN_FLASH_MS, type WrongFlash } from "@/lib/physics/modes/target"
  *  - Accumulation: frozen balls are ice (pale blue, a white rim, a glint) with a frost burst as they freeze; the timer is a
  *    ring round the live ball that runs out and turns red, and big faint digits in the middle.
  *  - Classic: a row of pips in the square's top-left corner, one per ring in its ring's colour, emptied as rings break,
- *    with the number left – the progress a stranger reads in a second.
+ *    with the number left – the progress a stranger reads in a second; the ring the ball is in lit from inside in its own
+ *    colour (`drawClassicFloor()`), breathing when it is the last, and a shock ring in its colour thrown out from every
+ *    ring that breaks (`drawRingBurst()`), with a halo of the ring's colour round the ball.
  *  - and under each single ring a floor (`drawRingFloor()`): the arena as a tinted disc instead of a black hole – Countdown's
  *    indigo, Accumulation's ice blue, Color Match's in the ball's colour of the moment, so the whole arena turns with every
  *    bounce and the segments that match it are the ones lit. A tint, not a fill: a theme's background shows through.
@@ -467,4 +469,65 @@ export function drawRingPips(ctx: CanvasRenderingContext2D, rings: number, escap
   }
   ctx.restore();
   return lay.y + lay.fs;
+}
+
+/**
+ * --- ring-looks --- Classic's light: the ring the ball is in lit from inside in its own colour – a faint disc and a brighter
+ * band along the rim – so the arena is the colour of the ring to beat and turns with every ring broken; the last ring
+ * breathes (its band swells and fades on the simulation clock). Under the rings, two fills a frame.
+ */
+export const CLASSIC_FLOOR_ALPHA = 0.2;
+/** The band along the lit ring's rim: its share of the radius, and how strong it is (the last ring's breath adds to both). */
+export const CLASSIC_BAND = { width: 0.1, alpha: 0.24 } as const;
+export function drawClassicFloor(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, color: string, lastRing: boolean, nowMs: number): void {
+  if (!(radius > 0)) return;
+  const breath = lastRing ? 0.5 + 0.5 * Math.sin(nowMs / 160) : 0;
+  const band = Math.max(3, (CLASSIC_BAND.width + 0.06 * breath) * radius);
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = CLASSIC_FLOOR_ALPHA * (1 + 0.5 * breath);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, TWO_PI);
+  ctx.fill();
+  ctx.globalAlpha = CLASSIC_BAND.alpha + 0.2 * breath;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = band;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(0, radius - band / 2), 0, TWO_PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** How long a broken ring's shock ring runs (simulation ms). */
+export const RING_BURST_MS = 650;
+
+/** The shock ring of a ring of `radius` broken `ageMs` ago: where it is, how wide and how strong; null before or after it. */
+export function ringBurstShape(radius: number, ageMs: number): { r: number; width: number; alpha: number } | null {
+  if (!(radius > 0) || !(ageMs >= 0) || ageMs >= RING_BURST_MS) return null;
+  const k = ageMs / RING_BURST_MS;
+  const ease = 1 - (1 - k) * (1 - k);
+  return { r: radius * (1 + 0.45 * ease), width: Math.max(2, 0.08 * radius * (1 - k)), alpha: 0.9 * (1 - k) };
+}
+
+/**
+ * A broken ring going off: a shock ring in its colour with a white core, thrown outwards from where the ring was and
+ * fading – the moment a stranger reads as "one down". Read from the escape's simulation time, so every render agrees.
+ */
+export function drawRingBurst(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, color: string, ageMs: number): void {
+  const shape = ringBurstShape(radius, ageMs);
+  if (!shape) return;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = shape.alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = shape.width;
+  ctx.beginPath();
+  ctx.arc(cx, cy, shape.r, 0, TWO_PI);
+  ctx.stroke();
+  ctx.globalAlpha = 0.7 * shape.alpha;
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(1, 0.3 * shape.width);
+  ctx.stroke();
+  ctx.restore();
 }

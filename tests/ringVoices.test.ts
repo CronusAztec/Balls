@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { RING_CHORD_HZ } from "@/lib/physics/ringEscape";
+import { RING_CHORD_HZ, classicToneHz } from "@/lib/physics/ringEscape";
+import { wallHitFrequency } from "@/lib/audio/sampler";
 import { COLOUR_WRAP, colourChordHz, colourNoteHz, countdownSeekHz, countdownStepHz, freezeThumpHz, icePlinkHz, timerPluckHz } from "@/lib/physics/ringVoices";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId, SoundEvent } from "@/lib/physics/types";
@@ -209,9 +210,9 @@ describe("Accumulation's voice", () => {
   it("plucks every bounce higher as the ball's timer runs down, and starts low again with the next ball", () => {
     const { log, engine } = freezingRun();
     const timerMs = engine.getAccumulationTimerMax();
-    // every sound is the mode's own: a pluck off the ring, or a plink off a frozen ball
-    for (const l of log) expect([l.event.type, l.event.loop], `at ${l.atMs}`).toEqual(["hit", "pluck"]);
-    const ring = log.filter((l) => !l.event.loopBright);
+    // every sound is the mode's own: a pluck off the ring, a plink off a frozen ball, or a freeze's thump
+    for (const l of log) expect([l.event.type, l.event.loop === "pluck" || l.event.loop === "land"], `at ${l.atMs}`).toEqual(["hit", true]);
+    const ring = log.filter((l) => l.event.loop === "pluck" && !l.event.loopBright);
     expect(ring.length).toBeGreaterThan(8);
     // inside one ball's life the pitch never falls, and it is the timer's own note
     for (let life = 0; life < 3; life++) {
@@ -222,11 +223,19 @@ describe("Accumulation's voice", () => {
     const late = ring.filter((l) => l.atMs > 0.75 * timerMs && l.atMs < timerMs).map((l) => l.event.frequency!);
     if (early.length > 0 && late.length > 0) expect(Math.min(...late)).toBeGreaterThan(Math.max(...early));
     for (const l of ring.filter((x) => x.atMs < timerMs)) expect(l.event.frequency!).toBeCloseTo(timerPluckHz(timerMs - l.atMs, timerMs), 6);
-    // a timer's freeze sends no event of its own: the run's events are the bounces it always had (see ringVoices.ts)
-    expect(log.some((l) => l.event.loop === "land")).toBe(false);
-    // every frozen ball knows when it froze, for the canvas' frost burst
+    // a timer's freeze is heard: one thump per frozen ball, at the step it froze, a step lower each time, the crack over it
+    const thumps = log.filter((l) => l.event.loop === "land");
+    expect(thumps.length).toBe(engine.getFrozenBalls().length);
+    thumps.forEach((t, n) => {
+      expect(t.event.frequency!).toBeCloseTo(freezeThumpHz(n), 9);
+      expect(log.some((l) => l.atMs === t.atMs && l.event.loop === "pluck" && l.event.loopBright && l.event.frequency === icePlinkHz(n))).toBe(true);
+    });
+    // every frozen ball knows when it froze, for the canvas' frost burst – the step its thump sounds
     // (a timer's freeze: a frame's time may pass a timer's end, so ball n froze within n + 1 frames of n + 1 timers)
-    engine.getFrozenBalls().forEach((b, n) => expect(Math.abs(b.atMs - (n + 1) * timerMs)).toBeLessThan(17 * (n + 2)));
+    engine.getFrozenBalls().forEach((b, n) => {
+      expect(Math.abs(b.atMs - (n + 1) * timerMs)).toBeLessThan(17 * (n + 2));
+      expect(Math.abs(thumps[n].atMs - b.atMs)).toBeLessThan(17);
+    });
   });
 
   it("thumps and cracks where a spike freezes a ball, plinks off the ice and resolves the way out on the chord", () => {
@@ -272,5 +281,37 @@ describe("Classic's voice", () => {
     expect(log.filter((l) => l.event.loop === "chord").length).toBe(1);
     const bounces = log.filter((l) => l.event.type === "hit" && l.event.loop !== "step" && l.event.loop !== "chord");
     for (const b of bounces) expect(b.event.loop).toBe("pluck");
+  });
+});
+
+describe("Classic's plain tone (--- ring-looks ---)", () => {
+  it("counts the engine's wall tone from the outermost ring in: the innermost ring low, the way out high", () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map((i) => classicToneHz(i, 7))).toEqual([6, 5, 4, 3, 2, 1, 0].map(wallHitFrequency));
+    expect(classicToneHz(0, 7)).toBe(320);
+    expect(classicToneHz(6, 7)).toBe(800);
+    expect(classicToneHz(0, 1)).toBe(800);
+    // a hundred rings: the outer seven climb, the inner ones rest on the tone's floor; nonsense stays in range
+    expect(classicToneHz(99, 100)).toBe(800);
+    expect(classicToneHz(0, 100)).toBe(300);
+    for (const [i, n] of [[-3, 7], [50, 7], [Number.NaN, 7], [2, 0], [2, Number.NaN]]) expect(classicToneHz(i, n)).toBeGreaterThanOrEqual(300);
+  });
+
+  it("plays one plain hit per bounce as before, a melody's note on it, its pitch climbing ring by ring towards the way out", () => {
+    const engine = engineOf("classic", 5, { gapSize: 1, ballSpeed: 500 });
+    const rings = engine.getCircularWalls().length;
+    const { log, finished } = runOf(engine, 60);
+    expect(finished).toBe(true);
+    const hits = log.filter((l) => l.event.type === "hit");
+    expect(hits.length).toBeGreaterThan(20);
+    for (const { event } of hits) {
+      expect(event.loop).toBeUndefined();
+      expect(event.melody).toBeUndefined(); // still a note of a loaded melody
+      expect(event.frequency).toBe(classicToneHz(event.wallIndex, rings));
+    }
+    // the ring the ball is in rises as the rings break: the run's first bounces low, its last ones high
+    const first = hits[0].event.frequency!;
+    const last = hits[hits.length - 1].event.frequency!;
+    expect(last).toBeGreaterThan(first);
+    for (let i = 1; i < hits.length; i++) if (hits[i].event.wallIndex > hits[i - 1].event.wallIndex) expect(hits[i].event.frequency!).toBeGreaterThan(hits[i - 1].event.frequency!);
   });
 });

@@ -134,7 +134,7 @@ import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
-import { drawAccumulationField, drawAccumulationTimerRing, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
+import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -1678,6 +1678,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const shatterSegments = isShatter ? engine.getShatterSegments() : null;
       const sectorBatch = ringBatch && isShatter ? new Path2D() : null; // --- review fix (recording-export) --- (Shatter's segments of thousands of rings: one fill)
 
+      // --- ring-looks --- Classic: the ring the ball is in lit in its own colour, under the rings (ringModesRenderer.ts). Not in
+      // the Ring Escape poster's pure black look (its rainbow by ring), a loop clip, a roster's race or a replay.
+      const classicRings = engine.getCurrentModeName() === "classic" && !isShatter && !ringRainbow && !loopHudRef.current && !teamLayer.isActive() && !replay ? engine.getRingEscapeView() : null;
+      const classicRingColor = (index: number) => wallColor(index);
+      if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0) {
+        const k = classicRings.escaped;
+        drawClassicFloor(ctx, cx, cy, walls[k].radius, classicRingColor(k), walls.length > 1 && k === walls.length - 1, engine.getElapsedMs());
+      }
+
       // Walls
       for (let i = 0; i < walls.length; i++) {
         if (broken.has(i)) continue;
@@ -1737,6 +1746,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
       ctx.globalAlpha = 1;
+      // --- ring-looks --- Classic: the ring just broken thrown out as a shock ring in its colour, on the simulation clock
+      if (classicRings && classicRings.escaped > 0 && classicRings.escaped <= walls.length) {
+        const k = classicRings.escaped - 1;
+        drawRingBurst(ctx, cx, cy, walls[k].radius, classicRingColor(k), engine.getElapsedMs() - (classicRings.outMs >= 0 ? classicRings.outMs : classicRings.enteredMs));
+      }
 
       // Obstacles (pegs, bars and straight walls – Ball Drop) in the wall colour; recent hits glow like the walls.
       const obstacles = engine.getObstacles();
@@ -2728,6 +2742,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       });
       // --- ring-looks --- Color Match: a halo of the ball's colour of the moment; Accumulation: the timer as a ring round the live ball
       if (isColorMatch && matchColor && !engine.hasColorMatchEscaped()) for (let i = 0; i < balls.length && i < 16; i++) drawColorMatchHalo(ctx, balls[i].x, balls[i].y, balls[i].radius, matchColor);
+      if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0 && balls.length === 1) drawColorMatchHalo(ctx, balls[0].x, balls[0].y, balls[0].radius, classicRingColor(classicRings.escaped)); // (Classic: a halo of the ring to beat)
       if (engine.isAccumulationMode() && !engine.hasAccumulationEscaped()) {
         for (const ball of balls) {
           if (ball.frozen) continue;

@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import {
+  CLASSIC_BAND,
+  CLASSIC_FLOOR_ALPHA,
   COUNTDOWN_COLORS,
   DETAIL_CAP,
   DIM_ALPHA,
@@ -9,17 +11,21 @@ import {
   FLOOR_COLORS,
   FROST_BURST_MS,
   PIP_CAP,
+  RING_BURST_MS,
   SEGMENT_BURST_MS,
   countdownNumberSize,
   countdownTileThickness,
   drawAccumulationField,
   drawAccumulationTimerRing,
+  drawClassicFloor,
   drawColorMatchHalo,
   drawColorMatchRing,
   drawCountdownRing,
+  drawRingBurst,
   drawRingFloor,
   drawRingPips,
   flashLeft,
+  ringBurstShape,
   ringPipLayout,
   timerColor,
   type CountdownRingView,
@@ -320,5 +326,83 @@ describe("Classic's rings left", () => {
     const gate = canvasSource.lastIndexOf('engine.getCurrentModeName() === "classic" && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current', at);
     expect(gate).toBeGreaterThan(0);
     expect(at - gate).toBeLessThan(1200);
+  });
+});
+
+describe("Classic's light", () => {
+  it("lights the ring the ball is in from inside in its colour, a faint disc and a brighter band along the rim, and the last ring breathes", () => {
+    const { ctx, g, drawn } = recorder();
+    ctx.shadowBlur = 12; // the walls' glow of the pass it runs in: a tint never pays for a blur
+    drawClassicFloor(g, 540, 540, 400, "hsl(200, 100%, 60%)", false, 5000);
+    expect(drawn.map((d) => d.name)).toEqual(["fill", "stroke"]);
+    expect(drawn.every((d) => d.blur === 0)).toBe(true);
+    expect(drawn[0].fill).toBe("hsl(200, 100%, 60%)");
+    expect(drawn[0].alpha).toBeCloseTo(CLASSIC_FLOOR_ALPHA, 9);
+    expect(drawn[1].stroke).toBe("hsl(200, 100%, 60%)");
+    expect(drawn[1].alpha).toBeCloseTo(CLASSIC_BAND.alpha, 9);
+    expect(drawn[1].width).toBeCloseTo(CLASSIC_BAND.width * 400, 9);
+    const arcs = ctx.calls.filter((c) => c.name === "arc").map((c) => c.args.slice(0, 3));
+    expect(arcs).toEqual([
+      [540, 540, 400],
+      [540, 540, 400 - (CLASSIC_BAND.width * 400) / 2],
+    ]);
+    expect(balanced(ctx)).toBe(true);
+    // a tint: the theme's background still shows through it
+    expect(CLASSIC_FLOOR_ALPHA).toBeLessThan(0.5);
+    // the last ring breathes on the simulation clock: the same time draws the same frame, another time another one
+    const at = (ms: number) => {
+      const r = recorder();
+      drawClassicFloor(r.g, 540, 540, 400, "#f00", true, ms);
+      return r.drawn.map((d) => [d.alpha, d.width]);
+    };
+    expect(at(1234)).toEqual(at(1234));
+    const alphas = [0, 250, 500, 750, 1000].map((ms) => at(ms)[0][0] as number);
+    expect(Math.max(...alphas) - Math.min(...alphas)).toBeGreaterThan(0.05);
+    for (const a of alphas) expect(a).toBeGreaterThanOrEqual(CLASSIC_FLOOR_ALPHA - 1e-9);
+    // nothing for a ring of no size
+    const none = recorder();
+    drawClassicFloor(none.g, 540, 540, 0, "#f00", false, 0);
+    expect(none.drawn).toEqual([]);
+  });
+
+  it("throws a broken ring out as a shock ring in its colour for 650 ms of the run, growing and fading", () => {
+    expect(RING_BURST_MS).toBe(650);
+    expect(ringBurstShape(300, -1)).toBeNull();
+    expect(ringBurstShape(300, RING_BURST_MS)).toBeNull();
+    expect(ringBurstShape(0, 100)).toBeNull();
+    const shapes = [0, 100, 300, 500, 640].map((ms) => ringBurstShape(300, ms)!);
+    expect(shapes[0]).toEqual({ r: 300, width: 24, alpha: 0.9 });
+    for (let i = 1; i < shapes.length; i++) {
+      expect(shapes[i].r).toBeGreaterThan(shapes[i - 1].r);
+      expect(shapes[i].alpha).toBeLessThan(shapes[i - 1].alpha);
+      expect(shapes[i].width).toBeLessThanOrEqual(shapes[i - 1].width);
+    }
+    expect(shapes[4].r).toBeLessThan(300 * 1.46);
+    const { ctx, g, drawn } = recorder();
+    ctx.shadowBlur = 12;
+    drawRingBurst(g, 540, 540, 300, "#22c55e", 100);
+    expect(drawn.map((d) => [d.name, d.stroke])).toEqual([
+      ["stroke", "#22c55e"],
+      ["stroke", "#ffffff"],
+    ]);
+    expect(drawn.every((d) => d.blur === 0)).toBe(true);
+    expect(drawn[0].alpha).toBeCloseTo(ringBurstShape(300, 100)!.alpha, 9);
+    expect(balanced(ctx)).toBe(true);
+    const after = recorder();
+    drawRingBurst(after.g, 540, 540, 300, "#22c55e", RING_BURST_MS + 1);
+    expect(after.drawn).toEqual([]);
+  });
+
+  it("is what the canvas draws for Classic: the floor under the rings, the burst over them, the halo round the one ball, on the simulation clock", () => {
+    const floor = canvasSource.indexOf("drawClassicFloor(ctx, cx, cy, walls[k].radius");
+    const wallsPass = canvasSource.indexOf("// Walls\n");
+    const burst = canvasSource.indexOf("drawRingBurst(ctx, cx, cy, walls[k].radius");
+    expect(floor).toBeGreaterThan(0);
+    expect(floor).toBeLessThan(wallsPass);
+    expect(burst).toBeGreaterThan(wallsPass);
+    expect(canvasSource).toMatch(/engine\.getElapsedMs\(\) - \(classicRings\.outMs >= 0 \? classicRings\.outMs : classicRings\.enteredMs\)/);
+    expect(canvasSource).toMatch(/balls\.length === 1\) drawColorMatchHalo\(ctx, balls\[0\]\.x, balls\[0\]\.y, balls\[0\]\.radius, classicRingColor\(classicRings\.escaped\)\)/);
+    // not in the Ring Escape poster's pure black look, a loop clip, a roster's race or a replay
+    expect(canvasSource).toMatch(/engine\.getCurrentModeName\(\) === "classic" && !isShatter && !ringRainbow && !loopHudRef\.current && !teamLayer\.isActive\(\) && !replay \? engine\.getRingEscapeView\(\) : null/);
   });
 });

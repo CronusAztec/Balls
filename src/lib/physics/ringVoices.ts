@@ -14,13 +14,15 @@ import { midiToFrequency } from "@/lib/audio/scales";
  *    of colours is a scale); a match is its note with its triad struck over it (`colourChordHz()`), the last match the chord.
 
  *  - Accumulation: a bounce is a pluck that climbs as the ball's timer runs down (`timerPluckHz()`) and falls back with the
- *    next ball, a bounce off a frozen ball a high plink (`icePlinkHz()`), a freeze on a spike a thump a step lower for every
- *    ball already frozen (`freezeThumpHz()`) with a glassy crack over it, the way out the chord.
+ *    next ball, a bounce off a frozen ball a high plink (`icePlinkHz()`), a freeze – on a spike or when the timer runs out –
+ *    a thump a step lower for every ball already frozen (`freezeThumpHz()`) with a glassy crack over it, the way out the chord.
  *
  * A bounce is one "hit" event and a break one "gap" event, as before these voices: the modes swap the sound each event
- * makes, never how many there are. The teams' bounce counts, the finder's facts and the crew's measured moments
- * (tests/fixtures/crew: the role eval's corpus, which a recorded eval answers) count events, so a sound that would be a new
- * event in a recipe's run – a tick of Accumulation's timer, a thump when the timer freezes a ball – is not sent.
+ * makes, never how many there are. The one sound that is an event of its own is Accumulation's freeze (two, the thump and
+ * the crack), the mode's key moment, which played nothing: the teams' bounce counts are Classic's, Shatter's and Color
+ * Match's, and the planner's facts read the first sound (a bounce, long before a timer runs out) and the last one only in
+ * the rhythm modes' lastNote clips, so no plan and no measured moment of the crew moves. A tick of the timer is not sent:
+ * the bounces climb as it runs down instead.
  *
  * All in C major pentatonic, like Classic's ring sounds (ringEscape.ts). Pure: the modes call these with their own state,
  * never with a random draw, and a sound never moves a ball – a seed's run and its fingerprint are what they were.
