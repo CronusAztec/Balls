@@ -47,6 +47,25 @@ describe("box finale: the plan", () => {
     expect(finaleSplit(400, 0.5, 300, 400, 1, 0.1)).toBeNull();
   });
 
+  // --- box-finale --- (E4 review) the badge sits in a bottom corner of a free clip: a top corner whenever one can be aimed at
+  it("chooses a split that ends in a top corner whenever one is within the aim bounds, whichever way the shape flies", () => {
+    for (const sy of [1, -1]) {
+      for (const [dx, dy, count, heading] of [[100, 60, 7, Math.PI / 4], [40, 200, 5, 0.4], [250, 30, 9, 1.1], [120, 120, 2, 0.8]] as const) {
+        const plan = finaleSplit(dx, dy, 300, 400, count, heading, sy)!;
+        expect(plan.x + plan.y - 1).toBe(count);
+        let topExists = false;
+        for (let x = 1; x <= count; x++) {
+          const angle = cornerAimAngle(dx, dy, 300, 400, x, count + 1 - x);
+          const corner = finaleCornerOf(1, sy, x, count + 1 - x);
+          if (angle >= MIN_AIM_ANGLE && angle <= Math.PI / 2 - MIN_AIM_ANGLE && (corner === BOX_CORNER_TL || corner === BOX_CORNER_TR)) topExists = true;
+        }
+        if (topExists) expect([BOX_CORNER_TL, BOX_CORNER_TR], `${sy} ${dx} ${dy} ${count}`).toContain(finaleCornerOf(1, sy, plan.x, plan.y));
+      }
+    }
+    // without the direction (sy 0) the plan is the heading's nearest, as before
+    expect(finaleSplit(100, 60, 300, 400, 7, Math.PI / 4, 0)).toEqual(finaleSplit(100, 60, 300, 400, 7, Math.PI / 4));
+  });
+
   it("names the corner a flight reaches: an odd number of contacts on an axis lands on the wall ahead", () => {
     expect(finaleCornerOf(1, 1, 1, 1)).toBe(BOX_CORNER_BR);
     expect(finaleCornerOf(1, 1, 2, 1)).toBe(BOX_CORNER_BL);
@@ -104,6 +123,36 @@ describe("box finale in the engine", () => {
     expect(engine.getBoxView().cornerHits).toBe(2);
     expect(events.filter((e) => e.ringVoice === "extra").map((e) => e.loop)).toEqual(["chime", "chime", "chime", "chord"]);
   });
+
+  // --- box-finale --- (E4 review) seven shapes or more at three speeds: the slowest group went from three moving to none, cornerless
+  it("ends the slowest group's countdowns on corners with seven and twelve shapes, each on its own corner, all of them top ones", () => {
+    for (const n of [7, 12]) {
+      const start = { ...defaultSettings("box"), ...clipStartSettings("box"), boxShapeCount: n };
+      const group = Math.ceil(n / 3); // (4:5:6 over the shapes in turn: the slowest, the first of every three, the last to reach 0)
+      for (const world of [
+        { width: 800, height: 450 },
+        { width: 450, height: 450 },
+      ]) {
+        for (const seed of [1, 2]) {
+          const finder = finderRequestOfSettings(start, world, 40);
+          const engine = createEngineForSettings(finder.physicsConfig, finder.mode, finder.modeSettings, seed);
+          const planned = new Map<number, number>();
+          let sec = 0;
+          while (sec < 40 && !engine.isSimulationFinished()) {
+            engine.update(1000 / 60, 0);
+            engine.consumeSoundEvents();
+            sec += 1 / 60;
+            for (const st of engine.getBoxView().shapes.values()) if (st.finaleCorner >= 0) planned.set(st.id, st.finaleCorner);
+          }
+          const where = `${n} shapes, seed ${seed}, ${world.width}`;
+          expect(engine.isSimulationFinished(), where).toBe(true);
+          expect(engine.getBoxView().cornerHits, where).toBe(group);
+          expect(new Set(planned.values()).size, where).toBe(Math.min(group, 2)); // (mirrored twins and triplets: the two top corners)
+          for (const corner of planned.values()) expect([BOX_CORNER_TL, BOX_CORNER_TR], where).toContain(corner);
+        }
+      }
+    }
+  }, 30_000);
 
   it("the start look's square box ends on its corner by 27 s on every seed, in a laptop's and a phone's world", () => {
     const start = { ...defaultSettings("box"), ...clipStartSettings("box") };

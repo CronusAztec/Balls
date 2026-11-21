@@ -40,7 +40,7 @@ import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- 
  * --- glass-real --- (Lane E, E4) Glass that sounds like glass and a camera that shows what is coming, with the run untouched:
  * every crack also rings the glassy crack voice (`plCrack`) an octave over the pane's note, louder as the pane breaks, and the
  * shatter rings it at full strength (`glassCrackHz()`, rising with the rows and stages as the notes do); Gerald reaching HOME
- * thuds a low C under the chord (`HOME_BOOM_HZ`). They are sounds of their own (`ringVoice: "extra"`, outside the step's sound
+ * lands an impact under the chord and a completion chord rings through the banner (`HOME_IMPACT_CHORD`, `HOME_RESOLVE_HZ`). They are sounds of their own (`ringVoice: "extra"`, outside the step's sound
  * limit), sent only by this mode through `GlassHitOptions.extra`, so the Journey's glass stages sound as they did. With `lead`
  * (the settings' `glassLead`, URL `gll`; off by default) the camera leads (`leadCameraTarget()`): it keeps the glass the ball
  * bounces on CAMERA_LEAD of the view below the top, so the ball hops in the upper third and the next panes – of the next stage
@@ -712,8 +712,13 @@ export const MAX_GLASS_SOUNDS_PER_STEP = 4;
 // --- glass-real ---
 /** Where the leading camera keeps the glass the ball bounces on: this share of the view below its top (the ball above it). */
 export const CAMERA_LEAD = 0.36;
-/** The low thud under the HOME chord: C2. */
-export const HOME_BOOM_HZ = 65.406;
+/**
+ * --- glass-real --- (E4 review) Gerald's HOME under the chord: an impact accent on C major from C4 (its kick, its crack and stabs
+ * well above 150 Hz, so a phone's speaker plays it; it replaced a C2 thud no phone could) and the completion chord on C3 ringing
+ * on through the banner, so HOME is the loudest moment of the clip and the clip does not end in silence.
+ */
+export const HOME_IMPACT_CHORD: readonly number[] = [midiToHz(60), midiToHz(64), midiToHz(67), midiToHz(72)];
+export const HOME_RESOLVE_HZ = GROUND_NOTE;
 /** The crack voice of a hit on `pane`: an octave over its note (so it climbs with the rows and the stages as the notes do). */
 export function glassCrackHz(pane: Pick<GlassPane, "pitch">): number {
   return 2 * pane.pitch;
@@ -835,7 +840,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
     ball.vy = (fromAbove ? 1 : -1) * impact * SHATTER_KEEP;
     o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true }, true);
     o.sound({ type: "gap", wallIndex: 0 }, true);
-    o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 1, melody: false, ringVoice: "extra" }); // --- glass-real ---
+    o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 1, melody: false, ringVoice: "extra", ringTexture: true }); // --- glass-real --- (a melody keeps it, unpitched: E4 review)
     return;
   }
   if (fromAbove) {
@@ -848,7 +853,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
     ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * o.random() - 1) * drift));
   }
   o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
-  o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 0.3 + 0.45 * paneDamage(pane), melody: false, ringVoice: "extra" }); // --- glass-real ---
+  o.extra?.({ type: "hit", wallIndex: 0, plCrack: true, frequency: glassCrackHz(pane), level: 0.3 + 0.45 * paneDamage(pane), melody: false, ringVoice: "extra", ringTexture: true }); // --- glass-real --- (a melody keeps it, unpitched: E4 review)
 }
 
 /** Throws the shards of a shattered pane: 8–20 of them from around the impact, with the ball's momentum and a spin. */
@@ -1244,7 +1249,9 @@ export class GlassMode implements GameMode {
     if (this.landedHome) {
       if (walkToDoor(home, ball, level.field.height, dtSec)) {
         reachDoor(v, home, ball, v.timeMs, this.sound);
-        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: HOME_BOOM_HZ, level: 1, melody: false, ringVoice: "extra" }); // --- glass-real --- the low thud under the chord
+        // --- glass-real --- (E4 review) the impact under the chord and the completion chord through the banner
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "impact", frequency: HOME_IMPACT_CHORD[0], chord: [...HOME_IMPACT_CHORD], level: 1, melody: false, ringVoice: "extra" });
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: HOME_RESOLVE_HZ, level: 1, melody: false, ringVoice: "extra" });
       }
       return;
     }

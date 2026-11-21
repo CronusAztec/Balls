@@ -427,21 +427,35 @@ export function boxChimeHz(k: number): number {
 }
 
 /**
+ * --- box-finale --- (E4 review) The extra turn (radians) a final corner at the bottom costs in `finaleSplit()`: the watermark
+ * badge sits in a bottom corner of a free clip, so a top corner is chosen whenever one is within the aim bounds.
+ */
+export const BOTTOM_CORNER_PENALTY = Math.PI / 2;
+
+/**
  * The plan of a final corner for a shape with `count` hits left: the side-wall contacts `x` and top/bottom contacts `y` it takes
  * (the corner one contact of each, so x + y − 1 = count) and the direction (radians from the horizontal, first quadrant) that
  * makes them land together (`cornerAimAngle()`), the split whose direction is closest to `heading` and at least MIN_AIM_ANGLE
- * off both walls. Null when no split can (a single hit left at a grazing angle): the next hit tries again.
+ * off both walls. Null when no split can (a single hit left at a grazing angle): the next hit tries again. --- box-finale ---
+ * (E4 review) With `sy`, the shape's vertical direction (±1), a split that ends in a bottom corner costs BOTTOM_CORNER_PENALTY
+ * more, so a top corner wins whenever one can be aimed at (the badge's corners are the bottom ones).
  */
-export function finaleSplit(dx: number, dy: number, innerW: number, innerH: number, count: number, heading: number): { x: number; y: number; angle: number } | null {
+export function finaleSplit(dx: number, dy: number, innerW: number, innerH: number, count: number, heading: number, sy = 0): { x: number; y: number; angle: number } | null {
   const c = Math.floor(count);
   if (!(c >= 1) || innerW <= 0 || innerH <= 0) return null;
   const max = Math.PI / 2 - MIN_AIM_ANGLE;
   let best: { x: number; y: number; angle: number } | null = null;
+  let bestCost = Infinity;
   for (let x = 1; x <= c; x++) {
     const y = c + 1 - x;
     const angle = cornerAimAngle(dx, dy, innerW, innerH, x, y);
     if (angle < MIN_AIM_ANGLE || angle > max) continue;
-    if (!best || Math.abs(angle - heading) < Math.abs(best.angle - heading)) best = { x, y, angle };
+    const bottom = sy !== 0 && (sy > 0) === (y % 2 === 1); // (finaleCornerOf's rule: an odd count of contacts lands on the wall ahead)
+    const cost = Math.abs(angle - heading) + (bottom ? BOTTOM_CORNER_PENALTY : 0);
+    if (cost < bestCost) {
+      best = { x, y, angle };
+      bestCost = cost;
+    }
   }
   return best;
 }
@@ -684,10 +698,16 @@ export class BoxMode implements GameMode {
   }
 
   // --- box-finale ---
-  /** The final corner can be planned: the countdown is on, the shapes fly straight lines, and at most FINALE_SHAPES still move. */
+  /**
+   * The final corner can be planned: the countdown is on, the shapes fly straight lines, and at most FINALE_SHAPES still move –
+   * or (E4 review) a shape is done and every one still moving flies with this one's speed and axis ratio, twins or triplets that
+   * count down together (seven shapes or more at three speeds: the slowest group went from three moving straight to none), each
+   * to its own corner.
+   */
   private maybePlanFinale(ball: Ball, st: BoxShapeState, field: BoxField) {
     const s = this.settings;
-    if (st.done || st.finaleX > 0 || st.finaleY > 0 || s.countdown <= 0 || s.gravity !== 0 || this.shapes.size - this.view.doneCount > FINALE_SHAPES) return;
+    if (st.done || st.finaleX > 0 || st.finaleY > 0 || s.countdown <= 0 || s.gravity !== 0) return;
+    if (this.shapes.size - this.view.doneCount > FINALE_SHAPES && !this.lastGroupMoving(st)) return;
     const shape = this.view.shape;
     const halfW = shapeHalfWidth(shape, ball.radius);
     const halfH = shapeHalfHeight(shape, ball.radius);
@@ -698,12 +718,22 @@ export class BoxMode implements GameMode {
     const sy = ball.vy < 0 ? -1 : 1;
     const dx = sx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW);
     const dy = sy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH);
-    const plan = finaleSplit(dx, dy, innerW, innerH, st.count, Math.atan2(Math.abs(ball.vy), Math.abs(ball.vx)));
+    const plan = finaleSplit(dx, dy, innerW, innerH, st.count, Math.atan2(Math.abs(ball.vy), Math.abs(ball.vx)), sy); // (a top corner first: E4 review)
     if (!plan) return;
     st.finaleX = plan.x;
     st.finaleY = plan.y;
     st.finaleCorner = finaleCornerOf(sx, sy, plan.x, plan.y);
     this.aimFinale(ball, st, field);
+  }
+
+  /** --- box-finale --- (E4 review) A shape is done and every shape still moving has `st`'s speed and axis ratio (they finish together). */
+  private lastGroupMoving(st: BoxShapeState): boolean {
+    if (this.view.doneCount <= 0) return false;
+    for (const other of this.shapes.values()) {
+      if (other.done) continue;
+      if (other.speedFactor !== st.speedFactor || other.axisRatio[0] !== st.axisRatio[0] || other.axisRatio[1] !== st.axisRatio[1]) return false;
+    }
+    return true;
   }
 
   /** Re-aims the shape at its planned corner (its speed unchanged), as the corner lock does; false when the aim would graze a wall. */

@@ -9,7 +9,7 @@ import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./r
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- gerald-vortex ---
 import { scheduleSwooshTone } from "./swooshTone"; // --- gerald-journey ---
 import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- gerald-bullseye ---
-import { crackFrequency, crackLevel, scheduleCrack } from "./powerLayerTones"; // --- power-layers-crack ---
+import { CRACK_SNAP_TONE, crackFrequency, crackLevel, scheduleCrack } from "./powerLayerTones"; // --- power-layers-crack --- --- glass-real --- (E4 review: the snap alone)
 import { scheduleGulpTone } from "./gulpTone"; // --- unlimited ---
 import { SPLAT_SAMPLE_GAIN, SPLAT_SAMPLE_RATE, scheduleSplatTone, splatLevel } from "./splatTone"; // --- gerald-exit-splat ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
@@ -164,6 +164,8 @@ export class ToneGenerator {
   private lastCustomNoteTime = 0;
   private readonly NOTE_COOLDOWN = 0.12;
   private wallBreakSoundUrl: string | null = null;
+  /** --- glass-real --- (E4 review) The clip is the mode's own default (Glass Smash's glass), not one the visitor chose. */
+  private wallBreakIsModeDefault = false;
   private wallBreakBuffer: AudioBuffer | null = null;
   private wallBreakDecoding = false;
   /** --- review fix (audio) --- The wall-break clip that could not be fetched or decoded: the synthesised effects play instead and it is not fetched again. */
@@ -384,7 +386,18 @@ export class ToneGenerator {
    * `ringVoiceEvent()`), so what the visitor chose is what plays, as in Classic.
    */
   hasOwnSound(): boolean {
-    return this.slicer.isActive() || this.customNotes.length > 0 || (this.hitSoundMode === "sample" && !!this.hitSampleUrl) || !!this.wallBreakSoundUrl;
+    return this.slicer.isActive() || this.customNotes.length > 0 || (this.hitSoundMode === "sample" && !!this.hitSampleUrl) || this.ownWallBreak();
+  }
+  /** --- glass-real --- (E4 review) A wall-break clip the visitor chose: the mode's own default (Glass Smash's glass) is none. */
+  private ownWallBreak(): boolean {
+    return !!this.wallBreakSoundUrl && !this.wallBreakIsModeDefault;
+  }
+  /**
+   * --- glass-real --- (E4 review) True when the visitor's own sound is a melody alone (no song to slice, hit sample or wall-break
+   * clip): a mode's texture extras (`SoundEvent.ringTexture`, Glass Smash's crack) keep sounding under it, unpitched.
+   */
+  ownSoundIsMelody(): boolean {
+    return this.customNotes.length > 0 && !this.slicer.isActive() && !(this.hitSoundMode === "sample" && !!this.hitSampleUrl) && !this.ownWallBreak();
   }
   /** --- beat-machine --- The loaded melody's pitches (Hz), in order (the Beat Machines' "melody" source plans from them). */
   getCustomNotes(): readonly number[] {
@@ -858,23 +871,24 @@ export class ToneGenerator {
    * One Power Layers layer gives way under the ball (powerLayerTones.ts): a glassy crack at `frequency`, `level` loud. An effect
    * that accompanies the level notes (never a melody note or a song slice); a hit sample plays it when the hit sound is one.
    */
-  playPowerLayerCrack(frequency?: number, level = 1) {
+  playPowerLayerCrack(frequency?: number, level = 1, unpitched = false /* --- glass-real --- (E4 review) the snap alone */) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.schedulePowerLayerCrack(frequency, level));
+      this.audioContext.resume().then(() => this.schedulePowerLayerCrack(frequency, level, unpitched));
       return;
     }
-    this.schedulePowerLayerCrack(frequency, level);
+    this.schedulePowerLayerCrack(frequency, level, unpitched);
   }
 
-  private schedulePowerLayerCrack(frequency: number | undefined, level: number) {
+  private schedulePowerLayerCrack(frequency: number | undefined, level: number, unpitched = false) {
     if (!this.audioContext || !this.masterGain) return;
     try {
       const ctx = this.audioContext;
       const time = this.scheduleTime(ctx.currentTime);
       const pitch = this.snap(crackFrequency(frequency));
-      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, pitch), time, 0.6 * crackLevel(level));
+      if (unpitched) scheduleCrack(ctx, this.masterGain, time, pitch, this.noiseCache.get(ctx), level, CRACK_SNAP_TONE); // --- glass-real --- (E4 review)
+      else if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, pitch), time, 0.6 * crackLevel(level));
       else scheduleCrack(ctx, this.masterGain, time, pitch, this.noiseCache.get(ctx), level);
     } catch (err) {
       console.error("Error playing the layer crack:", err);
@@ -1608,8 +1622,14 @@ export class ToneGenerator {
   }
   // --- end loop-foundation ---
 
-  setWallBreakSound(url: string | null) {
+  /**
+   * The wall-break clip (null: the synthesised break). --- glass-real --- (E4 review) `modeDefault`: the mode's own clip
+   * (lib/audio/songs.ts `modeWallBreakSound()`), which plays as any clip but is no sound of the visitor's own (`hasOwnSound()`),
+   * so the mode's own voices still sound with it: Glass Smash's crack and its HOME chord were left out under its own glass clip.
+   */
+  setWallBreakSound(url: string | null, modeDefault = false) {
     this.wallBreakSoundUrl = url;
+    this.wallBreakIsModeDefault = !!url && modeDefault;
     this.wallBreakBuffer = null;
     this.wallBreakDecoding = false;
     this.wallBreakFailedUrl = null; // choosing a clip (again) tries it (again)
@@ -1748,6 +1768,7 @@ export class ToneGenerator {
     twin.sampler = new HitSampler(ctx, master);
     twin.sampler.setVolume(this.hitSampleVolume);
     twin.wallBreakSoundUrl = this.wallBreakSoundUrl;
+    twin.wallBreakIsModeDefault = this.wallBreakIsModeDefault; // --- glass-real --- (E4 review)
     twin.wallBreakBuffer = this.wallBreakBuffer;
     twin.wallBreakFailedUrl = this.wallBreakFailedUrl; // --- review fix (audio) --- a clip that failed on the page is not tried again
     twin.slicer.setOptions(this.slicer.getOptions());

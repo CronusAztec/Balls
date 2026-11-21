@@ -90,8 +90,18 @@ export function scheduleCrack(ctx: BaseAudioContext, destination: AudioNode, tim
   g.connect(destination);
   source.start(time, 0, Math.min(noise.duration, tone.snapDuration + 0.02));
   source.stop(time + tone.snapDuration + 0.02);
-  ping(ctx, destination, f, time, tone.pingGain * loud, tone.pingDecay);
-  ping(ctx, destination, 2 * f, time, tone.pingGain * tone.octaveShare * loud, tone.octaveDecay);
-  ping(ctx, destination, f * tone.shimmerRatio, time, tone.pingGain * tone.shimmerShare * loud, tone.shimmerDecay);
-  ping(ctx, destination, Math.max(40, f / 4), time, tone.tickGain * loud, tone.tickDecay);
+  if (tone.pingGain > 0) {
+    ping(ctx, destination, f, time, tone.pingGain * loud, tone.pingDecay);
+    ping(ctx, destination, 2 * f, time, tone.pingGain * tone.octaveShare * loud, tone.octaveDecay);
+    ping(ctx, destination, f * tone.shimmerRatio, time, tone.pingGain * tone.shimmerShare * loud, tone.shimmerDecay);
+  }
+  if (tone.tickGain > 0) ping(ctx, destination, Math.max(40, f / 4), time, tone.tickGain * loud, tone.tickDecay);
 }
+
+// --- glass-real --- (E4 review)
+/**
+ * The crack as its snap alone (`SoundEvent.unpitched`: Glass Smash's crack under a visitor's melody): a longer, brighter noise
+ * burst with no pitched ping or tick, so it never clashes with the tune's key.
+ */
+export const CRACK_SNAP_TONE: CrackTone = { ...CRACK_TONE, snapDuration: 0.045, snapGain: 0.3, snapCutoff: 3400, pingGain: 0, tickGain: 0 };
+// --- end glass-real ---

@@ -524,6 +524,14 @@ export interface SoundEvent {
    * (lib/insights/score.ts), so they read what the run played before it was heard.
    */
   ringVoice?: "contact" | "extra";
+  /**
+   * --- glass-real --- (E4 review) An "extra" that dresses a contact rather than standing alone (Glass Smash's crack): a visitor's
+   * melody alone keeps it, played `unpitched` so it never clashes with the tune's key (`ringVoiceEvent()`); a song, a hit sample
+   * or a clip still leaves it out, as every extra.
+   */
+  ringTexture?: boolean;
+  /** --- glass-real --- (E4 review) A crack (`plCrack`) played as its snap alone, without the pitched ping (a texture under a melody). */
+  unpitched?: boolean;
   // --- end ring-voices ---
 }
 

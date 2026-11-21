@@ -1016,7 +1016,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     /** The numbers data-caption-stack and data-edge-text were last written for (the strings are rebuilt only on a change). */
     const mirrored = { stackTop: NaN, stackBottom: NaN, textTop: NaN, textBottom: NaN, textFs: NaN };
     // --- gerald-glass --- Glass Smash: the renderer's options, refreshed per frame.
-    const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
+    const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome!, stageTints: true /* --- glass-real --- (E4 review) */ };
     // --- gerald-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
     const multRender: MultiplierRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, rainbowBall: false, time: 0 };
     // --- obstacle-editor --- the editor obstacles' renderer options, refreshed per frame, and the layer that draws and edits them
@@ -2844,7 +2844,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       if (mergeRingView) mergeRingLayer.drawBodies(ctx, mergeRingView, balls, mergeRingRender); // --- merge-ring --- the tier bodies, rims and emblems over the balls (the emblem alone over a face, an emoji or an image)
       // --- gerald-glass --- the shards of shattered panes fly over the ball.
-      if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40, true /* --- glass-real --- (E4 review) the stage tints */);
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
       if (rrView) rrLayer.drawParticles(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- landing dust, crash debris, finish sparks
       if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- gerald-vortex --- the throat's shade, note pulses and splashes over the balls
