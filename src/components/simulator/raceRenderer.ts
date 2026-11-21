@@ -130,6 +130,27 @@ export function podiumRest(view: Pick<RaceView, "order" | "finishOrder">, max = 
   return { firstPlace: shown + 1, racers: view.order.slice(shown, shown + max) };
 }
 
+/**
+ * --- finales-in-clip --- (review fix) The podium comes up this long (simulation ms) after the third racer home, while the
+ * stragglers still race behind it: they join the list under the steps with their gaps as they finish (a live gap, dimmer, until
+ * then). The run, its podium phase and its end are where they were – a draw-only change, so every link replays the same run.
+ * Measured on seeds 1–12 of the page's race: the podium came up 2.7–8.8 s after the win (median about 5 s), one straggler alone on
+ * the track meanwhile.
+ */
+export const EARLY_PODIUM_MS = 1500;
+
+/** When the podium comes up (simulation ms): 1.5 s after the third racer home, or the race's own end if that is sooner. */
+export function podiumAtMs(view: Pick<RaceView, "phase" | "racers" | "finishOrder" | "finishMs" | "goAtMs" | "completeAtMs">): number {
+  const third = view.racers > 3 ? view.finishOrder[2] : undefined;
+  const early = third === undefined ? Infinity : view.goAtMs + view.finishMs[third] + EARLY_PODIUM_MS;
+  return Math.min(early, view.phase === "racing" || view.phase === "countdown" ? Infinity : view.completeAtMs);
+}
+
+/** Whether the podium is on screen at `t` (the race's end screens, or the podium ahead of them). */
+export function podiumShown(view: Pick<RaceView, "phase" | "racers" | "finishOrder" | "finishMs" | "goAtMs" | "completeAtMs">, t: number): boolean {
+  return view.phase === "podium" || view.phase === "cup" || view.phase === "done" || t >= podiumAtMs(view);
+}
+
 /** The finished race as a cup result (finishers in order; DNFs score nothing). */
 export function raceResultOf(view: Pick<RaceView, "racers" | "finishOrder">): RaceResult {
   return { racers: view.racers, order: view.finishOrder };
@@ -290,7 +311,7 @@ export class RaceLayer {
       this.label(ctx, labels.lap(lap + 1, track.laps), track.left + 0.5 * track.width, y - 0.022 * S, 0.026 * S, "#ffffff");
     }
     // (--- end-banner --- the end screens draw over the line: its label would show half hidden behind the podium's first step)
-    const endScreen = view.phase === "podium" || view.phase === "cup" || view.phase === "done";
+    const endScreen = podiumShown(view, view.timeMs); // (--- finales-in-clip --- review fix: the podium ahead of the race's end too)
     if (track.finishY >= viewTop - 0.05 * S && track.finishY <= viewBottom + 0.05 * S) this.drawFinish(ctx, track, endScreen ? "" : labels.finish);
     // The rows in view.
     const rows = track.rows;
@@ -677,13 +698,13 @@ export class RaceLayer {
     const labels = race?.labels ?? DEFAULT_RACE_LABELS;
     const t = view.timeMs;
     ctx.save();
-    const endScreen = view.phase === "podium" || view.phase === "cup" || view.phase === "done";
+    const endScreen = podiumShown(view, t); // (--- finales-in-clip --- review fix: 1.5 s after the third racer home)
     if (!endScreen) {
       if (race?.showStandings !== false) this.drawStandings(ctx, view, race, labels, insetTop, dtMs);
       if (race?.showMiniMap !== false) this.drawMiniMap(ctx, view, race);
       this.drawCallout(ctx, view, race, labels, t, insetTop);
       this.drawCountdown(ctx, view, labels, t);
-    } else if (view.phase === "podium" || !race?.cupEnabled) this.drawPodium(ctx, view, race, labels, t);
+    } else if ((view.phase !== "cup" && view.phase !== "done") || !race?.cupEnabled) this.drawPodium(ctx, view, race, labels, t); // (--- finales-in-clip --- review fix: the podium ahead of the race's end is drawn too)
     else this.drawCup(ctx, view, race, labels, t);
     ctx.restore();
   }
@@ -972,7 +993,7 @@ export class RaceLayer {
     const track = view.track!;
     const f = track.field;
     const S = f.size;
-    const age = Math.max(0, t - view.completeAtMs);
+    const age = Math.max(0, t - podiumAtMs(view)); // (--- finales-in-clip --- review fix: from the podium's own moment, which may be before the race's end)
     this.dim(ctx, view, Math.min(0.8, age / 400)); // (--- end-banner --- the track behind steps back: the podium is the picture)
     const rise = Math.min(1, age / 600);
     const ease = 1 - (1 - rise) * (1 - rise);
@@ -1034,8 +1055,9 @@ export class RaceLayer {
         const place = view.place[i];
         ctx.fillStyle = race?.colors[i] ?? "#fff";
         ctx.fillRect(x, y - 0.4 * fs * S, 0.8 * fs * S, 0.8 * fs * S);
-        ctx.fillStyle = "#e4e4e7";
-        const text = `${firstPlace + k}. ${race?.names[i] ?? `#${i + 1}`}  ${place < 0 ? labels.dnf : formatGap(view.finishMs[i] - view.finishMs[order[0]])}`;
+        // (--- finales-in-clip --- review fix: a racer still out on the track shows its live gap, dimmer, until it finishes)
+        ctx.fillStyle = place === 0 ? "#a1a1aa" : "#e4e4e7";
+        const text = `${firstPlace + k}. ${race?.names[i] ?? `#${i + 1}`}  ${place < 0 ? labels.dnf : place === 0 ? formatGap(view.gapMs[i]) : formatGap(view.finishMs[i] - view.finishMs[order[0]])}`;
         ctx.fillText(this.fit(ctx, text, 0.36 * S, fs * S), x + 1.2 * fs * S, y);
       });
     }

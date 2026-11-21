@@ -8,18 +8,22 @@ import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { endHoldsSec } from "@/lib/bot/planner";
-import { END_BANNER_HOLD_MODES, END_BANNER_HOLD_MS, NO_END_HOLD_CLIP, endBannerHoldMs, endBannerHoldOf } from "@/lib/endHold";
-import { END_STOP_DELAY_MS, ExportEndTracker } from "@/lib/recording/fastRenderPlan";
-import { ringRunOut } from "@/lib/physics/ringEscape";
+import { END_BANNER_HOLD_MODES, END_BANNER_HOLD_MS, endBannerHoldMs } from "@/lib/endHold";
+import { END_STOP_DELAY_MS, ExportEndTracker, NO_END_HOLDS } from "@/lib/recording/fastRenderPlan";
+import { END_BANNER_HOLD_MS as CANVAS_BANNER_HOLD_MS, EndBannerLayer } from "@/components/simulator/endBanner";
+import { FL_END_CHORD_HZ, FL_WIN_HOLD_SEC, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
+import { fakeCanvas } from "./fakeCanvas";
 import { collapseDone } from "@/components/simulator/shatterRenderer";
 import { DROP_SETTLED_HZ } from "@/lib/physics/modes/drop";
 import { plTonicHz } from "@/lib/physics/modes/powerLayers";
 
 /*
- * --- end-hold --- (Lane E, E5) The end banner's hold (lib/endHold.ts): an ending whose banner comes with the run's last step keeps
- * its final picture END_BANNER_HOLD_MS before the end screen, alike on the page, in the fast export and in the planner, and never
- * in a clip with captions of its own (every plan keeps its length). --- end-sting --- And the two endings that ended in a second of
- * silence ring: Ball Drop's SETTLED! and Power Layers' FREEDOM! play the completion chord as their banner comes in.
+ * --- end-hold --- (Lane E, E5; E5 review) The end banner's hold (lib/endHold.ts): an ending whose banner comes with the run's last
+ * step keeps its final picture END_BANNER_HOLD_MS before the end screen. The canvas holds it (its EndBannerLayer, `fresh()`), and
+ * the page and the fast export wait for that alone: a clip ends 2 s after such an ending, never 3.5 s. The planner and a found
+ * run's clip length read the same hold, and never in a clip with captions of its own (every plan keeps its length).
+ * --- end-sting --- And the endings that ended in silence ring: Ball Drop's SETTLED! and Power Layers' FREEDOM! play the
+ * completion chord as their banner comes in, Fight League's verdict card as its hold starts.
  */
 
 const WORLD = { width: 800, height: 450 };
@@ -66,8 +70,8 @@ describe("the end banner's hold", () => {
     expect(endBannerHoldMs({ mode: "mergeRing", captioned: false, loopHud: false, mergeRingOverflow: false })).toBe(0);
     // the modes whose banner comes earlier keep their own holds
     for (const mode of ["classic", "glass", "journey", "bullseye", "maze", "powerLayers", "multiply", "battle"]) expect([mode, endBannerHoldMs({ mode, captioned: false, loopHud: false })]).toEqual([mode, 0]);
-    // before the page has read its settings: none
-    expect(endBannerHoldOf({ getCurrentModeName: () => "box", isMergeRingMode: () => false, getMergeRingView: () => ({ overflowMs: -1 }) }, NO_END_HOLD_CLIP)).toBe(0);
+    // one number with the canvas' own hold, which the page and every export wait for
+    expect(CANVAS_BANNER_HOLD_MS).toBe(END_BANNER_HOLD_MS);
   });
 
   it("is for the right modes: each one's banner comes on its run's last frame (the start look, seeds 1 and 2)", () => {
@@ -84,7 +88,7 @@ describe("the end banner's hold", () => {
           if (bannerAt < 0 && shown(e)) bannerAt = frame;
         }
         expect([mode, seed, e.isSimulationFinished(), bannerAt]).toEqual([mode, seed, true, frame]);
-        expect(endBannerHoldOf(e, { captioned: false, loopHud: false })).toBe(END_BANNER_HOLD_MS);
+        expect(endBannerHoldMs({ mode, captioned: false, loopHud: false })).toBe(END_BANNER_HOLD_MS);
       }
     }
   }, 120_000);
@@ -105,26 +109,46 @@ describe("the end banner's hold", () => {
     expect(endHoldsSec(defaultSettings("classic"))).toBe(0.5);
   });
 
-  it("keeps a banner that comes in the clip's last second on screen in the export: 2 s with the recorder's stop, not 0.5 s", () => {
-    const clipMs = 30_000;
-    const finishMs = 29_800;
+  /**
+   * The fast export's end of a run that finishes at `finishMs` in a 30 s clip, its banner drawn by a real EndBannerLayer from the
+   * finishing frame on and the canvas' hold (`fresh()`) fed to the end tracker as the canvas reports it: the clip's tail (ms).
+   */
+  function exportTail(finishMs: number, holds = NO_END_HOLDS): number {
     const step = 1000 / 60;
-    const run = (postMs: number) => {
-      const tracker = new ExportEndTracker(clipMs);
-      for (let t = 0; t < tracker.endMs; t += step) tracker.frame(t, t >= finishMs, false, { preMs: 0, postMs });
-      return tracker.endMs - finishMs;
-    };
-    expect(run(0)).toBeCloseTo(END_STOP_DELAY_MS, -1);
-    expect(run(END_BANNER_HOLD_MS)).toBeGreaterThanOrEqual(END_BANNER_HOLD_MS + END_STOP_DELAY_MS - step);
+    const g = fakeCanvas(1080, 1080).ctx as unknown as CanvasRenderingContext2D;
+    const layer = new EndBannerLayer();
+    const words = { title: "COMPLETE!", sub: "Counted down from 50", color: "#22d3ee" };
+    const tracker = new ExportEndTracker(30_000);
+    for (let t = 0; t < tracker.endMs; t += step) {
+      const finished = t >= finishMs;
+      if (finished) layer.draw(g, words, 540, 540, 1080, step);
+      layer.endFrame();
+      tracker.frame(t, finished, layer.fresh(), finished ? holds : NO_END_HOLDS);
+    }
+    return tracker.endMs - finishMs;
+  }
+
+  it("ends the export 2 s after a banner that comes with the run's last step: the canvas' hold and the recorder's stop, once", () => {
+    const step = 1000 / 60;
+    for (const finishMs of [10_700, 29_800]) {
+      const tail = exportTail(finishMs);
+      // the canvas' 1.5 s and the recorder's 0.5 s: 2 s to a frame, never the 3.5 s of a second hold after the first
+      expect(tail).toBeGreaterThanOrEqual(END_BANNER_HOLD_MS + END_STOP_DELAY_MS - step);
+      expect(tail).toBeLessThanOrEqual(END_BANNER_HOLD_MS + END_STOP_DELAY_MS + 2 * step);
+    }
+    // a hold of the page's own after it would add up: what the page and the export no longer do for these endings
+    expect(exportTail(10_700, { preMs: 0, postMs: END_BANNER_HOLD_MS })).toBeGreaterThanOrEqual(2 * END_BANNER_HOLD_MS + END_STOP_DELAY_MS - step);
   });
 
-  it("is read alike by the page's finish detection, the fast export's holds and a found run's clip (Simulator.tsx)", () => {
+  it("leaves the hold to the canvas on the page and in the fast export, and reads it as a length for a found run's clip (Simulator.tsx)", () => {
     const src = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "Simulator.tsx"), "utf8");
-    // the fast export's post hold, the live finish detection's hold and the found run's recording length
-    expect(src).toMatch(/const postMs = Math\.max\([^;]*endBannerHoldOf\(engine, clip\)/);
-    expect(src).toMatch(/const holdMs = done \? Math\.max\([^;]*endBannerHoldOf\(engine, endHoldClipRef\.current\)/);
+    // the fast export's post hold and the live finish detection's hold: the teams' and the multipliers' alone
+    expect(src).toMatch(/const postMs = Math\.max\(teamsPlay \? WINNER_HOLD_MS : 0, engine\.endsWithMultiplierFinish\(\) \? MULT_FINISH_HOLD_MS : 0\);/);
+    expect(src).toMatch(/const holdMs = done \? Math\.max\(teamsPlayRef\.current \? WINNER_HOLD_MS : 0, engine\.endsWithMultiplierFinish\(\) \? MULT_FINISH_HOLD_MS : 0\) : 0;/);
+    expect(src).toMatch(/endHolds: \(engine\) => fastExportEndHolds\(engine, teamsPlay\),/);
+    expect(src).not.toMatch(/endBannerHoldOf/);
+    // the found run's recording length covers the canvas' hold
     expect(src).toMatch(/const holdMs = Math\.max\([^;]*endBannerHoldMs\(\{ mode: settings\.mode, captioned: settings\.captions\.length > 0, loopHud: settings\.loopHud \}\)/);
-    expect(src).toMatch(/endHolds: \(engine\) => fastExportEndHolds\(engine, teamsPlay, \{ captioned: s\.captions\.length > 0, loopHud: s\.loopHud \}/);
   });
 });
 
@@ -162,4 +186,22 @@ describe("the end sting", () => {
       expect(f >= 98 && f < 196).toBe(true);
     }
   });
+
+  it("rings the completion chord as Fight League's verdict card starts its hold, once, a sound of its own", () => {
+    for (const seed of [1, 2]) {
+      const e = startEngine("fightLeague", seed);
+      const chords: { frame: number; ev: SoundEvent }[] = [];
+      let holdFrom = -1;
+      let frame = 0;
+      for (; frame < 90 * 60; frame++) {
+        e.update(1000 / 60, 0);
+        for (const ev of e.consumeSoundEvents()) if (ev.loop === "chord") chords.push({ frame, ev });
+        const v = e.getFightLeagueView();
+        if (holdFrom < 0 && v.finished && v.timeMs >= flHoldStartMs(v) - 1e-6) holdFrom = frame;
+        if (holdFrom >= 0 && frame > holdFrom + 60 * FL_WIN_HOLD_SEC) break;
+      }
+      expect(holdFrom).toBeGreaterThan(0);
+      expect(chords).toEqual([{ frame: holdFrom, ev: { type: "hit", wallIndex: 0, loop: "chord", frequency: FL_END_CHORD_HZ, level: 1, melody: false, ringVoice: "extra" } }]);
+    }
+  }, 120_000);
 });

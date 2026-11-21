@@ -54,6 +54,8 @@ export const DEFAULT_VORTEX_LABELS: VortexLabels = {
 export const RING_FLASH_MS = 380;
 export const NOTE_PULSE_MS = 260;
 export const SPLASH_MS = 900;
+/** --- vortex-finale --- (review fix) How long (simulation ms) the hole's flash lasts after the ring release's last marble. */
+export const VORTEX_FINALE_MS = 1200;
 /** Whirlpool arms, how many turns each makes from the rim to the hole, and how fast (rad/s) the pattern turns. */
 const ARMS = 4;
 const ARM_TURNS = 1.75;
@@ -257,6 +259,23 @@ export class VortexLayer {
       ctx.arc(view.slotX[s], view.slotY[s], size * (1.3 + 1.6 * k), 0, TWO_PI);
       ctx.stroke();
     }
+    // --- vortex-finale --- (review fix) the ring release's last marble down the hole: a white flash out of it and a lime shock ring
+    const doneAge = view.funnel.doneMs >= 0 ? now - view.funnel.doneMs : -1;
+    if (doneAge >= 0 && doneAge < VORTEX_FINALE_MS) {
+      const u = doneAge / VORTEX_FINALE_MS;
+      const e = easeOut(u);
+      ctx.globalAlpha = 0.75 * (1 - u);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(cx, cy, hole * (1 + 2.5 * e), 0, TWO_PI);
+      ctx.fill();
+      ctx.globalAlpha = 0.9 * (1 - u);
+      ctx.strokeStyle = "#a3e635";
+      ctx.lineWidth = Math.max(2, 0.025 * rim * (1 - 0.6 * u));
+      ctx.beginPath();
+      ctx.arc(cx, cy, hole + 0.85 * (rim - hole) * e, 0, TWO_PI);
+      ctx.stroke();
+    }
     // The splashes of swallowed balls: a ripple out of the hole and droplets in the ball's colour.
     const first = Math.max(0, view.splashCount - MAX_SPLASHES);
     for (let n = first; n < view.splashCount; n++) {
@@ -321,7 +340,7 @@ export class VortexLayer {
 /** The data-vortex-* attributes the canvas mirrors for tools and the smoke test. */
 export const VORTEX_DATA_KEYS = ["vortexBalls", "vortexEntered", "vortexSwallowed", "vortexInFlight", "vortexNotes", "vortexChords", "vortexRings", "vortexDeepest", "vortexLoop", "vortexTempo", "vortexDepth", "vortexAllSwallowed", "vortexFinished", "vortexFinishedMs"];
 // --- funnel-spin --- the ring release and the perspective view (data-vortex-release, -view, -waves, -cycle…)
-export const FUNNEL_DATA_KEYS = ["vortexRelease", "vortexView", "vortexElevation", "vortexWaves", "vortexWaveSizes", "vortexCycle", "vortexSeams", "vortexNextSeamMs", "vortexRefills", "vortexLastRefillMs", "vortexCycleSwallowed", "vortexFirstCycleSwallowed", "vortexLapChimes", "vortexWashes", "vortexLastWashMs", "vortexKicks", "vortexBedChords", "vortexHiss", "vortexLapSec", "vortexDescent", "vortexLapGain", "vortexFrameScale", "vortexSounds", "vortexTimeMs"];
+export const FUNNEL_DATA_KEYS = ["vortexRelease", "vortexView", "vortexElevation", "vortexWaves", "vortexWaveSizes", "vortexCycle", "vortexSeams", "vortexNextSeamMs", "vortexRefills", "vortexLastRefillMs", "vortexCycleSwallowed", "vortexFirstCycleSwallowed", "vortexLapChimes", "vortexWashes", "vortexLastWashMs", "vortexKicks", "vortexBedChords", "vortexHiss", "vortexLapSec", "vortexDescent", "vortexLapGain", "vortexFrameScale", "vortexSounds", "vortexTimeMs", "vortexDoneMs" /* --- vortex-finale --- */];
 VORTEX_DATA_KEYS.push(...FUNNEL_DATA_KEYS);
 
 export function writeVortexDataset(view: VortexView, set: (key: string, value: string) => void) {
@@ -367,4 +386,5 @@ export function writeVortexDataset(view: VortexView, set: (key: string, value: s
   set("vortexFrameScale", fv.frame.scale.toFixed(4));
   set("vortexSounds", String(fv.sounds));
   set("vortexTimeMs", String(Math.round(view.timeMs)));
+  set("vortexDoneMs", String(Math.round(fv.doneMs))); // --- vortex-finale --- (review fix) the ring release's last marble down (−1: not yet)
 }

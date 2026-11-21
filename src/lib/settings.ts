@@ -1720,7 +1720,7 @@ export const RANGES = {
   targetCount: { min: 5, max: 25, step: 1 },
   colorMatchColorCount: { min: 2, max: 7, step: 1 },
   growRate: { min: 3, max: 10, step: 1 },
-  findDuration: { min: 30, max: 120, step: 1 },
+  findDuration: { min: 10, max: 120, step: 1 } /* --- finder-target --- (review fix B6: a paced mode's own target, 15–28 s, on the slider; was 30–120) */,
   hitSampleVolume: { min: 0, max: 1, step: 0.05 },
   sliceMs: { min: 80, max: 1000, step: 10 },
   sliceFadeMs: { min: 0, max: 50, step: 1 },

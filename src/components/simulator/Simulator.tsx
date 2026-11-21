@@ -92,7 +92,7 @@ import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- 
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
 import { loopPlayOptions, ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- loop-foundation --- --- ring-voices --- (review fix B2)
-import { NO_END_HOLD_CLIP, endBannerHoldMs, endBannerHoldOf, type EndHoldClip } from "@/lib/endHold"; // --- end-hold ---
+import { endBannerHoldMs } from "@/lib/endHold"; // --- end-hold --- (a found run's clip length; the canvas holds the banner itself)
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
 import { growFillSettingsOf } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
@@ -149,7 +149,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
-import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
+import { clipPacingFindSec, clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6)
 import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
 import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
@@ -264,7 +264,7 @@ function musicSettingsOf(s: SimulatorSettings): MusicSettings {
 
 // --- fast-render ---
 /** The page's holds between a finished run and its end screen (the finish detection in the sound loop), for the fast export. */
-function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean, clip: EndHoldClip = NO_END_HOLD_CLIP /* --- end-hold --- */): EndHolds {
+function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds {
   const preMs =
     engine.isPaintMode() && engine.getPaintState().picture
       ? PAINT_FINISH_HOLD_MS
@@ -281,7 +281,9 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean, clip: End
           : engine.isFightLeagueMode()
             ? Math.max(FIGHT_LEAGUE_WIN_HOLD_MS, flHoldEndMs(engine.getFightLeagueView()) - engine.getFightLeagueView().finishMs) // --- fight-league --- the winner banner and its confetti, as the page holds them (--- fl-overhaul --- from the finale's end, or the card's appearance after TIME!)
             : 0;
-  const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0, endBannerHoldOf(engine, clip) /* --- end-hold --- */);
+  // (--- end-hold --- (Lane E, E5 review) an end banner that came with the run's last step is held by the canvas itself,
+  // holdsEndScreen(): no hold of its own here, so the two never add up)
+  const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
 }
 
@@ -383,12 +385,11 @@ export default function Simulator() {
   // --- teams --- whether teams play in this run (the finish detection then holds the winner banner) and when the banner
   // (or --- gerald-multipliers --- the multipliers' finish banner) appeared
   const teamsPlayRef = useRef(false);
-  const endHoldClipRef = useRef<EndHoldClip>(NO_END_HOLD_CLIP); // --- end-hold --- (the clip's captions and loop HUD, for the finish detection)
   const winnerShownAtRef = useRef<number | null>(null);
   // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
   const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
-  const [findDuration, setFindDuration] = useState(30);
+  const [findDuration, setFindDuration] = useState(() => clipPacingFindSec(settings)); // --- finder-target --- (review fix B6) a paced mode at its page pace: its own run length
   // --- unlimited-sizes --- the search's tolerance and its seeds are the visitor's too (number fields in the finder strip)
   const [findTolerance, setFindTolerance] = useState(0.5);
   const [findMaxSeeds, setFindMaxSeeds] = useState(1000);
@@ -2374,6 +2375,7 @@ export default function Simulator() {
       fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
       fresh.slowMotion = themeLookRef.current.slowMotion; // --- slow-motion --- (review fix) the switch carries over like Wide sliders above it: a new mode never turns it back on
       setSettings(fresh);
+      setFindDuration(clipPacingFindSec(fresh)); // --- finder-target --- (review fix B6) a paced mode's own run length to find
       if (engine) {
         engine.setConfig({
           gravity: fresh.gravity,
@@ -2636,8 +2638,8 @@ export default function Simulator() {
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
         // --- gerald-multipliers --- so is a multipliers finish ("N Gerald made it home", "OUTGREW THE ARENA"); with teams as
         // well both celebrations play at once, for the longer of the two holds.
-        // --- end-hold --- (Lane E, E5) and an end banner that came with the run's last step keeps its final picture (lib/endHold.ts)
-        const holdMs = done ? Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0, endBannerHoldOf(engine, endHoldClipRef.current)) : 0;
+        // (--- end-hold --- an end banner that came with the run's last step is the canvas' own hold, holdsEndScreen() above)
+        const holdMs = done ? Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0) : 0;
         if (holdMs > 0) {
           const now = performance.now();
           if (winnerShownAtRef.current === null) winnerShownAtRef.current = now;
@@ -2979,7 +2981,7 @@ export default function Simulator() {
         slowMoStretch: s.slowMoOnNearMiss && s.slowMotion ? slowMoStretchOf(Math.max(0, s.slowMoFactor), 1000 * s.recordingDuration) : 1, // --- unlimited-sizes --- (1 / the factor from the slider's minimum up, as always; below it the bounded lag, so 0 stays finite) // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag) --- slow-motion --- (none with the switch off: the stored setting AND the switch)
         fps,
         audio: audioRef.current,
-        endHolds: (engine) => fastExportEndHolds(engine, teamsPlay, { captioned: s.captions.length > 0, loopHud: s.loopHud } /* --- end-hold --- */),
+        endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
         raceKey: exportRaceKey, // --- batch-render ---
         textOverlay: { topText: s.topText, bottomText: s.bottomText, textSize: s.textSize, watermarkText: s.watermarkText },
         backgroundColor: s.backgroundColors[0],
@@ -3763,7 +3765,7 @@ export default function Simulator() {
       audioRef.current?.getMusicBed().stop(); // the found run starts over, so the bed does too
       // --- teams --- the recording also keeps the winner banner's hold after the run (--- gerald-multipliers --- and the
       // board's "made it home", which ends every board run)
-      const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0, endBannerHoldMs({ mode: settings.mode, captioned: settings.captions.length > 0, loopHud: settings.loopHud }) /* --- end-hold --- (Merge Ring's OVERFLOW unknown here) */);
+      const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0, endBannerHoldMs({ mode: settings.mode, captioned: settings.captions.length > 0, loopHud: settings.loopHud }) /* --- end-hold --- the canvas' hold of a banner that comes with the last step: a length, not a hold of its own (Merge Ring's OVERFLOW unknown here) */);
       // --- rigged --- a found outcome run that goes on past its clip (never escapes; Multiply) has no end to hold for
       const hold = result.outcome && !result.finished ? 0 : holdMs;
       update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + hold / 1000)) }); // (--- uncap-all --- a found run longer than the slider keeps its whole length)
@@ -4102,7 +4104,7 @@ export default function Simulator() {
         miss: t("JdmRhythm.miss"),
         gameOver: t("JdmRhythm.gameOver"),
         gameOverSub: (hits, best) => fill("JdmRhythm.gameOverSub", { hits, best }),
-        win: (n) => fill("JdmRhythm.win", { n }), // --- finales-in-clip ---
+        win: (n) => t("JdmRhythm.win", { n }), // --- finales-in-clip --- (review fix: plural-aware, ICU: "1 CATCH!", "22 ZŁAPANIA!")
         winSub: (best) => fill("JdmRhythm.winSub", { best }),
         streak: (n) => fill("JdmRhythm.streak", { n }),
         moveHint: t("JdmRhythm.moveHint"),
@@ -4424,9 +4426,6 @@ export default function Simulator() {
   useEffect(() => {
     teamsPlayRef.current = settings.teams.length > 0 && (MULTI_BALL_MODES.includes(settings.mode) || settings.mode === "maze"); // --- odd-maze --- (its roster's winner banner holds too)
   }, [settings.teams, settings.mode]);
-  useEffect(() => {
-    endHoldClipRef.current = { captioned: settings.captions.length > 0, loopHud: settings.loopHud }; // --- end-hold ---
-  }, [settings.captions, settings.loopHud]);
   // --- end teams ---
 
   // --- captions --- the captions, the clip length their countdown / progress run to and the translated canvas words (null without captions)

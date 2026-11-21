@@ -19,15 +19,18 @@
  * reports the plate's box, which the canvas hands to the watermark so its badge keeps clear of it.
  */
 
+import { END_BANNER_HOLD_MS as END_HOLD_MS } from "@/lib/endHold"; // --- end-hold ---
+
 /** How long the entrance takes (ms of frame time): 14 frames at 60 fps. */
 export const END_BANNER_IN_MS = 240;
 /** The least contrast the title and the lines keep against the plate (WCAG's ratio for body text). */
 export const END_BANNER_MIN_CONTRAST = 4.5;
 /**
  * How long a verdict is on screen before the end screen may cover it and a recording may stop (ms of frame time): with the
- * recorder's own 0.5 s a clip shows it for 2 s.
+ * recorder's own 0.5 s a clip shows it for 2 s. (--- end-hold --- one number with lib/endHold.ts, from which the planner and a
+ * found run's clip length read it: they cannot draw.)
  */
-export const END_BANNER_HOLD_MS = 1500;
+export const END_BANNER_HOLD_MS = END_HOLD_MS;
 /**
  * The plate: nearly black, 97 % opaque. The border and the tint keep the mode's colour; nothing under it can be read (at
  * 92 % a gate label of the multipliers' board still could).

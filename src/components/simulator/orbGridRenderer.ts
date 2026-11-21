@@ -394,6 +394,12 @@ export const DEFAULT_ORB_GRID_LABELS: OrbGridLabels = {
   rhythmTimeSub: (cycle) => `in phase every ${cycle}s`,
 };
 
+/**
+ * --- finales-in-clip --- (review fix) How long (ms) the IN PHASE card stays on the canvas after the orbs land together – drawn
+ * only: the mode's own IN_PHASE_HOLD_MS (its finish reason, the data-og-in-phase attribute) is what it was.
+ */
+export const IN_PHASE_SHOW_MS = 4000;
+
 /** The end banner for a finished view (--- orb-rhythm --- or a rhythm field's IN PHASE banner, at the latest cycle end). */
 export function orbGridBanner(view: OrbGridView, labels: OrbGridLabels): { title: string; sub: string } {
   // --- orb-rhythm --- a rhythm field: IN PHASE at the latest cycle end, or – the clip ended between two – TIME! and the cycle
@@ -1185,12 +1191,19 @@ export class OrbGridLayer {
         bottom = this.metroBox.y + this.metroBox.h;
       } else drawMetronomeDots(ctx, left, height / 2 + side / 2, side, view.beats, b, this.metroBox);
     }
-    if (!view.finished && inPhaseBannerOn(view, timeMs)) {
-      const since = timeMs - view.lastResolveMs;
-      const alpha = since > IN_PHASE_HOLD_MS - 400 ? Math.max(0, (IN_PHASE_HOLD_MS - since) / 400) : 1;
-      const fs = Math.max(18, 0.06 * side);
+    // (--- finales-in-clip --- review fix: the card stays IN_PHASE_SHOW_MS – the page's 26 s cycle to the 30 s clip's end – and its
+    // line is 0.036 of the square, 39 px at 1080: at 0.4 of the title it was 26 px, about 5 css px tall on a phone)
+    const since = timeMs - view.lastResolveMs;
+    if (!view.finished && (inPhaseBannerOn(view, timeMs) || (view.model === "rhythm" && view.lastResolveMs > 0 && since >= 0 && since < IN_PHASE_SHOW_MS))) {
+      const hold = Math.max(IN_PHASE_HOLD_MS, IN_PHASE_SHOW_MS);
+      const alpha = since > hold - 400 ? Math.max(0, (hold - since) / 400) : 1;
+      const fs = Math.max(18, 0.07 * side);
       const banner = orbGridBanner(view, labels);
-      this.drawBanner(ctx, banner.title, banner.sub, cx, Math.max(top + 0.12 * side, bottom + 0.02 * side), fs, 0.4 * fs, alpha);
+      let sfs = Math.max(13, 0.036 * side);
+      ctx.font = `${sfs}px sans-serif`;
+      const subWidth = ctx.measureText(banner.sub).width;
+      if (subWidth > 0.86 * side) sfs *= (0.86 * side) / subWidth; // (a long line in a language stays inside the square)
+      this.drawBanner(ctx, banner.title, banner.sub, cx, Math.max(top + 0.12 * side, bottom + 0.02 * side), fs, sfs, alpha);
     }
     return bottom;
   }

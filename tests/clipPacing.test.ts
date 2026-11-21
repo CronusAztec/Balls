@@ -11,6 +11,7 @@ import { DEFAULT_MERGE_RING_SETTINGS } from "@/lib/physics/modes/mergeRing";
 import { DEFAULT_PENDULUM_SETTINGS } from "@/lib/physics/modes/pendulum";
 import { DEFAULT_POLYRHYTHM_SETTINGS } from "@/lib/physics/modes/polyrhythm";
 import { DEFAULT_SPIRAL_GLASS_SETTINGS } from "@/lib/physics/modes/spiralGlass";
+import { perfectShotIndex } from "@/lib/physics/modes/bullseye"; // --- finales-in-clip --- (review fix)
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
@@ -228,11 +229,11 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
   it("gives each mode its measured page pace, and Hoops and Drawing Machines a start look (their link bases stay: the crew's corpus runs them)", () => {
     expect(clipPacingDefaults("runner")).toEqual({ runnerObstacles: 18, runnerDensity: 0.85 });
     expect(clipPacingDefaults("vortex")).toEqual({ vxRelease: "rings" });
-    expect(clipPacingDefaults("bullseye")).toEqual({ byShots: 10, byPerfect: 10 });
+    expect(clipPacingDefaults("bullseye")).toEqual({ byShots: 10, byPerfect: -1 }); // (review fix: the last shot by name)
     expect(clipPacingDefaults("race")).toEqual({ rcTrackLength: 6 });
     expect(clipPacingDefaults("journey")).toEqual({ journeyStages: "rings,pegs,glass,multipliers,funnel,home" });
     expect(clipPacingDefaults("orbGrid")).toEqual({ ogCycle: 26 });
-    expect(clipPacingDefaults("maze")).toEqual({ mzFirstOut: true, mzDuration: 25 });
+    expect(clipPacingDefaults("maze")).toEqual({ mzFirstOut: true, mzDuration: 25, mzCols: 14 }); // (review fix: 14 columns)
     expect(clipPacingDefaults("paddle")).toEqual({ pdGoal: 20 });
     expect(clipPacingDefaults("hoops")).toEqual({});
     expect(clipPacingDefaults("drawingMachine")).toEqual({});
@@ -269,6 +270,21 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
       const view = engine.getBullseyeView();
       expect(view.perfectShot, `seed ${seed}`).toBe(9);
       expect(view.bullseyes, `seed ${seed}`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  // (--- finales-in-clip --- review fix: the rigged shot was shot 10 by number – shot 10 of 15 in the bull and not the last, and no
+  // rigged shot at all below 10 shots; the page's −1 is the last shot, whatever Shots says)
+  it("steers Bullseye's last shot into the bull whatever the number of shots", { timeout: 60_000 }, () => {
+    expect([perfectShotIndex({ perfect: -1, shots: 8 }), perfectShotIndex({ perfect: -1, shots: 15 }), perfectShotIndex({ perfect: -1, shots: 1 }), perfectShotIndex({ perfect: 10, shots: 8 })]).toEqual([7, 14, 0, -1]);
+    for (const shots of [8, 15]) {
+      for (const seed of [3, 4]) {
+        const request = finderRequestOfSettings({ ...defaultSettings("bullseye"), byShots: shots }, WORLDS[seed % 2], 60);
+        const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+        for (let frame = 1; frame <= 60 * 60 && !engine.isSimulationFinished(); frame++) engine.update(1000 / 60, 0);
+        const view = engine.getBullseyeView();
+        expect([shots, seed, view.finished, view.perfectShot, view.shotRing[shots - 1]], `${shots} shots, seed ${seed}`).toEqual([shots, seed, true, shots - 1, 0]);
+      }
     }
   });
 });

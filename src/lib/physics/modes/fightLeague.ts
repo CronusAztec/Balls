@@ -974,6 +974,8 @@ export const FL_LEAD = 0.5;
 export const FL_EVADE_BOOST = 0.15;
 /** The page holds the winner banner this long before the end screen (recordings keep it). */
 export const FL_WIN_HOLD_SEC = 3;
+/** --- end-sting --- (Lane E, E5 review) The root of the completion chord under the verdict's card: C3, as the win chord's key. */
+export const FL_END_CHORD_HZ = 130.8128;
 /** --- fl-overhaul --- (Stage 3) After a verdict at the time cap, TIME! plays this long before the winner's banner (or DRAW). */
 export const FL_TIME_BANNER_MS = 900;
 
@@ -2886,6 +2888,8 @@ export class FightLeagueMode implements GameMode {
   private sndClock = 5;
   private sndLease = 0;
   private sndChord = false;
+  /** --- end-sting --- (Lane E, E5 review) Whether the closing chord under the verdict's card has rung (once a run). */
+  private sndEndChord = false;
   private rigK = 0;
   private rigChosen = -1;
   /** The engine's context (the same object for the engine's life): the run's random numbers. */
@@ -3185,6 +3189,7 @@ export class FightLeagueMode implements GameMode {
     this.sndClock = 5;
     this.sndLease = 0;
     this.sndChord = false;
+    this.sndEndChord = false; // --- end-sting ---
     this.rigK = 0;
     this.rigAbsorbedAtStart = v.rigAbsorbed;
     this.bossHpAtStart = sh.bossHp;
@@ -6831,6 +6836,21 @@ export class FightLeagueMode implements GameMode {
     // --- fl-overhaul --- (Stage 4) the tick's sound state (low HP, ends, the clock, the hums' lease), then the tick closes
     this.stepSoundState(ctx.getElapsedMs());
     this.snd.endTick();
+    this.stepEndChord(ctx); // --- end-sting --- (Lane E, E5 review)
+  }
+
+  // --- end-sting --- (Lane E, E5 review)
+  /**
+   * The verdict's card rings: the completion chord on C3 on the first step of the page's hold of the card (`flHoldStartMs()`:
+   * the end of the KO finale, or the card's appearance), so its 3 s hold does not play in silence after the fanfare and the
+   * call. Once, at the run's end (a show's last match). A sound of its own (ringVoice "extra": the crew's moments read the
+   * fight's cues alone), straight to the page's dispatcher and every export, outside the cues' budget and their counts.
+   */
+  private stepEndChord(ctx: ModeContext) {
+    const v = this.view;
+    if (this.sndEndChord || !v.finished || ctx.getElapsedMs() < flHoldStartMs(v) - 1e-6) return;
+    this.sndEndChord = true;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: FL_END_CHORD_HZ, level: 1, melody: false, ringVoice: "extra" });
   }
 
   private stepPostUpdate(ctx: ModeContext) {

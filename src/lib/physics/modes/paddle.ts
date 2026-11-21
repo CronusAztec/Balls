@@ -13,6 +13,11 @@ import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep
  * the catches alone. A ball that gets past the platform is a miss; after `misses` allowed misses the next one is GAME OVER
  * and the run ends.
  *
+ * --- paddle-drums --- (review fix) The beat of the game, through the Beat Drop drum voice (`bdDrum`): a kick on every catch (the
+ * platform's dip), a hat at the top of every flight (the ball turning) and as a new ball comes in, so a clip is never more than
+ * about a second without a sound. Sounds of their own (`ringVoice: "extra"`, `melody: false`): a page playing the visitor's own
+ * song, melody or sample leaves them out, and they never move the ball or use up a melody note.
+ *
  * pdAuto drives the platform with a deterministic controller (`planCatch()`): at every launch it predicts where the ball
  * will come down (`predictLanding()`: the exact ballistic flight with the ceiling bounce and the wall reflections folded
  * in) and heads there, placed for the off-centre hit that sends the ball off at a sideways speed it picked (from the
@@ -235,6 +240,14 @@ export const GAME_OVER_HOLD_SEC = 2.2;
 export const PADDLE_SUBSTEPS = 4;
 /** Every this many catches in a row plays the rising arpeggio. */
 export const STREAK_CHIME = 10;
+/**
+ * --- paddle-drums --- The drums' levels: a kick on a catch (louder every STREAK_CHIME in a row), a hat at the top of a flight
+ * and a softer one as a new ball comes in – none of them a level the walls (0.3), the ceiling (0.45) or a miss (0.9) play at.
+ */
+export const PD_KICK_LEVEL = 0.8;
+export const PD_KICK_ACCENT_LEVEL = 0.95;
+export const PD_HAT_LEVEL = 0.55;
+export const PD_SERVE_HAT_LEVEL = 0.5;
 
 /**
  * The ball radius (field heights) for a Ball Size (px at the default 8), from 0.012 – --- review fix (uncap-all) --- no
@@ -661,6 +674,7 @@ export class PaddleMode implements GameMode {
     this.g = this.baseG * v.tempo * v.tempo;
     this.spin = 0;
     this.respawnAt = Infinity;
+    this.drum(ctx, "hat", PD_SERVE_HAT_LEVEL); // --- paddle-drums --- a new ball comes in
     const f = v.field;
     const cfg = ctx.config;
     if (!this.findBall(ctx)) {
@@ -755,10 +769,12 @@ export class PaddleMode implements GameMode {
         }
       }
       const dt = Math.max(0, Math.min(rem, tw, tc, tp));
+      const rising = v.bvy < 0; // --- paddle-drums ---
       v.bx += v.bvx * dt;
       v.by += v.bvy * dt + 0.5 * g * dt * dt;
       v.bvy += g * dt;
       t += dt;
+      if (rising && v.bvy >= 0 && v.phase === "flight") this.drum(ctx, "hat", PD_HAT_LEVEL); // --- paddle-drums --- the top of the flight
       if (dt === tw && tw <= rem) {
         v.bx = v.bvx > 0 ? hi : lo;
         v.lastWallSide = v.bvx > 0 ? 1 : -1;
@@ -823,6 +839,7 @@ export class PaddleMode implements GameMode {
       // The catch is the next note of the tune (a loaded melody's next note); everything else the game sounds – the walls,
       // the ceiling, the streak chime, a miss, the game over – accompanies it (`melody: false`) and never uses one up.
       this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch((v.hits - 1) % 15, scale, rootNote), ...(Math.abs(off) < 0.12 ? { accent: true } : {}) });
+      this.drum(ctx, "kick", v.streak > 0 && v.streak % STREAK_CHIME === 0 ? PD_KICK_ACCENT_LEVEL : PD_KICK_LEVEL); // --- paddle-drums --- the catch's thump
       if (v.streak % STREAK_CHIME === 0 && !v.won) this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: v.streak, melody: false });
       // --- finales-in-clip --- the goal: the run is over as a win – the chord on the tonic and the crowd's burst
       const goal = v.settings.goal ?? 0;
@@ -869,6 +886,11 @@ export class PaddleMode implements GameMode {
 
   private sound(ctx: ModeContext, event: Parameters<ModeContext["addPendingSoundEvent"]>[0]) {
     if (!this.silent) ctx.addPendingSoundEvent(event);
+  }
+
+  /** --- paddle-drums --- A drum of the game's beat: a sound of its own, never a melody note. */
+  private drum(ctx: ModeContext, drum: "kick" | "hat", level: number) {
+    this.sound(ctx, { type: "hit", wallIndex: 0, bdDrum: drum, level, melody: false, ringVoice: "extra" });
   }
 
   private spawnSparks(x: number, y: number, at: number, off: number) {
