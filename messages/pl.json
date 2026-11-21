@@ -24,7 +24,10 @@
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
     "metaTitle": "Symulator fizyki piłki z {count} trybami – {siteName}",
-    "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny."
+    "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny.",
+    "notLoaded": "Nie udało się wczytać studia.",
+    "reload": "Odśwież",
+    "noScript": "Studio potrzebuje JavaScriptu. Włącz go i odśwież stronę."
   },
   "Layout": {
     "metaTitle": "Satysfakcjonujący symulator fizyki piłki – {siteName}",
@@ -143,7 +146,7 @@
     "canvasDpPlucks": "Szarpnięte struny: {count}",
     "canvasDpHits": "Uderzenia: {count}",
     "canvasDpChaos": "[seconds] s chaosu",
-    "finderFixedDoublePendulum": "Przebieg podwójnego wahadła trwa zawsze dokładnie {duration}s – tyle, ile klip (Czas trwania w sekcji Nagrywanie), niezależnie od ziarna. Ustaw Czas trwania na potrzebną długość albo włącz Bez końca w bloku Podwójne wahadło.",
+    "finderFixedDoublePendulum": "Przebieg podwójnego wahadła trwa zawsze dokładnie {duration}s, tyle co klip, niezależnie od ziarna. Zmień Długość klipu w sekcji Nagrywanie albo włącz Bez końca w bloku Podwójne wahadło.",
     "canvasIllusionRevealed": "ODSŁONIĘTE!",
     "canvasIllusionCycles": "Z powrotem na starcie po {count, plural, one {# cyklu} few {# cyklach} many {# cyklach} other {# cyklu}}",
     "finderFixedIllusion": "Iluzja okręgu przy tych ustawieniach trwa zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień prędkość albo liczbę cykli w wierszu Tryb, żeby trafić w cel – albo wypróbuj białe plamy, których długość zależy od ziarna.",
@@ -1041,10 +1044,10 @@
     "dpOctaves": "Oktawy harfy",
     "dpOctavesTip": "Ile oktaw obejmują struny, licząc od dźwięku podstawowego z sekcji Własny dźwięk: pierwsza struna to dźwięk podstawowy, ostatnia – ten sam dźwięk tyle oktaw wyżej.",
     "dpEndless": "Bez końca",
-    "dpEndlessTip": "Wyłączone: przebieg kończy się akordem po czasie trwania klipu (Czas trwania w sekcji Nagrywanie). Włączone: wahadła kołyszą się, dopóki ich nie zatrzymasz.",
+    "dpEndlessTip": "Wyłączone: przebieg kończy się akordem, gdy minie Długość klipu ustawiona w sekcji Nagrywanie. Włączone: wahadła kołyszą się, dopóki ich nie zatrzymasz.",
     "dpRunLength": "Kończy się po {duration}s – tyle, ile trwa klip.",
     "dpRunEndless": "Kołysze się, dopóki go nie zatrzymasz.",
-    "dpFixedRunLength": "Zawsze {duration}s – tyle, ile klip; zmień Czas trwania albo włącz Bez końca",
+    "dpFixedRunLength": "Zawsze {duration}s, tyle co klip. Zmień Długość klipu albo włącz Bez końca",
     "modeIllusion": "Iluzja okręgu",
     "ilDesc": "Cztery iluzje z okręgami. Każde dotknięcie, odbicie i zderzenie gra nutę wybranym instrumentem, w wybranej skali i z blokadą rytmu.",
     "ilType": "Iluzja",

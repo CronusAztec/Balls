@@ -141,9 +141,16 @@ export default function StageStrip({
       <button type="button" onClick={() => openSetting("videoResolution")} title={controls("videoResolution")} className={`${readoutButton} hidden @[38rem]:flex`} data-testid="stage-format">
         <span className={readout}>
           <span className="eyebrow text-ink-3">{t("studio.format")}</span>
+          {/* --- frame-guide --- (review fix) below 60rem a format with a ratio shows the ratio alone (9:16), so the guide's
+              toggle beside it never takes the mode name's room, a found run's long seed shown too */}
           <span className="num text-sm text-ink-2">
-            {resolution.replace("x", "×")}
-            {ratio && <span className="text-ink-3"> · {ratio}</span>}
+            <span className={ratio ? "hidden @[60rem]:inline" : undefined}>{resolution.replace("x", "×")}</span>
+            {ratio && (
+              <span className="text-ink-2 @[60rem]:text-ink-3">
+                <span className="hidden @[60rem]:inline"> · </span>
+                {ratio}
+              </span>
+            )}
           </span>
         </span>
       </button>

@@ -6,7 +6,18 @@
  * own (`pageClientMessages`), and the simulator page – whose panel reads nearly everything – gets the whole catalogue.
  * A nested provider replaces its parent's messages, so a page's set includes the shared one. tests/clientMessages.test.ts
  * walks each page's client components and checks that their `useTranslations()` namespaces are covered here.
+ * --- studio-first-open --- The whole catalogue but the namespaces only server components read (`studioClientNamespaces`):
+ * the legal and marketing pages, the metadata and the studio page's own skeleton, about 38 KB of its HTML. The test walks
+ * every module the studio's client components reach and checks that none of them names one of these.
  */
+
+/** --- studio-first-open --- Namespaces no client component of the studio reads: the simulator page leaves them out. */
+export const SERVER_ONLY_NAMESPACES = ["Privacy", "Terms", "Press", "Disclaimer", "About", "TikTokBallVideos", "Licences", "Changelog", "ChangelogLive", "Layout", "Seo", "SimulatorPage", "Editorial", "FAQ", "Feedback", "NotFound"] as const;
+
+/** --- studio-first-open --- The simulator page's namespaces: every one of `all` but the server-only ones. */
+export function studioClientNamespaces(all: readonly string[]): string[] {
+  return all.filter((ns) => !(SERVER_ONLY_NAMESPACES as readonly string[]).includes(ns));
+}
 
 /**
  * Namespaces the client components on every page read (Navbar, LanguageSwitcher, the footer's InstallAppButton).
@@ -19,6 +30,7 @@ export const SHARED_CLIENT_NAMESPACES = ["Navbar", "Gallery", "Pwa", "DesktopLin
 
 /** Further namespaces of the client components of a page (by route, "" = the landing page); a page not listed has none. */
 export const PAGE_CLIENT_NAMESPACES: Readonly<Record<string, readonly string[]>> = {
+  // (the simulator page is not listed: it gets studioClientNamespaces() of the whole catalogue)
   "": ["Modes", "FAQ", "Daily"], // --- site-redesign --- the live preview, the modes wall, the FAQ, the daily card
   "/feedback": ["Feedback"],
   "/pricing": ["Billing"], // --- paywall-gate --- the plans, the claim, the licence and Restore purchase

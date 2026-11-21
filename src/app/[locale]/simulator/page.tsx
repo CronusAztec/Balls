@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { getTranslations, setRequestLocale } from "next-intl/server";
-import { NextIntlClientProvider } from "next-intl"; // --- review fix (performance) --- (the whole catalogue for this page)
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl"; // --- review fix (performance) --- (--- studio-first-open --- the catalogue but the server-only namespaces)
+import { pickMessages, studioClientNamespaces } from "@/i18n/clientMessages"; // --- studio-first-open ---
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import Simulator from "@/components/simulator/Simulator";
+import StudioSkeleton from "@/components/simulator/studio/StudioSkeleton"; // --- studio-first-open ---
 import EditorialSections from "@/components/site/EditorialSections";
-import { SITE_NAME } from "@/lib/site";
+import { BASE_PATH, SITE_NAME } from "@/lib/site";
 import JsonLd from "@/components/site/JsonLd"; // --- seo ---
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
+import { MODE_IDS } from "@/lib/physics/types"; // --- studio-first-open --- (the skeleton names the mode a link opens)
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -25,9 +28,15 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
   const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("SimulatorPage.heading"), path: "/simulator" }]); // --- seo ---
   // --- site-redesign --- the studio fills the first screen under the header; the guide (physics, modes, tips, help) reads below.
   // --- review fix (performance) --- the simulator's panel reads nearly every namespace: this page gets the whole catalogue
-  // (the provider fills it in from the request config; the layout passes only the shared namespaces)
+  // (the layout passes only the shared namespaces)
+  // --- studio-first-open --- ... but the namespaces only server components read (i18n/clientMessages.ts), and while the
+  // studio's script loads its skeleton shows the mode's poster and name, a disabled Start and a load bar, and says so when the
+  // studio does not load (StudioSkeleton.tsx)
+  const messages = await getMessages();
+  const modeNames = Object.fromEntries(MODE_IDS.map((id) => [id, t(`Modes.${id}.name`)]));
+  const skeletonLabels = { mode: t("SiteRedesign.studio.mode"), start: t("Simulator.startSimulator"), failed: t("SimulatorPage.notLoaded"), reload: t("SimulatorPage.reload"), noScript: t("SimulatorPage.noScript") };
   return (
-    <NextIntlClientProvider>
+    <NextIntlClientProvider messages={pickMessages(messages, studioClientNamespaces(Object.keys(messages)))}>
       <div className="min-h-screen bg-bg text-ink">
         <JsonLd data={breadcrumbs} />
         <Navbar variant="studio" />
@@ -38,7 +47,7 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
           <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
         </section>
         <div id="content">
-          <Suspense fallback={<div className="flex h-[calc(100svh-56px)] items-center justify-center text-sm text-ink-3">…</div>}>
+          <Suspense fallback={<StudioSkeleton names={modeNames} base={BASE_PATH} labels={skeletonLabels} />}>
             <Simulator />
           </Suspense>
         </div>

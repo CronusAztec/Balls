@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { NOT_FOUND_CLIENT_NAMESPACES, PAGE_CLIENT_NAMESPACES, SHARED_CLIENT_NAMESPACES, pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
+import { NOT_FOUND_CLIENT_NAMESPACES, PAGE_CLIENT_NAMESPACES, SERVER_ONLY_NAMESPACES, SHARED_CLIENT_NAMESPACES, pageClientNamespaces, pickMessages, studioClientNamespaces } from "@/i18n/clientMessages";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -67,13 +67,47 @@ describe("client message namespaces", () => {
       const used = clientNamespaces(file, false);
       if (route === "/simulator") {
         // The whole catalogue: the panel reads nearly everything (useTranslations() of the root, useMessages()).
+        // --- studio-first-open --- ... but the server-only namespaces, which no client module the studio reaches names (below)
         expect(used.has("*"), route).toBe(true);
-        expect(fs.readFileSync(file, "utf8")).toMatch(/<NextIntlClientProvider>/);
+        expect(fs.readFileSync(file, "utf8")).toMatch(/<NextIntlClientProvider messages=\{pickMessages\(messages, studioClientNamespaces\(Object\.keys\(messages\)\)\)\}>/);
+        for (const ns of used) expect((SERVER_ONLY_NAMESPACES as readonly string[]).includes(ns), `${route} reads ${ns}`).toBe(false);
         continue;
       }
       const allowed = new Set(pageClientNamespaces(route.replace("#not-found", "")));
       for (const ns of used) expect(allowed.has(ns), `${route || "/"} reads ${ns}`).toBe(true);
     }
+  });
+
+  // --- studio-first-open --- the simulator page leaves out the namespaces only server components read: no module a client
+  // component of the studio reaches (components, lib, i18n: every static import from a "use client" file on) may name one,
+  // as a `useTranslations("…")`, a `t("Ns.key")` of the root translator, a `messages.Ns` of useMessages() or a quoted name
+  it("keep the server-only namespaces out of every module the studio's client components reach", () => {
+    const sources = new Map<string, string>();
+    const walk = (file: string, inClient: boolean, seen = new Map<string, boolean>()) => {
+      if (seen.get(file) === true || (seen.has(file) && !inClient)) return;
+      seen.set(file, inClient);
+      const src = fs.readFileSync(file, "utf8");
+      const client = inClient || /^\s*["']use client["']/.test(src);
+      if (client) sources.set(path.relative(ROOT, file), src);
+      for (const m of src.matchAll(/^import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gm)) {
+        const target = resolveImport(file, m[1]);
+        if (target && target.startsWith(SRC)) walk(target, client, seen);
+      }
+    };
+    walk(path.join(APP, "simulator", "page.tsx"), false);
+    expect(sources.size).toBeGreaterThan(150);
+    expect([...sources.keys()]).toEqual(expect.arrayContaining(["src/components/simulator/Simulator.tsx", "src/components/simulator/Controls.tsx", "src/lib/publish/loopCaption.ts"]));
+    const named: string[] = [];
+    for (const ns of SERVER_ONLY_NAMESPACES) {
+      const mention = new RegExp(`["'\`]${ns}(?:\\.[\\w$]|["'\`])|messages\\??\\.${ns}\\b`);
+      for (const [file, src] of sources) if (mention.test(src)) named.push(`${file} names ${ns}`);
+    }
+    expect(named).toEqual([]);
+    // ... and the page keeps what the studio reads
+    const studio = studioClientNamespaces(Object.keys(en));
+    for (const ns of ["Controls", "Simulator", "Modes", "SiteRedesign", "ViralBot", "LoopCaption", "Desktop", "Billing", "Account", "Daily", ...SHARED_CLIENT_NAMESPACES]) expect(studio, ns).toContain(ns);
+    for (const ns of SERVER_ONLY_NAMESPACES) expect(Object.keys(en), ns).toContain(ns);
+    expect(studio).toHaveLength(Object.keys(en).length - SERVER_ONLY_NAMESPACES.length);
   });
 
   it("cover the static 404 page, which renders the navbar and the footer on the client", () => {
