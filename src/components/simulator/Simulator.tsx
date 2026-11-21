@@ -150,7 +150,7 @@ import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
 import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
-import { wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
+import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
@@ -3443,12 +3443,15 @@ export default function Simulator() {
   // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
   // world, opens one on the page (its settings, its melody and – pinned like a found simulation – its seed) and renders a
   // plan through the batch renderer; a link's `seed=` (the bot's share links carry one) pins the page's first run on it
+  // --- run-link --- the seed the engine has pinned, as the page last read it (below: the address and the share link carry it)
+  const [pinnedSeed, setPinnedSeed] = useState<number | null>(null);
   const pinBotSeed = useCallback(
     (seed: number) => {
       const engine = engineRef.current;
       if (!engine) return;
       const own = themeLookRef.current; // the page's settings as committed
       engine.setSeed(seed);
+      setPinnedSeed(engine.getPinnedSeed()); // --- make-clip --- (E1 review) read at once, so a made clip shows "Another clip" in the same render its "Making" ends
       setFinished(false);
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
@@ -3527,7 +3530,6 @@ export default function Simulator() {
   // link's or the clip planner's seed; a setting that makes another run lets it go), and the link's own until the page has
   // pinned it. The engine is read every 400 ms and after each settings change, and the address is written after the settings
   // mirror and the daily challenge's marker (both above), so a reload, a bookmark and the language switch keep the run.
-  const [pinnedSeed, setPinnedSeed] = useState<number | null>(null);
   useEffect(() => {
     const read = () => setPinnedSeed(engineRef.current?.getPinnedSeed() ?? null);
     read();
@@ -3557,11 +3559,18 @@ export default function Simulator() {
     async (play: boolean) => {
       if (makeBlocked) return;
       const clip = await viralBot.makeClip(settings.mode);
-      if (clip && play) start().catch(() => undefined); // (a browser that refuses the sound leaves the clip waiting for Start)
+      if (!clip || !play) return;
+      start().catch(() => undefined); // (a browser that refuses the sound leaves the clip waiting for Start)
+      // (E1 review) a press from below the stage plays the clip where the visitor sees it, as a mode card's pick does; the
+      // address's `?make=1` opens with the stage in view already
+      const stage = canvasRef.current?.getCanvas()?.getBoundingClientRect();
+      const seen = stage ? Math.min(stage.bottom, window.innerHeight) - Math.max(stage.top, 0) : 0;
+      if (stage && seen < Math.min(stage.height, window.innerHeight) / 2) document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
     },
     [makeBlocked, viralBot, settings.mode, start],
   );
-  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked };
+  const makeOwn = useMemo(() => makeClipTemplates(settings.mode, viralBot.options.platform).own, [settings.mode, viralBot.options.platform]);
+  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked, own: makeOwn };
   const [makeAtLoad] = useState(() => wantsMadeClip(searchParams.toString()));
   const madeAtLoad = useRef(false);
   useEffect(() => {
@@ -4607,6 +4616,8 @@ export default function Simulator() {
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
                 {/* --- make-clip --- (not over a found run, which a new clip would replace, nor where none can be made) */}
                 {!searchResult?.found && !makeBlocked && <MakeClipButton make={makeClipProps} variant="secondary" size="sm" className="pointer-events-auto mt-1" testId="make-clip-ready" /* (Start stays the stage's one primary action) */ />}
+                {/* (E1 review) a mode without a clip plan: the press makes another mode's clip, and the ready screen says so */}
+                {!searchResult?.found && !makeBlocked && !makeOwn && <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-ready-note">{t("SiteRedesign.studio.makeClipOtherShort")}</p>}
               </div>
             </div>
           )}

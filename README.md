@@ -1471,7 +1471,11 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   in simulator does: its settings, its hook, its melody, its seed pinned and the clip length its run needs; the page then plays
   it. The next press is "Another clip" (the next template of the mode, a new plan seed). It plans nothing while the page
   records, renders a batch or a fast export, races in split screen or plays a daily challenge, and the clip is no part of the
-  Bot section's stored plan. Free clips keep the watermark: the export's own seal decides it, as for every recording.
+  Bot section's stored plan. Free clips keep the watermark: the export's own seal decides it, as for every recording. A mode
+  with no template of its own says so under the button before the press ("Lines has no clip plan yet, so you get a clip of
+  another mode."); the button keeps its focus while it plans (`aria-disabled`, not `disabled`), goes from "Making your clip…"
+  straight to "Another clip" (the page reads the pinned seed as it pins it), and a press below the stage brings the stage into
+  view as the clip plays.
 - **Playbook** – `src/lib/bot/playbook.ts` turns the playbook's recipe (§3) into data: the families (`escape`, `rhythm`,
   `battle`), platforms and their length buckets (short 8–15 s, standard 15–30 s – the Reels default –, long 60–90 s), the safe
   zone (`SAFE_ZONE`: clear of the bottom 20 % and the right 12 % of the 1080×1920 frame), the payoff band (80–90 % of the clip,

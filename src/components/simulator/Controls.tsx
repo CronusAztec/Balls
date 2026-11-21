@@ -2109,7 +2109,10 @@ export default function Controls(props: ControlsProps) {
         {props.makeClip && (
           <div className="space-y-1.5">
             <MakeClipButton make={props.makeClip} block testId="make-clip" />
-            <p className="text-xs leading-snug text-ink-3">{site("studio.makeClipNote")}</p>
+            {/* (E1 review) a mode without a clip plan says so before the press switches the page to another mode's clip */}
+            <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-note">
+              {props.makeClip.own ? site("studio.makeClipNote") : site("studio.makeClipOther", { mode: modeNames[s.mode] })}
+            </p>
           </div>
         )}
         <ol className="grid grid-cols-3 gap-1.5" data-testid="studio-steps">

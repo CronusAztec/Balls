@@ -11658,7 +11658,8 @@ await smokeBlock("studio-looks", async () => {
 // for the mode and opens it playing: a hook (cap=), a pinned seed the canvas runs, the clip length its run needs; "Another
 // clip" plans the next one; ?make=1 sets one up as the page opens (Lines has no template: another mode's clip), the free
 // watermark stays on the Record button, and a daily challenge offers none. Then the Polish page's names. (A free visitor's
-// context: no licence.)
+// context: no licence.) (E1 review) The hero's live frame opens its card's look, a press goes from busy straight to made and
+// keeps the keyboard's focus, a mode without a clip plan says so under the button, and at 768 portrait the stage comes into view.
 {
   const slErrors = [];
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, license: null });
@@ -11675,6 +11676,13 @@ await smokeBlock("studio-looks", async () => {
       multiply: document.querySelector('#modes a[data-mode-card="multiply"]')?.getAttribute("href") ?? "",
       classic: document.querySelector('[data-testid="hero-modes"] a')?.getAttribute("href") ?? "",
     }));
+    // (E1 review) the hero's live frame links to the look its mode's card opens (the frame shows that card's picture until it plays)
+    const liveLink = await p.evaluate(() => {
+      const href = document.querySelector('[data-testid="live-preview"]')?.getAttribute("href") ?? "";
+      const mode = new URLSearchParams(href.split("?")[1] ?? "").get("mode") ?? "";
+      return { href, card: document.querySelector(`#modes a[data-mode-card="${mode}"]`)?.getAttribute("href") ?? null };
+    });
+    check("card looks: the hero's live frame opens the look and the seed its mode's card opens", !!liveLink.href && liveLink.href === liveLink.card && /[?&]seed=\d+/.test(liveLink.href), `(${JSON.stringify(liveLink)})`);
     const multiplyLink = new URLSearchParams(hrefs.multiply.split("?")[1] ?? "");
     const classicLink = new URLSearchParams(hrefs.classic.split("?")[1] ?? "");
     await p.locator('#modes a[data-mode-card="multiply"]').scrollIntoViewIfNeeded();
@@ -11731,9 +11739,24 @@ await smokeBlock("studio-looks", async () => {
     const readyButton = await p.getByTestId("make-clip-ready").isVisible().catch(() => false);
     const make = p.getByTestId("make-clip");
     await p.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    // (E1 review) the button's states as they come, read every 15 ms: a press goes from busy straight to made
+    const recordStates = () =>
+      p.evaluate(() => {
+        const seen = [];
+        const read = () => {
+          const at = document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") ?? "none";
+          if (seen.at(-1) !== at) seen.push(at);
+        };
+        read();
+        window.clearInterval(window.__makeStatesTimer);
+        window.__makeStates = seen;
+        window.__makeStatesTimer = window.setInterval(read, 15);
+      });
+    await recordStates();
     await make.click();
     const made = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
     await p.waitForTimeout(500);
+    const firstStates = await p.evaluate(() => (window.__makeStates ?? []).join()); // (after the wait: the 15 ms reader has seen "made" too)
     const clip = async () => ({
       mode: query().get("mode"),
       seed: query().get("seed"),
@@ -11746,10 +11769,22 @@ await smokeBlock("studio-looks", async () => {
       watermark: await p.getByRole("group", { name: "Playback and export" }).getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count().catch(() => -1),
     });
     const first = await clip();
-    await make.click();
+    // (E1 review) Another clip from the keyboard: the button keeps the focus while it plans and after
+    await recordStates();
+    await make.focus();
+    await p.keyboard.press("Enter");
+    const focusBusy = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "busy", null, { timeout: 5000 }).then(() => p.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null)).catch(() => "never busy");
     await p.waitForFunction((seed) => { const el = document.querySelector('[data-testid="make-clip"]'); return el?.getAttribute("data-make-state") === "made" && new URL(location.href).searchParams.get("seed") !== seed; }, first.seed, { timeout: 45000 }).catch(() => {});
     await p.waitForTimeout(500);
     const second = await clip();
+    const secondStates = await p.evaluate(() => (window.__makeStates ?? []).join());
+    const focusMade = await p.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? document.activeElement?.tagName ?? null);
+    await p.evaluate(() => window.clearInterval(window.__makeStatesTimer));
+    check(
+      "make a clip: a press goes from Making your clip straight to Another clip, and a press from the keyboard keeps the focus on the button",
+      firstStates === "idle,busy,made" && secondStates === "made,busy,made" && focusBusy === "make-clip" && focusMade === "make-clip",
+      `(first ${firstStates}, second ${secondStates}, focus while busy ${focusBusy}, after ${focusMade})`,
+    );
     const clipOk = (c) => c.mode === "pendulum" && !!c.seed && c.canvas === c.seed && c.cap > 0 && Number.isInteger(c.length) && c.length >= 10 && c.length <= 60 && (c.dur === null ? c.length === 30 : Number(c.dur) === c.length) && c.playing;
     check(
       "make a clip: Make me a clip (also on the ready screen) opens a planned clip playing, with a hook, a pinned seed and its length, and Another clip plans the next one",
@@ -11757,6 +11792,20 @@ await smokeBlock("studio-looks", async () => {
       `(ready screen ${readyButton}, first ${JSON.stringify(first)}, second ${JSON.stringify(second)})`,
     );
     check("make a clip: a free visitor's made clip keeps the watermark (the Record button's tag)", first.watermark === 1 && second.watermark === 1, `(${first.watermark}, ${second.watermark})`);
+    // (E1 review) a mode without a clip plan says so under the button; a mode with one keeps the button's note
+    await p.goto(`${BASE}/en/simulator/?mode=lines`, { waitUntil: "networkidle" });
+    await ready();
+    const linesNote = ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim();
+    const linesTip = (await make.getAttribute("title").catch(() => "")) ?? "";
+    const linesReady = ((await p.getByTestId("make-clip-ready-note").textContent().catch(() => "")) ?? "").trim();
+    await p.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
+    await ready();
+    const ownNotes = { note: ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim(), ready: await p.getByTestId("make-clip-ready-note").count() };
+    check(
+      "make a clip: a mode without a clip plan says the press makes another mode's clip (under the button and on the ready screen), and the tip promises no clip of this mode",
+      linesNote === "Lines has no clip plan yet, so you get a clip of another mode." && linesReady === "You get a clip of another mode." && linesTip === "Plans a clip and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
+      `("${linesNote}", "${linesReady}", "${linesTip}", pendulum ${JSON.stringify(ownNotes)})`,
+    );
     // 5. ?make=1: a mode without a template gets another mode's clip, set up as the page opens; a daily challenge offers none
     await p.goto(`${BASE}/en/simulator/?mode=lines&make=1`, { waitUntil: "networkidle" });
     await ready();
@@ -11785,6 +11834,28 @@ await smokeBlock("studio-looks", async () => {
       /\/pl\/simulator\/?\?mode=shatter&glow=1&trails=1&wglow=1&r=11&seed=3$/.test(plHref) && plRow.heading === "Style" && plRow.names.slice(0, 2).join() === "Zwykły,Jak na obrazku" && plRow.active === "plain" && plMake === "Zrób mi klip",
       `(${plHref}, ${JSON.stringify(plRow)}, "${plMake}")`,
     );
+    // 7. (E1 review) at 768 portrait the Mode block sits under the stage: a tap there brings the stage into view as the clip plays
+    const tablet = await browser.newContext({ viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, license: null });
+    try {
+      const t = await tablet.newPage();
+      t.on("pageerror", (e) => slErrors.push(`pageerror (768): ${e.message}`));
+      await t.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
+      await t.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 20000 });
+      const tMake = t.getByTestId("make-clip");
+      await tMake.scrollIntoViewIfNeeded();
+      const below = await t.evaluate(() => { const r = document.querySelector("main canvas")?.getBoundingClientRect(); return r ? Math.round(Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) : null; });
+      await tMake.tap();
+      const tMade = await t.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
+      await t.waitForTimeout(1200);
+      const stage = await t.evaluate(() => { const r = document.querySelector("main canvas")?.getBoundingClientRect(); return r ? { seen: Math.round(Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)), height: Math.round(r.height) } : null; });
+      check(
+        "make a clip: at 768 portrait a tap on Make me a clip under the stage brings the stage into view as the clip plays",
+        tMade && below !== null && stage !== null && stage.seen >= Math.min(stage.height, 1024) / 2,
+        `(made ${tMade}, stage seen before ${below} px, after ${JSON.stringify(stage)})`,
+      );
+    } finally {
+      await tablet.close().catch(() => {});
+    }
   } catch (err) {
     check("studio-looks checks ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
   } finally {

@@ -27,7 +27,7 @@ export interface StudioLook {
 export const LOOK_NAMES: Readonly<Record<Exclude<LookKind, "gallery">, LocalizedText>> = {
   plain: { en: "Plain", pl: "Zwykły", es: "Sencillo" },
   card: { en: "As pictured", pl: "Jak na obrazku", es: "Como en la imagen" },
-  daily: { en: "Daily challenge", pl: "Wyzwanie dnia", es: "Reto diario" },
+  daily: { en: "Challenge look", pl: "Wygląd wyzwania", es: "Estilo del reto" }, // (E1 review: names a look, not the challenge itself)
 };
 
 /** A link's query without its mode and seed: the settings alone. */
