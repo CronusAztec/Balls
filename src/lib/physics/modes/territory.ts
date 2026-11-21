@@ -16,11 +16,12 @@ import { TWO_PI } from "../types";
  *
  * Every team may have a power (`powers`, one per team slot):
  *
- *  - `vortex`: its balls curve their own path, and every `powerEvery` seconds a ball drags a whirl – two spiral arms that
- *    sweep out to `radius` tiles around it over `TY_WHIRL_MS`, converting the enemy tiles they cross;
+ *  - `vortex`: its balls curve their own path, and every `powerEvery` seconds a ball arms and, on its next bounce off an
+ *    enemy tile (or where it is, `TY_ARM_MAX_MS` later), releases a whirl – four spiral arms that sweep out to `radius`
+ *    tiles over `TY_WHIRL_MS` round a point past the border, converting the enemy tiles they cross;
  *  - `bomber`: every `powerEvery` seconds a ball arms, and it explodes on its next bounce off an enemy tile (or where it
- *    is, `TY_ARM_MAX_MS` later) – every tile within `radius` becomes its team's (a shock ring, debris, the wall-break sound
- *    and a jolt of the board; nearby balls are blown away): one bounce can flip the board;
+ *    is, `TY_ARM_MAX_MS` later) – every tile within `radius` of a point past the border becomes its team's (a shock ring,
+ *    debris, the wall-break sound and a jolt of the board; nearby balls are blown away): one bounce can flip the board;
  *  - `painter`: every `powerEvery` seconds a ball dashes (`TY_DASH_TILES` tiles, a little faster) straight through enemy
  *    territory without bouncing, painting a one-tile trail;
  *  - `ghost`: its balls pass through enemy tiles without bouncing (and without converting them) and convert a 3×3 block
@@ -94,8 +95,8 @@ export const DEFAULT_TERRITORY_SETTINGS: TerritorySettings = {
   teams: 2,
   ballsPerTeam: 2,
   powers: [...DEFAULT_TY_POWERS],
-  powerEvery: 3,
-  radius: 3,
+  powerEvery: 3, // (--- territory-swing --- the page's pace is 2: lib/clipPacing.ts)
+  radius: 3, // (--- territory-swing --- the page's pace is 4)
   duration: 30,
   pegs: false,
   badge: true,
@@ -333,7 +334,7 @@ export const TY_CROWD_FILL = 0.6;
 export const TY_VORTEX_CURVE = 0.9;
 export const TY_WHIRL_MS = 900;
 export const TY_WHIRL_TURNS = 1.25;
-export const TY_WHIRL_ARMS = 2;
+export const TY_WHIRL_ARMS = 4; // --- territory-swing --- (was 2: a whirl took a third of what a blast took, and the bomber won 22 of 24 seeds)
 /** Samples per whirl arm and tile of radius (every tile the arm crosses is hit). */
 export const TY_WHIRL_SAMPLES_PER_TILE = 16;
 /** Painter: a dash runs this many tiles (the same trail on any board), this much faster. */
@@ -343,16 +344,41 @@ export const TY_DASH_SPEED = 1.1;
 export const TY_GHOST_SPEED = 1.5;
 /** Bomber: balls within this many blast radii are blown away. */
 export const TY_BLAST_PUSH = 1.5;
-/** Bomber: an armed ball that has not bounced off an enemy tile this long (simulation ms) after arming explodes where it is. */
-export const TY_ARM_MAX_MS = 150;
+/**
+ * Bomber and vortex: an armed ball that has not bounced off an enemy tile this long (simulation ms) after arming fires where
+ * it is. --- territory-swing --- It was 150 ms for the bomber alone: the bomb went off where it armed, mostly in its own colour
+ * (19 blasts and 20 whirls flipped 213 tiles in 30 s, and the board ended 239 to 241). A ball meets the border every second
+ * or so, so its power now waits for it.
+ */
+export const TY_ARM_MAX_MS = 4000;
+/**
+ * --- territory-swing --- Where a power lands: a bomber's blast and a vortex's whirl are centred this share of their reach past
+ * the enemy tile the ball bounced off, along the bounce – inside the other colour, so the blast bites a hole out of it
+ * instead of burning half its disc in the ball's own ground.
+ */
+export const TY_BLAST_INTO = 0.6;
+export const TY_WHIRL_INTO = 0.5;
 /** A timed power first fires between this fraction of its interval and the whole interval (seeded per ball). */
 export const TY_POWER_PHASE_MIN = 0.35;
 /** The last TY_FINALE_MS of the countdown: the balls speed up to TY_FINALE_SPEED× ("the end gets intense"). */
 export const TY_FINALE_MS = 5000;
 export const TY_FINALE_SPEED = 1.3;
-/** Tile-flip notes: at most one per 60 Hz step and one per TY_NOTE_GAP_MS of simulation time; blasts sound at most every TY_BOOM_GAP_MS. */
-export const TY_NOTE_GAP_MS = 70;
+/**
+ * Tile-flip notes: at most one per 60 Hz step and one per TY_NOTE_GAP_MS of simulation time; blasts sound at most every
+ * TY_BOOM_GAP_MS. --- territory-swing --- (sound only) 70 ms was a note on nearly every step once the powers reach the other
+ * side (1,500 flips in 30 s, 9.6 sounds a second): 140 ms keeps the flips heard under the blasts, the stings and the ticks.
+ */
+export const TY_NOTE_GAP_MS = 140;
 export const TY_BOOM_GAP_MS = 180;
+/**
+ * --- territory-swing --- The score is heard: a sting on the new leader's top note when the lead changes (at most one per
+ * TY_STING_GAP_MS, a lead that flickers at 50 % is one sting), and a tick on every second of the countdown's last
+ * TY_TICK_SECONDS (on the clock's digits as they change). Sounds only: nothing here moves a ball.
+ */
+export const TY_STING_GAP_MS = 600;
+export const TY_TICK_SECONDS = 5;
+/** The tick: the flip ladder's top note (D6), accented, so it rings over the flips like the clock it is. */
+export const TY_TICK_HZ = midiToFrequency(86);
 /** Recent flips kept for the canvas' pop animation, and how long a pop lasts (simulation ms). */
 export const TY_FLIP_LOG = 512;
 export const TY_POP_MS = 480;
@@ -688,7 +714,10 @@ export interface TyBall {
   power: TyPower;
   /** Simulation time (ms) of its next power trigger (Infinity: no timed power, an armed bomber, or the battle is over). */
   nextPowerMs: number;
-  /** Bomber: when it armed (simulation ms; −Infinity while it is not armed) – it explodes on its next bounce off an enemy tile. */
+  /**
+   * Bomber: when it armed (simulation ms; −Infinity while it is not armed) – it explodes on its next bounce off an enemy tile.
+   * --- territory-swing --- A vortex arms too: its whirl is released on its next bounce off an enemy tile.
+   */
   armedMs: number;
   /** Simulation time (ms) of its last trigger (−Infinity before the first): the canvas' charge ring. */
   lastPowerMs: number;
@@ -700,6 +729,9 @@ export interface TyBall {
   whirlMs: number;
   whirlAngle: number;
   whirlDone: number;
+  /** --- territory-swing --- Vortex: where the running whirl turns (tile units from the grid's corner): fixed where it was released. */
+  whirlU: number;
+  whirlV: number;
   /** Vortex: how far (tiles) its whirl reaches – the Power Reach, past the ball when it is a big one (`territoryReach()`). */
   reach: number;
   /** Painter: the dash runs until this simulation time (ms). */
@@ -741,6 +773,8 @@ export interface TerritoryView {
   flipTile: Int32Array;
   flipTeam: Uint8Array;
   flipMs: Float64Array;
+  /** --- territory-swing --- Whose the tile was before the flip (the canvas holds the old colour until a blast's wave reaches it). */
+  flipFrom: Uint8Array;
   flipHead: number;
   flipCount: number;
   /** Bomber blasts still ringing, oldest first. */
@@ -793,6 +827,7 @@ function createView(): TerritoryView {
     flipTile: new Int32Array(TY_FLIP_LOG),
     flipTeam: new Uint8Array(TY_FLIP_LOG),
     flipMs: new Float64Array(TY_FLIP_LOG),
+    flipFrom: new Uint8Array(TY_FLIP_LOG), // --- territory-swing ---
     flipHead: 0,
     flipCount: 0,
     shocks: [],
@@ -838,6 +873,9 @@ export class TerritoryMode implements GameMode {
   private lastNoteMs = -Infinity;
   private lastBoomMs = -Infinity;
   private lastLeader = -1;
+  // --- territory-swing --- the last lead sting and the last tick's second
+  private lastStingMs = -Infinity;
+  private lastTick = Infinity;
   private readonly peg = circleObstacle(0, 0, 1, { restitution: 1, friction: 0 });
   private readonly scratch = { x: 0, y: 0 };
   private readonly whirl: WhirlReach = { reach: 0, span: 1, samples: 8 };
@@ -957,6 +995,8 @@ export class TerritoryMode implements GameMode {
     this.lastNoteMs = -Infinity;
     this.lastBoomMs = -Infinity;
     this.lastLeader = -1;
+    this.lastStingMs = -Infinity; // --- territory-swing ---
+    this.lastTick = Infinity;
     this.deferring = false;
     this.qLen = 0;
     this.firstId = ctx.getNextId();
@@ -1022,6 +1062,8 @@ export class TerritoryMode implements GameMode {
           whirlMs: -Infinity,
           whirlAngle: 0,
           whirlDone: 0,
+          whirlU: 0, // --- territory-swing ---
+          whirlV: 0,
           reach: s.radius,
           dashUntilMs: -Infinity,
           u: (x - f.gx) / f.tile,
@@ -1142,6 +1184,12 @@ export class TerritoryMode implements GameMode {
     const left = v.durationMs - now;
     v.finale = !v.finished && left <= TY_FINALE_MS;
     v.speedFactor = v.finale ? territoryFinaleFactor(TY_FINALE_MS - left) : 1;
+    // --- territory-swing --- the countdown's last seconds tick as the clock's digit changes (5, 4, 3, 2, 1)
+    const secs = Math.ceil(left / 1000 - 1e-9);
+    if (!v.finished && secs >= 1 && secs <= TY_TICK_SECONDS && secs < this.lastTick) {
+      this.lastTick = secs;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: TY_TICK_HZ, accent: true, level: 0.3 + 0.08 * (TY_TICK_SECONDS - secs), melody: false });
+    }
     // The engine ball of every team ball this step (a ball fused away by the "merge" interaction is gone).
     const balls = ctx.getBalls();
     const eb = this.engineBalls;
@@ -1159,33 +1207,28 @@ export class TerritoryMode implements GameMode {
       const tb = v.balls[k];
       const B = eb[k];
       if (!B) continue;
-      // An armed bomber that found no enemy tile to bounce off in time explodes where it is.
-      if (tb.armedMs > -Infinity && now - tb.armedMs >= TY_ARM_MAX_MS) this.blast(ctx, B, tb, now);
+      // An armed bomber (--- territory-swing --- or vortex) that found no enemy tile to bounce off in time fires where it is.
+      if (tb.armedMs > -Infinity && now - tb.armedMs >= TY_ARM_MAX_MS) this.fire(ctx, B, tb, now, 0, 0);
       if (tb.nextPowerMs > now) continue;
       this.trigger(ctx, B, tb, now);
       while (tb.nextPowerMs <= now) tb.nextPowerMs += every;
     }
   }
 
-  /** A timed power fires: the vortex's whirl, the painter's dash – the bomber arms (its blast waits for its next bounce off an enemy tile). */
+  /**
+   * A timed power fires: the painter's dash – the bomber and (--- territory-swing ---) the vortex arm: the blast and the whirl
+   * wait for the ball's next bounce off an enemy tile (`fire()`).
+   */
   private trigger(ctx: ModeContext, ball: Ball, tb: TyBall, now: number) {
     const v = this.view;
-    if (tb.power === "bomber") {
+    if (tb.power === "bomber" || tb.power === "vortex") {
       tb.armedMs = now;
-      tb.nextPowerMs = Infinity; // the next charge starts at the blast
+      tb.nextPowerMs = Infinity; // the next charge starts when it fires
       return;
     }
     tb.triggers++;
     tb.lastPowerMs = now;
-    if (tb.power === "vortex") {
-      tb.whirlMs = now;
-      tb.whirlAngle = Math.atan2(ball.vy, ball.vx);
-      tb.whirlDone = 0;
-      tb.reach = territoryReach(v.settings.radius, ball.radius / v.field.tile); // (past a big ball: uncap-all)
-      tb.curve = -tb.curve;
-      v.whirls++;
-      ctx.addPendingSoundEvent({ type: "multiplier", wallIndex: 0, multiplier: 3 });
-    } else if (tb.power === "painter") {
+    if (tb.power === "painter") {
       tb.dashUntilMs = now + (1000 * TY_DASH_TILES * v.field.tile) / (this.cruise(ctx.config.ballSpeed) * v.speedFactor * TY_DASH_SPEED);
       v.dashes++;
       const row = Math.floor((ball.y - v.field.gy) / v.field.tile);
@@ -1193,8 +1236,36 @@ export class TerritoryMode implements GameMode {
     }
   }
 
+  /**
+   * --- territory-swing --- An armed ball fires: the bomber's blast or the vortex's whirl, centred past the enemy tile it bounced
+   * off along (`nx`, `ny`), the way into the other colour (0, 0: where it is, its fuse ran out).
+   */
+  private fire(ctx: ModeContext, ball: Ball, tb: TyBall, now: number, nx: number, ny: number) {
+    if (tb.power === "vortex") this.whirlFrom(ctx, ball, tb, now, nx, ny);
+    else this.blast(ctx, ball, tb, now, nx, ny);
+  }
+
+  /** --- territory-swing --- The vortex's whirl: two spiral arms sweeping out to the reach round a point past the border; the next charge starts. */
+  private whirlFrom(ctx: ModeContext, ball: Ball, tb: TyBall, now: number, nx: number, ny: number) {
+    const v = this.view;
+    const f = v.field;
+    tb.triggers++;
+    tb.lastPowerMs = now;
+    tb.armedMs = -Infinity;
+    tb.nextPowerMs = now + 1000 * v.settings.powerEvery;
+    tb.whirlMs = now;
+    tb.whirlAngle = Math.atan2(ball.vy, ball.vx);
+    tb.whirlDone = 0;
+    tb.reach = territoryReach(v.settings.radius, ball.radius / f.tile); // (past a big ball: uncap-all)
+    tb.whirlU = (ball.x - f.gx) / f.tile + nx * TY_WHIRL_INTO * tb.reach;
+    tb.whirlV = (ball.y - f.gy) / f.tile + ny * TY_WHIRL_INTO * tb.reach;
+    tb.curve = -tb.curve;
+    v.whirls++;
+    ctx.addPendingSoundEvent({ type: "multiplier", wallIndex: 0, multiplier: 3 });
+  }
+
   /** The bomber's blast: every tile within the reach turns its team's, nearby balls are blown away, a shock ring, the wall-break sound and a shake; the next charge starts. */
-  private blast(ctx: ModeContext, ball: Ball, tb: TyBall, now: number) {
+  private blast(ctx: ModeContext, ball: Ball, tb: TyBall, now: number, nx: number, ny: number) {
     const v = this.view;
     const f = v.field;
     tb.triggers++;
@@ -1202,8 +1273,9 @@ export class TerritoryMode implements GameMode {
     tb.armedMs = -Infinity;
     tb.nextPowerMs = now + 1000 * v.settings.powerEvery;
     const R = territoryReach(v.settings.radius, ball.radius / f.tile); // (past a big ball: uncap-all)
-    const cu = (ball.x - f.gx) / f.tile;
-    const cv = (ball.y - f.gy) / f.tile;
+    // --- territory-swing --- centred past the border, in the other colour
+    const cu = (ball.x - f.gx) / f.tile + nx * TY_BLAST_INTO * R;
+    const cv = (ball.y - f.gy) / f.tile + ny * TY_BLAST_INTO * R;
     const c0 = Math.max(0, Math.floor(cu - R));
     const c1 = Math.min(v.cols - 1, Math.floor(cu + R));
     const r0 = Math.max(0, Math.floor(cv - R));
@@ -1217,10 +1289,12 @@ export class TerritoryMode implements GameMode {
     }
     // The shock blows the other balls away from the blast (a turn of their heading; their speed stays the cruise).
     const reach = TY_BLAST_PUSH * R * f.tile;
+    const bx = f.gx + cu * f.tile; // --- territory-swing --- (from the blast's centre)
+    const by = f.gy + cv * f.tile;
     for (const other of ctx.getBalls()) {
       if (other === ball) continue;
-      const dx = other.x - ball.x;
-      const dy = other.y - ball.y;
+      const dx = other.x - bx;
+      const dy = other.y - by;
       const d2 = dx * dx + dy * dy;
       if (d2 >= reach * reach || d2 === 0) continue;
       const d = Math.sqrt(d2);
@@ -1371,7 +1445,7 @@ export class TerritoryMode implements GameMode {
     ball.vy = vy - 2 * vn * ny;
     v.tileBounces++;
     ctx.noteBounce?.(ball); // a bounce-math trigger
-    if (live && tb && tb.armedMs > -Infinity) this.blast(ctx, ball, tb, now); // one bounce can flip the board
+    if (live && tb && tb.armedMs > -Infinity) this.fire(ctx, ball, tb, now, nx, ny); // one bounce can flip the board (--- territory-swing --- into the other colour)
   }
 
   /**
@@ -1462,7 +1536,7 @@ export class TerritoryMode implements GameMode {
     ball.vy = vy - 2 * vn * ny;
     v.tileBounces++;
     ctx.noteBounce?.(ball); // a bounce-math trigger
-    if (live && tb && tb.armedMs > -Infinity) this.blast(ctx, ball, tb, now); // one bounce can flip the board
+    if (live && tb && tb.armedMs > -Infinity) this.fire(ctx, ball, tb, now, nx, ny); // one bounce can flip the board (--- territory-swing --- into the other colour)
   }
 
   /**
@@ -1641,8 +1715,8 @@ export class TerritoryMode implements GameMode {
     for (let k = tb.whirlDone + 1; k <= upTo; k++) {
       for (let arm = 0; arm < TY_WHIRL_ARMS; arm++) {
         whirlPoint(k, w.samples, arm, tb.whirlAngle, tb.curve, R, q, w.span);
-        const col = Math.floor((ball.x + q.x - f.gx) / f.tile);
-        const row = Math.floor((ball.y + q.y - f.gy) / f.tile);
+        const col = Math.floor((tb.whirlU * f.tile + q.x) / f.tile); // --- territory-swing --- (round where it was released)
+        const row = Math.floor((tb.whirlV * f.tile + q.y) / f.tile);
         if (col < 0 || row < 0 || col >= v.cols || row >= v.rows) continue;
         const idx = row * v.cols + col;
         if (v.tiles[idx] !== tb.team) this.convert(ctx, idx, tb.team, now, row, true);
@@ -1737,6 +1811,7 @@ export class TerritoryMode implements GameMode {
     v.flipTile[h] = idx;
     v.flipTeam[h] = team;
     v.flipMs[h] = now;
+    v.flipFrom[h] = from; // --- territory-swing ---
     v.flipHead = (h + 1) % TY_FLIP_LOG;
     if (v.flipCount < TY_FLIP_LOG) v.flipCount++;
     if (sound && this.notesThisStep === 0 && now - this.lastNoteMs >= TY_NOTE_GAP_MS) {
@@ -1782,6 +1857,11 @@ export class TerritoryMode implements GameMode {
       const leader = tileLeader(v.counts, v.teams);
       if (leader >= 0 && this.lastLeader >= 0 && leader !== this.lastLeader) {
         v.leadChanges++;
+        // --- territory-swing --- the new leader's sting (one per TY_STING_GAP_MS)
+        if (now - this.lastStingMs >= TY_STING_GAP_MS) {
+          this.lastStingMs = now;
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: flipFrequency(leader, 0, v.rows), accent: true, melody: false });
+        }
         // The lead flips in the finale: slow motion (the camera's near-miss hook).
         if (v.finale) {
           ctx.noteNearMiss?.();

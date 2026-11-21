@@ -25,6 +25,8 @@ import {
   TY_SPEED,
   TY_TILE_VISITS,
   TY_VORTEX_CURVE,
+  TY_WHIRL_ARMS,
+  TY_WHIRL_INTO,
   TY_WHIRL_MS,
   TY_WHIRL_SAMPLES_PER_TILE,
   awayFromAxes,
@@ -204,7 +206,8 @@ describe("territory settings", () => {
 
   it("are the defaults in every mode, stay out of the URL and give Territory a clip that covers the verdict", () => {
     const d = defaultSettings("territory");
-    expect(territorySettingsOf(d)).toEqual(DEFAULT_TERRITORY_SETTINGS);
+    // (--- territory-swing --- Territory's own page pace: a reach of 4 every 2 s, lib/clipPacing.ts; every other mode the mode's own)
+    expect(territorySettingsOf(d)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, radius: 4, powerEvery: 2 });
     expect(d.recordingDuration).toBe(territoryClipSec(DEFAULT_TERRITORY_SETTINGS.duration));
     expect(d.recordingDuration).toBeGreaterThan(DEFAULT_TERRITORY_SETTINGS.duration);
     expect(defaultSettings("classic").recordingDuration).toBe(30);
@@ -223,12 +226,12 @@ describe("territory settings", () => {
     const back = settingsFromSearchParams(query);
     expect(territorySettingsOf(back)).toEqual(territorySettingsOf(s));
     const wild = settingsFromSearchParams(new URLSearchParams("mode=territory&tyc=5&tyt=9&tyb=40&typ=x,y&tye=abc&tyr=-3&tyd=999&typg=2&tyh=0"));
-    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, cols: 12, teams: 4, ballsPerTeam: 40, radius: 1, duration: 999, hud: false });
+    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, powerEvery: 2 /* (tye=abc: the page's own pace) */, cols: 12, teams: 4, ballsPerTeam: 40, radius: 1, duration: 999, hud: false });
     // (the link keeps a team count past the four quadrants as typed; the run plays four)
     expect([wild.tyTeams, wild.tyBallsPerTeam, wild.tyDuration]).toEqual([9, 40, 999]);
     expect(territorySettingsOf(settingsFromSearchParams(settingsToSearchParams(wild)))).toEqual(territorySettingsOf(wild));
     const preset = presetToSettings({ mode: "territory", tyCols: "abc" as never, tyTeams: 4, tyPowers: "bomber", tyPegs: "yes" as never } as never);
-    expect(territorySettingsOf(preset)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, teams: 4, powers: ["bomber", "bomber", "painter", "ghost"] });
+    expect(territorySettingsOf(preset)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, radius: 4, powerEvery: 2 /* (the page's own pace) */, teams: 4, powers: ["bomber", "bomber", "painter", "ghost"] });
   });
 
   it("registers the mode: its id, its card after the String Battle and the battle family", () => {
@@ -362,7 +365,7 @@ describe("the board", () => {
     expect(Math.hypot(p.x, p.y)).toBeCloseTo(60, 9);
     const q = { x: 0, y: 0 };
     whirlPoint(24, 48, 0, 0.3, 1, 60, p);
-    whirlPoint(24, 48, 1, 0.3, 1, 60, q);
+    whirlPoint(24, 48, TY_WHIRL_ARMS / 2, 0.3, 1, 60, q); // (--- territory-swing --- the arm opposite the first: four arms now)
     expect(p.x).toBeCloseTo(-q.x, 9);
     expect(p.y).toBeCloseTo(-q.y, 9);
   });
@@ -537,7 +540,7 @@ describe("Territory in the engine", () => {
     }
   });
 
-  it("vortex: its path curves, and a whirl converts the enemy tiles along two spiral arms within its reach", () => {
+  it("vortex: its path curves, and a whirl converts the enemy tiles along its spiral arms within its reach", () => {
     // A slow ball (Ball Speed 50), so the whirl sweeps the border it sits on while the ball hardly moves.
     const engine = territory({ powers: ["vortex", "none", "none", "none"], ballsPerTeam: 1, powerEvery: 10 }, 42, { ...config, ballSpeed: 50 });
     const v = engine.getTerritoryView();
@@ -554,11 +557,12 @@ describe("Territory in the engine", () => {
     const turned = Math.atan2(ball.vy, ball.vx) - a0;
     expect(Math.abs(turned)).toBeCloseTo(TY_VORTEX_CURVE * 15 * (STEP / 1000), 3);
     expect(v.conversions).toBe(0);
-    // A whirl on the border, the ball sliding along it.
+    // A whirl on the border, the ball sliding along it (--- territory-swing --- it arms, and its whirl starts as it touches the
+    // enemy tiles under it: a little downwards).
     ball.x = f.gx + 0.5 * f.gridW;
     ball.y = f.gy + (v.rows / 2) * f.tile - ball.radius - 1;
     ball.vx = 300;
-    ball.vy = 0;
+    ball.vy = 60;
     const start = { x: ball.x, y: ball.y };
     tb.nextPowerMs = 0;
     const events: SoundEvent[] = [];
@@ -573,7 +577,7 @@ describe("Territory in the engine", () => {
     expect(v.whirls).toBe(1);
     expect(events.some((e) => e.type === "multiplier")).toBe(true);
     expect(v.conversions).toBeGreaterThan(5);
-    const reach = v.settings.radius * f.tile + travelled + f.tile;
+    const reach = (1 + TY_WHIRL_INTO) * v.settings.radius * f.tile + travelled + f.tile; // (--- territory-swing --- round a point past the border)
     for (let n = 0; n < v.flipCount; n++) {
       const idx = v.flipTile[n];
       const col = idx % v.cols;
@@ -645,7 +649,7 @@ describe("Territory in the engine", () => {
     expect(accounted(engine).ok).toBe(true);
   });
 
-  it("bomber: an armed ball that meets no enemy tile blows where it is after a short fuse", () => {
+  it("bomber: an armed ball that meets no enemy tile blows where it is after its fuse", () => {
     const engine = territory({ powers: ["none", "bomber", "none", "none"], ballsPerTeam: 1, radius: 2 });
     const v = engine.getTerritoryView();
     const f = v.field;
@@ -661,6 +665,9 @@ describe("Territory in the engine", () => {
     expect(armed).toBeGreaterThan(-Infinity);
     while (engine.getElapsedMs() < armed + TY_ARM_MAX_MS - 1e-6) {
       expect(v.blasts).toBe(0);
+      // (--- territory-swing --- the fuse waits up to 4 s now: the ball is held in the middle of its own half, off the border)
+      bomber.y = f.gy + 0.8 * f.gridH;
+      bomber.vy = 0;
       engine.update(STEP, 0);
     }
     engine.update(STEP, 0);
@@ -1179,11 +1186,14 @@ describe("Territory past the old size cap (uncap-all: the Ball Size however big)
     // Recorded with the code before the cap was lifted (TY_MAX_RADIUS = 0.9 tiles): the page's defaults through the verdict,
     // four teams with every power and the dotted grid, the Ball Sizes 16 and 4 (the ghost and the painter, 48 columns) and
     // the bot's 800 × 600 world. Every bit of every ball and tile, every counter and sound, the same.
-    expect(fingerprint({}, 1, 1900)).toEqual({ tiles: 2077598062, balls: 1579712573, counts: "271,209", events: "187,119,180,0,20,18,0,0,93,123", verdict: "0" });
-    expect(fingerprint({ tyTeams: 4, tyBallsPerTeam: 3, tyPegs: true, tyPowers: "vortex,bomber,painter,ghost" }, 7, 900)).toEqual({ tiles: 3698735293, balls: 1697172989, counts: "156,105,126,93", events: "1013,425,237,460,15,15,15,68,140,248", verdict: "-" });
-    expect(fingerprint({ ballRadius: 16, tyPowers: "ghost,painter,vortex,bomber" }, 3, 900)).toEqual({ tiles: 1966518269, balls: 3446846487, counts: "246,234", events: "238,101,72,0,0,0,10,23,59,92", verdict: "-" });
-    expect(fingerprint({ ballRadius: 4, tyCols: 48 }, 5, 600)).toEqual({ tiles: 3168323384, balls: 334133007, counts: "961,959", events: "93,41,47,0,6,6,0,0,33,45", verdict: "-" });
-    expect(fingerprint({}, 42, 600, { width: 800, height: 600 })).toEqual({ tiles: 1418246952, balls: 2350001713, counts: "265,215", events: "57,40,45,0,6,6,0,0,34,46", verdict: "-" });
+    // (--- territory-swing --- re-recorded once, on purpose: a bomber and a vortex fire on the border into the other colour, a
+    // reach of 4 every 2 s, four whirl arms, the flip notes 140 ms apart, a sting and the ticks – the page's run of seed 1 ends
+    // 225:255 with 1573 tiles flipped, where it ended 271:209 with 187; Fingerprint-Change: territory)
+    expect(fingerprint({}, 1, 1900)).toEqual({ tiles: 2034572946, balls: 321854058, counts: "225,255", events: "1573,318,175,0,24,25,0,0,142,217", verdict: "1" });
+    expect(fingerprint({ tyTeams: 4, tyBallsPerTeam: 3, tyPegs: true, tyPowers: "vortex,bomber,painter,ghost" }, 7, 900)).toEqual({ tiles: 2401213736, balls: 1917723765, counts: "167,170,54,89", events: "2176,791,271,482,18,17,21,61,95,212", verdict: "-" });
+    expect(fingerprint({ ballRadius: 16, tyPowers: "ghost,painter,vortex,bomber" }, 3, 900)).toEqual({ tiles: 1753082155, balls: 3249829075, counts: "244,236", events: "252,99,79,0,0,0,14,29,50,94", verdict: "-" });
+    expect(fingerprint({ ballRadius: 4, tyCols: 48 }, 5, 600)).toEqual({ tiles: 455804859, balls: 4098046989, counts: "854,1066", events: "518,52,47,0,6,9,0,0,36,51", verdict: "-" });
+    expect(fingerprint({}, 42, 600, { width: 800, height: 600 })).toEqual({ tiles: 2296448667, balls: 586943615, counts: "216,264", events: "574,69,55,0,8,8,0,0,52,74", verdict: "-" });
   });
 
   it("sizes the balls by the Ball Size with no maximum – past the old 0.9 tiles, on any board – and knows when one is wider than the board", () => {
@@ -1469,11 +1479,17 @@ describe("Territory past the old size cap (uncap-all: the Ball Size however big)
       expect(beyond).toBeGreaterThan(5); // (past the ball's own rim)
     }
     {
-      // A vortex of 3 tiles: its whirl reaches 5.1 tiles.
+      // A vortex of 3 tiles: its whirl reaches 5.1 tiles (--- territory-swing --- armed, it whirls at the border).
       const engine = sized(3, { powers: ["vortex", "none", "none", "none"], ballsPerTeam: 1, radius: 3 });
       const ball = onlyBall(engine, 0);
+      const vf = engine.getTerritoryView();
       teamBall(engine, ball).nextPowerMs = 0;
       engine.update(STEP, 0);
+      ball.x = vf.field.gx + 12 * vf.field.tile;
+      ball.y = vf.field.gy + (vf.rows / 2) * vf.field.tile - ball.radius - 0.5;
+      ball.vx = 0;
+      ball.vy = 400;
+      for (let i = 0; i < 4 && vf.whirls === 0; i++) engine.update(STEP, 0);
       expect(teamBall(engine, ball).reach).toBeCloseTo(territoryReach(3, 3), 9);
       expect(engine.getTerritoryView().whirls).toBe(1);
     }

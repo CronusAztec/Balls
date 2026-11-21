@@ -64,7 +64,7 @@ import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBull
 // --- merge-ring --- the Merge Ring mode
 import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing ---
 import { DEFAULT_COLOR_MATCH_SEGMENTS, isColorMatchSegments } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
-import { DEFAULT_SHATTER_HITS, DEFAULT_SHATTER_SEGMENTS, isShatterHits, isShatterSegments } from "@/lib/physics/modes/shatter"; // --- shatter-demolition ---
+import { DEFAULT_SHATTER_EVEN_BRICKS, DEFAULT_SHATTER_HITS, DEFAULT_SHATTER_SEGMENTS, isShatterHits, isShatterSegments } from "@/lib/physics/modes/shatter"; // --- shatter-demolition ---
 import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readMergeRingParams, resolveMergeRingFields, writeMergeRingParams, type MergeRingFields } from "@/lib/physics/modes/mergeRing";
 // --- spiral-glass --- the Spiral Glass mode
 import { SPIRAL_GLASS_RANGES, defaultSpiralGlassFields, readSpiralGlassParams, resolveSpiralGlassFields, spiralGlassModeDefaults, writeSpiralGlassParams, type SpiralGlassFields } from "@/lib/physics/modes/spiralGlass";
@@ -238,6 +238,8 @@ export interface SimulatorSettings {
   shatterHits: number;
   /** --- shatter-demolition --- Shatter: segments a ring is made of – 8, 12, 18, 24 or 36 (URL `shs`). */
   shatterSegments: number;
+  /** --- shatter-even-bricks --- Shatter: the inner rings cut into bricks as long as the outer ring's, not into as many (URL `shb`). */
+  shatterEvenBricks: boolean;
   growRate: number;
   growCenterDot: boolean;
   growLines: boolean;
@@ -1522,6 +1524,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     colorMatchSegments: DEFAULT_COLOR_MATCH_SEGMENTS, // --- colour-match-segments --- (the mode's own 12; out here too, past the fast-path limit)
     shatterHits: DEFAULT_SHATTER_HITS, // --- shatter-demolition --- (the mode's own; Shatter's page default is clipPacing's)
     shatterSegments: DEFAULT_SHATTER_SEGMENTS,
+    shatterEvenBricks: DEFAULT_SHATTER_EVEN_BRICKS, // --- shatter-even-bricks --- (the mode's own: off; Shatter's page default is clipPacing's)
     // --- clip-pacing --- last: the page's own defaults of the modes whose default run did not end inside a 30 s clip
     ...clipPacingDefaults(mode),
   };
@@ -1529,7 +1532,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,
@@ -1975,6 +1978,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.colorMatchSegments !== base.colorMatchSegments) params.set("cms", String(settings.colorMatchSegments)); // --- colour-match-segments ---
   if (settings.shatterHits !== base.shatterHits) params.set("shh", String(settings.shatterHits)); // --- shatter-demolition ---
   if (settings.shatterSegments !== base.shatterSegments) params.set("shs", String(settings.shatterSegments));
+  if (settings.shatterEvenBricks !== base.shatterEvenBricks) params.set("shb", settings.shatterEvenBricks ? "1" : "0"); // --- shatter-even-bricks ---
   if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
   if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
   if (settings.boxShape !== base.boxShape) params.set("bxs", settings.boxShape);
@@ -2122,6 +2126,9 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (shh !== null && shh.trim() !== "" && isShatterHits(Number(shh))) settings.shatterHits = Number(shh);
   const shs = params.get("shs");
   if (shs !== null && shs.trim() !== "" && isShatterSegments(Number(shs))) settings.shatterSegments = Number(shs);
+  const shb = params.get("shb"); // --- shatter-even-bricks --- (1 or 0, else the mode's default)
+  if (shb === "1") settings.shatterEvenBricks = true;
+  else if (shb === "0") settings.shatterEvenBricks = false;
   const res = params.get("res");
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
@@ -2687,6 +2694,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.colorMatchSegments = isColorMatchSegments(preset.colorMatchSegments) ? preset.colorMatchSegments : defaults.colorMatchSegments; // --- colour-match-segments --- (one of the five counts)
   merged.shatterHits = isShatterHits(preset.shatterHits) ? preset.shatterHits : defaults.shatterHits; // --- shatter-demolition --- (one of the picks)
   merged.shatterSegments = isShatterSegments(preset.shatterSegments) ? preset.shatterSegments : defaults.shatterSegments;
+  merged.shatterEvenBricks = typeof preset.shatterEvenBricks === "boolean" ? preset.shatterEvenBricks : defaults.shatterEvenBricks; // --- shatter-even-bricks ---
   merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
   for (const key of ["topText", "bottomText", "watermarkText"] as const) {
     const text = preset[key] as unknown;

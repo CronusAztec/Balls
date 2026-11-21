@@ -170,7 +170,8 @@ const SONG_RING_READY: readonly ModeId[] = ["songRing"];
 /**
  * --- sand-plate --- Sand Plate, bound when the mode was added: a reveal with its own hook, timed by its full chord on the last,
  * finest figure (the run's fixed length less the finale's hold). Measured as the groups above: 36 of 36 plans (plan seeds 1-4, the
- * three platforms, en, pl and es) pass every gate, Simple 89, Playbook 75 to 77 (docs/virality-playbook.md §5).
+ * three platforms, en, pl and es) pass every gate, Simple 89, Playbook 75 to 77 (docs/virality-playbook.md §5); measured again
+ * after the C3 review (eight notes of 2 s): 36 of 36, Simple 88, Playbook 80 to 82.
  */
 const SAND_PLATE_READY: readonly ModeId[] = ["sandPlate"];
 const TRIAL_READY: readonly ModeId[] = ["shatter", "colorMatch", "target", "brickRebuild", ...GROUP_B_READY, ...OVERLAY_READY, ...GROUP_C_READY, ...GROUP_D_READY, ...SONG_RING_READY, ...SAND_PLATE_READY];
@@ -573,7 +574,8 @@ describe("the bot's own look", () => {
   // settings): the digest is of the plan without them too, and every plan below is checked to carry them at those defaults.
   // --- shatter-demolition --- (and Shatter's hits and segments, settings since: the mode's own one hit and 18 segments in every recipe's plan – no recipe plans Shatter)
   // --- sand-plate --- and Sand Plate's five fields since its mode was added, likewise
-  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, ...defaultSongRingFields(), ...defaultSandPlateFields() };
+  // --- shatter-even-bricks --- (and Shatter's even bricks, a setting since: the mode's own off in every recipe's plan)
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields() };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -601,6 +603,7 @@ describe("the bot's own look", () => {
     expect(overlaysShown(planned)).toEqual(planned.map((p) => [p.recipe, true, true]));
     expect(planned.map((p) => [p.recipe, p.settings.colorMatchSegments])).toEqual(planned.map((p) => [p.recipe, 12]));
     expect(planned.map((p) => [p.recipe, p.settings.shatterHits, p.settings.shatterSegments])).toEqual(planned.map((p) => [p.recipe, 1, 18])); // --- shatter-demolition ---
+    expect(planned.map((p) => [p.recipe, p.settings.shatterEvenBricks])).toEqual(planned.map((p) => [p.recipe, false])); // --- shatter-even-bricks ---
     // (--- song-ring --- and Song Ring's fields, which the digest leaves out too: at their defaults in every plan)
     expect(planned.map((p) => [p.recipe, resolveSongRingFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSongRingFields()]));
     // (--- sand-plate --- and Sand Plate's, likewise)

@@ -206,8 +206,9 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the number of balls (x n) and the time (or TIME'S UP with the tiles left)" },
   // --- song-ring --- the tune's name on a dark plate across the ring, from its final chord (END_HOLD_MS before the run's end)
   { mode: "songRing", at: "finish", leadSec: 1.5, words: "a banner across the ring naming the tune, with the notes and the time (or TIME'S UP with the notes found)" },
-  // --- sand-plate --- THE FINAL SHAPE at the foot of the square from the full chord on (at the defaults 3 s before the run's end)
-  { mode: "sandPlate", at: "finish", leadSec: 3, words: "a THE FINAL SHAPE banner at the foot of the plate, with the notes and the shapes" },
+  // --- sand-plate --- THE FINAL SHAPE at the foot of the square from just after the full chord, the plate risen above it (at the
+  // defaults about 2 s before the run's end: --- review fix (C3) ---)
+  { mode: "sandPlate", at: "finish", leadSec: 2, words: "a THE FINAL SHAPE banner at the foot of the square under the risen plate, with the notes and the shapes" },
   { mode: "conveyor", at: "finish", leadSec: 1.5, words: "a final banner with the balls loaded and escaped" },
   { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
   { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },

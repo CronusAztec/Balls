@@ -308,6 +308,11 @@ export function finalChord(tiers: number): number[] {
 /** Most thuds one 60 Hz step queues, and the least ms between two thuds of one ball (a ball rolling along the rim is one landing, not a drum roll). */
 export const MAX_THUDS_PER_STEP = 4;
 export const THUD_COOLDOWN_MS = 250;
+/**
+ * --- merge-ring-staged --- The least ms between any two thuds (sound only): at the page's pace (gravity 3, a ball every 0.4 s)
+ * the landings came 7 a second, a drum roll under the merge notes; one every THUD_GAP_MS at most keeps the landings heard.
+ */
+export const THUD_GAP_MS = 150;
 /** A rim contact faster than this (px/s) thuds. */
 export const THUD_SPEED = 90;
 
@@ -321,6 +326,40 @@ export const FINAL_HOLD_MS = 2000;
  */
 export const REST_SPEED = 14;
 export const OVERFLOW_MS = 1500;
+/**
+ * --- merge-ring-staged --- A ball in the chute that stands on a ball below it closer than this (px past touching) is held up,
+ * whatever it does this step: the pair pass stands touching balls exactly apart, so a ball jiggling on the one under it was
+ * out of touch every other step, its rest clock started over each time, and the run never ended (seed 47 of the page's pace
+ * jammed for good with the ring full to the chute).
+ */
+export const HELD_SLOP = 2;
+/**
+ * --- merge-ring-staged --- The overflow is feared before it comes (draw and sound only: nothing here moves a ball). The pile's
+ * danger rises from 0, when its top (the highest ball in the ring slower than `PILE_SPEED` px/s – a ball just let go in the
+ * chute is not the pile) is `DANGER_SPAN` × the ring's radius below the opening, to 1 when it reaches the opening; the risk is
+ * how far the overflow's clock has run (a ball resting in the chute: its rest over `OVERFLOW_MS`). Measured on seeds 1–24:
+ * the pile is that close for 11 % of a final form's run and 20 % of an overflow's. From `HEART_FROM` of the larger of the two a heartbeat thuds under the warning line,
+ * every `HEART_SLOW_MS` and quickening to every `HEART_FAST_MS` at the brink.
+ */
+export const PILE_SPEED = 80;
+export const DANGER_SPAN = 0.35;
+export const HEART_FROM = 0.35;
+export const HEART_SLOW_MS = 800;
+export const HEART_FAST_MS = 300;
+/** The heartbeat's pitch (G2: under the merge notes, apart from the landing thuds' C2 ladder). */
+export const HEART_HZ = 98;
+/**
+ * --- merge-ring-staged --- The final form is staged: the canvas slows the clock for its merge and flashes, and the banner
+ * comes this long (simulation ms) after it – over the flash, not on top of the merge.
+ */
+export const FINAL_BANNER_DELAY_MS = 500;
+
+/** The heartbeat's period (ms) at a pressure of `p` (the larger of the danger and the risk, 0–1); Infinity below HEART_FROM. */
+export function heartbeatMs(p: number): number {
+  if (!(p >= HEART_FROM)) return Infinity;
+  const k = Math.min(1, (p - HEART_FROM) / (1 - HEART_FROM));
+  return HEART_SLOW_MS + (HEART_FAST_MS - HEART_SLOW_MS) * k;
+}
 /** The launch jitter, as a fraction of the Ball Size each way, at most what the chute leaves the ball (a pile that never stacks on one line). */
 export const LAUNCH_JITTER = 0.8;
 /** Two balls of one tier closer than their radii plus this share of them fuse (the pair pass stands touching balls exactly apart). */
@@ -345,6 +384,18 @@ export interface MergeRingSolverStats {
   builds: number;
   candidates: number;
   subSteps: number;
+}
+
+/** --- merge-ring-staged --- True when another ball stands right under `ball` (touching, or within `HELD_SLOP` px of it): it holds it up. */
+function heldUp(ball: Ball, balls: readonly Ball[]): boolean {
+  for (const other of balls) {
+    if (other === ball) continue;
+    const dx = other.x - ball.x;
+    const dy = other.y - ball.y;
+    const reach = ball.radius + other.radius;
+    if (dy > 0.3 * reach && dx * dx + dy * dy < (reach + HELD_SLOP) * (reach + HELD_SLOP)) return true;
+  }
+  return false;
 }
 
 /* ------------------------------------------------------------------ view */
@@ -379,6 +430,13 @@ export interface MergeRingView {
   finalId: number;
   /** The overflow: when (−1 before). */
   overflowMs: number;
+  // --- merge-ring-staged --- (draw and sound only)
+  /** How close the pile's top is to the opening (0–1) and how far the overflow's clock has run (0–1). */
+  danger: number;
+  risk: number;
+  /** The last heartbeat (simulation ms; −Infinity: none yet) and the beats so far. */
+  beatMs: number;
+  beats: number;
   finished: boolean;
   /** Simulation ms the run finished at (−1 while it has not). */
   finishedMs: number;
@@ -406,6 +464,10 @@ function createView(): MergeRingView {
     finalMs: -1,
     finalId: -1,
     overflowMs: -1,
+    danger: 0, // --- merge-ring-staged ---
+    risk: 0,
+    beatMs: -Infinity,
+    beats: 0,
     finished: false,
     finishedMs: -1,
   };
@@ -427,6 +489,7 @@ export class MergeRingMode implements GameMode {
   private nextSpawnMs = 0;
   private haloAt = 0;
   private thudsThisStep = 0;
+  private lastThudMs = -Infinity; // --- merge-ring-staged ---
   /** Per ball id: ms it has rested inside the chute, and when it last thudded. */
   private readonly restMs = new Map<number, number>();
   private readonly thudAt = new Map<number, number>();
@@ -501,6 +564,7 @@ export class MergeRingMode implements GameMode {
     this.nextSpawnMs = 0;
     this.haloAt = 0;
     this.thudsThisStep = 0;
+    this.lastThudMs = -Infinity; // --- merge-ring-staged ---
     this.restMs.clear();
     this.thudAt.clear();
     this.touching.clear();
@@ -519,6 +583,10 @@ export class MergeRingMode implements GameMode {
     v.finalMs = -1;
     v.finalId = -1;
     v.overflowMs = -1;
+    v.danger = 0; // --- merge-ring-staged ---
+    v.risk = 0;
+    v.beatMs = -Infinity;
+    v.beats = 0;
     v.finished = false;
     v.finishedMs = -1;
     this.rebuild(ctx);
@@ -629,6 +697,8 @@ export class MergeRingMode implements GameMode {
   /** A landing thud of `ball` (of `tier`) at `impact` px/s – at most `MAX_THUDS_PER_STEP` a step and one a ball per `THUD_COOLDOWN_MS`. */
   private thud(ctx: ModeContext, ball: Ball, tier: number, impact: number) {
     if (this.thudsThisStep >= MAX_THUDS_PER_STEP || this.clockMs - (this.thudAt.get(ball.id) ?? -Infinity) < THUD_COOLDOWN_MS) return;
+    if (this.clockMs - this.lastThudMs < THUD_GAP_MS - 1e-6) return; // --- merge-ring-staged ---
+    this.lastThudMs = this.clockMs;
     this.thudAt.set(ball.id, this.clockMs);
     this.thudsThisStep++;
     this.view.thuds++;
@@ -1044,17 +1114,36 @@ export class MergeRingMode implements GameMode {
       return;
     }
     // OVERFLOW: a ball at rest inside the chute, above the ring's opening, for OVERFLOW_MS.
-    for (const ball of ctx.getBalls()) {
+    const balls = ctx.getBalls();
+    let risk = 0; // --- merge-ring-staged --- (draw and sound only: the warning line's fill)
+    for (const ball of balls) {
       if (!v.tierOf.has(ball.id)) continue;
-      const resting = ball.y < L.openY && (Math.hypot(ball.vx, ball.vy) < REST_SPEED || this.supported.has(ball.id));
+      const resting = ball.y < L.openY && (Math.hypot(ball.vx, ball.vy) < REST_SPEED || this.supported.has(ball.id) || heldUp(ball, balls));
       const rest = resting ? (this.restMs.get(ball.id) ?? 0) + dtMs : 0;
       this.restMs.set(ball.id, rest);
+      if (rest > 0) risk = Math.max(risk, Math.min(1, rest / OVERFLOW_MS));
       if (rest >= OVERFLOW_MS - 1e-6 && v.overflowMs < 0) {
         v.overflowMs = this.clockMs;
         v.finished = true;
         v.finishedMs = this.clockMs;
       }
     }
+    this.notePressure(ctx, balls, L, risk);
+  }
+
+  /** --- merge-ring-staged --- The pile's danger and the overflow's risk for the canvas, and the heartbeat they set (sound only). */
+  private notePressure(ctx: ModeContext, balls: readonly Ball[], L: MergeRingLayout, risk: number) {
+    const v = this.view;
+    let top = Infinity;
+    for (const ball of balls) if (v.tierOf.has(ball.id) && ball.y >= L.openY && Math.hypot(ball.vx, ball.vy) < PILE_SPEED) top = Math.min(top, ball.y - ball.radius);
+    v.danger = top === Infinity ? 0 : Math.max(0, Math.min(1, 1 - (top - L.openY) / (DANGER_SPAN * L.radius)));
+    v.risk = v.overflowMs >= 0 ? 1 : risk;
+    if (v.overflowMs >= 0) return;
+    const period = heartbeatMs(Math.max(v.danger, v.risk));
+    if (!Number.isFinite(period) || this.clockMs - v.beatMs + 1e-6 < period) return;
+    v.beatMs = this.clockMs;
+    v.beats++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: HEART_HZ, thud: true, level: Math.min(0.7, 0.35 + 0.35 * Math.max(v.danger, v.risk)) });
   }
 
   /**

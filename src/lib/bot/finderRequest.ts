@@ -140,6 +140,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     multiplySpawnCount: s.multiplySpawnCount,
     shatterSegmentsPerWall: s.shatterSegments, // --- shatter-demolition --- (settings now: the mode's own 18 and 1 unless the page says otherwise)
     shatterHpPerSegment: s.shatterHits,
+    shatterEvenBricks: s.shatterEvenBricks, // --- shatter-even-bricks ---
     growRate: s.growRate,
     portalCount: d.portalCount,
     twoBalls: s.twoBalls,

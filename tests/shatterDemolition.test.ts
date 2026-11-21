@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
-import { COLLAPSE_FALL_MS, SHATTER_CLEARANCE, SHATTER_HIT_CHOICES, SHATTER_SEGMENT_CHOICES, collapseDurationMs, collapseStaggerMs, isShatterHits, isShatterSegments } from "@/lib/physics/modes/shatter";
+import { COLLAPSE_FALL_MS, DEFAULT_SHATTER_EVEN_BRICKS, SHATTER_CLEARANCE, SHATTER_HIT_CHOICES, SHATTER_SEGMENT_CHOICES, collapseDurationMs, collapseStaggerMs, isShatterHits, isShatterSegments, shatterSegmentCounts } from "@/lib/physics/modes/shatter";
+import { FINGERPRINT_MODE_SETTINGS } from "@/lib/agentKit/fingerprint";
 import { SHATTER_SPAN, shatterBreakHz, shatterChipHz, shatterFallHz } from "@/lib/physics/ringVoices";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
@@ -102,7 +103,7 @@ describe("the page's pace", () => {
     expect(settingsToSearchParams(old).toString()).toBe("mode=shatter&wc=10&shh=1&shs=18");
   });
 
-  it("ends inside the default clip, the collapse included, on most seeds: a 15-25 s demolition", () => {
+  it("ends inside the default clip, the collapse included, on most seeds: a 10-25 s demolition", () => {
     const ends: number[] = [];
     for (let seed = 1; seed <= 12; seed++) {
       const run = runOf(engineOf(seed), 45);
@@ -112,7 +113,7 @@ describe("the page's pace", () => {
     expect(ends.every((t) => t > 5)).toBe(true);
     const sorted = [...ends].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    expect(median).toBeGreaterThan(12);
+    expect(median).toBeGreaterThan(10);
     expect(median).toBeLessThan(25);
   });
 });
@@ -270,7 +271,7 @@ describe("Hits per segment and Segments per ring", () => {
   });
 
   it("build the run the page plays: the finder's engine has as many segments and hits as the settings say", () => {
-    const engine = engineOf(1, { shatterHits: 3, shatterSegments: 12, wallCount: 4 });
+    const engine = engineOf(1, { shatterHits: 3, shatterSegments: 12, wallCount: 4, shatterEvenBricks: false });
     const rings = engine.getShatterSegments();
     expect(rings.length).toBe(4);
     for (const ring of rings) {
@@ -288,5 +289,79 @@ describe("Hits per segment and Segments per ring", () => {
     expect(section).toMatch(/shatter: \["shatterHits", "shatterSegments"\]/);
     expect(section).toMatch(/SHATTER_HIT_CHOICES/);
     expect(section).toMatch(/SHATTER_SEGMENT_CHOICES/);
+  });
+});
+
+// --- shatter-even-bricks --- (review fix B3)
+describe("even bricks and the rings-to-go count", () => {
+  it("cuts the page's inner rings into bricks as long as the outer ring's: the smallest ring 12, not 36", () => {
+    expect(DEFAULT_SHATTER_EVEN_BRICKS).toBe(false);
+    expect(defaultSettings("shatter").shatterEvenBricks).toBe(true);
+    expect(defaultSettings("classic").shatterEvenBricks).toBe(false);
+    const rings = engineOf(1).getShatterSegments();
+    expect(rings.map((r) => r.length)).toEqual([12, 17, 22, 26, 31, 36]);
+    // every segment of a ring the same angle, and the ring closed all round
+    for (const ring of rings) {
+      const step = (2 * Math.PI) / ring.length;
+      ring.forEach((seg, i) => {
+        expect(seg.startAngle).toBeCloseTo(i * step, 9);
+        expect(seg.endAngle).toBeCloseTo((i + 1) * step, 9);
+      });
+    }
+    // the brick length (px of arc) within a quarter of the outer ring's on every ring
+    const walls = engineOf(1).getCircularWalls();
+    const outer = (2 * Math.PI * walls[walls.length - 1].radius) / 36;
+    rings.forEach((ring, i) => expect(Math.abs((2 * Math.PI * walls[i].radius) / ring.length / outer - 1)).toBeLessThan(0.25));
+    // off: every ring the pick (every old link with shb=0, the mode's own default)
+    expect(engineOf(1, { shatterEvenBricks: false }).getShatterSegments().map((r) => r.length)).toEqual([36, 36, 36, 36, 36, 36]);
+    expect(shatterSegmentCounts([10, 20, 30], 8, true)).toEqual([8, 8, 8]);
+    expect(shatterSegmentCounts([10, 20, 30], 4, true)).toEqual([4, 4, 4]);
+    expect(shatterSegmentCounts([], 36, true)).toEqual([]);
+  });
+
+  it("lets the ball out of the smallest ring in a few seconds: the climb is spread over the run", () => {
+    const firstOut: number[] = [];
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = engineOf(seed);
+      let t = 0;
+      while (t < 30_000 && engine.getShatterView().ringsOut === 0 && !engine.isSimulationFinished()) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        t += 1000 / 60;
+      }
+      firstOut.push(t / 1000);
+    }
+    const sorted = [...firstOut].sort((a, b) => a - b);
+    expect(sorted[6]).toBeLessThan(5); // the median (the same bricks everywhere: 9.3 s)
+    expect(sorted[11]).toBeLessThan(8);
+  });
+
+  it("travels in a link and a preset as shb, written only when it differs from the mode's page default", () => {
+    expect(settingsToSearchParams(defaultSettings("shatter")).has("shb")).toBe(false);
+    const off = settingsFromSearchParams(new URLSearchParams("mode=shatter&shb=0"));
+    expect(off.shatterEvenBricks).toBe(false);
+    expect(settingsToSearchParams(off).get("shb")).toBe("0");
+    for (const bad of ["2", "yes", ""]) expect(settingsFromSearchParams(new URLSearchParams(`mode=shatter&shb=${bad}`)).shatterEvenBricks, bad).toBe(true);
+    expect(presetToSettings({ mode: "shatter", shatterEvenBricks: false }).shatterEvenBricks).toBe(false);
+    expect(presetToSettings({ mode: "shatter", shatterEvenBricks: "0" } as never).shatterEvenBricks).toBe(true);
+    // the fingerprint's recipe names none: the mode's own (every ring the same count) – its pinned run is the same
+    expect((FINGERPRINT_MODE_SETTINGS as { shatterEvenBricks?: boolean }).shatterEvenBricks).toBeUndefined();
+  });
+
+  it("never counts a ring back: the pips and the lit floor only go up, on every seed", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = engineOf(seed);
+      let last = 0;
+      let backs = 0;
+      for (let f = 0; f < 60 * 40 && !engine.isSimulationFinished(); f++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        const out = engine.getShatterView().ringsOut;
+        if (out < last) backs++;
+        last = out;
+      }
+      expect(backs, `seed ${seed}`).toBe(0);
+      expect(last, `seed ${seed}`).toBe(engine.getShatterView().rings);
+    }
   });
 });

@@ -617,7 +617,8 @@ const forBucket = <T,>(ctx: RecipeContext, values: Readonly<Record<LengthBucket,
 function shatterSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const walls = forBucket(ctx, { short: [8, 12], standard: [16, 20], long: [18, 20] });
   // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as measured: the page's default is 2 hits and 36 now)
-  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN, shatterHits: 1, shatterSegments: 18 };
+  // (--- shatter-even-bricks --- and every ring in 18, as measured: the page's default cuts the inner rings into fewer, longer bricks)
+  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false };
 }
 /** --- templates --- (studio2 review round 2, 14) Shatter's ring spin under its template (rotationSpeed, on its 0.1 step; the mode's default 1 stays). */
 const SHATTER_SPIN = 0.2;
@@ -760,7 +761,8 @@ const CONVEYOR_OWN_COUNT = "its run ends 1.5 s after its last ball is out (ALL O
 function mergeRingSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const short = ctx.bucket === "short";
   const target = short ? Math.max(ctx.payoffTarget, 10.5) : ctx.payoffTarget;
-  return { mrTiers: short ? 5 : 6, mrGravity: 3, mrInterval: Math.round((10 * target) / (short ? 12.6 : 30)) / 10 };
+  // (--- merge-ring-staged --- its two spawn tiers written out, as measured: the page's pace spawns three now)
+  return { mrTiers: short ? 5 : 6, mrGravity: 3, mrInterval: Math.round((10 * target) / (short ? 12.6 : 30)) / 10, mrSpawnTiers: 2 };
 }
 
 /**
@@ -1341,7 +1343,7 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   drawingMachine: bind("drawingMachine", later("reveal", "atEnd", { generate: drawingMachineSettings, musicFirst: true, hookKey: "hook", note: "Earth and Venus's five-petal flower, its marks left unjoined (no five-pointed star over it), done as the clip's last 1.5 s begin and held past its end", scene: () => "a sun with two small planets circling it, a line drawn between them every few days and a dot where they pass closest" })),
   illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
   // --- sand-plate --- the finest figure, its full chord and its flash: the payoff, held under the banner to the run's end
-  sandPlate: bind("sandPlate", later("reveal", "finish", { musicFirst: true, buckets: ["standard"], endings: ["resolved"], hookKey: "own.sandPlate", payoffWords: false, note: "its own hook says what every note does (the format's asks to guess a picture, and a figure of sand is none to name); a fixed run (its notes and the finale's hold, whatever the seed): the payoff is the full chord on the last, finest figure, when the colour floods its lines and the banner rises; held about 3 s to the run's end", scene: () => "a dark square plate seen from above with pale sand on it, the sand drawing fine symmetric lines, a row of dots under the plate climbing like a scale" })),
+  sandPlate: bind("sandPlate", later("reveal", "finish", { musicFirst: true, buckets: ["standard"], endings: ["resolved"], hookKey: "own.sandPlate", payoffWords: false, note: "its own hook says what every note does (the format's asks to guess a picture, and a figure of sand is none to name); a fixed run (its notes and the finale's hold, whatever the seed): the payoff is the full chord on the last, finest figure (a centred mandala), when the colour floods its lines, the plate rises and the banner comes in under it; held about 2.5 s to the run's end", scene: () => "a dark square plate seen from above with pale sand on it, the sand drawing fine symmetric lines, a row of dots under the plate climbing like a scale" })),
   // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
   // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)
   blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: LAB_GAME_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id), id]) })),

@@ -95,6 +95,20 @@ const TWO_PI = Math.PI * 2;
 const CONFETTI_MAX = 150;
 const BANNER_DELAY_MS = 250;
 const DEBRIS = 14;
+// --- territory-swing ---
+/**
+ * A blast's tiles turn as a wave: a tile keeps its old colour until the wave, TY_WAVE_MS_PER_TILE a tile out from the blast's
+ * centre (at most TY_WAVE_MAX_MS), reaches it, and pops then.
+ */
+export const TY_WAVE_MS_PER_TILE = 45;
+export const TY_WAVE_MAX_MS = 220;
+/** The share bar swings to the score on a spring (it overshoots and settles) and flashes in the new leader's colour on a lead change. */
+export const TY_BAR_STIFFNESS = 120;
+export const TY_BAR_DAMPING = 11;
+export const TY_LEAD_FLASH_MS = 650;
+/** A tile's colour: this share of the team colour over a dark base (was 0.36: the board read as two dim halves). */
+export const TY_TILE_LIGHT = 0.56;
+// --- end territory-swing ---
 /** The trail behind a ball: its last this many positions (60 Hz steps). */
 const TRAIL_POINTS = 7;
 const GAP_COLOR = "#050508";
@@ -145,6 +159,20 @@ interface TeamLook {
   name: string;
 }
 
+/**
+ * --- territory-swing --- How long after its flip a tile's colour turns (simulation ms): a tile a blast took waits for the
+ * wave, TY_WAVE_MS_PER_TILE a tile out from the blast's centre (at most TY_WAVE_MAX_MS); any other flip shows at once.
+ */
+export function blastWaveMs(view: Pick<TerritoryView, "shocks">, col: number, row: number, flipMs: number): number {
+  for (let i = view.shocks.length - 1; i >= 0; i--) {
+    const s = view.shocks[i];
+    if (Math.abs(s.t0 - flipMs) > 20) continue;
+    const d = Math.hypot(col + 0.5 - s.u, row + 0.5 - s.v);
+    if (d <= s.radius + 0.75) return Math.min(TY_WAVE_MAX_MS, TY_WAVE_MS_PER_TILE * d);
+  }
+  return 0;
+}
+
 /** The HUD name of `team`: its power's, or its name without one. */
 function hudName(view: TerritoryView, team: number, name: string, labels: TerritoryLabels): string {
   const power = view.settings.powers[team] ?? "none";
@@ -168,6 +196,11 @@ export class TerritoryLayer {
   private readonly pct: number[] = [];
   private readonly shown = new Float64Array(4);
   private shownGeneration = -1;
+  // --- territory-swing --- the bar's spring and the lead flash (on the simulation clock)
+  private readonly shownVel = new Float64Array(4);
+  private leadSeen = 0;
+  private leadFlashMs = -Infinity;
+  private leadFlashTeam = -1;
   private readonly point = { x: 0, y: 0 };
   private readonly whirl: WhirlReach = { reach: 0, span: 1, samples: 8 };
   // Confetti (screen space).
@@ -243,7 +276,7 @@ export class TerritoryLayer {
       const [r, g, b] = hexRgb(color);
       const alpha: string[] = [];
       for (let k = 0; k <= 20; k++) alpha.push(`rgba(${r}, ${g}, ${b}, ${(k / 20).toFixed(2)})`);
-      const dim = (c: number) => Math.round(12 + 0.36 * c);
+      const dim = (c: number) => Math.round(14 + TY_TILE_LIGHT * c); // --- territory-swing --- (brighter)
       this.looks.push({ color, tile: `rgb(${dim(r)}, ${dim(g)}, ${dim(b)})`, alpha, name });
     }
     this.tileKey = "";
@@ -348,37 +381,57 @@ export class TerritoryLayer {
     }
   }
 
-  /** The tiles that just flipped pop in their new colour: a springy scale from the wobble field's envelope, fading out. */
+  /**
+   * The tiles that just flipped pop in their new colour: a springy scale from the wobble field's envelope, fading out.
+   * --- territory-swing --- A blast's tiles turn as a wave from its centre: until the wave reaches a tile (`blastWaveMs()`) it
+   * is drawn over in its old colour, then it pops.
+   */
   private drawPops(ctx: CanvasRenderingContext2D, view: TerritoryView, now: number) {
     const f = view.field;
     this.pops = 0;
     const count = view.flipCount;
     if (count === 0) return;
     const half = f.tile / 2;
-    for (let team = 0; team < view.teams; team++) {
-      let any = false;
-      for (let n = 1; n <= count; n++) {
-        const k = (view.flipHead - n + TY_FLIP_LOG) % TY_FLIP_LOG;
-        const age = now - view.flipMs[k];
-        if (age >= TY_POP_MS) break;
-        if (age < 0 || view.flipTeam[k] !== team) continue;
-        const t = age / TY_POP_MS;
-        if (!any) {
-          ctx.beginPath();
-          any = true;
+    const gap = Math.max(1, 0.07 * f.tile);
+    for (let pass = 0; pass < 2; pass++) {
+      // pass 0: the tiles the wave has not reached yet, in their old colour; pass 1: the pops
+      for (let team = 0; team < view.teams; team++) {
+        let any = false;
+        for (let n = 1; n <= count; n++) {
+          const k = (view.flipHead - n + TY_FLIP_LOG) % TY_FLIP_LOG;
+          const age = now - view.flipMs[k];
+          if (age >= TY_POP_MS + TY_WAVE_MAX_MS) break;
+          if (age < 0) continue;
+          const idx = view.flipTile[k];
+          const col = idx % view.cols;
+          const row = (idx - col) / view.cols;
+          const delay = blastWaveMs(view, col, row, view.flipMs[k]);
+          const x = f.gx + (col + 0.5) * f.tile;
+          const y = f.gy + (row + 0.5) * f.tile;
+          if (pass === 0) {
+            if (age >= delay || view.flipFrom[k] !== team) continue;
+            if (!any) {
+              ctx.beginPath();
+              any = true;
+            }
+            ctx.rect(x - half + gap / 2, y - half + gap / 2, 2 * half - gap, 2 * half - gap);
+            continue;
+          }
+          const popAge = age - delay;
+          if (popAge < 0 || popAge >= TY_POP_MS || view.flipTeam[k] !== team) continue;
+          const t = popAge / TY_POP_MS;
+          if (!any) {
+            ctx.beginPath();
+            any = true;
+          }
+          const s = half * (1 + 0.4 * (1 - t) * wobbleEnvelope(popAge / 1000));
+          ctx.rect(x - s, y - s, 2 * s, 2 * s);
+          this.pops++;
         }
-        const idx = view.flipTile[k];
-        const col = idx % view.cols;
-        const row = (idx - col) / view.cols;
-        const s = half * (1 + 0.4 * (1 - t) * wobbleEnvelope(age / 1000));
-        const x = f.gx + (col + 0.5) * f.tile;
-        const y = f.gy + (row + 0.5) * f.tile;
-        ctx.rect(x - s, y - s, 2 * s, 2 * s);
-        this.pops++;
+        if (!any) continue;
+        ctx.fillStyle = pass === 0 ? (this.looks[team]?.tile ?? "#222") : this.rgba(team, 0.55);
+        ctx.fill();
       }
-      if (!any) continue;
-      ctx.fillStyle = this.rgba(team, 0.55);
-      ctx.fill();
     }
   }
 
@@ -436,9 +489,9 @@ export class TerritoryLayer {
       const w = whirlReach(tb.reach, view.cols, view.rows, this.whirl);
       const R = w.reach * f.tile;
       const p = age / TY_WHIRL_MS;
-      const B = this.ballById(balls, tb.id);
-      const x = B ? B.x : f.gx + tb.u * f.tile;
-      const y = B ? B.y : f.gy + tb.v * f.tile;
+      // --- territory-swing --- round the point it was released at, past the border (it no longer follows the ball)
+      const x = f.gx + tb.whirlU * f.tile;
+      const y = f.gy + tb.whirlV * f.tile;
       const upTo = Math.max(1, whirlSwept(p, w.samples, w.span));
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -643,9 +696,28 @@ export class TerritoryLayer {
     if (view.generation !== this.shownGeneration) {
       this.shownGeneration = view.generation;
       for (let t = 0; t < view.teams; t++) this.shown[t] = view.total > 0 ? view.counts[t] / view.total : 0;
+      this.shownVel.fill(0);
+      this.leadSeen = view.leadChanges;
+      this.leadFlashMs = -Infinity;
     } else {
-      const k = 1 - Math.exp(-Math.max(0, frame.dtMs) / 160);
-      for (let t = 0; t < view.teams; t++) this.shown[t] += ((view.total > 0 ? view.counts[t] / view.total : 0) - this.shown[t]) * k;
+      // --- territory-swing --- a spring, not an easing: the bar swings past the score and settles, so a blast reads as a blow
+      // (decoration on the frames' own time: sub-steps of at most 16 ms keep it steady at any frame rate)
+      let left = Math.min(250, Math.max(0, frame.dtMs)) / 1000;
+      while (left > 1e-6) {
+        const dt = Math.min(left, 0.016);
+        left -= dt;
+        for (let t = 0; t < view.teams; t++) {
+          const target = view.total > 0 ? view.counts[t] / view.total : 0;
+          this.shownVel[t] += (TY_BAR_STIFFNESS * (target - this.shown[t]) - TY_BAR_DAMPING * this.shownVel[t]) * dt;
+          this.shown[t] += this.shownVel[t] * dt;
+        }
+      }
+    }
+    // --- territory-swing --- a lead change flashes the bar in the new leader's colour
+    if (view.leadChanges !== this.leadSeen) {
+      this.leadSeen = view.leadChanges;
+      this.leadFlashMs = o.nowMs;
+      this.leadFlashTeam = view.leader;
     }
     if (frame.inset > 0) {
       // Live, below the page's buttons: a dark backing so the HUD reads over the top rows of the board.
@@ -769,6 +841,19 @@ export class TerritoryLayer {
         x += ctx.measureText(vs).width;
       }
       const text = `${hudName(view, t, this.nameOf(t), L)} ${this.pct[t]}%`;
+      // --- territory-swing --- the new leader's name pops for a moment
+      const popAge = o.nowMs - this.leadFlashMs;
+      const popping = t === this.leadFlashTeam && popAge >= 0 && popAge < TY_LEAD_FLASH_MS && !view.finished;
+      if (popping) {
+        const tw = ctx.measureText(text).width;
+        const sc = 1 + 0.12 * (1 - popAge / TY_LEAD_FLASH_MS);
+        // (it grows away from the VS beside it: the first name leftwards, the last rightwards)
+        const ax = t === 0 ? x + tw : t === view.teams - 1 ? x : x + tw / 2;
+        ctx.save();
+        ctx.translate(ax, 0);
+        ctx.scale(sc, sc);
+        ctx.translate(-ax, 0);
+      }
       // The leader glows: its text over a soft, wider stroke in its colour (no shadow blur).
       if (view.leader === t && !view.finished) {
         ctx.save();
@@ -779,6 +864,7 @@ export class TerritoryLayer {
       } else ctx.strokeText(text, x, 0);
       ctx.fillStyle = this.colorOf(t);
       ctx.fillText(text, x, 0);
+      if (popping) ctx.restore();
       x += ctx.measureText(text).width;
     }
     ctx.restore();
@@ -809,6 +895,18 @@ export class TerritoryLayer {
     ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
     ctx.fillRect(barX, barY, barW, barH * 0.4);
     ctx.restore();
+    // --- territory-swing --- the half line (who is past it leads), and the lead change's flash round the bar
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.fillRect(barX + barW / 2 - 1, barY - 0.35 * barH, 2, 1.7 * barH);
+    const flashAge = o.nowMs - this.leadFlashMs;
+    if (flashAge >= 0 && flashAge < TY_LEAD_FLASH_MS && this.leadFlashTeam >= 0 && !view.finished) {
+      const k = 1 - flashAge / TY_LEAD_FLASH_MS;
+      const grow = 0.6 * barH * (1 - k);
+      ctx.strokeStyle = this.rgba(this.leadFlashTeam, 0.9 * k);
+      ctx.lineWidth = Math.max(2, 0.45 * barH * k + 1);
+      roundRect(ctx, barX - grow, barY - grow, barW + 2 * grow, barH + 2 * grow, barH / 2 + grow);
+      ctx.stroke();
+    }
   }
 
   private drawBanner(ctx: CanvasRenderingContext2D, view: TerritoryView, cx: number, cy: number, side: number, o: TerritoryRenderOptions) {
@@ -816,16 +914,31 @@ export class TerritoryLayer {
     const k = Math.min(1, Math.max(0, o.nowMs - view.finishedMs - BANNER_DELAY_MS) / 280);
     const pop = k >= 1 ? 1 : 0.6 + 0.4 * k + 0.15 * Math.sin(k * Math.PI);
     const winner = view.winner;
-    const title = winner >= 0 ? `🏆 ${L.wins(this.nameOf(winner))}` : L.draw;
+    // --- territory-swing --- the side by the HUD's own name (VORTEX WINS, not PINK WINS), on a dark plate over the board
+    const title = winner >= 0 ? `🏆 ${L.wins(hudName(view, winner, this.nameOf(winner), L))}` : L.draw;
     const color = winner >= 0 ? this.colorOf(winner) : "#ffffff";
     const sub = winner >= 0 ? L.share(this.pct[winner] ?? 0) : "";
     let fs = Math.max(20, 0.075 * side);
     ctx.font = this.font(fs, 900);
     const tw = ctx.measureText(title).width;
-    if (tw > 0.86 * side) fs *= (0.86 * side) / tw;
+    if (tw > 0.8 * side) fs *= (0.8 * side) / tw;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(pop, pop);
+    {
+      ctx.font = this.font(fs, 900);
+      const pw = Math.min(0.94 * side, ctx.measureText(title).width + 1.6 * fs);
+      const ph = (sub ? 1.95 : 1.35) * fs;
+      const py = sub ? -0.72 * fs : -0.68 * fs;
+      ctx.fillStyle = "rgba(9, 11, 16, 0.9)";
+      roundRect(ctx, -pw / 2, py, pw, ph, 0.3 * fs);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = Math.max(2, 0.06 * fs);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = this.font(fs, 900);
@@ -852,16 +965,18 @@ export class TerritoryLayer {
   private spawnConfetti(sx: number, sy: number, side: number, winner: number) {
     const n = CONFETTI_MAX;
     for (let i = 0; i < n; i++) {
-      this.cx[i] = sx + side * (0.2 + 0.6 * Math.random());
-      this.cy[i] = sy + side * (0.45 + 0.1 * Math.random());
-      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
-      const v = side * (0.5 + 0.9 * Math.random());
+      // (--- territory-swing --- hashed from the confetti's index, not Math.random: the same burst live, in the export and the app's queue)
+      const rnd = (k: number) => hash01(9973 * i + k, 7919 + winner);
+      this.cx[i] = sx + side * (0.2 + 0.6 * rnd(1));
+      this.cy[i] = sy + side * (0.45 + 0.1 * rnd(2));
+      const a = -Math.PI / 2 + (rnd(3) - 0.5) * 2.2;
+      const v = side * (0.5 + 0.9 * rnd(4));
       this.cvx[i] = Math.cos(a) * v;
       this.cvy[i] = Math.sin(a) * v;
-      this.crot[i] = Math.random() * TWO_PI;
-      this.cspin[i] = (Math.random() - 0.5) * 14;
-      this.clife[i] = 1.8 + 1.2 * Math.random();
-      this.ccolor[i] = i % 3 === 0 ? 255 : winner >= 0 && Math.random() < 0.6 ? winner : Math.floor(Math.random() * Math.max(1, this.looks.length));
+      this.crot[i] = rnd(5) * TWO_PI;
+      this.cspin[i] = (rnd(6) - 0.5) * 14;
+      this.clife[i] = 1.8 + 1.2 * rnd(7);
+      this.ccolor[i] = i % 3 === 0 ? 255 : winner >= 0 && rnd(8) < 0.6 ? winner : Math.floor(rnd(9) * Math.max(1, this.looks.length));
     }
     this.confetti = n;
   }

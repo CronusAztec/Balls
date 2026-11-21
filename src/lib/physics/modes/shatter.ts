@@ -38,6 +38,24 @@ export const SHATTER_SEGMENT_CHOICES = [8, 12, 18, 24, 36] as const;
 /** What the mode runs without a setting (every old link's engine, and the fingerprint's recipe). */
 export const DEFAULT_SHATTER_HITS = 1;
 export const DEFAULT_SHATTER_SEGMENTS = 18;
+// --- shatter-even-bricks --- (review fix B3)
+/**
+ * Even bricks: every ring cut into segments of about the same length, the outer ring into the Segments per ring pick and a ring
+ * inside it into as many as its radius allows (at least EVEN_BRICKS_MIN, or the pick when it is smaller). Off (the mode's own,
+ * every old link's engine and the fingerprint's recipe), every ring has the pick: the innermost ring's 36 segments were 10°
+ * wide, and a broken one left a 16 px ball a door of 2.8° to pass – the ball rattled in the smallest ring for over half the run.
+ */
+export const EVEN_BRICKS_MIN = 8;
+export const DEFAULT_SHATTER_EVEN_BRICKS = false;
+
+/** The segments of each of `radii` (inside out) for a pick of `perRing` a ring: all the same, or even bricks. */
+export function shatterSegmentCounts(radii: readonly number[], perRing: number, evenBricks: boolean): number[] {
+  const outer = radii.length > 0 ? radii[radii.length - 1] : 0;
+  if (!evenBricks || !(outer > 0)) return radii.map(() => perRing);
+  const least = Math.min(EVEN_BRICKS_MIN, perRing);
+  return radii.map((r) => Math.max(least, Math.min(perRing, Math.round((perRing * r) / outer))));
+}
+// --- end shatter-even-bricks ---
 
 export function isShatterHits(value: unknown): value is number {
   return typeof value === "number" && (SHATTER_HIT_CHOICES as readonly number[]).includes(value);
@@ -82,6 +100,7 @@ export class ShatterMode implements GameMode {
   private segments: ShatterSegment[][] = [];
   private segmentsPerWall = DEFAULT_SHATTER_SEGMENTS;
   private hpPerSegment = DEFAULT_SHATTER_HITS;
+  private evenBricks = DEFAULT_SHATTER_EVEN_BRICKS; // --- shatter-even-bricks ---
   private escaped = false;
   // --- shatter-demolition --- the collapse: when the ball got out, and the rings whose fall has sounded
   private escapedMs = -1;
@@ -118,6 +137,13 @@ export class ShatterMode implements GameMode {
   }
   setHpPerSegment(n: number) {
     this.hpPerSegment = Math.max(1, Math.min(5, n));
+  }
+  // --- shatter-even-bricks --- (the rings are built with the next init or wall count, like the segments and hits)
+  getEvenBricks() {
+    return this.evenBricks;
+  }
+  setEvenBricks(on: boolean) {
+    this.evenBricks = on === true;
   }
   hasEscaped() {
     return this.escaped;
@@ -186,7 +212,7 @@ export class ShatterMode implements GameMode {
     if (ctx.isWallSealed?.(ball, wallIndex)) return "none"; // --- rigged --- a wall the rig keeps closed to this ball takes no damage from it
     let local = (angle - (ctx.getWallRotations()[wallIndex] || 0)) % TWO_PI;
     if (local < 0) local += TWO_PI;
-    const segment = wallSegments[Math.floor(local / (TWO_PI / this.segmentsPerWall))];
+    const segment = wallSegments[Math.floor(local / (TWO_PI / wallSegments.length))]; // --- shatter-even-bricks --- (this ring's own count)
     if (!segment || segment.hp <= 0) return "none";
     // Only hits from inside the ring damage it.
     if (!inside) return "none";
@@ -233,7 +259,9 @@ export class ShatterMode implements GameMode {
       for (const b of balls) far = Math.max(far, Math.hypot(b.x - cx, b.y - cy) - b.radius);
       let out = 0;
       while (out < walls.length && walls[out].radius < far) out++;
-      this.ringsOut = out; // --- shatter-demolition --- (draw only)
+      // --- shatter-demolition --- (draw only) --- review fix B3 --- only ever up: a ball rattling in a corridor, or touching a ring
+      // from outside, dips its inner edge a px or two back inside, and the pips and the lit floor flickered 5-4-5-4
+      this.ringsOut = Math.max(this.ringsOut, out);
       for (const b of balls) {
         if (Math.hypot(b.x - cx, b.y - cy) > outer + b.radius + 20) {
           this.escaped = true;
@@ -339,12 +367,14 @@ export class ShatterMode implements GameMode {
 
   private buildSegments(ctx: ModeContext) {
     this.rebuildWalls(ctx);
+    this.ringsOut = 0; // --- review fix B3 --- (new rings: none passed yet; the count only goes up from here)
     const walls = ctx.getCircularWalls();
-    const step = TWO_PI / this.segmentsPerWall;
+    const counts = shatterSegmentCounts(walls.map((w) => w.radius), this.segmentsPerWall, this.evenBricks); // --- shatter-even-bricks ---
     this.segments = [];
     for (let w = 0; w < walls.length; w++) {
       const segs: ShatterSegment[] = [];
-      for (let s = 0; s < this.segmentsPerWall; s++) {
+      const step = TWO_PI / counts[w];
+      for (let s = 0; s < counts[w]; s++) {
         segs.push({
           wallIndex: w,
           segmentIndex: s,

@@ -165,7 +165,7 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
 | | Drawing Machines | the flower's last lines (`atEnd`) | `reveal-drawing-machine` | |
-| | Sand Plate | the full chord on the last, finest figure, when its colour floods out and THE FINAL SHAPE rises (its run's end less the finale's hold); its own hook says what every note does | `reveal-sand-plate` | |
+| | Sand Plate | the full chord on the last, finest figure (a centred mandala), when its colour floods out, the plate rises and THE FINAL SHAPE comes in under it (its run's end less the finale's hold); its own hook says what every note does | `reveal-sand-plate` | |
 | Mode Lab game | Mode Lab | the game's finish rule (its mark) | `lab-game-blueprint` (Glass Hatchery), `lab-game-blueprint-ring-breaker`, `lab-game-blueprint-plinko-race`, `lab-game-blueprint-grow-escape`, `lab-game-blueprint-thin-ice` (a battle: offered with the battle family) | `lab-game-blueprint-conquer`: the page's run parts from the planner's; `lab-game-blueprint-tier-climb` and `lab-game-blueprint-hot-potato`: no edge of the square is clear for its hook (G5) |
 
 A template that wraps a playbook recipe speaks with the recipe's words; the others speak with their format's
