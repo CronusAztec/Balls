@@ -4834,9 +4834,28 @@
     "tryAria": "Wypróbuj: {name}",
     "outro": "Zmieniłeś coś i efekt Ci się podoba? Skopiuj link do udostępnienia pod płótnem, a Twoje ustawienia pójdą razem z nim.",
     "cta": "Zacznij od zera",
-    "filterLabel": "Filtruj presety według rodziny lub trybu",
+    "filterLabel": "Filtruj presety według rodziny",
+    "modeFilterLabel": "Filtruj presety tej rodziny według trybu",
     "homeTitle": "Zacznij od gotowego presetu",
     "homeAll": "Zobacz całą galerię"
+  },
+  "ModePage": {
+    "metaTitle": "{name}: symulacja – {siteName}",
+    "metaMore": "Zrób klip za darmo w przeglądarce, bez konta.",
+    "metaShort": "Za darmo w przeglądarce.",
+    "cardAlt": "Kadr z trybu {name}, symulacji piłek w {siteName}",
+    "open": "Otwórz w studiu",
+    "openNamed": "Otwórz tryb {name} w studiu",
+    "looksJump": "Zobacz style",
+    "howTitle": "Jak to działa",
+    "looksTitle": "Zacznij od gotowego stylu",
+    "looksIntro": "Każdy styl otwiera studio z własnymi ustawieniami. Karta otwiera dokładnie ten przebieg, który widać na obrazku.",
+    "otherLooks": "Albo otwórz jako",
+    "settingsTitle": "Co zmienić najpierw",
+    "basicsAlso": "Każdy tryb zaczyna się też od podstaw.",
+    "basicsOnly": "Pierwszy blok studia ma podstawy, od których zaczyna każdy tryb.",
+    "relatedTitle": "Podobne tryby",
+    "allModes": "Zobacz wszystkie tryby"
   },
   "Pwa": {
     "installApp": "Zainstaluj aplikację",
@@ -5749,7 +5768,8 @@
         "az": "Od A do Z"
       },
       "new": "Nowość",
-      "recent": "Ostatnio wybrane"
+      "recent": "Ostatnio wybrane",
+      "about": "O trybie {name}"
     },
     "studio": {
       "search": "Szukaj ustawień",
@@ -5782,7 +5802,8 @@
       "makeClipTip": "Planuje klip i otwiera go, gotowy do nagrania.",
       "makeClipNote": "Jednym kliknięciem planuje przebieg, który kończy się na czas, dodaje hook i ustawia długość.",
       "makeClipOther": "Tryb {mode} nie ma jeszcze planu klipu, więc dostaniesz klip z innego trybu.",
-      "makeClipOtherShort": "Dostaniesz klip z innego trybu."
+      "makeClipOtherShort": "Dostaniesz klip z innego trybu.",
+      "aboutMode": "O tym trybie"
     },
     "dialog": {
       "close": "Zamknij"

@@ -16,9 +16,9 @@
  * system's temp folder) instead of public/modes; RAW=1 adds the whole world of each second, unframed (to place a camera),
  * EXTRA=<query> tries settings on top of the entry's and CAMERA=x,y,zoom another camera.
  *
- * --- daily-gallery --- The preset gallery's card images too: public/gallery/<id>.webp (640×360) for every card of the
- * served /en/gallery/ page (src/content/gallery.ts), each rendered from the card's query – its settings and pinned seed –
- * at the card's `previewAt` second. GALLERY=1 renders only the gallery, GALLERY=neon-escape,string-art only those cards;
+ * --- daily-gallery --- The preset gallery's card images too: public/gallery/<id>.webp (360×360, the square a card shows:
+ * the centred square of the world or the preset's `camera`) for every card of the served /en/gallery/ page
+ * (src/content/gallery.ts), each rendered from the card's query – its settings and pinned seed – at the card's `previewAt` second. GALLERY=1 renders only the gallery, GALLERY=neon-escape,string-art only those cards;
  * with MODES set (and no GALLERY) only mode previews are rendered, with neither both are.
  */
 import { chromium } from "playwright";
@@ -236,11 +236,13 @@ if (failures.length) {
 // --- daily-gallery --- the gallery cards: read from the served gallery page, rendered from each card's query at its previewAt
 /** --- gallery-every-mode --- A gallery card's picture stays under this many bytes (today's are 4 to 31 KB). */
 const GALLERY_MAX_BYTES = 36_000;
+/** (E2 review) The side of a gallery card's picture: the square every card shows (PosterCard's 360 × 360). */
+const GALLERY_SIZE = 360;
 if (renderGallery) {
   const galleryDir = path.join(process.cwd(), "public", "gallery");
   fs.mkdirSync(galleryDir, { recursive: true });
   await page.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
-  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), mode: el.getAttribute("data-gallery-mode"), query: el.getAttribute("data-gallery-query"), at: Number(el.getAttribute("data-preview-at")) })));
+  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), mode: el.getAttribute("data-gallery-mode"), query: el.getAttribute("data-gallery-query"), at: Number(el.getAttribute("data-preview-at")), camera: JSON.parse(el.getAttribute("data-preview-camera") || "{}") })));
   if (cards.length === 0) throw new Error(`no gallery cards at ${BASE}/en/gallery/ – build and serve the site first`);
   for (const card of cards) {
     if (galleryIds && !galleryIds.includes(card.id)) continue;
@@ -248,26 +250,34 @@ if (renderGallery) {
     // and stepped to its previewAt second, so a busy machine takes the same picture (the page played the run in real time and
     // took whatever second a loaded machine had reached); the whole 800 × 450 world, scaled to the card's 640 × 360, as WebP
     // under GALLERY_MAX_BYTES (the quality steps down until it fits)
+    // (E2 review) only the square a card shows: the subject square of the preset's camera (the centred square of the world by
+    // default, heroSubjectRect), kept inside the world, scaled to 360 × 360 (a 640 × 360 picture lost 44% of itself to the crop)
     await openStill(card.query);
     const seed = Number(new URLSearchParams(card.query).get("seed"));
     const r = await capture(card.mode, { times: [Number.isFinite(card.at) && card.at > 0 ? card.at : 5], raw: true, size: 900, format: "png", seed: Number.isFinite(seed) ? seed : undefined });
     const raw = r.frames[0]?.raw;
     if (!raw) throw new Error(`${card.id}: the still camera handed back no picture of the world`);
+    const subject = hero.heroSubjectRect(r.world, card.camera);
+    const side = Math.min(subject.side, r.world.width, r.world.height);
+    const rect = { x: Math.min(Math.max(0, subject.x), r.world.width - side), y: Math.min(Math.max(0, subject.y), r.world.height - side), side };
     const encoded = await page.evaluate(
-      async ({ raw, maxBytes }) => {
+      async ({ raw, maxBytes, rect, world, size }) => {
         const img = new Image();
         img.src = raw;
         await img.decode();
         const out = document.createElement("canvas");
-        out.width = 640;
-        out.height = 360;
-        out.getContext("2d").drawImage(img, 0, 0, 640, 360);
+        out.width = size;
+        out.height = size;
+        const k = img.width / world.width; // (the raw picture's px per world px)
+        const g = out.getContext("2d");
+        g.imageSmoothingQuality = "high";
+        g.drawImage(img, rect.x * k, rect.y * k, rect.side * k, rect.side * k, 0, 0, size, size);
         for (const quality of [0.85, 0.78, 0.7, 0.62, 0.55]) {
           const dataUrl = out.toDataURL("image/webp", quality);
           if (Math.ceil(((dataUrl.length - dataUrl.indexOf(",") - 1) * 3) / 4) <= maxBytes || quality === 0.55) return { dataUrl, quality };
         }
       },
-      { raw, maxBytes: GALLERY_MAX_BYTES },
+      { raw, maxBytes: GALLERY_MAX_BYTES, rect, world: r.world, size: GALLERY_SIZE },
     );
     const bytes = writeDataUrl(path.join(galleryDir, `${card.id}.webp`), encoded.dataUrl);
     if (bytes > GALLERY_MAX_BYTES) throw new Error(`${card.id}: ${bytes} bytes, over the ${GALLERY_MAX_BYTES}-byte budget`);

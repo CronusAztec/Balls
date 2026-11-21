@@ -16,7 +16,8 @@ import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import Kbd from "@/components/ui/Kbd";
 import { inputClass } from "@/components/ui/Field";
-import { IconClose, IconSearch, IconSparkle } from "@/components/ui/icons";
+import { IconClose, IconInfo, IconSearch, IconSparkle } from "@/components/ui/icons";
+import { modePagePath } from "@/lib/modePagePath"; // --- mode-pages ---
 import { cx } from "@/components/ui/cx";
 import PosterCard from "./PosterCard";
 
@@ -426,9 +427,24 @@ export default function ModesOverview({
         {content}
       </div>
     ) : (
-      <Link key={id} href={cardHref(id) /* --- card-looks --- */} data-mode-card={id} className={cardClass} onClick={() => rememberRecentMode(id)}>
-        {content}
-      </Link>
+      // --- mode-pages --- (Lane E, E3) beside the card, an info button over its picture's top-right corner opens the mode's page;
+      // the card itself still opens the studio (a link cannot hold another, so the two are siblings)
+      <div key={id} className="relative min-w-0">
+        <Link href={cardHref(id) /* --- card-looks --- */} data-mode-card={id} className={cardClass} onClick={() => rememberRecentMode(id)}>
+          {content}
+        </Link>
+        <Link
+          href={modePagePath(id)}
+          aria-label={s("modesWall.about", { name })}
+          title={s("modesWall.about", { name })}
+          className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-bg/80 text-ink-2 backdrop-blur-sm transition-colors duration-150 hover:border-line-strong hover:text-ink [@media(pointer:coarse)]:right-1 [@media(pointer:coarse)]:top-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 [@media(pointer:coarse)]:border-transparent [@media(pointer:coarse)]:bg-transparent [@media(pointer:coarse)]:backdrop-blur-none"
+          data-mode-info={id}
+        >
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full [@media(pointer:coarse)]:border [@media(pointer:coarse)]:border-line [@media(pointer:coarse)]:bg-bg/80 [@media(pointer:coarse)]:backdrop-blur-sm">
+            <IconInfo size={16} />
+          </span>
+        </Link>
+      </div>
     );
   };
 

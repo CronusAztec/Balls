@@ -4,8 +4,9 @@
  * the card is an HTML page drawn with the Chromium that Playwright installs (the same browser the smoke test uses), like
  * scripts/generate-icons.mjs.
  *
- *   npm run og:cards                         all 27
+ *   npm run og:cards                         all 27, then the mode pages' cards
  *   node scripts/generate-og-cards.mjs --locale pl --page gallery     one card (either flag alone narrows by that)
+ *   node scripts/generate-og-cards.mjs --modes          only the mode pages' cards (--mode songRing: one of them)
  *
  *  - The headline and the line under it come from the `Seo.card.<page>` messages of messages/<locale>.json (the copy rules of
  *    docs/COPY-STYLE.md: at most 42 and 80 characters), with {siteName} filled in. No number of modes or version is drawn: a
@@ -18,6 +19,8 @@
  *    and is a 1200x630 PNG. public/og.png (scripts/generate-og.mjs, a screenshot of the simulator) stays the default card of the
  *    pages without one.
  * Run it after changing the copy, the icon or the design, and commit the PNGs. CHROME_PATH points at another Chromium.
+ * --- mode-pages --- And the card of every mode page, public/og/modes/<slug>.jpg (below): one per picture in public/modes, the
+ * same in every language. Run it with --modes after a mode's card picture changes, and commit the JPEGs.
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -51,6 +54,8 @@ const flag = (name) => {
 };
 const onlyLocale = flag("locale");
 const onlyPage = flag("page");
+const onlyMode = flag("mode"); // --- mode-pages ---
+const modesOnly = args.includes("--modes") || !!onlyMode;
 if ((onlyLocale && !LOCALES.includes(onlyLocale)) || (onlyPage && !PAGES.includes(onlyPage))) {
   console.error(`generate-og-cards: unknown --locale or --page (locales: ${LOCALES.join(", ")}; pages: ${PAGES.join(", ")})`);
   process.exit(1);
@@ -102,6 +107,39 @@ p{margin:22px 0 0;font:500 30px/1.32 "OG UI",sans-serif;color:${INK_2}}
 </body></html>`;
 }
 
+// --- mode-pages --- (Lane E, E3) The mode pages' cards: public/og/modes/<slug>.jpg, 1200x630, one per mode page and the same in every
+// language (no words but the site's own name and address: the page's title says the mode's name in the visitor's language).
+// The mode's card picture (public/modes/<mode>.webp, the moment its card shows) large on the right, the brand on the left, the
+// faint rings behind. JPEG: the picture is a photograph of a run, which a PNG would carry at three times the bytes.
+// `--modes` draws only these, `--mode <id>` one of them; with no flag the page cards above come first, then these.
+const MODE_CARD_DIR = path.join(root, "public", "og", "modes");
+const MODE_QUALITY = [86, 80, 74, 68];
+/** A mode's address word: the id in kebab case (src/lib/modePages.ts modeSlug). */
+const modeSlug = (mode) => mode.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+function modeCardHtml(picture) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${FONTS}
+*{box-sizing:border-box}
+html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;background:${BG};overflow:hidden}
+body{position:relative;color:${INK};font-family:"OG UI",sans-serif;-webkit-font-smoothing:antialiased}
+svg.echo{position:absolute;inset:0}
+.shot{position:absolute;left:600px;top:45px;width:540px;height:540px;border-radius:28px;overflow:hidden;border:2px solid #2a2a30;background:#141417}
+.shot img{width:100%;height:100%;display:block;object-fit:cover}
+.brand{position:absolute;left:100px;top:72px;display:flex;align-items:center;gap:14px;font:700 28px/1 "OG Display",sans-serif;letter-spacing:-0.02em}
+.brand img{width:44px;height:44px;display:block}
+.bar{position:absolute;left:100px;top:300px;width:72px;height:8px;border-radius:4px;background:${ACCENT}}
+.play{position:absolute;left:100px;top:340px;width:112px;height:112px;border-radius:50%;background:${ACCENT};display:flex;align-items:center;justify-content:center}
+.play:after{content:"";margin-left:10px;border-style:solid;border-width:26px 0 26px 42px;border-color:transparent transparent transparent ${BG}}
+.domain{position:absolute;left:100px;bottom:68px;font:600 26px/1 "OG UI",sans-serif;color:${ACCENT};letter-spacing:0.01em}
+</style></head><body>
+<svg class="echo" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">${ECHOES.map((r, i) => `<circle cx="870" cy="315" r="${r + 80}" fill="none" stroke="#18181c" stroke-width="${i % 2 ? 2 : 3}"/>`).join("")}</svg>
+<div class="shot"><img src="${picture}" alt=""></div>
+<div class="brand"><img src="${ICON}" alt="">${escapeHtml(SITE_NAME)}</div>
+<div class="bar"></div><div class="play"></div>
+<div class="domain">${escapeHtml(DOMAIN)}</div>
+</body></html>`;
+}
+
 const launchOpts = {};
 if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
 const browser = await chromium.launch(launchOpts);
@@ -109,7 +147,7 @@ let failed = false;
 try {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
   for (const locale of LOCALES) {
-    if (onlyLocale && locale !== onlyLocale) continue;
+    if (modesOnly || (onlyLocale && locale !== onlyLocale)) continue;
     const messages = JSON.parse(read("messages", `${locale}.json`).toString("utf8"));
     const outDir = path.join(root, "public", "og", locale);
     fs.mkdirSync(outDir, { recursive: true });
@@ -150,6 +188,34 @@ try {
       console.log(`generate-og-cards: wrote ${path.relative(root, file)} (${kb} KB, headline ${fit.size} px)`);
       if (png.length > MAX_BYTES) {
         console.error(`generate-og-cards: ${path.relative(root, file)} is ${kb} KB, over the ${MAX_BYTES / 1024} KB budget`);
+        failed = true;
+      }
+    }
+  }
+  // --- mode-pages --- the mode pages' cards, one per mode card picture (the whole set unless a --locale or --page narrows the run)
+  if (modesOnly || (!onlyLocale && !onlyPage)) {
+    fs.mkdirSync(MODE_CARD_DIR, { recursive: true });
+    const modes = fs.readdirSync(path.join(root, "public", "modes")).filter((f) => f.endsWith(".webp")).map((f) => f.slice(0, -".webp".length)).sort();
+    if (onlyMode && !modes.includes(onlyMode)) {
+      console.error(`generate-og-cards: no public/modes/${onlyMode}.webp`);
+      failed = true;
+    }
+    for (const mode of modes) {
+      if (onlyMode && mode !== onlyMode) continue;
+      const picture = `data:image/webp;base64,${read("public", "modes", `${mode}.webp`).toString("base64")}`;
+      await page.setContent(modeCardHtml(picture));
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForFunction(() => [...document.images].every((img) => img.complete && img.naturalWidth > 0));
+      let jpeg;
+      for (const quality of MODE_QUALITY) {
+        jpeg = await page.screenshot({ type: "jpeg", quality, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+        if (jpeg.length <= MAX_BYTES) break;
+      }
+      const file = path.join(MODE_CARD_DIR, `${modeSlug(mode)}.jpg`);
+      fs.writeFileSync(file, jpeg);
+      console.log(`generate-og-cards: wrote ${path.relative(root, file)} (${(jpeg.length / 1024).toFixed(1)} KB)`);
+      if (jpeg.length > MAX_BYTES) {
+        console.error(`generate-og-cards: ${path.relative(root, file)} is over the ${MAX_BYTES / 1024} KB budget`);
         failed = true;
       }
     }

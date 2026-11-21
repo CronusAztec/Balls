@@ -16,6 +16,8 @@ import { cx } from "@/components/ui/cx";
  * While a picture loads, its square shows a faint ring on the surface colour, not a black hole.
  * --- site-nav --- `priority` loads a card's picture with the page (the gallery's first row, its largest paint), where every
  * other card waits until it is scrolled near.
+ * --- home-looks --- (E2 review) `low` asks for a picture after everything else (the landing page's row of looks, which a
+ * phone's lazy loading fetches on the first open, 600 px under the first screen): it never competes with the studio's prefetch.
  */
 export default function PosterCard({
   image,
@@ -28,6 +30,7 @@ export default function PosterCard({
   current = false,
   headingLevel = "h4",
   priority = false,
+  low = false,
 }: {
   image: string;
   alt: string;
@@ -41,6 +44,8 @@ export default function PosterCard({
   headingLevel?: "h2" | "h3" | "h4";
   /** The picture is in the first screen: it loads at once, ahead of the page's other pictures. */
   priority?: boolean;
+  /** The picture comes after the page's other requests (fetchpriority="low"). */
+  low?: boolean;
 }) {
   const Heading = headingLevel;
   return (
@@ -49,7 +54,7 @@ export default function PosterCard({
         {/* --- mode-shelves --- the placeholder a loading picture covers */}
         <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-1/4 w-1/4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-line" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image} alt={alt} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} decoding="async" width={360} height={360} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90" />
+        <img src={image} alt={alt} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : low ? "low" : undefined} decoding="async" width={360} height={360} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90" />
         {badge && <span className="absolute left-2 top-2">{badge}</span>}
       </div>
       <div className="mt-3 flex flex-col-reverse gap-0.5">
