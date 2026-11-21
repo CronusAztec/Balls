@@ -401,7 +401,8 @@ export default function ModesOverview({
     <div ref={barRef} data-testid="modes-bar" className={cx("sticky z-30 border-b border-line", picker ? "top-0 -mx-4 -mt-4 bg-surface-1 px-4 pb-2 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6" : "top-14 -mx-4 mt-8 bg-bg px-4 py-2 sm:-mx-6 sm:px-6")}>
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
-          <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          {/* (the picker on a phone leaves the glass out: its field is 150 px wide at 360 px, and the placeholder says what it is) */}
+          <IconSearch size={16} className={cx("pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3", picker && "hidden sm:block")} />
           <input
             ref={inputRef}
             type="search"
@@ -414,7 +415,8 @@ export default function ModesOverview({
             autoComplete="off"
             spellCheck={false}
             data-testid="modes-search"
-            className={cx(inputClass, "pl-9 [&::-webkit-search-cancel-button]:appearance-none", query ? "pr-10" : picker ? "pr-3" : "pr-3 [@media(pointer:fine)]:pr-10")}
+            // (16 px text on a touch screen: a phone's browser zooms the page into a field with smaller text)
+            className={cx(inputClass, "[&::-webkit-search-cancel-button]:appearance-none [@media(pointer:coarse)]:text-base", picker ? "pl-3 sm:pl-9" : "pl-9", query ? "pr-10" : picker ? "pr-3" : "pr-3 [@media(pointer:fine)]:pr-10")}
           />
           {query ? (
             <button
@@ -440,7 +442,7 @@ export default function ModesOverview({
             onChange={(e) => changeSort(e.target.value as ModeSort)}
             data-testid="modes-sort"
             style={{ backgroundImage: SORT_ARROW, backgroundSize: "16px 16px", backgroundPosition: "right 8px center" }}
-            className="h-9 appearance-none rounded-md border border-line bg-surface-1 bg-no-repeat pl-3 pr-8 text-md text-ink transition-colors duration-150 hover:border-line-strong focus:border-accent-dim cursor-pointer [@media(pointer:coarse)]:min-h-11"
+            className="h-9 appearance-none rounded-md border border-line bg-surface-1 bg-no-repeat pl-3 pr-8 text-md text-ink transition-colors duration-150 hover:border-line-strong focus:border-accent-dim cursor-pointer [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:text-base"
           >
             {MODE_SORT_IDS.map((id) => (
               <option key={id} value={id}>
