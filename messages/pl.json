@@ -4753,9 +4753,9 @@
     "installAppTip": "Zainstaluj {siteName} na tym urządzeniu. Otwiera się we własnym oknie i startuje z ekranu głównego. Strona główna działa offline, a symulator też, gdy jego pliki pobiorą się w tle.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "Jesteś offline",
-    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna działa offline. Symulator też, gdy jego pliki pobiorą się w tle. Nie dzieje się to przy wolnym łączu ani w sieci z limitem danych. Połącz się ponownie albo otwórz symulator poniżej.",
+    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna działa offline. Studio też, gdy jego pliki pobiorą się w tle. Nie dzieje się to przy wolnym łączu ani w sieci z limitem danych. Połącz się ponownie albo otwórz studio poniżej.",
     "offlineRetry": "Spróbuj ponownie",
-    "offlineSimulator": "Otwórz symulator"
+    "offlineSimulator": "Otwórz studio"
   },
   "BounceMath": {
     "desc": "Zmieniaj dowolną wartość o matematyczny krok przy każdym odbiciu, przejściu przez szczelinę, zderzeniu piłek, rozbiciu ściany, uderzeniu rytmu, takcie lub sekundzie. Ekstremalne wartości są dozwolone – ustaw minimum lub maksimum, żeby je powstrzymać.",

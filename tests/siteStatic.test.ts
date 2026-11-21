@@ -11,7 +11,7 @@ import { MODE_CARD_ORDER } from "@/lib/modes";
 import sitemap from "@/app/sitemap";
 import manifest from "@/app/manifest";
 import { KNOWN_ROUTES, bestLocale, localeOfPath, unprefixedRedirectScript, unprefixedTarget } from "@/lib/localeRedirect"; // --- site-nav ---
-import { handOverState, pageBefore, resetTrail, takeHandedState, visitPage } from "@/lib/siteTrail"; // --- site-nav ---
+import { forgetBefore, handOverState, pageBefore, resetTrail, takeHandedState, visitPage } from "@/lib/siteTrail"; // --- site-nav ---
 import { loadDotEnv } from "../scripts/dotenv.mjs";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -311,6 +311,21 @@ describe("the page before this one (lib/siteTrail.ts)", () => {
     expect(pageBefore()).toBe("/gallery");
     resetTrail();
     expect(pageBefore()).toBeNull();
+  });
+
+  it("forgets the page before after a language switch: the entry behind it is in the old language, so the arrow is a link", () => {
+    resetTrail();
+    visitPage("/");
+    visitPage("/simulator");
+    expect(pageBefore()).toBe("/");
+    forgetBefore(); // the switch to Polish shows /simulator again, and the header reports the same path
+    visitPage("/simulator");
+    expect(pageBefore()).toBeNull();
+    visitPage("/gallery");
+    expect(pageBefore()).toBe("/simulator"); // the trail goes on from the page shown
+    const hook = fs.readFileSync(path.join(ROOT, "src/components/site/useSwitchLocale.ts"), "utf8");
+    expect(hook).toMatch(/handOverState\(pathname, window\.history\.state\);\s+forgetBefore\(\);\s+\/\/ eslint-disable-next-line[^\n]*\n\s+router\.replace\(/);
+    resetTrail();
   });
 
   it("hands a history state over to the same page once, for a moment: a language switch keeps the wall's search and place", () => {

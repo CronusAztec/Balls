@@ -4,6 +4,7 @@ import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
 import PosterCard from "@/components/site/PosterCard";
+import GalleryShelfMemory from "@/components/site/GalleryShelfMemory"; // --- site-nav ---
 import { Link } from "@/i18n/navigation";
 import { hasLocale } from "next-intl";
 import { routing, type Locale } from "@/i18n/routing";
@@ -21,7 +22,8 @@ import { IconArrowRight, IconPlay } from "@/components/ui/icons";
  * the whole card so the picture opens it too.
  * --- site-nav --- Two cards a row from 360 px (a phone showed one a screen), the first row's pictures load with the page,
  * and the modes wall's shelf chips filter the presets by their mode's shelf. The chips are radio buttons styled as chips,
- * as on the changelog: they work without scripts, and the CSS hides the cards of the other shelves.
+ * as on the changelog: they work without scripts, and the CSS hides the cards of the other shelves. The chosen shelf goes
+ * into the address (?family=music, GalleryShelfMemory.tsx), so Back from a preset and a reload show it again.
  */
 
 /** Hides every card that is not on the chosen shelf (each class is written out: the CSS is built from the source text). */
@@ -82,6 +84,7 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
             {/* (min-w-0: a fieldset is as wide as its content by default, and the row would widen a phone's page instead of scrolling) */}
             <fieldset className="-mx-4 mt-10 flex min-w-0 gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
               <legend className="sr-only">{site("modesWall.filterLabel")}</legend>
+              <GalleryShelfMemory name="gallery-shelf" />
               {[{ id: "all" as const, count: GALLERY.length }, ...shelves].map((shelf) => (
                 <span key={shelf.id} className="contents">
                   <input type="radio" name="gallery-shelf" id={`gallery-shelf-${shelf.id}`} value={shelf.id} defaultChecked={shelf.id === "all"} className="peer sr-only" />

@@ -43,7 +43,7 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
           </Suspense>
         </div>
         <EditorialSections />
-        <Footer />
+        <Footer shortcuts="studio" />
       </div>
     </NextIntlClientProvider>
   );

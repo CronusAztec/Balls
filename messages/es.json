@@ -4753,9 +4753,9 @@
     "installAppTip": "Instala {siteName} en este dispositivo. Se abre en su propia ventana y arranca desde la pantalla de inicio. La página de inicio funciona sin conexión, y el simulador también cuando sus archivos se han descargado en segundo plano.",
     "offlinePageTitle": "Sin conexión – {siteName}",
     "offlineTitle": "Estás sin conexión",
-    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio funciona sin conexión. El simulador también, cuando sus archivos se han descargado en segundo plano, algo que no ocurre con una conexión lenta o con límite de datos. Vuelve a conectarte o abre el simulador aquí abajo.",
+    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio funciona sin conexión. El estudio también, cuando sus archivos se han descargado en segundo plano, algo que no ocurre con una conexión lenta o con límite de datos. Vuelve a conectarte o abre el estudio aquí abajo.",
     "offlineRetry": "Reintentar",
-    "offlineSimulator": "Abrir el simulador"
+    "offlineSimulator": "Abrir el estudio"
   },
   "BounceMath": {
     "desc": "Cambia cualquier valor con un paso matemático en cada rebote, paso por un hueco, choque entre pelotas, rotura de pared, pulso, compás o segundo. Se permiten valores extremos: pon un mínimo o un máximo para contenerlos.",

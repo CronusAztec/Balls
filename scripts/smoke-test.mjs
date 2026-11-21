@@ -841,6 +841,74 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
     arrowHref === `${BASE_PATH}/en/#modes` && left.y > 1500 && Math.abs(returned.y - left.y) <= 2 && returned.url === left.url && forward === `${BASE_PATH}/en/simulator/` && fresh.url === `${BASE_PATH}/en/` && fresh.top >= 56 && fresh.top <= 260,
     `(href ${arrowHref}, left ${JSON.stringify(left)}, returned ${JSON.stringify(returned)}, forward ${forward}, fresh ${JSON.stringify(fresh)})`,
   );
+  // --- site-nav --- (review fix) after a language switch in the studio the entry behind it is in the old language: the arrow
+  // is a link to the wall in the new one. A 404 under /simulator/ lists no studio shortcuts and renders as its HTML did.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  await page.locator('#modes [data-mode-card="conveyor"]').click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await page.locator('footer a[lang="pl"]').click();
+  await page.waitForURL(/\/pl\/simulator\//, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await page.locator("header a[href$='/pl/#modes']").first().click();
+  await page.waitForFunction(() => document.documentElement.lang === "pl" && /\/pl\/$/.test(location.pathname) && !!document.querySelector("#modes"), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const switched = await page.evaluate(() => ({ url: `${location.pathname}${location.search}${location.hash}`, lang: document.documentElement.lang, top: Math.round(document.querySelector("#modes")?.getBoundingClientRect().top ?? -999) }));
+  // (as for a fresh visit above: the link opens the wall, which takes "#modes" off the address)
+  check("studio: after a language switch the back arrow leads to the wall in the new language", switched.url === `${BASE_PATH}/pl/` && switched.lang === "pl" && switched.top >= 56 && switched.top <= 260, `(${JSON.stringify(switched)})`);
+  // (in a context of its own: a 404 is a failed request on the suite's page)
+  const miss = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const missErrors = [];
+  const missShortcuts = {};
+  try {
+    const mp = await miss.newPage();
+    mp.on("pageerror", (e) => missErrors.push(e.message));
+    for (const link of ["/simulator/x/", "/en/simulator/x/"]) {
+      await mp.goto(`${BASE}${link}`, { waitUntil: "networkidle" });
+      await mp.waitForTimeout(600);
+      missShortcuts[link] = await mp.$$eval("footer p[aria-label]", (rows) => rows.map((p) => [...p.querySelectorAll("kbd")].map((k) => (k.textContent ?? "").trim()).join("+")));
+    }
+  } finally {
+    await miss.close().catch(() => {});
+  }
+  check("a 404 under /simulator/ lists no shortcuts and renders with no error", Object.values(missShortcuts).every((rows) => rows.length === 0) && missErrors.length === 0, `(${JSON.stringify(missShortcuts)}, errors ${missErrors.slice(0, 2).join(" | ")})`);
+}
+// --- site-nav --- (review fix) the gallery's shelf is kept in the address (?family=music): Back from a preset shows the same
+// shelf with the card the visitor left where it was, and a reload shows the same shelf.
+{
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const gp = await phone.newPage();
+    await gp.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
+    await gp.waitForFunction(() => { const el = document.querySelector('[data-testid="gallery-filter"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 }).catch(() => {});
+    await gp.locator('label[for="gallery-shelf-music"]').tap();
+    await gp.waitForTimeout(400);
+    const shelfOf = () => gp.evaluate(() => ({ checked: document.querySelector('input[name="gallery-shelf"]:checked')?.value ?? null, search: location.search, shown: [...new Set([...document.querySelectorAll("[data-gallery-card]")].filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.closest("li").getAttribute("data-shelf")))] }));
+    const chosen = await shelfOf();
+    const last = gp.locator('li[data-shelf="music"] [data-gallery-card]').last();
+    const cardId = await last.getAttribute("data-gallery-card");
+    await last.scrollIntoViewIfNeeded();
+    await gp.waitForTimeout(500);
+    const cardTop = () => gp.evaluate((id) => Math.round(document.querySelector(`[data-gallery-card="${id}"]`)?.getBoundingClientRect().top ?? -9999), cardId);
+    const before = await cardTop();
+    await last.getByTestId("gallery-try").tap();
+    await gp.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+    await gp.waitForTimeout(800);
+    await gp.goBack();
+    await gp.waitForFunction(() => /\/en\/gallery\/$/.test(location.pathname) && !!document.querySelector("[data-gallery-card]"), null, { timeout: 15000 }).catch(() => {});
+    await gp.waitForTimeout(1200);
+    const back = { ...(await shelfOf()), top: await cardTop() };
+    await gp.reload({ waitUntil: "networkidle" });
+    await gp.waitForTimeout(800);
+    const reloaded = await shelfOf();
+    check(
+      "gallery: the chosen shelf goes into the address, and Back from a preset and a reload show it again, with the card the visitor left where it was",
+      chosen.checked === "music" && chosen.search === "?family=music" && back.checked === "music" && back.search === "?family=music" && back.shown.join() === "music" && Math.abs(back.top - before) <= 4 && reloaded.checked === "music" && reloaded.shown.join() === "music",
+      `(chosen ${JSON.stringify(chosen)}, card ${cardId} at ${before}, back ${JSON.stringify(back)}, reloaded ${JSON.stringify(reloaded)})`,
+    );
+  } finally {
+    await phone.close().catch(() => {});
+  }
 }
 // --- site-nav --- The gallery on a phone: two cards a row from 360 px with every name in full and no sideways scroll, the first
 // row's pictures load with the page, and the shelf chips (radio buttons, no script needed) show one shelf's presets.

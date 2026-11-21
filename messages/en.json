@@ -4753,9 +4753,9 @@
     "installAppTip": "Install {siteName} on this device. It opens in its own window and starts from your home screen. The home page works offline, and so does the simulator once its files have downloaded in the background.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "You're offline",
-    "offlineBody": "This page is not saved on this device yet. The home page works offline. The simulator works offline once its files have downloaded in the background, which does not start on a slow or metered connection. Reconnect, or open the simulator below.",
+    "offlineBody": "This page is not saved on this device yet. The home page works offline. The studio works offline once its files have downloaded in the background, which does not start on a slow or metered connection. Reconnect, or open the studio below.",
     "offlineRetry": "Try again",
-    "offlineSimulator": "Open the simulator"
+    "offlineSimulator": "Open the studio"
   },
   "BounceMath": {
     "desc": "Change any value by a mathematical step on every bounce, gap pass, ball hit, wall break, beat, bar or second. Extreme values are allowed – set a min or max to hold them.",

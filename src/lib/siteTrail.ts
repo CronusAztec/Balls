@@ -4,7 +4,9 @@
  * page, going back in the browser's history returns them to the card they left from; a link could only lead to the top.
  * Kept in memory alone: a reload, a new tab or a link from elsewhere starts with no page before, and the arrow is a link.
  * A language switch also passes through here: it shows the same page again under a new history state, so it hands the
- * old state over, and the modes wall finds its search there and knows the visitor did not just arrive.
+ * old state over, and the modes wall finds its search there and knows the visitor did not just arrive. It also forgets the
+ * page before: the history entry behind the switched page is in the old language, so a step back would change the
+ * language back, and the arrow is a link to the wall in the new one.
  */
 
 let before: string | null = null;
@@ -23,6 +25,11 @@ export function visitPage(path: string): void {
 /** The page shown before this one, or null when this is the first page of the visit. */
 export function pageBefore(): string | null {
   return before;
+}
+
+/** A language switch forgets the page before this one (the page itself stays the one shown). */
+export function forgetBefore(): void {
+  before = null;
 }
 
 /** A language switch hands this page's history state on to the same page in the new language. */
