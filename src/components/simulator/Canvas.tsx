@@ -109,7 +109,8 @@ import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (record
 // --- odd-maze --- the Maze: the field, the painted trail, the glowing walls, the fog, the halos, the badge, the HUD and the banner
 import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
 // --- gerald-conveyor --- the Conveyor Belt: the belts, the hatch, the loading tube, the bowl, the bins, the frost and the counter
-import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
+import { dropBannerAt, drawDropFinale, drawDropLit } from "./dropRenderer"; // --- drop-lights --- Ball Drop's lit pegs, its finale's rings and its banner's place
+import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, conveyorBannerAt, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 // --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
 import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbBannerHeight, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
 // --- orb-rhythm --- the frame's own simulation time (the orbs are analytic in time: drawn between the engine's steps) and the refresh it may draw at
@@ -1836,6 +1837,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         const gradientHue = p.rainbowWalls && p.rainbowWallMode === "gradient";
+        if (engine.isDropMode()) drawDropLit(ctx, engine.getDropView(), obstacles, p.wallThickness); // --- drop-lights --- every peg a ball hit keeps a glow in its colour
         ctx.save();
         ctx.lineCap = "round";
         for (let i = 0; i < obstacles.length; i++) {
@@ -2869,6 +2871,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (blueprintView) blueprintLayer.drawEffects(ctx, blueprintView); // --- blueprint --- the balls' tiers or hit points, the spec's flash
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
       if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
+      if (engine.isDropMode()) drawDropFinale(ctx, engine.getDropView(), engine.getBalls()); // --- drop-lights --- each ball rings as its note of the finale sounds
 
       // Wall-break flashes and shockwaves
       for (const flash of cappedEffects(engine.getWallBreakFlashes(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
@@ -3250,7 +3253,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (engine.isDropMode()) {
           const prog = engine.getDropProgress();
-          if (prog.finished) bigBanner(L.settled, L.ballsAtRest(prog.total), "#a3e635");
+          // --- drop-lights --- (Lane E, E6) the title alone, in the strip above the first row of pegs: the board stays in view
+          if (prog.finished) bigBanner(L.settled, "", "#a3e635", dropBannerAt(engine.getDropLayout(), engine.getDropView().wallCount, size.width, size.height));
         }
         if (isBox) {
           const prog = engine.getBoxProgress();
@@ -3346,7 +3350,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
         if (conveyorView && conveyorView.allDone) {
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
-          bigBanner(CV.title, CV.sub, "#a3e635", conveyorView.settings.arena === "bowl" ? 0.78 : undefined); // --- end-banner --- (under the bowl and its pile, not over them; the rings and the pegs leave the middle free)
+          bigBanner(CV.title, CV.sub, "#a3e635", conveyorBannerAt(conveyorView, size.width, size.height)); // --- end-banner --- (under the bowl and its pile, not over them; --- conveyor-count --- (Lane E, E6) above the rings and the pegs)
         }
         // --- orb-grid --- Bouncing Orbs: every orb at rest (from the last landing, through the hold before the end) / the clip over
         // while an orb still bounces – on a dark backdrop, the subline white (the field under it rests bright green; the end frame)
@@ -4068,7 +4072,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);
         if (multBoard) noteHomeCounter(hud, liveSquare);
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
-        if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 3, "right");
+        if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 5 + (conveyorView.settings.arena === "bowl" && conveyorView.overflow > 0 ? 1 : 0) + (conveyorView.settings.freeze && conveyorView.frozen > 0 ? 1 : 0), "right"); // --- conveyor-count --- (the big counter: five title lines tall, a line more for the spilled and the frozen balls)
         if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
         if (mergeRingView) {
           // --- merge-ring --- the corners, and the caption under the ring and the ladder as the layer drew them this frame

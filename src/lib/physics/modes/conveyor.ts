@@ -585,6 +585,15 @@ export function conveyorFinishChord(scale: ScaleId, rootNote: number): number[] 
   return [0, 2, 4, octave].map((degree) => midiToFrequency(degreeMidi(72, degree, scale, rootNote)));
 }
 
+/**
+ * --- conveyor-climb --- (Lane E, E6) The note of the `n`-th escape (0 = the first): one step up the scale for every ball out,
+ * from C4, so a run of eight climbs a whole octave into the ALL OUT! chord's C5 (`conveyorFinishChord()`): the escapes build
+ * instead of each sounding like the one before.
+ */
+export function conveyorEscapePitch(n: number, scale: ScaleId, rootNote: number): number {
+  return midiToFrequency(degreeMidi(60, n, scale, rootNote));
+}
+
 /** Pitch (Hz) of a ball hitting a frozen one: a high tick. */
 export function conveyorFrozenPitch(scale: ScaleId, rootNote: number): number {
   return midiToFrequency(degreeMidi(84, 4, scale, rootNote));
@@ -1488,6 +1497,10 @@ export class ConveyorMode implements GameMode {
       v.passes++;
       v.lastEscapeMs = this.subMs;
       ctx.addPendingSoundEvent({ type: "gap", wallIndex: walls.length - 1 });
+      // --- conveyor-climb --- (Lane E, E6) and its note, a step higher than the escape before (the last one accented, into the
+      // banner's chord); a sound of its own (ringVoice "extra": the crew's moments read the run's contacts alone)
+      const s = v.settings;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: conveyorEscapePitch(v.escaped - 1, s.scale, s.rootNote), ...(v.escaped >= v.max ? { accent: true } : {}), level: 1, melody: false, ringVoice: "extra" });
       ctx.spawnConfetti(ball.x, ball.y);
       ctx.noteImpact?.();
     }
@@ -1704,6 +1717,9 @@ export class ConveyorMode implements GameMode {
         if (!v.timedOut) {
           const chord = conveyorFinishChord(s.scale, s.rootNote);
           ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
+          // --- conveyor-climb --- (Lane E, E6) and the completion chord two octaves under it, ringing through the banner's hold
+          // (the instrument's chord is gone in a quarter second: the clip's last 1.8 s were silent); a sound of its own
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: chord[0] / 4, level: 1, melody: false, ringVoice: "extra" });
         }
       }
     }

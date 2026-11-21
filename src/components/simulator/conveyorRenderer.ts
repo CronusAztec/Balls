@@ -1,12 +1,13 @@
-import { CV_FROZEN, CV_RIDING, type ConveyorLayout, type ConveyorView } from "@/lib/physics/modes/conveyor";
+import { CV_FROZEN, CV_RIDING, KIND_PEG, type ConveyorLayout, type ConveyorView } from "@/lib/physics/modes/conveyor";
 
 /**
  * The Conveyor Belt's drawing (feature gerald-conveyor; lib/physics/modes/conveyor.ts): `drawWorld()` under the balls – the
  * belt along the top (its body, the tread marks moving at the belt's speed, the rollers turning with it, the hatch in the left
  * wall that flashes when a ball comes out and the lip it drops from), the loading tube into the rings' core, the bowl's glass
  * and stand, the bins of the peg field, and the bottom belt that carries the balls away; `drawEffects()` over them – the frost
- * on the frozen balls; and `drawOverlay()` in screen space – the title and the counter ("Loaded 17 / Escaped 4") at the top
- * right of the square the recorder crops to, where the belt leaves the field empty. The rings, the pegs, the bowl's walls and
+ * on the frozen balls; and `drawOverlay()` in screen space – the score, big ("3 / 8" over OUT), at the top right of the field
+ * the recorder crops to, where the belt leaves it empty (--- conveyor-count --- Lane E, E6: the small grey title and its
+ * "Loaded 17 / Escaped 4" line could not be read in a feed; that line is the end banner's). The rings, the pegs, the bowl's walls and
  * the side walls are the engine's walls and obstacles, drawn by the canvas in the wall colour. Everything moves on the
  * simulation clock (`view.timeMs`), so a pause freezes it and a recording replays it; nothing is allocated per frame.
  */
@@ -33,6 +34,11 @@ export interface ConveyorLabels {
   donePegs: string;
   /** The banner when the safety net ended the run with something still moving. */
   timeUp: string;
+  // --- conveyor-count --- (Lane E, E6) the big counter's word under "3 / 8", by arena, and the bowl's spilled balls under it
+  outWord: string;
+  loadedWord: string;
+  landedWord: string;
+  spilled: (n: number) => string;
 }
 
 export const DEFAULT_CONVEYOR_LABELS: ConveyorLabels = {
@@ -45,7 +51,55 @@ export const DEFAULT_CONVEYOR_LABELS: ConveyorLabels = {
   doneBowl: "SETTLED!",
   donePegs: "LANDED!",
   timeUp: "TIME'S UP",
+  outWord: "OUT", // --- conveyor-count ---
+  loadedWord: "LOADED",
+  landedWord: "LANDED",
+  spilled: (n) => `${n} spilled`,
 };
+
+// --- conveyor-count --- (Lane E, E6)
+/** The big counter's size (the digits' font, as a share of the square) and how long (ms of simulation time) it pops on a new count. */
+export const CONVEYOR_COUNT_SHARE = 0.095;
+export const CONVEYOR_COUNT_POP_MS = 320;
+
+/** The big counter of the view's arena: the number counted, of how many, and the word under it (none: no layout yet). */
+export function conveyorCount(view: ConveyorView, labels: ConveyorLabels): { n: number; of: number; word: string; atMs: number } {
+  const arena = view.settings.arena;
+  if (arena === "bowl") return { n: view.loaded, of: view.max, word: labels.loadedWord, atMs: view.lastDropMs };
+  if (arena === "pegs") return { n: view.landed, of: view.max, word: labels.landedWord, atMs: -Infinity };
+  return { n: view.escaped, of: view.max, word: labels.outWord, atMs: view.lastEscapeMs };
+}
+
+/**
+ * Where the end banner sits (the share of the square its plate's centre is at): above the arena, not on it – over the top of
+ * the rings (between the square's top margin and the outer ring: the idle belt goes under it) and above the first row of pegs;
+ * the bowl's under the bowl and its pile, on the stand. `width` × `height`: the world the layout was built in.
+ */
+export function conveyorBannerAt(view: ConveyorView, width: number, height: number): number | undefined {
+  const L = view.layout;
+  if (!L) return undefined;
+  const side = Math.max(1, Math.min(width, height));
+  const top = (height - side) / 2;
+  if (view.settings.arena === "bowl") return 0.78;
+  let arenaTop = Infinity;
+  if (view.settings.arena === "rings" && L.ringRadii.length > 0) arenaTop = L.cy - L.ringRadii[L.ringRadii.length - 1];
+  else {
+    for (let i = 0; i < L.obstacles.length; i++) {
+      const o = L.obstacles[i];
+      if (L.kinds[i] === KIND_PEG && o.kind === "circle") arenaTop = Math.min(arenaTop, o.y - o.radius);
+    }
+  }
+  if (!Number.isFinite(arenaTop)) return undefined;
+  return ((top + 0.02 * side + arenaTop) / 2 - top) / side;
+}
+
+/** The pop of a counter `ageMs` after its count went up: a scale from 1.35 back to 1 (1 before and after). */
+export function conveyorCountPop(ageMs: number): number {
+  if (!(ageMs >= 0) || ageMs >= CONVEYOR_COUNT_POP_MS) return 1;
+  const k = 1 - ageMs / CONVEYOR_COUNT_POP_MS;
+  return 1 + 0.35 * k * k;
+}
+// --- end conveyor-count ---
 
 /** How long (ms of simulation time) the hatch glows after a ball came out. */
 export const HATCH_FLASH_MS = 350;
@@ -280,27 +334,67 @@ export class ConveyorLayer {
   }
 
   /**
-   * The title and the counter (screen space, part of the recording), right-aligned at the top of the square the recorder crops
-   * to – the belt keeps the top left. `inset`: live, below the page's buttons over a nearly square canvas.
+   * --- conveyor-count --- (Lane E, E6) The score (screen space, part of the recording), big and right-aligned at the top right
+   * of the field the recorder crops to, where the belt leaves it empty: "3 / 8" in white with the count in the accent, popping
+   * as it goes up, and the word under it (OUT, LOADED, LANDED); the bowl's spilled balls and the frozen ones under that. Once
+   * everything is done the end banner says it all: the counter steps aside. `inset`: live, below the page's buttons over a
+   * nearly square canvas. The digits shrink to fit a long count.
    */
   drawOverlay(ctx: CanvasRenderingContext2D, view: ConveyorView, labels: ConveyorLabels, width: number, height: number, inset = 0) {
-    if (!view.layout) return;
+    const L = view.layout;
+    if (!L || view.allDone) return;
     const side = Math.min(width, height);
-    const right = width / 2 + side / 2 - 0.035 * side;
+    const right = Math.min(L.right - 0.025 * side, width / 2 + side / 2 - 0.035 * side);
     const top = height / 2 - side / 2 + 0.03 * side + inset;
-    const fs = Math.max(11, 0.03 * side);
+    const room = Math.max(1, right - (L.dropX + 0.06 * side));
+    const count = conveyorCount(view, labels);
+    const ofText = ` / ${count.of}`;
+    let fs = Math.max(18, CONVEYOR_COUNT_SHARE * side);
     ctx.save();
-    ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.font = `800 ${fs.toFixed(1)}px sans-serif`;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.fillText(labels.title, right, top + 0.6 * fs);
-    ctx.font = `600 ${(0.8 * fs).toFixed(1)}px sans-serif`;
+    ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
+    const nText = String(count.n);
+    const wide = ctx.measureText(nText + ofText).width;
+    if (wide > room) {
+      fs *= room / wide;
+      ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
+    }
+    const ofW = ctx.measureText(ofText).width;
+    const y = top + 0.55 * fs;
+    // " / 8" in white, then the count in the accent left of it, popping
+    ctx.textAlign = "right";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, 0.1 * fs);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.strokeText(ofText, right, y);
+    ctx.fillStyle = "#f4f4f5";
+    ctx.fillText(ofText, right, y);
+    const pop = conveyorCountPop(view.timeMs - count.atMs);
+    ctx.save();
+    ctx.translate(right - ofW, y);
+    if (pop !== 1) ctx.scale(pop, pop);
+    ctx.shadowColor = ACCENT;
+    ctx.shadowBlur = pop > 1 ? 0.4 * fs * (pop - 1) / 0.35 : 0;
+    ctx.strokeText(nText, 0, 0);
     ctx.fillStyle = ACCENT;
-    ctx.fillText(conveyorCounter(view, labels), right, top + 1.85 * fs);
+    ctx.fillText(nText, 0, 0);
+    ctx.restore();
+    // the word under it, then the spilled and the frozen balls
+    const wfs = Math.max(11, 0.36 * fs);
+    ctx.font = `800 ${wfs.toFixed(1)}px sans-serif`;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+    let line = y + 0.5 * fs + 0.75 * wfs;
+    ctx.fillText(count.word, right, line);
+    ctx.font = `700 ${(0.85 * wfs).toFixed(1)}px sans-serif`;
+    if (view.settings.arena === "bowl" && view.overflow > 0) {
+      line += 1.25 * wfs;
+      ctx.fillStyle = "#fb7185";
+      ctx.fillText(labels.spilled(view.overflow), right, line);
+    }
     if (view.settings.freeze && view.frozen > 0) {
+      line += 1.25 * wfs;
       ctx.fillStyle = "rgba(170, 225, 255, 0.9)";
-      ctx.fillText(labels.frozen(view.frozen), right, top + 2.95 * fs);
+      ctx.fillText(labels.frozen(view.frozen), right, line);
     }
     ctx.restore();
   }

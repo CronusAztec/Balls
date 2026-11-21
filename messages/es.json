@@ -2690,7 +2690,7 @@
     },
     "conveyor": {
       "name": "Cinta transportadora",
-      "description": "Una cinta suelta una pelota nueva en la arena cada pocos segundos. El montón crece y el contador lleva la cuenta."
+      "description": "Una cinta deja caer una bola nueva en los anillos cada pocos segundos. Cada una tiene que encontrar su salida."
     },
     "orbGrid": {
       "name": "Esferas saltarinas",
@@ -5866,7 +5866,11 @@
     "canvasDoneRings": "¡TODAS FUERA!",
     "canvasDoneBowl": "¡ASENTADAS!",
     "canvasDonePegs": "¡ATERRIZARON!",
-    "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!"
+    "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!",
+    "canvasOutWord": "FUERA",
+    "canvasLoadedWord": "CARGADAS",
+    "canvasLandedWord": "ABAJO",
+    "canvasSpilled": "Derramadas: [count]"
   },
   "Billing": {
     "metaTitle": "Precios – {siteName}",

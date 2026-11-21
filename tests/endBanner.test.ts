@@ -295,8 +295,9 @@ describe("the canvas' wiring of the end banner", () => {
   it("anchors the banners whose payoff is in the middle away from it, and holds the teams' banner clear of one in the middle", () => {
     // the Journey's HOME! sits where its stage banners were, above the door and its sign
     expect(canvasSource).toMatch(/bigBanner\(JL\.homeTitle, [^\n]*"#a3e635", 0\.27\)/);
-    // the conveyor's banner goes under the bowl and its pile, and stays in the middle of the rings and the pegs
-    expect(canvasSource).toMatch(/bigBanner\(CV\.title, CV\.sub, "#a3e635", conveyorView\.settings\.arena === "bowl" \? 0\.78 : undefined\)/);
+    // the conveyor's banner goes under the bowl and its pile, and (--- conveyor-count --- Lane E, E6) above the rings and the
+    // pegs (conveyorBannerAt(): 0.78 for the bowl, tests/conveyorCount.test.ts)
+    expect(canvasSource).toMatch(/bigBanner\(CV\.title, CV\.sub, "#a3e635", conveyorBannerAt\(conveyorView, size\.width, size\.height\)\)/);
     // Pendulum Wave's goes under the row of bobs, the polyrhythm rings' and the Circle Illusion's over the lower half
     expect(canvasSource).toMatch(/bigBanner\(L\.pendulumDone, [^\n]*"#a3e635", 0\.8\)/);
     expect(canvasSource).toMatch(/bigBanner\(L\.polyrhythmDone, [^\n]*settings\.layout === "rings" \? 0\.73 : undefined\)/);

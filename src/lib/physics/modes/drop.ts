@@ -212,6 +212,102 @@ export const REST_DISTANCE = 3;
 export const REST_TIME_MS = 1000;
 /** --- end-sting --- (Lane E, E5) The root of the completion chord at SETTLED!: C3. */
 export const DROP_SETTLED_HZ = 130.8128;
+// --- drop-lights --- (Lane E, E6)
+/** The finale: once the board has settled every ball plays its own note, low to high, this far apart (ms of simulation time) … */
+export const DROP_ARP_STEP_MS = 75;
+/** … and the closing chord comes this long after the last note. */
+export const DROP_ARP_CHORD_GAP_MS = 120;
+/** How long a ball's ring shows once its note of the finale sounded (ms; components/simulator/dropRenderer.ts). */
+export const DROP_ARP_FLASH_MS = 420;
+/**
+ * A ball that has not moved more than REST_DISTANCE for this long has come to rest: it clicks into place once, a soft note of
+ * its own pitch, and glows for a moment, so the board's last seconds before SETTLED! (the rest check's quiet second) count the
+ * balls coming to rest instead of falling silent.
+ */
+export const DROP_LOCK_MS = 400;
+/** The click's level (the hits' notes are 1). */
+export const DROP_LOCK_LEVEL = 0.45;
+/**
+ * Once every ball is in and has clicked into place, and until the rest check calls SETTLED!, the board plays the balls' notes
+ * low to high round and round this far apart (ms), softly (DROP_CYCLE_LEVEL): the finale's tune, slower, building into it.
+ */
+export const DROP_CYCLE_STEP_MS = 150;
+export const DROP_CYCLE_LEVEL = 0.55;
+/** When (ms after the board's last click) the cycle plays its `j`-th note (ball j mod n, from the lowest). */
+export function dropCycleAtMs(j: number): number {
+  return Math.max(0, j) * DROP_CYCLE_STEP_MS;
+}
+/** When (ms after the settle) the finale plays the note of its `k`-th ball, from the lowest. */
+export function dropArpAtMs(k: number): number {
+  return Math.max(0, k) * DROP_ARP_STEP_MS;
+}
+/** When (ms after the settle) the closing chord of a finale of `notes` notes rings. */
+export function dropArpChordAtMs(notes: number): number {
+  return notes > 0 ? dropArpAtMs(notes - 1) + DROP_ARP_CHORD_GAP_MS : 0;
+}
+
+/** The ball colour the page starts from (white): a board in it colours each ball by its note instead. */
+const PLAIN_BALL = "#ffffff";
+
+/** "#rrggbb" of a hue (0–360), saturation and lightness (0–1). */
+function hslHex(h: number, sat: number, light: number): string {
+  const a = sat * Math.min(light, 1 - light);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const c = light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(255 * c).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * --- drop-lights --- A ball's colour: on a board in the plain white ball colour, its note's colour (the colour follows the
+ * pitch: the biggest, lowest balls red and orange, through green, to the smallest, highest ones blue and violet, over the
+ * size spread this board can make); any ball colour the visitor chose stays as it is. `radiusScale` is the ball's size
+ * relative to the Ball Size, `sizeVariation` the board's spread.
+ */
+export function dropBallColor(radiusScale: number, sizeVariation: number, ballColor: string | undefined): string {
+  if ((ballColor || PLAIN_BALL).toLowerCase() !== PLAIN_BALL) return ballColor as string;
+  const spread = Math.max(0, sizeVariation) * SIZE_SPREAD;
+  const big = 1 + spread;
+  const small = Math.max(MIN_DROP_RADIUS / 8, 1 - spread);
+  const t = big > small + 1e-9 ? Math.log(big / Math.max(small, Math.min(big, radiusScale))) / Math.log(big / small) : 0.5;
+  return hslHex(8 + 262 * Math.max(0, Math.min(1, t)), 0.88, 0.62);
+}
+
+/**
+ * --- drop-lights --- What Ball Drop's own drawing reads (components/simulator/dropRenderer.ts): the pegs and bars a ball has hit
+ * (when, last, and in which ball's colour: the board lights up over the run) and the finale's notes (the balls by pitch, low to
+ * high, from the settle). Simulation time throughout; `init()` resets it.
+ */
+export interface DropView {
+  /** The simulation clock (ms). */
+  timeMs: number;
+  /** Obstacles before this index are the board's walls (left, right and – unless it rains – the floor): never lit. */
+  wallCount: number;
+  /** Per obstacle: the simulation ms of its last hit (−1: never hit), and the colour of the ball that hit it. */
+  litMs: Float64Array;
+  litColor: string[];
+  /** The simulation ms the board settled (−1 before). */
+  settledMs: number;
+  /** The simulation ms the last ball clicked into place with every ball in (−1 before): the cycle's start. */
+  cycleFromMs: number;
+  /** Notes of the cycle played so far. */
+  cyclePlayed: number;
+  /** The finale's (and the cycle's) balls, lowest note first, and their notes (Hz). */
+  arpIds: number[];
+  arpHz: number[];
+  /** Notes of the finale played so far, and whether its closing chord has rung. */
+  arpPlayed: number;
+  chordPlayed: boolean;
+  /** Per ball id: the simulation ms it clicked into place (its rest, once a run). */
+  lockMs: Map<number, number>;
+}
+
+function createDropView(): DropView {
+  return { timeMs: 0, wallCount: 0, litMs: new Float64Array(0), litColor: [], settledMs: -1, cycleFromMs: -1, cyclePlayed: 0, arpIds: [], arpHz: [], arpPlayed: 0, chordPlayed: false, lockMs: new Map() };
+}
+// --- end drop-lights ---
 /** Candidate spots tried for a release before it waits for the next step (the top must be clear of other balls). */
 const SPAWN_ATTEMPTS = 6;
 /** Most hit sounds one 60 Hz step may queue (40 balls raining can touch more obstacles than that; the rest still bounce and glow). */
@@ -240,6 +336,9 @@ export class DropMode implements GameMode {
   private restAnchors = new Map<number, { x: number; y: number }>();
   private finished = false;
   private soundsThisStep = 0;
+  private readonly view: DropView = createDropView(); // --- drop-lights ---
+  /** --- drop-lights --- Per ball id: where it was when its current stillness began, and since when (ms). */
+  private readonly lockAnchors = new Map<number, { x: number; y: number; t: number }>();
 
   getSettings(): DropSettings {
     return this.settings;
@@ -250,6 +349,10 @@ export class DropMode implements GameMode {
   }
   getLayout() {
     return this.layout;
+  }
+  /** --- drop-lights --- The lit pegs and the finale (components/simulator/dropRenderer.ts). */
+  getView(): DropView {
+    return this.view;
   }
   /** `total` is the number of balls this run releases: the setting, or fewer once the board proved full (see onPostUpdate). */
   getProgress() {
@@ -267,11 +370,24 @@ export class DropMode implements GameMode {
     this.restAnchors.clear();
     this.finished = false;
     this.soundsThisStep = 0;
+    // --- drop-lights --- nothing lit, no finale
+    const v = this.view;
+    v.timeMs = 0;
+    v.settledMs = -1;
+    v.cycleFromMs = -1;
+    v.cyclePlayed = 0;
+    v.arpIds = [];
+    v.arpHz = [];
+    v.arpPlayed = 0;
+    v.chordPlayed = false;
+    v.lockMs.clear();
+    this.lockAnchors.clear();
     this.rebuild(ctx);
     this.releaseDue(ctx, 0);
   }
   onPreUpdate(ctx: ModeContext, dtMs: number) {
     this.soundsThisStep = 0;
+    this.view.timeMs = ctx.getElapsedMs(); // --- drop-lights ---
     // A live change of the ball size re-spaces the pegs for the new size.
     if (this.layout && (ctx.config.ballRadius || 8) !== this.layout.ballRadius) this.rebuild(ctx);
     if (this.released < this.target) this.blockedMs = this.releaseDue(ctx, ctx.getElapsedMs()) ? this.blockedMs + dtMs : 0;
@@ -323,7 +439,13 @@ export class DropMode implements GameMode {
     b.vx += db * nx;
     b.vy += db * ny;
   }
-  onObstacleHit(_ctx: ModeContext, ball: Ball): ObstacleHitResult {
+  onObstacleHit(ctx: ModeContext, ball: Ball, _obstacle: Obstacle, index: number): ObstacleHitResult {
+    // --- drop-lights --- the peg or bar lights up in the colour of the ball that hit it (and stays lit)
+    const v = this.view;
+    if (index >= v.wallCount && index < v.litMs.length) {
+      v.litMs[index] = ctx.getElapsedMs();
+      v.litColor[index] = ball.color;
+    }
     if (this.soundsThisStep >= MAX_HIT_SOUNDS_PER_STEP) return { suppressSound: true };
     this.soundsThisStep++;
     return { frequency: dropHitFrequency(ball.radius) };
@@ -339,7 +461,11 @@ export class DropMode implements GameMode {
       for (const ball of balls) if (ball.y - ball.radius > fallenBelow) this.respawn(ctx, ball);
       return;
     }
-    if (this.finished) return;
+    if (this.finished) {
+      this.stepFinale(ctx); // --- drop-lights ---
+      return;
+    }
+    this.stepLocks(ctx, balls); // --- drop-lights ---
     // A full board: a due release has found no room at the top for REST_TIME_MS. The run then finishes with
     // the balls it holds (once they are at rest) instead of waiting forever for balls that cannot enter.
     const full = this.released < this.target && this.blockedMs >= REST_TIME_MS;
@@ -362,14 +488,91 @@ export class DropMode implements GameMode {
       if (full) this.target = this.released;
       this.finished = true;
       ctx.spawnConfetti((field.left + field.right) / 2, field.bottom - 0.15 * (field.bottom - field.top));
-      // --- end-sting --- (Lane E, E5) SETTLED! rings: the completion chord on C3 as the banner comes in, so the clip does not end
-      // on the second of silence the rest check takes (a sound of its own, ringVoice "extra": the crew's moments read as before)
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" });
+      // --- drop-lights --- (Lane E, E6) the finale: every ball's own note, low to high, from the settle, then the closing chord
+      // (--- end-sting --- E5's completion chord on C3) – so the clip does not end on the second of silence the rest check takes
+      const v = this.view;
+      v.settledMs = ctx.getElapsedMs();
+      this.orderNotes(balls);
+      v.arpPlayed = 0;
+      v.chordPlayed = false;
+      this.stepFinale(ctx);
     } else {
       this.anchorBalls(balls);
       this.restMs = 0;
     }
   }
+  // --- drop-lights --- (Lane E, E6)
+  /**
+   * The finale's notes that are due: every ball's own note in turn, from the lowest (the biggest ball) up, DROP_ARP_STEP_MS
+   * apart, then the completion chord. Sounds of their own (ringVoice "extra": no contact behind them, so the crew's moments and
+   * the planner's last note read the run's contacts alone, and a page with the visitor's own sound leaves them out).
+   */
+  private stepFinale(ctx: ModeContext) {
+    const v = this.view;
+    if (v.settledMs < 0 || v.chordPlayed) return;
+    const t = ctx.getElapsedMs() - v.settledMs;
+    while (v.arpPlayed < v.arpHz.length && t >= dropArpAtMs(v.arpPlayed) - 1e-6) {
+      const last = v.arpPlayed === v.arpHz.length - 1;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: v.arpHz[v.arpPlayed], ...(last ? { accent: true } : {}), melody: false, ringVoice: "extra" });
+      v.arpPlayed++;
+    }
+    if (v.arpPlayed >= v.arpHz.length && t >= dropArpChordAtMs(v.arpHz.length) - 1e-6) {
+      v.chordPlayed = true;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" });
+    }
+  }
+  /**
+   * The balls that came to rest this step (none moved more than REST_DISTANCE for DROP_LOCK_MS): each clicks into place once,
+   * a soft note of its own pitch (ringVoice "extra", as the finale), and the renderer rings it.
+   */
+  private stepLocks(ctx: ModeContext, balls: readonly Ball[]) {
+    const now = ctx.getElapsedMs();
+    const v = this.view;
+    let locked = 0;
+    for (const ball of balls) {
+      if (v.lockMs.has(ball.id)) {
+        locked++;
+        continue;
+      }
+      const anchor = this.lockAnchors.get(ball.id);
+      if (!anchor || Math.hypot(ball.x - anchor.x, ball.y - anchor.y) > REST_DISTANCE) {
+        if (anchor) {
+          anchor.x = ball.x;
+          anchor.y = ball.y;
+          anchor.t = now;
+        } else this.lockAnchors.set(ball.id, { x: ball.x, y: ball.y, t: now });
+        continue;
+      }
+      if (now - anchor.t < DROP_LOCK_MS - 1e-6) continue;
+      v.lockMs.set(ball.id, now);
+      locked++;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: dropHitFrequency(ball.radius), level: DROP_LOCK_LEVEL, melody: false, ringVoice: "extra" });
+    }
+    // Every ball in and in place: the cycle starts (the balls' notes low to high, round and round, until SETTLED!)
+    if (v.cycleFromMs < 0 && balls.length > 0 && locked >= balls.length && this.released >= this.target) {
+      v.cycleFromMs = now;
+      v.cyclePlayed = 0;
+      this.orderNotes(balls);
+    }
+    if (v.cycleFromMs < 0 || v.arpHz.length === 0) return;
+    while (now - v.cycleFromMs >= dropCycleAtMs(v.cyclePlayed) - 1e-6) {
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: v.arpHz[v.cyclePlayed % v.arpHz.length], level: DROP_CYCLE_LEVEL, melody: false, ringVoice: "extra" });
+      v.cyclePlayed++;
+    }
+  }
+  /** The balls by note, lowest (the biggest ball) first: the cycle's and the finale's order. */
+  private orderNotes(balls: readonly Ball[]) {
+    const v = this.view;
+    const order = balls.slice().sort((a, b) => b.radius - a.radius || a.id - b.id);
+    v.arpIds = order.map((b) => b.id);
+    v.arpHz = order.map((b) => dropHitFrequency(b.radius));
+  }
+  /** --- drop-lights --- The ball colour changed: the balls take their note's colour again (or the visitor's colour). */
+  onBallColorChange(ctx: ModeContext) {
+    const s = this.settings;
+    for (const ball of ctx.getBalls()) ball.color = dropBallColor(ball.radiusScale ?? 1, s.sizeVariation, ctx.config.ballColor);
+  }
+  // --- end drop-lights ---
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     if (sizeChanged) this.rebuild(ctx);
     return true;
@@ -398,6 +601,11 @@ export class DropMode implements GameMode {
   private rebuild(ctx: ModeContext) {
     this.layout = buildDropLayout(ctx.config.width, ctx.config.height, this.settings.rows, ctx.config.ballRadius || 8, this.settings.loop);
     ctx.setObstacles(this.layout.obstacles);
+    // --- drop-lights --- a new board: nothing lit yet (the walls come first: left, right and the floor unless it rains)
+    const v = this.view;
+    v.wallCount = this.settings.loop ? 2 : 3;
+    v.litMs = new Float64Array(this.layout.obstacles.length).fill(-1);
+    v.litColor = new Array<string>(this.layout.obstacles.length).fill("");
   }
 
   /**
@@ -435,7 +643,7 @@ export class DropMode implements GameMode {
       vx: (ctx.random() - 0.5) * SPAWN_DRIFT,
       vy: 0,
       radius,
-      color: ctx.config.ballColor || "#FFFFFF",
+      color: dropBallColor(radiusScale, s.sizeVariation, ctx.config.ballColor), // --- drop-lights --- (its note's colour on a plain board)
       gravityScale: Math.pow(2, s.gravityVariation * GRAVITY_SPREAD_OCTAVES * (2 * uGravity - 1)),
       radiusScale,
     });

@@ -256,6 +256,13 @@ export function clipPacingFindSec(settings: Pick<SimulatorSettings, "mode"> & Pa
  *    (0.42–0.58), about 24 sounds a second (the link base: 720), never more than 0.13 s without one. (The link
  *    base: a jar of orbs bouncing forever; its links, the bot's on-the-beat plans, timed by their own anti-collision second,
  *    and the fingerprint keep it.)
+ *  - conveyor (--- conveyor-count --- Lane E, E6): a ball every 2 s instead of 3, so ALL OUT! lands inside the clip – seeds 1–24
+ *    in the laptop world: the run over at 20.5–28.0 s, median 23.9 s, on all 24 (the link base: 28.1–35.0 s, median 31.6 s, 16 of
+ *    24 past 29.5 s, where the clip cut the banner). The link base, its links, the bot's plans and the fingerprint keep the 3 s.
+ *  - ctf (--- ctf-flag-run --- Lane E, E6): three squares a side at ball speed 600 – a fuller field, more chases, and fewer games
+ *    on the clock: seeds 1–40, the same in the laptop and the phone worlds, 9 of 40 end on TIME! (the link base's two a side at
+ *    400: 14), median 20.5 s (24.8 s). Three a side at 400 ran into each other more and scored less: 15 of 24 on the clock. The
+ *    link base, its links, the bot's plans and the fingerprint keep two a side.
  */
 export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
   switch (mode) {
@@ -285,10 +292,18 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return ILLUSION_START; // --- illusion-stage ---
     case "collide":
       return COLLIDE_START; // --- collide-pour ---
+    case "conveyor":
+      return CONVEYOR_START; // --- conveyor-count ---
+    case "ctf":
+      return CTF_START; // --- ctf-flag-run ---
     default:
       return NONE;
   }
 }
+/** --- conveyor-count --- (Lane E, E6) Conveyor Belt's start look: a ball every 2 s, so ALL OUT! lands inside the 30 s clip. */
+const CONVEYOR_START: Partial<SimulatorSettings> = Object.freeze({ cvInterval: 2 } as const);
+/** --- ctf-flag-run --- (Lane E, E6) Capture the Flag's start look: three squares a side at ball speed 600. */
+const CTF_START: Partial<SimulatorSettings> = Object.freeze({ ctfPerTeam: 3, ballSpeed: 600 } as const);
 const CLASSIC_START: Partial<SimulatorSettings> = Object.freeze({ gapSize: 1, ballSpeed: 500, screenShake: 0.3, showGlow: true, wallBreakStyle: "all", ringSound: true } as const);
 const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true } as const);
 /**

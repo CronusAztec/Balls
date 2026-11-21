@@ -2641,7 +2641,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `powerLayers` | a big hit shattering a band of the rainbow stack | 1 | 5.6 s | `pll=400&plb=none&plp=0` | x 0.5 · y 0.58 · zoom 1.55 |
 | `race` | racers mid-track through the flippers and pegs, the leader crowned | 1 | 5 s | `rcn=10&rcl=8&rcst=0&rcmm=0` | x 0.569 · y 0.451 · zoom 1.667 |
 | `battle` | squares clashing with HP bars, a KO blast | 1 | 5.8 s | `btn=12` | – |
-| `ctf` | CAPTURE!: a flag carried home, the score ticking over | 1 | 6 s | `ctfn=3` | – |
+| `ctf` | CAPTURE!: a flag carried home, the score ticking over | 2 | 11 s | `ctfn=3&s=600` | – |
 | `runner` | the runner in the air over the spikes, on the beat | 1 | 3.6 s | `rrn=40&rrd=1&face=cute` | x 0.43 · y 0.52 · zoom 1.8 |
 | `paddle` | a catch on the platform, sparks flying | 1 | 8.6 s | `pdsk=1&pdsp=1` | x 0.55 · y 0.756 · zoom 2.2 |
 | `vortex` | a full funnel: balls weaving down the glowing rings | 1 | 16 s | `face=cute&vxrl=stagger` | zoom 1.4 |
@@ -2655,7 +2655,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `beatDrop` | the ball landing on a pad on the beat in a burst of sparks | 1 | 12.6 s | `face=cute&bdd=1&bda=1` | x 0.38 · y 0.58 · zoom 1.8 |
 | `territory` | the territory map half painted, borders jagged, a blast and a whirl biting into the other side | 1 | 14.5 s | `tyb=3&tybg=0` | x 0.5 · y 0.545 · zoom 1.1 |
 | `maze` | the leader one turn from the exit, blood-red trails filling the maze behind it | 6 | 6.7 s | `mzn=4&mzbg=0&mzhud=0` | zoom 1.12 |
-| `conveyor` | balls riding the belt and dropping into the rainbow rings | 1 | 6.8 s | `cvi=1&cvn=12&face=cute` | x 0.481 · y 0.571 · zoom 1.154 |
+| `conveyor` | balls riding the belt and dropping into the rainbow rings | 1 | 6.8 s | `cvi=2&face=cute` | – |
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0&ogCycle=30` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor's Thunder Strike crashing down on Loki on the noir stage: white hit particles over the black arena, the HP numbers in the discs | 1 | 9.45 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
