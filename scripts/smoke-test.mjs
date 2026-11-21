@@ -15271,20 +15271,40 @@ await smokeBlock("desktop-ai-fix", async () => {
 {
   const DESKTOP_VERSION = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version; // --- desktop-autorelease --- one source of truth
   // --- desktop-autorelease --- every locale shows the build-time version (desktop/package.json's, bumped with src/lib/desktop/release.ts
-  // by npm run release:desktop in the push that deploys the site); nothing asks GitHub, and there is no release-notes link
+  // by npm run release:desktop in the push that deploys the site); nothing asks GitHub, and no release-notes link leads to GitHub
+  // or off the site: the version's "What's new" link opens the site's own changelog (/changelog#app-<version>, the changelog
+  // block), and the only GitHub addresses on the page are the files of the installers-only downloads repository's latest release
+  // (desktop-exe)
+  const downloads = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download").replace(/\/+$/, "");
+  const GITHUB_HOST = /(^|\.)(github\.com|github\.io|githubusercontent\.com)$/i;
   for (const locale of ["en", "pl", "es"]) {
+    const askedGitHub = [];
+    const onRequest = (r) => {
+      try {
+        if (GITHUB_HOST.test(new URL(r.url()).hostname)) askedGitHub.push(r.url());
+      } catch {}
+    };
+    page.on("request", onRequest);
     await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
-    const notes = await page.evaluate(() => ({
-      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
-      update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
-      all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
-      whatsNew: document.querySelectorAll('[data-testid="download-whats-new"]').length,
-    }));
+    page.off("request", onRequest);
+    const notes = await page.evaluate(({ downloads, basePath, github }) => {
+      const githubHost = new RegExp(github, "i");
+      const links = [...document.querySelectorAll("a[href]")].map((a) => ({ url: new URL(a.getAttribute("href") ?? "", location.href), notes: !!a.closest('[data-testid="download-notes"]') }));
+      return {
+        version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
+        update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
+        all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
+        // a link of the version's notes that leaves the site (another origin, or a path outside the site's base path)
+        notesOffSite: links.filter((l) => l.notes && (l.url.origin !== location.origin || !l.url.pathname.startsWith(`${basePath}/`))).map((l) => l.url.href),
+        // a GitHub address that is not a file of the downloads repository's latest release (a release-notes page, the source)
+        github: links.filter((l) => githubHost.test(l.url.hostname) && !l.url.href.startsWith(`${downloads}/`)).map((l) => l.url.href),
+      };
+    }, { downloads, basePath: BASE_PATH, github: GITHUB_HOST.source });
     check(
       // --- legal-copy --- the 1.0.2 note was stale from 1.0.3 on: the page shows the version and the model note, and no update note
       `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION} and the one-time model download, with no stale note for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update === "" && notes.all.length > notes.version.length + 40 && !/1\.0\.2/.test(notes.all) && notes.whatsNew === 0,
-      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update === "" && notes.all.length > notes.version.length + 40 && !/1\.0\.2/.test(notes.all) && notes.notesOffSite.length === 0 && notes.github.length === 0 && askedGitHub.length === 0,
+      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}", notes' links off the site ${JSON.stringify(notes.notesOffSite)}, GitHub links ${JSON.stringify(notes.github)}, GitHub asked ${JSON.stringify(askedGitHub)})`,
     );
   }
 
