@@ -100,6 +100,28 @@ function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number
   }
 }
 
+/** --- end-banner --- The stage dots over the shaft: their radius, the step between two and the x of the first one's centre. */
+export function glassDots(field: { cx: number; height: number }, stages: number): { r: number; gap: number; x0: number } {
+  const r = Math.max(2.5, 0.007 * field.height);
+  const gap = 3.6 * r;
+  return { r, gap, x0: field.cx - ((stages - 1) * gap) / 2 };
+}
+
+/** --- end-banner --- A stage's name is drawn with its centre this share of the shaft's width in from the left wall. */
+export const GLASS_LABEL_AT = 0.3;
+
+/**
+ * --- end-banner --- The centre x of a stage's name `width` px wide: GLASS_LABEL_AT of the shaft in from its left wall – past
+ * the watermark's badge, whose bottom-left corner the line scrolls through, and left of the stage dots at the top centre,
+ * which the name sat on for two seconds a stage when it was drawn under the middle of its line. A long row of dots pushes
+ * it further left, never past the wall.
+ */
+export function glassLabelX(field: { left: number; width: number; cx: number; height: number }, stages: number, width: number): number {
+  const dots = glassDots(field, stages);
+  const room = dots.x0 - dots.r - 0.012 * field.width - width / 2;
+  return Math.max(field.left + 4 + width / 2, Math.min(field.left + GLASS_LABEL_AT * field.width, room));
+}
+
 /**
  * The world between `viewTop` and `viewBottom` (world y): stage markers, rails, panes, cracks, the ground and the
  * doorway. Drawn before the ball, inside the scrolled transform.
@@ -110,8 +132,9 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
   const f = level.field;
   const now = view.timeMs;
   ctx.save();
-  // Stage markers: a faint dashed line where each stage begins and its name under the middle of it (--- end-banner --- not at
-  // the wall: the line scrolls through the square's bottom corners, where the watermark badge sits, and "STAGE 2" read "E 2").
+  // Stage markers: a faint dashed line where each stage begins and its name under it (--- end-banner --- not at the wall: the
+  // line scrolls through the square's bottom corners, where the watermark badge sits, and "STAGE 2" read "E 2"; and not under
+  // the middle, where it scrolled onto the stage dots: glassLabelX()).
   ctx.setLineDash(STAGE_DASH);
   ctx.lineWidth = 1;
   const labelSize = Math.max(9, 0.022 * f.height);
@@ -129,7 +152,8 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     ctx.stroke();
     ctx.globalAlpha = 0.4;
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(opts.stageLabel(s + 1), f.cx, y + 4);
+    const name = opts.stageLabel(s + 1);
+    ctx.fillText(name, glassLabelX(f, level.stages.length, ctx.measureText(name).width), y + 4);
   }
   ctx.setLineDash(NO_DASH);
   ctx.globalAlpha = 1;
@@ -373,11 +397,9 @@ export function drawGlassOverlay(ctx: CanvasRenderingContext2D, view: GlassView,
   let topBottom = 0; // --- review fix (modes-gerald-odd) --- the dots' bottom, for the captions
   ctx.save();
   if (n > 1) {
-    const r = Math.max(2.5, 0.007 * f.height);
+    const { r, gap, x0 } = glassDots(f, n); // --- end-banner --- (shared with the stage names, which keep clear of them)
     topBottom = f.top + 4 * r;
-    const gap = 3.6 * r;
     const y = f.top + 3 * r;
-    const x0 = f.cx - ((n - 1) * gap) / 2;
     for (let s = 0; s < n; s++) {
       const x = x0 + s * gap;
       ctx.beginPath();

@@ -52,6 +52,12 @@ export interface MultiplierRenderOptions {
   rainbowBall: boolean;
   /** Canvas time (ms) for rainbow hues and pulses. */
   time: number;
+  /**
+   * --- end-banner --- The board's y range the end banner's plate covers once the board is done (NaN or absent: none): a gate
+   * label that meets it is not drawn, so the plate's edge never cuts one in half.
+   */
+  quietTop?: number;
+  quietBottom?: number;
 }
 
 const TWO_PI = Math.PI * 2;
@@ -119,6 +125,15 @@ function agoMs(view: MultipliersView, tick: number): number {
 }
 
 /**
+ * --- end-banner --- Whether a gate label `size` tall with its centre at `y` meets the end banner's plate between `top` and
+ * `bottom` (board y; a label within half its height of the plate counts: it would sit right on the edge). No plate: never.
+ */
+export function gateLabelHidden(y: number, size: number, top: number | undefined, bottom: number | undefined): boolean {
+  if (top === undefined || bottom === undefined || !(bottom > top)) return false;
+  return y + size > top && y - size < bottom;
+}
+
+/**
  * The board, in world space (the caller translated the canvas by −cameraY). Only the rows on screen are drawn.
  * `viewTop` / `viewBottom` are the world y range the canvas shows.
  */
@@ -181,6 +196,7 @@ export function drawMultipliersBoard(ctx: CanvasRenderingContext2D, view: Multip
     }
     const lx = gate.x0 + (gate.x1 - gate.x0) / 2;
     const ly = gate.y + 0.15 * bandH + 0.5 * size;
+    if (gateLabelHidden(ly, size, o.quietTop, o.quietBottom)) continue; // --- end-banner ---
     ctx.globalAlpha = 1;
     ctx.lineJoin = "round";
     ctx.lineWidth = Math.max(2, 0.18 * size);

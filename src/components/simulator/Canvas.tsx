@@ -131,7 +131,7 @@ import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type Hoo
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
-import { EndBannerLayer, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -647,6 +647,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
   captionsRef.current = captions;
   const captionLayerRef = useRef<CaptionLayer | null>(null);
+  /** --- end-banner --- A verdict that came with the run's last step is still being read (the frame drawn last): the end screen waits. */
+  const endBannerHoldRef = useRef(false);
   // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
   const wobbleAmountRef = useRef(wallWobble);
   wobbleAmountRef.current = wallWobble;
@@ -813,7 +815,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       flLayerRef.current?.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
     },
     // --- end themes
-    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
+    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false) || endBannerHoldRef.current, // --- camera --- (--- captions --- and the question's answer; --- end-banner --- and a verdict not read yet)
     getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-gerald-odd) ---
   }));
 
@@ -2145,6 +2147,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       multRender.showTrails = p.showTrails;
       multRender.rainbowBall = p.rainbowBall;
       multRender.time = time;
+      // --- end-banner --- (the board done: a gate label the end banner's plate would cut in half is not drawn – the plate of the frame before, in the board's own y)
+      multRender.quietTop = multBoard && multBoard.done && endBanners[0].shown ? endBanners[0].rect.y + multTop : NaN;
+      multRender.quietBottom = multRender.quietTop + endBanners[0].rect.h;
       if (multBoard) drawMultipliersBoard(ctx, multBoard, multRender, multLabels, multTop, multBottom);
       if (multView.orbs.length > 0) drawPickupOrbs(ctx, multView, engine.getElapsedMs(), multLabels, time);
 
@@ -3047,7 +3052,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // the badge moves to the top-right corner when the scoreboard – the HUD off – sits in the top-left one; the captions start below them)
       if (mazeView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
-        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 /* --- end-banner --- (the banner's entrance) */ }));
+        const mazeExport = recordingRef.current ? exportSizeRef.current : null; // --- end-banner --- (a 9:16 export: the strip keeps between its badge's corners)
+        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 /* --- end-banner --- (the banner's entrance) */, portrait: !!mazeExport && mazeExport.height > mazeExport.width }));
       }
       // --- orb-grid --- Bouncing Orbs: "1089 bouncing orbs" at the top of the square the recorder crops to – on the right while the
       // teams scoreboard holds the top-left corner; the top captions start below it
@@ -3097,7 +3103,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         };
         if (engine.isAccumulationMode()) {
           const frozen = engine.getFrozenBalls().length;
-          if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4");
+          // (--- end-banner --- the card counts the frozen balls: it goes over the top or the bottom of the ring, wherever it covers fewer of them)
+          if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4", accumulationBannerAt(engine.getFrozenBalls(), cy, minDim));
           else {
             const timer = engine.getAccumulationTimer();
             const max = engine.getAccumulationTimerMax();
@@ -3277,13 +3284,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- merge-ring --- Merge Ring: the final form (from its appearance, through the hold) or the overflow
         if (mergeRingView && (mergeRingView.finalMs >= 0 || mergeRingView.overflowMs >= 0)) {
           const MR = L.mergeRing ?? DEFAULT_MERGE_RING_LABELS;
-          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc");
+          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc", 0.2); // --- end-banner --- (over the chute: the final form and its burst are in the pile below)
           else bigBanner(MR.overflowTitle, MR.overflowSub(MR.tier(Math.max(1, mergeRingView.topTier)), mergeRingView.merges), "#fb7185");
         }
         // --- spiral-glass --- Spiral Glass: GLASS CLEARED (from the last tile, through the hold) or the TIMEOUT
         if (spiralGlassView && (spiralGlassView.clearedMs >= 0 || spiralGlassView.timeoutMs >= 0)) {
           const SG = L.spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS;
-          if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc");
+          if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc", 0.82); // --- end-banner --- (under the spiral's centre, where the last glass breaks)
           else bigBanner(SG.timeoutTitle, SG.timeoutSub(spiralGlassView.tilesLeft), "#fb7185");
         }
         // --- blueprint --- (Mode Lab's end banner is its overlay's: blueprintLayer.drawOverlay(), opaque, on a dark band)
@@ -3398,12 +3405,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- end-banner --- a banner not drawn this frame plays its entrance again the next time; one in the middle of the
         // square moves the teams' winner banner lower
         endBannerMid = false;
+        let bannerFresh = false;
         for (const layer of endBanners) {
           layer.endFrame();
           if (!layer.shown) continue;
+          if (layer.fresh()) bannerFresh = true;
           const mid = (layer.rect.y + layer.rect.h / 2 - squareTop) / minDim;
           if (mid > 0.34 && mid < 0.64) endBannerMid = true;
         }
+        // --- end-banner --- a verdict that came with the run's last step stays up END_BANNER_HOLD_MS before the end screen (and
+        // the end of a recording): the page and the fast export ask holdsEndScreen(). Not where the page holds the ending
+        // itself (a roster's winner banner, a multipliers finish: the holds would add up) and not in a clip with captions of
+        // its own, whose length the planner set (the bot's and the studio's clips stay as they were).
+        endBannerHoldRef.current = bannerFresh && !captionsRef.current && !teamLayer.isActive() && !engine.endsWithMultiplierFinish();
         if (p.watermarkText) {
           ctx.save();
           const fs = Math.max(14, 0.045 * minDim);
@@ -4115,7 +4129,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setSongProgress: (v) => {
           songProgressRef.current = v;
         },
-        holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
+        holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen() || endBannerHoldRef.current, // (--- end-banner --- a verdict not read yet)
         slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         hud: () => liveHud, // --- low-findings --- (the HUD the last frame reported, in canvas px)
         stepOnce: realTimeStepper.step, // --- slow-motion --- (a driver that paces the steps with the switch off: one whole step, its time scale)

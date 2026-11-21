@@ -88,6 +88,17 @@ const BANNER_DELAY_MS = 200;
 export const MAZE_BANNER_FULL_MS = 2200;
 
 /**
+ * --- end-banner --- Where the strip goes: its centre (a share of the square's side from the square's left edge) and the
+ * widest it may be (a share of the side). It has to leave both bottom corners to the watermark's badge, which is up to a
+ * quarter of the side wide: a square or landscape frame keeps its badge 7.5 % from the square's sides, a 9:16 export – its
+ * safe zone runs from 6 % to 87.5 % of the width – 8.5 % from the left and 15 % from the right, so there the free middle
+ * is narrower and left of the centre. A strip that touched both corners sent the badge up into the maze.
+ */
+export function mazeStripPlace(portrait: boolean): { centre: number; maxWidth: number } {
+  return portrait ? { centre: 0.4675, maxWidth: 0.26 } : { centre: 0.5, maxWidth: 0.34 };
+}
+
+/**
  * --- end-banner --- What the verdict's banner is at simulation time `nowMs`: nothing before the verdict (and for
  * BANNER_DELAY_MS after it), the whole banner across the maze for MAZE_BANNER_FULL_MS and again once the run is over, a
  * strip under the maze in between, while the other balls run on.
@@ -602,7 +613,7 @@ export class MazeLayer {
    * (the HUD is off then) – moves the badge to the top-right one. Returns the screen y of the lowest top item that reaches
    * into the captions' centred column (0: none), which the top captions start below.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean; badgeRight?: boolean; dtMs?: number }): number {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean; badgeRight?: boolean; dtMs?: number; portrait?: boolean }): number {
     const side = Math.min(o.width, o.height);
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
@@ -646,7 +657,7 @@ export class MazeLayer {
     // (with a roster the teams banner announces a team's win once the run is over; a ball past the six teams keeps this one)
     const phase = mazeBannerPhase(view, o.nowMs);
     if (phase !== "none" && !(frame.teamBanner && view.finished && view.winner < view.teamCount)) {
-      this.drawBanner(ctx, view, sx, sy, side, o, frame.dtMs ?? 0, phase === "strip");
+      this.drawBanner(ctx, view, sx, sy, side, o, frame.dtMs ?? 0, phase === "strip", !!frame.portrait);
       this.bannerDrawn = true;
     }
     this.endBanner.endFrame();
@@ -819,7 +830,7 @@ export class MazeLayer {
    * deadpan caption under it) across the middle of the maze while it is news – MAZE_BANNER_FULL_MS – and once the run is over;
    * in between, while the other balls run on, one line on a strip under the maze, so the race stays in view.
    */
-  private drawBanner(ctx: CanvasRenderingContext2D, view: MazeView, sx: number, sy: number, side: number, o: MazeRenderOptions, dtMs: number, strip: boolean) {
+  private drawBanner(ctx: CanvasRenderingContext2D, view: MazeView, sx: number, sy: number, side: number, o: MazeRenderOptions, dtMs: number, strip: boolean, portrait: boolean) {
     const L = o.labels;
     const winner = view.winner;
     const name = winner >= 0 ? this.nameOf(winner) : "";
@@ -829,10 +840,11 @@ export class MazeLayer {
     const cx = sx + side / 2;
     const box = this.bannerBox;
     if (strip) {
-      // under the maze, between the watermark's corners (the badge is at most 30 % of the side wide)
+      // under the maze, between the watermark's two bottom corners (mazeStripPlace: a 9:16 export's are not the square's own)
       const f = view.field;
       const cy = Math.min(sy + 0.965 * side, Math.max(f.top + f.height + 0.03 * side, sy + 0.94 * side));
-      drawEndBannerStrip(ctx, `${title} · ${sub}`, color, cx, cy, side, 0.4 * side, box);
+      const place = mazeStripPlace(portrait);
+      drawEndBannerStrip(ctx, `${title} · ${sub}`, color, sx + place.centre * side, cy, side, place.maxWidth * side, box);
       this.bannerStrip = true;
       return;
     }

@@ -3690,9 +3690,9 @@ export default function Simulator() {
       segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
-      ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
+      ballsAtRest: (n) => t("Simulator.canvasBallsAtRest", { count: n }), // --- end-banner --- (counted: "1 ball at rest")
       boxDone: t("Simulator.canvasBoxDone"),
-      boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
+      boxCounted: (n) => t("Simulator.canvasBoxCounted", { count: n }),
       pendulumDone: t("Simulator.canvasPendulumDone"),
       pendulumInLine: (n, cycles) => t("Simulator.canvasPendulumInLine", { count: n, cycles }),
       polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
@@ -3725,13 +3725,14 @@ export default function Simulator() {
       },
       outgrew: t("Simulator.canvasMpOutgrew"),
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
-      madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
-      madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
-      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
+      // (--- end-banner --- counted in the page's language: "1 clone along the way", "1 Gerald llegó a casa")
+      madeItHome: (n) => t("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
+      madeItHomeSub: (clones) => t("Simulator.canvasMpMadeItHomeSub", { count: clones }),
+      madeItHomeLost: (lost) => t("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
-      dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
-      dpHits: (n) => fill("Simulator.canvasDpHits", { count: n }),
+      dpPlucks: (n) => t("Simulator.canvasDpPlucks", { count: n }),
+      dpHits: (n) => t("Simulator.canvasDpHits", { count: n }),
       dpChaos: (seconds) => fill("Simulator.canvasDpChaos", { seconds }),
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
@@ -3766,7 +3767,7 @@ export default function Simulator() {
         warningBottom: t("Simulator.canvasPlWarningBottom"),
         layersLeft: (n) => fill("Simulator.canvasPlLayersLeft", { count: n }),
         freedom: t("Simulator.canvasPlFreedom"),
-        freedomSub: (hits, seconds) => fill("Simulator.canvasPlFreedomSub", { hits, seconds }),
+        freedomSub: (hits, seconds) => t("Simulator.canvasPlFreedomSub", { hits, seconds }),
       },
       // --- jdm-arena-games ---
       arena: {
@@ -3802,7 +3803,7 @@ export default function Simulator() {
         swallowed: (n, total) => fill("Vortex.canvasSwallowed", { count: n, total }),
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
-        doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+        doneSub: (balls, notes) => t("Vortex.canvasDoneSub", { balls, notes }),
         funnelTitle: t("Vortex.canvasTitleFunnel"), // --- funnel-spin ---
         lapTime: (seconds) => fill("Vortex.canvasLapTime", { value: seconds }),
       },
@@ -3820,7 +3821,7 @@ export default function Simulator() {
         },
         home: t("Journey.canvasHome"),
         homeTitle: t("Journey.canvasHomeTitle"),
-        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        homeSub: (stages, seconds, score) => (score > 0 ? t("Journey.canvasHomeSubScore", { stages, seconds, score }) : t("Journey.canvasHomeSub", { stages, seconds })),
         score: (points) => fill("Journey.canvasScore", { points }),
       },
       // --- gerald-bullseye ---
@@ -3841,9 +3842,9 @@ export default function Simulator() {
         top: t("MergeRing.canvasTop"),
         tier: (k) => t(`MergeRing.tier${Math.max(1, Math.min(10, k))}`),
         finalTitle: t("MergeRing.canvasFinal"),
-        finalSub: (merges, seconds) => fill("MergeRing.canvasFinalSub", { merges, seconds }),
+        finalSub: (merges, seconds) => t("MergeRing.canvasFinalSub", { merges, seconds }),
         overflowTitle: t("MergeRing.canvasOverflow"),
-        overflowSub: (top, merges) => fill("MergeRing.canvasOverflowSub", { top, merges }),
+        overflowSub: (top, merges) => t("MergeRing.canvasOverflowSub", { top, merges }),
       },
       // --- spiral-glass ---
       spiralGlass: {
@@ -3854,7 +3855,7 @@ export default function Simulator() {
         clearedTitle: t("SpiralGlass.canvasCleared"),
         clearedSub: (count, seconds) => fill("SpiralGlass.canvasClearedSub", { count, seconds }),
         timeoutTitle: t("SpiralGlass.canvasTimeout"),
-        timeoutSub: (tiles) => fill("SpiralGlass.canvasTimeoutSub", { tiles }),
+        timeoutSub: (tiles) => t("SpiralGlass.canvasTimeoutSub", { tiles }),
       },
       // --- blueprint --- Mode Lab: the badges, the clock, the team names and every catalog entry's own texts (a spec of a
       // link speaks its author's words)
@@ -4294,9 +4295,10 @@ export default function Simulator() {
               <span className="num">{t("Simulator.stopRecording")}</span>
             </button>
           )}
+          {/* --- end-banner --- the run is over: the mode's verdict stays readable (no dim over the square, the button under it) */}
           {isStarted && finished && !isRecording && (
-            <div className={scrim}>
-              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />}>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-linear-to-t from-bg/90 via-bg/50 to-transparent px-3 pb-3 pt-10">
+              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />} className="pointer-events-auto">
                 {t("Simulator.restartSimulation")}
               </Button>
             </div>

@@ -8,10 +8,13 @@
  *    END_BANNER_MIN_CONTRAST even with a white page showing through), fitted to the square;
  *  - the line under it in near white at 4.2 % of the square (22 px in a 540 px wide feed), on two lines when one is too long;
  *  - an entrance over END_BANNER_IN_MS: the plate scales up past its size and settles while it fades in, so the verdict
- *    reads as an event. It is short and starts well visible, because a mode whose banner comes with the run's last step
- *    (Ball Drop, Pendulum Wave) has it in a recording for the recorder's last 0.5 s only. Its clock is the frames' own time
- *    (the caller's `dtMs`: the frame time live, the export's frame time offline), never the wall clock or a random number,
- *    so the same frames of a run draw the same banner everywhere.
+ *    reads as an event. It is short and starts well visible. Its clock is the frames' own time (the caller's `dtMs`: the
+ *    frame time live, the export's frame time offline), never the wall clock or a random number, so the same frames of a
+ *    run draw the same banner everywhere;
+ *  - a hold: a verdict that comes with the run's last step (Ball Drop, Pendulum Wave, an escape) stays up for
+ *    END_BANNER_HOLD_MS before the page shows its end screen and a recording stops (`fresh()`, which the canvas reports as
+ *    its hold of the end screen): a title and a line of five words cannot be read in the recorder's last 0.5 s. A mode
+ *    that holds its own ending (Merge Ring, Spiral Glass) has had its banner up that long already and gets nothing more.
  * The layout is cached per text and size (a few measureText calls when the words change, none per frame) and the layer
  * reports the plate's box, which the canvas hands to the watermark so its badge keeps clear of it.
  */
@@ -20,8 +23,16 @@
 export const END_BANNER_IN_MS = 240;
 /** The least contrast the title and the lines keep against the plate (WCAG's ratio for body text). */
 export const END_BANNER_MIN_CONTRAST = 4.5;
-/** The plate: nearly black, 92 % opaque (the scene shows through just enough to keep its colour, never enough to read). */
-export const END_BANNER_PLATE = { r: 9, g: 11, b: 16, alpha: 0.92 } as const;
+/**
+ * How long a verdict is on screen before the end screen may cover it and a recording may stop (ms of frame time): with the
+ * recorder's own 0.5 s a clip shows it for 2 s.
+ */
+export const END_BANNER_HOLD_MS = 1500;
+/**
+ * The plate: nearly black, 97 % opaque. The border and the tint keep the mode's colour; nothing under it can be read (at
+ * 92 % a gate label of the multipliers' board still could).
+ */
+export const END_BANNER_PLATE = { r: 9, g: 11, b: 16, alpha: 0.97 } as const;
 /** The share of the mode's colour mixed into the plate. */
 const PLATE_TINT = 0.1;
 /** The line under the title and the note under that. */
@@ -91,7 +102,7 @@ function plateRgb(color: string): [number, number, number] {
   return [p.r + (c[0] - p.r) * PLATE_TINT, p.g + (c[1] - p.g) * PLATE_TINT, p.b + (c[2] - p.b) * PLATE_TINT];
 }
 
-/** The brightest the plate can look for a mode colour: over a white page showing through its 8 %. */
+/** The brightest the plate can look for a mode colour: over a white page showing through its 3 %. */
 export function endBannerPlateLuminance(color: string): number {
   const [r, g, b] = plateRgb(color);
   const a = END_BANNER_PLATE.alpha;
@@ -237,6 +248,31 @@ export function placeEndBanner(wanted: number, height: number, top: number, bott
   return Math.max(top, Math.min(bottom - height, wanted));
 }
 
+/** The share of the square a banner over the top of a ring, or over its bottom, has its centre at. */
+export const END_BANNER_TOP = 0.18;
+export const END_BANNER_BOTTOM = 0.82;
+/** Half the height of a title and one line under it, as a share of the square (the band a banner covers around its centre). */
+const BAND_HALF = 0.11;
+
+/**
+ * Where Accumulation's card goes in a square of `side` px centred on `cy`: over the top of the ring (END_BANNER_TOP) or over
+ * its bottom (END_BANNER_BOTTOM), wherever it covers fewer of the frozen balls it counts; the top when it is even. Pure:
+ * the same balls give the same place in every frame.
+ */
+export function accumulationBannerAt(balls: readonly { y: number; radius: number }[], cy: number, side: number): number {
+  const S = Math.max(1, side);
+  const top = cy - S / 2;
+  let over = 0;
+  let under = 0;
+  for (const b of balls) {
+    const from = (b.y - b.radius - top) / S;
+    const to = (b.y + b.radius - top) / S;
+    if (to > END_BANNER_TOP - BAND_HALF && from < END_BANNER_TOP + BAND_HALF) over++;
+    if (to > END_BANNER_BOTTOM - BAND_HALF && from < END_BANNER_BOTTOM + BAND_HALF) under++;
+  }
+  return under < over ? END_BANNER_BOTTOM : END_BANNER_TOP;
+}
+
 /* ------------------------------------------------------------------ the entrance */
 
 /**
@@ -352,6 +388,14 @@ export class EndBannerLayer {
       ctx.fillText(text.note, 0, -h / 2 + lay.noteY);
     }
     ctx.restore();
+  }
+
+  /**
+   * True while the banner is on screen and has been for less than END_BANNER_HOLD_MS: the verdict has not been read yet, so
+   * the end screen waits (after `endFrame()`: the frame drawn last).
+   */
+  fresh(): boolean {
+    return this.shown && this.ageMs < END_BANNER_HOLD_MS;
   }
 
   /** The end of a frame: one that did not draw the banner forgets its entrance, so the next showing plays it again. */
