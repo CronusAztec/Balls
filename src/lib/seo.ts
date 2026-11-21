@@ -55,7 +55,8 @@ export interface OgImage {
   width: number;
   height: number;
   alt: string;
-  type: "image/png";
+  /** PNG for the drawn cards; JPEG for a mode page's card, a picture of a run (src/lib/modePages.ts modeOgImagePath). */
+  type: "image/png" | "image/jpeg";
 }
 
 const isCardPage = (page: string): page is OgCardPage => (OG_CARD_PAGES as readonly string[]).includes(page);

@@ -25,12 +25,14 @@ import { IconArrowRight, IconPlay } from "@/components/ui/icons";
  * and the modes wall's shelf chips filter the presets by their mode's shelf. The chips are radio buttons styled as chips,
  * as on the changelog: they work without scripts, and the CSS hides the cards of the other shelves. The chosen shelf goes
  * into the address (?family=music, GalleryShelfMemory.tsx), so Back from a preset and a reload show it again.
- * --- gallery-every-mode --- Every mode has a preset now, so a second row of chips names the modes of the chosen shelf (of the
- * chosen mode's shelf; none under All, where fifty chips would push the cards out of the first screen), each with its number
- * of presets when it has more than one. A mode chip is a radio of the same group
- * as the shelves, so one filter is on at a time and nothing can be filtered to an empty list. Its rules are this page's own
- * (modeFilterCss: one per mode, not a class each in the site's stylesheet); its shelf's chip keeps an outline while it is on,
- * and the mode goes into the address as ?mode=classic.
+ * --- gallery-every-mode --- Every mode has a preset now, so a second row of chips names the modes of the chosen shelf (none
+ * under All, where fifty chips would push the cards out of the first screen), each with its number of presets when it has
+ * more than one, after an All chip that shows the whole shelf again. (E2 review) The mode chips are a radio group of their
+ * own (gallery-mode, with its own legend): one Tab stop for the shelves and one for the modes, the arrow keys stay in one row
+ * and reach every chip of it (in one group with the shelves, the arrows stepped from shelf to shelf and the keyboard reached
+ * one mode chip of fifty). A mode filters only together with its own shelf, so a mode left on under another shelf hides
+ * nothing; its rules are this page's own (modeFilterCss: one per mode, not a class each in the site's stylesheet), and the
+ * mode goes into the address as ?family=music&mode=songRing.
  */
 
 /** Hides every card that is not on the chosen shelf (each class is written out: the CSS is built from the source text). */
@@ -49,22 +51,16 @@ const CHIP_CLASS =
 const MODE_CHIP_CLASS =
   "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line px-2.5 text-xs font-medium whitespace-nowrap text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent [@media(pointer:coarse)]:min-h-11";
 /**
- * --- gallery-every-mode --- The page's own rules for the mode chips: All hides the mode row; a mode chip on hides the other
- * modes' cards; a shelf chip on (or a mode chip on, by its shelf) keeps the mode row to that shelf's modes; a mode chip on
- * outlines its shelf's chip.
- * Mode and shelf ids are plain words, so the selectors need no quotes.
+ * --- gallery-every-mode --- The page's own rules for the mode chips: All hides the mode row; a shelf chip on keeps the mode
+ * row to that shelf's modes (its All chip stays); a mode chip on, together with its own shelf's chip, hides the other modes'
+ * cards. Mode and shelf ids are plain words, so the selectors need no quotes.
  */
 function modeFilterCss(modes: readonly ModeId[], shelves: readonly ShelfId[]): string {
   const root = "#gallery-filter";
   // (under All the row is hidden: a shelf opens its modes, so the first screen keeps its cards and not a wall of fifty chips)
-  const rules: string[] = [`${root}:has(#gallery-shelf-all:checked) [data-testid=gallery-mode-chips]{display:none}`];
+  const rules: string[] = [`${root}:has(#gallery-shelf-all:checked) [data-gallery-mode-row]{display:none}`];
   for (const shelf of shelves) rules.push(`${root}:has(#gallery-shelf-${shelf}:checked) [data-mode-chip]:not([data-shelf=${shelf}]){display:none}`);
-  for (const mode of modes) {
-    const shelf = shelfOf(mode);
-    rules.push(`${root}:has(#gallery-mode-${mode}:checked) [data-gallery-item]:not([data-mode=${mode}]){display:none}`);
-    rules.push(`${root}:has(#gallery-mode-${mode}:checked) [data-mode-chip]:not([data-shelf=${shelf}]){display:none}`);
-    rules.push(`${root}:has(#gallery-mode-${mode}:checked) label[for=gallery-shelf-${shelf}]{border-color:var(--color-accent);color:var(--color-ink)}`);
-  }
+  for (const mode of modes) rules.push(`${root}:has(#gallery-shelf-${shelfOf(mode)}:checked):has(#gallery-mode-${mode}:checked) [data-gallery-item]:not([data-mode=${mode}]){display:none}`);
   return rules.join("\n");
 }
 
@@ -117,9 +113,9 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
           <div id="gallery-filter" className={shelves.map((shelf) => SHELF_FILTER[shelf.id]).join(" ")} data-testid="gallery-filter">
             <style dangerouslySetInnerHTML={{ __html: modeFilterCss(modeChips.map((chip) => chip.id), shelves.map((shelf) => shelf.id)) }} />
             {/* (min-w-0: a fieldset is as wide as its content by default, and the row would widen a phone's page instead of scrolling) */}
+            <GalleryShelfMemory name="gallery-shelf" modeName="gallery-mode" />
             <fieldset className="mt-10 min-w-0">
               <legend className="sr-only">{t("filterLabel")}</legend>
-              <GalleryShelfMemory name="gallery-shelf" />
               <div className="-mx-4 flex min-w-0 gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
                 {[{ id: "all" as const, count: GALLERY.length }, ...shelves].map((shelf) => (
                   <span key={shelf.id} className="contents">
@@ -131,12 +127,22 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
                   </span>
                 ))}
               </div>
-              {/* --- gallery-every-mode --- the chosen shelf's modes, the chips a size smaller: one line that scrolls sideways on a
-                  touch screen, as the shelves do on a phone, wrapped from 640 px for a mouse, which has no sideways scroll */}
+            </fieldset>
+            {/* --- gallery-every-mode --- the chosen shelf's modes, the chips a size smaller: one line that scrolls sideways on a
+                touch screen, as the shelves do on a phone, wrapped from 640 px for a mouse, which has no sideways scroll; a radio
+                group of their own (E2 review), All first */}
+            <fieldset className="min-w-0" data-gallery-mode-row="">
+              <legend className="sr-only">{t("modeFilterLabel")}</legend>
               <div className="-mx-4 mt-2 flex min-w-0 gap-1.5 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [@media(pointer:fine)]:sm:flex-wrap [&::-webkit-scrollbar]:hidden" data-testid="gallery-mode-chips">
+                <span className="contents">
+                  <input type="radio" name="gallery-mode" id="gallery-mode-all" value="all" defaultChecked className="peer sr-only" />
+                  <label htmlFor="gallery-mode-all" className={MODE_CHIP_CLASS}>
+                    {site("modesWall.all")}
+                  </label>
+                </span>
                 {modeChips.map((chip) => (
                   <span key={chip.id} className="contents" data-mode-chip={chip.id} data-shelf={shelfOf(chip.id)}>
-                    <input type="radio" name="gallery-shelf" id={`gallery-mode-${chip.id}`} value={`mode:${chip.id}`} className="peer sr-only" />
+                    <input type="radio" name="gallery-mode" id={`gallery-mode-${chip.id}`} value={chip.id} className="peer sr-only" />
                     <label htmlFor={`gallery-mode-${chip.id}`} className={MODE_CHIP_CLASS}>
                       {modes(`${chip.id}.name`)}
                       {chip.count > 1 && <span className="num opacity-70">{chip.count}</span>}
@@ -157,6 +163,7 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
                       data-gallery-mode={preset.mode}
                       data-gallery-query={preset.query}
                       data-preview-at={preset.previewAt}
+                      data-preview-camera={preset.camera ? JSON.stringify(preset.camera) : undefined}
                     >
                       <PosterCard
                         image={assetPath(`/gallery/${preset.id}.webp`)}

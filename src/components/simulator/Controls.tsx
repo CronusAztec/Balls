@@ -136,6 +136,8 @@ import { MODE_BLOCK_KEYS, ballControlsOf, searchKeyShown, sectionKeyShown, setti
 // --- panel-basics --- the starter block, the named rows of the Recording group, the undo history, the last address
 import FoldRow from "./studio/FoldRow";
 import LooksRow from "./studio/LooksRow"; // --- studio-looks ---
+import { modePagePath } from "@/lib/modePagePath"; // --- mode-pages ---
+import { assetPath } from "@/lib/site"; // --- mode-pages ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import { UNDO_SETTLE_MS, isBareStudioQuery, pushUndo, readStudioQuery, rememberStudioQuery, studioQueryMode, studioQueryOf, typesText, undoPatch } from "@/lib/studioMemory";
 
@@ -2164,7 +2166,15 @@ export default function Controls(props: ControlsProps) {
   const modePanel = (own = modeSpecific()) => (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
-        <span className="min-w-0 truncate text-md font-medium text-ink">{modeNames[s.mode]}</span>
+        {/* --- mode-pages --- (Lane E, E3) under the name, the way to the mode's own page (what it is, its looks, what to change):
+            a plain link, the page loads afresh (the router's Link would bring next/navigation into every module that imports
+            this panel, the panel's unit tests among them), and Back opens the studio from its address as it was */}
+        <span className="flex min-w-0 flex-col">
+          <span className="min-w-0 truncate text-md font-medium text-ink">{modeNames[s.mode]}</span>
+          <a href={assetPath(`/${locale}${modePagePath(s.mode)}/`)} className="self-start text-xs font-medium text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline [@media(pointer:coarse)]:py-1" data-testid="studio-mode-about">
+            {site("studio.aboutMode")}
+          </a>
+        </span>
         {/* --- review fix (site-redesign) --- the kit's small button: a 32 px target (44 px on touch), not a 20 px line of text */}
         <Button variant="ghost" size="sm" onClick={props.onOpenModePicker} aria-haspopup="dialog" className="-my-1 -mr-2 shrink-0">
           {t("modeDisplay")}

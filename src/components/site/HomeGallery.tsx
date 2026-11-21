@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { hasLocale } from "next-intl";
 import { routing } from "@/i18n/routing";
 import PosterCard from "./PosterCard";
+import HomeGalleryRow from "./HomeGalleryRow"; // --- home-looks --- (E2 review)
 import { GALLERY, galleryHref, homeGallery } from "@/content/gallery";
 import { assetPath } from "@/lib/site";
 import { IconArrowRight, IconPlay } from "@/components/ui/icons";
@@ -13,6 +14,8 @@ import { IconArrowRight, IconPlay } from "@/components/ui/icons";
  * its seed, and the way to the whole gallery. Below 1024 px the row scrolls sideways, two cards and a part of the third in
  * view, so the long landing page grows by one row; from 1024 px the six sit side by side. The pictures load lazily and sit
  * in squares of a fixed shape, so nothing moves while they come in.
+ * (E2 review) The pictures are the 360 px squares a card shows and come after the page's other requests (`low`), and the row
+ * keeps its sideways position for Back (HomeGalleryRow).
  */
 export default function HomeGallery() {
   const t = useTranslations("Gallery");
@@ -35,7 +38,7 @@ export default function HomeGallery() {
             <IconArrowRight size={16} />
           </Link>
         </div>
-        <ul className="-mx-4 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-6 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
+        <HomeGalleryRow className="-mx-4 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-6 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
           {presets.map((preset) => {
             const name = preset.name[lang];
             return (
@@ -47,6 +50,7 @@ export default function HomeGallery() {
                     name={name}
                     tag={modes(`${preset.mode}.name`)}
                     headingLevel="h3"
+                    low
                     footer={
                       <Link
                         href={galleryHref(preset)}
@@ -63,7 +67,7 @@ export default function HomeGallery() {
               </li>
             );
           })}
-        </ul>
+        </HomeGalleryRow>
       </div>
     </section>
   );

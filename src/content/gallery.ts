@@ -1,5 +1,6 @@
 import type { Locale } from "@/i18n/routing";
 import type { ModeId } from "@/lib/physics/types";
+import type { HeroCamera } from "@/lib/thumbnails/heroFrame"; // --- gallery-every-mode --- (E2 review) a card picture's camera
 
 /*
  * --- daily-gallery --- The preset gallery (/gallery): curated setups, each a share query the simulator opens as is.
@@ -12,6 +13,10 @@ import type { ModeId } from "@/lib/physics/types";
  * Adding a preset: build the look in the simulator, copy the address bar's query (add `seed=` from the canvas' data-seed or
  * a found simulation), append an entry with names in every language, then render its card image with
  * `GALLERY=<id> npm run previews` against the served build (public/gallery/<id>.webp; `previewAt` is the moment shown).
+ * --- gallery-every-mode --- (E2 review) The picture is the 360 × 360 square a card shows (it used to be the whole 640 × 360
+ * world, 44% of it cropped away by every card): the centred square of the world, or the square `camera` frames, as a mode
+ * card's hero moment does (src/lib/thumbnails/heroMoments.ts), where the action is small or a caption would put English
+ * words on the Polish and Spanish pages.
  */
 
 export type LocalizedText = Record<Locale, string>;
@@ -24,6 +29,8 @@ export interface GalleryPreset {
   query: string;
   /** Seconds into the run the preview image shows. */
   previewAt: number;
+  /** --- gallery-every-mode --- The square the picture shows (default: the centred square of the world, what a clip records). */
+  camera?: HeroCamera;
   name: LocalizedText;
   description: LocalizedText;
 }
@@ -72,7 +79,9 @@ export const GALLERY: readonly GalleryPreset[] = [
     id: "web-dominion",
     mode: "stringBattle",
     query: "mode=stringBattle&sbst=neon&seed=228323246",
-    previewAt: 6,
+    // (E2 review: the ring lit for the last duel, and a camera that leaves the corner's English FLASHING LIGHTS notice out)
+    previewAt: 18,
+    camera: { zoom: 1.25 },
     name: { en: "Neon Web", pl: "Neonowa sieć", es: "Red de neón" },
     description: {
       en: "Four balls drag fans of glowing threads across a neon moiré, cutting each other's strings until one rules the web.",
@@ -380,8 +389,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     name: { en: "Retro Runner", pl: "Retro biegacz", es: "Corredor retro" },
     description: {
       en: "A cute square runs and jumps to the beat in retro colours. Every landing hits a beat, right to the finish.",
-      pl: "Uroczy kwadrat biegnie i skacze w rytm w kolorach retro. Każde lądowanie trafia w beat, aż do mety.",
-      es: "Un cuadrado adorable corre y salta al ritmo en colores retro. Cada aterrizaje cae en el beat hasta la meta.",
+      pl: "Uroczy kwadrat biegnie i skacze w rytm w kolorach retro. Każde lądowanie trafia w rytm, aż do mety.",
+      es: "Un cuadrado adorable corre y salta al ritmo en colores retro. Cada aterrizaje cae a compás hasta la meta.",
     },
   },
   // --- gallery-every-mode --- seed 6: the run ends at 26.1 s of its 30 s clip in the 800 × 450 world (26.1 s in a phone's 450 × 450)
@@ -428,12 +437,14 @@ export const GALLERY: readonly GalleryPreset[] = [
     id: "neon-drop",
     mode: "beatDrop",
     query: "mode=beatDrop&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&bdd=1&bda=1&seed=2",
-    previewAt: 12,
-    name: { en: "Neon Beat Drop", pl: "Neonowy beat drop", es: "Beat drop de neón" },
+    // (E2 review: the mode draws its own night sky, so the picture is a camera on the ball landing on a pad, not the whole stage)
+    previewAt: 11.5,
+    camera: { x: 0.36, y: 0.6, zoom: 1.6 },
+    name: { en: "Neon Beat Drop", pl: "Neonowe spadanie w rytm", es: "Caída al ritmo de neón" },
     description: {
       en: "Neon pads fly in just before each beat, so every landing of the ball hits it. Made for a music edit.",
-      pl: "Neonowe platformy wlatują tuż przed każdym beatem, więc każde lądowanie piłki trafia w rytm. Stworzone pod montaż muzyczny.",
-      es: "Plataformas de neón llegan justo antes de cada beat, así que cada aterrizaje cae en el ritmo. Hecho para edits musicales.",
+      pl: "Neonowe platformy wlatują tuż przed każdym bitem, więc każde lądowanie piłki trafia w rytm. Stworzone pod montaż muzyczny.",
+      es: "Plataformas de neón llegan justo antes de cada golpe, así que cada aterrizaje cae a compás. Hecho para vídeos musicales.",
     },
   },
   // --- gallery-every-mode --- seed 2: the run ends at 30 s of its 34 s clip in the 800 × 450 world (30 s in a phone's 450 × 450)
@@ -492,13 +503,15 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "thunder-duel",
     mode: "fightLeague",
-    query: "mode=fightLeague&glow=1&dur=25&seed=2",
+    // (E2 review: the lilac stage and its neon floor, the drawing only, never the fight: the noir stage's picture was 94% black)
+    query: "mode=fightLeague&glow=1&dur=25&flSt=lilac&flAs=neon&seed=2",
     previewAt: 9.5,
+    camera: { y: 0.45, zoom: 1.3 },
     name: { en: "Thunder Duel", pl: "Pojedynek gromów", es: "Duelo del trueno" },
     description: {
-      en: "Thor and Loki duel as balls on the black stage, each with his own weapon. The clip ends on the knockout.",
-      pl: "Thor i Loki walczą jako piłki na czarnej scenie, każdy własną bronią. Klip kończy się nokautem.",
-      es: "Thor y Loki se enfrentan como bolas en el escenario negro, cada uno con su arma. El clip termina con el KO.",
+      en: "Thor and Loki duel as balls on a lilac stage, each with his own weapon. The clip ends on the knockout.",
+      pl: "Thor i Loki walczą jako piłki na liliowej scenie, każdy własną bronią. Klip kończy się nokautem.",
+      es: "Thor y Loki se enfrentan como bolas en un escenario lila, cada uno con su arma. El clip termina con el KO.",
     },
   },
   // --- gallery-every-mode --- seed 1: the run ends at 8.2 s of its 12 s clip in the 800 × 450 world (8 s in a phone's 450 × 450)
@@ -570,13 +583,15 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "marble-tune",
     mode: "beatMachine",
-    query: "mode=beatMachine&glow=1&lh=0&seed=1",
+    // (E2 review: the neon theme's violet sky behind the machine and a camera on the bars: the plain picture was 93% black)
+    query: "mode=beatMachine&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&lh=0&seed=1",
     previewAt: 3.5,
+    camera: { y: 0.58, zoom: 1.4 },
     name: { en: "Marble Xylophone", pl: "Kulkowy ksylofon", es: "Xilófono de canicas" },
     description: {
       en: "Marbles drop from their tubes onto tuned bars and ride the lift back up. Every note lands right on the beat.",
       pl: "Kulki spadają z rurek na nastrojone sztabki i wracają windą na górę. Każda nuta trafia idealnie w rytm.",
-      es: "Las canicas caen de sus tubos sobre barras afinadas y vuelven a subir en el ascensor. Cada nota cae justo en el beat.",
+      es: "Las canicas caen de sus tubos sobre barras afinadas y vuelven a subir en el ascensor. Cada nota cae justo a compás.",
     },
   },
   // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
@@ -637,6 +652,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     mode: "mergeRing",
     query: "mode=mergeRing&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=7",
     previewAt: 15,
+    camera: { y: 0.46, zoom: 1.4 }, // (E2 review: the ring's shapes, without the English question under it and the corner counts)
     name: { en: "Neon Merge", pl: "Neonowe łączenie", es: "Fusión de neón" },
     description: {
       en: "Balls drop into a neon ring and fuse tier by tier. Will the final form appear before the ring overflows?",
@@ -676,6 +692,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     mode: "sandPlate",
     query: "mode=sandPlate&glow=1&seed=2",
     previewAt: 17.5,
+    camera: { y: 0.4, zoom: 1.3 }, // (E2 review: the mandala alone, without its English THE FINAL SHAPE banner under the plate)
     name: { en: "Sand Mandala", pl: "Piaskowa mandala", es: "Mandala de arena" },
     description: {
       en: "Every new note shakes the sand into a finer figure. The last chord floods the plate with colour and leaves a mandala.",
@@ -702,6 +719,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     mode: "blueprint",
     query: "mode=blueprint&glow=1&blp=hotPotato&seed=5",
     previewAt: 10,
+    camera: { x: 0.51, y: 0.53, zoom: 1.35 }, // (E2 review: the arena, without the English HOT POTATO title in its corner)
     name: { en: "Hot Potato", pl: "Gorący ziemniak", es: "Patata caliente" },
     description: {
       en: "A touch passes the swelling bomb to the next ball. Whoever holds it when the fuse runs out is gone.",
@@ -714,8 +732,10 @@ export const GALLERY: readonly GalleryPreset[] = [
 /**
  * --- home-looks --- The landing page's row under the hero, "Start from a finished look" (HomeGallery.tsx): six presets of six
  * shelves whose pictures read at a card's size, the newest modes among them.
+ * (E2 review: and whose pictures carry no words, which would be English on the Polish and Spanish pages: Chaos Harp takes
+ * Aurora Song's place, whose ring asks NAME THE TUNE for the whole run)
  */
-export const HOME_GALLERY_IDS: readonly string[] = ["neon-escape", "web-dominion", "aurora-song", "sand-mandala", "neon-merge", "hot-potato"];
+export const HOME_GALLERY_IDS: readonly string[] = ["neon-escape", "web-dominion", "chaos-harp", "sand-mandala", "neon-merge", "hot-potato"];
 
 /** The presets of the landing page's row, in its order. */
 export function homeGallery(): GalleryPreset[] {

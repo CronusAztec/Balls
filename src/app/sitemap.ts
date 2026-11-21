@@ -4,6 +4,7 @@ import { pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
 import { CHANGELOG, latestRelease } from "@/content/changelog"; // --- seo --- the dates of the changelog and the download page
 import { LEGAL_LAST_UPDATED } from "@/lib/legalDates"; // --- seo --- the legal pages' "last updated"
+import { modePageModes, modePagePath } from "@/lib/modePages"; // --- mode-pages --- a page for every mode
 
 /**
  * Rendered at build time into out/sitemap.xml. Add new static routes here – only indexable ones: a page whose metadata says
@@ -46,7 +47,8 @@ function lastModifiedOf(path: string, deployed: string | undefined): string | un
 export default function sitemap(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
   const deployed = lastModified();
-  for (const p of STATIC_PATHS) {
+  // --- mode-pages --- (Lane E, E3) the page of every mode after the static pages, in the wall's order, dated by the deploy
+  for (const p of [...STATIC_PATHS, ...modePageModes().map(modePagePath)]) {
     // The same hreflang set as every page's <head> (localeAlternates), x-default included.
     const languages = localeAlternates(p);
     const lastmod = lastModifiedOf(p, deployed);

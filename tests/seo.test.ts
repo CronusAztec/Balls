@@ -9,6 +9,7 @@ import { LEGAL_LAST_UPDATED } from "@/lib/legalDates";
 import { routing } from "@/i18n/routing";
 import sitemap from "@/app/sitemap";
 import { DESKTOP_VERSION } from "@/lib/desktop/release";
+import { modePageModes, modePagePath } from "@/lib/modePages"; // --- mode-pages ---
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
 import {
   DEFAULT_OG_PATH,
@@ -347,7 +348,8 @@ describe("social cards", () => {
       expect(fs.readdirSync(path.join(PUBLIC, "og", locale)).sort(), locale).toEqual(OG_CARD_PAGES.map((c) => `${c}.png`).sort());
     }
     expect(count).toBe(27);
-    expect(fs.readdirSync(path.join(PUBLIC, "og")).sort()).toEqual([...LOCALES].sort());
+    // (--- mode-pages --- and og/modes, the mode pages' cards: tests/modePages.test.ts holds that folder to one card a mode page)
+    expect(fs.readdirSync(path.join(PUBLIC, "og")).sort()).toEqual([...LOCALES, "modes"].sort());
   });
 
   it("keep the default screenshot, public/og.png, as the card of the pages without one", () => {
@@ -410,7 +412,8 @@ describe("sitemap", () => {
   it("lists the changelog and the press page, and every indexable page of the site, in every language, and no page that is not there", async () => {
     const listed = new Set(sitemap().map((e) => e.url));
     for (const locale of LOCALES) expect(listed.has(pageUrl(locale, "/changelog")), `${locale} /changelog`).toBe(true);
-    const indexable = pages.filter((p) => !NOINDEX.includes(p.name)).map((p) => p.path);
+    // (--- mode-pages --- and the page of every mode, /modes/<slug>: tests/modePages.test.ts holds their heads to the same rules)
+    const indexable = [...pages.filter((p) => !NOINDEX.includes(p.name)).map((p) => p.path), ...modePageModes().map(modePagePath)];
     const want = new Set(indexable.flatMap((p) => LOCALES.map((l) => pageUrl(l, p))));
     expect([...listed].sort()).toEqual([...want].sort());
     // the press page is in the sitemap exactly when it exists
