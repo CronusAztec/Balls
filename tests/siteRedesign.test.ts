@@ -176,6 +176,15 @@ describe("when each mode arrived", () => {
     for (const mode of MODE_IDS) expect(isNewMode(mode, "2.0.0") || isNewMode(mode, "0.0.0-dev") || isNewMode(mode, ""), mode).toBe(false);
   });
 
+  // --- gallery-every-mode --- (Lane E, E2) the two modes of the coming release wear the badge on today's site, after their release
+  // and one minor version later, and lose it two minor versions after it
+  it("marks Song Ring and Sand Plate new before their release, with it and one version after", () => {
+    for (const mode of ["songRing", "sandPlate"] as const) {
+      expect(MODE_SINCE[mode], mode).toBe("1.18.0");
+      expect(["1.17.0", "1.18.0", "1.18.2", "1.19.0", "1.20.0"].map((v) => isNewMode(mode, v)), mode).toEqual([true, true, true, true, false]);
+    }
+  });
+
   it("sorts by arrival, newest first, and by name in the page's language", () => {
     expect([...MODE_SORT_IDS]).toEqual(["featured", "newest", "az"]);
     const some: ModeId[] = ["classic", "drop", "mergeRing", "multiply", "blueprint", "fightLeague"];

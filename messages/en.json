@@ -4833,7 +4833,10 @@
     "tryIt": "Try it",
     "tryAria": "Try it: {name}",
     "outro": "Changed something and love the result? Copy the share link under the canvas and your setup travels with it.",
-    "cta": "Start from scratch"
+    "cta": "Start from scratch",
+    "filterLabel": "Filter presets by family or mode",
+    "homeTitle": "Start from a finished look",
+    "homeAll": "See the whole gallery"
   },
   "Pwa": {
     "installApp": "Install app",

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import fs from "fs";
 import path from "path";
-import { GALLERY, galleryHref } from "@/content/gallery";
+import { GALLERY, HOME_GALLERY_IDS, galleryHref, homeGallery } from "@/content/gallery";
 import { routing } from "@/i18n/routing";
 import { MODE_IDS } from "@/lib/physics/types";
+import { shelfOf } from "@/lib/siteDesign"; // --- gallery-every-mode ---
 import { parseSeed } from "@/lib/recording/batch";
 import { settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import en from "../messages/en.json";
@@ -40,6 +41,22 @@ describe("preset gallery (src/content/gallery.ts)", () => {
       // canonical: every parameter is one the simulator reads, in range and not a default (else it would be dropped here)
       expect(settingsToSearchParams(settingsFromSearchParams(settings)).toString(), preset.id).toBe(settings.toString());
     }
+  });
+
+  // --- gallery-every-mode --- (Lane E, E2) a finished look for every mode, Mode Lab's games included
+  it("holds a preset for every mode, and two of Mode Lab's games", () => {
+    for (const mode of MODE_IDS) expect(GALLERY.some((p) => p.mode === mode), mode).toBe(true);
+    const lab = GALLERY.filter((p) => p.mode === "blueprint").map((p) => new URLSearchParams(p.query).get("blp"));
+    expect(lab).toEqual(expect.arrayContaining(["thinIce", "hotPotato"]));
+  });
+
+  // --- home-looks --- the landing page's row under the hero
+  it("puts four to six presets of different shelves on the landing page, each a preset of the gallery", () => {
+    const home = homeGallery();
+    expect(home.map((p) => p.id)).toEqual([...HOME_GALLERY_IDS]);
+    expect(home.length).toBeGreaterThanOrEqual(4);
+    expect(home.length).toBeLessThanOrEqual(6);
+    expect(new Set(home.map((p) => shelfOf(p.mode))).size).toBe(home.length);
   });
 
   it("links to the simulator with the preset applied", () => {

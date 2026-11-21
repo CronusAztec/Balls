@@ -940,7 +940,8 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
         };
       });
     }
-    const chips = await gp.$$eval('[data-testid="gallery-filter"] label', (labels) => labels.map((l) => l.getAttribute("for")));
+    // (--- gallery-every-mode --- the shelf chips: the mode chips of the second row share the filter, and are checked below)
+    const chips = await gp.$$eval('[data-testid="gallery-filter"] label[for^="gallery-shelf-"]', (labels) => labels.map((l) => l.getAttribute("for")));
     const shown = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.closest("li").getAttribute("data-shelf")));
     const total = (await shown()).length;
     const perShelf = {};
@@ -960,6 +961,54 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
       "gallery: the shelf chips are radio buttons that show one shelf's presets with scripts off, each with its count, and All shows every preset again",
       chips[0] === "gallery-shelf-all" && chips.length >= 4 && Object.values(perShelf).every((x) => x.n > 0 && x.own && x.label === x.n) && Object.values(perShelf).reduce((sum, x) => sum + x.n, 0) === total && backToAll === total,
       `(${chips.join(" ")}, ${JSON.stringify(perShelf)}, all ${total} → ${backToAll})`,
+    );
+    // --- gallery-every-mode --- the mode chips, scripts off: a chip for every mode with a preset, none shown under All, a shelf
+    // shows its own modes, one filter at a time (a mode chip shows only its mode's presets), and a mode keeps its shelf's row
+    // and outlines the shelf's chip
+    const modeChips = await gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip]', (els) => els.map((el) => ({ mode: el.getAttribute("data-mode-chip"), shelf: el.getAttribute("data-shelf") })));
+    const visibleChips = () => gp.$$eval('[data-testid="gallery-mode-chips"] [data-mode-chip] label', (labels) => labels.filter((l) => l.getBoundingClientRect().width > 0).map((l) => l.closest("[data-mode-chip]").getAttribute("data-mode-chip")));
+    const shownModes = () => gp.$$eval("[data-gallery-card]", (cards) => cards.filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-mode")));
+    const allChips = (await visibleChips()).length;
+    await gp.locator('label[for="gallery-shelf-lab"]').click();
+    await gp.locator('label[for="gallery-mode-blueprint"]').click();
+    await gp.waitForTimeout(400); // (the chips' colours ease over 150 ms)
+    const lab = { shown: await shownModes(), chips: await visibleChips(), shelfChecked: await gp.$$eval('input[id^="gallery-shelf-"]:checked', (els) => els.length), outline: await gp.$eval('label[for="gallery-shelf-lab"]', (l) => getComputedStyle(l).borderColor) };
+    await gp.locator('label[for="gallery-shelf-music"]').click();
+    const music = { chips: await visibleChips(), modeChecked: await gp.$$eval('input[id^="gallery-mode-"]:checked', (els) => els.length) };
+    await gp.locator('label[for="gallery-mode-songRing"]').click();
+    const song = { shown: await shownModes(), chips: await visibleChips() };
+    await gp.locator('label[for="gallery-shelf-all"]').click();
+    const musicModes = modeChips.filter((c) => c.shelf === "music").map((c) => c.mode);
+    check(
+      "gallery: a mode chip for every mode, scripts off: none under All, a shelf shows its own modes, a mode chip shows only that mode's presets (Mode Lab's two games), and one filter is on at a time",
+      modeChips.length >= 50 && allChips === 0 && lab.shown.length === 2 && lab.shown.every((m) => m === "blueprint") && lab.chips.join() === "blueprint" && lab.shelfChecked === 0 && lab.outline === "rgb(176, 240, 42)" && music.modeChecked === 0 && music.chips.join() === musicModes.join() && song.shown.join() === "songRing" && song.chips.join() === musicModes.join() && (await shown()).length === total,
+      `(${modeChips.length} chips, ${allChips} shown, lab ${JSON.stringify(lab)}, music ${JSON.stringify(music)}, song ${JSON.stringify(song)})`,
+    );
+  } finally {
+    await phone.close().catch(() => {});
+  }
+}
+// --- gallery-every-mode --- a mode chip goes into the address (?mode=sandPlate in place of the shelf) and a reload shows it again
+{
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const gp = await phone.newPage();
+    await gp.goto(`${BASE}/en/gallery/?family=music`, { waitUntil: "networkidle" });
+    await gp.waitForFunction(() => { const el = document.querySelector('[data-testid="gallery-filter"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 }).catch(() => {});
+    await gp.waitForTimeout(300);
+    const at = () => gp.evaluate(() => ({ checked: document.querySelector('input[name="gallery-shelf"]:checked')?.value ?? null, search: location.search, shown: [...document.querySelectorAll("[data-gallery-card]")].filter((c) => c.getBoundingClientRect().height > 0).map((c) => c.getAttribute("data-gallery-card")), sideways: document.documentElement.scrollWidth - window.innerWidth }));
+    const music = await at();
+    await gp.locator('label[for="gallery-shelf-loops"]').tap();
+    await gp.locator('label[for="gallery-mode-sandPlate"]').tap();
+    await gp.waitForTimeout(300);
+    const picked = await at();
+    await gp.reload({ waitUntil: "networkidle" });
+    await gp.waitForTimeout(800);
+    const reloaded = await at();
+    check(
+      "gallery: a mode chip goes into the address in place of the shelf (?mode=sandPlate) and a reload shows its presets again, with no sideways scroll on a phone",
+      music.checked === "music" && picked.checked === "mode:sandPlate" && picked.search === "?mode=sandPlate" && picked.shown.join() === "sand-mandala" && reloaded.checked === "mode:sandPlate" && reloaded.shown.join() === "sand-mandala" && picked.sideways <= 0,
+      `(music ${music.checked}, picked ${JSON.stringify(picked)}, reloaded ${JSON.stringify(reloaded)})`,
     );
   } finally {
     await phone.close().catch(() => {});
@@ -8484,6 +8533,48 @@ await smokeBlock("daily-gallery", async () => {
   await page.goto(`${BASE}/pl/gallery/`, { waitUntil: "networkidle" });
   const plTry = await page.getByRole("link", { name: /Wypróbuj/ }).count();
   check("gallery: the Polish gallery speaks Polish", plTry === cards.length, `(${plTry} "Wypróbuj" links)`);
+
+  // --- home-looks --- 2b. The landing page's row under the hero: four to six gallery cards between the hero and today's challenge,
+  //    each linking to its preset's simulator link (its settings and its seed), the pictures lazy and sized; a card opens the
+  //    studio on its seed. On a phone the row scrolls sideways and the page does not.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const homeRow = await page.evaluate(() => {
+    const row = document.querySelector('[data-testid="home-gallery"]');
+    const hero = document.querySelector("h1");
+    const dailyCard = document.querySelector("[data-testid=daily-card]");
+    return {
+      cards: [...(row?.querySelectorAll("[data-home-look]") ?? [])].map((li) => ({ id: li.getAttribute("data-home-look"), href: li.querySelector("a")?.getAttribute("href") ?? "", img: li.querySelector("img")?.getAttribute("loading") ?? "", sized: !!li.querySelector("img[width][height]") })),
+      title: row?.querySelector("h2")?.textContent ?? "",
+      order: !!row && !!hero && !!dailyCard && !!(hero.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(dailyCard) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const homeLinks = homeRow.cards.every((c) => byId.has(c.id) && c.href === `${basePath}/en/simulator/?${byId.get(c.id).query}` && c.img === "lazy" && c.sized);
+  const homeFirst = byId.get(homeRow.cards[0]?.id);
+  await page.locator(`[data-home-look="${homeFirst?.id}"]`).scrollIntoViewIfNeeded();
+  const homeImgs = await page.$$eval('[data-testid="home-gallery"] img', (imgs) => Promise.all(imgs.map((img) => (img.complete && img.naturalWidth > 0) || new Promise((r) => { img.onload = () => r(img.naturalWidth > 0); img.onerror = () => r(false); setTimeout(() => r(img.naturalWidth > 0), 5000); }))));
+  await page.locator(`[data-home-look="${homeFirst?.id}"]`).getByTestId("home-gallery-try").click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const homePinned = await pinnedRun(homeFirst?.mode, new URLSearchParams(homeFirst?.query ?? "").get("seed"), null);
+  check(
+    "home looks: four to six gallery cards between the hero and today's challenge, each linking to its preset with its seed, the pictures lazy, sized and shown, and a card opens the studio on its seed",
+    homeRow.cards.length >= 4 && homeRow.cards.length <= 6 && homeRow.title === "Start from a finished look" && homeRow.order && homeLinks && homeImgs.every(Boolean) && homePinned,
+    `(${JSON.stringify(homeRow)}, pictures ${homeImgs.join()}, pinned ${homePinned})`,
+  );
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    try {
+      const hp = await phone.newPage();
+      await hp.goto(`${BASE}/pl/`, { waitUntil: "networkidle" });
+      const phoneRow = await hp.evaluate(() => {
+        const list = document.querySelector('[data-testid="home-gallery"] ul');
+        return { scrolls: !!list && list.scrollWidth > list.clientWidth + 40, sideways: document.documentElement.scrollWidth - window.innerWidth, title: document.querySelector('[data-testid="home-gallery"] h2')?.textContent ?? "", tries: document.querySelectorAll('[data-testid="home-gallery-try"]').length };
+      });
+      check("home looks (pl, 390 px): the row scrolls sideways and the page does not, in Polish", phoneRow.scrolls && phoneRow.sideways <= 0 && phoneRow.title === "Zacznij od gotowego presetu" && phoneRow.tries >= 4, `(${JSON.stringify(phoneRow)})`);
+    } finally {
+      await phone.close().catch(() => {});
+    }
+  }
 
   // 3. The landing card: today's (UTC) challenge right below the hero.
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
