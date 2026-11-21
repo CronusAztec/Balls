@@ -101,6 +101,8 @@ export interface ModeSettings {
   spikesEnabled: boolean;
   spikeCount: number;
   multiplySpawnCount: number;
+  /** --- multiply-race --- Multiply's race to the limit: the start ball aimed at the gap, the swarm's voice, the end at its limit (absent: off). */
+  multiplyRace?: boolean;
   shatterSegmentsPerWall: number;
   shatterHpPerSegment: number;
   /** --- shatter-even-bricks --- Shatter's inner rings cut into bricks as long as the outer ring's (absent: every ring the same count). */
@@ -368,9 +370,10 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */ & Partial<Pick<ModeSettings, "multiplyRace">> /* --- multiply-race --- */): boolean {
   if (mode === "landClaim") return lcPyramidLoops(resolveLandClaimSettings(settings.landClaim)); // --- land-claim-pyramid --- (a looping pyramid never ends; its outcomes search the first cycle)
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
+  if (mode === "multiply" && settings.multiplyRace === true) return false; // --- multiply-race --- (the race ends at the swarm's limit)
   if (mode === "hoops") return resolveHoopsSettings(settings.hoops).returnLoop; // --- bead-hoops --- (the return loops forever)
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
@@ -612,7 +615,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
     engine.setSpikesEnabled(settings.spikesEnabled);
     engine.setSpikeCount(settings.spikeCount);
   }
-  if (mode === "multiply") engine.setMultiplySpawnCount(settings.multiplySpawnCount);
+  if (mode === "multiply") {
+    engine.setMultiplySpawnCount(settings.multiplySpawnCount);
+    engine.setMultiplyRace(settings.multiplyRace === true); // --- multiply-race ---
+  }
   if (mode === "shatter") {
     engine.setShatterSegmentsPerWall(settings.shatterSegmentsPerWall);
     engine.setShatterHpPerSegment(settings.shatterHpPerSegment);

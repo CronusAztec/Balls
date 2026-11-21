@@ -79,6 +79,7 @@ import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./mod
 import { ColourSortMode, type ColourSortSettings, type ColourSortView } from "./modes/colourSort"; // --- colour-sort ---
 import { HoopsMode, type HoopsSettings, type HoopsView } from "./modes/hoops"; // --- bead-hoops --- Spinning Hoops
 import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
+import type { MultiplyView } from "./modes/multiply"; // --- multiply-race ---
 import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // --- chord-stars ---
 import type { StarChordsSettings } from "./starChords"; // --- chord-stars ---
 import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // --- ellipse-foci ---
@@ -1114,6 +1115,17 @@ export class PhysicsEngine {
   setMultiplySpawnCount(n: number) {
     this.multiplyMode.setSpawnCount(n);
   }
+  // --- multiply-race --- Multiply's race to the limit (applies from the next start) and the run as the canvas reads it
+  setMultiplyRace(on: boolean) {
+    this.multiplyMode.setRace(on);
+  }
+  getMultiplyRace() {
+    return this.multiplyMode.getRace();
+  }
+  getMultiplyView(): MultiplyView {
+    return this.multiplyMode.getView();
+  }
+  // --- end multiply-race ---
   isLinesMode() {
     return this.currentMode === this.linesMode;
   }

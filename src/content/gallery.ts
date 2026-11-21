@@ -215,6 +215,34 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Una bola verde pálido con los colores de la lluvia digital crece con cada rebote, unida a cada impacto, hasta que no le queda sitio.",
     },
   },
+  // --- grow-fill-clip --- Grow's start look as a card (the page's own defaults stay: the bot's fill-grow plans and the crew's
+  // corpus read them): the multiply law at 8 % a bounce, the run ending at the fill; seed 7 is full at 16.5 s (15.6 s here)
+  {
+    id: "fill-the-ring",
+    mode: "grow",
+    query: "mode=grow&gLaw=multiply&gFill=finish&gStep=8&gHue=1&gMark=1&gPitch=1&seed=7",
+    previewAt: 14.8,
+    name: { en: "Fill the Ring", pl: "Wypełnij pierścień", es: "Llena el anillo" },
+    description: {
+      en: "A small ball grows 8% with every bounce, its note dropping and its colour warming as it swells, until it fills the ring and lands the chord.",
+      pl: "Mała piłka rośnie o 8% z każdym odbiciem, jej nuta opada, a kolor się ociepla, aż wypełni cały pierścień i zabrzmi akord.",
+      es: "Una pelota pequeña crece un 8 % con cada rebote, su nota baja y su color se calienta hasta que llena el anillo y suena el acorde.",
+    },
+  },
+  // --- multiply-race --- Multiply's start look as a card (the page's own defaults stay, as Grow's): the race to the limit through
+  // a gap of 0.6; seed 7's swarm reaches 200 at 16.6 s (12.6 s here)
+  {
+    id: "swarm-race",
+    mode: "multiply",
+    query: "mode=multiply&gap=0.6&mrace=1&seed=7",
+    previewAt: 9,
+    name: { en: "Swarm Race", pl: "Wyścig roju", es: "Carrera del enjambre" },
+    description: {
+      en: "One ball slips out of the ring at once and every escape spawns three more. The count doubles and doubles until the swarm hits 200 and the ring bursts.",
+      pl: "Jedna piłka od razu wymyka się z pierścienia, a każda ucieczka daje trzy nowe. Licznik podwaja się raz za razem, aż rój dojdzie do 200 i pierścień pęknie.",
+      es: "Una pelota sale del anillo al instante y cada escape suma tres más. La cuenta se duplica una y otra vez hasta que el enjambre llega a 200 y el anillo estalla.",
+    },
+  },
   {
     id: "neon-vortex",
     mode: "vortex",

@@ -138,6 +138,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     spikesEnabled: s.spikesEnabled,
     spikeCount: s.spikeCount,
     multiplySpawnCount: s.multiplySpawnCount,
+    ...(s.multiplyRace ? { multiplyRace: true } : {}), // --- multiply-race --- (absent when off: a plan's request is what it was)
     shatterSegmentsPerWall: s.shatterSegments, // --- shatter-demolition --- (settings now: the mode's own 18 and 1 unless the page says otherwise)
     shatterHpPerSegment: s.shatterHits,
     shatterEvenBricks: s.shatterEvenBricks, // --- shatter-even-bricks ---

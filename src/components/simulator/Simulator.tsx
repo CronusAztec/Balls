@@ -423,6 +423,7 @@ export default function Simulator() {
     engine.setShatterHpPerSegment(s.shatterHits);
     engine.setShatterEvenBricks(s.shatterEvenBricks); // --- shatter-even-bricks ---
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
+    engine.setMultiplyRace(s.multiplyRace); // --- multiply-race --- (before the init: the aimed start ball)
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
     engine.setGrowLinesEnabled(s.growLines);
@@ -629,6 +630,22 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setMultiplySpawnCount(s.multiplySpawnCount);
   }, [s.multiplySpawnCount]);
+  // --- multiply-race --- the race switched restarts a Multiply run and drops a found seed (its start ball is aimed at the start)
+  const multiplyRaceRef = useRef(s.multiplyRace);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setMultiplyRace(s.multiplyRace);
+    if (multiplyRaceRef.current === s.multiplyRace) return;
+    multiplyRaceRef.current = s.multiplyRace;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "multiply" && engine.getCurrentModeName() === "multiply") {
+      engine.initMode("multiply");
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.multiplyRace]);
   useEffect(() => {
     engineRef.current?.setWallBreakStyle(s.wallBreakStyle);
   }, [s.wallBreakStyle]);
@@ -3583,6 +3600,7 @@ export default function Simulator() {
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,
           multiplySpawnCount: settings.multiplySpawnCount,
+          multiplyRace: settings.multiplyRace, // --- multiply-race ---
           shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
           shatterHpPerSegment: settings.shatterHits,
           shatterEvenBricks: settings.shatterEvenBricks, // --- shatter-even-bricks ---
@@ -3866,6 +3884,10 @@ export default function Simulator() {
       escaped: t("Simulator.canvasEscaped"),
       // --- end-banner --- (the end lines count in the page's language: "1 teleport", "2 teleports", "5 cykli")
       ringsOut: (rings, seconds) => t("Simulator.canvasRingsOut", { rings, time: seconds }),
+      growFull: t("Simulator.canvasGrowFull"), // --- grow-fill-clip ---
+      growFullSub: (seconds) => t("Simulator.canvasGrowFullSub", { seconds }),
+      swarmFull: (count) => t("Simulator.canvasSwarmFull", { count }), // --- multiply-race ---
+      swarmFullSub: (seconds) => t("Simulator.canvasSwarmFullSub", { seconds }),
       afterFrozenBalls: (n) => t("Simulator.canvasAfterFrozenBalls", { count: n }),
       frozenCount: (n) => fill("Simulator.canvasFrozenCount", { count: n }),
       painted: (pct) => fill("Simulator.canvasPainted", { pct }),
@@ -4352,7 +4374,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */, multiplyRace: settings.multiplyRace /* --- multiply-race --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : settings.mode === "sandPlate" ? "Simulator.finderFixedSandPlate" /* --- sand-plate --- (its notes × the note length, plus the finale) */ : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
