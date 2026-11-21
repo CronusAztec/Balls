@@ -8318,6 +8318,8 @@ const bdInstrument = () =>
 {
   // ⚡ Fast export of a 10 s clip at 120 BPM (landings 0.5 … 9 s: nine kicks on beats 1 and 3): rendered offline, every kick
   // goes through the export's own audio, the clip ends with the run and a second export of the same seed renders the same frames.
+  // --- end-banner --- (B1 review) the run ends at 9.6 s, its verdict is up from the last landing (9 s) and holds the end screen
+  // END_BANNER_HOLD_MS (1.5 s), then the recorder's 0.5 s: the clip is 11.0 s (it was 10.1 s, the run's end and the 0.5 s)
   await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
   if (webCodecs) {
@@ -8342,7 +8344,7 @@ const bdInstrument = () =>
     const b = await exportOnce();
     check(
       "a beat drop fast export plays the kicks through the export's audio, ends with the run and replays the same frames",
-      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 9 && a.seconds < 11 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
+      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 10 && a.seconds < 12 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
       `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
     );
   } else check("without WebCodecs the beat drop has no fast export to check (Record Video is covered above)", true);
