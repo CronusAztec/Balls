@@ -10,7 +10,8 @@ import { modesOnShelf, shelfOf } from "@/lib/siteDesign";
 import { GALLERY } from "@/content/gallery";
 import { MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import { RING_ESCAPE_KEYS } from "@/components/simulator/sections/RingEscapeSection";
-import { META_DESCRIPTION_MAX, MODE_FIRST_SETTINGS, MODE_INTROS, MODE_PAGES_PATH, modeMetaDescription, modeOfSlug, modeOgImagePath, modePageLooks, modePageModes, modePagePath, modeSlug, relatedModes, starterSettings } from "@/lib/modePages";
+import { MESSAGE_VALUES, META_DESCRIPTION_MAX, MODE_CARD_WORDS, MODE_FIRST_SETTINGS, MODE_INTROS, MODE_PAGE_INTROS, MODE_PAGES_PATH, modeMetaDescription, modeOfSlug, modeOgImagePath, modeOgImagePathIn, modePageLooks, modePageModes, modePagePath, modeSlug, relatedModes, starterSettings } from "@/lib/modePages";
+import { createTranslator } from "next-intl";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -143,6 +144,40 @@ describe("mode pages: what each shows", () => {
     expect(starterSettings("colourSort")).not.toContain("ballColor");
   });
 
+  // (E3 review) the page formats each message with the values the studio gives it: no "{max}" left in any language
+  it("formats every intro, setting name and tip it shows in every language, with no argument left unfilled", () => {
+    for (const locale of LOCALES) {
+      const errors: string[] = [];
+      const shown: [string, string][] = [];
+      for (const full of [...Object.values(MODE_INTROS), ...Object.values(MODE_FIRST_SETTINGS).flatMap((keys) => keys!.flatMap((key) => [key, `${key}Tip`]))] as string[]) {
+        const [namespace, key] = full.split(".");
+        const t = createTranslator({ locale, messages: CATALOGS[locale] as never, namespace: namespace as never, onError: (e) => errors.push(`${full}: ${e.code}`) });
+        shown.push([full, t(key as never, MESSAGE_VALUES[full] as never) as string]);
+      }
+      for (const mode of MODE_PAGE_INTROS) {
+        const t = createTranslator({ locale, messages: CATALOGS[locale] as never, namespace: "ModePage" as never, onError: (e) => errors.push(`ModePage.intro.${mode}: ${e.code}`) });
+        shown.push([`ModePage.intro.${mode}`, t(`intro.${mode}` as never) as string]);
+      }
+      expect(errors, locale).toEqual([]);
+      for (const [full, text] of shown) expect(text, `${locale} ${full}`).not.toMatch(/\{\w+\}|ModePage\.|Controls\./);
+    }
+    expect(MESSAGE_VALUES["Controls.dpSegmentsTip"]?.max).toBe(64);
+  });
+
+  // (E3 review) every page says how its mode plays: the studio block's intro, or the page's own within a section intro's budget
+  it("says how every mode plays, in the block's intro or the page's own, within a section intro's budget", () => {
+    for (const mode of modePageModes()) expect(!!MODE_INTROS[mode] !== MODE_PAGE_INTROS.includes(mode), mode).toBe(true);
+    for (const mode of MODE_PAGE_INTROS) {
+      for (const locale of LOCALES) {
+        const text = (CATALOGS[locale].ModePage.intro as Record<string, string>)[mode];
+        expect(typeof text, `${locale} ${mode}`).toBe("string");
+        expect([...text].length, `${locale} ${mode}`).toBeLessThanOrEqual(locale === "en" ? 220 : 280);
+        expect(text.split(/[.!?](?:\s|$)/).filter((x) => x.trim()).length, `${locale} ${mode}`).toBeLessThanOrEqual(3);
+      }
+    }
+    expect(Object.keys(CATALOGS.en.ModePage.intro as object).sort()).toEqual([...MODE_PAGE_INTROS].sort());
+  });
+
   it("writes a snippet from the one-liner and the longest closing line that fits", () => {
     expect(modeMetaDescription("a".repeat(100), ["b".repeat(50), "c".repeat(20)])).toBe(`${"a".repeat(100)} ${"b".repeat(50)}`);
     expect(modeMetaDescription("a".repeat(130), ["b".repeat(50), "c".repeat(20)])).toBe(`${"a".repeat(130)} ${"c".repeat(20)}`);
@@ -178,7 +213,9 @@ describe("mode pages: the head", () => {
         descriptions.add(description);
         const og = md.openGraph as unknown as { images: { url: string; width: number; height: number; alt: string; type: string }[] };
         const image = og.images[0];
-        expect(image.url, label).toBe(`${SITE_URL}${modeOgImagePath(mode)}`);
+        // (E3 review) a picture with words has its own card in Polish and Spanish
+        expect(image.url, label).toBe(`${SITE_URL}${locale !== "en" && MODE_CARD_WORDS.includes(mode) ? `/og/modes/${locale}/${modeSlug(mode)}.jpg` : modeOgImagePath(mode)}`);
+        expect(image.url, label).toBe(`${SITE_URL}${modeOgImagePathIn(mode, locale)}`);
         expect([image.width, image.height, image.type], label).toEqual([1200, 630, "image/jpeg"]);
         expect(image.alt, label).toContain((CATALOGS[locale].Modes[mode] as { name: string }).name);
         const twitter = md.twitter as { card: string; images: { url: string; alt: string }[] };
@@ -191,12 +228,18 @@ describe("mode pages: the head", () => {
   it("has a social card for every mode page: public/og/modes/<slug>.jpg, 1200x630, at most 150 KB, and no other file there", () => {
     const dir = path.join(ROOT, "public", "og", "modes");
     for (const mode of modePageModes()) {
-      const file = path.join(ROOT, "public", modeOgImagePath(mode));
-      expect(fs.existsSync(file), `${file} – run npm run og:cards -- --modes`).toBe(true);
-      const jpeg = jpegSize(file);
-      expect([jpeg.width, jpeg.height], file).toEqual([1200, 630]);
-      expect(jpeg.bytes, file).toBeLessThanOrEqual(150 * 1024);
+      // (E3 review: and the Polish and Spanish card of a mode whose picture carries words)
+      for (const card of new Set(LOCALES.map((locale) => modeOgImagePathIn(mode, locale)))) {
+        const file = path.join(ROOT, "public", card);
+        expect(fs.existsSync(file), `${file} – run npm run og:cards -- --modes`).toBe(true);
+        const jpeg = jpegSize(file);
+        expect([jpeg.width, jpeg.height], file).toEqual([1200, 630]);
+        expect(jpeg.bytes, file).toBeLessThanOrEqual(150 * 1024);
+      }
     }
-    expect(fs.readdirSync(dir).sort()).toEqual(modePageModes().map((mode) => `${modeSlug(mode)}.jpg`).sort());
+    // (E3 review) beside the cards, one folder per language other than English, each with exactly the cards of the modes with words
+    expect(fs.readdirSync(dir).sort()).toEqual([...modePageModes().map((mode) => `${modeSlug(mode)}.jpg`), "es", "pl"].sort());
+    for (const locale of ["es", "pl"]) expect(fs.readdirSync(path.join(dir, locale)).sort(), locale).toEqual(MODE_CARD_WORDS.map((mode) => `${modeSlug(mode)}.jpg`).sort());
+    expect(MODE_CARD_WORDS.every((mode) => modePageModes().includes(mode))).toBe(true);
   });
 });

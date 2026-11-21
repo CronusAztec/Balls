@@ -21,6 +21,10 @@
  * Run it after changing the copy, the icon or the design, and commit the PNGs. CHROME_PATH points at another Chromium.
  * --- mode-pages --- And the card of every mode page, public/og/modes/<slug>.jpg (below): one per picture in public/modes, the
  * same in every language. Run it with --modes after a mode's card picture changes, and commit the JPEGs.
+ * (E3 review) A mode whose picture carries words (MODE_CARD_WORDS in src/lib/modePages.ts) has a Polish and a Spanish card too,
+ * public/og/modes/<locale>/<slug>.jpg, drawn from its card picture rendered in that language:
+ *   CARD_LOCALE=pl OUT_DIR=<dir> MODES=<the list> node scripts/generate-mode-previews.mjs     (against the served export)
+ *   node scripts/generate-og-cards.mjs --modes --locale pl --pictures <dir>
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -56,6 +60,11 @@ const onlyLocale = flag("locale");
 const onlyPage = flag("page");
 const onlyMode = flag("mode"); // --- mode-pages ---
 const modesOnly = args.includes("--modes") || !!onlyMode;
+const pictures = flag("pictures"); // --- mode-pages --- (E3 review) the folder of one language's card pictures
+if (pictures && (!onlyLocale || onlyLocale === "en" || !modesOnly)) {
+  console.error("generate-og-cards: --pictures draws the Polish or Spanish mode cards: use it with --modes and --locale pl or es");
+  process.exit(1);
+}
 if ((onlyLocale && !LOCALES.includes(onlyLocale)) || (onlyPage && !PAGES.includes(onlyPage))) {
   console.error(`generate-og-cards: unknown --locale or --page (locales: ${LOCALES.join(", ")}; pages: ${PAGES.join(", ")})`);
   process.exit(1);
@@ -116,6 +125,12 @@ const MODE_CARD_DIR = path.join(root, "public", "og", "modes");
 const MODE_QUALITY = [86, 80, 74, 68];
 /** A mode's address word: the id in kebab case (src/lib/modePages.ts modeSlug). */
 const modeSlug = (mode) => mode.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+/** (E3 review) The modes whose card picture carries words: MODE_CARD_WORDS of src/lib/modePages.ts. */
+function modesWithWords() {
+  const list = /export const MODE_CARD_WORDS[^=]*=\s*\[([^\]]*)\]/.exec(read("src", "lib", "modePages.ts").toString("utf8"))?.[1];
+  if (!list) throw new Error("generate-og-cards: no MODE_CARD_WORDS list in src/lib/modePages.ts");
+  return [...list.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+}
 
 function modeCardHtml(picture) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${FONTS}
@@ -193,16 +208,28 @@ try {
     }
   }
   // --- mode-pages --- the mode pages' cards, one per mode card picture (the whole set unless a --locale or --page narrows the run)
+  // (E3 review: with --pictures, one language's cards of the modes with words, from that folder, into og/modes/<locale>)
   if (modesOnly || (!onlyLocale && !onlyPage)) {
-    fs.mkdirSync(MODE_CARD_DIR, { recursive: true });
-    const modes = fs.readdirSync(path.join(root, "public", "modes")).filter((f) => f.endsWith(".webp")).map((f) => f.slice(0, -".webp".length)).sort();
+    const pictureDir = pictures ? path.resolve(pictures) : path.join(root, "public", "modes");
+    const cardDir = pictures ? path.join(MODE_CARD_DIR, onlyLocale) : MODE_CARD_DIR;
+    fs.mkdirSync(cardDir, { recursive: true });
+    let modes = fs.readdirSync(pictureDir).filter((f) => f.endsWith(".webp")).map((f) => f.slice(0, -".webp".length)).sort();
+    if (pictures) {
+      const worded = modesWithWords();
+      const missing = worded.filter((mode) => !modes.includes(mode));
+      if (missing.length) {
+        console.error(`generate-og-cards: ${pictureDir} has no picture of ${missing.join(", ")}`);
+        failed = true;
+      }
+      modes = worded.filter((mode) => modes.includes(mode)).sort();
+    }
     if (onlyMode && !modes.includes(onlyMode)) {
-      console.error(`generate-og-cards: no public/modes/${onlyMode}.webp`);
+      console.error(`generate-og-cards: no ${path.relative(root, path.join(pictureDir, `${onlyMode}.webp`))}`);
       failed = true;
     }
     for (const mode of modes) {
       if (onlyMode && mode !== onlyMode) continue;
-      const picture = `data:image/webp;base64,${read("public", "modes", `${mode}.webp`).toString("base64")}`;
+      const picture = `data:image/webp;base64,${fs.readFileSync(path.join(pictureDir, `${mode}.webp`)).toString("base64")}`;
       await page.setContent(modeCardHtml(picture));
       await page.evaluate(() => document.fonts.ready);
       await page.waitForFunction(() => [...document.images].every((img) => img.complete && img.naturalWidth > 0));
@@ -211,7 +238,7 @@ try {
         jpeg = await page.screenshot({ type: "jpeg", quality, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
         if (jpeg.length <= MAX_BYTES) break;
       }
-      const file = path.join(MODE_CARD_DIR, `${modeSlug(mode)}.jpg`);
+      const file = path.join(cardDir, `${modeSlug(mode)}.jpg`);
       fs.writeFileSync(file, jpeg);
       console.log(`generate-og-cards: wrote ${path.relative(root, file)} (${(jpeg.length / 1024).toFixed(1)} KB)`);
       if (jpeg.length > MAX_BYTES) {

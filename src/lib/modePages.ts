@@ -4,6 +4,7 @@ import { GALLERY, galleryHref, type GalleryPreset, type LocalizedText } from "@/
 import { looksOf, type LookKind } from "@/content/looks";
 import { cardHref } from "@/lib/thumbnails/heroMoments";
 import { MODE_PAGES_PATH, modePagePath, modeSlug } from "@/lib/modePagePath";
+import { CHAIN_LINK_CEILING } from "@/lib/uncap";
 
 export { MODE_PAGES_PATH, modePagePath, modeSlug };
 
@@ -174,6 +175,32 @@ export const MODE_FIRST_SETTINGS: Readonly<Partial<Record<ModeId, readonly strin
   drawingMachine: ["DrawingMachine.dmPreset"],
   perfectFit: ["PerfectFit.pfPreset", "PerfectFit.pfVariant"],
 };
+
+/**
+ * (E3 review) The values a setting's name or tip fills in, as the studio passes them (DoublePendulumSection gives its arms tip the
+ * chain's ceiling): a message with an argument the page left empty printed a raw "{max}".
+ */
+export const MESSAGE_VALUES: Readonly<Record<string, Readonly<Record<string, number | string>>>> = {
+  "Controls.dpSegmentsTip": { max: CHAIN_LINK_CEILING },
+};
+
+/**
+ * (E3 review) The modes whose studio block has no intro of their own: the page says how they play in its own words
+ * (ModePage.intro.<mode>), so every page has a "How it plays".
+ */
+export const MODE_PAGE_INTROS: readonly ModeId[] = ["accumulation", "colorMatch", "grow", "hoops", "lines", "multiply", "paint", "portal", "shatter", "target"];
+
+/**
+ * (E3 review) The modes whose card picture carries words drawn on the canvas (a counter, a banner, a caption): their Polish and
+ * Spanish social cards are drawn from the same moment rendered in that language (public/og/modes/<locale>/<slug>.jpg), so a
+ * link preview never shows English words to a Polish or Spanish reader. Every other card has no words and serves every language.
+ */
+export const MODE_CARD_WORDS: readonly ModeId[] = ["accumulation", "battle", "brickRebuild", "bullseye", "colorMatch", "ctf", "illusion", "mergeRing", "multipliers", "paint", "perfectFit", "portal", "race", "songRing", "spiralGlass", "territory"];
+
+/** The social card of a mode page in a language: its own picture for a mode with words in a language other than English. */
+export function modeOgImagePathIn(mode: ModeId, locale: string): string {
+  return locale !== "en" && MODE_CARD_WORDS.includes(mode) ? `/og/modes/${locale}/${modeSlug(mode)}.jpg` : modeOgImagePath(mode);
+}
 
 /**
  * The basics the studio's first block holds in every mode (Controls.tsx starterBlock: the theme, the ball, the clip's length

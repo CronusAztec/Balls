@@ -1801,15 +1801,21 @@ kebab case: `/en/modes/double-pendulum/`), so a shared link to one mode shows th
 it. `src/app/[locale]/modes/[mode]/page.tsx` draws it at build time (`generateStaticParams`, 50 modes × 3 languages) from
 `src/lib/modePages.ts`, and every word on it is copy that exists elsewhere: the mode's card picture, name and one-liner
 (`Modes.<id>`), **Open in the studio** as the main action (the card's own look and seed, `cardHref`), how it plays (the intro of
-its block in the studio, `MODE_INTROS`), its looks (the gallery's presets as cards, then Plain, the card's look and the daily
+its block in the studio, `MODE_INTROS`, or for the ten blocks without one the page's own `ModePage.intro.<mode>`), its looks (the gallery's presets as cards, then Plain, the card's look and the daily
 challenge's, as the studio's Looks row lists them), the first settings of its own block with their names and tips
-(`MODE_FIRST_SETTINGS`) and the basics every mode starts with, and four related modes from its shelf. Its head has its own
-title, snippet, canonical address and hreflang set (`pageMetadata`) and its own social card, `public/og/modes/<slug>.jpg`
-(1200 × 630, the card picture beside the brand, the same in every language: `npm run og:cards -- --modes`, or `--mode <id>`
-after a mode's card picture changes). The sitemap lists every page; the wall's cards carry an info button that opens the
+(`MODE_FIRST_SETTINGS`; their values, such as the arms tip's ceiling, from `MESSAGE_VALUES`) and the basics every mode starts
+with as plain words (a mode with no settings of its own titles the section as the basics), and four related modes from its
+shelf. Its head has its own title, snippet, canonical address and hreflang set (`pageMetadata`) and its own social card,
+`public/og/modes/<slug>.jpg` (1200 × 630, the card picture beside the brand: `npm run og:cards -- --modes`, or `--mode <id>`
+after a mode's card picture changes). Sixteen card pictures carry words the canvas draws, a counter or a banner
+(`MODE_CARD_WORDS`): those modes have a Polish and a Spanish card too, `public/og/modes/<locale>/<slug>.jpg`, drawn from the
+same moment rendered in that language (`CARD_LOCALE=pl OUT_DIR=<dir> MODES=<the list> node scripts/generate-mode-previews.mjs`
+against the served export, then `node scripts/generate-og-cards.mjs --modes --locale pl --pictures <dir>`), so no Polish or
+Spanish link preview shows English words. The sitemap lists every page; the wall's cards carry an info button that opens the
 page (the card itself still opens the studio), and the studio's Mode block links **About this mode**. The page's own
 namespace, `ModePage`, stays on the server. `tests/modePages.test.ts` holds the addresses, the heads, the cards and the copy;
-the smoke block `mode-pages` opens three pages in English, Polish and Spanish and follows Open in the studio.
+the smoke block `mode-pages` opens four pages in English, Polish and Spanish, two of them long names on a phone, and follows
+Open in the studio.
 ### Changelog
 Feature changelog: what changed, newest first, on a static page in every language, with a generated `CHANGELOG.md`, release notes for the Windows app's GitHub releases and a "What's new" notice inside the app.
 
