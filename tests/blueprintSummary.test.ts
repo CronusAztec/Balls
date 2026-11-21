@@ -168,8 +168,26 @@ describe("blueprint summary: How it plays", () => {
     expect(lines).toContain("When two balls of the same tier touch: the two merge into one ball of the next tier");
     expect(lines).toContain("When a ball escapes: every ball splits into 2");
     expect(lines).toContain("When the ball count reaches 20: every ball moves up a tier, “score” is multiplied by 2");
-    expect(lines).toContain("When a ball called red touches a ball called blue: the faster ball shrinks, “score” becomes 0");
+    // --- blueprint-catalog-c2 --- review fix (C2): with `of` the rule's own ball is self, as the runtime picks it, not the faster one
+    expect(lines).toContain("When a ball called red touches a ball called blue: the ball shrinks, “score” becomes 0");
     expect(lines[lines.length - 1]).toBe("End: when 2 balls escape or “score” reaches 30 or one team is left, or after 90 s");
+  });
+
+  // --- blueprint-catalog-c2 --- review fix (C2): Hot Potato's list named the wrong ball, read out formulas and counted the spark
+  it("names the bigger and the smaller ball of a `smaller` touch and a rule's own ball, leaves a token out of the start and reads out no formula", () => {
+    const potato = say("en", summarizeBlueprint(catalogBlueprint("hotPotato")));
+    expect(potato[1]).toBe("Start: 4 balls, 4 teams");
+    expect(potato).toContain("When a ball touches a smaller one, at most every 0.25 s: the bigger ball changes size, the smaller ball changes size");
+    expect(potato).toContain("When a ball called spark touches another ball: the ball disappears, the other ball changes size");
+    expect(potato).toContain("At the start: every ball called blue changes team, 1 new ball appears on the left");
+    expect(potato).toContain("When “fuse” drops to 0.05: “left” goes down by 1");
+    for (const line of potato) expect(line).not.toMatch(/faster|slower|ceil|\*|min\(/);
+    // a variable a rule changes is not said as its start value (Thin Ice's melt starts at 0)
+    const ice = say("en", summarizeBlueprint(catalogBlueprint("thinIce")));
+    expect(ice).toContain("When a ball hits a tile: the tile takes extra damage");
+    expect(ice.join("\n")).not.toContain("0 extra damage");
+    expect(say("pl", summarizeBlueprint(catalogBlueprint("hotPotato")))).toContain("Gdy kulka zderzy się z mniejszą, najwyżej co 0,25 s: większa kulka zmienia rozmiar, mniejsza kulka zmienia rozmiar");
+    expect(say("es", summarizeBlueprint(catalogBlueprint("hotPotato")))[1]).toBe("Inicio: 4 bolas, 4 equipos");
   });
 
   // --- review fix (blueprint) --- a stranger's 1e300 printed every digit: about 400 characters with no break across the panel

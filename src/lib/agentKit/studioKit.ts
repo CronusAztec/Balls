@@ -103,7 +103,7 @@ import { AGENT_PROMPTS, MCP_SERVER_NAME, STUDIO_CLIPS_MAX, STUDIO_PLAN_MAX } fro
  * scripts/agent/studio.mjs does the files (.agent-out/studio/<studio>/: plan.json, panel.json, post.txt, a folder per
  * rendered clip); everything here takes values and gives values back.
  *
- *  - templates: the ten formats, the 49 bindings and their tiers, the ready templates with their words in one locale, the
+ *  - templates: the ten formats, the 50 bindings and their tiers, the ready templates with their words in one locale, the
  *    Simple look, the gates and the Simple weights (studioTemplates);
  *  - plan: the bot's planner on a template, a recipe or a mode's templates (studioPlan), deterministic: the same call gives
  *    the same plans, each with its run in the plan's world (studioEntry: what the tool shows of one);

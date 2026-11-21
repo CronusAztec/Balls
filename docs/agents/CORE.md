@@ -61,7 +61,7 @@ The simulator page opens, Start runs the engine at a fixed 60 Hz step, and the c
 
 ### 3. Every mode steps deterministically (`modes-deterministic`)
 
-All 49 modes boot, stay finite and replay exactly from a seed. The proofs are the `BASELINE` fingerprints of
+All 50 modes boot, stay finite and replay exactly from a seed. The proofs are the `BASELINE` fingerprints of
 `tests/extras.test.ts`, no `Math.random` or clock in a mode, and an `init()` that resets every field. Mode Lab's Blueprint
 interpreter is part of the blueprint mode: it plays inside the engine on every Mode Lab page and in every export.
 

@@ -159,6 +159,12 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("spiralGlass");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "songRing");
 }
+// --- sand-plate --- Sand Plate joins the rhythm family right after Song Ring (a tune again, and this time every note draws a
+// picture in sand)
+{
+  const at = MODE_CARD_ORDER.indexOf("songRing");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "sandPlate");
+}
 // --- blueprint --- Mode Lab opens its own family, the lab (new games made of data), after every other card
 MODE_CARD_ORDER.push("blueprint");
 
@@ -258,6 +264,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   spiralGlass: "rhythm",
   // --- song-ring --- the ball lights the notes and a playhead plays them: a tune assembled bounce by bounce, the sound-first family
   songRing: "rhythm",
+  // --- sand-plate --- every note rings the plate into a new figure, the last one the finest, with the full chord: the sound-first family
+  sandPlate: "rhythm",
   // --- blueprint --- every Blueprint is a game of its own (escapes, merges, races, battles): its own family, the lab
   blueprint: "lab",
 };

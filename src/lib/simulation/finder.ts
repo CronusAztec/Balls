@@ -47,6 +47,7 @@ import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- ger
 import type { MergeRingSettings } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import type { SpiralGlassSettings } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
 import type { SongRingSettings } from "@/lib/physics/modes/songRing"; // --- song-ring ---
+import { resolveSandPlateSettings, sandPlateCycleSec, type SandPlateSettings } from "@/lib/physics/modes/sandPlate"; // --- sand-plate ---
 import type { BlueprintSettings } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
@@ -188,6 +189,9 @@ export interface ModeSettings {
   // --- song-ring ---
   /** Song Ring: the tune, the lap, the speed, the balls, the help and the live notes (see modes/songRing.ts); the defaults when left out. Every run ends with the final chord or a timeout, and the seed moves which notes are found first and when the tune is whole, so the finder searches it. */
   songRing?: Partial<SongRingSettings>;
+  // --- sand-plate ---
+  /** Sand Plate: the notes, the seconds a note, the grains, the shake and the loop (see modes/sandPlate.ts); the defaults when left out. A run lasts its notes and the finale's hold whatever the seed (fixedRunDurationSec), and with the loop on it never ends; the seed picks the figures, the key and every hop. */
+  sandPlate?: Partial<SandPlateSettings>;
   // --- blueprint ---
   /** Mode Lab: the catalog entry, a link's spec and its slider values (see modes/blueprint.ts); the defaults when left out. Every Blueprint ends by a finish condition or its timeout (180 s at most), and the seed moves its spawns, draws and chances, so the finder searches it. */
   blueprint?: Partial<BlueprintSettings>;
@@ -409,6 +413,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "drawingMachine") return true;
   // --- perfect-fit --- the puzzles loop forever (the finder searches solution seeds or the beat instead)
   if (mode === "perfectFit") return true;
+  // --- sand-plate --- with the loop on the sand is shaken loose and the run plays again forever
+  if (mode === "sandPlate") return resolveSandPlateSettings((settings as Partial<Pick<ModeSettings, "sandPlate">>).sandPlate).loop;
   return false;
 }
 
@@ -452,6 +458,11 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
     if (vx.release !== "rings" || vx.loop) return null;
     const cycle = funnelTiming(vx).cycleSec;
     return Number.isFinite(cycle) ? cycle : null;
+  }
+  // --- sand-plate --- a run lasts its notes and the finale's hold, whatever the seed (the seed picks the figures and the key)
+  if (mode === "sandPlate") {
+    const sp = resolveSandPlateSettings((settings as Partial<Pick<ModeSettings, "sandPlate">>).sandPlate);
+    return sp.loop ? null : sandPlateCycleSec(sp);
   }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
@@ -639,6 +650,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "mergeRing") engine.setMergeRingSettings(settings.mergeRing ?? {}); // --- merge-ring ---
   if (mode === "spiralGlass") engine.setSpiralGlassSettings(settings.spiralGlass ?? {}); // --- spiral-glass ---
   if (mode === "songRing") engine.setSongRingSettings(settings.songRing ?? {}); // --- song-ring ---
+  if (mode === "sandPlate") engine.setSandPlateSettings(settings.sandPlate ?? {}); // --- sand-plate ---
   if (mode === "blueprint") engine.setBlueprintSettings(settings.blueprint ?? {}); // --- blueprint ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---

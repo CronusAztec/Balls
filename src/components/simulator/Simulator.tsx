@@ -91,7 +91,7 @@ import { ESCAPE_AT_TOLERANCE_SEC } from "@/lib/simulation/outcomes"; // --- low-
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
-import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+import { loopPlayOptions, ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- loop-foundation --- --- ring-voices --- (review fix B2)
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
 import { growFillSettingsOf } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
@@ -148,6 +148,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
+import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2)
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
 import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
@@ -156,6 +157,7 @@ import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
 import { songRingSettingsOf } from "@/lib/physics/modes/songRing"; // --- song-ring ---
+import { sandPlateSettingsOf } from "@/lib/physics/modes/sandPlate"; // --- sand-plate ---
 import { blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 import { BLUEPRINT_CATALOG_IDS } from "@/lib/blueprint/catalog"; // --- blueprint --- (the catalog entries' canvas texts)
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
@@ -332,7 +334,13 @@ export default function Simulator() {
   // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
   const [dailyAtLoad] = useState(() => dailyFromParam(searchParams.get(DAILY_PARAM)));
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
-  const [settings, setSettings] = useState<SimulatorSettings>(() => (dailyAtLoad ? dailySettings(dailyAtLoad) : settingsFromSearchParams(new URLSearchParams(searchParams.toString()))));
+  const [settings, setSettings] = useState<SimulatorSettings>(() => {
+    if (dailyAtLoad) return dailySettings(dailyAtLoad);
+    const params = new URLSearchParams(searchParams.toString());
+    const linked = settingsFromSearchParams(params);
+    // --- clip-start --- (review fix B2) a bare studio visit starts Classic in its start look (a link is read as it was written)
+    return isBareStudioVisit(params, settingsToSearchParams(linked).toString()) ? { ...linked, ...clipStartSettings(linked.mode) } : linked;
+  });
   const [engineReady, setEngineReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -411,6 +419,8 @@ export default function Simulator() {
     engine.setCountdownRandomOrder(s.countdownRandom);
     engine.setColorMatchColorCount(s.colorMatchColorCount);
     engine.setColorMatchSegmentCount(s.colorMatchSegments); // --- colour-match-segments ---
+    engine.setShatterSegmentsPerWall(s.shatterSegments); // --- shatter-demolition --- (the segments and their hits, before the rings are built)
+    engine.setShatterHpPerSegment(s.shatterHits);
     engine.setMultiplySpawnCount(s.multiplySpawnCount);
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
@@ -443,6 +453,7 @@ export default function Simulator() {
     engine.setMergeRingSettings(mergeRingSettingsOf(s)); // --- merge-ring ---
     engine.setSpiralGlassSettings(spiralGlassSettingsOf(s)); // --- spiral-glass ---
     engine.setSongRingSettings(songRingSettingsOf(s)); // --- song-ring ---
+    engine.setSandPlateSettings(sandPlateSettingsOf(s)); // --- sand-plate ---
     engine.setBlueprintSettings(blueprintSettingsOf(s)); // --- blueprint ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
@@ -831,6 +842,18 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.colorMatchColorCount, s.colorMatchSegments]);
+  // --- shatter-demolition --- Shatter: new hits or segments build the rings anew (like Color Match's segments)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setShatterSegmentsPerWall(s.shatterSegments);
+    engine.setShatterHpPerSegment(s.shatterHits);
+    if (s.mode === "shatter" && engine.getCurrentModeName() === "shatter") {
+      engine.initShatter();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.shatterHits, s.shatterSegments]);
   // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
   useEffect(() => {
     const engine = engineRef.current;
@@ -1646,6 +1669,23 @@ export default function Simulator() {
     engineRef.current?.setSeed(null);
   }, [s.srSong, s.srLapSec, s.srSpeed, s.srBalls, s.srHelp, s.srLive]);
   // --- end song-ring ---
+  // --- sand-plate --- Sand Plate: a change of the notes, the seconds a note, the grains, the shake or the loop restarts the run
+  // (its loop voices with it) and drops a found seed; nothing follows live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setSandPlateSettings(sandPlateSettingsOf(s));
+    if (s.mode === "sandPlate" && engine.getCurrentModeName() === "sandPlate") {
+      engine.initSandPlate();
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.spNotes, s.spNoteSec, s.spGrains, s.spShake, s.spLoop]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.spNotes, s.spNoteSec, s.spGrains, s.spShake, s.spLoop]);
+  // --- end sand-plate ---
   // --- blueprint --- Mode Lab: another catalog entry, a link's spec or a slider value restarts the run and drops a found seed
   // (every setting of a Blueprint is its run's; nothing follows live).
   useEffect(() => {
@@ -2058,7 +2098,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.colorMatchSegments /* --- colour-match-segments --- */, s.shatterHits, s.shatterSegments /* --- shatter-demolition --- */, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -2147,6 +2187,7 @@ export default function Simulator() {
         engine.setMergeRingSettings({ rainbow: arena.mrRainbow }); // --- merge-ring --- (the rainbow rim follows live; the rest waits for a restart)
         engine.setSpiralGlassSettings({ rainbow: arena.sgRainbow }); // --- spiral-glass --- (the rainbow line follows live; the rest waits for a restart)
         engine.setSongRingSettings(songRingSettingsOf(arena)); // --- song-ring --- (an arena's tune, lap, speed, balls and help apply at its next restart: nothing is live)
+        engine.setSandPlateSettings(sandPlateSettingsOf(arena)); // --- sand-plate --- (an arena's notes, timing, sand, shake and loop apply at its next restart: nothing is live)
         engine.setBlueprintSettings(blueprintSettingsOf(arena)); // --- blueprint --- (an arena's Blueprint applies at its next restart: nothing of a Blueprint is live)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
@@ -2251,6 +2292,7 @@ export default function Simulator() {
       audioRef.current?.resetBeatGrid();
       const fresh = {
         ...defaultSettings(mode),
+        ...clipStartSettings(mode), // --- clip-start --- (review fix B2) a mode picked on the page starts in its start look
         ...musicSettingsOf(settings),
         recordingResolution: settings.recordingResolution,
         watermarkText: settings.watermarkText,
@@ -2355,7 +2397,12 @@ export default function Simulator() {
       const engine = engineRef.current;
       const audio = audioRef.current;
       if (engine && audio) {
-        for (const ev of engine.consumeSoundEvents()) {
+        const ownSound = audio.hasOwnSound(); // --- ring-voices --- (review fix B2)
+        for (const raw of engine.consumeSoundEvents()) {
+          // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
+          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
+          if (!ev) continue;
+          if (ev.ringVoice === "contact" && ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too: its own voice skips the plain path below)
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
           if (ev.race) {
             audio.playRaceArpeggio(ev.race, ev.frequency);
@@ -3534,8 +3581,8 @@ export default function Simulator() {
           spikesEnabled: settings.spikesEnabled,
           spikeCount: settings.spikeCount,
           multiplySpawnCount: settings.multiplySpawnCount,
-          shatterSegmentsPerWall: engine.getShatterSegmentsPerWall(),
-          shatterHpPerSegment: engine.getShatterHpPerSegment(),
+          shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
+          shatterHpPerSegment: settings.shatterHits,
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
@@ -3564,6 +3611,7 @@ export default function Simulator() {
           mergeRing: mergeRingSettingsOf(settings), // --- merge-ring --- (every run ends with the final form or an overflow)
           spiralGlass: spiralGlassSettingsOf(settings), // --- spiral-glass --- (every run ends with the glass cleared or a timeout)
           songRing: songRingSettingsOf(settings), // --- song-ring --- (every run ends with the final chord or a timeout)
+          sandPlate: sandPlateSettingsOf(settings), // --- sand-plate --- (a run lasts its notes and the finale's hold: a fixed length)
           blueprint: blueprintSettingsOf(settings), // --- blueprint --- (every Blueprint ends by a finish condition or its timeout)
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
@@ -3797,10 +3845,10 @@ export default function Simulator() {
       segmentsDestroyed: (b, total) => fill("Simulator.canvasSegmentsDestroyed", { broken: b, total }),
       segmentsShattered: t("Simulator.canvasSegmentsShattered"),
       matched: t("Simulator.canvasMatched"),
-      segmentsCleared: (total) => fill("Simulator.canvasSegmentsCleared", { total }),
+      segmentsCleared: (total) => t("Simulator.canvasSegmentsCleared", { total }), // --- review fix (B2) --- (a plural in every language: "7 segmentów")
       matchColour: t("Simulator.canvasMatchColour"),
       complete: t("Simulator.canvasComplete"),
-      segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
+      segmentsHitInOrder: (total) => t("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
       ballsAtRest: (n) => t("Simulator.canvasBallsAtRest", { count: n }), // --- end-banner --- (counted: "1 ball at rest")
@@ -3978,6 +4026,11 @@ export default function Simulator() {
         doneSub: (notes, seconds) => fill("SongRing.canvasDoneSub", { notes, seconds }),
         timeoutTitle: t("SongRing.canvasTimeout"),
         timeoutSub: (lit, total) => fill("SongRing.canvasTimeoutSub", { lit, total }),
+      },
+      // --- sand-plate ---
+      sandPlate: {
+        doneTitle: t("SandPlate.canvasTitle"),
+        doneSub: (notes) => t("SandPlate.canvasDoneSub", { count: notes }),
       },
       // --- blueprint --- Mode Lab: the badges, the clock, the team names and every catalog entry's own texts (a spec of a
       // link speaks its author's words)

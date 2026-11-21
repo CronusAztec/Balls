@@ -66,10 +66,10 @@
     "canvasSegmentsDestroyed": "[broken]/[total] segmentów zniszczonych",
     "canvasSegmentsShattered": "segmentów rozbitych",
     "canvasMatched": "DOPASOWANE!",
-    "canvasSegmentsCleared": "Wszystkie [total] segmenty usunięte",
+    "canvasSegmentsCleared": "{total, plural, one {# segment usunięty} few {Wszystkie # segmenty usunięte} many {Wszystkie # segmentów usuniętych} other {Wszystkie # segmentu usunięte}}",
     "canvasMatchColour": "Dopasuj kolor:",
     "canvasComplete": "UKOŃCZONE!",
-    "canvasSegmentsHitInOrder": "Wszystkie [total] segmenty trafione po kolei",
+    "canvasSegmentsHitInOrder": "{total, plural, one {# segment trafiony} few {Wszystkie # segmenty trafione po kolei} many {Wszystkie # segmentów trafionych po kolei} other {Wszystkie # segmentu trafione po kolei}}",
     "canvasBalls": "piłek",
     "canvasSettled": "OSIADŁY!",
     "canvasBallsAtRest": "Piłki w spoczynku: {count}",
@@ -230,6 +230,10 @@
     "colorCountTip": "Ile różnych kolorów mają segmenty ściany. Mniej kolorów = łatwiej dopasować.",
     "segmentCount": "Segmenty",
     "segmentCountTip": "Ile segmentów ma pierścień. Mniej segmentów to krótszy przebieg. Nowa liczba zaczyna przebieg od nowa.",
+    "shatterHits": "Uderzenia na segment",
+    "shatterHitsTip": "Ile uderzeń wytrzyma segment, zanim pęknie. Więcej uderzeń to dłuższa rozbiórka. Nowa wartość zaczyna przebieg od nowa.",
+    "shatterSegments": "Segmenty w pierścieniu",
+    "shatterSegmentsTip": "Z ilu segmentów składa się każdy pierścień. Więcej segmentów to mniejsze kawałki, więc piłka potrzebuje więcej uderzeń, żeby się przecisnąć. Nowa wartość zaczyna przebieg od nowa.",
     "ballSpeed": "Prędkość piłki",
     "ballSpeedTip": "Jak szybko porusza się piłka. Wyższe wartości dają bardziej energiczną symulację.",
     "ballSize": "Rozmiar piłki",
@@ -1549,6 +1553,21 @@
     "srLive": "Nuty na żywo",
     "srLiveTip": "Nuta brzmi w chwili, gdy kulka ją zapala. Wyłączone: trafienie to ciche stuknięcie, a nuty gra tylko wskazówka, więc melodia zostaje czysta.",
     "srRunInfo": "Jedno okrążenie co {lap} s. Ziarno decyduje, które nuty kulka znajdzie najpierw, więc Znajdź symulację może trafić w długość klipu.",
+    "modeSandPlate": "Piaskowa płyta",
+    "spTitle": "Piaskowa płyta",
+    "spDesc": "Piasek na dźwięczącej płycie. Każda nuta układa go w nowy wzór, drobniejszy od poprzedniego. Ostatnia nuta przynosi pełny akord.",
+    "spNotes": "Nuty",
+    "spNotesTip": "Ile nut zagra płyta, każda z własnym wzorem. Więcej nut prowadzi do drobniejszych wzorów na końcu.",
+    "spNoteSec": "Długość nuty",
+    "spNoteSecTip": "Ile sekund brzmi każda nuta przed następną. Piasek potrzebuje około sekundy, żeby ułożyć linie.",
+    "spGrains": "Ziarenka",
+    "spGrainsTip": "Ziarenka piasku na płycie. Więcej ziarenek rysuje pełniejsze linie. Mniej odciąża wolny telefon.",
+    "spShake": "Drgania",
+    "spShakeTip": "Jak mocno płyta trzęsie piaskiem. Mocniej szybciej znajduje linie, ale mniej równo. Słabiej płynie powoli.",
+    "spLoop": "Pętla",
+    "spLoopTip": "Po ostatnim wzorze piasek się rozsypuje i wszystko gra od nowa, bez widocznego szwu.",
+    "spRunInfo": "Przebieg trwa {seconds} s, niezależnie od ziarna. Ziarno wybiera wzory, tonację i drogę każdego ziarenka.",
+    "spRunLoop": "Jedna pętla trwa {seconds} s. Ziarno wybiera wzory, tonację i drogę każdego ziarenka.",
     "modeBlueprint": "Laboratorium trybów",
     "blTitle": "Laboratorium trybów",
     "blDesc": "Każda gra tutaj powstaje z reguł, przez które kulki pękają, łączą się albo mnożą. Wybierz grę i ustaw jej suwaki. Udostępniony link do gry też otworzy się tutaj.",
@@ -2618,6 +2637,10 @@
     "songRing": {
       "name": "Pierścień melodii",
       "description": "Kulka zapala melodię nuta po nucie, z każdym odbiciem. Zgadniesz ją, zanim zabrzmi cała?"
+    },
+    "sandPlate": {
+      "name": "Piaskowa płyta",
+      "description": "Piasek na dźwięczącej płycie. Każda nuta układa go w nowy wzór. Ostatni jest najdrobniejszy."
     },
     "blueprint": {
       "name": "Laboratorium trybów",
@@ -4295,6 +4318,7 @@
       "mergeRing": "kulki",
       "spiralGlass": "kulki",
       "songRing": "kulka",
+      "sandPlate": "piasek",
       "blueprint": "kulki"
     },
     "looks": {
@@ -4327,6 +4351,7 @@
       "collide": "Zderzenia grają nuty. Potem się przenikają.",
       "doublePendulum": "Ten sam start. Patrz, jak się rozchodzą.",
       "songRing": "Zgadnij melodię, zanim się skończy.",
+      "sandPlate": "Każda nuta rysuje nowy wzór.",
       "hatchery": "Każda rozbita płytka wykluwa nową kulkę.",
       "ringBreaker": "Każdy rozbity pierścień podwaja kulki.",
       "conquer": "Zderzenie przejmuje. Wygrywa ostatni kolor.",
@@ -4461,6 +4486,10 @@
     "song_jacques": "PANIE JANIE",
     "song_mountain": "KRÓL GÓR"
   },
+  "SandPlate": {
+    "canvasTitle": "OSTATNI WZÓR",
+    "canvasDoneSub": "{count, plural, one {# nuta, # wzór} few {# nuty, # wzory} many {# nut, # wzorów} other {# nuty, # wzoru}}"
+  },
   "Blueprint": {
     "canvasArenaFull": "ARENA PEŁNA",
     "canvasTimeLeft": "[min]:[sec]",
@@ -4535,6 +4564,7 @@
         "ballHitSameTeam": "Gdy zderzą się dwie kulki z jednej drużyny",
         "ballHitOtherTeam": "Gdy zderzą się kulki dwóch drużyn",
         "ballHitSmaller": "Gdy kulka zderzy się z mniejszą",
+        "ballHitOf": "Gdy {who} trafi w inną kulkę",
         "ballHitBody": "Gdy {who} trafi w kulkę {other}",
         "escape": "Gdy {who} ucieka",
         "ringPass": "Gdy {who} przelatuje przez pierścień",
@@ -4565,7 +4595,10 @@
         "other": "druga kulka",
         "slower": "wolniejsza kulka",
         "all": "każda kulka",
-        "merged": "nowa kulka"
+        "merged": "nowa kulka",
+        "bigger": "większa kulka",
+        "smaller": "mniejsza kulka",
+        "allOf": "każda kulka {body}"
       },
       "act": {
         "spawn": "{count, plural, one {pojawia się # nowa kulka} few {pojawiają się # nowe kulki} many {pojawia się # nowych kulek} other {pojawia się # nowej kulki}} {place}",
@@ -4587,6 +4620,9 @@
         "damage": "{who} traci {n} HP",
         "damageSome": "{who} dostaje obrażenia",
         "varAdd": "licznik „{name}” rośnie o {n}",
+        "resize": "{who} zmienia rozmiar",
+        "varChange": "licznik „{name}” się zmienia",
+        "varSub": "licznik „{name}” spada o {n}",
         "varSet": "licznik „{name}” zmienia się na {n}",
         "varMul": "licznik „{name}” mnoży się przez {n}",
         "impulse": "{who} dostaje pchnięcie",
@@ -4682,7 +4718,7 @@
       "say0": "[winner] WYGRYWA",
       "timeoutSay": "[winner] PROWADZI",
       "params": {
-        "per": "Kulki na kolor",
+        "per": "Dodatkowe kulki na kolor",
         "boost": "Przyspieszenie co"
       }
     },
@@ -4730,14 +4766,14 @@
     },
     "thinIce": {
       "name": "Cienki lód",
-      "description": "Każde odbicie kruszy lód. Kto przez niego wpadnie, odpada. Wygrywa ostatni kolor, który został na lodzie.",
+      "description": "Każde odbicie kruszy lód. Kto przez niego wpadnie, odpada. Wygrywa ostatni kolor, który nie wpadł do wody.",
       "line": "Każde odbicie kruszy lód",
-      "hud0": "na lodzie",
+      "hud0": "suche",
       "hud1": "lód",
-      "say0": "[winner] ZOSTAJE NA LODZIE",
+      "say0": "[winner] SUCHY DO KOŃCA",
       "timeoutSay": "LÓD WYTRZYMAŁ",
       "params": {
-        "per": "Kulki na stronę",
+        "per": "Kulki na kolor",
         "hp": "Grubość lodu",
         "cols": "Tafle lodu",
         "melt": "Topnienie co"

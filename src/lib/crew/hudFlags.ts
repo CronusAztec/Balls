@@ -151,6 +151,9 @@ export const MODE_HUDS: readonly ModeHud[] = [
   // --- song-ring --- Song Ring's count in the hub of its ring ("3/7": songRingRenderer.ts drawOverlay), which no setting switches off: the
   // notes lit of the tune's, so it counts to the moment the tune is whole – the countdown the Playbook credits (planner.ts hudShowsCountdown)
   { mode: "songRing", counts: true, words: "a count of the notes lit in the middle of the ring (1/7, 2/7…), a short line under it" },
+  // --- sand-plate --- Sand Plate's note dots under the plate (sandPlateRenderer.ts drawOverlay), which no setting switches off: a row
+  // climbing like a scale, lit note by note. They show the run's progress, not a count to read (its words name no number)
+  { mode: "sandPlate", counts: false, words: "a row of small dots under the plate, climbing like a scale, lit in colour one by one as the notes ring" },
 ];
 
 // --- crew --- (AI studio step 4) the modes' own endings
@@ -203,6 +206,8 @@ export const MODE_END_BANNERS: readonly ModeEndBanner[] = [
   { mode: "spiralGlass", at: "finish", leadSec: 2, words: "a GLASS CLEARED banner with the number of balls (x n) and the time (or TIME'S UP with the tiles left)" },
   // --- song-ring --- the tune's name on a dark plate across the ring, from its final chord (END_HOLD_MS before the run's end)
   { mode: "songRing", at: "finish", leadSec: 1.5, words: "a banner across the ring naming the tune, with the notes and the time (or TIME'S UP with the notes found)" },
+  // --- sand-plate --- THE FINAL SHAPE at the foot of the square from the full chord on (at the defaults 3 s before the run's end)
+  { mode: "sandPlate", at: "finish", leadSec: 3, words: "a THE FINAL SHAPE banner at the foot of the plate, with the notes and the shapes" },
   { mode: "conveyor", at: "finish", leadSec: 1.5, words: "a final banner with the balls loaded and escaped" },
   { mode: "paddle", at: "finish", leadSec: 2.2, words: "a GAME OVER banner with the hits and the best streak" },
   { mode: "vortex", at: "finish", leadSec: 1, words: "a final banner with the balls swallowed and the notes" },

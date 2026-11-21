@@ -55,6 +55,7 @@ import { MergeRingMode, type MergeRingSettings, type MergeRingView } from "./mod
 import { SpiralGlassMode, type SpiralGlassSettings, type SpiralGlassView } from "./modes/spiralGlass";
 // --- song-ring --- Song Ring (a ball lighting the notes of a tune that line a ring, a playhead playing what is lit)
 import { SongRingMode, type SongRingSettings, type SongRingView } from "./modes/songRing";
+import { SandPlateMode, type SandPlateSettings, type SandPlateView } from "./modes/sandPlate"; // --- sand-plate ---
 // --- blueprint --- Mode Lab (a game mode as data, played by the Blueprint interpreter)
 import { BlueprintMode, type BlueprintProgress, type BlueprintSettings, type ResolvedBlueprint } from "./modes/blueprint";
 import type { BlueprintView } from "@/lib/blueprint/runtime/view";
@@ -332,6 +333,8 @@ export class PhysicsEngine {
   readonly spiralGlassMode = new SpiralGlassMode();
   // --- song-ring ---
   readonly songRingMode = new SongRingMode();
+  // --- sand-plate ---
+  readonly sandPlateMode = new SandPlateMode();
   // --- blueprint ---
   readonly blueprintMode = new BlueprintMode();
   // --- beat-drop ---
@@ -750,6 +753,10 @@ export class PhysicsEngine {
   initSongRing() {
     this.activateMode(this.songRingMode, "none");
   }
+  // --- sand-plate --- the mode owns its plate and its sand (no engine rings, no obstacles)
+  initSandPlate() {
+    this.activateMode(this.sandPlateMode, "none");
+  }
   // --- blueprint --- the Blueprint's world owns its arena, obstacles and tiles (no engine rings, no obstacles)
   initBlueprint() {
     this.activateMode(this.blueprintMode, "none");
@@ -903,6 +910,9 @@ export class PhysicsEngine {
       // --- song-ring ---
       case "songRing":
         return this.initSongRing();
+      // --- sand-plate ---
+      case "sandPlate":
+        return this.initSandPlate();
       // --- blueprint ---
       case "blueprint":
         return this.initBlueprint();
@@ -1248,6 +1258,10 @@ export class PhysicsEngine {
   }
   hasShatterEscaped() {
     return this.shatterMode.hasEscaped();
+  }
+  /** --- shatter-demolition --- The collapse after the escape (when the ball got out, each ring's stagger and fall), for the canvas. */
+  getShatterView() {
+    return this.shatterMode.getView();
   }
   getShatterSegmentsPerWall() {
     return this.shatterMode.getSegmentsPerWall();
@@ -1903,6 +1917,25 @@ export class PhysicsEngine {
     return this.songRingMode.getProgress();
   }
   // --- end song-ring ---
+  // --- sand-plate ---
+  isSandPlateMode() {
+    return this.currentMode === this.sandPlateMode;
+  }
+  getSandPlateSettings(): SandPlateSettings {
+    return this.sandPlateMode.getSettings();
+  }
+  /** The notes, the seconds a note, the grains, the shake and the loop apply on the next `initSandPlate()`. */
+  setSandPlateSettings(settings: Partial<SandPlateSettings>) {
+    this.sandPlateMode.setSettings(settings);
+  }
+  /** Live Sand Plate state (the plate, the grains and their heat, the figures, the note, the chord, the seams) for the canvas; the same object every call. */
+  getSandPlateView(): SandPlateView {
+    return this.sandPlateMode.getView();
+  }
+  getSandPlateProgress() {
+    return this.sandPlateMode.getProgress();
+  }
+  // --- end sand-plate ---
   // --- blueprint ---
   isBlueprintMode() {
     return this.currentMode === this.blueprintMode;

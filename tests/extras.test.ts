@@ -79,7 +79,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   paint: { samples: [[483187,287638],[221848,370489],[406473,492103],[385775,504614]], broken: [], walls: [225000] },
   target: { samples: [[483187,287638],[221848,370489],[406473,492103],[385775,504614]], broken: [], walls: [225000] },
   portal: { samples: [[240955,409218],[332979,471847],[563286,397283],[335122,277545]], broken: [], walls: [225000] },
-  shatter: { samples: [[394180,350193],[391982,373187],[308416,175087],[271269,179878]], broken: [], walls: [80143,109286,138429,167571,196714,225857,255000] },
+  shatter: { samples: [[434328,418719],[1068630,1154641],[1973053,4234698],[2877476,9814755]], broken: [], walls: [80143,109286,138429,167571,196714,225857,255000] },
   colorMatch: { samples: [[543609,300177],[596383,347033],[600656,287224],[285153,381609]], broken: [], walls: [225000] },
   grow: { samples: [[384329,184131],[334553,260481],[250197,392467],[321890,452798]], broken: [], walls: [225000] },  // Ball Drop has no rings; recorded when the mode was added (seed 12345, default board: 12 balls released 0.4 s apart).
   drop: { samples: [[386190,181061],[179964,230492],[420973,497548],[219878,230933],[209300,577112],[293286,420857],[177302,577112],[361866,554952]], broken: [], walls: [] },
@@ -160,6 +160,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   spiralGlass: { samples: [[243369,453872],[264453,162907],[541556,182777],[522899,446019]], broken: [], walls: [] },
   // --- song-ring --- Song Ring: its own ring of note tiles, no engine rings; recorded when the mode was added (seed 12345, defaults: Twinkle's seven notes, a 4 s lap, speed 1.2, one ball, help 0.8).
   songRing: { samples: [[282832,432107],[593106,324116],[291107,397024],[475394,126937]], broken: [], walls: [] },
+  sandPlate: { samples: [[400000,279000],[400000,279000],[400000,279000],[400000,279000]], broken: [], walls: [] }, // --- sand-plate --- (recorded when the mode was added: no rings; its one ball a placeholder pinned at the plate's middle, the sand is the mode's own: tests/sandPlate.test.ts pins its grains)
   blueprint: { samples: [[394490,303176],[481193,271520],[419904,300489],[366487,328487],[417803,261907],[327124,346154],[511348,206452],[322460,392447]], broken: [], walls: [] }, // --- blueprint --- (Mode Lab's default: Glass Hatchery)
 };
 

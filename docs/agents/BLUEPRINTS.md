@@ -1118,16 +1118,18 @@ Ends: when 1 ball escaped "ESCAPED AFTER BOUNCE {bounces}", or when fit reaches 
 
 Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins.
 
-Link: `?mode=blueprint&blp=thinIce` · digest `d65fb2ec` · check: playable, median end 18.86 s, outcomes "GREEN STAYS DRY", "GOLD STAYS DRY".
+Link: `?mode=blueprint&blp=thinIce` · digest `20164efe` · check: playable, median end 16.48 s, outcomes "GREEN STAYS DRY", "GOLD STAYS DRY", "PURPLE STAYS DRY".
 
 ```text
 "Thin Ice": "Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins."
 Arena: a circle with an exit, gravity 0, 200 px/s², bounce 1.
 Bodies: green (15 px, team 2), gold (15 px, team 3), purple (15 px, team 4).
 Tiles: 1 × 11 glass tiles in a grid, 8 HP.
-Start: (per) greens at the left at 100 px/s; (per) greens at the right at 100 px/s; (per) golds at the left at 100 px/s; (per) golds at the right at 100 px/s; (per) purples at the left at 100 px/s; (per) purples at the right at 100 px/s.
+Obstacles: bar.
+Start: 1 green at the left at 100 px/s; 1 gold at the top at 100 px/s; 1 purple at the right at 100 px/s; (per) greens at the center at 200 px/s; (per) golds at the center at 200 px/s; (per) purples at the center at 200 px/s.
 Rule: when a ball hits a tile: (melt) damage to the tile.
-Rule: every 12 s: melt + 1.
+Rule: every 10 s: melt + 1.
+Rule: when a ball hits an obstacle: remove it, then a gap note, then a burst.
 Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the latest "THE ICE HELD"; the winner is mostBalls.
 ```
 
@@ -1213,13 +1215,21 @@ Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the late
   "family": "battle",
   "name": "Thin Ice"
  },
+ "obstacles": [
+  {
+   "kind": "bar",
+   "len": 1.8,
+   "thick": 0.02,
+   "y": 0.515
+  }
+ ],
  "params": [
   {
    "at": "vars[0].start",
    "id": "per",
-   "label": "balls per side",
-   "max": 3,
-   "min": 1
+   "label": "extra balls",
+   "max": 2,
+   "min": 0
   },
   {
    "at": "tiles.hp",
@@ -1260,8 +1270,23 @@ Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the late
      "id": "melt"
     }
    ],
-   "sec": 12,
+   "sec": 10,
    "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "remove"
+    },
+    {
+     "act": "sound",
+     "voice": "gap"
+    },
+    {
+     "act": "fx"
+    }
+   ],
+   "when": "obstacleHit"
   }
  ],
  "sound": {
@@ -1277,45 +1302,42 @@ Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the late
   {
    "at": "left",
    "body": "green",
-   "count": "per",
+   "speed": 100
+  },
+  {
+   "at": "top",
+   "body": "gold",
    "speed": 100
   },
   {
    "at": "right",
+   "body": "purple",
+   "speed": 100
+  },
+  {
    "body": "green",
    "count": "per",
-   "speed": 100
+   "speed": 200,
+   "startSec": 0.4
   },
   {
-   "at": "left",
    "body": "gold",
    "count": "per",
-   "speed": 100
+   "speed": 200,
+   "startSec": 0.8
   },
   {
-   "at": "right",
-   "body": "gold",
-   "count": "per",
-   "speed": 100
-  },
-  {
-   "at": "left",
    "body": "purple",
    "count": "per",
-   "speed": 100
-  },
-  {
-   "at": "right",
-   "body": "purple",
-   "count": "per",
-   "speed": 100
+   "speed": 200,
+   "startSec": 1.2
   }
  ],
  "tiles": {
   "area": {
    "h": 0.1,
-   "w": 1.6,
-   "x": -0.98,
+   "w": 2,
+   "x": -1,
    "y": 0.4
   },
   "cols": 11,
@@ -1340,23 +1362,25 @@ Ends: when 1 team or fewer are left "{winner} STAYS DRY"; after 90 s at the late
 
 One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.
 
-Link: `?mode=blueprint&blp=hotPotato` · digest `8ae2b5cd` · check: playable, median end 17.6 s, outcomes "BLUE SURVIVES", "GREEN SURVIVES", "PURPLE SURVIVES".
+Link: `?mode=blueprint&blp=hotPotato` · digest `59184350` · check: playable, median end 16.75 s, outcomes "BLUE SURVIVES", "PURPLE SURVIVES", "GREEN SURVIVES".
 
 ```text
 "Hot Potato": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out."
 Arena: a circle, no gravity, bounce 1.
-Bodies: spark (22 px), blue (22 px, team 1), green (22 px, team 2), purple (22 px, team 4).
-Start: 2 blues at random places at 300 px/s; 2 greens at random places at 300 px/s; 2 purples at random places at 300 px/s; 1 spark at the center at 380 px/s.
-Rule: when a ball touches a smaller ball (at most every 0.25 s): grow it by (22 - size) px, then recolour it (team), then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0).
+Bodies: spark (22 px), blue (22 px, team 1), green (22 px, team 2), gold (22 px, team 3).
+Start: 1 blue at the top at 300 px/s; 1 green at the right at 300 px/s; 1 gold at the bottom at 300 px/s; 1 spark at the center at 380 px/s.
+Rule: at the start: every ball joins team 4, then recolour every ball (team), then spawn 1 blue at the left.
+Rule: when a ball touches a smaller ball (at most every 0.25 s): grow it by (22 - size) px, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px.
 Rule: when a ball touches a smaller ball (at most every 0.25 s): a hit note, then a burst.
-Rule: when spark touches another ball: a merge note, then fuse = (length * 0.88 ^ (6 - left)).
-Rule: when spark touches another ball: remove it, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px, then recolour the other ball (0).
+Rule: when spark touches another ball: a merge note, then fuse = (length * 0.88 ^ ((4 - left) * (left - 2)) * (1 + 0.15 * (4 - left) * (3 - left))).
+Rule: when spark touches another ball: remove it, then grow the other ball by (32 + 12 * (1 - fuse / length) - size) px.
 Rule: every 0.1 s: fuse + (-0.1 * (1 - min(1, balls - left))), then secs = (ceil(fuse)).
 Rule: every 0.5 s: a hit note.
 Rule: when fuse reaches 0.05 or less: a gap note, then a flash, then left + -1, then a shake.
 Rule: when fuse reaches 0.05 or less: grow every ball by (-999 * min(1, floor((size - 22) / 10 + 0.5))) px, then spawn (min(1, balls - 1)) sparks at the center, then fuse = 0.
-Rule: every 0.25 s: speed every ball × (300 * 1.1 ^ (6 - left) / max(speed, 1)), then grow every ball by (min(1, floor((size - 22) / 10 + 0.5)) * (32 + 12 * (1 - fuse / length) + 2 * cos(pi * n) - size)) px.
-Rule: every 0.25 s: speed every ball × (1.6 * 300 * 1.1 ^ (6 - left) / max(speed, 1)).
+Rule: every 0.25 s: speed every ball × (300 * 1.25 ^ (4 - left) / max(speed, 1)), then grow every ball by (min(1, floor((size - 22) / 10 + 0.5)) * (32 + 12 * (1 - fuse / length) + 2 * cos(pi * n) - size)) px.
+Rule: every 0.25 s: speed every ball × (1.6 * 300 * 1.25 ^ (4 - left) / max(speed, 1)).
+Rule: every 0.4 s: push every ball random at 250 px/s.
 Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest "THE FUSE IS STILL LIT"; the winner is lastBall.
 ```
 
@@ -1383,10 +1407,10 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
    "team": 2
   },
   {
-   "color": 4,
-   "id": "purple",
+   "color": 3,
+   "id": "gold",
    "radius": 22,
-   "team": 4
+   "team": 3
   }
  ],
  "finish": {
@@ -1449,6 +1473,28 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
  ],
  "rules": [
   {
+   "do": [
+    {
+     "act": "team",
+     "target": "all",
+     "to": 4
+    },
+    {
+     "act": "recolor",
+     "color": "team",
+     "target": "all"
+    },
+    {
+     "act": "spawn",
+     "at": "left",
+     "body": "blue",
+     "speed": 300
+    }
+   ],
+   "of": "blue",
+   "when": "start"
+  },
+  {
    "cooldownSec": 0.25,
    "do": [
     {
@@ -1456,17 +1502,8 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
      "by": "22 - size"
     },
     {
-     "act": "recolor",
-     "color": "team"
-    },
-    {
      "act": "grow",
      "by": "32 + 12 * (1 - fuse / length) - size",
-     "target": "other"
-    },
-    {
-     "act": "recolor",
-     "color": 0,
      "target": "other"
     }
    ],
@@ -1497,7 +1534,7 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
      "act": "var",
      "id": "fuse",
      "op": "set",
-     "value": "length * 0.88 ^ (6 - left)"
+     "value": "length * 0.88 ^ ((4 - left) * (left - 2)) * (1 + 0.15 * (4 - left) * (3 - left))"
     }
    ],
    "of": "spark",
@@ -1511,11 +1548,6 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
     {
      "act": "grow",
      "by": "32 + 12 * (1 - fuse / length) - size",
-     "target": "other"
-    },
-    {
-     "act": "recolor",
-     "color": 0,
      "target": "other"
     }
    ],
@@ -1602,7 +1634,7 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
    "do": [
     {
      "act": "speed",
-     "scale": "300 * 1.1 ^ (6 - left) / max(speed, 1)",
+     "scale": "300 * 1.25 ^ (4 - left) / max(speed, 1)",
      "target": "all"
     },
     {
@@ -1618,12 +1650,24 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
    "do": [
     {
      "act": "speed",
-     "scale": "1.6 * 300 * 1.1 ^ (6 - left) / max(speed, 1)",
+     "scale": "1.6 * 300 * 1.25 ^ (4 - left) / max(speed, 1)",
      "target": "all"
     }
    ],
    "of": "spark",
    "sec": 0.25,
+   "when": "timer"
+  },
+  {
+   "do": [
+    {
+     "act": "impulse",
+     "amount": 250,
+     "dir": "random",
+     "target": "all"
+    }
+   ],
+   "sec": 0.4,
    "when": "timer"
   }
  ],
@@ -1637,19 +1681,16 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
  },
  "spawners": [
   {
-   "at": "random",
-   "body": "blue",
-   "count": 2
+   "at": "top",
+   "body": "blue"
   },
   {
-   "at": "random",
-   "body": "green",
-   "count": 2
+   "at": "right",
+   "body": "green"
   },
   {
-   "at": "random",
-   "body": "purple",
-   "count": 2
+   "at": "bottom",
+   "body": "gold"
   },
   {
    "body": "spark",
@@ -1660,19 +1701,19 @@ Ends: when balls reaches 1 or less "{winner} SURVIVES"; after 60 s at the latest
  "vars": [
   {
    "id": "fuse",
-   "start": 4
+   "start": 5
   },
   {
    "id": "secs",
-   "start": 4
+   "start": 5
   },
   {
    "id": "left",
-   "start": 6
+   "start": 4
   },
   {
    "id": "length",
-   "start": 4
+   "start": 5
   }
  ]
 }

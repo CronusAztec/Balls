@@ -19,6 +19,7 @@ import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
 import { songRingSettingsOf } from "@/lib/physics/modes/songRing"; // --- song-ring ---
+import { sandPlateSettingsOf } from "@/lib/physics/modes/sandPlate"; // --- sand-plate ---
 import { blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 import { journeySettingsOf } from "@/lib/physics/modes/journey";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
@@ -137,8 +138,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     spikesEnabled: s.spikesEnabled,
     spikeCount: s.spikeCount,
     multiplySpawnCount: s.multiplySpawnCount,
-    shatterSegmentsPerWall: d.shatterSegmentsPerWall,
-    shatterHpPerSegment: d.shatterHpPerSegment,
+    shatterSegmentsPerWall: s.shatterSegments, // --- shatter-demolition --- (settings now: the mode's own 18 and 1 unless the page says otherwise)
+    shatterHpPerSegment: s.shatterHits,
     growRate: s.growRate,
     portalCount: d.portalCount,
     twoBalls: s.twoBalls,
@@ -166,6 +167,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     mergeRing: mergeRingSettingsOf(s), // --- merge-ring ---
     spiralGlass: spiralGlassSettingsOf(s), // --- spiral-glass ---
     songRing: songRingSettingsOf(s), // --- song-ring ---
+    sandPlate: sandPlateSettingsOf(s), // --- sand-plate ---
     blueprint: blueprintSettingsOf(s), // --- blueprint ---
     beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)

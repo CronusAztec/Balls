@@ -36,3 +36,18 @@ export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
   // --- drawing-machine --- (a drone's pen speed: its ripple and scratch)
   return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor, speed: ev.loopSpeed, ...(ev.loopChip ? { chip: true } : {}) /* --- perfect-fit --- (the chip ladder) */, ...(ev.loopExact ? { exact: true } : {}) /* --- song-ring --- (a fixed tune's note) */ };
 }
+
+// --- ring-voices --- (review fix B2)
+/**
+ * A ring mode's voice event (`SoundEvent.ringVoice`) as the page plays it: as it is while the visitor has no sound of their own;
+ * with one (`ownSound`: a song to slice, a melody, a hit sample, a wall-break clip – `ToneGenerator.hasOwnSound()`), a
+ * "contact" voice becomes the plain bounce or break it stands for, so the song steps on, the melody plays its note, the sample
+ * and the clip sound, the beat lock places it and the face reacts to the break, as in Classic – and an "extra" (a sound with no
+ * contact behind it) is left out (null). Shared by the page's sound loop (Simulator.tsx) and the fast export's
+ * `playSoundEvent()`, so a clip sounds as the page did.
+ */
+export function ringVoiceEvent(ev: SoundEvent, ownSound: boolean): SoundEvent | null {
+  if (!ev.ringVoice || !ownSound) return ev;
+  if (ev.ringVoice === "extra") return null;
+  return ev.type === "gap" ? { type: "gap", wallIndex: ev.wallIndex } : { type: "hit", wallIndex: ev.wallIndex };
+}

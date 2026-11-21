@@ -19,7 +19,7 @@
  * pair pass it came from stops, and the run ends the same way; nothing is ever thrown out of the engine. Randomness: only the run's own seeded generator (the mode seeds
  * it from ctx.random() once, so the engine's other draws – the cinematic director's – never shift it), drawn only where the
  * spec asks for it. No clock: a seed replays exactly. A finished run keeps its world turning (the balls still bounce under
- * the end banner) but records, plays and fires nothing more.
+ * the end banner) but records, plays and fires nothing more, and breaks no tile (--- blueprint-catalog-c2 ---).
  */
 import { BLUEPRINT_LIMITS as L, BLUEPRINT_STEP_BUDGETS as BUDGET, BLUEPRINT_BALL_CEILING, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING } from "../limits";
 import { evaluateBlueprintFormula, SLOT } from "../formula";
@@ -235,6 +235,10 @@ export class BlueprintRun implements WorldEvents {
   arenaFullAtSec = -Infinity;
   /** When the last flash and shake effects fired (s). */
   flashAtSec = -Infinity;
+  /** --- blueprint-catalog-c2 --- The last flash's palette index and point (the canvas glows out from it in that colour). */
+  flashColor = 0;
+  flashX = 0;
+  flashY = 0;
   private readonly slots: Float64Array;
   private readonly spawnQueue: NewWorldBall[] = [];
   private soundsThisStep = 0;
@@ -300,6 +304,7 @@ export class BlueprintRun implements WorldEvents {
     this.timeSec += dt;
     this.world.advance(dt);
     this.world.wallBounciness = this.ctx.getPhysicsExtras().wallBounciness;
+    this.world.holdTiles = this.done.finished; // --- blueprint-catalog-c2 --- (a decided run breaks no more tiles)
     this.world.tiles.clockMs = this.timeSec * 1000;
     if (this.done.finished) {
       this.world.beginStep(this.stats.steps, this.timeSec, dt);
@@ -709,7 +714,12 @@ export class BlueprintRun implements WorldEvents {
   effect(kind: EffectKind, x: number, y: number, color: number, r: number) {
     if (!(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(r))) return; // --- review fix (blueprint) --- (never a burst the canvas cannot draw)
     if (this.stepEffects.length < 32) this.stepEffects.push({ kind, x, y, color, r });
-    if (kind === "flash") this.flashAtSec = this.timeSec;
+    if (kind === "flash") {
+      this.flashAtSec = this.timeSec;
+      this.flashColor = color; // --- blueprint-catalog-c2 ---
+      this.flashX = x;
+      this.flashY = y;
+    }
   }
 
   /** The step's sounds and effects go to the engine. */

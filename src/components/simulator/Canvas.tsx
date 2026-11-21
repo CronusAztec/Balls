@@ -88,6 +88,7 @@ import { plainTransform } from "./mergeRingGlow";
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
 // --- song-ring --- Song Ring: the note tiles, the wall, the hub, the playhead, the sparks, the count and the end banner
 import { DEFAULT_SONG_RING_LABELS, SONG_RING_DATA_KEYS, SongRingDataset, SongRingLayer, completeSeconds, type SongRingLabels, type SongRingRenderOptions } from "./songRingRenderer";
+import { DEFAULT_SAND_PLATE_LABELS, SAND_PLATE_DATA_KEYS, SandPlateDataset, SandPlateLayer, type SandPlateLabels } from "./sandPlateRenderer"; // --- sand-plate ---
 // --- blueprint --- Mode Lab: a Blueprint's arena, tiles, obstacles, ball labels, HUD and end banner
 import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
@@ -134,7 +135,8 @@ import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
-import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks ---
+import { SHATTER_INSET, collapseDone, drawShatterDamage, drawShatterShards, ringFallStartMs, shatterBand } from "./shatterRenderer"; // --- shatter-demolition ---
+import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawEndGhost, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks --- (--- end-ghost --- review fix B2)
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -242,6 +244,9 @@ export interface CanvasLabels {
   // --- song-ring ---
   /** Song Ring: the count, the caption under it, the tunes' names and the end banners. */
   songRing?: SongRingLabels;
+  // --- sand-plate ---
+  /** Sand Plate: the end banner's title and its line. */
+  sandPlate?: SandPlateLabels;
   // --- blueprint ---
   /** Mode Lab: ARENA FULL, the clock, the banner's subline, the team names and the catalog entries' own texts. */
   blueprint?: BlueprintLabels;
@@ -496,6 +501,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   mergeRing: DEFAULT_MERGE_RING_LABELS, // --- merge-ring ---
   spiralGlass: DEFAULT_SPIRAL_GLASS_LABELS, // --- spiral-glass ---
   songRing: DEFAULT_SONG_RING_LABELS, // --- song-ring ---
+  sandPlate: DEFAULT_SAND_PLATE_LABELS, // --- sand-plate ---
   blueprint: DEFAULT_BLUEPRINT_LABELS, // --- blueprint ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
@@ -1053,6 +1059,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const songRingLayer = new SongRingLayer();
     const songRingRender: SongRingRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const songRingData = new SongRingDataset();
+    // --- sand-plate --- Sand Plate's layer and its dataset
+    const sandPlateLayer = new SandPlateLayer();
+    const sandPlateData = new SandPlateDataset();
     // --- blueprint --- the Mode Lab layer, its per-frame options and the data-blueprint-* writer
     const blueprintLayer = new BlueprintLayer();
     const blueprintRender: BlueprintRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
@@ -1614,6 +1623,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const mergeRingView = engine.isMergeRingMode() ? engine.getMergeRingView() : null; // --- merge-ring ---
       const spiralGlassView = engine.isSpiralGlassMode() ? engine.getSpiralGlassView() : null; // --- spiral-glass ---
       const songRingView = engine.isSongRingMode() ? engine.getSongRingView() : null; // --- song-ring ---
+      const sandPlateView = engine.isSandPlateMode() ? engine.getSandPlateView() : null; // --- sand-plate ---
       const blueprintView = engine.isBlueprintMode() ? engine.getBlueprintView() : null; // --- blueprint ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
@@ -1676,6 +1686,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       const isShatter = engine.isShatterMode();
       const shatterSegments = isShatter ? engine.getShatterSegments() : null;
+      const shatterView = isShatter ? engine.getShatterView() : null; // --- shatter-demolition --- (the collapse after the escape)
+      const simMs = engine.getElapsedMs();
       const sectorBatch = ringBatch && isShatter ? new Path2D() : null; // --- review fix (recording-export) --- (Shatter's segments of thousands of rings: one fill)
 
       // --- ring-looks --- Classic: the ring the ball is in lit in its own colour, under the rings (ringModesRenderer.ts). Not in
@@ -1685,6 +1697,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (classicRings && classicRings.escaped < walls.length && classicRings.outMs < 0) {
         const k = classicRings.escaped;
         drawClassicFloor(ctx, cx, cy, walls[k].radius, classicRingColor(k), walls.length > 1 && k === walls.length - 1, engine.getElapsedMs());
+      } else if (classicRings && walls.length > 0 && classicRings.escaped >= walls.length) {
+        drawEndGhost(ctx, cx, cy, walls[walls.length - 1].radius, classicRingColor(walls.length - 1)); // --- end-ghost --- (review fix B2) the last ring under ESCAPED!
+      }
+      // --- shatter-demolition --- the ring the ball is digging through lit from inside in its colour (Classic's light), and once
+      // the last ring has fallen the outer ring's ghost under the banner
+      if (isShatter && shatterView && walls.length > 0 && !loopHudRef.current && !replay) {
+        if (shatterView.escapedMs < 0) {
+          const k = Math.min(walls.length - 1, shatterView.ringsOut);
+          drawClassicFloor(ctx, cx, cy, walls[k].radius, wallColor(k), walls.length > 1 && k === walls.length - 1, simMs);
+        } else if (collapseDone(shatterView)) drawEndGhost(ctx, cx, cy, walls[walls.length - 1].radius, wallColor(walls.length - 1));
       }
 
       // Walls
@@ -1694,10 +1716,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const wall = walls[i];
         const rot = rotations[i] || 0;
         if (isShatter && shatterSegments && shatterSegments[i]) {
-          const thickness = Math.max(6, p.wallThickness + 4);
+          if (shatterView && simMs >= ringFallStartMs(shatterView, i)) continue; // --- shatter-demolition --- (falling: shatterRenderer.ts draws it)
+          const thickness = shatterBand(walls, p.wallThickness); // --- shatter-demolition --- (as thick as the rings' spacing allows)
           for (const seg of shatterSegments[i]) {
             if (seg.hp <= 0) continue;
-            const inset = (seg.endAngle - seg.startAngle) * 0.25;
+            const inset = (seg.endAngle - seg.startAngle) * SHATTER_INSET; // --- shatter-demolition --- (bricks, not dashes)
             const a0 = seg.startAngle + rot + inset / 2;
             const a1 = seg.endAngle + rot - inset / 2;
             const mid = (a0 + a1) / 2;
@@ -1746,6 +1769,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
       ctx.globalAlpha = 1;
+      // --- shatter-demolition --- the cracks and chips on the standing segments, the shards of a break and the collapse after the
+      // escape (shatterRenderer.ts), on the simulation clock
+      if (isShatter && shatterSegments && shatterView) {
+        const thickness = shatterBand(walls, p.wallThickness); // --- shatter-demolition --- (as thick as the rings' spacing allows)
+        drawShatterDamage(ctx, shatterSegments, walls, rotations, thickness, cx, cy, simMs, shatterView);
+        drawShatterShards(ctx, shatterSegments, walls, rotations, thickness, cx, cy, simMs, shatterView, (ring, angle) => wallColor(ring, undefined, p.rainbowWalls && p.rainbowWallMode === "gradient" ? ((angle % TWO_PI) + TWO_PI) % TWO_PI : undefined));
+      }
       // --- ring-looks --- Classic: the ring just broken thrown out as a shock ring in its colour, on the simulation clock
       if (classicRings && classicRings.escaped > 0 && classicRings.escaped <= walls.length) {
         const k = classicRings.escaped - 1;
@@ -2125,6 +2155,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         songRingRender.showWallGlow = p.showWallGlow;
         songRingLayer.drawWorld(ctx, songRingView, songRingRender);
       }
+      // --- sand-plate --- Sand Plate: the plate, its ringing rim and the sand under the (undrawn) placeholder ball.
+      if (sandPlateView) sandPlateLayer.drawWorld(ctx, sandPlateView);
       // --- blueprint --- Mode Lab: the arena's floor, the tiles, the obstacles, the rings and the rim under the balls.
       if (blueprintView) {
         blueprintRender.wallAlpha = circleAlpha;
@@ -2363,11 +2395,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const wall = walls[wi];
           const rot = rotations[wi];
           if (isShatter && shatterSegments && shatterSegments[wi]) {
-            const thickness = Math.max(6, p.wallThickness + 4);
+            const thickness = shatterBand(walls, p.wallThickness); // --- shatter-demolition --- (as thick as the rings' spacing allows)
             const arcs: { sA: number; eA: number }[] = [];
             for (const seg of shatterSegments[wi]) {
               if (seg.hp <= 0) continue;
-              const inset = (seg.endAngle - seg.startAngle) * 0.25;
+              const inset = (seg.endAngle - seg.startAngle) * SHATTER_INSET; // --- shatter-demolition --- (bricks, not dashes)
               arcs.push({ sA: seg.startAngle + rot + inset / 2, eA: seg.endAngle + rot - inset / 2 });
             }
             if (arcs.length === 0) continue;
@@ -2501,6 +2533,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
       else if (waveView) { /* --- wave-tank --- the tank is the stage: its placeholder ball is not drawn */ }
+      else if (sandPlateView) { /* --- sand-plate --- the plate and its sand are the stage: the placeholder ball is not drawn */ }
       else if (brView && brLayer.drawsBodies(brView)) brLayer.drawBodies(ctx, brView, balls, brRender); // --- brick-rebuild --- hollow balls with their kaleidoscope images, the rebuild's fades
       else if (drawingView) drawingLayer.drawBodies(ctx, drawingView, drawingRender); // --- drawing-machine --- the brass rod and the pen, or the marks, the pentagram and the planets
       else if (pfView) pfLayer.drawBodies(ctx, pfView, pfT, pfRender, pfLabels); // --- perfect-fit --- the tray, the falling and landed pieces, the scatter, the banners (the anchor ball is not drawn)
@@ -2784,6 +2817,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
       if (spiralGlassView) spiralGlassLayer.drawEffects(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS); // --- spiral-glass --- the shards, the pops and the badge over the balls
       if (songRingView) songRingLayer.drawEffects(ctx, songRingView); // --- song-ring --- the sparks and the chord's flash over the balls
+      if (sandPlateView) sandPlateLayer.drawEffects(ctx, sandPlateView); // --- sand-plate --- the chord's flash on the plate
       if (blueprintView) blueprintLayer.drawEffects(ctx, blueprintView); // --- blueprint --- the balls' tiers or hit points, the spec's flash
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
       if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
@@ -2915,6 +2949,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (spiralGlassView && p.sgHud) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- song-ring --- Song Ring: the count of the notes lit and the caption under it, in the hub (screen space, part of the recording).
       if (songRingView) songRingLayer.drawOverlay(ctx, songRingView, (labelsRef.current ?? DEFAULT_LABELS).songRing ?? DEFAULT_SONG_RING_LABELS);
+      // --- sand-plate --- Sand Plate: the note dots under the plate, rising with the scale (screen space, part of the recording).
+      if (sandPlateView) sandPlateLayer.drawOverlay(ctx, sandPlateView);
       // --- blueprint --- Mode Lab: the title, the HUD counters, the clock, ARENA FULL and the end banner (screen space, part of the recording).
       // (--- review fix (blueprint) --- a recorded or exported frame keeps the HUD inside the square: the clip is the square alone)
       if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, recordingRef.current || !!offline);
@@ -3126,6 +3162,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
+        // --- shatter-demolition --- Shatter's rings to go: a pip per ring in its colour, the ones the ball has left hollow (the
+        // corner and the clips of Classic's pips)
+        if (engine.isShatterMode() && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current && !replay) {
+          const sv = engine.getShatterView();
+          if (sv.rings > 1) modeTopHud = Math.max(modeTopHud, drawRingPips(ctx, sv.rings, sv.ringsOut, (i) => wallColor(i), cx - minDim / 2, cy - minDim / 2, minDim, teamInset));
+        }
         // --- end-banner --- Classic: out of the last ring – ESCAPED! with the rings and the time it took, where the frame was
         // empty before. Not in a loop clip (its HUD counter says "out in 11.2 s" and its seam needs the last frame clean), not
         // with a roster (the winner banner is the card) and not in a clip with captions of its own: their words are its
@@ -3149,9 +3191,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           bigBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
         }
         // --- end gerald-multipliers ---
-        if (engine.isShatterMode() && engine.hasShatterEscaped()) {
-          const prog = engine.getShatterProgress();
-          bigBanner(L.shattered, L.segmentsDestroyed(prog.broken, prog.total), "#ef4444");
+        // --- shatter-demolition --- the banner once the last ring has fallen: the rings it got through and when it was out
+        if (engine.isShatterMode() && engine.hasShatterEscaped() && collapseDone(engine.getShatterView())) {
+          const sv = engine.getShatterView();
+          bigBanner(L.shattered, (L.ringsOut ?? DEFAULT_LABELS.ringsOut!)(sv.rings, (sv.escapedMs / 1000).toFixed(1)), "#ef4444");
         }
         if (engine.isDropMode()) {
           const prog = engine.getDropProgress();
@@ -3220,6 +3263,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const SR = L.songRing ?? DEFAULT_SONG_RING_LABELS;
           if (songRingView.chordMs >= 0) bigBanner(SR.song(songRingView.song), SR.doneSub(songRingView.total, completeSeconds(songRingView)), "#fde68a");
           else bigBanner(SR.timeoutTitle, SR.timeoutSub(songRingView.lit, songRingView.total), "#fb7185");
+        }
+        // --- sand-plate --- Sand Plate: from the full chord on, at the foot of the square over the dots (the final figure stays in view above it)
+        if (sandPlateView && sandPlateView.chordSec >= 0 && !sandPlateView.shaking) {
+          const SP = L.sandPlate ?? DEFAULT_SAND_PLATE_LABELS;
+          bigBanner(SP.doneTitle, SP.doneSub(sandPlateView.settings.notes), "#fde68a", 0.92);
         }
         // --- blueprint --- (Mode Lab's end banner is its overlay's: blueprintLayer.drawOverlay(), opaque, on a dark band)
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
@@ -3312,7 +3360,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
           inset: teamInset,
           // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
-          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */ || endBannerMid /* --- end-banner --- (any mode's end banner there) */,
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped() && collapseDone(engine.getShatterView())) /* --- shatter-demolition --- */ || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */ || endBannerMid /* --- end-banner --- (any mode's end banner there) */,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
       }
@@ -3842,6 +3890,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- song-ring --- lit, total, hits, notes, nudges, balls, phase, complete, chord, timeout, finished, the tune once named (data-song-*)
       if (songRingView) songRingData.write(songRingView, setCanvasData);
       else if (canvas.dataset.songLit !== undefined) for (const key of SONG_RING_DATA_KEYS) delete canvas.dataset[key];
+      // --- sand-plate --- the note, the notes, the grains, the moving share, the chord, finished, the seams, the sounds, the figure (data-sand-*)
+      if (sandPlateView) sandPlateData.write(sandPlateView, setCanvasData);
+      else if (canvas.dataset.sandNote !== undefined) for (const key of SAND_PLATE_DATA_KEYS) delete canvas.dataset[key];
       // --- blueprint --- name, catalog, finished, reason, result, banner, HUD, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
       if (blueprintView) blueprintData.write(blueprintView, setCanvasData, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS);
       else if (canvas.dataset.blueprintFinished !== undefined) for (const key of BLUEPRINT_DATA_KEYS) delete canvas.dataset[key];
@@ -3947,6 +3998,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (spiralGlassView && p.sgHud) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass --- (--- templates --- AI studio step 4b: none switched off)
         if (songRingView) songRingLayer.noteHud(hud); // --- song-ring --- (the count in the hub; the mode has no title block)
+        if (sandPlateView) sandPlateLayer.noteHud(hud); // --- sand-plate --- (the note dots under the plate; the mode has no title block)
         if (blueprintView) blueprintLayer.noteHud(hud, liveSquare, titleInset); // --- blueprint --- (the title, the HUD counters, the clock and ARENA FULL)
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");

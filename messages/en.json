@@ -66,10 +66,10 @@
     "canvasSegmentsDestroyed": "[broken]/[total] segments destroyed",
     "canvasSegmentsShattered": "segments shattered",
     "canvasMatched": "MATCHED!",
-    "canvasSegmentsCleared": "All [total] segments cleared",
+    "canvasSegmentsCleared": "{total, plural, one {# segment cleared} other {All # segments cleared}}",
     "canvasMatchColour": "Match colour:",
     "canvasComplete": "COMPLETE!",
-    "canvasSegmentsHitInOrder": "All [total] segments hit in order",
+    "canvasSegmentsHitInOrder": "{total, plural, one {# segment hit} other {All # segments hit in order}}",
     "canvasBalls": "balls",
     "canvasSettled": "SETTLED!",
     "canvasBallsAtRest": "{count, plural, one {# ball at rest} other {All # balls at rest}}",
@@ -230,6 +230,10 @@
     "colorCountTip": "How many distinct colours are used on the wall segments. Fewer colours = easier to match.",
     "segmentCount": "Segments",
     "segmentCountTip": "How many segments the ring has. Fewer segments make a shorter run. A new count starts the run again.",
+    "shatterHits": "Hits per segment",
+    "shatterHitsTip": "How many hits a segment takes before it breaks. More hits make a longer demolition. A new value starts the run again.",
+    "shatterSegments": "Segments per ring",
+    "shatterSegmentsTip": "How many segments each ring is made of. More segments mean smaller pieces, so the ball needs more hits to fit through. A new value starts the run again.",
     "ballSpeed": "Ball Speed",
     "ballSpeedTip": "How fast the ball moves. Higher values make the simulation more energetic.",
     "ballSize": "Ball Size",
@@ -1549,6 +1553,21 @@
     "srLive": "Live Notes",
     "srLiveTip": "A note sounds the moment the ball lights it. Off: the hit is a soft tick and only the hand plays the notes, so the tune stays clear.",
     "srRunInfo": "One lap every {lap} s. The seed decides which notes the ball finds first, so Find Simulation can hit your clip length.",
+    "modeSandPlate": "Sand Plate",
+    "spTitle": "Sand Plate",
+    "spDesc": "Sand on a ringing plate. Every note shakes it into a new shape, each finer than the last. The last note brings the full chord.",
+    "spNotes": "Notes",
+    "spNotesTip": "How many notes the plate rings, one shape each. More notes climb to finer shapes at the end.",
+    "spNoteSec": "Note Length",
+    "spNoteSecTip": "Seconds each note rings before the next one. The sand needs about a second to find its lines.",
+    "spGrains": "Grains",
+    "spGrainsTip": "Grains of sand on the plate. More grains draw fuller lines. Fewer keep a slow phone smooth.",
+    "spShake": "Shake",
+    "spShakeTip": "How hard the plate shakes the sand. Stronger finds the lines sooner but rougher. Softer flows slowly.",
+    "spLoop": "Loop",
+    "spLoopTip": "After the last shape the sand is shaken loose and the run plays again, with no visible seam.",
+    "spRunInfo": "A run lasts {seconds} s, whatever the seed. The seed picks the shapes, the key and every grain's path.",
+    "spRunLoop": "One loop lasts {seconds} s. The seed picks the shapes, the key and every grain's path.",
     "modeBlueprint": "Mode Lab",
     "blTitle": "Mode Lab",
     "blDesc": "Every game here is built from rules that make balls break, merge or multiply. Pick a game and tune its sliders. A shared game link opens here too.",
@@ -2618,6 +2637,10 @@
     "songRing": {
       "name": "Song Ring",
       "description": "A ball lights up a tune one bounce at a time. Can you name it before it is whole?"
+    },
+    "sandPlate": {
+      "name": "Sand Plate",
+      "description": "Sand on a ringing plate. Every note shakes it into a new shape. The last one is the finest."
     },
     "blueprint": {
       "name": "Mode Lab",
@@ -4295,6 +4318,7 @@
       "mergeRing": "the balls",
       "spiralGlass": "the balls",
       "songRing": "the ball",
+      "sandPlate": "the sand",
       "blueprint": "the balls"
     },
     "looks": {
@@ -4327,6 +4351,7 @@
       "collide": "Bumps play notes. Then they slip through.",
       "doublePendulum": "Same start. Watch them split.",
       "songRing": "Name the tune before it ends.",
+      "sandPlate": "Every note draws a new shape.",
       "hatchery": "Every broken tile hatches a new ball.",
       "ringBreaker": "Every broken ring doubles the balls.",
       "conquer": "One hit converts. Last colour wins.",
@@ -4461,6 +4486,10 @@
     "song_jacques": "FRÈRE JACQUES",
     "song_mountain": "MOUNTAIN KING"
   },
+  "SandPlate": {
+    "canvasTitle": "THE FINAL SHAPE",
+    "canvasDoneSub": "{count, plural, one {# note, # shape} other {# notes, # shapes}}"
+  },
   "Blueprint": {
     "canvasArenaFull": "ARENA FULL",
     "canvasTimeLeft": "[min]:[sec]",
@@ -4535,6 +4564,7 @@
         "ballHitSameTeam": "When two team-mates touch",
         "ballHitOtherTeam": "When balls of two teams touch",
         "ballHitSmaller": "When a ball touches a smaller one",
+        "ballHitOf": "When {who} touches another ball",
         "ballHitBody": "When {who} touches a ball called {other}",
         "escape": "When {who} escapes",
         "ringPass": "When {who} gets through a ring",
@@ -4565,7 +4595,10 @@
         "other": "the other ball",
         "slower": "the slower ball",
         "all": "every ball",
-        "merged": "the new ball"
+        "merged": "the new ball",
+        "bigger": "the bigger ball",
+        "smaller": "the smaller ball",
+        "allOf": "every ball called {body}"
       },
       "act": {
         "spawn": "{count, plural, one {# new ball appears} other {# new balls appear}} {place}",
@@ -4587,6 +4620,9 @@
         "damage": "{who} loses {n} HP",
         "damageSome": "{who} takes damage",
         "varAdd": "“{name}” goes up by {n}",
+        "resize": "{who} changes size",
+        "varChange": "“{name}” changes",
+        "varSub": "“{name}” goes down by {n}",
         "varSet": "“{name}” becomes {n}",
         "varMul": "“{name}” is multiplied by {n}",
         "impulse": "{who} gets a push",
@@ -4682,7 +4718,7 @@
       "say0": "[winner] WINS",
       "timeoutSay": "[winner] LEADS",
       "params": {
-        "per": "Balls per colour",
+        "per": "Extra balls a colour",
         "boost": "Speed-up every"
       }
     },
@@ -4737,7 +4773,7 @@
       "say0": "[winner] STAYS DRY",
       "timeoutSay": "THE ICE HELD",
       "params": {
-        "per": "Balls per side",
+        "per": "Balls per colour",
         "hp": "Ice strength",
         "cols": "Panes of ice",
         "melt": "Melt every"

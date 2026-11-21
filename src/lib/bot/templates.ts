@@ -15,7 +15,7 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
 
 /*
  * --- templates --- A viral template for every mode: ten formats (what a clip promises and shows) and a binding of each of
- * the 49 modes to one of them (MODE_TEMPLATES: a Record over ModeId, so a new mode without a binding fails the type check),
+ * the 50 modes to one of them (MODE_TEMPLATES: a Record over ModeId, so a new mode without a binding fails the type check),
  * the adapter that turns a binding into a recipe the planner plans unchanged (templateRecipeById), and the Simple look
  * (SIMPLE_LOOK, the one-line-at-a-time text plan) that keeps a clip calm.
  *
@@ -50,7 +50,8 @@ import { illusionCycleSeconds } from "@/lib/physics/modes/illusion"; // --- temp
  *    the other 12 are declared, experimental and hidden with the reason measured and watched – no setting
  *    answers it yet, their format's copy is written – (docs/virality-playbook.md §5): Perfect Fit, Beat Machines and the Wave Tank
  *    joined them in the studio's first review round (10 and 11), and Bouncing Shapes, ready from step 4, in the studio2 review's
- *    second (17: its payoff a stopped shape the mode draws faded, the other one bouncing on bright). --- song-ring --- Song Ring joined ready on the beat, timed by its final chord. 49 of 49 are bound: every binding is ready, or experimental with
+ *    second (17: its payoff a stopped shape the mode draws faded, the other one bouncing on bright). --- song-ring --- Song Ring joined ready on the beat, timed by its final chord. --- sand-plate --- Sand Plate
+ *    joined ready as a reveal, timed by its full chord. 50 of 50 are bound: every binding is ready, or experimental with
  *    its reason, or (the square race, Ball Drop) proven with its one variant hidden with its reason. A trial binding plans once it
  *    leaves the table, where its strategy can plan it. A proven binding may add a variant of its own settings (VariantOwn:
  *    Classic's one ring).
@@ -482,7 +483,7 @@ export interface ModeBinding {
  * --- templates --- (AI studio step 4) A binding's own hook (copy.ts OWN_HOOK_FIELD: `ViralBot.ownHooks.<key>`), where its format's
  * three hooks do not say what its run does: Bouncing Shapes' countdown, Merge Ring's tiers.
  */
-export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | "songRing" /* --- song-ring --- */ | LabGameId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
+export type OwnHookKey = `own.${"box" | "mergeRing" | "spiralGlass" | "doublePendulum" | "conveyor" /* --- templates --- (studio round 1, 12) */ | "collide" /* --- templates --- (studio2 review round 2, 9) */ | "songRing" /* --- song-ring --- */ | "sandPlate" /* --- sand-plate --- */ | LabGameId /* --- templates --- (AI studio step 6) a Mode Lab game's rule */}`;
 
 /** --- templates --- (AI studio step 4b) A binding's own payoff (copy.ts OWN_PAYOFF_FIELD: `ViralBot.ownPayoffs.<key>`): the Journey's HOME. */
 export type OwnPayoffKey = `ownPayoff.${"journey"}`;
@@ -615,7 +616,8 @@ const forBucket = <T,>(ctx: RecipeContext, values: Readonly<Record<LengthBucket,
  */
 function shatterSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const walls = forBucket(ctx, { short: [8, 12], standard: [16, 20], long: [18, 20] });
-  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN };
+  // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as measured: the page's default is 2 hits and 36 now)
+  return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN, shatterHits: 1, shatterSegments: 18 };
 }
 /** --- templates --- (studio2 review round 2, 14) Shatter's ring spin under its template (rotationSpeed, on its 0.1 step; the mode's default 1 stays). */
 const SHATTER_SPIN = 0.2;
@@ -1257,7 +1259,7 @@ export const EXPERIMENTAL: Readonly<Partial<Record<ModeId, string>>> = {
 
 /**
  * Every mode's binding (the plan's coverage: getOut 7, smash 4, fill 3, count 4, whoWins 8, aim 3, lineUp 8, onTheBeat 8,
- * reveal 3, labGame 1 – 49 of 49). Looping modes never bind to "finish" (it never fires there).
+ * reveal 4, labGame 1 – 50 of 50). Looping modes never bind to "finish" (it never fires there).
  */
 export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   // getOut
@@ -1338,6 +1340,8 @@ export const MODE_TEMPLATES: Readonly<Record<ModeId, ModeBinding>> = {
   lines: bind("lines", later("reveal", "atEnd")),
   drawingMachine: bind("drawingMachine", later("reveal", "atEnd", { generate: drawingMachineSettings, musicFirst: true, hookKey: "hook", note: "Earth and Venus's five-petal flower, its marks left unjoined (no five-pointed star over it), done as the clip's last 1.5 s begin and held past its end", scene: () => "a sun with two small planets circling it, a line drawn between them every few days and a dot where they pass closest" })),
   illusion: bind("illusion", later("reveal", "atEnd", { generate: illusionSettings, note: "fixed run length: whole cycles that cover the clip" })),
+  // --- sand-plate --- the finest figure, its full chord and its flash: the payoff, held under the banner to the run's end
+  sandPlate: bind("sandPlate", later("reveal", "finish", { musicFirst: true, buckets: ["standard"], endings: ["resolved"], hookKey: "own.sandPlate", payoffWords: false, note: "its own hook says what every note does (the format's asks to guess a picture, and a figure of sand is none to name); a fixed run (its notes and the finale's hold, whatever the seed): the payoff is the full chord on the last, finest figure, when the colour floods its lines and the banner rises; held about 3 s to the run's end", scene: () => "a dark square plate seen from above with pale sand on it, the sand drawing fine symmetric lines, a row of dots under the plate climbing like a scale" })),
   // labGame (--- templates --- AI studio step 6: one variant per built-in Mode Lab game that bp-check calls playable, each timed by its
   // finish rule – planner.ts MARK_MODES – and ended resolved, its own end banner the one ending)
   blueprint: bind("blueprint", later("labGame", "finish", { musicFirst: true, endings: ["resolved"], buckets: ["short", "standard"], note: "one variant per built-in Mode Lab game that bp-check calls playable: its hook the game's rule, its payoff the moment its finish rule fires", variants: LAB_GAME_IDS.map((id, i): VariantSpec => [null, i === 0 ? undefined : kebab(id), LAB_GAME_HIDDEN[id], LAB_GAME_BUCKETS[id], labGameVariant(id), id]) })),
