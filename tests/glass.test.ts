@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import {
+  glassCrackHz,
   BOUNCE_MAX,
   BOUNCE_MIN,
   CELEBRATION_MS,
@@ -146,7 +147,7 @@ function levelPrint(level: GlassLevel) {
 describe("Glass Smash settings", () => {
   it("resolve to the defaults and clamp every value to a whole number in its range", () => {
     expect(resolveGlassSettings(undefined)).toEqual(DEFAULT_GLASS_SETTINGS);
-    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false, gates: 1 as unknown as boolean })).toEqual({ rows: 99, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false, gates: false }); // --- uncap-all --- (no maximum)
+    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false, gates: 1 as unknown as boolean })).toEqual({ rows: 99, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false, gates: false, lead: false }); // --- uncap-all --- (no maximum) · --- glass-real --- (the leading camera, off)
     expect(DEFAULT_GLASS_SETTINGS.gates).toBe(false);
     expect(resolveGlassSettings({ gates: true }).gates).toBe(true);
     expect(resolveGlassSettings({ rows: Number.NaN })).toEqual(DEFAULT_GLASS_SETTINGS);
@@ -168,10 +169,10 @@ describe("Glass Smash settings", () => {
     expect(params.get("glm")).toBe("0");
     expect(params.get("glh")).toBe("0");
     expect(params.get("glg")).toBe("1");
-    expect(glassSettingsOf(settingsFromSearchParams(params))).toEqual({ rows: 12, hp: 4, stages: 7, moving: false, holes: false, gates: true });
+    expect(glassSettingsOf(settingsFromSearchParams(params))).toEqual({ rows: 12, hp: 4, stages: 7, moving: false, holes: false, gates: true, lead: false }); // (--- glass-real --- the leading camera stays off)
     // Defaults stay out of the link.
     const plain = settingsToSearchParams(d);
-    for (const key of ["glr", "glhp", "gls", "glm", "glh", "glg"]) expect(plain.has(key)).toBe(false);
+    for (const key of ["glr", "glhp", "gls", "glm", "glh", "glg", "gll" /* --- glass-real --- */]) expect(plain.has(key)).toBe(false);
     // Out-of-range values from a link or a preset are clamped.
     expect(glassSettingsOf(settingsFromSearchParams(new URLSearchParams("mode=glass&glr=500&glhp=-3&gls=2.4")))).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 500, hp: 1, stages: 2 }); // --- uncap-all --- (glr=500 kept)
     const preset = presetToSettings({ mode: "glass", glassRows: 1, glassHp: 9, glassStages: 0, glassHoles: "no", glassGates: "yes" } as unknown as Partial<SimulatorSettings>);
@@ -419,9 +420,13 @@ describe("GlassMode in the engine", () => {
     expect(first.cleared).toBe(true);
     expect(view.shattered).toBe(1);
     // Two plain notes pitched by the row, then the accent and a "gap" (the wall-break clip) on the shatter.
-    const hits = events.filter((e) => e.type === "hit");
+    // (--- glass-real --- the crack voice rides on every hit as a sound of its own: an "extra", left out here and counted below)
+    const hits = events.filter((e) => e.type === "hit" && e.ringVoice !== "extra");
     expect(hits.slice(0, 3).map((e) => e.frequency)).toEqual([first.pitch, first.pitch, first.pitch]);
     expect(hits.slice(0, 3).map((e) => !!e.accent)).toEqual([false, false, true]);
+    const cracks = events.filter((e) => e.ringVoice === "extra");
+    expect(cracks.slice(0, 3).map((e) => [e.plCrack, e.frequency, e.melody])).toEqual([0, 1, 2].map(() => [true, glassCrackHz(first), false]));
+    expect(cracks[2].level).toBe(1);
     expect(events.filter((e) => e.type === "gap")).toHaveLength(1);
     // 8–20 shards are flying.
     expect(view.shardCount).toBeGreaterThanOrEqual(MIN_SHARDS_PER_PANE);

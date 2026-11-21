@@ -719,6 +719,7 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
           overlap: items.some((box, i) => i > 0 && box.left < items[i - 1].right - 1),
           menu: shown(header.querySelector("button[aria-controls]")),
           sideways: document.documentElement.scrollWidth - window.innerWidth,
+        placeholder: /\{\w+\}/.test(document.querySelector("main")?.textContent ?? ""),
           studioLinks: [...header.querySelectorAll("a")].filter((a) => shown(a) && !a.closest('[data-testid="mobile-menu"]') && /\/simulator\/$/.test(a.getAttribute("href") ?? "")).length,
         };
       });
@@ -6077,14 +6078,19 @@ const jrFrameRates = async (ms) => {
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
-/** Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). */
+/**
+ * Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). (--- runner-drums --- Lane E, E4:
+ * not the drum kit the runner plays on its beat without a song – the kick's body at 150 Hz and its click at 1800 Hz, the
+ * snare's body at 190 Hz, beatDropTones.ts KICK_TONE and SNARE_TONE; the hat is noise – which are not landing notes.)
+ */
 const jrInstrumentTones = () =>
   page.evaluate(() => {
     const log = [];
     window.__jrOsc = log;
     const start = OscillatorNode.prototype.start;
+    const drums = [150, 1800, 190];
     OscillatorNode.prototype.start = function () {
-      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      if (this.frequency.value !== 1 && !drums.includes(this.frequency.value)) log.push({ f: this.frequency.value, t: performance.now() });
       return start.apply(this, arguments);
     };
   });
@@ -8742,19 +8748,22 @@ await smokeBlock("daily-gallery", async () => {
 // --- end daily-gallery ---
 });
 
-// --- mode-pages --- (Lane E, E3) A page for every mode: three of them, each in another language (a phone for Polish), with
-// its own title, canonical address, social card and main button, its looks, settings and related modes, no sideways scroll;
+// --- mode-pages --- (Lane E, E3) A page for every mode: four of them, in English, Polish and Spanish (two long Polish names on
+// phones of 390 and 360 px, E3 review), with its own title, canonical address, social card (a mode whose picture has words gets
+// its own language's card) and main button, its looks, settings and related modes, no sideways scroll and no unfilled "{max}";
 // Open in the studio opens the mode in the look and on the seed of its picture. The wall's info button and the studio's About
 // this mode reach a page, and the sitemap lists the pages in every language.
 await smokeBlock("mode-pages", async () => {
+  // (locale, address word, mode, phone width or 0, the social card the page names)
   const visits = [
-    ["en", "pendulum", "pendulum", false],
-    ["pl", "song-ring", "songRing", true],
-    ["es", "fight-league", "fightLeague", false],
+    ["en", "pendulum", "pendulum", 0, "/og/modes/pendulum.jpg"],
+    ["pl", "race", "race", 390, "/og/modes/pl/race.jpg"],
+    ["pl", "double-pendulum", "doublePendulum", 360, "/og/modes/double-pendulum.jpg"],
+    ["es", "fight-league", "fightLeague", 0, "/og/modes/fight-league.jpg"],
   ];
   const pages = [];
-  for (const [locale, slug, mode, phone] of visits) {
-    const ctx = await browser.newContext(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } });
+  for (const [locale, slug, mode, phone, cardPath] of visits) {
+    const ctx = await browser.newContext(phone ? { viewport: { width: phone, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } });
     try {
       const p = await ctx.newPage();
       const res = await p.goto(`${BASE}/${locale}/modes/${slug}/`, { waitUntil: "networkidle" });
@@ -8782,16 +8791,16 @@ await smokeBlock("mode-pages", async () => {
         .waitForFunction(([m, sd]) => new URLSearchParams(location.search).get("mode") === m && document.querySelector("main canvas")?.getAttribute("data-seed") === sd, [mode, seed], { timeout: 20000 })
         .then(() => true)
         .catch(() => false);
-      pages.push({ locale, slug, status: res?.status() ?? 0, ...head, card: card.ok() && /image\/jpeg/.test(card.headers()["content-type"] ?? ""), seed, opened });
+      pages.push({ locale, slug, cardPath, status: res?.status() ?? 0, ...head, card: card.ok() && /image\/jpeg/.test(card.headers()["content-type"] ?? ""), seed, opened });
     } finally {
       await ctx.close().catch(() => {});
     }
   }
-  const named = { pendulum: "Pendulum Wave", songRing: "Pierścień melodii", fightLeague: "Liga de combate" };
+  const named = { pendulum: "Pendulum Wave", race: "Wyścig kwadratów Grand Prix", doublePendulum: "Harfa z podwójnym wahadłem", fightLeague: "Liga de combate" };
   check(
-    "mode pages: three pages in English, Polish and Spanish, each with its own title, canonical address, hreflang set, social card, looks, settings and related modes, no sideways scroll, and Open in the studio opens the mode on the seed of its picture",
-    pages.length === 3 &&
-      pages.every((x) => x.status === 200 && x.mode && x.h1 === named[x.mode] && x.title.startsWith(x.h1) && x.canonical.endsWith(`/${x.locale}/modes/${x.slug}/`) && x.hreflang >= 4 && /\/og\/modes\/[a-z-]+\.jpg$/.test(x.og) && x.card && x.lang === x.locale && x.looks >= 1 && x.related === 4 && x.settings >= 1 && x.picture && x.sideways <= 0 && /^\S*\/simulator\/\?/.test(x.open) && !!x.seed && x.opened),
+    "mode pages: four pages in English, Polish and Spanish, each with its own title, canonical address, hreflang set, social card in its language, looks, settings and related modes, no sideways scroll on a 390 or 360 px phone, no unfilled placeholder, and Open in the studio opens the mode on the seed of its picture",
+    pages.length === 4 &&
+      pages.every((x) => x.status === 200 && x.mode && x.h1 === named[x.mode] && x.title.startsWith(x.h1) && x.canonical.endsWith(`/${x.locale}/modes/${x.slug}/`) && x.hreflang >= 4 && x.og.endsWith(x.cardPath) && x.card && x.lang === x.locale && x.looks >= 1 && x.related === 4 && x.settings >= 1 && x.picture && x.sideways <= 0 && !x.placeholder && /^\S*\/simulator\/\?/.test(x.open) && !!x.seed && x.opened),
     `(${JSON.stringify(pages)})`,
   );
   // the ways in: the wall's info button, the studio's About this mode, the sitemap

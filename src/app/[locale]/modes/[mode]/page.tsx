@@ -12,7 +12,7 @@ import { SITE_NAME, absoluteUrl, assetPath } from "@/lib/site";
 import { OG_SIZE, breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { shelfOf } from "@/lib/siteDesign";
 import { cardHref } from "@/lib/thumbnails/heroMoments";
-import { MODE_FIRST_SETTINGS, MODE_INTROS, modeMetaDescription, modeOfSlug, modeOgImagePath, modePageLooks, modePageModes, modePagePath, modeSlug, relatedModes, starterSettings } from "@/lib/modePages";
+import { MESSAGE_VALUES, MODE_FIRST_SETTINGS, MODE_INTROS, MODE_PAGE_INTROS, modeMetaDescription, modeOfSlug, modeOgImagePathIn, modePageLooks, modePageModes, modePagePath, modeSlug, relatedModes, starterSettings } from "@/lib/modePages";
 import type { ModeId } from "@/lib/physics/types";
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight, IconPlay } from "@/components/ui/icons";
@@ -40,12 +40,15 @@ function localeOf(locale: string): Locale {
   return hasLocale(routing.locales, locale) ? locale : routing.defaultLocale;
 }
 
-/** A message by its full key ("Controls.pwDesc"), or null where the catalog lacks it (a renamed control shows nothing). */
+/**
+ * A message by its full key ("Controls.pwDesc"), or null where the catalog lacks it (a renamed control shows nothing), with the
+ * values the studio fills in (E3 review: MESSAGE_VALUES, so the arms tip says 64, not "{max}").
+ */
 async function messageOf(locale: string, full: string): Promise<string | null> {
   const dot = full.indexOf(".");
   const t = await getTranslations({ locale, namespace: full.slice(0, dot) as never });
   const key = full.slice(dot + 1);
-  return t.has(key as never) ? (t(key as never) as string) : null;
+  return t.has(key as never) ? (t(key as never, MESSAGE_VALUES[full] as never) as string) : null;
 }
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
@@ -61,7 +64,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     path: modePagePath(mode),
     title: t("metaTitle", { name, siteName: SITE_NAME }),
     description,
-    image: { url: absoluteUrl(modeOgImagePath(mode)), ...OG_SIZE, alt: t("cardAlt", { name, siteName: SITE_NAME }), type: "image/jpeg" },
+    image: { url: absoluteUrl(modeOgImagePathIn(mode, locale)), ...OG_SIZE, alt: t("cardAlt", { name, siteName: SITE_NAME }), type: "image/jpeg" },
   });
 }
 
@@ -79,13 +82,15 @@ export default async function ModePage({ params }: Params) {
   const name = modes(`${mode}.name`);
   const shelf = shelfOf(mode);
   const shelfName = site(`families.${shelf}`);
-  const intro = MODE_INTROS[mode] ? await messageOf(locale, MODE_INTROS[mode]) : null;
+  // (the studio block's intro, or for a block without one the page's own: E3 review, every page says how its mode plays)
+  const intro = MODE_INTROS[mode] ? await messageOf(locale, MODE_INTROS[mode]) : MODE_PAGE_INTROS.includes(mode) ? t(`intro.${mode}` as never) : null;
   const looks = modePageLooks(mode);
   const presets = looks.filter((look) => look.preset);
   const otherLooks = looks.filter((look) => !look.preset);
   // (each setting's name and tip; one a catalog lacks, a control renamed since, is left out)
   const own = (await Promise.all((MODE_FIRST_SETTINGS[mode] ?? []).map(async (key) => ({ key, name: await messageOf(locale, key), tip: await messageOf(locale, `${key}Tip`) })))).filter((s): s is { key: string; name: string; tip: string } => !!s.name && !!s.tip);
   const basics = starterSettings(mode).filter((key) => controls.has(key as never));
+  const ownSettings = own.length > 0; // (E3 review: a mode with no settings of its own titles the section as the basics)
   const related = relatedModes(mode);
   const studio = cardHref(mode);
   const breadcrumbs = await breadcrumbJsonLd(locale, [{ name, path: modePagePath(mode) }]);
@@ -100,7 +105,7 @@ export default async function ModePage({ params }: Params) {
           <header className="grid items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-14">
             <div className="min-w-0">
               <p className="eyebrow text-ink-3">
-                <Link href={`/?family=${shelf}#modes`} className="hover:text-ink-2" data-testid="mode-page-shelf">
+                <Link href={`/?family=${shelf}#modes`} className="inline-flex items-center hover:text-ink-2 [@media(pointer:coarse)]:min-h-11" data-testid="mode-page-shelf">
                   {shelfName}
                 </Link>
               </p>
@@ -182,9 +187,9 @@ export default async function ModePage({ params }: Params) {
           {/* the first settings: the mode's own block (each control's name and tip), then the basics every mode starts with */}
           <section className="mt-14 max-w-[760px]" aria-labelledby="mode-settings" data-testid="mode-page-settings">
             <h2 id="mode-settings" className={sectionTitle}>
-              {t("settingsTitle")}
+              {ownSettings ? t("settingsTitle") : t("basicsTitle")}
             </h2>
-            {own.length > 0 && (
+            {ownSettings && (
               <dl className="mt-6 space-y-5">
                 {own.map((setting) => (
                   <div key={setting.key} className="border-l-2 border-line pl-4">
@@ -194,10 +199,11 @@ export default async function ModePage({ params }: Params) {
                 ))}
               </dl>
             )}
-            <p className="mt-6 text-sm text-ink-3">{own.length > 0 ? t("basicsAlso") : t("basicsOnly")}</p>
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <p className="mt-6 text-sm text-ink-3">{ownSettings ? t("basicsAlso") : t("basicsOnly")}</p>
+            {/* (E3 review) the basics as plain words between dots: names to look for in the studio, not chips that look tappable */}
+            <ul className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-sm text-ink-2" data-testid="mode-page-basics">
               {basics.map((key) => (
-                <li key={key} className="rounded-full border border-line px-3 py-1 text-sm text-ink-2">
+                <li key={key} className="after:ml-2 after:text-ink-3 after:content-['·'] last:after:content-none">
                   {controls(key as never)}
                 </li>
               ))}
@@ -225,7 +231,8 @@ export default async function ModePage({ params }: Params) {
               {t("allModes")}
               <IconArrowRight size={16} />
             </Link>
-            <Link href={studio} className={buttonClass({ variant: "primary", size: "md", className: "shrink-0" })}>
+            {/* (E3 review) a long name wraps on a phone instead of widening the page, as the top button does */}
+            <Link href={studio} className={buttonClass({ variant: "primary", size: "md", className: "max-w-full max-sm:h-auto max-sm:py-2.5 max-sm:whitespace-normal sm:shrink-0" })} data-testid="mode-page-open-bottom">
               {t("openNamed", { name })}
               <IconArrowRight size={16} />
             </Link>

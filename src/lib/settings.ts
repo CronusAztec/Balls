@@ -363,6 +363,8 @@ export interface SimulatorSettings {
   glassHoles: boolean;
   /** --- gerald-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above every stage's glass (URL `glg`). */
   glassGates: boolean;
+  /** --- glass-real --- The camera leads: the glass the ball bounces on a third of the way down, the next panes in view (URL `gll`). */
+  glassLead: boolean;
   // --- end gerald-glass ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
@@ -1957,6 +1959,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   glm: "glassMoving",
   glh: "glassHoles",
   glg: "glassGates", // --- gerald-multipliers --- the gate rows
+  gll: "glassLead", // --- glass-real --- the leading camera
   // --- gerald-multipliers ---
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",

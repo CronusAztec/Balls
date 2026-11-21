@@ -561,7 +561,7 @@ export class FaceLayer {
    * Faces and the label on bodies another renderer drew (Bouncing Shapes, Pendulum Wave). With a countdown number
    * on a square or circle the face is reduced to two eyes above the number; a DVD plate with a number stays plain.
    */
-  drawOverlays(ctx: CanvasRenderingContext2D, balls: readonly Ball[], bodyColor: (ball: Ball) => string, box: { shape: BoxShape; countdown: boolean } | null) {
+  drawOverlays(ctx: CanvasRenderingContext2D, balls: readonly Ball[], bodyColor: (ball: Ball) => string, box: { shape: BoxShape; countdown: boolean; gone?: (ball: Ball) => boolean } | null) {
     const o = this.options;
     if (!this.active || !o) return;
     const faces = o.face !== "none" && !(box && box.countdown && box.shape === "dvd");
@@ -569,6 +569,7 @@ export class FaceLayer {
     if (faces) {
       for (let i = 0; i < n; i++) {
         const ball = balls[i];
+        if (box?.gone?.(ball)) continue; // --- box-finale --- (a shape at 0 burst into confetti: no face left on it)
         const r = box ? boxFaceRadius(box.shape, ball.radius) : ball.radius;
         drawFace(ctx, ball.x, ball.y, r, o.face, this.viewOf(ball), bodyColor(ball), box?.countdown ? { compact: true } : undefined);
         this.facesDrawn++;

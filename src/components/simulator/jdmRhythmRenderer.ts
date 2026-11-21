@@ -13,6 +13,13 @@ import { GAME_OVER_HOLD_SEC, MAX_PD_PARTICLES, PD_ASPECT, PD_CEILING, PD_PLATFOR
  * bar with its percentage, the tempo badge, the attempt counter, the "SPACE to jump" hint and the "LEVEL COMPLETE!"
  * banner. Only what is in view is drawn.
  *
+ * --- runner-look --- (Lane E, E4) The look of the game it quotes: the sky behind the course takes a new neon colour every 8 beats
+ * (`runnerSectionHue()`, a quick crossfade on the bar line) with two layers of shapes sliding past slower than the course
+ * (parallax), the floor glows on its top edge with stripes that scroll with the course, the spikes glow, the whole frame breathes
+ * on every beat, a landing sends a ring along the floor, and the square is a coloured cube with a face (the section's colour
+ * unless the Ball colour is set; the face is left to the character when one is on). Everything reads the run's own clock and
+ * course numbers, so a frame is the same live, in the fast export and in the render queue.
+ *
  * `PaddleLayer` – Paddle Keep-Up: `drawWorld()` the field (walls and ceiling glowing where the ball touched them, the
  * miss zone), the platform (flashing and dipping on a catch) and the sparks; the ball is the canvas' own ball pass (trail,
  * glow, face, emoji); `drawOverlay()` the score, the lives, the streak, "MISS!" and the "GAME OVER" banner.
@@ -62,6 +69,31 @@ export interface JdmRhythmRenderOptions {
   showTrails: boolean;
   /** The square's colour (the Ball colour, or the rainbow). */
   bodyColor: string;
+  /** --- runner-look --- The cube draws its own eyes (off while a character's face is drawn on it). */
+  ownFace?: boolean;
+}
+
+// --- runner-look ---
+/** Neon hues the sky cycles through, one per 8-beat section. */
+export const RUNNER_SECTION_HUES: readonly number[] = [262, 196, 318, 150, 28, 222, 344, 96];
+/** Beats in a colour section. */
+export const RUNNER_SECTION_BEATS = 8;
+/** The hue of the section beat `beatIndex` is in (the first section before the first beat). */
+export function runnerSectionHue(beatIndex: number): number {
+  const k = Math.max(0, Math.floor(Math.max(0, beatIndex) / RUNNER_SECTION_BEATS));
+  return RUNNER_SECTION_HUES[k % RUNNER_SECTION_HUES.length];
+}
+/** A fixed pseudo-random number in [0, 1) for the parallax shape `i` of layer `layer` (no random draw). */
+function shapeHash(i: number, layer: number): number {
+  let h = Math.imul(i + 7919 * layer, 0x9e3779b1) ^ 0x85ebca6b;
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  return (h >>> 0) / 4294967296;
+}
+/** The cube's colour: the Ball colour, or (a plain white ball) the neon facing the section's across the colour wheel. */
+function cubeColor(body: string, hue: number): string {
+  return /^#?(f{3}|f{6})$/i.test(body.trim()) || body.trim().toLowerCase() === "white" ? `hsl(${(hue + 150) % 360}, 95%, 62%)` : body;
 }
 
 const GOLD = "#fde047";
@@ -129,8 +161,56 @@ export class RunnerLayer {
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
-    // A grid that pulses with the beat, behind everything.
+    // --- runner-look --- the sky: the section's neon (a crossfade over the first half beat of a section), breathing on the beat
     const pulse = view.beatPulse;
+    const sky0 = f.top - f.size;
+    const skyH = 3 * f.size;
+    const beatsIn = view.beatIndex < 0 ? 0 : view.beatIndex % RUNNER_SECTION_BEATS;
+    const hue = runnerSectionHue(view.beatIndex);
+    const prevHue = runnerSectionHue(view.beatIndex - RUNNER_SECTION_BEATS);
+    const fadeIn = beatsIn === 0 && view.beatIndex >= RUNNER_SECTION_BEATS ? Math.min(1, 1 - pulse + 0.15) : 1;
+    for (const [h, a] of fadeIn < 1 ? ([[prevHue, 1], [hue, fadeIn]] as const) : ([[hue, 1]] as const)) {
+      const sky = ctx.createLinearGradient(0, f.top, 0, f.floorY);
+      sky.addColorStop(0, `hsl(${h}, 65%, ${(8 + 4 * pulse).toFixed(1)}%)`);
+      sky.addColorStop(1, `hsl(${h}, 80%, ${(17 + 6 * pulse).toFixed(1)}%)`);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = sky;
+      ctx.fillRect(X(x0), sky0, (x1 - x0) * u, f.floorY - sky0);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#06060c"; // (under the floor line the void: a pit is dark, as in the game)
+    ctx.fillRect(X(x0), f.floorY, (x1 - x0) * u, sky0 + skyH - f.floorY);
+    // --- runner-look --- two layers of shapes sliding past slower than the course: far pillars, near tilted outlines
+    for (let layer = 0; layer < 2; layer++) {
+      const k = layer === 0 ? 0.25 : 0.55; // (the share of the course's speed the layer moves at)
+      const step = layer === 0 ? 3.2 : 4.6; // (cube lengths between two shapes of the layer)
+      const shift = view.camX * (1 - k); // (course x of the layer's origin: it lags the camera)
+      const first = Math.floor((x0 - shift) / step) - 1;
+      const last = Math.ceil((x1 - shift) / step) + 1;
+      ctx.fillStyle = `hsla(${hue}, 80%, ${layer === 0 ? 30 : 45}%, ${layer === 0 ? 0.55 : 0.4})`;
+      ctx.strokeStyle = `hsla(${(hue + 40) % 360}, 95%, 70%, ${layer === 0 ? 0.25 : 0.5})`;
+      ctx.lineWidth = Math.max(1.5, 0.06 * u);
+      for (let i = first; i <= last; i++) {
+        const r = shapeHash(i, layer);
+        const cx = X(shift + i * step + r * 1.2);
+        if (layer === 0) {
+          const h = (1.6 + 4.2 * r) * u;
+          const w = (0.9 + 0.8 * shapeHash(i, 2)) * u;
+          ctx.fillRect(cx - w / 2, f.floorY - h, w, h);
+          ctx.strokeRect(cx - w / 2, f.floorY - h, w, h);
+        } else {
+          const side = (0.6 + 0.7 * r) * u;
+          const cy = Y(3.4 + 4 * shapeHash(i, 3));
+          const turn = (shapeHash(i, 4) - 0.5) * 1.2 + 0.4 * view.timeSec * (shapeHash(i, 5) - 0.5);
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(turn);
+          ctx.strokeRect(-side / 2, -side / 2, side, side);
+          ctx.restore();
+        }
+      }
+    }
+    // A grid that pulses with the beat, behind everything.
     ctx.strokeStyle = o.wallColor(0, 0.06 + 0.12 * pulse);
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -155,6 +235,26 @@ export class RunnerLayer {
       ctx.fillRect(a, f.floorY, b - a, floorDepth);
       ctx.fillStyle = o.wallColor(1, 0.12);
       ctx.fillRect(a, f.floorY, b - a, 0.5 * u);
+      // --- runner-look --- slanted stripes that scroll with the course, and the top edge's glow (brighter on the beat)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(a, f.floorY, b - a, floorDepth);
+      ctx.clip();
+      ctx.strokeStyle = `hsla(${hue}, 90%, 60%, 0.22)`;
+      ctx.lineWidth = 0.3 * u;
+      ctx.beginPath();
+      for (let sx = Math.floor(Math.max(p.x0, x0)) - 2; sx <= Math.min(p.x1, x1) + 1; sx++) {
+        ctx.moveTo(X(sx), f.floorY + 2 * u);
+        ctx.lineTo(X(sx + 1.2), f.floorY);
+      }
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = o.wallColor(1, 0.18 + 0.25 * pulse);
+      ctx.lineWidth = Math.max(6, 3 * o.wallThickness) + 6 * pulse;
+      ctx.beginPath();
+      ctx.moveTo(a, f.floorY);
+      ctx.lineTo(b, f.floorY);
+      ctx.stroke();
       ctx.strokeStyle = o.wallColor(1);
       ctx.lineWidth = Math.max(2, o.wallThickness);
       ctx.beginPath();
@@ -221,6 +321,8 @@ export class RunnerLayer {
       ctx.closePath();
       ctx.fillStyle = "#07070d";
       ctx.fill();
+      ctx.fillStyle = o.wallColor(i + 7, 0.3 + 0.25 * pulse); // --- runner-look --- the spike glows from inside
+      ctx.fill();
       if (o.showWallGlow) {
         ctx.shadowColor = color;
         ctx.shadowBlur = 8;
@@ -259,6 +361,18 @@ export class RunnerLayer {
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
+    }
+    // --- runner-look --- a landing sends a ring along the floor under the square
+    const landAge = view.timeSec - view.lastLandSec;
+    if (landAge >= 0 && landAge < 0.4) {
+      const t = landAge / 0.4;
+      ctx.globalAlpha = 0.8 * (1 - t);
+      ctx.strokeStyle = `hsl(${hue}, 95%, 75%)`;
+      ctx.lineWidth = Math.max(2, 0.12 * u * (1 - t));
+      ctx.beginPath();
+      ctx.ellipse(X(view.lastLandX), Y(view.lastLandLevel), (0.6 + 2.6 * t) * u, (0.15 + 0.5 * t) * u, 0, 0, TWO_PI);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     // Checkpoints of a hand-played run, and the attempt counter floating over the current one.
     if (!view.auto) {
@@ -306,6 +420,7 @@ export class RunnerLayer {
     const X = (x: number) => f.left + x * u;
     const Y = (y: number) => f.floorY - (y + 0.5) * u;
     ctx.save();
+    const trailColor = cubeColor(o.bodyColor, runnerSectionHue(view.beatIndex)); // --- runner-look --- (the cube's own colour)
     // The trail: fading, shrinking squares at the last positions.
     if (o.showTrails && view.trailCount > 1) {
       for (let k = view.trailCount - 1; k >= 1; k--) {
@@ -313,7 +428,7 @@ export class RunnerLayer {
         const a = 1 - k / view.trailCount;
         const s = (0.25 + 0.55 * a) * u;
         ctx.globalAlpha = 0.35 * a;
-        ctx.fillStyle = o.bodyColor;
+        ctx.fillStyle = trailColor;
         ctx.save();
         ctx.translate(X(view.trailX[i]), Y(view.trailY[i]));
         ctx.rotate(view.trailA[i]);
@@ -331,21 +446,36 @@ export class RunnerLayer {
     const h = u * (1 - squash);
     ctx.translate(cx, bottom - h / 2);
     ctx.rotate(view.grounded ? 0 : view.angle);
+    // --- runner-look --- a coloured cube: the section's neon (or the Ball colour), a lighter inner square, and a face
+    const body = cubeColor(o.bodyColor, runnerSectionHue(view.beatIndex));
     if (o.showGlow || view.beatPulse > 0.6) {
-      ctx.shadowColor = o.bodyColor;
+      ctx.shadowColor = body;
       ctx.shadowBlur = 12 + 14 * view.beatPulse;
     }
-    ctx.fillStyle = o.bodyColor;
+    ctx.fillStyle = body;
     ctx.fillRect(-w / 2, -h / 2, w, h);
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
     ctx.lineWidth = Math.max(1.5, 0.08 * u);
     ctx.strokeRect(-w / 2, -h / 2, w, h);
-    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
-    ctx.fillRect(-0.28 * w, -0.28 * h, 0.56 * w, 0.56 * h);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+    ctx.fillRect(-0.34 * w, -0.34 * h, 0.68 * w, 0.68 * h);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
     ctx.lineWidth = Math.max(1, 0.05 * u);
-    ctx.strokeRect(-0.28 * w, -0.28 * h, 0.56 * w, 0.56 * h);
+    ctx.strokeRect(-0.34 * w, -0.34 * h, 0.68 * w, 0.68 * h);
+    if (o.ownFace !== false) {
+      // Two square eyes that look the way it flies (up in the air, squinting on a landing) and a flat mouth.
+      const look = view.grounded ? 0 : -0.05 * h;
+      const eyeH = (0.2 - 0.12 * Math.min(1, squash * 5)) * h;
+      ctx.fillStyle = "#0b0b12";
+      ctx.fillRect(-0.24 * w, -0.16 * h + look, 0.16 * w, eyeH);
+      ctx.fillRect(0.08 * w, -0.16 * h + look, 0.16 * w, eyeH);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(-0.2 * w, -0.14 * h + look, 0.06 * w, Math.min(eyeH, 0.07 * h));
+      ctx.fillRect(0.12 * w, -0.14 * h + look, 0.06 * w, Math.min(eyeH, 0.07 * h));
+      ctx.fillStyle = "#0b0b12";
+      ctx.fillRect(-0.2 * w, 0.14 * h, 0.4 * w, 0.07 * h);
+    }
     ctx.restore();
   }
 

@@ -1,4 +1,4 @@
-import { BANNER_MS, CRACK_GROW_MS, paneDamage, type GlassPane, type GlassView } from "@/lib/physics/modes/glass";
+import { BANNER_MS, CRACK_GROW_MS, paneDamage, stageHue, type GlassPane, type GlassView } from "@/lib/physics/modes/glass";
 import { ACCENT } from "@/lib/site";
 // --- gerald-multipliers --- the gate rows speak the board's language (colours, labels)
 import { MULTIPLIER_COLORS } from "@/lib/physics/multipliers";
@@ -12,6 +12,12 @@ import { DEFAULT_MULTIPLIER_LABELS, gateLabel, type MultiplierLabels } from "./m
  * slot the ball went through lights up), the flying shards, and in screen space the "STAGE n" banner and the stage dots. Canvas.tsx scrolls the world by `GlassView.cameraY` (`applyGlassCamera()`) inside its camera
  * transform, so the obstacle walls, the ball, its face, the particles and everything here share the scroll. Only
  * what is in view is drawn and the fill strings are cached per hue, so a 30-pane stage stays cheap at 1080×1920.
+ *
+ * --- glass-real --- (Lane E, E4) Glass you can see through and that breaks like glass: each stage's shaft washed in its own
+ * tint, panes of tinted translucent glass with a light top band, a bright top edge and a glint that sweeps along them, cracks
+ * with a pale blue halo and a white star at the impact, a burst of light and tinted dust where a pane shatters, shards in the
+ * pane's colour, and a warm halo round the ball. Every one of these reads the simulation clock (`GlassView.timeMs`) and the
+ * pane's own numbers, so a frame is the same live, in the fast export and in the render queue.
  */
 
 export interface GlassRenderOptions {
@@ -25,7 +31,24 @@ export interface GlassRenderOptions {
   homeLabel: string;
   /** --- gerald-multipliers --- The stat words of the gate labels (x2 DMG, x1.5 SPEED, x1.25 SIZE), translated. */
   multLabels?: MultiplierLabels;
+  /** --- glass-real --- (E4 review) Glass Smash's own stage tints (`glassStageTint()`); the Journey's glass leaves it off. */
+  stageTints?: boolean;
 }
+
+// --- glass-real --- (E4 review)
+/**
+ * Glass Smash's stage tints, far apart round the wheel so every stage reads as a colour of its own (cyan, violet, pink, amber,
+ * green, blue): the panes' own hue (`stageHue()`, 28° a stage) made stages 3 and 4 the same purple. Drawing only: the Journey
+ * keeps `stageHue()` for its one glass stage.
+ */
+export const GLASS_STAGE_TINTS: readonly number[] = [190, 265, 325, 35, 145, 220];
+const TINT_OF_HUE = new Map<number, number>(Array.from({ length: 13 }, (_, i) => [stageHue(i), GLASS_STAGE_TINTS[i % GLASS_STAGE_TINTS.length]]));
+/** The tint Glass Smash draws for glass of `hue` (a stage's `stageHue()`; any other hue as it is). */
+export function glassStageTint(hue: number): number {
+  return TINT_OF_HUE.get(hue) ?? hue;
+}
+const sameHue = (hue: number) => hue;
+// --- end glass-real ---
 
 const TWO_PI = Math.PI * 2;
 const STAGE_DASH = [4, 6];
@@ -48,10 +71,24 @@ const cached = (cache: Map<number, string>, hue: number, make: (h: number) => st
   }
   return s;
 };
-const paneFill = (hue: number) => cached(fillCache, hue, (h) => `hsla(${h}, 80%, 72%, 0.26)`);
-const paneEdge = (hue: number) => cached(edgeCache, hue, (h) => `hsla(${h}, 100%, 92%, 0.95)`);
-const paneLowEdge = (hue: number) => cached(lowEdgeCache, hue, (h) => `hsla(${h}, 90%, 62%, 0.65)`);
-const shardFill = (hue: number) => cached(shardCache, hue, (h) => `hsla(${h}, 70%, 88%, 0.8)`);
+// (--- glass-real --- a deeper tint, a light band on top, the shards in the pane's own colour, each stage's wash)
+const paneFill = (hue: number) => cached(fillCache, hue, (h) => `hsla(${h}, 88%, 58%, 0.34)`);
+const paneEdge = (hue: number) => cached(edgeCache, hue, (h) => `hsla(${h}, 100%, 94%, 1)`);
+const paneLowEdge = (hue: number) => cached(lowEdgeCache, hue, (h) => `hsla(${h}, 95%, 55%, 0.8)`);
+const shardFill = (hue: number) => cached(shardCache, hue, (h) => `hsla(${h}, 90%, 70%, 0.88)`);
+const bandCache = new Map<number, string>();
+const washCache = new Map<number, string>();
+const puffCache = new Map<number, string>();
+const paneBand = (hue: number) => cached(bandCache, hue, (h) => `hsla(${h}, 100%, 88%, 0.42)`);
+const stageWash = (hue: number) => cached(washCache, hue, (h) => `hsla(${h}, 75%, 42%, 0.1)`);
+const wideCache = new Map<number, string>();
+const stageWide = (hue: number) => cached(wideCache, hue, (h) => `hsla(${h}, 70%, 38%, 0.07)`);
+const puffFill = (hue: number) => cached(puffCache, hue, (h) => `hsl(${h}, 95%, 82%)`);
+/** --- glass-real --- A glint sweeps along each pane once every GLINT_MS (simulation ms), each pane at its own phase. */
+export const GLINT_MS = 2600;
+/** --- glass-real --- How long the light and the dust of a shatter last, and the white star of a hit (simulation ms). */
+export const SHATTER_PUFF_MS = 450;
+export const IMPACT_STAR_MS = 260;
 
 /** Scrolls the world by the Glass Smash camera (call inside the canvas' camera transform, before the world is drawn). */
 export function applyGlassCamera(ctx: CanvasRenderingContext2D, view: GlassView) {
@@ -59,13 +96,15 @@ export function applyGlassCamera(ctx: CanvasRenderingContext2D, view: GlassView)
 }
 
 /** One stretch of solid glass of a pane, from x0 to x1: tinted fill, frost and hit flash, bright edges and two glints. */
-function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number, x1: number, y0: number, damage: number, flash: number) {
+function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number, x1: number, y0: number, damage: number, flash: number, now: number, hue: number /* --- glass-real --- (E4 review) */) {
   const w = x1 - x0;
   if (w <= 0) return;
   const T = pane.thickness;
   ctx.globalAlpha = 1;
-  ctx.fillStyle = paneFill(pane.hue);
+  ctx.fillStyle = paneFill(hue);
   ctx.fillRect(x0, y0, w, T);
+  ctx.fillStyle = paneBand(hue); // --- glass-real --- the light band along the top of the glass
+  ctx.fillRect(x0, y0, w, 0.38 * T);
   if (damage > 0 || flash > 0) {
     // Frost thickens with the damage; a hit flashes the glass white.
     ctx.globalAlpha = Math.min(0.85, 0.22 * damage + 0.55 * flash);
@@ -74,7 +113,7 @@ function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number
   }
   ctx.globalAlpha = 1;
   ctx.lineWidth = 1;
-  ctx.strokeStyle = paneEdge(pane.hue);
+  ctx.strokeStyle = paneEdge(hue);
   ctx.beginPath();
   ctx.moveTo(x0, y0 + 0.5);
   ctx.lineTo(x1, y0 + 0.5);
@@ -83,7 +122,7 @@ function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number
   ctx.moveTo(x1 - 0.5, y0);
   ctx.lineTo(x1 - 0.5, y0 + T);
   ctx.stroke();
-  ctx.strokeStyle = paneLowEdge(pane.hue);
+  ctx.strokeStyle = paneLowEdge(hue);
   ctx.beginPath();
   ctx.moveTo(x0, y0 + T - 0.5);
   ctx.lineTo(x1, y0 + T - 0.5);
@@ -97,7 +136,23 @@ function drawPanePart(ctx: CanvasRenderingContext2D, pane: GlassPane, x0: number
     ctx.moveTo(x0 + 0.24 * w, y0 + T - 1);
     ctx.lineTo(x0 + 0.24 * w + 0.8 * T, y0 + 1);
     ctx.stroke();
+    // --- glass-real --- the glint that sweeps along the pane (its own phase), a slanted band of light
+    const phase = (now / GLINT_MS + 0.173 * pane.index) % 1;
+    const gx = x0 + (1.5 * phase - 0.25) * w;
+    const band = Math.max(3, 0.045 * w);
+    if (gx > x0 && gx + band + T < x1) {
+      ctx.globalAlpha = 0.5 * Math.sin(Math.PI * Math.min(1, Math.max(0, (gx - x0) / w)));
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.moveTo(gx, y0 + T);
+      ctx.lineTo(gx + band, y0 + T);
+      ctx.lineTo(gx + band + T, y0);
+      ctx.lineTo(gx + T, y0);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
+  ctx.globalAlpha = 1;
 }
 
 /** --- end-banner --- The stage dots over the shaft: their radius, the step between two and the x of the first one's centre. */
@@ -126,12 +181,34 @@ export function glassLabelX(field: { left: number; width: number; cx: number; he
  * The world between `viewTop` and `viewBottom` (world y): stage markers, rails, panes, cracks, the ground and the
  * doorway. Drawn before the ball, inside the scrolled transform.
  */
-export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions, viewTop: number, viewBottom: number) {
+export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions, viewTop: number, viewBottom: number, ball?: { x: number; y: number; radius: number } | null) {
   const level = view.level;
   if (!level) return;
   const f = level.field;
   const now = view.timeMs;
+  const tint = opts.stageTints ? glassStageTint : sameHue; // --- glass-real --- (E4 review)
   ctx.save();
+  // --- glass-real --- each stage's shaft washed in its tint, and the whole square beside it more faintly, so the frame carries
+  // the colour of the glass it is in
+  for (const st of level.stages) {
+    if (st.bottom < viewTop || st.top > viewBottom) continue;
+    const y0 = Math.max(st.top, viewTop);
+    const h = Math.min(st.bottom, viewBottom) - y0;
+    ctx.fillStyle = stageWide(tint(stageHue(st.index)));
+    ctx.fillRect(f.cx - f.height / 2, y0, f.height, h);
+    ctx.fillStyle = stageWash(tint(stageHue(st.index)));
+    ctx.fillRect(f.left, y0, f.width, h);
+  }
+  // --- glass-real --- a warm halo round the ball (it is small in a tall shaft)
+  if (ball && ball.y + 6 * ball.radius > viewTop && ball.y - 6 * ball.radius < viewBottom) {
+    const halo = ctx.createRadialGradient(ball.x, ball.y, ball.radius * 0.8, ball.x, ball.y, ball.radius * 4.5);
+    halo.addColorStop(0, "rgba(255, 236, 190, 0.42)");
+    halo.addColorStop(1, "rgba(255, 236, 190, 0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius * 4.5, 0, TWO_PI);
+    ctx.fill();
+  }
   // Stage markers: a faint dashed line where each stage begins and its name under it (--- end-banner --- not at the wall: the
   // line scrolls through the square's bottom corners, where the watermark badge sits, and "STAGE 2" read "E 2"; and not under
   // the middle, where it scrolled onto the stage dots: glassLabelX()).
@@ -169,7 +246,7 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     if (pane.kind === "moving") {
       // The rail it slides on.
       ctx.globalAlpha = 0.14;
-      ctx.strokeStyle = paneEdge(pane.hue);
+      ctx.strokeStyle = paneEdge(tint(pane.hue));
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(f.left, pane.y);
@@ -182,15 +259,34 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     const left = pane.x - pane.halfWidth;
     const right = pane.x + pane.halfWidth;
     if (pane.kind === "hole" && pane.holeHalf > 0) {
-      drawPanePart(ctx, pane, left, pane.x + pane.holeX - pane.holeHalf, y0, damage, flash);
-      drawPanePart(ctx, pane, pane.x + pane.holeX + pane.holeHalf, right, y0, damage, flash);
-    } else drawPanePart(ctx, pane, left, right, y0, damage, flash);
+      drawPanePart(ctx, pane, left, pane.x + pane.holeX - pane.holeHalf, y0, damage, flash, now, tint(pane.hue));
+      drawPanePart(ctx, pane, pane.x + pane.holeX + pane.holeHalf, right, y0, damage, flash, now, tint(pane.hue));
+    } else drawPanePart(ctx, pane, left, right, y0, damage, flash, now, tint(pane.hue));
+  }
+  ctx.globalAlpha = 1;
+  // --- glass-real --- where a pane just shattered: its ghost flashes white and a puff of tinted dust spreads from the impact
+  for (const pane of level.panes) {
+    if (!pane.shattered) continue;
+    const age = now - pane.shatteredAtMs;
+    if (!(age >= 0 && age < SHATTER_PUFF_MS) || pane.y + f.height * 0.15 < viewTop || pane.y - f.height * 0.15 > viewBottom) continue;
+    const t = age / SHATTER_PUFF_MS;
+    const last = pane.cracks[pane.cracks.length - 1];
+    const ix = pane.x + (last ? last.x : 0);
+    if (t < 0.4) {
+      ctx.globalAlpha = 0.6 * (1 - t / 0.4) * (1 - t / 0.4);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(pane.x - pane.halfWidth, pane.y - pane.thickness / 2, 2 * pane.halfWidth, pane.thickness);
+    }
+    ctx.globalAlpha = 0.4 * (1 - t);
+    ctx.fillStyle = puffFill(tint(pane.hue));
+    ctx.beginPath();
+    ctx.ellipse(ix, pane.y, (0.04 + 0.2 * t) * f.width, (0.02 + 0.07 * t) * f.height, 0, 0, TWO_PI);
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  // Cracks: every visible crack in one path, each grown to its current length.
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.88)";
-  ctx.lineWidth = 1;
+  // Cracks: every visible crack in one path, each grown to its current length (--- glass-real --- stroked twice: a pale blue
+  // halo, then the white line), and a white star at a fresh impact.
   ctx.lineCap = "round";
   ctx.beginPath();
   let any = false;
@@ -218,7 +314,38 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
       }
     }
   }
-  if (any) ctx.stroke();
+  if (any) {
+    ctx.strokeStyle = "rgba(170, 225, 255, 0.35)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  for (const pane of level.panes) {
+    if (pane.shattered || pane.cracks.length === 0) continue;
+    const age = now - pane.lastHitMs;
+    if (!(age >= 0 && age < IMPACT_STAR_MS) || pane.y + pane.thickness < viewTop || pane.y - pane.thickness > viewBottom) continue;
+    const c = pane.cracks[pane.cracks.length - 1];
+    const k = 1 - age / IMPACT_STAR_MS;
+    const r = (0.6 + 1.6 * (1 - k)) * pane.thickness;
+    const cx = pane.x + c.x;
+    const cy = pane.y + c.y;
+    ctx.globalAlpha = k;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 0.35 * pane.thickness, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy);
+    ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - 0.6 * r);
+    ctx.lineTo(cx, cy + 0.6 * r);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 
   // HOME: the ground's floor, the doorway and its sign.
   const home = level.home;
@@ -352,11 +479,11 @@ function drawGlassGates(ctx: CanvasRenderingContext2D, view: GlassView, opts: Gl
 }
 
 /** The flying shards (world space, drawn over the ball). */
-export function drawGlassShards(ctx: CanvasRenderingContext2D, view: GlassView, viewTop: number, viewBottom: number) {
+export function drawGlassShards(ctx: CanvasRenderingContext2D, view: GlassView, viewTop: number, viewBottom: number, stageTints = false /* --- glass-real --- (E4 review) */) {
   if (view.shardCount === 0) return;
   ctx.save();
-  ctx.lineWidth = 0.75;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)"; // --- glass-real --- (a brighter edge on the tinted shards)
   const shape = view.shardShape;
   for (let i = 0; i < view.shardCount; i++) {
     const x = view.shardX[i];
@@ -365,7 +492,7 @@ export function drawGlassShards(ctx: CanvasRenderingContext2D, view: GlassView, 
     if (y + size < viewTop || y - size > viewBottom) continue;
     const life = view.shardMaxLife[i] > 0 ? view.shardLife[i] / view.shardMaxLife[i] : 0;
     ctx.globalAlpha = Math.max(0, Math.min(1, 1.6 * life));
-    ctx.fillStyle = shardFill(view.shardHue[i]);
+    ctx.fillStyle = shardFill(stageTints ? glassStageTint(view.shardHue[i]) : view.shardHue[i]);
     const c = Math.cos(view.shardRot[i]) * size;
     const s = Math.sin(view.shardRot[i]) * size;
     const o = 8 * i;

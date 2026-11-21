@@ -159,6 +159,17 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    more than 1.6 s in the first 10 s, about 5 sounds a second, never more than 0.42 s without one (the link base: the first
  *    escape at a median 18.3 s, 6 balls at 30 s, never an end). The link base stays for the same reason as Grow's: the bot's
  *    count-multiply plans in the crew's corpus run it.
+ *  - box (--- box-finale --- Lane E, E4): the square box that fills the export's square (the tall 0.56 box covered 56 % of its
+ *    width, a shape 6 %; square, every shape is 1.8× as big, and ball size 11 makes it 2.5×), the speeds at 4:5:6 (the last
+ *    shape alone for about 5 s, at 3:4:5 for 7) and ball speed 575, with the corner finale – seeds 1–12, both worlds (the box
+ *    follows the shorter side): 0 at a corner and the chord by 27 s on 24 of 24, median 23.1 s (18.1–24.7 s), never more than
+ *    1.4 s without a sound (the square box at the link base's pace: 0 of 24, a median 38.7 s; the link base itself: 14 of 24,
+ *    22.0–30.8 s). The link base stays: every shared link and the gallery's Countdown Squares keep the box they were made in.
+ *  - glass (--- glass-real --- Lane E, E4): the leading camera (the next panes in view) and gravity 500 – the same four stages
+ *    and panes, the hops 1.3× as quick – HOME and its
+ *    celebration over by 27 s on 24 of 24 (seeds 1–12, both worlds), median 23.6 s (19.8–25.5 s), never more than 0.7 s without a
+ *    sound (the link base: 4 of 24, a median 29.6 s, 26.3–32.7 s, HOME cut off on 7). The link base stays: the crew's
+ *    role-eval corpus plays Glass Smash at it.
  *  - waveTank (--- wave-chapters ---): the clip opens on the double slit's stripes and climbs to the grating's beams – 2 gaps
  *    for 13 s, 1 gap for 8 s, 7 gaps for 9 s, the first section wrapping 5 s across the loop point, the gaps 2.5 wavelengths
  *    apart (all seven still inside the tank). The loop stays 30 s, so a 30 s clip is one whole loop: the 2-gap fan from the
@@ -200,6 +211,10 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return GROW_START; // --- grow-fill-clip ---
     case "multiply":
       return MULTIPLY_START; // --- multiply-race ---
+    case "box":
+      return BOX_START; // --- box-finale ---
+    case "glass":
+      return GLASS_START; // --- glass-real ---
     // --- finales-in-clip --- (B6)
     case "hoops":
       return HOOPS_START;
@@ -228,6 +243,10 @@ const ACCUMULATION_START: Partial<SimulatorSettings> = Object.freeze({ accumulat
 const GROW_START: Partial<SimulatorSettings> = Object.freeze({ growLaw: "multiply", growStep: 4, growStart: 15, growOnFill: "finish", growHue: true, growMarkers: true, growPitch: true } as const);
 /** --- multiply-race --- Multiply's start look: the race to the limit (through the page's gap of 0.3: --- review fix (B5) ---). */
 const MULTIPLY_START: Partial<SimulatorSettings> = Object.freeze({ multiplyRace: true } as const);
+/** --- box-finale --- Bouncing Shapes' start look: the square box, bigger shapes, the speeds at 4:5:6 and ball speed 575 (the finale by 27 s). */
+const BOX_START: Partial<SimulatorSettings> = Object.freeze({ boxAspect: 1, boxSpeedRatio: "4:5:6", ballSpeed: 575, ballRadius: 11 } as const);
+/** --- glass-real --- Glass Smash's start look: the leading camera, and gravity 500 so the smash reaches HOME inside the clip. */
+const GLASS_START: Partial<SimulatorSettings> = Object.freeze({ glassLead: true, gravity: 500 } as const);
 // --- finales-in-clip --- (B6; the crew's corpus runs both modes' link bases, so the page's start look carries them)
 /**
  * Spinning Hoops' start look: the look its presets put on the page – the navy page, the rainbow hoops and the loop HUD's title

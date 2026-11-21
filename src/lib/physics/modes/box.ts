@@ -1,6 +1,8 @@
 import type { Ball, GameMode, ModeContext } from "../types";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 import { pitchedFrequency } from "../bounceMathRuntime"; // --- bounce-math ---
+import { degreeToMidi } from "@/lib/audio/loopPitch"; // --- box-finale ---
+import { midiToFrequency } from "@/lib/audio/scales"; // --- box-finale ---
 
 /**
  * Bouncing Shapes ("box" mode, the project.jdm DVD / countdown formats): no rings. A rectangular box
@@ -27,6 +29,16 @@ import { pitchedFrequency } from "../bounceMathRuntime"; // --- bounce-math ---
  * run length varies continuously with the seed, which is what lets Find Simulation hit a clip length
  * while the countdown is on). The shapes pass through each other, so their rhythms never disturb one
  * another (`ballsPassThrough`).
+ *
+ * --- box-finale --- (Lane E, E4) The corner the format promises, inside every countdown run: once FINALE_SHAPES shapes or
+ * fewer are left moving (straight lines, the countdown on), each of them plans (`maybePlanFinale()`) how many side-wall and
+ * top/bottom hits its last counts take so that the final one, the hit that takes it to 0, is a corner – the split whose aim is
+ * closest to its heading, so the turn is small – and is re-aimed after every hit as the corner lock does, so the plan stays exact
+ * while it grows. Two shapes left means two corners: the last but one ends on a corner too, and twins that fly mirrored (four
+ * shapes at 3:4:5) hit opposite corners together. A corner is one accented hit with the flash. A shape that reaches 0 rings a chime that climbs with each one done (`boxChimeHz()`), the last one the
+ * completion chord (`BOX_CHORD_HZ`); both are sounds of their own, `ringVoice: "extra"`. The recent wall hits are kept for the
+ * renderer's pulse at the spot that was hit (`BoxView.pulse*`). Only the last shape's last stretch moves: a run reads the same
+ * until one shape is left, and a run with the countdown off or with gravity never plans a corner.
  */
 
 export const BOX_SHAPES = ["square", "circle", "dvd"] as const;
@@ -356,6 +368,11 @@ export interface BoxShapeState {
   cornerUntilTick: number;
   /** The shape's axis period ratio `p : q` (see `AXIS_PERIOD_RATIOS` / `DVD_AXIS_PERIOD_RATIOS`). */
   axisRatio: AxisPeriodRatio;
+  /** --- box-finale --- Side-wall and top/bottom contacts left to the planned final corner, that corner included (0: no plan). */
+  finaleX: number;
+  finaleY: number;
+  /** --- box-finale --- That corner (BOX_CORNER_*), −1 without a plan: the renderer lights it as the count runs out. */
+  finaleCorner: number;
   /** Side-wall hits into the current corner cycle of a DVD logo (0 … p − 1; the corner is hit number p). */
   cycleX: number;
   /** Top/bottom hits into the current corner cycle of a DVD logo (0 … q − 1). */
@@ -383,6 +400,71 @@ export interface BoxView {
   /** Shapes whose countdown reached zero. */
   doneCount: number;
   finished: boolean;
+  // --- box-finale ---
+  /** The last BOX_PULSES wall hits (a ring, `pulseNext` the next slot): where (px), when (sub-step tick) and the shape's hue. */
+  pulseX: Float64Array;
+  pulseY: Float64Array;
+  pulseTick: Float64Array;
+  pulseHue: Float64Array;
+  pulseNext: number;
+}
+
+// --- box-finale ---
+/** The shapes left moving from which each one plans its final corner (the last two: the last but one ends on a corner too). */
+export const FINALE_SHAPES = 2;
+/** Recent wall hits the renderer pulses (more than twelve shapes ever hit in the pulse's life). */
+export const BOX_PULSES = 24;
+/** The corners of the box: top left, top right, bottom right, bottom left. */
+export const BOX_CORNER_TL = 0;
+export const BOX_CORNER_TR = 1;
+export const BOX_CORNER_BR = 2;
+export const BOX_CORNER_BL = 3;
+/** The completion chord's root when the last shape reaches 0: C3, the tonic of the walls' C major. */
+export const BOX_CHORD_HZ = midiToFrequency(48);
+/** The chime of the `k`-th shape to reach 0 (0-based): the C major pentatonic from G5 up (G5, A5, C6, D6 …), two octaves round. */
+export function boxChimeHz(k: number): number {
+  return midiToFrequency(degreeToMidi(3 + (Math.max(0, Math.floor(k)) % 10), 72));
+}
+
+/**
+ * --- box-finale --- (E4 review) The extra turn (radians) a final corner at the bottom costs in `finaleSplit()`: the watermark
+ * badge sits in a bottom corner of a free clip, so a top corner is chosen whenever one is within the aim bounds.
+ */
+export const BOTTOM_CORNER_PENALTY = Math.PI / 2;
+
+/**
+ * The plan of a final corner for a shape with `count` hits left: the side-wall contacts `x` and top/bottom contacts `y` it takes
+ * (the corner one contact of each, so x + y − 1 = count) and the direction (radians from the horizontal, first quadrant) that
+ * makes them land together (`cornerAimAngle()`), the split whose direction is closest to `heading` and at least MIN_AIM_ANGLE
+ * off both walls. Null when no split can (a single hit left at a grazing angle): the next hit tries again. --- box-finale ---
+ * (E4 review) With `sy`, the shape's vertical direction (±1), a split that ends in a bottom corner costs BOTTOM_CORNER_PENALTY
+ * more, so a top corner wins whenever one can be aimed at (the badge's corners are the bottom ones).
+ */
+export function finaleSplit(dx: number, dy: number, innerW: number, innerH: number, count: number, heading: number, sy = 0): { x: number; y: number; angle: number } | null {
+  const c = Math.floor(count);
+  if (!(c >= 1) || innerW <= 0 || innerH <= 0) return null;
+  const max = Math.PI / 2 - MIN_AIM_ANGLE;
+  let best: { x: number; y: number; angle: number } | null = null;
+  let bestCost = Infinity;
+  for (let x = 1; x <= c; x++) {
+    const y = c + 1 - x;
+    const angle = cornerAimAngle(dx, dy, innerW, innerH, x, y);
+    if (angle < MIN_AIM_ANGLE || angle > max) continue;
+    const bottom = sy !== 0 && (sy > 0) === (y % 2 === 1); // (finaleCornerOf's rule: an odd count of contacts lands on the wall ahead)
+    const cost = Math.abs(angle - heading) + (bottom ? BOTTOM_CORNER_PENALTY : 0);
+    if (cost < bestCost) {
+      best = { x, y, angle };
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
+/** The corner a shape moving `sx`, `sy` (±1) reaches after `x` side-wall and `y` top/bottom contacts (each flips its axis). */
+export function finaleCornerOf(sx: number, sy: number, x: number, y: number): number {
+  const right = (sx > 0) === (x % 2 === 1);
+  const bottom = (sy > 0) === (y % 2 === 1);
+  return bottom ? (right ? BOX_CORNER_BR : BOX_CORNER_BL) : right ? BOX_CORNER_TR : BOX_CORNER_TL;
 }
 
 /** Degrees the hue advances per hit (a golden-angle-ish step, so consecutive colours differ clearly). */
@@ -419,6 +501,11 @@ export class BoxMode implements GameMode {
     cornerHits: 0,
     doneCount: 0,
     finished: false,
+    pulseX: /* --- box-finale --- */ new Float64Array(BOX_PULSES),
+    pulseY: new Float64Array(BOX_PULSES),
+    pulseTick: new Float64Array(BOX_PULSES).fill(-Infinity),
+    pulseHue: new Float64Array(BOX_PULSES),
+    pulseNext: 0,
   };
   private soundsThisStep = 0;
   private lastBallSpeed = 0;
@@ -459,6 +546,8 @@ export class BoxMode implements GameMode {
     v.cornerHits = 0;
     v.doneCount = 0;
     v.finished = false;
+    v.pulseTick.fill(-Infinity); // --- box-finale ---
+    v.pulseNext = 0;
     this.soundsThisStep = 0;
     this.lastBallSpeed = ctx.config.ballSpeed || 400;
     const field = this.rebuildField(ctx);
@@ -515,6 +604,9 @@ export class BoxMode implements GameMode {
         axisRatio,
         cycleX: dvd ? (axisRatio[0] - 1) / 2 : 0,
         cycleY: dvd ? (axisRatio[1] - 1) / 2 : 0,
+        finaleX: 0, // --- box-finale ---
+        finaleY: 0,
+        finaleCorner: -1,
       });
     }
   }
@@ -568,10 +660,16 @@ export class BoxMode implements GameMode {
     if (!xHit && !yHit) return;
     const wallX = hitX < 0 ? BOX_WALL_LEFT : BOX_WALL_RIGHT;
     const wallY = hitY < 0 ? BOX_WALL_TOP : BOX_WALL_BOTTOM;
+    // --- box-finale --- the last shape on its way to the final corner
+    if (st.finaleX > 0 || st.finaleY > 0) {
+      this.finaleHit(ctx, ball, st, field, xHit, yHit, wallX, wallY, halfW, halfH, speedX, speedY, dtSec);
+      return;
+    }
     if (shape !== "dvd") {
       // Squares and circles: a corner is simply two hits, one per wall.
       if (xHit) this.hit(ctx, ball, st, wallX, false);
       if (yHit && !st.done) this.hit(ctx, ball, st, wallY, false);
+      this.maybePlanFinale(ball, st, field); // --- box-finale ---
       return;
     }
     // A DVD logo: every crossing advances its corner cycle (the silent half of a corner too), a corner is one
@@ -596,6 +694,100 @@ export class BoxMode implements GameMode {
     // Straight-line motion only (under gravity there is no schedule); while a corner is pending its second
     // half is a sub-step away and the lock waits for it.
     if (!st.done && this.settings.gravity === 0 && v.tick > st.cornerUntilTick) this.lockCorner(ball, st, field);
+    if (v.tick > st.cornerUntilTick) this.maybePlanFinale(ball, st, field); // --- box-finale ---
+  }
+
+  // --- box-finale ---
+  /**
+   * The final corner can be planned: the countdown is on, the shapes fly straight lines, and at most FINALE_SHAPES still move –
+   * or (E4 review) a shape is done and every one still moving flies with this one's speed and axis ratio, twins or triplets that
+   * count down together (seven shapes or more at three speeds: the slowest group went from three moving straight to none), each
+   * to its own corner.
+   */
+  private maybePlanFinale(ball: Ball, st: BoxShapeState, field: BoxField) {
+    const s = this.settings;
+    if (st.done || st.finaleX > 0 || st.finaleY > 0 || s.countdown <= 0 || s.gravity !== 0) return;
+    if (this.shapes.size - this.view.doneCount > FINALE_SHAPES && !this.lastGroupMoving(st)) return;
+    const shape = this.view.shape;
+    const halfW = shapeHalfWidth(shape, ball.radius);
+    const halfH = shapeHalfHeight(shape, ball.radius);
+    const innerW = field.width - 2 * halfW;
+    const innerH = field.height - 2 * halfH;
+    if (Math.hypot(ball.vx, ball.vy) < MIN_HIT_SPEED) return;
+    const sx = ball.vx < 0 ? -1 : 1;
+    const sy = ball.vy < 0 ? -1 : 1;
+    const dx = sx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW);
+    const dy = sy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH);
+    const plan = finaleSplit(dx, dy, innerW, innerH, st.count, Math.atan2(Math.abs(ball.vy), Math.abs(ball.vx)), sy); // (a top corner first: E4 review)
+    if (!plan) return;
+    st.finaleX = plan.x;
+    st.finaleY = plan.y;
+    st.finaleCorner = finaleCornerOf(sx, sy, plan.x, plan.y);
+    this.aimFinale(ball, st, field);
+  }
+
+  /** --- box-finale --- (E4 review) A shape is done and every shape still moving has `st`'s speed and axis ratio (they finish together). */
+  private lastGroupMoving(st: BoxShapeState): boolean {
+    if (this.view.doneCount <= 0) return false;
+    for (const other of this.shapes.values()) {
+      if (other.done) continue;
+      if (other.speedFactor !== st.speedFactor || other.axisRatio[0] !== st.axisRatio[0] || other.axisRatio[1] !== st.axisRatio[1]) return false;
+    }
+    return true;
+  }
+
+  /** Re-aims the shape at its planned corner (its speed unchanged), as the corner lock does; false when the aim would graze a wall. */
+  private aimFinale(ball: Ball, st: BoxShapeState, field: BoxField): boolean {
+    const shape = this.view.shape;
+    const halfW = shapeHalfWidth(shape, ball.radius);
+    const halfH = shapeHalfHeight(shape, ball.radius);
+    const innerW = field.width - 2 * halfW;
+    const innerH = field.height - 2 * halfH;
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (innerW <= 0 || innerH <= 0 || speed < MIN_HIT_SPEED) return false;
+    const sx = ball.vx < 0 ? -1 : 1;
+    const sy = ball.vy < 0 ? -1 : 1;
+    const dx = sx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW);
+    const dy = sy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH);
+    const angle = cornerAimAngle(dx, dy, innerW, innerH, st.finaleX, st.finaleY);
+    if (angle < MIN_AIM_ANGLE || angle > Math.PI / 2 - MIN_AIM_ANGLE) return false;
+    ball.vx = sx * Math.cos(angle) * speed;
+    ball.vy = sy * Math.sin(angle) * speed;
+    return true;
+  }
+
+  /**
+   * A wall contact of the shape on its way to the final corner: both walls at once (or the second a hair away) on the last
+   * contact of each axis is the corner – one accented hit, its last count; any other contact is an ordinary hit and the shape
+   * is re-aimed at the corner. A contact out of step with the plan (a live change) plans afresh from the count it has left.
+   */
+  private finaleHit(ctx: ModeContext, ball: Ball, st: BoxShapeState, field: BoxField, xHit: boolean, yHit: boolean, wallX: number, wallY: number, halfW: number, halfH: number, speedX: number, speedY: number, dtSec: number) {
+    if (xHit) st.finaleX--;
+    if (yHit) st.finaleY--;
+    let corner = st.finaleX <= 0 && st.finaleY <= 0;
+    if (!corner && (st.finaleX <= 0 || st.finaleY <= 0) && (xHit !== yHit)) {
+      // One wall of the corner now: the other one is due within a couple of sub-steps (the flight is exact to a hair).
+      const reach = CORNER_REACH_SUBSTEPS * dtSec;
+      const otherNear = xHit ? (ball.vy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH)) <= reach * speedY : (ball.vx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW)) <= reach * speedX;
+      corner = otherNear && st.finaleX + st.finaleY === 1;
+    }
+    if (corner) {
+      st.finaleX = 0;
+      st.finaleY = 0;
+      st.finaleCorner = -1;
+      this.hit(ctx, ball, st, xHit ? wallX : wallY, true);
+      if (!st.done) this.maybePlanFinale(ball, st, field);
+      return;
+    }
+    if (xHit) this.hit(ctx, ball, st, wallX, false);
+    if (yHit && !st.done) this.hit(ctx, ball, st, wallY, false);
+    if (st.done) return;
+    if (st.finaleX <= 0 || st.finaleY <= 0 || !this.aimFinale(ball, st, field)) {
+      st.finaleX = 0;
+      st.finaleY = 0;
+      st.finaleCorner = -1;
+      this.maybePlanFinale(ball, st, field);
+    }
   }
 
   /**
@@ -704,6 +896,16 @@ export class BoxMode implements GameMode {
     st.lastHitTick = v.tick;
     st.lastWall = wall;
     v.wallLastHitTick[wall] = v.tick;
+    // --- box-finale --- the spot on the wall that was hit, for the renderer's pulse (its colour before the hit's turn)
+    if (this.field) {
+      const f = this.field;
+      const k = v.pulseNext;
+      v.pulseX[k] = wall === BOX_WALL_LEFT ? f.left : wall === BOX_WALL_RIGHT ? f.right : Math.max(f.left, Math.min(f.right, ball.x));
+      v.pulseY[k] = wall === BOX_WALL_TOP ? f.top : wall === BOX_WALL_BOTTOM ? f.bottom : Math.max(f.top, Math.min(f.bottom, ball.y));
+      v.pulseTick[k] = v.tick;
+      v.pulseHue[k] = st.hue;
+      v.pulseNext = (k + 1) % BOX_PULSES;
+    }
     if (accent) {
       v.cornerHits++;
       v.lastCornerTick = v.tick;
@@ -731,7 +933,9 @@ export class BoxMode implements GameMode {
         if (v.doneCount >= this.shapes.size) {
           v.finished = true;
           if (this.field) ctx.spawnConfetti((this.field.left + this.field.right) / 2, (this.field.top + this.field.bottom) / 2);
-        }
+          // --- box-finale --- the last one to 0: the completion chord
+          ctx.addPendingSoundEvent({ type: "gap", wallIndex: wall, loop: "chord", frequency: BOX_CHORD_HZ, level: 1, melody: false, ringVoice: "extra" });
+        } else ctx.addPendingSoundEvent({ type: "hit", wallIndex: wall, loop: "chime", frequency: boxChimeHz(v.doneCount - 1), level: 0.85, melody: false, ringVoice: "extra" }); // --- box-finale --- a chime for every shape done
       }
     }
   }

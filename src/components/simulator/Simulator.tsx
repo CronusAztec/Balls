@@ -964,8 +964,8 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
-  // A Glass Smash change invalidates a found seed too.
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates, s.glassLead]);
+  // A Glass Smash change invalidates a found seed too (--- glass-real --- but not the camera: the run is the same).
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
@@ -1855,7 +1855,7 @@ export default function Simulator() {
     const isDefault = url !== s.wallBreakSound;
     if (isDefault ? modeBreakRef.current === url : modeBreakRef.current === null) return;
     modeBreakRef.current = isDefault ? url : null;
-    audioRef.current?.setWallBreakSound(url);
+    audioRef.current?.setWallBreakSound(url, isDefault); // --- glass-real --- (E4 review) the mode's own clip is no sound of the visitor's own
   }, [s.mode, s.wallBreakSound]);
   useEffect(() => {
     audioRef.current?.setHitSoundMode(s.hitSoundMode);
@@ -2437,7 +2437,7 @@ export default function Simulator() {
         const ownSound = audio.hasOwnSound(); // --- ring-voices --- (review fix B2)
         for (const raw of engine.consumeSoundEvents()) {
           // --- ring-voices --- (review fix B2) a ring mode's voice gives way to the visitor's own song, melody, sample or clip
-          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound) : raw;
+          const ev = raw.ringVoice ? ringVoiceEvent(raw, ownSound, raw.ringTexture ? audio.ownSoundIsMelody() : false /* --- glass-real --- (E4 review) */) : raw;
           if (!ev) continue;
           if (ev.ringVoice === "contact" && ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- (a ring voice's break widens the eyes too: its own voice skips the plain path below)
           // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
@@ -2507,7 +2507,7 @@ export default function Simulator() {
           }
           // --- power-layers-crack --- a Power Layers layer giving way under the ball
           if (ev.plCrack) {
-            audio.playPowerLayerCrack(ev.frequency, ev.level);
+            audio.playPowerLayerCrack(ev.frequency, ev.level, ev.unpitched); // --- glass-real --- (E4 review) a texture's snap alone under a melody
             continue;
           }
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO

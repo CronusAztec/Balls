@@ -281,7 +281,7 @@ describe("the settings assistant's shorter prompt", () => {
   it("offers the page mode's own settings to a request that does not name the mode", () => {
     const glass = defaultSettings("glass");
     const glassBlock = blockOf("glass");
-    expect(glassBlock).toEqual(["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates"]);
+    expect(glassBlock).toEqual(["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates", "glassLead" /* --- glass-real --- the leading camera */]);
     for (const request of ["make the panes break on the second hit", "more floors", "twice as many layers to smash through", "faster"]) {
       const keys = relevantAssistantSettings(glass, request).map(([k]) => k);
       expect(keys, request).toEqual(expect.arrayContaining(glassBlock));

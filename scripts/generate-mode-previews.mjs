@@ -20,6 +20,11 @@
  * the centred square of the world or the preset's `camera`) for every card of the served /en/gallery/ page
  * (src/content/gallery.ts), each rendered from the card's query – its settings and pinned seed – at the card's `previewAt` second. GALLERY=1 renders only the gallery, GALLERY=neon-escape,string-art only those cards;
  * with MODES set (and no GALLERY) only mode previews are rendered, with neither both are.
+ *
+ * --- mode-pages --- (E3 review) CARD_LOCALE=pl (or es) renders the card pictures with the page in that language, so the words a
+ * mode draws on its canvas (its counters and banners) are Polish or Spanish, into OUT_DIR (default: the system's temp folder)
+ * instead of public/modes, and no gallery: the pictures the mode pages' Polish and Spanish social cards are drawn from
+ * (scripts/generate-og-cards.mjs --modes --locale pl --pictures <OUT_DIR>; MODE_CARD_WORDS in src/lib/modePages.ts lists them).
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -90,10 +95,14 @@ const sweepDir = path.resolve(process.env.OUT_DIR || path.join(os.tmpdir(), "mod
 const sweepExtra = process.env.EXTRA ? process.env.EXTRA.replace(/^[?&]+/, "") : "";
 const sweepCamera = process.env.CAMERA ? (([x, y, zoom]) => ({ x, y, zoom }))(process.env.CAMERA.split(",").map(Number)) : null;
 // --- end mode-thumbnails ---
+// --- mode-pages --- (E3 review) CARD_LOCALE: the card pictures in another language, into OUT_DIR, with no gallery
+const cardLocale = process.env.CARD_LOCALE || "en";
+if (!["en", "pl", "es"].includes(cardLocale)) throw new Error(`CARD_LOCALE=${cardLocale}: use en, pl or es`);
+const localized = cardLocale !== "en";
 const galleryOnly = !!process.env.GALLERY && !process.env.MODES;
 const galleryIds = process.env.GALLERY && !["1", "all", "true"].includes(process.env.GALLERY) ? process.env.GALLERY.split(",").map((m) => m.trim()).filter(Boolean) : null;
-const renderGallery = (!!process.env.GALLERY || !process.env.MODES) && !sweep; // --- mode-thumbnails --- (a sweep renders no gallery)
-const outDir = path.join(process.cwd(), "public", "modes");
+const renderGallery = (!!process.env.GALLERY || !process.env.MODES) && !sweep && !localized; // --- mode-thumbnails --- (a sweep renders no gallery) · --- mode-pages --- (nor a CARD_LOCALE run)
+const outDir = localized ? path.resolve(process.env.OUT_DIR || path.join(os.tmpdir(), `mode-cards-${cardLocale}`)) : path.join(process.cwd(), "public", "modes");
 fs.mkdirSync(outDir, { recursive: true });
 
 const launchOpts = { args: ["--autoplay-policy=no-user-gesture-required"] };
@@ -112,7 +121,7 @@ page.on("pageerror", (e) => console.warn(`  page error: ${e.message}`));
 // --- mode-thumbnails --- the mode cards' pictures (or, with SWEEP, contact sheets for picking a hero moment)
 /** Opens the simulator on `query`, waits for its world and its still camera, and checks the world the moments are tuned for. */
 async function openStill(query) {
-  await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/${cardLocale}/simulator/?${query}`, { waitUntil: "networkidle" }); // --- mode-pages --- (the card's language)
   await page.waitForFunction(() => !!window.__jumpingBallsStill?.ready() && !!document.querySelector("main canvas")?.dataset.world, null, { timeout: 30000 }).catch(() => {
     throw new Error(`The simulator at ${BASE}/en/simulator/ has no still camera (window.__jumpingBallsStill) – build the site from this checkout and serve it first.`);
   });
@@ -216,7 +225,7 @@ for (const mode of galleryOnly ? [] : modes) {
     const bytes = writeDataUrl(path.join(outDir, `${mode}.webp`), frame.dataUrl);
     if (bytes >= hero.THUMB_MAX_BYTES) throw new Error(`${bytes} bytes, over the ${hero.THUMB_MAX_BYTES}-byte budget`);
     results.push({ mode, bytes, quality: frame.quality });
-    console.log(`wrote public/modes/${mode}.webp (${(bytes / 1000).toFixed(1)} KB, WebP q${Math.round(100 * frame.quality)}, ${hero.THUMB_SIZE}×${hero.THUMB_SIZE}, seed ${r.seed} at ${frame.sec} s${frame.finished ? ", the run already over" : ""})`);
+    console.log(`wrote ${path.relative(process.cwd(), path.join(outDir, `${mode}.webp`))} (${(bytes / 1000).toFixed(1)} KB, WebP q${Math.round(100 * frame.quality)}, ${hero.THUMB_SIZE}×${hero.THUMB_SIZE}, seed ${r.seed} at ${frame.sec} s${frame.finished ? ", the run already over" : ""})`);
   } catch (err) {
     failures.push(mode);
     console.error(`✗ ${mode}: ${err instanceof Error ? err.message : String(err)}`);
