@@ -2801,6 +2801,16 @@ await page.waitForTimeout(2500);
   check("collision playground puts lollipops on a ring", data.collideBodies === "36" && Number(data.collideCollisions) > 0 && shown, `(${data.collideBodies} lollipops, ${data.collideCollisions} collisions, count label ${shown ? "shown" : "missing"})`);
   await page.screenshot({ path: path.join(outDir, "sim-collide-ring.png") });
 }
+// --- collide-pour --- the jar opens at 1 s and pours its 60 orbs out: the count of the orbs left falls to 0, the run ends EMPTY!
+await page.goto(`${BASE}/en/simulator/?mode=collide&cpn=60&cpac=1&cppo=1&cppl=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const pouring = await page.waitForFunction(() => Number(document.querySelector("canvas")?.dataset.collideLeft ?? 60) < 60, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const empty = await page.waitForFunction(() => document.querySelector("canvas")?.dataset.collideEmpty === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await page.locator("canvas").first().evaluate((c) => ({ ...c.dataset }));
+  check("collision playground pours its jar out and ends empty", pouring && empty && data.collideLeft === "0" && data.collideBodies === "60", `(pouring=${pouring}, empty=${empty}, ${data.collideLeft} left of ${data.collideBodies})`);
+  await page.screenshot({ path: path.join(outDir, "sim-collide-pour.png") });
+}
 // --- end jdm-collisions ---
 });
 await smokeBlock("rhythm-mode-characters", async () => {
@@ -4234,6 +4244,21 @@ const instrumentOscillators = () =>
     `(${JSON.stringify(data)}, worst circle error ${worstError}px, ${pitches.length} tones, MIDI ${[...midis].sort((a, b) => a - b).join("/")})`,
   );
   await page.screenshot({ path: path.join(outDir, "sim-illusion-lines.png") });
+}
+{
+  // --- illusion-stage --- the staged build at 3×: one ball first, all eight by 2.6 s, the circle revealed at 5.3 s, the end at 6.7 s
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilsg=1&ilc=5&ils=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const early = await canvasData();
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.illusionFinished === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check(
+    "the staged lines illusion starts with one ball, gathers all eight and reveals the circle before it ends",
+    Number(early.illusionJoined) >= 1 && Number(early.illusionJoined) < 8 && early.illusionCircleShown === "0" && done && data.illusionJoined === "8" && data.illusionCircleShown === "1",
+    `(early ${early.illusionJoined} joined, circle ${early.illusionCircleShown}; end ${data.illusionJoined} joined, circle ${data.illusionCircleShown}, finished=${done})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-stage.png") });
 }
 {
   // Rings at 3×: a cycle of 8 s, the balls line up once per cycle.

@@ -9,7 +9,7 @@ import { resolvePendulumSettings } from "@/lib/physics/modes/pendulum";
 import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSettings } from "@/lib/physics/modes/polyrhythm";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
-import type { CollideSettings } from "@/lib/physics/modes/collide";
+import { collideRunFinishes, type CollideSettings } from "@/lib/physics/modes/collide"; // --- collide-pour --- (collideRunFinishes)
 // --- gerald-glass ---
 import type { GlassSettings } from "@/lib/physics/modes/glass";
 // --- gerald-multipliers ---
@@ -370,7 +370,7 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */ & Partial<Pick<ModeSettings, "multiplyRace">> /* --- multiply-race --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */ & Partial<Pick<ModeSettings, "multiplyRace">> /* --- multiply-race --- */ & Partial<Pick<ModeSettings, "collide">> /* --- collide-pour --- */): boolean {
   if (mode === "landClaim") return lcPyramidLoops(resolveLandClaimSettings(settings.landClaim)); // --- land-claim-pyramid --- (a looping pyramid never ends; its outcomes search the first cycle)
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
   if (mode === "multiply" && settings.multiplyRace === true) return false; // --- multiply-race --- (the race ends at the swarm's limit)
@@ -378,8 +378,9 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
-  // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
-  if (mode === "collide") return true;
+  // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time) – --- collide-pour --- but a
+  // jar that pours ends empty
+  if (mode === "collide") return !collideRunFinishes(settings.collide);
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
   if (mode === "box") return resolveBoxSettings(settings.box).countdown === 0;
   if (mode === "pendulum") return resolvePendulumSettings(settings.pendulum).cycles === 0;

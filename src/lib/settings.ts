@@ -11,7 +11,7 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 // --- jdm-polyrhythm ---
 import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 // --- jdm-collisions ---
-import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, RING_MAX_BODIES, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide"; // (--- unlimited-sizes --- RING_MAX_BODIES: the default of cpRingCount)
+import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, RING_MAX_BODIES, collidePourFields, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide"; // (--- unlimited-sizes --- RING_MAX_BODIES: the default of cpRingCount)
 // --- gerald-glass ---
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
@@ -346,6 +346,10 @@ export interface SimulatorSettings {
   cpRing: boolean;
   /** --- unlimited-sizes --- The most bodies the ring holds, 36 by default (the rest of the count waits off the track; URL `cprc`). */
   cpRingCount: number;
+  /** --- collide-pour --- Seconds after which the jar opens at the bottom and pours its orbs out, the biggest last; 0 = never (URL `cppo`). */
+  cpPourAt: number;
+  /** --- collide-pour --- The notes on a 16th-note grid, more and louder as the orbs move faster (URL `cppl`). */
+  cpPulse: boolean;
   // --- gerald-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
   /** Panes in the first stage, 3–30; later stages add more (URL `glr`). */
   glassRows: number;
@@ -591,6 +595,8 @@ export interface SimulatorSettings {
   ilReveal: boolean;
   /** Lines / rings: cycles after which the run finishes, 0 = never (URL `ilc`). */
   ilCycles: number;
+  /** --- illusion-stage --- Lines: the staged build – the balls join one at a time, then the circle is revealed (URL `ilsg`). */
+  ilStage: boolean;
   /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
   wallWobble: number;
   // --- end jdm-illusions ---
@@ -1530,6 +1536,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- unlimited-sizes --- the growth caps as settings, each at the old constant (out here too, past the fast-path limit)
     ...defaultGrowthCapFields(),
     cpRingCount: RING_MAX_BODIES,
+    ...collidePourFields(DEFAULT_COLLIDE_SETTINGS), // --- collide-pour --- (out here too)
     pdMaxTempo: MAX_TEMPO,
     pdGoal: 0, // --- finales-in-clip --- (no goal in the mode's own; Paddle's page default is clipPacing's)
     flBoutCap: FL_BOUT_CAP_SEC,
@@ -1544,7 +1551,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "cpPourAt" | "cpPulse" /* --- collide-pour --- */ | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,
@@ -1875,6 +1882,7 @@ export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   cpe: "cpRestitution",
   cpac: "cpAntiCollisionAt",
   cprc: "cpRingCount", // --- unlimited-sizes ---
+  cppo: "cpPourAt", // --- collide-pour ---
   // --- unlimited-sizes --- the growth caps
   swl: "swarmLimit",
   fbl: "fullBallLimit",
@@ -1943,6 +1951,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   cpsq: "cpSquishy",
   cpsy: "cpSyncStart",
   cpr: "cpRing",
+  cppl: "cpPulse", // --- collide-pour ---
   // --- camera --- Cinematic camera
   slow: "slowMoOnNearMiss",
   replay: "replayOnEscape",
@@ -2028,7 +2037,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeCaptionParams(settings, params); // --- captions ---: cap
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
-  writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
+  writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, ilsg (--- illusion-stage ---), wob
   writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh (--- string-battle-alive --- sblf, sbdl)
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
@@ -2317,6 +2326,7 @@ function clampCollideSettings(settings: SimulatorSettings) {
   const collide = resolveCollideSettings(collideSettingsOf(settings));
   Object.assign(settings, collideSettingFields(collide));
   settings.cpRingCount = collide.ringCount ?? RING_MAX_BODIES; // --- unlimited-sizes --- (the ring's bodies: written back on their own, outside the core literal's fields)
+  Object.assign(settings, collidePourFields(collide)); // --- collide-pour --- (the same way)
 }
 
 // --- gerald-glass ---

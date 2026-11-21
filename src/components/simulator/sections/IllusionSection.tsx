@@ -14,7 +14,7 @@ export interface IllusionSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const ILLUSION_KEYS = ["ilType", "ilBalls", "ilRings", "ilDepth", "ilPainters", "ilPattern", "ilSpeed", "ilTracks", "ilReveal", "ilCycles"];
+export const ILLUSION_KEYS = ["ilType", "ilBalls", "ilRings", "ilDepth", "ilPainters", "ilPattern", "ilSpeed", "ilTracks", "ilReveal", "ilCycles", "ilStage" /* --- illusion-stage --- */];
 
 const TYPE_OPTIONS: Record<IllusionType, { labelKey: string; hintKey: string }> = {
   lines: { labelKey: "ilTypeLines", hintKey: "ilHintLines" },
@@ -75,7 +75,13 @@ export default function IllusionSection({ t, search, matches, settings: s, updat
         </div>
       </Searchable>
       {(type === "lines" || all) && (
-        <Slider t={t} search={search} matches={matches} labelKey="ilBalls" tipKey="ilBallsTip" value={s.ilBalls} range={RANGES.ilBalls} onChange={(v) => update({ ilBalls: v })} display={String(s.ilBalls)} />
+        <>
+          <Slider t={t} search={search} matches={matches} labelKey="ilBalls" tipKey="ilBallsTip" value={s.ilBalls} range={RANGES.ilBalls} onChange={(v) => update({ ilBalls: v })} display={String(s.ilBalls)} />
+          {/* --- illusion-stage --- the staged build: the balls join one at a time, then the circle is revealed */}
+          <Searchable search={search} matches={matches} labelKey="ilStage">
+            <Toggle t={t} labelKey="ilStage" tipKey="ilStageTip" value={s.ilStage} onChange={(v) => update({ ilStage: v })} />
+          </Searchable>
+        </>
       )}
       {(type === "rings" || all) && (
         <Slider t={t} search={search} matches={matches} labelKey="ilRings" tipKey="ilRingsTip" value={s.ilRings} range={RANGES.ilRings} onChange={(v) => update({ ilRings: v })} display={String(s.ilRings)} />
