@@ -41,6 +41,21 @@ function scrollerOf(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
+/**
+ * --- mode-shelves --- What the landing page's wall keeps in its history entry: the search a visitor typed. An entry that
+ * holds it has shown the wall before (Back, Forward, a reload), so the wall leaves the scroll position alone there.
+ */
+const WALL_HISTORY_KEY = "jblWall";
+function wallHistory(): { q: string } | null {
+  try {
+    const kept: unknown = (window.history.state as Record<string, unknown> | null)?.[WALL_HISTORY_KEY];
+    const q = kept && typeof kept === "object" ? (kept as { q?: unknown }).q : null;
+    return typeof q === "string" ? { q: q.slice(0, WALL_QUERY_MAX) } : null;
+  } catch {
+    return null;
+  }
+}
+
 /*
  * The modes wall. --- site-redesign --- Every mode as a poster card under its heading, with filter chips. On the landing
  * page a card links to the studio with that mode; inside the studio's mode picker (`interactive`) a card dispatches the
@@ -52,11 +67,16 @@ function scrollerOf(el: HTMLElement): HTMLElement | null {
  * search words, in the page's language and in English), a sort (Featured, Newest, A to Z) and the chips, which scroll
  * sideways on a narrow screen. A search or a sort other than Featured shows one flat grid. A card of a mode that arrived in
  * the last two minor versions wears a "New" badge.
- * On the landing page the state lives in the address (?family=battle&q=merge&sort=az, written with replaceState and read
- * after mount, so the first render is the server's), and "/" focuses the search. In the picker the search takes the focus
- * on open (on a touch screen the current card does, so no keyboard covers the cards), a Recent row holds the last picks,
- * the shelf, the sort and the scroll position are remembered, the current card is scrolled into view, the arrow keys move
- * between the cards, and "Surprise me" picks a mode at random.
+ * On the landing page the shelf and the sort live in the address (?family=battle&sort=az, written with replaceState and
+ * read after mount, so the first render is the server's), and "/" focuses the search. What a visitor types into the search
+ * stays out of the address: it is kept in this history entry's state, so Back and a reload bring it back (a link may still
+ * carry ?q=merge, and the wall takes it over). The address never keeps "#modes" once the wall is shown: with it, Back from
+ * the studio would land at the top of the wall and not at the card the visitor left from. In the picker the search takes
+ * the focus on open (on a touch screen the current card does, so no keyboard covers the cards), a Recent row under the
+ * chips holds the last picks, the shelf, the sort and the scroll position are remembered, the current card is scrolled
+ * into view, the arrow keys move between the cards, and "Surprise me" picks a mode at random. On a touch screen the
+ * keyboard's search key only closes the keyboard, and on a screen under 500 px high (a phone held sideways) the bar scrolls
+ * away with the wall, so the cards keep the room.
  */
 export default function ModesOverview({
   interactive = false,
@@ -85,7 +105,11 @@ export default function ModesOverview({
   const [query, setQuery] = useState("");
   /** The landing page has read its address: only then may the wall write it. */
   const [addressRead, setAddressRead] = useState(false);
-  const [recent, setRecent] = useState<ModeId[]>([]);
+  // --- mode-shelves --- the picker's last picks, read for its first render: the picker exists only in the browser, after a
+  // click, and a row that arrived after the list was scrolled would push the list down at every opening
+  const [recent] = useState<ModeId[]>(() => (picker ? readRecentModes() : []));
+  /** Counts the times the address gained "#modes" on this page (a link of the page itself): the wall drops it again. */
+  const [hashSeen, setHashSeen] = useState(0);
   /** The card the arrow keys last stood on (the picker's one tab stop among the cards). */
   const [stoodOn, setStoodOn] = useState<ModeId | null>(null);
   const [chipsFade, setChipsFade] = useState(false);
@@ -148,47 +172,66 @@ export default function ModesOverview({
     if (others.length) pick(others[Math.floor(Math.random() * others.length)]);
   };
 
-  // --- mode-shelves --- the landing page: the wall's state comes from the address after mount, follows Back and Forward, and
-  // a link to a shelf clicked on this very page (the footer's)
+  // --- mode-shelves --- the landing page: the wall's state comes from the address and this history entry after mount, follows
+  // Back and Forward, and a link to a shelf clicked on this very page (the footer's)
   useEffect(() => {
     if (picker) return;
-    const read = () => {
+    const read = (arriving: boolean) => {
       const state = wallStateFromSearch(window.location.search);
+      const kept = wallHistory();
       setShelf(state.shelf);
-      setQuery(state.query);
       setSort(state.sort);
+      // (an entry the wall never marked, a link of this page to "#modes" for one, keeps the search it shows)
+      setQuery((shown) => (kept ? kept.q : arriving || state.query ? state.query : shown));
+      return { state, seen: !!kept };
     };
     const show = (e: Event) => {
       const id = (e as CustomEvent<unknown>).detail;
       if (typeof id !== "string" || !(MODE_SHELF_IDS as readonly string[]).includes(id)) return;
+      // The wall answers (the event is cancelled), so the link that asked does not load this page a second time.
+      e.preventDefault();
       setShelf(id as ShelfId);
       setQuery("");
+      sectionRef.current?.scrollIntoView({ behavior: "instant" });
     };
-    read();
+    const onPop = () => void read(false);
+    const onHash = () => {
+      if (window.location.hash === "#modes") setHashSeen((n) => n + 1);
+    };
+    const { state, seen } = read(true);
+    // A link to a shelf, a sort or a search opens on the wall. Only a new entry: Back and a reload return to where the
+    // visitor was, and with "#modes" in the address the browser has gone to the wall already.
+    if (!seen && window.location.hash !== "#modes" && (state.shelf !== "all" || !!state.query.trim() || state.sort !== "featured")) sectionRef.current?.scrollIntoView({ behavior: "instant" });
     setAddressRead(true);
-    window.addEventListener("popstate", read);
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("hashchange", onHash);
     window.addEventListener(SHOW_SHELF_EVENT, show);
     return () => {
-      window.removeEventListener("popstate", read);
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("hashchange", onHash);
       window.removeEventListener(SHOW_SHELF_EVENT, show);
     };
   }, [picker]);
-  // ... and goes back into it a moment after it changes (replaceState: no history entry per letter; other parameters stay).
-  // A filtered wall's address ends in #modes, so a shared link opens on the wall.
+  // ... and goes back a moment after it changes (replaceState: no history entry per letter; other parameters stay). The
+  // shelf and the sort go into the address, the search into the entry's state, and "#modes" comes off the address.
   useEffect(() => {
     if (picker || !addressRead) return;
     const timer = window.setTimeout(() => {
       try {
-        const search = wallStateToSearch({ shelf, query, sort }, window.location.search);
-        if (search === window.location.search) return;
-        const filtered = shelf !== "all" || !!query.trim() || sort !== "featured";
-        window.history.replaceState(null, "", `${window.location.pathname}${search}${filtered ? "#modes" : window.location.hash}`);
+        const search = wallStateToSearch({ shelf, query: "", sort }, window.location.search);
+        const hash = window.location.hash === "#modes" ? "" : window.location.hash;
+        // (an entry is marked once the wall shows anything but its default there, and then follows the search)
+        const kept = wallHistory();
+        const marked = kept ? kept.q === query : shelf === "all" && sort === "featured" && !query;
+        if (search === window.location.search && hash === window.location.hash && marked) return;
+        // (only the wall's own key: the router adds what it keeps in the state, and learns the address)
+        window.history.replaceState({ [WALL_HISTORY_KEY]: { q: query } }, "", `${window.location.pathname}${search}${hash}`);
       } catch {
         /* an address that cannot be written (a browser that limits how often): the wall works without it */
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [picker, addressRead, shelf, query, sort]);
+  }, [picker, addressRead, shelf, query, sort, hashSeen]);
 
   // --- mode-shelves --- "/" focuses the search of the landing page, unless the visitor is typing somewhere or a dialog is open
   useEffect(() => {
@@ -211,11 +254,9 @@ export default function ModesOverview({
     return () => window.removeEventListener("keydown", onKey);
   }, [picker]);
 
-  // --- mode-shelves --- the picker: the last picks (this browser's storage, read after mount), and what its dialog focuses
+  // --- mode-shelves --- the picker: what its dialog focuses
   useEffect(() => {
-    if (!picker) return;
-    setRecent(readRecentModes());
-    if (!focusRef) return;
+    if (!picker || !focusRef) return;
     const touch = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
     const card = current ? sectionRef.current?.querySelector<HTMLElement>(`[data-mode-card="${current}"]`) : null;
     focusRef.current = touch ? (card ?? chipsRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]') ?? inputRef.current) : inputRef.current;
@@ -327,9 +368,11 @@ export default function ModesOverview({
   const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
     const first = () => sectionRef.current?.querySelector<HTMLElement>("[data-mode-card]");
     if (e.key === "Enter" && q) {
-      // the best match: the link opens the studio, the picker's card switches the mode
       e.preventDefault();
-      first()?.click();
+      // On a touch screen the keyboard's key says "Search": it closes the keyboard and the list stays.
+      if (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches) e.currentTarget.blur();
+      // With a mouse and keys, the best match: the link opens the studio, the picker's card switches the mode.
+      else first()?.click();
     } else if (e.key === "ArrowDown" && interactive) {
       e.preventDefault();
       (sectionRef.current?.querySelector<HTMLElement>('[data-mode-card][tabindex="0"]') ?? first())?.focus();
@@ -396,9 +439,31 @@ export default function ModesOverview({
     </div>
   );
 
-  // --- mode-shelves --- the bar: sticky under the 56 px header on the page, at the top of the dialog's body in the picker
+  const shownRecent = picker && !q ? recent.filter((id) => id !== current && every.includes(id)) : [];
+  // --- mode-shelves --- the picker's last picks, in the bar under the chips: one row that scrolls sideways, in view wherever
+  // the list is scrolled to (the picker opens on the current mode's card, which may be far down)
+  const recentRow = shownRecent.length > 0 && (
+    <div className="-mx-4 mt-1 flex items-center gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:-mx-6 sm:px-6 [&::-webkit-scrollbar]:hidden" data-testid="modes-recent">
+      <span className="eyebrow shrink-0 text-ink-3">{s("modesWall.recent")}</span>
+      {shownRecent.map((id) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => pick(id)}
+          className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border border-line pl-1 pr-3 text-sm whitespace-nowrap text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink cursor-pointer [@media(pointer:coarse)]:min-h-11"
+        >
+          {/* (a background, not a picture: the row repeats cards of the wall below) */}
+          <span aria-hidden="true" className="h-6 w-6 rounded-full bg-surface-3 bg-cover bg-center" style={{ backgroundImage: `url("${assetPath(`/modes/${id}.webp`)}")` }} />
+          {nameOf(id)}
+        </button>
+      ))}
+    </div>
+  );
+
+  // --- mode-shelves --- the bar: sticky under the 56 px header on the page, at the top of the dialog's body in the picker.
+  // On a screen under 500 px high it is not sticky: a phone held sideways would have under 220 px left for the cards.
   const bar = (
-    <div ref={barRef} data-testid="modes-bar" className={cx("sticky z-30 border-b border-line", picker ? "top-0 -mx-4 -mt-4 bg-surface-1 px-4 pb-2 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6" : "top-14 -mx-4 mt-8 bg-bg px-4 py-2 sm:-mx-6 sm:px-6")}>
+    <div ref={barRef} data-testid="modes-bar" className={cx("sticky z-30 border-b border-line [@media(max-height:500px)]:static", picker ? "top-0 -mx-4 -mt-4 bg-surface-1 px-4 pb-2 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6" : "top-14 -mx-4 mt-8 bg-bg px-4 py-2 sm:-mx-6 sm:px-6")}>
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           {/* (the picker on a phone leaves the glass out: its field is 150 px wide at 360 px, and the placeholder says what it is) */}
@@ -460,10 +525,9 @@ export default function ModesOverview({
         )}
       </div>
       {chips}
+      {recentRow}
     </div>
   );
-
-  const shownRecent = picker && !q ? recent.filter((id) => id !== current && every.includes(id)) : [];
 
   // One grid for the whole wall: a family with a full row of modes or more spans every column, a small family (one or two
   // modes) only as many as it has, so small families share a row. Each family is a subgrid of it (its heading on top).
@@ -495,23 +559,6 @@ export default function ModesOverview({
           </Button>
         )}
       </div>
-      {shownRecent.length > 0 && (
-        <div className="mt-4 flex items-center gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="modes-recent">
-          <span className="eyebrow shrink-0 text-ink-3">{s("modesWall.recent")}</span>
-          {shownRecent.map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => pick(id)}
-              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border border-line pl-1 pr-3 text-sm whitespace-nowrap text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink cursor-pointer [@media(pointer:coarse)]:min-h-11"
-            >
-              {/* (a background, not a picture: the row repeats cards of the wall below) */}
-              <span aria-hidden="true" className="h-6 w-6 rounded-full bg-surface-3 bg-cover bg-center" style={{ backgroundImage: `url("${assetPath(`/modes/${id}.webp`)}")` }} />
-              {nameOf(id)}
-            </button>
-          ))}
-        </div>
-      )}
       <div className={cx(wallGrid, picker ? "mt-6" : "mt-10")}>
         {flat
           ? listed.map((m) => card(m, "h3"))

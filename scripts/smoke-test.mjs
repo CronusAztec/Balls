@@ -593,6 +593,46 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
   check("the mode preview alt text is localised", alt === "Podgląd trybu Klasyczny", `(alt="${alt}")`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 }
+// --- review fix (mode-shelves) --- Back from the studio returns to the card a visitor left from, with a shelf, a sort or a
+// search set too. The wall keeps "#modes" out of the address (with it Back lands at the top of the wall), writes the shelf and
+// the sort into it and holds the typed search in the history entry alone; a link that carries ?q= is taken over the same way.
+{
+  const at = () =>
+    page.evaluate(() => ({
+      url: `${location.search}${location.hash}`,
+      y: Math.round(window.scrollY),
+      cards: document.querySelectorAll("#modes [data-mode-card]").length,
+      q: document.querySelector('[data-testid="modes-search"]')?.value ?? null,
+    }));
+  const runs = {};
+  for (const [name, link, card] of [["shelf", "/en/#modes", "paint"], ["sort", "/en/", "waveTank"], ["search", "/en/?q=fight", "maze"], ["typed", "/en/?family=battle#modes", "landClaim"]]) {
+    await page.goto(`${BASE}${link}`, { waitUntil: "networkidle" });
+    if (name === "shelf") await page.locator('[data-testid="modes-bar"] [role="group"] button', { hasText: "Loops" }).click();
+    if (name === "sort") await page.getByTestId("modes-sort").selectOption("az");
+    if (name === "typed") await page.getByTestId("modes-search").fill("claims");
+    await page.waitForTimeout(600);
+    await page.locator(`#modes [data-mode-card="${card}"]`).scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy({ top: 120, behavior: "instant" }));
+    await page.waitForTimeout(900);
+    const before = await at();
+    await page.locator(`#modes [data-mode-card="${card}"]`).click();
+    await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    await page.goBack();
+    await page.waitForTimeout(1800);
+    runs[name] = { before, after: await at() };
+  }
+  const same = Object.values(runs).every((r) => Math.abs(r.after.y - r.before.y) <= 2 && r.after.cards === r.before.cards && r.after.q === r.before.q && r.after.url === r.before.url);
+  const deep = Object.values(runs).every((r) => r.before.y > 600);
+  const addresses = runs.shelf.before.url === "?family=loops" && runs.sort.before.url === "?sort=az" && runs.search.before.url === "" && runs.typed.before.url === "?family=battle";
+  const lists = runs.shelf.before.cards === 11 && runs.search.before.q === "fight" && runs.search.before.cards === 8 && runs.typed.before.q === "claims" && runs.typed.before.cards >= 1 && runs.typed.before.cards < 8;
+  check(
+    "modes wall: Back from the studio returns to the same scroll position with a shelf, a sort and a search set; the address keeps the shelf and the sort, never \"#modes\" or the search",
+    same && deep && addresses && lists,
+    `(${JSON.stringify(runs)})`,
+  );
+}
+await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 await page.screenshot({ path: path.join(outDir, "landing.png"), fullPage: true });
 });
 
@@ -1711,6 +1751,56 @@ await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle"
 await pickModeCard("Portal");
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
+// --- review fix (mode-shelves) --- the picker's Recent row sits in its bar: in view when the picker opens on a card far down
+// the list (Paint), and the list stays where it was left however often the picker is reopened
+{
+  const openPicker = async () => {
+    await page.getByTestId("stage-strip").getByRole("button").first().click();
+    await page.locator("dialog [data-mode-card]").first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(400);
+  };
+  await pickModeCard("Paint");
+  await page.waitForTimeout(400);
+  await openPicker();
+  const picker = () =>
+    page.evaluate(() => {
+      const dialog = document.querySelector("dialog[open]");
+      const row = dialog?.querySelector('[data-testid="modes-recent"]');
+      const bar = dialog?.querySelector('[data-testid="modes-bar"]');
+      const scroller = [...(dialog?.querySelectorAll("*") ?? [])].find((el) => /auto|scroll/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 20);
+      const box = row?.getBoundingClientRect();
+      const frame = dialog?.getBoundingClientRect();
+      return {
+        names: [...(row?.querySelectorAll("button") ?? [])].map((b) => (b.textContent ?? "").trim()),
+        inBar: !!row && !!bar?.contains(row),
+        inView: !!box && !!frame && box.top >= frame.top && box.bottom <= frame.bottom && box.height > 0,
+        scrollTop: Math.round(scroller?.scrollTop ?? -1),
+      };
+    });
+  const opened = await picker();
+  // (on the Escape shelf, which does not hold Paint, so no card is brought into view and the list keeps its place)
+  await page.locator('dialog [data-testid="modes-bar"] [role="group"] button', { hasText: "Escape" }).click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const scroller = [...document.querySelectorAll("dialog[open] *")].find((el) => /auto|scroll/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 20);
+    if (scroller) scroller.scrollTop = 300;
+  });
+  await page.waitForTimeout(300);
+  const tops = [];
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    await openPicker();
+    tops.push((await picker()).scrollTop);
+  }
+  await page.locator('dialog [data-testid="modes-bar"] [role="group"] button', { hasText: "All" }).click();
+  await page.keyboard.press("Escape");
+  check(
+    "mode picker: the Recent row is in the bar and in view when the picker opens far down the list, and reopening does not move the list",
+    opened.names.join() === "Portal,Classic" && opened.inBar && opened.inView && opened.scrollTop > 600 && tops.every((top) => top === 300),
+    `(${JSON.stringify(opened)}, reopened at ${tops.join(", ")})`,
+  );
+}
 });
 
 await smokeBlock("gerald-faces", async () => {

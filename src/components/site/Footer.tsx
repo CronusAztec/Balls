@@ -17,7 +17,8 @@ import { cx } from "@/components/ui/cx";
  * then the wordmark line with the keyboard shortcuts.
  * --- mode-shelves --- The Modes column has one link per shelf of the modes wall (lib/siteDesign.ts), and each opens the wall
  * on that shelf (/?family=battle#modes), not one mode of it. Clicked on the landing page itself, where the wall is already
- * mounted, the link also tells it which shelf to show (SHOW_SHELF_EVENT).
+ * mounted, the link asks the wall to show the shelf (SHOW_SHELF_EVENT) and the wall does it in place, unless the click
+ * opens the link in a new tab.
  */
 
 const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", battle: "modesBattle", music: "modesMusic", loops: "modesLoops", smash: "modesSmash", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
@@ -76,7 +77,16 @@ export default function Footer() {
           <ul className="mt-4 space-y-3">
             {modeShelves().map((f) => (
               <li key={f.id}>
-                <Link href={`/?family=${f.id}#modes`} className={linkClass} onClick={() => window.dispatchEvent(new CustomEvent(SHOW_SHELF_EVENT, { detail: f.id }))}>
+                <Link
+                  href={`/?family=${f.id}#modes`}
+                  className={linkClass}
+                  onClick={(e) => {
+                    // (a click that opens the link elsewhere, a new tab or a window, leaves this page's wall as it is)
+                    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    // On the landing page the wall answers and shows the shelf itself: the page is not loaded again.
+                    if (!window.dispatchEvent(new CustomEvent(SHOW_SHELF_EVENT, { detail: f.id, cancelable: true }))) e.preventDefault();
+                  }}
+                >
                   {familyLabel(f.id)}
                 </Link>
                 <span className="num ml-2 text-xs text-ink-3">{f.modes.length}</span>

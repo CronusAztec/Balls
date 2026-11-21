@@ -8,7 +8,8 @@ import { fold, shelfOf, type ShelfId } from "@/lib/siteDesign";
  * every mode and every shelf carries a few search words in English, Polish and Spanish. They are never shown.
  *
  * A mode is found by its name, its words (with the English ones and its id on every page: "fightLeague" answers to
- * "fight league" in Polish too), its shelf and its one-liner, in that order of worth. Pure, no React: the wall
+ * "fight league" in Polish too), its shelf and its one-liner, in that order of worth. A plural or an inflected form finds
+ * the word it comes from ("fights", "walki", "canciones"), half a step under the word itself. Pure, no React: the wall
  * (components/site/ModesOverview.tsx) and the command palette (components/simulator/Controls.tsx) call it.
  *
  * Keep a list to what the mode shows. No word that names a setting of the panel ("gravity", "speed", "size"): the
@@ -22,8 +23,8 @@ type Words = Record<SearchLocale, string>;
 /** The words every mode of a shelf answers to. */
 export const SHELF_SEARCH_WORDS: Record<ShelfId, Words> = {
   escape: { en: "escape rings break out", pl: "ucieczka pierścienie wyjście", es: "escape anillos salir" },
-  battle: { en: "battle fight versus war winner", pl: "bitwa walka wojna zwycięzca", es: "batalla pelea guerra ganador" },
-  music: { en: "music rhythm beat song notes melody", pl: "muzyka rytm bit piosenka nuty melodia", es: "música ritmo canción notas melodía" },
+  battle: { en: "battle fight versus war winner", pl: "bitwa walka wojna zwycięzca", es: "batalla pelea lucha guerra ganador" },
+  music: { en: "music rhythm beat song notes melody", pl: "muzyka muzyczne rytm bit piosenka nuty melodia", es: "música ritmo canción notas melodía" },
   loops: { en: "loop loops pattern satisfying sync", pl: "pętla pętle wzór synchronizacja", es: "bucle bucles patrón sincronía" },
   smash: { en: "smash merge break destroy score", pl: "rozbijanie łączenie niszczenie punkty", es: "romper fusionar destruir puntos" },
   journey: { en: "journey story stages", pl: "podróż historia etapy", es: "viaje historia etapas" },
@@ -47,7 +48,7 @@ export const MODE_SEARCH_WORDS: Record<ModeId, Words> = {
   pendulum: { en: "wave pendulums", pl: "wahadło fale", es: "péndulo ondas" },
   polyrhythm: { en: "metronomes tempo ticks flash", pl: "metronom tempo błysk", es: "metrónomo tempo destello" },
   collide: { en: "collision playground orbs bump", pl: "zderzenia kule", es: "choques esferas" },
-  glass: { en: "floors panes crack shatter gerald", pl: "szyby piętra pęknięcia gerald", es: "pisos vidrio grietas gerald" },
+  glass: { en: "smash floors panes crack shatter gerald", pl: "szyby piętra pęknięcia gerald", es: "pisos vidrio grietas gerald" },
   multipliers: { en: "gates clone hundreds counter", pl: "bramki klony setki licznik", es: "puertas clones cientos contador" },
   doublePendulum: { en: "harp strings chaos", pl: "harfa struny chaos", es: "arpa cuerdas caos" },
   illusion: { en: "circle optical trick", pl: "złudzenie optyczne trik", es: "óptica truco" },
@@ -63,7 +64,7 @@ export const MODE_SEARCH_WORDS: Record<ModeId, Words> = {
   bullseye: { en: "darts dartboard pegs confetti", pl: "rzutki tarcza kołki konfetti", es: "dardos diana clavijas confeti" },
   beatDrop: { en: "platforms landing edit", pl: "platformy lądowanie", es: "plataformas aterrizaje" },
   territory: { en: "teams tiles map conquer", pl: "drużyny pola mapa podbój", es: "equipos casillas mapa conquistar" },
-  maze: { en: "labyrinth race exit", pl: "labirynt wyścig wyjście", es: "laberinto carrera salida" },
+  maze: { en: "labyrinth race exit escape", pl: "labirynt wyścig wyjście", es: "laberinto carrera salida" },
   conveyor: { en: "belt pile counter", pl: "taśma stos licznik", es: "cinta pila contador" },
   orbGrid: { en: "bouncing orbs waves field thousands", pl: "kule fale pole tysiące", es: "esferas ondas campo miles" },
   fightLeague: { en: "duel fighters weapons characters tournament", pl: "pojedynek wojownicy broń postacie turniej", es: "duelo luchadores armas personajes torneo" },
@@ -94,6 +95,36 @@ export function modeSearchWords(mode: ModeId, locale: string): string {
   return [own[at], at === "en" ? "" : own.en, idWords(mode)].filter(Boolean).join(" ");
 }
 
+/** A shelf's search words on a page in `locale`: that language's and the English ones. */
+function shelfSearchWords(shelf: ShelfId, locale: string): string {
+  const own = SHELF_SEARCH_WORDS[shelf];
+  const at = localeOf(locale);
+  return [own[at], at === "en" ? "" : own.en].filter(Boolean).join(" ");
+}
+
+/**
+ * What a mode answers to in the studio's command palette: its own words and its shelf's ("fight" and "walka" list the
+ * battle modes there too). The palette ranks a label above these words, so the settings keep the top of its list.
+ */
+export function modePaletteWords(mode: ModeId, locale: string): string {
+  return `${modeSearchWords(mode, locale)} ${shelfSearchWords(shelfOf(mode), locale)}`;
+}
+
+/** Words of an English name that say nothing ("Capture the Flag"): a page in another language has no word for them. */
+const STOP_WORDS = ["the", "a", "an", "of", "and", "to", "in", "on", "for", "with"];
+
+/**
+ * A plural or an inflected form of a stored word: both start with the same four letters or more, the stored word has at
+ * most two letters after them and the typed one at most three. So "fights" and "fighting" find "fight", "merging" finds
+ * "merge", "walki" finds "walka", "pojedynki" finds "pojedynek" and "canciones" finds "canción".
+ */
+function alike(typed: string, stored: string): boolean {
+  const most = Math.min(typed.length, stored.length);
+  let same = 0;
+  while (same < most && typed[same] === stored[same]) same++;
+  return same >= 4 && stored.length - same <= 2 && typed.length - same <= 3;
+}
+
 /** What a card shows of a mode, in the page's language. */
 export interface ModeSearchItem {
   id: ModeId;
@@ -105,10 +136,13 @@ export interface ModeSearchItem {
 
 /**
  * The modes a search finds, best first. Every word of the query must start a word of the mode's name, of its search words,
- * of its shelf (the label and the shelf's words) or of its one-liner, or sit inside the name ("rhythm" finds "Polyrhythms").
+ * of its shelf (the label and the shelf's words) or of its one-liner, or sit inside the name ("rhythm" finds "Polyrhythms"),
+ * or be a plural or an inflected form of such a word (`alike`), which counts half a step less than the word itself.
  * A mode counts as much as its weakest word: the name beats the words, the words beat the shelf, the shelf beats the
  * one-liner, and a name that starts with the whole query comes first. Equal modes keep the order they came in. Diacritics
- * fold, so "petla" finds "pętla". An empty query finds every mode, in the order given.
+ * fold, so "petla" finds "pętla". A word that says nothing ("the") is passed over where it matches nothing, and so is the
+ * start of one while it is still being typed, but such words alone find no mode. An empty query finds every mode, in the
+ * order given.
  */
 export function searchModes(items: readonly ModeSearchItem[], query: string, locale: string): ModeId[] {
   const q = fold(query.trim());
@@ -120,16 +154,24 @@ export function searchModes(items: readonly ModeSearchItem[], query: string, loc
     const name = fold(item.name);
     const inName = tokens(item.name);
     const inWords = tokens(modeSearchWords(item.id, at));
-    const shelf = SHELF_SEARCH_WORDS[shelfOf(item.id)];
-    const inShelf = tokens(`${item.shelf} ${shelf[at]} ${at === "en" ? "" : shelf.en}`);
+    const inShelf = tokens(`${item.shelf} ${shelfSearchWords(shelfOf(item.id), at)}`);
     const inLine = tokens(item.description);
     let worst = 4;
-    for (const w of words) {
+    let matched = 0;
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
       const starts = (list: string[]) => list.some((t) => t.startsWith(w));
-      const worth = starts(inName) || (w.length >= 3 && name.includes(w)) ? 4 : starts(inWords) ? 3 : starts(inShelf) ? 2 : starts(inLine) ? 1 : 0;
-      if (worth === 0) return;
+      const near = (list: string[]) => list.some((t) => alike(w, t));
+      const worth =
+        starts(inName) || (w.length >= 3 && name.includes(w)) ? 4 : near(inName) ? 3.5 : starts(inWords) ? 3 : near(inWords) ? 2.5 : starts(inShelf) ? 2 : near(inShelf) ? 1.5 : starts(inLine) ? 1 : near(inLine) ? 0.5 : 0;
+      if (worth === 0) {
+        if (STOP_WORDS.includes(w) || (i === words.length - 1 && STOP_WORDS.some((stop) => stop.startsWith(w)))) continue;
+        return;
+      }
+      matched++;
       worst = Math.min(worst, worth);
     }
+    if (!matched) return;
     scored.push({ id: item.id, score: worst * 2 + (name.startsWith(q) ? 1 : 0), index });
   });
   scored.sort((a, b) => b.score - a.score || a.index - b.index);
