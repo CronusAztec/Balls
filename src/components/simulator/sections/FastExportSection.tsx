@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { buttonClass } from "@/components/ui/Button"; // --- site-redesign ---
@@ -9,6 +10,11 @@ import { FAST_EXPORT_FPS, FAST_EXPORT_RANGES, realtimeFactor, resolveFastExportF
 import NumberField from "../NumberField"; // --- uncap-all ---
 import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: everyone renders, watermarked without Pro)
 import type { SimulatorSettings } from "@/lib/settings";
+// --- panel-basics --- the finished export's card: its file, and the way to the Publish block
+import { EXPORT_BASE_NAME } from "@/lib/recording/recorder";
+import { publishClips, subscribePublishClips, type PublishClip } from "@/lib/publish/clips";
+import { formatBytes } from "@/lib/project";
+import { OPEN_SETTING_EVENT } from "@/lib/siteDesign";
 
 /*
  * --- fast-render --- The panel side of the fast export (lib/recording/fastRender.ts): the "Fast export" button under
@@ -133,11 +139,39 @@ export function FastExportButton({ state, disabled, handPlay = false, onStart, o
   );
 }
 
-/** --- site-redesign --- The fast export's outcome line (done, fallback, cancelled, error) or why it is off, under the transport bar. */
+const NO_CLIPS: readonly PublishClip[] = [];
+
+/**
+ * --- site-redesign --- The fast export's outcome line (done, fallback, cancelled, error) or why it is off, under the transport
+ * bar. --- panel-basics --- A finished export is a card: the file's name (the clip the Publish block lists, else the
+ * download's), its length and size, the line saying how it went, and a button that opens the Publish block.
+ */
 export function FastExportStatus(props: Pick<FastExportPanelProps, "state" | "supported" | "handPlay">) {
   const t = useTranslations("FastExport");
+  const controls = useTranslations("Controls");
+  const clips = useSyncExternalStore(subscribePublishClips, publishClips, () => NO_CLIPS);
   const line = fastExportMessage(t, props);
   if (!line) return null;
+  const { state } = props;
+  if (state.status === "done" && !(props.handPlay ?? false)) {
+    const clip = clips.find((c) => c.source !== "recording" && c.bytes === state.bytes) ?? null;
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-line bg-surface-1 px-3 py-2.5" role="status" data-testid="fast-export-result">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink" data-testid="fast-export-file">
+            {clip?.name ?? `${EXPORT_BASE_NAME}.${state.extension}`}
+          </p>
+          <p className="num text-xs text-ink-2">
+            {one(state.durationSec)} s · {formatBytes(state.bytes)}
+          </p>
+          <p className={`mt-1 text-xs leading-snug ${line.tone}`}>{line.message}</p>
+        </div>
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTING_EVENT, { detail: "publish" }))} className={buttonClass({ variant: "secondary", size: "sm" })} data-testid="fast-export-publish">
+          {controls("publish")}
+        </button>
+      </div>
+    );
+  }
   return (
     <p className={`text-xs leading-snug ${line.tone}`} role="status">
       {line.message}

@@ -22,7 +22,7 @@ const WHEN: Record<BlueprintRule["when"], (r: BlueprintRule) => string> = {
   obstacleHit: (r) => `when ${r.of ?? "a ball"} hits an obstacle`,
   tileHit: (r) => `when ${r.of ?? "a ball"} hits a tile`,
   tileBroken: (r) => `when ${r.of ?? "a ball"} breaks a tile`,
-  ballHit: (r) => `when ${r.of ?? "a ball"} touches ${r.with === "any" ? "another ball" : r.with === "same" ? "a ball of its kind" : r.with === "sameTier" ? "a ball of its tier" : r.with === "sameTeam" ? "a team-mate" : r.with === "otherTeam" ? "a ball of another team" : r.with}`,
+  ballHit: (r) => `when ${r.of ?? "a ball"} touches ${r.with === "any" ? "another ball" : r.with === "same" ? "a ball of its kind" : r.with === "sameTier" ? "a ball of its tier" : r.with === "sameTeam" ? "a team-mate" : r.with === "otherTeam" ? "a ball of another team" : r.with === "smaller" ? "a smaller ball" : r.with}`,
   escape: (r) => `when ${r.of ?? "a ball"} escapes`,
   ringPass: (r) => `when ${r.of ?? "a ball"} passes a ring`,
   countReached: (r) => `when ${r.what} reaches ${r.atLeast !== null ? `${r.atLeast} or more` : `${r.atMost} or less`}`,

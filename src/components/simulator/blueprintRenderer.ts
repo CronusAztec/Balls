@@ -15,7 +15,7 @@ import { WALL_HALF } from "@/lib/blueprint/runtime/world";
  *    exits – each opening marked by two white posts – or the box;
  *  - `drawTrail()` for each ball while the spec's look asks for trails: a tapering streak in the ball's own colour;
  *  - `drawEffects()` over the balls: a ring in its new colour round a ball a hit just converted to another team, each
- *    ball's label (its tier, or its hit points) and the spec's white flash;
+ *    ball's label (its tier, or its hit points) and the spec's flash (--- blueprint-catalog-c2 --- in its colour);
  *  - `drawOverlay()` round the recorder's square: the title and the HUD counters (top left), the clock counting down to the
  *    timeout (top right), ARENA FULL when the ball ceiling refused a ball and, once the run is over, the end banner (the
  *    result line in the winner's colour on a dark band, popping in on the run's clock). --- review fix (blueprint) --- The
@@ -757,7 +757,7 @@ export class BlueprintLayer {
     ctx.restore();
   }
 
-  /** Over the balls: the rings of the balls that just changed team, their labels (tier or hit points) and the spec's white flash. */
+  /** Over the balls: the rings of the balls that just changed team, their labels (tier or hit points) and the spec's flash. */
   drawEffects(ctx: CanvasRenderingContext2D, view: BlueprintView) {
     const w = view.world;
     if (!w) return;
@@ -782,7 +782,14 @@ export class BlueprintLayer {
     }
     const flash = 1 - (view.clockSec - view.flashAtSec) / 0.3;
     if (flash > 0) {
-      ctx.fillStyle = withAlpha("#ffffff", 0.35 * flash);
+      // --- blueprint-catalog-c2 --- review fix (C2): the flash glows out from where it happened, white at its heart and in
+      // the colour of what made it further out (a flat white veil over a dark arena read as a grey fog, not a blast)
+      const hue = view.bp?.look.palette[view.flashColor] ?? "#ffffff";
+      const glow = ctx.createRadialGradient(view.flashX, view.flashY, 0, view.flashX, view.flashY, 1.6 * w.R);
+      glow.addColorStop(0, withAlpha("#ffffff", 0.75 * flash));
+      glow.addColorStop(0.18, withAlpha(hue, 0.6 * flash));
+      glow.addColorStop(1, withAlpha(hue, 0.12 * flash));
+      ctx.fillStyle = glow;
       ctx.beginPath();
       if (w.shape === "box") ctx.rect(w.cx - w.R, w.cy - w.R, 2 * w.R, 2 * w.R);
       else ctx.arc(w.cx, w.cy, w.R, 0, TWO_PI);

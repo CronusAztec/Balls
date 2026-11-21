@@ -4311,7 +4311,9 @@
       "conquer": "Colour Conquest",
       "tierClimb": "Tier Climb",
       "plinkoRace": "Peg Race",
-      "growEscape": "Grow or Go"
+      "growEscape": "Grow or Go",
+      "thinIce": "Thin Ice",
+      "hotPotato": "Hot Potato"
     },
     "ownHooks": {
       "mergeRing": "How far can it merge?",
@@ -4326,7 +4328,9 @@
       "conquer": "One hit converts. Last colour wins.",
       "tierClimb": "Matching orbs merge into a bigger one.",
       "plinkoRace": "Through the pegs. First one out wins.",
-      "growEscape": "Bigger every bounce. Will it still fit?"
+      "growEscape": "Bigger every bounce. Will it still fit?",
+      "thinIce": "Bounces crack the ice. Who stays dry?",
+      "hotPotato": "Touch passes the bomb. Last one wins."
     },
     "ownPayoffs": {
       "journey": "Home! 🏠"
@@ -4526,6 +4530,8 @@
         "ballHitSameTier": "When two balls of the same tier touch",
         "ballHitSameTeam": "When two team-mates touch",
         "ballHitOtherTeam": "When balls of two teams touch",
+        "ballHitSmaller": "When a ball touches a smaller one",
+        "ballHitOf": "When {who} touches another ball",
         "ballHitBody": "When {who} touches a ball called {other}",
         "escape": "When {who} escapes",
         "ringPass": "When {who} gets through a ring",
@@ -4556,7 +4562,10 @@
         "other": "the other ball",
         "slower": "the slower ball",
         "all": "every ball",
-        "merged": "the new ball"
+        "merged": "the new ball",
+        "bigger": "the bigger ball",
+        "smaller": "the smaller ball",
+        "allOf": "every ball called {body}"
       },
       "act": {
         "spawn": "{count, plural, one {# new ball appears} other {# new balls appear}} {place}",
@@ -4578,6 +4587,9 @@
         "damage": "{who} loses {n} HP",
         "damageSome": "{who} takes damage",
         "varAdd": "“{name}” goes up by {n}",
+        "resize": "{who} changes size",
+        "varChange": "“{name}” changes",
+        "varSub": "“{name}” goes down by {n}",
         "varSet": "“{name}” becomes {n}",
         "varMul": "“{name}” is multiplied by {n}",
         "impulse": "{who} gets a push",
@@ -4673,7 +4685,7 @@
       "say0": "[winner] WINS",
       "timeoutSay": "[winner] LEADS",
       "params": {
-        "per": "Balls per colour",
+        "per": "Extra balls a colour",
         "boost": "Speed-up every"
       }
     },
@@ -4717,6 +4729,33 @@
         "grow": "Growth per bounce",
         "exit": "Exit width",
         "size": "Starting size"
+      }
+    },
+    "thinIce": {
+      "name": "Thin Ice",
+      "description": "Every bounce cracks the ice. Fall through and you are out. The last colour still dry wins.",
+      "line": "Every bounce cracks the ice",
+      "hud0": "dry",
+      "hud1": "ice",
+      "say0": "[winner] STAYS DRY",
+      "timeoutSay": "THE ICE HELD",
+      "params": {
+        "per": "Balls per colour",
+        "hp": "Ice strength",
+        "cols": "Panes of ice",
+        "melt": "Melt every"
+      }
+    },
+    "hotPotato": {
+      "name": "Hot Potato",
+      "description": "One ball holds the bomb and a touch passes it on. Whoever holds it when the fuse runs out is out.",
+      "line": "Pass the bomb before the fuse runs out",
+      "hud0": "fuse",
+      "hud1": "left",
+      "say0": "[winner] SURVIVES",
+      "timeoutSay": "THE FUSE IS STILL LIT",
+      "params": {
+        "fuse": "First fuse"
       }
     }
   },
@@ -5678,6 +5717,7 @@
       "speed": "Playback speed",
       "rail": "Control groups",
       "panelEmpty": "Pick a group to edit it. Everything you change is kept in the link.",
+      "continueLast": "Continue where you left off",
       "closeSettings": "Close the settings",
       "paletteTitle": "Search settings, groups and modes",
       "palettePlaceholder": "Jump to a setting, a group or a mode…",

@@ -58,6 +58,24 @@ function plain(c: Ctx, n: Num): number | null {
   return v && Number.isFinite(v.start) ? v.start : null;
 }
 
+/**
+ * --- blueprint-catalog-c2 --- review fix (C2): a number slot that stays what it says – a plain number, or a variable no rule
+ * changes (a slider's) – else null: a variable a rule changes is worth only its start value at the start (Thin Ice's melt
+ * starts at 0, and "the tile takes 0 extra damage" was never true for long).
+ */
+function fixed(c: Ctx, n: Num): number | null {
+  if (typeof n !== "number" && c.bp.rules.some((r) => r.do.some((a) => a.act === "var" && a.id === n.trim()))) return null;
+  return plain(c, n);
+}
+
+/**
+ * --- blueprint-catalog-c2 --- review fix (C2): a body that is not a player but a token – a ball its own ballHit rule removes
+ * at its first touch (Hot Potato's spark) – is left out of the start's balls and teams.
+ */
+function isToken(c: Ctx, body: string): boolean {
+  return c.bp.rules.some((r) => r.when === "ballHit" && r.of === body && r.do.some((a) => a.act === "remove" && a.target === "self"));
+}
+
 /** The place new balls appear, said after them. */
 const place = (at: string) => p(`at.${at}`);
 
@@ -71,8 +89,11 @@ function countName(c: Ctx, what: string): SummaryPhrase {
   return KNOWN_COUNTS.includes(what) ? p(`count.${what}`) : p("count.var", { name: c.varName(what) });
 }
 
-/** A ballHit rule's head by its `with` relation (a body id: "When a ball touches a ball called …"). */
-const BALL_HIT_HEADS: Readonly<Record<string, string>> = { any: "when.ballHit", same: "when.ballHitSame", sameTier: "when.ballHitSameTier", sameTeam: "when.ballHitSameTeam", otherTeam: "when.ballHitOtherTeam" };
+/**
+ * A ballHit rule's head by its `with` relation (a body id: "When a ball touches a ball called …"). --- blueprint-catalog-c2
+ * --- review fix (C2): a rule that names its own ball (`of`) says which ("When a ball called spark touches a ball").
+ */
+const BALL_HIT_HEADS: Readonly<Record<string, string>> = { any: "when.ballHit", same: "when.ballHitSame", sameTier: "when.ballHitSameTier", sameTeam: "when.ballHitSameTeam", otherTeam: "when.ballHitOtherTeam", smaller: "when.ballHitSmaller" /* --- blueprint-catalog-c2 --- */ };
 
 /** A rule's trigger, with its filters after it ("When a ball hits the wall, every 3rd time"). */
 function ruleHead(c: Ctx, r: BlueprintRule): SummaryPhrase {
@@ -84,7 +105,7 @@ function ruleHead(c: Ctx, r: BlueprintRule): SummaryPhrase {
     case "ballHit": {
       const rel = r.with;
       const key = BALL_HIT_HEADS[rel];
-      head = key ? p(key) : p("when.ballHitBody", { who: who(c, r.of), other: rel });
+      head = rel === "any" && r.of && c.bp.bodies.length > 1 ? p("when.ballHitOf", { who: who(c, r.of) }) : key ? p(key) : p("when.ballHitBody", { who: who(c, r.of), other: rel });
       break;
     }
     case "countReached":
@@ -107,16 +128,25 @@ function ruleHead(c: Ctx, r: BlueprintRule): SummaryPhrase {
   return head;
 }
 
-/** The ball an action changes, as the rule's trigger names it (after a merge, `self` is the merged ball). */
-function target(r: BlueprintRule, t: string, merged: boolean): SummaryPhrase {
-  if (t === "all" || !BALL_TRIGGERS.has(r.when)) return p("target.all");
-  if (r.when === "ballHit") return p(t === "other" ? "target.slower" : merged ? "target.merged" : "target.faster");
+/**
+ * The ball an action changes, as the rule's trigger names it (after a merge, `self` is the merged ball). --- blueprint-catalog-c2
+ * --- review fix (C2): as the runtime picks self (run.ts ballHit): with `smaller` the bigger ball, with `of` the ball it names
+ * (not the faster one), and `all` of a rule with `of` is every ball of that body.
+ */
+function target(c: Ctx, r: BlueprintRule, t: string, merged: boolean): SummaryPhrase {
+  if (t === "all" || !BALL_TRIGGERS.has(r.when)) return r.of && c.bp.bodies.length > 1 ? p("target.allOf", { body: r.of }) : p("target.all");
+  if (r.when === "ballHit") {
+    if (merged && t !== "other") return p("target.merged");
+    if (r.with === "smaller") return p(t === "other" ? "target.smaller" : "target.bigger");
+    if (r.of) return p(t === "other" ? "target.other" : "target.self");
+    return p(t === "other" ? "target.slower" : "target.faster");
+  }
   return p(t === "other" ? "target.other" : "target.self");
 }
 
 /** What an action does (null: cosmetic, implied by another action of the rule, or nothing a player sees). */
 function action(c: Ctx, r: BlueprintRule, a: BlueprintAction, merged: boolean): SummaryPhrase | null {
-  const who = (t: string) => target(r, t, merged);
+  const who = (t: string) => target(c, r, t, merged);
   switch (a.act) {
     case "spawn": {
       const n = plain(c, a.count);
@@ -131,8 +161,10 @@ function action(c: Ctx, r: BlueprintRule, a: BlueprintAction, merged: boolean): 
     case "remove":
       return p("act.remove", { who: who(a.target) });
     case "grow": {
-      const n = plain(c, a.by);
-      return p(n !== null && n < 0 ? "act.shrink" : "act.grow", { who: who(a.target) });
+      const n = fixed(c, a.by);
+      // (--- blueprint-catalog-c2 --- a size worked out as the game goes may grow or shrink: said as a change of size)
+      if (n === null) return p("act.resize", { who: who(a.target) });
+      return p(n < 0 ? "act.shrink" : "act.grow", { who: who(a.target) });
     }
     case "speed": {
       const n = plain(c, a.scale);
@@ -151,14 +183,17 @@ function action(c: Ctx, r: BlueprintRule, a: BlueprintAction, merged: boolean): 
       if (r.when === "ballHit" && a.target === "other" && a.to === "self") return p("act.teamJoinFaster");
       return p("act.team", { who: who(a.target) });
     case "damage": {
-      const n = plain(c, a.amount);
+      const n = fixed(c, a.amount); // (--- blueprint-catalog-c2 ---)
       if (a.target === "tile") return n !== null ? p("act.damageTile", { n: shown(n) }) : p("act.damageTileSome");
       return n !== null ? p("act.damage", { who: who(a.target), n: shown(n) }) : p("act.damageSome", { who: who(a.target) });
     }
     case "var": {
-      const n = plain(c, a.value);
-      const value = n !== null ? shown(n) : String(a.value);
-      return p(a.op === "add" ? "act.varAdd" : a.op === "mul" ? "act.varMul" : "act.varSet", { name: c.varName(a.id), n: value });
+      // --- blueprint-catalog-c2 --- review fix (C2): a formula is not read out ("“fuse” becomes ceil(fuse)"): the variable
+      // changes; and a step down is said as one
+      const n = fixed(c, a.value);
+      if (n === null) return p("act.varChange", { name: c.varName(a.id) });
+      if (a.op === "add" && n < 0) return p("act.varSub", { name: c.varName(a.id), n: shown(-n) });
+      return p(a.op === "add" ? "act.varAdd" : a.op === "mul" ? "act.varMul" : "act.varSet", { name: c.varName(a.id), n: shown(n) });
     }
     case "impulse":
       return p("act.impulse", { who: who(a.target) });
@@ -212,15 +247,29 @@ function startLine(c: Ctx): SummaryLine {
   let some = false;
   const places = new Set<string>();
   for (const s of c.bp.spawners) {
-    if (s.startSec > 0) continue;
+    if (s.startSec > 0 || isToken(c, s.body)) continue; // (--- blueprint-catalog-c2 --- a token is no player)
     const n = plain(c, s.count);
     if (n === null) some = true;
     else first += perSpawn(n);
     places.add(s.at);
   }
+  // --- blueprint-catalog-c2 --- review fix (C2): the balls a start rule adds are there at once too, and the teams its team
+  // changes name are teams of the game
+  const startTeams = new Set<number>();
+  for (const r of c.bp.rules) {
+    if (r.when !== "start") continue;
+    for (const a of r.do) {
+      if (a.act === "team" && typeof a.to === "number") startTeams.add(a.to);
+      if (a.act !== "spawn" || isToken(c, a.body)) continue;
+      const n = plain(c, a.count);
+      if (n === null) some = true;
+      else first += perSpawn(n);
+      places.add(a.at);
+    }
+  }
   if (some && first === 0) parts.push(p("startSome"));
   else if (first > 0) parts.push(places.size === 1 ? p("startBalls", { count: first, place: place([...places][0]) }) : p("startBallsSpread", { count: first }));
-  const teams = new Set(c.bp.bodies.map((b) => b.team)).size;
+  const teams = new Set([...c.bp.bodies.filter((b) => !isToken(c, b.id)).map((b) => b.team), ...startTeams]).size;
   if (teams > 1) parts.push(p("teams", { count: teams }));
   for (const s of c.bp.spawners) {
     if (s.onBeat) parts.push(p("moreOnBeat"));
@@ -279,6 +328,8 @@ export function summarizeBlueprint(bp: Blueprint, options: SummaryOptions = {}):
       if (said) parts.push(said);
       if (a.act === "merge") merged = true;
     }
+    // --- blueprint-catalog-c2 --- (two actions said alike are said once: "“fuse” changes, “fuse” changes")
+    for (let i = parts.length - 1; i > 0; i--) if (parts.slice(0, i).some((q) => JSON.stringify(q) === JSON.stringify(parts[i]))) parts.splice(i, 1);
     // a rule that only plays a note or flashes still says so
     if (!parts.length && r.do.some((a) => a.act === "sound")) parts.push(p("act.sound"));
     else if (!parts.length && r.do.some((a) => a.act === "fx")) parts.push(p("act.fx"));

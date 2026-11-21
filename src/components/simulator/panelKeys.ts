@@ -1,4 +1,5 @@
 import type { ModeId } from "@/lib/physics/types";
+import { SEARCH_LOCALES, type SearchLocale } from "@/lib/modeSearch"; // --- panel-basics ---
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import { isArenaGameMode } from "@/lib/physics/modes/arenaGames";
@@ -262,4 +263,38 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   // --- ring-escape --- Classic's ring generation (the gap layout, the spin, the rainbow, the time in the ring, the ring sounds)
   if (RING_ESCAPE_SET.has(key)) return p.mode === "classic";
   return true;
+}
+
+/*
+ * --- panel-basics --- The words a visitor types for a control besides its label: "colour" for a label that says Color,
+ * "length" or "seconds" for the clip's Duration, "hook" or "title" for the top text, "logo" for the watermark. Like the
+ * modes' search words (lib/modeSearch.ts) they are never shown: a page answers to its own language's words and the
+ * English ones. The panel's search box (Controls.tsx matches()) and the command palette (its entries' `words`) read them.
+ * Keep each list to what the control is called elsewhere: no word that names another control or a mode.
+ */
+export const SETTING_SEARCH_WORDS: Readonly<Record<string, Record<SearchLocale, string>>> = {
+  ballColor: { en: "colour color", pl: "kolor barwa", es: "color" },
+  wallColor: { en: "colour color ring", pl: "kolor barwa pierścień", es: "color anillo" },
+  colorTrail: { en: "colour", pl: "kolor", es: "color" },
+  themeTrail: { en: "color", pl: "kolor", es: "color" },
+  theme: { en: "look style colours colors", pl: "wygląd styl kolory", es: "aspecto estilo colores" },
+  ballSize: { en: "big small radius", pl: "duża mała promień", es: "grande pequeña radio" },
+  ballSpeed: { en: "fast slow", pl: "szybko wolno szybkość", es: "rápido lento" },
+  videoDuration: { en: "length clip seconds long", pl: "długość klip sekundy", es: "longitud clip segundos" },
+  videoResolution: { en: "format size vertical aspect", pl: "format rozmiar pion proporcje", es: "formato tamaño vertical proporción" },
+  topText: { en: "hook title headline caption text", pl: "haczyk tytuł nagłówek napis tekst", es: "gancho título titular texto" },
+  bottomText: { en: "caption subtitle text", pl: "napis podpis tekst", es: "subtítulo texto" },
+  customWatermark: { en: "logo", pl: "logo znak", es: "logo marca" },
+  textSize: { en: "font", pl: "czcionka", es: "fuente" },
+  publish: { en: "share post upload", pl: "udostępnij opublikuj wrzuć", es: "compartir publicar subir" },
+  viralBot: { en: "planner plan clips", pl: "planer plan klipy", es: "planificador plan clips" },
+  batchRender: { en: "many bulk", pl: "wiele seria", es: "varios serie" },
+};
+
+/** --- panel-basics --- The search words of a control on a page in `locale`: its language's, then the English ones ("" for none). */
+export function settingSearchWords(key: string, locale: string): string {
+  const words = SETTING_SEARCH_WORDS[key];
+  if (!words) return "";
+  const own = (SEARCH_LOCALES as readonly string[]).includes(locale) && locale !== "en" ? words[locale as SearchLocale] : "";
+  return own ? `${own} ${words.en}` : words.en;
 }

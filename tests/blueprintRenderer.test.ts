@@ -133,7 +133,7 @@ describe("blueprint renderer: still layers in bitmaps", () => {
   });
 
   it("sets no blur on the page's canvas in a running game's frames: the glows are in the bitmaps or gradients", () => {
-    for (const blp of ["hatchery", "ringBreaker", "growEscape", "plinkoRace", "conquer", "tierClimb"]) {
+    for (const blp of ["hatchery", "ringBreaker", "growEscape", "plinkoRace", "conquer", "tierClimb", "thinIce", "hotPotato"]) {
       const engine = engineFor({ blPreset: blp });
       const view = engine.getBlueprintView();
       const { factory, made } = fakeCanvases();

@@ -2084,18 +2084,20 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // order, the first the mode's own default (Glass Hatchery)
     expect(LAB.map((t) => t.id)).toEqual(BLUEPRINT_CATALOG_IDS.map((id, i) => (i === 0 ? "lab-game-blueprint" : `lab-game-blueprint-${kebabOf(id)}`)));
     expect(defaultSettings("blueprint").blPreset).toBe(BLUEPRINT_CATALOG_IDS[0]);
-    const lengths: Record<string, string[]> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"] };
+    // (--- blueprint-catalog-c2 --- and Thin Ice and Hot Potato, whose last colour stands about 18 s in: the standard length)
+    const lengths: Record<string, string[]> = { hatchery: ["standard"], ringBreaker: ["short"], conquer: ["short"], tierClimb: ["standard"], plinkoRace: ["short"], growEscape: ["short"], thinIce: ["standard"], hotPotato: ["standard"] };
     for (const [i, t] of LAB.entries()) {
       const game = BLUEPRINT_CATALOG_IDS[i];
       const hidden = t.binding.variants.find((v) => v.id === t.id)!.hidden;
       // Colour Conquest hidden after it was watched: the page's run parts from the planner's (its reason holds the two renders);
       // --- templates --- (studio2 review round 2, 8) and Tier Climb: no edge of the square is clear for its hook
-      expect([t.id, hidden === undefined]).toEqual([t.id, game !== "conquer" && game !== "tierClimb"]);
+      // --- blueprint-catalog-c2 --- and Hot Potato: no edge clear either, its balls all over the ring (measured with the plan tool)
+      expect([t.id, hidden === undefined]).toEqual([t.id, game !== "conquer" && game !== "tierClimb" && game !== "hotPotato"]);
       expect([t.id, t.ready, templateRecipeById(t.id) === undefined]).toEqual([t.id, !hidden, !!hidden]);
       const r = plannedRecipe(t)!;
       expect([t.id, t.binding.tier, t.family, r.formatCopy, r.musicFirst, r.strategy, r.endings, r.buckets, r.hookKey]).toEqual([t.id, "trial", catalogBlueprint(game).meta.family, true, true, "finish", ["resolved"], lengths[game], `own.${game}`]);
       if (hidden) {
-        expect(hidden).toMatch(game === "tierClimb" ? /no edge of the square is clear.*watched/ : /page's run parted from the planner's.*watched/);
+        expect(hidden).toMatch(game === "tierClimb" ? /no edge of the square is clear.*watched/ : game === "hotPotato" ? /no edge of the square is clear.*measured with the plan tool/ : /page's run parted from the planner's.*watched/);
         continue;
       }
       const platforms = platformsOf(t.id);
@@ -2113,9 +2115,9 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
       await breathe();
     }
     // the others are offered by default; Colour Conquest is a battle, as its catalog entry says – offered, once it is shown again, only
-    // where the battle family is asked for
-    expect(readyTemplates().filter((t) => t.mode === "blueprint").map((t) => t.id)).toEqual(LAB.filter((t) => t.ready).map((t) => t.id));
-    expect([templateById("lab-game-blueprint-conquer")!.family, readyTemplates("battle").filter((t) => t.mode === "blueprint")]).toEqual(["battle", []]);
+    // where the battle family is asked for (--- blueprint-catalog-c2 --- as Thin Ice is, ready, and Hot Potato, hidden)
+    expect(readyTemplates().filter((t) => t.mode === "blueprint").map((t) => t.id)).toEqual(LAB.filter((t) => t.ready && t.family !== "battle").map((t) => t.id));
+    expect([templateById("lab-game-blueprint-conquer")!.family, templateById("lab-game-blueprint-thin-ice")!.family, templateById("lab-game-blueprint-hot-potato")!.family, readyTemplates("battle").filter((t) => t.mode === "blueprint").map((t) => t.id)]).toEqual(["battle", "battle", "battle", ["lab-game-blueprint-thin-ice"]]);
   });
 
   it("readies Glass Hatchery's template as the others (sampled: one platform a seed, rotating, en; its game, rule and notes; the same inputs plan the same JSON; the seed of the bot look's and the run untouched)", { timeout: 180_000 }, async () => {
@@ -2246,7 +2248,8 @@ describe("group D: the Drawing Machine's flower, Mode Lab's games, the boss rush
     // (--- song-ring --- Song Ring ready on the beat, timed by its final chord: 28 of 28 plans pass every gate read with the payoff's moment)
     expect(perFormat).toEqual({ getOut: [7, 0, 0], smash: [4, 0, 0], fill: [1, 2, 0], count: [3, 1, 0], whoWins: [7, 0, 1], aim: [1, 2, 0], lineUp: [8, 0, 0], onTheBeat: [2, 5, 1], reveal: [1, 2, 0], labGame: [1, 0, 0] });
     // 35 modes as 44 templates (--- templates --- studio2 review round 2, 8: 45 until Tier Climb's was hidden; 17: 44 until Bouncing Shapes'; --- song-ring --- 43 until Song Ring's)
-    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 44]);
+    // (--- blueprint-catalog-c2 --- 45 with Mode Lab's Thin Ice, a variant of a binding already ready)
+    expect([BINDINGS.filter((b) => b.ready).length, readyTemplates("all").length]).toEqual([35, 45]);
   });
 });
 

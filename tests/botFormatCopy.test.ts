@@ -179,8 +179,9 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     const wrapped = allTemplates().filter((t) => t.recipe !== null);
     // (--- templates --- AI studio step 3: and two variants of proven bindings that play their own way, Classic's one ring and Grow's
     // fill that ends the run; step 6: and Mode Lab's games after its first, a variant each)
-    // (--- song-ring --- and Song Ring's binding, which plays settings of its own: 40)
-    expect([own.length, wrapped.length]).toEqual([40, 21]);
+    // (--- song-ring --- and Song Ring's binding, which plays settings of its own: 40; --- blueprint-catalog-c2 --- and Mode Lab's
+    // Thin Ice and Hot Potato, a variant each: 42)
+    expect([own.length, wrapped.length]).toEqual([42, 21]);
     for (const t of wrapped) {
       const r = plannedRecipe(t)!;
       expect([t.id, r.formatCopy, recipeCopyPath(r)]).toEqual([t.id, undefined, `recipes.${t.recipe!.copyKey}`]);
@@ -311,13 +312,13 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
     for (const locale of LOCALES) {
       const variants = (MESSAGES[locale].ViralBot as unknown as { variants: Record<string, string> }).variants;
       // (--- templates --- AI studio step 6: and Mode Lab's games, by their own names; step 2's review round 1, 25: all six)
-      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills", "hatchery", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape"]]);
+      expect([locale, Object.keys(variants)]).toEqual([locale, ["ring", "fills", "hatchery", "ringBreaker", "conquer", "tierClimb", "plinkoRace", "growEscape", "thinIce", "hotPotato"]]);
       for (const name of Object.values(variants)) expect([locale, name, wordCount(name) <= 4, /[{}]/.test(name)]).toEqual([locale, name, true, false]);
     }
     // --- templates --- (step 2's review round 1, 25) every Mode Lab game's template ends with its game's name as Mode Lab lists it
     // (`Blueprints.<id>.name`), in every locale: no two of them share a name, and none is the bare "{Mode name} · {Format name}"
     const labGames = allTemplates().filter((t) => t.mode === "blueprint");
-    expect(labGames.length).toBe(6);
+    expect(labGames.length).toBe(8); // (--- blueprint-catalog-c2 --- six, and Thin Ice and Hot Potato)
     for (const locale of LOCALES) {
       const modeName = (MESSAGES[locale].Modes as unknown as Record<string, { name: string }>).blueprint.name;
       const base = `${modeName} · ${formatText(COPY[locale], "labGame", "name")}`;
@@ -330,8 +331,9 @@ describe("the formats' words (ViralBot.formats, things and looks)", () => {
       // the Template choice's "Lab game" group: the ready games, each named (--- templates --- step 2's acceptance run: four since
       // Tier Climb's hook was hidden for the merges it covers, review round 2, 8; Colour Conquest's parts from the page's run)
       const ready = labGames.filter((t) => t.ready).map((t) => templateNameOf(t, COPY[locale], modeName));
-      expect([locale, labGames.filter((t) => t.ready).map((t) => t.id)]).toEqual([locale, ["lab-game-blueprint", "lab-game-blueprint-ring-breaker", "lab-game-blueprint-plinko-race", "lab-game-blueprint-grow-escape"]]);
-      expect([locale, ready.length === 4, new Set(ready).size === ready.length, ready.includes(base)]).toEqual([locale, true, true, false]);
+      // (--- blueprint-catalog-c2 --- five with Thin Ice; Hot Potato's hook has no clear edge either)
+      expect([locale, labGames.filter((t) => t.ready).map((t) => t.id)]).toEqual([locale, ["lab-game-blueprint", "lab-game-blueprint-ring-breaker", "lab-game-blueprint-plinko-race", "lab-game-blueprint-grow-escape", "lab-game-blueprint-thin-ice"]]);
+      expect([locale, ready.length === 5, new Set(ready).size === ready.length, ready.includes(base)]).toEqual([locale, true, true, false]);
     }
     expect(templateName(COPY.pl, "Rozbicie", "getOut")).toBe("Rozbicie · Ucieczka");
     expect(templateName(COPY.es, " ", "lineUp")).toBe("En línea");

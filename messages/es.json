@@ -4311,7 +4311,9 @@
       "conquer": "Conquista de colores",
       "tierClimb": "Escalada de niveles",
       "plinkoRace": "Carrera entre clavos",
-      "growEscape": "Crece o escapa"
+      "growEscape": "Crece o escapa",
+      "thinIce": "Hielo fino",
+      "hotPotato": "Patata caliente"
     },
     "ownHooks": {
       "mergeRing": "¿Hasta dónde llegará la fusión?",
@@ -4326,7 +4328,9 @@
       "conquer": "Un choque convierte. Gana el último color.",
       "tierClimb": "Bolas iguales se funden en una mayor.",
       "plinkoRace": "Entre clavos. Gana la primera en salir.",
-      "growEscape": "Más grande en cada rebote. ¿Aún cabe?"
+      "growEscape": "Más grande en cada rebote. ¿Aún cabe?",
+      "thinIce": "El hielo se agrieta. ¿Quién sigue seco?",
+      "hotPotato": "Un toque pasa la bomba. ¿Quién queda?"
     },
     "ownPayoffs": {
       "journey": "¡En casa! 🏠"
@@ -4526,6 +4530,8 @@
         "ballHitSameTier": "Cuando chocan dos bolas del mismo nivel",
         "ballHitSameTeam": "Cuando chocan dos bolas del mismo equipo",
         "ballHitOtherTeam": "Cuando chocan bolas de dos equipos",
+        "ballHitSmaller": "Cuando una bola toca a otra más pequeña",
+        "ballHitOf": "Cuando {who} toca otra bola",
         "ballHitBody": "Cuando {who} toca la bola {other}",
         "escape": "Cuando {who} escapa",
         "ringPass": "Cuando {who} atraviesa un anillo",
@@ -4556,7 +4562,10 @@
         "other": "la otra bola",
         "slower": "la bola más lenta",
         "all": "cada bola",
-        "merged": "la bola nueva"
+        "merged": "la bola nueva",
+        "bigger": "la bola más grande",
+        "smaller": "la bola más pequeña",
+        "allOf": "cada bola {body}"
       },
       "act": {
         "spawn": "{count, plural, one {aparece # bola nueva} other {aparecen # bolas nuevas}} {place}",
@@ -4578,6 +4587,9 @@
         "damage": "{who} pierde {n} PV",
         "damageSome": "{who} recibe daño",
         "varAdd": "el contador «{name}» sube {n}",
+        "resize": "{who} cambia de tamaño",
+        "varChange": "el contador «{name}» cambia",
+        "varSub": "el contador «{name}» baja {n}",
         "varSet": "el contador «{name}» pasa a {n}",
         "varMul": "el contador «{name}» se multiplica por {n}",
         "impulse": "{who} recibe un empujón",
@@ -4673,7 +4685,7 @@
       "say0": "¡GANA EL [winner]!",
       "timeoutSay": "EL [winner] VA EN CABEZA",
       "params": {
-        "per": "Bolas por color",
+        "per": "Bolas extra por color",
         "boost": "Acelera cada"
       }
     },
@@ -4717,6 +4729,33 @@
         "grow": "Crecimiento por rebote",
         "exit": "Ancho de la salida",
         "size": "Tamaño inicial"
+      }
+    },
+    "thinIce": {
+      "name": "Hielo fino",
+      "description": "Cada bote agrieta el hielo. Quien lo atraviesa queda fuera. Gana el último color que sigue seco.",
+      "line": "Cada bote agrieta el hielo",
+      "hud0": "secas",
+      "hud1": "hielo",
+      "say0": "EL [winner] SIGUE SECO",
+      "timeoutSay": "EL HIELO AGUANTÓ",
+      "params": {
+        "per": "Bolas por color",
+        "hp": "Grosor del hielo",
+        "cols": "Placas de hielo",
+        "melt": "Deshielo cada"
+      }
+    },
+    "hotPotato": {
+      "name": "Patata caliente",
+      "description": "Una bola lleva la bomba y un toque la pasa. Quien la tenga cuando se acabe la mecha queda fuera.",
+      "line": "Pasa la bomba antes de que se acabe la mecha",
+      "hud0": "mecha",
+      "hud1": "quedan",
+      "say0": "EL [winner] SOBREVIVE",
+      "timeoutSay": "LA MECHA SIGUE ENCENDIDA",
+      "params": {
+        "fuse": "Primera mecha"
       }
     }
   },
@@ -5678,6 +5717,7 @@
       "speed": "Velocidad de reproducción",
       "rail": "Grupos de controles",
       "panelEmpty": "Elige un grupo para editarlo. Todo lo que cambies se guarda en el enlace.",
+      "continueLast": "Sigue donde lo dejaste",
       "closeSettings": "Cerrar los ajustes",
       "paletteTitle": "Buscar ajustes, grupos y modos",
       "palettePlaceholder": "Ir a un ajuste, un grupo o un modo…",
