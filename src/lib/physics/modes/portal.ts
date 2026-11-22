@@ -1,5 +1,6 @@
 import type { Ball, GameMode, Gap, ModeContext, WallHitResult } from "../types";
 import { arenaRadius, TWO_PI } from "../types";
+import { linesKey, linesKeyFrequency } from "./lines"; // --- portal-charges --- (the ring's keyboard)
 
 export interface Portal {
   id: number;
@@ -10,9 +11,32 @@ export interface Portal {
   uses: number;
   maxUses: number;
   exhausted: boolean;
+  /** --- portal-charges --- When the portal burnt out (simulation ms; −Infinity while it holds a charge): the canvas crumbles it. */
+  burnMs: number;
 }
 
 export const PORTAL_COLORS = ["#ff6b6b", "#4ecdc4", "#ffd93d", "#6c5ce7", "#00b894"];
+
+// --- portal-charges ---
+/** Each portal's teleport note (C5 E5 G5 A5 C6, by its colour), swept up an octave in PORTAL_ZIP_SEC, and its level. */
+export const PORTAL_NOTES_HZ: readonly number[] = [523.25, 659.25, 783.99, 880, 1046.5];
+export const PORTAL_ZIP_SEC = 0.16;
+export const PORTAL_ZIP_LEVEL = 0.4;
+/** A portal burning out: a low thud (Hz) at this level. */
+export const PORTAL_THUD_HZ = 70;
+export const PORTAL_THUD_LEVEL = 0.4;
+/** A bounce off the ring: the loop family's pluck of the key under it (Lines' circular keyboard) at this level, not a blip. */
+export const PORTAL_PLUCK_LEVEL = 0.8;
+
+/** The last teleport, for the canvas' beam between the twins and its flash (the same object every call). */
+export interface PortalJump {
+  /** The portal used (−1 before the first jump), the angles the ball went in at and came out of, and when (simulation ms). */
+  portal: number;
+  fromAngle: number;
+  toAngle: number;
+  ms: number;
+}
+// --- end portal-charges ---
 
 /** The exit a burnt-out portal at `angle` leaves in the ring: its start normalised into [0, 2π). */
 function portalGap(angle: number, halfWidth: number): Gap {
@@ -29,11 +53,18 @@ export class PortalMode implements GameMode {
   private escaped = false;
   private lastTeleportSimTime = 0;
   private readonly teleportCooldown = 150;
+  /** --- portal-charges --- The last jump and when the ball escaped (simulation ms; −Infinity before). */
+  private readonly jump: PortalJump = { portal: -1, fromAngle: 0, toAngle: 0, ms: -Infinity };
+  private escapedMs = -Infinity;
 
   init(ctx: ModeContext) {
     this.teleportCount = 0;
     this.escaped = false;
     this.lastTeleportSimTime = 0;
+    // --- portal-charges ---
+    this.jump.portal = -1;
+    this.jump.ms = -Infinity;
+    this.escapedMs = -Infinity;
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
@@ -50,10 +81,10 @@ export class PortalMode implements GameMode {
   }
   onBallStep() {}
   onPostSubStep() {}
-  onWallHit(ctx: ModeContext, ball: Ball, _wallIndex: number, angle: number): WallHitResult | void {
+  onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number, angle: number): WallHitResult | void {
     if (this.escaped) return;
     const now = ctx.getElapsedMs();
-    if (now - this.lastTeleportSimTime < this.teleportCooldown) return;
+    if (now - this.lastTeleportSimTime < this.teleportCooldown) return this.bounceNote(ctx, wallIndex, angle);
     for (const portal of this.portals) {
       if (portal.exhausted) continue;
       const side = this.isAngleInPortal(angle, portal.angleA, portal.halfWidth)
@@ -79,14 +110,36 @@ export class PortalMode implements GameMode {
       this.teleportCount++;
       this.lastTeleportSimTime = now;
       ctx.spawnConfetti(ball.x, ball.y);
-      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
+      // --- portal-charges --- the jump: the beam between the twins, the ball's trail broken where it jumped (no streak across the
+      // ring), and a zip up from the portal's own note (a visitor's own sound plays the plain break it was: ringVoice "contact")
+      this.jump.portal = portal.id;
+      this.jump.fromAngle = side === "A" ? portal.angleA : portal.angleB;
+      this.jump.toAngle = exitAngle;
+      this.jump.ms = now;
+      ball.trail.length = 0;
+      const note = PORTAL_NOTES_HZ[portal.id % PORTAL_NOTES_HZ.length];
+      ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0, loop: "glide", frequency: note, loopTo: 2 * note, loopSec: PORTAL_ZIP_SEC, level: PORTAL_ZIP_LEVEL, ringVoice: "contact" });
       if (portal.uses >= portal.maxUses) {
         portal.exhausted = true;
+        portal.burnMs = now; // --- portal-charges --- (the canvas crumbles it, and a thud: decorative, the crew's moments leave it out)
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "land", frequency: PORTAL_THUD_HZ, level: PORTAL_THUD_LEVEL, melody: false, ringVoice: "extra" });
         this.rebuildWallGaps(ctx);
       }
       return { suppressBounce: true, suppressGlow: true };
     }
+    return this.bounceNote(ctx, wallIndex, angle); // --- portal-charges ---
   }
+
+  // --- portal-charges ---
+  /**
+   * A plain bounce off the ring plays the pluck of the key under it (the engine's blip is left out; a visitor's own sound plays that
+   * plain hit instead: ringVoice "contact"). A jump keeps the engine's hit under its zip, as before.
+   */
+  private bounceNote(ctx: ModeContext, wallIndex: number, angle: number): WallHitResult {
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: linesKeyFrequency(linesKey(angle)), level: PORTAL_PLUCK_LEVEL, melody: false, ringVoice: "contact" });
+    return { suppressSound: true };
+  }
+  // --- end portal-charges ---
   onGapPass() {
     return false;
   }
@@ -100,6 +153,7 @@ export class PortalMode implements GameMode {
     const cy = ctx.config.height / 2;
     if (Math.hypot(ball.x - cx, ball.y - cy) > walls[0].radius + ball.radius + 10) {
       this.escaped = true;
+      this.escapedMs = ctx.getElapsedMs(); // --- portal-charges ---
       ctx.getBrokenWalls().add(0);
       ctx.spawnConfetti(ball.x, ball.y);
       ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
@@ -130,6 +184,16 @@ export class PortalMode implements GameMode {
   hasEscaped() {
     return this.escaped;
   }
+  // --- portal-charges ---
+  /** The last jump (the same object every call), for the canvas' beam. */
+  getLastJump(): PortalJump {
+    return this.jump;
+  }
+  /** When the ball got out (simulation ms; −Infinity before). */
+  getEscapedMs() {
+    return this.escapedMs;
+  }
+  // --- end portal-charges ---
   getPortalCount() {
     return this.portalCount;
   }
@@ -158,6 +222,7 @@ export class PortalMode implements GameMode {
         uses: 0,
         maxUses: 4,
         exhausted: false,
+        burnMs: -Infinity, // --- portal-charges ---
       });
     }
   }

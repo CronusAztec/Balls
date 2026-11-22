@@ -41,7 +41,7 @@ export interface PicturePaintSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.visual in Controls.tsx). */
-export const PICTURE_PAINT_KEYS = ["picturePaint", "paintGhost", "paintBrush", "paintBeatSync", "paintBeatSource", "paintBeatPulse", "paintGuided", "paintPace"];
+export const PICTURE_PAINT_KEYS = ["picturePaint", "paintGhost", "paintBrush", "paintBeatSync", "paintBeatSource", "paintBeatPulse", "paintGuided", "paintPace", "paintGuide" /* --- paint-full --- */];
 
 /**
  * "Picture Paint" block of the Paint mode: upload a picture (kept in memory), the ghost preview
@@ -65,6 +65,12 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
 
   return (
     <>
+      {/* --- paint-full --- classic Paint (no picture): the rebounds steered toward the biggest unpainted patch, a wider brush */}
+      {(!picture || !!search) && (
+        <Searchable search={search} matches={matches} labelKey="paintGuide">
+          <Toggle t={t} labelKey="paintGuide" tipKey="paintGuideTip" value={s.paintGuide} onChange={(v) => update({ paintGuide: v })} />
+        </Searchable>
+      )}
       <Searchable search={search} matches={matches} labelKey="picturePaint">
         <div className="space-y-3">
           <label className="text-sm font-medium text-ink-2">

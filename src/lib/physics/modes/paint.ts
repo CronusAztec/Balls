@@ -1,5 +1,6 @@
-import type { Ball, GameMode, ModeContext } from "../types";
+import type { Ball, GameMode, ModeContext, WallHitResult } from "../types";
 import { arenaRadius } from "../types";
+import { midiToFrequency } from "@/lib/audio/scales"; // --- paint-full ---
 import {
   COVERAGE_DONE,
   DEFAULT_PAINT_MODE_OPTIONS,
@@ -48,6 +49,53 @@ export interface PicturePaintState {
   guideTarget: { x: number; y: number } | null;
 }
 
+// --- paint-full ---
+/**
+ * The canvas' milestones: a chime as the coverage passes each (the last, COVERAGE_DONE, the full canvas: its chord too), on a
+ * rising ladder (C5 E5 G5 C6).
+ */
+export const PAINT_MILESTONES: readonly number[] = [0.25, 0.5, 0.75, COVERAGE_DONE];
+export const PAINT_MILESTONE_MIDI: readonly number[] = [72, 76, 79, 84];
+export const PAINT_CHIME_LEVEL = 0.75;
+/** A bounce's note: the loop family's pentatonic pluck at this level (the plain hit was a blip under the chimes and the chord). */
+export const PAINT_PLUCK_LEVEL = 0.8;
+/** The full canvas's chord: the completion chord on C3, and its level. */
+export const PAINT_CHORD_HZ = 130.81;
+export const PAINT_CHORD_LEVEL = 0.8;
+/** A bounce plays the note of the stroke's hue: the hue wheel on PAINT_HUE_DEGREES degrees of C major pentatonic from C4. */
+export const PAINT_HUE_DEGREES = 10;
+/**
+ * Guide to the Gaps' brush: the dab reaches this much past the ball (× its radius), so the strokes reach the ring's edge, where the
+ * ball's own width never paints the last ring of the canvas (classic Paint without it: about 93 % at 30 s, the last 2 % rarely).
+ */
+export const PAINT_GUIDE_BRUSH = 1.3;
+/**
+ * Guide to the Gaps' aim: a block of the coverage summary counts as a gap while less than this share of it is painted (a picture's
+ * guide: half, which leaves the last specks of a canvas nothing to aim at), and a rebound turns by at most this much toward it (a
+ * picture's: 18°). Measured, seeds 1–12 at the start look: full at 16.9–25.0 s, median 19.7 s (half and 18°: 19.5–26.7 s, 23.7 s).
+ */
+export const PAINT_GUIDE_THRESHOLD = 0.97;
+export const PAINT_GUIDE_NUDGE = (30 * Math.PI) / 180;
+const PENTATONIC = [0, 2, 4, 7, 9];
+
+/** The pitch (Hz) of a bounce with the stroke at `hue` (degrees): red low, round the wheel up to violet high. */
+export function paintHueFrequency(hue: number): number {
+  const h = ((hue % 360) + 360) % 360;
+  const degree = Math.min(PAINT_HUE_DEGREES - 1, Math.floor((h / 360) * PAINT_HUE_DEGREES));
+  return midiToFrequency(60 + 12 * Math.floor(degree / PENTATONIC.length) + PENTATONIC[degree % PENTATONIC.length]);
+}
+
+/** What the canvas draws Paint's progress and its full canvas from (the same object every call). */
+export interface PaintProgressView {
+  /** Milestones passed so far (0 … PAINT_MILESTONES.length) and when the last one was passed (simulation ms; −Infinity before). */
+  milestones: number;
+  milestoneMs: number;
+  /** The canvas full (COVERAGE_DONE) at `doneMs` (simulation ms; −Infinity before). */
+  done: boolean;
+  doneMs: number;
+}
+// --- end paint-full ---
+
 /**
  * Paint: the ball leaves a rainbow trail; coverage of the circle is tracked on a grid.
  *
@@ -80,6 +128,9 @@ export class PaintMode implements GameMode {
   private readonly summary = new Float32Array(SUMMARY_SIZE * SUMMARY_SIZE);
   private guideTarget: CoverageTarget | null = null;
   private generation = 0;
+  /** --- paint-full --- Guide to the Gaps in classic Paint (applied from the next rebound on), and the progress the canvas reads. */
+  private guideClassic = false;
+  private readonly progress: PaintProgressView = { milestones: 0, milestoneMs: -Infinity, done: false, doneMs: -Infinity };
   private readonly state: PicturePaintState = {
     picture: false,
     coverage: 0,
@@ -108,6 +159,11 @@ export class PaintMode implements GameMode {
     this.generation++;
     this.resetBeatState();
     this.initGrid();
+    // --- paint-full ---
+    this.progress.milestones = 0;
+    this.progress.milestoneMs = -Infinity;
+    this.progress.done = false;
+    this.progress.doneMs = -Infinity;
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
@@ -124,6 +180,20 @@ export class PaintMode implements GameMode {
   getOptions(): PaintModeOptions {
     return { ...this.options };
   }
+
+  // --- paint-full ---
+  /** Guide to the Gaps for classic Paint (no picture): every rebound turned toward the largest unpainted patch, as a picture's guide does. */
+  setGuide(on: boolean) {
+    this.guideClassic = on;
+  }
+  getGuide() {
+    return this.guideClassic;
+  }
+  /** The milestones passed and the full canvas, for the canvas (the same object every call). */
+  getProgressView(): PaintProgressView {
+    return this.progress;
+  }
+  // --- end paint-full ---
 
   /** The beat source: a detected song grid with its offset / loop, or the manual BPM (see lib/simulation/beatClock.ts). */
   setBeat(patch: Partial<BeatClockConfig>) {
@@ -245,9 +315,13 @@ export class PaintMode implements GameMode {
     this.addPaintPoint(ctx, ball);
   }
   onPostSubStep() {}
-  onWallHit(ctx: ModeContext, ball: Ball) {
+  onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number): WallHitResult | void {
     // The engine assigns a fresh, unscaled rebound velocity right after this hook.
     if (this.options.picture && this.speedScale.size > 0) this.speedScale.set(ball.id, 1);
+    // --- paint-full --- the bounce plays the note of the stroke's colour (the engine's plain hit is left out; a visitor's own sound
+    // plays that plain hit instead: ringVoice "contact")
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex, loop: "pluck", frequency: paintHueFrequency(this.hue), level: PAINT_PLUCK_LEVEL, melody: false, ringVoice: "contact" });
+    return { suppressSound: true };
   }
   /**
    * Guided coverage: after the engine (and the cinematic director) chose the rebound angle, turn it
@@ -255,13 +329,14 @@ export class PaintMode implements GameMode {
    */
   adjustRebound(ctx: ModeContext, ball: Ball, _wallIndex: number, outAngle: number): number {
     const o = this.options;
-    if (!o.picture || !o.guided || !this.arena) return outAngle;
+    // --- paint-full --- (classic Paint too, with Guide to the Gaps on)
+    if (!this.arena || (o.picture ? !o.guided : !this.guideClassic)) return outAngle;
     summarizeCoverage(this.paintGrid, this.gridSize, SUMMARY_SIZE, this.summary);
-    this.guideTarget = largestUnrevealedCluster(this.summary, SUMMARY_SIZE);
+    this.guideTarget = o.picture ? largestUnrevealedCluster(this.summary, SUMMARY_SIZE) : largestUnrevealedCluster(this.summary, SUMMARY_SIZE, PAINT_GUIDE_THRESHOLD); // --- paint-full --- (the last gaps too)
     this.guidePx = this.guideTargetPx();
     const target = this.guidePx;
     if (!target) return outAngle;
-    return steerAngle(outAngle, ball.x, ball.y, target.x, target.y);
+    return o.picture ? steerAngle(outAngle, ball.x, ball.y, target.x, target.y) : steerAngle(outAngle, ball.x, ball.y, target.x, target.y, PAINT_GUIDE_NUDGE);
   }
   onGapPass() {
     return false;
@@ -314,7 +389,7 @@ export class PaintMode implements GameMode {
   /** Radius of the dab the ball leaves right now: the ball itself in classic Paint, brush × pace × beat with a picture. */
   private dabRadius(ball: Ball) {
     const o = this.options;
-    if (!o.picture) return ball.radius;
+    if (!o.picture) return this.guideClassic ? PAINT_GUIDE_BRUSH * ball.radius : ball.radius; // --- paint-full --- (the guide's brush)
     return ball.radius * o.brush * this.paceScale * this.state.envelope;
   }
 
@@ -372,5 +447,28 @@ export class PaintMode implements GameMode {
     }
     this.paintedCells = painted;
     this.coverage = this.cellsInCircle > 0 ? painted / this.cellsInCircle : 0;
+    this.passMilestones(ctx);
   }
+
+  // --- paint-full ---
+  /**
+   * The milestones the coverage just passed: a chime on the ladder for each, and at the full canvas the completion chord (both
+   * decorative voices, which a visitor's own sound leaves out and the crew's measured moments do not count). From the coverage
+   * alone, so a replay hears the same.
+   */
+  private passMilestones(ctx: ModeContext) {
+    const p = this.progress;
+    while (p.milestones < PAINT_MILESTONES.length && this.coverage >= PAINT_MILESTONES[p.milestones] - 1e-12) {
+      const frequency = midiToFrequency(PAINT_MILESTONE_MIDI[p.milestones]);
+      p.milestones++;
+      p.milestoneMs = ctx.getElapsedMs();
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chime", frequency, level: PAINT_CHIME_LEVEL, melody: false, ringVoice: "extra" });
+      if (p.milestones === PAINT_MILESTONES.length) {
+        p.done = true;
+        p.doneMs = p.milestoneMs;
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: PAINT_CHORD_HZ, loopExact: true, level: PAINT_CHORD_LEVEL, melody: false, ringVoice: "extra" });
+      }
+    }
+  }
+  // --- end paint-full ---
 }

@@ -19,6 +19,9 @@ import {
 import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView, PicturePaintState } from "./modes";
 // --- jdm-polyrhythm ---
 import { PolyrhythmMode, type PolyrhythmSettings, type PolyrhythmView } from "./modes";
+import type { LinesView } from "./modes/lines"; // --- string-art ---
+import type { PaintProgressView } from "./modes/paint"; // --- paint-full ---
+import type { PortalJump } from "./modes/portal"; // --- portal-charges ---
 // --- jdm-collisions ---
 import { CollideMode, type CollideSettings, type CollideView } from "./modes/collide";
 // --- gerald-glass ---
@@ -1148,6 +1151,23 @@ export class PhysicsEngine {
   getPaintOptions(): PaintModeOptions {
     return this.paintMode.getOptions();
   }
+  // --- paint-full ---
+  /** Classic Paint's Guide to the Gaps: every rebound turned toward the largest unpainted patch (from the next rebound on). */
+  setPaintGuide(on: boolean) {
+    this.paintMode.setGuide(on);
+  }
+  getPaintGuide() {
+    return this.paintMode.getGuide();
+  }
+  /** Paint's milestones passed and its full canvas, for the canvas. */
+  getPaintProgressView(): PaintProgressView {
+    return this.paintMode.getProgressView();
+  }
+  /** The 100 × 100 coverage grid (1 = painted), for the full canvas' last specks on the canvas. */
+  getPaintGrid() {
+    return this.paintMode.getPaintGrid();
+  }
+  // --- end paint-full ---
   /** Picture Paint: the beat the Paint mode moves to – a detected song grid or the manual BPM (see simulation/beatClock.ts). */
   setPaintBeat(patch: Partial<BeatClockConfig>) {
     this.paintMode.setBeat(patch);
@@ -1253,6 +1273,15 @@ export class PhysicsEngine {
   hasPortalEscaped() {
     return this.portalMode.hasEscaped();
   }
+  // --- portal-charges ---
+  /** The last jump between twin portals (for the canvas' beam) and when the ball got out (simulation ms; −Infinity before). */
+  getPortalLastJump(): PortalJump {
+    return this.portalMode.getLastJump();
+  }
+  getPortalEscapedMs() {
+    return this.portalMode.getEscapedMs();
+  }
+  // --- end portal-charges ---
   getPortalCount() {
     return this.portalMode.getPortalCount();
   }
@@ -1373,6 +1402,19 @@ export class PhysicsEngine {
   getLinesState() {
     return this.linesMode.getState() as { centerDotEnabled: boolean; centerDotRadius: number };
   }
+  // --- string-art ---
+  /** Strings to Finish: the Lines run ends after this many strings (0 = endless); applied by the next init. */
+  setLinesStrings(n: number) {
+    this.linesMode.setStrings(n);
+  }
+  getLinesStrings() {
+    return this.linesMode.getStrings();
+  }
+  /** What the canvas draws the string art from: the points and when each was struck, the strings and the goal, the last key. */
+  getLinesView(): LinesView {
+    return this.linesMode.getView();
+  }
+  // --- end string-art ---
   isDropMode() {
     return this.currentMode === this.dropMode;
   }

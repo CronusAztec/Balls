@@ -144,6 +144,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     shatterEvenBricks: s.shatterEvenBricks, // --- shatter-even-bricks ---
     growRate: s.growRate,
     portalCount: d.portalCount,
+    ...(s.lnStrings > 0 ? { lines: { strings: s.lnStrings } } : {}), // --- string-art --- (absent at the link base: a plan's request is what it was)
+    ...(s.paintGuide ? { paintGuide: true } : {}), // --- paint-full --- (the same)
     twoBalls: s.twoBalls,
     cinematicEnabled: s.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run, as in the page)
     drop: dropSettingsOf(s),

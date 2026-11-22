@@ -15,6 +15,7 @@ import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, RING_MAX_BODIES, collidePourF
 // --- gerald-glass ---
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
+import { LINES_STRINGS_RANGE, resolveLinesStrings } from "@/lib/physics/modes/lines"; // --- string-art ---
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
@@ -231,6 +232,10 @@ export interface SimulatorSettings {
   lineColor: string;
   rainbowLines: boolean;
   linesCenterDot: boolean;
+  /** --- string-art --- Lines: the run ends after this many strings, with a flash of the finished art and a chord; 0 = endless (URL `lns`). */
+  lnStrings: number;
+  /** --- paint-full --- Classic Paint: every rebound turned toward the largest unpainted patch (Picture Paint's guide; URL `pgu`). */
+  paintGuide: boolean;
   targetCount: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
@@ -1537,6 +1542,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultGrowthCapFields(),
     cpRingCount: RING_MAX_BODIES,
     ...collidePourFields(DEFAULT_COLLIDE_SETTINGS), // --- collide-pour --- (out here too)
+    lnStrings: 0, // --- string-art --- (endless: the link base; the page's start look is clipPacing's)
+    paintGuide: false, // --- paint-full --- (off: the link base; the same)
     pdMaxTempo: MAX_TEMPO,
     pdGoal: 0, // --- finales-in-clip --- (no goal in the mode's own; Paddle's page default is clipPacing's)
     flBoutCap: FL_BOUT_CAP_SEC,
@@ -1551,7 +1558,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "cpPourAt" | "cpPulse" /* --- collide-pour --- */ | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "cpPourAt" | "cpPulse" /* --- collide-pour --- */ | "lnStrings" | "paintGuide" /* --- string-art --- --- paint-full --- */ | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,
@@ -1730,6 +1737,7 @@ export const RANGES = {
   ...PENDULUM_RANGES,
   ...POLYRHYTHM_RANGES, // --- jdm-polyrhythm ---
   ...PICTURE_PAINT_RANGES,
+  lnStrings: LINES_STRINGS_RANGE, // --- string-art ---
   ...CHARACTER_RANGES, // --- gerald-faces ---
   ...THEME_RANGES, // --- themes
   // --- jdm-collisions ---
@@ -1883,6 +1891,7 @@ export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   cpac: "cpAntiCollisionAt",
   cprc: "cpRingCount", // --- unlimited-sizes ---
   cppo: "cpPourAt", // --- collide-pour ---
+  lns: "lnStrings", // --- string-art ---
   // --- unlimited-sizes --- the growth caps
   swl: "swarmLimit",
   fbl: "fullBallLimit",
@@ -1929,6 +1938,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   glines: "growLines",
   mrace: "multiplyRace", // --- multiply-race ---
   ldot: "linesCenterDot",
+  pgu: "paintGuide", // --- paint-full ---
   cine: "cinematicEnabled",
   hspw: "hitSamplePitchByWall",
   slice: "sliceSong",
@@ -2195,6 +2205,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const cpc = params.get("cpc");
   if (isCollideContainer(cpc)) settings.cpContainer = cpc;
   clampCollideSettings(settings);
+  clampLinesPaintSettings(settings); // --- string-art --- --- paint-full ---
   clampGlassSettings(settings); // --- gerald-glass ---
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
@@ -2329,6 +2340,13 @@ function clampCollideSettings(settings: SimulatorSettings) {
   Object.assign(settings, collidePourFields(collide)); // --- collide-pour --- (the same way)
 }
 
+// --- string-art --- --- paint-full ---
+/** Lines' Strings to Finish as a whole number from 0 (no ceiling) and Paint's Guide to the Gaps as a real boolean (URL parameters and presets alike). */
+function clampLinesPaintSettings(settings: SimulatorSettings) {
+  settings.lnStrings = resolveLinesStrings(settings.lnStrings);
+  if (typeof settings.paintGuide !== "boolean") settings.paintGuide = false;
+}
+
 // --- gerald-glass ---
 /** Keeps the Glass Smash settings inside their ranges as whole numbers; a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampGlassSettings(settings: SimulatorSettings) {
@@ -2453,8 +2471,8 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   classic: ["respawnEvery", "swarmLimit"], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- and its swarm ceiling)
   accumulation: ["accumulationTime", "spikeCount"],
   multiply: ["multiplySpawnCount", "respawnEvery", "swarmLimit", "multiplyRace" /* --- multiply-race --- */], // --- gerald-conveyor --- (the respawn timer; --- unlimited-sizes --- the swarm's ceiling)
-  lines: [],
-  paint: rangeKeys(PICTURE_PAINT_RANGES),
+  lines: ["lnStrings" /* --- string-art --- */],
+  paint: [...rangeKeys(PICTURE_PAINT_RANGES), "paintGuide" /* --- paint-full --- */],
   target: ["targetCount"],
   portal: [],
   shatter: [],
@@ -2753,6 +2771,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPolyrhythmSettings(merged); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   clampCollideSettings(merged);
+  clampLinesPaintSettings(merged); // --- string-art --- --- paint-full ---
   clampGlassSettings(merged); // --- gerald-glass ---
   clampPicturePaint(merged);
   clampCharacter(merged); // --- gerald-faces ---

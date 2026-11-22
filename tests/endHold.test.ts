@@ -50,6 +50,11 @@ const BANNER_SHOWN: Partial<Record<SimulatorSettings["mode"], (e: PhysicsEngine)
     const v = e.getGrowView();
     return v.phase === "done" && v.firstFillMs >= 0;
   },
+  // (Lane D, D3: the start looks' finished string art, full canvas, emptied jar and revealed circle)
+  lines: (e) => e.getLinesView().finished,
+  paint: (e) => e.getPaintProgressView().done,
+  collide: (e) => e.getCollideView().empty,
+  illusion: (e) => e.getIllusionView().finished,
 };
 
 describe("the end banner's hold", () => {
