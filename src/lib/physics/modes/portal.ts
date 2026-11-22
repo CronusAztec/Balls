@@ -27,6 +27,40 @@ export const PORTAL_THUD_HZ = 70;
 export const PORTAL_THUD_LEVEL = 0.4;
 /** A bounce off the ring: the loop family's pluck of the key under it (Lines' circular keyboard) at this level, not a blip. */
 export const PORTAL_PLUCK_LEVEL = 0.8;
+// --- portal-options --- (D3 review) the portals a run lays out and the jumps each pair holds, as a visitor sets them
+/** The mode's own: three pairs of four jumps each (the link base, the fingerprint's run). */
+export const PORTAL_DEFAULT_COUNT = 3;
+export const PORTAL_DEFAULT_USES = 4;
+/**
+ * The most pairs the ring lays out, whatever number the engine is handed (the settings offer picks up to 8): past it the mouths
+ * would be narrower than the ball. A ceiling of the mode's own list, not of a setting.
+ */
+export const PORTAL_MAX_PAIRS = 24;
+/** A mouth's half width (rad): the mode's own 0.12, narrower only when more pairs than that fit round the ring ask for it. */
+export function portalHalfWidth(pairs: number): number {
+  return Math.min(0.12, (0.45 * Math.PI) / Math.max(1, pairs));
+}
+/**
+ * The settings' picks (the Portals and Jumps per Portal controls, URL `ptc` and `ptu`), as Shatter's are: a pick, not a number
+ * with a slider's end, so nothing is clamped. Up to eight pairs fit round the ring at the mode's own mouth width.
+ */
+export const PORTAL_COUNT_CHOICES = [2, 3, 4, 5, 6, 8] as const;
+export const PORTAL_USES_CHOICES = [1, 2, 3, 4, 5, 6] as const;
+export function isPortalCount(value: unknown): value is number {
+  return typeof value === "number" && (PORTAL_COUNT_CHOICES as readonly number[]).includes(value);
+}
+export function isPortalUses(value: unknown): value is number {
+  return typeof value === "number" && (PORTAL_USES_CHOICES as readonly number[]).includes(value);
+}
+/** The pairs a run lays out for a count setting: a whole number from 1 to PORTAL_MAX_PAIRS (3 when it is no number). */
+export function portalPairs(count: number): number {
+  return Number.isFinite(count) ? Math.max(1, Math.min(PORTAL_MAX_PAIRS, Math.round(count))) : PORTAL_DEFAULT_COUNT;
+}
+/** The jumps a pair holds for a uses setting: a whole number from 1, no ceiling (4 when it is no number). */
+export function portalUsesOf(uses: number): number {
+  return Number.isFinite(uses) ? Math.max(1, Math.round(uses)) : PORTAL_DEFAULT_USES;
+}
+// --- end portal-options ---
 
 /** The last teleport, for the canvas' beam between the twins and its flash (the same object every call). */
 export interface PortalJump {
@@ -48,7 +82,8 @@ function portalGap(angle: number, halfWidth: number): Gap {
 export class PortalMode implements GameMode {
   readonly name = "portal";
   private portals: Portal[] = [];
-  private portalCount = 3;
+  private portalCount = PORTAL_DEFAULT_COUNT;
+  private portalUses = PORTAL_DEFAULT_USES; // --- portal-options ---
   private teleportCount = 0;
   private escaped = false;
   private lastTeleportSimTime = 0;
@@ -200,10 +235,20 @@ export class PortalMode implements GameMode {
   setPortalCount(n: number) {
     this.portalCount = n;
   }
+  // --- portal-options --- the jumps each pair holds (applied by the next init, like the count)
+  getPortalUses() {
+    return this.portalUses;
+  }
+  setPortalUses(n: number) {
+    this.portalUses = n;
+  }
 
   private generatePortals(ctx: ModeContext) {
     this.portals = [];
-    const slots = 2 * this.portalCount;
+    const pairs = portalPairs(this.portalCount); // --- portal-options --- (3 at the mode's own: the same draws, the same run)
+    const uses = portalUsesOf(this.portalUses);
+    const halfWidth = portalHalfWidth(pairs);
+    const slots = 2 * pairs;
     const step = TWO_PI / slots;
     const angles: number[] = [];
     const offset = ctx.random() * TWO_PI;
@@ -212,15 +257,15 @@ export class PortalMode implements GameMode {
       const j = Math.floor(ctx.random() * (i + 1));
       [angles[i], angles[j]] = [angles[j], angles[i]];
     }
-    for (let i = 0; i < this.portalCount; i++) {
+    for (let i = 0; i < pairs; i++) {
       this.portals.push({
         id: i,
         color: PORTAL_COLORS[i % PORTAL_COLORS.length],
         angleA: angles[2 * i],
         angleB: angles[2 * i + 1],
-        halfWidth: 0.12,
+        halfWidth,
         uses: 0,
-        maxUses: 4,
+        maxUses: uses,
         exhausted: false,
         burnMs: -Infinity, // --- portal-charges ---
       });

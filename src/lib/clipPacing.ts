@@ -170,14 +170,34 @@ const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze(
   paddle: 28,
 });
 const LOOK_ONLY_PACE: ReadonlySet<string> = new Set(["showGlow"]);
+/**
+ * (D3 review) The targets of the start looks that end a run (`clipStartSettings()`), while the run's fields are the start
+ * look's: Lines' string art (rainbow strings, ball speed 700, 64 strings: rlines, s, lns) and Paint's full canvas (ball 12,
+ * speed 600, Guide to the Gaps: r, s, pgu). The page's 30 found no Lines run (seeds 13–112: 22.1–24.8 s, none within 30 ± 0.5 s)
+ * and Paint's only one at 29.5 s, its FULL CANVAS! in the clip's last half-second. Seeds 1–200 in the page's worlds (800 × 450
+ * and 450 × 450 agree: the ring follows the shorter side), as the target with the most runs within its ± 0.5 s: Lines 23.5 (100
+ * of 200; median 23.6 s, 21.6–25.6 s), Paint 21 (35 of 200; median 21.3 s, 15.4–29.5 s). Paint's link base (full in 73–118 s)
+ * and Lines' (endless) keep the page's 30. --- portal-options --- Portal's five pairs of three jumps (ptc, ptu): 16.5 (17 of 200;
+ * median 18.2 s, 4.0–39.8 s; 30 s: 5); its link base keeps the page's 30.
+ */
+const START_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
+  lines: 23.5,
+  paint: 21,
+  portal: 16.5,
+});
 
-/** The finder's target (s) for `settings`: the paced mode's own while its run is at the page's pace, else the page's 30. */
+/**
+ * The finder's target (s) for `settings`: the paced mode's own while its run is at the page's pace, a start look's own while
+ * its run is the start look's (D3 review), else the page's 30.
+ */
 export function clipPacingFindSec(settings: Pick<SimulatorSettings, "mode"> & Partial<SimulatorSettings>): number {
-  const target = PACED_FIND_SEC[settings.mode];
-  if (target === undefined) return DEFAULT_FIND_SEC;
   const own = settings as unknown as Record<string, unknown>;
-  for (const [key, value] of Object.entries(clipPacingDefaults(settings.mode))) if (!LOOK_ONLY_PACE.has(key) && own[key] !== value) return DEFAULT_FIND_SEC;
-  return target;
+  const runIs = (fields: Partial<SimulatorSettings>) => Object.entries(fields).every(([key, value]) => LOOK_ONLY_PACE.has(key) || own[key] === value);
+  const target = PACED_FIND_SEC[settings.mode];
+  if (target !== undefined) return runIs(clipPacingDefaults(settings.mode)) ? target : DEFAULT_FIND_SEC;
+  const start = START_FIND_SEC[settings.mode];
+  if (start !== undefined && runIs(clipStartSettings(settings.mode))) return start;
+  return DEFAULT_FIND_SEC;
 }
 // --- end finder-target ---
 
@@ -265,6 +285,10 @@ export function clipPacingFindSec(settings: Pick<SimulatorSettings, "mode"> & Pa
  *    turned up to 30° toward the biggest patch under 97 % painted, a brush 1.3 × the ball): full at 16.9–25.0 s on 24 of 24, median
  *    19.7 s, with a chime at each quarter and the chord at the full canvas (the link base: 80 % at 30 s, full in 73–118 s; ball 12
  *    and speed 600 alone: 93 % at 30 s, full on none by 27 s).
+ *  - portal (--- portal-options --- D3 review): five pairs of portals that hold three jumps each – seeds 1–60, both worlds (the ring
+ *    follows the shorter side): out by 27 s on 110 of 120, median 17.5 s, 98 of them between 12 and 27 s, 4 under 8 s, the first
+ *    jump at a median 0.8 s (the link base, three pairs of four: 54 of 120, median 28.1 s, 2 still in at 60 s; five pairs of four,
+ *    the audit's: 80 of 120, median 23.4 s).
  *  - conveyor (--- conveyor-count --- Lane E, E6): a ball every 2 s instead of 3, so ALL OUT! lands inside the clip – seeds 1–24
  *    in the laptop world: the run over at 20.5–28.0 s, median 23.9 s, on all 24 (the link base: 28.1–35.0 s, median 31.6 s, 16 of
  *    24 past 29.5 s, where the clip cut the banner). The link base, its links, the bot's plans and the fingerprint keep the 3 s.
@@ -305,6 +329,8 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
       return LINES_START; // --- string-art ---
     case "paint":
       return PAINT_START; // --- paint-full ---
+    case "portal":
+      return PORTAL_START; // --- portal-options ---
     case "conveyor":
       return CONVEYOR_START; // --- conveyor-count ---
     case "ctf":
@@ -356,6 +382,8 @@ const COLLIDE_START: Partial<SimulatorSettings> = Object.freeze({ cpSyncStart: t
 const LINES_START: Partial<SimulatorSettings> = Object.freeze({ rainbowLines: true, ballSpeed: 700, lnStrings: 64 } as const);
 /** --- paint-full --- Paint's start look: a ball of 12 at speed 600 with Guide to the Gaps (the full canvas in about 24 s). */
 const PAINT_START: Partial<SimulatorSettings> = Object.freeze({ ballRadius: 12, ballSpeed: 600, paintGuide: true } as const);
+/** --- portal-options --- (D3 review) Portal's start look: five pairs of portals that hold three jumps each (out in about 18 s). */
+const PORTAL_START: Partial<SimulatorSettings> = Object.freeze({ ptCount: 5, ptUses: 3 } as const);
 
 /**
  * A studio address the page starts itself (`clipStartSettings()`): no mode, no seed, no daily challenge, no share code and

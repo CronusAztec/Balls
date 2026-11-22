@@ -55,6 +55,7 @@ import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "
 import { drawLinesArt } from "./linesRenderer"; // --- string-art ---
 import { drawPaintFull, drawPaintProgressRing, drawTopPill, paintShownShare } from "./paintRenderer"; // --- paint-full ---
 import { drawPortalGhost, drawPortals } from "./portalRenderer"; // --- portal-charges ---
+import { ringArc } from "./ringArc"; // --- ring-arc --- (D3 review)
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 // --- string-battle-alive --- the FINAL DUEL's banner, trails, ring flash, punch and slow-motion dips; every fighter's live threads
@@ -1733,14 +1734,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") && !ringRainbow /* --- ring-escape --- */ ? new Path2D() : null;
       const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
         if (ringBatch && alpha === undefined && !wobble.active(index)) {
-          ringBatch.moveTo(cx + Math.cos(from) * radius, cy + Math.sin(from) * radius);
-          ringBatch.arc(cx, cy, radius, from, to);
+          ringArc(ringBatch, cx, cy, radius, from, to, true); // --- ring-arc --- (D3 review: a full turn as the whole circle)
           return;
         }
         ctx.strokeStyle = ringRainbow ? ringRainbowColor(index, walls.length, alpha) /* --- ring-escape --- */ : p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
         if (wobble.strokeArc(ctx, index, cx, cy, radius, from, to)) return; // --- jdm-illusions --- a wobbling wall follows its displacement wave
         ctx.beginPath();
-        ctx.arc(cx, cy, radius, from, to);
+        ringArc(ctx, cx, cy, radius, from, to); // --- ring-arc --- (D3 review) a ring without gaps: Chromium dropped a turned full turn on about 1.5 % of frames
         ctx.stroke();
       };
 
@@ -2349,9 +2349,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const ro = { cx, cy, radius: R, nowMs: engine.getElapsedMs() };
           if (pv.done) {
             const g = engine.getPaintGrid();
-            drawPaintFull(ctx, g.grid, g.size, pv, ro);
+            drawPaintFull(ctx, g.grid, g.size, pv, ro, points); // (D3 review: round dabs in the colour of the stroke nearest each)
           }
-          drawPaintProgressRing(ctx, paintShownShare(paint.coverage, pv, ro.nowMs), pv, ro);
+          drawPaintProgressRing(ctx, paintShownShare(paint.coverage, pv), pv, ro);
         }
       } else paintTrail.release(); // --- review fix (performance) ---
 
@@ -2371,9 +2371,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (engine.isPortalMode()) {
         const wall = walls[0];
         if (wall) {
-          const po = { cx, cy, radius: wall.radius, nowMs: engine.getElapsedMs(), wallThickness: p.wallThickness };
+          // (--- portal-fill --- D3 review: the ring glowing at 2 % of its radius in the page's wall colours with its exits open, over a wash)
+          const ringStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient() : wallColor(0);
+          const po = { cx, cy, radius: wall.radius, nowMs: engine.getElapsedMs(), wallThickness: p.wallThickness, gaps: wall.gaps, ringStyle };
           if (!broken.has(0)) drawPortals(ctx, engine.getPortals(), engine.getPortalLastJump(), po);
-          else drawPortalGhost(ctx, engine.getPortals(), po, wallColor(0));
+          else drawPortalGhost(ctx, engine.getPortals(), po, wallColor(0), engine.getPortalLastJump());
         }
       }
 
@@ -2459,7 +2461,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               for (const arc of arcs) {
                 if (wobble.strokeArc(ctx, wi, cx, cy, wall.radius, arc.start, arc.end)) continue; // --- jdm-illusions ---
                 ctx.beginPath();
-                ctx.arc(cx, cy, wall.radius, arc.start, arc.end);
+                ringArc(ctx, cx, cy, wall.radius, arc.start, arc.end); // --- ring-arc --- (D3 review)
                 ctx.stroke();
               }
             }
@@ -3122,11 +3124,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // canvas' card (classic Paint, in a clip without captions, a loop HUD or a roster: their words are its ending)
         const pillFs = Math.max(14, 0.042 * minDim);
         const PILL_AT = 0.065;
+        // (D3 review) the card of a finished picture (STRING ART!, FULL CANVAS!): its centre asked for at a tenth of the square, so it
+        // sits on the square's top margin over the ring's top edge and the art below stays in view (in the middle it hid about a
+        // third of it; at the bottom it would meet the watermark's badge)
+        const ART_BANNER_AT = 0.1;
         if (engine.isPaintMode()) {
           const paint = engine.getPaintState();
           const pv = engine.getPaintProgressView();
           const nowMs = engine.getElapsedMs();
-          const coverage = paint.picture ? paint.coverage : paintShownShare(paint.coverage, pv, nowMs);
+          const coverage = paint.picture ? paint.coverage : paintShownShare(paint.coverage, pv);
           const pct = Math.round(100 * coverage);
           const done = paint.coverage >= COVERAGE_DONE;
           const color = done ? "#4ECDC4" : "#ffffff";
@@ -3140,7 +3146,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const hintColor = paint.pace === "behind" ? "#f59e0b" : paint.pace === "ahead" ? "#38bdf8" : ACCENT;
           const sfs = 0.5 * pillFs;
           const pillH = 1.45 * pillFs + (hint ? 1.4 * sfs : 0);
-          blocks.push({
+          // (D3 review) the full canvas' card over the ring's top edge, where the pill was (its line says the same 100 %): the
+          // finished painting stays in view under it
+          const fullCard = done && !paint.picture && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current;
+          if (fullCard) bigBanner(L.paintFull ?? DEFAULT_LABELS.paintFull!, (L.paintFullSub ?? DEFAULT_LABELS.paintFullSub!)((pv.doneMs / 1000).toFixed(1)), "#4ECDC4", ART_BANNER_AT);
+          else blocks.push({
             height: pillH,
             at: PILL_AT + (hint ? (0.7 * sfs) / minDim : 0),
             draw: (y) => {
@@ -3156,7 +3166,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               }
             },
           });
-          if (done && !paint.picture && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) bigBanner(L.paintFull ?? DEFAULT_LABELS.paintFull!, (L.paintFullSub ?? DEFAULT_LABELS.paintFullSub!)((pv.doneMs / 1000).toFixed(1)), "#4ECDC4");
         }
         // --- portal-charges --- Portal's teleports in a pill above the ring (no longer a dim number over the ring's middle), and on
         // the end card over the ghosted ring
@@ -3176,7 +3185,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (engine.isLinesMode()) {
           const lv = engine.getLinesView();
           if (lv.target > 0) {
-            if (lv.finished && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) bigBanner(L.linesDone ?? DEFAULT_LABELS.linesDone!, (L.linesDoneSub ?? DEFAULT_LABELS.linesDoneSub!)(lv.strings), "#a3e635");
+            if (lv.finished && !loopHudRef.current && !teamLayer.isActive() && !captionsRef.current) bigBanner(L.linesDone ?? DEFAULT_LABELS.linesDone!, (L.linesDoneSub ?? DEFAULT_LABELS.linesDoneSub!)(lv.strings), "#a3e635", ART_BANNER_AT); // (D3 review: over the ring's top edge, the art in view)
             else if (!lv.finished) {
               const age = engine.getElapsedMs() - lv.lastKeyMs;
               const pop = age >= 0 && age < 250 ? 1 - age / 250 : 0;

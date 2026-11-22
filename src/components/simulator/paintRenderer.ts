@@ -1,4 +1,4 @@
-import type { PaintProgressView } from "@/lib/physics/modes/paint";
+import type { PaintPoint, PaintProgressView } from "@/lib/physics/modes/paint";
 
 /**
  * --- paint-full --- Canvas drawing of Paint's progress and its full canvas (lib/physics/modes/paint.ts), on top of the trail
@@ -7,8 +7,10 @@ import type { PaintProgressView } from "@/lib/physics/modes/paint";
  *    the ring itself is often a rainbow already),
  *    with a tick at each quarter, glowing for a moment as a milestone passes (the counter itself is a pill above the ring, off
  *    the painting: `drawTopPill()`);
- *  - the full canvas: the last unpainted specks of the coverage grid fill in with paint over FLOOD_MS, so the counter's 100 % is
- *    what the picture shows, under a white flash.
+ *  - the full canvas: the last unpainted specks of the coverage grid fill in with paint on the frame the canvas is full, so the
+ *    counter's 100 % is what the picture shows, under a white flash. (D3 review: they filled in over 600 ms while the card already
+ *    said 100 % over a counter still at 95–99 %, and as hard square cells, a stair-step mosaic along the rim among round strokes.
+ *    Now the counter reads 100 % with the card, and each speck is a round dab in the colour of the stroke nearest it.)
  * From the run's own clock (the engine's elapsed ms and the times the view keeps), so every export draws the same frame.
  */
 
@@ -21,18 +23,24 @@ export interface PaintRenderOptions {
   nowMs: number;
 }
 
-/** How long the last specks take to fill in, the full canvas' flash, and a milestone's glow (ms). */
-export const FLOOD_MS = 600;
+/** The full canvas' flash, and a milestone's glow (ms). */
 export const FULL_FLASH_MS = 700;
 export const MILESTONE_GLOW_MS = 500;
 const SPECK_BUCKETS = 12;
 const TWO_PI = Math.PI * 2;
+/**
+ * A last speck's dab: its radius in grid cells (round, as the brush's strokes are, and reaching a little into the cells round it:
+ * at 0.8 a cell the dabs left hairline gaps of the dark page between them and the strokes) and its opacity (the strokes' own).
+ */
+export const SPECK_DAB_CELLS = 1.15;
+const SPECK_ALPHA = 1;
+/** The most specks given a stroke's colour (the nearest stroke point each, once): past it the rest keep the wheel's colour. */
+const SPECK_COLOUR_BUDGET = 4_000_000;
 
-/** The share of the canvas the counter shows: the coverage, rising to 1 as the last specks fill in once the canvas is full. */
-export function paintShownShare(coverage: number, view: PaintProgressView, nowMs: number): number {
-  if (!view.done) return Math.max(0, Math.min(1, coverage));
-  const k = Math.max(0, Math.min(1, (nowMs - view.doneMs) / FLOOD_MS));
-  return coverage + (1 - coverage) * k;
+/** The share of the canvas the counter shows: the coverage, and 1 from the frame the canvas is full (its last specks filled in). */
+export function paintShownShare(coverage: number, view: PaintProgressView): number {
+  if (view.done) return 1;
+  return Math.max(0, Math.min(1, coverage));
 }
 
 /** The arc of the canvas painted, round the outside of the ring, with its quarter ticks and a milestone's glow. */
@@ -76,10 +84,15 @@ export function drawPaintProgressRing(ctx: CanvasRenderingContext2D, share: numb
   ctx.restore();
 }
 
-/** The specks of the last full canvas, found once when it filled (bucket, column, row each): no grid walk per frame. */
+/**
+ * The specks of the last full canvas, found once when it filled (bucket, column, row each) with each one's colour (an index into
+ * `speckColours`): no grid walk per frame.
+ */
 let specks: Int16Array = new Int16Array(0);
+let speckColourOf: Int32Array = new Int32Array(0);
+let speckColours: string[] = [];
 let speckCount = 0;
-let specksOf: { grid: Uint8Array | null; doneMs: number } = { grid: null, doneMs: NaN };
+let specksOf: { grid: Uint8Array | null; doneMs: number; points: number } = { grid: null, doneMs: NaN, points: -1 };
 
 function findSpecks(grid: Uint8Array, size: number) {
   const c = size / 2;
@@ -102,29 +115,79 @@ function findSpecks(grid: Uint8Array, size: number) {
   }
 }
 
-/** The full canvas: the specks the grid still has unpainted fill in (in the colours of the wheel round them) under a flash. */
-export function drawPaintFull(ctx: CanvasRenderingContext2D, grid: Uint8Array, size: number, view: PaintProgressView, o: PaintRenderOptions) {
+/**
+ * Each speck's colour: the colour of the stroke point nearest its cell (world px, the circle's box from `x0`, `y0` in cells of
+ * `cell`), or the wheel's colour round it when there are no points (or more specks × points than SPECK_COLOUR_BUDGET).
+ */
+function colourSpecks(points: readonly PaintPoint[] | undefined, x0: number, y0: number, cell: number) {
+  if (speckColourOf.length < speckCount) speckColourOf = new Int32Array(speckCount);
+  speckColours = [];
+  const index = new Map<string, number>();
+  const colourIndex = (c: string) => {
+    let i = index.get(c);
+    if (i === undefined) {
+      i = speckColours.length;
+      speckColours.push(c);
+      index.set(c, i);
+    }
+    return i;
+  };
+  const n = points ? points.length : 0;
+  const nearest = n > 0 && speckCount * n <= SPECK_COLOUR_BUDGET;
+  for (let i = 0; i < speckCount; i++) {
+    if (nearest) {
+      const x = x0 + (specks[3 * i + 1] + 0.5) * cell;
+      const y = y0 + (specks[3 * i + 2] + 0.5) * cell;
+      let best = Infinity;
+      let colour = "";
+      for (let k = 0; k < n; k++) {
+        const pt = points![k];
+        const d = (pt.x - x) * (pt.x - x) + (pt.y - y) * (pt.y - y);
+        if (d < best) {
+          best = d;
+          colour = pt.color;
+        }
+      }
+      speckColourOf[i] = colourIndex(colour);
+    } else speckColourOf[i] = colourIndex(`hsl(${Math.round((specks[3 * i] / SPECK_BUCKETS) * 360)}, 85%, 55%)`);
+  }
+}
+
+/**
+ * The full canvas: the specks the grid still has unpainted filled in at once, each a round dab in the colour of the stroke nearest
+ * it (`points`, the run's stroke points; without them the wheel's colour round it), inside the circle, under a flash.
+ */
+export function drawPaintFull(ctx: CanvasRenderingContext2D, grid: Uint8Array, size: number, view: PaintProgressView, o: PaintRenderOptions, points?: readonly PaintPoint[]) {
   if (!view.done) return;
   const age = o.nowMs - view.doneMs;
   if (!(age >= 0)) return;
-  if (specksOf.grid !== grid || specksOf.doneMs !== view.doneMs) {
-    findSpecks(grid, size);
-    specksOf = { grid, doneMs: view.doneMs };
-  }
-  const k = Math.min(1, age / FLOOD_MS);
   const cell = (2 * o.radius) / size;
+  const pointCount = points ? points.length : 0;
+  if (specksOf.grid !== grid || specksOf.doneMs !== view.doneMs || specksOf.points !== pointCount) {
+    findSpecks(grid, size);
+    colourSpecks(points, o.cx - o.radius, o.cy - o.radius, cell);
+    specksOf = { grid, doneMs: view.doneMs, points: pointCount };
+  }
+  const dab = SPECK_DAB_CELLS * cell;
   ctx.save();
-  ctx.globalAlpha = 0.75 * k;
-  for (let b = 0; b < SPECK_BUCKETS; b++) {
+  // inside the circle only: a dab on the rim does not spill over the ring
+  ctx.beginPath();
+  ctx.arc(o.cx, o.cy, o.radius, 0, TWO_PI);
+  ctx.clip();
+  ctx.globalAlpha = SPECK_ALPHA;
+  for (let c = 0; c < speckColours.length; c++) {
     let any = false;
     ctx.beginPath();
     for (let i = 0; i < speckCount; i++) {
-      if (specks[3 * i] !== b) continue;
-      ctx.rect(o.cx - o.radius + specks[3 * i + 1] * cell - 0.5, o.cy - o.radius + specks[3 * i + 2] * cell - 0.5, cell + 1, cell + 1);
+      if (speckColourOf[i] !== c) continue;
+      const x = o.cx - o.radius + (specks[3 * i + 1] + 0.5) * cell;
+      const y = o.cy - o.radius + (specks[3 * i + 2] + 0.5) * cell;
+      ctx.moveTo(x + dab, y);
+      ctx.arc(x, y, dab, 0, TWO_PI);
       any = true;
     }
     if (!any) continue;
-    ctx.fillStyle = `hsl(${Math.round((b / SPECK_BUCKETS) * 360)}, 85%, 55%)`;
+    ctx.fillStyle = speckColours[c];
     ctx.fill();
   }
   if (age < FULL_FLASH_MS) {

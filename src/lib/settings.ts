@@ -16,6 +16,7 @@ import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, RING_MAX_BODIES, collidePourF
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { LINES_STRINGS_RANGE, resolveLinesStrings } from "@/lib/physics/modes/lines"; // --- string-art ---
+import { PORTAL_DEFAULT_COUNT, PORTAL_DEFAULT_USES, isPortalCount, isPortalUses } from "@/lib/physics/modes/portal"; // --- portal-options ---
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
@@ -234,6 +235,12 @@ export interface SimulatorSettings {
   linesCenterDot: boolean;
   /** --- string-art --- Lines: the run ends after this many strings, with a flash of the finished art and a chord; 0 = endless (URL `lns`). */
   lnStrings: number;
+  /**
+   * --- portal-options --- (D3 review) Portal: the pairs of portals round the ring (2–8, URL `ptc`) and the jumps each pair holds
+   * before it burns out into an exit (1–6, URL `ptu`), picks as Shatter's are.
+   */
+  ptCount: number;
+  ptUses: number;
   /** --- paint-full --- Classic Paint: every rebound turned toward the largest unpainted patch (Picture Paint's guide; URL `pgu`). */
   paintGuide: boolean;
   targetCount: number;
@@ -1543,6 +1550,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     cpRingCount: RING_MAX_BODIES,
     ...collidePourFields(DEFAULT_COLLIDE_SETTINGS), // --- collide-pour --- (out here too)
     lnStrings: 0, // --- string-art --- (endless: the link base; the page's start look is clipPacing's)
+    ptCount: PORTAL_DEFAULT_COUNT, // --- portal-options --- (the mode's own three pairs of four jumps: the link base; the same)
+    ptUses: PORTAL_DEFAULT_USES,
     paintGuide: false, // --- paint-full --- (off: the link base; the same)
     pdMaxTempo: MAX_TEMPO,
     pdGoal: 0, // --- finales-in-clip --- (no goal in the mode's own; Paddle's page default is clipPacing's)
@@ -1558,7 +1567,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "cpPourAt" | "cpPulse" /* --- collide-pour --- */ | "lnStrings" | "paintGuide" /* --- string-art --- --- paint-full --- */ | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof SongRingFields /* --- song-ring --- */ | keyof SandPlateFields /* --- sand-plate --- */ | keyof BlueprintFields /* --- blueprint --- */ | "slowMotion" /* --- slow-motion --- */ | "multiplyRace" /* --- multiply-race --- */ | "journeyHud" | "sgHud" /* --- templates --- (AI studio step 4b) */ | keyof GrowthCapFields | "cpRingCount" | "cpPourAt" | "cpPulse" /* --- collide-pour --- */ | "lnStrings" | "paintGuide" /* --- string-art --- --- paint-full --- */ | "ptCount" | "ptUses" /* --- portal-options --- */ | "pdMaxTempo" | "pdGoal" /* --- finales-in-clip --- */ | "flBoutCap" /* --- unlimited-sizes --- */ | "colorMatchSegments" /* --- colour-match-segments --- */ | "shatterHits" | "shatterSegments" /* --- shatter-demolition --- */ | "shatterEvenBricks" /* --- shatter-even-bricks --- */> {
   return {
     mode,
     gravity: 300,
@@ -2012,6 +2021,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.shatterHits !== base.shatterHits) params.set("shh", String(settings.shatterHits)); // --- shatter-demolition ---
   if (settings.shatterSegments !== base.shatterSegments) params.set("shs", String(settings.shatterSegments));
   if (settings.shatterEvenBricks !== base.shatterEvenBricks) params.set("shb", settings.shatterEvenBricks ? "1" : "0"); // --- shatter-even-bricks ---
+  if (settings.ptCount !== base.ptCount) params.set("ptc", String(settings.ptCount)); // --- portal-options ---
+  if (settings.ptUses !== base.ptUses) params.set("ptu", String(settings.ptUses));
   if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
   if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
   if (settings.boxShape !== base.boxShape) params.set("bxs", settings.boxShape);
@@ -2159,6 +2170,11 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (shh !== null && shh.trim() !== "" && isShatterHits(Number(shh))) settings.shatterHits = Number(shh);
   const shs = params.get("shs");
   if (shs !== null && shs.trim() !== "" && isShatterSegments(Number(shs))) settings.shatterSegments = Number(shs);
+  // --- portal-options --- (one of the picks, else the mode's own)
+  const ptc = params.get("ptc");
+  if (ptc !== null && ptc.trim() !== "" && isPortalCount(Number(ptc))) settings.ptCount = Number(ptc);
+  const ptu = params.get("ptu");
+  if (ptu !== null && ptu.trim() !== "" && isPortalUses(Number(ptu))) settings.ptUses = Number(ptu);
   const shb = params.get("shb"); // --- shatter-even-bricks --- (1 or 0, else the mode's default)
   if (shb === "1") settings.shatterEvenBricks = true;
   else if (shb === "0") settings.shatterEvenBricks = false;
@@ -2474,7 +2490,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   lines: ["lnStrings" /* --- string-art --- */],
   paint: [...rangeKeys(PICTURE_PAINT_RANGES), "paintGuide" /* --- paint-full --- */],
   target: ["targetCount"],
-  portal: [],
+  portal: ["ptCount", "ptUses" /* --- portal-options --- */],
   shatter: [],
   colorMatch: ["colorMatchColorCount"],
   grow: ["growRate"],
@@ -2737,6 +2753,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.shatterHits = isShatterHits(preset.shatterHits) ? preset.shatterHits : defaults.shatterHits; // --- shatter-demolition --- (one of the picks)
   merged.shatterSegments = isShatterSegments(preset.shatterSegments) ? preset.shatterSegments : defaults.shatterSegments;
   merged.shatterEvenBricks = typeof preset.shatterEvenBricks === "boolean" ? preset.shatterEvenBricks : defaults.shatterEvenBricks; // --- shatter-even-bricks ---
+  merged.ptCount = isPortalCount(preset.ptCount) ? preset.ptCount : defaults.ptCount; // --- portal-options --- (one of the picks)
+  merged.ptUses = isPortalUses(preset.ptUses) ? preset.ptUses : defaults.ptUses;
   merged.multiplyRace = typeof preset.multiplyRace === "boolean" ? preset.multiplyRace : defaults.multiplyRace; // --- review fix (B5) --- (a real boolean, like the link's mrace: 1 or "false" falls back to the default)
   merged.growCenterDot = typeof preset.growCenterDot === "boolean" ? preset.growCenterDot : defaults.growCenterDot; // --- review fix (B5) --- (Grow's two switches too)
   merged.growLines = typeof preset.growLines === "boolean" ? preset.growLines : defaults.growLines;

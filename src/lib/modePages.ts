@@ -123,7 +123,8 @@ export const MODE_INTROS: Readonly<Partial<Record<ModeId, string>>> = {
 /**
  * The first settings worth changing in each mode: up to three controls of the mode's own block in the studio, in the block's
  * order, by their message ("Controls.pwLayout": the page shows that name and its tip, "Controls.pwLayoutTip"). A mode without
- * a block of its own (Portal) is left out: its page lists the basics every mode starts with.
+ * a block of its own is left out: its page lists the basics every mode starts with. (--- portal-options --- D3 review: Portal
+ * has one now, its Portals and Jumps per Portal.)
  */
 export const MODE_FIRST_SETTINGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   classic: ["Controls.reSpiralPreset", "Controls.gapLayout", "Controls.ringSpin"],
@@ -161,6 +162,7 @@ export const MODE_FIRST_SETTINGS: Readonly<Partial<Record<ModeId, readonly strin
   illusion: ["Controls.ilType", "Controls.ilBalls", "Controls.ilPattern"],
   lines: ["Controls.centerDot", "Controls.lnStrings" /* --- string-art --- */],
   paint: ["Controls.paintGuide" /* --- paint-full --- */, "Controls.picturePaint", "Controls.paintBrush"],
+  portal: ["Controls.ptCount", "Controls.ptUses"], // --- portal-options ---
   mergeRing: ["Controls.mrTiers", "Controls.mrInterval", "Controls.mrSpawnTiers"],
   bullseye: ["Controls.byShots", "Controls.byRings", "Controls.byTargetMoving"],
   spiralGlass: ["Controls.sgTurns", "Controls.sgGlassHp", "Controls.sgMaxBalls"],

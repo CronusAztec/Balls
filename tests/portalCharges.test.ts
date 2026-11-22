@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PORTAL_NOTES_HZ, PORTAL_THUD_HZ, PORTAL_ZIP_SEC } from "@/lib/physics/modes/portal";
+import { PORTAL_COUNT_CHOICES, PORTAL_MAX_PAIRS, PORTAL_NOTES_HZ, PORTAL_THUD_HZ, PORTAL_USES_CHOICES, PORTAL_ZIP_SEC } from "@/lib/physics/modes/portal";
 import type { SoundEvent } from "@/lib/physics/types";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
-import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { clipStartSettings } from "@/lib/clipPacing";
 import { ringVoiceEvent } from "@/lib/audio/loopEvents";
-import { BEAM_MS, CRUMBLE_MS, drawPortalGhost, drawPortals } from "@/components/simulator/portalRenderer";
+import { BEAM_MS, CRUMBLE_MS, WASH_SWELL_MS, drawPortalGhost, drawPortals, lastLivePair, washSwell } from "@/components/simulator/portalRenderer";
 import { fakeCanvas } from "./fakeCanvas";
 
 /*
@@ -15,8 +16,8 @@ import { fakeCanvas } from "./fakeCanvas";
  */
 
 const WORLD = { width: 450, height: 450 } as const;
-function engineOf(seed: number) {
-  const s = defaultSettings("portal") as SimulatorSettings;
+function engineOf(seed: number, patch: Partial<SimulatorSettings> = {}) {
+  const s = { ...defaultSettings("portal"), ...patch } as SimulatorSettings;
   return createEngineForSettings(physicsConfigOfSettings(s, WORLD as never), "portal", modeSettingsOfSettings(s), seed);
 }
 
@@ -108,5 +109,90 @@ describe("Portal: the portals drawn (portal-charges)", () => {
     drawPortalGhost(ghost, portals, o, "#ffffff");
     const burnt = portals.filter((p) => p.exhausted).length;
     expect(ghost.calls.filter((c) => c.name === "arc").length).toBe(2 * burnt + 2 * live.length);
+  });
+});
+
+// --- portal-options --- --- portal-fill --- (D3 review)
+describe("Portal: Portals and Jumps per Portal, its start look and the filled arena (D3 review)", () => {
+  it("lays out the pairs and the jumps a link asks for, keeps the link base's three pairs of four, and never more pairs than fit", () => {
+    const s = settingsFromSearchParams(new URLSearchParams("mode=portal&ptc=5&ptu=3"));
+    expect([s.ptCount, s.ptUses]).toEqual([5, 3]);
+    const link = settingsToSearchParams(s);
+    expect([link.get("ptc"), link.get("ptu")]).toEqual(["5", "3"]);
+    const base = settingsToSearchParams(defaultSettings("portal"));
+    expect([base.has("ptc"), base.has("ptu")]).toEqual([false, false]);
+    // picks, as Shatter's are: anything else is the mode's own
+    for (const pick of PORTAL_COUNT_CHOICES) expect(settingsFromSearchParams(new URLSearchParams(`mode=portal&ptc=${pick}`)).ptCount).toBe(pick);
+    for (const pick of PORTAL_USES_CHOICES) expect(settingsFromSearchParams(new URLSearchParams(`mode=portal&ptu=${pick}`)).ptUses).toBe(pick);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=portal&ptc=40&ptu=0"))).toMatchObject({ ptCount: 3, ptUses: 4 });
+    expect(presetToSettings({ mode: "portal", ptCount: "many", ptUses: 2.5 } as never)).toMatchObject({ ptCount: 3, ptUses: 4 });
+    expect(presetToSettings({ mode: "portal", ptCount: 8, ptUses: 1 })).toMatchObject({ ptCount: 8, ptUses: 1 });
+    // the engine lays them out: five pairs of three jumps, the mouths as wide as ever
+    const five = engineOf(1, { ptCount: 5, ptUses: 3 }).getPortals();
+    expect(five.map((p) => [p.maxUses, p.halfWidth])).toEqual(Array.from({ length: 5 }, () => [3, 0.12]));
+    // the link base: the mode's own three pairs of four (its run is the one tests/extras.test.ts pins)
+    expect(engineOf(1).getPortals().map((p) => [p.maxUses, p.halfWidth])).toEqual([[4, 0.12], [4, 0.12], [4, 0.12]]);
+    // the engine handed more pairs than fit round the ring (no setting offers them): PORTAL_MAX_PAIRS, the mouths narrower and apart
+    const many = engineOf(1, { ptCount: 1e9 }).getPortals();
+    expect(many).toHaveLength(PORTAL_MAX_PAIRS);
+    expect(many[0].halfWidth).toBeLessThan(0.12);
+    expect(2 * many[0].halfWidth).toBeLessThan((2 * Math.PI) / (2 * PORTAL_MAX_PAIRS));
+  });
+
+  it("starts the page on five pairs of three jumps: out inside the clip on more seeds than the link base", { timeout: 120_000 }, () => {
+    expect(clipStartSettings("portal")).toEqual({ ptCount: 5, ptUses: 3 });
+    const outBy27 = (patch: Partial<SimulatorSettings>) => {
+      let n = 0;
+      for (let seed = 1; seed <= 12; seed++) {
+        const e = engineOf(seed, patch);
+        for (let k = 0; k < 27 * 60 && !e.isSimulationFinished(); k++) {
+          e.update(1000 / 60, 0);
+          e.consumeSoundEvents();
+        }
+        if (e.isSimulationFinished()) n++;
+      }
+      return n;
+    };
+    // measured when this was written: 10 of 12 (median 16.9 s), the link base 7 of 12 (median 26.3 s)
+    const start = outBy27(clipStartSettings("portal"));
+    expect(start).toBeGreaterThanOrEqual(9);
+    expect(start).toBeGreaterThan(outBy27({}));
+  });
+
+  it("fills the arena: a wash in the last pair's colour that swells at a jump, the glowing ring, the last pair pulsing", () => {
+    const { e } = runToEnd(3);
+    const portals = e.getPortals();
+    const jump = e.getPortalLastJump();
+    expect(washSwell(jump, jump.ms)).toBe(1);
+    expect(washSwell(jump, jump.ms + WASH_SWELL_MS / 2)).toBeCloseTo(0.25, 9);
+    expect(washSwell(jump, jump.ms + WASH_SWELL_MS)).toBe(0);
+    expect(washSwell({ ...jump, portal: -1 }, jump.ms)).toBe(0);
+    const radius = e.getCircularWalls()[0].radius;
+    const o = { cx: 225, cy: 225, radius, nowMs: jump.ms + 10, wallThickness: 2, gaps: [], ringStyle: "#ffffff" };
+    const fresh = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawPortals(fresh, portals, jump, o);
+    const late = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawPortals(late, portals, jump, { ...o, nowMs: jump.ms + WASH_SWELL_MS + 1 });
+    const gradients = (c: typeof fresh) => c.calls.filter((x) => x.name === "createRadialGradient").length;
+    // the wash in every frame, and the swell's front from the exit on top of it for WASH_SWELL_MS after a jump
+    expect(gradients(late)).toBe(1);
+    expect(gradients(fresh)).toBe(2);
+    // a ring without exits is one whole circle from 0 (a turned full turn can stroke nothing in Chromium)
+    expect(late.calls.some((x) => x.name === "arc" && x.args[2] === radius && x.args[3] === 0 && x.args[4] === 2 * Math.PI)).toBe(true);
+    // the last pair standing pulses; two or more standing, or a single pair from the start, do not
+    const twoLeft = portals.map((p, i) => ({ ...p, exhausted: i > 1 }));
+    expect(lastLivePair(twoLeft)).toBe(-1);
+    const oneLeft = portals.map((p, i) => ({ ...p, exhausted: i !== 1 }));
+    expect(lastLivePair(oneLeft)).toBe(1);
+    expect(lastLivePair([{ ...portals[0], exhausted: false }])).toBe(-1);
+    const pulse = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawPortals(pulse, oneLeft, jump, { ...o, nowMs: jump.ms + WASH_SWELL_MS + 1 });
+    // the same pair drawn alone (no others burnt out round it) has no pulse: the pulse is its tie drawn bright (one solid line
+    // between the twins) and a halo round each mouth (a fill and a stroke each)
+    const solo = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    drawPortals(solo, [oneLeft[1]], jump, { ...o, nowMs: jump.ms + WASH_SWELL_MS + 1 });
+    const count = (c: typeof fresh, name: string) => c.calls.filter((x) => x.name === name).length;
+    expect(count(pulse, "lineTo") - count(solo, "lineTo")).toBe(1);
+    expect(count(pulse, "arc") - count(solo, "arc")).toBe(4);
   });
 });

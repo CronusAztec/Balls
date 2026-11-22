@@ -123,9 +123,9 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 20,
     name: { en: "Rainbow String Art", pl: "Tęczowy string art", es: "Arte de hilos arcoíris" },
     description: {
-      en: "A small, fast ball stays tied to every point it bounces off with a rainbow thread, weaving a glowing string-art mandala in seconds.",
-      pl: "Mała, szybka piłka zostaje połączona tęczową nitką z każdym punktem odbicia i w kilka sekund tka świecącą mandalę.",
-      es: "Una bola pequeña y rápida queda unida con un hilo arcoíris a cada punto donde rebota y teje en segundos un mandala luminoso.",
+      en: "A small, fast ball ties each bounce to the next with a rainbow thread. In seconds the threads weave a glowing mandala.",
+      pl: "Mała, szybka piłka wiąże tęczową nitką każde odbicie z następnym. W kilka sekund nitki tkają świecącą mandalę.",
+      es: "Una bola pequeña y rápida une cada rebote al siguiente con un hilo arcoíris. En segundos los hilos tejen un mandala luminoso.",
     },
   },
   {

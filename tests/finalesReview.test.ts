@@ -3,7 +3,7 @@ import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
-import { DEFAULT_FIND_SEC, clipPacingDefaults, clipPacingFindSec } from "@/lib/clipPacing";
+import { DEFAULT_FIND_SEC, clipPacingDefaults, clipPacingFindSec, clipStartSettings } from "@/lib/clipPacing";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { MODE_IDS, type ModeId, type SoundEvent } from "@/lib/physics/types";
 import { defaultSettings, settingsFromSearchParams } from "@/lib/settings";
@@ -66,6 +66,44 @@ describe("--- finder-target --- Find Simulation's target on a paced mode's page 
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=vortex&vxrl=stagger")))).toBe(30);
     expect(clipPacingFindSec({ ...defaultSettings("target"), showGlow: false })).toBe(20);
     expect(clipPacingFindSec({ ...defaultSettings("target"), targetCount: 10 })).toBe(30);
+  });
+
+  // (D3 review) the start looks that end a run: Lines' string art and Paint's full canvas. Measured when this was written (seeds
+  // 1–200, the page's 800 × 450 world): Lines 100 runs within 23.5 ± 0.5 s, Paint 35 within 21 – Lines none within 30 ± 0.5 s,
+  // Paint one, at 29.5 s, its FULL CANVAS! in the clip's last half-second
+  it("(D3 review) is a start look's own run length while the run is the start look's, and the page's 30 on the link base", () => {
+    expect(clipPacingFindSec({ ...defaultSettings("lines"), ...clipStartSettings("lines") })).toBe(23.5);
+    expect(clipPacingFindSec({ ...defaultSettings("paint"), ...clipStartSettings("paint") })).toBe(21);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=lines&rlines=1&s=700&lns=64")))).toBe(23.5);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paint&r=12&s=600&pgu=1")))).toBe(21);
+    // the link bases (endless strings; the unguided canvas, full in 73–118 s) and a run of their own keep the page's 30
+    expect(clipPacingFindSec(defaultSettings("lines"))).toBe(30);
+    expect(clipPacingFindSec(defaultSettings("paint"))).toBe(30);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=lines&rlines=1&s=700&lns=32")))).toBe(30);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paint&r=12&s=600")))).toBe(30);
+    // a start look without a target of its own keeps the page's 30
+    expect(clipPacingFindSec({ ...defaultSettings("collide"), ...clipStartSettings("collide") })).toBe(30);
+
+    const world = { width: 800, height: 450 };
+    for (const mode of ["lines", "paint"] as const) {
+      const settings = { ...defaultSettings(mode), ...clipStartSettings(mode) };
+      const target = clipPacingFindSec(settings);
+      const ends: number[] = [];
+      for (let seed = 1; seed <= 40; seed++) {
+        const request = finderRequestOfSettings(settings, world, 45);
+        const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+        let end = -1;
+        for (let frame = 1; frame <= 45 * 60 && end < 0; frame++) {
+          engine.update(1000 / 60, 0);
+          engine.consumeSoundEvents();
+          if (engine.isSimulationFinished()) end = frame / 60;
+        }
+        ends.push(end);
+      }
+      const near = (t: number) => ends.filter((e) => e > 0 && Math.abs(e - t) <= 0.5).length;
+      expect([mode, near(target) >= 6]).toEqual([mode, true]);
+      expect([mode, near(target) > near(30)]).toEqual([mode, true]);
+    }
   });
 
   // measured when this was written (seeds 1–40, the finder's 800 × 600 world): runner 10 runs within 22 ± 0.5 s, paddle 11 within

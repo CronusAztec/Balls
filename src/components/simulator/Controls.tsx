@@ -1503,6 +1503,7 @@ export default function Controls(props: ControlsProps) {
       case "target":
       case "colorMatch":
       case "shatter": // --- shatter-demolition ---
+      case "portal": // --- portal-options ---
       case "grow":
         return <EscapeModeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "drop":

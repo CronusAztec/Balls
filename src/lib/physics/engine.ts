@@ -1288,6 +1288,14 @@ export class PhysicsEngine {
   setPortalCount(n: number) {
     this.portalMode.setPortalCount(n);
   }
+  // --- portal-options --- (D3 review) the jumps each pair holds (applied by the next init, like the count)
+  getPortalUses() {
+    return this.portalMode.getPortalUses();
+  }
+  setPortalUses(n: number) {
+    this.portalMode.setPortalUses(n);
+  }
+  // --- end portal-options ---
   isShatterMode() {
     return this.currentMode === this.shatterMode;
   }
