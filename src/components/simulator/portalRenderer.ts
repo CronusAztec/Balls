@@ -10,6 +10,11 @@ import type { Portal, PortalJump } from "@/lib/physics/modes/portal";
  *    trail is broken at the jump by the mode, so no streak crosses the ring);
  *  - a burn-out: the mouths crumble into shards that fall and fade where the exit opens;
  *  - after the escape: the ring ghosted with its open exits and its last portals, under the end card.
+ * (D3 review: the arena was 93 % dark, a hairline ring round an empty middle) Also:
+ *  - the ring itself drawn at RING_CORE_SHARE of its radius in its own colours with a soft glow, its exits open (`drawPortalRing()`);
+ *  - a wash inside the ring in the colour of the pair used last, swelling at each jump from the mouth the ball came out of and
+ *    settling over WASH_SWELL_MS (`drawPortalWash()`), so the middle is never an empty black disc;
+ *  - the last pair still standing pulsing once the others have burnt out: the way out is through it.
  * The mouths keep the size the mode tests (its half width); only the drawing is bigger. Everything from the run's own clock (the
  * engine's elapsed ms, the jump's and the burn-outs' times), so every export draws the same frame for the same moment.
  */
@@ -22,6 +27,10 @@ export interface PortalRenderOptions {
   /** The engine's elapsed ms. */
   nowMs: number;
   wallThickness: number;
+  // --- portal-fill --- (D3 review)
+  /** The ring's gaps (the exits of the burnt-out pairs, as the mode lays them out) and the style it is stroked in (the page's wall colours). */
+  gaps?: readonly { startAngle: number; endAngle: number }[];
+  ringStyle?: string | CanvasGradient;
 }
 
 /** A mouth's swirl: its radius as a share of the ring radius, its pulse and spin. */
@@ -35,6 +44,159 @@ export const CRUMBLE_MS = 800;
 /** Shards a crumbling mouth throws. */
 const SHARDS = 9;
 const TWO_PI = Math.PI * 2;
+// --- portal-fill --- (D3 review)
+/** The ring's core line and its two glow layers, as shares of its radius, and the glow layers' opacity. */
+export const RING_CORE_SHARE = 0.02;
+const RING_GLOW = [
+  { share: 0.11, alpha: 0.07 },
+  { share: 0.055, alpha: 0.2 },
+] as const;
+/** The wash inside the ring: its opacity at the centre and at the rim, what a jump adds to them, and how long the swell lasts (ms). */
+export const WASH_CENTRE = 0.06;
+export const WASH_RIM = 0.17;
+const WASH_SWELL_CENTRE = 0.1;
+const WASH_SWELL_RIM = 0.2;
+export const WASH_SWELL_MS = 1000;
+/** The wash's colour before the first jump: the mode's own violet. */
+const WASH_IDLE = "#6c5ce7";
+/** The last pair's pulse (Hz) and its halo round each mouth (a share of the swirl). */
+const LAST_PULSE_HZ = 2.4;
+const LAST_HALO = 1.55;
+
+/** "#rrggbb" (or "#rgb") at `alpha` as rgba(); anything else as it is. */
+export function portalRgba(color: string, alpha: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+  if (!m) return color;
+  const h = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${a.toFixed(3)})`;
+}
+
+/** How far a jump's swell still is (1 at the jump, 0 from WASH_SWELL_MS on), eased out. */
+export function washSwell(jump: PortalJump, nowMs: number): number {
+  const age = nowMs - jump.ms;
+  if (jump.portal < 0 || !(age >= 0) || age >= WASH_SWELL_MS) return 0;
+  const k = 1 - age / WASH_SWELL_MS;
+  return k * k;
+}
+
+/** The pair still standing when every other pair has burnt out (−1 while two or more stand, or with a single pair from the start). */
+export function lastLivePair(portals: readonly Portal[]): number {
+  if (portals.length < 2) return -1;
+  let live = -1;
+  for (const p of portals) {
+    if (p.exhausted) continue;
+    if (live >= 0) return -1;
+    live = p.id;
+  }
+  return live;
+}
+
+/**
+ * The wash inside the ring: a radial gradient in the colour of the pair used last, faint at the centre and brighter at the rim,
+ * and at a jump a swell of that colour spreading from the mouth the ball came out of over WASH_SWELL_MS. Under the portals and the
+ * ball; two gradients a frame.
+ */
+export function drawPortalWash(ctx: CanvasRenderingContext2D, portals: readonly Portal[], jump: PortalJump, o: PortalRenderOptions) {
+  const used = jump.portal >= 0 ? portals[jump.portal] : undefined;
+  const color = used ? used.color : WASH_IDLE;
+  const swell = washSwell(jump, o.nowMs);
+  ctx.save();
+  const g = ctx.createRadialGradient(o.cx, o.cy, 0, o.cx, o.cy, o.radius);
+  g.addColorStop(0, portalRgba(color, WASH_CENTRE + WASH_SWELL_CENTRE * swell));
+  g.addColorStop(1, portalRgba(color, WASH_RIM + WASH_SWELL_RIM * swell));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(o.cx, o.cy, o.radius, 0, TWO_PI);
+  ctx.fill();
+  if (swell > 0) {
+    // the swell: a bright front spreading across the ring from the exit
+    const exit = swirlAt(o, jump.toAngle);
+    const reach = o.radius * (0.35 + 1.75 * (1 - Math.sqrt(swell)));
+    const b = ctx.createRadialGradient(exit.x, exit.y, 0, exit.x, exit.y, reach);
+    b.addColorStop(0, portalRgba(color, 0.32 * swell));
+    b.addColorStop(0.7, portalRgba(color, 0.14 * swell));
+    b.addColorStop(1, portalRgba(color, 0));
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.arc(o.cx, o.cy, o.radius, 0, TWO_PI);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Adds the ring's standing arcs (between its gaps) to the current path; a ring without gaps as one whole circle. */
+function traceRing(ctx: CanvasRenderingContext2D, o: PortalRenderOptions, radius: number) {
+  const gaps = o.gaps ?? [];
+  if (gaps.length === 0) {
+    // from 0 to 2π exactly: an arc from a turned start to a turned start + 2π can stroke nothing in Chromium (ringArc.ts)
+    ctx.moveTo(o.cx + radius, o.cy);
+    ctx.arc(o.cx, o.cy, radius, 0, TWO_PI);
+    return;
+  }
+  // the mode's gaps start in [0, 2π), sorted; a last one across 0 ends above 2π
+  const wrap = Math.max(0, gaps[gaps.length - 1].endAngle - TWO_PI);
+  let cursor = wrap;
+  for (const gap of gaps) {
+    if (gap.startAngle > cursor) {
+      ctx.moveTo(o.cx + radius * Math.cos(cursor), o.cy + radius * Math.sin(cursor));
+      ctx.arc(o.cx, o.cy, radius, cursor, gap.startAngle);
+    }
+    cursor = Math.max(cursor, gap.endAngle);
+  }
+  if (cursor < TWO_PI + wrap) {
+    ctx.moveTo(o.cx + radius * Math.cos(cursor), o.cy + radius * Math.sin(cursor));
+    ctx.arc(o.cx, o.cy, radius, cursor, TWO_PI + wrap);
+  }
+}
+
+/** The ring: a core line of RING_CORE_SHARE of its radius in its own colours under two soft glow layers, its exits open. */
+export function drawPortalRing(ctx: CanvasRenderingContext2D, o: PortalRenderOptions) {
+  ctx.save();
+  ctx.strokeStyle = o.ringStyle ?? "#ffffff";
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  traceRing(ctx, o, o.radius);
+  for (const layer of RING_GLOW) {
+    ctx.globalAlpha = layer.alpha;
+    ctx.lineWidth = Math.max(4, layer.share * o.radius);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = Math.max(o.wallThickness, RING_CORE_SHARE * o.radius);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** The last pair standing: a halo pulsing round both mouths and their tie drawn bright, so the eye knows where the way out is. */
+function drawLastPair(ctx: CanvasRenderingContext2D, p: Portal, o: PortalRenderOptions) {
+  const pulse = 0.5 + 0.5 * Math.sin(TWO_PI * LAST_PULSE_HZ * (o.nowMs / 1000));
+  const a = swirlAt(o, p.angleA);
+  const b = swirlAt(o, p.angleB);
+  ctx.save();
+  ctx.strokeStyle = p.color;
+  ctx.lineCap = "round";
+  ctx.globalAlpha = 0.25 + 0.3 * pulse;
+  ctx.lineWidth = 2 + 2 * pulse;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  for (const m of [a, b]) {
+    ctx.globalAlpha = 0.18 + 0.22 * pulse;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.s * (LAST_HALO + 0.35 * pulse), 0, TWO_PI);
+    ctx.fill();
+    ctx.globalAlpha = 0.5 + 0.4 * pulse;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.s * (LAST_HALO + 0.35 * pulse), 0, TWO_PI);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// --- end portal-fill ---
 
 /** Where a mouth at `angle` has its swirl's centre (just inside the rim) and its radius. */
 function swirlAt(o: PortalRenderOptions, angle: number) {
@@ -151,8 +313,15 @@ function drawCrumble(ctx: CanvasRenderingContext2D, p: Portal, angle: number, ag
   ctx.restore();
 }
 
-/** The portals of a ring still standing: the live pairs, a jump's beam, the burnt-out ones crumbling. Inside the camera transform. */
+/**
+ * The portals of a ring still standing: the wash and the glowing ring under them (--- portal-fill ---), the live pairs (the last
+ * one pulsing), a jump's beam, the burnt-out ones crumbling. Inside the camera transform.
+ */
 export function drawPortals(ctx: CanvasRenderingContext2D, portals: readonly Portal[], jump: PortalJump, o: PortalRenderOptions) {
+  drawPortalWash(ctx, portals, jump, o); // --- portal-fill ---
+  drawPortalRing(ctx, o);
+  const last = lastLivePair(portals);
+  if (last >= 0) drawLastPair(ctx, portals[last], o);
   for (const p of portals) {
     if (p.exhausted) {
       const age = o.nowMs - p.burnMs;
@@ -210,7 +379,8 @@ export function drawPortals(ctx: CanvasRenderingContext2D, portals: readonly Por
 }
 
 /** After the escape: the ring ghosted with the exits the burnt-out portals left open, and the portals still standing, faint. */
-export function drawPortalGhost(ctx: CanvasRenderingContext2D, portals: readonly Portal[], o: PortalRenderOptions, wallColor: string) {
+export function drawPortalGhost(ctx: CanvasRenderingContext2D, portals: readonly Portal[], o: PortalRenderOptions, wallColor: string, jump?: PortalJump) {
+  if (jump) drawPortalWash(ctx, portals, jump, o); // --- portal-fill --- (the colour of the last jump stays under the end card)
   const gaps: [number, number][] = [];
   for (const p of portals) {
     if (!p.exhausted) continue;

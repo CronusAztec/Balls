@@ -16,6 +16,7 @@ import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers";
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle";
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
+import { PORTAL_DEFAULT_USES } from "@/lib/physics/modes/portal"; // --- portal-options ---
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
 import { songRingSettingsOf } from "@/lib/physics/modes/songRing"; // --- song-ring ---
@@ -143,7 +144,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     shatterHpPerSegment: s.shatterHits,
     shatterEvenBricks: s.shatterEvenBricks, // --- shatter-even-bricks ---
     growRate: s.growRate,
-    portalCount: d.portalCount,
+    portalCount: Number.isFinite(s.ptCount) ? s.ptCount : d.portalCount, // --- portal-options --- (D3 review: the visitor's Portals; 3, the engine's own, at the link base)
+    ...(Number.isFinite(s.ptUses) && s.ptUses !== PORTAL_DEFAULT_USES ? { portalUses: s.ptUses } : {}), // (absent at the link base: a plan's request is what it was)
     ...(s.lnStrings > 0 ? { lines: { strings: s.lnStrings } } : {}), // --- string-art --- (absent at the link base: a plan's request is what it was)
     ...(s.paintGuide ? { paintGuide: true } : {}), // --- paint-full --- (the same)
     twoBalls: s.twoBalls,

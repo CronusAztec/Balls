@@ -4,6 +4,7 @@ import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, typ
 import Tooltip from "../Tooltip";
 import { COLOR_MATCH_SEGMENT_CHOICES } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
 import { SHATTER_HIT_CHOICES, SHATTER_SEGMENT_CHOICES } from "@/lib/physics/modes/shatter"; // --- shatter-demolition ---
+import { PORTAL_COUNT_CHOICES, PORTAL_USES_CHOICES } from "@/lib/physics/modes/portal"; // --- portal-options ---
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import type { ModeId } from "@/lib/physics/types";
 import GrowFillSection, { GROW_FILL_KEYS } from "./GrowFillSection"; // --- loop-foundation ---
@@ -27,6 +28,7 @@ export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   target: ["targetCount", "randomOrder"],
   colorMatch: ["colorCount", "segmentCount"],
   shatter: ["shatterHits", "shatterSegments"], // --- shatter-demolition ---
+  portal: ["ptCount", "ptUses"], // --- portal-options ---
   grow: ["growthRate", "centerDot", "growLines", "lineColor"],
 };
 ESCAPE_MODE_KEYS_BY_MODE.grow?.push(...GROW_FILL_KEYS); // --- loop-foundation --- (Grow's fill and loop)
@@ -86,6 +88,35 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
           </Searchable>
           {/* --- string-art --- the run ends after this many strings with a flash of the finished picture and a chord (0: never) */}
           <Slider t={t} search={search} matches={matches} labelKey="lnStrings" tipKey="lnStringsTip" value={s.lnStrings} range={RANGES.lnStrings} onChange={(v) => update({ lnStrings: v })} display={s.lnStrings === 0 ? t("ilCyclesNever") : String(s.lnStrings)} />
+        </div>
+      );
+    // --- portal-options --- (D3 review) the pairs round the ring and the jumps each holds before it burns out into an exit: picks,
+    // as Shatter's are
+    case "portal":
+      return (
+        <div className="space-y-3 pt-2">
+          {(
+            [
+              ["ptCount", PORTAL_COUNT_CHOICES, s.ptCount, (v: number) => update({ ptCount: v })],
+              ["ptUses", PORTAL_USES_CHOICES, s.ptUses, (v: number) => update({ ptUses: v })],
+            ] as const
+          ).map(([key, choices, value, pick]) => (
+            <Searchable key={key} search={search} matches={matches} labelKey={key}>
+              <div className="space-y-2" data-testid={`portal-${key === "ptCount" ? "count" : "uses"}`} data-portal-value={value}>
+                <label className="text-sm font-medium text-ink-2">
+                  {t(key)}
+                  <Tooltip text={t(`${key}Tip`)} />
+                </label>
+                <div className="grid grid-cols-6 gap-1" role="group" aria-label={t(key)}>
+                  {choices.map((count) => (
+                    <button type="button" key={count} onClick={() => pick(count)} aria-pressed={value === count} className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${value === count ? onBtn : offBtn}`} data-portal-option={count}>
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Searchable>
+          ))}
         </div>
       );
     case "target":

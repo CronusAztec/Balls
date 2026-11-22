@@ -438,6 +438,8 @@ export default function Simulator() {
     engine.setHoopsSettings(hoopsSettingsOf(s)); // --- bead-hoops --- (before the init: the hoops, the spin and the beads apply there)
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
     engine.setLinesStrings(s.lnStrings); // --- string-art --- (before the init: the goal applies there)
+    engine.setPortalCount(s.ptCount); // --- portal-options --- (before the init: the pairs are laid out there)
+    engine.setPortalUses(s.ptUses);
     engine.setPaintGuide(s.paintGuide); // --- paint-full ---
     engine.setDropSettings(dropSettingsOf(s));
     engine.setBoxSettings(boxSettingsOf(s));
@@ -863,6 +865,19 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setPaintGuide(s.paintGuide);
   }, [s.paintGuide]);
+  // --- portal-options --- (D3 review) a new Portals or Uses restarts a Portal run (the pairs are laid out at the start)
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPortalCount(s.ptCount);
+    engine.setPortalUses(s.ptUses);
+    if (s.mode === "portal" && engine.getCurrentModeName() === "portal") {
+      engine.setSeed(null);
+      engine.initPortal();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ptCount, s.ptUses]);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -3693,6 +3708,7 @@ export default function Simulator() {
           shatterEvenBricks: settings.shatterEvenBricks, // --- shatter-even-bricks ---
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
+          portalUses: engine.getPortalUses(), // --- portal-options ---
           twoBalls: settings.twoBalls,
           cinematicEnabled: settings.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run)
           drop: dropSettingsOf(settings),

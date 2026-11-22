@@ -7,7 +7,7 @@ import { createEngineForSettings, runNeverFinishes } from "@/lib/simulation/find
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing";
-import { FLOOD_MS, drawPaintFull, drawPaintProgressRing, paintShownShare } from "@/components/simulator/paintRenderer";
+import { SPECK_DAB_CELLS, drawPaintFull, drawPaintProgressRing, paintShownShare } from "@/components/simulator/paintRenderer";
 import { fakeCanvas } from "./fakeCanvas";
 
 /*
@@ -99,18 +99,22 @@ describe("Paint: the progress and the full canvas drawn (paint-full)", () => {
     }
     const pv = e.getPaintProgressView();
     const coverage = e.getPaintCoverage();
-    expect(paintShownShare(coverage, pv, pv.doneMs)).toBeCloseTo(coverage, 9);
-    expect(paintShownShare(coverage, pv, pv.doneMs + FLOOD_MS)).toBe(1);
-    const o = { cx: 225, cy: 225, radius: e.getWallBaseRadii()[0], nowMs: pv.doneMs + FLOOD_MS };
+    // (D3 review) the counter reads 100 % from the frame the canvas is full, with its card (it counted up over 600 ms under the
+    // card's 100 % before); until then the coverage
+    expect(paintShownShare(coverage, pv)).toBe(1);
+    expect(paintShownShare(coverage, { ...pv, done: false })).toBeCloseTo(coverage, 9);
+    const o = { cx: 225, cy: 225, radius: e.getWallBaseRadii()[0], nowMs: pv.doneMs };
     const ctx = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
     const g = e.getPaintGrid();
-    drawPaintFull(ctx, g.grid, g.size, pv, o);
-    // one rect a speck still unpainted in the grid (inside the circle)
+    drawPaintFull(ctx, g.grid, g.size, pv, o, e.getPaintPoints());
+    // on the full canvas' own frame, one round dab a speck still unpainted in the grid (inside the circle), and no square cell
     let specks = 0;
     const c = g.size / 2;
     for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) if (!g.grid[y * g.size + x] && (x + 0.5 - c) ** 2 + (y + 0.5 - c) ** 2 <= c * c) specks++;
     expect(specks).toBeGreaterThan(0);
-    expect(ctx.calls.filter((x) => x.name === "rect")).toHaveLength(specks);
+    const dab = SPECK_DAB_CELLS * ((2 * o.radius) / g.size);
+    expect(ctx.calls.filter((x) => x.name === "arc" && x.args[2] === dab)).toHaveLength(specks);
+    expect(ctx.calls.filter((x) => x.name === "rect")).toHaveLength(0);
     const ring = fakeCanvas(450, 450).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
     drawPaintProgressRing(ring, 0.5, pv, o);
     // the faint track, the arc's glow and its line, half way round, and the quarter ticks

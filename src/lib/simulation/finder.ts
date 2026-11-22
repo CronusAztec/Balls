@@ -11,6 +11,7 @@ import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
 import { collideRunFinishes, type CollideSettings } from "@/lib/physics/modes/collide"; // --- collide-pour --- (collideRunFinishes)
 import { resolveLinesStrings } from "@/lib/physics/modes/lines"; // --- string-art ---
+import { PORTAL_DEFAULT_USES } from "@/lib/physics/modes/portal"; // --- portal-options ---
 // --- gerald-glass ---
 import type { GlassSettings } from "@/lib/physics/modes/glass";
 // --- gerald-multipliers ---
@@ -110,6 +111,8 @@ export interface ModeSettings {
   shatterEvenBricks?: boolean;
   growRate: number;
   portalCount: number;
+  /** --- portal-options --- (D3 review) Portal: the jumps each pair holds (absent: the mode's own 4). */
+  portalUses?: number;
   twoBalls: boolean;
   // --- review fix (modes-rhythm) ---
   /**
@@ -633,6 +636,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   }
   if (mode === "grow") engine.setGrowRate(settings.growRate);
   if (mode === "portal") engine.setPortalCount(settings.portalCount);
+  if (mode === "portal") engine.setPortalUses(settings.portalUses ?? PORTAL_DEFAULT_USES); // --- portal-options ---
   if (mode === "lines") engine.setLinesStrings(settings.lines?.strings ?? 0); // --- string-art ---
   if (mode === "paint") engine.setPaintGuide(settings.paintGuide === true); // --- paint-full ---
   if (mode === "drop") engine.setDropSettings(settings.drop);
