@@ -828,7 +828,8 @@ export const GROW_FILL_SHARE = 0.95;
  * the page draws it: Bullseye's first centre hit (its BULLSEYE! callout; the run goes on through the other shots), Bouncing
  * Shapes' first shape at zero (it stops still there; the others count on), Merge Ring's final form (its FINAL FORM banner, the run ending
  * FINAL_HOLD_MS later – an overflow is none), Paddle Keep-Up's GAME OVER (GAME_OVER_HOLD_SEC before its end) and the conveyor's
- * last ball out (its final banner, FINAL_HOLD_MS before its end). --- templates --- (AI studio step 6) And a Mode Lab game's finish
+ * last ball out (its final banner and chord: in the rings the last ball's escape, its ride off the field and FINAL_HOLD_MS before
+ * its end; --- conveyor-all-out --- E6 review). --- templates --- (AI studio step 6) And a Mode Lab game's finish
  * rule (its end banner, held END_HOLD_SEC before its run ends; a timeout is none).
  */
 export const MARK_MODES: readonly SimulatorSettings["mode"][] = ["bullseye", "box", "mergeRing", "paddle", "conveyor", "blueprint" /* --- templates --- (AI studio step 6) */];
@@ -856,7 +857,8 @@ function markNow(engine: ReturnType<typeof createEngineForSettings>, mode: Simul
     case "paddle":
       return engine.getPaddleView().over;
     case "conveyor":
-      return engine.getConveyorView().allDone;
+      // --- conveyor-all-out --- (Lane E, E6 review) its ALL OUT! and chord: in the rings the last ball out, before it rides off
+      return engine.getConveyorView().outAtMs >= 0;
     // --- templates --- (AI studio step 6) a Mode Lab game's finish rule fired (not its timeout): its end banner comes in, and the run
     // ends END_HOLD_SEC later (modes/blueprint.ts)
     case "blueprint": {

@@ -113,7 +113,7 @@ import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (record
 import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
 // --- gerald-conveyor --- the Conveyor Belt: the belts, the hatch, the loading tube, the bowl, the bins, the frost and the counter
 import { dropBannerAt, drawDropFinale, drawDropLit } from "./dropRenderer"; // --- drop-lights --- Ball Drop's lit pegs, its finale's rings and its banner's place
-import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, conveyorBannerAt, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
+import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, conveyorBannerAt, conveyorBannerShown, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 // --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
 import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbBannerHeight, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
 // --- orb-rhythm --- the frame's own simulation time (the orbs are analytic in time: drawn between the engine's steps) and the refresh it may draw at
@@ -3316,7 +3316,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- blueprint --- (Mode Lab's end banner is its overlay's: blueprintLayer.drawOverlay(), opaque, on a dark band)
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
-        if (conveyorView && conveyorView.allDone) {
+        if (conveyorView && conveyorBannerShown(conveyorView)) { // --- conveyor-all-out --- (E6 review: from the last ball out, with its chord)
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
           bigBanner(CV.title, CV.sub, "#a3e635", conveyorBannerAt(conveyorView, size.width, size.height)); // --- end-banner --- (under the bowl and its pile, not over them; --- conveyor-count --- (Lane E, E6) above the rings and the pegs)
         }

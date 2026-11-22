@@ -300,12 +300,17 @@ export interface DropView {
   /** Notes of the finale played so far, and whether its closing chord has rung. */
   arpPlayed: number;
   chordPlayed: boolean;
+  /**
+   * --- drop-chord-flash --- (Lane E, E6 review) The simulation ms the closing chord rang (−1 before): the whole lit board flashes
+   * back to its fresh brightness at once and every ball rings with it, so the chord is seen, not only heard.
+   */
+  chordMs: number;
   /** Per ball id: the simulation ms it clicked into place (its rest, once a run). */
   lockMs: Map<number, number>;
 }
 
 function createDropView(): DropView {
-  return { timeMs: 0, wallCount: 0, litMs: new Float64Array(0), litColor: [], settledMs: -1, cycleFromMs: -1, cyclePlayed: 0, arpIds: [], arpHz: [], arpPlayed: 0, chordPlayed: false, lockMs: new Map() };
+  return { timeMs: 0, wallCount: 0, litMs: new Float64Array(0), litColor: [], settledMs: -1, cycleFromMs: -1, cyclePlayed: 0, arpIds: [], arpHz: [], arpPlayed: 0, chordPlayed: false, chordMs: -1, lockMs: new Map() };
 }
 // --- end drop-lights ---
 /** Candidate spots tried for a release before it waits for the next step (the top must be clear of other balls). */
@@ -380,6 +385,7 @@ export class DropMode implements GameMode {
     v.arpHz = [];
     v.arpPlayed = 0;
     v.chordPlayed = false;
+    v.chordMs = -1; // --- drop-chord-flash ---
     v.lockMs.clear();
     this.lockAnchors.clear();
     this.rebuild(ctx);
@@ -495,6 +501,7 @@ export class DropMode implements GameMode {
       this.orderNotes(balls);
       v.arpPlayed = 0;
       v.chordPlayed = false;
+      v.chordMs = -1; // --- drop-chord-flash ---
       this.stepFinale(ctx);
     } else {
       this.anchorBalls(balls);
@@ -518,6 +525,7 @@ export class DropMode implements GameMode {
     }
     if (v.arpPlayed >= v.arpHz.length && t >= dropArpChordAtMs(v.arpHz.length) - 1e-6) {
       v.chordPlayed = true;
+      v.chordMs = ctx.getElapsedMs(); // --- drop-chord-flash --- (the board and the balls flash with it: dropRenderer.ts)
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" });
     }
   }

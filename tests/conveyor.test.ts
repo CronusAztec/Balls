@@ -477,13 +477,16 @@ describe("a run", () => {
     expect(chords).toHaveLength(1);
     const [finale] = chords;
     expect(v).toMatchObject({ allDone: true, timedOut: false, finished: true });
-    expect(Math.abs(1000 * finale.t - v.doneAtMs)).toBeLessThanOrEqual(STEP + 1e-6);
+    // (--- conveyor-all-out --- E6 review: with the last ball out of the rings, the banner's own moment, not once it has ridden off)
+    expect(Math.abs(1000 * finale.t - v.outAtMs)).toBeLessThanOrEqual(STEP + 1e-6);
+    expect(Math.abs(v.outAtMs - v.lastEscapeMs)).toBeLessThanOrEqual(STEP + 1e-6);
     expect([finale.ev.type, finale.ev.melody, finale.ev.chord!.length, finale.ev.frequency]).toEqual(["hit", false, 4, finale.ev.chord![0]]);
     expect(finale.ev.chord!.every((f, i, all) => i === 0 || f > all[i - 1])).toBe(true);
     expect(finale.ev.chord![3] / finale.ev.chord![0]).toBeCloseTo(2, 6);
     expect(finale.ev.chord).toEqual(conveyorFinishChord(v.settings.scale, v.settings.rootNote));
-    // nothing after it: the hold that follows is the banner's
-    expect(events.filter((e) => e.t > finale.t + 1e-9 && e.ev.type === "hit" && !e.ev.conveyor)).toEqual([]);
+    // nothing after it but the last escaped balls' soft thumps onto the bottom belt as they ride off (wall 3, an accompaniment),
+    // and nothing at all once the run is done: the hold that follows is the banner's (--- conveyor-all-out --- E6 review)
+    expect(events.filter((e) => e.t > finale.t + 1e-9 && e.ev.type === "hit" && !e.ev.conveyor && !(e.ev.wallIndex === 3 && e.ev.melody === false && 1000 * e.t <= v.doneAtMs + 1e-6))).toEqual([]);
   });
 
   it("the director gets every ball out, even through narrow gaps on fast rings – after a patience that differs from ball to ball", () => {

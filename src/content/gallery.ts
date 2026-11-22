@@ -476,6 +476,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   // --- gallery-every-mode --- seed 2: the run ends at 22.4 s of its 30 s clip in the 800 × 450 world (24.9 s in a phone's 450 × 450)
+  // (--- conveyor-all-out --- E6 review: the rings make no pile, their balls get out one by one: its words say so now)
   {
     id: "pastel-conveyor",
     mode: "conveyor",
@@ -483,9 +484,9 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 10,
     name: { en: "Pastel Conveyor", pl: "Pastelowa taśma", es: "Cinta pastel" },
     description: {
-      en: "A belt drops a new ball into the pastel rings every second. The pile grows and the counter keeps score.",
-      pl: "Taśma co sekundę zrzuca nową piłkę do pastelowych pierścieni. Stos rośnie, a licznik liczy punkty.",
-      es: "Una cinta deja caer una bola nueva en los anillos pastel cada segundo. La pila crece y el contador lleva la cuenta.",
+      en: "Every second a belt drops one of twelve balls into the pastel rings. Watch each one find its way out.",
+      pl: "Taśma co sekundę zrzuca kolejną z dwunastu piłek do pastelowych pierścieni. Patrz, jak każda znajduje wyjście.",
+      es: "Cada segundo, una cinta suelta una de las doce bolas en los anillos pastel. Mira cómo cada una encuentra la salida.",
     },
   },
   // --- conveyor-count --- (Lane E, E6) the bowl with a question: forty balls, one every half second. Seed 4 on the page (the

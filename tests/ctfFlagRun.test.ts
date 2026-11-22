@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { CTF_RISER_HZ, CTF_RISER_SEC, CTF_TICK_HZ, CTF_TICK_MS, ctfTickHz } from "@/lib/physics/modes/ctf";
 import { FANFARE } from "@/lib/physics/modes/arenaGames";
-import { CTF_CARRIED_FLAG, CTF_SCORE_POP_MS, ctfScorePop } from "@/components/simulator/arenaRenderer";
+import { ArenaLayer, CTF_CARRIED_FLAG, CTF_HALF_TINT, CTF_SCORE_POP_MS, CTF_STREAK_ALPHA, DEFAULT_ARENA_LABELS, ctfScorePop, type ArenaRenderOptions } from "@/components/simulator/arenaRenderer";
+import { fakeCanvas } from "./fakeCanvas";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -99,4 +100,72 @@ describe("Capture the Flag's picture", () => {
     // measured on seeds 1–40 (the laptop world; the phone world's 450 × 450 gives the same): 9 on the clock with the start look, 14 with the link base
     expect([start, base]).toEqual([9, 14]);
   }, 120_000);
+});
+
+// --- ctf-fill --- (Lane E, E6 review) six small squares on a dark field: every square now streaks and glows in its team's colour
+// over brighter halves, and a carrier's run stops drawing once the game is over, under DRAW! or the winner card
+describe("Capture the Flag's field", () => {
+  const OPTIONS: ArenaRenderOptions = { wallColor: () => "#ffffff", wallThickness: 4, showWallGlow: true, showGlow: false, showTrails: true, roster: null, showNames: false, numbers: true, labels: DEFAULT_ARENA_LABELS };
+
+  /** The bodies of one frame: every stroke's and fill's opacity and dash, and every arc's radius. */
+  function bodiesOf(e: PhysicsEngine) {
+    const canvas = fakeCanvas(WORLD.width, WORLD.height);
+    const ctx = canvas.ctx;
+    const strokes: { alpha: number; dashed: boolean; width: number }[] = [];
+    const arcs: number[] = [];
+    let dash: number[] = [];
+    ctx.setLineDash = (d: number[]) => {
+      dash = d;
+    };
+    const stroke = ctx.stroke as (...a: unknown[]) => void;
+    ctx.stroke = (...a: unknown[]) => {
+      strokes.push({ alpha: ctx.globalAlpha, dashed: dash.length > 0, width: ctx.lineWidth });
+      return stroke(...a);
+    };
+    const arc = ctx.arc as (...a: unknown[]) => void;
+    ctx.arc = (...a: unknown[]) => {
+      arcs.push(a[2] as number);
+      return arc(...a);
+    };
+    new ArenaLayer().drawBodies(ctx as unknown as CanvasRenderingContext2D, e.getBalls(), e.getArenaView()!, OPTIONS);
+    return { strokes, arcs };
+  }
+
+  it("streaks and glows every square in its team's colour over brighter halves, the carrier boldest", () => {
+    expect(CTF_HALF_TINT).toBeGreaterThan(0.07);
+    const e = engineOf(7, clipStartSettings("ctf"));
+    let seen = false;
+    for (let frame = 0; frame < 40 * 60 && !e.isSimulationFinished() && !seen; frame++) {
+      e.update(1000 / 60, 0);
+      const v = e.getArenaView()!;
+      if (frame < 60 || !v.carrying.some((c) => c >= 0)) continue;
+      seen = true;
+      const { strokes, arcs } = bodiesOf(e);
+      const h = e.getBalls()[0].radius;
+      // a halo round each of the six squares (two layers, the outer 2.5 half sizes out)
+      expect(arcs.filter((r) => Math.abs(r - 2.5 * h) < 1e-6)).toHaveLength(6);
+      // a streak behind every square: the five without a flag at CTF_STREAK_ALPHA at most, the carrier's bolder, with its dashed line home
+      const faint = strokes.filter((x) => !x.dashed && x.alpha <= CTF_STREAK_ALPHA + 1e-9 && x.alpha > 0.2);
+      const bold = strokes.filter((x) => !x.dashed && x.alpha > CTF_STREAK_ALPHA + 1e-9 && x.alpha <= 0.55 + 1e-9);
+      expect(faint.length).toBeGreaterThanOrEqual(5);
+      expect(bold.length).toBeGreaterThanOrEqual(1);
+      expect(strokes.filter((x) => x.dashed)).toHaveLength(v.carrying.filter((c) => c >= 0).length);
+    }
+    expect(seen).toBe(true);
+  }, 60_000);
+
+  it("draws no streak and no dashed line home once the game is over, a flag still carried or not", () => {
+    for (const seed of [1, 7]) {
+      const e = engineOf(seed, clipStartSettings("ctf"));
+      runAll(e);
+      expect(e.getCtfProgress().finished).toBe(true);
+      // a square that still holds a flag when the clock or the last capture ends the game
+      const v = e.getArenaView()!;
+      v.carrying[0] = 1;
+      const { strokes } = bodiesOf(e);
+      expect([seed, strokes.filter((x) => x.dashed).length]).toEqual([seed, 0]);
+      // what strokes is the squares' own outline (and the flag's pole and cloth), never a streak's fading segments
+      expect([seed, strokes.filter((x) => x.alpha < 0.55 && x.alpha > 0).length]).toEqual([seed, 0]);
+    }
+  }, 60_000);
 });

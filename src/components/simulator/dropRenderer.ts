@@ -13,6 +13,9 @@ export const DROP_LOCK_FLASH_MS = 320;
  *  - `drawDropFinale()` over the balls: a ball that comes to rest clicks into place with a small ring; once every ball is in place
  *    the board plays their notes low to high round and round, then, at SETTLED!, once more fast, and each ball rings as its note
  *    sounds (a ring in its colour, growing and fading).
+ *  - --- drop-chord-flash --- (Lane E, E6 review) the finale is seen, not only heard: its rings reach out several ball widths with a
+ *    burst of sparks (the balls are about 2 % of the frame: a ring 1.6 radii out read as a thin circle), and at the closing chord
+ *    the whole lit board flashes back to its fresh brightness at once while every ball rings with it.
  * Both read the mode's state on the simulation clock (`view.timeMs`), so the live canvas, the fast export and the app's render
  * queue draw the same frame at the same time; nothing is allocated per frame beyond a few colour strings.
  */
@@ -49,13 +52,15 @@ const GLOW_LAYERS: readonly (readonly [number, number, number])[] = [
 export function drawDropLit(ctx: CanvasRenderingContext2D, view: DropView, obstacles: readonly Obstacle[], wallThickness: number): void {
   const n = Math.min(obstacles.length, view.litMs.length);
   if (n <= view.wallCount) return;
+  // --- drop-chord-flash --- from the closing chord on, every lit peg and bar glows as if it had just been hit, all at once
+  const chordAt = view.chordMs >= 0 && view.timeMs >= view.chordMs ? view.chordMs : -Infinity;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
   for (let i = view.wallCount; i < n; i++) {
     const hitAt = view.litMs[i];
     if (!(hitAt >= 0)) continue;
-    const boost = dropLitAlpha(view.timeMs - hitAt) / LIT_ALPHA;
+    const boost = dropLitAlpha(view.timeMs - Math.max(hitAt, chordAt)) / LIT_ALPHA;
     const color = view.litColor[i] || "#ffffff";
     const o = obstacles[i];
     if (o.kind === "circle") {
@@ -83,15 +88,47 @@ export function drawDropLit(ctx: CanvasRenderingContext2D, view: DropView, obsta
   ctx.restore();
 }
 
-/** A ring around `ball` `f` (0–1) of the way through its flash: growing by `grow` of its radius and fading. */
-function ring(ctx: CanvasRenderingContext2D, ball: Ball, f: number, grow: number, alpha: number) {
+/** A ring around `ball` `f` (0–1) of the way through its flash: growing by `grow` of its radius and fading, `width` radii thick. */
+function ring(ctx: CanvasRenderingContext2D, ball: Ball, f: number, grow: number, alpha: number, width = 0.35) {
   ctx.globalAlpha = alpha * (1 - f);
   ctx.strokeStyle = ball.color;
-  ctx.lineWidth = Math.max(2, 0.35 * ball.radius) * (1 - 0.5 * f);
+  ctx.lineWidth = Math.max(2, width * ball.radius) * (1 - 0.5 * f);
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.radius * (1.2 + grow * f), 0, TWO_PI);
   ctx.stroke();
 }
+
+// --- drop-chord-flash --- (Lane E, E6 review)
+/**
+ * The finale's ring: how far it grows (radii) and how thick it is (radii) – its reach × its thickness three times the old ring's
+ * (1.6 and 0.35) –; and the burst's sparks, how many and how far (radii).
+ */
+export const DROP_FINALE_RING_GROW = 4;
+export const DROP_FINALE_RING_WIDTH = 0.6;
+const BURST_SPARKS = 8;
+const BURST_REACH = 4.2;
+/** How long (ms of simulation time) every ball rings with the closing chord. */
+export const DROP_CHORD_RING_MS = 600;
+
+/** A short burst of sparks out of `ball`, `f` (0–1) of the way through: rays in its colour, flying out and shrinking. */
+function burst(ctx: CanvasRenderingContext2D, ball: Ball, f: number, alpha: number) {
+  const r = ball.radius;
+  const from = r * (1.3 + BURST_REACH * f);
+  const to = from + r * 1.1 * (1 - f);
+  ctx.globalAlpha = alpha * (1 - f);
+  ctx.strokeStyle = ball.color;
+  ctx.lineWidth = Math.max(1.5, 0.3 * r * (1 - 0.5 * f));
+  ctx.beginPath();
+  for (let i = 0; i < BURST_SPARKS; i++) {
+    const a = (TWO_PI * (i + 0.5)) / BURST_SPARKS;
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    ctx.moveTo(ball.x + c * from, ball.y + sn * from);
+    ctx.lineTo(ball.x + c * to, ball.y + sn * to);
+  }
+  ctx.stroke();
+}
+// --- end drop-chord-flash ---
 
 /** The rings over the balls: a ball's click into place, then the finale's notes (each ball rings as its note sounds). */
 export function drawDropFinale(ctx: CanvasRenderingContext2D, view: DropView, balls: readonly Ball[]): void {
@@ -126,15 +163,25 @@ export function drawDropFinale(ctx: CanvasRenderingContext2D, view: DropView, ba
   }
   if (view.settledMs < 0 || n === 0) return;
   const t = view.timeMs - view.settledMs;
-  if (t < 0 || t > dropArpAtMs(view.arpIds.length - 1) + DROP_ARP_FLASH_MS) return;
+  // --- drop-chord-flash --- every ball rings with the closing chord, at once
+  const chordAge = view.chordMs >= 0 ? view.timeMs - view.chordMs : -1;
+  const chordRing = chordAge >= 0 && chordAge <= DROP_CHORD_RING_MS;
+  if (!chordRing && (t < 0 || t > dropArpAtMs(view.arpIds.length - 1) + DROP_ARP_FLASH_MS)) return;
   ctx.save();
   for (const ball of balls) {
     const k = view.arpIds.indexOf(ball.id);
     if (k < 0) continue;
+    if (chordRing) {
+      const f = chordAge / DROP_CHORD_RING_MS;
+      ring(ctx, ball, f, DROP_FINALE_RING_GROW, 0.85, DROP_FINALE_RING_WIDTH);
+      burst(ctx, ball, f, 0.9);
+    }
     const age = t - dropArpAtMs(k);
     if (age < 0 || age > DROP_ARP_FLASH_MS) continue;
     const f = age / DROP_ARP_FLASH_MS;
-    ring(ctx, ball, f, 1.6, 0.9);
+    // (--- drop-chord-flash --- several ball widths out with a burst of sparks: it was a thin ring 1.6 radii out)
+    ring(ctx, ball, f, DROP_FINALE_RING_GROW, 0.9, DROP_FINALE_RING_WIDTH);
+    burst(ctx, ball, f, 0.85);
     ctx.globalAlpha = 0.55 * (1 - f);
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();

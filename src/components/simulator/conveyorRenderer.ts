@@ -93,6 +93,14 @@ export function conveyorBannerAt(view: ConveyorView, width: number, height: numb
   return ((top + 0.02 * side + arenaTop) / 2 - top) / side;
 }
 
+/**
+ * --- conveyor-all-out --- (Lane E, E6 review) Whether the end banner shows: from the moment it came in with its chord
+ * (`ConveyorView.outAtMs`: in the rings the last ball out, not the run's end once it has ridden off) through the hold.
+ */
+export function conveyorBannerShown(view: Pick<ConveyorView, "outAtMs">): boolean {
+  return view.outAtMs >= 0;
+}
+
 /** The pop of a counter `ageMs` after its count went up: a scale from 1.35 back to 1 (1 before and after). */
 export function conveyorCountPop(ageMs: number): number {
   if (!(ageMs >= 0) || ageMs >= CONVEYOR_COUNT_POP_MS) return 1;
@@ -342,7 +350,7 @@ export class ConveyorLayer {
    */
   drawOverlay(ctx: CanvasRenderingContext2D, view: ConveyorView, labels: ConveyorLabels, width: number, height: number, inset = 0) {
     const L = view.layout;
-    if (!L || view.allDone) return;
+    if (!L || conveyorBannerShown(view)) return;
     const side = Math.min(width, height);
     const right = Math.min(L.right - 0.025 * side, width / 2 + side / 2 - 0.035 * side);
     const top = height / 2 - side / 2 + 0.03 * side + inset;

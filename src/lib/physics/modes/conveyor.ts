@@ -36,7 +36,8 @@ import { cruiseSpeed } from "../multipliers";
  * Determinism: `init()` draws every ball's numbers up front from `ctx.random()` (its size, colour, drop jitter and launch
  * angle, patience – the same six draws per ball whatever the arena), the schedule runs on the simulation clock and everything else is
  * physics, so a seed replays exactly and Find Simulation searches the run's length. The run finishes `FINAL_HOLD_MS` after
- * the last ball is out (rings: escaped or frozen, and carried away) or the arena has settled (bowl, pegs).
+ * the last ball is out (rings: escaped or frozen, and carried away) or the arena has settled (bowl, pegs). (--- conveyor-all-out
+ * --- the rings' end banner and its chord come earlier, with the last ball out of the rings: `ConveyorView.outAtMs`.)
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -884,6 +885,13 @@ export interface ConveyorView {
   /** Everything is done: the final banner shows through the hold. The run then finishes. */
   allDone: boolean;
   doneAtMs: number;
+  /**
+   * --- conveyor-all-out --- (Lane E, E6 review) The simulation ms the end banner came in with its chord (−1 before): in the rings
+   * the step the last ball got out of them (or froze), every ball loaded – the escaped ones may still roll down onto the bottom
+   * belt and ride off before the run is done (`doneAtMs`, 0.5–4.2 s later on the start look); in the bowl and the pegs (and a
+   * run the safety net ended), `doneAtMs`.
+   */
+  outAtMs: number;
   /** The safety net ended the run (something was still moving). */
   timedOut: boolean;
   finished: boolean;
@@ -918,6 +926,7 @@ function createView(): ConveyorView {
     frozenBalls: [],
     allDone: false,
     doneAtMs: -1,
+    outAtMs: -1, // --- conveyor-all-out ---
     timedOut: false,
     finished: false,
     finishedMs: -1,
@@ -1086,6 +1095,7 @@ export class ConveyorMode implements GameMode {
     v.frozenBalls = this.frozen;
     v.allDone = false;
     v.doneAtMs = -1;
+    v.outAtMs = -1; // --- conveyor-all-out ---
     v.timedOut = false;
     v.finished = false;
     v.finishedMs = -1;
@@ -1706,21 +1716,18 @@ export class ConveyorMode implements GameMode {
     }
     v.riding = riding;
     v.inside = inside;
+    // --- conveyor-all-out --- (Lane E, E6 review) the rings' payoff comes with the last ball out (or frozen), in the step of its
+    // accented C5 escape note: ALL OUT! and its chord no longer wait 0.5–4.2 s for it to roll down onto the bottom belt and ride off
+    // over an empty, silent arena. The run's end (`doneAtMs`, `finishedMs`) stays where it was: the links, the finder's lengths
+    // and the fingerprint keep it.
+    if (rings && v.outAtMs < 0 && v.loaded >= v.max && v.escaped + v.frozen >= v.max) this.finale(ctx, L, false);
     if (!v.allDone && v.loaded >= v.max) {
       const timedOut = this.clockMs - v.lastDropMs >= SETTLE_TIMEOUT_MS;
       if (active === 0 || timedOut) {
         v.allDone = true;
         v.timedOut = active > 0;
         v.doneAtMs = this.clockMs;
-        ctx.spawnConfetti(L.cx, L.top + 0.4 * L.fieldHeight);
-        // --- conveyor --- (studio2 review round 2, 12) the final banner comes in with its chord (TIME'S UP plays none)
-        if (!v.timedOut) {
-          const chord = conveyorFinishChord(s.scale, s.rootNote);
-          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
-          // --- conveyor-climb --- (Lane E, E6) and the completion chord two octaves under it, ringing through the banner's hold
-          // (the instrument's chord is gone in a quarter second: the clip's last 1.8 s were silent); a sound of its own
-          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: chord[0] / 4, level: 1, melody: false, ringVoice: "extra" });
-        }
+        if (v.outAtMs < 0) this.finale(ctx, L, v.timedOut);
       }
     }
     if (v.allDone && !v.finished && this.clockMs >= v.doneAtMs + FINAL_HOLD_MS - 1e-6) {
@@ -1728,6 +1735,23 @@ export class ConveyorMode implements GameMode {
       v.finishedMs = this.clockMs;
     }
     void dtMs;
+  }
+
+  /**
+   * The end banner comes in (`outAtMs`) with confetti and – unless the safety net ended the run (TIME'S UP plays none) – its
+   * chord (--- conveyor --- studio2 review round 2, 12) and the completion chord two octaves under it (--- conveyor-climb ---
+   * Lane E, E6: a sound of its own, ringVoice "extra"), which rings on through the banner's hold (--- conveyor-all-out --- E6
+   * review: held 2 s with its tremolo, as the rings' last ball may still ride off before the hold).
+   */
+  private finale(ctx: ModeContext, L: ConveyorLayout, timedOut: boolean) {
+    const v = this.view;
+    const s = this.settings;
+    v.outAtMs = this.clockMs;
+    ctx.spawnConfetti(L.cx, L.top + 0.4 * L.fieldHeight);
+    if (timedOut) return;
+    const chord = conveyorFinishChord(s.scale, s.rootNote);
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: chord[0] / 4, level: 1, loopTremolo: true, melody: false, ringVoice: "extra" });
   }
 
   /** Ball `k` freezes where it is: an obstacle for the others from now on. */

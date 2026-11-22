@@ -86,6 +86,16 @@ export const HIT_FLASH_MS = 220;
 export const WALL_GLOW_MS = 500;
 export const KO_MS = 1200;
 export const CAPTURE_BANNER_MS = 1400;
+// --- ctf-fill --- (Lane E, E6 review) the field filled with colour and motion, the physics untouched: the halves' tint (it was
+// 0.07), every square's streak (its opacity and width, × its half size, at the square; the carrier's 0.55 and 1.6) and its halo
+// (how far out, × its half size, and how strong, outermost first)
+export const CTF_HALF_TINT = 0.13;
+export const CTF_STREAK_ALPHA = 0.26;
+export const CTF_STREAK_WIDTH = 1.25;
+const CTF_HALO_LAYERS: readonly (readonly [number, number])[] = [
+  [2.5, 0.09],
+  [1.8, 0.16],
+];
 // --- ctf-flag-run --- (Lane E, E6)
 /** The flag a carrier flies, as a multiple of the square's half-size (it was 1.5: the flag was smaller than the square). */
 export const CTF_CARRIED_FLAG = 3;
@@ -253,7 +263,7 @@ export class ArenaLayer {
     const f = view.field!;
     const now = view.timeMs;
     for (let team = 0; team < 2; team++) {
-      ctx.globalAlpha = 0.07;
+      ctx.globalAlpha = CTF_HALF_TINT; // --- ctf-fill --- (E6 review: it was 0.07, a dark field around six small squares)
       ctx.fillStyle = this.colorOf(team);
       ctx.fillRect(team === 0 ? f.cx - f.halfW : f.cx, f.cy - f.halfH, f.halfW, 2 * f.halfH);
     }
@@ -339,6 +349,7 @@ export class ArenaLayer {
    */
   private drawCarrierRun(ctx: CanvasRenderingContext2D, view: ArenaView, ball: Ball, team: number, color: string, h: number) {
     const home = view.bases[team];
+    this.drawStreak(ctx, ball, color, h, 0.55, 1.6);
     if (home) {
       ctx.globalAlpha = 0.45;
       ctx.strokeStyle = color;
@@ -350,6 +361,15 @@ export class ArenaLayer {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * A square's streak along its last positions (the engine's trail of the square, its 60 Hz steps: the same on every path), widest
+   * and brightest at the square: `alpha` and `width` (× its half size) there. --- ctf-fill --- (E6 review) every square draws one
+   * (CTF_STREAK_ALPHA), the carrier a bolder one: the field is full of colour and motion, not only where a flag is carried.
+   */
+  private drawStreak(ctx: CanvasRenderingContext2D, ball: Ball, color: string, h: number, alpha: number, width: number) {
     const len = ball.trail.length;
     if (len < 3) return;
     ctx.strokeStyle = color;
@@ -360,14 +380,26 @@ export class ArenaLayer {
       const b = ball.trail[(ball.trailIndex + i + 1) % len];
       if (!a || !b) continue;
       const f = (i + 1) / (len - 1);
-      ctx.globalAlpha = 0.55 * f;
-      ctx.lineWidth = Math.max(1.5, 1.6 * h * f);
+      ctx.globalAlpha = alpha * f;
+      ctx.lineWidth = Math.max(1.5, width * h * f);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
     }
     ctx.lineCap = "butt";
+    ctx.globalAlpha = 1;
+  }
+
+  /** --- ctf-fill --- (E6 review) A soft halo in the square's team colour around it (two layers: no gradient made per frame). */
+  private drawHalo(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, color: string) {
+    ctx.fillStyle = color;
+    for (const [reach, alpha] of CTF_HALO_LAYERS) {
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(x, y, reach * h, 0, TWO_PI);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -452,7 +484,15 @@ export class ArenaLayer {
         }
       }
       // --- ctf-flag-run --- a carrier: a thin line to the base it runs for and a streak in its team's colour behind it
-      if (view.game === "ctf" && view.carrying[k] >= 0) this.drawCarrierRun(ctx, view, ball, team, color, h);
+      // (--- ctf-fill --- E6 review: every square a fainter streak and a halo in its team's colour; none of the runs under the
+      // winner card once the game is over)
+      if (view.game === "ctf") {
+        if (!view.finished) {
+          if (view.carrying[k] >= 0) this.drawCarrierRun(ctx, view, ball, team, color, h);
+          else this.drawStreak(ctx, ball, color, h, CTF_STREAK_ALPHA, CTF_STREAK_WIDTH);
+        }
+        if (!o.showGlow) this.drawHalo(ctx, x, y, h, color);
+      }
       if (o.showGlow) {
         ctx.globalAlpha = 0.25;
         ctx.fillStyle = color;

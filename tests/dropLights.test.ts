@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { DROP_ARP_STEP_MS, DROP_CYCLE_LEVEL, DROP_CYCLE_STEP_MS, DROP_LOCK_LEVEL, DROP_LOCK_MS, DROP_SETTLED_HZ, dropArpAtMs, dropArpChordAtMs, dropBallColor, dropCycleAtMs, dropHitFrequency } from "@/lib/physics/modes/drop";
-import { dropBannerAt, dropLitAlpha, DROP_LIT_FRESH_MS } from "@/components/simulator/dropRenderer";
+import { DROP_CHORD_RING_MS, DROP_FINALE_RING_GROW, DROP_FINALE_RING_WIDTH, dropBannerAt, dropLitAlpha, drawDropFinale, drawDropLit, DROP_LIT_FRESH_MS } from "@/components/simulator/dropRenderer";
+import { fakeCanvas } from "./fakeCanvas";
 import type { SoundEvent } from "@/lib/physics/types";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings } from "@/lib/settings";
@@ -162,5 +163,84 @@ describe("Ball Drop's finale", () => {
       for (let frame = 0; frame < 60 * 40 && !e.isSimulationFinished(); frame++) e.update(1000 / 60, 0);
       expect([seed, Math.round(e.getElapsedMs() / 10) / 100]).toEqual([seed, sec]);
     }
+  }, 60_000);
+});
+
+// --- drop-chord-flash --- (Lane E, E6 review) the finale was heard more than seen: thin rings 1.6 radii out round balls about 2 % of
+// the frame, and at the chord the frame looked as it did a second before
+describe("Ball Drop's chord, seen", () => {
+  /** One draw call's record: what was filled or stroked, at which opacity and line width, and every arc's radius. */
+  function recorder() {
+    const canvas = fakeCanvas(WORLD.width, WORLD.height);
+    const ctx = canvas.ctx;
+    const fills: number[] = [];
+    const strokes: { alpha: number; width: number }[] = [];
+    const arcs: number[] = [];
+    const fill = ctx.fill as (...a: unknown[]) => void;
+    ctx.fill = (...a: unknown[]) => {
+      fills.push(ctx.globalAlpha);
+      return fill(...a);
+    };
+    const stroke = ctx.stroke as (...a: unknown[]) => void;
+    ctx.stroke = (...a: unknown[]) => {
+      strokes.push({ alpha: ctx.globalAlpha, width: ctx.lineWidth });
+      return stroke(...a);
+    };
+    const arc = ctx.arc as (...a: unknown[]) => void;
+    ctx.arc = (...a: unknown[]) => {
+      arcs.push(a[2] as number);
+      return arc(...a);
+    };
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, fills, strokes, arcs };
+  }
+
+  it("flashes the whole lit board back to its fresh glow at the chord, and every ball rings with it", () => {
+    const e = engineOf(7);
+    runToEnd(e);
+    const v = e.getDropView();
+    const n = v.arpIds.length;
+    expect(v.chordPlayed).toBe(true);
+    expect(v.chordMs - v.settledMs).toBeGreaterThanOrEqual(dropArpChordAtMs(n) - 1e-6);
+    expect(v.chordMs - v.settledMs).toBeLessThan(dropArpChordAtMs(n) + 1000 / 60 + 1e-6);
+    const obstacles = e.getDropLayout()!.obstacles;
+    const lit = [...v.litMs].filter((ms, i) => i >= v.wallCount && i < obstacles.length && ms >= 0).length;
+    expect(lit).toBeGreaterThan(10);
+    // the outermost glow layer of every lit peg and bar: its lasting opacity just before the chord (most of them), the fresh one at it (all)
+    const outerAt = (timeMs: number) => {
+      const r = recorder();
+      drawDropLit(r.ctx, { ...v, timeMs }, obstacles, 4);
+      return [...r.fills, ...r.strokes.map((x) => x.alpha)].filter((_, i) => i % 3 === 0);
+    };
+    const lasting = 0.12;
+    const fresh = Math.min(1, (lasting * dropLitAlpha(0)) / dropLitAlpha(60_000));
+    const before = outerAt(v.chordMs - 1);
+    const at = outerAt(v.chordMs);
+    expect(before.filter((a) => Math.abs(a - lasting) < 1e-9).length).toBeGreaterThan(lit / 2);
+    expect(at).toHaveLength(lit);
+    for (const a of at) expect(a).toBeCloseTo(fresh, 9);
+    // every ball rings at the chord, growing several ball widths out with a burst of sparks
+    const balls = e.getBalls();
+    const mid = recorder();
+    drawDropFinale(mid.ctx, { ...v, timeMs: v.chordMs + DROP_CHORD_RING_MS / 2 }, balls);
+    for (const b of balls) expect(mid.arcs.some((r) => Math.abs(r - b.radius * (1.2 + DROP_FINALE_RING_GROW / 2)) < 1e-6)).toBe(true);
+    const gone = recorder();
+    drawDropFinale(gone.ctx, { ...v, timeMs: v.chordMs + DROP_CHORD_RING_MS + 1 }, balls);
+    expect(gone.arcs).toEqual([]);
+  }, 60_000);
+
+  it("rings each ball's note of the finale several ball widths out, thick, three times the old ring's reach", () => {
+    // the old ring grew 1.6 radii past 1.2 and was 0.35 radii thick: the new one's reach × thickness, at least three times that
+    expect((1.2 + DROP_FINALE_RING_GROW) * DROP_FINALE_RING_WIDTH).toBeGreaterThanOrEqual(3 * (1.2 + 1.6) * 0.35);
+    expect(DROP_FINALE_RING_WIDTH).toBeGreaterThanOrEqual(0.5);
+    const e = engineOf(1);
+    runToEnd(e);
+    const v = e.getDropView();
+    const ball = e.getBalls().find((b) => b.id === v.arpIds[0])!;
+    // the lowest ball's note, half way through its flash (before the chord's own ring)
+    const r = recorder();
+    drawDropFinale(r.ctx, { ...v, chordMs: -1, timeMs: v.settledMs + dropArpAtMs(0) + 210 }, [ball]);
+    expect(Math.max(...r.arcs)).toBeCloseTo(ball.radius * (1.2 + DROP_FINALE_RING_GROW * 0.5), 6);
+    // its burst: eight sparks in one stroke beside the ring's
+    expect(r.strokes.length).toBeGreaterThanOrEqual(2);
   }, 60_000);
 });

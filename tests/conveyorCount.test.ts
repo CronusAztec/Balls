@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { conveyorEscapePitch, conveyorFinishChord } from "@/lib/physics/modes/conveyor";
-import { CONVEYOR_COUNT_POP_MS, DEFAULT_CONVEYOR_LABELS, conveyorBannerAt, conveyorCount, conveyorCountPop, ConveyorLayer } from "@/components/simulator/conveyorRenderer";
+import { FINAL_HOLD_MS, conveyorEscapePitch, conveyorFinishChord } from "@/lib/physics/modes/conveyor";
+import { CONVEYOR_COUNT_POP_MS, DEFAULT_CONVEYOR_LABELS, conveyorBannerAt, conveyorBannerShown, conveyorCount, conveyorCountPop, ConveyorLayer } from "@/components/simulator/conveyorRenderer";
+import { simulateFacts } from "@/lib/bot/planner";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -34,7 +35,7 @@ function runAll(e: PhysicsEngine, maxSec = 60): { ms: number; ev: SoundEvent }[]
 }
 
 describe("the Conveyor Belt's climb", () => {
-  it("plays every escape a step higher than the one before, the last one accented, then ALL OUT!'s chord", () => {
+  it("plays every escape a step higher than the one before, the last one accented, with ALL OUT!'s chord", () => {
     for (const seed of [1, 2]) {
       const e = engineOf(seed, clipStartSettings("conveyor"));
       const sounds = runAll(e);
@@ -51,15 +52,78 @@ describe("the Conveyor Belt's climb", () => {
       // each with its escape's wall-break sound, in the same step
       const breaks = sounds.filter((x) => x.ev.type === "gap");
       expect(breaks.map((x) => x.ms)).toEqual(climb.map((x) => x.ms));
-      // the octave climbed lands on the chord's root
+      // the octave climbed lands on the chord's root, in the same step (--- conveyor-all-out --- E6 review: not once the last ball
+      // has rolled down and ridden off, 0.5–4.2 s later)
       const chord = sounds.find((x) => x.ev.chord && x.ev.accent)!;
-      expect(chord.ms).toBeGreaterThan(climb[7].ms);
+      expect(chord.ms).toBe(climb[7].ms);
       expect(conveyorEscapePitch(7, v.settings.scale, v.settings.rootNote)).toBeCloseTo(conveyorFinishChord(v.settings.scale, v.settings.rootNote)[0], 6);
       // and the completion chord rings through the banner's hold, in the same step, two octaves under it
       const ring = sounds.filter((x) => x.ev.loop === "chord");
       expect(ring.map((x) => [x.ms, x.ev.ringVoice, x.ev.frequency])).toEqual([[chord.ms, "extra", chord.ev.chord![0] / 4]]);
     }
   }, 60_000);
+
+  // --- conveyor-all-out --- (Lane E, E6 review) the counter read 8 / 8 OUT, then the rings sat empty and silent for up to 4.2 s while
+  // the last ball rolled down onto the bottom belt and rode off, and only then came ALL OUT! and its chord
+  it("brings ALL OUT! and its chord in the step of the last escape, on every seed, and keeps the run's end where it was", () => {
+    const rideOffs: number[] = [];
+    for (let seed = 1; seed <= 12; seed++) {
+      const e = engineOf(seed, clipStartSettings("conveyor"));
+      const v = e.getConveyorView();
+      const layer = new ConveyorLayer();
+      let outStep = -1;
+      let shownStep = -1;
+      let chordStep = -1;
+      let ringStep = -1;
+      let tremolo = false;
+      let counterAfter = 0;
+      for (let step = 1; step <= 60 * 60 && !e.isSimulationFinished(); step++) {
+        e.update(1000 / 60, 0);
+        for (const ev of e.consumeSoundEvents()) {
+          if (ev.chord && ev.accent) chordStep = step;
+          if (ev.loop === "chord") {
+            ringStep = step;
+            tremolo = !!ev.loopTremolo;
+          }
+        }
+        if (outStep < 0 && v.escaped >= v.max) outStep = step;
+        if (shownStep < 0 && conveyorBannerShown(v)) shownStep = step;
+        if (shownStep > 0 && !v.allDone) {
+          const canvas = fakeCanvas(WORLD.width, WORLD.height);
+          layer.drawOverlay(canvas.ctx as unknown as CanvasRenderingContext2D, v, DEFAULT_CONVEYOR_LABELS, WORLD.width, WORLD.height);
+          counterAfter += canvas.ctx.calls.filter((c) => c.name === "fillText").length;
+        }
+      }
+      expect([seed, v.finished, v.escaped, v.carried, v.timedOut]).toEqual([seed, true, 8, 8, false]);
+      // the banner, its chord and the completion chord ringing on (held, with its tremolo) in the last escape's step
+      expect([seed, shownStep, chordStep, ringStep, tremolo]).toEqual([seed, outStep, outStep, outStep, true]);
+      expect(Math.abs(v.outAtMs - v.lastEscapeMs)).toBeLessThanOrEqual(1000 / 60 + 1e-6);
+      // the counter has stepped aside for it, while the last ball still rides off
+      expect([seed, counterAfter]).toEqual([seed, 0]);
+      // the run still ends FINAL_HOLD_MS after the last ball has ridden off the field: the links and the finder's lengths keep it
+      expect(v.doneAtMs).toBeGreaterThanOrEqual(v.outAtMs);
+      expect(v.finishedMs - v.doneAtMs).toBeGreaterThanOrEqual(FINAL_HOLD_MS - 1e-6);
+      expect(v.finishedMs - v.doneAtMs).toBeLessThan(FINAL_HOLD_MS + 1000 / 60);
+      rideOffs.push(v.doneAtMs - v.outAtMs);
+    }
+    // seeds 1–12 of the start look: the last ball rode off 0.5–4.2 s after its escape, where the banner used to wait
+    expect(Math.min(...rideOffs)).toBeGreaterThan(400);
+    expect(Math.max(...rideOffs)).toBeGreaterThan(4000);
+    // the planner times a clip's payoff on the banner too (MARK_MODES: the conveyor's last ball out)
+    const s = { ...defaultSettings("conveyor"), ...clipStartSettings("conveyor") } as SimulatorSettings;
+    const facts = simulateFacts(finderRequestOfSettings(s, WORLD, 40), 9, { strategy: "finish" }, 40);
+    const nine = engineOf(9, clipStartSettings("conveyor"));
+    runAll(nine, 40);
+    expect(facts.markSec! * 1000).toBeCloseTo(nine.getConveyorView().outAtMs, 6);
+    expect(facts.finishSec * 1000).toBeCloseTo(nine.getConveyorView().finishedMs, 6);
+    // the bowl and the pegs: their banner comes once the arena has settled, as before
+    for (const cvArena of ["bowl", "pegs"] as const) {
+      const a = engineOf(1, { cvArena, cvMaxBalls: 6, cvInterval: 1 });
+      runAll(a, 60);
+      const av = a.getConveyorView();
+      expect([cvArena, av.finished, av.outAtMs]).toEqual([cvArena, true, av.doneAtMs]);
+    }
+  }, 120_000);
 
   it("starts a bare visit at a ball every 2 s, so ALL OUT! lands inside the 30 s clip (the link base keeps 3 s)", () => {
     expect(clipStartSettings("conveyor")).toEqual({ cvInterval: 2 });

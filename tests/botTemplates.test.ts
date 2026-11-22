@@ -1597,6 +1597,15 @@ describe("group A: Shatter, Color Match, Target, Brick Smash, Perfect Fit and Cl
 // own moment, and Merge Ring and the square race kept hidden with what was measured
 describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and Bouncing Shapes", () => {
   const GROUP_B = ["count-conveyor", "who-wins-maze", "who-wins-territory", "who-wins-land-claim", "aim-bullseye"];
+  /** --- conveyor-all-out --- (Lane E, E6 review) The seconds a conveyor plan's last ball rides off after its ALL OUT! (its own run). */
+  const conveyorRideOffSec = (plan: { settings: SimulatorSettings; world?: { width: number; height: number }; seed: number }, horizon: number): number => {
+    const request = finderRequestOfSettings(plan.settings, plan.world, horizon);
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, plan.seed);
+    for (let i = 0; i < horizon * 60 && !engine.isSimulationFinished(); i++) engine.update(1000 / 60, 0);
+    const v = engine.getConveyorView();
+    expect([v.finished, v.outAtMs >= 0, v.doneAtMs >= v.outAtMs]).toEqual([true, true, true]);
+    return (v.doneAtMs - v.outAtMs) / 1000;
+  };
 
   it("offers every one of them, in its format's words or a hook of its own, its outcome there to find on its own settings; the same inputs plan the same JSON (one platform a seed, rotating)", async () => {
     expect(GROUP_B.map((id) => templateById(id)!.mode)).toEqual([...GROUP_B_READY]);
@@ -1636,7 +1645,9 @@ describe("group B: the conveyor, the Maze, Territory, Land Claim, Bullseye and B
       const facts = simulateFacts(finderRequestOfSettings(plan.settings, plan.world, horizon), plan.seed, { strategy: "finish" }, horizon);
       expect([id, plan.ending, (facts.markSec ?? -1) > 0]).toEqual([id, "resolved", true]);
       expect(plan.payoff.atSec, id).toBeCloseTo(facts.markSec!, 9);
-      if (hold !== null) expect(facts.finishSec - facts.markSec!, id).toBeCloseTo(hold, 1);
+      // (--- conveyor-all-out --- Lane E, E6 review: the conveyor's ALL OUT! comes with its last ball out of the rings, the run's
+      // end the hold after that ball has also ridden off the field: its ride-off, read off the plan's own run, joins the hold)
+      if (hold !== null) expect(facts.finishSec - facts.markSec!, id).toBeCloseTo(hold + (id === "count-conveyor" ? conveyorRideOffSec(plan, horizon) : 0), 1);
       else expect([id, facts.finishSec < 0 || facts.finishSec > plan.timing.clipSec]).toEqual([id, true]);
     }
     // the mark is read only where a finish binding plays a mark mode: every other run's facts are as they were

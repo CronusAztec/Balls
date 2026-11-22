@@ -737,7 +737,8 @@ const PAINT_FAST: Partial<SimulatorSettings> = { ballRadius: 30, ballSpeed: 800,
 // RANGES step, never clamped, no mode default changed
 /**
  * The conveyor's belt into Classic's rings: one ball every 2–3 s, as many as bring the last one out near the payoff target (the
- * last ball is out about balls × interval + 6.5 s in, its ALL OUT! banner 1.5 s before the run ends: measured).
+ * last ball is out about balls × interval + 6.5 s in, its ALL OUT! banner with it: measured; --- conveyor-all-out --- the run ends
+ * 1.5 s after that ball has also ridden off the field).
  */
 function conveyorSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const cvInterval = stepBetween(ctx.rng, 2, 3, 0.5);
@@ -750,7 +751,7 @@ function conveyorSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
  * over a second ball on the belt, and the number it asked for showed only in the banner's small grey line ("Loaded 7 / Escaped 7").
  * No payoff words of the format's ("7! 🤯") in either look: the mode's banner is the one ending.
  */
-const CONVEYOR_OWN_COUNT = "its run ends 1.5 s after its last ball is out (ALL OUT!): the payoff, not a loop's end; its own hook states its count and asks whether they all get out ('7 balls. Will they all get out?'), which ALL OUT! answers – the format's 'One ball. How many by the end?' asked about a run that loads balls and never multiplies";
+const CONVEYOR_OWN_COUNT = "its ALL OUT! and chord come as its last ball gets out of the rings: the payoff, not a loop's end (the run ends 1.5 s after that ball has ridden off the field); its own hook states its count and asks whether they all get out ('7 balls. Will they all get out?'), which ALL OUT! answers – the format's 'One ball. How many by the end?' asked about a run that loads balls and never multiplies";
 
 /**
  * Merge Ring's ladder: 5 tiers in a short clip, 6 in a standard one, the drop at the slider's strongest gravity (3: the first ball
