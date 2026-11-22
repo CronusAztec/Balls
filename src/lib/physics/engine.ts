@@ -1439,6 +1439,10 @@ export class PhysicsEngine {
   getDropLayout() {
     return this.dropMode.getLayout();
   }
+  /** --- drop-lights --- (Lane E, E6) The lit pegs and the finale's notes (components/simulator/dropRenderer.ts). */
+  getDropView() {
+    return this.dropMode.getView();
+  }
   isBoxMode() {
     return this.currentMode === this.boxMode;
   }

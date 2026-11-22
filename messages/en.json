@@ -2704,7 +2704,7 @@
     },
     "conveyor": {
       "name": "Conveyor Belt",
-      "description": "A belt drops a new ball into the arena every few seconds. The pile grows and the counter keeps score."
+      "description": "A belt drops a new ball into the rings every few seconds. Each one has to find its own way out."
     },
     "orbGrid": {
       "name": "Bouncing Orbs",
@@ -5880,7 +5880,11 @@
     "canvasDoneRings": "ALL OUT!",
     "canvasDoneBowl": "SETTLED!",
     "canvasDonePegs": "LANDED!",
-    "canvasTimeUp": "TIME'S UP"
+    "canvasTimeUp": "TIME'S UP",
+    "canvasOutWord": "OUT",
+    "canvasLoadedWord": "LOADED",
+    "canvasLandedWord": "LANDED",
+    "canvasSpilled": "[count] spilled"
   },
   "Billing": {
     "metaTitle": "Pricing – {siteName}",

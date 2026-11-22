@@ -49,7 +49,10 @@ import {
  *
  * Sound through the ToneGenerator: soft wall notes and clashes (team 0 low, team 1 high) in the per-frame budget; a
  * pickup, a drop and a return play accented notes, a capture the goal fanfare (three rising chords), the end an
- * accented C major chord.
+ * accented C major chord. --- ctf-flag-run --- (Lane E, E6) Each phase has a voice of its own besides (ringVoice "extra": the
+ * crew's moments read the game's contacts alone, and a page with the visitor's own sound leaves them out): a riser under a
+ * pickup, a tick every CTF_TICK_MS while a flag is carried, climbing as its carrier nears home, and the race's fanfare over
+ * the chords of a capture.
  */
 
 /* ------------------------------------------------------------------ constants */
@@ -73,6 +76,18 @@ export const CTF_SPEED_RELAX = 0.05;
 export const CTF_TEMPO_SPREAD = 0.2;
 /** Approach speeds under this fraction of the Ball Speed are touches, not tackles (no drop, no note). */
 export const TACKLE_REL = 0.1;
+// --- ctf-flag-run --- (Lane E, E6)
+/** A carried flag ticks this often (ms of simulation time) … */
+export const CTF_TICK_MS = 400;
+/** … from this pitch (Hz) far from home up to an octave higher at its base (the progress bar's register). */
+export const CTF_TICK_HZ = 1046.5;
+/** The riser under a pickup: from this pitch (Hz), this long (s). */
+export const CTF_RISER_HZ = 220;
+export const CTF_RISER_SEC = 0.7;
+/** The tick's pitch for a carrier `progress` (0: as far from home as the field allows, 1: at its base) of the way home. */
+export function ctfTickHz(progress: number): number {
+  return CTF_TICK_HZ * Math.pow(2, Math.max(0, Math.min(1, progress)));
+}
 
 /* ------------------------------------------------------------------ the flag rules (pure) */
 
@@ -190,6 +205,9 @@ export class CtfMode implements GameMode {
   private lastBallRadius = 8;
   private fanfareStartMs = -Infinity;
   private fanfareStep = FANFARE.length;
+  /** --- ctf-flag-run --- Per square: the simulation ms it picked the flag up (its ticks count from there). */
+  private carryFromMs = new Float64Array(0);
+  private ticksDone = new Int32Array(0);
   private readonly budget = new ArenaSoundBudget();
   private readonly contact: PairContact = { nx: 0, ny: 0, approach: 0, speedA: 0, speedB: 0 };
   private readonly wall: WallContact = { wall: -1, approach: 0, nx: 0, ny: 0 };
@@ -233,6 +251,8 @@ export class CtfMode implements GameMode {
     this.fanfareStep = FANFARE.length;
     this.tempo = new Float64Array(n);
     this.cooldownUntil = new Float64Array(n).fill(-Infinity);
+    this.carryFromMs = new Float64Array(n).fill(-1); // --- ctf-flag-run ---
+    this.ticksDone = new Int32Array(n);
     this.byIndex = new Array(n).fill(null);
     const half = ctfSquareHalf(field, this.lastBallRadius);
     if (!ctfSquaresFit(field, this.lastBallRadius)) ctx.noteArenaFull?.(); // --- review fix (uncap-all) --- (cut to fit the field)
@@ -444,6 +464,10 @@ export class CtfMode implements GameMode {
           v.carrying[k] = flagTeam;
           v.clashMs[k] = now;
           ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: pentatonicNote(team === 0 ? 4 : 9, 72), accent: true });
+          // --- ctf-flag-run --- (Lane E, E6) a riser under the grab, and the carry's ticks start
+          ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "riser", frequency: CTF_RISER_HZ, loopSec: CTF_RISER_SEC, level: 1, melody: false, ringVoice: "extra" });
+          this.carryFromMs[k] = now;
+          this.ticksDone[k] = 0;
         } else if (touch === "return") {
           v.returns++;
           ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: pentatonicNote(team === 0 ? 2 : 7, 72), accent: true });
@@ -462,14 +486,36 @@ export class CtfMode implements GameMode {
         v.lastCaptureTeam = team;
         this.fanfareStartMs = now;
         this.fanfareStep = 0;
+        // --- ctf-flag-run --- (Lane E, E6) the race's fanfare over the chords, rooted on the team's own note
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: team === 0 ? 523.25 : 392, race: "fanfare", melody: false, ringVoice: "extra" });
         ctx.spawnConfetti(ball.x, ball.y);
         void score;
       }
     }
   }
 
+  // --- ctf-flag-run --- (Lane E, E6)
+  /** A carried flag ticks every CTF_TICK_MS of its carry, higher as its carrier nears its own base (a sound of its own). */
+  private carryTicks(ctx: ModeContext) {
+    const v = this.view;
+    const f = v.field;
+    if (!f || v.finished) return;
+    for (let k = 0; k < v.count; k++) {
+      if (v.carrying[k] < 0 || this.carryFromMs[k] < 0) continue;
+      const due = this.carryFromMs[k] + CTF_TICK_MS * (this.ticksDone[k] + 1);
+      if (v.timeMs < due - 1e-6) continue;
+      this.ticksDone[k]++;
+      const ball = this.byIndex[k];
+      const home = v.bases[v.team[k]];
+      const far = 2 * f.halfW;
+      const progress = ball && home && far > 0 ? 1 - Math.abs(ball.x - home.x) / far : 0;
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "step", frequency: ctfTickHz(progress), level: 0.6, melody: false, ringVoice: "extra" });
+    }
+  }
+
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
+    this.carryTicks(ctx); // --- ctf-flag-run ---
     // The goal fanfare: three rising chords a short step apart, on the simulation clock.
     while (this.fanfareStep < FANFARE.length && v.timeMs >= this.fanfareStartMs + 1000 * FANFARE_STEP_SEC * this.fanfareStep - 1e-6) {
       const chord = FANFARE[this.fanfareStep++];

@@ -13,6 +13,9 @@ import type { Ball } from "@/lib/physics/types";
  *   flag), names from the Teams roster – and the KO blasts: shards, a shock ring and the "KO!" callout;
  * - `drawOverlay()` (screen space, after the HUD): the scoreboard band at the top of the exported square (squares left,
  *   or the score and the time left), the "CAPTURE!" banner and the winner banner with confetti.
+ * - --- ctf-flag-run --- (Lane E, E6) Capture the flag tells its story at phone size: the carrier flies a big waving flag with
+ *   a streak in its team's colour behind it and a thin line to the base it runs for, a base whose flag is away pulses, the
+ *   score pops on a capture and CAPTURE! comes in under the score in the top band, clear of the players.
  *
  * Everything is timed by the simulation clock of the view (flashes, blasts and confetti freeze with a pause and replay
  * in recordings) and computed from it – the shards and confetti are analytic, hashed from their index – so a steady
@@ -83,6 +86,17 @@ export const HIT_FLASH_MS = 220;
 export const WALL_GLOW_MS = 500;
 export const KO_MS = 1200;
 export const CAPTURE_BANNER_MS = 1400;
+// --- ctf-flag-run --- (Lane E, E6)
+/** The flag a carrier flies, as a multiple of the square's half-size (it was 1.5: the flag was smaller than the square). */
+export const CTF_CARRIED_FLAG = 3;
+/** Simulation ms the scorer's number pops after a capture. */
+export const CTF_SCORE_POP_MS = 600;
+/** The pop of the score `ageMs` after a capture: 1.8× back to 1 (1 before and after). */
+export function ctfScorePop(ageMs: number): number {
+  if (!(ageMs >= 0) || ageMs >= CTF_SCORE_POP_MS) return 1;
+  const k = 1 - ageMs / CTF_SCORE_POP_MS;
+  return 1 + 0.8 * k * k;
+}
 const SHARDS = 14;
 const CONFETTI = 90;
 const GOLD = "#facc15";
@@ -256,14 +270,30 @@ export class ArenaLayer {
       const b = view.bases[team];
       const color = this.colorOf(team);
       const scored = view.lastCaptureTeam === team && now - view.lastCaptureMs < CAPTURE_BANNER_MS ? 1 - (now - view.lastCaptureMs) / CAPTURE_BANNER_MS : 0;
-      ctx.globalAlpha = 0.16 + 0.3 * scored;
+      // --- ctf-flag-run --- a base whose flag is away pulses (the raid is on), its empty flag spot dashed
+      const away = !view.finished && view.flags[team] && view.flags[team].state !== "base" ? 0.5 + 0.5 * Math.sin(now / 150) : 0;
+      ctx.globalAlpha = 0.16 + 0.3 * scored + 0.2 * away;
       ctx.fillStyle = color;
       roundedRect(ctx, b.x - b.hw, b.y - b.hh, 2 * b.hw, 2 * b.hh, 0.2 * b.hw);
       ctx.fill();
       ctx.globalAlpha = 0.8;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 + 3 * away;
       ctx.strokeStyle = color;
       ctx.stroke();
+      if (away > 0 || (view.flags[team] && view.flags[team].state !== "base")) {
+        const size = 0.55 * b.hw;
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = Math.max(1.5, 0.06 * size);
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y + 0.5 * size);
+        ctx.lineTo(b.x, b.y - 0.5 * size);
+        ctx.lineTo(b.x + 0.7 * size, b.y - 0.5 * size);
+        ctx.lineTo(b.x + 0.7 * size, b.y - 0.05 * size);
+        ctx.lineTo(b.x, b.y - 0.05 * size);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     for (let team = 0; team < view.flags.length; team++) {
       const flag = view.flags[team];
@@ -300,6 +330,45 @@ export class ArenaLayer {
     ctx.strokeStyle = "rgba(255,255,255,0.6)";
     ctx.stroke();
     ctx.restore();
+  }
+
+  // --- ctf-flag-run --- (Lane E, E6)
+  /**
+   * A carrier's run: a thin dashed line in its team's colour to the base it runs for, and a streak behind it along its last
+   * positions (the engine's trail of the square, its 60 Hz steps: the same on every path), widest and brightest at the square.
+   */
+  private drawCarrierRun(ctx: CanvasRenderingContext2D, view: ArenaView, ball: Ball, team: number, color: string, h: number) {
+    const home = view.bases[team];
+    if (home) {
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, 0.14 * h);
+      ctx.setLineDash([0.6 * h, 0.5 * h]);
+      ctx.beginPath();
+      ctx.moveTo(ball.x, ball.y);
+      ctx.lineTo(home.x, home.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const len = ball.trail.length;
+    if (len < 3) return;
+    ctx.strokeStyle = color;
+    ctx.lineCap = "round";
+    // oldest to newest: segment i joins point i to point i + 1, wider and brighter towards the square
+    for (let i = 0; i < len - 1; i++) {
+      const a = ball.trail[(ball.trailIndex + i) % len];
+      const b = ball.trail[(ball.trailIndex + i + 1) % len];
+      if (!a || !b) continue;
+      const f = (i + 1) / (len - 1);
+      ctx.globalAlpha = 0.55 * f;
+      ctx.lineWidth = Math.max(1.5, 1.6 * h * f);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    ctx.lineCap = "butt";
+    ctx.globalAlpha = 1;
   }
 
   /** Battle: the power-ups, pulsing, with their icons (heal: a cross, shield: a shield, speed: a bolt), fading before they expire. */
@@ -382,6 +451,8 @@ export class ArenaLayer {
           ctx.fillRect(p.x - s, p.y - s, 2 * s, 2 * s);
         }
       }
+      // --- ctf-flag-run --- a carrier: a thin line to the base it runs for and a streak in its team's colour behind it
+      if (view.game === "ctf" && view.carrying[k] >= 0) this.drawCarrierRun(ctx, view, ball, team, color, h);
       if (o.showGlow) {
         ctx.globalAlpha = 0.25;
         ctx.fillStyle = color;
@@ -415,7 +486,8 @@ export class ArenaLayer {
       }
       if (view.game === "battle") this.drawHp(ctx, view, k, x, y, h, o);
       else if (view.carrying[k] >= 0) {
-        this.drawFlag(ctx, this.colorOf(view.carrying[k]), x + 0.1 * h, y - 0.6 * h, 1.5 * h, now, 1);
+        // --- ctf-flag-run --- a big flag, waving, from the square's top (CTF_CARRIED_FLAG: it was 1.5)
+        this.drawFlag(ctx, this.colorOf(view.carrying[k]), x + 0.15 * h, y - 0.7 * h, CTF_CARRIED_FLAG * h, now, 1);
       }
       if (o.showNames && o.roster && o.roster.length > team) {
         const fs = Math.max(9, 0.42 * h);
@@ -516,15 +588,16 @@ export class ArenaLayer {
     if (view.game === "battle") this.drawBattleHud(ctx, view, o, left, top, side);
     else this.drawCtfHud(ctx, view, left, top, side);
     const now = view.timeMs;
+    // --- ctf-flag-run --- (Lane E, E6) CAPTURE! in the top band, under the score, clear of the players in mid-field
     if (view.game === "ctf" && !view.finished && view.lastCaptureTeam >= 0 && now - view.lastCaptureMs < CAPTURE_BANNER_MS) {
       const t = (now - view.lastCaptureMs) / CAPTURE_BANNER_MS;
       const pop = t < 0.12 ? t / 0.12 : 1;
-      const fs = 0.1 * side * (0.7 + 0.3 * pop);
+      const fs = 0.068 * side * (0.7 + 0.3 * pop);
       ctx.globalAlpha = t < 0.75 ? 1 : 1 - (t - 0.75) / 0.25;
-      this.bannerText(ctx, o.labels.capture, left + side / 2, top + 0.45 * side, fs, this.colorOf(view.lastCaptureTeam));
-      ctx.font = `700 ${0.4 * fs}px sans-serif`;
-      ctx.fillStyle = "#f4f4f5";
-      ctx.fillText(this.nameOf(view.lastCaptureTeam), left + side / 2, top + 0.45 * side + 0.8 * fs);
+      ctx.font = `900 ${fs}px sans-serif`;
+      const fit = Math.min(fs, (0.6 * side * fs) / Math.max(1, ctx.measureText(o.labels.capture).width));
+      this.bannerText(ctx, o.labels.capture, left + side / 2, top + 0.145 * side, fit, this.colorOf(view.lastCaptureTeam));
+      ctx.globalAlpha = 1;
     }
     if (view.finished) this.drawWinner(ctx, view, o, left, top, side);
     ctx.restore();
@@ -599,12 +672,21 @@ export class ArenaLayer {
     ctx.textAlign = "center";
     ctx.fillStyle = "#f4f4f5";
     ctx.fillText(":", cx, y);
-    ctx.textAlign = "right";
-    ctx.fillStyle = this.colorOf(0);
-    ctx.fillText(String(view.scores[0]), cx - 0.3 * fs, y);
-    ctx.textAlign = "left";
-    ctx.fillStyle = this.colorOf(1);
-    ctx.fillText(String(view.scores[1]), cx + 0.3 * fs, y);
+    // --- ctf-flag-run --- the scorer's number pops (and glows) on a capture
+    for (let team = 0; team < 2; team++) {
+      const pop = view.lastCaptureTeam === team ? ctfScorePop(view.timeMs - view.lastCaptureMs) : 1;
+      ctx.save();
+      ctx.translate(cx + (team === 0 ? -0.3 : 0.3) * fs, y);
+      if (pop !== 1) {
+        ctx.scale(pop, pop);
+        ctx.shadowColor = this.colorOf(team);
+        ctx.shadowBlur = 0.6 * fs * (pop - 1);
+      }
+      ctx.textAlign = team === 0 ? "right" : "left";
+      ctx.fillStyle = this.colorOf(team);
+      ctx.fillText(String(view.scores[team]), 0, 0);
+      ctx.restore();
+    }
     const nfs = 0.28 * band;
     ctx.font = `700 ${nfs}px sans-serif`;
     ctx.textAlign = "right";

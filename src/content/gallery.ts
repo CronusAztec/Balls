@@ -488,6 +488,21 @@ export const GALLERY: readonly GalleryPreset[] = [
       es: "Una cinta deja caer una bola nueva en los anillos pastel cada segundo. La pila crece y el contador lleva la cuenta.",
     },
   },
+  // --- conveyor-count --- (Lane E, E6) the bowl with a question: forty balls, one every half second. Seed 4 on the page (the
+  // 800 × 450 world, rendered): 40 / 40 LOADED with 8 spilled at 20 s, SETTLED! at 24.2 s with 13 spilled, the clip over at 26.2 s,
+  // inside its 30 s; the card's picture (640 × 360) at 21 s shows the full bowl, 9 spilled
+  {
+    id: "bowl-overflow",
+    mode: "conveyor",
+    query: "mode=conveyor&glow=1&cvi=0.5&cvn=40&cva=bowl&seed=4",
+    previewAt: 21,
+    name: { en: "Bowl Overflow", pl: "Przepełniona miska", es: "Cuenco a rebosar" },
+    description: {
+      en: "Forty balls drop into one small bowl, one every half second. Will it hold them all, or spill over the rim?",
+      pl: "Czterdzieści piłek wpada do jednej małej miski, co pół sekundy. Czy wszystkie się zmieszczą, czy wysypią się przez brzeg?",
+      es: "Cuarenta bolas caen en un cuenco pequeño, una cada medio segundo. ¿Cabrán todas o se derramarán por el borde?",
+    },
+  },
   // --- gallery-every-mode --- the mode keeps going to the end of its 30 s clip (no end of its own inside it)
   {
     id: "aurora-orbs",

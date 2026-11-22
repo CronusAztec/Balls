@@ -356,13 +356,17 @@ describe("Ball Drop mode", () => {
         if (b.y < field.top) somePileReachedAboveTheTop = true;
       }
       // Finished means finished: the pile stays put (a wedged ball may still jitter within REST_DISTANCE), the
-      // silence holds and the progress does not change any more.
+      // silence of the contacts holds and the progress does not change any more. (--- drop-lights --- what sounds after the
+      // finish is the finale alone: the balls' own notes, lowest first, each a sound of its own with no contact behind it.)
       engine.consumeSoundEvents();
       run(engine, 60);
       expect(engine.isSimulationFinished()).toBe(true);
       expect(engine.getDropProgress()).toEqual(progress);
       expect(engine.getBalls()).toHaveLength(balls.length);
-      expect(engine.consumeSoundEvents()).toHaveLength(0);
+      const after = engine.consumeSoundEvents();
+      expect(after.every((e) => e.ringVoice === "extra" && e.melody === false)).toBe(true);
+      const notes = after.filter((e) => e.loop !== "chord").map((e) => e.frequency);
+      expect(notes).toEqual(engine.getDropView().arpHz.slice(engine.getDropView().arpPlayed - notes.length, engine.getDropView().arpPlayed));
       engine.getBalls().forEach((b, i) => expect(Math.hypot(b.x - positions[i][0], b.y - positions[i][1])).toBeLessThanOrEqual(REST_DISTANCE));
     }
     expect(someBoardWasFull).toBe(true);

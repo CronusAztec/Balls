@@ -14,7 +14,7 @@ import { END_BANNER_HOLD_MS as CANVAS_BANNER_HOLD_MS, EndBannerLayer } from "@/c
 import { FL_END_CHORD_HZ, FL_WIN_HOLD_SEC, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
 import { fakeCanvas } from "./fakeCanvas";
 import { collapseDone } from "@/components/simulator/shatterRenderer";
-import { DROP_SETTLED_HZ } from "@/lib/physics/modes/drop";
+import { DROP_SETTLED_HZ, dropArpChordAtMs } from "@/lib/physics/modes/drop";
 import { plTonicHz } from "@/lib/physics/modes/powerLayers";
 
 /*
@@ -164,10 +164,25 @@ describe("the end sting", () => {
     return [];
   }
 
-  it("rings the completion chord as Ball Drop's SETTLED! comes in, a sound of its own the crew's moments leave out", () => {
+  it("rings the completion chord after Ball Drop's SETTLED! finale, a sound of its own the crew's moments leave out", () => {
+    // --- drop-lights --- (Lane E, E6) the balls' own notes low to high from the settle, then the chord, DROP_ARP_CHORD_GAP_MS after the last
     for (const seed of [1, 2]) {
-      const events = lastFrameSounds("drop", seed, (e) => e.isSimulationFinished());
-      expect(events.filter((x) => x.loop === "chord")).toEqual([{ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" }]);
+      const e = startEngine("drop", seed);
+      let settledAt = -1;
+      const after: { ms: number; ev: SoundEvent }[] = [];
+      for (let frame = 0; frame < 60 * 60 && (settledAt < 0 || e.getElapsedMs() < settledAt + 2000); frame++) {
+        e.update(1000 / 60, 0);
+        const events = e.consumeSoundEvents();
+        if (settledAt < 0 && e.isSimulationFinished()) settledAt = e.getDropView().settledMs;
+        if (settledAt >= 0) for (const ev of events) after.push({ ms: e.getElapsedMs() - settledAt, ev });
+      }
+      const v = e.getDropView();
+      expect(settledAt).toBeGreaterThan(0);
+      const chords = after.filter((x) => x.ev.loop === "chord");
+      expect(chords.map((x) => x.ev)).toEqual([{ type: "hit", wallIndex: 0, loop: "chord", frequency: DROP_SETTLED_HZ, level: 1, melody: false, ringVoice: "extra" }]);
+      expect(chords[0].ms).toBeGreaterThanOrEqual(dropArpChordAtMs(v.arpHz.length) - 1e-6);
+      expect(chords[0].ms).toBeLessThan(dropArpChordAtMs(v.arpHz.length) + 1000 / 60 + 1e-6);
+      expect(after.every((x) => x.ev.ringVoice === "extra")).toBe(true);
     }
   });
 

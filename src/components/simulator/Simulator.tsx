@@ -4231,6 +4231,10 @@ export default function Simulator() {
         doneBowl: t("Conveyor.canvasDoneBowl"),
         donePegs: t("Conveyor.canvasDonePegs"),
         timeUp: t("Conveyor.canvasTimeUp"),
+        outWord: t("Conveyor.canvasOutWord"), // --- conveyor-count --- (Lane E, E6) the big counter's word
+        loadedWord: t("Conveyor.canvasLoadedWord"),
+        landedWord: t("Conveyor.canvasLandedWord"),
+        spilled: (n) => fill("Conveyor.canvasSpilled", { count: n }),
       },
       // --- orb-grid ---
       orbGrid: {

@@ -2704,7 +2704,7 @@
     },
     "conveyor": {
       "name": "Taśmociąg",
-      "description": "Taśma co kilka sekund zrzuca na arenę nową piłkę. Stos rośnie, a licznik pilnuje wyniku."
+      "description": "Taśma co kilka sekund zrzuca nową piłkę do pierścieni. Każda musi sama znaleźć drogę na zewnątrz."
     },
     "orbGrid": {
       "name": "Skaczące kule",
@@ -5880,7 +5880,11 @@
     "canvasDoneRings": "WSZYSTKIE NA WOLNOŚCI!",
     "canvasDoneBowl": "UŁOŻONE!",
     "canvasDonePegs": "WYLĄDOWAŁY!",
-    "canvasTimeUp": "KONIEC CZASU"
+    "canvasTimeUp": "KONIEC CZASU",
+    "canvasOutWord": "NA ZEWNĄTRZ",
+    "canvasLoadedWord": "ZAŁADOWANE",
+    "canvasLandedWord": "NA DOLE",
+    "canvasSpilled": "Wysypane: [count]"
   },
   "Billing": {
     "metaTitle": "Cennik – {siteName}",
