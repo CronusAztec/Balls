@@ -4,6 +4,7 @@ import { PD_CEILING } from "@/lib/physics/modes/paddle";
 import { SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
 import type { CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
 import type { PendulumView } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
+import { POPUP_REACH, popupFontSize } from "./bullseyeRenderer"; // --- badge-clear --- (B-g3 review: the score popups' reach)
 
 /*
  * --- watermark-everywhere --- What the canvas tells the live watermark about the HUD it drew this frame (lib/watermark/
@@ -127,13 +128,17 @@ export function noteHomeBand(hud: LiveHud, sq: HudSquare, homeTop: number): void
 /**
  * Bullseye's target and the balls that landed (bullseyeRenderer.ts `drawWorld`: the dartboard lying on the landing line, the shots
  * stuck where they landed, stacked where they met): a band along the bottom of the square from the top of the target's ellipse or
- * of the highest landed ball, whichever is higher, so the badge keeps above the pile at the target's ends.
+ * of the highest landed ball, whichever is higher, so the badge keeps above the pile at the target's ends – raised by the reach of
+ * the score popups (`drawEffects`: each landing's "+N" rises from it for `POPUP_MS`), so the badge keeps above the popups of the
+ * shots landed at the ends too. A fixed reach rather than each popup while it shows: the badge holds still instead of jumping for
+ * a second at every landing.
  */
 export function noteBullseyePile(hud: LiveHud, view: Pick<BullseyeView, "layout" | "shots" | "shotState" | "shotY">, world: HudView): void {
   const L = view.layout;
   if (!L) return;
   let top = L.floorY - L.targetDepth;
   for (let k = 0; k < view.shots; k++) if (view.shotState[k] === SHOT_LANDED && view.shotY[k] - L.ballRadius < top) top = view.shotY[k] - L.ballRadius;
+  top -= POPUP_REACH * popupFontSize(L.fieldHeight); // (B-g3 review)
   hud.bottomBand(top * world.scale + world.ty);
 }
 
@@ -192,17 +197,37 @@ const flBox: LiveBadgeBox = { height: 0, inset: 0, zone: { x: 0, y: 0, width: 0,
  * as before, and the badge keeps its corner beside the card rather than falling back over the boxes. Returns whether it reported.
  */
 export function noteFightLeagueCard(hud: LiveHud, sq: HudSquare, fl: FlCardHud, recording: LiveRecording | null): boolean {
-  if (!(fl.card.w > 0) || !Number.isFinite(fl.boxesTop) || !Number.isFinite(fl.boxesBottom)) return false;
-  const u = hud.unit;
-  flGeom.area.x = sq.x0 * u;
-  flGeom.area.y = sq.y0 * u;
-  flGeom.area.width = flGeom.area.height = sq.side * u;
-  flGeom.recording = recording;
-  const box = liveBadgeBox(flGeom, flBox);
-  if (box.zone.y + box.zone.height - box.inset - box.height < fl.boxesBottom * u) return false;
+  if (!flCardHoldsStrip(hud.unit, sq, fl, recording)) return false;
   hud.block(fl.card.x, fl.card.y, fl.card.w, fl.card.h);
   hud.block(sq.x0, fl.boxesTop, sq.side, fl.boxesBottom - fl.boxesTop);
   hud.block(fl.fanLine.x, fl.fanLine.y, fl.fanLine.w, fl.fanLine.h);
+  return true;
+}
+
+/**
+ * Whether Fight League's end card is up and the strip under the ability boxes holds the badge in this frame's layout (`unit` canvas
+ * px per unit): what `noteFightLeagueCard()` and `noteFlCardCaptions()` report on.
+ */
+export function flCardHoldsStrip(unit: number, sq: HudSquare, fl: FlCardHud, recording: LiveRecording | null): boolean {
+  if (!(fl.card.w > 0) || !Number.isFinite(fl.boxesTop) || !Number.isFinite(fl.boxesBottom)) return false;
+  flGeom.area.x = sq.x0 * unit;
+  flGeom.area.y = sq.y0 * unit;
+  flGeom.area.width = flGeom.area.height = sq.side * unit;
+  flGeom.recording = recording;
+  const box = liveBadgeBox(flGeom, flBox);
+  return box.zone.y + box.zone.height - box.inset - box.height >= fl.boxesBottom * unit;
+}
+
+/**
+ * (B-g3 review) The bottom captions while the end card holds the strip (`flCardHoldsStrip()`): they keep above the boxes (the canvas
+ * caps their stack there), so a band along the bottom from their top would end the free band above the strip, leave no corner off
+ * the card and send the badge to its fallback – over the fan-made line in a longer language's right-hand window. A block where they
+ * are instead, from `top` to `bottom` (the stack's upper and lower edges) across the canvas' `width`, so the badge keeps the strip.
+ * Returns whether it reported them; else the caller reports their band, as before.
+ */
+export function noteFlCardCaptions(hud: LiveHud, sq: HudSquare, fl: FlCardHud, recording: LiveRecording | null, width: number, top: number, bottom: number): boolean {
+  if (!flCardHoldsStrip(hud.unit, sq, fl, recording)) return false;
+  hud.block(0, top, width, bottom - top);
   return true;
 }
 // --- end fl-card-badge ---

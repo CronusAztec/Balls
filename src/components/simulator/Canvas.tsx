@@ -133,7 +133,7 @@ import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, landCl
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
-import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteFlCardCaptions, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { SWARM_DATA_KEYS, SwarmLayer, writeSwarmDataset } from "./multiplySwarmRenderer"; // --- multiply-race ---
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
@@ -312,7 +312,7 @@ export interface CanvasLabels {
   /** Fight League: VS, FIGHT!, KO!, the winner banner's words and the stat lines' abbreviations. */
   fightLeague?: FightLeagueLabels;
   // --- land-claim ---
-  /** Land Claim: the title line, the counters, DOMINATION / SUCH A CLOSE BATTLE / "[name] CLAIMS THE MOST" and the share of the land. */
+  /** Land Claim: the title line, the counters and the verdict – "[name] WINS", the share of the land, DOMINATION / SUCH A CLOSE BATTLE as its tag (--- verdict-plate --- `claims` is no longer drawn). */
   landClaim?: LandClaimLabels;
   // --- string-circle ---
   /** The String Battle's circle style: the title line, the winner banner and its share of the rim, the standings strip's "+N". */
@@ -4096,7 +4096,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");
         if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);
-        if (captionLayer.usesBottom) hud.bottomBand(captionLayer.stackEdges.bottom);
+        // --- fl-card-badge --- (B-g3 review) with Fight League's end card holding the strip under the boxes, the bottom captions (kept
+        // above the boxes) are a block where they are: their band would end the free band above the strip and leave the badge no corner
+        if (captionLayer.usesBottom && !(flView && noteFlCardCaptions(hud, liveSquare, flLayer, recording ? exportSizeRef.current : null, size.width, captionLayer.stackEdges.bottom, captionLayer.starts.bottom))) hud.bottomBand(captionLayer.stackEdges.bottom);
         if (songProgressRef.current !== null) hud.bottomBand(size.height - 9);
         // --- loop-foundation --- the loop HUD drawn live: its title along the top, its counter along the bottom (while recording
         // the recorder draws it into the export frame, clear of the badge there)

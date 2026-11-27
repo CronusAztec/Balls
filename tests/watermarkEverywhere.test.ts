@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
 import { BADGE_MIN_HEIGHT, BADGE_SWITCH_MS, badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
 import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, mapLiveHud, placeLiveBadge, placeVideoBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
-import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type FlCardHud, type HudView } from "@/components/simulator/liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteFlCardCaptions, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type FlCardHud, type HudView } from "@/components/simulator/liveMarkHud";
 import { ANTI_LABEL_MS, drawCollideOverlay, type CollideLabelPlate } from "@/components/simulator/collideRenderer"; // --- badge-clear ---
 import { SHOT_LANDED, SHOT_WAITING, buildBullseyeLayout } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
+import { BullseyeLayer, DEFAULT_BULLSEYE_LABELS, POPUP_MS, POPUP_REACH, popupFontSize } from "@/components/simulator/bullseyeRenderer"; // --- badge-clear --- (B-g3 review: the score popups)
+import type { BullseyeView } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
 import { buildCollideField, type CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
 import { buildPendulumField, buildPendulumRig, pendulumFrequencies, resolvePendulumSettings } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
 import { FL_ARENA_FRAC, FL_ARENA_TOP } from "@/lib/physics/modes/fightLeague";
@@ -844,26 +846,77 @@ describe("--- badge-clear --- the badge keeps off the payoffs a mode draws in it
     shotY[1] = L.floorY - 9 * L.ballRadius; // a stack of balls, above the target's top
     shotY[2] = 0; // not landed yet: ignored
     const view = { layout: L, shots: 2, shotState: new Uint8Array([SHOT_LANDED, SHOT_WAITING]), shotY };
+    // (B-g3 review) raised by the score popups' reach, so the badge keeps above the "+N" of a shot landed at an end too
+    const reach = POPUP_REACH * popupFontSize(L.fieldHeight);
+    expect(reach).toBeGreaterThan(0);
     const hud = new LiveHud().reset(1);
     noteBullseyePile(hud, view, identity);
-    expect(hud.bottom).toBeCloseTo(L.floorY - L.targetDepth, 9);
+    expect(hud.bottom).toBeCloseTo(L.floorY - L.targetDepth - reach, 9);
     const pile = L.floorY - 10 * L.ballRadius;
     expect(pile).toBeLessThan(L.floorY - L.targetDepth);
     hud.reset(1);
     noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, identity);
-    expect(hud.bottom).toBeCloseTo(pile, 9);
+    expect(hud.bottom).toBeCloseTo(pile - reach, 9);
     for (const t of [1000, 7000]) {
       const { live, video } = badges(hud, t);
-      for (const b of [live, video]) expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(pile + 0.5);
+      for (const b of [live, video]) expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(pile - reach + 0.5);
     }
     // through a zoomed, followed camera the band moves with the picture
     const cam: HudView = { scale: 1.5, tx: -100, ty: -60 };
     hud.reset(1);
     noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, cam);
-    expect(hud.bottom).toBeCloseTo(pile * 1.5 - 60, 9);
+    expect(hud.bottom).toBeCloseTo((pile - reach) * 1.5 - 60, 9);
     hud.reset(1);
     noteBullseyePile(hud, { layout: null, shots: 0, shotState, shotY }, identity);
     expect(hud.bottom).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("Bullseye: the score popups of shots landed at the target's ends rise clear of the badge, live and in the export (before: under it)", () => {
+    // (B-g3 review) three shots landed at once: one on the landing line at each end of the target and one stacked on the right-hand
+    // one; their "+N" drawn by the renderer itself at every age of the rise, each text's box against the badge in both windows
+    const L = buildBullseyeLayout(S, S, 6, 0.5, 1);
+    const r = L.ballRadius;
+    const ends = [L.cx - L.targetRadius, L.cx + L.targetRadius, L.cx + L.targetRadius];
+    const view = {
+      layout: L,
+      timeMs: 0,
+      bullseyeMs: Number.NEGATIVE_INFINITY,
+      shots: 3,
+      shotState: new Uint8Array([SHOT_LANDED, SHOT_LANDED, SHOT_LANDED]),
+      shotX: Float64Array.from(ends),
+      shotY: Float64Array.from([L.floorY - r, L.floorY - r, L.floorY - 3 * r]),
+      shotLandMs: new Float64Array(3),
+      shotScore: Int8Array.from([3, 2, 10]),
+    } as unknown as BullseyeView;
+    const layer = new BullseyeLayer();
+    const texts: FrameRect[] = [];
+    for (let age = 0; age < POPUP_MS; age += POPUP_MS / 20) {
+      const canvas = fakeCanvas(S, S);
+      const ctx = canvas.getContext("2d");
+      view.timeMs = age;
+      layer.drawEffects(ctx as unknown as CanvasRenderingContext2D, view, DEFAULT_BULLSEYE_LABELS);
+      const fs = popupFontSize(L.fieldHeight);
+      for (const c of ctx.calls.filter((call) => call.name === "fillText")) {
+        const [text, x, y] = c.args as [string, number, number];
+        // the glyphs' box with its outline: about 0.62 of a font size a character wide, a font size tall round the middle
+        const w = 0.62 * text.length * fs + 0.18 * fs;
+        texts.push({ x: x - w / 2, y: y - 0.59 * fs, width: w, height: 1.18 * fs });
+      }
+    }
+    expect(texts.length).toBe(3 * 20);
+    const hud = new LiveHud().reset(1);
+    noteBullseyePile(hud, view, identity);
+    for (const t of [1000, 7000, 13_000, 19_000]) {
+      const { live, video } = badges(hud, t);
+      for (const [where, b] of [["live", live], ["export", video]] as const) {
+        expect([where, t, b.free]).toEqual([where, t, true]);
+        for (const box of texts) expect(overlaps(b, box), `${where} ${t} ${JSON.stringify(b)} vs ${JSON.stringify(box)}`).toBe(false);
+      }
+    }
+    // the band at the pile's top alone (B7a's report): the export's badge sat on the popups at the ends
+    const before = new LiveHud().reset(1);
+    before.bottomBand(Math.min(L.floorY - L.targetDepth, L.floorY - 4 * r));
+    expect([1000, 7000].some((t) => texts.some((box) => overlaps(badges(before, t).video, box)))).toBe(true);
   });
 
   it("Collision Playground: from the first orb out of a pouring jar the floor under it is held, and the badge takes a top corner beside the jar", () => {
@@ -1041,6 +1094,45 @@ describe("--- fl-card-badge --- Fight League's end card keeps the badge in the s
     // live the strip's right-hand corner is far enough out
     const live = badgeIn(report(fl, stages.noir.top, null).hud, 7000, null);
     expect([live.corner, overlaps(live, rect(fl.fanLine))]).toEqual(["bottom-right", false]);
+  });
+
+  it("with bottom captions (kept above the boxes) and a longer language's fan-made line: the captions are a block and the badge keeps the strip, clear of the line (before: its fallback, on the line)", () => {
+    // (B-g3 review) the Spanish line ("Parodia hecha por fans. Sin afiliación.", about 305 px of the 1080 px render): 0.28 of the square
+    const fl = layerOf("noir", 0.28 * S);
+    const capBottom = fl.boxesTop - 0.005 * S;
+    const capTop = capBottom - 0.09 * S;
+    const captions = { x: 0, y: capTop, width: S, height: capBottom - capTop };
+    const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+    for (const recording of [null, PORTRAIT]) {
+      const { hud, reported } = report(fl, stages.noir.top, recording);
+      expect(reported).toBe(true);
+      expect(noteFlCardCaptions(hud, SQ, fl, recording, S, capTop, capBottom)).toBe(true);
+      expect(hud.bottom).toBe(Number.POSITIVE_INFINITY);
+      for (const t of [1000, 7000, 13_000, 19_000]) {
+        const label = `${recording ? "export" : "live"} ${t}`;
+        const b = badgeIn(hud, t, recording);
+        expect([label, b.free]).toEqual([label, true]);
+        expect(b.y, label).toBeGreaterThanOrEqual(fl.boxesBottom - 0.5);
+        for (const r of [rect(fl.card), boxes, rect(fl.fanLine), captions]) expect(overlaps(b, r), `${label} ${JSON.stringify(r)}`).toBe(false);
+      }
+    }
+    // their band (the report before): the free band ended above the strip, no corner was off the card, and the export's badge fell
+    // back to its side's bottom corner of the whole zone – in the right-hand window onto the fan-made line
+    const before = report(fl, stages.noir.top, PORTRAIT).hud;
+    before.bottomBand(capTop);
+    const old = badgeIn(before, 7000, PORTRAIT);
+    expect([old.free, overlaps(old, rect(fl.fanLine))]).toEqual([false, true]);
+    // where the strip does not hold the badge (a square export, or no card) nothing is reported: the caller keeps their band
+    for (const [layer, recording] of [[fl, { width: 1080, height: 1080 }], [layerOf("noir", 0.28 * S, false), PORTRAIT]] as const) {
+      const none = new LiveHud().reset(1);
+      expect(noteFlCardCaptions(none, SQ, layer, recording, S, capTop, capBottom)).toBe(false);
+      expect(none.count).toBe(0);
+    }
+    // wired: the canvas reports the bottom captions this way while Fight League plays, their band otherwise
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const wired = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(wired).toMatch(/if \(captionLayer\.usesBottom && !\(flView && noteFlCardCaptions\(hud, liveSquare, flLayer, recording \? exportSizeRef\.current : null, size\.width, captionLayer\.stackEdges\.bottom, captionLayer\.starts\.bottom\)\)\) hud\.bottomBand\(captionLayer\.stackEdges\.bottom\);/);
+    expect(wired.indexOf("noteFightLeagueCard(")).toBeLessThan(wired.indexOf("noteFlCardCaptions("));
   });
 
   it("a square or landscape export's safe zone ends above the strip: nothing is reported, and the badge keeps its corner beside the card rather than falling over the boxes", () => {

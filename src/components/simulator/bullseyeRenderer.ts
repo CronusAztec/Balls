@@ -62,6 +62,18 @@ export const RING_FLASH_MS = 450;
 export const POPUP_MS = 1100;
 export const BULLSEYE_MS = 1800;
 export const RECOIL_MS = 220;
+// --- badge-clear --- (round two, B-g3 review) The score popups' geometry, shared with the watermark's HUD report (liveMarkHud.ts
+// `noteBullseyePile()`), so the badge keeps above the popups of the shots landed at the target's ends and the two cannot drift.
+/** A popup's font size: 4 % of the field's height, at least 12 px. */
+export function popupFontSize(fieldHeight: number): number {
+  return Math.max(12, 0.04 * fieldHeight);
+}
+/** A popup's centre starts `POPUP_LIFT` font sizes above its landing and rises `POPUP_RISE` more over `POPUP_MS`. */
+export const POPUP_LIFT = 1.2;
+export const POPUP_RISE = 1.6;
+/** How far above its landing a popup's text reaches at the top of its rise (font sizes): the lift, the rise, half the text's height and its outline. */
+export const POPUP_REACH = POPUP_LIFT + POPUP_RISE + 0.6;
+// --- end badge-clear ---
 /**
  * --- finales-in-clip --- (review fix) The final card and a BULLSEYE! of the last shots never share the field (the page's last shot is
  * the bull's: they came up together, the callout over the card's top edge). Once every shot has landed the callout holds and fades
@@ -241,7 +253,7 @@ export class BullseyeLayer {
       ctx.stroke();
     }
     // The popups: the landing's score rising and fading.
-    const fs = Math.max(12, 0.04 * L.fieldHeight);
+    const fs = popupFontSize(L.fieldHeight); // (--- badge-clear --- shared with the HUD report)
     ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -256,7 +268,7 @@ export class BullseyeLayer {
       const score = view.shotScore[k];
       const text = this.popup(score, labels.miss);
       const x = Math.max(L.left + fs, Math.min(L.right - fs, view.shotX[k]));
-      const y = view.shotY[k] - 1.2 * fs - 1.6 * fs * (1 - (1 - u) * (1 - u));
+      const y = view.shotY[k] - POPUP_LIFT * fs - POPUP_RISE * fs * (1 - (1 - u) * (1 - u));
       ctx.globalAlpha = u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3;
       ctx.strokeText(text, x, y);
       ctx.fillStyle = scoreColor(score);
