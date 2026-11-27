@@ -6,6 +6,7 @@ import type { TeamEntry } from "@/lib/teams";
 // --- land-claim-pyramid --- the pyramid layout's isometric drawing and its data
 import { LCP_SOLO_COLOR, LCP_SOLO_NAME } from "@/lib/physics/landClaimPyramid";
 import { LAND_CLAIM_PYRAMID_DATA_KEYS, LandClaimPyramidLayer, lcPyramidBallsOnFloor, writeLandClaimPyramidDataset } from "./landClaimPyramidRenderer";
+import { EndBannerLayer, type EndBannerText } from "./endBanner"; // --- verdict-plate ---
 
 /**
  * Canvas drawing of Land Claim (feature land-claim; lib/physics/modes/landClaim.ts), one `LandClaimLayer` per draw loop,
@@ -23,9 +24,11 @@ import { LAND_CLAIM_PYRAMID_DATA_KEYS, LandClaimPyramidLayer, lcPyramidBallsOnFl
  *    hundreds draws without the glow and past a thousand as plain discs, one path per colour;
  *  - `drawOverlay()` (screen space, the HUD band at the top of the square the recorder exports): the title line, the
  *    counters (blocks left or steals, balls, the clock) and a live bar per competitor – its badge, its name, its land and
- *    its balls in play (past eight competitors the leaders and "+N MORE") – and, at the verdict, the banner: DOMINATION,
- *    SUCH A CLOSE BATTLE or "[name] CLAIMS THE MOST" with the winner's share; without a roster to name the winner (the teams
- *    banner does it with one) it names the winner too and throws the confetti.
+ *    its balls in play (past eight competitors the leaders and "+N MORE") – and, at the verdict, the banner and the confetti.
+ *    --- verdict-plate --- (round two, B6) The banner is the shared end banner's plate (endBanner.ts): "[name] WINS" in the
+ *    winner's colour whatever the verdict (SUCH A CLOSE BATTLE named no winner but in its small line), the land under it and
+ *    DOMINATION or SUCH A CLOSE BATTLE as its tag. With a roster too: the teams layer's winner card stays out, so the
+ *    verdict is said once.
  *
  * Visual only: it reads the view and never writes to the engine. The pops and the flying blocks run on the simulation clock
  * (a pause freezes them, a recording replays them); the bars' easing and the confetti are decoration. Steady-state frames
@@ -37,9 +40,9 @@ export interface LandClaimLabels {
   title: string;
   domination: string;
   close: string;
-  /** "[name] CLAIMS THE MOST". */
+  /** "[name] CLAIMS THE MOST" (--- verdict-plate --- the plate no longer says it: its title names the winner). */
   claims: (name: string) => string;
-  /** "[name] WINS" (the banner's second line without a roster). */
+  /** "[name] WINS" (--- verdict-plate --- the banner's title). */
   wins: (name: string) => string;
   /** "[pct]% OF THE LAND". */
   share: (pct: number) => string;
@@ -258,6 +261,10 @@ export class LandClaimLayer {
   pops = 0;
   hudDrawn = false;
   bannerDrawn = false;
+  /** --- verdict-plate --- The verdict's plate: `shown` and `rect` after a frame (the canvas keeps the watermark's badge off it). */
+  readonly endBanner = new EndBannerLayer();
+  private readonly verdictName = (team: number) => this.nameOf(team);
+  private readonly verdictColor = (team: number) => this.colorOf(team);
   title = "";
   /** How the balls were drawn last frame: 0 sprites with glows, 1 sprites, 2 plain discs. */
   lod = 0;
@@ -840,12 +847,12 @@ export class LandClaimLayer {
 
   /**
    * Screen space, the HUD band at the top of the square the recorder exports: the title, the counters and a bar per
-   * competitor – and, at the verdict, the banner (with the winner's name and the confetti unless `teamBanner`: the teams
-   * layer names the roster's winner below it and throws its own). `inset` moves the band below the page's overlay buttons
+   * competitor – and, at the verdict, the confetti and the banner on its plate, which names the winner (--- verdict-plate ---
+   * with a roster too: the canvas leaves the teams layer's card out). `inset` moves the band below the page's overlay buttons
    * (live, on a nearly square canvas); `dtMs` eases the bars and advances the confetti (0 while paused). Returns the screen y
    * the top captions start below: the band's bottom with the HUD, else 0.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: LandClaimView, balls: number, o: LandClaimRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean }): number {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: LandClaimView, balls: number, o: LandClaimRenderOptions, frame: { inset: number; dtMs: number }): number {
     this.refreshLooks(view, o);
     const f = view.field;
     const S = f.side;
@@ -865,16 +872,20 @@ export class LandClaimLayer {
       this.drawHud(ctx, view, balls, top, S, o);
     }
     this.bannerDrawn = false;
-    if (view.finished && !view.ate && o.nowMs - view.finishedMs >= BANNER_DELAY_MS && !(view.pyramid && view.teams < 2) /* --- land-claim-pyramid --- (one competitor alone: no battle to judge) */) {
+    const verdict = landClaimVerdictShows(view) && o.nowMs - view.finishedMs >= BANNER_DELAY_MS;
+    if (verdict) {
       if (this.bannerGeneration !== view.generation) {
         this.bannerGeneration = view.generation;
-        if (!frame.teamBanner) this.spawnConfetti(f.sqLeft, f.sqTop, S, view.verdict.winner, view.teams);
+        this.spawnConfetti(f.sqLeft, f.sqTop, S, view.verdict.winner, view.teams);
       }
-      // (above the teams banner when it names the winner – it sits low in the square)
-      this.drawBanner(ctx, view, f.sqLeft + S / 2, frame.teamBanner ? Math.min(f.cy, f.sqTop + 0.42 * S) : f.cy, S, o, frame.teamBanner);
-      this.bannerDrawn = true;
     } else if (!view.finished) this.bannerGeneration = -1;
+    // --- verdict-plate --- the confetti, then the plate over it: nothing crosses the verdict's words
     this.stepConfetti(ctx, frame.dtMs / 1000, S);
+    if (verdict) {
+      this.drawBanner(ctx, view, f.sqLeft + S / 2, f.cy, S, o, frame.dtMs);
+      this.bannerDrawn = true;
+    }
+    this.endBanner.endFrame();
     ctx.restore();
     return this.hudDrawn ? top + f.hudHeight : 0;
   }
@@ -1052,64 +1063,10 @@ export class LandClaimLayer {
     return `${chars.join("")}…`;
   }
 
-  /** The verdict: DOMINATION / SUCH A CLOSE BATTLE / "[name] CLAIMS THE MOST", then the winner's share (and name). */
-  private drawBanner(ctx: CanvasRenderingContext2D, view: LandClaimView, cx: number, cy: number, S: number, o: LandClaimRenderOptions, teamBanner: boolean) {
-    const L = o.labels;
-    const v = view.verdict;
-    const k = Math.min(1, Math.max(0, o.nowMs - view.finishedMs - BANNER_DELAY_MS) / 280);
-    const pop = k >= 1 ? 1 : 0.6 + 0.4 * k + 0.15 * Math.sin(k * Math.PI);
-    const winner = v.winner;
-    const name = winner >= 0 ? this.nameOf(winner).toUpperCase() : "";
-    const total = Math.max(1, view.total);
-    const pct = (t: number) => Math.round((100 * Math.max(0, view.land[t] ?? 0)) / total);
-    let head: string;
-    let sub = "";
-    let color = "#ffffff";
-    if (winner < 0) head = L.noLand;
-    else if (v.kind === "domination") {
-      head = L.domination;
-      color = this.colorOf(winner);
-      sub = teamBanner ? L.share(pct(winner)) : `${L.wins(name)} · ${L.share(pct(winner))}`;
-    } else if (v.kind === "close") {
-      head = L.close;
-      color = "#facc15";
-      sub = v.second >= 0 ? `${name} ${pct(winner)}% · ${this.nameOf(v.second).toUpperCase()} ${pct(v.second)}%` : L.share(pct(winner));
-    } else {
-      head = L.claims(name);
-      color = this.colorOf(winner);
-      sub = L.share(pct(winner));
-    }
-    let fs = Math.max(18, 0.085 * S);
-    ctx.font = this.font(fs, 900);
-    const tw = ctx.measureText(head).width;
-    if (tw > 0.88 * S) fs *= (0.88 * S) / tw;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(pop, pop);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = this.font(fs, 900);
-    ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(3, 0.14 * fs);
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
-    ctx.strokeText(head, 0, 0);
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 22;
-    ctx.fillText(head, 0, 0);
-    ctx.shadowBlur = 0;
-    if (sub) {
-      let sfs = 0.42 * fs;
-      ctx.font = this.font(sfs, 800);
-      const sw = ctx.measureText(sub).width;
-      if (sw > 0.86 * S) sfs *= (0.86 * S) / sw;
-      ctx.font = this.font(sfs, 800);
-      ctx.lineWidth = Math.max(2, 0.16 * sfs);
-      ctx.strokeText(sub, 0, 0.95 * fs);
-      ctx.fillStyle = "#f4f4f5";
-      ctx.fillText(sub, 0, 0.95 * fs);
-    }
-    ctx.restore();
+  /** --- verdict-plate --- The verdict on the shared end banner's plate (landClaimVerdictWords()), its entrance on the frames' time. */
+  private drawBanner(ctx: CanvasRenderingContext2D, view: LandClaimView, cx: number, cy: number, S: number, o: LandClaimRenderOptions, dtMs: number) {
+    const words = landClaimVerdictWords(view, o.labels, this.verdictName, this.verdictColor, this.endBanner.text);
+    this.endBanner.draw(ctx, words, cx, cy, S, dtMs);
   }
 
   private spawnConfetti(sx: number, sy: number, side: number, winner: number, teams: number) {
@@ -1154,6 +1111,45 @@ export class LandClaimLayer {
     if (live === 0) this.confetti = 0;
   }
 }
+
+// --- verdict-plate ---
+/**
+ * (round two, B6) Whether the verdict shows once the run is over: not when a ball ate the arena (no verdict), nor for a pyramid of
+ * one competitor (--- land-claim-pyramid --- no battle to judge). The canvas leaves the teams layer's winner card out then.
+ */
+export function landClaimVerdictShows(view: Pick<LandClaimView, "finished" | "ate" | "pyramid" | "teams">): boolean {
+  return view.finished && !view.ate && !(view.pyramid && view.teams < 2);
+}
+
+/**
+ * (round two, B6) The verdict's words on the shared end banner's plate, written into `out`: "[NAME] WINS" in the winner's colour
+ * whatever the verdict – SUCH A CLOSE BATTLE was the headline and named the winner only in its small line on 4-6 of 12 first
+ * visits – with the winner's share of the land under it (a close battle: both of the top two's shares) and DOMINATION or SUCH A
+ * CLOSE BATTLE as the tag under that. Nobody took a block: NO LAND CLAIMED. Every phrase is one the banner said before.
+ */
+export function landClaimVerdictWords(view: Pick<LandClaimView, "verdict" | "land" | "total">, L: LandClaimLabels, nameOf: (team: number) => string, colorOf: (team: number) => string, out: EndBannerText): EndBannerText {
+  const v = view.verdict;
+  const winner = v.winner;
+  out.note = "";
+  out.maxWidth = undefined;
+  if (winner < 0) {
+    out.title = L.noLand;
+    out.sub = "";
+    out.color = "#ffffff";
+    return out;
+  }
+  const total = Math.max(1, view.total);
+  const pct = (t: number) => Math.round((100 * Math.max(0, view.land[t] ?? 0)) / total);
+  const name = nameOf(winner).toUpperCase();
+  out.title = L.wins(name);
+  out.color = colorOf(winner);
+  if (v.kind === "close" && v.second >= 0) out.sub = `${name} ${pct(winner)}% · ${nameOf(v.second).toUpperCase()} ${pct(v.second)}%`;
+  else out.sub = L.share(pct(winner));
+  if (v.kind === "domination") out.note = L.domination;
+  else if (v.kind === "close") out.note = L.close;
+  return out;
+}
+// --- end verdict-plate ---
 
 /* ------------------------------------------------------------------ data attributes (tools and the smoke test) */
 

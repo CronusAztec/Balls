@@ -17,6 +17,10 @@
  *    that holds its own ending (Merge Ring, Spiral Glass) has had its banner up that long already and gets nothing more.
  * The layout is cached per text and size (a few measureText calls when the words change, none per frame) and the layer
  * reports the plate's box, which the canvas hands to the watermark so its badge keeps clear of it.
+ * --- verdict-plate --- (round two, B6) The verdicts a mode's renderer draws itself come on the same plate, from a layer of its own:
+ * Battle's and Capture the Flag's winner card (arenaRenderer.ts), the Beat Runner's LEVEL COMPLETE!, Paddle Keep-Up's GAME OVER
+ * and win card (jdmRhythmRenderer.ts) and Land Claim's verdict (landClaimRenderer.ts). The squares, the ball, the finish pole and
+ * the confetti pass under it instead of through the words; those modes hold their endings themselves, longer than this hold.
  */
 
 import { END_BANNER_HOLD_MS as END_HOLD_MS } from "@/lib/endHold"; // --- end-hold ---
@@ -393,11 +397,29 @@ export class EndBannerLayer {
    * before (0 while paused: the entrance waits). A new title starts the entrance over.
    */
   draw(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number, dtMs: number): void {
-    const lay = this.layout(ctx, text, side);
     if (this.animKey !== text.title) {
       this.animKey = text.title;
       this.ageMs = 0;
     } else if (dtMs > 0) this.ageMs += dtMs;
+    this.paint(ctx, text, cx, cy, side);
+  }
+
+  // --- verdict-plate ---
+  /**
+   * (round two, B6) Draws the banner as draw() does, its entrance `ageMs` after the verdict on the mode's own clock: an arena's,
+   * the Beat Runner's or Paddle Keep-Up's simulation time, so a pause holds it and a recording or the fast export replays it frame
+   * for frame. For a mode that draws its own verdict on the plate (its renderer keeps the layer and reports `shown` and `rect`).
+   */
+  drawAt(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number, ageMs: number): void {
+    this.animKey = text.title;
+    this.ageMs = ageMs > 0 ? ageMs : 0;
+    this.paint(ctx, text, cx, cy, side);
+  }
+  // --- end verdict-plate ---
+
+  /** The plate and its words, at the age the entrance has reached (draw() and drawAt() keep its clock). */
+  private paint(ctx: CanvasRenderingContext2D, text: EndBannerText, cx: number, cy: number, side: number): void {
+    const lay = this.layout(ctx, text, side);
     this.drawn = true;
     const w = lay.width;
     const h = lay.height;

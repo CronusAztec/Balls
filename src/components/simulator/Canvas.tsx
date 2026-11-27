@@ -129,7 +129,7 @@ import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip"; // --- f
 import { prefersReducedMotion } from "@/lib/reducedMotion";
 // --- end fl-overhaul ---
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
-import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
+import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, landClaimVerdictShows, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer"; // (--- verdict-plate --- landClaimVerdictShows)
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
@@ -3089,11 +3089,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0, portrait: !!flExport && flExport.height > flExport.width }));
         flLayer.noteRenderMs(flBodiesMs + performance.now() - t1);
       }
-      // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner – it names the winner and throws
-      // the confetti unless the teams banner does it for a roster's winner; the band is what the top captions start below
+      // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner with its confetti; the band is
+      // what the top captions start below (--- verdict-plate --- round two, B6: the plate names the winner with a roster too, and the teams
+      // layer's winner card stays out, below)
       if (lcView) {
-        const teamBanner = teamLayer.isActive() && lcView.verdict.winner >= 0 && lcView.verdict.winner < teamLayer.teamsInPlay();
-        modeTopHud = Math.max(modeTopHud, lcLayer.drawOverlay(ctx, lcView, engine.getBalls().length, lcRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner }));
+        modeTopHud = Math.max(modeTopHud, lcLayer.drawOverlay(ctx, lcView, engine.getBalls().length, lcRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 }));
       }
 
       // HUD: mode counters in the centre
@@ -3428,6 +3428,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
           modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped() && collapseDone(engine.getShatterView())) /* --- shatter-demolition --- */ || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */ || endBannerMid /* --- end-banner --- (any mode's end banner there) */,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
+          modeVerdict: !!lcView && landClaimVerdictShows(lcView), // --- verdict-plate --- (Land Claim's plate names the winner: no second card)
         });
       }
 
@@ -4054,6 +4055,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
         for (const layer of endBanners) if (layer.shown) hud.block(layer.rect.x, layer.rect.y, layer.rect.w, layer.rect.h); // --- end-banner --- (the badge never sits on the verdict)
         if (mazeView && mazeLayer.bannerDrawn) hud.block(mazeLayer.bannerBox.x, mazeLayer.bannerBox.y, mazeLayer.bannerBox.w, mazeLayer.bannerBox.h); // --- end-banner --- (the maze's banner, or its strip under the maze)
+        // --- verdict-plate --- (round two, B6) the plates the modes draw their verdicts on themselves: the arenas' winner card, LEVEL
+        // COMPLETE!, GAME OVER or the paddle's win card, and Land Claim's verdict
+        if (arenaView && arenaLayer.endBanner.shown) hud.block(arenaLayer.endBanner.rect.x, arenaLayer.endBanner.rect.y, arenaLayer.endBanner.rect.w, arenaLayer.endBanner.rect.h);
+        if (rrView && rrLayer.endBanner.shown) hud.block(rrLayer.endBanner.rect.x, rrLayer.endBanner.rect.y, rrLayer.endBanner.rect.w, rrLayer.endBanner.rect.h);
+        if (pdView && pdLayer.endBanner.shown) hud.block(pdLayer.endBanner.rect.x, pdLayer.endBanner.rect.y, pdLayer.endBanner.rect.w, pdLayer.endBanner.rect.h);
+        if (lcView && lcLayer.endBanner.shown) hud.block(lcLayer.endBanner.rect.x, lcLayer.endBanner.rect.y, lcLayer.endBanner.rect.w, lcLayer.endBanner.rect.h);
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
         else if (realTimeBadge) noteCornerReadouts(hud, liveSquare, true, 1, recording ? 0 : 52); // --- slow-motion --- (the real-time badge alone)
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);

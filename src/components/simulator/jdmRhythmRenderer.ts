@@ -1,5 +1,6 @@
 import { CAMERA_AT, FINISH_HOLD_SEC, MAX_RR_PARTICLES, RR_PARTICLE_GRAVITY, RR_TRAIL, VIEW_UNITS, type RunnerView } from "@/lib/physics/modes/runner";
 import { GAME_OVER_HOLD_SEC, MAX_PD_PARTICLES, PD_ASPECT, PD_CEILING, PD_PLATFORM, PD_THICKNESS, playedSkill, type PaddleView } from "@/lib/physics/modes/paddle"; // (--- uncap-all --- (review fix) playedSkill: the controller's tag)
+import { EndBannerLayer } from "./endBanner"; // --- verdict-plate ---
 
 /**
  * Canvas side of feature jdm-rhythm-runner (lib/physics/modes/runner.ts and paddle.ts have the physics).
@@ -23,6 +24,10 @@ import { GAME_OVER_HOLD_SEC, MAX_PD_PARTICLES, PD_ASPECT, PD_CEILING, PD_PLATFOR
  * `PaddleLayer` – Paddle Keep-Up: `drawWorld()` the field (walls and ceiling glowing where the ball touched them, the
  * miss zone), the platform (flashing and dipping on a catch) and the sparks; the ball is the canvas' own ball pass (trail,
  * glow, face, emoji); `drawOverlay()` the score, the lives, the streak, "MISS!" and the "GAME OVER" banner.
+ *
+ * --- verdict-plate --- (round two, B6) LEVEL COMPLETE!, GAME OVER and the win card ("20 CATCHES!") come on the shared end banner's
+ * plate (endBanner.ts), its entrance on the run's own clock: the finish pole and the bouncing ball crossed the bare words. Each
+ * layer's `endBanner` reports the plate's box, which the canvas hands to the watermark.
  */
 
 export interface JdmRhythmLabels {
@@ -139,6 +144,8 @@ export class RunnerLayer {
   /** Obstacles and particles drawn in the last frame (mirrored for tools and the smoke test). */
   obstaclesDrawn = 0;
   particlesDrawn = 0;
+  /** --- verdict-plate --- LEVEL COMPLETE!'s plate: `shown` and `rect` after a frame. */
+  readonly endBanner = new EndBannerLayer();
 
   applyCamera(ctx: CanvasRenderingContext2D, view: RunnerView) {
     ctx.translate(-view.camX * view.field.unit, 0);
@@ -557,17 +564,16 @@ export class RunnerLayer {
       ctx.fillRect(left, f.top, side, side);
       ctx.globalAlpha = 1;
     }
-    // LEVEL COMPLETE!
+    // LEVEL COMPLETE! (--- verdict-plate --- on the plate, over the finish pole and the cube; its entrance from the crossing)
     if (view.crossed) {
-      const age = Math.max(0, view.timeSec - view.crossSec);
-      const pop = Math.min(1, age / 0.25);
-      const base = 0.1 * side * (0.6 + 0.4 * pop);
-      const size = fitFont(ctx, L.complete, base, 0.9 * side);
-      const cy = f.top + 0.42 * side;
-      bannerText(ctx, L.complete, left + side / 2, cy, size, GOLD);
-      subText(ctx, L.completeSub(view.jumps, view.onBeat, view.landings), left + side / 2, cy + 0.9 * base, 0.36 * base);
+      const words = this.endBanner.text;
+      words.title = L.complete;
+      words.sub = L.completeSub(view.jumps, view.onBeat, view.landings);
+      words.color = GOLD;
+      this.endBanner.drawAt(ctx, words, left + side / 2, f.top + 0.42 * side, side, 1000 * (view.timeSec - view.crossSec));
     }
     ctx.restore();
+    this.endBanner.endFrame(); // --- verdict-plate ---
   }
 }
 
@@ -591,6 +597,8 @@ const PD_STREAK_DOTS = 10;
 
 export class PaddleLayer {
   particlesDrawn = 0;
+  /** --- verdict-plate --- GAME OVER's (or the win card's) plate: `shown` and `rect` after a frame. */
+  readonly endBanner = new EndBannerLayer();
   /** --- paddle-look --- The big score's text, made again only when the score changes. */
   private scoreHits = -1;
   private scoreText = "";
@@ -818,14 +826,17 @@ export class PaddleLayer {
       ctx.fillStyle = "#000";
       ctx.fillRect(f.left, f.top, f.width, s);
       ctx.globalAlpha = 1;
-      const base = 0.11 * s * (0.6 + 0.4 * k);
-      const title = view.won ? (L.win ?? DEFAULT_JDM_RHYTHM_LABELS.win!)(view.hits) : L.gameOver;
-      const size = fitFont(ctx, title, base, 0.92 * f.width);
-      bannerText(ctx, title, cx, f.top + 0.42 * s, size, view.won ? GOLD : "#f87171");
-      const sub = view.won ? (L.winSub ?? DEFAULT_JDM_RHYTHM_LABELS.winSub!)(view.bestStreak) : L.gameOverSub(view.hits, view.bestStreak);
-      subText(ctx, sub, cx, f.top + 0.42 * s + 0.85 * base, fitFont(ctx, sub, 0.34 * base, 0.92 * f.width, 700));
+      // --- verdict-plate --- (round two, B6) on the plate, kept inside the field's walls, over the ball still bouncing under the veil;
+      // its entrance from the game's end
+      const words = this.endBanner.text;
+      words.title = view.won ? (L.win ?? DEFAULT_JDM_RHYTHM_LABELS.win!)(view.hits) : L.gameOver;
+      words.sub = view.won ? (L.winSub ?? DEFAULT_JDM_RHYTHM_LABELS.winSub!)(view.bestStreak) : L.gameOverSub(view.hits, view.bestStreak);
+      words.color = view.won ? GOLD : "#f87171";
+      words.maxWidth = f.width;
+      this.endBanner.drawAt(ctx, words, cx, f.top + 0.44 * s, s, 1000 * age);
     }
     ctx.restore();
+    this.endBanner.endFrame(); // --- verdict-plate ---
   }
 }
 

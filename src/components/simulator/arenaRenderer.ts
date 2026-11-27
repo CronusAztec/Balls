@@ -1,5 +1,6 @@
 import { WALL_BOTTOM, WALL_LEFT, WALL_RIGHT, WALL_TOP, arenaColor, type ArenaView } from "@/lib/physics/modes/arenaGames";
 import type { Ball } from "@/lib/physics/types";
+import { EndBannerLayer } from "./endBanner"; // --- verdict-plate ---
 
 /**
  * Canvas drawing of the arena games (feature jdm-arena-games: Bouncing Square Battle Royale and Capture the Flag, see
@@ -13,6 +14,8 @@ import type { Ball } from "@/lib/physics/types";
  *   flag), names from the Teams roster – and the KO blasts: shards, a shock ring and the "KO!" callout;
  * - `drawOverlay()` (screen space, after the HUD): the scoreboard band at the top of the exported square (squares left,
  *   or the score and the time left), the "CAPTURE!" banner and the winner banner with confetti.
+ * - --- verdict-plate --- (round two, B6) the winner card on the shared end banner's plate (endBanner.ts), over the squares and
+ *   the confetti: they ran through the bare "Red WINS!" for the whole hold. `endBanner` reports its box for the watermark.
  * - --- ctf-flag-run --- (Lane E, E6) Capture the flag tells its story at phone size: the carrier flies a big waving flag with
  *   a streak in its team's colour behind it and a thin line to the base it runs for, a base whose flag is away pulses, the
  *   score pops on a capture and CAPTURE! comes in under the score in the top band, clear of the players.
@@ -143,6 +146,8 @@ export class ArenaLayer {
   private firstId = 0;
   /** Squares drawn and names shown last frame (for the data attributes). */
   squaresDrawn = 0;
+  /** --- verdict-plate --- The winner card's plate: `shown` and `rect` after a frame (the canvas keeps the watermark's badge off it). */
+  readonly endBanner = new EndBannerLayer();
 
   /** Name and colour of team / square `index` (the roster's, else the built-in ones). */
   nameOf(index: number): string {
@@ -619,7 +624,10 @@ export class ArenaLayer {
 
   drawOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, view: ArenaView, o: ArenaRenderOptions) {
     const f = view.field;
-    if (!f) return;
+    if (!f) {
+      this.endBanner.endFrame();
+      return;
+    }
     this.beginFrame(view, o);
     const side = Math.min(width, height);
     const left = (width - side) / 2;
@@ -641,6 +649,7 @@ export class ArenaLayer {
     }
     if (view.finished) this.drawWinner(ctx, view, o, left, top, side);
     ctx.restore();
+    this.endBanner.endFrame(); // --- verdict-plate ---
   }
 
   private bannerText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, fs: number, color: string) {
@@ -743,7 +752,7 @@ export class ArenaLayer {
     ctx.fillText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, cx, top + 0.82 * band);
   }
 
-  /** The winner banner with confetti (analytic, so it replays with the clock and freezes with a pause). */
+  /** The confetti (analytic, so it replays with the clock and freezes with a pause), then the winner card on its plate. */
   private drawWinner(ctx: CanvasRenderingContext2D, view: ArenaView, o: ArenaRenderOptions, left: number, top: number, side: number) {
     const age = Math.max(0, view.timeMs - view.finishMs) / 1000;
     const winner = view.winner;
@@ -766,10 +775,6 @@ export class ArenaLayer {
       ctx.fillRect(-size, -0.5 * size, 2 * size, size);
       ctx.restore();
     }
-    const pop = Math.min(1, age / 0.25);
-    const fs = 0.1 * side * (0.6 + 0.4 * pop);
-    const cy = top + 0.46 * side;
-    ctx.globalAlpha = 1;
     let title: string;
     let sub: string;
     if (view.game === "battle") {
@@ -779,17 +784,12 @@ export class ArenaLayer {
       title = winner >= 0 ? o.labels.wins(this.nameOf(winner)) : o.labels.draw;
       sub = `${view.byTime ? `${o.labels.time} ` : ""}${o.labels.ctfSub(view.scores[0], view.scores[1])}`;
     }
-    ctx.font = `900 ${fs}px sans-serif`;
-    const fit = Math.min(fs, (0.9 * side * fs) / Math.max(1, ctx.measureText(title).width));
-    this.bannerText(ctx, title, left + side / 2, cy, fit, color);
-    if (sub) {
-      const sfs = 0.36 * fs;
-      ctx.font = `700 ${sfs}px sans-serif`;
-      ctx.lineWidth = Math.max(2, 0.14 * sfs);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
-      ctx.strokeText(sub, left + side / 2, cy + 0.9 * fs);
-      ctx.fillStyle = "#f4f4f5";
-      ctx.fillText(sub, left + side / 2, cy + 0.9 * fs);
-    }
+    // --- verdict-plate --- (round two, B6) the title and its line on the shared end banner's plate, drawn after the confetti and
+    // over the squares, so nothing crosses the words; its entrance runs on the game's own clock from the finish
+    const words = this.endBanner.text;
+    words.title = title;
+    words.sub = sub;
+    words.color = color;
+    this.endBanner.drawAt(ctx, words, left + side / 2, top + 0.46 * side, side, view.timeMs - view.finishMs);
   }
 }
