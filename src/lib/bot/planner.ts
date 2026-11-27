@@ -1324,9 +1324,11 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
 
 /**
  * The share link of a clip: the simulator with its settings and its seed (`seed=` pins the run). --- clip-pacing --- (merge check)
- * It names every field of the mode's page pace (lib/clipPacing.ts) it plays, even at the pace's value: the page's pace is the link
- * base of a bare `?mode=` and moves with the site, while a posted clip's link must replay that clip (the day's 6-screen race kept
- * its `rcl=6` when the race's page pace became 6 screens).
+ * It names every field of the mode's pace (lib/clipPacing.ts) at the value the clip plays, even where that equals the link base:
+ * a posted clip's link must replay that clip whatever a later link base reads. (--- pace-as-look --- A-g2 review) A bare `?mode=`
+ * reads the link base, 1.17.0's values, and the pace is the page's start look, so a value at the pace differs from the link base
+ * and is written anyway (the day's 6-screen race: `rcl=6`); `always` only matters when a plan's value equals the link base (an
+ * 8-screen race still names `rcl=8`).
  */
 export function clipShareUrl(settings: SimulatorSettings, seed: number, locale: BotLocale, siteUrl?: string): string {
   const base = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/${locale}/simulator/` : pageUrl(locale, "/simulator");

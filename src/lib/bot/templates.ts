@@ -616,8 +616,9 @@ const forBucket = <T,>(ctx: RecipeContext, values: Readonly<Record<LengthBucket,
  */
 function shatterSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   const walls = forBucket(ctx, { short: [8, 12], standard: [16, 20], long: [18, 20] });
-  // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as measured: the page's default is 2 hits and 36 now)
-  // (--- shatter-even-bricks --- and every ring in 18, as measured: the page's default cuts the inner rings into fewer, longer bricks)
+  // (--- shatter-demolition --- its own segments, one hit each and 18 a ring, as measured: the page's start look, which the plans
+  // build on (planner.ts recipeSettings), is 2 hits and 36; the link base keeps 1.17.0's one hit and 18 – A-g2 review)
+  // (--- shatter-even-bricks --- and every ring in 18, as measured: the start look cuts the inner rings into fewer, longer bricks)
   return { wallCount: intBetween(ctx.rng, walls[0], walls[1]), ballSpeed: stepBetween(ctx.rng, 380, 440, 10), rotationSpeed: SHATTER_SPIN, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false };
 }
 /** --- templates --- (studio2 review round 2, 14) Shatter's ring spin under its template (rotationSpeed, on its 0.1 step; the mode's default 1 stays). */

@@ -54,8 +54,9 @@ import {
  *  - **The race**: the first ball through the exit wins (an escape in the team stats, the wall-break sound, a shake);
  *    the others keep going until every ball is out or the clip limit (`duration`) – then the ball closest to the exit
  *    wins if none got out. The run finishes `MZ_FINISH_HOLD_MS` after that, so the banner stays in the clip. With
- *    `firstOut` (--- finales-in-clip ---; the page's default, off in the mode's own) the run ends at the first ball out:
- *    the race is over when it is won, and the balls still inside keep moving under the banner for the hold.
+ *    `firstOut` (--- finales-in-clip ---; on in the page's start look, off in the mode's own and on the link base) the run
+ *    ends at the first ball out: the race is over when it is won, and the balls still inside keep moving under the banner
+ *    for the hold.
  *  - **The rig**: the forced winner (`config.forcedWinner`) steers along the shortest path whatever the brain, a touch
  *    faster, and the exit stays closed to the others until it is out – the win is certain.
  *

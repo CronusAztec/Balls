@@ -64,8 +64,10 @@ describe("--- finder-target --- Find Simulation's target on a paced mode's page 
     // every mode with a target is paced, and Territory (a 30 s countdown) keeps the page's 30
     for (const mode of Object.keys(own) as ModeId[]) expect(Object.keys(clipPacingDefaults(mode)).length, mode).toBeGreaterThan(0);
     expect(clipPacingFindSec(startSettings("territory"))).toBe(30);
-    // a link that sets its own course keeps the page's 30; the ring modes' glow is a look, not a pace
-    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=runner&rrn=24&rrd=0.6")))).toBe(30);
+    // a link that sets its own course keeps the page's 30; the ring modes' glow is a look, not a pace (A-g2 review: Beat Runner's
+    // 24 obstacles at 0.6 are the link base now, 1.17.0's course, the run of its Challenge look, which has a target of its own)
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=runner&rrn=24&rrd=0.6")))).toBe(32);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=runner&rrn=20&rrd=0.6")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paddle&pdg=0")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=vortex&vxrl=stagger")))).toBe(30);
     expect(clipPacingFindSec({ ...startSettings("target"), showGlow: false })).toBe(20);

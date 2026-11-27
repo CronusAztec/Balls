@@ -153,9 +153,11 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    Spiral Glass 24 (24 and 27), Shatter 15 (2 and 6; 17.4 and 14.6 s).
  * (Territory's countdown is 30 s on every seed, and Bouncing Orbs' rhythm field never ends: the page's 30 stays.) Only while the
  * mode's run fields are at their page pace (`clipPacingDefaults()`; the ring modes' glow is a look): a link that sets its own
- * course, and (--- pace-as-look ---) a bare link, which plays the link base, keep the page's 30. Simulator.tsx sets it when
- * the page starts a mode (a first visit, a mode picked), and (--- find-target-follows --- round two A2b) whenever another run
- * comes onto the page while the target is still the page's own.
+ * course keeps the page's 30, and (--- pace-as-look ---) a bare link, which plays the link base, gets the target of the look
+ * whose run it plays (`LOOK_FIND_SEC`: Pendulum Wave's 60 s cycle is galaxy-pendulum's run, Race's and Beat Runner's are their
+ * Challenge looks', 1.17.0's deals; A-g2 review) or else the page's 30. Simulator.tsx sets it when the page starts a mode (a
+ * first visit, a mode picked), and (--- find-target-follows --- round two A2b) whenever another run comes onto the page while
+ * the target is still the page's own.
  */
 export const DEFAULT_FIND_SEC = 30;
 const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
@@ -260,7 +262,12 @@ const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>
   runner: [
     { look: "card", run: { runnerObstacles: 18, runnerDensity: 1 }, sec: 20.5 }, // (104; 30 s: 0)
     { look: "retro-runner", run: { runnerObstacles: 24, runnerDensity: 1 }, sec: 25.5 }, // (86; 0)
+    // (A-g2 review) the Challenge look (face=cute on the link base, 1.17.0's deal: lib/dailyCore.ts) and a bare `?mode=runner`:
+    // 1.17.0's course, every run field at its link-base value (before, the page's 30); none of the 200 runs ends by 27 s
+    { look: "daily", run: { runnerObstacles: 24, runnerDensity: 0.6, runnerSpeed: 9, runnerJump: 2.6 }, sec: 32 }, // (44; 30 s: 20) median 32.1 s, 27.6–36.1 s
   ],
+  // (A-g2 review) the Challenge look (glow on the link base, 1.17.0's deal) and a bare `?mode=race`: 1.17.0's eight screens
+  race: [{ look: "daily", run: { rcRacers: 8, rcTrackLength: 8, rcLaps: 1, rcWinner: -1 }, sec: 27.5 }], // (40; 30 s: 20) median 28.4 s, 23.5–37.0 s
   vortex: [{ look: "neon-vortex", run: { vxRelease: "stagger", vxBalls: 20 }, sec: 41.5 }], // (98; 0)
   bullseye: [
     { look: "card", run: { byShots: 10, byPerfect: 2, byInterval: 0.4 }, sec: 10 }, // (76; 0)
@@ -268,6 +275,8 @@ const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>
   ],
   journey: [{ look: "card", run: { journeyStages: "rings-l,glass,pegs,home" }, sec: 22.5 }], // the card and Pastel Commute (42; 0)
   maze: [{ look: "card", run: { mzFirstOut: true, mzDuration: 25, mzCols: 12, mzBalls: 4 }, sec: 10.5 }], // (20; 0)
+  // (A-g2 review) the Challenge look (pdsp=1 on the link base, 1.17.0's deal: lib/dailyCore.ts) plays this run too, and 19.5 s is
+  // its best target as well (12 of 200; 30 s: 2), median 28.8 s
   paddle: [{ look: "sunset-keep-up", run: { pdGoal: 0, pdSpin: 1 }, sec: 19.5 }], // (12; 2) game over at 10–54 s
   paint: [{ look: "rainbow-paint", run: { ballRadius: 14, ballSpeed: 400, paintGuide: false, gravity: 100 }, sec: 67.5 }], // (20; 0) full at 47–86 s
   illusion: [{ look: "hidden-heart", run: { ilStage: false, ilCycles: 0, ilType: "whitespace", ilPattern: "heart" }, sec: 21 }], // (78; 0)

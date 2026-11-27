@@ -29,17 +29,23 @@ import type { SimulatorSettings } from "@/lib/settings";
  *    look (the daily deal's settings);
  *  - (j) (A-g1 review) Reset Category puts a section back without making a third run: a page on the link base stays on the
  *    link's run or lands on the start look's, a page on the start look stays on it.
- * (round two A3b) The link base is frozen: a link made before the paces plays the run it showed then. Pinned with literals of
- * 1.17.0 (2ebb8f32, the last release before the paces), never read from gallery.ts, heroMoments.ts or dailyCore.ts, so the site's
- * own cards, gallery and pictures can change without moving a pin:
+ * (round two A3b) The link base is frozen: a link made before the paces reads the settings it read then, 1.17.0's, and (A-g2
+ * review) plays the run it showed then in 13 of the 16 paced modes – not in Shatter and Territory, whose physics moved since
+ * (d8f0f05 and 5ebb283, each with its Fingerprint-Change trailer: the same settings play another run), nor in Merge Ring, whose
+ * runs end a frame earlier on some seeds (code-3, an owner item). Pinned with literals of 1.17.0 (2ebb8f32, the last release
+ * before the paces), never read from gallery.ts, heroMoments.ts or dailyCore.ts, so the site's own cards, gallery and pictures
+ * can change without moving a pin:
  *  - (a) a bare `?mode=X`, a preset of the mode alone and the link base are one, and a bare link plays none of its mode's pace;
  *  - (b) the paced fields' link base, as 1.17.0 played it (a field added since: the value that plays 1.17.0's run);
- *  - (c) a digest of every mode's link base, over 1.17.0's fields and over the fields added since: it fails like a fingerprint
- *    when a default moves, while a field added later passes;
+ *  - (c) a digest of every mode's link base, over 1.17.0's fields and over the fields added since: it fails when a default
+ *    moves, as a fingerprint does, while a field added later passes (A-g2 review: unlike the BASELINE, these digests,
+ *    PACED_LINK_BASE and the run frames of (g) are not in scripts/agent/protected.json – registering them is the owner's call –,
+ *    so they hold by the house rule, never re-record a pin to make a test pass, not by the guard's fingerprint lock);
  *  - (d+) the start look holds the pace of every paced mode;
  *  - (e) share codes 1.17.0 wrote open on 1.17.0's settings, and the page writes the same codes for them again;
  *  - (f) a project file and a preset 1.17.0 saved play its run: the fields added since read 1.17.0's values;
- *  - (g) 1.17.0's `?mode=race&seed=1` finishes when it did, at 27.05 s;
+ *  - (g) 1.17.0's `?mode=race&seed=1` finishes when it did, at 27.05 s, and (A-g2 review) the bare links of the 13 paced modes
+ *    whose runs replay finish on 1.17.0's frames, seeds 1–3 (Shatter, Territory and Merge Ring named with why they do not);
  *  - (i) a card opened from the studio's picker plays the run its wall link plays, in every mode.
  */
 
@@ -149,6 +155,22 @@ const CODES_1_17_0 = [
   { code: "q1bKzU9JVbJSKkpMTlXSUSpKzlOyMjSoBQA", holds: "mode=race&rcn=10", reads: { mode: "race", rcRacers: 10, rcTrackLength: 8 } },
 ] as const;
 
+/**
+ * (g) The frames at which 1.17.0 finished the bare links of the paced modes on seeds 1–3 (A-g2 review: 2ebb8f32's own source run
+ * with the finder's engine in the laptop world, 800 × 450, as below; 9000 is the 150 s the run was given: no end by then), in the
+ * 13 modes whose runs replay. Not here, and why: Shatter and Territory, whose physics moved on purpose (d8f0f05: 1.17.0's rings
+ * ended at 598, 1325 and 233 frames and play another run now; 5ebb283: Territory's 30 s countdown ends at 1800 as it did, over
+ * another map), and Merge Ring, whose seeds 2 and 3 end a frame earlier (3738 and 3348 then: code-3, an owner item).
+ */
+const RUNS_1_17_0: Readonly<Partial<Record<ModeId, readonly [number, number, number]>>> = {
+  target: [4350, 5068, 3461], colorMatch: [9000, 6393, 9000], pendulum: [3600, 3600, 3600], polyrhythm: [1801, 1801, 1801],
+  spiralGlass: [1958, 1955, 1975], runner: [1926, 1866, 1866], vortex: [1854, 1822, 1845], bullseye: [1856, 1826, 1763],
+  race: [1623, 1625, 1611], journey: [1567, 1654, 1878], orbGrid: [9000, 9000, 9000], maze: [1290, 981, 1829],
+  paddle: [1793, 849, 2096],
+};
+/** (g) The paced modes whose 1.17.0 links play another run now (the reasons above). */
+const RUNS_MOVED_SINCE_1_17_0: readonly ModeId[] = ["shatter", "territory", "mergeRing"];
+
 /** (f) What 1.17.0 played for the fields it did not have yet, in the four modes whose pace added one. */
 const ADDED_FIELDS_AS_1_17_0: Readonly<Record<"paddle" | "maze" | "shatter" | "colorMatch", Partial<SimulatorSettings>>> = {
   paddle: { pdGoal: 0 }, // no goal: a run to GAME OVER
@@ -157,7 +179,7 @@ const ADDED_FIELDS_AS_1_17_0: Readonly<Record<"paddle" | "maze" | "shatter" | "c
   colorMatch: { colorMatchSegments: 12 },
 };
 
-describe("(a)-(g) the link base is 1.17.0's: a link made before the paces plays the run it showed then", () => {
+describe("(a)-(g) the link base is 1.17.0's: a link made before the paces reads its settings, and replays its run but in Shatter, Territory and Merge Ring", () => {
   it("(a) reads a bare link, a preset of the mode alone and the link base alike, writes the link base as a bare link, and plays no pace from it", () => {
     for (const mode of MODE_IDS) {
       const base = defaultSettings(mode);
@@ -248,6 +270,16 @@ describe("(a)-(g) the link base is 1.17.0's: a link made before the paces plays 
     for (const world of [{ width: 800, height: 600 }, { width: 450, height: 450 }]) {
       const ms = simulateSeed(1, finderRequestOfSettings(settings, world, 150), 150_000);
       expect([world, Math.round((ms * 60) / 1000)]).toEqual([world, 1623]);
+    }
+  });
+
+  it("(g) finishes the bare links of the paced modes whose runs replay on 1.17.0's frames, seeds 1–3 (A-g2 review)", { timeout: 60_000 }, () => {
+    expect([...Object.keys(RUNS_1_17_0), ...RUNS_MOVED_SINCE_1_17_0].sort()).toEqual([...PACED].sort());
+    const world = { width: 800, height: 450 };
+    for (const [mode, frames] of Object.entries(RUNS_1_17_0) as [ModeId, readonly number[]][]) {
+      const request = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams(`mode=${mode}`)), world, 150);
+      const ran = [1, 2, 3].map((seed) => Math.round((simulateSeed(seed, request, 150_000) * 60) / 1000));
+      expect([mode, ran]).toEqual([mode, frames]);
     }
   });
 });

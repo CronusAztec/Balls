@@ -2626,7 +2626,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `paint` | the circle four-fifths painted in thick rainbow strokes, the counter above the ring and its progress round it | 1 | 9 s | `r=12&s=600&pgu=1` | – |
 | `target` | the countdown at 4: a correct hit bursting a numbered segment of the ring | 6 | 18.4 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `portal` | a teleport: the ball bursting out of a portal in a spray of sparks, the ring washed in its pair's colour, the swirling twins and their charge pips | 1 | 14.6 s | `ptc=5&ptu=3&r=11&wt=5&tt=1.6` | zoom 1.1 |
-| `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 3 | 11.8 s | `r=11` | – |
+| `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 3 | 11.8 s | `r=11&wc=6&shs=36&shh=2&shb=1` | – |
 | `colorMatch` | a colour match shattering a segment of the ring | 1 | 16 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
 | `grow` | the ball warmed to amber a bounce from filling its ring, the meter round the rim nearly closed, its hit markers fading | 1 | 19.6 s | `gLaw=multiply&gFill=finish&gStep=4&gStart=15&gHue=1&gMark=1&gPitch=1` | – |
 | `drop` | balls raining through the coloured pegs | 1 | 4 s | `dbc=16&dsi=0.2&dsv=0.7` | – |
@@ -2640,24 +2640,24 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `illusion` | the trick revealed: the eight balls on their straight lines riding the dashed rolling circle, its rainbow octagon lit | 1 | 13.2 s | `ilsg=1&ilc=4` | zoom 1.1 |
 | `stringBattle` | String Circle: flag balls with their strings fanned to the rim | 1 | 14 s | `sbst=circle&sbh=0` | x 0.5 · y 0.56 · zoom 1.2 |
 | `powerLayers` | a big hit shattering a band of the rainbow stack | 1 | 5.6 s | `pll=400&plb=none&plp=0` | x 0.5 · y 0.58 · zoom 1.55 |
-| `race` | racers mid-track through the flippers and pegs, the leader crowned | 1 | 5 s | `rcn=10&rcl=8&rcst=0&rcmm=0` | x 0.569 · y 0.451 · zoom 1.667 |
+| `race` | racers mid-track through the flippers and pegs, the leader crowned | 1 | 5 s | `rcn=10&rcst=0&rcmm=0` | x 0.569 · y 0.451 · zoom 1.667 |
 | `battle` | squares clashing with HP bars, a KO blast | 1 | 5.8 s | `btn=12` | – |
 | `ctf` | CAPTURE!: a flag carried home, the score ticking over | 2 | 11 s | `ctfn=3&s=600` | – |
 | `runner` | the runner in the air over the spikes, on the beat | 1 | 3.6 s | `rrn=40&rrd=1&face=cute` | x 0.43 · y 0.52 · zoom 1.8 |
-| `paddle` | a catch on the platform, sparks flying | 1 | 8.6 s | `pdsk=1&pdsp=1` | x 0.55 · y 0.756 · zoom 2.2 |
-| `vortex` | a full funnel: balls weaving down the glowing rings | 1 | 16 s | `face=cute&vxrl=stagger` | zoom 1.4 |
+| `paddle` | a catch on the platform, sparks flying | 1 | 8.6 s | `pdsk=1&pdsp=1&pdg=20` | x 0.55 · y 0.756 · zoom 2.2 |
+| `vortex` | a full funnel: balls weaving down the glowing rings | 1 | 16 s | `face=cute` | zoom 1.4 |
 | `journey` | Gerald bursting the first ring of a rings stage, the field still closed around him | 1 | 2 s | `js=rings-l,glass,pegs,home&face=cute` | x 0.5 · y 0.53 · zoom 1.4 |
-| `bullseye` | BULLSEYE: a ball stuck in the bull, the starburst | 1 | 3.5 s | `byi=0.4&byp=2&face=cute` | x 0.5 · y 0.56 · zoom 1.2 |
-| `mergeRing` | a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim | 1 | 12 s | `mrg=1` | – |
+| `bullseye` | BULLSEYE: a ball stuck in the bull, the starburst | 1 | 3.5 s | `bys=10&byi=0.4&byp=2&face=cute` | x 0.5 · y 0.56 · zoom 1.2 |
+| `mergeRing` | a merge in the pile: the halo around the pair, the crown tier lit on the ladder, the rainbow rim | 1 | 12 s | `mri=0.4&mrs=3` | – |
 | `spiralGlass` | the outer band bored open, a ring of coloured balls circling the glass core, shards flying off its face | 1 | 30 s | `sgv=1.2` | – |
 | `songRing` | five of seven note tiles lit round the ring, the ball lighting the fifth in a burst of sparks, the playhead sweeping on | 1 | 8.87 s | – | – |
 | `sandPlate` | the sixth note's figure drawn in sand, the last loose grains streaming onto its lines, the dots climbing under the plate | 1 | 11.2 s | – | – |
 | `blueprint` | Ring Breaker: the swarm filling the arena as the last ring shatters | 1 | 11.9 s | `blp=ringBreaker` | – |
 | `beatDrop` | the ball landing on a pad on the beat in a burst of sparks | 1 | 12.6 s | `face=cute&bdd=1&bda=1` | x 0.38 · y 0.58 · zoom 1.8 |
-| `territory` | the territory map half painted, borders jagged, a blast and a whirl biting into the other side | 1 | 14.5 s | `tyb=3&tybg=0` | x 0.5 · y 0.545 · zoom 1.1 |
-| `maze` | the leader one turn from the exit, blood-red trails filling the maze behind it | 6 | 6.7 s | `mzn=4&mzbg=0&mzhud=0` | zoom 1.12 |
+| `territory` | the territory map half painted, borders jagged, a blast and a whirl biting into the other side | 1 | 14.5 s | `tyr=4&tye=2&tyb=3&tybg=0` | x 0.5 · y 0.545 · zoom 1.1 |
+| `maze` | the leader one turn from the exit, blood-red trails filling the maze behind it | 6 | 6.7 s | `mzn=4&mzbg=0&mzhud=0&mzfo=1&mzd=25` | zoom 1.12 |
 | `conveyor` | balls riding the belt and dropping into the rainbow rings | 1 | 6.8 s | `cvi=2&face=cute` | – |
-| `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0&ogCycle=30` | x 0.506 · y 0.567 · zoom 1.25 |
+| `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor's Thunder Strike crashing down on Loki on the noir stage: white hit particles over the black arena, the HP numbers in the discs | 1 | 9.45 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
 | `starChords` | the five stars just closed together: every chord drawn, the inner circles lit, the closing flash | 1 | 12.3 s | `lh=0` | zoom 1.2 |

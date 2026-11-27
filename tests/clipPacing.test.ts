@@ -386,9 +386,15 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     expect(clipPacingFindSec(startSettings("shatter"))).toBe(15);
     expect(clipPacingFindSec({ ...startSettings("shatter"), ballRadius: 11 })).toBe(13);
     // an exact look needs every field of its run: Beat Runner's density 1 on the pace's 18 obstacles, on 24, and the 1.17.0 course
+    // (A-g2 review: the run of the Challenge look, 1.17.0's deal, with a target of its own; a course of its own keeps the page's 30)
     expect(clipPacingFindSec({ ...startSettings("runner"), runnerDensity: 1 })).toBe(20.5);
     expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 1 })).toBe(25.5);
-    expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 0.6 })).toBe(30);
+    expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 0.6 })).toBe(32);
+    expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 20, runnerDensity: 0.6 })).toBe(30);
+    // (A-g2 review) a bare link plays the link base, and gets the target of the look whose run that is: Race's and Beat Runner's
+    // Challenge looks (1.17.0's deals), Pendulum Wave's galaxy-pendulum (60 s); a race of its own keeps the page's 30
+    expect(["race", "runner", "pendulum"].map((mode) => clipPacingFindSec(settingsFromSearchParams(new URLSearchParams(`mode=${mode}`))))).toEqual([27.5, 32, 60]);
+    expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=race&rcn=10")))).toBe(30);
     // the start look before the page's 30, with every field of its run; its sounds, effects and glow are its look
     expect(clipPacingFindSec(startSettings("classic"))).toBe(18);
     expect(clipPacingFindSec(defaultSettings("classic"))).toBe(30);
@@ -428,16 +434,19 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "shatter/card": 13, // (2; 22)
     "runner/card": 20.5, // (22; 104)
     "runner/retro-runner": 25.5, // (0; 86)
+    "runner/daily": 32, // (20; 44) A-g2 review: 1.17.0's deal on the link base
     "vortex/neon-vortex": 41.5, // (0; 98)
     "vortex/daily": 30, // (0; 82)
     "bullseye/card": 10, // (0; 76)
     "bullseye/candy-darts": 10.5, // (0; 94)
     "race/grand-prix": 30, // (0; 30)
+    "race/daily": 27.5, // (20; 40) A-g2 review: 1.17.0's deal on the link base
     "journey/card": 22.5, // (32; 42)
     "journey/pastel-commute": 22.5, // (32; 42)
     "maze/card": 10.5, // (12; 20)
     "maze/red-maze-race": 30, // (6; 10)
     "paddle/sunset-keep-up": 19.5, // (8; 12)
+    "paddle/daily": 19.5, // (2; 12) A-g2 review: 1.17.0's deal, Sunset Keep-Up's run
     "paint/rainbow-paint": 67.5, // (0; 20)
     "portal/aurora-portals": 30, // (0; 10)
     "portal/daily": 30, // (6; 4: Portal's link base, which keeps the page's 30)
