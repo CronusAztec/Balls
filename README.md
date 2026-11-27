@@ -2808,7 +2808,10 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   (`CLIP_GAIN_TOP_DB`, about +770 dB, `clipLevel()`), the number field takes any gain and the master bus limits the mix.
 - **Loudness** (`src/lib/audio/loudness.ts`): the fast export's and the batch render's mix is measured with BS.1770-4
   (K-weighting, 400 ms gated blocks, a 4× true-peak estimate) and given one static gain to −14 LUFS, the true peak at most
-  −1 dBTP (a silent mix is left alone); the live page keeps its limiter.
+  −1 dBTP (a silent mix is left alone); the live page keeps its limiter. A sparse mix whose one accent holds that gain back
+  goes through a look-ahead limiter first (5 ms attack, 50 ms release, at most 12 dB off a peak and 3 LU off the loudness,
+  the true peak 1 dB under the ceiling to leave the encoder room), so it reaches the target too; a mix the static gain lands
+  is not touched by it.
 - **Whole loops** (`src/lib/loop/loopContract.ts`): a mode with a seamless cycle reports it (`GameMode.cycleSeconds()`,
   `loopSeams()`; the canvas mirrors it in `data-loop-cycle` and `data-loop-seams`). With **Export whole loops** on (the
   Recording section, `exportWholeLoops`, URL `wl`, on by default) the page recorder, the fast export and the batch render end
