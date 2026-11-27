@@ -1,4 +1,4 @@
-import type { LiveHud } from "@/lib/watermark/liveLayout";
+import { liveBadgeBox, type LiveBadgeBox, type LiveGeometry, type LiveHud, type LiveRecording } from "@/lib/watermark/liveLayout"; // (--- fl-card-badge --- liveBadgeBox)
 import { TRACK_X0, TRACK_X1 } from "@/lib/physics/raceTrack";
 import { PD_CEILING } from "@/lib/physics/modes/paddle";
 import { SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
@@ -166,6 +166,46 @@ export function notePendulumBar(hud: LiveHud, view: Pick<PendulumView, "rig">, w
   hud.block(x0 * s + world.tx, (rig.barY - r) * s + world.ty, (x1 - x0) * s, 2 * r * s);
 }
 // --- end badge-clear ---
+
+// --- fl-card-badge --- (round two, B7b) Fight League's end card covers the whole arena, and the free band between the title (or the
+// names band) and the ability boxes holds no corner beside it: the badge sat on the card's lower corner, and in its right-hand
+// window over the end of the card's line ("HP left · hits · 14.2 s"). Under the boxes, flHudLayout() keeps a strip a badge's height
+// and inset tall for a portrait export's badge; while the card is up the HUD report sends the badge there.
+
+/** Fight League's layer as the HUD report reads it (fightLeagueRenderer.ts `FightLeagueLayer`, the last frame's; screen units). */
+export interface FlCardHud {
+  boxesTop: number;
+  boxesBottom: number;
+  card: { x: number; y: number; w: number; h: number };
+  fanLine: { x: number; y: number; w: number; h: number };
+}
+
+const flGeom: LiveGeometry = { area: { x: 0, y: 0, width: 0, height: 0 }, recording: null };
+const flBox: LiveBadgeBox = { height: 0, inset: 0, zone: { x: 0, y: 0, width: 0, height: 0 } };
+
+/**
+ * While Fight League's end card is up (fightLeague/cards.ts `drawVerdict`, the champion's in shows.ts) and the strip under the
+ * ability boxes holds the badge in this frame's layout (liveLayout.ts `liveBadgeBox()`: the live square, or the export frame the
+ * page records or the fast export renders): the card, the boxes and the fan-made line in the strip as blocks, the boxes no longer
+ * a band along the bottom, so the badge takes a bottom corner of the strip clear of all three. A square or landscape export's safe
+ * zone ends above the strip and leaves no corner free of the card: nothing is reported there, the caller reports the boxes' band
+ * as before, and the badge keeps its corner beside the card rather than falling back over the boxes. Returns whether it reported.
+ */
+export function noteFightLeagueCard(hud: LiveHud, sq: HudSquare, fl: FlCardHud, recording: LiveRecording | null): boolean {
+  if (!(fl.card.w > 0) || !Number.isFinite(fl.boxesTop) || !Number.isFinite(fl.boxesBottom)) return false;
+  const u = hud.unit;
+  flGeom.area.x = sq.x0 * u;
+  flGeom.area.y = sq.y0 * u;
+  flGeom.area.width = flGeom.area.height = sq.side * u;
+  flGeom.recording = recording;
+  const box = liveBadgeBox(flGeom, flBox);
+  if (box.zone.y + box.zone.height - box.inset - box.height < fl.boxesBottom * u) return false;
+  hud.block(fl.card.x, fl.card.y, fl.card.w, fl.card.h);
+  hud.block(sq.x0, fl.boxesTop, sq.side, fl.boxesBottom - fl.boxesTop);
+  hud.block(fl.fanLine.x, fl.fanLine.y, fl.fanLine.w, fl.fanLine.h);
+  return true;
+}
+// --- end fl-card-badge ---
 
 /** Beat Runner's progress bar and Paddle Keep-Up's score band, across the top of the square – jdmRhythmRenderer.ts. */
 export function noteRhythmBand(hud: LiveHud, sq: HudSquare, inset: number, kind: "runner" | "paddle"): void {

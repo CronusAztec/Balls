@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
 import { BADGE_MIN_HEIGHT, BADGE_SWITCH_MS, badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
 import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, mapLiveHud, placeLiveBadge, placeVideoBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
-import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type HudView } from "@/components/simulator/liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type FlCardHud, type HudView } from "@/components/simulator/liveMarkHud";
 import { ANTI_LABEL_MS, drawCollideOverlay, type CollideLabelPlate } from "@/components/simulator/collideRenderer"; // --- badge-clear ---
 import { SHOT_LANDED, SHOT_WAITING, buildBullseyeLayout } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
 import { buildCollideField, type CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
 import { buildPendulumField, buildPendulumRig, pendulumFrequencies, resolvePendulumSettings } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
 import { FL_ARENA_FRAC, FL_ARENA_TOP } from "@/lib/physics/modes/fightLeague";
+import { flHudLayout } from "@/lib/physics/modes/fightLeagueFx"; // --- fl-card-badge ---
+import { FL_NOIR_ARENA_FRAC, FL_NOIR_ARENA_TOP, FL_NOIR_BLOCK_TOP, FL_NOIR_TITLE_H, FL_NOIR_TITLE_Y } from "@/components/simulator/fightLeague/noir"; // --- fl-card-badge ---
 import { signForeignLicense, signTestLicense } from "../scripts/lib/test-license.mjs";
 import { drawsOf, fakeCanvas, fakeDocument, type FakeCanvas } from "./fakeCanvas";
 import en from "../messages/en.json";
@@ -960,5 +962,119 @@ describe("--- badge-clear --- the badge keeps off the payoffs a mode draws in it
     // the bar only while nothing but the verdict holds the bottom (after every band along it, before the Bottom Text)
     expect(hud).toMatch(/hud\.bottomBand\(ringLineBottom\);\s*if \(isPendulum && !Number\.isFinite\(hud\.bottom\) && !p\.bottomText\) notePendulumBar\(hud, engine\.getPendulumView\(\), liveWorld\);/);
     expect(body).toMatch(/drawCollideOverlay\([^;]*, collidePlate\);/);
+  });
+});
+
+// --- fl-card-badge --- (round two, B7b) Fight League's end card covers the whole arena: the badge sat on its lower corner and, in
+// its right-hand window, over the end of the card's line. While the card is up the HUD report sends it into the strip under the
+// ability boxes (or the noir stats block) – where that strip holds it: live and in a portrait export.
+describe("--- fl-card-badge --- Fight League's end card keeps the badge in the strip under the boxes", () => {
+  const S = 450;
+  const SQ = { x0: 0, y0: 0, side: S };
+  /** The fan-made line's width in the source square: the English one measured in the 1080 × 1920 render (250 px), a wider one. */
+  const FAN_EN = (250 / 1080) * S;
+  const FAN_WIDE = 0.32 * S;
+  const lay = flHudLayout(S, 2, "1v1", true, 20);
+  /** The two stages: the noir reel (the default: the title above, the stats block below a 0.6 S arena) and the boxes' stages. */
+  const stages = {
+    noir: { top: (FL_NOIR_TITLE_Y + FL_NOIR_TITLE_H / 2) * S, card: { x: (0.5 - FL_NOIR_ARENA_FRAC / 2) * S, y: FL_NOIR_ARENA_TOP * S, w: FL_NOIR_ARENA_FRAC * S, h: FL_NOIR_ARENA_FRAC * S }, boxesTop: FL_NOIR_BLOCK_TOP * S },
+    boxes: { top: lay.band, card: { x: lay.arena.x, y: lay.arena.y, w: lay.arena.w, h: lay.arena.h }, boxesTop: lay.boxesTop },
+  };
+  const layerOf = (stage: keyof typeof stages, fanW: number, card = true): FlCardHud => {
+    const st = stages[stage];
+    const fanY = S * (1 - 0.025 - 0.052 / 2);
+    return { boxesTop: st.boxesTop, boxesBottom: lay.boxesBottom, card: card ? st.card : { x: 0, y: 0, w: 0, h: 0 }, fanLine: { x: S / 2 - fanW / 2, y: fanY - 0.6 * 0.016 * S, w: fanW, h: 1.2 * 0.016 * S } };
+  };
+  const rect = (r: { x: number; y: number; w: number; h: number }): FrameRect => ({ x: r.x, y: r.y, width: r.w, height: r.h });
+  /** The frame's HUD as the canvas reports it: the title or names band, then the card report or the boxes' band (as before). */
+  const report = (fl: FlCardHud, top: number, recording: { width: number; height: number } | null, withCard = true) => {
+    const hud = new LiveHud().reset(1);
+    hud.topBand(top);
+    const reported = withCard && noteFightLeagueCard(hud, SQ, fl, recording);
+    if (!reported) hud.bottomBand(fl.boxesTop);
+    return { hud, reported };
+  };
+  /** The badge live (recording null) or in a `w` × `h` export, in the source square's px. */
+  const badgeIn = (hud: LiveHud, clipMs: number, recording: { width: number; height: number } | null) => {
+    if (!recording) {
+      const live = liveBadgeBox({ area: { x: 0, y: 0, width: S, height: S } });
+      return placeLiveBadge(live, Math.round(4.4 * live.height), live.height, clipMs, hud, placement());
+    }
+    const sq = exportSquare(recording.width, recording.height);
+    const m = badgeMetrics(sq.width);
+    const mapped = mapLiveHud(hud, { x: 0, y: 0, side: S }, sq, new LiveHud());
+    const v = placeVideoBadge(recording.width, recording.height, sq, { width: Math.round(4.4 * m.height), height: m.height, inset: m.inset }, clipMs, mapped, placement());
+    const k = S / sq.width;
+    return { x: (v.x - sq.x) * k, y: (v.y - sq.y) * k, width: v.width * k, height: v.height * k, corner: v.corner, free: v.free };
+  };
+  const PORTRAIT = { width: 1080, height: 1920 };
+
+  it("live and in a portrait export: the badge takes a bottom corner of the strip, clear of the card, the boxes and the fan-made line (before: on the card)", () => {
+    for (const stage of ["noir", "boxes"] as const) {
+      for (const recording of [null, PORTRAIT]) {
+        const fl = layerOf(stage, FAN_EN);
+        const { hud, reported } = report(fl, stages[stage].top, recording);
+        expect([stage, reported, hud.bottom]).toEqual([stage, true, Number.POSITIVE_INFINITY]);
+        const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+        for (const [t, side] of [[1000, "bottom-left"], [7000, "bottom-right"], [13_000, "bottom-left"]] as const) {
+          const label = `${stage} ${recording ? "export" : "live"} ${t}`;
+          const b = badgeIn(hud, t, recording);
+          expect([label, b.corner, b.free]).toEqual([label, side, true]);
+          expect(b.y, label).toBeGreaterThanOrEqual(fl.boxesBottom - 0.5);
+          for (const r of [rect(fl.card), boxes, rect(fl.fanLine)]) expect(overlaps(b, r), `${label} ${JSON.stringify(r)}`).toBe(false);
+          // the boxes' band alone (the report before): the badge on the card, in the band above the boxes
+          const before = report(fl, stages[stage].top, recording, false).hud;
+          const old = badgeIn(before, t, recording);
+          expect([label, overlaps(old, rect(fl.card)), old.y + old.height <= fl.boxesTop + 0.5]).toEqual([label, true, true]);
+        }
+      }
+    }
+  });
+
+  it("a fan-made line long enough to reach the right-hand corner (a longer language's): the badge keeps the left-hand one of the strip", () => {
+    const fl = layerOf("noir", FAN_WIDE);
+    const { hud } = report(fl, stages.noir.top, PORTRAIT);
+    const b = badgeIn(hud, 7000, PORTRAIT);
+    expect([b.corner, b.free]).toEqual(["bottom-left", true]);
+    expect(overlaps(b, rect(fl.fanLine))).toBe(false);
+    expect(overlaps(b, rect(fl.card))).toBe(false);
+    // live the strip's right-hand corner is far enough out
+    const live = badgeIn(report(fl, stages.noir.top, null).hud, 7000, null);
+    expect([live.corner, overlaps(live, rect(fl.fanLine))]).toEqual(["bottom-right", false]);
+  });
+
+  it("a square or landscape export's safe zone ends above the strip: nothing is reported, and the badge keeps its corner beside the card rather than falling over the boxes", () => {
+    for (const recording of [{ width: 500, height: 500 }, { width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+      const fl = layerOf("noir", FAN_EN);
+      const { hud, reported } = report(fl, stages.noir.top, recording);
+      expect([recording.width, reported, hud.count, hud.bottom]).toEqual([recording.width, false, 0, fl.boxesTop]);
+      const boxes = { x: 0, y: fl.boxesTop, width: S, height: fl.boxesBottom - fl.boxesTop };
+      for (const t of [1000, 7000]) {
+        const b = badgeIn(hud, t, recording);
+        expect([recording.width, t, b.free, overlaps(b, boxes)]).toEqual([recording.width, t, true, false]);
+        // had the card been reported, no corner would be free and the badge would fall back over the boxes' lines
+        const forced = new LiveHud().reset(1);
+        forced.topBand(stages.noir.top);
+        forced.block(fl.card.x, fl.card.y, fl.card.w, fl.card.h);
+        forced.block(0, fl.boxesTop, S, fl.boxesBottom - fl.boxesTop);
+        const fallen = badgeIn(forced, t, recording);
+        expect([recording.width, t, fallen.free, overlaps(fallen, boxes)]).toEqual([recording.width, t, false, true]);
+      }
+    }
+  });
+
+  it("reports nothing without the card or without the boxes (the HUD off)", () => {
+    for (const fl of [layerOf("noir", FAN_EN, false), { ...layerOf("noir", FAN_EN), boxesTop: Number.POSITIVE_INFINITY, boxesBottom: Number.POSITIVE_INFINITY }]) {
+      const hud = new LiveHud().reset(1);
+      expect(noteFightLeagueCard(hud, SQ, fl, null)).toBe(false);
+      expect([hud.count, hud.bottom]).toEqual([0, Number.POSITIVE_INFINITY]);
+    }
+  });
+
+  it("is wired: the canvas reports the card in place of the boxes' band, with the frame's export while it records", () => {
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const hud = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(hud).toMatch(/if \(flView && flLayer\.boxesTop < Infinity && !noteFightLeagueCard\(hud, liveSquare, flLayer, recording \? exportSizeRef\.current : null\)\) hud\.bottomBand\(flLayer\.boxesTop\);/);
+    expect(hud.indexOf("liveSquare.side = sq;")).toBeLessThan(hud.indexOf("noteFightLeagueCard("));
   });
 });

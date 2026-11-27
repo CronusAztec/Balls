@@ -133,7 +133,7 @@ import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, landCl
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
-import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteFightLeagueCard, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { SWARM_DATA_KEYS, SwarmLayer, writeSwarmDataset } from "./multiplySwarmRenderer"; // --- multiply-race ---
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
@@ -4052,7 +4052,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         hud.topBand(modeTopHud);
         if (teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, liveBoard)) hud.block(liveBoard.x, liveBoard.y, liveBoard.w, liveBoard.h);
         if (arenaView?.field) hud.topBand(liveSquare.y0 + HUD_BAND * sq);
-        if (flView && flLayer.boxesTop < Infinity) hud.bottomBand(flLayer.boxesTop);
+        // --- fl-card-badge --- (round two, B7b) the end card up: the card, the boxes and the fan-made line as blocks, so the badge takes
+        // the strip under the boxes where it holds the badge (the live square, a portrait export); else the boxes' band, as before
+        if (flView && flLayer.boxesTop < Infinity && !noteFightLeagueCard(hud, liveSquare, flLayer, recording ? exportSizeRef.current : null)) hud.bottomBand(flLayer.boxesTop);
         if (sbView && sbView.circle && scLayer.stripTop < Infinity) hud.bottomBand(scLayer.stripTop);
         if (sbView && duelLayer.bannerOn) hud.block(duelLayer.bannerBox.x, duelLayer.bannerBox.y, duelLayer.bannerBox.w, duelLayer.bannerBox.h); // --- string-battle-alive --- (the FINAL DUEL banner)
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);

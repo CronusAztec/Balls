@@ -1367,6 +1367,52 @@ describe("the noir stage: the reel layout and the hit particles (--- fl-noir ---
     }
   });
 
+  // --- fl-card-badge --- (round two, B7b) what the watermark's HUD report reads at the end (liveMarkHud.ts `noteFightLeagueCard()`)
+  it("reports the end card over the arena while it shows, where the boxes or the stats block end, and the fan-made line in the strip under them", { timeout: 60_000 }, () => {
+    stubDocument();
+    for (const stage of ["noir", "lilac"] as const) {
+      const engine = probeEngine({ fighters: ["thor", "loki"], match: "1v1", hp: 60, timeCap: 0, stage }, 1);
+      const layer = new FightLeagueLayer();
+      const { ctx } = mainContext();
+      const oy = (H - SIDE) / 2;
+      const ox = (W - SIDE) / 2;
+      // mid-fight: no card; the boxes' bottom and the fan-made line, centred in the strip under them
+      const v = probeRun(engine, 2500);
+      drawFrame(layer, ctx, v);
+      const lay = layer.hudLayout(v, SIDE, false);
+      expect([stage, layer.card.w, layer.bannerShown]).toEqual([stage, 0, false]);
+      expect(layer.boxesBottom).toBeCloseTo(oy + lay.boxesBottom, 6);
+      expect(layer.boxesBottom).toBeCloseTo(oy + (1 - BADGE_INSET - BADGE_HEIGHT - 0.002) * SIDE, 6);
+      expect(layer.fanLine.w).toBeGreaterThan(0);
+      expect(layer.fanLine.x + layer.fanLine.w / 2).toBeCloseTo(ox + SIDE / 2, 6);
+      expect(layer.fanLine.y).toBeGreaterThan(layer.boxesBottom);
+      expect(layer.fanLine.y + layer.fanLine.h).toBeLessThanOrEqual(oy + SIDE);
+      // the end: the card is the arena's rect for every frame it is drawn, and gone with it
+      probeRun(engine, 120_000);
+      expect(v.finished).toBe(true);
+      let shown = 0;
+      probeRun(
+        engine,
+        v.finishMs + FL_FINALE_MS + 1000 * FL_WIN_HOLD_SEC,
+        (view) => {
+          drawFrame(layer, ctx, view);
+          if (!layer.bannerShown) {
+            expect([stage, view.timeMs, layer.card.w]).toEqual([stage, view.timeMs, 0]);
+            return;
+          }
+          shown++;
+          expect([stage, layer.card.x, layer.card.y, layer.card.w, layer.card.h]).toEqual([stage, ox + lay.arena.x, oy + lay.arena.y, lay.arena.w, lay.arena.h]);
+        },
+        false,
+      );
+      expect([stage, shown > 60]).toEqual([stage, true]);
+      // the HUD off: no boxes, so nothing for the strip either
+      const off = probeRun(probeEngine({ fighters: ["thor", "loki"], match: "1v1", stage, hud: false }, 1), 2000);
+      drawFrame(layer, ctx, off);
+      expect([stage, layer.boxesTop, layer.boxesBottom]).toEqual([stage, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY]);
+    }
+  });
+
   it("spawns the hit particles from the events, the same at any frame rate, within the pool – and the stage never touches the fight", { timeout: 60_000 }, () => {
     stubDocument();
     const run = (stage: FightLeagueSettings["stage"], step: number) => {
