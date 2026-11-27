@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { GALLERY } from "@/content/gallery";
 import { DAILY_POOL } from "@/lib/dailyCore";
 import { FINGERPRINT_CONFIG, FINGERPRINT_MODE_SETTINGS } from "@/lib/agentKit/fingerprint";
-import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
+import { finderRequestOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest"; // --- find-target-follows --- (physicsConfigOfSettings: the page's world)
 import { RECIPES, SERIES_ROSTER } from "@/lib/bot/playbook";
 import { DEFAULT_RING_ESCAPE_FIELDS } from "@/lib/physics/ringEscape";
-import { clipPacingDefaults, clipStartSettings } from "@/lib/clipPacing";
+import { clipPacingDefaults, clipPacingFindSec, clipStartSettings, nextFindTarget, type FindTargetAuto } from "@/lib/clipPacing"; // --- find-target-follows --- (round two A2b: the target, the lookup)
 import { COLOR_MATCH_SEGMENT_CHOICES, DEFAULT_COLOR_MATCH_SEGMENTS, isColorMatchSegments } from "@/lib/physics/modes/colorMatch";
 import { DEFAULT_MERGE_RING_SETTINGS } from "@/lib/physics/modes/mergeRing";
 import { DEFAULT_PENDULUM_SETTINGS } from "@/lib/physics/modes/pendulum";
@@ -14,8 +14,10 @@ import { DEFAULT_SPIRAL_GLASS_SETTINGS } from "@/lib/physics/modes/spiralGlass";
 import { perfectShotIndex } from "@/lib/physics/modes/bullseye"; // --- finales-in-clip --- (review fix)
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { createEngineForSettings } from "@/lib/simulation/finder";
-import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
+import { createEngineForSettings, fixedRunDurationSec, simulateSeed } from "@/lib/simulation/finder";
+import { lookPatch, lookRow, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in) --- find-target-follows --- (the Looks row)
+import { onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- find-target-follows ---
+import { pageFinderRequest } from "@/lib/simulation/pageFinderRequest"; // --- find-target-follows --- (the page's own Find request)
 
 /*
  * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip
@@ -290,3 +292,187 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
   });
 });
 
+// --- find-target-follows --- (round two A2b) Find's target follows the run on the page: the page's own target moves with every
+// change that makes another run (a share code, a preset, a project file, the daily, a batch job, the bot's clip, a picker card, the
+// Looks row, Reset), a typed one stays while the mode does, and a look's run gets its own measured target
+describe("--- find-target-follows --- Find's target follows the run on the page", () => {
+  const auto = (mode: ModeId, sec: number): FindTargetAuto => ({ mode, sec });
+  /** The page's Find target as Simulator.tsx keeps it: the target, and the one the page last set (its ref). */
+  function page(first: SimulatorSettings) {
+    let last = auto(first.mode, clipPacingFindSec(first));
+    let target = last.sec;
+    return {
+      put(settings: SimulatorSettings) {
+        const next = auto(settings.mode, clipPacingFindSec(settings));
+        target = nextFindTarget(last, target, next);
+        last = next;
+        return target;
+      },
+      type(sec: number) {
+        target = sec;
+      },
+    };
+  }
+  /** `look` of `mode`'s Looks row put on the page's start look (the row's own patch). */
+  function onLook(mode: ModeId, look: string): SimulatorSettings {
+    const start = startSettings(mode);
+    const row = lookRow(mode);
+    const found = row.looks.find((entry) => entry.id === look);
+    if (!found) throw new Error(`${mode} has no look ${look}`);
+    return { ...start, ...lookPatch(row, found, start) };
+  }
+
+  it("follows the page's own target, keeps a typed one while the mode stays, and starts a new mode on its own", () => {
+    // the page's own: a look, a share code, a preset or Reset put another run on the page
+    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 20.5))).toBe(20.5);
+    expect(nextFindTarget(auto("runner", 20.5), 20.5, auto("runner", 22))).toBe(22);
+    // typed: it stays while the mode does, whatever run comes on
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 20.5))).toBe(25);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 30))).toBe(25);
+    // a mode change resets it, typed or not, as picking the mode does
+    expect(nextFindTarget(auto("classic", 30), 30, auto("runner", 22))).toBe(22);
+    expect(nextFindTarget(auto("classic", 30), 12, auto("runner", 22))).toBe(22);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("classic", 30))).toBe(30);
+    // nothing changed
+    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 22))).toBe(22);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 22))).toBe(25);
+  });
+
+  // before: a share code (?c=) starts the page on Classic's link base, and only a mode picked on the page set the target, so
+  // every paced mode loaded from a code searched for 30 s – Beat Runner, Paddle Keep-Up, Journey, the Maze and Spiral Glass found
+  // no seed in 1,000 (final review, modes-missed-25)
+  it("gives a paced mode loaded from a share code, a preset or a project file its own target", () => {
+    for (const mode of PACED) {
+      const own = clipPacingFindSec(startSettings(mode));
+      expect([mode, page(defaultSettings("classic")).put(startSettings(mode))]).toEqual([mode, own]);
+    }
+    expect(PACED.filter((mode) => clipPacingFindSec(startSettings(mode)) !== 30)).toEqual(PACED.filter((mode) => mode !== "territory" && mode !== "orbGrid"));
+  });
+
+  it("walks the page's routes: a card, a look, Reset, a typed target and a batch over other modes", () => {
+    const studio = page(startSettings("runner"));
+    expect(studio.put(onLook("runner", "card"))).toBe(20.5); // the card's denser course
+    expect(studio.put(onLook("runner", "retro-runner"))).toBe(25.5); // a gallery look, 24 obstacles
+    expect(studio.put(startSettings("runner"))).toBe(22); // Reset: the start look again
+    studio.type(24);
+    expect(studio.put(onLook("runner", "card"))).toBe(24); // typed: kept through a look
+    expect(studio.put(startSettings("runner"))).toBe(24);
+    expect(studio.put(startSettings("maze"))).toBe(15); // another mode (a batch job, a share code) starts on its own
+    expect(studio.put(onLook("maze", "card"))).toBe(10.5);
+    expect(studio.put(startSettings("runner"))).toBe(22); // the page's own settings back: its own target
+  });
+
+  it("looks up an exact look first, then the start look, then the pace, then the page's 30", () => {
+    // an exact look before the pace: Shatter's card has every field of the pace and a ball of 11
+    expect(clipPacingFindSec(startSettings("shatter"))).toBe(15);
+    expect(clipPacingFindSec({ ...startSettings("shatter"), ballRadius: 11 })).toBe(13);
+    // an exact look needs every field of its run: Beat Runner's density 1 on the pace's 18 obstacles, on 24, and the 1.17.0 course
+    expect(clipPacingFindSec({ ...startSettings("runner"), runnerDensity: 1 })).toBe(20.5);
+    expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 1 })).toBe(25.5);
+    expect(clipPacingFindSec({ ...startSettings("runner"), runnerObstacles: 24, runnerDensity: 0.6 })).toBe(30);
+    // the start look before the page's 30, with every field of its run; its sounds, effects and glow are its look
+    expect(clipPacingFindSec(startSettings("classic"))).toBe(18);
+    expect(clipPacingFindSec(defaultSettings("classic"))).toBe(30);
+    expect(clipPacingFindSec({ ...startSettings("classic"), gapSize: 0.4 })).toBe(30);
+    expect(clipPacingFindSec({ ...startSettings("classic"), ringSound: false, screenShake: 0, showGlow: false, wallBreakStyle: defaultSettings("classic").wallBreakStyle })).toBe(18);
+    // the pace, then the page's 30
+    expect(clipPacingFindSec(startSettings("runner"))).toBe(22);
+    expect(clipPacingFindSec(startSettings("territory"))).toBe(30);
+  });
+
+  // measured when this was written: seeds 1–100 in the page's two worlds (800 × 450 and 450 × 450, which agree for these looks),
+  // through the page's own request, the target with the most runs within ± 0.5 s (lib/clipPacing.ts START_FIND_SEC and
+  // LOOK_FIND_SEC). Before: the look kept the target its mode started with (the start look's, or 30); "-" marks a look this step
+  // leaves where it was
+  const TARGETS: Record<string, number> = {
+    "classic/start": 18, // before 30 (1 run of 200 within ± 0.5 s; now 27)
+    "classic/card": 18, // (0; 26)
+    "classic/daily": 36, // (3; 13)
+    "accumulation/start": 14.5, // (4; 12)
+    "multiply/start": 19, // (0; 82)
+    "grow/start": 19.5, // (0; 114)
+    "illusion/start": 16, // its four cycles, every seed (30 s: "always 16.0 s")
+    "illusion/hidden-heart": 21, // (0; 78)
+    "collide/start": 19.5, // (0; 192)
+    "box/start": 19.5, // (0; 46)
+    "box/card": 19.5, // (0; 20)
+    "glass/start": 24, // (0; 50)
+    "conveyor/start": 24, // (0; 69)
+    "conveyor/pastel-conveyor": 21, // (0; 93)
+    "conveyor/bowl-overflow": 25.5, // (0; 109)
+    "ctf/start": 20, // (8; 12)
+    "target/daily": 20, // - (20)
+    "pendulum/galaxy-pendulum": 60, // IN LINE! at 60.0 s (before 24: "always 60.0 s")
+    "polyrhythm/polygon-polyrhythm": 12, // in phase at 12.0 s (before 24)
+    "spiralGlass/card": 19.5, // (0; 182)
+    "spiralGlass/sunset-spiral": 19.5, // (0; 182)
+    "shatter/card": 13, // (2; 22)
+    "runner/card": 20.5, // (22; 104)
+    "runner/retro-runner": 25.5, // (0; 86)
+    "vortex/neon-vortex": 41.5, // (0; 98)
+    "vortex/daily": 30, // (0; 82)
+    "bullseye/card": 10, // (0; 76)
+    "bullseye/candy-darts": 10.5, // (0; 94)
+    "race/grand-prix": 30, // (0; 30)
+    "journey/card": 22.5, // (32; 42)
+    "journey/pastel-commute": 22.5, // (32; 42)
+    "maze/card": 10.5, // (12; 20)
+    "maze/red-maze-race": 30, // (6; 10)
+    "paddle/sunset-keep-up": 19.5, // (8; 12)
+    "paint/rainbow-paint": 67.5, // (0; 20)
+    "portal/aurora-portals": 30, // (0; 10)
+    "portal/daily": 30, // (6; 4: Portal's link base, which keeps the page's 30)
+    "lines/string-art": 30, // the finder reads it as endless
+  };
+
+  it("gives each look its own target", () => {
+    for (const [key, sec] of Object.entries(TARGETS)) {
+      const [mode, look] = key.split("/") as [ModeId, string];
+      expect([key, clipPacingFindSec(look === "start" ? startSettings(mode) : onLook(mode, look))]).toEqual([key, sec]);
+    }
+  });
+
+  // seeds 1–12 of the laptop world (1–6 for the three costliest runs, 1–20 for the two looks with the fewest runs on a target),
+  // the page's own request: the target lands at least one run within ± 0.5 s, and at least as many as the page's 30 (Classic's
+  // Challenge look 1 and 1 here, 13 and 3 of 200); a fixed-length run is its target
+  const SEEDS_OF: Record<string, number> = { "collide/start": 6, "conveyor/bowl-overflow": 6, "multiply/start": 6, "classic/daily": 20, "ctf/start": 20 };
+  it("lands the runs of each look it gives a target", { timeout: 240_000 }, () => {
+    const world = { width: 800, height: 450 };
+    const near = (ends: number[], t: number) => ends.filter((end) => Math.abs(end - t) <= 0.5 + 1e-9).length;
+    for (const [key, sec] of Object.entries(TARGETS)) {
+      if (sec === 30) continue;
+      const [mode, look] = key.split("/") as [ModeId, string];
+      const settings = look === "start" ? startSettings(mode) : onLook(mode, look);
+      const request = pageFinderRequest(settings, { physicsConfig: physicsConfigOfSettings(settings, world), targetSec: sec, toleranceSec: 0.5, maxSeeds: 1000, depthBudgetMs: 0, panelTargetSec: sec, panelToleranceSec: 0.5, rhythmBeat: null, melody: [], onBeat: onBeatConfigOfSettings(settings), paintPicture: false });
+      const fixed = fixedRunDurationSec(mode, request.modeSettings);
+      if (fixed !== null) {
+        expect([key, Math.abs(fixed - sec) <= 0.5]).toEqual([key, true]);
+        continue;
+      }
+      const ends: number[] = [];
+      for (let seed = 1; seed <= (SEEDS_OF[key] ?? 12); seed++) ends.push(simulateSeed(seed, request, request.maxSimTimeSec * 1000) / 1000);
+      expect([key, near(ends, sec) >= 1, near(ends, sec) >= near(ends, 30)]).toEqual([key, true, true]);
+    }
+  });
+
+  it("leaves out of a start look's run only fields that leave the run as it is", { timeout: 60_000 }, () => {
+    const world = { width: 800, height: 450 };
+    // seeds 1–3 (Collision Playground's 300 orbs: seed 1)
+    const lengths = (settings: SimulatorSettings) => (settings.mode === "collide" ? [1] : [1, 2, 3]).map((seed) => simulateSeed(seed, pageFinderRequest(settings, { physicsConfig: physicsConfigOfSettings(settings, world), targetSec: 30, toleranceSec: 0.5, maxSeeds: 1, depthBudgetMs: 0, panelTargetSec: 30, panelToleranceSec: 0.5, rhythmBeat: null, melody: [], onBeat: onBeatConfigOfSettings(settings), paintPicture: false }), 90_000));
+    const ignored: string[] = [];
+    for (const mode of MODE_IDS) {
+      const start = startSettings(mode);
+      const target = clipPacingFindSec(start);
+      if (target === 30 || Object.keys(clipPacingDefaults(mode)).length > 0) continue;
+      const base = defaultSettings(mode);
+      for (const key of Object.keys(clipStartSettings(mode)) as (keyof SimulatorSettings)[]) {
+        const off = { ...start, [key]: base[key] } as SimulatorSettings;
+        if (clipPacingFindSec(off) !== target) continue; // a run field: the start look's target goes with it
+        ignored.push(`${mode}.${key}`);
+        expect([mode, key, lengths(off)]).toEqual([mode, key, lengths(start)]);
+      }
+    }
+    expect(ignored.sort()).toEqual(["classic.ringSound", "classic.screenShake", "classic.showGlow", "classic.wallBreakStyle", "accumulation.showGlow", "collide.cpPulse", "collide.cpSquishy", "glass.glassLead", "grow.growHue", "grow.growMarkers", "grow.growPitch", "lines.rainbowLines"].sort());
+  });
+});
+// --- end find-target-follows ---

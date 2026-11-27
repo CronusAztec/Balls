@@ -150,7 +150,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
-import { clipPacingFindSec, clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6)
+import { clipPacingFindSec, clipStartSettings, isBareStudioVisit, nextFindTarget, type FindTargetAuto } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6) --- find-target-follows --- (round two A2b)
 import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
 import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
@@ -391,6 +391,21 @@ export default function Simulator() {
   const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(() => clipPacingFindSec(settings)); // --- finder-target --- (review fix B6) a paced mode at its page pace: its own run length
+  // --- find-target-follows --- (round two A2b) the target follows the run on the page: while it is the page's own (the visitor
+  // typed none), every change that makes another run sets that run's own target (lib/clipPacing.ts nextFindTarget) – a share
+  // code, a preset, a project file, the daily, a batch job, the bot's clip (all through loadPresetSettings), a picker card's
+  // look, the Looks row and Reset. Before, only a mode picked on the page set it (changeMode, below), so a paced mode loaded
+  // from a share code searched for the 30 s of the page it replaced (Beat Runner, Paddle Keep-Up, Journey, the Maze, Spiral
+  // Glass: no seed in 1,000). A typed target stays until the mode changes.
+  const autoFindSec = clipPacingFindSec(settings);
+  const autoFindRef = useRef<FindTargetAuto>({ mode: settings.mode, sec: autoFindSec });
+  useEffect(() => {
+    const prev = autoFindRef.current;
+    const next: FindTargetAuto = { mode: settings.mode, sec: autoFindSec };
+    autoFindRef.current = next;
+    setFindDuration((current) => nextFindTarget(prev, current, next));
+  }, [settings.mode, autoFindSec]);
+  // --- end find-target-follows ---
   // --- unlimited-sizes --- the search's tolerance and its seeds are the visitor's too (number fields in the finder strip)
   const [findTolerance, setFindTolerance] = useState(0.5);
   const [findMaxSeeds, setFindMaxSeeds] = useState(1000);

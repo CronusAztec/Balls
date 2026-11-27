@@ -2152,6 +2152,32 @@ check("find simulation completes", found, `(${resultText})`);
     `(${label}; ${done ? (Number.isFinite(run) ? `found ${run} s, ${seed}` : /This run never ends/.test(text) ? "never ends" : "not found") : "timeout"})`,
   );
 }
+// --- find-target-follows --- (round two A2b) a share code of a paced mode sets that run's own target: the page's first settings
+// are Classic's link base (30 s), and before, only a mode picked on the page set the target, so Beat Runner's paced run (about
+// 22 s) searched for 30 s and found no seed in 1,000. The codes name the pace's fields ({"mode":"runner","rrn":18,"rrd":0.85},
+// {"mode":"maze","mzfo":1,"mzd":25,"mzc":14}), so they read the same on any link base
+{
+  const labels = {};
+  for (const [mode, code] of [
+    ["runner", "q1bKzU9JVbJSKirNy0stUtJRKirKU7IytAAxUpSsDPQsTGsB"],
+    ["maze", "q1bKzU9JVbJSyk2sSlXSUcqtSstXsjIEMVKUrIxMQYxkJStDk1oA"],
+  ]) {
+    await page.goto(`${BASE}/en/simulator/?c=${code}`, { waitUntil: "networkidle" });
+    const button = page.getByRole("button", { name: /Find [\d.]+s Simulation/ });
+    await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Find (22|15)s Simulation/.test(b.textContent ?? "")), null, { timeout: 15000 }).catch(() => {});
+    labels[mode] = (await button.innerText()).trim();
+    if (mode !== "runner") continue;
+    await button.click();
+    const done = await page.getByText(/Found! [\d.]+s|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+    const text = done ? await page.locator("body").innerText() : "";
+    labels.found = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  }
+  check(
+    "find simulation after a share code of a paced mode searches for its own run (Beat Runner 22 s, the Maze 15 s), not the 30 s of the page it replaced",
+    /Find 22s Simulation/.test(labels.runner) && /Find 15s Simulation/.test(labels.maze) && Math.abs(labels.found - 22) <= 0.5,
+    `(${JSON.stringify(labels)})`,
+  );
+}
 });
 await smokeBlock("finder-depth", async () => {
 // --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s

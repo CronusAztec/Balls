@@ -150,7 +150,8 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    Spiral Glass 24 (24 and 27), Shatter 15 (2 and 6; 17.4 and 14.6 s).
  * (Territory's countdown is 30 s on every seed, and Bouncing Orbs' rhythm field never ends: the page's 30 stays.) Only while the
  * mode's run fields are at their page pace (`clipPacingDefaults()`; the ring modes' glow is a look): a link that sets its own
- * course keeps the page's 30. Simulator.tsx sets it when the page starts a mode (a first visit, a mode picked).
+ * course keeps the page's 30. Simulator.tsx sets it when the page starts a mode (a first visit, a mode picked), and
+ * (--- find-target-follows --- round two A2b) whenever another run comes onto the page while the target is still the page's own.
  */
 export const DEFAULT_FIND_SEC = 30;
 const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
@@ -169,7 +170,20 @@ const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze(
   maze: 15,
   paddle: 28,
 });
-const LOOK_ONLY_PACE: ReadonlySet<string> = new Set(["showGlow"]);
+/**
+ * The fields of a pace or a start look that are its look, not its run: the ring modes' glow, and (--- find-target-follows ---
+ * round two A2b) the sounds, effects and camera of the start looks with a target – each measured to leave the run as it is (the
+ * same run lengths on seeds 1–12; tests/clipPacing.test.ts keeps it so), so a visitor who turns one off keeps the run's target.
+ */
+const LOOK_ONLY_FIELDS: ReadonlySet<string> = new Set([
+  "showGlow",
+  // --- find-target-follows --- (round two A2b)
+  "screenShake", "wallBreakStyle", "ringSound", // classic
+  "growHue", "growMarkers", "growPitch", // grow
+  "glassLead", // glass (the leading camera)
+  "cpSquishy", "cpPulse", // collide
+  "rainbowLines", // lines
+]);
 /**
  * (D3 review) The targets of the start looks that end a run (`clipStartSettings()`), while the run's fields are the start
  * look's: Lines' string art (rainbow strings, ball speed 700, 64 strings: rlines, s, lns) and Paint's full canvas (ball 12,
@@ -179,27 +193,119 @@ const LOOK_ONLY_PACE: ReadonlySet<string> = new Set(["showGlow"]);
  * of 200; median 23.6 s, 21.6–25.6 s), Paint 21 (35 of 200; median 21.3 s, 15.4–29.5 s). Paint's link base (full in 73–118 s)
  * and Lines' (endless) keep the page's 30. --- portal-options --- Portal's five pairs of three jumps (ptc, ptu): 16.5 (17 of 200;
  * median 18.2 s, 4.0–39.8 s; 30 s: 5); its link base keeps the page's 30.
+ *
+ * --- find-target-follows --- (round two A2b) The other start looks that end a run, measured the same way (seeds 1–100 in both
+ * worlds, through the page's own request, lib/simulation/pageFinderRequest.ts), where the page's 30 found almost none: Classic's
+ * Ring Ladder 18 (27 of 200; median 17.8 s; 30 s: 1), Accumulation 14.5 (12; 15.5 s, 0.4–88 s; 30 s: 4), Multiply's race 19 (82;
+ * 19.4 s; 0), Grow's fill 19.5 (114; 19.2 s; 0), the Circle Illusion's staged build 16 (its four cycles on every seed; 30 s: "always
+ * 16.0 s"), Collision Playground's pour 19.5 (192; 19.4 s; 0), Bouncing Shapes' square box 19.5 (46; 21.5 s; 0), Glass Smash 24 (50;
+ * 23.5 s; 0), Conveyor Belt 24 (69; 23.9 s; 0) and Capture the Flag 20 (12; 21.9 s, 6.8–32 s; 30 s: 8 – no length stands out
+ * below the time limit, so the game's typical one). Spinning Hoops, Drawing Machines and the Wave Tank loop (the finder reads them
+ * as endless) and Beat Machines (its search fits whole loops to any target) keep the page's 30.
  */
 const START_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
   lines: 23.5,
   paint: 21,
   portal: 16.5,
+  // --- find-target-follows --- (round two A2b)
+  classic: 18,
+  accumulation: 14.5,
+  multiply: 19,
+  grow: 19.5,
+  illusion: 16,
+  collide: 19.5,
+  box: 19.5,
+  glass: 24,
+  conveyor: 24,
+  ctf: 20,
 });
 
+// --- find-target-follows --- (round two A2b)
+/** A look's own target: the fields that make its run (every one must match: the pace's or the start look's and the look's own) and the target measured on it. */
+interface LookFindTarget {
+  /** The look of the studio's Looks row it was measured on (src/content/looks.ts): the card, a gallery preset, the daily look. */
+  look: string;
+  run: Partial<SimulatorSettings>;
+  sec: number;
+}
 /**
- * The finder's target (s) for `settings`: the paced mode's own while its run is at the page's pace, a start look's own while
- * its run is the start look's (D3 review), else the page's 30.
+ * The targets of the looks of the Looks row (a card, a gallery preset, the Challenge look) whose run is not the one their mode's
+ * target was measured on, where that target, or the page's 30, finds almost none: once a look is on the page, Find's target
+ * follows it (Simulator.tsx, `nextFindTarget`), so it is the look's own. Seeds 1–100 in the page's two worlds (800 × 450 and
+ * 450 × 450, which agree for these looks), through the page's own request (lib/simulation/pageFinderRequest.ts), as the target
+ * with the most runs within its ± 0.5 s (the first of a tie); in brackets the runs within ± 0.5 s of 200, then those of the target
+ * the look would get without its entry. A fixed-length run (Pendulum Wave's 60 s, the Polyrhythm's 12 s) gets its own length.
+ * (Not here: looks the page's 30 already finds – Grand Prix 30 of 200, Vortex's Challenge look 82, Red Maze Race 10, Aurora
+ * Portals 10 –, Portal's Challenge look, which is its link base (16.5 s: 6, 30 s: 4; the link base keeps the page's 30), and the
+ * looks whose runs do not end in a clip, Neon Escape and the endless ones.)
+ */
+const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>> = Object.freeze({
+  classic: [{ look: "daily", run: { wallCount: 5, gapSize: 0.4, ballSpeed: 500 }, sec: 36 }], // (13; 30 s: 3) median 43.9 s
+  target: [{ look: "daily", run: { targetCount: 6, ballSpeed: 400 }, sec: 20 }], // (20; 30 s: 4)
+  pendulum: [{ look: "galaxy-pendulum", run: { pwCycleSeconds: 60, pwBaseOscillations: 51 }, sec: 60 }], // IN LINE! at 60.0 s on every seed
+  polyrhythm: [{ look: "polygon-polyrhythm", run: { prCycleSeconds: 12, prTempos: "custom", prCustom: "3,4,5,6,7,8,9,10" }, sec: 12 }], // in phase at 12.0 s
+  spiralGlass: [{ look: "card", run: { sgGlassHp: 1, sgSpeed: 1.2 }, sec: 19.5 }], // the card and Sunset Spiral (182; 24 s: 0)
+  shatter: [{ look: "card", run: { ...SHATTER_PACE, ballRadius: 11 }, sec: 13 }], // (22; 15 s: 2)
+  runner: [
+    { look: "card", run: { runnerObstacles: 18, runnerDensity: 1 }, sec: 20.5 }, // (104; 30 s: 0)
+    { look: "retro-runner", run: { runnerObstacles: 24, runnerDensity: 1 }, sec: 25.5 }, // (86; 0)
+  ],
+  vortex: [{ look: "neon-vortex", run: { vxRelease: "stagger", vxBalls: 20 }, sec: 41.5 }], // (98; 0)
+  bullseye: [
+    { look: "card", run: { byShots: 10, byPerfect: 2, byInterval: 0.4 }, sec: 10 }, // (76; 0)
+    { look: "candy-darts", run: { byShots: 12, byPerfect: 2, byInterval: 0.4 }, sec: 10.5 }, // (94; 0)
+  ],
+  journey: [{ look: "card", run: { journeyStages: "rings-l,glass,pegs,home" }, sec: 22.5 }], // the card and Pastel Commute (42; 0)
+  maze: [{ look: "card", run: { mzFirstOut: true, mzDuration: 25, mzCols: 12, mzBalls: 4 }, sec: 10.5 }], // (20; 0)
+  paddle: [{ look: "sunset-keep-up", run: { pdGoal: 0, pdSpin: 1 }, sec: 19.5 }], // (12; 2) game over at 10–54 s
+  paint: [{ look: "rainbow-paint", run: { ballRadius: 14, ballSpeed: 400, paintGuide: false, gravity: 100 }, sec: 67.5 }], // (20; 0) full at 47–86 s
+  illusion: [{ look: "hidden-heart", run: { ilStage: false, ilCycles: 0, ilType: "whitespace", ilPattern: "heart" }, sec: 21 }], // (78; 0)
+  conveyor: [
+    { look: "pastel-conveyor", run: { cvInterval: 1, cvMaxBalls: 12 }, sec: 21 }, // (93; 0)
+    { look: "bowl-overflow", run: { cvInterval: 0.5, cvMaxBalls: 40, cvArena: "bowl" }, sec: 25.5 }, // (109; 0)
+  ],
+});
+// --- end find-target-follows ---
+
+/**
+ * The finder's target (s) for `settings`, the first that applies: (--- find-target-follows --- round two A2b) an exact look –
+ * a look of the Looks row whose run it is (`LOOK_FIND_SEC`), then the start look's while the run is the start look's with
+ * every field of it (D3 review; a paced mode's start look with fields beyond its pace included) –, then the paced mode's own
+ * while its run is at the page's pace, else the page's 30. The exact look comes first: a look's run sets the pace's fields
+ * and more, and would otherwise get the pace's target.
  */
 export function clipPacingFindSec(settings: Pick<SimulatorSettings, "mode"> & Partial<SimulatorSettings>): number {
   const own = settings as unknown as Record<string, unknown>;
-  const runIs = (fields: Partial<SimulatorSettings>) => Object.entries(fields).every(([key, value]) => LOOK_ONLY_PACE.has(key) || own[key] === value);
-  const target = PACED_FIND_SEC[settings.mode];
-  if (target !== undefined) return runIs(clipPacingDefaults(settings.mode)) ? target : DEFAULT_FIND_SEC;
+  const runIs = (fields: Partial<SimulatorSettings>) => Object.entries(fields).every(([key, value]) => LOOK_ONLY_FIELDS.has(key) || own[key] === value);
+  // --- find-target-follows --- (round two A2b) an exact look first
+  for (const look of LOOK_FIND_SEC[settings.mode] ?? []) if (runIs(look.run)) return look.sec;
+  const startLook = clipStartSettings(settings.mode);
   const start = START_FIND_SEC[settings.mode];
-  if (start !== undefined && runIs(clipStartSettings(settings.mode))) return start;
+  if (start !== undefined && Object.keys(startLook).length > 0 && runIs(startLook)) return start;
+  // --- end find-target-follows ---
+  const target = PACED_FIND_SEC[settings.mode];
+  if (target !== undefined && runIs(clipPacingDefaults(settings.mode))) return target;
   return DEFAULT_FIND_SEC;
 }
 // --- end finder-target ---
+
+// --- find-target-follows --- (round two A2b)
+/** The target the page itself set for the run on it (`clipPacingFindSec()`), with the mode it was set for. */
+export interface FindTargetAuto {
+  mode: ModeId;
+  sec: number;
+}
+
+/**
+ * Find Simulation's target once the run on the page changes from `prevAuto`'s to `next`'s: the new run's own while the page's
+ * target is still the one the page set (`current === prevAuto.sec`, the visitor typed none), a typed one otherwise – until the
+ * mode changes, which starts the new mode on its own target as picking it does (Simulator.tsx changeMode).
+ */
+export function nextFindTarget(prevAuto: FindTargetAuto, current: number, next: FindTargetAuto): number {
+  if (next.mode !== prevAuto.mode) return next.sec;
+  return current === prevAuto.sec ? next.sec : current;
+}
+// --- end find-target-follows ---
 
 // --- clip-start --- (review fix B2)
 /**

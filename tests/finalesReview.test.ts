@@ -85,8 +85,11 @@ describe("--- finder-target --- Find Simulation's target on a paced mode's page 
     expect(clipPacingFindSec(defaultSettings("paint"))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=lines&rlines=1&s=700&lns=32")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paint&r=12&s=600")))).toBe(30);
-    // a start look without a target of its own keeps the page's 30
-    expect(clipPacingFindSec(startSettings("collide"))).toBe(30);
+    // a start look without a target of its own keeps the page's 30 (--- find-target-follows --- round two A2b: Collision
+    // Playground's pour has one now, 19.5 s – every run empties the jar at 18.8–20.0 s –, so the check moves to Spinning Hoops,
+    // whose start look the finder reads as endless)
+    expect(clipPacingFindSec(startSettings("hoops"))).toBe(30);
+    expect(clipPacingFindSec(startSettings("collide"))).toBe(19.5);
 
     const world = { width: 800, height: 450 };
     for (const mode of ["lines", "paint"] as const) {
