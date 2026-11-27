@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LIMITER_CODEC_MARGIN_DB, LIMITER_LOOKAHEAD_SEC, LIMITER_MAX_COST_LU, LIMITER_MAX_REDUCTION_DB, LIMITER_RELEASE_SEC, LIMITER_TOLERANCE_LU, LOUDNESS_TARGET_LUFS, TRUE_PEAK_CEILING_DBTP, integratedLoudness, kWeightingFilters, limiterGainCurve, normalisationGainDb, normaliseExportMix, normaliseLoudness, truePeak, truePeakEnvelope } from "@/lib/audio/loudness";
+import { LIMITER_CODEC_MARGIN_DB, LIMITER_LOOKAHEAD_SEC, LIMITER_MAX_COST_LU, LIMITER_MAX_REDUCTION_DB, LIMITER_MIN_BENEFIT_LU, LIMITER_RELEASE_SEC, LIMITER_TOLERANCE_LU, LOUDNESS_TARGET_LUFS, TRUE_PEAK_CEILING_DBTP, filterSeries, integratedLoudness, kWeightingFilters, limiterGainCurve, normalisationGainDb, normaliseExportMix, normaliseLoudness, truePeak, truePeakEnvelope } from "@/lib/audio/loudness";
 
 /*
  * --- loop-foundation --- The offline loudness normaliser of the exported mix (lib/audio/loudness.ts): BS.1770 K-weighting and
@@ -99,6 +99,19 @@ function clickTrack(): Float32Array {
   return clicks;
 }
 
+/**
+ * `freq` Hz hits (amplitude 0.5, decaying with a `decay` s time constant) every `every` s over a 220 Hz bed of `bedAmp`
+ * (0: in silence), 6 s long – a pluck at 10 ms, a click at 2 ms.
+ */
+function hitsOverBed(bedAmp: number, every: number, decay: number, freq = 880): Float32Array {
+  const out = sine(220, bedAmp, 6);
+  for (let at = every / 2; at < 6; at += every) {
+    const start = Math.round(at * RATE);
+    for (let i = 0; i < Math.round(0.3 * RATE) && start + i < out.length; i++) out[start + i] += 0.5 * Math.sin((2 * Math.PI * freq * i) / RATE) * Math.exp(-i / (decay * RATE));
+  }
+  return out;
+}
+
 /** How many samples of `a` and `b` differ (their lengths too). */
 function mismatches(a: Float32Array, b: Float32Array): number {
   let n = Math.abs(a.length - b.length);
@@ -112,7 +125,15 @@ function exportOf(make: () => Float32Array) {
   const r = normaliseExportMix(channels, RATE, channels[0].length);
   let sampleMax = 0;
   for (const ch of channels) for (const v of ch) sampleMax = Math.max(sampleMax, Math.abs(v));
-  return { r, channels, measured: integratedLoudness(channels, RATE), truePeakDb: db(truePeak(channels)), sampleMax, cost: r.inputLufs + r.gainDb - r.outputLufs };
+  // the cost: what the limiter took off the loudness, its makeup gain minus the level change (gainDb, once it ran)
+  return { r, channels, measured: integratedLoudness(channels, RATE), truePeakDb: db(truePeak(channels)), sampleMax, cost: r.inputLufs + (r.makeupGainDb ?? r.gainDb) - r.outputLufs };
+}
+
+/** What normaliseLoudness() – the one static gain – makes of two copies of `make()`: its samples, result and loudness. */
+function staticOf(make: () => Float32Array) {
+  const channels = [make(), make()];
+  const r = normaliseLoudness(channels, RATE);
+  return { r, channels, measured: integratedLoudness(channels, RATE) };
 }
 
 describe("export limiter (normaliseExportMix)", () => {
@@ -128,6 +149,10 @@ describe("export limiter (normaliseExportMix)", () => {
       expect(e.sampleMax).toBeLessThan(1);
       expect(e.r.limitDb).toBeGreaterThan(5);
       expect(e.r.limitDb).toBeLessThanOrEqual(LIMITER_MAX_REDUCTION_DB);
+      // the result names the level change – what the done line says – with the makeup gain on top of the curve beside it
+      expect(e.r.gainDb).toBeCloseTo(e.r.outputLufs - e.r.inputLufs, 9);
+      expect(Math.abs(e.r.gainDb - (e.measured - e.r.inputLufs))).toBeLessThan(0.1);
+      expect(e.r.makeupGainDb).toBeGreaterThan(e.r.gainDb);
     }
   });
 
@@ -140,6 +165,7 @@ describe("export limiter (normaliseExportMix)", () => {
       expect(e.r.limitDb ?? 0).toBe(0);
       expect(mismatches(e.channels[0], reference)).toBe(0);
       expect(Math.abs(e.r.outputLufs - LOUDNESS_TARGET_LUFS)).toBeLessThanOrEqual(0.5);
+      expect(e.r.makeupGainDb).toBeUndefined();
     }
     // an accent every half second: the ceiling held it 0.7 LU short, the limiter lands it
     const dense = exportOf(() => bedWithAccents(0.1, 0.9, [0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25, 5.75]));
@@ -159,17 +185,38 @@ describe("export limiter (normaliseExportMix)", () => {
     expect(deep.r.limitDb).toBeGreaterThan(LIMITER_MAX_REDUCTION_DB - 0.1);
     expect(deep.r.outputLufs).toBeLessThan(LOUDNESS_TARGET_LUFS - 3);
     expect(deep.truePeakDb).toBeLessThanOrEqual(LIMITED_DBTP + 0.01);
-    // clicks in silence: every dB of reduction costs a dB of loudness, so the cost bound stops it; its clicks keep their shape
-    const clicks = exportOf(clickTrack);
+    // clicks over a faint bed: past the bed's share every dB of reduction costs a dB of loudness, so the cost bound stops it,
+    // short of the target and of the depth bound, yet louder than the static gain makes it; its clicks keep their shape
+    const clicksOverBed = () => hitsOverBed(0.02, 0.5, 0.002);
+    const clicks = exportOf(clicksOverBed);
     expect(clicks.cost).toBeLessThanOrEqual(LIMITER_MAX_COST_LU + LIMITER_TOLERANCE_LU);
-    expect(clicks.r.limitDb).toBeLessThanOrEqual(LIMITER_MAX_COST_LU + 1);
+    expect(clicks.cost).toBeGreaterThan(LIMITER_MAX_COST_LU - 0.1);
+    expect(clicks.r.limitDb).toBeLessThan(LIMITER_MAX_REDUCTION_DB - 3);
     expect(clicks.r.outputLufs).toBeLessThan(LOUDNESS_TARGET_LUFS);
+    expect(clicks.measured).toBeGreaterThanOrEqual(staticOf(clicksOverBed).measured + LIMITER_MIN_BENEFIT_LU);
     expect(clicks.truePeakDb).toBeLessThanOrEqual(LIMITED_DBTP + 0.01);
     expect(clicks.sampleMax).toBeLessThan(1);
     // silence is left alone
     const silent = [new Float32Array(RATE), new Float32Array(RATE)];
     expect(normaliseExportMix(silent, RATE, RATE).gainDb).toBe(0);
     expect(silent[0].every((v) => v === 0)).toBe(true);
+  });
+
+  it("keeps the static gain where limiting would not pay: a mix of nothing but hits ends as loud as before, its hits untouched", () => {
+    // the click track, a plucked hit every 1.2 s in silence and a click every half second in silence: the ceiling holds each
+    // more than LIMITER_MIN_BENEFIT_LU short, but every dB of limiting costs a dB, and the codec margin alone about 1 LU
+    for (const make of [clickTrack, () => hitsOverBed(0, 1.2, 0.01), () => hitsOverBed(0, 0.5, 0.002, 2000)]) {
+      const e = exportOf(make);
+      const fixed = staticOf(make);
+      expect(fixed.r.outputLufs).toBeLessThan(LOUDNESS_TARGET_LUFS - LIMITER_MIN_BENEFIT_LU);
+      expect(e.r.limitDb ?? 0).toBe(0);
+      expect(e.r.makeupGainDb).toBeUndefined();
+      expect(e.measured).toBeGreaterThanOrEqual(fixed.measured - 0.01);
+      expect(e.r.gainDb).toBeCloseTo(fixed.r.gainDb, 9);
+      expect(mismatches(e.channels[0], fixed.channels[0])).toBe(0);
+      expect(mismatches(e.channels[1], fixed.channels[1])).toBe(0);
+      expect(e.truePeakDb).toBeLessThanOrEqual(TRUE_PEAK_CEILING_DBTP + 0.05);
+    }
   });
 
   it("applies its curve once to a channel both sides share (a mono mix), as two copies would get it", () => {
@@ -217,6 +264,22 @@ describe("export limiter (normaliseExportMix)", () => {
     expect(loudest).toBeLessThanOrEqual(1 + 1e-6);
     expect(lowest).toBeGreaterThan(0);
     expect(highest).toBeLessThanOrEqual(1);
+  });
+
+  it("flushes a K-weighted tail decaying through silence to zero, so a quiet mix measures fast and the same", () => {
+    // one pluck, then 20 s of silence: the filters' ringing would sink toward the subnormal range, 10–20× slower to compute
+    const pluck = (silence: number) => {
+      const x = new Float32Array(Math.round((0.5 + silence) * RATE));
+      for (let i = 0; i < 0.3 * RATE; i++) x[i] = 0.5 * Math.sin((2 * Math.PI * 880 * i) / RATE) * Math.exp(-i / (0.01 * RATE));
+      return x;
+    };
+    const y = filterSeries(pluck(20), kWeightingFilters(RATE));
+    let tiny = 0;
+    for (const v of y) if (v !== 0 && Math.abs(v) < 1e-150) tiny++;
+    expect(tiny).toBe(0);
+    expect(y[y.length - 1]).toBe(0);
+    // the silence after it is gated out either way: the same loudness after 1 s of it and after 20 s
+    expect(integratedLoudness([pluck(20)], RATE)).toBeCloseTo(integratedLoudness([pluck(1)], RATE), 9);
   });
 
   it("measures each sample's true-peak envelope: never under the sample, and its largest value is the true peak", () => {

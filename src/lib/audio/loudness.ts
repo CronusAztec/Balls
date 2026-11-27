@@ -11,9 +11,11 @@
  * mix only, normaliseExportMix runs a look-ahead peak limiter on the true-peak envelope before the gain (a 5 ms linear attack
  * that ends on the peak, a 50 ms release, the true peak held 1 dB under the ceiling to leave the encoder room) and searches
  * the gain that lands the limited mix on the target, within two bounds that keep the hits from being flattened: at most
- * 12 dB off any peak, and at most 3 LU off the mix's loudness (what the limiter takes off the loud parts; a mix whose every
- * hit is a peak stops there, quieter than the target but louder than before). A mix the static gain already brings to the
- * target is not touched by it, sample for sample.
+ * 12 dB off any peak, and at most 3 LU off the mix's loudness (what the limiter takes off the loud parts). The limiter must
+ * pay for itself: a limited mix that is not at least 0.5 LU louder than the static gain makes it – a mix whose every hit is a
+ * peak, a click track, a plucked hit sample in silence, where the codec margin alone costs about 1 LU – keeps the static
+ * gain, its hits untouched, as does a mix the static gain already brings within 0.5 LU of the target. Those mixes are not
+ * touched by the limiter, sample for sample.
  *
  * Measurement: K-weighting (the shelving pre-filter and the RLB high-pass, coefficients for any sample rate – they equal the
  * standard's 48 kHz table there), mean squares over 400 ms blocks every 100 ms, an absolute gate at −70 LUFS and a relative gate
@@ -76,7 +78,11 @@ function filterInPlace(out: Float64Array, filters: readonly Biquad[]): Float64Ar
     let y2 = 0;
     for (let i = 0; i < out.length; i++) {
       const xi = out[i];
-      const y = f.b0 * xi + f.b1 * x1 + f.b2 * x2 - f.a1 * y1 - f.a2 * y2;
+      let y = f.b0 * xi + f.b1 * x1 + f.b2 * x2 - f.a1 * y1 - f.a2 * y2;
+      // --- export-limiter --- a tail decaying through silence is flushed to zero under 1e-150: on its way to the subnormal
+      // range every operation is 10–20× slower (a quiet clip's measurement took half a second), and a value that small moves
+      // no power sum (its square is under 1e-300) and no later sample (it is far under a Float32 sample's last bit)
+      if (y < 1e-150 && y > -1e-150) y = 0;
       x2 = x1;
       x1 = xi;
       y2 = y1;
@@ -195,12 +201,17 @@ export interface LoudnessResult {
   inputLufs: number;
   /** Its true peak before (dBTP). */
   inputTruePeakDb: number;
-  /** The gain applied (dB; 0 for a silent mix) – after the export limiter, the gain on top of its curve. */
+  /**
+   * How much louder the mix became (dB; 0 for a silent mix): the one gain applied – or, after the export limiter, what its
+   * curve and makeup gain added together (outputLufs − inputLufs), the level change the fast export's done line names.
+   */
   gainDb: number;
   /** The loudness after (LUFS): the target, or less when the true-peak ceiling (or the export limiter's bounds) held it back. */
   outputLufs: number;
   /** --- export-limiter --- The deepest gain reduction the export limiter applied (dB; 0 when it did not run). */
   limitDb?: number;
+  /** --- export-limiter --- The makeup gain on top of the limiter's curve (dB; only when the limiter ran). */
+  makeupGainDb?: number;
 }
 
 /** The gain (dB) that takes a mix of `lufs` / `truePeakDb` to `target` without its true peak passing `ceiling`. */
@@ -239,9 +250,11 @@ export function normaliseExportMix(channels: readonly Float32Array[], sampleRate
   const peak = truePeak(views);
   const inputTruePeakDb = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
   const gainDb = normalisationGainDb(inputLufs, inputTruePeakDb, target, ceiling);
-  // --- export-limiter --- the true-peak ceiling holds the static gain short of the target: limit the peaks instead
-  if (Number.isFinite(inputLufs) && inputLufs > SILENCE_LUFS && peak > 0 && target - inputLufs - gainDb > LIMITER_TOLERANCE_LU) {
-    return limitExportMix(channels, views, sampleRate, n, { inputLufs, inputTruePeakDb, gainDb, outputLufs: inputLufs + gainDb }, target, ceiling);
+  // --- export-limiter --- the true-peak ceiling holds the static gain short of the target: limit the peaks instead, when
+  // that pays (null: the static gain below)
+  if (Number.isFinite(inputLufs) && inputLufs > SILENCE_LUFS && peak > 0 && target - inputLufs - gainDb > LIMITER_MIN_BENEFIT_LU) {
+    const limited = limitExportMix(channels, views, sampleRate, n, { inputLufs, inputTruePeakDb, gainDb, outputLufs: inputLufs + gainDb }, target, ceiling);
+    if (limited) return limited;
   }
   if (gainDb !== 0) {
     const g = Math.pow(10, gainDb / 20);
@@ -266,10 +279,17 @@ export const LIMITER_RELEASE_SEC = 0.05;
 export const LIMITER_MAX_REDUCTION_DB = 12;
 /**
  * The most loudness (LU) the limiter may take off the mix: the gain it adds over the static one minus the loudness that gain
- * gains. A lone accent costs next to nothing; a mix whose loud parts are all peaks – a click track, a lone hit in silence,
- * Paddle's and Fight League's hits – pays for every dB, and stops here.
+ * gains. A lone accent costs next to nothing; a mix whose loud parts are mostly peaks – Paddle's, Shatter's and Fight
+ * League's hits – pays for most of every dB, and stops here, short of the target but louder than the static gain made it.
  */
 export const LIMITER_MAX_COST_LU = 3;
+/**
+ * The least loudness (LU) the limited mix must gain over the static gain, or the static gain stays. A mix whose every hit is
+ * a peak – a click track, a lone hit in silence, the Click, Pluck or Glass hit sample over a quiet mode – pays for every dB:
+ * there the codec margin alone costs about 1 LU, so the limited mix would end quieter than the static gain makes it, every hit
+ * squashed by 3–4 dB. A static gain within this much of the target does not run the limiter at all.
+ */
+export const LIMITER_MIN_BENEFIT_LU = 0.5;
 /**
  * How far under the ceiling (dB) the limiter holds the true peak. A limited mix has many peaks at its limit, and the export's
  * encoder lifts some of them: Chromium's Opus at 128 kb/s put the String Circle card's verdict 1.4 dB over the mix's true
@@ -277,7 +297,7 @@ export const LIMITER_MAX_COST_LU = 3;
  * keep −1 dBTP but for bright glass and impacts (Shatter −0.4, Fight League −0.7: under full scale).
  */
 export const LIMITER_CODEC_MARGIN_DB = 1;
-/** How near the target (or the cost bound, LU) the gain search stops; a static gain this close to the target needs no limiter. */
+/** How near the target (or the cost bound, LU) the gain search stops. */
 export const LIMITER_TOLERANCE_LU = 0.05;
 /** At most this many gain searches (each a gain curve and a loudness measurement); three or four usually land within tolerance. */
 const LIMITER_ROUNDS = 8;
@@ -397,9 +417,10 @@ export function limiterGainCurve(envelope: Float32Array, sampleRate: number, lim
  * the gain alone would make it. Both margins fall as the gain rises, at rates set by one slope (the loudness each dB of gain
  * still gains), so each round steps to the nearer bound along the slope measured between the last two rounds, kept inside
  * the bracket the rounds so far have found; three or four rounds land within tolerance. Applied with the limiter's curve once
- * per array. `measured` is what the static path measured.
+ * per array – or nothing is written and null comes back when the best gain does not beat the static one by
+ * LIMITER_MIN_BENEFIT_LU, and the caller applies the static gain. `measured` is what the static path measured.
  */
-function limitExportMix(channels: readonly Float32Array[], views: readonly Float32Array[], sampleRate: number, n: number, measured: LoudnessResult, target: number, ceiling: number): LoudnessResult {
+function limitExportMix(channels: readonly Float32Array[], views: readonly Float32Array[], sampleRate: number, n: number, measured: LoudnessResult, target: number, ceiling: number): LoudnessResult | null {
   const { inputLufs } = measured;
   const limiterDbtp = ceiling - LIMITER_CODEC_MARGIN_DB;
   const limit = dbToGain(limiterDbtp);
@@ -436,22 +457,20 @@ function limitExportMix(channels: readonly Float32Array[], views: readonly Float
     slope = Math.min(1, Math.max(0, (current.lufs - prev.lufs) / (current.gainDb - prev.gainDb)));
     prev = current;
   }
-  if (best !== current) {
-    if (best.limitDb > 0) limiterGainCurve(env, sampleRate, limit / dbToGain(best.gainDb), curve);
-    else curve.fill(1);
-  }
+  // The limiter must pay: a limited mix not LIMITER_MIN_BENEFIT_LU louder than the static gain makes it (a mix of nothing but
+  // peaks, which the codec margin alone costs about 1 LU) keeps the static gain, its hits untouched – nothing is written.
+  if (best.limitDb === 0 || best.lufs < measured.outputLufs + LIMITER_MIN_BENEFIT_LU) return null;
+  if (best !== current) limiterGainCurve(env, sampleRate, limit / dbToGain(best.gainDb), curve);
   let { gainDb, lufs: outputLufs } = best;
   const g = dbToGain(gainDb);
   for (const ch of new Set(channels)) {
     const end = Math.min(n, ch.length, curve.length);
     for (let i = 0; i < end; i++) ch[i] *= g * curve[i];
   }
-  // A safety net for rounding (the curve keeps the envelope under the limit exactly): trim what still passes the ceiling –
-  // and the limit, once the limiter ran (the static gain alone keeps the ceiling, as before).
+  // A safety net for rounding (the curve keeps the envelope under the limit exactly): trim what still passes the limit.
   const peak = truePeak(views);
-  const allowed = best.limitDb > 0 ? limit : dbToGain(ceiling);
-  if (peak > allowed) {
-    const trim = allowed / peak;
+  if (peak > limit) {
+    const trim = limit / peak;
     for (const ch of new Set(channels)) {
       const end = Math.min(n, ch.length);
       for (let i = 0; i < end; i++) ch[i] *= trim;
@@ -459,5 +478,6 @@ function limitExportMix(channels: readonly Float32Array[], views: readonly Float
     gainDb += 20 * Math.log10(trim);
     outputLufs += 20 * Math.log10(trim);
   }
-  return { inputLufs, inputTruePeakDb: measured.inputTruePeakDb, gainDb, outputLufs, limitDb: best.limitDb };
+  // gainDb reports the level change (what the done line names), the makeup gain on top of the curve beside it
+  return { inputLufs, inputTruePeakDb: measured.inputTruePeakDb, gainDb: outputLufs - inputLufs, outputLufs, limitDb: best.limitDb, makeupGainDb: gainDb };
 }

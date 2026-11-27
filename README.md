@@ -2810,8 +2810,13 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   (K-weighting, 400 ms gated blocks, a 4× true-peak estimate) and given one static gain to −14 LUFS, the true peak at most
   −1 dBTP (a silent mix is left alone); the live page keeps its limiter. A sparse mix whose one accent holds that gain back
   goes through a look-ahead limiter first (5 ms attack, 50 ms release, at most 12 dB off a peak and 3 LU off the loudness,
-  the true peak 1 dB under the ceiling to leave the encoder room), so it reaches the target too; a mix the static gain lands
-  is not touched by it.
+  the true peak 1 dB under the ceiling to leave the encoder room), so it reaches the target or comes as near as those two
+  bounds allow: a mix made mostly of hits stops short (Paddle, Shatter, Fight League, Runner and Beat Drop at −15 to −17
+  LUFS). The limiter is used only when it makes the mix at least 0.5 LU louder than the static gain does: a mix of nothing
+  but hits (a click track, the Click or Pluck hit sample over a quiet mode) keeps the static gain, its hits untouched, and
+  so does a mix the static gain brings within 0.5 LU of the target. The −1 dBTP ceiling holds for the mix; the encoder can
+  lift a limited mix's bright transients past it by up to about 1.6 dB (Shatter's file reads −0.4 dBTP). The done line
+  names the level change.
 - **Whole loops** (`src/lib/loop/loopContract.ts`): a mode with a seamless cycle reports it (`GameMode.cycleSeconds()`,
   `loopSeams()`; the canvas mirrors it in `data-loop-cycle` and `data-loop-seams`). With **Export whole loops** on (the
   Recording section, `exportWholeLoops`, URL `wl`, on by default) the page recorder, the fast export and the batch render end
