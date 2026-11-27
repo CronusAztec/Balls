@@ -13,7 +13,7 @@ import {
   stepsAgoMs,
   tickFlash,
 } from "@/components/simulator/polyrhythmRenderer";
-import { endBannerPlateHeight, layoutEndBanner, placeEndBanner } from "@/components/simulator/endBanner";
+import { endBannerMarkY, endBannerPlateHeight, layoutEndBanner, placeEndBanner } from "@/components/simulator/endBanner";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PolyrhythmView } from "@/lib/physics/modes/polyrhythm";
@@ -261,5 +261,33 @@ describe("Polyrhythm: IN PHASE! on the arcs keeps clear of the voices", () => {
     expect(canvasSource).toMatch(/const arcsAt = pv\.settings\.layout === "arcs" \? \(height: number\) => polyrhythmBannerAt\(pv, minDim, height\) : undefined;/);
     expect(canvasSource).toMatch(/bigBanner\(L\.polyrhythmDone, L\.polyrhythmAligned\(prog\.count, prog\.total\), "#a3e635", arcsAt \?\? \(pv\.settings\.layout === "rings" \? 0\.73 : undefined\), polyrhythmBannerWidth\(pv, minDim\)\)/);
     expect(canvasSource).toMatch(/blocks\.push\(\{ height: lay\.height, at: typeof at === "function" \? at\(lay\.height\) : at,/);
+  });
+
+  // --- mark-clear --- (round two, B-g1 review) with its own place in the middle, IN PHASE! no longer had the stack in the middle the
+  // creator's text mark (wm=) went under: it ran across the plate's words
+  it("keeps a creator's text mark off IN PHASE!'s plate: under the chords' plate in the middle, and off the semicircles' one", () => {
+    let underChords = 0;
+    for (const [width, height] of WORLDS) {
+      for (const arcStyle of ["chords", "semicircles"] as const) {
+        const view = finishedRun({ prLayout: "arcs", prArcStyle: arcStyle } as Partial<SimulatorSettings>, width, height).getPolyrhythmView();
+        expect(view.geometry!.arcStyle).toBe(arcStyle);
+        const side = Math.min(width, height);
+        const fs = Math.max(14, 0.045 * side); // (Canvas.tsx's mark)
+        for (const locale of ["en", "pl", "es"]) {
+          const plate = plateOf(view, width, height, words(locale, 16), 0.5);
+          const y = endBannerMarkY(height / 2, fs, undefined, [{ shown: true, rect: plate }]);
+          const meetsPlate = plate.y < y + 0.6 * fs && plate.y + plate.h > y - 0.6 * fs;
+          expect(meetsPlate, `${arcStyle} ${locale} ${width}x${height}`).toBe(false);
+          if (arcStyle === "chords") {
+            // the plate's centre is the square's: in the middle the mark would have crossed it
+            expect(plate.y).toBeLessThan(height / 2);
+            expect(plate.y + plate.h).toBeGreaterThan(height / 2);
+            expect(y).toBeCloseTo(plate.y + plate.h + 8 + 0.8 * fs, 9);
+            underChords++;
+          }
+        }
+      }
+    }
+    expect(underChords).toBe(3 * WORLDS.length);
   });
 });

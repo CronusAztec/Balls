@@ -3,8 +3,8 @@ import { settingsFromSearchParams } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { resolveStringBattleSettings, stringBattleSettingsOf, timeoutLeaders, type StringBattleSettings } from "@/lib/physics/modes/stringBattle";
-import { DEFAULT_STRING_CIRCLE_SETTINGS, SC_STEADY_MS, createCircleState, steadyLeaders, updateSteadyShare } from "@/lib/physics/modes/stringCircle";
-import { DEFAULT_STRING_CIRCLE_LABELS, StringCircleLayer, verdictShares, type StringCircleRenderOptions } from "@/components/simulator/stringCircleRenderer";
+import { DEFAULT_STRING_CIRCLE_SETTINGS, SC_RIM_BINS, SC_STEADY_MS, createCircleState, steadyLeaders, updateSteadyShare } from "@/lib/physics/modes/stringCircle";
+import { DEFAULT_STRING_CIRCLE_LABELS, StringCircleLayer, verdictRimOwner, verdictShares, type StringCircleRenderOptions } from "@/components/simulator/stringCircleRenderer";
 import { DEFAULT_STRING_BATTLE_LABELS, SB_FINALE_PULSE, StringBattleLayer, type StringBattleRenderOptions } from "@/components/simulator/stringBattleRenderer";
 
 /*
@@ -96,6 +96,65 @@ describe("--- verdict-freeze --- String Circle's winner banner", () => {
     expect(moved).toBeGreaterThanOrEqual(8);
   });
 
+  // (round two, B-g1 review) the rim the viewer sees agrees with the banner: it showed the loser ahead 2.4 s into the card's hold
+  it("draws the rim arcs as the verdict left them through the end hold, while the fans go on painting the rim's coverage", { timeout: 120_000 }, () => {
+    let moved = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = card(seed);
+      const v = engine.getStringBattleView();
+      while (!v.finished) step(engine);
+      const c = v.circle!;
+      const frozen = c.verdictOwner!;
+      expect(frozen).not.toBeNull();
+      // the clip limit's verdict comes after the step's coverage: the rim then, and its winner's share is the banner's
+      expect(Array.from(frozen)).toEqual(Array.from(c.coverage.owner));
+      if (v.winner >= 0) expect(Array.from(frozen).filter((t) => t === v.winner).length / SC_RIM_BINS).toBe(c.verdictShares![v.winner]);
+      const at0 = Array.from(frozen);
+      const layer = new StringCircleLayer();
+      const ctx = noopCtx();
+      const o: StringCircleRenderOptions = { dpr: 1, roster: [], showNames: false, wallThickness: 2, labels: DEFAULT_STRING_CIRCLE_LABELS, nowMs: 0, width: 800, height: 450 };
+      const arcs = new Set<number>();
+      const live = new Set<string>();
+      for (const at of [250, 1000, 2000, 3000, 3900]) {
+        while (engine.getElapsedMs() - v.finishedMs < at) step(engine);
+        layer.drawStage(ctx, v, engine.getBalls(), { ...o, nowMs: engine.getElapsedMs() });
+        expect(verdictRimOwner(v)).toBe(c.verdictOwner);
+        arcs.add(layer.arcs);
+        live.add(Array.from(c.coverage.owner).join(","));
+      }
+      expect(Array.from(c.verdictOwner!)).toEqual(at0);
+      expect(arcs.size).toBe(1);
+      if (live.size > 1) moved++;
+    }
+    // the coverage goes on changing on most seeds (data-sb-coverage stays live): the rim the arcs used to follow
+    expect(moved).toBeGreaterThanOrEqual(8);
+  });
+
+  it("leaves a knocked-out ball's arcs off the frozen rim, and keeps the winner's", { timeout: 120_000 }, () => {
+    let knockouts = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const engine = card(seed, WORLDS[0], { duration: 0, balls: 2, lives: 1 });
+      const v = engine.getStringBattleView();
+      let before: Int16Array | null = null;
+      for (let i = 0; i < 60 * 120 && !v.finished; i++) {
+        before = Int16Array.from(v.circle!.coverage.owner);
+        step(engine);
+      }
+      if (!v.finished || v.winner < 0) continue;
+      const c = v.circle!;
+      const frozen = Array.from(c.verdictOwner!);
+      for (let b = 0; b < frozen.length; b++) {
+        const team = frozen[b];
+        if (team >= 0) expect(v.fighters[team].alive).toBe(true);
+      }
+      // the winner's bins are the ones it held when the verdict came (the share the banner names)
+      expect(frozen.filter((t) => t === v.winner).length / SC_RIM_BINS).toBe(c.verdictShares![v.winner]);
+      if (before && Array.from(before).some((t) => t >= 0 && !v.fighters[t].alive)) knockouts++;
+    }
+    // a knockout comes before the step's coverage on these seeds: the fallen ball still held rim then
+    expect(knockouts).toBeGreaterThan(0);
+  });
+
   it("shows the live shares while the battle goes on and starts every battle unfrozen", () => {
     const engine = card(1);
     const v = engine.getStringBattleView();
@@ -104,8 +163,11 @@ describe("--- verdict-freeze --- String Circle's winner banner", () => {
     expect(verdictShares(v)).toBe(v.circle!.coverage.share);
     while (!v.finished) step(engine);
     expect(v.circle!.verdictShares).not.toBeNull();
+    expect(v.circle!.verdictOwner).not.toBeNull(); // --- verdict-freeze --- (B-g1 review: the rim's bins too)
     engine.initStringBattle();
     expect(engine.getStringBattleView().circle!.verdictShares).toBeNull();
+    expect(engine.getStringBattleView().circle!.verdictOwner).toBeNull();
+    expect(verdictRimOwner(engine.getStringBattleView())).toBe(engine.getStringBattleView().circle!.coverage.owner);
   });
 });
 

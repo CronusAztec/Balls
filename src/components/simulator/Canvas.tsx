@@ -142,7 +142,7 @@ import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type Hoo
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
-import { EndBannerLayer, accumulationBannerAt, placeEndBanner } from "./endBanner"; // --- end-banner ---
+import { EndBannerLayer, accumulationBannerAt, endBannerMarkY, placeEndBanner } from "./endBanner"; // --- end-banner --- (--- mark-clear ---)
 import { SHATTER_INSET, collapseDone, drawShatterDamage, drawShatterShards, ringFallStartMs, shatterBand } from "./shatterRenderer"; // --- shatter-demolition ---
 import { drawAccumulationField, drawAccumulationTimerRing, drawClassicFloor, drawColorMatchHalo, drawColorMatchRing, drawCountdownRing, drawEndGhost, drawRingBurst, drawRingPips, type CountdownRingView } from "./ringModesRenderer"; // --- ring-looks --- (--- end-ghost --- review fix B2)
 import { ringRunOut } from "@/lib/physics/ringEscape"; // --- end-banner --- (Classic's end card)
@@ -3410,7 +3410,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.textBaseline = "middle";
           ctx.globalAlpha = 0.15;
           ctx.fillStyle = "#ffffff";
-          const wy = stacked > 0 ? cy + totalH / 2 + 8 + 0.8 * fs : cy;
+          // --- mark-clear --- (round two, B-g1 review) under the stack in the middle, and under a plate with a place of its own it would
+          // cross: Polyrhythm's IN PHASE! inside the circle of chords (--- poly-banner ---) has its centre in the middle
+          const wy = endBannerMarkY(cy, fs, stacked > 0 ? cy + totalH / 2 : undefined, endBanners);
           ctx.fillText(p.watermarkText, cx, wy);
           ctx.restore();
         }

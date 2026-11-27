@@ -296,6 +296,35 @@ export function accumulationBannerAt(balls: readonly { y: number; radius: number
   return under < over ? END_BANNER_BOTTOM : END_BANNER_TOP;
 }
 
+// --- mark-clear ---
+/** Half the band a creator's text mark covers around its centre, as a share of its font size (the plates it keeps clear of). */
+const MARK_HALF = 0.6;
+
+/**
+ * Where a creator's own text mark (the watermark text, `wm=`) has its centre, `fs` px tall, in a square centred on `cy`:
+ * under the banners stacked in the middle (`stackBottom`, their lower edge; undefined when none is) or, with none, in the
+ * middle – then under the plate of any banner shown with a place of its own that it would cross (round two, B-g1 review:
+ * Polyrhythm's IN PHASE! inside the circle of chords has its centre in the middle, and the mark ran across its words). A
+ * plate's box is its full-size one (`EndBannerLayer.rect`), so the mark keeps still through the banner's entrance. Pure.
+ */
+export function endBannerMarkY(cy: number, fs: number, stackBottom: number | undefined, plates: readonly { shown: boolean; rect: { y: number; h: number } }[]): number {
+  let y = stackBottom !== undefined ? stackBottom + 8 + 0.8 * fs : cy;
+  // (each move goes lower, under the plate it crossed; a plate under that one is checked again on the next pass)
+  for (let pass = 0; pass <= plates.length; pass++) {
+    let moved = false;
+    for (const p of plates) {
+      if (!p.shown || !(p.rect.h > 0)) continue;
+      if (p.rect.y < y + MARK_HALF * fs && p.rect.y + p.rect.h > y - MARK_HALF * fs) {
+        y = p.rect.y + p.rect.h + 8 + 0.8 * fs;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return y;
+}
+// --- end mark-clear ---
+
 /* ------------------------------------------------------------------ the entrance */
 
 /**

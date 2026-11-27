@@ -530,6 +530,23 @@ export function coverageLeaders(leaders: readonly number[], bins: Int32Array): n
   return leaders.filter((slot) => (bins[slot] ?? 0) === best);
 }
 
+// --- verdict-freeze ---
+/**
+ * The rim as the verdict leaves it (round two, B-g1 review): a copy of `owner` (every bin's team, -1 for none) without the
+ * bins of a ball that is out – a knockout comes before the step's own coverage, which drops the fallen ball's arcs. The
+ * rim arcs are drawn from it through the end hold, so they keep agreeing with the banner's "[pct]% OF THE RIM" while the
+ * fans go on painting the rim's coverage. View only: no physics, sound or verdict reads it.
+ */
+export function verdictRim(owner: Int16Array, fans: readonly { alive: boolean }[]): Int16Array {
+  const out = new Int16Array(owner.length);
+  for (let b = 0; b < owner.length; b++) {
+    const team = owner[b];
+    out[b] = team >= 0 && fans[team]?.alive ? team : -1;
+  }
+  return out;
+}
+// --- end verdict-freeze ---
+
 // --- steady-verdict ---
 /**
  * One step of the steady average (`SC_STEADY_MS`): every slot's average eased toward its share of the rim now by
@@ -719,6 +736,11 @@ export interface StringCircleState {
    */
   verdictShares: Float64Array | null;
   /**
+   * --- verdict-freeze --- (round two, B-g1 review) The rim's bins as the verdict left them (`verdictRim()`; null before the
+   * finish): the rim arcs draw these through the end hold, so the rim keeps the banner's share. `coverage` stays live.
+   */
+  verdictOwner: Int16Array | null;
+  /**
    * --- steady-verdict --- Per slot: its share of the rim averaged over the last seconds (`updateSteadyShare()`), which a
    * clip-limit verdict is taken on. Null – nothing averaged, the verdict of one step – unless the battle started with its
    * `steady` flag on and a clip limit.
@@ -753,6 +775,7 @@ export function createCircleState(slots: number, settings: StringCircleSettings,
     stepCuts: new Int32Array(n),
     stepsSinceSnap: SC_SNAP_GAP_STEPS,
     verdictShares: null, // --- verdict-freeze ---
+    verdictOwner: null, // --- verdict-freeze ---
     steadyShare: steady ? new Float64Array(n) : null, // --- steady-verdict ---
   };
 }

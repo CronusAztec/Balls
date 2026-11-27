@@ -15,6 +15,7 @@ import {
   contrast,
   drawEndBannerStrip,
   endBannerEntrance,
+  endBannerMarkY,
   endBannerPlateHeight,
   endBannerPlateLuminance,
   endBannerSubLines,
@@ -353,6 +354,43 @@ describe("the canvas' wiring of the end banner", () => {
     expect(canvasSource).toMatch(/if \(captionLayer\.usesTop && captionLayer\.stackEdges\.top > top\) top = captionLayer\.stackEdges\.top \+ 0\.01 \* minDim;/);
     expect(canvasSource).toMatch(/if \(captionLayer\.usesBottom && captionLayer\.stackEdges\.bottom < bottom\) bottom = captionLayer\.stackEdges\.bottom - 0\.01 \* minDim;/);
     expect(canvasSource).toMatch(/b\.draw\(placeEndBanner\(squareTop \+ b\.at \* minDim - b\.height \/ 2, b\.height, top, bottom, cy - b\.height \/ 2\)\)/);
+  });
+
+  // --- mark-clear --- (round two, B-g1 review) a creator's own text mark never runs across a plate with a place of its own
+  it("puts a creator's text mark under the banners in the middle, and under a plate with a place of its own it would cross", () => {
+    // a 1080 px square from y = 0: the mark is 48.6 px tall (4.5 %), and its band is 0.6 of that around its centre
+    const fs = 0.045 * 1080;
+    const plate = (y: number, h: number, shown = true) => ({ shown, rect: { y, h } });
+    // nothing on the square: the middle; banners stacked in the middle down to 655: under them, as before
+    expect(endBannerMarkY(540, fs, undefined, [])).toBe(540);
+    expect(endBannerMarkY(540, fs, 655, [])).toBeCloseTo(655 + 8 + 0.8 * fs, 9);
+    // Polyrhythm's IN PHASE! inside the circle of chords (its centre at the square's, 230 px tall): under its plate
+    const chords = plate(540 - 115, 230);
+    expect(endBannerMarkY(540, fs, undefined, [chords])).toBeCloseTo(655 + 8 + 0.8 * fs, 9);
+    // a plate away from the middle (the rings' lower half, at 73 %), or one not shown this frame: the mark stays in the middle
+    expect(endBannerMarkY(540, fs, undefined, [plate(0.73 * 1080 - 115, 230)])).toBe(540);
+    expect(endBannerMarkY(540, fs, undefined, [plate(425, 230, false)])).toBe(540);
+    // moved under one plate onto another: under that one too, whichever order they come in
+    const lower = plate(660, 100);
+    expect(endBannerMarkY(540, fs, undefined, [lower, chords])).toBeCloseTo(760 + 8 + 0.8 * fs, 9);
+    expect(endBannerMarkY(540, fs, undefined, [chords, lower])).toBeCloseTo(760 + 8 + 0.8 * fs, 9);
+    // the plate's full-size box: the mark keeps still through the banner's entrance
+    const canvas = fakeCanvas(1080, 1080);
+    const g = canvas.ctx as unknown as CanvasRenderingContext2D;
+    const layer = new EndBannerLayer();
+    const words = { title: "IN PHASE!", sub: "All 16 voices back in phase after 1 cycle", color: "#a3e635", maxWidth: 560 };
+    const marks = new Set<number>();
+    for (let i = 0; i < 20; i++) {
+      layer.draw(g, words, 540, 540, 1080, 1000 / 60);
+      layer.endFrame();
+      const y = endBannerMarkY(540, fs, undefined, [layer]);
+      expect(y - 0.6 * fs).toBeGreaterThan(layer.rect.y + layer.rect.h);
+      marks.add(y);
+    }
+    expect(marks.size).toBe(1);
+    // the canvas: under the stack in the middle, else the middle, then clear of every banner's plate of the frame
+    expect(canvasSource).toMatch(/const wy = endBannerMarkY\(cy, fs, stacked > 0 \? cy \+ totalH \/ 2 : undefined, endBanners\);/);
+    expect(canvasSource).toMatch(/ctx\.fillText\(p\.watermarkText, cx, wy\);/);
   });
 
   it("gives Classic an end card once the ball is out of the last ring, but not in a loop clip, with a roster or with captions", () => {

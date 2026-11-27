@@ -38,6 +38,7 @@ import {
   twangFrequency,
   updateCoverage,
   updateSteadyShare,
+  verdictRim,
   wallOverlap,
   writeStringCircleParams,
   type ScArena,
@@ -1276,7 +1277,7 @@ export class StringBattleMode implements GameMode {
   /**
    * The battle is over: `leaders` take the win (an escape in the team stats) and the verdict is ranked like the scoreboard.
    * (--- verdict-freeze --- the circle style keeps the rim shares the verdict was taken on – `shares`, else the rim now – for
-   * the banner and the strip to draw through the end hold.)
+   * the banner and the strip to draw through the end hold, and the rim's bins for its arcs.)
    */
   private finish(ctx: ModeContext, leaders: readonly number[], now: number, shares?: ArrayLike<number>) {
     const v = this.view;
@@ -1292,7 +1293,10 @@ export class StringBattleMode implements GameMode {
     const result = teamResult(this.getTeamStats(), v.fighters.length);
     v.tie = result.tie;
     v.winner = result.tie ? -1 : result.winner;
-    if (v.circle) v.circle.verdictShares = Float64Array.from(shares ?? v.circle.coverage.share); // --- verdict-freeze --- (view only)
+    if (v.circle) {
+      v.circle.verdictShares = Float64Array.from(shares ?? v.circle.coverage.share); // --- verdict-freeze --- (view only)
+      v.circle.verdictOwner = verdictRim(v.circle.coverage.owner, v.fighters); // --- verdict-freeze --- (B-g1 review: the rim arcs too; view only)
+    }
   }
 
   onPostUpdate(ctx: ModeContext, stepMs = 1000 / 60) {

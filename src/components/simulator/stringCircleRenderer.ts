@@ -475,12 +475,12 @@ export class StringCircleLayer {
     }
   }
 
-  /** The rim arcs: every run of bins one team holds, just outside the wall in its colour. */
+  /** The rim arcs: every run of bins one team holds, just outside the wall in its colour (--- verdict-freeze --- from the finish on, as the verdict left them). */
   private drawRimArcs(ctx: CanvasRenderingContext2D, view: StringBattleView) {
     this.arcs = 0;
     const c = view.circle;
     if (!c) return;
-    const owner = c.coverage.owner;
+    const owner = verdictRimOwner(view); // --- verdict-freeze --- (B-g1 review: the rim keeps the banner's share through the hold)
     const n = SC_RIM_BINS;
     // Start the walk at a change of owner, so no run is split at bin 0.
     let start = 0;
@@ -982,13 +982,25 @@ export class StringCircleLayer {
 /**
  * The rim shares the overlay shows: live while the battle goes on, and from the finish on the ones the verdict was taken on
  * (`StringCircleState.verdictShares`), so the banner's "[pct]% OF THE RIM" and the strip keep one number each through the end
- * hold while the winner's fan goes on painting the rim (the rim arcs and `data-sb-coverage` stay live).
+ * hold while the winner's fan goes on painting the rim's coverage (`data-sb-coverage` stays live).
  */
 export function verdictShares(view: StringBattleView): ArrayLike<number> {
   const c = view.circle;
   if (!c) return [];
   return view.finished && c.verdictShares ? c.verdictShares : c.coverage.share;
 }
+
+/**
+ * The rim bins the arcs are drawn from (round two, B-g1 review): live while the battle goes on, and from the finish on the
+ * rim as the verdict left it (`StringCircleState.verdictOwner`), so the rim the viewer sees through the end hold keeps
+ * agreeing with the banner – it showed the loser ahead 2.4 s into the card's hold while the banner kept the winner's 60 %.
+ */
+export function verdictRimOwner(view: StringBattleView): Int16Array {
+  const c = view.circle;
+  if (!c) return NO_RIM;
+  return view.finished && c.verdictOwner ? c.verdictOwner : c.coverage.owner;
+}
+const NO_RIM = new Int16Array(0);
 // --- end verdict-freeze ---
 
 /* ------------------------------------------------------------------ data-sb-* of the circle style */
