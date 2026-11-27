@@ -20,7 +20,8 @@ import type { SbFighter } from "./stringBattle";
  *  - the pure geometry: the arena (a circle of the battle's ring radius, or the hexagon inscribed in it), the rim point a
  *    ball faces (`rimHit()`), the rim point at a bearing (`rimAt()`), the cut test written for thousands of strings
  *    (`scCuts()`), the anchor cadence (`anchorsDue()`) and the coverage maths (`updateCoverage()`: the fans' arcs on the rim,
- *    the newest string winning where fans overlap);
+ *    the newest string winning where fans overlap) and the steady verdict's average of it (`updateSteadyShare()`,
+ *    `steadyLeaders()`; --- steady-verdict --- behind the battle's `steady` flag, which no link sets);
  *  - the line-up: the countries the balls past a team roster play (`circleLineup()`: the clips' flags first, the two-letter
  *    code as the name, a colour no earlier ball wears) and the sounds' pitches (a twang per anchor by team, the cut's snap).
  *
@@ -175,6 +176,18 @@ export const SC_SNAP_GHOSTS = 8;
 export const SC_TITLE_BAND = 0.11;
 /** The hexagon is flat-topped and inscribed in the battle's ring: its apothem is the radius times cos 30°. */
 export const SC_HEX_APOTHEM = Math.cos(Math.PI / 6);
+// --- steady-verdict ---
+/**
+ * The steady verdict's memory (simulation ms). With the battle's `steady` flag on (off unless a setting turns it on: no link
+ * sets it), a clip-limit verdict of the circle style goes to the ball whose share of the rim, averaged exponentially with
+ * this time constant (86 % of the weight on the last 3 s), is the highest among the survivors with the most lives – not to
+ * the most live strings and then the rim of one step, which a pass through a fan in the last frames can hand to the other
+ * ball. Measured on the String Battle card (`sbst=circle&sbh=0&sbd=25`, seeds 1–12, both worlds): the leader by this
+ * average holds through the clip's last 0.5 s on every seed (averaged over 0.75 s it changed there on 2 of the 12, over 1 s
+ * on 1; one step's rim leader changed on 3).
+ */
+export const SC_STEADY_MS = 1500;
+// --- end steady-verdict ---
 
 const TWO_PI = Math.PI * 2;
 const BIN = TWO_PI / SC_RIM_BINS;
@@ -517,6 +530,25 @@ export function coverageLeaders(leaders: readonly number[], bins: Int32Array): n
   return leaders.filter((slot) => (bins[slot] ?? 0) === best);
 }
 
+// --- steady-verdict ---
+/**
+ * One step of the steady average (`SC_STEADY_MS`): every slot's average eased toward its share of the rim now by
+ * stepMs ÷ (SC_STEADY_MS + stepMs) – a ratio, not an exponential, so every JS engine averages to the same bits.
+ */
+export function updateSteadyShare(average: Float64Array, share: ArrayLike<number>, stepMs: number) {
+  const k = stepMs > 0 ? stepMs / (SC_STEADY_MS + stepMs) : 0;
+  for (let i = 0; i < average.length; i++) average[i] += ((share[i] ?? 0) - average[i]) * k;
+}
+
+/** Of the slots that take a clip-limit verdict, the ones whose averaged share of the rim is the highest (the steady verdict). */
+export function steadyLeaders(leaders: readonly number[], average: ArrayLike<number>): number[] {
+  if (leaders.length <= 1) return leaders.slice();
+  let best = -Infinity;
+  for (const slot of leaders) if ((average[slot] ?? 0) > best) best = average[slot] ?? 0;
+  return leaders.filter((slot) => (average[slot] ?? 0) === best);
+}
+// --- end steady-verdict ---
+
 /* ------------------------------------------------------------------ line-up, colours and sounds */
 
 /**
@@ -681,9 +713,20 @@ export interface StringCircleState {
   stepsSinceTwang: number;
   stepCuts: Int32Array;
   stepsSinceSnap: number;
+  /**
+   * --- verdict-freeze --- Every slot's share of the rim the verdict was taken on, kept from the finish (null before it):
+   * the winner banner and the standings strip draw these through the end hold, while the fans go on painting the rim.
+   */
+  verdictShares: Float64Array | null;
+  /**
+   * --- steady-verdict --- Per slot: its share of the rim averaged over the last seconds (`updateSteadyShare()`), which a
+   * clip-limit verdict is taken on. Null – nothing averaged, the verdict of one step – unless the battle started with its
+   * `steady` flag on and a clip limit.
+   */
+  steadyShare: Float64Array | null;
 }
 
-export function createCircleState(slots: number, settings: StringCircleSettings): StringCircleState {
+export function createCircleState(slots: number, settings: StringCircleSettings, steady = false /* --- steady-verdict --- */): StringCircleState {
   const n = Math.max(1, slots);
   return {
     sides: arenaSides(settings.arena),
@@ -709,6 +752,8 @@ export function createCircleState(slots: number, settings: StringCircleSettings)
     stepsSinceTwang: SC_TWANG_GAP_STEPS,
     stepCuts: new Int32Array(n),
     stepsSinceSnap: SC_SNAP_GAP_STEPS,
+    verdictShares: null, // --- verdict-freeze ---
+    steadyShare: steady ? new Float64Array(n) : null, // --- steady-verdict ---
   };
 }
 

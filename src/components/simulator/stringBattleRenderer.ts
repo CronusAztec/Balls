@@ -15,7 +15,7 @@ import { sbShieldMs } from "@/lib/physics/modes/stringDuel"; // --- string-battl
  *    in the ball's colour; neon: infinite lines through anchor and ball, drawn additively into a layer that is never
  *    cleared, so they paint moiré art across the whole canvas), the threads leaving the battle (fading, snapping at the
  *    cut, dissolving) and the dashed ring around a ball one cut from elimination;
- *  - `drawBodies()` (world space, the ball pass): soft colour halos (strobing in the finale), the glossy bodies with
+ *  - `drawBodies()` (world space, the ball pass): soft colour halos (pulsing in the finale), the glossy bodies with
  *    their lives (web), the shield blink, the names of a team roster and the glass-like shatter bursts;
  *  - `drawOverlay()` (screen space, inside the square the recorder exports): the "FLASHING LIGHTS – THE END GETS
  *    INTENSE" badge, the WEB DOMINION HUD and – without a team roster (the teams banner takes over with one) – the winner
@@ -25,7 +25,7 @@ import { sbShieldMs } from "@/lib/physics/modes/stringDuel"; // --- string-battl
  *
  * Visual only: it reads the view and never writes to the engine. The shatter shards fly on the simulation clock from a
  * seed (a recording shows the same burst every time); the confetti and the glitch offsets are decoration. The flashing
- * effects (strobe, glitch, ring flash) are toned down under `prefers-reduced-motion`. Steady-state frames allocate
+ * effects (the finale's pulse, glitch, ring flash) are toned down under `prefers-reduced-motion`. Steady-state frames allocate
  * nothing but the few strings of the HUD numbers: colours, sprites and fonts are cached.
  */
 
@@ -88,6 +88,16 @@ export function sbFaceLayout(style: SbStyle): typeof SB_FACE_LAYOUT | null {
 }
 
 const TWO_PI = Math.PI * 2;
+// --- calm-finale ---
+/**
+ * The finale's pulse (radians per simulation ms): the halos swell and dim, the ring breathes, smoothly at 2 Hz. The halos
+ * were a hard on/off strobe at about 12 Hz and the ring breathed at about 7 Hz (in a 60 fps export its glow sank every 8
+ * frames: the review counted 70 such dips in one first-visit clip), on a mode whose badge warns of flashing lights; a
+ * smooth change slower than 3 a second keeps the finale's tension under the flash threshold. The circle style's glow
+ * pulse (stringCircleRenderer.ts) takes the same rate.
+ */
+export const SB_FINALE_PULSE = (TWO_PI * 2) / 1000;
+// --- end calm-finale ---
 const GLITCH_MAX_BARS = 6;
 const CONFETTI_MAX = 140;
 const SHARDS = 18;
@@ -485,8 +495,8 @@ export class StringBattleLayer {
     // The finish: the ring flashes white (twice; once, softly, with reduced motion).
     const since = view.finished ? now - view.finishedMs : Infinity;
     const flash = since < 1200 ? (this.reduced ? 0.5 * (1 - since / 1200) : Math.max(0, 1 - since / 1200) * (0.6 + 0.4 * Math.cos(since * 0.012))) : 0;
-    // The finale: the ring breathes brighter with the strobe.
-    const pulse = view.finale && !view.finished && !this.reduced ? 0.5 + 0.5 * Math.sin(now * 0.045) : 0;
+    // The finale: the ring breathes brighter with the halos' pulse (--- calm-finale --- 2 Hz, was about 7).
+    const pulse = view.finale && !view.finished && !this.reduced ? 0.5 + 0.5 * Math.sin(now * SB_FINALE_PULSE) : 0;
     if (neon) {
       // 2–4 outline rings shivering behind the ring in the balls' colours.
       const rings = Math.min(4, Math.max(2, view.count - 1));
@@ -506,9 +516,12 @@ export class StringBattleLayer {
     const base = neon ? 0.75 : 0.6;
     ctx.strokeStyle = `rgba(200, 200, 205, ${Math.min(1, base + 0.3 * pulse + flash).toFixed(3)})`;
     ctx.lineWidth = Math.max(1.5, 0.8 * o.wallThickness) + 5 * flash;
-    if (flash > 0.02 || pulse > 0.02) {
-      ctx.shadowColor = "#ffffff";
-      ctx.shadowBlur = 24 * Math.max(flash, 0.5 * pulse);
+    // (--- calm-finale --- the glow fades out with the pulse: a white shadow switched off below 0.02 made the ring's light
+    // drop in one frame at every trough – a sharp blink of its own)
+    const glow = Math.max(flash, 0.5 * pulse);
+    if (glow > 0) {
+      ctx.shadowColor = glow >= 0.1 ? "#ffffff" : `rgba(255, 255, 255, ${(glow / 0.1).toFixed(3)})`;
+      ctx.shadowBlur = 24 * glow;
     }
     ctx.beginPath();
     this.wobble.traceCircle(ctx, 0, cx, cy, R);
@@ -577,13 +590,14 @@ export class StringBattleLayer {
       const look = this.looks[f.slot];
       if (!look) continue;
       const r = B.radius;
-      // Halo: a soft glow in the ball's colour; in the finale it strobes (a steadier glow with reduced motion).
+      // Halo: a soft glow in the ball's colour; in the finale it pulses (a steadier glow with reduced motion).
       let haloA = neon ? 1 : 0.85;
       let haloR = 3.1 * r;
       if (strobe) {
-        const on = Math.sin(now * 0.075 + f.slot * 1.3) > 0;
-        haloA = on ? 1 : 0.25;
-        haloR *= on ? 1.35 : 1;
+        // --- calm-finale --- a smooth swell and dim at 2 Hz, each ball on its own phase (was a hard on/off strobe at ~12 Hz)
+        const k = 0.5 + 0.5 * Math.sin(now * SB_FINALE_PULSE + f.slot * 1.3);
+        haloA = 0.4 + 0.6 * k;
+        haloR *= 1 + 0.35 * k;
       } else if (view.finale && this.reduced) haloR *= 1.15;
       ctx.globalAlpha = haloA;
       ctx.drawImage(this.haloSprite(look.color), B.x - haloR, B.y - haloR, 2 * haloR, 2 * haloR);

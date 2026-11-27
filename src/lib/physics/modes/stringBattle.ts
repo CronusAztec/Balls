@@ -34,8 +34,10 @@ import {
   scCuts,
   snapFrequency,
   snapLevel,
+  steadyLeaders,
   twangFrequency,
   updateCoverage,
+  updateSteadyShare,
   wallOverlap,
   writeStringCircleParams,
   type ScArena,
@@ -95,8 +97,9 @@ import {
  * it takes no collision damage), so one slash through a fan costs one life and the battle gets its rhythm. A
  * ball at 0 lives shatters (a glass-like burst, a noise burst) and its threads dissolve; the last ball standing wins –
  * or, with a clip limit (`duration`), the survivors with the most lives when it runs out (then the most kills, the most
- * bounces). When the battle is down to two balls and one of them is one cut from elimination (or the clip limit is 6 s
- * away) the finale starts: every ball's cruising speed ramps up to `finaleSpeed`× and the canvas strobes the halos.
+ * bounces; --- steady-verdict --- the circle style with its `steady` flag on: then the most rim of the last seconds, before
+ * kills and bounces). When the battle is down to two balls and one of them is one cut from elimination (or the clip limit is 6 s
+ * away) the finale starts: every ball's cruising speed ramps up to `finaleSpeed`× and the canvas pulses the halos.
  *
  * The ring is the mode's own ("none" ring layout, like the other modes that own their playfield): `onBallStep()`
  * reflects a ball off it with a seeded scatter and resets its speed to its cruising speed, so the engine's slow-ball
@@ -164,6 +167,10 @@ export interface StringBattleSettings {
   // extras – the defaults when left out (resolveStringBattleSettings() always fills them)
   life?: SbLife;
   duel?: boolean;
+  // --- steady-verdict --- the circle style's steady clip-limit verdict (stringCircle.ts `SC_STEADY_MS`): the survivors with the
+  // most lives, then the highest share of the rim averaged over the last seconds. Off when left out, and no link, preset or
+  // plan sets it yet, so every battle plays today's verdict (the most lives or live strings, then one step's rim)
+  steady?: boolean;
 }
 
 export const DEFAULT_STRING_BATTLE_SETTINGS: StringBattleSettings = {
@@ -239,6 +246,7 @@ export function resolveStringBattleSettings(config: Partial<StringBattleSettings
   // --- string-battle-alive --- a known life rule (anything else: the strings), a real boolean for the duel
   if (isSbLife(config.life)) out.life = config.life;
   if (typeof config.duel === "boolean") out.duel = config.duel;
+  if (typeof config.steady === "boolean") out.steady = config.steady; // --- steady-verdict --- (left out: off, and not written)
   return out;
 }
 
@@ -1265,8 +1273,12 @@ export class StringBattleMode implements GameMode {
     }
   }
 
-  /** The battle is over: `leaders` take the win (an escape in the team stats) and the verdict is ranked like the scoreboard. */
-  private finish(ctx: ModeContext, leaders: readonly number[], now: number) {
+  /**
+   * The battle is over: `leaders` take the win (an escape in the team stats) and the verdict is ranked like the scoreboard.
+   * (--- verdict-freeze --- the circle style keeps the rim shares the verdict was taken on – `shares`, else the rim now – for
+   * the banner and the strip to draw through the end hold.)
+   */
+  private finish(ctx: ModeContext, leaders: readonly number[], now: number, shares?: ArrayLike<number>) {
     const v = this.view;
     for (const slot of leaders) {
       const f = v.fighters[slot];
@@ -1280,6 +1292,7 @@ export class StringBattleMode implements GameMode {
     const result = teamResult(this.getTeamStats(), v.fighters.length);
     v.tie = result.tie;
     v.winner = result.tie ? -1 : result.winner;
+    if (v.circle) v.circle.verdictShares = Float64Array.from(shares ?? v.circle.coverage.share); // --- verdict-freeze --- (view only)
   }
 
   onPostUpdate(ctx: ModeContext, stepMs = 1000 / 60) {
@@ -1291,7 +1304,9 @@ export class StringBattleMode implements GameMode {
       if (v.settings.duration > 0 && now >= 1000 * v.settings.duration) {
         for (const f of v.fighters) this.ballOf[f.slot] = f.alive ? (ctx.getBalls().find((b) => b.id === f.id) ?? null) : null;
         const leaders = timeoutLeaders(v.fighters, v.forcedWinner, v.settings.life); // (--- string-battle-alive --- the strings rule: the most live threads)
-        this.finish(ctx, v.circle ? coverageLeaders(leaders, v.circle.coverage.bins) : leaders, now); // --- string-circle --- (level lives: the most rim)
+        const steady = v.circle ? v.circle.steadyShare : null; // --- steady-verdict ---
+        if (steady) this.finish(ctx, steadyLeaders(timeoutLeaders(v.fighters, v.forcedWinner, "lives"), steady), now, steady); // --- steady-verdict --- (the most lives – every survivor under the strings rule –, then the most rim of the last seconds)
+        else this.finish(ctx, v.circle ? coverageLeaders(leaders, v.circle.coverage.bins) : leaders, now); // --- string-circle --- (level lives: the most rim)
         if (v.duel) this.duelSound(ctx, "stop"); // --- string-battle-alive --- (the clip ran out mid-duel: the soundtrack fades)
       } else if (!v.finale) {
         // --- string-battle-alive --- the moment two balls are left (whatever their lives), or the clip limit's last seconds
@@ -1457,7 +1472,7 @@ export class StringBattleMode implements GameMode {
   private initCircle(ctx: ModeContext): StringCircleState {
     const v = this.view;
     const s = this.settings;
-    const c = createCircleState(s.balls, circleSettingsOf(s));
+    const c = createCircleState(s.balls, circleSettingsOf(s), s.steady === true && s.duration > 0 /* --- steady-verdict --- */);
     // --- low-findings --- the new state before the balls are put inside it: keepInsideCircleArena() reads `v.circle`, which
     // still held the previous battle's (a circle battle's, so a hexagon battle after it kept its balls inside the old circle)
     v.circle = c;
@@ -1721,6 +1736,7 @@ export class StringBattleMode implements GameMode {
       c.stepHeading[slot] = h1;
     }
     updateCoverage(c.coverage, v.fighters);
+    if (c.steadyShare && !v.finished) updateSteadyShare(c.steadyShare, c.coverage.share, stepMs); // --- steady-verdict ---
     this.circleSounds(ctx);
   }
 
