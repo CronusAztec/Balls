@@ -12,6 +12,10 @@ import { MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import { RING_ESCAPE_KEYS } from "@/components/simulator/sections/RingEscapeSection";
 import { MESSAGE_VALUES, META_DESCRIPTION_MAX, MODE_CARD_WORDS, MODE_FIRST_SETTINGS, MODE_INTROS, MODE_PAGE_INTROS, MODE_PAGES_PATH, modeMetaDescription, modeOfSlug, modeOgImagePath, modeOgImagePathIn, modePageLooks, modePageModes, modePagePath, modeSlug, relatedModes, starterSettings } from "@/lib/modePages";
 import { createTranslator } from "next-intl";
+import { DAILY_EPOCH, DAILY_POOL, addDays, dailyChallenge, dailySettings, type DailyChallenge } from "@/lib/daily"; // --- pace-as-look --- (round two A3b) the Challenge look
+import { defaultSettings, settingsFromSearchParams } from "@/lib/settings";
+import { lookPatch, lookRow, startSettings } from "@/lib/studioLooks";
+import type { ModeId } from "@/lib/physics/types";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -114,6 +118,48 @@ describe("mode pages: what each shows", () => {
       }
     }
     expect(GALLERY.every((preset) => modePageLooks(preset.mode).some((look) => look.id === preset.id))).toBe(true);
+  });
+
+  // --- pace-as-look --- (round two A3b) The Challenge look is the daily deal's look: the mode page's link and the studio's chip
+  // open the run a day of that mode plays (its seed aside), on the link base like every daily deal. Race, runner and paddle keep
+  // 1.17.0's deals, so every past day replays as it was played; their start look's pace is not the deal's (lead decision 2).
+  it("opens the Challenge look on the daily deal's run, and race, runner and paddle on 1.17.0's deals", () => {
+    const deals = new Map<ModeId, DailyChallenge>();
+    for (let day = 0; deals.size < DAILY_POOL.length && day < 1000; day++) {
+      const challenge = dailyChallenge(addDays(DAILY_EPOCH, day));
+      if (!deals.has(challenge.mode)) deals.set(challenge.mode, challenge);
+    }
+    expect(deals.size).toBe(DAILY_POOL.length);
+    for (const mode of modePageModes()) {
+      const look = modePageLooks(mode).find((candidate) => candidate.kind === "daily");
+      const deal = deals.get(mode);
+      expect([mode, !!look]).toEqual([mode, !!deal]);
+      if (!look || !deal) continue;
+      const url = new URL(look.href, "https://example.com/en/");
+      expect([mode, url.searchParams.has("seed")]).toEqual([mode, false]);
+      const run = dailySettings(deal);
+      expect(settingsFromSearchParams(url.searchParams), mode).toEqual(run);
+      // the studio's Looks row: the chip of that look (or of an earlier look it comes out like) put on a page in the start look
+      const row = lookRow(mode);
+      const chip = row.looks.find((candidate) => row.keys.every((key) => JSON.stringify(candidate.settings[key]) === JSON.stringify(run[key])));
+      expect([mode, !!chip]).toEqual([mode, true]);
+      if (chip) expect({ ...startSettings(mode), ...lookPatch(row, chip, startSettings(mode)) }, mode).toEqual(run);
+    }
+    // 1.17.0's deals, as 1.17.0 wrote the day's query: their run fields on the link base, 1.17.0's (8 screens; 24 obstacles at
+    // 0.6; no goal), not the start look's pace (6 screens; 18 at 0.85; 20 catches)
+    const DEALS_1_17_0 = {
+      race: { query: "mode=race&glow=1", run: { rcTrackLength: 8 } },
+      runner: { query: "mode=runner&glow=1&face=cute", run: { runnerObstacles: 24, runnerDensity: 0.6 } },
+      paddle: { query: "mode=paddle&glow=1&pdsp=1", run: { pdGoal: 0 } },
+    } as const;
+    for (const [mode, { query, run }] of Object.entries(DEALS_1_17_0) as [ModeId, (typeof DEALS_1_17_0)[keyof typeof DEALS_1_17_0]][]) {
+      const deal = deals.get(mode);
+      expect([mode, deal?.query]).toEqual([mode, query]);
+      if (!deal) continue;
+      expect(dailySettings(deal), mode).toMatchObject(run);
+      expect(defaultSettings(mode), mode).toMatchObject(run);
+      expect(startSettings(mode), mode).not.toMatchObject(run);
+    }
   });
 
   it("reads intros, settings and their tips that exist in every language, from the mode's own block", () => {
