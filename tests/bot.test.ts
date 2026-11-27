@@ -3,9 +3,10 @@ import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
 import { MAX_CAPTIONS, sanitizeCaption, type Caption } from "@/lib/captions";
-import { isModeId } from "@/lib/physics/types";
+import { MODE_IDS, isModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
-import { RANGES, presetToSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing --- (merge check)
 import { clipHashtags, fillTemplate, parseHashtags, postCopy, recipeText, type BotCopy } from "@/lib/bot/copy";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { createEngineForSettings } from "@/lib/simulation/finder";
@@ -32,6 +33,7 @@ import {
 import {
   captionBoxAt,
   clipCaptions,
+  clipShareUrl, // --- clip-pacing --- (merge check)
   clipTiming,
   daySlots,
   dayIndexOf,
@@ -129,6 +131,21 @@ describe("recipes", () => {
     expect(opened.captions).toEqual(plan.settings.captions);
     expect(opened.teams).toEqual(plan.settings.teams);
     expect(opened.sbLives).toBe(plan.settings.sbLives);
+  });
+
+  // --- clip-pacing --- (merge check) the page's pace is a bare link's base and moves with the site: a posted clip's link names it
+  it("names every field of the mode's page pace in the share link, even at the pace's value", () => {
+    const paced = MODE_IDS.filter((mode) => Object.keys(clipPacingDefaults(mode)).length > 0);
+    expect(paced.length).toBeGreaterThan(0);
+    for (const mode of paced) {
+      const params = new URL(clipShareUrl(defaultSettings(mode), 7, "en", "https://example.com/Balls")).searchParams;
+      const bare = settingsToSearchParams(defaultSettings(mode));
+      expect([mode, [...bare.keys()]]).toEqual([mode, ["mode"]]);
+      expect([mode, [...params.keys()].length]).toEqual([mode, 2 + Object.keys(clipPacingDefaults(mode)).length]);
+    }
+    // the day's 6-screen race (the race's page pace since the finales step): its link says so
+    const race = { ...defaultSettings("race"), rcTrackLength: 6 };
+    expect(new URL(clipShareUrl(race, 7, "en")).searchParams.get("rcl")).toBe("6");
   });
 });
 

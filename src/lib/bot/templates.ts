@@ -777,9 +777,16 @@ function mazeSettings(ctx: RecipeContext): Partial<SimulatorSettings> {
   return { mzCols: intBetween(ctx.rng, cols[0], cols[1]), mzBalls: intBetween(ctx.rng, 3, 4), mzTrailOwn: true, mzFirstOut: false, mzDuration: 60 };
 }
 
-/** Territory's countdown, on its 5 s step, at or after the payoff target: its board's verdict comes as it ends (a cut clip ends 1 s before). */
+/**
+ * Territory's countdown, on its 5 s step, at or after the payoff target: its board's verdict comes as it ends (a cut clip ends 1 s before).
+ * --- territory-swing --- (merge check) Its swing written out: a power every 2 s with a reach of 4 tiles, the page's pace since B4
+ * (lib/clipPacing.ts), which the template played without naming it. Measured on 12 plan seeds × reels, tiktok and shorts (the same
+ * 36 seeds either way): every gate passes on 36 of 36 with it and with the mode's own 3 and 3 (Simple 97, Playbook 86 both), and it
+ * swings more (a median 9 lead changes a run against 7) and ends on a clearer winner (a median 11.6 % of the board ahead at the
+ * verdict against 4.2 %) – so a later page pace cannot move these runs.
+ */
 function territorySettings(ctx: RecipeContext): Partial<SimulatorSettings> {
-  return { tyDuration: 5 * Math.ceil(ctx.payoffTarget / 5) };
+  return { tyDuration: 5 * Math.ceil(ctx.payoffTarget / 5), tyRadius: 4, tyPowerEvery: 2 };
 }
 
 /**

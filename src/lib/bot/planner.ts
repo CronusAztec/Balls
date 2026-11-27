@@ -3,6 +3,7 @@ import { startBallCount } from "@/lib/physics/ballStats";
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { polyrhythmCycleSeconds, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing --- (merge check: a share link names the page-paced fields it plays)
 import { createEngineForSettings, stepPlaybackMs, type FinderRequest } from "@/lib/simulation/finder";
 import { outcomeMatches, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
 import { recordingTextLayout } from "@/lib/recording/recorder";
@@ -1310,10 +1311,15 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
   return { captions, roles, payoffText };
 }
 
-/** The share link of a clip: the simulator with its settings and its seed (`seed=` pins the run). */
+/**
+ * The share link of a clip: the simulator with its settings and its seed (`seed=` pins the run). --- clip-pacing --- (merge check)
+ * It names every field of the mode's page pace (lib/clipPacing.ts) it plays, even at the pace's value: the page's pace is the link
+ * base of a bare `?mode=` and moves with the site, while a posted clip's link must replay that clip (the day's 6-screen race kept
+ * its `rcl=6` when the race's page pace became 6 screens).
+ */
 export function clipShareUrl(settings: SimulatorSettings, seed: number, locale: BotLocale, siteUrl?: string): string {
   const base = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/${locale}/simulator/` : pageUrl(locale, "/simulator");
-  const params = settingsToSearchParams(settings);
+  const params = settingsToSearchParams(settings, Object.keys(clipPacingDefaults(settings.mode)) as (keyof SimulatorSettings)[]);
   params.set("seed", seedParam(seed)); // --- low-findings --- (the engine's value, as parseSeed() reads it back)
   return `${base}?${params.toString()}`;
 }

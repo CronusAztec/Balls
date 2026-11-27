@@ -577,7 +577,12 @@ describe("the bot's own look", () => {
   // --- shatter-demolition --- (and Shatter's hits and segments, settings since: the mode's own one hit and 18 segments in every recipe's plan – no recipe plans Shatter)
   // --- sand-plate --- and Sand Plate's five fields since its mode was added, likewise
   // --- shatter-even-bricks --- (and Shatter's even bricks, a setting since: the mode's own off in every recipe's plan)
-  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields(), mzFirstOut: false, pdGoal: 0 /* --- finales-in-clip --- */ };
+  // --- multiply-race --- (merge check) and the ten fields the modes have gained since, at the defaults every mode's settings carry:
+  // Multiply's race off (clone-per-pass plays the mode's own), the Beat Machine's tune "ode", Glass's leading camera off (glass-smash
+  // plays without it), the Illusion's staged build off and Collide's pour (none) and beat off, and (--- string-art --- --- paint-full ---
+  // --- portal-options ---) Lines' strings to finish (0: endless), Paint's guide to the gaps off and Portal's own three pairs of four
+  // jumps – no recipe plans the Beat Machine, the Illusion, Collide, Lines, Paint or Portal
+  const OVERLAY_DEFAULTS: Readonly<Record<string, unknown>> = { journeyHud: true, sgHud: true, colorMatchSegments: 12, shatterHits: 1, shatterSegments: 18, shatterEvenBricks: false, ...defaultSongRingFields(), ...defaultSandPlateFields(), mzFirstOut: false, pdGoal: 0 /* --- finales-in-clip --- */, multiplyRace: false, bmTune: "ode", glassLead: false, ilStage: false, cpPourAt: 0, cpPulse: false, lnStrings: 0, paintGuide: false, ptCount: 3, ptUses: 4 /* --- multiply-race --- (merge check) */ };
   const withoutOverlayDefaults = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, v) => (Object.hasOwn(OVERLAY_DEFAULTS, key) && v === OVERLAY_DEFAULTS[key] ? undefined : v)));
   const overlaysShown = (plans: readonly ClipPlan[]) => plans.map((p) => [p.recipe, p.settings.journeyHud, p.settings.sgHud]);
   const digest = (value: unknown) => hashString(JSON.stringify(withoutOverlayDefaults(value)));
@@ -626,6 +631,9 @@ describe("the bot's own look", () => {
     expect(planned.map((p) => [p.recipe, resolveSandPlateFields(p.settings)])).toEqual(planned.map((p) => [p.recipe, defaultSandPlateFields()]));
     // (--- finales-in-clip --- and the maze's first-out rule and Paddle's goal, the two new fields: off and none in every plan)
     expect(planned.map((p) => [p.recipe, p.settings.mzFirstOut, p.settings.pdGoal])).toEqual(planned.map((p) => [p.recipe, false, 0]));
+    // (--- multiply-race --- merge check: and the ten fields since, off or at the mode's own in every plan)
+    expect(planned.map((p) => [p.recipe, p.settings.multiplyRace, p.settings.bmTune, p.settings.glassLead, p.settings.ilStage, p.settings.cpPourAt, p.settings.cpPulse])).toEqual(planned.map((p) => [p.recipe, false, "ode", false, false, 0, false]));
+    expect(planned.map((p) => [p.recipe, p.settings.lnStrings, p.settings.paintGuide, p.settings.ptCount, p.settings.ptUses])).toEqual(planned.map((p) => [p.recipe, 0, false, 3, 4]));
   });
 
   it("is the default: look 'bot' plans what no look plans", () => {
@@ -2336,6 +2344,22 @@ describe("--- finales-in-clip --- the templates keep the runs they were measured
     const aim = planTemplate("aim-bullseye", 1, "reels", { copy, search: false });
     const maze = planTemplate("who-wins-maze", 1, "reels", { copy, search: false });
     expect([aim.settings.byPerfect, maze.settings.mzFirstOut, maze.settings.mzDuration]).toEqual([0, false, 60]);
+  });
+
+  // --- territory-swing --- (merge check) who-wins-territory was measured on Territory's swing, a power every 2 s with a reach of 4 tiles,
+  // the page's pace since B4: the template names it itself, so its plans and links keep it whatever the page's pace is later
+  it("plays who-wins-territory on Territory's swing (a reach of 4 every 2 s), set by the template itself, and its links name it", () => {
+    const t = templateById("who-wins-territory")!;
+    for (const bucket of ["short", "standard"] as const) {
+      const ctx: RecipeContext = { rng: seededRandom(5), bucket, ending: "cliffhanger", payoffTarget: 16, roster: SERIES_ROSTER, planSeed: 5 };
+      const patch = { ...t.binding.patch, ...t.binding.generate?.(ctx) };
+      expect([bucket, patch.tyRadius, patch.tyPowerEvery]).toEqual([bucket, 4, 2]);
+    }
+    for (const seed of [1, 2]) {
+      const plan = planTemplate("who-wins-territory", seed, "reels", { copy, search: false });
+      const link = new URL(plan.shareUrl).searchParams;
+      expect([seed, plan.settings.tyRadius, plan.settings.tyPowerEvery, link.get("tyr"), link.get("tye")]).toEqual([seed, 4, 2, "4", "2"]);
+    }
   });
 });
 

@@ -2001,10 +2001,15 @@ const STRING_URL_KEYS: Record<string, StringKey> = {
   bn: "ballName", // --- gerald-faces ---
 };
 
-/** Serialises only the settings that differ from the defaults for the current mode. */
-export function settingsToSearchParams(settings: SimulatorSettings): URLSearchParams {
+/**
+ * Serialises only the settings that differ from the defaults for the current mode. --- clip-pacing --- (merge check) `always`: fields
+ * written even at their default, in their usual place – the bot's links name every page-paced field they play (planner.ts
+ * clipShareUrl), so a posted link replays its run whatever the page's pace (lib/clipPacing.ts) is now or later.
+ */
+export function settingsToSearchParams(settings: SimulatorSettings, always: readonly (keyof SimulatorSettings)[] = []): URLSearchParams {
   const params = new URLSearchParams();
   const base = defaultSettings(settings.mode);
+  for (const field of always) (base as unknown as Record<string, unknown>)[field] = undefined; // --- clip-pacing --- (never a setting's value: written)
   params.set("mode", settings.mode);
   for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
     if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field]));
