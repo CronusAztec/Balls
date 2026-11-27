@@ -21077,10 +21077,16 @@ await smokeBlock("changelog", async () => {
     await page.locator('#site-1-12-0 [data-testid="changelog-try"] a').first().click();
     await page.waitForURL(/\/en\/simulator\/\?mode=mergeRing/, { timeout: 15000 }).catch(() => {});
     const opened = await page.getByTestId("stage-strip").getByRole("button").first().locator("span.font-medium").first().innerText({ timeout: 15000 }).catch(() => "");
+    // --- pace-as-look --- (round two A1 review) a Try link is the mode's start query (lib/studioLooks.ts startQuery): the mode and
+    // the start look's own fields, never a seed, so it may name more than the mode. Opened, the studio shows that start look (the
+    // Looks row's Plain pressed) at that very address
+    const mergeQuery = (merge?.links[0] ?? "").split(">")[1]?.split("?")[1] ?? "";
+    await page.waitForFunction(() => document.querySelector('[data-testid="studio-looks"]')?.getAttribute("data-look-active") === "plain", null, { timeout: 15000 }).catch(() => {});
+    const startLook = await page.evaluate(() => ({ query: location.search.slice(1), look: document.querySelector('[data-testid="studio-looks"]')?.getAttribute("data-look-active") ?? null }));
     check(
-      "changelog: a release that announces modes links each one to the studio (Try it), in every language, and the link opens that mode",
-      tried.en.length >= 20 && tried.en.every((row) => row.label === "Try it" && row.links.length > 0 && row.links.every((x) => /^.+>.*\/en\/simulator\/\?mode=[A-Za-z]+$/.test(x))) && merge?.links[0] === `Merge Ring>${BASE_PATH}/en/simulator/?mode=mergeRing` && sameModes && tried.pl[0].label === "Wypróbuj" && tried.es[0].label === "Pruébalo" && opened === "Merge Ring",
-      `(${tried.en.length} items, ${JSON.stringify(merge)}, pl ${tried.pl.length}, es ${tried.es.length}, opened "${opened}")`,
+      "changelog: a release that announces modes links each one to the studio (Try it), in every language, and the link opens that mode on its start look",
+      tried.en.length >= 20 && tried.en.every((row) => row.label === "Try it" && row.links.length > 0 && row.links.every((x) => /^.+>.*\/en\/simulator\/\?mode=[A-Za-z]+(&[^#\s]*)?$/.test(x) && !/[?&]seed=/.test(x))) && (merge?.links[0] ?? "").startsWith(`Merge Ring>${BASE_PATH}/en/simulator/?mode=mergeRing`) && /^mode=mergeRing(&|$)/.test(mergeQuery) && sameModes && tried.pl[0].label === "Wypróbuj" && tried.es[0].label === "Pruébalo" && opened === "Merge Ring" && startLook.look === "plain" && startLook.query === mergeQuery,
+      `(${tried.en.length} items, ${JSON.stringify(merge)}, pl ${tried.pl.length}, es ${tried.es.length}, opened "${opened}" at ?${startLook.query}, look ${startLook.look})`,
     );
     // the download page names its version's notes
     await page.goto(`${BASE}/en/download/`, { waitUntil: "networkidle" });

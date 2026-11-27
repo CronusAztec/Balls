@@ -103,7 +103,7 @@ import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { MODE_WALL_BREAK_SOUNDS } from "@/lib/audio/songs"; // --- gerald-glass ---
-import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, migrateLegacyStorage, type SimulatorSettings } from "@/lib/settings";
+import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, migrateLegacyStorage, type SimulatorSettings } from "@/lib/settings";
 import { characterOf } from "@/lib/character/character"; // --- gerald-faces ---
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -112,7 +112,7 @@ import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import UnlimitedSection, { FullBallLimitControl, UNLIMITED_KEYS } from "./sections/UnlimitedSection"; // --- unlimited-sizes --- (FullBallLimitControl)
 import { UnlimitedProvider } from "./unlimitedSlider";
 import { bouncinessPatch } from "@/lib/settings"; // --- uncap-all --- the numeric Bounciness
-import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (Reset goes back to the page's start look)
+import { startRunFields, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (Reset goes back to the page's start look; A-g1 review: startRunFields)
 import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
 import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
@@ -2452,9 +2452,29 @@ function findControl(scope: HTMLElement, label: string, key: string): { el: HTML
   return fallback ? { el: fallback, focusable: false } : null;
 }
 
-/** Settings that the "Reset Category" buttons restore, per section (--- pace-as-look --- as the page's start look of the mode has them). */
-export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<SimulatorSettings> {
-  const d = startSettings(mode); // --- pace-as-look ---
+/**
+ * Settings that the "Reset Category" buttons restore, per section (--- pace-as-look --- as the page's start look of the mode has
+ * them). (A-g1 review) With the page's `current` settings, a run field of the start look in this section (studioLooks.ts
+ * `startRunFields`: Ball Speed, the gap, gravity…) goes back to the start look only while the start look's other run fields, the
+ * ones outside this section, are on it too, and to the link base otherwise: a start look's run spans sections (Classic's ball
+ * speed in Ball & Physics, its gap in Wall) and fields no section owns (Paint's Guide to the Gaps, the box's shape), so one
+ * section's reset on a link base page would play a third run, neither the link's nor the start look's. Its look (the glow, the
+ * ring sounds, the effects, the colours) always goes back to the start look's, as the theme's Default does.
+ */
+export function sectionDefaults(section: ControlSection, mode: ModeId, current?: Partial<SimulatorSettings>): Partial<SimulatorSettings> {
+  const start = sectionFields(section, startSettings(mode)); // --- pace-as-look ---
+  if (!current) return start;
+  const startLook = startSettings(mode) as unknown as Record<string, unknown>;
+  const now = current as Record<string, unknown>;
+  const run = startRunFields(mode) as string[];
+  const onStartRun = run.filter((key) => !(key in start)).every((key) => JSON.stringify(now[key]) === JSON.stringify(startLook[key]));
+  if (onStartRun) return start;
+  const base = sectionFields(section, defaultSettings(mode)) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(start).map(([key, value]) => [key, run.includes(key) ? base[key] : value])) as Partial<SimulatorSettings>;
+}
+
+/** The fields of a section, read from `d`: the settings its Reset Category restores. */
+function sectionFields(section: ControlSection, d: SimulatorSettings): Partial<SimulatorSettings> {
   switch (section) {
     case "ball":
       return {

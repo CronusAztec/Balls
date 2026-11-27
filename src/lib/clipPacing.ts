@@ -184,6 +184,10 @@ const LOOK_ONLY_FIELDS: ReadonlySet<string> = new Set([
   "cpSquishy", "cpPulse", // collide
   "rainbowLines", // lines
 ]);
+/** --- find-target-follows --- (A-g1 review) Whether a field of a pace or a start look is its look, not its run (`LOOK_ONLY_FIELDS`). */
+export function isLookOnlyField(key: string): boolean {
+  return LOOK_ONLY_FIELDS.has(key);
+}
 /**
  * (D3 review) The targets of the start looks that end a run (`clipStartSettings()`), while the run's fields are the start
  * look's: Lines' string art (rainbow strings, ball speed 700, 64 strings: rlines, s, lns) and Paint's full canvas (ball 12,
@@ -195,13 +199,15 @@ const LOOK_ONLY_FIELDS: ReadonlySet<string> = new Set([
  * median 18.2 s, 4.0–39.8 s; 30 s: 5); its link base keeps the page's 30.
  *
  * --- find-target-follows --- (round two A2b) The other start looks that end a run, measured the same way (seeds 1–100 in both
- * worlds, through the page's own request, lib/simulation/pageFinderRequest.ts), where the page's 30 found almost none: Classic's
- * Ring Ladder 18 (27 of 200; median 17.8 s; 30 s: 1), Accumulation 14.5 (12; 15.5 s, 0.4–88 s; 30 s: 4), Multiply's race 19 (82;
- * 19.4 s; 0), Grow's fill 19.5 (114; 19.2 s; 0), the Circle Illusion's staged build 16 (its four cycles on every seed; 30 s: "always
- * 16.0 s"), Collision Playground's pour 19.5 (192; 19.4 s; 0), Bouncing Shapes' square box 19.5 (46; 21.5 s; 0), Glass Smash 24 (50;
- * 23.5 s; 0), Conveyor Belt 24 (69; 23.9 s; 0) and Capture the Flag 20 (12; 21.9 s, 6.8–32 s; 30 s: 8 – no length stands out
- * below the time limit, so the game's typical one). Spinning Hoops, Drawing Machines and the Wave Tank loop (the finder reads them
- * as endless) and Beat Machines (its search fits whole loops to any target) keep the page's 30.
+ * worlds, through the page's own request, lib/simulation/pageFinderRequest.ts; A-g1 review: the target at or above the Find
+ * slider's 10 s with the most runs within ± 0.5 s, so Accumulation's peak at 7.5 s, 18 of 200, is left out), where the page's 30
+ * found almost none: Classic's Ring Ladder 18 (27 of 200; median 17.8 s; 30 s: 1), Accumulation 14.5 (12; 15.5 s, 0.4–88 s;
+ * 30 s: 4), Multiply's race 19 (82; 19.4 s; 0), Grow's fill 19.5 (114; 19.2 s; 0), the Circle Illusion's staged build 16 (its
+ * four cycles on every seed; 30 s: "always 16.0 s"), Collision Playground's pour 19.5 (192; 19.4 s; 0), Bouncing Shapes' square
+ * box 19.5 (46; 21.5 s; 0), Glass Smash 24 (50; 23.5 s; 0), Conveyor Belt 24 (69; 23.9 s; 0) and Capture the Flag 20 (12; 21.9 s,
+ * 6.8–32 s; 30 s: 8 – no length stands out below the time limit, so the game's typical one). Spinning Hoops, Drawing Machines and
+ * the Wave Tank loop (the finder reads them as endless) and Beat Machines (its search fits whole loops to any target) keep the
+ * page's 30.
  */
 const START_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
   lines: 23.5,
@@ -232,12 +238,13 @@ interface LookFindTarget {
  * The targets of the looks of the Looks row (a card, a gallery preset, the Challenge look) whose run is not the one their mode's
  * target was measured on, where that target, or the page's 30, finds almost none: once a look is on the page, Find's target
  * follows it (Simulator.tsx, `nextFindTarget`), so it is the look's own. Seeds 1–100 in the page's two worlds (800 × 450 and
- * 450 × 450, which agree for these looks), through the page's own request (lib/simulation/pageFinderRequest.ts), as the target
- * with the most runs within its ± 0.5 s (the first of a tie); in brackets the runs within ± 0.5 s of 200, then those of the target
- * the look would get without its entry. A fixed-length run (Pendulum Wave's 60 s, the Polyrhythm's 12 s) gets its own length.
- * (Not here: looks the page's 30 already finds – Grand Prix 30 of 200, Vortex's Challenge look 82, Red Maze Race 10, Aurora
- * Portals 10 –, Portal's Challenge look, which is its link base (16.5 s: 6, 30 s: 4; the link base keeps the page's 30), and the
- * looks whose runs do not end in a clip, Neon Escape and the endless ones.)
+ * 450 × 450, which agree for these looks), through the page's own request (lib/simulation/pageFinderRequest.ts), as the target at
+ * or above the Find slider's 10 s (RANGES.findDuration's minimum) with the most runs within its ± 0.5 s (the first of a tie; A-g1
+ * review: below it, the Bullseye card's 9.5 s holds 112 runs of 200 and the Maze card's 7 s 24); in brackets the runs within
+ * ± 0.5 s of 200, then those of the target the look would get without its entry. A fixed-length run (Pendulum Wave's 60 s, the
+ * Polyrhythm's 12 s) gets its own length. (Not here: looks the page's 30 already finds – Grand Prix 30 of 200, Vortex's Challenge
+ * look 82, Red Maze Race 10, Aurora Portals 10 –, Portal's Challenge look, which is its link base (16.5 s: 6, 30 s: 4; the link
+ * base keeps the page's 30), and the looks whose runs do not end in a clip, Neon Escape and the endless ones.)
  */
 const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>> = Object.freeze({
   classic: [{ look: "daily", run: { wallCount: 5, gapSize: 0.4, ballSpeed: 500 }, sec: 36 }], // (13; 30 s: 3) median 43.9 s
@@ -297,13 +304,14 @@ export interface FindTargetAuto {
 }
 
 /**
- * Find Simulation's target once the run on the page changes from `prevAuto`'s to `next`'s: the new run's own while the page's
- * target is still the one the page set (`current === prevAuto.sec`, the visitor typed none), a typed one otherwise – until the
- * mode changes, which starts the new mode on its own target as picking it does (Simulator.tsx changeMode).
+ * Find Simulation's target once the run on the page changes from `prevAuto`'s to `next`'s: the new run's own while the visitor
+ * has typed none, the `current` one they typed otherwise – until the mode changes, which starts the new mode on its own target
+ * as picking it does (Simulator.tsx changeMode). (A-g1 review) Whether it was typed is the page's to say (`typed`: the slider or
+ * the number field moved it), not read from the values: a typed 30 that happens to equal a look's own target is still typed.
  */
-export function nextFindTarget(prevAuto: FindTargetAuto, current: number, next: FindTargetAuto): number {
+export function nextFindTarget(prevAuto: FindTargetAuto, current: number, next: FindTargetAuto, typed: boolean): number {
   if (next.mode !== prevAuto.mode) return next.sec;
-  return current === prevAuto.sec ? next.sec : current;
+  return typed ? current : next.sec;
 }
 // --- end find-target-follows ---
 

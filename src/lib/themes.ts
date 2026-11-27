@@ -379,10 +379,13 @@ export function themeCarryOver(settings: ThemeLook): Partial<ThemeLook> {
  * own default (no theme picked, the same type and colours as `previousDefaults`). That one is the mode's, not a pick, so the new
  * mode's own page shows on the first switch (Focus Shot's navy pool, Chord Stars' night) and leaving such a mode gives the next
  * one its own page. A background someone picked (a colour, a gradient, a picture, a theme) still carries over.
+ * (--- pace-as-look --- A-g1 review) `previousDefaults` may list several looks that are the old mode's own: its link base and its
+ * start look (Spinning Hoops' and Drawing Machines' night backgrounds are their start looks', not their link bases').
  */
-export function modeChangeCarryOver(settings: ThemeLook, previousDefaults: ThemeSettings): Partial<ThemeLook> {
+export function modeChangeCarryOver(settings: ThemeLook, previousDefaults: ThemeSettings | readonly ThemeSettings[]): Partial<ThemeLook> {
   const kept = themeCarryOver(settings);
-  if (themeById(settings.themeId) || !isModeDefaultBackground(settings, previousDefaults)) return kept;
+  const own = ([] as readonly ThemeSettings[]).concat(previousDefaults).some((defaults) => isModeDefaultBackground(settings, defaults));
+  if (themeById(settings.themeId) || !own) return kept;
   delete kept.backgroundType;
   delete kept.backgroundColors;
   return kept;

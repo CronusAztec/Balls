@@ -7,6 +7,7 @@ import { BURST_RECIPES, PARTICLE_STYLES, STYLE_PALETTES, spawnStyledBurst } from
 import type { Particle, PhysicsConfig } from "@/lib/physics/types";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (A-g1 review: a start look's background is the mode's own)
 import {
   THEMES,
   THEME_LOOK_KEYS,
@@ -229,6 +230,25 @@ describe("theme settings", () => {
     // the rest of the carry-over is untouched
     const styled = { ...defaultSettings("classic"), particleStyle: "sparks" as SimulatorSettings["particleStyle"], backgroundDim: 0.5 };
     expect(switchTo(styled, "ellipseFoci")).toMatchObject({ particleStyle: "sparks", backgroundDim: 0.5 });
+  });
+
+  // --- pace-as-look --- (A-g1 review) the old mode's start look is its own too: the page starts Spinning Hoops and Drawing
+  // Machines on their night (their start looks'), so leaving one for Classic gives Classic its own page, not the night
+  it("give way to the new mode's own page when the background is still the old mode's start look", () => {
+    const switchTo = (from: SimulatorSettings, mode: SimulatorSettings["mode"]) => ({ ...startSettings(mode), ...modeChangeCarryOver(from, [defaultSettings(from.mode), startSettings(from.mode)]) });
+    for (const mode of ["hoops", "drawingMachine"] as const) {
+      expect(startSettings(mode).backgroundColors, mode).not.toEqual(defaultSettings(mode).backgroundColors);
+      const there = switchTo(startSettings(mode), "classic");
+      expect([mode, there.backgroundType, there.backgroundColors]).toEqual([mode, startSettings("classic").backgroundType, startSettings("classic").backgroundColors]);
+      expect(settingsToSearchParams(there).get("bg1"), mode).toBeNull();
+      // its link base's background gives way as before
+      expect(switchTo(defaultSettings(mode), "classic").backgroundColors, mode).toEqual(startSettings("classic").backgroundColors);
+    }
+    // before, with the link base alone: Classic opened on the Hoops night (bg1=#0b1020)
+    expect(modeChangeCarryOver(startSettings("hoops"), defaultSettings("hoops")).backgroundColors).toEqual(["#0b1020", "#0b1020"]);
+    // a background someone picked still carries over
+    const picked = { ...startSettings("hoops"), backgroundColors: ["#112233", "#112233"] };
+    expect(switchTo(picked, "classic").backgroundColors).toEqual(["#112233", "#112233"]);
   });
 
   it("colour the particles with the scene only while a theme is picked", () => {

@@ -64,6 +64,7 @@ import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/team
 import { uncapConfigOf } from "@/lib/physics/limits"; // --- unlimited --- (--- uncap-all --- engaged by the values, not a switch)
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
 import { pageFinderRequest } from "@/lib/simulation/pageFinderRequest"; // --- page-finder-request ---
+import { modeSettingsOfSettings } from "@/lib/bot/finderRequest"; // --- page-finder-request --- (A-g1 review: whether Find shows)
 import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
 import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
@@ -142,7 +143,7 @@ import type { DesktopPageHooks } from "./desktop/pageHooks";
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, type RunnerPlan } from "@/lib/physics/modes/runner";
 import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
-import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
+import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 // --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
 import { useSyncExternalStore } from "react";
@@ -151,7 +152,7 @@ import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import { clipPacingFindSec, clipStartSettings, isBareStudioVisit, nextFindTarget, type FindTargetAuto } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6) --- find-target-follows --- (round two A2b)
-import { cardLinkPatch, selectedMode } from "@/lib/studioLooks"; // --- card-looks ---
+import { cardLinkPatch, selectedMode, startSettings } from "@/lib/studioLooks"; // --- card-looks --- (--- pace-as-look --- startSettings: a mode change's own backgrounds)
 import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
@@ -399,11 +400,19 @@ export default function Simulator() {
   // Glass: no seed in 1,000). A typed target stays until the mode changes.
   const autoFindSec = clipPacingFindSec(settings);
   const autoFindRef = useRef<FindTargetAuto>({ mode: settings.mode, sec: autoFindSec });
+  // (A-g1 review) the visitor moved the target (the slider, the number field): theirs until the mode changes, whatever its value
+  const findTypedRef = useRef(false);
+  const typeFindDuration = useCallback((sec: number) => {
+    findTypedRef.current = true;
+    setFindDuration(sec);
+  }, []);
   useEffect(() => {
     const prev = autoFindRef.current;
     const next: FindTargetAuto = { mode: settings.mode, sec: autoFindSec };
     autoFindRef.current = next;
-    setFindDuration((current) => nextFindTarget(prev, current, next));
+    if (next.mode !== prev.mode) findTypedRef.current = false;
+    const typed = findTypedRef.current;
+    setFindDuration((current) => nextFindTarget(prev, current, next, typed));
   }, [settings.mode, autoFindSec]);
   // --- end find-target-follows ---
   // --- unlimited-sizes --- the search's tolerance and its seeds are the visitor's too (number fields in the finder strip)
@@ -2392,7 +2401,7 @@ export default function Simulator() {
         musicStartOffset: settings.musicStartOffset,
         ...characterOf(settings), // --- gerald-faces --- the character follows the ball into every mode
       };
-      Object.assign(fresh, modeChangeCarryOver(themeLookRef.current, defaultSettings(themeLookRef.current.mode))); // --- themes: the background, particles and a picked theme's colours carry over (--- low-findings-2 --- a background still the old mode's default gives way to the new mode's own)
+      Object.assign(fresh, modeChangeCarryOver(themeLookRef.current, [defaultSettings(themeLookRef.current.mode), startSettings(themeLookRef.current.mode)])); // --- themes: the background, particles and a picked theme's colours carry over (--- low-findings-2 --- a background still the old mode's default gives way to the new mode's own; --- pace-as-look --- A-g1 review: its start look's too)
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
       Object.assign(fresh, exitSplatCarryOver(themeLookRef.current)); // --- gerald-exit-splat --- the exit behaviour and the splat barrier carry over (ring modes)
@@ -3654,7 +3663,7 @@ export default function Simulator() {
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
-      update(sectionDefaults(section, settings.mode));
+      update(sectionDefaults(section, settings.mode, themeLookRef.current)); // --- pace-as-look --- (A-g1 review) the run the rest of the page is on: the start look's or the link base's
       if (section === "ball") {
         setBallImage(null);
         setBallEmoji(null);
@@ -4455,7 +4464,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */, multiplyRace: settings.multiplyRace /* --- multiply-race --- */, collide: collideSettingsOf(settings) /* --- collide-pour --- (a jar that pours ends) */, lines: { strings: settings.lnStrings } /* --- string-art --- (Strings to Finish ends the run) */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { ...modeSettingsOfSettings(settings), paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion) --- page-finder-request --- (A-g1 review) the mode settings Find searches with (modeSettingsOfSettings, as pageFinderRequest), so a later option's loop or finish reaches the decision too (Sand Plate's loop did not)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : settings.mode === "sandPlate" ? "Simulator.finderFixedSandPlate" /* --- sand-plate --- (its notes × the note length, plus the finale) */ : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
@@ -4762,9 +4771,9 @@ export default function Simulator() {
               <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
                 {t("Controls.duration")}
               </label>
-              <SliderTrack id="find-duration" settingKey="findDuration" label={t("Controls.duration")} value={findDuration} range={RANGES.findDuration} onChange={setFindDuration} className="min-w-0 flex-1 cursor-pointer" namedByLabel /* --- unlimited-sizes --- the wide track with Wide sliders on (its <label> names it, as before) */ />
+              <SliderTrack id="find-duration" settingKey="findDuration" label={t("Controls.duration")} value={findDuration} range={RANGES.findDuration} onChange={typeFindDuration /* --- find-target-follows --- (A-g1 review) */} className="min-w-0 flex-1 cursor-pointer" namedByLabel /* --- unlimited-sizes --- the wide track with Wide sliders on (its <label> names it, as before) */ />
               {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) (--- unlimited-sizes --- any length above 0) */}
-              <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration, "findDuration")} disabled={isSearching} settingKey="findDuration" />
+              <NumberField value={findDuration} onCommit={typeFindDuration /* --- find-target-follows --- (A-g1 review) */} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration, "findDuration")} disabled={isSearching} settingKey="findDuration" />
             </div>
             {/* --- unlimited-sizes --- how close a found run must come (±s, any tolerance above 0) and how many seeds the search tries (any count)
                 (review fix) each label stays with its field, and the pairs wrap: on a phone (360-390 px, the Polish and Spanish

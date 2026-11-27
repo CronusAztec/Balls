@@ -301,15 +301,18 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
   function page(first: SimulatorSettings) {
     let last = auto(first.mode, clipPacingFindSec(first));
     let target = last.sec;
+    let typed = false; // (A-g1 review) the page's findTypedRef: the slider or the number field moved it, cleared by a mode change
     return {
       put(settings: SimulatorSettings) {
         const next = auto(settings.mode, clipPacingFindSec(settings));
-        target = nextFindTarget(last, target, next);
+        if (next.mode !== last.mode) typed = false;
+        target = nextFindTarget(last, target, next, typed);
         last = next;
         return target;
       },
       type(sec: number) {
         target = sec;
+        typed = true;
       },
     };
   }
@@ -324,18 +327,22 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
 
   it("follows the page's own target, keeps a typed one while the mode stays, and starts a new mode on its own", () => {
     // the page's own: a look, a share code, a preset or Reset put another run on the page
-    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 20.5))).toBe(20.5);
-    expect(nextFindTarget(auto("runner", 20.5), 20.5, auto("runner", 22))).toBe(22);
+    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 20.5), false)).toBe(20.5);
+    expect(nextFindTarget(auto("runner", 20.5), 20.5, auto("runner", 22), false)).toBe(22);
     // typed: it stays while the mode does, whatever run comes on
-    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 20.5))).toBe(25);
-    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 30))).toBe(25);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 20.5), true)).toBe(25);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 30), true)).toBe(25);
+    // (A-g1 review) typed even when it equals a run's own target: a typed 30 stays through a look of 30 and back to the start
+    // look's 18 (before, a typed value equal to the page's last own target read as the page's and followed the next run)
+    expect(nextFindTarget(auto("classic", 18), 30, auto("classic", 30), true)).toBe(30);
+    expect(nextFindTarget(auto("classic", 30), 30, auto("classic", 18), true)).toBe(30);
     // a mode change resets it, typed or not, as picking the mode does
-    expect(nextFindTarget(auto("classic", 30), 30, auto("runner", 22))).toBe(22);
-    expect(nextFindTarget(auto("classic", 30), 12, auto("runner", 22))).toBe(22);
-    expect(nextFindTarget(auto("runner", 22), 25, auto("classic", 30))).toBe(30);
+    expect(nextFindTarget(auto("classic", 30), 30, auto("runner", 22), false)).toBe(22);
+    expect(nextFindTarget(auto("classic", 30), 12, auto("runner", 22), true)).toBe(22);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("classic", 30), true)).toBe(30);
     // nothing changed
-    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 22))).toBe(22);
-    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 22))).toBe(25);
+    expect(nextFindTarget(auto("runner", 22), 22, auto("runner", 22), false)).toBe(22);
+    expect(nextFindTarget(auto("runner", 22), 25, auto("runner", 22), true)).toBe(25);
   });
 
   // before: a share code (?c=) starts the page on Classic's link base, and only a mode picked on the page set the target, so
@@ -360,6 +367,12 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     expect(studio.put(startSettings("maze"))).toBe(15); // another mode (a batch job, a share code) starts on its own
     expect(studio.put(onLook("maze", "card"))).toBe(10.5);
     expect(studio.put(startSettings("runner"))).toBe(22); // the page's own settings back: its own target
+    // (A-g1 review) a typed target equal to a look's own: the bare studio (Classic's start look, 18), 30 typed, Neon Escape (30)
+    // and Plain again keep the 30 the visitor typed (before, Plain took it back to 18)
+    const classic = page(startSettings("classic"));
+    classic.type(30);
+    expect(classic.put(onLook("classic", "neon-escape"))).toBe(30);
+    expect(classic.put(startSettings("classic"))).toBe(30);
   });
 
   it("looks up an exact look first, then the start look, then the pace, then the page's 30", () => {
@@ -381,8 +394,8 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
   });
 
   // measured when this was written: seeds 1–100 in the page's two worlds (800 × 450 and 450 × 450, which agree for these looks),
-  // through the page's own request, the target with the most runs within ± 0.5 s (lib/clipPacing.ts START_FIND_SEC and
-  // LOOK_FIND_SEC). Before: the look kept the target its mode started with (the start look's, or 30); "-" marks a look this step
+  // through the page's own request, the target at or above the Find slider's 10 s with the most runs within ± 0.5 s
+  // (lib/clipPacing.ts START_FIND_SEC and LOOK_FIND_SEC). Before: the look kept the target its mode started with (the start look's, or 30); "-" marks a look this step
   // leaves where it was
   const TARGETS: Record<string, number> = {
     "classic/start": 18, // before 30 (1 run of 200 within ± 0.5 s; now 27)

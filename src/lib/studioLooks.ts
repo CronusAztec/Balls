@@ -1,6 +1,6 @@
 import { isModeId, type ModeId } from "@/lib/physics/types";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { clipStartSettings } from "@/lib/clipPacing";
+import { clipStartSettings, isLookOnlyField } from "@/lib/clipPacing"; // (--- pace-as-look --- isLookOnlyField: startRunFields)
 import { parseSeed } from "@/lib/recording/batch";
 import { looksOf, type StudioLook } from "@/content/looks";
 
@@ -23,6 +23,17 @@ export function startSettings(mode: ModeId): SimulatorSettings {
 /** The start look as a link's query (`mode=…` and the fields it sets apart from the link base): what a site link into a mode opens. */
 export function startQuery(mode: ModeId): string {
   return settingsToSearchParams(startSettings(mode)).toString();
+}
+
+/**
+ * (A-g1 review) The fields of the start look that make its run: those it sets apart from the link base, less its look (the
+ * glow, sounds, effects and camera measured to leave the run as it is, lib/clipPacing.ts `isLookOnlyField`). Reset Category
+ * (Controls.tsx `sectionDefaults`) puts a section's run fields back to the start look only while the rest of them are on it.
+ */
+export function startRunFields(mode: ModeId): (keyof SimulatorSettings)[] {
+  const base = defaultSettings(mode) as unknown as Record<string, unknown>;
+  const start = clipStartSettings(mode) as Record<string, unknown>;
+  return Object.keys(start).filter((key) => !isLookOnlyField(key) && JSON.stringify(start[key]) !== JSON.stringify(base[key])) as (keyof SimulatorSettings)[];
 }
 // --- end pace-as-look ---
 

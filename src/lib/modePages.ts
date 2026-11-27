@@ -69,9 +69,14 @@ export interface ModePageLook {
 export function modePageLooks(mode: ModeId): ModePageLook[] {
   return looksOf(mode).map((look) => {
     const preset = look.kind === "gallery" ? GALLERY.find((p) => p.id === look.id) : undefined;
-    const href = preset ? galleryHref(preset) : look.kind === "card" ? cardHref(mode) : look.kind === "plain" ? `/simulator?${startQuery(mode)}` : `/simulator?${[`mode=${mode}`, look.query].filter(Boolean).join("&")}`;
+    const href = preset ? galleryHref(preset) : look.kind === "card" ? cardHref(mode) : look.kind === "plain" ? `/simulator?${startQuery(mode)}` : dailyLookHref(mode, look.query);
     return { id: look.id, kind: look.kind, name: look.name, href, ...(preset ? { preset } : {}) };
   });
+}
+
+/** --- pace-as-look --- (A-g1 review) The Challenge look's link: the mode with the daily deal's settings (tests/linkBase.test.ts (h) allows this one). */
+function dailyLookHref(mode: ModeId, query: string): string {
+  return `/simulator?${[`mode=${mode}`, query].filter(Boolean).join("&")}`;
 }
 
 /**
