@@ -5,6 +5,7 @@ import ProseLayout from "@/components/site/ProseLayout";
 import ChangelogYourVersion from "@/components/site/ChangelogYourVersion";
 import JsonLd from "@/components/site/JsonLd";
 import { Link } from "@/i18n/navigation";
+import { startQuery } from "@/lib/studioLooks"; // --- pace-as-look --- (a Try link opens the mode's start look)
 import { pageMetadata, breadcrumbJsonLd } from "@/lib/seo"; // --- seo ---
 import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
 import { CHANGELOG, entryText, formatChangelogDate, latestRelease, type ChangeKind, type ChangelogRelease } from "@/content/changelog";
@@ -155,7 +156,7 @@ export default async function ChangelogPage({ params }: { params: Promise<{ loca
                               {item.modes.map((mode) => (
                                 <Link
                                   key={mode}
-                                  href={`/simulator?mode=${mode}`}
+                                  href={`/simulator?${startQuery(mode)}`}
                                   aria-label={gallery("tryAria", { name: modes(`${mode}.name`) })}
                                   className="font-medium text-accent hover:text-accent-strong [@media(pointer:coarse)]:-my-2.5 [@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-2.5"
                                 >

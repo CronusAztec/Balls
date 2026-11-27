@@ -15,6 +15,7 @@ import { perfectShotIndex } from "@/lib/physics/modes/bullseye"; // --- finales-
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 
 /*
  * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip
@@ -35,7 +36,7 @@ const WORLDS = [
 
 /** The default run of `mode` for `seed` in `world`: when it ends (s), or −1 when it has not by `maxSec`. */
 function endOf(mode: ModeId, seed: number, world: { width: number; height: number }, maxSec = 45): number {
-  const request = finderRequestOfSettings(defaultSettings(mode), world, maxSec);
+  const request = finderRequestOfSettings(startSettings(mode), world, maxSec);
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   for (let frame = 1; frame <= maxSec * 60; frame++) {
     engine.update(1000 / 60, 0);
@@ -60,7 +61,7 @@ describe("the page's own defaults", () => {
     for (const mode of MODE_IDS) {
       const own = clipPacingDefaults(mode);
       expect(Object.keys(own).length > 0, mode).toBe(PACED.includes(mode));
-      const d = defaultSettings(mode) as unknown as Record<string, unknown>;
+      const d = startSettings(mode) as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(own)) expect(d[key], `${mode}.${key}`).toBe(value);
     }
     // a mode that is not paced keeps the core defaults: Multiply's gap and speed, Portal's seven rings, the feature's own values
@@ -135,7 +136,7 @@ describe("the default run ends inside the default clip", () => {
       let finals = 0;
       for (const world of WORLDS) {
         for (let seed = 1; seed <= 12; seed++) {
-          const request = finderRequestOfSettings(defaultSettings(mode), world, 45);
+          const request = finderRequestOfSettings(startSettings(mode), world, 45);
           const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
           let end = -1;
           for (let frame = 1; frame <= 45 * 60 && end < 0; frame++) {
@@ -195,12 +196,12 @@ describe("Color Match's segments as a setting", () => {
     expect(DEFAULT_COLOR_MATCH_SEGMENTS).toBe(12);
     for (const n of COLOR_MATCH_SEGMENT_CHOICES) expect(isColorMatchSegments(n)).toBe(true);
     for (const n of [0, 7, 12.5, 25, 1e9, Number.NaN, "12", null]) expect(isColorMatchSegments(n)).toBe(false);
-    expect(defaultSettings("colorMatch").colorMatchSegments).toBe(8);
+    expect(startSettings("colorMatch").colorMatchSegments).toBe(8);
     expect(defaultSettings("classic").colorMatchSegments).toBe(12);
   });
 
   it("travels in a link and a preset, and refuses what is no count", () => {
-    const s = { ...defaultSettings("colorMatch"), colorMatchSegments: 16 };
+    const s = { ...startSettings("colorMatch"), colorMatchSegments: 16 };
     const params = settingsToSearchParams(s);
     expect(params.get("cms")).toBe("16");
     expect(settingsFromSearchParams(params).colorMatchSegments).toBe(16);
@@ -213,7 +214,7 @@ describe("Color Match's segments as a setting", () => {
 
   it("builds the ring the run plays: the finder's engine has as many segments as the setting says", () => {
     for (const count of COLOR_MATCH_SEGMENT_CHOICES) {
-      const request = finderRequestOfSettings({ ...defaultSettings("colorMatch"), colorMatchSegments: count }, WORLDS[0], 30);
+      const request = finderRequestOfSettings({ ...startSettings("colorMatch"), colorMatchSegments: count }, WORLDS[0], 30);
       expect(request.modeSettings.colorMatchSegmentCount).toBe(count);
       const engine = createEngineForSettings(request.physicsConfig, "colorMatch", request.modeSettings, 3);
       expect(engine.getColorMatchSegments().length).toBe(count);
@@ -240,7 +241,7 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
     expect(clipStartSettings("hoops")).toEqual({ backgroundType: "solid", backgroundColors: ["#0b1020", "#0b1020"], themeId: "", rainbowWalls: true, showWallGlow: true, loopHud: true, hpOmegaStart: 0.5 });
     expect(clipStartSettings("drawingMachine")).toEqual({ dmMachine: "orbits", backgroundType: "solid", backgroundColors: ["#05060c", "#05060c"], loopHud: true });
     for (const mode of ["hoops", "drawingMachine"] as const) {
-      const start = { ...defaultSettings(mode), ...clipStartSettings(mode) } as SimulatorSettings;
+      const start: SimulatorSettings = startSettings(mode);
       expect(settingsFromSearchParams(settingsToSearchParams(start)), mode).toMatchObject(clipStartSettings(mode));
     }
   });
@@ -264,7 +265,7 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
 
   it("lands Bullseye's last shot in the bull on every seed (before: no bullseye at all on 3 of 12)", () => {
     for (let seed = 1; seed <= 6; seed++) {
-      const request = finderRequestOfSettings(defaultSettings("bullseye"), WORLDS[1], 40);
+      const request = finderRequestOfSettings(startSettings("bullseye"), WORLDS[1], 40);
       const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
       for (let frame = 1; frame <= 40 * 60 && !engine.isSimulationFinished(); frame++) engine.update(1000 / 60, 0);
       const view = engine.getBullseyeView();
@@ -279,7 +280,7 @@ describe("--- finales-in-clip --- the finale inside the default clip", () => {
     expect([perfectShotIndex({ perfect: -1, shots: 8 }), perfectShotIndex({ perfect: -1, shots: 15 }), perfectShotIndex({ perfect: -1, shots: 1 }), perfectShotIndex({ perfect: 10, shots: 8 })]).toEqual([7, 14, 0, -1]);
     for (const shots of [8, 15]) {
       for (const seed of [3, 4]) {
-        const request = finderRequestOfSettings({ ...defaultSettings("bullseye"), byShots: shots }, WORLDS[seed % 2], 60);
+        const request = finderRequestOfSettings({ ...startSettings("bullseye"), byShots: shots }, WORLDS[seed % 2], 60);
         const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
         for (let frame = 1; frame <= 60 * 60 && !engine.isSimulationFinished(); frame++) engine.update(1000 / 60, 0);
         const view = engine.getBullseyeView();

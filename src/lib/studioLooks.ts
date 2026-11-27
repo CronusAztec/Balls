@@ -1,5 +1,5 @@
 import { isModeId, type ModeId } from "@/lib/physics/types";
-import { defaultSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { parseSeed } from "@/lib/recording/batch";
 import { looksOf, type StudioLook } from "@/content/looks";
@@ -10,9 +10,25 @@ import { looksOf, type StudioLook } from "@/content/looks";
  * a look on the page (the panel's own update path, so Undo takes it back) and the look the page shows now. Pure: no React.
  */
 
+// --- pace-as-look ---
+/**
+ * The page's start look of a mode: its link base (`defaultSettings`, what every link reads) with its start look on top
+ * (`clipStartSettings`). What the page itself starts a mode in, what Reset All, Reset Category and the theme's Default go back to,
+ * and the look the site's own links into a mode open (`startQuery`).
+ */
+export function startSettings(mode: ModeId): SimulatorSettings {
+  return { ...defaultSettings(mode), ...clipStartSettings(mode) };
+}
+
+/** The start look as a link's query (`mode=…` and the fields it sets apart from the link base): what a site link into a mode opens. */
+export function startQuery(mode: ModeId): string {
+  return settingsToSearchParams(startSettings(mode)).toString();
+}
+// --- end pace-as-look ---
+
 /** A look read into settings: Plain is the page's start look (clip-start), any other its link read on the mode's link base. */
 export function lookSettings(mode: ModeId, look: Pick<StudioLook, "kind" | "query">): SimulatorSettings {
-  if (look.kind === "plain") return { ...defaultSettings(mode), ...clipStartSettings(mode) };
+  if (look.kind === "plain") return startSettings(mode); // --- pace-as-look ---
   return settingsFromSearchParams(new URLSearchParams(`mode=${mode}${look.query ? `&${look.query}` : ""}`));
 }
 

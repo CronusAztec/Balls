@@ -103,7 +103,7 @@ import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { MODE_WALL_BREAK_SOUNDS } from "@/lib/audio/songs"; // --- gerald-glass ---
-import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, migrateLegacyStorage, type SimulatorSettings } from "@/lib/settings";
+import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, migrateLegacyStorage, type SimulatorSettings } from "@/lib/settings";
 import { characterOf } from "@/lib/character/character"; // --- gerald-faces ---
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -112,6 +112,7 @@ import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import UnlimitedSection, { FullBallLimitControl, UNLIMITED_KEYS } from "./sections/UnlimitedSection"; // --- unlimited-sizes --- (FullBallLimitControl)
 import { UnlimitedProvider } from "./unlimitedSlider";
 import { bouncinessPatch } from "@/lib/settings"; // --- uncap-all --- the numeric Bounciness
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (Reset goes back to the page's start look)
 import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
 import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
@@ -1956,9 +1957,12 @@ export default function Controls(props: ControlsProps) {
     if (whole) applySettingsRef.current?.(whole);
     else if (patch) update(patch);
   }, [update]);
-  /** --- studio-undo --- Reset All: every setting of this mode back to its default (Undo, standing out for a moment, takes it back). */
+  /**
+   * --- studio-undo --- Reset All: every setting of this mode back to its default (Undo, standing out for a moment, takes it back).
+   * (--- pace-as-look --- the default the page starts the mode in, its start look: never the bare link base a `?mode=` link reads.)
+   */
   const resetAll = () => {
-    applySettingsRef.current?.(defaultSettings(s.mode));
+    applySettingsRef.current?.(startSettings(s.mode));
     setResetFlash(true);
   };
   useEffect(() => {
@@ -2448,9 +2452,9 @@ function findControl(scope: HTMLElement, label: string, key: string): { el: HTML
   return fallback ? { el: fallback, focusable: false } : null;
 }
 
-/** Settings that the "Reset Category" buttons restore, per section. */
+/** Settings that the "Reset Category" buttons restore, per section (--- pace-as-look --- as the page's start look of the mode has them). */
 export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<SimulatorSettings> {
-  const d = defaultSettings(mode);
+  const d = startSettings(mode); // --- pace-as-look ---
   switch (section) {
     case "ball":
       return {

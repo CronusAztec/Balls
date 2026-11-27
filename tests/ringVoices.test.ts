@@ -10,8 +10,9 @@ import { ringVoiceEvent } from "@/lib/audio/loopEvents"; // --- ring-voices --- 
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { MOMENT_AFTER_SEC, MOMENT_BEFORE_SEC, payoffMomentSync } from "@/lib/insights/score";
 import { COLOR_MATCH_COLORS, colorMatchColor, colorMatchColorOf } from "@/lib/physics/modes/colorMatch";
-import { clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing";
+import { clipPacingDefaults, clipStartSettings, isBareStudioVisit } from "@/lib/clipPacing";
 import { createEngineForSettings } from "@/lib/simulation/finder";
+import { startQuery, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 
 /*
  * --- ring-voices --- The single-ring escape modes' own voices (lib/physics/ringVoices.ts and the modes' hooks): Countdown's
@@ -29,8 +30,11 @@ interface Logged {
   event: SoundEvent;
 }
 
+/** --- pace-as-look --- A paced mode (Countdown, Color Match) at its page pace, the page's start look; any other on its link base. */
+const atPageOrBase = (mode: ModeId) => (Object.keys(clipPacingDefaults(mode)).length > 0 ? startSettings(mode) : defaultSettings(mode));
+
 function engineOf(mode: ModeId, seed: number, patch: Partial<SimulatorSettings> = {}): PhysicsEngine {
-  const request = finderRequestOfSettings({ ...defaultSettings(mode), ...patch }, { width: 800, height: 450 }, 120);
+  const request = finderRequestOfSettings({ ...atPageOrBase(mode), ...patch }, { width: 800, height: 450 }, 120);
   return createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
 }
 
@@ -409,8 +413,9 @@ describe("the page's start look (review fix B2)", () => {
     expect(clipStartSettings("accumulation")).toEqual({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true });
     expect(clipStartSettings("target")).toEqual({});
     // the link base is what it was: the start look is written into the page's own link
-    const start = { ...defaultSettings("classic"), ...clipStartSettings("classic") } as SimulatorSettings;
+    const start: SimulatorSettings = startSettings("classic"); // --- pace-as-look ---
     expect(settingsToSearchParams(start).toString()).toBe("mode=classic&s=500&gap=1&shake=0.3&glow=1&wbreak=all&resn=1");
+    expect(startQuery("classic")).toBe("mode=classic&s=500&gap=1&shake=0.3&glow=1&wbreak=all&resn=1"); // (what the site's links into Classic open)
     expect(settingsFromSearchParams(settingsToSearchParams(start))).toMatchObject(clipStartSettings("classic"));
     const bare = (q: string) => isBareStudioVisit(new URLSearchParams(q), settingsToSearchParams(settingsFromSearchParams(new URLSearchParams(q))).toString());
     expect(bare("")).toBe(true);

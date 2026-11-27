@@ -15,6 +15,7 @@ import {
 } from "@/lib/physics/modes/mergeRing";
 import { FINAL_DIP_FACTOR, FINAL_DIP_MS, FINAL_FLASH_MS, GLOW_ALPHA_MAX, GLOW_ALPHA_MIN, MergeRingLayer, interiorGlowAlpha, warningLevel } from "@/components/simulator/mergeRingRenderer";
 import { defaultSettings, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -36,7 +37,7 @@ const WORLD = { width: 450, height: 450 };
 const STEP = 1000 / 60;
 
 function pageEngine(seed: number): PhysicsEngine {
-  const request = finderRequestOfSettings(defaultSettings("mergeRing"), WORLD, 60);
+  const request = finderRequestOfSettings(startSettings("mergeRing"), WORLD, 60);
   return createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
 }
 

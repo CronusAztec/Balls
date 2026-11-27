@@ -121,6 +121,7 @@ import { OG_GROUPS, OG_METROS, OG_MODELS } from "@/lib/physics/modes/orbRhythm";
 import { SCALE_IDS } from "@/lib/audio/scales";
 import type { SimulatorSettings } from "@/lib/settings";
 // --- end orb-rhythm ---
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 
 const config: PhysicsConfig = { width: 800, height: 450, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#ffffff", ballRadius: 8, audioIntensity: 0 };
 // --- orb-rhythm --- (the decay model: these tests pin it – the rhythm model, the default since the orb-rhythm rework, has its
@@ -1647,7 +1648,7 @@ describe("Bouncing Orbs: the panel's run line follows the model and every settin
   };
   const t = translator(en, "en");
   /** The page's settings in Bouncing Orbs (a 12 × 12 field, the reviewed case). */
-  const panelOf = (patch: Partial<SimulatorSettings> = {}): SimulatorSettings => ({ ...defaultSettings("orbGrid"), ogColumns: 12, ogRows: 12, ...patch });
+  const panelOf = (patch: Partial<SimulatorSettings> = {}): SimulatorSettings => ({ ...startSettings("orbGrid"), ogColumns: 12, ogRows: 12, ...patch }); // --- pace-as-look ---
   // What OrbGridSection plans for a load of these settings: the summary, and a rhythm field's own summary…
   const summaryOf = (s: SimulatorSettings) => orbGridSummary(orbGridSettingsOf(s), s.gravity);
   const rhythmSummaryOf = (s: SimulatorSettings) => (s.ogModel === "rhythm" ? orbRhythmSummary(orbGridSettingsOf(s), s.gravity) : null);

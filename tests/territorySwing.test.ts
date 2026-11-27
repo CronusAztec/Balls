@@ -16,6 +16,7 @@ import {
 } from "@/lib/physics/modes/territory";
 import { DEFAULT_TERRITORY_LABELS, TY_TILE_LIGHT, TY_WAVE_MAX_MS, TY_WAVE_MS_PER_TILE, TerritoryLayer, blastWaveMs } from "@/components/simulator/territoryRenderer";
 import { defaultSettings, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 import { clipPacingDefaults } from "@/lib/clipPacing";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -38,7 +39,7 @@ const WORLD = { width: 450, height: 450 };
 const STEP = 1000 / 60;
 
 function pageEngine(seed: number): PhysicsEngine {
-  const request = finderRequestOfSettings(defaultSettings("territory"), WORLD, 40);
+  const request = finderRequestOfSettings(startSettings("territory"), WORLD, 40);
   return createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
 }
 

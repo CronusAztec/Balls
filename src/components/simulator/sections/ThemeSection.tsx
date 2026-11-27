@@ -3,7 +3,8 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import Tooltip from "../Tooltip";
 import { ColorPicker, Searchable, Slider, offBtn, onBtn, rainbowBtn, type Matcher, type Translate } from "../ControlPrimitives";
-import { RANGES, defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look ---
 import { BACKGROUND_TYPES, PARTICLE_STYLES, THEMES, isThemeIntact, normalizeHexColor, plainLookPatch, themeById, themePatch, type BackgroundType, type ParticleStyle, type Theme } from "@/lib/themes";
 
 import { IconClose, IconUpload } from "@/components/ui/icons"; // --- site-redesign ---
@@ -80,7 +81,7 @@ export function ThemeCards({ t, search, matches, settings: s, update }: Omit<The
   const intact = isThemeIntact(s);
   const edited = !!themeById(s.themeId) && !intact;
   const pickTheme = (theme: Theme) => update(themePatch(theme, s));
-  const pickDefault = () => update(plainLookPatch(s, defaultSettings(s.mode)));
+  const pickDefault = () => update(plainLookPatch(s, startSettings(s.mode))); // --- pace-as-look --- the start look's own look
   return (
     <Searchable search={search} matches={matches} labelKey="theme">
       <div className="space-y-2" data-testid="theme-section">

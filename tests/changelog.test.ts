@@ -98,7 +98,9 @@ describe("the changelog data", () => {
   it("the page links each announced mode to the studio, by its name, and CHANGELOG.md does not read the field", () => {
     const page = read("src/app/[locale]/changelog/page.tsx");
     expect(page).toContain("{item.modes && item.modes.length > 0 && (");
-    expect(page).toContain("href={`/simulator?mode=${mode}`}");
+    // --- pace-as-look --- a Try link opens the mode's start look (startQuery), never its bare link base
+    expect(page).toContain("href={`/simulator?${startQuery(mode)}`}");
+    expect(page).toContain('import { startQuery } from "@/lib/studioLooks";');
     expect(page).toContain('aria-label={gallery("tryAria", { name: modes(`${mode}.name`) })}');
     const withoutModes = CHANGELOG.map((r) => ({ ...r, items: r.items.map(({ kind, text }) => ({ kind, text })) }));
     expect(changelogScript.renderChangelog(withoutModes)).toBe(changelogScript.renderChangelog(CHANGELOG));

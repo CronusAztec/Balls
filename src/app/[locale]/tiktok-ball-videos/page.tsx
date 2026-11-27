@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
+import { startQuery } from "@/lib/studioLooks"; // --- pace-as-look --- (the button opens Classic's start look)
 import { SITE_NAME } from "@/lib/site";
 import JsonLd from "@/components/site/JsonLd"; // --- seo ---
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
@@ -43,7 +44,7 @@ export default async function TikTokPage({ params }: { params: Promise<{ locale:
       </section>
       <div className="not-prose border-t border-line pt-8">
         {/* --- site-nav --- (under 640 px the label may wrap: in Polish and Spanish it is wider than a 320 px screen) */}
-        <Link href="/simulator?mode=classic" className={buttonClass({ variant: "primary", size: "md", className: "max-w-full max-sm:h-auto max-sm:py-2 max-sm:whitespace-normal" })} data-track="cta_click" data-track-id="tiktok_cta">
+        <Link href={`/simulator?${startQuery("classic")}`} className={buttonClass({ variant: "primary", size: "md", className: "max-w-full max-sm:h-auto max-sm:py-2 max-sm:whitespace-normal" })} data-track="cta_click" data-track-id="tiktok_cta">
           {t("cta")}
           <IconArrowRight size={16} />
         </Link>

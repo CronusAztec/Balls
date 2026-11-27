@@ -77,6 +77,7 @@ import { MEMORY_CEILINGS } from "@/lib/uncap";
 import { uncapConfigOf } from "@/lib/physics/limits";
 import { buildProject, resolveProjectSettings, serializeProject } from "@/lib/project";
 import { decodeShareCode, encodeShareCode } from "@/lib/shareCode";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 
 /**
  * Territory (lib/physics/modes/territory.ts, feature odd-territory): the settings (resolve, URL, presets), the board
@@ -1123,7 +1124,7 @@ function fnv(bytes: Uint8Array, h = 0x811c9dc5) {
 
 /** The page's run of the Territory defaults with `patch` (its 800 × 450 world), `steps` 60 Hz steps: its exact state, fingerprinted. */
 function fingerprint(patch: Partial<SimulatorSettings>, seed: number, steps: number, world = { width: 800, height: 450 }) {
-  const s = { ...defaultSettings("territory"), ...patch } as SimulatorSettings;
+  const s = { ...startSettings("territory"), ...patch } as SimulatorSettings; // --- pace-as-look --- the page's run (its pace)
   const engine = createEngineForSettings(physicsConfigOfSettings(s, world), "territory", modeSettingsOfSettings(s), seed);
   let sounds = 0;
   for (let i = 0; i < steps; i++) {

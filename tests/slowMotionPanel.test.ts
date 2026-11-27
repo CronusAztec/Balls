@@ -17,6 +17,7 @@ import FightLeagueSection from "@/components/simulator/sections/FightLeagueSecti
 import StringBattleSection from "@/components/simulator/sections/StringBattleSection";
 import MultipliersSection from "@/components/simulator/sections/MultipliersSection"; // --- review fix ---
 import { paletteKeyGroups, sectionDefaults } from "@/components/simulator/Controls";
+import { startQuery, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (Reset Category goes back to the start look)
 import type { PanelShown } from "@/components/simulator/panelKeys";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder"; // --- review fix --- (the tooltip's exceptions, in the code)
@@ -512,12 +513,13 @@ describe("every dimmed control has its note on screen (--- slow-motion --- revie
 describe("Reset Category in Ball & Physics brings back the block at its top (--- slow-motion --- review fix)", () => {
   it("restores Wide sliders, Slow motion and Full-Physics Balls with the rest of the section: the link loses inf, smo and fbl", () => {
     // (it reset Ball Speed but left Slow motion off and Full-Physics Balls as typed: ?mode=classic&fbl=500&smo=0 stayed)
-    const before = settingsFromSearchParams(new URLSearchParams("mode=classic&smo=0&inf=0&fbl=500&s=250"));
+    // --- pace-as-look --- the visitor's page is Classic's start look (ball speed 500), and Reset Category goes back to it
+    const before = settingsFromSearchParams(settingsToSearchParams({ ...startSettings("classic"), slowMotion: false, unlimited: false, fullBallLimit: 500, ballSpeed: 250 }));
     expect([before.slowMotion, before.unlimited, before.fullBallLimit, before.ballSpeed]).toEqual([false, false, 500, 250]);
     const after: SimulatorSettings = { ...before, ...sectionDefaults("ball", "classic") };
     const link = settingsToSearchParams(after);
-    expect([link.get("smo"), link.get("inf"), link.get("fbl"), link.get("s")]).toEqual([null, null, null, null]);
-    expect(link.toString()).toBe(settingsToSearchParams(defaultSettings("classic")).toString());
+    expect([link.get("smo"), link.get("inf"), link.get("fbl"), link.get("s")]).toEqual([null, null, null, "500"]);
+    expect(link.toString()).toBe(startQuery("classic"));
     // both switches read ON again, as a screen reader hears them
     const html = section(UnlimitedSection, after);
     expect([switchNamed(html, "Slow motion")?.checked, switchNamed(html, "Wide sliders")?.checked]).toEqual(["true", "true"]);

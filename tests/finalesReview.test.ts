@@ -3,11 +3,12 @@ import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
-import { DEFAULT_FIND_SEC, clipPacingDefaults, clipPacingFindSec, clipStartSettings } from "@/lib/clipPacing";
+import { DEFAULT_FIND_SEC, clipPacingDefaults, clipPacingFindSec } from "@/lib/clipPacing";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { MODE_IDS, type ModeId, type SoundEvent } from "@/lib/physics/types";
 import { defaultSettings, settingsFromSearchParams } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
+import { startQuery, startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (the page's pace: what the page itself starts a mode in)
 import { BULLSEYE_CARD_MS, bullseyeCardShown } from "@/components/simulator/bullseyeRenderer";
 import { EARLY_PODIUM_MS, podiumAtMs, podiumShown } from "@/components/simulator/raceRenderer";
 import { IN_PHASE_SHOW_MS } from "@/components/simulator/orbGridRenderer";
@@ -42,7 +43,7 @@ function runLogged(engine: ReturnType<typeof engineOf>, maxSec = 70): { atMs: nu
 }
 
 function endOf(mode: ModeId, seed: number, world = WORLD, maxSec = 45): number {
-  const request = finderRequestOfSettings(defaultSettings(mode), world, maxSec);
+  const request = finderRequestOfSettings(startSettings(mode), world, maxSec);
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   for (let frame = 1; frame <= maxSec * 60; frame++) {
     engine.update(1000 / 60, 0);
@@ -52,28 +53,31 @@ function endOf(mode: ModeId, seed: number, world = WORLD, maxSec = 45): number {
   return -1;
 }
 
+/** --- pace-as-look --- A paced mode at its page pace (the page's start look), any other mode at its link base. */
+const atPageOrBase = (mode: ModeId) => (Object.keys(clipPacingDefaults(mode)).length > 0 ? startSettings(mode) : defaultSettings(mode));
+
 // --- finder-target ---
 describe("--- finder-target --- Find Simulation's target on a paced mode's page pace", () => {
   it("is the mode's own run length at its page pace, and the page's 30 everywhere else", () => {
     const own: Partial<Record<ModeId, number>> = { target: 20, colorMatch: 22, pendulum: 24, polyrhythm: 24, mergeRing: 23, spiralGlass: 24, shatter: 15, runner: 22, vortex: 22.5, bullseye: 25, race: 22, journey: 21, maze: 15, paddle: 28 };
-    for (const mode of MODE_IDS) expect([mode, clipPacingFindSec(defaultSettings(mode))]).toEqual([mode, own[mode] ?? DEFAULT_FIND_SEC]);
+    for (const mode of MODE_IDS) expect([mode, clipPacingFindSec(atPageOrBase(mode))]).toEqual([mode, own[mode] ?? DEFAULT_FIND_SEC]);
     // every mode with a target is paced, and Territory (a 30 s countdown) keeps the page's 30
     for (const mode of Object.keys(own) as ModeId[]) expect(Object.keys(clipPacingDefaults(mode)).length, mode).toBeGreaterThan(0);
-    expect(clipPacingFindSec(defaultSettings("territory"))).toBe(30);
+    expect(clipPacingFindSec(startSettings("territory"))).toBe(30);
     // a link that sets its own course keeps the page's 30; the ring modes' glow is a look, not a pace
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=runner&rrn=24&rrd=0.6")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paddle&pdg=0")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=vortex&vxrl=stagger")))).toBe(30);
-    expect(clipPacingFindSec({ ...defaultSettings("target"), showGlow: false })).toBe(20);
-    expect(clipPacingFindSec({ ...defaultSettings("target"), targetCount: 10 })).toBe(30);
+    expect(clipPacingFindSec({ ...startSettings("target"), showGlow: false })).toBe(20);
+    expect(clipPacingFindSec({ ...startSettings("target"), targetCount: 10 })).toBe(30);
   });
 
   // (D3 review) the start looks that end a run: Lines' string art and Paint's full canvas. Measured when this was written (seeds
   // 1–200, the page's 800 × 450 world): Lines 100 runs within 23.5 ± 0.5 s, Paint 35 within 21 – Lines none within 30 ± 0.5 s,
   // Paint one, at 29.5 s, its FULL CANVAS! in the clip's last half-second
   it("(D3 review) is a start look's own run length while the run is the start look's, and the page's 30 on the link base", () => {
-    expect(clipPacingFindSec({ ...defaultSettings("lines"), ...clipStartSettings("lines") })).toBe(23.5);
-    expect(clipPacingFindSec({ ...defaultSettings("paint"), ...clipStartSettings("paint") })).toBe(21);
+    expect(clipPacingFindSec(startSettings("lines"))).toBe(23.5);
+    expect(clipPacingFindSec(startSettings("paint"))).toBe(21);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=lines&rlines=1&s=700&lns=64")))).toBe(23.5);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paint&r=12&s=600&pgu=1")))).toBe(21);
     // the link bases (endless strings; the unguided canvas, full in 73–118 s) and a run of their own keep the page's 30
@@ -82,11 +86,11 @@ describe("--- finder-target --- Find Simulation's target on a paced mode's page 
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=lines&rlines=1&s=700&lns=32")))).toBe(30);
     expect(clipPacingFindSec(settingsFromSearchParams(new URLSearchParams("mode=paint&r=12&s=600")))).toBe(30);
     // a start look without a target of its own keeps the page's 30
-    expect(clipPacingFindSec({ ...defaultSettings("collide"), ...clipStartSettings("collide") })).toBe(30);
+    expect(clipPacingFindSec(startSettings("collide"))).toBe(30);
 
     const world = { width: 800, height: 450 };
     for (const mode of ["lines", "paint"] as const) {
-      const settings = { ...defaultSettings(mode), ...clipStartSettings(mode) };
+      const settings = startSettings(mode);
       const target = clipPacingFindSec(settings);
       const ends: number[] = [];
       for (let seed = 1; seed <= 40; seed++) {
@@ -110,7 +114,7 @@ describe("--- finder-target --- Find Simulation's target on a paced mode's page 
   // 28, bullseye 11 within 25, journey 6 within 21, maze 6 within 15, race 11 within 22 – none of them had one within 30 ± 0.5
   it("lands default runs on the target, where the page's 30 found none", { timeout: 240_000 }, () => {
     for (const mode of ["runner", "paddle", "bullseye", "journey", "maze", "race"] as const) {
-      const target = clipPacingFindSec(defaultSettings(mode));
+      const target = clipPacingFindSec(startSettings(mode));
       const ends: number[] = [];
       for (let seed = 1; seed <= 20; seed++) ends.push(endOf(mode, seed));
       const near = (t: number) => ends.filter((e) => e > 0 && Math.abs(e - t) <= 0.5).length;
@@ -134,7 +138,7 @@ describe("--- finales-in-clip --- (review fix) Bullseye's final card waits for a
 
   it("shows the card on the page's default runs before the run ends: the last shot is the bull's", () => {
     for (let seed = 1; seed <= 4; seed++) {
-      const engine = engineOf("mode=bullseye", seed);
+      const engine = engineOf(startQuery("bullseye"), seed);
       let cardAt = -1;
       let bullAt = -1;
       for (let frame = 1; frame <= 40 * 60 && !engine.isSimulationFinished(); frame++) {
@@ -155,7 +159,7 @@ describe("--- finales-in-clip --- (review fix) Bullseye's final card waits for a
 describe("--- paddle-drums --- Paddle Keep-Up's beat", () => {
   it("plays a kick on every catch and a hat at the top of every flight, sounds of their own, never more than 1.6 s apart in play", () => {
     for (const seed of [3, 7, 12]) {
-      const engine = engineOf("mode=paddle", seed);
+      const engine = engineOf(startQuery("paddle"), seed);
       const log = runLogged(engine);
       const view = engine.getPaddleView();
       const drums = log.filter((s) => s.ev.bdDrum);
@@ -178,9 +182,9 @@ describe("--- paddle-drums --- Paddle Keep-Up's beat", () => {
   });
 
   it("leaves the run where it was: the same catches, misses and end with the drums", () => {
-    const a = engineOf("mode=paddle", 5);
+    const a = engineOf(startQuery("paddle"), 5);
     runLogged(a);
-    const b = engineOf("mode=paddle", 5);
+    const b = engineOf(startQuery("paddle"), 5);
     for (let frame = 1; frame <= 70 * 60 && !b.isSimulationFinished(); frame++) b.update(1000 / 60, 0);
     const [va, vb] = [a.getPaddleView(), b.getPaddleView()];
     expect([va.hits, va.misses, va.overSec, va.wallHits]).toEqual([vb.hits, vb.misses, vb.overSec, vb.wallHits]);
@@ -190,7 +194,7 @@ describe("--- paddle-drums --- Paddle Keep-Up's beat", () => {
 // --- vortex-finale ---
 describe("--- vortex-finale --- the ring release's last marble down the hole", () => {
   it("is marked before the run's end with a deep pew and a closing chord, on the page's default", () => {
-    const engine = engineOf("mode=vortex", 7);
+    const engine = engineOf(startQuery("vortex"), 7);
     const log = runLogged(engine, 40);
     const v = engine.getVortexView();
     expect(v.finished).toBe(true);
@@ -206,7 +210,7 @@ describe("--- vortex-finale --- the ring release's last marble down the hole", (
   });
 
   it("never marks a looping ring release", () => {
-    const engine = engineOf("mode=vortex&vxl=1", 7);
+    const engine = engineOf(`${startQuery("vortex")}&vxl=1`, 7);
     for (let frame = 1; frame <= 30 * 60; frame++) engine.update(1000 / 60, 0);
     expect(engine.getVortexView().funnel.doneMs).toBe(-1);
   });
@@ -217,7 +221,7 @@ describe("--- finales-in-clip --- (review fix) the Race podium 1.5 s after the t
   it("comes up 1.5 s after third place on the page's races, at the latest at the race's end, the run unchanged", () => {
     const gaps: number[] = [];
     for (let seed = 1; seed <= 12; seed++) {
-      const engine = engineOf("mode=race", seed);
+      const engine = engineOf(startQuery("race"), seed);
       let shownAt = -1;
       for (let frame = 1; frame <= 60 * 60 && !engine.isSimulationFinished(); frame++) {
         engine.update(1000 / 60, 0);

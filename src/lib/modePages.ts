@@ -3,6 +3,7 @@ import { modesOnShelf, shelfOf } from "@/lib/siteDesign";
 import { GALLERY, galleryHref, type GalleryPreset, type LocalizedText } from "@/content/gallery";
 import { looksOf, type LookKind } from "@/content/looks";
 import { cardHref } from "@/lib/thumbnails/heroMoments";
+import { startQuery } from "@/lib/studioLooks"; // --- pace-as-look --- (server only: the mode pages and the sitemap)
 import { MODE_PAGES_PATH, modePagePath, modeSlug } from "@/lib/modePagePath";
 import { CHAIN_LINK_CEILING } from "@/lib/uncap";
 
@@ -62,13 +63,13 @@ export interface ModePageLook {
 
 /**
  * The looks of a mode as the studio's Looks row lists them (src/content/looks.ts), each with the link that opens it: Plain is the
- * mode alone, the card's look is the card's own link (its seed too), a gallery preset its Try it link (its seed too), the daily
- * challenge's look the mode with those settings.
+ * mode's start look (--- pace-as-look --- `startQuery`, what the page itself starts the mode in), the card's look is the card's own
+ * link (its seed too), a gallery preset its Try it link (its seed too), the daily challenge's look the mode with those settings.
  */
 export function modePageLooks(mode: ModeId): ModePageLook[] {
   return looksOf(mode).map((look) => {
     const preset = look.kind === "gallery" ? GALLERY.find((p) => p.id === look.id) : undefined;
-    const href = preset ? galleryHref(preset) : look.kind === "card" ? cardHref(mode) : `/simulator?${[`mode=${mode}`, look.query].filter(Boolean).join("&")}`;
+    const href = preset ? galleryHref(preset) : look.kind === "card" ? cardHref(mode) : look.kind === "plain" ? `/simulator?${startQuery(mode)}` : `/simulator?${[`mode=${mode}`, look.query].filter(Boolean).join("&")}`;
     return { id: look.id, kind: look.kind, name: look.name, href, ...(preset ? { preset } : {}) };
   });
 }

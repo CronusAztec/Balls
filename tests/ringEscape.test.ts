@@ -28,6 +28,7 @@ import { ringGapDegrees, ringRainbowColor, ringTimerText } from "@/components/si
 import { RING_ESCAPE_KEYS } from "@/components/simulator/sections/RingEscapeSection";
 import { MODE_BLOCK_KEY_SET, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
 import { sectionDefaults } from "@/components/simulator/Controls"; // --- low-findings-2 ---
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (Reset Category goes back to the start look)
 import { loopHudCount, loopHudFrame, ringTimeText } from "@/lib/loop/hud"; // --- low-findings-2 ---
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
@@ -552,12 +553,14 @@ describe("Ring Escape: the panel and the translations", () => {
 
 describe("Ring Escape: the Wall section's reset and the loop HUD's time in the ring", () => {
   it("resets the Ring Escape options with the Wall section's Reset Category", () => {
-    const d = defaultSettings("classic");
+    // --- pace-as-look --- to Classic's start look (the page's own first run: the ring sounds on), never the bare link base
+    const d = startSettings("classic");
+    expect([d.ringSound, defaultSettings("classic").ringSound]).toEqual([true, false]);
     const reset = sectionDefaults("wall", "classic");
     expect(reset).toMatchObject({ gapLayout: d.gapLayout, gapSpiralStep: d.gapSpiralStep, ringSpin: d.ringSpin, ringRainbow: d.ringRainbow, ringTimer: d.ringTimer, ringSound: d.ringSound });
     const on = settingsOf({ gapLayout: "random", gapSpiralStep: 77, ringSpin: "together", ringRainbow: true, ringTimer: true, ringSound: true });
     const back = { ...on, ...reset };
-    expect([back.gapLayout, back.gapSpiralStep, back.ringSpin, back.ringRainbow, back.ringTimer, back.ringSound]).toEqual(["even", 30, "alternate", false, false, false]);
+    expect([back.gapLayout, back.gapSpiralStep, back.ringSpin, back.ringRainbow, back.ringTimer, back.ringSound]).toEqual(["even", 30, "alternate", false, false, true]);
     // every key the Wall section's Ring Escape block shows is one the reset puts back (the preset buttons excepted)
     for (const key of RING_ESCAPE_KEYS.filter((k) => k !== "reSpiralPreset")) expect(key in reset, key).toBe(true);
   });
