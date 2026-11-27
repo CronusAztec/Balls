@@ -1,6 +1,9 @@
 import type { LiveHud } from "@/lib/watermark/liveLayout";
 import { TRACK_X0, TRACK_X1 } from "@/lib/physics/raceTrack";
 import { PD_CEILING } from "@/lib/physics/modes/paddle";
+import { SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
+import type { CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
+import type { PendulumView } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
 
 /*
  * --- watermark-everywhere --- What the canvas tells the live watermark about the HUD it drew this frame (lib/watermark/
@@ -98,6 +101,71 @@ export function noteHomeCounter(hud: LiveHud, sq: HudSquare): void {
   const h = 1.5 * big * 1.12; // (it pops 12 % larger on a new arrival)
   hud.block(sq.x0 + pad, sq.y0 + sq.side - pad - h, 0.4 * sq.side, h);
 }
+
+// --- badge-clear --- (round two, B7a) The payoffs the badge kept landing on, drawn in the world rather than in a HUD corner: the
+// multipliers board's HOME zone, Bullseye's target and its landed pile, Collision Playground's heap under a pouring jar and Pendulum
+// Wave's support bar. A band or a block each, from the same geometry their renderers draw with; the world ones mapped to the screen
+// through the frame's view (`HudView`), so a zoom or a follow camera moves them with the picture.
+
+/** Where the world is drawn this frame (canvas units): screen = world × `scale` + (`tx`, `ty`) – the camera's zoom and follow. */
+export interface HudView {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
+/**
+ * The multipliers board's HOME zone (multiplierRenderer.ts `drawMultipliersBoard`: the green band across the board with HOME and
+ * its count in the middle), its top at `homeTop` (screen): a band along the bottom of the square while it is on screen, so the
+ * badge sits above it instead of on the count (a payoff number) – the corner chip `noteHomeCounter()` reports is the count while
+ * the zone is below the screen.
+ */
+export function noteHomeBand(hud: LiveHud, sq: HudSquare, homeTop: number): void {
+  if (homeTop > sq.y0 && homeTop < sq.y0 + sq.side) hud.bottomBand(homeTop);
+}
+
+/**
+ * Bullseye's target and the balls that landed (bullseyeRenderer.ts `drawWorld`: the dartboard lying on the landing line, the shots
+ * stuck where they landed, stacked where they met): a band along the bottom of the square from the top of the target's ellipse or
+ * of the highest landed ball, whichever is higher, so the badge keeps above the pile at the target's ends.
+ */
+export function noteBullseyePile(hud: LiveHud, view: Pick<BullseyeView, "layout" | "shots" | "shotState" | "shotY">, world: HudView): void {
+  const L = view.layout;
+  if (!L) return;
+  let top = L.floorY - L.targetDepth;
+  for (let k = 0; k < view.shots; k++) if (view.shotState[k] === SHOT_LANDED && view.shotY[k] - L.ballRadius < top) top = view.shotY[k] - L.ballRadius;
+  hud.bottomBand(top * world.scale + world.ty);
+}
+
+/**
+ * Collision Playground's heap (collideRenderer.ts, --- collide-pour ---): once the jar pours, the orbs out of it heap on the catch
+ * floor under it – the square's sides and bottom – so from the first orb out the floor under the jar is a block, and the badge
+ * takes its side's top corner beside the jar instead of the heap.
+ */
+export function noteCollideHeap(hud: LiveHud, view: Pick<CollideView, "field" | "pourActive" | "left" | "count">, world: HudView): void {
+  const f = view.field;
+  if (!f || !view.pourActive || !(view.left < view.count)) return;
+  const s = world.scale;
+  hud.block(f.catchLeft * s + world.tx, f.bottom * s + world.ty, (f.catchRight - f.catchLeft) * s, (f.catchBottom - f.bottom) * s);
+}
+
+/**
+ * Pendulum Wave's support bar (pendulumRenderer.ts `drawPendulumRig`, the row layout: the bar from three bob radii left of the first
+ * pivot to three right of the last, its pivots on it): a block a bob radius above and below it, so when IN LINE! takes the bottom
+ * of the square the badge no longer moves onto the bar. The other layouts have no bar.
+ */
+export function notePendulumBar(hud: LiveHud, view: Pick<PendulumView, "rig">, world: HudView): void {
+  const rig = view.rig;
+  if (!rig || rig.layout !== "row") return;
+  const n = rig.anchorX.length;
+  if (n === 0) return;
+  const r = Math.max(3, rig.bobRadius);
+  const x0 = rig.anchorX[0] - 3 * r;
+  const x1 = rig.anchorX[n - 1] + 3 * r;
+  const s = world.scale;
+  hud.block(x0 * s + world.tx, (rig.barY - r) * s + world.ty, (x1 - x0) * s, 2 * r * s);
+}
+// --- end badge-clear ---
 
 /** Beat Runner's progress bar and Paddle Keep-Up's score band, across the top of the square – jdmRhythmRenderer.ts. */
 export function noteRhythmBand(hud: LiveHud, sq: HudSquare, inset: number, kind: "runner" | "paddle"): void {

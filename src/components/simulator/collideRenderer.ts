@@ -419,8 +419,39 @@ export function drawCollideBodies(ctx: CanvasRenderingContext2D, balls: Ball[], 
   ctx.restore();
 }
 
-/** Screen space, after the camera: the flash and the caption of the anti-collision switch. */
-export function drawCollideOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, view: CollideView, caption: string) {
+// --- badge-clear --- (round two, B7a) the caption's plate: nearly black under the words, a lime rim, where the caption always was
+/** The plate's fill and rim, its padding around the words and its height (shares of the caption's font size). */
+export const ANTI_PLATE_FILL = "rgba(9, 11, 16, 0.82)";
+export const ANTI_PLATE_RIM = "#93d119";
+export const ANTI_PLATE_PAD_X = 0.45;
+export const ANTI_PLATE_HEIGHT = 1.45;
+
+/** Where the caption's plate was drawn this frame (screen px; w 0: none), for the live watermark's HUD report. */
+export interface CollideLabelPlate {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function platePath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rad = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+// --- end badge-clear ---
+
+/**
+ * Screen space, after the camera: the flash and the caption of the anti-collision switch – the caption across the middle on a
+ * small plate (--- badge-clear ---), whose rectangle goes into `plate` (w 0 while no caption shows).
+ */
+export function drawCollideOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, view: CollideView, caption: string, plate?: CollideLabelPlate) {
+  if (plate) plate.w = 0;
   if (!view.antiActive) return;
   const age = ticksAgoMs(view, view.antiTick);
   if (!(age >= 0)) return;
@@ -434,6 +465,23 @@ export function drawCollideOverlay(ctx: CanvasRenderingContext2D, width: number,
     const fs = Math.max(18, 0.07 * Math.min(width, height));
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.font = `900 ${fs}px sans-serif`;
+    // --- badge-clear --- the plate under the words (no blur: the rim is a plain stroke)
+    const pw = ctx.measureText(caption).width + 2 * ANTI_PLATE_PAD_X * fs;
+    const ph = ANTI_PLATE_HEIGHT * fs;
+    const px = width / 2 - pw / 2;
+    const py = height / 2 - ph / 2;
+    platePath(ctx, px, py, pw, ph, 0.3 * ph);
+    ctx.fillStyle = ANTI_PLATE_FILL;
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.5, 0.04 * fs);
+    ctx.strokeStyle = ANTI_PLATE_RIM;
+    ctx.stroke();
+    if (plate) {
+      plate.x = px;
+      plate.y = py;
+      plate.w = pw;
+      plate.h = ph;
+    }
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#ffffff";

@@ -17,7 +17,7 @@ import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, ty
 import { PolyrhythmHoldClock, polyrhythmBannerAt, polyrhythmBannerWidth } from "./polyrhythmRenderer"; // --- poly-hold --- --- poly-banner ---
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 // --- jdm-collisions ---
-import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
+import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideLabelPlate, type CollideRenderOptions } from "./collideRenderer";
 // --- gerald-glass ---
 import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glassRenderer";
 // --- gerald-multipliers ---
@@ -40,7 +40,7 @@ import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 // --- camera --- zoom, screen shake, slow motion on near misses and the escape replay (lib/simulation/camera.ts)
 import { CinematicCamera } from "./cameraRenderer";
-import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
+import { DEFAULT_CAMERA_SETTINGS, cameraTransform, type CameraSettings } from "@/lib/simulation/camera";
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
 import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
 import { ExitSplatLayer } from "./exitSplatRenderer"; // --- gerald-exit-splat ---
@@ -133,7 +133,7 @@ import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, landCl
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
-import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteHomeBand, noteHomeCounter, noteJourneyHud, notePendulumBar, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare, type HudView } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { SWARM_DATA_KEYS, SwarmLayer, writeSwarmDataset } from "./multiplySwarmRenderer"; // --- multiply-race ---
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
@@ -1301,6 +1301,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const liveHud = new LiveHud();
     const liveBoard = { x: 0, y: 0, w: 0, h: 0 };
     const liveSquare: HudSquare = { x0: 0, y0: 0, side: 0 };
+    // --- badge-clear --- (round two, B7a) the world's view for the HUD report, and Collision Playground's caption plate
+    const liveWorld: HudView = { scale: 1, tx: 0, ty: 0 };
+    const collidePlate: CollideLabelPlate = { x: 0, y: 0, w: 0, h: 0 };
     const liveText = { fontSize: 0, topY: 0, bottomY: 0 };
     const liveEdge = emptyEdgeTextLines();
     const liveRecording = { startMs: 0, width: 0, height: 0 };
@@ -2955,7 +2958,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-polyrhythm --- every voice ticking at once lights up the frame.
       if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView(), polyRender.heldMs); // (--- poly-hold --- fading in the hold)
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
-      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
+      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "", collidePlate); // (--- badge-clear --- on a plate)
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- hud-alpha --- (Lane E, E5) the counters, titles and banners over the square at full opacity: the camera pass's 0.6 (the
@@ -4067,6 +4070,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (journeyView && p.journeyHud) noteJourneyHud(hud, journeyView.field); // (--- templates --- AI studio step 4b: none switched off)
         if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);
         if (multBoard) noteHomeCounter(hud, liveSquare);
+        // --- badge-clear --- (round two, B7a) the payoffs drawn in the world: the HOME zone on screen (the board's own scroll), the
+        // target and its pile, the heap under a pouring jar and the ANTI-COLLISION plate (through the camera's view; the support bar below)
+        if (multBoard?.board) noteHomeBand(hud, liveSquare, multBoard.board.homeY - multBoard.cameraY);
+        cameraTransform(cam.view, cx, cy, 0, 0, liveWorld);
+        if (bullseyeView) noteBullseyePile(hud, bullseyeView, liveWorld);
+        if (isCollide) {
+          noteCollideHeap(hud, engine.getCollideView(), liveWorld);
+          if (collidePlate.w > 0) hud.block(collidePlate.x, collidePlate.y, collidePlate.w, collidePlate.h);
+        }
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
         if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 5 + (conveyorView.settings.arena === "bowl" && conveyorView.overflow > 0 ? 1 : 0) + (conveyorView.settings.freeze && conveyorView.frozen > 0 ? 1 : 0), "right"); // --- conveyor-count --- (the big counter: five title lines tall, a line more for the spilled and the frozen balls)
         if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
@@ -4089,6 +4101,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         hud.topBand(loopHudLive.top);
         hud.bottomBand(loopHudLive.bottom);
         hud.bottomBand(ringLineBottom); // --- ring-escape --- (the time-in-ring line under the rings)
+        // --- badge-clear --- Pendulum Wave's support bar, held while nothing but its IN LINE! verdict holds the bottom of the square:
+        // with captions or the Bottom Text there too, the verdict and the bar could leave no corner, and the badge would fall back
+        // over their words (it keeps its old place then)
+        if (isPendulum && !Number.isFinite(hud.bottom) && !p.bottomText) notePendulumBar(hud, engine.getPendulumView(), liveWorld);
         if (pfView && pfLayer.labelRect.w > 0) hud.block(pfLayer.labelRect.x, pfLayer.labelRect.y, pfLayer.labelRect.w, pfLayer.labelRect.h); // --- perfect-fit --- (the words under the box or the well)
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)

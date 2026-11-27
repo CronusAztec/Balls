@@ -3,8 +3,12 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
 import { BADGE_MIN_HEIGHT, BADGE_SWITCH_MS, badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
-import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
-import { noteCornerReadouts, noteEdgeText, noteJourneyHud, noteRaceHud, noteTitleBlock } from "@/components/simulator/liveMarkHud";
+import { LIVE_BADGE_HEIGHT, LIVE_MARGIN, LiveHud, liveBadgeBox, liveBadgeHeight, liveCornerOrder, liveMargin, mapLiveHud, placeLiveBadge, placeVideoBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
+import { noteBullseyePile, noteCollideHeap, noteCornerReadouts, noteEdgeText, noteHomeBand, noteJourneyHud, notePendulumBar, noteRaceHud, noteTitleBlock, type HudView } from "@/components/simulator/liveMarkHud";
+import { ANTI_LABEL_MS, drawCollideOverlay, type CollideLabelPlate } from "@/components/simulator/collideRenderer"; // --- badge-clear ---
+import { SHOT_LANDED, SHOT_WAITING, buildBullseyeLayout } from "@/lib/physics/modes/bullseye"; // --- badge-clear ---
+import { buildCollideField, type CollideView } from "@/lib/physics/modes/collide"; // --- badge-clear ---
+import { buildPendulumField, buildPendulumRig, pendulumFrequencies, resolvePendulumSettings } from "@/lib/physics/modes/pendulum"; // --- badge-clear ---
 import { FL_ARENA_FRAC, FL_ARENA_TOP } from "@/lib/physics/modes/fightLeague";
 import { signForeignLicense, signTestLicense } from "../scripts/lib/test-license.mjs";
 import { drawsOf, fakeCanvas, fakeDocument, type FakeCanvas } from "./fakeCanvas";
@@ -785,5 +789,176 @@ describe("--- low-findings --- the video's own badge at export resolution, clear
   it("names only the message keys the watermark's components use (no dead copy)", () => {
     const used = (read("src/components/billing/WatermarkBadge.tsx") + read("src/components/simulator/sections/FreeWatermarkNote.tsx")).match(/\bt\("(\w+)"/g)!.map((m) => m.slice(3, -1));
     for (const messages of [en, pl, es]) expect(Object.keys(messages.Watermark).sort()).toEqual([...new Set(used)].sort());
+  });
+});
+
+// --- badge-clear --- (round two, B7a) The payoffs the badge kept landing on in the exports: the multipliers board's HOME count,
+// Bullseye's pile at the target's ends, Collision Playground's heap and Pendulum Wave's support bar once IN LINE! takes the bottom.
+describe("--- badge-clear --- the badge keeps off the payoffs a mode draws in its world", () => {
+  /** A 450 px source square at the canvas' origin, and the 1080 × 1920 export it is filmed into. */
+  const S = 450;
+  const SQ = { x0: 0, y0: 0, side: S };
+  const identity: HudView = { scale: 1, tx: 0, ty: 0 };
+  const ew = 1080;
+  const eh = 1920;
+  const exportSq = exportSquare(ew, eh);
+  const metrics = badgeMetrics(exportSq.width);
+  /** Where the badge goes live (in the source square) and in the export (mapped back into the source square's px). */
+  const badges = (hud: LiveHud, clipMs: number) => {
+    const live = liveBadgeBox({ area: { x: 0, y: 0, width: S, height: S } });
+    const l = placeLiveBadge(live, Math.round(4.4 * live.height), live.height, clipMs, hud, placement());
+    const mapped = mapLiveHud(hud, { x: 0, y: 0, side: S }, exportSq, new LiveHud());
+    const v = placeVideoBadge(ew, eh, exportSq, { width: Math.round(4.4 * metrics.height), height: metrics.height, inset: metrics.inset }, clipMs, mapped, placement());
+    const k = S / exportSq.width;
+    const video = { x: (v.x - exportSq.x) * k, y: (v.y - exportSq.y) * k, width: v.width * k, height: v.height * k, corner: v.corner, free: v.free };
+    return { live: l, video };
+  };
+
+  it("the multipliers board's HOME zone on screen is a band along the bottom: the badge sits above HOME and its count", () => {
+    const homeTop = 0.78 * S;
+    const hud = new LiveHud().reset(1);
+    noteHomeBand(hud, SQ, homeTop);
+    expect(hud.bottom).toBe(homeTop);
+    for (const t of [1000, 7000]) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) {
+        expect(b.corner.startsWith("bottom"), `${t}`).toBe(true);
+        expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(homeTop + 0.5);
+      }
+    }
+    // below the screen (the corner chip shows the count) or scrolled past its top: no band
+    for (const off of [S + 1, 1.5 * S, -1]) {
+      const none = new LiveHud().reset(1);
+      noteHomeBand(none, SQ, off);
+      expect(none.bottom).toBe(Number.POSITIVE_INFINITY);
+    }
+  });
+
+  it("Bullseye: a band from the target's top or the highest landed ball, so the badge keeps above the pile at the target's ends", () => {
+    const L = buildBullseyeLayout(S, S, 6, 0.5, 1);
+    const shotY = new Float64Array(3);
+    const shotState = new Uint8Array([SHOT_LANDED, SHOT_LANDED, SHOT_WAITING]);
+    shotY[0] = L.floorY - L.ballRadius; // on the landing line: under the target's top
+    shotY[1] = L.floorY - 9 * L.ballRadius; // a stack of balls, above the target's top
+    shotY[2] = 0; // not landed yet: ignored
+    const view = { layout: L, shots: 2, shotState: new Uint8Array([SHOT_LANDED, SHOT_WAITING]), shotY };
+    const hud = new LiveHud().reset(1);
+    noteBullseyePile(hud, view, identity);
+    expect(hud.bottom).toBeCloseTo(L.floorY - L.targetDepth, 9);
+    const pile = L.floorY - 10 * L.ballRadius;
+    expect(pile).toBeLessThan(L.floorY - L.targetDepth);
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, identity);
+    expect(hud.bottom).toBeCloseTo(pile, 9);
+    for (const t of [1000, 7000]) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) expect(b.y + b.height, `${t}`).toBeLessThanOrEqual(pile + 0.5);
+    }
+    // through a zoomed, followed camera the band moves with the picture
+    const cam: HudView = { scale: 1.5, tx: -100, ty: -60 };
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: L, shots: 3, shotState, shotY }, cam);
+    expect(hud.bottom).toBeCloseTo(pile * 1.5 - 60, 9);
+    hud.reset(1);
+    noteBullseyePile(hud, { layout: null, shots: 0, shotState, shotY }, identity);
+    expect(hud.bottom).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("Collision Playground: from the first orb out of a pouring jar the floor under it is held, and the badge takes a top corner beside the jar", () => {
+    const f = buildCollideField(S, S, "circle", true);
+    const view = (pourActive: boolean, left: number): Pick<CollideView, "field" | "pourActive" | "left" | "count"> => ({ field: f, pourActive, left, count: 300 });
+    const hud = new LiveHud().reset(1);
+    noteCollideHeap(hud, view(false, 300), identity);
+    noteCollideHeap(hud, view(true, 300), identity); // open, nothing out yet
+    expect(hud.count).toBe(0);
+    noteCollideHeap(hud, view(true, 299), identity);
+    expect(hud.count).toBe(1);
+    expect(hud.blocks.slice(0, 4)).toEqual([f.catchLeft, f.bottom, f.catchRight - f.catchLeft, f.catchBottom - f.bottom]);
+    const heap = { x: f.catchLeft, y: f.bottom, width: f.catchRight - f.catchLeft, height: f.catchBottom - f.bottom };
+    /** The point of `r` nearest the jar's centre is outside the jar. */
+    const clearOfJar = (r: FrameRect) => Math.hypot(Math.max(r.x, Math.min(f.cx, r.x + r.width)) - f.cx, Math.max(r.y, Math.min(f.cy, r.y + r.height)) - f.cy) > f.radius;
+    for (const [t, side] of [[1000, "top-left"], [7000, "top-right"]] as const) {
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) {
+        expect(b.corner, `${t}`).toBe(side);
+        expect(overlaps(b, heap), `${t}`).toBe(false);
+      }
+      expect(clearOfJar(live), `${t} ${JSON.stringify(live)}`).toBe(true); // (the export's top right, pushed in by the platforms' safe zone, meets the jar's rim)
+    }
+    // the ring (no jar) and an empty field report nothing
+    hud.reset(1);
+    noteCollideHeap(hud, { field: null, pourActive: true, left: 0, count: 300 }, identity);
+    expect(hud.count).toBe(0);
+  });
+
+  it("Collision Playground's ANTI-COLLISION caption sits on a plate across the middle, drawn under the words and reported while it shows", () => {
+    const canvas = fakeCanvas(800, 450);
+    const ctx = canvas.getContext("2d");
+    const plate: CollideLabelPlate = { x: 0, y: 0, w: 0, h: 0 };
+    const v = { antiActive: true, antiTick: 0, tick: 50, tickMs: 10 } as unknown as CollideView; // 500 ms after the switch
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, v, "ANTI-COLLISION", plate);
+    expect(plate.w).toBeGreaterThan(0);
+    expect(plate.x + plate.w / 2).toBeCloseTo(400, 6);
+    expect(plate.y + plate.h / 2).toBeCloseTo(225, 6);
+    const names = ctx.calls.map((c) => c.name);
+    const text = names.indexOf("fillText");
+    expect(text).toBeGreaterThan(names.indexOf("fill"));
+    expect(text).toBeGreaterThan(names.indexOf("stroke"));
+    // the words fit on it
+    const words = ctx.calls[text];
+    expect(words.args.slice(0, 3)).toEqual(["ANTI-COLLISION", 400, 225]);
+    // gone with the caption, and nothing while the switch has not happened
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, { ...v, tick: ANTI_LABEL_MS / 10 + 1 } as unknown as CollideView, "ANTI-COLLISION", plate);
+    expect(plate.w).toBe(0);
+    plate.w = 5;
+    drawCollideOverlay(ctx as unknown as CanvasRenderingContext2D, 800, 450, { ...v, antiActive: false } as unknown as CollideView, "ANTI-COLLISION", plate);
+    expect(plate.w).toBe(0);
+  });
+
+  it("Pendulum Wave: the support bar is held, so IN LINE! at the bottom no longer sends the badge onto the bar", () => {
+    const settings = resolvePendulumSettings({ layout: "row" });
+    const field = buildPendulumField(S, S);
+    const rig = buildPendulumRig(field, settings, 8, pendulumFrequencies(settings));
+    const n = rig.anchorX.length;
+    const bar = { x: rig.anchorX[0] - 3 * rig.bobRadius, y: rig.barY - 1, width: rig.anchorX[n - 1] - rig.anchorX[0] + 6 * rig.bobRadius, height: 2 };
+    for (const t of [1000, 7000, 25_000, 31_000]) {
+      const hud = new LiveHud().reset(1);
+      hud.block(0.225 * S, 0.67 * S, 0.55 * S, 0.26 * S); // IN LINE! under the row of bobs (centred at 0.8 of the square)
+      notePendulumBar(hud, { rig }, identity);
+      const { live, video } = badges(hud, t);
+      for (const b of [live, video]) expect(overlaps(b, bar), `${t} ${JSON.stringify(b)}`).toBe(false);
+      // without the report the export's badge went onto the bar
+      const before = new LiveHud().reset(1);
+      before.block(0.225 * S, 0.67 * S, 0.55 * S, 0.26 * S);
+      expect(overlaps(badges(before, t).video, bar), `${t}`).toBe(true);
+    }
+    // with captions along the bottom as well, the verdict and a held bar would leave the export's badge no corner: it would fall
+    // back to the bottom of the square, over the captions' words – so the canvas holds the bar only while nothing but the verdict
+    // holds the bottom of the square (there the badge keeps its old place)
+    const captions = new LiveHud().reset(1);
+    captions.bottomBand(0.85 * S);
+    captions.block(0.225 * S, 0.62 * S, 0.55 * S, 0.22 * S);
+    expect(badges(captions, 1000).video.free).toBe(true);
+    notePendulumBar(captions, { rig }, identity);
+    const fallen = badges(captions, 1000).video;
+    expect([fallen.free, fallen.y + fallen.height > 0.85 * S]).toEqual([false, true]);
+    // the other layouts have no bar
+    for (const layout of ["arc", "circle", "galaxy", "sliding", "bouncing"] as const) {
+      const s = resolvePendulumSettings({ layout });
+      const hud = new LiveHud().reset(1);
+      notePendulumBar(hud, { rig: buildPendulumRig(field, s, 8, pendulumFrequencies(s)) }, identity);
+      expect(hud.count, layout).toBe(0);
+    }
+  });
+
+  it("is wired: the canvas reports them with the frame's HUD, the world ones through the camera's view", () => {
+    const body = strip(read("src/components/simulator/Canvas.tsx"));
+    const hud = body.slice(body.indexOf("const hud = liveHud.reset(scale);"), body.indexOf("stampLiveFrame(liveFrame)"));
+    expect(hud).toMatch(/if \(multBoard\?\.board\) noteHomeBand\(hud, liveSquare, multBoard\.board\.homeY - multBoard\.cameraY\);/);
+    expect(hud).toMatch(/cameraTransform\(cam\.view, cx, cy, 0, 0, liveWorld\);[\s\S]*?noteBullseyePile\(hud, bullseyeView, liveWorld\);/);
+    expect(hud).toMatch(/noteCollideHeap\(hud, engine\.getCollideView\(\), liveWorld\);\s*if \(collidePlate\.w > 0\) hud\.block\(collidePlate\.x, collidePlate\.y, collidePlate\.w, collidePlate\.h\);/);
+    // the bar only while nothing but the verdict holds the bottom (after every band along it, before the Bottom Text)
+    expect(hud).toMatch(/hud\.bottomBand\(ringLineBottom\);\s*if \(isPendulum && !Number\.isFinite\(hud\.bottom\) && !p\.bottomText\) notePendulumBar\(hud, engine\.getPendulumView\(\), liveWorld\);/);
+    expect(body).toMatch(/drawCollideOverlay\([^;]*, collidePlate\);/);
   });
 });
