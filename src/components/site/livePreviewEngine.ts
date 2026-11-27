@@ -4,6 +4,7 @@ import { defaultSettings } from "@/lib/settings";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { gapWrap, type ModeId } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import { ringArc } from "@/components/simulator/ringArc"; // --- ring-arc --- (round two, B8)
 
 /*
  * --- site-redesign --- The landing page's live preview: the real PhysicsEngine – the studio's, with a mode's default
@@ -76,7 +77,9 @@ export function drawPreview(ctx: CanvasRenderingContext2D, engine: PhysicsEngine
     }
     if (cursor < TWO_PI + c0) {
       ctx.beginPath();
-      ctx.arc(cx, cy, wall.radius, cursor + rot, TWO_PI + c0 + rot);
+      // --- ring-arc --- (round two, B8) a ring without gaps as the whole circle from 0, as Canvas.tsx draws it: Chromium strokes
+      // nothing for a turned full turn on about 1.5 % of its angles, so the landing's preview lost its ring for a frame or two
+      ringArc(ctx, cx, cy, wall.radius, cursor + rot, TWO_PI + c0 + rot);
       ctx.stroke();
     }
   }

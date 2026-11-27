@@ -1,5 +1,6 @@
 import { END_HOLD_SEC, type BeatDropView } from "@/lib/physics/modes/beatDrop";
 import {
+  BEATS_PER_BAR,
   BEAT_DROP_KINDS,
   PAD_GEOMETRY,
   WEDGE_TILT,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/simulation/beatDropPlan";
 import { shakeAmplitude, shakeOffset } from "@/lib/simulation/camera";
 import type { Ball } from "@/lib/physics/types";
+import { END_BANNER_IN_MS } from "./endBanner"; // --- end-banner --- (round two, B8: the title block fades out as the plate comes in)
 
 /**
  * Canvas drawing of Beat Drop (feature beat-drop; lib/physics/modes/beatDrop.ts, the plan in lib/simulation/beatDropPlan.ts).
@@ -37,6 +39,15 @@ import type { Ball } from "@/lib/physics/types";
  *
  * Nothing is allocated per frame: poses, samples and the pooled ball are reused, colours are cached strings, and the
  * data-bd-* landing log is rebuilt only when a landing was added.
+ *
+ * --- beat-build --- (round two, B8) A clip that builds instead of a nearly black one: the backdrop's light steps its hue every
+ * bar (the beat lines, a wash rising from the foot of the frame and the focus glow, BD_HUE_STEP further round each bar), and the
+ * landing that opens each phrase of BD_PHRASE_BEATS beats flashes the frame and punches the camera in (`punchAt()`). All of it
+ * reads the plan at the frame's time, so the fast export draws the same frames.
+ * --- end-banner --- (round two, B8) ON BEAT! goes over the top of the square, above the ball's path, and the title block fades
+ * out under it (`bannerAt()`): in the middle it hid the ball in 3 of 10 frames of the hold. The camera keeps where the ball lands
+ * at FOCUS_AT of the square, so at the default bounce the ball's highest point through the hold stays under the plate on every
+ * seed (tests/beatDrop.test.ts).
  */
 
 export interface BeatDropRenderOptions {
@@ -107,6 +118,55 @@ const LOOK_BACK = 10;
 const LOOK_AHEAD = 3;
 const TWO_PI = Math.PI * 2;
 
+// --- beat-build ---
+/** The backdrop's hue at bar 0 (the beat lines' violet), its step a bar (degrees) and the steps before it comes round again. */
+export const BD_HUE0 = 258;
+export const BD_HUE_STEP = 40;
+export const BD_HUE_STEPS = 9;
+/** The wash rising from the foot of the frame in the bar's hue: its light (alpha) off the beat and on it. */
+export const BD_WASH = 0.2;
+export const BD_WASH_BEAT = 0.15;
+/** A phrase (beats): the landing that opens one flashes the frame (BD_FLASH, over BD_FLASH_SEC) and punches the camera in (× 1 + BD_PUNCH_ZOOM, over BD_PUNCH_SEC). */
+export const BD_PHRASE_BEATS = 16;
+export const BD_FLASH = 0.3;
+export const BD_FLASH_SEC = 0.3;
+export const BD_PUNCH_ZOOM = 0.06;
+export const BD_PUNCH_SEC = 0.35;
+
+/** The bar landing `k` is on (0 before the first landing). */
+export function barOf(beatIndex: ArrayLike<number>, k: number): number {
+  return k >= 0 ? Math.floor(beatIndex[k] / BEATS_PER_BAR) : 0;
+}
+
+/** The backdrop's hue step (0 … BD_HUE_STEPS − 1) of bar `bar`. */
+export function hueStepOf(bar: number): number {
+  return ((bar % BD_HUE_STEPS) + BD_HUE_STEPS) % BD_HUE_STEPS;
+}
+
+/**
+ * The landing that opened the phrase landing `k` is in (its beat a multiple of BD_PHRASE_BEATS away from the run's first
+ * phrase), or −1 in the first phrase: the run's opening gets no flash. Looks back at most a phrase's landings.
+ */
+export function phraseLandingOf(beatIndex: ArrayLike<number>, k: number): number {
+  if (k < 0) return -1;
+  const phrase = Math.floor(beatIndex[k] / BD_PHRASE_BEATS);
+  if (phrase <= Math.floor(beatIndex[0] / BD_PHRASE_BEATS)) return -1;
+  let j = k;
+  for (let n = 0; n < BD_PHRASE_BEATS && j > 0 && Math.floor(beatIndex[j - 1] / BD_PHRASE_BEATS) === phrase; n++) j--;
+  return j;
+}
+
+/** The phrase's punch `age` s after the landing that opened it: 1 on it, easing to 0 over `sec` (0 outside). */
+export function punchAt(age: number, sec: number): number {
+  if (!(age >= 0) || age >= sec) return 0;
+  const u = 1 - age / sec;
+  return u * u;
+}
+// --- end beat-build ---
+
+/** --- end-banner --- (round two, B8) ON BEAT!'s plate keeps this far from the square's top (a share of the square). */
+export const BD_BANNER_EDGE = 0.02;
+
 interface Shade {
   base: string;
   light: string;
@@ -149,13 +209,26 @@ export class BeatDropLayer {
   private bgKey = "";
   private bg: CanvasGradient | null = null;
   private glowKey = -1;
-  private glow: CanvasGradient | null = null;
   /** Obstructions drawn this frame (mirrored as data-bd-alive). */
   alive = 0;
   /** The landing log's text, rebuilt when a landing is added. */
   private logCount = -1;
   private logTimes = "";
   private logBeats = "";
+  // --- beat-build --- the frame's hue step, the phrase's punch (0–1) and flash (alpha); the colours and gradients of each hue step
+  private hueStep = 0;
+  private punch = 0;
+  private flash = 0;
+  private readonly lineColors: string[] = [];
+  private readonly washColors: string[] = [];
+  private readonly glowColors: string[][] = [];
+  private readonly glows: (CanvasGradient | null)[] = [];
+  private readonly washes: (CanvasGradient | null)[] = [];
+  private washKey = "";
+  // --- end-banner --- (round two, B8) the inset of the title block, and whether ON BEAT! is up over the top of the square (the
+  // title block then fades out under it)
+  private hudInset = 0;
+  bannerOnTop = false;
 
   /** The frame's time: the engine's clock (ms) plus `aheadMs` of simulation time not stepped yet (the canvas' accumulator). */
   beginFrame(view: BeatDropView, engineMs: number, aheadMs: number) {
@@ -165,7 +238,32 @@ export class BeatDropLayer {
     this.current = landingIndexAt(plan, this.t, this.current);
     this.energy = beatEnergyAt(plan, this.t, this.current);
     this.camPx = (view.camY + view.camV * (ahead / 1000)) * view.field.size;
+    // --- beat-build --- the bar's hue step; the flash and the punch of the phrase's opening landing (a landing of the clip's, never
+    // one of the hold's silent ones after its last)
+    this.hueStep = hueStepOf(barOf(plan.beatIndex, this.current));
+    const k0 = phraseLandingOf(plan.beatIndex, this.current);
+    const counted = k0 >= 0 && 1000 * plan.t[k0] <= view.lastLandingMs + 1e-6;
+    this.punch = counted ? punchAt(this.t - plan.t[k0], BD_PUNCH_SEC) : 0;
+    this.flash = counted ? BD_FLASH * punchAt(this.t - plan.t[k0], BD_FLASH_SEC) : 0;
+    if (!this.finale(view)) this.bannerOnTop = false; // --- end-banner ---
   }
+
+  // --- beat-build ---
+  /** The camera's zoom this frame (1: none; the phrase's punch). */
+  zoom(): number {
+    return 1 + BD_PUNCH_ZOOM * this.punch;
+  }
+
+  /** The bar's colours of hue step `i`: the beat lines, the wash and the focus glow's three stops. */
+  private hueColors(i: number) {
+    if (!this.lineColors[i]) {
+      const h = Math.round(BD_HUE0 + BD_HUE_STEP * i) % 360;
+      this.lineColors[i] = `hsl(${h}, 85%, 66%)`;
+      this.washColors[i] = `hsla(${h}, 85%, 50%, 1)`;
+      this.glowColors[i] = [`hsla(${h}, 80%, 55%, 0.55)`, `hsla(${h}, 80%, 55%, 0.16)`, `hsla(${h}, 80%, 55%, 0)`];
+    }
+  }
+  // --- end beat-build ---
 
   /** The frame's simulation time (s). */
   time() {
@@ -180,6 +278,14 @@ export class BeatDropLayer {
       shakeOffset(shake.ageMs, shakeAmplitude(shake.amount, view.field.size), shake.seed, this.shake);
       sx = this.shake.x;
       sy = this.shake.y;
+    }
+    // --- beat-build --- the phrase's punch: a zoom in about the focus, where the ball lands
+    const z = this.zoom();
+    if (z !== 1) {
+      const f = view.field;
+      ctx.translate(f.cx, f.originY);
+      ctx.scale(z, z);
+      ctx.translate(-f.cx, -f.originY);
     }
     ctx.translate(sx, sy - this.camPx);
   }
@@ -201,11 +307,28 @@ export class BeatDropLayer {
     }
     ctx.fillStyle = this.bg;
     ctx.fillRect(0, 0, width, height);
-    // Beat lines scrolling at half the camera's speed (depth), brighter on the beat.
+    // --- beat-build --- (round two, B8) a wash in the bar's hue rising from the foot of the frame, brighter on the beat
+    const hs = this.hueStep;
+    this.hueColors(hs);
+    if (this.washKey !== key) {
+      this.washKey = key;
+      this.washes.length = 0;
+    }
+    let wash = this.washes[hs];
+    if (!wash) {
+      wash = ctx.createLinearGradient(0, 0.35 * height, 0, height);
+      wash.addColorStop(0, "rgba(0, 0, 0, 0)");
+      wash.addColorStop(1, this.washColors[hs]);
+      this.washes[hs] = wash;
+    }
+    ctx.globalAlpha = BD_WASH + BD_WASH_BEAT * this.energy;
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, width, height);
+    // Beat lines scrolling at half the camera's speed (depth), brighter on the beat (--- beat-build --- in the bar's hue).
     const spacing = 0.18 * S;
     const shift = (0.5 * this.camPx) % spacing;
     ctx.globalAlpha = 0.05 + 0.07 * this.energy;
-    ctx.strokeStyle = "#8b5cf6";
+    ctx.strokeStyle = this.lineColors[hs];
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let y = -shift; y < height + spacing; y += spacing) {
@@ -227,22 +350,28 @@ export class BeatDropLayer {
       ctx.arc(x, y, r, 0, TWO_PI);
     }
     ctx.fill();
-    // The focus glow, pulsing with the beat: a soft flattened radial glow around where the ball lands.
+    // The focus glow, pulsing with the beat: a soft flattened radial glow around where the ball lands (--- beat-build --- in the
+    // bar's hue).
     const e = this.energy;
     if (e > 0.02) {
       const R = 0.5 * S;
-      if (this.glowKey !== R || !this.glow) {
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
-        g.addColorStop(0, "rgba(147, 209, 25, 0.55)");
-        g.addColorStop(0.45, "rgba(147, 209, 25, 0.16)");
-        g.addColorStop(1, "rgba(147, 209, 25, 0)");
-        this.glow = g;
+      if (this.glowKey !== R) {
+        this.glows.length = 0;
         this.glowKey = R;
+      }
+      let glow = this.glows[hs];
+      if (!glow) {
+        const stops = this.glowColors[hs];
+        glow = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+        glow.addColorStop(0, stops[0]);
+        glow.addColorStop(0.45, stops[1]);
+        glow.addColorStop(1, stops[2]);
+        this.glows[hs] = glow;
       }
       ctx.globalAlpha = 0.28 * e;
       ctx.translate(f.cx, f.originY);
       ctx.scale(1, 0.28);
-      ctx.fillStyle = this.glow;
+      ctx.fillStyle = glow;
       ctx.fillRect(-R, -R, 2 * R, 2 * R);
     }
     ctx.restore();
@@ -668,7 +797,21 @@ export class BeatDropLayer {
     const left = f.cx - S / 2 + 0.035 * S;
     const top = f.top + 0.03 * S + inset;
     const fs = Math.max(11, 0.03 * S);
+    this.hudInset = inset; // --- end-banner ---
     ctx.save();
+    // --- beat-build --- the phrase's flash, over the scene and under these words
+    if (this.flash > 0.004) {
+      ctx.globalAlpha = this.flash;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, f.width, f.height);
+    }
+    // --- end-banner --- (round two, B8) ON BEAT! over the top of the square: the title block fades out as the plate comes in
+    const hud = this.bannerOnTop ? Math.max(0, 1 - (1000 * this.t - view.lastLandingMs) / END_BANNER_IN_MS) : 1;
+    if (!(hud > 0)) {
+      ctx.restore();
+      return;
+    }
+    ctx.globalAlpha = hud;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.font = `800 ${fs.toFixed(1)}px sans-serif`;
@@ -687,7 +830,7 @@ export class BeatDropLayer {
     for (let i = 0; i < 4; i++) {
       const on = i === pos;
       const r = (i === 0 ? 0.3 : 0.22) * fs * (on ? 1 + 0.5 * this.energy : 1);
-      ctx.globalAlpha = on ? 0.5 + 0.5 * this.energy : 0.25;
+      ctx.globalAlpha = hud * (on ? 0.5 + 0.5 * this.energy : 0.25);
       ctx.fillStyle = on ? "#93d119" : "#ffffff";
       ctx.beginPath();
       ctx.arc(left + 0.3 * fs + i * 0.85 * fs, dotY, r, 0, TWO_PI);
@@ -700,6 +843,20 @@ export class BeatDropLayer {
   finale(view: BeatDropView): boolean {
     return view.plannedLandings > 0 && view.landed >= view.plannedLandings && view.timeMs >= view.finishMs - 1000 * END_HOLD_SEC - 1e-6;
   }
+
+  // --- end-banner --- (round two, B8)
+  /**
+   * Where ON BEAT!'s plate, `height` px tall, has its centre (a share of the square from its top; Canvas.tsx's bigBanner): over
+   * the top of the square, BD_BANNER_EDGE under its edge (and under the page's buttons' inset live), above the ball's path. The
+   * title block fades out under it from then on (drawOverlay()).
+   */
+  bannerAt(view: BeatDropView, height: number): number | undefined {
+    const S = view.field.size;
+    if (!(S > 0) || !(height > 0)) return undefined;
+    this.bannerOnTop = true;
+    return BD_BANNER_EDGE + this.hudInset / S + height / (2 * S);
+  }
+  // --- end end-banner ---
 
   /** The landing log's text (ms, three decimals, oldest first) and the beats they were planned for; rebuilt on a new landing. */
   landingLog(view: BeatDropView): { times: string; beats: string } {

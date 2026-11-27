@@ -9,7 +9,7 @@ import { SONG_RING_TUNES } from "@/lib/physics/modes/songRing";
 import { beatMachineSettingsOf, beatMachineTunePatch, resolveBeatMachineSettings, type BeatMachineSettings } from "@/lib/physics/beatMachine";
 import { beatMachinePlanOf } from "@/lib/simulation/beatMachineFinder";
 import { isPhraseStart } from "@/lib/physics/modes/beatMachine";
-import { BeatMachineLayer, beatMachineBannerShows, nextNoteAfter } from "@/components/simulator/beatMachineRenderer";
+import { BM_STAGE_LOOK, BeatMachineLayer, beatMachineBannerShows, beatMachineStageFills, nextNoteAfter } from "@/components/simulator/beatMachineRenderer";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { frequencyToMidi, midiToFrequency } from "@/lib/audio/scales";
@@ -169,6 +169,44 @@ describe("the tune in the plan and the engine", () => {
     const { cx, cy, side } = view.frame;
     expect(square).toEqual([cx - side / 2, cy - side / 2, side, side]);
     expect(names.slice(clip, firstEllipse)).not.toContain("restore");
+  });
+});
+
+// --- stage-fill --- (round two, B8) a 9:16 export showed three browns with seams at the square's edges
+describe("the stage fills the frame (stage-fill)", () => {
+  it("paints the stage's backdrop over the whole frame and the export's bars on the machine's own look, round the square on a background of the visitor's", () => {
+    const tall: PhysicsConfig = { ...config, width: 1080, height: 1920 };
+    const engine = createEngineForSettings(tall, "beatMachine", { ...base, beatMachine: startLook() }, 3);
+    for (let k = 0; k < 40; k++) engine.update(STEP, 0);
+    const view = engine.getBeatMachineView();
+    const { cx, cy, side } = view.frame;
+    const backdrop = (opts: { background?: string; backgroundType?: string }) => {
+      const ctx = fakeCanvas(1080, 1920).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+      new BeatMachineLayer().drawStage(ctx, view, view.timeSec, { dpr: 1, showGlow: false, ...opts });
+      return ctx.calls.find((c) => c.name === "fillRect")!.args as number[];
+    };
+    const covers = ([x, y, w, h]: number[]) => x <= 0 && y <= 0 && x + w >= 2 * cx && y + h >= 2 * cy;
+    for (const opts of [{}, { background: "#18120e", backgroundType: "gradient" }, { background: "#18120E", backgroundType: "solid" }]) expect(covers(backdrop(opts))).toBe(true);
+    for (const opts of [{ background: "#123456", backgroundType: "solid" }, { background: "#18120e", backgroundType: "image" }]) expect(backdrop(opts)).toEqual([cx - side / 2, cy - side / 2, side, side]);
+    // the export's bars: the recorder paints the frame's background, then the square – the stage's backdrop in the bars too
+    const bars = (opts: { background?: string; backgroundType?: string }) => {
+      const layer = new BeatMachineLayer();
+      layer.drawStage(fakeCanvas(1080, 1920).getContext("2d") as unknown as CanvasRenderingContext2D, view, view.timeSec, { dpr: 1, showGlow: false, ...opts });
+      const ctx = fakeCanvas(1080, 1920).getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+      const fills: unknown[] = [];
+      const fillRect = ctx.fillRect.bind(ctx);
+      ctx.fillRect = (x: number, y: number, w: number, h: number) => {
+        fills.push([ctx.fillStyle, x, y, w, h]);
+        fillRect(x, y, w, h);
+      };
+      layer.paintExportBackdrop(ctx, 1080, 1920);
+      return fills;
+    };
+    expect(bars({ background: "#18120e", backgroundType: "gradient" })).toEqual([[BM_STAGE_LOOK.backdrop, 0, 0, 1080, 1920]]);
+    expect(bars({ background: "#123456", backgroundType: "solid" })).toEqual([]);
+    expect(beatMachineStageFills({})).toBe(true);
+    expect(beatMachineStageFills({ background: "#07101a", backgroundType: "solid" })).toBe(false);
+    expect(BM_STAGE_LOOK.backdrop).toBe("#3b2a1d");
   });
 });
 

@@ -658,6 +658,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   // --- fl-overhaul --- (Stage 3) Fight League's layer while it draws (the recorder's background hook paints its stage and plates)
   const flLayerRef = useRef<FightLeagueLayer | null>(null);
+  const machineLayerRef = useRef<BeatMachineLayer | null>(null); // --- stage-fill --- (round two, B8: the recorder's bars)
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
@@ -875,6 +876,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
       flLayerRef.current?.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
+      machineLayerRef.current?.paintExportBackdrop(c, width, height); // --- stage-fill --- (round two, B8) Beat Machines' stage in the bars
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false) || endBannerHoldRef.current, // --- camera --- (--- captions --- and the question's answer; --- end-banner --- and a verdict not read yet)
@@ -1970,9 +1972,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // drawn from the plan at the frame's own simulation time
       const machineView = engine.isBeatMachineMode() ? engine.getBeatMachineView() : null;
       const machineT = machineView ? hoopsRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator) / 1000 : 0;
+      machineLayerRef.current = machineView ? machineLayer : null; // --- stage-fill --- (the recorder's bars follow the stage drawn)
       if (machineView) {
         machineRender.dpr = scale;
         machineRender.showGlow = p.showGlow;
+        machineRender.background = p.backgroundColor; // --- stage-fill --- (round two, B8: the stage fills the frame on the machine's own look)
+        machineRender.backgroundType = themeLookRef.current.backgroundType;
         machineLayer.drawStage(ctx, machineView, machineT, machineRender);
       }
       // --- wave-tank --- Wave Tank: the ridge lines back to front with the barrier among them, the wave-maker and the bells
@@ -3350,9 +3355,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           blocks.push({ height: orbBannerHeight(bannerFs, sfs), draw: (y) => orbLayer.drawBanner(ctx, OG.title, OG.sub, cx, y, bannerFs, sfs) });
         }
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
+        // (--- end-banner --- round two, B8: over the top of the square, above the ball's path; the title block fades out under it)
         if (bdView && bdLayer.finale(bdView)) {
           const BD = L.beatDrop ?? DEFAULT_BEAT_DROP_LABELS;
-          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs), "#a3e635");
+          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs), "#a3e635", (height) => bdLayer.bannerAt(bdView, height));
         }
         // --- gerald-glass --- Glass Smash: Gerald is HOME.
         if (glassView && glassView.homeReached) {
@@ -4163,6 +4169,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         paintBackground: (c, width, height, crop) => {
           bgPainter().paintExport(c, width, height, crop, backgroundLook());
           if (engine.isFightLeagueMode()) flLayer.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
+          if (engine.isBeatMachineMode()) machineLayer.paintExportBackdrop(c, width, height); // --- stage-fill --- (round two, B8) Beat Machines' stage in the bars
         },
         ready: () => {
           const pics = picturesRef.current;

@@ -5,7 +5,8 @@ import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { defaultSettings } from "@/lib/settings";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { BOX_CHORD_HZ, BOX_CORNER_BL, BOX_CORNER_BR, BOX_CORNER_TL, BOX_CORNER_TR, FINALE_SHAPES, MIN_AIM_ANGLE, boxChimeHz, cornerAimAngle, finaleCornerOf, finaleSplit, type BoxSettings } from "@/lib/physics/modes/box";
-import { BURST_MS, burstHash } from "@/components/simulator/boxRenderer";
+import { BURST_MS, DIGIT_GAP, burstHash, drawBoxShapes, placeBoxDigits, type BoxDigit } from "@/components/simulator/boxRenderer";
+import { fakeCanvas } from "./fakeCanvas";
 
 /*
  * --- box-finale --- (Lane E, E4) Bouncing Shapes' corner finale (lib/physics/modes/box.ts): the last FINALE_SHAPES shapes each
@@ -181,5 +182,62 @@ describe("box finale: the burst", () => {
     expect(Math.min(...values)).toBeGreaterThanOrEqual(0);
     expect(Math.max(...values)).toBeLessThan(1);
     expect(BURST_MS).toBeLessThanOrEqual(2000);
+  });
+});
+
+// --- box-digits --- (round two, B8) the countdown digits in a pass of their own over every shape, outlined, moved clear of each other
+describe("box digits: a pass of their own over every shape", () => {
+  const digit = (x: number, y: number, shapeY = y, fs = 30): BoxDigit => ({ x, y, halfW: 0.6 * fs, halfH: 0.4 * fs, fs, count: 12, shapeY, fill: "#fff" });
+  const apart = (a: BoxDigit, b: BoxDigit) => Math.abs(a.x - b.x) >= a.halfW + b.halfW || Math.abs(a.y - b.y) >= a.halfH + b.halfH;
+
+  it("moves a number off the one before it, to the side its shape is on, inside the box; the first keeps its place", () => {
+    const a = digit(200, 200);
+    const b = digit(210, 205, 230); // its shape lower: it goes under the first number
+    const c = digit(195, 198, 150); // its shape higher: it goes over the first number
+    const list = [a, b, c];
+    placeBoxDigits(list, 3, 100, 400);
+    expect([a.x, a.y]).toEqual([200, 200]);
+    expect(b.y).toBeCloseTo(200 + a.halfH + DIGIT_GAP * 30 + b.halfH, 9);
+    expect(c.y).toBeCloseTo(200 - a.halfH - DIGIT_GAP * 30 - c.halfH, 9);
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) expect(apart(list[i], list[j])).toBe(true);
+    // at the foot of the box a number goes over instead; numbers already apart stay where they are
+    const d = digit(200, 390);
+    const e = digit(205, 392, 395);
+    placeBoxDigits([d, e], 2, 100, 400);
+    expect(e.y).toBeLessThan(d.y);
+    expect(apart(d, e)).toBe(true);
+    const f = digit(100, 200);
+    const g = digit(300, 200);
+    placeBoxDigits([f, g], 2, 100, 400);
+    expect(g.y).toBe(200);
+  });
+
+  it("draws every number after every shape, outlined in its shape's colour, and none of them on another", () => {
+    const engine = boxEngine({ shapeCount: 3, shape: "square" }, 7);
+    engine.update(1000 / 60, 0);
+    const view = engine.getBoxView();
+    const balls = engine.getBalls();
+    expect(balls.length).toBe(3);
+    // the three shapes on one spot, as they pass through each other
+    for (const b of balls) {
+      b.x = 300;
+      b.y = 300;
+    }
+    const canvas = fakeCanvas(800, 600);
+    const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D & { calls: { name: string; args: unknown[] }[] };
+    const opts = { wallColor: () => "#ffffff", wallThickness: 2, showWallGlow: false, showGlow: false, showTrails: false, trailThickness: 1 };
+    drawBoxShapes(ctx, balls, view, opts);
+    const names = ctx.calls.map((c) => c.name);
+    const texts = ctx.calls.filter((c) => c.name === "fillText");
+    expect(texts.length).toBe(3);
+    expect(ctx.calls.filter((c) => c.name === "strokeText").length).toBe(3);
+    expect(names.indexOf("strokeText")).toBeGreaterThan(names.lastIndexOf("fill"));
+    const ys = texts.map((c) => c.args[2] as number).sort((x, y) => x - y);
+    const fs = Number(/([\d.]+)px/.exec(String(ctx.font))?.[1] ?? 0);
+    expect(fs).toBeGreaterThan(0);
+    for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(0.8 * fs - 1e-6);
+    const f = view.field!;
+    for (const y of ys) expect(y).toBeGreaterThanOrEqual(f.top);
+    for (const y of ys) expect(y).toBeLessThanOrEqual(f.bottom);
   });
 });
