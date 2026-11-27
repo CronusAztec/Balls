@@ -73,9 +73,16 @@ describe("the mode cards' links (card-looks)", () => {
   it("opens every mode with a start look in that look, the loop HUD on where the start look leaves it", () => {
     const staged = MODE_IDS.filter((id) => Object.keys(clipStartSettings(id)).length > 0);
     expect(staged).toEqual(expect.arrayContaining(["classic", "accumulation", "waveTank", "beatMachine"]));
+    // --- pace-as-look --- (round two A3a) a paced mode's start look is its pace, and its card names it; four cards play their
+    // picture's own value of one field instead (Beat Runner's density 1, the Journey's four stages, Bullseye's bull on shot 2, the
+    // Maze's 12 columns, the link base's), which the picker's patch carries onto the start look
+    expect(staged).toEqual(expect.arrayContaining(["race", "pendulum", "maze", "runner"]));
+    const CARD_OWN: Partial<Record<ModeId, Partial<SimulatorSettings>>> = { runner: { runnerDensity: 1 }, journey: { journeyStages: "rings-l,glass,pegs,home" }, bullseye: { byPerfect: 2 }, maze: { mzCols: 12 } };
     for (const id of staged) {
       const s = settingsFromSearchParams(new URLSearchParams(cardQuery(id)));
-      for (const [key, value] of Object.entries(clipStartSettings(id))) expect(s[key as keyof SimulatorSettings], `${id} ${key}`).toEqual(value);
+      const own = (CARD_OWN[id] ?? {}) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(clipStartSettings(id))) expect(s[key as keyof SimulatorSettings], `${id} ${key}`).toEqual(key in own ? own[key] : value);
+      expect(cardLinkPatch(id, cardQuery(id)).patch, id).toMatchObject(own);
       if (clipStartSettings(id).loopHud === undefined) expect([id, s.loopHud]).toEqual([id, startLook(id).loopHud]);
     }
   });
@@ -96,7 +103,11 @@ describe("the select-mode event's detail (card-looks)", () => {
       const base = defaultSettings(id);
       const opened = { ...base, ...patch };
       expect(opened, id).toEqual(settingsFromSearchParams(new URLSearchParams(cardQuery(id))));
-      for (const key of Object.keys(patch) as (keyof SimulatorSettings)[]) expect(patch[key], `${id} ${key}`).not.toEqual(base[key]);
+      // --- pace-as-look --- (round two A3a) a key of the patch differs from the link base or from the start look the page is in,
+      // and on the start look the patch opens the card's own run (the picker plays what the wall's card link plays)
+      const start = startLook(id);
+      for (const key of Object.keys(patch) as (keyof SimulatorSettings)[]) expect([patch[key], patch[key]], `${id} ${key}`).not.toEqual([base[key], start[key]]);
+      expect({ ...start, ...patch }, id).toEqual(settingsFromSearchParams(new URLSearchParams(cardQuery(id))));
       expect(opened.showTrails && opened.showGlow, id).toBe(true);
     }
   });

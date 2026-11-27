@@ -98,6 +98,9 @@ export function selectedMode(detail: unknown): { mode: ModeId; look: string | nu
 /**
  * A card's link put on a mode the page has just switched to: its settings that differ from the mode's link base (the page's
  * own carry-overs, its music, captions and character, stay) and its seed (null: none, or not one a link may carry).
+ * (--- pace-as-look --- round two A3a) The page it lands on is in the mode's start look (`startSettings`), so a field the link
+ * reads at the link base but the start look sets apart comes too: the picker's card then plays the run the wall's card link
+ * plays (the Maze card's 12 columns, the link base's, on a start look of 14).
  */
 export function cardLinkPatch(mode: ModeId, link: string): { patch: Partial<SimulatorSettings>; seed: number | null } {
   const params = new URLSearchParams(link);
@@ -105,9 +108,10 @@ export function cardLinkPatch(mode: ModeId, link: string): { patch: Partial<Simu
   params.set("mode", mode);
   params.delete("seed");
   const base = defaultSettings(mode);
+  const start = startSettings(mode); // --- pace-as-look ---
   const read = settingsFromSearchParams(params);
   const patch: Partial<SimulatorSettings> = {};
-  for (const key of Object.keys(base) as (keyof SimulatorSettings)[]) if (!same(read[key], base[key])) Object.assign(patch, { [key]: read[key] });
+  for (const key of Object.keys(base) as (keyof SimulatorSettings)[]) if (!same(read[key], base[key]) || !same(read[key], start[key])) Object.assign(patch, { [key]: read[key] });
   return { patch, seed };
 }
 // --- end card-looks ---

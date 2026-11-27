@@ -9,6 +9,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { CHIP_FLASH_MS, SHARD_MS, SHARDS_PER_BREAK, collapseDone, drawShatterDamage, drawShatterShards, hash01, ringFallStartMs } from "@/components/simulator/shatterRenderer";
 import { fakeCanvas } from "./fakeCanvas";
 import en from "../messages/en.json";
@@ -29,7 +30,7 @@ import es from "../messages/es.json";
 const WORLD = { width: 800, height: 450 };
 
 function engineOf(seed: number, patch: Partial<SimulatorSettings> = {}): PhysicsEngine {
-  const request = finderRequestOfSettings({ ...defaultSettings("shatter"), ...patch }, WORLD, 60);
+  const request = finderRequestOfSettings({ ...startSettings("shatter"), ...patch }, WORLD, 60); // --- pace-as-look --- (the page's runs: its start look)
   return createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
 }
 
@@ -93,14 +94,21 @@ describe("a bounce off a Shatter ring", () => {
 
 describe("the page's pace", () => {
   it("is six rings of 36 segments that take two hits, a link's own values kept", () => {
-    const s = defaultSettings("shatter");
+    const s = startSettings("shatter"); // --- pace-as-look --- (round two A3a: the page's pace is its start look)
     expect([s.wallCount, s.shatterSegments, s.shatterHits]).toEqual([6, 36, 2]);
     // other modes keep the mode's own (18 segments, one hit): the engine's when the page says nothing
     expect([defaultSettings("classic").shatterSegments, defaultSettings("classic").shatterHits]).toEqual([18, 1]);
-    expect(settingsToSearchParams(s).toString()).toBe("mode=shatter");
+    // the link base is the mode's own (1.17.0's ten rings of 18 one-hit segments): a link of it writes nothing, the start look its pace
+    const base = defaultSettings("shatter");
+    expect([base.wallCount, base.shatterSegments, base.shatterHits]).toEqual([10, 18, 1]);
+    expect(settingsToSearchParams(base).toString()).toBe("mode=shatter");
+    expect(settingsToSearchParams(s).toString()).toBe("mode=shatter&wc=6&shh=2&shs=36&shb=1");
     const old = settingsFromSearchParams(new URLSearchParams("mode=shatter&wc=10&shh=1&shs=18"));
     expect([old.wallCount, old.shatterHits, old.shatterSegments]).toEqual([10, 1, 18]);
-    expect(settingsToSearchParams(old).toString()).toBe("mode=shatter&wc=10&shh=1&shs=18");
+    expect(settingsToSearchParams(old).toString()).toBe("mode=shatter");
+    const own = settingsFromSearchParams(new URLSearchParams("mode=shatter&wc=8&shh=3&shs=24"));
+    expect([own.wallCount, own.shatterHits, own.shatterSegments]).toEqual([8, 3, 24]);
+    expect(settingsToSearchParams(own).toString()).toBe("mode=shatter&wc=8&shh=3&shs=24");
   });
 
   it("ends inside the default clip, the collapse included, on most seeds: a 10-25 s demolition", () => {
@@ -264,10 +272,10 @@ describe("Hits per segment and Segments per ring", () => {
     for (const bad of [4, 37, 1e9, "36"]) expect(isShatterSegments(bad)).toBe(false);
     for (const bad of ["7", "1e9", "-2", "abc", ""]) {
       const s = settingsFromSearchParams(new URLSearchParams(`mode=shatter&shh=${bad}&shs=${bad}`));
-      expect([s.shatterHits, s.shatterSegments], bad).toEqual([2, 36]);
+      expect([s.shatterHits, s.shatterSegments], bad).toEqual([1, 18]); // (--- pace-as-look --- the link base's: the mode's own)
     }
     expect(presetToSettings({ mode: "shatter", shatterHits: 4, shatterSegments: 12 })).toMatchObject({ shatterHits: 4, shatterSegments: 12 });
-    expect(presetToSettings({ mode: "shatter", shatterHits: 9 } as never).shatterHits).toBe(2);
+    expect(presetToSettings({ mode: "shatter", shatterHits: 9 } as never).shatterHits).toBe(1); // (the link base's)
   });
 
   it("build the run the page plays: the finder's engine has as many segments and hits as the settings say", () => {
@@ -296,7 +304,8 @@ describe("Hits per segment and Segments per ring", () => {
 describe("even bricks and the rings-to-go count", () => {
   it("cuts the page's inner rings into bricks as long as the outer ring's: the smallest ring 12, not 36", () => {
     expect(DEFAULT_SHATTER_EVEN_BRICKS).toBe(false);
-    expect(defaultSettings("shatter").shatterEvenBricks).toBe(true);
+    expect(startSettings("shatter").shatterEvenBricks).toBe(true); // --- pace-as-look --- (round two A3a: the page's start look)
+    expect(defaultSettings("shatter").shatterEvenBricks).toBe(false); // (the link base: the mode's own)
     expect(defaultSettings("classic").shatterEvenBricks).toBe(false);
     const rings = engineOf(1).getShatterSegments();
     expect(rings.map((r) => r.length)).toEqual([12, 17, 22, 26, 31, 36]);
@@ -336,14 +345,17 @@ describe("even bricks and the rings-to-go count", () => {
     expect(sorted[11]).toBeLessThan(8);
   });
 
-  it("travels in a link and a preset as shb, written only when it differs from the mode's page default", () => {
+  it("travels in a link and a preset as shb, written only when it differs from the mode's link base", () => {
     expect(settingsToSearchParams(defaultSettings("shatter")).has("shb")).toBe(false);
     const off = settingsFromSearchParams(new URLSearchParams("mode=shatter&shb=0"));
     expect(off.shatterEvenBricks).toBe(false);
-    expect(settingsToSearchParams(off).get("shb")).toBe("0");
-    for (const bad of ["2", "yes", ""]) expect(settingsFromSearchParams(new URLSearchParams(`mode=shatter&shb=${bad}`)).shatterEvenBricks, bad).toBe(true);
+    expect(settingsToSearchParams(off).get("shb")).toBeNull(); // (--- pace-as-look --- off is the link base again, the mode's own)
+    expect(settingsToSearchParams(startSettings("shatter")).get("shb")).toBe("1"); // (the start look writes it on)
+    expect(settingsFromSearchParams(new URLSearchParams("mode=shatter&shb=1")).shatterEvenBricks).toBe(true);
+    for (const bad of ["2", "yes", ""]) expect(settingsFromSearchParams(new URLSearchParams(`mode=shatter&shb=${bad}`)).shatterEvenBricks, bad).toBe(false); // (the link base's)
     expect(presetToSettings({ mode: "shatter", shatterEvenBricks: false }).shatterEvenBricks).toBe(false);
-    expect(presetToSettings({ mode: "shatter", shatterEvenBricks: "0" } as never).shatterEvenBricks).toBe(true);
+    expect(presetToSettings({ mode: "shatter", shatterEvenBricks: true }).shatterEvenBricks).toBe(true);
+    expect(presetToSettings({ mode: "shatter", shatterEvenBricks: "0" } as never).shatterEvenBricks).toBe(false); // (the link base's)
     // the fingerprint's recipe names none: the mode's own (every ring the same count) – its pinned run is the same
     expect((FINGERPRINT_MODE_SETTINGS as { shatterEvenBricks?: boolean }).shatterEvenBricks).toBeUndefined();
   });

@@ -1,6 +1,6 @@
 import { DEFAULT_BOT_WORLD, type BotWorld } from "@/lib/bot/finderRequest";
 import { BOT_DEFAULT_FAMILIES, BOT_FAMILIES, BOT_PLATFORMS, BUCKET_SECONDS, ENDING_STYLES, LENGTH_BUCKETS, RECIPES, recipeById, type BotFamily, type BotFamilyChoice, type BotPlatform, type BotRecipe, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
-import { clipShareUrl, drain, payoffSecOf, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner";
+import { clipShareUrl, drain, payoffSecOf, planBaseSettings, planClipSteps, planTemplateSteps, rerollSeed, type ClipPlan, type PlanOptions, type RunFacts } from "@/lib/bot/planner"; // (--- pace-as-look --- planBaseSettings)
 import { askHookText, BINDINGS, EXPERIMENTAL, SIMPLE_LOOK, SIMPLE_TEXT, TEMPLATE_FORMATS, TEMPLATE_FORMAT_IDS, allTemplates, botRecipeById, readyTemplates, templateById, templateRecipeById, variantBinding, type BotLookId, type ModeBinding, type TemplateInfo } from "@/lib/bot/templates";
 import { copyString, isBotLocale, recipeCopyVars, recipeText, type BotCopy, type BotLocale } from "@/lib/bot/copy";
 import { factsOfExport, factsOfRun, mergeFacts, payoffMomentSync, planLikeFromSettings, runSync, scorePlanLike, scoreRecipeFor } from "@/lib/insights/score";
@@ -8,7 +8,6 @@ import type { ClipFeatures } from "@/lib/recording/clipFeatures";
 import { parseTrends, type TrendSummary } from "@/lib/trends";
 import { TRENDS } from "@/content/trends"; // --- studio --- (step 2's review round 1, 23) the committed trend summary ranks the menu
 import { isModeId } from "@/lib/physics/types";
-import { defaultSettings } from "@/lib/settings";
 import {
   CLARITY,
   CLEAN_COUNT,
@@ -178,7 +177,7 @@ function wordsOf(recipe: Pick<BotRecipe, "copyKey" | "hookAsk" | "formatCopy" | 
   // listing gave Bouncing Shapes "Bullseye! 🎯", which its clip never shows, to the brainstormer and the producer
   const fields = COPY_FIELDS.filter((f) => f !== "payoff" || recipe.payoffWords !== false);
   if (recipe.formatCopy) {
-    const vars = recipeCopyVars(copy, recipe, defaultSettings(recipe.modes[0]));
+    const vars = recipeCopyVars(copy, recipe, planBaseSettings(recipe.modes[0])); // --- pace-as-look --- (the plans' own base: the mode's pace)
     const drawn = recipe.hookKey ?? (recipe.endings?.length === 1 && recipe.endings[0] === "cliffhanger" ? "cliffHook" : "hook");
     for (const f of fields) {
       // (--- templates --- AI studio step 4b: its own payoff, where its binding has one; studio round 1, 12: a number known only once

@@ -207,8 +207,9 @@ describe("territory settings", () => {
 
   it("are the defaults in every mode, stay out of the URL and give Territory a clip that covers the verdict", () => {
     const d = defaultSettings("territory");
-    // (--- territory-swing --- Territory's own page pace: a reach of 4 every 2 s, lib/clipPacing.ts; every other mode the mode's own)
-    expect(territorySettingsOf(d)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, radius: 4, powerEvery: 2 });
+    expect(territorySettingsOf(d)).toEqual(DEFAULT_TERRITORY_SETTINGS);
+    // (--- territory-swing --- Territory's own page pace: a reach of 4 every 2 s, lib/clipPacing.ts; --- pace-as-look --- its start look)
+    expect(territorySettingsOf(startSettings("territory"))).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, radius: 4, powerEvery: 2 });
     expect(d.recordingDuration).toBe(territoryClipSec(DEFAULT_TERRITORY_SETTINGS.duration));
     expect(d.recordingDuration).toBeGreaterThan(DEFAULT_TERRITORY_SETTINGS.duration);
     expect(defaultSettings("classic").recordingDuration).toBe(30);
@@ -227,12 +228,12 @@ describe("territory settings", () => {
     const back = settingsFromSearchParams(query);
     expect(territorySettingsOf(back)).toEqual(territorySettingsOf(s));
     const wild = settingsFromSearchParams(new URLSearchParams("mode=territory&tyc=5&tyt=9&tyb=40&typ=x,y&tye=abc&tyr=-3&tyd=999&typg=2&tyh=0"));
-    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, powerEvery: 2 /* (tye=abc: the page's own pace) */, cols: 12, teams: 4, ballsPerTeam: 40, radius: 1, duration: 999, hud: false });
+    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, cols: 12, teams: 4, ballsPerTeam: 40, radius: 1, duration: 999, hud: false });
     // (the link keeps a team count past the four quadrants as typed; the run plays four)
     expect([wild.tyTeams, wild.tyBallsPerTeam, wild.tyDuration]).toEqual([9, 40, 999]);
     expect(territorySettingsOf(settingsFromSearchParams(settingsToSearchParams(wild)))).toEqual(territorySettingsOf(wild));
     const preset = presetToSettings({ mode: "territory", tyCols: "abc" as never, tyTeams: 4, tyPowers: "bomber", tyPegs: "yes" as never } as never);
-    expect(territorySettingsOf(preset)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, radius: 4, powerEvery: 2 /* (the page's own pace) */, teams: 4, powers: ["bomber", "bomber", "painter", "ghost"] });
+    expect(territorySettingsOf(preset)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, teams: 4, powers: ["bomber", "bomber", "painter", "ghost"] });
   });
 
   it("registers the mode: its id, its card after the String Battle and the battle family", () => {

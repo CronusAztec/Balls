@@ -49,6 +49,7 @@ import {
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { midiToFrequency } from "@/lib/audio/scales";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 
 /**
@@ -798,8 +799,9 @@ describe("Pendulum Wave settings", () => {
   });
 
   it("map to and from the SimulatorSettings fields, with the defaults in every mode", () => {
-    // (--- clip-pacing --- in Pendulum Wave itself the page starts with a 24 s cycle of 20 swings: lib/clipPacing.ts; the mode's own defaults stay)
-    for (const mode of MODE_IDS) expect(pendulumSettingsOf(defaultSettings(mode))).toEqual(mode === "pendulum" ? { ...DEFAULT_PENDULUM_SETTINGS, cycleSeconds: 24, baseOscillations: 20 } : DEFAULT_PENDULUM_SETTINGS);
+    for (const mode of MODE_IDS) expect(pendulumSettingsOf(defaultSettings(mode))).toEqual(DEFAULT_PENDULUM_SETTINGS);
+    // (--- clip-pacing --- in Pendulum Wave the page starts with a 24 s cycle of 20 swings: lib/clipPacing.ts, --- pace-as-look --- its start look)
+    expect(pendulumSettingsOf(startSettings("pendulum"))).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, cycleSeconds: 24, baseOscillations: 20 });
     expect(pendulumSettingFields(DEFAULT_PENDULUM_SETTINGS)).toEqual({ pwCount: 15, pwBaseOscillations: 51, pwCycleSeconds: 60, pwAmplitude: 25, pwLayout: "row", pwPolygon: 0, pwPhasing: false, pwTrails: 0.3, pwSoundOn: "center", pwPitchDirection: "up", pwWaveChord: true, pwCycles: 1 });
   });
 
@@ -826,8 +828,8 @@ describe("Pendulum Wave settings", () => {
 
   it("fall back for bad URL values and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=pendulum&pwn=500&pwk=abc&pwt=1&pwl=zigzag&pwp=1&pws=loud&pwpd=up&pwc=-4&pwtr=2"));
-    expect(pendulumSettingsOf(fromUrl)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, baseOscillations: 20 /* (pwk=abc: the page's own default) */, count: 500, cycleSeconds: 10, polygon: 0, cycles: 0, trails: 2 }); // --- uncap-all --- (pwn=500, pwtr=2 kept)
+    expect(pendulumSettingsOf(fromUrl)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 500, cycleSeconds: 10, polygon: 0, cycles: 0, trails: 2 }); // --- uncap-all --- (pwn=500, pwtr=2 kept)
     const preset = presetToSettings({ mode: "pendulum", pwCount: 0, pwLayout: "sliding", pwSoundOn: "extremes", pwPolygon: 4, pwWaveChord: "yes", pwCycles: 99 } as unknown as Partial<SimulatorSettings>);
-    expect(pendulumSettingsOf(preset)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, cycleSeconds: 24, baseOscillations: 20 /* (left out: the page's own defaults) */, count: 5, layout: "sliding", soundOn: "extremes", polygon: 4, cycles: 99 }); // --- uncap-all --- (pwCycles 99 kept)
+    expect(pendulumSettingsOf(preset)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 5, layout: "sliding", soundOn: "extremes", polygon: 4, cycles: 99 }); // --- uncap-all --- (pwCycles 99 kept)
   });
 });

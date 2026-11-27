@@ -59,6 +59,7 @@ import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
@@ -466,10 +467,12 @@ describe("maze settings", () => {
     expect(MAZE_RANGES.mzTrail).toMatchObject({ min: 0, max: 1 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveMazeFields(d)).toEqual(mode === "maze" ? { ...defaultMazeFields(), mzFirstOut: true, mzDuration: 25, mzCols: 14 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts; review fix: 14 columns) */ : defaultMazeFields());
+      expect(resolveMazeFields(d)).toEqual(defaultMazeFields());
       const params = settingsToSearchParams(d);
       for (const key of ["mzc", "mzn", "mzb", "mzh", "mzg", "mzs", "mzt", "mztc", "mzto", "mzf", "mzwc", "mzd", "mzbg", "mzhud"]) expect(params.has(key)).toBe(false);
     }
+    // --- finales-in-clip --- (the page's pace: lib/clipPacing.ts, --- pace-as-look --- its start look; review fix: 14 columns)
+    expect(resolveMazeFields(startSettings("maze"))).toEqual({ ...defaultMazeFields(), mzFirstOut: true, mzDuration: 25, mzCols: 14 });
     // The ladder: C major pentatonic up from C4, rising toward the exit.
     expect(mazeNoteMidi(0)).toBe(60);
     expect(mazeNoteMidi(4)).toBe(69);
@@ -512,7 +515,7 @@ describe("maze settings", () => {
     expect(params.get("mzhud")).toBe("0");
     expect(settingsFromSearchParams(params)).toEqual(s);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=maze&mzc=4&mzn=50&mzb=ai&mzh=x&mzg=9&mzs=-1&mzt=abc&mztc=red&mzwc=%23zzzzzz&mzd=5&mzbg=maybe"));
-    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 50, gravity: 9, speed: 0.25, duration: 10, firstOut: true /* --- finales-in-clip --- (the page's) */ });
+    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 50, gravity: 9, speed: 0.25, duration: 10 });
     // (uncap-all: the link keeps the typed 50 balls; the run builds its memory-safety ceiling)
     expect(resolveMazeSettings(mazeSettingsOf(bad)).balls).toBe(MEMORY_CEILINGS.mzBalls);
     const loaded = presetToSettings({ mode: "maze", mzCols: 100, mzBrain: "bounce", mzFog: "thick", mzTrailOwn: "on" } as unknown as Parameters<typeof presetToSettings>[0]);
@@ -933,23 +936,26 @@ describe("--- finales-in-clip --- the first ball out ends the run", () => {
 
   it("is the page's rule with a 25 s limit (the mode's own: every ball out, 60 s), and travels as mzfo", () => {
     expect(DEFAULT_MAZE_SETTINGS.firstOut).toBe(false);
-    expect([defaultSettings("maze").mzFirstOut, defaultSettings("maze").mzDuration]).toEqual([true, 25]);
+    expect([startSettings("maze").mzFirstOut, startSettings("maze").mzDuration]).toEqual([true, 25]); // --- pace-as-look --- (round two A3a: the page's rule is its start look)
+    expect([defaultSettings("maze").mzFirstOut, defaultSettings("maze").mzDuration]).toEqual([false, 60]); // (the link base: the mode's own)
     const off = settingsFromSearchParams(new URLSearchParams("mode=maze&mzfo=0"));
     expect(off.mzFirstOut).toBe(false);
-    expect(settingsToSearchParams(off).get("mzfo")).toBe("0");
+    expect(settingsToSearchParams(off).get("mzfo")).toBeNull(); // (every ball out is the link base again: a link without mzfo plays it)
     expect(mazeSettingsOf(off).firstOut).toBe(false);
-    expect(presetToSettings({ mode: "maze" }).mzFirstOut).toBe(true);
+    expect(presetToSettings({ mode: "maze" }).mzFirstOut).toBe(false); // (a preset that leaves it out reads the link base)
+    expect(settingsFromSearchParams(new URLSearchParams("mode=maze&mzfo=1")).mzFirstOut).toBe(true);
     expect(presetToSettings({ mode: "maze", mzFirstOut: false }).mzFirstOut).toBe(false);
   });
 
   it("ends the run the hold after the first ball out, where every ball out ran on; with none out by 25 s, the nearest wins", { timeout: 60_000 }, () => {
     // seed 5: nobody out by the page's 25 s – the ball nearest the exit wins, the run over at 27.5 s (every ball out: 58.8 s)
-    // (--- finales-in-clip --- review fix: measured in the mode's own 12 columns, written out; the page's are 14)
-    const late = runOf(5, "mode=maze&mzc=12");
+    // (--- finales-in-clip --- review fix: measured in the mode's own 12 columns, written out; the page's are 14; --- pace-as-look ---
+    // the page's rule and limit written out too: the link base plays every ball out in 60 s)
+    const late = runOf(5, "mode=maze&mzc=12&mzfo=1&mzd=25");
     expect(late.view.verdict).toBe("time");
     expect(late.endMs).toBeCloseTo(25_000 + MZ_FINISH_HOLD_MS, -2);
     for (const seed of [1, 2, 3, 4, 6, 7]) {
-      const first = runOf(seed, "mode=maze&mzc=12");
+      const first = runOf(seed, "mode=maze&mzc=12&mzfo=1&mzd=25");
       expect(first.view.verdict, `seed ${seed}`).toBe("exit"); // (a ball out won it; another may follow it out in the hold)
       expect(first.endMs - first.firstOutMs, `seed ${seed}`).toBeCloseTo(MZ_FINISH_HOLD_MS, -2);
       const all = runOf(seed, "mode=maze&mzc=12&mzfo=0&mzd=60");

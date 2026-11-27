@@ -25,8 +25,9 @@ import { pageFinderRequest } from "@/lib/simulation/pageFinderRequest"; // --- f
  *  - what each mode starts with, and that no other mode's defaults moved;
  *  - the default run's own end inside 27 s (the end banner's 2 s still fit a 30 s clip), measured on seeds 1–12 in the
  *    laptop world and the phone world;
- *  - only page defaults: the modes' own constants and the fingerprint recipe are what they were, a link that names the old
- *    value keeps it, and the Color Match template, the gallery and the card pictures write the old values out;
+ *  - only start looks (--- pace-as-look --- round two A3a: the pace left the link base): the modes' own constants, the link
+ *    base and the fingerprint recipe are what they were, a link that names a value keeps it, and the cards, the gallery and the
+ *    daily looks that play a pace write it out;
  *  - nothing the crew's role-eval corpus pins moved: Classic's ring sounds and Accumulation's defaults stay as they were.
  */
 
@@ -89,18 +90,21 @@ describe("the page's own defaults", () => {
     expect(engine.getColorMatchSegments().length).toBe(DEFAULT_COLOR_MATCH_SEGMENTS);
   });
 
-  it("keeps a link's own value, writes one that differs from the new default, and leaves a default link empty", () => {
+  // --- pace-as-look --- (round two A3a) the pace is the page's start look, never the link base: a bare link, a preset and a
+  // project file that leave the field out read the mode's own value (1.17.0's run), and the start look writes its pace out
+  it("keeps a link's own value, reads a bare link on the mode's own values, writes the start look's pace and leaves a default link empty", () => {
     for (const mode of PACED) expect(settingsToSearchParams(defaultSettings(mode)).toString(), mode).toBe(`mode=${mode}`);
     const old = settingsFromSearchParams(new URLSearchParams("mode=target&tc=10&s=400&glow=0"));
     expect([old.targetCount, old.ballSpeed, old.showGlow]).toEqual([10, 400, false]);
-    expect(settingsToSearchParams(old).toString()).toBe("mode=target&s=400&tc=10&glow=0");
+    expect(settingsToSearchParams(old).toString()).toBe("mode=target"); // (1.17.0's values are the link base)
     const bare = settingsFromSearchParams(new URLSearchParams("mode=target"));
-    expect([bare.targetCount, bare.ballSpeed]).toEqual([7, 700]);
+    expect([bare.targetCount, bare.ballSpeed]).toEqual([10, 400]);
+    expect(settingsToSearchParams(startSettings("target")).toString()).toBe("mode=target&s=700&tc=7&glow=1");
     expect(settingsFromSearchParams(new URLSearchParams("mode=target&tc=10&s=400")).targetCount).toBe(10);
     expect(settingsFromSearchParams(new URLSearchParams("mode=pendulum&pwt=60&pwk=51")).pwCycleSeconds).toBe(60);
-    // a preset that leaves the field out starts from the page's default, one that names it keeps it
-    expect(presetToSettings({ mode: "mergeRing" }).mrInterval).toBe(0.4); // --- merge-ring-staged ---
-    expect(presetToSettings({ mode: "mergeRing", mrTiers: 6, mrInterval: 0.9 })).toMatchObject({ mrTiers: 6, mrInterval: 0.9 });
+    // a preset that leaves the field out starts from the link base, one that names it keeps it
+    expect(presetToSettings({ mode: "mergeRing" }).mrInterval).toBe(0.9); // --- merge-ring-staged ---
+    expect(presetToSettings({ mode: "mergeRing", mrTiers: 6, mrInterval: 0.4 })).toMatchObject({ mrTiers: 6, mrInterval: 0.4 });
   });
 });
 
@@ -208,10 +212,12 @@ describe("Color Match's segments as a setting", () => {
     expect(params.get("cms")).toBe("16");
     expect(settingsFromSearchParams(params).colorMatchSegments).toBe(16);
     expect(settingsFromSearchParams(new URLSearchParams("mode=colorMatch&cms=12")).colorMatchSegments).toBe(12);
-    for (const bad of ["7", "1e9", "-6", "abc", ""]) expect(settingsFromSearchParams(new URLSearchParams(`mode=colorMatch&cms=${bad}`)).colorMatchSegments, bad).toBe(8);
+    // (--- pace-as-look --- what is no count falls back to the link base's twelve: the mode's own)
+    for (const bad of ["7", "1e9", "-6", "abc", ""]) expect(settingsFromSearchParams(new URLSearchParams(`mode=colorMatch&cms=${bad}`)).colorMatchSegments, bad).toBe(12);
     expect(presetToSettings({ mode: "colorMatch", colorMatchSegments: 24 }).colorMatchSegments).toBe(24);
-    expect(presetToSettings({ mode: "colorMatch", colorMatchSegments: 1000 } as never).colorMatchSegments).toBe(8);
-    expect(presetToSettings({ mode: "colorMatch", colorMatchSegments: "6" } as never).colorMatchSegments).toBe(8);
+    expect(presetToSettings({ mode: "colorMatch", colorMatchSegments: 1000 } as never).colorMatchSegments).toBe(12);
+    expect(presetToSettings({ mode: "colorMatch", colorMatchSegments: "6" } as never).colorMatchSegments).toBe(12);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=colorMatch&cms=8")).colorMatchSegments).toBe(8);
   });
 
   it("builds the ring the run plays: the finder's engine has as many segments as the setting says", () => {

@@ -6,6 +6,7 @@ import { MAX_CAPTIONS, sanitizeCaption } from "@/lib/captions";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import { BOT_DEFAULT_FAMILIES, BOT_PLATFORMS, BUCKET_SECONDS, CLIFF_GAP_SEC, LENGTH_BUCKETS, PAYOFF_BAND, PAYOFF_STRATEGIES, PLATFORMS, RECIPES, recipeById, type BotPlatform, type RecipeContext } from "@/lib/bot/playbook";
 import {
@@ -1320,9 +1321,10 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
       expect([flag, outcomeFlagHolds(flag, on)]).toEqual([flag, true]);
     }
     // the ones the defaults leave off
-    for (const flag of ["growFinish", "dpFan", "ringEscape"] as const) expect([flag, outcomeFlagHolds(flag, outcomeContextOfSettings(defaultSettings(FLAG_MODES[flag])))]).toEqual([flag, false]);
-    // (--- finales-in-clip --- the page plays the ring waves now: their flag holds on the defaults, and the stagger leaves it off)
-    expect(outcomeFlagHolds("vortexRings", outcomeContextOfSettings(defaultSettings("vortex")))).toBe(true);
+    for (const flag of ["growFinish", "dpFan", "vortexRings", "ringEscape"] as const) expect([flag, outcomeFlagHolds(flag, outcomeContextOfSettings(defaultSettings(FLAG_MODES[flag])))]).toEqual([flag, false]);
+    // (--- finales-in-clip --- the page plays the ring waves: --- pace-as-look --- its start look, where their flag holds; the stagger,
+    // the link base again, leaves it off)
+    expect(outcomeFlagHolds("vortexRings", outcomeContextOfSettings(startSettings("vortex")))).toBe(true);
     expect(outcomeFlagHolds("vortexRings", outcomeContextOfSettings({ ...defaultSettings("vortex"), vxRelease: "stagger" }))).toBe(false);
     expect(outcomeFlagHolds("colourSortSettles", outcomeContextOfSettings({ ...defaultSettings("colourSort"), csRule: "bothWaysNotOwn" }))).toBe(false);
     const bound = BINDINGS.filter((b) => b.outcome);
@@ -1340,7 +1342,7 @@ describe("the outcome and atEnd strategies, a binding's own settings and the exp
     }
     // (the chaos fan's split, Grow's fill and the ring waves' bar line are not there on the defaults)
     expect(availableOutcomes("doublePendulum", outcomeContextOfSettings(defaultSettings("doublePendulum")))).not.toContain("diverges-at");
-    expect(availableOutcomes("vortex", outcomeContextOfSettings({ ...defaultSettings("vortex"), vxRelease: "stagger" /* --- finales-in-clip --- (the page's are the rings now) */ }))).not.toContain("ring-on-bar");
+    expect(availableOutcomes("vortex", outcomeContextOfSettings(defaultSettings("vortex")))).not.toContain("ring-on-bar");
   });
 
   it("lays a binding's own settings out in order: its seeded generator (else its patch), its outcome's flag on top, its tune, an atEnd clip's length, its mode", () => {

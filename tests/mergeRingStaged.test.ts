@@ -53,9 +53,11 @@ function runOf(engine: PhysicsEngine, maxSec = 60) {
 describe("the page's pace", () => {
   it("is seven tiers, a ball every 0.4 s, three spawn tiers and gravity 3 – the mode's own defaults unchanged", () => {
     expect(clipPacingDefaults("mergeRing")).toEqual({ mrInterval: 0.4, mrSpawnTiers: 3, mrGravity: 3 });
-    const d = defaultSettings("mergeRing");
+    const d = startSettings("mergeRing"); // --- pace-as-look --- (round two A3a) the page's pace is its start look
     expect([d.mrTiers, d.mrInterval, d.mrSpawnTiers, d.mrGravity]).toEqual([7, 0.4, 3, 3]);
-    expect(settingsToSearchParams(d).toString()).toBe("mode=mergeRing");
+    const base = defaultSettings("mergeRing"); // the link base keeps the mode's own, and a link of it writes nothing
+    expect([base.mrTiers, base.mrInterval, base.mrSpawnTiers, base.mrGravity]).toEqual([7, 0.9, 2, 1]);
+    expect(settingsToSearchParams(base).toString()).toBe("mode=mergeRing");
     expect(DEFAULT_MERGE_RING_SETTINGS).toMatchObject({ tiers: 7, interval: 0.9, spawnTiers: 2, gravity: 1 });
   });
 

@@ -40,6 +40,7 @@ import {
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { SCALE_INTERVALS, frequencyToMidi, quantizeFrequency } from "@/lib/audio/scales";
 import { DEFAULT_THUD_FREQUENCY, THUD_TONE, scheduleThudTone, thudBend, thudLevel } from "@/lib/audio/thudTone";
@@ -127,10 +128,12 @@ describe("settings, URL and presets", () => {
     expect(BULLSEYE_RANGES.byRings).toMatchObject({ min: 3, max: 10 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolveBullseyeFields(d)).toEqual(mode === "bullseye" ? { ...defaultBullseyeFields(), byShots: 10, byPerfect: -1 } /* --- finales-in-clip --- (the page's pace: lib/clipPacing.ts; review fix: the last shot, −1) */ : defaultBullseyeFields());
+      expect(resolveBullseyeFields(d)).toEqual(defaultBullseyeFields());
       const params = settingsToSearchParams(d);
       for (const key of ["bys", "byi", "byc", "byr", "bym", "byp"]) expect(params.has(key)).toBe(false);
     }
+    // --- finales-in-clip --- (the page's pace: lib/clipPacing.ts, --- pace-as-look --- its start look; review fix: the last shot, −1)
+    expect(resolveBullseyeFields(startSettings("bullseye"))).toEqual({ ...defaultBullseyeFields(), byShots: 10, byPerfect: -1 });
   });
 
   it("resolve clamps onto the sliders and drops bad values", () => {
@@ -156,7 +159,7 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("bullseye");
     expect(resolveBullseyeFields(back)).toEqual({ byShots: 20, byInterval: 0.8, byChaos: 0.85, byRings: 6, byTargetMoving: true, byPerfect: 7 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=bullseye&bys=500&byr=abc&bym=7&byi=0"));
-    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 500, byInterval: 0.3, byPerfect: -1 /* --- finales-in-clip --- (the page's: the last shot) */ }); // --- uncap-all --- (bys=500 kept)
+    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 500, byInterval: 0.3 }); // --- uncap-all --- (bys=500 kept)
     const preset = presetToSettings({ mode: "bullseye", byShots: 0, byTargetMoving: "no", byChaos: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveBullseyeFields(preset)).toMatchObject({ byShots: 1, byTargetMoving: false, byChaos: 9 }); // --- uncap-all --- (kept; every candidate deflector is in play past 1)
   });

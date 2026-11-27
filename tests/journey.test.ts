@@ -47,6 +47,7 @@ import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { DEFAULT_JOURNEY_LABELS, JourneyLayer } from "@/components/simulator/journeyRenderer"; // --- templates --- (AI studio step 4b)
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest"; // --- templates --- (AI studio step 4b)
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { actionTrackSync, modeBannersDrawn } from "@/lib/bot/actionTrack"; // --- templates --- (AI studio step 4b)
 import { simpleLookPatch } from "@/lib/bot/templates"; // --- templates --- (AI studio step 4b)
 import { endBannersOf, hudsOn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4b)
@@ -250,7 +251,8 @@ describe("the seeded auto sequence", () => {
 describe("settings, URL and presets", () => {
   it("defaults, ranges and resolution", () => {
     const d = defaultSettings("journey");
-    expect(d.journeyStages).toBe("rings,pegs,glass,multipliers,funnel,home"); // --- finales-in-clip --- (the page's five stages: lib/clipPacing.ts; the mode's own seven stay)
+    expect(d.journeyStages).toBe(DEFAULT_JOURNEY_STAGES);
+    expect(startSettings("journey").journeyStages).toBe("rings,pegs,glass,multipliers,funnel,home"); // --- finales-in-clip --- (the page's five stages: lib/clipPacing.ts, --- pace-as-look --- its start look; the mode's own seven stay)
     expect(d.journeyAutoStages).toBe(0);
     expect(defaultSettings("classic").journeyStages).toBe(DEFAULT_JOURNEY_STAGES);
     expect(RANGES.journeyAutoStages).toEqual(JOURNEY_RANGES.journeyAutoStages);
@@ -259,7 +261,8 @@ describe("settings, URL and presets", () => {
     expect(resolveJourneySettings({ auto: -3 }).auto).toBe(0);
     expect(resolveJourneySettings({ auto: Number.NaN }).auto).toBe(0);
     expect(resolveJourneyFields({ journeyStages: "x", journeyAutoStages: 2.6 })).toEqual({ journeyStages: "home", journeyAutoStages: 3 });
-    expect(journeySettingsOf(d)).toEqual({ ...DEFAULT_JOURNEY_SETTINGS, stages: "rings,pegs,glass,multipliers,funnel,home" }); // --- finales-in-clip --- (the page's five stages)
+    expect(journeySettingsOf(d)).toEqual(DEFAULT_JOURNEY_SETTINGS);
+    expect(journeySettingsOf(startSettings("journey"))).toEqual({ ...DEFAULT_JOURNEY_SETTINGS, stages: "rings,pegs,glass,multipliers,funnel,home" }); // --- finales-in-clip --- (the page's five stages)
   });
 
   it("travels in the URL as js / jsa and only when changed, normalised on the way back in", () => {

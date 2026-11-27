@@ -52,8 +52,9 @@ function teamBall(engine: PhysicsEngine, id: number): TyBall {
 
 describe("the defaults", () => {
   it("are a reach of 4 tiles every 2 s on the page (the mode's own 3 and 3 stay), four whirl arms and a fuse that waits for the border", () => {
-    const d = defaultSettings("territory");
+    const d = startSettings("territory"); // --- pace-as-look --- (round two A3a) the page's pace is its start look
     expect([d.tyRadius, d.tyPowerEvery]).toEqual([4, 2]);
+    expect([defaultSettings("territory").tyRadius, defaultSettings("territory").tyPowerEvery]).toEqual([3, 3]); // the link base: the mode's own
     expect(clipPacingDefaults("territory")).toEqual({ tyRadius: 4, tyPowerEvery: 2 });
     expect([DEFAULT_TERRITORY_SETTINGS.radius, DEFAULT_TERRITORY_SETTINGS.powerEvery]).toEqual([3, 3]);
     expect([defaultSettings("classic").tyRadius, defaultSettings("classic").tyPowerEvery]).toEqual([3, 3]);

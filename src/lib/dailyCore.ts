@@ -46,17 +46,17 @@ export interface DailyPoolEntry {
 export const DAILY_POOL: readonly DailyPoolEntry[] = [
   { mode: "classic", look: "wc=5&s=500&glow=1&wbreak=all" },
   { mode: "portal", look: "glow=1&wbreak=shockwave" },
-  { mode: "shatter", look: "glow=1&wbreak=shatter" }, // (--- review fix B3 --- the page's pace: its old 14 rings sat closer than the ball is wide and ran 11–80 s, a median 32 s; six rings of even bricks end at a median 12 s, 23 of 24 by 27 s)
-  { mode: "target", look: "tc=6&s=400" }, // (--- clip-pacing --- its deals' own pace: Countdown's page default is ball speed 700 now, and its glow is on by default)
+  { mode: "shatter", look: "wc=6&glow=1&wbreak=shatter&shh=2&shs=36&shb=1" }, // (--- review fix B3 --- the page's pace: its old 14 rings sat closer than the ball is wide and ran 11–80 s, a median 32 s; six rings of even bricks end at a median 12 s, 23 of 24 by 27 s; --- pace-as-look --- written out, as the link base keeps the mode's own rings)
+  { mode: "target", look: "tc=6&glow=1" }, // (--- clip-pacing --- its deals' own pace; --- pace-as-look --- 1.17.0's look again: ball speed 400 and no glow are the link base, 700 and the glow the start look's)
   { mode: "drop", look: "dbc=16&dsi=0.2&dsv=0.7&glow=1" },
   { mode: "box", look: "bxs=dvd&glow=1" },
   { mode: "glass", look: "face=cute&glow=1" },
   { mode: "multipliers", look: "mpsb=3&glow=1" },
   { mode: "stringBattle", look: "" },
-  { mode: "race", look: "glow=1" },
+  { mode: "race", look: "glow=1" }, // (--- pace-as-look --- race, runner and paddle: 1.17.0's deals on the link base, every past day as it was played; the start look's pace is not theirs)
   { mode: "battle", look: "btn=10&glow=1" },
   { mode: "ctf", look: "glow=1" },
-  { mode: "vortex", look: "face=cute&glow=1&vxrl=stagger" }, // (--- finales-in-clip --- B6: the stagger release written out: the page plays the rings, whose end is the same on every seed)
+  { mode: "vortex", look: "face=cute&glow=1" }, // (--- finales-in-clip --- B6: the stagger release; --- pace-as-look --- the link base's again, the start look plays the rings, whose end is the same on every seed)
   { mode: "runner", look: "face=cute&glow=1" },
   { mode: "paddle", look: "pdsp=1&glow=1" },
 ];

@@ -66,7 +66,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "galaxy-pendulum",
     mode: "pendulum",
-    query: "mode=pendulum&pwn=30&pwk=51&pwt=60&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
+    query: "mode=pendulum&pwn=30&pwtr=0.6&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&pwl=galaxy&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&seed=132967117",
     previewAt: 12,
     name: { en: "Aurora Galaxy Wave", pl: "Galaktyka zorzy", es: "Galaxia boreal" },
     description: {
@@ -92,10 +92,10 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     // (--- review fix B3 --- the page's pace, six rings of even two-hit bricks: the old twelve rings sit closer than the ball is
     // wide, and with the push-out fix its seed played a 6 s run; seed 103 plays 18.0 s, a ring out at 0.9, 3.9, 7.5, 15.1, 15.9
-    // and 16.4 s, then the collapse)
+    // and 16.4 s, then the collapse; --- pace-as-look --- the pace written out, as the link base keeps the mode's own rings)
     id: "sunset-shatter",
     mode: "shatter",
-    query: "mode=shatter&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=103",
+    query: "mode=shatter&wc=6&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&wbreak=shatter&shh=2&shs=36&shb=1&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=103",
     previewAt: 16.5,
     name: { en: "Sunset Shatter", pl: "Rozbicie o zachodzie", es: "Estallido al atardecer" },
     description: {
@@ -205,7 +205,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "grand-prix",
     mode: "race",
-    query: "mode=race&glow=1&rcn=10&rcl=8&seed=1689637060" /* --- finales-in-clip --- (B6: the 8-screen track written out, the page has 6) */,
+    query: "mode=race&glow=1&rcn=10&seed=1689637060" /* --- finales-in-clip --- (B6: the 8-screen track; --- pace-as-look --- the link base's, the start look has 6) */,
     previewAt: 6,
     name: { en: "Ten-Racer Grand Prix", pl: "Grand Prix dziesięciu", es: "Gran Premio de diez" },
     description: {
@@ -258,7 +258,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "neon-vortex",
     mode: "vortex",
-    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxn=20&vxrl=stagger&seed=199343859" /* --- finales-in-clip --- (B6: the stagger release written out, the page plays the rings) */,
+    query: "mode=vortex&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&face=cute&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&vxn=20&seed=199343859" /* --- finales-in-clip --- (B6: the stagger release; --- pace-as-look --- the link base's, the start look plays the rings) */,
     previewAt: 13,
     name: { en: "Neon Vortex", pl: "Neonowy wir", es: "Vórtice de neón" },
     description: {
@@ -334,7 +334,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "sunset-countdown",
     mode: "target",
-    query: "mode=target&r=11&wt=5&tt=1.6&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=7",
+    query: "mode=target&s=700&r=11&wt=5&tt=1.6&tc=7&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=7" /* --- pace-as-look --- (the start look's pace written out: the run it was measured on) */,
     previewAt: 16,
     name: { en: "Sunset Countdown", pl: "Odliczanie o zachodzie", es: "Cuenta atrás al atardecer" },
     description: {
@@ -360,7 +360,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "candy-match",
     mode: "colorMatch",
-    query: "mode=colorMatch&r=11&wt=5&tt=1.6&wglow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&seed=8",
+    query: "mode=colorMatch&s=700&r=11&wt=5&tt=1.6&cmc=3&glow=1&wglow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&cms=8&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&seed=8" /* --- pace-as-look --- (the start look's pace written out: the run it was measured on) */,
     previewAt: 14,
     name: { en: "Candy Match", pl: "Cukierkowe dopasowanie", es: "Combinación de caramelo" },
     description: {
@@ -386,7 +386,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "retro-runner",
     mode: "runner",
-    query: "mode=runner&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&face=cute&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&rrn=24&rrd=1&seed=4" /* --- finales-in-clip --- (B6: 24 obstacles written out, the page has 18) */,
+    query: "mode=runner&glow=1&rwalls=0&cc=%23ff71ce&bc=%23fffb96&bc2=%2301cdfe&lc=%2305ffa1&face=cute&theme=retro&bgt=gradient&bg1=%231a1033&bg2=%233d0f4f&ps=pixels&trc=%23ff71ce%2C%2301cdfe&rrd=1&seed=4" /* --- finales-in-clip --- (B6: 24 obstacles; --- pace-as-look --- the link base's, the start look has 18) */,
     previewAt: 8,
     name: { en: "Retro Runner", pl: "Retro biegacz", es: "Corredor retro" },
     description: {
@@ -399,7 +399,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "sunset-keep-up",
     mode: "paddle",
-    query: "mode=paddle&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&pdsp=1&pdg=0&seed=6" /* --- finales-in-clip --- (B6: no goal written out, the page plays to 20) */,
+    query: "mode=paddle&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&pdsp=1&seed=6" /* --- finales-in-clip --- (B6: no goal; --- pace-as-look --- the link base's, the start look plays to 20) */,
     previewAt: 10,
     name: { en: "Sunset Keep-Up", pl: "Odbijanie o zachodzie", es: "Toques al atardecer" },
     description: {
@@ -425,7 +425,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "candy-darts",
     mode: "bullseye",
-    query: "mode=bullseye&glow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&dur=15&face=cute&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&bys=12&byi=0.4&byp=2&seed=8" /* --- finales-in-clip --- (B6: 12 shots written out, the page has 10) */,
+    query: "mode=bullseye&glow=1&rwalls=0&cc=%23ff85a1&bc=%23fff0f3&bc2=%23ffd6a5&lc=%23caffbf&dur=15&face=cute&theme=candy&bgt=gradient&bg1=%232a0a2e&bg2=%235a189a&trc=%23ff85a1%2C%239bf6ff&byi=0.4&byp=2&seed=8" /* --- finales-in-clip --- (B6: 12 shots; --- pace-as-look --- the link base's, the start look has 10) */,
     previewAt: 5,
     name: { en: "Candy Darts", pl: "Cukierkowe rzutki", es: "Dardos de caramelo" },
     description: {
@@ -453,7 +453,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "turf-war",
     mode: "territory",
-    query: "mode=territory&glow=1&tyb=3&tybg=0&seed=2",
+    query: "mode=territory&glow=1&tyb=3&tye=2&tyr=4&tybg=0&seed=2" /* --- pace-as-look --- (the start look's pace written out: the run it was measured on) */,
     previewAt: 16,
     name: { en: "Turf War", pl: "Wojna o teren", es: "Guerra de territorio" },
     description: {
@@ -466,7 +466,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "red-maze-race",
     mode: "maze",
-    query: "mode=maze&glow=1&mzc=12&mzn=4&mzd=60&mzbg=0&mzhud=0&mzfo=0&seed=7" /* --- finales-in-clip --- (B6: every ball out and the 60 s limit written out; the page ends at the first one out, 25 s at most) (review fix: and its 12 columns; the page's are 14) */,
+    query: "mode=maze&glow=1&mzn=4&mzbg=0&mzhud=0&seed=7" /* --- finales-in-clip --- (B6: every ball out and the 60 s limit; --- pace-as-look --- the link base's, the start look ends at the first one out, 25 s at most) (review fix: and its 12 columns; the start look's are 14) */,
     previewAt: 12,
     name: { en: "Four in the Maze", pl: "Czwórka w labiryncie", es: "Cuatro en el laberinto" },
     description: {
@@ -508,7 +508,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "aurora-orbs",
     mode: "orbGrid",
-    query: "mode=orbGrid&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&ogC=44&ogR=43&ogS=0.8&ogB=0.882&ogCycle=30&ogD=corner&ogRhythm=corner&ogHud=0&seed=3" /* --- finales-in-clip --- (B6: the 30 s cycle written out, the page has 26) */,
+    query: "mode=orbGrid&glow=1&rwalls=0&cc=%237cffcb&bc=%23ffffff&bc2=%23c084fc&lc=%237cffcb&theme=aurora&bgt=gradient&bg1=%23020024&bg2=%23093637&ps=bubbles&trc=%237cffcb%2C%23c084fc&ogC=44&ogR=43&ogS=0.8&ogB=0.882&ogD=corner&ogRhythm=corner&ogHud=0&seed=3" /* --- finales-in-clip --- (B6: the 30 s cycle; --- pace-as-look --- the link base's, the start look has 26) */,
     previewAt: 14.5,
     name: { en: "Orb Wave", pl: "Fala kul", es: "Ola de orbes" },
     description: {
@@ -668,7 +668,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "neon-merge",
     mode: "mergeRing",
-    query: "mode=mergeRing&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&seed=7",
+    query: "mode=mergeRing&glow=1&rwalls=0&cc=%23ff00e6&bc=%2300f0ff&bc2=%23faff00&lc=%2300f0ff&theme=neon&bgt=gradient&bg1=%230b0014&bg2=%231f0040&ps=sparks&trc=%2300f0ff%2C%23ff00e6&mri=0.4&mrs=3&mrg=3&seed=7" /* --- pace-as-look --- (the start look's pace written out: the run it was measured on) */,
     previewAt: 15,
     camera: { y: 0.46, zoom: 1.4 }, // (E2 review: the ring's shapes, without the English question under it and the corner counts)
     name: { en: "Neon Merge", pl: "Neonowe łączenie", es: "Fusión de neón" },
@@ -682,7 +682,7 @@ export const GALLERY: readonly GalleryPreset[] = [
   {
     id: "sunset-spiral",
     mode: "spiralGlass",
-    query: "mode=spiralGlass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&sgv=1.2&seed=3",
+    query: "mode=spiralGlass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&sgh=1&sgv=1.2&seed=3" /* --- pace-as-look --- (the start look's pace written out: the run it was measured on) */,
     previewAt: 14,
     name: { en: "Sunset Spiral", pl: "Spirala o zachodzie", es: "Espiral al atardecer" },
     description: {

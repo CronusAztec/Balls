@@ -33,6 +33,7 @@ import {
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest"; // --- finales-in-clip ---
 import { frequencyToMidi } from "@/lib/audio/scales";
@@ -435,10 +436,12 @@ describe("Paddle Keep-Up settings", () => {
     for (const key of Object.keys(PADDLE_RANGES) as (keyof typeof PADDLE_RANGES)[]) expect(RANGES[key]).toEqual(PADDLE_RANGES[key]);
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      expect(resolvePaddleFields(d)).toEqual({ ...defaultPaddleFields(), pdGoal: mode === "paddle" ? 20 : 0 } /* --- finales-in-clip --- (the page's goal in Paddle: lib/clipPacing.ts; none in the others) */);
+      expect(resolvePaddleFields(d)).toEqual({ ...defaultPaddleFields(), pdGoal: 0 } /* --- finales-in-clip --- (no goal: --- pace-as-look --- the link base, Paddle's too) */);
       const params = settingsToSearchParams(d);
       for (const key of ["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu", "pdg"]) expect(params.has(key)).toBe(false);
     }
+    // --- finales-in-clip --- (the page's goal in Paddle: lib/clipPacing.ts, --- pace-as-look --- its start look)
+    expect(resolvePaddleFields(startSettings("paddle"))).toEqual({ ...defaultPaddleFields(), pdGoal: 20 });
   });
 
   it("round-trip through the URL and presets; bad values fall back or are clamped", () => {
@@ -447,8 +450,8 @@ describe("Paddle Keep-Up settings", () => {
     expect(Object.fromEntries(["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu"].map((k) => [k, params.get(k)]))).toEqual({ pda: "0", pdsk: "0.85", pdm: "5", pdw: "0.2", pdsp: "0.25", pdu: "0.035" });
     expect(resolvePaddleFields(settingsFromSearchParams(params))).toEqual(resolvePaddleFields(s));
     const junk = settingsFromSearchParams(new URLSearchParams("mode=paddle&pda=maybe&pdsk=7&pdm=-3&pdw=x&pdsp=0.61&pdu=1"));
-    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1, pdGoal: 20 /* --- finales-in-clip --- (the page's) */ }); // --- uncap-all --- (no maximum)
-    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9, pdGoal: 20 /* --- finales-in-clip --- (the page's) */ });
+    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1, pdGoal: 0 /* --- finales-in-clip --- (the link base's: --- pace-as-look --- no goal) */ }); // --- uncap-all --- (no maximum)
+    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9, pdGoal: 0 /* --- finales-in-clip --- (the link base's: --- pace-as-look --- no goal) */ });
     expect(paddleSettingsOf({ ...defaultSettings("paddle"), scale: "minor", rootNote: 4 })).toMatchObject({ scale: "minor", rootNote: 4, skill: 0.7 });
   });
 });
@@ -560,7 +563,7 @@ describe("Paddle Keep-Up with a melody", () => {
 // --- finales-in-clip --- (B6) a goal of catches: the page's runs end on a win card or a GAME OVER, inside the default clip
 describe("Paddle Keep-Up's goal", () => {
   const runOf = (seed: number, patch: Partial<ReturnType<typeof defaultSettings>> = {}) => {
-    const s = { ...defaultSettings("paddle"), ...patch };
+    const s = { ...startSettings("paddle"), ...patch }; // --- pace-as-look --- (the page's runs: its start look)
     const request = finderRequestOfSettings(s, { width: 450, height: 450 }, 60);
     const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
     const events: SoundEvent[] = [];
@@ -572,7 +575,8 @@ describe("Paddle Keep-Up's goal", () => {
   };
 
   it("is 20 catches on the page, none in the mode's own and in a link that says 0; any whole number from 0 up travels", () => {
-    expect(defaultSettings("paddle").pdGoal).toBe(20);
+    expect(startSettings("paddle").pdGoal).toBe(20); // --- pace-as-look --- (round two A3a: the page's goal is its start look)
+    expect(defaultSettings("paddle").pdGoal).toBe(0); // (the link base: the mode's own)
     expect(defaultSettings("classic").pdGoal).toBe(0);
     expect(resolvePaddleSettings({}).goal).toBeUndefined();
     expect(resolvePaddleSettings({ goal: 37.4 }).goal).toBe(37);
@@ -580,7 +584,7 @@ describe("Paddle Keep-Up's goal", () => {
     expect(resolvePaddleSettings({ goal: -4 }).goal).toBeUndefined();
     const off = settingsFromSearchParams(new URLSearchParams("mode=paddle&pdg=0"));
     expect(off.pdGoal).toBe(0);
-    expect(settingsToSearchParams(off).get("pdg")).toBe("0");
+    expect(settingsToSearchParams(off).get("pdg")).toBeNull(); // --- pace-as-look --- (no goal is the link base again: a link without pdg plays none)
     expect(paddleSettingsOf(off).goal).toBeUndefined();
     expect(settingsFromSearchParams(settingsToSearchParams({ ...defaultSettings("paddle"), pdGoal: 45 })).pdGoal).toBe(45);
   });

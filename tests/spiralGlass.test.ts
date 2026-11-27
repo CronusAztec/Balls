@@ -58,6 +58,7 @@ import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { finderRequestOfSettings, modeSettingsOfSettings } from "@/lib/bot/finderRequest";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { simpleLookPatch } from "@/lib/bot/templates"; // --- templates --- (AI studio step 4b)
 import { endBannersOf, hudsOn } from "@/lib/crew/hudFlags"; // --- templates --- (AI studio step 4b)
 import { runFactsSync } from "@/lib/insights/score"; // --- templates --- (AI studio step 4b)
@@ -211,13 +212,14 @@ describe("settings, URL and presets", () => {
     expect(SPIRAL_GLASS_RANGES.sgChipEvery).toMatchObject({ min: 0.05, max: 1 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      // (--- clip-pacing --- in Spiral Glass itself the page starts with glass of one hit: lib/clipPacing.ts; the feature's own defaults stay)
-      expect(resolveSpiralGlassFields(d)).toEqual(mode === "spiralGlass" ? { ...defaultSpiralGlassFields(), sgGlassHp: 1 } : defaultSpiralGlassFields());
+      expect(resolveSpiralGlassFields(d)).toEqual(defaultSpiralGlassFields());
       const params = settingsToSearchParams(d);
       for (const key of ["sgt", "sgh", "sgv", "sgm", "sgr", "sgc"]) expect(params.has(key)).toBe(false);
       if (mode === "spiralGlass") expect(d.ballRadius).toBe(SPIRAL_GLASS_BALL_RADIUS);
       expect(spiralGlassModeDefaults(mode)).toEqual(mode === "spiralGlass" ? { ballRadius: SPIRAL_GLASS_BALL_RADIUS } : {});
     }
+    // (--- clip-pacing --- in Spiral Glass the page starts with glass of one hit: lib/clipPacing.ts, --- pace-as-look --- its start look)
+    expect(resolveSpiralGlassFields(startSettings("spiralGlass"))).toEqual({ ...defaultSpiralGlassFields(), sgGlassHp: 1 });
   });
 
   it("resolve clamps onto the sliders, caps the turns and the balls at their ceilings and drops bad values", () => {
@@ -245,7 +247,7 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("spiralGlass");
     expect(resolveSpiralGlassFields(back)).toEqual({ sgTurns: 8, sgGlassHp: 3, sgSpeed: 1.2, sgMaxBalls: 25, sgRainbow: false, sgChipEvery: 0.5 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=spiralGlass&sgt=500&sgh=abc&sgr=7&sgm=0&sgv=0&sgc=-1"));
-    expect(resolveSpiralGlassFields(bad)).toEqual({ ...defaultSpiralGlassFields(), sgGlassHp: 1 /* (sgh=abc: the page's own default) */, sgTurns: MAX_TURNS, sgMaxBalls: 1, sgSpeed: 0.3, sgChipEvery: 0.05 });
+    expect(resolveSpiralGlassFields(bad)).toEqual({ ...defaultSpiralGlassFields(), sgTurns: MAX_TURNS, sgMaxBalls: 1, sgSpeed: 0.3, sgChipEvery: 0.05 });
     const preset = presetToSettings({ mode: "spiralGlass", sgTurns: 0, sgRainbow: "no", sgSpeed: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveSpiralGlassFields(preset)).toMatchObject({ sgTurns: 3, sgRainbow: true, sgSpeed: 9 }); // ("no" is not a boolean: the default stays)
     expect(modeSettingsOfSettings(s).spiralGlass).toEqual({ turns: 8, glassHp: 3, speed: 1.2, maxBalls: 25, rainbow: false, chipEvery: 0.5 });

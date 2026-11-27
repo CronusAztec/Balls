@@ -411,7 +411,8 @@ describe("the page's start look (review fix B2)", () => {
   it("starts a bare studio visit and a mode picked on the page in Classic's Ring Ladder pace and Accumulation's quicker timer, never a link", () => {
     expect(clipStartSettings("classic")).toEqual({ gapSize: 1, ballSpeed: 500, screenShake: 0.3, showGlow: true, wallBreakStyle: "all", ringSound: true });
     expect(clipStartSettings("accumulation")).toEqual({ accumulationTime: 3, gapSize: 0.35, ballSpeed: 450, showGlow: true });
-    expect(clipStartSettings("target")).toEqual({});
+    expect(clipStartSettings("target")).toEqual(clipPacingDefaults("target")); // --- pace-as-look --- (round two A3a) a paced mode's start look is its pace
+    expect(clipStartSettings("drop")).toEqual({}); // and a mode with neither has none
     // the link base is what it was: the start look is written into the page's own link
     const start: SimulatorSettings = startSettings("classic"); // --- pace-as-look ---
     expect(settingsToSearchParams(start).toString()).toBe("mode=classic&s=500&gap=1&shake=0.3&glow=1&wbreak=all&resn=1");

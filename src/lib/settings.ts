@@ -64,7 +64,6 @@ import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourney
 // --- gerald-bullseye --- the Bullseye mode
 import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
 // --- merge-ring --- the Merge Ring mode
-import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing ---
 import { DEFAULT_COLOR_MATCH_SEGMENTS, isColorMatchSegments } from "@/lib/physics/modes/colorMatch"; // --- colour-match-segments ---
 import { DEFAULT_SHATTER_EVEN_BRICKS, DEFAULT_SHATTER_HITS, DEFAULT_SHATTER_SEGMENTS, isShatterHits, isShatterSegments } from "@/lib/physics/modes/shatter"; // --- shatter-demolition ---
 import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readMergeRingParams, resolveMergeRingFields, writeMergeRingParams, type MergeRingFields } from "@/lib/physics/modes/mergeRing";
@@ -1554,14 +1553,14 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ptUses: PORTAL_DEFAULT_USES,
     paintGuide: false, // --- paint-full --- (off: the link base; the same)
     pdMaxTempo: MAX_TEMPO,
-    pdGoal: 0, // --- finales-in-clip --- (no goal in the mode's own; Paddle's page default is clipPacing's)
+    pdGoal: 0, // --- finales-in-clip --- (no goal: the link base; --- pace-as-look --- Paddle's goal of 20 is the page's start look, clipPacing's)
     flBoutCap: FL_BOUT_CAP_SEC,
     colorMatchSegments: DEFAULT_COLOR_MATCH_SEGMENTS, // --- colour-match-segments --- (the mode's own 12; out here too, past the fast-path limit)
-    shatterHits: DEFAULT_SHATTER_HITS, // --- shatter-demolition --- (the mode's own; Shatter's page default is clipPacing's)
+    shatterHits: DEFAULT_SHATTER_HITS, // --- shatter-demolition --- (the mode's own: the link base; --- pace-as-look --- Shatter's pace is the page's start look, clipPacing's)
     shatterSegments: DEFAULT_SHATTER_SEGMENTS,
-    shatterEvenBricks: DEFAULT_SHATTER_EVEN_BRICKS, // --- shatter-even-bricks --- (the mode's own: off; Shatter's page default is clipPacing's)
-    // --- clip-pacing --- last: the page's own defaults of the modes whose default run did not end inside a 30 s clip
-    ...clipPacingDefaults(mode),
+    shatterEvenBricks: DEFAULT_SHATTER_EVEN_BRICKS, // --- shatter-even-bricks --- (the mode's own: off, the link base; --- pace-as-look --- the page's start look turns it on)
+    // --- pace-as-look --- (round two A3a) no page pace here: the modes' paces (lib/clipPacing.ts clipPacingDefaults) are the page's
+    // start look (clipStartSettings), so a link without the field reads the mode's own value, as it did in 1.17.0
   };
 }
 
@@ -2003,8 +2002,9 @@ const STRING_URL_KEYS: Record<string, StringKey> = {
 
 /**
  * Serialises only the settings that differ from the defaults for the current mode. --- clip-pacing --- (merge check) `always`: fields
- * written even at their default, in their usual place – the bot's links name every page-paced field they play (planner.ts
- * clipShareUrl), so a posted link replays its run whatever the page's pace (lib/clipPacing.ts) is now or later.
+ * written even at their default, in their usual place. Only the bot's links pass it (planner.ts clipShareUrl): they name every field
+ * of their mode's pace (lib/clipPacing.ts), so a posted link says the run it plays in so many words, whatever the link base or the
+ * page's start look (--- pace-as-look ---) holds.
  */
 export function settingsToSearchParams(settings: SimulatorSettings, always: readonly (keyof SimulatorSettings)[] = []): URLSearchParams {
   const params = new URLSearchParams();

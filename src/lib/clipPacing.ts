@@ -5,25 +5,28 @@ import { drawingMachineLook } from "@/lib/physics/drawingMachineFields"; // --- 
 import { BULLSEYE_LAST_SHOT } from "@/lib/physics/modes/bullseye"; // --- finales-in-clip --- (review fix)
 
 /*
- * --- clip-pacing --- The page's own defaults of the modes whose default run did not end inside the default 30 s clip: a
- * visitor who opened the mode and pressed Record got a clip without its ending (Countdown: 0 of 100 seeds done within 27 s;
- * Pendulum Wave: IN LINE! at 60.0 s; Merge Ring: 44–76 s). `clipPacingDefaults(mode)` is spread last into
- * `defaultSettings(mode)` (lib/settings.ts), so these are what the page, a bare `?mode=` link and a preset that leaves the
- * field out start from. A link that names the field keeps its value, and so does every recipe, template and gallery entry
- * that sets it.
+ * --- clip-pacing --- The paces of the modes whose default run did not end inside the default 30 s clip: a visitor who opened
+ * the mode and pressed Record got a clip without its ending (Countdown: 0 of 100 seeds done within 27 s; Pendulum Wave: IN
+ * LINE! at 60.0 s; Merge Ring: 44–76 s). (--- pace-as-look --- round two A3a) A pace is a start look, never a link base:
+ * `clipStartSettings(mode)` returns it (below), so the page starts the mode in it – a mode picked on the page, Reset, and the
+ * site's own links into the mode (lib/studioLooks.ts startSettings and startQuery) –, while `defaultSettings(mode)`
+ * (lib/settings.ts), what a bare `?mode=` link, a share code, a project file and a preset that leaves the field out read,
+ * keeps the mode's own values, as 1.17.0 wrote them: a link made before the paces or since replays the run it showed. The
+ * bot's plans and the templates' words build on the pace (bot/planner.ts recipeSettings, agentKit/studioKit.ts), and the
+ * bot's links name it (clipShareUrl). A link, card, gallery entry or daily look that plays a pace names it.
  *
- * Not here, on purpose: Classic and Accumulation. Classic is the page's first mode and the run half the product is measured
- * on – the bot's ring recipes and their plans in the crew's role-eval corpus (tests/fixtures/crew, which a recorded eval
- * answers byte for byte), the daily deals, the split-screen arenas, the characters' reactions: a new default there is a new
- * run in all of them. Measured for the day its default can move: gap 1.0 rad at ball speed 500 with the seven rings brings
- * 88 of 100 seeds out by 27 s (now: 0), median 18.2 s, none under 8 s, the first ring broken at a median 1.1 s (6.5 s); a
- * link gets that run today with `gap=1&s=500`, and the gallery's Ring Ladder card plays it with the ring sounds. (Tried as
- * the default: every ring recipe names its own gap and speed, so no plan's run moves, but their share links are written
- * against the defaults – `s=500` falls out, `gap=0.4` comes in – and so are the briefs a recorded crew eval answered.)
- * Accumulation runs in the same recipes, and its length is the luck of one
- * gap: a 3 s timer, gap 0.35 and speed 450 bring 79 of 100 in (now 63).
+ * Not here, on purpose: Classic and Accumulation (their start looks are clipStartSettings' own, below). Classic is the page's
+ * first mode and the run half the product is measured on – the bot's ring recipes and their plans in the crew's role-eval
+ * corpus (tests/fixtures/crew, which a recorded eval answers byte for byte), the daily deals, the split-screen arenas, the
+ * characters' reactions: the plans build on a pace, so a pace there is a new run in all of them. Measured for the day its
+ * default can move: gap 1.0 rad at ball speed 500 with the seven rings brings 88 of 100 seeds out by 27 s (now: 0), median
+ * 18.2 s, none under 8 s, the first ring broken at a median 1.1 s (6.5 s); a link gets that run today with `gap=1&s=500`, and the
+ * gallery's Ring Ladder card plays it with the ring sounds. (Tried as the default: every ring recipe names its own gap and
+ * speed, so no plan's run moves, but their share links are written against the defaults – `s=500` falls out, `gap=0.4` comes
+ * in – and so are the briefs a recorded crew eval answered.) Accumulation runs in the same recipes, and its length is the luck of
+ * one gap: a 3 s timer, gap 0.35 and speed 450 bring 79 of 100 in (now 63).
  *
- * Only page defaults: the modes' own constants (DEFAULT_PENDULUM_SETTINGS, DEFAULT_MERGE_RING_SETTINGS …) and the
+ * Only start looks: the modes' own constants (DEFAULT_PENDULUM_SETTINGS, DEFAULT_MERGE_RING_SETTINGS …), the link base and the
  * fingerprint recipe's config (lib/agentKit/fingerprint.ts) are what they were, so no pinned run moves.
  *
  * Measured with the seed finder's own engine on seeds 1–100 (Merge Ring and Spiral Glass: 1–40) in the laptop world
@@ -150,8 +153,9 @@ const PADDLE_PACE: Partial<SimulatorSettings> = Object.freeze({ pdGoal: 20 });
  *    Spiral Glass 24 (24 and 27), Shatter 15 (2 and 6; 17.4 and 14.6 s).
  * (Territory's countdown is 30 s on every seed, and Bouncing Orbs' rhythm field never ends: the page's 30 stays.) Only while the
  * mode's run fields are at their page pace (`clipPacingDefaults()`; the ring modes' glow is a look): a link that sets its own
- * course keeps the page's 30. Simulator.tsx sets it when the page starts a mode (a first visit, a mode picked), and
- * (--- find-target-follows --- round two A2b) whenever another run comes onto the page while the target is still the page's own.
+ * course, and (--- pace-as-look ---) a bare link, which plays the link base, keep the page's 30. Simulator.tsx sets it when
+ * the page starts a mode (a first visit, a mode picked), and (--- find-target-follows --- round two A2b) whenever another run
+ * comes onto the page while the target is still the page's own.
  */
 export const DEFAULT_FIND_SEC = 30;
 const PACED_FIND_SEC: Readonly<Partial<Record<ModeId, number>>> = Object.freeze({
@@ -318,10 +322,13 @@ export function nextFindTarget(prevAuto: FindTargetAuto, current: number, next: 
 // --- clip-start --- (review fix B2)
 /**
  * The page's start look of a mode whose link base cannot move: what a visitor gets when the page itself starts the mode (a
- * bare studio visit, a mode picked on the page – Simulator.tsx), on top of `defaultSettings(mode)`. Never applied to a link:
- * links, presets, project files, share codes and the bot's plans are written against `defaultSettings(mode)`, which stays as
- * it was (the crew's role-eval corpus pins Classic's and Accumulation's defaults byte for byte: tests/fixtures/crew), so a page
- * in its start look writes these fields into its own link and a shared link replays the run it showed.
+ * bare studio visit, a mode picked on the page – Simulator.tsx; Reset and the site's own links, lib/studioLooks.ts
+ * startSettings and startQuery), on top of `defaultSettings(mode)`. (--- pace-as-look --- round two A3a) A paced mode's start
+ * look is its pace (`clipPacingDefaults()`, the switch's default). Never applied to a link: links, presets, project files and
+ * share codes are read on `defaultSettings(mode)`, which stays as it was (the crew's role-eval corpus pins Classic's and
+ * Accumulation's defaults byte for byte: tests/fixtures/crew; 1.17.0's links of the paced modes replay their runs), so a page
+ * in its start look writes these fields into its own link and a shared link replays the run it showed. The bot's plans build
+ * on a mode's pace, never on another start look (bot/planner.ts recipeSettings).
  *
  * Measured with the seed finder's own engine, seeds 1–50 in the laptop (800 × 450) and phone (450 × 450) worlds:
  *  - classic: the Ring Ladder card's run (gap 1.0 at ball speed 500, the ring sounds, a light shake, the glow, every break
@@ -450,7 +457,7 @@ export function clipStartSettings(mode: ModeId): Partial<SimulatorSettings> {
     case "ctf":
       return CTF_START; // --- ctf-flag-run ---
     default:
-      return NONE;
+      return clipPacingDefaults(mode); // --- pace-as-look --- (round two A3a) a paced mode's pace is its start look; the link base keeps the mode's own values
   }
 }
 /** --- conveyor-count --- (Lane E, E6) Conveyor Belt's start look: a ball every 2 s, so ALL OUT! lands inside the 30 s clip. */

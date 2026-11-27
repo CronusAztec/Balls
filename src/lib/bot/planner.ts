@@ -3,7 +3,7 @@ import { startBallCount } from "@/lib/physics/ballStats";
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { polyrhythmCycleSeconds, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing --- (merge check: a share link names the page-paced fields it plays)
+import { clipPacingDefaults } from "@/lib/clipPacing"; // --- clip-pacing --- (merge check: a share link names the page-paced fields it plays; --- pace-as-look --- the plans build on the pace)
 import { createEngineForSettings, stepPlaybackMs, type FinderRequest } from "@/lib/simulation/finder";
 import { outcomeMatches, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
 import { recordingTextLayout } from "@/lib/recording/recorder";
@@ -1195,14 +1195,25 @@ interface BuiltSettings {
   preset: InstrumentPreset;
 }
 
+// --- pace-as-look --- (round two A3a)
 /**
- * The settings of a recipe for one variant: the mode's defaults, the bot's look and sound, the recipe's numbers – and, for the
- * Simple look (--- templates ---), SIMPLE_LOOK over them: look fields only, drawn after every seeded choice, so the numbers, the
- * sound and the run are the bot look's.
+ * What a plan of `mode` builds on: the mode's link base with its pace on top (lib/clipPacing.ts clipPacingDefaults; none for a
+ * mode without one), the settings the bot's plans were measured and pinned on. The pace left the link base for the page's start
+ * look, so a link without the field replays 1.17.0's run; the plans keep the pace, and their links name it (`clipShareUrl`).
+ */
+export function planBaseSettings(mode: SimulatorSettings["mode"]): SimulatorSettings {
+  return { ...defaultSettings(mode), ...clipPacingDefaults(mode) };
+}
+// --- end pace-as-look ---
+
+/**
+ * The settings of a recipe for one variant: the mode's defaults (--- pace-as-look --- with its pace: `planBaseSettings`), the
+ * bot's look and sound, the recipe's numbers – and, for the Simple look (--- templates ---), SIMPLE_LOOK over them: look fields
+ * only, drawn after every seeded choice, so the numbers, the sound and the run are the bot look's.
  */
 export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext, look: BotLookId = "bot"): BuiltSettings {
   const patch = recipe.settings(ctx);
-  let s: SimulatorSettings = defaultSettings(patch.mode);
+  let s: SimulatorSettings = planBaseSettings(patch.mode); // --- pace-as-look ---
   // §3.9 neon on black, glow and trails
   s = applyTheme(s, BOT_LOOK.themeId);
   s.backgroundType = "gradient";

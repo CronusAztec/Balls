@@ -34,6 +34,7 @@ import {
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { startSettings } from "@/lib/studioLooks"; // --- pace-as-look --- (round two A3a: the page's pace is its start look)
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { SCALE_INTERVALS, frequencyToMidi, quantizeFrequency } from "@/lib/audio/scales";
 import { DEFAULT_PEW_FREQUENCY, PEW_TONE, pewSweep, pewWaveform, schedulePewTone } from "@/lib/audio/pewTone";
@@ -731,15 +732,16 @@ describe("funnel spin-up: settings, URL and presets", () => {
       for (const key of ["vxrl", "vxv", "vxw", "vxwi", "vxfd", "vxe", "vxsf", "vxfl", "vxh", "vxrg", "vxlr"]) expect(params.has(key)).toBe(false);
     }
     expect(resolveVortexSettings({})).toMatchObject({ release: "stagger", view: "top", waves: [6, 12, 24], holeSize: 25, bpm: 120 });
+    // --- pace-as-look --- (round two A3a) the link base is the stagger; the page's start look plays the ring release (lib/clipPacing.ts)
+    expect([defaultSettings("vortex").vxRelease, startSettings("vortex").vxRelease]).toEqual(["stagger", "rings"]);
   });
 
   it("round-trips through vxrl / vxv / vxw / vxwi / vxfd / vxe / vxsf / vxfl / vxh / vxrg / vxlr, uncapped from each minimum", () => {
-    // (--- finales-in-clip --- the ring release is the page's default now: the stagger is the release a link writes)
-    const s = { ...defaultSettings("vortex"), vxRelease: "stagger" as const, vxView: "perspective" as const, vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true };
+    const s = { ...defaultSettings("vortex"), vxRelease: "rings" as const, vxView: "perspective" as const, vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true };
     const params = settingsToSearchParams(s);
-    expect(Object.fromEntries(["vxrl", "vxv", "vxw", "vxwi", "vxfd", "vxe", "vxsf", "vxfl", "vxh", "vxrg", "vxlr"].map((k) => [k, params.get(k)]))).toEqual({ vxrl: "stagger", vxv: "perspective", vxw: "1,2,4,8", vxwi: "3.25", vxfd: "2.5", vxe: "40", vxsf: "0.0125", vxfl: "7", vxh: "18", vxrg: "2", vxlr: "1" });
+    expect(Object.fromEntries(["vxrl", "vxv", "vxw", "vxwi", "vxfd", "vxe", "vxsf", "vxfl", "vxh", "vxrg", "vxlr"].map((k) => [k, params.get(k)]))).toEqual({ vxrl: "rings", vxv: "perspective", vxw: "1,2,4,8", vxwi: "3.25", vxfd: "2.5", vxe: "40", vxsf: "0.0125", vxfl: "7", vxh: "18", vxrg: "2", vxlr: "1" });
     const back = settingsFromSearchParams(params);
-    expect(resolveFunnelSpinFields(back)).toEqual({ vxRelease: "stagger", vxView: "perspective", vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true });
+    expect(resolveFunnelSpinFields(back)).toEqual({ vxRelease: "rings", vxView: "perspective", vxWaves: "1, 2, 4, 8", vxWaveInterval: 3.25, vxFunnelDepth: 2.5, vxElevation: 40, vxSpinFriction: 0.0125, vxFirstLap: 7, vxHoleSize: 18, vxRefillGap: 2, vxLapReadout: true });
     // bad values fall back, values past a slider are kept (uncapped), values under a minimum are lifted onto it
     const bad = settingsFromSearchParams(new URLSearchParams("mode=vortex&vxrl=spiral&vxv=side&vxw=a,b&vxwi=500&vxe=-5&vxfl=0&vxsf=x&vxh=99"));
     expect(resolveFunnelSpinFields(bad)).toMatchObject({ vxRelease: "stagger", vxView: "top", vxWaves: "6, 12, 24", vxWaveInterval: 500, vxElevation: 0, vxFirstLap: 0.1, vxSpinFriction: 0.02, vxHoleSize: 99 });
@@ -1171,6 +1173,6 @@ describe("funnel spin-up: the loop, the sounds and the finder", () => {
     expect(loopHudCount(vortexEngine())).toBeNull();
     const ctxFor = loopCaptionContext({ ...defaultSettings("vortex"), vxRelease: "rings", vxWaves: "6, 12, 24" } as never);
     expect(ctxFor).toMatchObject({ mode: "vortex", hookKey: "funnelSpin", factKey: "funnelSpinFact", count: 24 });
-    expect(loopCaptionContext({ ...defaultSettings("vortex"), vxRelease: "stagger" /* --- finales-in-clip --- (the page plays the rings now) */ } as never).hookKey).not.toBe("funnelSpin");
+    expect(loopCaptionContext({ ...defaultSettings("vortex") } as never).hookKey).not.toBe("funnelSpin");
   });
 });
