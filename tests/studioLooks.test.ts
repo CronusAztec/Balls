@@ -73,17 +73,32 @@ describe("the mode cards' links (card-looks)", () => {
   it("opens every mode with a start look in that look, the loop HUD on where the start look leaves it", () => {
     const staged = MODE_IDS.filter((id) => Object.keys(clipStartSettings(id)).length > 0);
     expect(staged).toEqual(expect.arrayContaining(["classic", "accumulation", "waveTank", "beatMachine"]));
-    // --- pace-as-look --- (round two A3a) a paced mode's start look is its pace, and its card names it; four cards play their
-    // picture's own value of one field instead (Beat Runner's density 1, the Journey's four stages, Bullseye's bull on shot 2, the
-    // Maze's 12 columns, the link base's), which the picker's patch carries onto the start look
+    // --- pace-as-look --- (round two A3a) a paced mode's start look is its pace, and its card names it; three cards play their
+    // picture's own value of one field instead (Beat Runner's density 1, the Journey's four stages, the Maze's 12 columns, the
+    // link base's), which the picker's patch carries onto the start look. (--- card-looks --- round two A5: Bullseye's card plays
+    // the start look's ten shots with the last one in the bull; its picture's bull on shot 2 ended the run in about 9 s)
     expect(staged).toEqual(expect.arrayContaining(["race", "pendulum", "maze", "runner"]));
-    const CARD_OWN: Partial<Record<ModeId, Partial<SimulatorSettings>>> = { runner: { runnerDensity: 1 }, journey: { journeyStages: "rings-l,glass,pegs,home" }, bullseye: { byPerfect: 2 }, maze: { mzCols: 12 } };
+    const CARD_OWN: Partial<Record<ModeId, Partial<SimulatorSettings>>> = { runner: { runnerDensity: 1 }, journey: { journeyStages: "rings-l,glass,pegs,home" }, maze: { mzCols: 12 } };
     for (const id of staged) {
       const s = settingsFromSearchParams(new URLSearchParams(cardQuery(id)));
       const own = (CARD_OWN[id] ?? {}) as Record<string, unknown>;
       for (const [key, value] of Object.entries(clipStartSettings(id))) expect(s[key as keyof SimulatorSettings], `${id} ${key}`).toEqual(key in own ? own[key] : value);
       expect(cardLinkPatch(id, cardQuery(id)).patch, id).toMatchObject(own);
       if (clipStartSettings(id).loopHud === undefined) expect([id, s.loopHud]).toEqual([id, startLook(id).loopHud]);
+    }
+  });
+
+  // --- card-words --- (round two A5) a card opens the first visit's words in every mode, not only in a mode with a start look:
+  // the loop HUD's title and counter, String Battle's, the Maze's, the Orbs' and Land Claim's HUD, and Power Layers' rule pills and
+  // sound badge. Ten cards took their picture's HUD-off keys and opened without them (final review: m3-cards-hud-off,
+  // modes-missed-17, m1-card-route-loses-words), the picture's clean look leaking into the link: the picture keeps it (`query`),
+  // the card leaves it out
+  it("keeps the first visit's HUD on every mode's card", () => {
+    const HUD = ["loopHud", "sbHud", "mzHud", "ogHud", "lcHud", "plPills", "plBadge"] as const;
+    for (const id of MODE_IDS) {
+      const s = settingsFromSearchParams(new URLSearchParams(cardQuery(id)));
+      const first = startLook(id);
+      for (const key of HUD) expect([id, key, s[key]]).toEqual([id, key, first[key]]);
     }
   });
 });

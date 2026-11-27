@@ -246,11 +246,12 @@ interface LookFindTarget {
  * follows it (Simulator.tsx, `nextFindTarget`), so it is the look's own. Seeds 1–100 in the page's two worlds (800 × 450 and
  * 450 × 450, which agree for these looks), through the page's own request (lib/simulation/pageFinderRequest.ts), as the target at
  * or above the Find slider's 10 s (RANGES.findDuration's minimum) with the most runs within its ± 0.5 s (the first of a tie; A-g1
- * review: below it, the Bullseye card's 9.5 s holds 112 runs of 200 and the Maze card's 7 s 24); in brackets the runs within
- * ± 0.5 s of 200, then those of the target the look would get without its entry. A fixed-length run (Pendulum Wave's 60 s, the
- * Polyrhythm's 12 s) gets its own length. (Not here: looks the page's 30 already finds – Grand Prix 30 of 200, Vortex's Challenge
- * look 82, Red Maze Race 10, Aurora Portals 10 –, Portal's Challenge look, which is its link base (16.5 s: 6, 30 s: 4; the link
- * base keeps the page's 30), and the looks whose runs do not end in a clip, Neon Escape and the endless ones.)
+ * review: below it, the Bullseye card's 9.5 s, its run before round two A5, holds 112 runs of 200 and the Maze card's 7 s 24);
+ * in brackets the runs within ± 0.5 s of 200, then those of the target the look would get without its entry. A fixed-length run
+ * (Pendulum Wave's 60 s, the Polyrhythm's 12 s) gets its own length. (Not here: looks the page's 30 already finds – Grand Prix 30
+ * of 200, Vortex's Challenge look 82, Red Maze Race 10, Aurora Portals 10 –, Portal's Challenge look, which is its link base
+ * (16.5 s: 6, 30 s: 4; the link base keeps the page's 30), and the looks whose runs do not end in a clip, Neon Escape and the
+ * endless ones.)
  */
 const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>> = Object.freeze({
   classic: [{ look: "daily", run: { wallCount: 5, gapSize: 0.4, ballSpeed: 500 }, sec: 36 }], // (13; 30 s: 3) median 43.9 s
@@ -270,7 +271,8 @@ const LOOK_FIND_SEC: Readonly<Partial<Record<ModeId, readonly LookFindTarget[]>>
   race: [{ look: "daily", run: { rcRacers: 8, rcTrackLength: 8, rcLaps: 1, rcWinner: -1 }, sec: 27.5 }], // (40; 30 s: 20) median 28.4 s, 23.5–37.0 s
   vortex: [{ look: "neon-vortex", run: { vxRelease: "stagger", vxBalls: 20 }, sec: 41.5 }], // (98; 0)
   bullseye: [
-    { look: "card", run: { byShots: 10, byPerfect: 2, byInterval: 0.4 }, sec: 10 }, // (76; 0)
+    // (--- card-looks --- round two A5: the card plays the start look's run, so the pace's 25; its earlier run, a shot every 0.4 s
+    // and the bull on shot 2, had 10 here)
     { look: "candy-darts", run: { byShots: 12, byPerfect: 2, byInterval: 0.4 }, sec: 10.5 }, // (94; 0)
   ],
   journey: [{ look: "card", run: { journeyStages: "rings-l,glass,pegs,home" }, sec: 22.5 }], // the card and Pastel Commute (42; 0)

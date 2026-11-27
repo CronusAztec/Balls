@@ -437,7 +437,7 @@ describe("--- find-target-follows --- Find's target follows the run on the page"
     "runner/daily": 32, // (20; 44) A-g2 review: 1.17.0's deal on the link base
     "vortex/neon-vortex": 41.5, // (0; 98)
     "vortex/daily": 30, // (0; 82)
-    "bullseye/card": 10, // (0; 76)
+    "bullseye/card": 25, // (round two A5: the card plays the start look's run, the pace's target; its earlier run had 10 of its own)
     "bullseye/candy-darts": 10.5, // (0; 94)
     "race/grand-prix": 30, // (0; 30)
     "race/daily": 27.5, // (20; 40) A-g2 review: 1.17.0's deal on the link base

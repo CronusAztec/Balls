@@ -2608,7 +2608,10 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   holds the look on the page's start pace instead (14 modes, measured with the finder's engine on seeds 1–8 in both worlds; each
   line says what it measured), and `cardSeed: false` leaves the seed out where its run does not end inside the clip with its
   holds (Square Battle Royale, Sound Vortex). The studio's Looks row offers the same look as As pictured (`src/content/looks.ts`,
-  `src/lib/studioLooks.ts`, `tests/studioLooks.test.ts`).
+  `src/lib/studioLooks.ts`, `tests/studioLooks.test.ts`). --- card-words --- (round two A5) A card leaves out the picture's
+  switches that hide the first visit's words (`lh=0`, `sbh=0`, `mzhud=0`, `ogHud=0`, `lch=0`, `plb=none`, `plp=0`), so every
+  card opens its title, counter, rule pills and badge (the test checks all 50 modes), and a paced mode's card names its pace,
+  since a key it leaves out reads the link base.
 - **Tests** – `tests/modeThumbnails.test.ts`: a hero moment for every `MODE_IDS` id and nothing else, complete entries, links
   that open their mode with glow, trails and their seed and no caption, text or watermark, every own key changing the run (no
   typo, no no-op), the frame's geometry and budget, the still schedule, the pictures on disk (WebP, 480 × 480, under 60 KB), the
