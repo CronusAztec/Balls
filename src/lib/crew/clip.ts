@@ -320,9 +320,10 @@ const HOLD_MATCH_SEC = 0.25;
 /**
  * How long the state a resolved payoff shows stays on screen after it (s), where the run itself takes it away before the clip ends;
  * null where it stays to the clip's end, as far as anything tells. Perfect Fit's rectangles: the box is full from its last piece's
- * landing (the payoff) to its burst, a flash later – 0.15 s at free timing (polyominoPlan.ts PF_FLASH_SEC; the scatter and the fade
- * after it show the pieces flying out of an emptying box) –, so a clip that runs on for seconds after the payoff shows the box full
- * for that flash alone. The timeline is the same for every tiling (12 slots, then the completion), so any solution seed reads it.
+ * landing (the payoff) to its burst, its hold later – 0.85 s at free timing (polyominoPlan.ts PF_FLASH_SEC; --- finales-in-clip ---
+ * a 0.15 s flash before B6; the scatter and the fade after it show the pieces flying out of an emptying box) –, so a clip that runs on
+ * for seconds after the payoff shows the box full for that hold alone: a payoff on the landing sees all of it, one timed after it
+ * less. The timeline is the same for every tiling (12 slots, then the completion), so any solution seed reads it.
  * The crew's gate G2 asks the payoff's state to hold as long as it asks a payoff to be shown (CLARITY.shownAfterPayoffSec).
  */
 export function payoffHoldSec(clip: Pick<CrewClip, "settings" | "payoff" | "timing" | "ending">): number | null {

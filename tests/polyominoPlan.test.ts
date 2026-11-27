@@ -524,4 +524,17 @@ describe("--- finales-in-clip --- the full box held", () => {
       expect(occupiedCells(plan, p.tDone + p.flashSec + 0.05)).toBe(0);
     }
   });
+
+  // (merge check) the hold is a filled box's: a box with no plan keeps its label 1.5 s and its 0.5 s fade from before B6, so a link
+  // with such a box keeps every later box and its loop where they were
+  it("keeps a box with no plan on its 1.5 s label and 0.5 s fade, and every box after it and the loop where they were", () => {
+    const plan = planPerfectFit(input({ boxes: [{ w: 7, h: 7 }, { w: 10, h: 6 }], pieceSec: 1 }));
+    const [none, next] = plan.puzzles;
+    expect([none.status, none.t0, none.tDone, none.fadeSec, none.tEnd]).toEqual(["size", 0, expect.closeTo(1.5, 9), expect.closeTo(0.5, 9), expect.closeTo(2, 9)]);
+    expect([next.status, next.t0, next.tDone, next.tEnd]).toEqual(["ok", expect.closeTo(2, 9), expect.closeTo(14, 9), expect.closeTo(15.45, 9)]);
+    expect(plan.loopSec).toBeCloseTo(15.45, 9);
+    // on the beat (120 bpm) both still land on whole beats: the label's three and the fade's one
+    const beat = planPerfectFit(input({ boxes: [{ w: 7, h: 7 }, { w: 10, h: 6 }], pieceSec: 1, beatSec: 0.5 }));
+    expect([beat.puzzles[0].tDone, beat.puzzles[0].tEnd, beat.puzzles[1].t0]).toEqual([expect.closeTo(1.5, 9), expect.closeTo(2, 9), expect.closeTo(2, 9)]);
+  });
 });

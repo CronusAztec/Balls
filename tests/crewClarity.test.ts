@@ -268,14 +268,20 @@ describe("each gate's other problems", () => {
   });
 
   // --- crew --- (studio round 1, 10) Perfect Fit's box, full for its flash before it bursts, passed G2 on the 1.4 s left after its
-  // payoff: the payoff's state must hold as long as a payoff is shown
-  it("G2 on a fill's hold: Perfect Fit's box bursts a flash after it fills, so a clip that goes on after it still shows the fill for 0.15 s", () => {
-    // twelve pieces a second each: the box full at 12 s (the last landing), the burst 0.15 s later
+  // payoff: the payoff's state must hold as long as a payoff is shown. --- finales-in-clip --- (B6) the box is held 0.85 s now
+  // (polyominoPlan.ts PF_FLASH_SEC), so a payoff on its landing passes; a payoff timed after the landing sees less of the hold
+  it("G2 on a fill's hold: Perfect Fit's box is held 0.85 s after it fills, so a payoff on its landing passes and one timed 0.2 s after it sees the fill for 0.65 s only", () => {
+    // twelve pieces a second each: the box full at 12 s (the last landing), the burst 0.85 s later (a 0.15 s flash before B6)
     const settings = { ...defaultSettings("perfectFit"), pfVariant: "pento", pfBoxes: "10×6", pfPieceSec: 1, pfBeat: false, captions: clean.settings.captions } as SimulatorSettings;
-    const fit = (atSec: number, clipSec: number): CrewClip => ({ ...clean, settings: settings, mode: "perfectFit", claim: "full", run: null, payoff: { ...clean.payoff, atSec, position: atSec / clipSec }, timing: { ...clean.timing, clipSec } });
-    expect(payoffHoldSec(fit(12, 14))).toBeCloseTo(0.15, 6);
-    const g2 = gateOf(fit(12, 14), "G2");
-    expect([g2.problems, g2.values]).toEqual([["payoffLandsBrief"], { held: 0.2 }]);
+    const fit = (atSec: number, clipSec: number, s: SimulatorSettings = settings): CrewClip => ({ ...clean, settings: s, mode: "perfectFit", claim: "full", run: null, payoff: { ...clean.payoff, atSec, position: atSec / clipSec }, timing: { ...clean.timing, clipSec } });
+    expect(payoffHoldSec(fit(12, 14))).toBeCloseTo(0.85, 6);
+    expect(gateOf(fit(12, 14), "G2").problems).toEqual([]);
+    // on the beat (120 bpm) the completion's 1.45 s is rounded up to whole beats (1.5 s) and the hold with it: never shorter
+    expect(payoffHoldSec(fit(12, 14, { ...settings, pfBeat: true, bpm: 120 }))).toBeCloseTo((0.85 * 1.5) / 1.45, 6);
+    // a payoff timed 0.2 s after the box filled sees it full for the hold's last 0.65 s, under the 0.8 s G2 asks
+    expect(payoffHoldSec(fit(12.2, 14))).toBeCloseTo(0.65, 6);
+    const g2 = gateOf(fit(12.2, 14), "G2");
+    expect([g2.problems, g2.values]).toEqual([["payoffLandsBrief"], { held: 0.7 }]);
     // a payoff that is not a box's completion, a cut clip, or another mode: nothing tells the hold
     expect(payoffHoldSec(fit(11.5, 14))).toBeNull();
     expect(payoffHoldSec({ ...fit(12, 14), ending: "cliffhanger" })).toBeNull();

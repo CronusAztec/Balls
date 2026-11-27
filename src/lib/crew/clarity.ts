@@ -180,8 +180,9 @@ function payoffGate(clip: CrewClip): Gate {
   else if (position > CLARITY.payoffTo + EPS) problems.push({ key: "Late", values: { pct: pct(position), sec: r1(atSec) } });
   if (clipSec - atSec < CLARITY.shownAfterPayoffSec - EPS) problems.push({ key: "NotShown", values: { after: r1(Math.max(0, clipSec - atSec)) } });
   else {
-    // --- crew --- (studio round 1, 10) the payoff's state held as long as a payoff is shown: Perfect Fit's full box bursts a flash after
-    // it fills, seconds before the clip ends (clip.ts payoffHoldSec), as Paint's fill ended its run in the recorder's 0.5 s
+    // --- crew --- (studio round 1, 10) the payoff's state held as long as a payoff is shown: Perfect Fit's full box bursts its hold
+    // after it fills (0.85 s since B6, a 0.15 s flash before), seconds before the clip ends (clip.ts payoffHoldSec), as Paint's fill
+    // ended its run in the recorder's 0.5 s
     const held = payoffHoldSec(clip);
     if (held !== null && held < CLARITY.shownAfterPayoffSec - EPS) problems.push({ key: "Brief", values: { held: r1(held) } });
   }

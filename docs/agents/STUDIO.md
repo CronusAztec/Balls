@@ -583,12 +583,13 @@ What the run showed:
   change of the hub file Canvas.tsx, with the planner's caption boxes (`captionBoxAt`'s `topHud`) to match: the owner's call.
   Beat Drop (AI studio step 5) is hidden the same way: its HUD at the top left of the square (BEAT DROP, the tempo, the
   landings on the beat, the bar's dots) sits under the hook for its 2.5 s, and no setting switches it off.
-- **A held payoff** (the studio's first review round, 10). Perfect Fit fills its box, flashes it for 0.15 s and bursts it, and
-  its page records whole loops, so its clip shows the full box for that flash only, its last second the pieces flying out and
+- **A held payoff** (the studio's first review round, 10). Perfect Fit filled its box, flashed it for 0.15 s and burst it, and
+  its page records whole loops, so its clip showed the full box for that flash only, its last second the pieces flying out and
   the next loop's tray. G2 now reads how long a payoff's state holds (`payoffHoldSec`: a box's completion to its burst) and asks
-  0.8 s, as it asks of a payoff shown, so the template is hidden. A hold before the burst would bring it back: a drawn-only
-  setting of the mode (its plan's timeline and loop length move with it, the fingerprint at the default does not), the
-  owner's call.
+  0.8 s, as it asks of a payoff shown, so the template was hidden. Since the finales step (B6) every box it fills is held full 0.85 s
+  before its burst, inside the same 1.45 s completion (a quicker scatter and fade: no box, seam or loop moves, nor the
+  fingerprint), so a payoff on the box's landing passes G2 and one timed 0.2 s after it does not. The template stays hidden until
+  a review watches its renders.
 - **A beat that drops** (the studio's first review round, 11). The beat format's payoff is the drop or the last bar, and G2 now
   asks it to stand out from the run before it (`beatStandsOut`: a quarter more sounds than the run's busiest moment, a larger
   chord, or an accent none before matched). Collision Playground's anti-collision switch does (a flash, ANTI-COLLISION, every

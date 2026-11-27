@@ -852,8 +852,13 @@ export const PF_SQUASH = 0.08;
 export const PF_FLASH_SEC = 0.85;
 export const PF_SCATTER_SEC = 0.4;
 export const PF_FADE_SEC = 0.2;
-/** A box without a plan is shown with its label this long, then fades like a completion (s). */
+/** A box without a plan is shown with its label this long, then fades for PF_NO_WAY_FADE_SEC (s). */
 export const PF_NO_WAY_SEC = 1.5;
+/**
+ * --- finales-in-clip --- (B6) A box without a plan fades this long (s): the completion's 0.5 s crossfade before B6, kept apart from
+ * PF_FADE_SEC so that a link with such a box keeps every later box and its loop where they were.
+ */
+export const PF_NO_WAY_FADE_SEC = 0.5;
 /** Tetris: each section's pieces fall this much faster than the last's; a clear's banner, the hard silence after it, the finale's flash and the empty well before the loop (s). */
 export const PF_TETRIS_SPEEDUP = 0.82;
 export const PF_CLEAR_SEC = 0.55;
@@ -1057,7 +1062,7 @@ function planPentominoes(input: PerfectFitPlanInput, puzzles: PfPuzzle[], events
       }
     } else {
       puzzle.tDone = t + onGrid(PF_NO_WAY_SEC, beat);
-      puzzle.fadeSec = onGrid(PF_FADE_SEC, beat);
+      puzzle.fadeSec = onGrid(PF_NO_WAY_FADE_SEC, beat);
       puzzle.tEnd = puzzle.tDone + puzzle.fadeSec;
     }
     puzzles.push(puzzle);
