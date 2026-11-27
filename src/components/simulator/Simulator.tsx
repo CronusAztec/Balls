@@ -63,6 +63,7 @@ import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
 import { uncapConfigOf } from "@/lib/physics/limits"; // --- unlimited --- (--- uncap-all --- engaged by the values, not a switch)
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
+import { pageFinderRequest } from "@/lib/simulation/pageFinderRequest"; // --- page-finder-request ---
 import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
 import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
@@ -177,7 +178,7 @@ import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 // --- fl-overhaul --- (Stage 3) the verdict's card comes in the KO finale or after TIME!: the holds count from the finale's end or the card
 import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
-import { flShowHorizonMs, flShowKind } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
+import { flShowKind } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows (--- page-finder-request --- their horizon: pageFinderRequest)
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 // --- fl-overhaul --- (Stage 6) Make a clip
 import { flClipCaptions, flClipKoFraction, flClipNamesOf, flClipRecordingSec, flClipTopText, isFlClipCaption, planFlClip, type FlClipPlan } from "@/lib/physics/modes/fightLeagueClip";
@@ -3683,81 +3684,23 @@ export default function Simulator() {
     setSearchOutcome(flClip ? (flClip.outcome?.kind ?? "duration") : (finderOutcome ?? "duration"));
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
-      {
-        targetDurationSec: findSec, // (--- fl-overhaul --- Stage 6: Make a clip's target)
+      // --- page-finder-request --- (round two A2a) the request the bot, the toolbox and the export build (modeSettingsOfSettings), plus
+      // what only the page has: the song's beat grid, the melody, On beat, CTF's widened limit and Paint's picture
+      pageFinderRequest(settings, {
+        physicsConfig: { ...engine.config },
+        targetSec: findSec, // (--- fl-overhaul --- Stage 6: Make a clip's target)
         toleranceSec: findTol,
         maxSeeds: findMaxSeeds,
-        depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
-        maxSimTimeSec: findSec + (settings.mode === "colorMatch" ? 90 : 30) + (settings.mode === "fightLeague" && flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf }) !== "single" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match; Stage 6: raised by it, 90 s × bouts on top of the target) */,
-        physicsConfig: { ...engine.config },
-        mode: settings.mode,
-        modeSettings: {
-          bouncierEnabled: settings.bouncierEnabled,
-          bounciness: settings.bounciness, // --- uncap-all ---
-          countdownTotal: settings.targetCount,
-          countdownRandom: settings.countdownRandom,
-          colorMatchColorCount: settings.colorMatchColorCount,
-          colorMatchSegmentCount: settings.colorMatchSegments, // --- colour-match-segments ---
-          accumulationTimerMax: 1000 * settings.accumulationTime,
-          spikesEnabled: settings.spikesEnabled,
-          spikeCount: settings.spikeCount,
-          multiplySpawnCount: settings.multiplySpawnCount,
-          multiplyRace: settings.multiplyRace, // --- multiply-race ---
-          shatterSegmentsPerWall: settings.shatterSegments, // --- shatter-demolition ---
-          shatterHpPerSegment: settings.shatterHits,
-          shatterEvenBricks: settings.shatterEvenBricks, // --- shatter-even-bricks ---
-          growRate: settings.growRate,
-          portalCount: engine.getPortalCount(),
-          portalUses: engine.getPortalUses(), // --- portal-options ---
-          twoBalls: settings.twoBalls,
-          cinematicEnabled: settings.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run)
-          drop: dropSettingsOf(settings),
-          box: boxSettingsOf(settings),
-          pendulum: pendulumSettingsOf(settings),
-          polyrhythm: polyrhythmSettingsOf(settings), // --- jdm-polyrhythm ---
-          // --- jdm-collisions ---
-          collide: collideSettingsOf(settings),
-          ballCount: effectiveBallCount(settings), // --- teams ---
-          glass: glassSettingsOf(settings), // --- gerald-glass ---
-          multipliers: multipliersSettingsOf(settings), // --- gerald-multipliers ---
-          doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
-          illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
-          stringBattle: stringBattleSettingsOf(settings), // --- odd-string-battle ---
-          powerLayers: powerLayersSettingsOf(settings), // --- odd-power-layers ---
-          race: raceSettingsOf(settings), // --- jdm-race ---
-          // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
-          battle: battleSettingsOf(settings),
-          ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
-          ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
-          vortex: vortexSettingsOf(settings), // --- gerald-vortex ---
-          journey: journeySettingsOf(settings), // --- gerald-journey ---
-          bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
-          mergeRing: mergeRingSettingsOf(settings), // --- merge-ring --- (every run ends with the final form or an overflow)
-          spiralGlass: spiralGlassSettingsOf(settings), // --- spiral-glass --- (every run ends with the glass cleared or a timeout)
-          songRing: songRingSettingsOf(settings), // --- song-ring --- (every run ends with the final chord or a timeout)
-          sandPlate: sandPlateSettingsOf(settings), // --- sand-plate --- (a run lasts its notes and the finale's hold: a fixed length)
-          blueprint: blueprintSettingsOf(settings), // --- blueprint --- (every Blueprint ends by a finish condition or its timeout)
-          beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
-          territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
-          maze: mazeSettingsOf(settings), // --- odd-maze ---
-          conveyor: conveyorSettingsOf(settings), // --- gerald-conveyor ---
-          orbGrid: { ...orbGridSettingsOf(settings), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest: the page's clip is left out)
-          fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
-          landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
-          colourSort: colourSortSettingsOf(settings), // --- colour-sort --- (its first sort: all sorted by, the colour sorted last, on a bar line)
-          grow: growFillSettingsOf(settings), // --- loop-foundation --- (Grow's law, fill, hold and shrink: "finish" ends at the fill)
-          starChords: starChordsSettingsOf(settings), // --- chord-stars --- (the balls and the timing: the search fits the loop to the clip)
-          hoops: hoopsSettingsOf(settings), // --- bead-hoops --- (the hoops, the spin, the beads and the return)
-          ellipseFoci: ellipseFociSettingsOf(settings), // --- ellipse-foci --- (the transit and the start angle are searched, not seeds)
-          beatMachine: beatMachineSettingsOf(settings, audioRef.current?.getCustomNotes() ?? []), // --- beat-machine --- (seeded phrases are searched: a plan a seed)
-          waveTank: waveTankSettingsOf(settings), // --- wave-tank --- (nothing to search: the tank has no randomness)
-          brickRebuild: brickRebuildSettingsOf(settings), // --- brick-rebuild --- (its first smash: cleared by, on a bar line, the balls at its end)
-          perfectFit: perfectFitSettingsOf(settings), // --- perfect-fit --- (solution seeds are searched, or the beat: a plan a seed)
-          onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
-          paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
-        },
+        depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth ---
+        panelTargetSec: findDuration,
+        panelToleranceSec: findTolerance,
+        rhythmBeat: rhythmBeatRef.current, // --- jdm-rhythm-runner --- --- beat-drop ---
+        melody: audioRef.current?.getCustomNotes() ?? [], // --- beat-machine ---
+        onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats ---
+        paintPicture: !!paintPicture, // --- review fix (modes-rhythm) ---
         outcome, // --- rigged ---
-      },
+      }),
+      // --- end page-finder-request ---
       (p) => setSearchProgress(p),
       controller.signal,
       splitRunnerRef.current?.finderPlan() ?? null, // --- split-screen ---

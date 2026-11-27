@@ -2134,6 +2134,24 @@ await page.waitForTimeout(100);
 const found = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
 const resultText = found ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
 check("find simulation completes", found, `(${resultText})`);
+// --- page-finder-request --- (round two A2a) Find on the Lines start look searches its string art: the page's request is the
+// bot's and the export's (modeSettingsOfSettings), so it carries Strings to Finish. Before, it read as endless ("This run never
+// ends", no seed tested); now a run within the start look's 23.5 s ± 0.5 s is found (half the seeds end there: START_FIND_SEC)
+{
+  await page.goto(`${BASE}/en/simulator/?mode=lines&rlines=1&s=700&lns=64`, { waitUntil: "networkidle" });
+  const button = page.getByRole("button", { name: /Find [\d.]+s Simulation/ });
+  const label = (await button.innerText()).trim();
+  await button.click();
+  const done = await page.getByText(/Found! [\d.]+s|Didn't find simulation|This run never ends/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const text = done ? await page.locator("body").innerText() : "";
+  const run = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  const seed = (/Seed: -?\d+ \(\d+ tested\)/.exec(text) || ["no seed"])[0];
+  check(
+    "find simulation on the Lines start look finds a run within 23.5 s ± 0.5 s (the page's request carries Strings to Finish)",
+    /Find 23\.5s Simulation/.test(label) && Math.abs(run - 23.5) <= 0.5 && !/This run never ends/.test(text),
+    `(${label}; ${done ? (Number.isFinite(run) ? `found ${run} s, ${seed}` : /This run never ends/.test(text) ? "never ends" : "not found") : "timeout"})`,
+  );
+}
 });
 await smokeBlock("finder-depth", async () => {
 // --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s
