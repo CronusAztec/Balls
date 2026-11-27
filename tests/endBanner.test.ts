@@ -15,6 +15,7 @@ import {
   contrast,
   drawEndBannerStrip,
   endBannerEntrance,
+  endBannerPlateHeight,
   endBannerPlateLuminance,
   endBannerSubLines,
   endBannerTitleColor,
@@ -158,6 +159,37 @@ describe("the end banner's layout", () => {
     expect(noted.noteY + noted.noteFs / 2).toBeLessThan(noted.height);
     const plain = layoutEndBanner(ctx(), { title: "AQUA ESCAPED", sub: "in 33.9s", color: "#22d3ee" }, 1080);
     expect(noted.height).toBeGreaterThan(plain.height);
+  });
+
+  // --- poly-banner --- (round two, B1) a plate that keeps inside a figure, and the height a mode clears a place by
+  it("keeps a plate inside a given width: the line under the title on two lines first, then smaller", () => {
+    const sub = "All 16 voices back in phase after 1 cycle";
+    const wide = layoutEndBanner(ctx(), { title: "IN PHASE!", sub: "back in phase", color: "#a3e635", maxWidth: 2000 }, 1080);
+    expect(wide).toEqual(layoutEndBanner(ctx(), { title: "IN PHASE!", sub: "back in phase", color: "#a3e635" }, 1080)); // never wider than without it
+    for (const maxWidth of [700, 560, 420]) {
+      const lay = layoutEndBanner(ctx(), { title: "IN PHASE!", sub, color: "#a3e635", maxWidth }, 1080);
+      expect(lay.width, String(maxWidth)).toBeLessThanOrEqual(maxWidth + 1e-6);
+      expect(lay.subLines).toHaveLength(2);
+      expect(lay.height).toBeLessThanOrEqual(endBannerPlateHeight(1080, 2) + 1e-6);
+    }
+    // the layer measures it again when the width changes, and keeps it apart from the same words without one
+    const layer = new EndBannerLayer();
+    const g = ctx();
+    const narrow = layer.layout(g, { title: "IN PHASE!", sub, color: "#a3e635", maxWidth: 560 }, 1080).width;
+    expect(narrow).toBeLessThanOrEqual(560);
+    expect(layer.layout(g, { title: "IN PHASE!", sub, color: "#a3e635" }, 1080).width).toBeGreaterThan(narrow);
+  });
+
+  it("knows the plate's height for a title and its lines before the words are laid out: the tallest the layout makes it", () => {
+    const g = ctx();
+    for (const side of [200, 390, 540, 1080, 1920]) {
+      expect(endBannerPlateHeight(side, 0)).toBeCloseTo(layoutEndBanner(g, { title: "IN PHASE!", sub: "", color: "#a3e635" }, side).height, 9);
+      expect(endBannerPlateHeight(side, 1)).toBeCloseTo(layoutEndBanner(g, { title: "IN PHASE!", sub: "in phase", color: "#a3e635" }, side).height, 9);
+      const two = layoutEndBanner(g, { title: "IN PHASE!", sub: "back in phase after one cycle", color: "#a3e635", maxWidth: 0.6 * side }, side);
+      expect(two.subLines).toHaveLength(2);
+      expect(two.height).toBeLessThanOrEqual(endBannerPlateHeight(side, 2) + 1e-9);
+      if (two.subFs === Math.max(13, 0.042 * side)) expect(endBannerPlateHeight(side, 2)).toBeCloseTo(two.height, 9);
+    }
   });
 });
 

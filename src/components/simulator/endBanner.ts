@@ -52,6 +52,11 @@ export interface EndBannerText {
   note?: string;
   /** The mode's colour ("#rgb" or "#rrggbb"; anything else is used as it is). */
   color: string;
+  /**
+   * --- poly-banner --- The widest the plate may be (px; missing: as wide as 84 % of words make it), for a banner that keeps
+   * inside a figure (Polyrhythm's circle of chords): its words run narrower, the line under the title on two lines first.
+   */
+  maxWidth?: number;
 }
 
 export interface EndBannerLayout {
@@ -174,13 +179,14 @@ export function endBannerSubLines(ctx: Measurer, sub: string, font: string, maxW
 
 /**
  * The banner's layout in a square of `side` px: the title at 8 % of the side (at least 24 px) and the line under it at 4.2 %
- * (at least 13 px), each smaller when it would run wider than 84 % of the side; a long line under the title takes two lines
- * first. Writes into `out`.
+ * (at least 13 px), each smaller when it would run wider than 84 % of the side (--- poly-banner --- or than `maxWidth` leaves
+ * inside the plate's padding); a long line under the title takes two lines first. Writes into `out`.
  */
 export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number, out: EndBannerLayout = emptyLayout()): EndBannerLayout {
   const S = Math.max(1, side);
-  const maxText = TEXT_SHARE * S;
   const base = Math.max(24, 0.08 * S);
+  const padX = 0.55 * base;
+  const maxText = text.maxWidth !== undefined && text.maxWidth > 0 ? Math.min(TEXT_SHARE * S, Math.max(1, text.maxWidth - 2 * padX)) : TEXT_SHARE * S; // --- poly-banner ---
   let titleFs = base;
   let titleW = widthOf(ctx, text.title, titleFont(titleFs));
   if (titleW > maxText) {
@@ -202,7 +208,6 @@ export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number
     noteFs *= maxText / noteW;
     noteW = maxText;
   }
-  const padX = 0.55 * base;
   const padY = 0.42 * base;
   const gap = 0.24 * base;
   const lineH = 1.22 * subFs;
@@ -232,6 +237,21 @@ export function layoutEndBanner(ctx: Measurer, text: EndBannerText, side: number
   out.titleColor = endBannerTitleColor(text.color);
   out.border = text.color;
   return out;
+}
+
+/**
+ * --- poly-banner --- The plate's height in a square of `side` px for a title and `lines` lines under it at their full sizes
+ * (no note): the tallest layoutEndBanner() makes it, as a word too long for its line only makes a font smaller. For a mode
+ * that clears a place for the plate before its words are laid out (Polyrhythm's circle of chords).
+ */
+export function endBannerPlateHeight(side: number, lines: number): number {
+  const S = Math.max(1, side);
+  const base = Math.max(24, 0.08 * S);
+  const subFs = Math.max(13, 0.042 * S);
+  const padY = 0.42 * base;
+  let y = padY + base;
+  if (lines > 0) y += 0.24 * base + (lines - 1) * 1.22 * subFs + subFs;
+  return y + padY;
 }
 
 function emptyLayout(): EndBannerLayout {
@@ -329,7 +349,7 @@ export class EndBannerLayer {
 
   /** The layout of `text` in a square of `side` px (measured again only when the words, the colour or the size change). */
   layout(ctx: CanvasRenderingContext2D, text: EndBannerText, side: number): EndBannerLayout {
-    const key = `${side}|${text.color}|${text.title}|${text.sub}|${text.note ?? ""}`;
+    const key = `${side}|${text.color}|${text.title}|${text.sub}|${text.note ?? ""}|${text.maxWidth ?? ""}`; // (--- poly-banner --- the plate's width)
     if (key !== this.key) {
       this.key = key;
       const font = ctx.font;

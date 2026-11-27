@@ -14,6 +14,7 @@ import { DRAWING_MACHINE_DATA_KEYS, DrawingMachineLayer, drawingMachineExtentPx,
 import { PERFECT_FIT_DATA_KEYS, PERFECT_FIT_ENGLISH, PerfectFitLayer, perfectFitExtentPx, writePerfectFitDataset, type PerfectFitLabels, type PerfectFitRenderOptions } from "./perfectFitRenderer"; // --- perfect-fit ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
+import { PolyrhythmHoldClock, polyrhythmBannerAt, polyrhythmBannerWidth } from "./polyrhythmRenderer"; // --- poly-hold --- --- poly-banner ---
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
@@ -1030,6 +1031,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bobBodyColor = (ball: { color: string }) => ball.color;
     // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the renderer's options, refreshed per frame.
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
+    const polyHold = new PolyrhythmHoldClock(); // --- poly-hold --- (round two, B1) the frame time a finished run is held: its flashes fade
     // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
     const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
     // --- jdm-double-pendulum --- Double Pendulum: the renderer's options, refreshed per frame.
@@ -2013,6 +2015,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         polyRender.showGlow = p.showGlow;
         polyRender.inLineLabel = (labelsRef.current ?? DEFAULT_LABELS).polyrhythmInLine; // --- phase-spiral ---
         polyRender.meterInHud = !!loopHudRef.current; // --- phase-spiral --- (the loop HUD's counter and bar show the meter instead)
+        // --- poly-hold --- the steps stop at the finish: the last alignment's flash and its ticks fade on the frames' own time
+        polyRender.heldMs = polyHold.frame(engine.getPolyrhythmView(), !p.isPaused && p.isStarted ? frameMs : 0);
         drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
       }
 
@@ -2949,7 +2953,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
       if (starView) starLayer.drawFlash(ctx, starView); // --- chord-stars --- every star closing together lights up the circle
       // --- jdm-polyrhythm --- every voice ticking at once lights up the frame.
-      if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
+      if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView(), polyRender.heldMs); // (--- poly-hold --- fading in the hold)
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
@@ -3104,15 +3108,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // (a mode whose payoff is in the middle: the Journey's door, the conveyor's pile).
         const bannerDt = !p.isPaused && p.isStarted ? frameMs : 0;
         let bannersUsed = 0;
-        const bigBanner = (text: string, sub: string, color: string, at?: number) => {
+        // (--- poly-banner --- `at` may ask by the plate's height, and `maxWidth` keeps the plate inside a figure: its words narrower)
+        const bigBanner = (text: string, sub: string, color: string, at?: number | ((height: number) => number | undefined), maxWidth?: number) => {
           if (bannersUsed >= endBanners.length) endBanners.push(new EndBannerLayer());
           const layer = endBanners[bannersUsed++];
           const words = layer.text;
           words.title = text;
           words.sub = sub;
           words.color = color;
+          words.maxWidth = maxWidth; // --- poly-banner ---
           const lay = layer.layout(ctx, words, minDim);
-          blocks.push({ height: lay.height, at, draw: (y) => layer.draw(ctx, words, cx, y + lay.height / 2, minDim, bannerDt) });
+          blocks.push({ height: lay.height, at: typeof at === "function" ? at(lay.height) : at, draw: (y) => layer.draw(ctx, words, cx, y + lay.height / 2, minDim, bannerDt) });
         };
         if (engine.isAccumulationMode()) {
           const frozen = engine.getFrozenBalls().length;
@@ -3244,8 +3250,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- jdm-polyrhythm ---
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
-          // (--- end-banner --- the rings' dots line up from the centre to the top: the banner goes over the lower half)
-          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635", engine.getPolyrhythmView().settings.layout === "rings" ? 0.73 : undefined);
+          const pv = engine.getPolyrhythmView();
+          // (--- end-banner --- the rings' dots line up from the centre to the top: the banner goes over the lower half;
+          // --- poly-banner --- (round two, B1) the arcs' dots end their paths on the baseline or the rim: the banner goes under the
+          // semicircles' baseline, or inside the chords' circle, narrowed to the room between the dots on its rim)
+          const arcsAt = pv.settings.layout === "arcs" ? (height: number) => polyrhythmBannerAt(pv, minDim, height) : undefined;
+          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635", arcsAt ?? (pv.settings.layout === "rings" ? 0.73 : undefined), polyrhythmBannerWidth(pv, minDim));
         }
         // --- jdm-double-pendulum --- the finale of the clip: what the harp played (or the sparring hits, or the seconds of chaos).
         if (isDp) {
