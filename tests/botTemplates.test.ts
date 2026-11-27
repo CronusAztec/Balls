@@ -77,6 +77,7 @@ import {
 } from "@/lib/bot/templates";
 import { AT_END_BUCKETS, AT_END_SEC, CS_STALL_SEC, FILL_OUTCOMES, LC_LEAD_MIN, OUTCOME_MOMENTS, OWN_RUN_MODE_MOMENTS, OWN_RUN_MOMENTS, atEndRecordingSec, bucketPayoffSec, colourSortStallSec, landClaimLeadAt, outcomeRunOf, outcomeStrategyPlans, payoffWindow, strategyOutcome } from "@/lib/bot/outcomeStrategy";
 import { CS_HOLD_SEC } from "@/lib/physics/modes/colourSort"; // --- templates --- (studio2 review round 2, 6)
+import { LEAD_IN_SEC } from "@/lib/physics/modes/runner"; // --- runner-drums --- (the square's lead-in before its first landing)
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { createEngineForSettings, simulateOutcomeRun, stepPlaybackMs } from "@/lib/simulation/finder";
@@ -2110,22 +2111,42 @@ describe("group C: line up and on the beat", () => {
     }
   });
 
-  it("keeps Beat Machines and the Wave Tank experimental, with their reasons: nothing stands out at their payoff (G2)", () => {
-    expect(EXPERIMENTAL.beatMachine).toMatch(/one note at a time.*repeats the bar heard twice.*0 of 12 plans stand out \(G2\)/);
-    expect(EXPERIMENTAL.waveTank).toMatch(/one at a time.*0 of 12 plans stand out \(G2\)/);
+  // (--- review fix (D1) --- re-measured after Lane D's D1, and again at the merge check: the Wave Tank's plan whose payoff catches the
+  // change into its grating's climax stands out, 1 of 12; the ones that end later in the climax do not)
+  it("keeps Beat Machines and the Wave Tank experimental, with their reasons: nothing stands out at their payoff (G2) but the Wave Tank's change into its climax, on 1 plan of 12", () => {
+    expect(EXPERIMENTAL.beatMachine).toMatch(/one note at a time.*repeats a bar heard before it, as loud.*no chord, no accent, and 0 of 12 plans stand out \(G2\)/);
+    expect(EXPERIMENTAL.waveTank).toMatch(/one at a time.*only the clip whose payoff catches the change into the grating's climax \(its completion chord, 15 s\) stands out, 1 of 12;.*1 of 12 plans stand out \(G2\)/);
     for (const id of ["on-the-beat-beat-machine", "on-the-beat-wave-tank"]) {
       expect([id, templateById(id)!.ready, templateById(id)!.binding.tier]).toEqual([id, false, "experimental"]);
       expect(() => planTemplate(id, 1, "reels", { copy, search: false }), id).toThrow(/ready template/);
     }
   });
 
-  it("keeps Beat Runner experimental, with its reason: its first note comes 1.5 s in, after a second of running, on every plan", () => {
-    expect(EXPERIMENTAL.runner).toMatch(/LEAD_IN_SEC.*1\.5 s.*G1/);
+  // (--- runner-drums --- re-measured after Lane E's E4: the drum kit on the course's beat is the plan's first impact, so G1 passes;
+  // the square's own first landing still waits for its lead-in, and LEVEL COMPLETE 0.5 s before the clip's end still fails G2)
+  it("keeps Beat Runner experimental, with its reason: LEVEL COMPLETE 0.5 s before the clip's end on every plan (G2); its drum kit's first kick, not its first landing 1.5 s in, opens the clip (G1)", () => {
+    expect(EXPERIMENTAL.runner).toMatch(/LEAD_IN_SEC.*1\.5-2 s.*drum kit.*first kick and G1 passes.*LEVEL COMPLETE comes 0\.5 s before the clip's end.*\(G2\): 0 of 12 plans passed/);
     const runner = plannedRecipe(templateById("on-the-beat-runner")!)!;
     for (const seed of [1, 2]) {
       const plan = planClip(runner, seed, "reels", { copy, look: "simple", template: "on-the-beat-runner", episode: 3, index: seed });
       const run = runSync(plan.settings, plan.seed, plan.world, plan.recipe, plan.timing.clipSec, plan.payoff.atSec);
-      expect([seed, plan.timing.firstImpactSec! > 1, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([seed, true, expect.arrayContaining(["G1"])]);
+      expect([seed, plan.timing.firstImpactSec! <= CLARITY.firstImpactSec, clarityOf(crewClipOfPlan(plan, { run })).gates.filter((g) => !g.ok).map((g) => g.id)]).toEqual([seed, true, ["G2"]]);
+      expect([seed, plan.timing.clipSec - plan.payoff.atSec!]).toEqual([seed, expect.closeTo(0.5, 6)]);
+      // the first impact is a kick of the drum kit (a sound of its own, ringVoice "extra"); the square's first landing comes after
+      // its lead-in, over a second later
+      const request = finderRequestOfSettings(plan.settings, plan.world, 4);
+      const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, plan.seed);
+      let elapsed = 0;
+      let firstKick = -1;
+      let firstLanding = -1;
+      while (elapsed < 4000 && firstLanding < 0) {
+        engine.update(1000 / 60, 0);
+        elapsed += stepPlaybackMs(engine, 1000 / 60);
+        const events = engine.consumeSoundEvents();
+        if (firstKick < 0 && events.some((e) => e.bdDrum === "kick")) firstKick = elapsed / 1000;
+        if (events.some((e) => e.ringVoice !== "extra")) firstLanding = elapsed / 1000;
+      }
+      expect([seed, firstKick, firstLanding > LEAD_IN_SEC]).toEqual([seed, expect.closeTo(plan.timing.firstImpactSec!, 6), true]);
     }
   });
 });

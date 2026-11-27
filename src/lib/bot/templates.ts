@@ -1148,11 +1148,14 @@ const BEAT_MACHINE_PLAIN = "its marble phrase is one note at a time, its motifs 
  * --- templates --- (studio round 1, 11) The Wave Tank's bells strike at the scan's rate from its first second to its last, one at a time:
  * the clip's last 1.5 s (atEnd) play what every moment before them played (7 strikes a moment against the run's busiest 7).
  * (--- review fix (D1) --- re-measured after Lane D's D1: the link base the plans run now strikes the wall with a three-note chord at
- * every section change and rings the bells' chords in the grating's climax, 15–25 s. A clip ending in the climax stands out – 1 of
- * 12 plans, reels seed 4 (13 sounds against 9) – and every other ends on the scan's lone strikes, 7–10 sounds against the run's
- * busiest 9–12, after a three-note strike no chord there outdoes.)
+ * every section change and rings the bells' chords in the grating's climax, 15–25 s. Only the clip whose payoff catches the change
+ * into the climax – its completion chord, 15 s – stands out: 1 of 12 plans, reels seed 4 (payoff 14.5 s: 13 sounds against 9, a
+ * three-note chord). The four that end later in the climax (payoffs 16.5–17.5 s) carry its bells' chords, three strikes apart to
+ * the crew's count (no chord), 10 sounds against the climax's busier moments before them (12), and the other seven end on the scan's
+ * lone strikes, 7 sounds against 9–12, after a three-note strike no chord there outdoes. (merge check: re-measured at the merged
+ * head, the same 12 plans and numbers.))
  */
-const WAVE_TANK_PLAIN = "its bells strike at the scan's rate from the first second to the last, one at a time: the clip's last 1.5 s, its payoff, play what the moments before them played, and the wall's three-note strike at each section change comes before it and outdoes any chord there; only a clip that ends in the grating's climax (its bells' chords, 15-25 s) stands out: re-measured, 7-10 sounds against the run's busiest 9-12 elsewhere, 1 of 12 plans stand out (G2)";
+const WAVE_TANK_PLAIN = "its bells strike at the scan's rate from the first second to the last, one at a time: the clip's last 1.5 s, its payoff, play what the moments before them played, and the wall's three-note strike at each section change comes before it and outdoes any chord there; only the clip whose payoff catches the change into the grating's climax (its completion chord, 15 s) stands out, 1 of 12; one that ends later in the climax plays its bells' chords against the climax's busier moments before it: re-measured, 7-10 sounds against the run's busiest 9-12 elsewhere, 1 of 12 plans stand out (G2)";
 /**
  * --- templates --- (studio round 1, 11) Ball Drop's rain, looped (DROP_RAIN), plays as many notes at the clip's end as at its busiest
  * moments before, one at a time: its last 1.5 s are one more stretch of rain (19–46 notes a moment against the run's busiest 25–41).
@@ -1220,8 +1223,12 @@ const ENDS_AT_FINISH = "the run ends with its payoff (a resolved clip shows it f
  * LEAD_IN_SEC), then flies to a beat, so its first landing, its first note, comes 1.5 s in on every seed and setting – G1 asks a
  * first impact within 1 s, as the square race's count-in fails it. Its level is also its recording: LEVEL COMPLETE comes 0.5 s
  * before the clip's last frame (measured: 0 of 12 plans pass, each failing G1 and G2).
+ * (--- runner-drums --- re-measured after Lane E's E4: with no song's beat to follow, as in the plans, whose own notes are the music,
+ * the course's beat plays a drum kit from its first beat, so the plan's first impact is the first kick, 0.02 s in, and G1 passes on
+ * 12 of 12; the square's first landing still comes 1.5–2 s in. LEVEL COMPLETE still comes 0.5 s before the clip's end, with no note
+ * of the run at it: 0 of 12 plans – 4 plan seeds × reels, shorts and tiktok – pass G2.)
  */
-const RUNNER_LEAD_IN = "its square runs a second before its first take-off (runner.ts LEAD_IN_SEC) and lands on a beat after it, so its first note, the plan's first impact, comes 1.5 s in on every plan and no setting moves it (G1 asks 1 s); its level is its recording, so LEVEL COMPLETE comes 0.5 s before the clip's end (G2): 0 of 12 plans passed";
+const RUNNER_LEAD_IN = "its square runs a second before its first take-off (runner.ts LEAD_IN_SEC) and lands 1.5-2 s in, but its drum kit plays the course's beat from the first one, so the plan's first impact is the first kick and G1 passes; its level is its recording, so LEVEL COMPLETE comes 0.5 s before the clip's end, with no note of the run at it (G2): 0 of 12 plans passed";
 
 /**
  * --- templates --- (AI studio step 5) Beat Drop plans (12 of 12, the clip's end its payoff: its run is its recording), but it draws a

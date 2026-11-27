@@ -156,11 +156,11 @@ the reviewer's `changeLength` names short or standard only (`maxClipSec` on the 
 | | Focus Shot | every ball on the other focus (`outcome`, a run of its own) | `line-up-ellipse-foci` | |
 | on the beat | Ball Drop | | | `on-the-beat-drop`: its looped rain's last 1.5 s play what the whole rain did (G2) |
 | | Collision Playground | its anti-collision drop, at its setting's second (`fixed`); ten orbs, a bump a note, and a hook that says they will pass through | `on-the-beat-collide` | |
-| | Beat Runner | | | `on-the-beat-runner`: its first note at 1.5 s (G1) |
+| | Beat Runner | | | `on-the-beat-runner`: its LEVEL COMPLETE 0.5 s before the clip's end, no note of the run at it (G2) |
 | | Sound Vortex | | | `on-the-beat-vortex`: its own title in the corner for the whole run |
 | | Beat Drop | | | `on-the-beat-beat-drop`: its own HUD under the hook |
-| | Beat Machines | | | `on-the-beat-beat-machine`: its payoff note repeats a bar heard twice before (G2) |
-| | Wave Tank | | | `on-the-beat-wave-tank`: its last 1.5 s play what every moment did (G2) |
+| | Beat Machines | | | `on-the-beat-beat-machine`: its payoff note repeats a bar heard before, as loud (G2) |
+| | Wave Tank | | | `on-the-beat-wave-tank`: its last 1.5 s play what the moments before did; only the clip whose payoff catches the change into its climax (its completion chord) stands out, 1 of 12 (G2) |
 | | Song Ring | its final chord, after the phrase played whole, when the ring names the tune (its run's end less its 1.5 s hold): the run's one accented event and its one four-note chord, so it outdoes the finale lap before it (G2, read with the payoff's moment); its hook asks to name the tune, its count of the notes lit is its countdown | `on-the-beat-song-ring` | |
 | reveal | Lines | | | `reveal-lines`: its strings never make a picture |
 | | Circle Illusion | | | `reveal-illusion`: no picture to guess, or one shown for 0.5 s |
