@@ -2178,6 +2178,23 @@ check("find simulation completes", found, `(${resultText})`);
     `(${JSON.stringify(labels)})`,
   );
 }
+// --- pace-as-look --- (round two A4a, the attack's break 3) Reset All on a bare `?mode=paddle` goes back to the page's start
+// look (a goal of 20 catches: lib/clipPacing.ts PADDLE_PACE), and Find's target follows the run: the bare link plays the link
+// base (no goal), whose target is sunset-keep-up's 19.5 s (LOOK_FIND_SEC), and the start look searches for its own 28 s
+{
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  const field = page.locator("#find-duration");
+  const read = async () => ({ field: await field.inputValue().catch(() => null), label: ((await page.getByRole("button", { name: /Find [\d.]+s Simulation/ }).innerText().catch(() => "")) ?? "").trim(), pdg: new URL(page.url()).searchParams.get("pdg") });
+  const bare = await read();
+  await page.getByTestId("studio-reset-all").click();
+  await page.waitForFunction(() => document.querySelector("#find-duration")?.value === "28", null, { timeout: 15000 }).catch(() => {});
+  const reset = await read();
+  check(
+    "find simulation: Reset All on a bare Paddle Keep-Up link goes back to the start look (a goal of 20) and the finder's field reads its 28 s",
+    bare.pdg === null && bare.field !== "28" && reset.pdg === "20" && reset.field === "28" && /Find 28s Simulation/.test(reset.label),
+    `(bare ${JSON.stringify(bare)}, after Reset All ${JSON.stringify(reset)})`,
+  );
+}
 });
 await smokeBlock("finder-depth", async () => {
 // --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s
@@ -2334,6 +2351,38 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
     "mode picker: the Recent row is in the bar and in view when the picker opens far down the list, and reopening does not move the list",
     opened.names.join() === "Portal,Classic" && opened.inBar && opened.inView && opened.scrollTop > 600 && tops.every((top) => top === 300),
     `(${JSON.stringify(opened)}, reopened at ${tops.join(", ")})`,
+  );
+}
+// --- pace-as-look --- (round two A4a, the attack's break 1) The Maze card plays one run from the wall and from the picker. The
+// wall's link reads the card's 12 columns from the link base (lib/thumbnails/heroMoments.ts); the picker starts the mode's start
+// look (14 columns) and its patch carries the card's 12 (lib/studioLooks.ts cardLinkPatch). Both play seed 6's race to its
+// verdict at 8x: the same columns, seed, world, first ball out and verdict time
+{
+  const mazeRun = async () => {
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.mzCols, null, { timeout: 15000 }).catch(() => {});
+    const opened = await canvasData();
+    const query = new URL(page.url()).searchParams;
+    const start = page.getByRole("button", { name: /Start Simulator/ });
+    if (await start.isVisible().catch(() => false)) await start.click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.mzVerdict, null, { timeout: 30000 }).catch(() => {});
+    const data = await canvasData();
+    return { mode: query.get("mode"), seed: query.get("seed"), cols: opened.mzCols, run: data.seed, world: data.world, verdict: data.mzVerdict, at: data.mzVerdictMs, winner: data.mzWinner };
+  };
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const wallHref = (await page.locator('#modes a[data-mode-card="maze"]').getAttribute("href").catch(() => "")) ?? "";
+  await page.goto(new URL(wallHref || `${BASE}/en/`, page.url()).href, { waitUntil: "networkidle" });
+  const wall = await mazeRun();
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByTestId("stage-strip").getByRole("button").first().click();
+  await page.locator('dialog [data-mode-card="maze"]').first().click();
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("mode") === "maze", null, { timeout: 15000 }).catch(() => {});
+  const picked = await mazeRun();
+  const same = ["seed", "cols", "run", "world", "verdict", "at", "winner"].every((key) => wall[key] === picked[key]);
+  check(
+    "mode card: the Maze card plays the same 12-column run from the wall and from the picker (seed 6 to its verdict)",
+    wall.mode === "maze" && wall.seed === "6" && wall.cols === "12" && wall.verdict === "exit" && same,
+    `(wall ${wallHref}: ${JSON.stringify(wall)}, picker ${JSON.stringify(picked)})`,
   );
 }
 });
@@ -5828,7 +5877,8 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // The finder times races: every seed builds another track, so a run of the target's length is found among the seeds (--- finder-target ---
 // review fix B6: the page's track of 6 screens ends its races at 18–30 s, so the target is the mode's own 22 s – lib/clipPacing.ts).
-await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
+// (--- pace-as-look --- round two A4a: the page's start look, lib/studioLooks.ts startQuery; a bare link plays the link base)
+await page.goto(`${BASE}/en/simulator/?mode=race&rcl=6`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
 {
   const found = await page.getByText(/Ready to start simulation for (21\.[5-9]|22\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
@@ -6205,7 +6255,8 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
 }
 {
   // The default course (--- finales-in-clip --- the page's 18 obstacles at density 0.85; the mode's own 24) at 8× to its end screen.
-  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  // (--- pace-as-look --- round two A4a: the page's start look, written out; a bare link plays the mode's own 24)
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=18&rrd=0.85`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
@@ -6238,7 +6289,8 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
 {
   // The finder times an auto run, and the found run ends where it promised (--- finder-target --- review fix B6: on the page's own
   // course of 18 obstacles, whose runs end at 20–25 s, the finder's target is the mode's own 22 s – lib/clipPacing.ts)
-  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  // (--- pace-as-look --- round two A4a: the page's start look, lib/studioLooks.ts startQuery; a bare link plays the link base)
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=18&rrd=0.85`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -6271,8 +6323,9 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   );
 }
 {
-  // A default game at 8×: a note per catch, GAME OVER after the allowed misses, the end screen.
-  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  // A default game at 8×: a note per catch, GAME OVER after the allowed misses, the end screen. (--- pace-as-look --- round two A4a:
+  // the page's start look, its goal of 20 written out; a bare link plays the link base, with no goal)
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdg=20`, { waitUntil: "networkidle" });
   await jrInstrumentTones();
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(1500);
@@ -6308,7 +6361,8 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
 {
   // The finder finds a game and the game keeps the promise (--- finder-target --- review fix B6: the page's goal of 20 ends every run
   // by 29 s, on a win or a GAME OVER, so the finder's target is the mode's own 28 s – lib/clipPacing.ts).
-  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  // (--- pace-as-look --- round two A4a: the page's start look, lib/studioLooks.ts startQuery; a bare link plays the link base)
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdg=20`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 28s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -6505,7 +6559,7 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.waitForTimeout(400);
   const restarted = await jrSeed();
   check("classic: a BPM change keeps a found seed (R restarts the found run)", classicFound && !!found && restarted === found && /(^|&)bpm=128(&|$)/.test(page.url()), `(found ${found}, after the BPM and R ${restarted})`);
-  await page.goto(`${BASE}/en/simulator/?mode=runner&qz=1` /* --- finder-target --- (review fix B6: the page's course, its own 22 s run to find) */, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=18&rrd=0.85&qz=1` /* --- finder-target --- (review fix B6: the page's course, its own 22 s run to find; --- pace-as-look --- round two A4a: the start look's course written out) */, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 22s Simulation/ }).click();
   const runnerFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const runnerSeed = await jrSeed();
@@ -7302,8 +7356,9 @@ await smokeBlock("gerald-vortex", async () => {
 {
   // --- finder-target --- --- vortex-finale --- (review fix B6) The page's ring release lasts its cycle, 22.5 s, on every seed: the
   // finder's target is that (lib/clipPacing.ts), and the run ends on its last ring – all 42 marbles down, the hole's flash and the
-  // PEW! card from the last swallow, a second before the run finishes.
-  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  // PEW! card from the last swallow, a second before the run finishes. (--- pace-as-look --- round two A4a: the page's start look,
+  // lib/studioLooks.ts startQuery; a bare link plays the link base's stagger)
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=rings`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 22\.5s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -8028,7 +8083,8 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
 {
   // The finder: the seed moves the default route's length (the rings above all) – a found seed keeps its promise (--- finder-target ---
   // review fix B6: the page's route of five stages and HOME ends at 15–28 s, so the target is the mode's own 21 s – lib/clipPacing.ts).
-  await page.goto(`${BASE}/en/simulator/?mode=journey`, { waitUntil: "networkidle" });
+  // (--- pace-as-look --- round two A4a: the page's start look, lib/studioLooks.ts startQuery; a bare link plays the link base)
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=rings%2Cpegs%2Cglass%2Cmultipliers%2Cfunnel%2Chome`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 21s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -8262,7 +8318,8 @@ await smokeBlock("gerald-bullseye", async () => {
 {
   // The finder: the seed moves the run length (the last flight, the bullseyes' slow motion) – a found seed keeps its promise (---
   // finder-target --- review fix B6: the page's ten shots end at 23.6–28 s, so the target is the mode's own 25 s – lib/clipPacing.ts).
-  await page.goto(`${BASE}/en/simulator/?mode=bullseye`, { waitUntil: "networkidle" });
+  // (--- pace-as-look --- round two A4a: the page's start look, its ten shots written out; a bare link plays the link base)
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=10&byp=-1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 25s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -11273,8 +11330,9 @@ await smokeBlock("odd-maze", async () => {
   check("search finds the maze controls", found && hidden, `(fog=${found}, ball speed hidden=${hidden})`);
 }
 {
-  // The default race: three explorers in a 12 × 17 maze.
-  await page.goto(`${BASE}/en/simulator/?mode=maze`, { waitUntil: "networkidle" });
+  // The default race: three explorers in a 12 × 17 maze. (--- pace-as-look --- round two A4a: the page's start look, its 14 columns,
+  // 25 s and first ball out written out (lib/studioLooks.ts startQuery); a bare link plays the link base's 12 × 17)
+  await page.goto(`${BASE}/en/simulator/?mode=maze&mzc=14&mzd=25&mzfo=1`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const osc = [];
     window.__mzOsc = osc;
@@ -12042,10 +12100,12 @@ await smokeBlock("studio-looks", async () => {
     await p.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
     await ready();
     const cardSeedHit = await p.waitForFunction(() => document.querySelector("main canvas")?.getAttribute("data-seed") === "2", null, { timeout: 15000 }).then(() => true).catch(() => false);
-    const opened = { mode: query().get("mode"), rball: query().get("rball"), gap: query().get("gap"), seed: query().get("seed"), canvas: await canvasSeed() };
+    // (--- pace-as-look --- round two A4a, the A-g1 review's F8: Multiply's card is the race to 200 since the B5 review, mrace=1 – lib/
+    // thumbnails/heroMoments.ts – no longer the rainbow ball and the 0.6 gap)
+    const opened = { mode: query().get("mode"), mrace: query().get("mrace"), seed: query().get("seed"), canvas: await canvasSeed() };
     check(
       "card looks: a mode card and a phone picture of the landing page link to the look the picture shows, and the studio opens it on the picture's seed",
-      multiplyLink.get("mode") === "multiply" && multiplyLink.get("rball") === "1" && multiplyLink.get("glow") === "1" && multiplyLink.get("seed") === "2" && classicLink.get("mode") === "classic" && classicLink.get("gap") === "1" && classicLink.get("trails") === "1" && cardSeedHit && opened.mode === "multiply" && opened.rball === "1" && opened.gap === "0.6" && opened.seed === "2",
+      multiplyLink.get("mode") === "multiply" && multiplyLink.get("mrace") === "1" && multiplyLink.get("glow") === "1" && multiplyLink.get("seed") === "2" && classicLink.get("mode") === "classic" && classicLink.get("gap") === "1" && classicLink.get("trails") === "1" && cardSeedHit && opened.mode === "multiply" && opened.mrace === "1" && opened.seed === "2",
       `(wall ${hrefs.multiply}, picture ${hrefs.classic}, opened ${JSON.stringify(opened)})`,
     );
     // 2. the studio's picker: another mode's card brings its look and its seed; the current mode's card switches as before
@@ -12058,7 +12118,7 @@ await smokeBlock("studio-looks", async () => {
     const picked = { mode: query().get("mode"), tt: query().get("tt"), r: query().get("r"), tc: query().get("tc"), seed: query().get("seed") };
     check(
       "card looks: the picker's card of another mode switches to the look its picture shows, on the picture's seed, at the page's pace",
-      picked.mode === "target" && picked.tt === "1.6" && picked.r === "11" && picked.tc === null && picked.seed === "6" && pickedSeed,
+      picked.mode === "target" && picked.tt === "1.6" && picked.r === "11" && picked.tc === "7" /* (--- pace-as-look --- round two A4a: the page's seven targets, written out: the link base's are ten) */ && picked.seed === "6" && pickedSeed,
       `(${JSON.stringify(picked)}, canvas seed ${await canvasSeed()})`,
     );
     // 3. the Looks row: Plain (a bare visit's start look) pressed, a gallery look goes on, Undo takes it back. (Ring Ladder plays
@@ -12183,7 +12243,7 @@ await smokeBlock("studio-looks", async () => {
     const plMake = ((await p.getByTestId("make-clip").textContent().catch(() => "")) ?? "").trim();
     check(
       "studio looks (pl): the card links to its look, the row is Style with Zwykły pressed and Jak na obrazku, the button says Zrób mi klip",
-      /\/pl\/simulator\/?\?mode=shatter&glow=1&trails=1&wglow=1&r=11&seed=3$/.test(plHref) && plRow.heading === "Style" && plRow.names.slice(0, 2).join() === "Zwykły,Jak na obrazku" && plRow.active === "plain" && plMake === "Zrób mi klip",
+      /\/pl\/simulator\/?\?mode=shatter&glow=1&trails=1&wglow=1&r=11&wc=6&shs=36&shh=2&shb=1&seed=3$/.test(plHref) /* (--- pace-as-look --- round two A3a: the card names Shatter's pace, the link base is 1.17.0's rings) */ && plRow.heading === "Style" && plRow.names.slice(0, 2).join() === "Zwykły,Jak na obrazku" && plRow.active === "plain" && plMake === "Zrób mi klip",
       `(${plHref}, ${JSON.stringify(plRow)}, "${plMake}")`,
     );
     // 7. (E1 review) at 768 portrait the Mode block sits under the stage: a tap there brings the stage into view as the clip plays
@@ -15603,8 +15663,9 @@ const orbBoxPixels = (box) =>
 {
   // Fluid: a 12 × 12 field, every drawn frame for 3 s (a MutationObserver on data-og-frame). The verdict is the frames' own (the
   // simulation time moved on exactly by the frame's time, never stood still, the heights on a smooth arc); how many frames the
-  // machine gives the check to measure is its timing part (a busy machine is measured again, or left inconclusive).
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  // machine gives the check to measure is its timing part (a busy machine is measured again, or left inconclusive). (--- pace-as-look
+  // --- round two A4a: the page's start look, its 26 s cycle written out: a bare link plays the link base's 30 s)
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogCycle=26&ogC=12&ogR=12`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(400);
   const fluidity = async () => {
@@ -15807,10 +15868,11 @@ const orbBoxPixels = (box) =>
 {
   // The run line follows the Model switch: after Rhythm → Decay it reads what a fresh decay load reads (it once kept the rhythm
   // field's plan – "never settles – the clip ends the run · in phase at about 30.0s" for a field at rest by ~27 s, in phase at
-  // 5 s), and back on Rhythm the rhythm line again.
+  // 5 s), and back on Rhythm the rhythm line again. (--- pace-as-look --- round two A4a: both loads on the page's start look, its
+  // 26 s cycle written out)
   const runLine = () => page.getByTestId("orb-grid-run").innerText({ timeout: 15000 }).then((text) => text.trim()).catch(() => "");
   const pressed = (model) => page.getByTestId(`orb-model-${model}`).getAttribute("aria-pressed", { timeout: 5000 }).catch(() => "");
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogCycle=26&ogC=12&ogR=12`, { waitUntil: "networkidle" });
   const rhythmLine = await runLine();
   await page.getByTestId("orb-model-decay").click({ timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => document.querySelector('[data-testid="orb-model-decay"]')?.getAttribute("aria-pressed") === "true", null, { timeout: 5000 }).catch(() => {});
@@ -15819,7 +15881,7 @@ const orbBoxPixels = (box) =>
   await page.getByTestId("orb-model-rhythm").click({ timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => document.querySelector('[data-testid="orb-model-rhythm"]')?.getAttribute("aria-pressed") === "true", null, { timeout: 5000 }).catch(() => {});
   const back = await runLine();
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogModel=decay`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogCycle=26&ogC=12&ogR=12&ogModel=decay`, { waitUntil: "networkidle" });
   const fresh = await runLine();
   check(
     "orbGrid: the run line follows the Model switch – after Rhythm → Decay it reads what a fresh decay load reads, and back on Rhythm the rhythm line",
@@ -18868,7 +18930,7 @@ await smokeBlock("funnel-spin", async () => {
   const info = { release: await section.getAttribute("data-fs-release"), view: await section.getAttribute("data-fs-view"), marbles: await section.getAttribute("data-fs-marbles"), cycle: await section.getAttribute("data-fs-cycle") };
   check(
     "the Ring of 24 preset travels in the link (rings, perspective, the loop, the navy page, the loop HUD) and the Funnel block reads it",
-    query.get("mode") === "vortex" && !query.has("vxrl") /* (--- finales-in-clip --- the rings are the page's release: the link leaves them out) */ && query.get("vxv") === "perspective" && query.get("vxl") === "1" && query.get("lh") === "1" && query.get("bg1") === "#060914" && !query.has("vxw") && info.release === "rings" && info.view === "perspective" && info.marbles === "42" && Math.abs(Number(info.cycle) - 22.517) < 0.01,
+    query.get("mode") === "vortex" && query.get("vxrl") === "rings" /* (--- pace-as-look --- round two A4a: the link base's release is the stagger again, so the link names the rings; the page's start look is the rings) */ && query.get("vxv") === "perspective" && query.get("vxl") === "1" && query.get("lh") === "1" && query.get("bg1") === "#060914" && !query.has("vxw") && info.release === "rings" && info.view === "perspective" && info.marbles === "42" && Math.abs(Number(info.cycle) - 22.517) < 0.01,
     `(${query.toString()}, ${JSON.stringify(info)})`,
   );
   // the controls → the URL: the waves typed, the elevation and the spin friction moved
@@ -18989,7 +19051,7 @@ await smokeBlock("funnel-spin", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-funnel-spin-galaxy.png") });
   await timingCheck(
     "Galaxy (a ring of 360 from above) keeps 30+ fps: the funnel layer draws the marbles, no sprite made a frame",
-    galaxyQuery.get("vxw") === "360" && !galaxyQuery.has("vxrl") /* (--- finales-in-clip --- the rings are the page's release: the link leaves them out) */ && !galaxyQuery.has("vxv") && data.vortexRelease === "rings" && data.vortexView === "top" && data.vortexWaveSizes === "360" && Number(data.vortexInFlight) >= 300 && made.canvases < 10,
+    galaxyQuery.get("vxw") === "360" && galaxyQuery.get("vxrl") === "rings" /* (--- pace-as-look --- round two A4a: the link names the rings, the link base's release is the stagger) */ && !galaxyQuery.has("vxv") && data.vortexRelease === "rings" && data.vortexView === "top" && data.vortexWaveSizes === "360" && Number(data.vortexInFlight) >= 300 && made.canvases < 10,
     fpsOk(fps, 6, 30),
     `(${JSON.stringify({ query: galaxyQuery.toString().slice(0, 160), view: data.vortexView, inFlight: data.vortexInFlight, canvasesMade: made.canvases })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
