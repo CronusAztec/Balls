@@ -8,10 +8,9 @@ import { GALLERY } from "@/content/gallery";
 import { LOOK_NAMES, looksOf, settingsQueryOf } from "@/content/looks";
 import { HERO_BASE_QUERY, HERO_MOMENTS, cardHref, cardQuery, heroQuery } from "@/lib/thumbnails/heroMoments";
 import { activeLook, cardLinkPatch, lookPatch, lookRow, lookSettings, selectedMode } from "@/lib/studioLooks";
-import { MAKE_CLIP_ENDING, makeClipPick, makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip";
+import { MAKE_CLIP_ENDING, makeClipKind, makeClipPick, makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip";
 import { planTemplate } from "@/lib/bot/planner";
-import { readyTemplates, templateById, templatePlayOf } from "@/lib/bot/templates";
-import { BOT_DEFAULT_FAMILIES } from "@/lib/bot/playbook";
+import { readyTemplates, templatePlayOf } from "@/lib/bot/templates";
 import type { BotCopy } from "@/lib/bot/copy";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -20,7 +19,8 @@ import es from "../messages/es.json";
 /*
  * --- card-looks --- --- studio-looks --- --- make-clip --- A mode card opens the look its picture shows (heroMoments.ts
  * cardQuery), the studio's Looks row puts a mode's looks on through the panel's update path (src/content/looks.ts,
- * lib/studioLooks.ts), and "Make me a clip" picks a ready template to plan (lib/bot/makeClip.ts).
+ * lib/studioLooks.ts), and "Make me a clip" picks a ready template to plan or (--- make-clip-start --- round two A7) the mode's
+ * start look to find a run on (lib/bot/makeClip.ts; tests/makeClip.test.ts covers every mode and platform).
  */
 
 const pairs = (query: string) => [...new URLSearchParams(query).entries()];
@@ -219,7 +219,7 @@ describe("Make me a clip (make-clip)", () => {
       const own = readyTemplates("all").filter((t) => t.mode === id && templatePlayOf(t.id)?.platforms.includes("reels"));
       const { own: isOwn, ids } = makeClipTemplates(id, "reels");
       expect(isOwn, id).toBe(own.length > 0);
-      expect(ids.length, id).toBeGreaterThan(0);
+      expect(ids.length > 0, id).toBe(isOwn); // (--- make-clip-start --- no other mode's: a mode without one gets a start clip)
       if (isOwn) {
         expect([...ids].sort(), id).toEqual(own.map((t) => t.id).sort());
         const resolved = ids.map((t) => templatePlayOf(t)!.endings.includes(MAKE_CLIP_ENDING));
@@ -228,35 +228,36 @@ describe("Make me a clip (make-clip)", () => {
     }
   });
 
-  it("gives a mode without a template another mode's, from the daily bot's series, that ends resolved", () => {
-    const without = MODE_IDS.filter((id) => !makeClipTemplates(id, "reels").own);
+  // --- make-clip-start --- (round two A7, R8) before, a mode without a template got another mode's clip
+  it("gives a mode without a template that ends resolved a start clip of its own mode, never another mode's", () => {
+    const without = MODE_IDS.filter((id) => makeClipKind(id, "reels") === "start");
     expect(without.length).toBeGreaterThan(0);
     for (const id of without) {
-      for (const t of makeClipTemplates(id, "reels").ids) {
-        const info = templateById(t)!;
-        expect(info.mode, `${id} ${t}`).not.toBe(id);
-        expect(BOT_DEFAULT_FAMILIES, `${id} ${t}`).toContain(info.family);
-        expect(templatePlayOf(t)!.endings, `${id} ${t}`).toContain(MAKE_CLIP_ENDING);
-      }
+      const pick = makeClipPick(id, "reels", 0, "abc")!;
+      expect(pick, id).toMatchObject({ kind: "start", mode: id });
+      for (const t of makeClipTemplates(id, "reels").ids) expect(templatePlayOf(t)!.endings, `${id} ${t}`).not.toContain(MAKE_CLIP_ENDING);
     }
   });
 
   it("is the same press for the same turn and salt, and Another moves on to the mode's next template and a new plan seed", () => {
     const first = makeClipPick("classic", "reels", 0, "abc")!;
     expect(makeClipPick("classic", "reels", 0, "abc")).toEqual(first);
-    expect(first).toMatchObject({ mode: "classic", own: true, template: makeClipTemplates("classic", "reels").ids[0] });
+    expect(first).toMatchObject({ kind: "template", mode: "classic", template: makeClipTemplates("classic", "reels").ids[0] });
     const next = makeClipPick("classic", "reels", 1, "abc")!;
+    if (first.kind !== "template" || next.kind !== "template") throw new Error("classic plans its own templates");
     expect(next.planSeed).not.toBe(first.planSeed);
     const ids = makeClipTemplates("classic", "reels").ids;
     expect(next.template).toBe(ids[1 % ids.length]);
+    // (--- make-clip-start --- round two A7, R8) a mode without a template keeps its mode: its start look
     const lines = MODE_IDS.find((id) => !makeClipTemplates(id, "reels").own)!;
-    const other = makeClipPick(lines, "reels", 0, "abc")!;
-    expect(other.own).toBe(false);
-    expect(other.mode).not.toBe(lines);
+    const own = makeClipPick(lines, "reels", 0, "abc")!;
+    expect(own.kind).toBe("start");
+    expect(own.mode).toBe(lines);
   });
 
   it("plans a clip it can open: the template's mode, a pinned seed, a hook and a whole clip length", () => {
     const pick = makeClipPick("polyrhythm", "reels", 0, "test")!;
+    if (pick.kind !== "template") throw new Error("polyrhythm plans its own templates"); // (--- make-clip-start ---)
     const clip = planTemplate(pick.template, pick.planSeed, "reels", { copy: COPY.en, ending: MAKE_CLIP_ENDING, maxSeeds: 2 });
     expect(clip.settings.mode).toBe("polyrhythm");
     expect(Number.isInteger(clip.seed)).toBe(true);

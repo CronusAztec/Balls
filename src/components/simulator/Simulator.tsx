@@ -153,7 +153,7 @@ import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import { clipPacingFindSec, clipStartSettings, isBareStudioVisit, nextFindTarget, type FindTargetAuto } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6) --- find-target-follows --- (round two A2b)
 import { cardLinkPatch, selectedMode, startSettings } from "@/lib/studioLooks"; // --- card-looks --- (--- pace-as-look --- startSettings: a mode change's own backgrounds)
-import { makeClipTemplates, wantsMadeClip } from "@/lib/bot/makeClip"; // --- make-clip ---
+import { makeClipKind, wantsMadeClip, type MakeClipFind } from "@/lib/bot/makeClip"; // --- make-clip --- (--- make-clip-start --- the kind and a start clip's Find)
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
@@ -3546,6 +3546,8 @@ export default function Simulator() {
   const botLocale = useLocale();
   const botMessages = useMessages() as Record<string, unknown>;
   const botNames = useMemo(() => botModeNames(botMessages), [botMessages]); // --- bot-templates --- (studio2 review round 2, 25)
+  // --- make-clip-start --- (round two A7) a start clip's Find, the page's own search (set below, once runFinderWith is made)
+  const makeFindRef = useRef<((find: MakeClipFind, signal: AbortSignal) => Promise<number | null>) | null>(null);
   const viralBot = useViralBot({
     locale: isBotLocale(botLocale) ? botLocale : "en",
     copy: (botMessages.ViralBot ?? {}) as BotCopy,
@@ -3556,6 +3558,7 @@ export default function Simulator() {
     selectMelody: onCustomSoundSelect,
     currentMelody: customSoundId,
     pinSeed: pinBotSeed,
+    findRun: (find, signal) => makeFindRef.current?.(find, signal) ?? Promise.resolve(null), // --- make-clip-start ---
     runJobs: batchRender.runJobs,
     stopBatch: batchRender.panel.onStop,
     batchRun: batchRender.panel.run,
@@ -3629,11 +3632,11 @@ export default function Simulator() {
     if (next !== now) window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
   }, [pinnedSeed, settings, currentLinkSeed, engineReady]);
 
-  // --- make-clip --- "Make me a clip" (the Mode block's starter area, the ready screen, `?make=1`): the clip planner plans one
-  // clip for the page's mode and opens it (useViralBot.ts makeClip). Never while the page records, renders a batch or a fast
-  // export, races in split screen (the bot's own `disabled`), plays a daily challenge or plans in the Clip planner. A press
-  // plays the clip at once; the address's switch, read in the first render like the link's seed (the URL mirror drops it),
-  // only sets it up.
+  // --- make-clip --- "Make me a clip" (the Mode block's starter area, the ready screen, `?make=1`): one clip of the page's mode,
+  // made and opened (useViralBot.ts makeClip): a template's plan, or (--- make-clip-start --- round two A7) the start look on a
+  // run the page's own Find found. Never while the page records, renders a batch or a fast export, races in split screen (the
+  // bot's own `disabled`), plays a daily challenge or plans in the Clip planner. A press plays the clip at once; the address's
+  // switch, read in the first render like the link's seed (the URL mirror drops it), only sets it up.
   const makeBlocked = viralBot.disabled || dailyOn || viralBot.planning !== null || viralBot.rerolling !== null;
   const madeOn = !!viralBot.lastMade && pinnedSeed === viralBot.lastMade.seed && settings.mode === viralBot.lastMade.mode;
   const makeClip = useCallback(
@@ -3650,8 +3653,9 @@ export default function Simulator() {
     },
     [makeBlocked, viralBot, settings.mode, start],
   );
-  const makeOwn = useMemo(() => makeClipTemplates(settings.mode, viralBot.options.platform).own, [settings.mode, viralBot.options.platform]);
-  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked, own: makeOwn };
+  const makeKind = useMemo(() => makeClipKind(settings.mode, viralBot.options.platform), [settings.mode, viralBot.options.platform]); // --- make-clip-start ---
+  // (--- make-clip-start --- a start clip's own Find makes the page search: the press stays busy, not disabled, so the button keeps its focus)
+  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked && !viralBot.making, kind: makeKind };
   const [makeAtLoad] = useState(() => wantsMadeClip(searchParams.toString()));
   const madeAtLoad = useRef(false);
   useEffect(() => {
@@ -3681,9 +3685,9 @@ export default function Simulator() {
 
   /* ------------------------------------------------------------ find simulation */
 
-  const runFinderWith = useCallback(async (flClip: FlClipPlan | null = null /* --- fl-overhaul --- (Stage 6) Make a clip's plan */) => {
+  const runFinderWith = useCallback(async (flClip: FlClipPlan | null = null /* --- fl-overhaul --- (Stage 6) Make a clip's plan */, made: MakeClipFind | null = null /* --- make-clip-start --- (round two A7) Make me a clip's start clip */): Promise<FinderResult | null> => {
     const engine = engineRef.current;
-    if (!engine || isSearching) return;
+    if (!engine || isSearching) return null;
     setIsSearching(true);
     setSearchResult(null);
     setSearchProgress(null);
@@ -3701,11 +3705,14 @@ export default function Simulator() {
     // --- fl-overhaul --- (Stage 6) Make a clip searches its own plan: a story's outcome with the KO window, or the run length
     // that puts the KO at 85 % of the clip (a show: any finished show), through this same search and its strip
     if (flClip) outcome = flClip.outcome ?? undefined;
-    const findSec = flClip ? flClip.targetSec : findDuration;
-    const findTol = flClip ? flClip.toleranceSec : findTolerance;
+    // --- make-clip-start --- (round two A7) a start clip searches at its own target with the search the Find panel starts its look on:
+    // the run's length, or Perfect Fit's most pieces on the floor (an outcome the visitor picked in the panel is their own search)
+    if (made) outcome = made.outcome ? { kind: made.outcome, clipSec: made.targetSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount } : undefined;
+    const findSec = flClip ? flClip.targetSec : made ? made.targetSec : findDuration;
+    const findTol = flClip ? flClip.toleranceSec : made ? made.toleranceSec : findTolerance;
     if (flClip) flClipBridge.setStatus({ state: "searching", plan: flClip });
     // --- end fl-overhaul ---
-    setSearchOutcome(flClip ? (flClip.outcome?.kind ?? "duration") : (finderOutcome ?? "duration"));
+    setSearchOutcome(flClip ? (flClip.outcome?.kind ?? "duration") : made ? (made.outcome ?? "duration") : (finderOutcome ?? "duration"));
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       // --- page-finder-request --- (round two A2a) the request the bot, the toolbox and the export build (modeSettingsOfSettings), plus
@@ -3736,7 +3743,7 @@ export default function Simulator() {
       setIsSearching(false);
     }
     if (flClip && (controller.signal.aborted || !result.found)) flClipBridge.setStatus({ state: controller.signal.aborted ? "idle" : "missed", plan: flClip }); // --- fl-overhaul --- (Stage 6)
-    if (controller.signal.aborted) return;
+    if (controller.signal.aborted) return null;
     setSearchResult(result);
     if (result.found) {
       engine.setSeed(result.seed);
@@ -3825,8 +3832,25 @@ export default function Simulator() {
       }
       // --- end fl-overhaul ---
     }
+    return result; // --- make-clip-start --- (what Make me a clip's start clip pins)
   }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount, t]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount; Stage 6: t)
   const runFinder = useCallback(() => runFinderWith(null), [runFinderWith]); // --- fl-overhaul --- (Stage 6) the Find button: the page's own search
+  // --- make-clip-start --- (round two A7) Make me a clip's start clip: the page's own search on the start look the press put on
+  // (this render's runFinderWith: the press waits for the look's commit), the found seed read at once (the button turns to
+  // Another clip as Making ends). The press's own stop stops the search.
+  makeFindRef.current = async (find, signal) => {
+    const stop = () => finderAbortRef.current?.abort();
+    signal.addEventListener("abort", stop, { once: true });
+    try {
+      const result = await runFinderWith(null, find);
+      if (!result?.found) return null;
+      setPinnedSeed(engineRef.current?.getPinnedSeed() ?? null);
+      return result.seed;
+    } finally {
+      signal.removeEventListener("abort", stop);
+    }
+  };
+  // --- end make-clip-start ---
 
   // --- fl-overhaul --- (Stage 6) Make a clip: the Fight League block asks (a bucket and a story); the page measures the matchup's
   // pace (FL_CLIP_PACE_SEEDS headless runs), plans the clip, paces the HP to it when needed (a restart: the search waits for the
@@ -4665,8 +4689,6 @@ export default function Simulator() {
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
                 {/* --- make-clip --- (not over a found run, which a new clip would replace, nor where none can be made) */}
                 {!searchResult?.found && !makeBlocked && <MakeClipButton make={makeClipProps} variant="secondary" size="sm" className="pointer-events-auto mt-1" testId="make-clip-ready" /* (Start stays the stage's one primary action) */ />}
-                {/* (E1 review) a mode without a clip plan: the press makes another mode's clip, and the ready screen says so */}
-                {!searchResult?.found && !makeBlocked && !makeOwn && <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-ready-note">{t("SiteRedesign.studio.makeClipOtherShort")}</p>}
               </div>
             </div>
           )}

@@ -1465,18 +1465,25 @@ Feature viral-bot: the owner asked for "a bot that makes videos like project.jdm
 research is [docs/virality-playbook.md](docs/virality-playbook.md); the bot is that playbook as code, in three layers around
 one planner. Everything is client-side or runs on your own machine / runner – there is no server.
 
-- **Make me a clip** – --- make-clip --- the studio's one press into the planner: a primary button in the Mode block's starter
-  area, a button on the ready screen and `?make=1` on a studio address. `src/lib/bot/makeClip.ts` picks a ready template – the
-  page's mode's own, those that end resolved first, else another mode's from the series the daily bot plans – and
-  `useViralBot`'s `makeClip` plans it (the template's Simple look, the resolved ending where it plays one) and opens it as Open
-  in simulator does: its settings, its hook, its melody, its seed pinned and the clip length its run needs; the page then plays
-  it. The next press is "Another clip" (the next template of the mode, a new plan seed). It plans nothing while the page
-  records, renders a batch or a fast export, races in split screen or plays a daily challenge, and the clip is no part of the
-  Bot section's stored plan. Free clips keep the watermark: the export's own seal decides it, as for every recording. A mode
-  with no template of its own says so under the button before the press ("Lines has no clip plan yet, so you get a clip of
-  another mode."); the button keeps its focus while it plans (`aria-disabled`, not `disabled`), goes from "Making your clip…"
-  straight to "Another clip" (the page reads the pinned seed as it pins it), and a press below the stage brings the stage into
-  view as the clip plays.
+- **Make me a clip** – --- make-clip --- the studio's one press into a finished clip of the page's mode: a primary button in the
+  Mode block's starter area, a button on the ready screen and `?make=1` on a studio address. `src/lib/bot/makeClip.ts` picks one
+  of two kinds, and both keep the page's mode. A mode with a ready template of its own that ends resolved gets a template's
+  clip: `useViralBot`'s `makeClip` plans it (the template's Simple look, the resolved ending) and opens it as Open in simulator
+  does, with its settings, its hook, its melody, its seed pinned and the clip length its run needs. (--- make-clip-start ---
+  round two A7) The other 21 modes (no template, like Lines, Paint and Race, or templates that all cut before the payoff, like
+  Countdown, Portal and Shatter) get a start clip: the page's start look (`startSettings`), the page's own Find Simulation at
+  the look's target (`clipPacingFindSec`; Ball Drop and Land Claim, whose runs end far inside the page's 30 s, at their own;
+  Perfect Fit with the panel's own search, the most pieces on the floor), the found seed pinned and the clip length set to the
+  run and its end hold, as Find does. No hook: the run's own finale ends the clip. The Wave Tank's and Beat Machines' start
+  looks are fixed loops and play as they are. Before, a mode without a template got another mode's clip, and one whose templates
+  cut early got a clip without its finale. The page then plays the clip. The next press is "Another clip" (the mode's next
+  template and a new plan seed, or a new Find). It makes nothing while the page records, renders a batch or a fast export, races
+  in split screen or plays a daily challenge, and the clip is no part of the Bot section's stored plan. Free clips keep the
+  watermark: the export's own seal decides it, as for every recording. The note under the button says what the press does
+  ("Finds a run of this mode that ends on time and sets the length, in one press." for a start clip); the button keeps its focus
+  while it plans or searches (`aria-disabled`, not `disabled`), goes from "Making your clip…" straight to "Another clip" (the
+  page reads the pinned seed as it pins it), and a press below the stage brings the stage into view as the clip plays.
+  `src/lib/bot/templates.ts` is untouched: the crew's corpus and the bot's digests pin its plans.
 - **Playbook** – `src/lib/bot/playbook.ts` turns the playbook's recipe (§3) into data: the families (`escape`, `rhythm`,
   `battle`), platforms and their length buckets (short 8–15 s, standard 15–30 s – the Reels default –, long 60–90 s), the safe
   zone (`SAFE_ZONE`: clear of the bottom 20 % and the right 12 % of the 1080×1920 frame), the payoff band (80–90 % of the clip,

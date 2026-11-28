@@ -5849,8 +5849,7 @@
       "makeClipBusy": "Making your clip…",
       "makeClipTip": "Plans a clip and opens it, ready to record.",
       "makeClipNote": "Plans a run that ends on time, adds a hook and sets the length, in one press.",
-      "makeClipOther": "{mode} has no clip plan yet, so you get a clip of another mode.",
-      "makeClipOtherShort": "You get a clip of another mode.",
+      "makeClipStartNote": "Finds a run of this mode that ends on time and sets the length, in one press.",
       "aboutMode": "About this mode"
     },
     "dialog": {

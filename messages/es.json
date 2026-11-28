@@ -5849,8 +5849,7 @@
       "makeClipBusy": "Preparando tu clip…",
       "makeClipTip": "Planifica un clip y lo abre, listo para grabar.",
       "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración.",
-      "makeClipOther": "El modo {mode} aún no tiene plan de clip, así que te tocará un clip de otro modo.",
-      "makeClipOtherShort": "Te tocará un clip de otro modo.",
+      "makeClipStartNote": "Con un toque encuentra una partida de este modo que termina a tiempo y ajusta la duración.",
       "aboutMode": "Sobre este modo"
     },
     "dialog": {

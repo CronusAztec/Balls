@@ -2386,6 +2386,31 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
     `(wall ${wallHref}: ${JSON.stringify(wall)}, picker ${JSON.stringify(picked)})`,
   );
 }
+// --- make-clip-start --- (round two A7, R8) Make me a clip on a mode without a template keeps the mode: on a bare ?mode=lines (the
+// link base's endless white strings) it puts the start look's string art on (rlines, lns, s), runs the page's own Find at its 23.5 s,
+// pins the found seed and sets the clip length to the run and the banner's 1.5 s hold, so STRING ART! (the run's 64th string, its
+// end) comes inside the clip. No hook (no cap=), and the note under the button says what the press does
+{
+  await page.goto(`${BASE}/en/simulator/?mode=lines`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 20000 }).catch(() => {});
+  const note = ((await page.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim();
+  await page.getByTestId("make-clip").click();
+  const made = await page.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  // (read at once, the run is playing: the clip length is the address's dur, the default 30 when it leaves it out)
+  const playing = await page.getByRole("button", { name: /^(Pause|Resume)$/ }).first().isVisible().catch(() => false);
+  const query = new URL(page.url()).searchParams;
+  const opened = { mode: query.get("mode"), rlines: query.get("rlines"), lns: query.get("lns"), s: query.get("s"), seed: query.get("seed"), cap: query.get("cap"), clipLength: Number(query.get("dur") ?? "30"), canvas: (await canvasData()).seed ?? null, playing };
+  await page.getByRole("button", { name: "8x", exact: true }).click({ timeout: 5000 }).catch(() => {});
+  const ended = await page.getByTestId("run-end").waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const card = ended ? (await page.getByTestId("run-end").innerText()).replace(/\s+/g, " ") : "";
+  const run = Number((/Run over · ([\d.]+) s/.exec(card) || [])[1]);
+  check(
+    "mode card: Make me a clip on Lines keeps ?mode=lines, plays its string art on a found run with no hook, and STRING ART! ends the run inside the clip with its hold",
+    made && opened.mode === "lines" && opened.rlines === "1" && opened.lns === "64" && opened.s === "700" && !!opened.seed && opened.canvas === opened.seed && opened.cap === null && opened.playing && note === "Finds a run of this mode that ends on time and sets the length, in one press." && ended && run > 10 && run + 1.5 <= opened.clipLength + 0.05 && opened.clipLength - run <= 2.6,
+    `(made ${made}, "${note}", opened ${JSON.stringify(opened)}, "${card.slice(0, 80)}")`,
+  );
+}
 });
 
 await smokeBlock("gerald-faces", async () => {
@@ -12067,10 +12092,12 @@ await smokeBlock("studio-looks", async () => {
 // studio's picker card of another mode switches to it with the seed pinned (canvas data-seed). The Looks row at the top of the
 // Mode block puts a look on (its chip pressed, the link written) and Undo takes it back to Plain. "Make me a clip" plans a clip
 // for the mode and opens it playing: a hook (cap=), a pinned seed the canvas runs, the clip length its run needs; "Another
-// clip" plans the next one; ?make=1 sets one up as the page opens (Lines has no template: another mode's clip), the free
-// watermark stays on the Record button, and a daily challenge offers none. Then the Polish page's names. (A free visitor's
-// context: no licence.) (E1 review) The hero's live frame opens its card's look, a press goes from busy straight to made and
-// keeps the keyboard's focus, a mode without a clip plan says so under the button, and at 768 portrait the stage comes into view.
+// clip" plans the next one; ?make=1 sets one up as the page opens (--- make-clip-start --- round two A7: Lines has no template,
+// so its start look on a run Find found, with no hook), the free watermark stays on the Record button, and a daily challenge
+// offers none. Then the Polish page's names. (A free visitor's context: no licence.) (E1 review) The hero's live frame opens its
+// card's look, a press goes from busy straight to made and keeps the keyboard's focus, a mode without a template says under the
+// button what the press does (round two A7: a run of this mode, no longer another mode's clip), and at 768 portrait the stage
+// comes into view.
 {
   const slErrors = [];
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, license: null });
@@ -12205,33 +12232,35 @@ await smokeBlock("studio-looks", async () => {
       `(ready screen ${readyButton}, first ${JSON.stringify(first)}, second ${JSON.stringify(second)})`,
     );
     check("make a clip: a free visitor's made clip keeps the watermark (the Record button's tag)", first.watermark === 1 && second.watermark === 1, `(${first.watermark}, ${second.watermark})`);
-    // (E1 review) a mode without a clip plan says so under the button; a mode with one keeps the button's note
+    // (E1 review) a mode without a clip plan says so under the button; a mode with one keeps the button's note (--- make-clip-start ---
+    // round two A7: a mode without a template finds a run of its own, so its note says that and the ready screen adds none)
     await p.goto(`${BASE}/en/simulator/?mode=lines`, { waitUntil: "networkidle" });
     await ready();
     const linesNote = ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim();
     const linesTip = (await make.getAttribute("title").catch(() => "")) ?? "";
-    const linesReady = ((await p.getByTestId("make-clip-ready-note").textContent().catch(() => "")) ?? "").trim();
+    const linesReady = await p.getByTestId("make-clip-ready-note").count();
     await p.goto(`${BASE}/en/simulator/?mode=pendulum`, { waitUntil: "networkidle" });
     await ready();
     const ownNotes = { note: ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim(), ready: await p.getByTestId("make-clip-ready-note").count() };
     check(
-      "make a clip: a mode without a clip plan says the press makes another mode's clip (under the button and on the ready screen), and the tip promises no clip of this mode",
-      linesNote === "Lines has no clip plan yet, so you get a clip of another mode." && linesReady === "You get a clip of another mode." && linesTip === "Plans a clip and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
-      `("${linesNote}", "${linesReady}", "${linesTip}", pendulum ${JSON.stringify(ownNotes)})`,
+      "make a clip: a mode without a template says the press finds a run of this mode (under the button, nothing more on the ready screen), and a mode with one says it adds a hook",
+      linesNote === "Finds a run of this mode that ends on time and sets the length, in one press." && linesReady === 0 && linesTip === "Plans a clip and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
+      `("${linesNote}", ready-screen notes ${linesReady}, "${linesTip}", pendulum ${JSON.stringify(ownNotes)})`,
     );
-    // 5. ?make=1: a mode without a template gets another mode's clip, set up as the page opens; a daily challenge offers none
+    // 5. ?make=1: a mode without a template gets its own start look on a found run, set up as the page opens; a daily challenge
+    // offers none
     await p.goto(`${BASE}/en/simulator/?mode=lines&make=1`, { waitUntil: "networkidle" });
     await ready();
     const atLoad = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
     await p.waitForTimeout(500);
-    const loaded = { mode: query().get("mode"), make: query().get("make"), seed: query().get("seed"), canvas: await canvasSeed(), cap: (query().get("cap") ?? "").length };
+    const loaded = { mode: query().get("mode"), make: query().get("make"), seed: query().get("seed"), canvas: await canvasSeed(), cap: (query().get("cap") ?? "").length, rlines: query().get("rlines"), lns: query().get("lns") };
     await p.goto(`${BASE}/en/simulator/?daily=1`, { waitUntil: "networkidle" });
     await ready();
     await p.waitForTimeout(800);
     const daily = { disabled: await p.getByTestId("make-clip").isDisabled().catch(() => null), ready: await p.getByTestId("make-clip-ready").count() };
     check(
-      "make a clip: ?make=1 sets a clip up as the page opens (Lines has no template: another mode's), and a daily challenge offers none",
-      atLoad && loaded.mode !== "lines" && loaded.make === null && !!loaded.seed && loaded.canvas === loaded.seed && loaded.cap > 0 && daily.disabled === true && daily.ready === 0,
+      "make a clip: ?make=1 sets a clip up as the page opens (Lines has no template: its string art on a found run, no hook), and a daily challenge offers none",
+      atLoad && loaded.mode === "lines" && loaded.rlines === "1" && loaded.lns === "64" && loaded.make === null && !!loaded.seed && loaded.canvas === loaded.seed && loaded.cap === 0 && daily.disabled === true && daily.ready === 0,
       `(${JSON.stringify(loaded)}, daily ${JSON.stringify(daily)})`,
     );
     // 6. in Polish: the card's link, the row's heading and names, the button

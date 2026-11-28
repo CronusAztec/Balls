@@ -2116,9 +2116,9 @@ export default function Controls(props: ControlsProps) {
         {props.makeClip && (
           <div className="space-y-1.5">
             <MakeClipButton make={props.makeClip} block testId="make-clip" />
-            {/* (E1 review) a mode without a clip plan says so before the press switches the page to another mode's clip */}
-            <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-note">
-              {props.makeClip.own ? site("studio.makeClipNote") : site("studio.makeClipOther", { mode: modeNames[s.mode] })}
+            {/* (--- make-clip-start --- round two A7) what the press does: a template's clip adds a hook, a start clip plays the mode's own finale */}
+            <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-note" data-make-kind={props.makeClip.kind}>
+              {props.makeClip.kind === "start" ? site("studio.makeClipStartNote") : site("studio.makeClipNote")}
             </p>
           </div>
         )}

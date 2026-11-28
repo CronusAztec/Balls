@@ -10,7 +10,7 @@ import type { BotWorld } from "@/lib/bot/finderRequest";
 import { batchTextFiles, type ModeNames, type RenderedClip } from "@/lib/bot/output";
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPlatform } from "@/lib/bot/playbook";
 import { localIsoDate, parseIsoDate, planDaySteps, planTemplateSteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
-import { MAKE_CLIP_ENDING, makeClipPick } from "@/lib/bot/makeClip"; // --- make-clip ---
+import { MAKE_CLIP_ENDING, makeClipPick, type MakeClipFind, type MakeClipKind, type MakeClipPick } from "@/lib/bot/makeClip"; // --- make-clip --- (--- make-clip-start --- the kinds and a start clip's Find)
 import type { ModeId } from "@/lib/physics/types"; // --- make-clip ---
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, panelLengthAndEnding, panelPlanChoice, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import { clarityJudges } from "@/lib/bot/templates"; // --- bot-templates ---
@@ -69,15 +69,23 @@ export interface BotPanelProps {
   clarity: (clip: ClipPlan) => BotClarity | null;
   onClarity: (id: string) => void;
   /**
-   * --- make-clip --- "Make me a clip": plans one clip for `mode` (lib/bot/makeClip.ts picks the template; each press after the
-   * first is "Another", the next turn) and opens it on the page as Open in simulator does. Resolves with the clip, or null when
-   * nothing was planned (the page busy, no template, the planning stopped). Plans nothing while `disabled` or another plan runs.
+   * --- make-clip --- "Make me a clip": makes one clip of `mode` (lib/bot/makeClip.ts picks it; each press after the first is
+   * "Another", the next turn) and opens it on the page: a template's plan as Open in simulator does, or (--- make-clip-start ---
+   * round two A7) the mode's start look on a run the page's Find found. Resolves with the clip, or null when nothing was made
+   * (the page busy, nothing found, the press stopped). Makes nothing while `disabled` or another plan runs.
    */
-  makeClip: (mode: ModeId) => Promise<ClipPlan | null>;
+  makeClip: (mode: ModeId) => Promise<MadeClip | null>;
   /** --- make-clip --- A clip is being made. */
   making: boolean;
   /** --- make-clip --- The last clip made on this page (null: none yet). */
-  lastMade: ClipPlan | null;
+  lastMade: MadeClip | null;
+}
+
+/** --- make-clip --- A clip made on the page: its kind, its mode and the seed pinned for it (a template's plan or a found run). */
+export interface MadeClip {
+  kind: MakeClipKind;
+  mode: ModeId;
+  seed: number;
 }
 
 export interface UseViralBotOptions {
@@ -99,6 +107,12 @@ export interface UseViralBotOptions {
   currentMelody: string | null;
   /** Sets the page's run up on this seed, paused at its start (like a found simulation). */
   pinSeed: (seed: number) => void;
+  /**
+   * --- make-clip-start --- (round two A7) Runs the page's own Find Simulation on the settings on the page at `find`'s target, as
+   * the Find button does (the found seed pinned, the clip length set to the run and its end hold), for a start clip of Make me a
+   * clip. Resolves with the found seed, or null (nothing found, the search stopped); `signal` stops the search.
+   */
+  findRun?: (find: MakeClipFind, signal: AbortSignal) => Promise<number | null>;
   runJobs: (jobs: CustomBatchJob[]) => Promise<CustomBatchFile[]>;
   stopBatch: () => void;
   batchRun: BatchRunState;
@@ -339,11 +353,32 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
   /* ---------------------------------------------------------- --- make-clip --- one clip, planned and opened */
   // Not part of the stored plan: the Bot section's list stays the visitor's own. Each press is the next turn of the visit.
   const [making, setMaking] = useState(false);
-  const [lastMade, setLastMade] = useState<ClipPlan | null>(null);
+  const [lastMade, setLastMade] = useState<MadeClip | null>(null);
   const makeTurn = useRef(0);
   const makeSalt = useRef("");
+  // --- make-clip-start --- (round two A7) a start clip: the mode's start look on the page (no melody: the look's own sound), then
+  // the page's own Find at the look's target, or the look as it is (a fixed loop) on the pick's seed
+  const makeStartClip = useCallback(
+    async (pick: Extract<MakeClipPick, { kind: "start" }>, signal: AbortSignal): Promise<MadeClip | null> => {
+      latest.current.applySettings(pick.settings);
+      await nextCommit();
+      await latest.current.selectMelody(null);
+      await nextCommit();
+      if (signal.aborted) return null;
+      if (!pick.find) {
+        latest.current.pinSeed(pick.seed);
+        return { kind: "start", mode: pick.mode, seed: pick.seed };
+      }
+      const seed = (await latest.current.findRun?.(pick.find, signal)) ?? null;
+      if (seed === null || signal.aborted) return null;
+      await nextCommit(); // (the found run's clip length on the page, as Find sets it, before the press plays it)
+      return { kind: "start", mode: pick.mode, seed };
+    },
+    [nextCommit],
+  );
+  // --- end make-clip-start ---
   const makeClip = useCallback(
-    async (mode: ModeId): Promise<ClipPlan | null> => {
+    async (mode: ModeId): Promise<MadeClip | null> => {
       const l = latest.current;
       if (l.disabled || abortRef.current) return null;
       if (!makeSalt.current) makeSalt.current = Date.now().toString(36);
@@ -355,14 +390,20 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       abortRef.current = controller;
       setMaking(true);
       try {
+        if (pick.kind === "start") {
+          const made = await makeStartClip(pick, controller.signal); // --- make-clip-start ---
+          if (made) setLastMade(made);
+          return made;
+        }
         const clip = await runSliced(planTemplateSteps(pick.template, pick.planSeed, platform, { ...baseOptions(), ending: MAKE_CLIP_ENDING }), () => {}, controller.signal);
         latest.current.applySettings(clip.settings);
         await nextCommit();
         await latest.current.selectMelody(clip.melodyId);
         await nextCommit();
         latest.current.pinSeed(clip.seed);
-        setLastMade(clip);
-        return clip;
+        const made: MadeClip = { kind: "template", mode: clip.settings.mode, seed: clip.seed };
+        setLastMade(made);
+        return made;
       } catch {
         return null; // (stopped, or a template that no longer plans: the page stays as it was)
       } finally {
@@ -370,7 +411,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
         setMaking(false);
       }
     },
-    [baseOptions, nextCommit],
+    [baseOptions, nextCommit, makeStartClip],
   );
   // --- end make-clip ---
 

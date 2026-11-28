@@ -3,17 +3,18 @@
 import { useTranslations } from "next-intl";
 import Button, { type ButtonSize, type ButtonVariant } from "@/components/ui/Button";
 import { IconSparkle } from "@/components/ui/icons";
+import type { MakeClipKind } from "@/lib/bot/makeClip"; // --- make-clip-start ---
 
 /*
  * --- make-clip --- The "Make me a clip" button of the studio (the Mode block's starter area and the ready screen): one press
- * plans a clip for the mode on the page and opens it (useViralBot.ts makeClip). It says "Making your clip…" while it plans and
+ * makes a clip of the mode on the page and opens it (useViralBot.ts makeClip). It says "Making your clip…" while it plans and
  * "Another clip" while the page shows the clip it made, and is off while the page records, renders a batch, races in split
  * screen or plays a daily challenge.
  */
 
 /** What the page tells the studio about "Make me a clip". */
 export interface MakeClipProps {
-  /** Plans one clip for the page's mode (another mode's when it has no template) and opens it. */
+  /** Makes one clip of the page's mode and opens it. */
   onMake: () => void;
   /** A clip is being planned. */
   busy: boolean;
@@ -21,8 +22,11 @@ export interface MakeClipProps {
   made: boolean;
   /** Recording, a batch, a split-screen race, a daily challenge or the page still loading: no clip can be made now. */
   disabled: boolean;
-  /** The clip is of the page's mode (false: the mode has no clip plan yet, so the press makes another mode's clip). */
-  own: boolean;
+  /**
+   * --- make-clip-start --- (round two A7) What the press makes (lib/bot/makeClip.ts makeClipKind): a template's clip with its
+   * hook, or the mode's start look on a run Find found, which ends on the run's own finale.
+   */
+  kind: MakeClipKind;
 }
 
 export default function MakeClipButton({ make, variant = "primary", size = "md", block = false, className, testId }: { make: MakeClipProps; variant?: ButtonVariant; size?: ButtonSize; block?: boolean; className?: string; testId: string }) {
