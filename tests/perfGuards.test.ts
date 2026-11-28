@@ -2,7 +2,7 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it, vi } from "vitest";
-import { fileToUrlPath, listFiles, MAX_CRITICAL_PRECACHE_BYTES } from "../scripts/pwa/build.mjs";
+import { fileToUrlPath, listFiles, MAX_CRITICAL_PRECACHE_BYTES, MAX_PRECACHE_FILE_BYTES } from "../scripts/pwa/build.mjs";
 import { duplicatePaths } from "../scripts/lib/headers-file.mjs";
 
 /**
@@ -291,5 +291,15 @@ describe.skipIf(!hasExport)(
     expect(criticalBytes).toBeLessThanOrEqual(MAX_CRITICAL_PRECACHE_BYTES);
     expect(config.critical).toEqual(expect.arrayContaining(["", "offline.html", "manifest.webmanifest", "en/"]));
     expect(config.critical.some((u) => u.includes("simulator") || u.startsWith("modes/"))).toBe(false);
+  });
+
+  // --- studio-chunk-split --- (finding g3-7) a script over MAX_PRECACHE_FILE_BYTES is left out of sw.js, and the offline studio breaks
+  it("lists every /_next/static script in sw.js (none left out for its size: the offline studio needs them all)", () => {
+    const sw = fs.readFileSync(path.join(OUT, "sw.js"), "utf8");
+    const config = JSON.parse(sw.match(/const CONFIG = (\{[\s\S]*?\n\});/)?.[1] ?? "null") as { critical: string[]; deferred: string[] };
+    const listed = new Set([...config.critical, ...config.deferred]);
+    const scripts = listFiles(OUT).filter((f) => f.startsWith("_next/static/") && f.endsWith(".js"));
+    expect(scripts.length).toBeGreaterThan(10);
+    expect(scripts.filter((f) => !listed.has(fileToUrlPath(f))).map((f) => `${f} (${fs.statSync(path.join(OUT, f)).size} B, cap ${MAX_PRECACHE_FILE_BYTES} B)`)).toEqual([]);
   });
 });

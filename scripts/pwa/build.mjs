@@ -34,6 +34,39 @@ export const NOT_PRECACHED_PREFIXES = ["og/", "press/"];
 export const MAX_PRECACHE_FILE_BYTES = 4 * 1024 * 1024;
 /** --- precache-split --- The critical files (what the worker's install downloads, 0.8 MB unpacked today, about a fifth of that on the wire) may not grow beyond this: the build stops instead. */
 export const MAX_CRITICAL_PRECACHE_BYTES = 1.5 * 1024 * 1024;
+/**
+ * --- studio-chunk-split --- (finding g3-7) The most a chunk grows under scripts/obfuscate.mjs, measured on f6b78b9 and its
+ * split: x1.56 to x2.07 (the mode drawing chunk); the studio's page chunk x1.68, the engine's x1.90. An OBFUSCATE=0 export
+ * (npm run guard:browser, the toolbox's) counts its scripts at this size, so the precache cap is checked before the
+ * obfuscated build. A stricter check, not a budget to relax: only the owner lowers it.
+ */
+export const OBFUSCATION_GROWTH = 2.1;
+/** --- studio-chunk-split --- How every obfuscated chunk starts (scripts/obfuscate.mjs BANNER; tests/pwa.test.ts keeps the two in step), as text so its readers need no obfuscator. */
+export const OBFUSCATED_PREFIX = "/*! JumpingBallsLive - proprietary software.";
+
+/** --- studio-chunk-split --- A script's size once obfuscated: as it is when it already is (or never will be), else × OBFUSCATION_GROWTH, rounded up. */
+export function projectedScriptBytes(bytes, { obfuscated }) {
+  return obfuscated ? bytes : Math.ceil(bytes * OBFUSCATION_GROWTH);
+}
+
+/**
+ * --- studio-chunk-split --- The /_next/static scripts the precache leaves out for their size, or would once obfuscated:
+ * [{ file, bytes, projected }], largest first. `obfuscated`: the export's chunks are final (postexport ran the obfuscator);
+ * `isLoader(basename)`: a loader chunk the obfuscator never touches, counted as it is.
+ * @param {string[]} files
+ * @param {{ sizes?: Record<string, number>, obfuscated?: boolean, isLoader?: (basename: string) => boolean, maxFileBytes?: number }} [options]
+ * @returns {{ file: string, bytes: number, projected: number }[]}
+ */
+export function oversizedScripts(files, { sizes = {}, obfuscated = true, isLoader = () => false, maxFileBytes = MAX_PRECACHE_FILE_BYTES } = {}) {
+  const out = [];
+  for (const file of files) {
+    if (!file.startsWith("_next/static/") || !file.endsWith(".js")) continue;
+    const bytes = sizes[file] ?? 0;
+    const projected = projectedScriptBytes(bytes, { obfuscated: obfuscated || isLoader(path.posix.basename(file)) });
+    if (projected > maxFileBytes) out.push({ file, bytes, projected });
+  }
+  return out.sort((a, b) => b.projected - a.projected || (a.file < b.file ? -1 : 1));
+}
 
 /** True for a file the worker must never list: an exact name or a folder of NOT_PRECACHED. */
 export function isNotPrecached(file) {

@@ -19,8 +19,9 @@
  * turned OFF after measurement: its wrapper (a call per string access) de-optimised the engine's tight step loop and
  * made the finder ~28x slower (4.7 vs 133 seeds/s) – a timing check that failed only under obfuscation – and turning the
  * array's rotate/shuffle off did not help. --- low-findings --- The hot code (the PhysicsEngine and the seed finder) sits in a
- * shared numbered chunk (`<n>-<hash>.js`, loaded by the simulator pages only), the renderer and the recorder in the
- * simulator page chunk; the string array on every other chunk (identifier renaming only on those) was measured too and
+ * shared numbered chunk (`<n>-<hash>.js`, loaded by the simulator pages only), the recorder in the simulator page chunk,
+ * the mode renderers in a numbered chunk of their own (studio-chunk-split, next.config.ts); the string array on every
+ * other chunk (identifier renaming only on those) was measured too and
  * still cost ~15 % of the finder's throughput (~108 → ~92 seeds/s, interleaved runs) for +0.25 MB of JavaScript, so the
  * array is off for every chunk. Hexadecimal identifier renaming stays on for every chunk, so the logic (every local,
  * function and class name, including the engine's) is still unreadable, at native speed; see obfuscatorOptions. `seed` is
@@ -105,7 +106,8 @@ export function obfuscatorOptions(seed, overrides = {}) {
     // and the finder's 120 s checks timed out – a check that fails only under obfuscation. The string-array WRAPPER
     // (a function call per string access) de-optimises the engine's tight step loop; turning rotate/shuffle off did not
     // help (same 4.7 seeds/s). --- low-findings --- The engine and the finder live in a shared numbered chunk (`<n>-*.js`,
-    // loaded by the simulator pages), not in the simulator page chunk (the renderer, the recorder); keeping the array for
+    // loaded by the simulator pages), not in the simulator page chunk (the recorder) or the mode renderers' numbered chunk
+    // (studio-chunk-split); keeping the array for
     // every other chunk was measured as well: ~15 % fewer finder seeds a second (~108 → ~92) for +0.25 MB. So the string
     // array is OFF for every chunk: every chunk still
     // gets hexadecimal identifier renaming (PhysicsEngine / bounceMath / FinderRequest and all locals become _0x… – the

@@ -4,6 +4,7 @@ import { createHash } from "crypto"; // --- react-hydration-replay ---
 import fs from "fs"; // --- react-hydration-replay ---
 import path from "path"; // --- react-hydration-replay ---
 import { nextEnv, resolveBuildInfo } from "./scripts/lib/build-info.cjs"; // --- build-identity ---
+import { studioChunkSplit } from "./scripts/lib/studio-chunks.cjs"; // --- studio-chunk-split ---
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -57,8 +58,10 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1" },
   // --- react-hydration-replay --- the webpack cache version names the React that is bundled (bundledReactDomDigest above).
   // next-intl's plugin wraps this hook and calls it.
-  webpack: (config, { dev }) => {
+  // --- studio-chunk-split --- it also moves the studio's mode drawing into a numbered chunk of its own (scripts/lib/studio-chunks.cjs: finding g3-7).
+  webpack: (config, { dev, isServer }) => {
     if (config.cache && typeof config.cache === "object") config.cache.version = `${config.cache.version ?? ""}|react-dom-client:${bundledReactDomDigest(dev)}`;
+    studioChunkSplit(config, { dev, isServer }); // --- studio-chunk-split ---
     return config;
   },
 };

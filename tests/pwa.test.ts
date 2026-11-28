@@ -24,6 +24,10 @@ import {
   MAX_PRECACHE_FILE_BYTES,
   NOT_PRECACHED,
   NOT_PRECACHED_PREFIXES,
+  OBFUSCATED_PREFIX,
+  OBFUSCATION_GROWTH,
+  oversizedScripts,
+  projectedScriptBytes,
   readAccent,
   renderOfflinePage,
   renderServiceWorker,
@@ -331,6 +335,64 @@ describe("offline page and sw.js rendering", () => {
     const ok = buildPwa(out, { root: ROOT });
     expect(ok.deferred).toContain("modes/big.webp");
     expect(ok.critical).not.toContain("modes/big.webp");
+  });
+
+});
+
+// --- studio-chunk-split --- (finding g3-7) a script over MAX_PRECACHE_FILE_BYTES is left out of the precache, and the studio
+// then does not load offline ("Loading chunk … failed"); an OBFUSCATE=0 export is measured as it would ship
+describe("oversizedScripts: the scripts the offline studio would lose to the precache cap (studio-chunk-split)", () => {
+  const MIB = 1024 * 1024;
+  const page = "_next/static/chunks/app/[locale]/simulator/page-a.js";
+  const engine = "_next/static/chunks/7992-b.js";
+
+  it("flags an obfuscated script over the cap as it is, and one at the cap not", () => {
+    const sizes = { [page]: 4 * MIB + 1, [engine]: 4 * MIB };
+    expect(oversizedScripts([page, engine], { sizes })).toEqual([{ file: page, bytes: 4 * MIB + 1, projected: 4 * MIB + 1 }]);
+    expect(oversizedScripts([page, engine], { sizes, obfuscated: true })).toEqual([{ file: page, bytes: 4 * MIB + 1, projected: 4 * MIB + 1 }]);
+  });
+
+  it("projects an unobfuscated script by OBFUSCATION_GROWTH", () => {
+    const sizes = { [page]: 2 * MIB, [engine]: 1.9 * MIB };
+    expect(oversizedScripts([page, engine], { sizes, obfuscated: false })).toEqual([{ file: page, bytes: 2 * MIB, projected: Math.ceil(2 * MIB * OBFUSCATION_GROWTH) }]);
+    expect(projectedScriptBytes(1000, { obfuscated: false })).toBe(Math.ceil(1000 * OBFUSCATION_GROWTH));
+    expect(projectedScriptBytes(1000, { obfuscated: true })).toBe(1000);
+  });
+
+  it("never projects a loader chunk the obfuscator skips", () => {
+    const framework = "_next/static/chunks/framework-c.js";
+    const sizes = { [framework]: 3 * MIB };
+    expect(oversizedScripts([framework], { sizes, obfuscated: false, isLoader: (b: string) => b.startsWith("framework-") })).toEqual([]);
+    expect(oversizedScripts([framework], { sizes, obfuscated: false }).map((s) => s.file)).toEqual([framework]);
+  });
+
+  it("looks only at /_next/static scripts", () => {
+    const sizes = { "wallBreak/huge.wav": 9 * MIB, "press/kit.js": 9 * MIB };
+    expect(oversizedScripts(Object.keys(sizes), { sizes })).toEqual([]);
+    expect(oversizedScripts(Object.keys(sizes), { sizes, obfuscated: false })).toEqual([]);
+  });
+
+  it("lists the largest first", () => {
+    const a = "_next/static/chunks/1-a.js";
+    const b = "_next/static/chunks/2-b.js";
+    const c = "_next/static/chunks/3-c.js";
+    const sizes = { [a]: 4.5 * MIB, [b]: 6 * MIB, [c]: 5 * MIB };
+    expect(oversizedScripts([a, b, c], { sizes }).map((s) => s.file)).toEqual([b, c, a]);
+  });
+
+  it("projects at least the largest growth measured, and knows the obfuscator's banner", () => {
+    expect(OBFUSCATION_GROWTH).toBeGreaterThanOrEqual(2.068);
+    expect(fs.readFileSync(path.join(ROOT, "scripts", "obfuscate.mjs"), "utf8")).toContain(`"${OBFUSCATED_PREFIX}`);
+  });
+
+  it("is wired into scripts/postexport.mjs: after the obfuscator ran, before the build stamps, projected for OBFUSCATE=0, loader chunks as they are", () => {
+    const post = fs.readFileSync(path.join(ROOT, "scripts", "postexport.mjs"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/.*$/gm, "");
+    expect(post).toMatch(/import \{[^}]*\boversizedScripts\b[^}]*\} from "\.\/pwa\/build\.mjs"/);
+    expect(post).toMatch(/const obfuscated = process\.env\.OBFUSCATE !== "0";/);
+    expect(post).toMatch(/oversizedScripts\(scripts, \{ sizes, obfuscated, isLoader: isExcludedChunk \}\)/);
+    const order = ["obfuscateExport(out)", "buildPwa(out)", "oversizedScripts(scripts", "buildInfo.writeBuildFiles(out"].map((s) => post.indexOf(s));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 });
 

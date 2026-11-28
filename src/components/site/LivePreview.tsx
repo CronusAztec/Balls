@@ -43,16 +43,19 @@ type PreviewModules = typeof import("./livePreviewEngine") & Pick<typeof import(
  * one, the other modes, the settings (with the rest of what they read), the engine. Each import runs only the code the ones
  * before it have not run, and all of them name one chunk group ("live-preview"): the build splits the studio's code no
  * further than for one import, and the chunks are fetched once.
+ * --- studio-chunk-split --- (finding g3-7) `webpackExports: []`: the steps only run the modules. An import() that takes the
+ * whole module keeps every export name of it, and of all it re-exports, unshortened in every chunk that uses them – the
+ * studio's too, where `new X.PhysicsEngine(` then shipped, because the obfuscator keeps property names.
  */
 const ENGINE_STEPS: readonly (() => Promise<unknown>)[] = [
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/fightLeague"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/landClaim"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/stringBattle"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/orbGrid"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes/territory"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/modes"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/settings"),
-  () => import(/* webpackChunkName: "live-preview" */ "@/lib/physics/engine"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes/fightLeague"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes/landClaim"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes/stringBattle"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes/orbGrid"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes/territory"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/modes"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/settings"),
+  () => import(/* webpackChunkName: "live-preview", webpackExports: [] */ "@/lib/physics/engine"),
 ];
 
 /** --- review fix (studio-first-open) --- Hands the rest of this turn to whatever waits (input, a frame): the caller goes on in a task of its own. */
