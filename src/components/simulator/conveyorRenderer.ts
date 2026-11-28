@@ -1,4 +1,6 @@
 import { CV_FROZEN, CV_RIDING, KIND_PEG, type ConveyorLayout, type ConveyorView } from "@/lib/physics/modes/conveyor";
+import { gapWrap, type CircularWall } from "@/lib/physics/types"; // --- conveyor-glow ---
+import { ringArc } from "./ringArc"; // --- conveyor-glow ---
 
 /**
  * The Conveyor Belt's drawing (feature gerald-conveyor; lib/physics/modes/conveyor.ts): `drawWorld()` under the balls – the
@@ -17,6 +19,11 @@ export interface ConveyorRenderOptions {
   wallAlpha: (alpha: number) => string;
   wallThickness: number;
   showWallGlow: boolean;
+  // --- conveyor-glow --- (round two, B9b) the rings as the canvas draws them this frame (the slow motion's and the replay's too)
+  // and their stroke at an alpha in the walls' own colours (the rainbow by ring or round them): without them the rings stay unlit
+  walls?: readonly CircularWall[];
+  rotations?: readonly number[];
+  ringStyle?: (index: number, alpha: number) => string | CanvasGradient;
 }
 
 export interface ConveyorLabels {
@@ -108,6 +115,39 @@ export function conveyorCountPop(ageMs: number): number {
   return 1 + 0.35 * k * k;
 }
 // --- end conveyor-count ---
+
+// --- conveyor-glow --- (round two, B9b)
+/*
+ * The rings lit (draw only, the Rings arena): over the thin walls the canvas draws at 60 %, every ring again with a core thicker
+ * than the wall and two soft halos in the walls' own colours, so the arena reads from a clip's first frame, long before the first
+ * ball is out (the darkest clip of its group: 92 % of it dark). Each gap's two ends get a white stud (the way out), and every
+ * ball out brightens the rings for a moment. All of it from the view's clock and the walls the canvas drew this frame.
+ */
+/** The core's width: the Wall Thickness plus at most 4 px (twice a thin wall), at least this share of the square. */
+export const CONVEYOR_RING_EXTRA = 4;
+export const CONVEYOR_RING_MIN_SHARE = 0.0055;
+/** The halos (width as a multiple of the core, alpha), widest first, and the core's alpha. */
+export const CONVEYOR_RING_HALOS: readonly { width: number; alpha: number }[] = [
+  { width: 4.5, alpha: 0.09 },
+  { width: 2.4, alpha: 0.22 },
+];
+export const CONVEYOR_RING_CORE_ALPHA = 0.92;
+/** How long (simulation ms) the rings stay brightened after a ball got out. */
+export const CONVEYOR_RING_PULSE_MS = 450;
+
+/** The lit core's width (world px) for a Wall Thickness of `wallThickness` in a square of `side` px. */
+export function conveyorRingWidth(wallThickness: number, side: number): number {
+  const t = Number.isFinite(wallThickness) && wallThickness > 0 ? wallThickness : 2;
+  return Math.max(t + Math.min(t, CONVEYOR_RING_EXTRA), CONVEYOR_RING_MIN_SHARE * side);
+}
+
+/** The rings' brightening `ageMs` after a ball got out: 1 at the escape, easing to 0 by CONVEYOR_RING_PULSE_MS (0 outside it). */
+export function conveyorRingPulse(ageMs: number): number {
+  if (!(ageMs >= 0) || ageMs >= CONVEYOR_RING_PULSE_MS) return 0;
+  const k = 1 - ageMs / CONVEYOR_RING_PULSE_MS;
+  return k * k;
+}
+// --- end conveyor-glow ---
 
 /** How long (ms of simulation time) the hatch glows after a ball came out. */
 export const HATCH_FLASH_MS = 350;
@@ -220,6 +260,8 @@ export class ConveyorLayer {
     const r = L.maxBallRadius;
     const arena = view.settings.arena;
 
+    if (arena === "rings") this.drawRings(ctx, view, opts, L); // --- conveyor-glow --- (under the loading tube)
+
     // The rings: the loading tube from the belt's end down into the core (over the rings, under the balls).
     if (arena === "rings" && L.ringRadii.length > 0) {
       const half = r + 3;
@@ -308,6 +350,60 @@ export class ConveyorLayer {
     if (L.bottomBeltY > 0) this.belt(ctx, L.left, L.exitX, L.bottomBeltY, L.beltThickness, L.bottomBeltSpeed, t);
     ctx.restore();
   }
+
+  // --- conveyor-glow --- (round two, B9b)
+  /** The rings lit: two halos and a core over every ring the canvas drew (between its gaps, turned as drawn), a stud at each gap's ends. */
+  private drawRings(ctx: CanvasRenderingContext2D, view: ConveyorView, opts: ConveyorRenderOptions, L: ConveyorLayout) {
+    const walls = opts.walls;
+    const style = opts.ringStyle;
+    if (!walls || walls.length === 0 || !style) return;
+    const rotations = opts.rotations;
+    const pulse = conveyorRingPulse(view.timeMs - view.lastEscapeMs);
+    const core = conveyorRingWidth(opts.wallThickness, Math.min(L.width, L.height)) * (1 + 0.35 * pulse);
+    ctx.save();
+    ctx.lineCap = "butt";
+    for (let pass = 0; pass <= CONVEYOR_RING_HALOS.length; pass++) {
+      const halo = pass < CONVEYOR_RING_HALOS.length ? CONVEYOR_RING_HALOS[pass] : null;
+      ctx.lineWidth = halo ? halo.width * core : core;
+      const alpha = halo ? Math.min(1, halo.alpha * (1 + 1.5 * pulse)) : CONVEYOR_RING_CORE_ALPHA;
+      for (let i = 0; i < walls.length; i++) {
+        const wall = walls[i];
+        const rot = (rotations && rotations[i]) || 0;
+        ctx.strokeStyle = style(i, alpha);
+        ctx.beginPath();
+        // the wall between the gaps, as the canvas strokes it (sorted gaps from [0, 2π); a last gap across 0 moves the start past its end)
+        const c0 = gapWrap(wall.gaps);
+        let cursor = c0;
+        for (const gap of wall.gaps) {
+          const start = gap.startAngle + rot;
+          if (start > cursor + rot) ringArc(ctx, L.cx, L.cy, wall.radius, cursor + rot, start, true);
+          cursor = gap.endAngle;
+        }
+        if (cursor < TWO_PI + c0) ringArc(ctx, L.cx, L.cy, wall.radius, cursor + rot, TWO_PI + c0 + rot, true);
+        ctx.stroke();
+      }
+    }
+    // the studs: a white dot at both ends of every gap
+    ctx.fillStyle = `rgba(255, 255, 255, ${(0.75 + 0.25 * pulse).toFixed(3)})`;
+    ctx.beginPath();
+    const stud = 0.7 * core;
+    for (let i = 0; i < walls.length; i++) {
+      const wall = walls[i];
+      const rot = (rotations && rotations[i]) || 0;
+      for (const gap of wall.gaps) {
+        for (let end = 0; end < 2; end++) {
+          const a = (end === 0 ? gap.startAngle : gap.endAngle) + rot;
+          const x = L.cx + wall.radius * Math.cos(a);
+          const y = L.cy + wall.radius * Math.sin(a);
+          ctx.moveTo(x + stud, y);
+          ctx.arc(x, y, stud, 0, TWO_PI);
+        }
+      }
+    }
+    ctx.fill();
+    ctx.restore();
+  }
+  // --- end conveyor-glow ---
 
   /** The frost on the frozen balls (over the balls). */
   drawEffects(ctx: CanvasRenderingContext2D, view: ConveyorView) {

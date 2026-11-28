@@ -4,6 +4,7 @@ import { cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
 import { startBallAngle, startBallColor, startBallCount } from "../ballStats"; // --- loop-foundation ---
 import { frequencyFromScalar, LOOP_SPAN } from "@/lib/audio/loopPitch"; // --- loop-foundation ---
 import { pluckVelocity } from "@/lib/audio/loopTones"; // --- loop-foundation ---
+import { midiToFrequency } from "@/lib/audio/scales"; // --- grow-chimes ---
 
 /*
  * --- loop-foundation --- Grow's "fill and loop" upgrade (after the growing-ball clips of the loop family): two options on top
@@ -72,6 +73,18 @@ export const CHORD_ANGLE_MAX_DEG = 36;
 export const GROW_CHORD_HZ = 97.999;
 /** Time tolerance (ms) of the phase changes on the simulation clock (floating-point steps). */
 const PHASE_EPS_MS = 0.5;
+// --- grow-chimes --- (round two, B9b)
+/**
+ * The fill's milestones – the smallest ball's width as a share of the most it can grow to (r / cap, the meter's share) – and their
+ * chimes on a rising ladder in the plucks' C pentatonic (E5 G5 C6): each note is the milestone's, from the fill alone, never a draw.
+ * A chime is a decorative voice (`ringVoice` "extra", type "hit": a visitor's own sound leaves it out and the crew's measured moments
+ * do not count it), played only once the run has sounded, so a run's first sound is still its first contact. A milestone the start
+ * size has already passed is not chimed; a loop's relaunch counts them again, so every cycle plays the same.
+ */
+export const GROW_MILESTONES: readonly number[] = [0.25, 0.5, 0.75];
+export const GROW_MILESTONE_MIDI: readonly number[] = [76, 79, 84];
+export const GROW_CHIME_LEVEL = 0.7;
+// --- end grow-chimes ---
 
 /** The radius after one bounce of `law` from `r` (never past `cap`; a step below 0 counts as 0). */
 export function growStepRadius(law: GrowLaw, r: number, step: number, cap: number, approachRate = 0.05): number {
@@ -172,6 +185,9 @@ export interface GrowView {
   /** The chord angle of the new laws (radians; 0 under the classic law). */
   chordAngle: number;
   markers: GrowMarkers;
+  /** --- grow-chimes --- Milestones (`GROW_MILESTONES`) passed in this cycle – the start size's own included – and the simulation ms of the last one passed while growing (−1: none yet). */
+  milestones: number;
+  milestoneMs: number;
 }
 
 /** Grow: a single sealed ring; the ball grows with every bounce until it fills the space. */
@@ -211,6 +227,11 @@ export class GrowMode implements GameMode {
   private readonly rebound = { vx: 0, vy: 0 };
   private view: GrowView | null = null;
   // --- end loop-foundation ---
+  // --- grow-chimes --- milestones passed this cycle (−1: not counted yet – the cycle's first bounce counts the start size's), the
+  // last one's simulation ms, and whether the run has sounded (a contact's sound queued: a chime never comes first)
+  private milestones = -1;
+  private milestoneMs = -1;
+  private sounded = false;
 
   setGrowRate(rate: number) {
     this.growRate = rate;
@@ -316,6 +337,9 @@ export class GrowMode implements GameMode {
     this.bounces = 0;
     this.totalBounces = 0;
     this.markers.clear();
+    this.milestones = -1; // --- grow-chimes ---
+    this.milestoneMs = -1;
+    this.sounded = false;
     this.chordAngle = 0;
     this.side = 1;
     this.startRadius = ctx.config.ballRadius || 8;
@@ -454,6 +478,7 @@ export class GrowMode implements GameMode {
     this.lastSeamMs = at;
     this.seams++;
     this.bounces = 0;
+    this.milestones = -1; // --- grow-chimes --- (the cycle counts its milestones again)
     this.phase = "grow";
     this.holdEndMs = this.shrinkStartMs = this.shrinkEndMs = -1;
     const theta = ctx.random() * Math.PI * 2;
@@ -472,6 +497,40 @@ export class GrowMode implements GameMode {
     return { type: "hit", wallIndex, loop: "pluck", frequency: growPitch(radius, this.startRadius, cap), level: pluckVelocity(1), loopBright: radius < 0.25 * cap, melody: false };
   }
   // --- end loop-foundation ---
+  // --- grow-chimes --- (round two, B9b)
+  /** The meter's share, 0–1: the smallest ball's radius over the cap (`ball` counted at `ballRadius` instead of its own: its size before this bounce). */
+  private fillShare(ctx: ModeContext, cap: number, ball?: Ball, ballRadius = 0): number {
+    let r = Infinity;
+    for (const b of ctx.getBalls()) {
+      const br = b === ball ? ballRadius : b.radius;
+      if (br > 0 && br < r) r = br;
+    }
+    return Number.isFinite(r) && cap > 0 ? Math.min(1, r / cap) : 0;
+  }
+  /**
+   * After a bounce grew `ball` (from `hitRadius`): the milestones the fill just passed, each with its chime once the run has
+   * sounded. The cycle's first bounce counts the ones its start size had passed (never chimed). No random draw, no physics.
+   */
+  private passMilestones(ctx: ModeContext, ball: Ball, hitRadius: number, cap: number) {
+    if (this.milestones >= GROW_MILESTONES.length || !(cap > 0)) return;
+    if (this.milestones < 0) {
+      const before = this.fillShare(ctx, cap, ball, hitRadius);
+      let k = 0;
+      while (k < GROW_MILESTONES.length && before >= GROW_MILESTONES[k] - 1e-12) k++;
+      this.milestones = k;
+      if (k >= GROW_MILESTONES.length) return;
+    }
+    // (the smallest ball is never bigger than this one: nothing to count until this one has passed the next milestone)
+    if (ball.radius < GROW_MILESTONES[this.milestones] * cap - 1e-9) return;
+    const share = this.fillShare(ctx, cap);
+    while (this.milestones < GROW_MILESTONES.length && share >= GROW_MILESTONES[this.milestones] - 1e-12) {
+      const frequency = midiToFrequency(GROW_MILESTONE_MIDI[this.milestones]);
+      this.milestones++;
+      this.milestoneMs = ctx.getElapsedMs();
+      if (this.sounded) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chime", frequency, level: GROW_CHIME_LEVEL, melody: false, ringVoice: "extra" });
+    }
+  }
+  // --- end grow-chimes ---
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     this.elapsedTime += dtSec;
     // --- loop-foundation --- held, shrinking or done: the ball stays where the loop puts it (the shrink moves it in onPreUpdate)
@@ -569,9 +628,14 @@ export class GrowMode implements GameMode {
     if (this.fill.pitch) {
       const cap = this.maxBallRadius(ctx, wallIndex);
       if (outward) ctx.addPendingSoundEvent(this.pluck(hitRadius, wallIndex, cap));
+      if (outward) this.sounded = true; // --- grow-chimes ---
+      if (wall) this.passMilestones(ctx, ball, hitRadius, cap); // --- grow-chimes ---
       if (this.fill.onFill !== "stay" && this.allFull(ctx, wallIndex)) this.beginFill(ctx);
       return { suppressBounce: true, suppressGlow: !outward, suppressSound: true };
     }
+    // --- grow-chimes --- (the engine sounds this contact: its sound is not suppressed below)
+    this.sounded = true;
+    if (wall) this.passMilestones(ctx, ball, hitRadius, this.maxBallRadius(ctx, wallIndex));
     if (this.fill.onFill !== "stay" && this.allFull(ctx, wallIndex)) {
       if (playSound) ctx.addPendingSoundEvent({ type: "hit", wallIndex });
       this.beginFill(ctx);
@@ -614,6 +678,9 @@ export class GrowMode implements GameMode {
     this.bounces++;
     this.totalBounces++;
     if (this.fill.pitch) ctx.addPendingSoundEvent(this.pluck(hitRadius, wallIndex, cap));
+    // --- grow-chimes --- (this bounce sounds: its pluck above, or the engine's plain bounce, not suppressed below)
+    this.sounded = true;
+    this.passMilestones(ctx, ball, hitRadius, cap);
     if (this.fill.onFill !== "stay" && this.allFull(ctx, wallIndex)) this.beginFill(ctx);
     return { suppressBounce: true, suppressSound: this.fill.pitch };
   }
@@ -664,7 +731,7 @@ export class GrowMode implements GameMode {
   }
   /** The run as the canvas, the finder and the smoke test read it (the same object every call). */
   getView(ctx: ModeContext): GrowView {
-    const v = (this.view ??= { law: "approach", onFill: "stay", phase: "grow", phaseProgress: 0, cap: 0, startRadius: 0, ring: 0, fills: 0, firstFillMs: -1, lastFillMs: -1, seams: 0, lastSeamMs: 0, cycleSec: 0, bounces: 0, totalBounces: 0, chordAngle: 0, markers: this.markers });
+    const v = (this.view ??= { law: "approach", onFill: "stay", phase: "grow", phaseProgress: 0, cap: 0, startRadius: 0, ring: 0, fills: 0, firstFillMs: -1, lastFillMs: -1, seams: 0, lastSeamMs: 0, cycleSec: 0, bounces: 0, totalBounces: 0, chordAngle: 0, markers: this.markers, milestones: 0, milestoneMs: -1 });
     const t = ctx.getElapsedMs();
     v.law = this.fill.law;
     v.onFill = this.fill.onFill;
@@ -688,6 +755,8 @@ export class GrowMode implements GameMode {
     v.bounces = this.bounces;
     v.totalBounces = this.totalBounces;
     v.chordAngle = this.chordAngle;
+    v.milestones = Math.max(0, this.milestones); // --- grow-chimes ---
+    v.milestoneMs = this.milestoneMs;
     return v;
   }
   // --- end loop-foundation ---

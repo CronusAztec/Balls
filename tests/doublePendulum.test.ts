@@ -33,6 +33,8 @@ import {
   type DoublePendulumSettings,
 } from "@/lib/physics/modes/doublePendulum";
 import { drawDoublePendulumBodies, drawDoublePendulumStrings, drawDoublePendulumTrails, stringDisplacement, stringEnvelope, trailBands, trailFade, trailHue, type DoublePendulumRenderOptions } from "@/components/simulator/doublePendulumRenderer";
+import { FINALE_FLASH_ALPHA, FINALE_FLASH_SEC, FINALE_RING_SEC, dpFinaleAge, drawDoublePendulumFlash, finaleFlashAlpha } from "@/components/simulator/doublePendulumRenderer"; // --- dp-time-flash ---
+import { fakeCanvas } from "./fakeCanvas"; // --- dp-time-flash ---
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { midiToFrequency } from "@/lib/audio/scales";
@@ -1199,5 +1201,65 @@ describe("renderer", () => {
     expect(f.cx - f.side / 2).toBeCloseTo(f.left, 9);
     const spar = buildDpField(800, 600, 1.5, 0.025);
     expect(spar.scale * 1.5).toBeCloseTo(f.scale, 9);
+  });
+});
+
+// --- dp-time-flash --- (round two, B9b) TIME! came in over a frozen frame (m2-13): the frame now flashes white as the rig stops and a
+// ring leaves each pendulum's last bob, on the simulation clock (draw only)
+describe("--- dp-time-flash --- TIME!", () => {
+  it("eases its flash out from FINALE_FLASH_ALPHA to nothing by FINALE_FLASH_SEC", () => {
+    expect(finaleFlashAlpha(0)).toBe(FINALE_FLASH_ALPHA);
+    expect(finaleFlashAlpha(-0.01)).toBe(0);
+    expect(finaleFlashAlpha(FINALE_FLASH_SEC)).toBe(0);
+    for (let t = 0.05; t < FINALE_FLASH_SEC; t += 0.05) expect(finaleFlashAlpha(t)).toBeLessThan(finaleFlashAlpha(t - 0.05));
+  });
+
+  it("flashes the frame and sends a ring off each last bob as the finale starts, and nothing before it or after", () => {
+    const engine = dpEngine({ clipSeconds: 6 });
+    const view = engine.getDoublePendulumView();
+    // (the burst: a radial wash from the frame's middle, fading out at the square's edge, at the flash's alpha)
+    const flashOf = () => {
+      const canvas = fakeCanvas(800, 600);
+      drawDoublePendulumFlash(canvas.ctx as unknown as CanvasRenderingContext2D, 800, 600, view);
+      const rects = canvas.ctx.calls.filter((c) => c.name === "fillRect");
+      if (rects.length === 0) return 0;
+      expect(rects).toEqual([{ name: "fillRect", args: [100, 0, 600, 600] }]);
+      expect(canvas.ctx.calls.find((c) => c.name === "createRadialGradient")!.args).toEqual([400, 300, 0, 400, 300, 300]);
+      return canvas.ctx.globalAlpha;
+    };
+    // the swing: no finale, no flash (a still harp: no sparring hit flashes either), no ring
+    run(engine, 60);
+    expect(dpFinaleAge(view)).toBe(-1);
+    expect(flashOf()).toBe(0);
+    const swing = recordingContext();
+    drawDoublePendulumBodies(swing.ctx, view, renderOptions);
+    expect(swing.strokes.length).toBe(1 + view.segments);
+    // the finale's first frame: the flash at full strength and one ring round each pendulum's last bob
+    let steps = 60;
+    while (!view.finale) {
+      engine.update(STEP, 0);
+      steps++;
+    }
+    expect(view.timeSec).toBeCloseTo(6 - 1.2, 9);
+    expect(dpFinaleAge(view)).toBeCloseTo(0, 9);
+    expect(flashOf()).toBeCloseTo(FINALE_FLASH_ALPHA, 3);
+    const start = recordingContext();
+    drawDoublePendulumBodies(start.ctx, view, renderOptions);
+    expect(start.strokes.length).toBe(1 + view.segments + view.pendulums.length);
+    const ring = start.strokes.at(-1)!;
+    expect(ring.style).toBe("#ffffff");
+    // then easing out with the simulation clock: the flash gone by FINALE_FLASH_SEC, the rings by FINALE_RING_SEC
+    run(engine, Math.ceil(60 * FINALE_FLASH_SEC));
+    expect(dpFinaleAge(view)).toBeGreaterThanOrEqual(FINALE_FLASH_SEC);
+    expect(flashOf()).toBe(0);
+    run(engine, Math.ceil(60 * (FINALE_RING_SEC - FINALE_FLASH_SEC)) + 1);
+    const later = recordingContext();
+    drawDoublePendulumBodies(later.ctx, view, renderOptions);
+    expect(later.strokes.length).toBe(1 + view.segments);
+    // an endless run has no finale
+    const endless = dpEngine({ clipSeconds: 6, endless: true });
+    run(endless, 60 * 7);
+    expect(dpFinaleAge(endless.getDoublePendulumView())).toBe(-1);
+    expect(steps).toBeGreaterThan(60);
   });
 });

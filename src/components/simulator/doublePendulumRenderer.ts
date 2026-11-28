@@ -1,4 +1,4 @@
-import { TRAIL_CAPACITY, type DoublePendulumView } from "@/lib/physics/modes/doublePendulum";
+import { TRAIL_CAPACITY, finaleStartSec, type DoublePendulumView } from "@/lib/physics/modes/doublePendulum";
 import { drawChaosFan } from "./chaosFanRenderer"; // --- chaos-fan ---
 
 /**
@@ -31,6 +31,31 @@ export const HIT_FLASH_SEC = 0.35;
 /** How long the screen flash of a hard hit lasts (simulation seconds), and the strength from which it shows. */
 export const SCREEN_FLASH_SEC = 0.25;
 export const SCREEN_FLASH_MIN_STRENGTH = 0.6;
+// --- dp-time-flash --- (round two, B9b)
+/*
+ * TIME! lands as a moment (draw only): as the finale starts – the rig stops under the banner and the closing chord – a white
+ * burst lights the frame from its middle and a ring leaves each pendulum's last bob, on the simulation clock (`finaleStartSec()` of the clip), so the fast
+ * export draws what the page draws. Nothing changes before the finale or in an endless run.
+ */
+/** How long (simulation s) the finale's flash and its rings last, and the flash's strength at the finale's first frame. */
+export const FINALE_FLASH_SEC = 0.6;
+export const FINALE_FLASH_ALPHA = 0.55;
+export const FINALE_RING_SEC = 0.9;
+
+/** Seconds into the finale (−1 while it is not on). */
+export function dpFinaleAge(view: Pick<DoublePendulumView, "finale" | "timeSec" | "settings">): number {
+  if (!view.finale) return -1;
+  return Math.max(0, view.timeSec - finaleStartSec(view.settings.clipSeconds));
+}
+
+/** The finale flash's alpha `age` s into the finale: FINALE_FLASH_ALPHA at once, easing out to 0 by FINALE_FLASH_SEC (0 outside it). */
+export function finaleFlashAlpha(age: number): number {
+  if (!(age >= 0) || age >= FINALE_FLASH_SEC) return 0;
+  const k = 1 - age / FINALE_FLASH_SEC;
+  return FINALE_FLASH_ALPHA * k * k;
+}
+// --- end dp-time-flash ---
+
 /** Opacity of the trail where it leaves its bob. */
 export const TRAIL_ALPHA = 0.9;
 /** Bands (strokes of one hue and opacity) per trail: fewer for more pendulums, so the whole rig stays within budget. */
@@ -279,6 +304,22 @@ export function drawDoublePendulumBodies(ctx: CanvasRenderingContext2D, view: Do
       ctx.stroke();
     }
   }
+  // --- dp-time-flash --- TIME!: a ring leaving each pendulum's last bob, white turning to its hue
+  const fin = dpFinaleAge(view);
+  if (fin >= 0 && fin < FINALE_RING_SEC) {
+    const q = fin / FINALE_RING_SEC;
+    const eq = 1 - (1 - q) * (1 - q) * (1 - q);
+    for (const pen of view.pendulums) {
+      const last = pen.chain.links - 1;
+      const r = pen.radius[last] * s;
+      ctx.globalAlpha = 0.85 * (1 - q);
+      ctx.strokeStyle = q < 0.25 ? "#ffffff" : hueColor(trailHue(pen.hue, now, T));
+      ctx.lineWidth = Math.max(1.5, (3 - 2 * eq) * 0.35 * r);
+      ctx.beginPath();
+      ctx.arc(f.cx + pen.bobX[last] * s, f.cy + pen.bobY[last] * s, r * (1.3 + 5 * eq), 0, TWO_PI);
+      ctx.stroke();
+    }
+  }
   // Sparring: a white core and an expanding ring at every recent contact.
   for (const hit of view.hits) {
     const age = now - hit.time;
@@ -300,8 +341,23 @@ export function drawDoublePendulumBodies(ctx: CanvasRenderingContext2D, view: Do
   ctx.restore();
 }
 
-/** The white full-screen flash of a hard sparring hit (screen space, outside the camera transform). */
+/** The white full-screen flash of a hard sparring hit, and TIME!'s (--- dp-time-flash ---) (screen space, outside the camera transform). */
 export function drawDoublePendulumFlash(ctx: CanvasRenderingContext2D, width: number, height: number, view: DoublePendulumView) {
+  // --- dp-time-flash --- TIME!: a white burst from the middle of the frame as the rig stops, fading to nothing at the square's
+  // edge (no hard edge against the export's bands)
+  const fa = finaleFlashAlpha(dpFinaleAge(view));
+  if (fa >= 0.005 && typeof ctx.createRadialGradient === "function") {
+    const r = 0.5 * Math.min(width, height);
+    const g = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, r);
+    g.addColorStop(0, "rgba(255, 255, 255, 1)");
+    g.addColorStop(0.55, "rgba(255, 255, 255, 0.55)");
+    g.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.save();
+    ctx.globalAlpha = fa;
+    ctx.fillStyle = g;
+    ctx.fillRect(width / 2 - r, height / 2 - r, 2 * r, 2 * r);
+    ctx.restore();
+  }
   if (view.lastHitStrength < SCREEN_FLASH_MIN_STRENGTH) return;
   const age = view.timeSec - view.lastHitTime;
   if (!(age >= 0 && age < SCREEN_FLASH_SEC)) return;

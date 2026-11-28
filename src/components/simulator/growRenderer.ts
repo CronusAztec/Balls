@@ -1,5 +1,5 @@
 import type { Ball } from "@/lib/physics/types";
-import type { GrowView } from "@/lib/physics/modes/grow";
+import { GROW_MILESTONES, type GrowView } from "@/lib/physics/modes/grow";
 import { DEFAULT_GROW_RAMP, parseRamp, rampColor } from "@/lib/physics/growFill";
 
 /*
@@ -84,6 +84,31 @@ export function growBurstAt(ageMs: number): number | null {
   return ageMs >= 0 && ageMs < GROW_BURST_MS ? ageMs / GROW_BURST_MS : null;
 }
 
+// --- grow-chimes --- (round two, B9b)
+/*
+ * The fill's milestones on screen (the mode chimes them: lib/physics/modes/grow.ts): a tick across the meter at 25, 50 and 75 %,
+ * lit once the meter has passed it, and at each milestone a pulse – the meter and the rim flash white, a ring leaves the rim in
+ * the ball's colour and the share's number pops – smaller than a fill's burst, which takes over when they meet.
+ */
+/** How long a milestone's pulse lasts (simulation ms). */
+export const GROW_PULSE_MS = 700;
+/** The share's number at the pulse's start (× its size), easing back to 1. */
+export const GROW_PULSE_POP = 1.3;
+
+/** The pulse of a milestone passed `ageMs` (simulation ms) ago: its 0–1 progress, or null outside it. */
+export function growPulseAt(ageMs: number): number | null {
+  return ageMs >= 0 && ageMs < GROW_PULSE_MS ? ageMs / GROW_PULSE_MS : null;
+}
+
+/** The view's milestone pulse at `nowMs`: its progress, or null (none, over, or a fill's burst on: the burst says more). */
+function pulseOf(view: GrowView, nowMs: number): number | null {
+  if (!(view.milestoneMs >= 0)) return null;
+  const fill = lastFillOf(view);
+  if (fill >= 0 && growBurstAt(nowMs - fill) !== null) return null;
+  return growPulseAt(nowMs - view.milestoneMs);
+}
+// --- end grow-chimes ---
+
 /** The view's newest fill (simulation ms), or −1. */
 function lastFillOf(view: GrowView): number {
   return view.fills > 0 ? view.lastFillMs : -1;
@@ -160,11 +185,26 @@ export class GrowLayer {
     ctx.beginPath();
     ctx.arc(cx, cy, mr, 0, Math.PI * 2);
     ctx.stroke();
+    const pulse = pulseOf(view, nowMs); // --- grow-chimes --- (the meter flashes white at a milestone too)
     if (f > 0.002) {
       ctx.globalAlpha = 0.95;
-      ctx.strokeStyle = burst !== null ? "#ffffff" : color;
+      ctx.strokeStyle = burst !== null || (pulse !== null && pulse < 0.35) ? "#ffffff" : color;
       ctx.beginPath();
       ctx.arc(cx, cy, mr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, f));
+      ctx.stroke();
+    }
+    // --- grow-chimes --- the milestones' ticks across the meter: faint ahead, lit once passed
+    ctx.lineCap = "butt";
+    ctx.lineWidth = Math.max(1.5, 0.28 * lw);
+    ctx.strokeStyle = "#ffffff";
+    for (const m of GROW_MILESTONES) {
+      const a = -Math.PI / 2 + Math.PI * 2 * m;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      ctx.globalAlpha = f >= m ? 0.9 : 0.35;
+      ctx.beginPath();
+      ctx.moveTo(cx + (mr - 0.85 * lw) * c, cy + (mr - 0.85 * lw) * sn);
+      ctx.lineTo(cx + (mr + 0.85 * lw) * c, cy + (mr + 0.85 * lw) * sn);
       ctx.stroke();
     }
     ctx.restore();
@@ -178,9 +218,12 @@ export class GrowLayer {
     const R = view.ring;
     // --- review fix (B5) --- the number "63%" inside the ring under its top edge, white over the ball (no words: it reads the same
     // in every language): clear of the captions' band over the ring, and only where a fill can happen
+    const pulse = R > 0 ? pulseOf(view, nowMs) : null; // --- grow-chimes ---
     if (R > 0 && growShowsShare(view)) {
       const f = growMeterShare(view, balls);
-      const fs = Math.max(12, 0.16 * R);
+      // (--- grow-chimes --- popping at a milestone: bigger from the same top edge)
+      const pop = pulse !== null ? 1 + (GROW_PULSE_POP - 1) * (1 - pulse) * (1 - pulse) : 1;
+      const fs = Math.max(12, 0.16 * R) * pop;
       ctx.save();
       ctx.globalAlpha = 0.92;
       ctx.font = `bold ${Math.round(fs)}px sans-serif`;
@@ -194,6 +237,26 @@ export class GrowLayer {
       ctx.strokeText(text, cx, ty);
       ctx.fillStyle = "#ffffff";
       ctx.fillText(text, cx, ty);
+      ctx.restore();
+    }
+    // --- grow-chimes --- a milestone's pulse: the rim flashing white and a ring leaving it in the ball's colour
+    if (pulse !== null) {
+      const eq = 1 - (1 - pulse) * (1 - pulse) * (1 - pulse);
+      ctx.save();
+      if (pulse < 0.3) {
+        ctx.globalAlpha = 0.6 * (1 - pulse / 0.3);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = Math.max(2, 0.03 * R);
+        ctx.beginPath();
+        ctx.arc(cx, cy, R, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.8 * (1 - pulse);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, (0.04 - 0.03 * eq) * R);
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * (1 + 0.3 * eq), 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
     const fill = lastFillOf(view);

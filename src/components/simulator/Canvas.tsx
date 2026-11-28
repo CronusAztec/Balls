@@ -2242,6 +2242,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conveyorRender.wallAlpha = circleAlpha;
         conveyorRender.wallThickness = p.wallThickness;
         conveyorRender.showWallGlow = p.showWallGlow;
+        // --- conveyor-glow --- (round two, B9b) the rings lit over the walls drawn above: those walls, turned as drawn, in their stroke
+        conveyorRender.walls = walls;
+        conveyorRender.rotations = rotations;
+        conveyorRender.ringStyle = (i, a) => (ringRainbow ? ringRainbowColor(i, walls.length, a) : p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(a) : wallColor(i, a));
         conveyorLayer.drawWorld(ctx, conveyorView, conveyorRender);
       }
       // --- orb-grid --- Bouncing Orbs: the slab, the plate or the grid floor under the orbs (the field's perspective)

@@ -3,6 +3,9 @@ import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { clipPacingDefaults, clipStartSettings } from "@/lib/clipPacing";
 import { GALLERY } from "@/content/gallery";
 import { GROW_BURST_MS, GROW_FULL_SNAP_PX, GrowLayer, growBurstAt, growCoverage, growMeterShare, growShowsShare } from "@/components/simulator/growRenderer";
+import { GROW_PULSE_MS, GROW_PULSE_POP, growPulseAt } from "@/components/simulator/growRenderer"; // --- grow-chimes ---
+import { GROW_CHIME_LEVEL, GROW_MILESTONES, GROW_MILESTONE_MIDI } from "@/lib/physics/modes/grow"; // --- grow-chimes ---
+import { midiToFrequency } from "@/lib/audio/scales"; // --- grow-chimes ---
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -135,5 +138,115 @@ describe("--- review fix (B5) --- the share's number", () => {
     expect(Number(calls[0].args[2])).toBeGreaterThan(225 - v.ring);
     expect(Number(calls[0].args[2])).toBeLessThan(225 - 0.5 * v.ring);
     expect(texts({}).calls).toEqual([]);
+  });
+});
+
+// --- grow-chimes --- (round two, B9b) the first 8 s of the start look barely moved (15 % to 26 %, m1-grow-hook): every milestone of the
+// fill – 25, 50 and 75 % – now chimes on a rising ladder and pulses the ring, so the climb reads before the burst
+describe("--- grow-chimes --- the fill's milestones", () => {
+  const LADDER = GROW_MILESTONE_MIDI.map(midiToFrequency);
+  interface Step {
+    t: number;
+    events: SoundEvent[];
+    share: number;
+  }
+  /** A run to its end (or `maxMs`): every step's events and the meter's share (r / cap of the smallest ball) after it. */
+  function steps(engine: PhysicsEngine, maxMs = 40_000): Step[] {
+    const out: Step[] = [];
+    while (!engine.isSimulationFinished() && engine.getElapsedMs() < maxMs) {
+      engine.update(STEP, 0);
+      const v = engine.getGrowView();
+      out.push({ t: engine.getElapsedMs(), events: engine.consumeSoundEvents(), share: v.phase === "grow" ? growCoverage(engine.getBalls(), v.cap) : 1 });
+    }
+    return out;
+  }
+  const chimesOf = (run: Step[]) => run.flatMap((s, i) => s.events.filter((e) => e.loop === "chime").map((e) => ({ i, e })));
+
+  it("chimes 25, 50 and 75 % on a rising ladder as decorative hits, each in its bounce's step with the pluck, never first", () => {
+    for (const world of [{ width: 450, height: 450 }, { width: 800, height: 450 }]) {
+      for (const seed of [1, 2, 3]) {
+        const engine = engineOf(seed, START, world);
+        const run = steps(engine);
+        const chimes = chimesOf(run);
+        expect(chimes.map(({ e }) => e.frequency)).toEqual(LADDER);
+        chimes.forEach(({ i, e }, k) => {
+          expect(e).toMatchObject({ type: "hit", wallIndex: 0, loop: "chime", level: GROW_CHIME_LEVEL, melody: false, ringVoice: "extra" });
+          // the step the meter passed its milestone, with that bounce's pluck
+          expect(run[i].share).toBeGreaterThanOrEqual(GROW_MILESTONES[k] - 1e-12);
+          expect(run[i - 1].share).toBeLessThan(GROW_MILESTONES[k]);
+          expect(run[i].events.some((x) => x.loop === "pluck")).toBe(true);
+        });
+        // the run's first sound is a contact, as the planner's first impact and the crew read it
+        const first = run.find((s) => s.events.length > 0)!;
+        expect(first.events.some((x) => x.ringVoice !== "extra")).toBe(true);
+        const v = engine.getGrowView();
+        expect([v.milestones, v.milestoneMs]).toEqual([3, run[chimes[2].i].t]);
+        expect(v.phase).toBe("done");
+      }
+    }
+  });
+
+  it("leaves out the milestones its start size has passed, and a loop chimes every cycle alike", () => {
+    const late = chimesOf(steps(engineOf(4, { ...START, growStart: 30 })));
+    expect(late.map(({ e }) => e.frequency)).toEqual(LADDER.slice(1));
+    const past = engineOf(4, { ...START, growStart: 80 });
+    const none = steps(past);
+    expect(chimesOf(none)).toEqual([]);
+    expect(past.getGrowView().milestones).toBe(3);
+    // a loop: every cycle plays the ladder again, from its relaunch
+    const engine = engineOf(2, { growLaw: "multiply", growOnFill: "loop", growPitch: true, growStep: 11 });
+    const run = steps(engine, 45_000);
+    const seams: number[] = [];
+    for (const s of run) for (const e of s.events) if (e.loop === "glide") seams.push(s.t);
+    expect(seams.length).toBeGreaterThanOrEqual(2);
+    const chimes = chimesOf(run).map(({ i, e }) => ({ t: run[i].t, hz: e.frequency }));
+    const cycle = (from: number, to: number) => chimes.filter((c) => c.t > from && c.t <= to).map((c) => c.hz);
+    expect(cycle(0, seams[0])).toEqual(LADDER);
+    expect(cycle(seams[0], seams[1])).toEqual(LADDER);
+  });
+
+  it("chimes the classic Grow's milestones too, after its first contact, and replays them exactly", () => {
+    const a = steps(engineOf(5), 60_000);
+    const b = steps(engineOf(5), 60_000);
+    const chimes = chimesOf(a);
+    expect(chimes.length).toBeGreaterThanOrEqual(2);
+    expect(chimes.map(({ e }) => e.frequency)).toEqual(LADDER.slice(0, chimes.length));
+    expect(JSON.stringify(chimesOf(b))).toBe(JSON.stringify(chimes));
+    const firstSound = a.findIndex((s) => s.events.length > 0);
+    expect(firstSound).toBeLessThan(chimes[0].i);
+  });
+
+  it("draws the milestones' ticks and a pulse from the view alone: the meter flashes, a ring leaves the rim and the number pops", () => {
+    expect(growPulseAt(-1)).toBeNull();
+    expect(growPulseAt(0)).toBe(0);
+    expect(growPulseAt(GROW_PULSE_MS)).toBeNull();
+    const engine = engineOf(7, START);
+    while (engine.getGrowView().milestones < 1) engine.update(STEP, 0);
+    const v = engine.getGrowView();
+    const at = v.milestoneMs;
+    expect(at).toBe(engine.getElapsedMs());
+    const layer = new GrowLayer();
+    const draw = (now: number) => {
+      const canvas = fakeCanvas(450, 450);
+      const ctx = canvas.ctx as unknown as CanvasRenderingContext2D;
+      layer.drawWorld(ctx, v, engine.getBalls(), now, "#4af0ff", 225, 225);
+      const world = canvas.ctx.calls.length;
+      layer.drawEffects(ctx, v, now, "#4af0ff", 225, 225, engine.getBalls());
+      return { calls: canvas.ctx.calls, world, font: canvas.ctx.font };
+    };
+    const pulse = draw(at + 50);
+    const calm = draw(at + GROW_PULSE_MS + 50);
+    expect(JSON.stringify(pulse.calls)).toBe(JSON.stringify(draw(at + 50).calls));
+    // the ticks: three across the meter in both; the pulse adds the rim's flash and the ring leaving it
+    const strokes = (calls: typeof calm.calls, from = 0, to = calls.length) => calls.slice(from, to).filter((c) => c.name === "stroke").length;
+    expect(strokes(pulse.calls, 0, pulse.world)).toBe(strokes(calm.calls, 0, calm.world));
+    expect(strokes(calm.calls, 0, calm.world)).toBeGreaterThanOrEqual(GROW_MILESTONES.length + 2);
+    expect(strokes(pulse.calls, pulse.world)).toBe(strokes(calm.calls, calm.world) + 2);
+    const rings = pulse.calls.slice(pulse.world).filter((c) => c.name === "arc").map((c) => c.args[2] as number);
+    expect(Math.max(...rings)).toBeGreaterThan(v.ring);
+    // the number: bigger at the pulse, back to its size after it
+    const size = (font: string) => Number(/(\d+)px/.exec(font)![1]);
+    expect(size(pulse.font)).toBeGreaterThan(size(calm.font));
+    expect(size(draw(at).font)).toBe(Math.round(GROW_PULSE_POP * Math.max(12, 0.16 * v.ring)));
   });
 });

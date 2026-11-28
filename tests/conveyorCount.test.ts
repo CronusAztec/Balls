@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { FINAL_HOLD_MS, conveyorEscapePitch, conveyorFinishChord } from "@/lib/physics/modes/conveyor";
 import { CONVEYOR_COUNT_POP_MS, DEFAULT_CONVEYOR_LABELS, conveyorBannerAt, conveyorBannerShown, conveyorCount, conveyorCountPop, ConveyorLayer } from "@/components/simulator/conveyorRenderer";
+import { CONVEYOR_RING_CORE_ALPHA, CONVEYOR_RING_HALOS, CONVEYOR_RING_PULSE_MS, conveyorRingPulse, conveyorRingWidth, type ConveyorRenderOptions } from "@/components/simulator/conveyorRenderer"; // --- conveyor-glow ---
 import { simulateFacts } from "@/lib/bot/planner";
 import { clipStartSettings } from "@/lib/clipPacing";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
@@ -190,5 +191,126 @@ describe("the Conveyor Belt's counter and banner", () => {
     expect(conveyorBannerAt(engineOf(1, { cvArena: "bowl" }).getConveyorView(), WORLD.width, WORLD.height)).toBe(0.78);
     const pegs = engineOf(1, { cvArena: "pegs" }).getConveyorView();
     expect(conveyorBannerAt(pegs, WORLD.width, WORLD.height)!).toBeLessThan(0.25);
+  });
+});
+
+// --- conveyor-glow --- (round two, B9b) the rings lit: the darkest clip of its group read as thin rings at 60 % until the first ball
+// got out; now every ring the canvas drew gets two halos and a core in its own colour, studs at its gap's ends, brighter on every OUT
+describe("--- conveyor-glow --- the lit rings", () => {
+  const TWO_PI = Math.PI * 2;
+  /** The layer's world pass over the view with the canvas' walls, logging each ring stroke's (ring, alpha) and the lines' widths. */
+  function drawLit(e: PhysicsEngine, patch: Partial<ConveyorRenderOptions> = {}) {
+    const canvas = fakeCanvas(WORLD.width, WORLD.height);
+    const ctx = canvas.ctx;
+    const styles: [number, number][] = [];
+    const widths: number[] = [];
+    const stroke = ctx.stroke as (...a: unknown[]) => void;
+    ctx.stroke = (...a: unknown[]) => {
+      widths.push(ctx.lineWidth);
+      stroke(...a);
+    };
+    const opts: ConveyorRenderOptions = {
+      wallAlpha: (a) => `rgba(255, 255, 255, ${a})`,
+      wallThickness: 2,
+      showWallGlow: true,
+      walls: e.getCircularWalls(),
+      rotations: e.getWallRotations(),
+      ringStyle: (i, a) => {
+        styles.push([i, a]);
+        return `hsla(${i}, 100%, 60%, ${a})`;
+      },
+      ...patch,
+    };
+    new ConveyorLayer().drawWorld(ctx as unknown as CanvasRenderingContext2D, e.getConveyorView(), opts);
+    return { calls: ctx.calls, styles, widths };
+  }
+
+  it("strokes every ring the canvas drew with two halos and a core, between its gap, turned as drawn, and studs its gap's ends", () => {
+    const e = engineOf(7, clipStartSettings("conveyor"));
+    for (let i = 0; i < 90; i++) e.update(1000 / 60, 0);
+    const walls = e.getCircularWalls();
+    const rotations = e.getWallRotations();
+    expect(walls.length).toBeGreaterThan(2);
+    expect(rotations.some((r) => r !== 0)).toBe(true); // (the rings have turned: the lit arcs must turn with them)
+    const { calls, styles, widths } = drawLit(e);
+    const passes = CONVEYOR_RING_HALOS.length + 1;
+    expect(styles).toHaveLength(passes * walls.length);
+    // the halos widest and faintest first, the core last, every ring in each pass
+    for (let pass = 0; pass < passes; pass++) {
+      const alpha = pass < CONVEYOR_RING_HALOS.length ? CONVEYOR_RING_HALOS[pass].alpha : CONVEYOR_RING_CORE_ALPHA;
+      expect(styles.slice(pass * walls.length, (pass + 1) * walls.length)).toEqual(walls.map((_, i) => [i, alpha]));
+    }
+    const core = conveyorRingWidth(2, Math.min(WORLD.width, WORLD.height));
+    expect(widths.slice(0, passes * walls.length)).toEqual([...walls.map(() => CONVEYOR_RING_HALOS[0].width * core), ...walls.map(() => CONVEYOR_RING_HALOS[1].width * core), ...walls.map(() => core)]);
+    // each ring's wall: from its gap's end round to its start, turned by the ring's rotation (the gap left open), as the canvas
+    // walks it from 0 (a ring whose gap starts past 0 in two arcs)
+    const L = e.getConveyorView().layout!;
+    walls.forEach((wall, i) => {
+      const gap = wall.gaps[0];
+      const per = gap.startAngle > 0 ? 2 : 1;
+      const arcs = calls.filter((c) => c.name === "arc" && c.args[2] === wall.radius);
+      expect(arcs).toHaveLength(passes * per);
+      for (let pass = 0; pass < passes; pass++) {
+        const mine = arcs.slice(pass * per, (pass + 1) * per);
+        for (const a of mine) expect([a.args[0], a.args[1]]).toEqual([L.cx, L.cy]);
+        const swept = mine.reduce((sum, a) => sum + ((a.args[4] as number) - (a.args[3] as number)), 0);
+        expect(swept).toBeCloseTo(TWO_PI - (gap.endAngle - gap.startAngle), 9);
+        expect(mine.at(-1)!.args[3] as number).toBeCloseTo(gap.endAngle + rotations[i], 9);
+        if (per === 2) expect(mine[0].args[4] as number).toBeCloseTo(gap.startAngle + rotations[i], 9);
+      }
+    });
+    // a stud at both ends of every gap, filled once
+    const studs = calls.filter((c) => c.name === "arc" && c.args[2] === 0.7 * core);
+    expect(studs).toHaveLength(2 * walls.length);
+    const g0 = walls[0].gaps[0];
+    expect(studs[0].args[0] as number).toBeCloseTo(L.cx + walls[0].radius * Math.cos(g0.startAngle + rotations[0]), 9);
+    expect(studs[1].args[1] as number).toBeCloseTo(L.cy + walls[0].radius * Math.sin(g0.endAngle + rotations[0]), 9);
+    // the same picture for the same moment
+    expect(JSON.stringify(drawLit(e).calls)).toBe(JSON.stringify(calls));
+  });
+
+  it("lights nothing without the canvas' walls, nor in the bowl or the peg field", () => {
+    const rings = engineOf(7, clipStartSettings("conveyor"));
+    rings.update(1000 / 60, 0);
+    const ringArcs = (calls: { name: string; args: unknown[] }[], e: PhysicsEngine) => calls.filter((c) => c.name === "arc" && e.getCircularWalls().some((w) => w.radius === c.args[2])).length;
+    expect(ringArcs(drawLit(rings, { walls: undefined }).calls, rings)).toBe(0);
+    expect(drawLit(rings, { ringStyle: undefined }).styles).toEqual([]);
+    for (const arena of ["bowl", "pegs"] as const) {
+      const e = engineOf(7, { cvArena: arena });
+      e.update(1000 / 60, 0);
+      expect(e.getCircularWalls()).toEqual([]);
+      expect(drawLit(e, { walls: rings.getCircularWalls(), rotations: rings.getWallRotations() }).styles).toEqual([]);
+    }
+  });
+
+  it("brightens and widens the rings on every ball out, for CONVEYOR_RING_PULSE_MS of simulation time", () => {
+    expect(conveyorRingPulse(0)).toBe(1);
+    expect(conveyorRingPulse(-1)).toBe(0);
+    expect(conveyorRingPulse(-Infinity)).toBe(0);
+    expect(conveyorRingPulse(Infinity)).toBe(0);
+    expect(conveyorRingPulse(CONVEYOR_RING_PULSE_MS)).toBe(0);
+    for (let t = 10; t < CONVEYOR_RING_PULSE_MS; t += 10) expect(conveyorRingPulse(t)).toBeLessThan(conveyorRingPulse(t - 10));
+    // the core: the Wall Thickness and at most 4 px more, at least 0.55 % of the square (no ceiling on the thickness)
+    expect(conveyorRingWidth(2, 450)).toBe(4);
+    expect(conveyorRingWidth(1, 450)).toBeCloseTo(2.475, 12);
+    expect(conveyorRingWidth(10, 450)).toBe(14);
+    expect(conveyorRingWidth(40, 450)).toBe(44);
+    expect(conveyorRingWidth(Number.NaN, 450)).toBe(4);
+    // in a run: the step a ball gets out, the halos are brighter and every line wider than a moment later
+    const e = engineOf(3, clipStartSettings("conveyor"));
+    const v = e.getConveyorView();
+    let out: ReturnType<typeof drawLit> | null = null;
+    for (let step = 0; step < 60 * 40 && !out; step++) {
+      e.update(1000 / 60, 0);
+      if (v.escaped > 0 && v.timeMs - v.lastEscapeMs < 1) out = drawLit(e);
+    }
+    expect(out).not.toBeNull();
+    for (let i = 0; i < Math.ceil(CONVEYOR_RING_PULSE_MS / (1000 / 60)) + 1; i++) e.update(1000 / 60, 0);
+    expect(v.timeMs - v.lastEscapeMs).toBeGreaterThanOrEqual(CONVEYOR_RING_PULSE_MS); // (no other ball out meanwhile on this seed)
+    const calm = drawLit(e);
+    const n = e.getCircularWalls().length;
+    expect(out!.styles[0][1]).toBeGreaterThan(calm.styles[0][1]);
+    expect(out!.widths[0]).toBeGreaterThan(calm.widths[0]);
+    expect(out!.widths[2 * n]).toBeCloseTo(1.35 * calm.widths[2 * n], 6);
   });
 });
