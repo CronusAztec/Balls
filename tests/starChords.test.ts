@@ -58,6 +58,7 @@ import { ENTITY_CEILING } from "@/lib/uncap";
 import { hudCounterText, loopHudCount, subtitleLines } from "@/lib/loop/hud";
 import { hasMentionOrCta, loopCaption, loopCaptionContext, loopHashtags } from "@/lib/publish/loopCaption";
 import { SC_GLOW_SPRITE_CEILING, StarChordsLayer, type StarChordsRenderOptions } from "@/components/simulator/starChordsRenderer"; // --- low-findings-2 ---
+import { SC_BRIGHT_ALPHA, SC_BRIGHT_WIDTH, SC_LIT_BALLS_MAX, SC_LIT_WIDTH, SC_OLDER_SHARE, starChordsStaged, starFocusAt, starLightAt, starLitAt } from "@/components/simulator/starChordsRenderer"; // --- star-lift ---
 import { drawsOf, fakeCanvas, fakeDocument } from "./fakeCanvas"; // --- low-findings-2 ---
 import { wallControlsOf, MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import { STAR_CHORDS_KEYS } from "@/components/simulator/sections/StarChordsSection";
@@ -631,6 +632,197 @@ describe("Chord Stars: the glow sprites", () => {
     const canvas = fakeCanvas(1080, 1920);
     for (let frame = 0; frame < 3; frame++) layer.drawBodies(canvas.ctx as unknown as CanvasRenderingContext2D, view, OPTS);
     expect(layer.glowSpritesMade).toBe(SC_GLOW_SPRITE_CEILING);
+  });
+});
+
+// --- star-lift --- (round two) the staged look: the newest chords bright over the older ones, one star bright to open every cycle,
+// the stars lit one by one with the HUD's count and a ring pulse each – drawn from the view alone (the run and its sounds untouched:
+// STAR_CHORDS_STATE_PRINT and STAR_CHORDS_SOUND_PRINT below)
+describe("Chord Stars: the staged look", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const OPTS: StarChordsRenderOptions = { dpr: 1, wallColor: () => "#ffffff", rainbow: false, wallThickness: 2, showGlow: false, showWallGlow: false };
+  interface Stroke {
+    points: number[][];
+    arcs: number[][];
+    color: unknown;
+    alpha: number;
+    width: number;
+  }
+  /** One frame of the stage (and the closing flash) on a fake canvas: every stroke with its path, colour, strength and width. */
+  function strokesOf(layer: StarChordsLayer, view: StarChordsView, withFlash = false): Stroke[] {
+    const ctx = fakeCanvas(800, 600).ctx;
+    const out: Stroke[] = [];
+    let points: number[][] = [];
+    let arcs: number[][] = [];
+    ctx.beginPath = () => {
+      points = [];
+      arcs = [];
+    };
+    ctx.moveTo = (x: number, y: number) => points.push([x, y]);
+    ctx.lineTo = (x: number, y: number) => points.push([x, y]);
+    ctx.arc = (x: number, y: number, r: number) => arcs.push([x, y, r]);
+    ctx.stroke = () => out.push({ points: [...points], arcs: [...arcs], color: ctx.strokeStyle, alpha: ctx.globalAlpha, width: ctx.lineWidth });
+    layer.drawStage(ctx as unknown as CanvasRenderingContext2D, view, OPTS);
+    if (withFlash) layer.drawFlash(ctx as unknown as CanvasRenderingContext2D, view);
+    return out;
+  }
+  function vertexAt(view: StarChordsView, i: number, j: number): number[] {
+    const a = vertexAngle(view.theta0[i], j, view.stars[i]);
+    return [view.field.cx + view.field.chordRadius * Math.cos(a), view.field.cy + view.field.chordRadius * Math.sin(a)];
+  }
+  function vertices(view: StarChordsView, i: number, from: number, to: number): number[][] {
+    return Array.from({ length: to - from + 1 }, (_, j) => vertexAt(view, i, from + j));
+  }
+  function samePath(a: number[][], b: number[][]): boolean {
+    return a.length === b.length && a.every((p, k) => Math.abs(p[0] - b[k][0]) < 1e-6 && Math.abs(p[1] - b[k][1]) < 1e-6);
+  }
+  /** The strongest stroke of ball `i`'s pen (a path that ends at the ball). */
+  function penAlpha(view: StarChordsView, strokes: Stroke[], i: number): number {
+    const mine = strokes.filter((s) => s.color === view.colors[i] && s.points.length >= 2 && samePath([s.points[s.points.length - 1]], [[view.x[i], view.y[i]]]));
+    return Math.max(...mine.map((s) => s.alpha));
+  }
+
+  it("stages the default five, the presets and a dozen balls; a bigger run keeps the look before", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const staged: Partial<StarChordsSettings>[] = [{}, starChordsSettingsOf(starChordsPresetPatch("sevenBloom")), starChordsSettingsOf(starChordsPresetPatch("heptagramDuel")), { balls: 12 }];
+    for (const patch of staged) {
+      const engine = starEngine(patch);
+      frameLoop(engine, 60, STEP_MS);
+      const view = engine.getStarChordsView();
+      expect(starChordsStaged(view), `${view.count} balls`).toBe(true);
+      const layer = new StarChordsLayer();
+      strokesOf(layer, view);
+      expect(layer.chordAlpha).toBeCloseTo(SC_OLDER_SHARE * SC_BRIGHT_ALPHA, 12);
+    }
+    expect(SC_OLDER_SHARE).toBe(0.4);
+    const before: Partial<StarChordsSettings>[] = [{ balls: SC_LIT_BALLS_MAX + 1 }, { balls: 1, stars: [{ n: 1_000_003, k: 400_001 }] }];
+    for (const patch of before) {
+      const engine = starEngine(patch);
+      frameLoop(engine, 60, STEP_MS);
+      const view = engine.getStarChordsView();
+      expect(starChordsStaged(view)).toBe(false);
+      const layer = new StarChordsLayer();
+      const strokes = strokesOf(layer, view);
+      expect(layer.chordAlpha).toBe(0.82);
+      // the pens as they were: one chord a ball, from its last vertex to the ball, at the line width
+      expect(strokes.filter((s) => s.points.length === 2 && s.width === view.lineWidth && s.alpha === 0.82)).toHaveLength(view.count);
+      expect(strokes.filter((s) => s.width > view.lineWidth && s.points.length > 0)).toHaveLength(0);
+    }
+  });
+
+  it("draws each ball's newest two chords and the one it is drawing bright, wide and glowing, over every older chord at 40 %", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const engine = starEngine();
+    const layer = new StarChordsLayer();
+    frameLoop(engine, 6 * 60, STEP_MS);
+    const view = engine.getStarChordsView();
+    const strokes = strokesOf(layer, view);
+    expect(starFocusAt(view)).toBe(0);
+    for (let i = 0; i < view.count; i++) {
+      const b = view.bounces[i];
+      expect(b, `ball ${i}`).toBeGreaterThanOrEqual(2);
+      const path = [...vertices(view, i, b - 2, b), [view.x[i], view.y[i]]];
+      const mine = strokes.filter((s) => s.color === view.colors[i] && samePath(s.points, path));
+      expect(mine, `ball ${i}`).toHaveLength(2);
+      const [glow, core] = mine;
+      expect(core.alpha).toBeCloseTo(SC_BRIGHT_ALPHA, 12);
+      expect(core.width).toBeCloseTo(SC_BRIGHT_WIDTH * view.lineWidth, 12);
+      expect(glow.width).toBeGreaterThan(2 * core.width);
+      expect(glow.alpha).toBeLessThan(0.25);
+      // no star is lit yet (no pen on its star's last chord): nothing older than the newest two is drawn bright
+      expect(starLitAt(view, i)).toBe(0);
+      expect(strokes.filter((s) => s.color === view.colors[i] && s.points.length > 4)).toHaveLength(0);
+    }
+    // the older chords are the layer's, every one of them, at 40 % of the bright strength
+    expect(layer.chordAlpha / SC_BRIGHT_ALPHA).toBeCloseTo(0.4, 12);
+    expect(layer.layerChords).toBe(view.chordsThisCycle);
+  });
+
+  it("opens every cycle with the first ball's star bright and the other pens dimmed, gone by 2 s", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const engine = starEngine();
+    const layer = new StarChordsLayer();
+    const guideOf = (view: StarChordsView, strokes: Stroke[]) => strokes.filter((s) => s.color === view.colors[0] && samePath(s.points, vertices(view, 0, 0, view.stars[0].n / view.laps[0])));
+    frameLoop(engine, 30, STEP_MS); // 0.5 s
+    let view = engine.getStarChordsView();
+    let strokes = strokesOf(layer, view);
+    expect(starFocusAt(view)).toBeGreaterThan(0.5);
+    let guide = guideOf(view, strokes);
+    expect(guide).toHaveLength(2);
+    expect(Math.max(...guide.map((s) => s.alpha))).toBeGreaterThan(0.3);
+    for (let i = 1; i < view.count; i++) expect(penAlpha(view, strokes, i), `ball ${i}`).toBeLessThan(0.75 * penAlpha(view, strokes, 0));
+    frameLoop(engine, 120, STEP_MS); // 2.5 s
+    view = engine.getStarChordsView();
+    strokes = strokesOf(layer, view);
+    expect(starFocusAt(view)).toBe(0);
+    expect(guideOf(view, strokes)).toHaveLength(0);
+    for (let i = 0; i < view.count; i++) expect(penAlpha(view, strokes, i), `ball ${i}`).toBeCloseTo(SC_BRIGHT_ALPHA, 12);
+    // the next cycle opens the same way (the loop)
+    frameLoop(engine, 13 * 60, STEP_MS); // 15.5 s
+    view = engine.getStarChordsView();
+    expect(view.cycleIndex).toBe(1);
+    guide = guideOf(view, strokesOf(layer, view));
+    expect(guide).toHaveLength(2);
+  });
+
+  it("lights the stars one by one with the HUD's count, a ring pulse each, and holds them all lit with a ring off the rim", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const engine = starEngine();
+    const layer = new StarChordsLayer();
+    frameLoop(engine, 9 * 60, STEP_MS);
+    const seen: number[] = [];
+    const pulsed = new Set<number>();
+    for (let f = 9 * 60 + 1; f < 12 * 60; f++) {
+      frameLoop(engine, 1, STEP_MS);
+      const view = engine.getStarChordsView();
+      const strokes = strokesOf(layer, view);
+      let lit = 0;
+      for (let i = 0; i < view.count; i++) {
+        if (starLitAt(view, i) === 0) continue;
+        lit++;
+        // its older chords drawn bright from the star's first vertex on
+        const b = view.bounces[i];
+        expect(strokes.some((s) => s.color === view.colors[i] && samePath(s.points, vertices(view, i, 0, b - 2))), `ball ${i}, frame ${f}`).toBe(true);
+        // and, while it is new, its ring pulse between its inner circle and the rim
+        if (view.cycleTime - starLightAt(view, i) < 0.5) {
+          const r0 = envelopeRadius(view.field.chordRadius, view.stars[i]);
+          const ring = strokes.find((s) => s.color === view.colors[i] && s.points.length === 0 && s.arcs.length === 1 && s.arcs[0][2] >= r0 - 1e-9 && s.arcs[0][2] <= view.field.radius + 1e-9);
+          expect(ring, `ball ${i}, frame ${f}`).toBeDefined();
+          pulsed.add(i);
+        }
+      }
+      expect(lit, `frame ${f}`).toBe((loopHudCount(engine) as { count: number }).count);
+      if (seen.length === 0 || lit !== seen[seen.length - 1]) seen.push(lit);
+    }
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(pulsed.size).toBe(5);
+    // the closing: every star lit whole through the hold (its older chords a little finer than the pens), a ring off the rim
+    frameLoop(engine, 30, STEP_MS); // 12.5 s
+    const view = engine.getStarChordsView();
+    expect(view.phase).toBe("hold");
+    const strokes = strokesOf(layer, view, true);
+    for (let i = 0; i < view.count; i++) {
+      const n = view.stars[i].n;
+      expect(starLitAt(view, i)).toBe(1);
+      const bright = (s: Stroke) => s.color === view.colors[i] && Math.abs(s.alpha - SC_BRIGHT_ALPHA) < 1e-12;
+      const older = strokes.find((s) => bright(s) && samePath(s.points, vertices(view, i, 0, n - 2)));
+      const newest = strokes.find((s) => bright(s) && samePath(s.points, vertices(view, i, n - 2, n)));
+      expect(older?.width, `ball ${i}`).toBeCloseTo(SC_LIT_WIDTH * view.lineWidth, 12);
+      expect(newest?.width, `ball ${i}`).toBeCloseTo(SC_BRIGHT_WIDTH * view.lineWidth, 12);
+    }
+    expect(strokes.some((s) => s.arcs.length === 1 && s.points.length === 0 && s.arcs[0][2] > 1.001 * view.field.radius)).toBe(true);
+  });
+
+  it("draws a frame from the view alone: a layer that saw every frame and one that sees only this one draw the same", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const engine = starEngine();
+    const every = new StarChordsLayer();
+    for (let f = 0; f < 10.5 * 60; f++) {
+      frameLoop(engine, 1, STEP_MS);
+      strokesOf(every, engine.getStarChordsView());
+    }
+    const view = engine.getStarChordsView();
+    expect(strokesOf(new StarChordsLayer(), view)).toEqual(strokesOf(every, view));
   });
 });
 
