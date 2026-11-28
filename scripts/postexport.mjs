@@ -13,7 +13,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { buildPwa, listFiles, MAX_PRECACHE_FILE_BYTES, OBFUSCATION_GROWTH, oversizedScripts } from "./pwa/build.mjs";
+import { buildPwa, listFiles, MAX_PRECACHE_FILE_BYTES, OBFUSCATED_PREFIX, OBFUSCATION_GROWTH, oversizedScripts } from "./pwa/build.mjs";
 import { isExcludedChunk, obfuscateExport } from "./obfuscate.mjs"; // --- code-obfuscation ---
 import buildInfo from "./lib/build-info.cjs"; // --- build-identity ---
 import { mergeHeaderFile, restoreStaticHeaders } from "./lib/headers-file.mjs"; // --- static-headers ---
@@ -76,15 +76,22 @@ if (process.env.OBFUSCATE === "0") {
   // --- studio-chunk-split --- (finding g3-7) a script the worker leaves out for its size breaks the offline studio ("Loading chunk
   // … failed"): name each one, as an annotation in GitHub Actions. A warning, not a stop: stopping the build is the owner's call.
   // An OBFUSCATE=0 export counts each script as it would ship obfuscated (× OBFUSCATION_GROWTH), a loader chunk the obfuscator
-  // skips as it is, so a local build warns before the obfuscated one breaks.
+  // skips as it is, so a local build warns before the obfuscated one breaks. A script that already carries the obfuscator's banner
+  // (OBFUSCATE=0 over an export obfuscated before) counts as it is too: the same rule as the static-hosting smoke block.
   const obfuscated = process.env.OBFUSCATE !== "0";
   const scripts = listFiles(out).filter((f) => f.startsWith("_next/static/") && f.endsWith(".js"));
   const sizes = Object.fromEntries(scripts.map((f) => [f, fs.statSync(path.join(out, f)).size]));
+  const bannered = (f) => fs.readFileSync(path.join(out, f), "utf8").startsWith(OBFUSCATED_PREFIX);
   const mb = (n) => (n / 1048576).toFixed(2);
-  for (const s of oversizedScripts(scripts, { sizes, obfuscated, isLoader: isExcludedChunk })) {
+  for (const s of oversizedScripts(scripts, { sizes, obfuscated, isLoader: isExcludedChunk, isObfuscated: bannered })) {
+    // the lever: the studio's page chunk sheds code through scripts/lib/studio-chunks.cjs; a chunk the studio shares (the engine's,
+    // which the landing's live preview loads too) is beyond that group, which never takes a shared module: it needs a group of its own
+    const lever = /\/simulator\/page-[^/]*\.js$/.test(s.file)
+      ? "Move code out of it (scripts/lib/studio-chunks.cjs)"
+      : "Split it with a cache group of its own, the way scripts/lib/studio-chunks.cjs splits the studio's page chunk (that group never takes a module the studio shares; keep director.ts in exactly one numbered chunk)";
     const text = obfuscated
-      ? `${s.file} is ${mb(s.bytes)} MB, over the service worker's ${mb(MAX_PRECACHE_FILE_BYTES)} MB precache cap: it is not precached and the offline studio cannot load it. Move code out of it (scripts/lib/studio-chunks.cjs); never raise the cap.`
-      : `${s.file} is ${mb(s.bytes)} MB, about ${mb(s.projected)} MB once obfuscated (x${OBFUSCATION_GROWTH}), over the ${mb(MAX_PRECACHE_FILE_BYTES)} MB precache cap: the obfuscated build would break the offline studio. Move code out of it (scripts/lib/studio-chunks.cjs); never raise the cap.`;
+      ? `${s.file} is ${mb(s.bytes)} MB, over the service worker's ${mb(MAX_PRECACHE_FILE_BYTES)} MB precache cap: it is not precached and the offline studio cannot load it. ${lever}; never raise the cap.`
+      : `${s.file} is ${mb(s.bytes)} MB, about ${mb(s.projected)} MB once obfuscated (x${OBFUSCATION_GROWTH}), over the ${mb(MAX_PRECACHE_FILE_BYTES)} MB precache cap: the obfuscated build would break the offline studio. ${lever}; never raise the cap.`;
     console.warn(process.env.GITHUB_ACTIONS === "true" ? `::warning title=offline studio::${text}` : `postexport: warning: ${text}`);
   }
   // --- build-identity --- stop the build rather than ship a worker whose install fetch 404s (a _headers file is never served)

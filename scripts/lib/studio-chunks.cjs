@@ -1,8 +1,9 @@
 // --- studio-chunk-split --- (finding g3-7) The studio's mode drawing in a chunk of its own. Obfuscated, the studio's page
 // chunk (app/[locale]/simulator/page-*.js) had grown to 4.4 MB, over the service worker's 4 MiB precache cap
 // (scripts/pwa/build.mjs MAX_PRECACHE_FILE_BYTES), so the worker left it out and the studio did not load offline ("Loading
-// chunk 7676 failed"). This webpack cache group moves every mode renderer (src/components/simulator/*Renderer.ts) and Fight
-// League's drawing (src/components/simulator/fightLeague/*.ts) out of the page chunk into one numbered chunk
+// chunk 7676 failed"). This webpack cache group moves every mode renderer (src/components/simulator/*Renderer.ts) and every
+// .ts file directly in Fight League's folder (src/components/simulator/fightLeague/*.ts: its drawing and makeClip.ts, the Make
+// me a clip planner, whose finder imports stay in the engine's shared chunk) out of the page chunk into one numbered chunk
 // (<n>-<hash>.js) that the same page loads in parallel as an initial script. The imports stay static, so the load order and
 // the first frame do not change; each file is obfuscated and capped on its own (about 67 % and 39 % of the cap on f6b78b9).
 // What stays in the page chunk: Canvas.tsx, Simulator.tsx, the panel, the recorder, liveMarkHud.ts, splitScreenCanvas.tsx.

@@ -18,8 +18,10 @@ import {
   buildPwa,
   fileToUrlPath,
   hashExport,
+  isLoaderChunk,
   isNotPrecached,
   listFiles,
+  LOADER_CHUNK_PREFIXES,
   MAX_CRITICAL_PRECACHE_BYTES,
   MAX_PRECACHE_FILE_BYTES,
   NOT_PRECACHED,
@@ -336,7 +338,6 @@ describe("offline page and sw.js rendering", () => {
     expect(ok.deferred).toContain("modes/big.webp");
     expect(ok.critical).not.toContain("modes/big.webp");
   });
-
 });
 
 // --- studio-chunk-split --- (finding g3-7) a script over MAX_PRECACHE_FILE_BYTES is left out of the precache, and the studio
@@ -366,6 +367,23 @@ describe("oversizedScripts: the scripts the offline studio would lose to the pre
     expect(oversizedScripts([framework], { sizes, obfuscated: false }).map((s) => s.file)).toEqual([framework]);
   });
 
+  it("counts a script that already carries the obfuscator's banner as it is, even when the export says it is not obfuscated", () => {
+    const sizes = { [page]: 3 * MIB, [engine]: 3 * MIB };
+    const isObfuscated = (file: string) => file === engine;
+    expect(oversizedScripts([page, engine], { sizes, obfuscated: false, isObfuscated })).toEqual([{ file: page, bytes: 3 * MIB, projected: Math.ceil(3 * MIB * OBFUSCATION_GROWTH) }]);
+    expect(oversizedScripts([page, engine], { sizes, obfuscated: false }).map((s) => s.file)).toEqual([page, engine].sort());
+  });
+
+  it("knows the obfuscator's loader chunks without loading the obfuscator, in step with scripts/obfuscate.mjs", async () => {
+    const { EXCLUDED_CHUNK_PREFIXES, isExcludedChunk } = await import("../scripts/obfuscate.mjs");
+    expect(LOADER_CHUNK_PREFIXES).toEqual(EXCLUDED_CHUNK_PREFIXES);
+    for (const name of ["webpack-1.js", "framework-2.js", "main-3.js", "main-app-4.js", "polyfills-5.js", "7992-6.js", "page-7.js", "live-preview.8.js"]) {
+      expect(isLoaderChunk(name), name).toBe(isExcludedChunk(name));
+    }
+    expect(isLoaderChunk("framework-2.js")).toBe(true);
+    expect(isLoaderChunk("1796-d0862c0bc7c47a05.js")).toBe(false);
+  });
+
   it("looks only at /_next/static scripts", () => {
     const sizes = { "wallBreak/huge.wav": 9 * MIB, "press/kit.js": 9 * MIB };
     expect(oversizedScripts(Object.keys(sizes), { sizes })).toEqual([]);
@@ -381,7 +399,7 @@ describe("oversizedScripts: the scripts the offline studio would lose to the pre
   });
 
   it("projects at least the largest growth measured, and knows the obfuscator's banner", () => {
-    expect(OBFUSCATION_GROWTH).toBeGreaterThanOrEqual(2.068);
+    expect(OBFUSCATION_GROWTH).toBeGreaterThanOrEqual(2.07); // 1796-*.js on 632fccd: 792,016 B to 1,639,313 B, x2.0698
     expect(fs.readFileSync(path.join(ROOT, "scripts", "obfuscate.mjs"), "utf8")).toContain(`"${OBFUSCATED_PREFIX}`);
   });
 
@@ -389,7 +407,8 @@ describe("oversizedScripts: the scripts the offline studio would lose to the pre
     const post = fs.readFileSync(path.join(ROOT, "scripts", "postexport.mjs"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/.*$/gm, "");
     expect(post).toMatch(/import \{[^}]*\boversizedScripts\b[^}]*\} from "\.\/pwa\/build\.mjs"/);
     expect(post).toMatch(/const obfuscated = process\.env\.OBFUSCATE !== "0";/);
-    expect(post).toMatch(/oversizedScripts\(scripts, \{ sizes, obfuscated, isLoader: isExcludedChunk \}\)/);
+    expect(post).toMatch(/oversizedScripts\(scripts, \{ sizes, obfuscated, isLoader: isExcludedChunk, isObfuscated: bannered \}\)/);
+    expect(post).toMatch(/const bannered = \(f\) => fs\.readFileSync\(path\.join\(out, f\), "utf8"\)\.startsWith\(OBFUSCATED_PREFIX\);/);
     const order = ["obfuscateExport(out)", "buildPwa(out)", "oversizedScripts(scripts", "buildInfo.writeBuildFiles(out"].map((s) => post.indexOf(s));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);

@@ -2,7 +2,7 @@ import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it, vi } from "vitest";
-import { fileToUrlPath, listFiles, MAX_CRITICAL_PRECACHE_BYTES, MAX_PRECACHE_FILE_BYTES } from "../scripts/pwa/build.mjs";
+import { fileToUrlPath, isLoaderChunk, listFiles, MAX_CRITICAL_PRECACHE_BYTES, MAX_PRECACHE_FILE_BYTES, OBFUSCATED_PREFIX, OBFUSCATION_GROWTH, oversizedScripts } from "../scripts/pwa/build.mjs";
 import { duplicatePaths } from "../scripts/lib/headers-file.mjs";
 
 /**
@@ -301,5 +301,16 @@ describe.skipIf(!hasExport)(
     const scripts = listFiles(OUT).filter((f) => f.startsWith("_next/static/") && f.endsWith(".js"));
     expect(scripts.length).toBeGreaterThan(10);
     expect(scripts.filter((f) => !listed.has(fileToUrlPath(f))).map((f) => `${f} (${fs.statSync(path.join(OUT, f)).size} B, cap ${MAX_PRECACHE_FILE_BYTES} B)`)).toEqual([]);
+  });
+
+  // --- studio-chunk-split --- (O1 review) and none would be once obfuscated: an OBFUSCATE=0 export (the one npm run guard:browser
+  // leaves) counts a script that does not ship as it is at OBFUSCATION_GROWTH times its size, the chunks only an import() loads
+  // included, which the static-hosting smoke block (the pages' initial scripts) never sees
+  it("would leave no /_next/static script out once obfuscated (an unobfuscated script counted at OBFUSCATION_GROWTH times its size)", () => {
+    const scripts = listFiles(OUT).filter((f) => f.startsWith("_next/static/") && f.endsWith(".js"));
+    const sizes = Object.fromEntries(scripts.map((f) => [f, fs.statSync(path.join(OUT, f)).size]));
+    const bannered = (f: string) => fs.readFileSync(path.join(OUT, f), "utf8").startsWith(OBFUSCATED_PREFIX);
+    expect(scripts.length).toBeGreaterThan(10);
+    expect(oversizedScripts(scripts, { sizes, obfuscated: false, isLoader: isLoaderChunk, isObfuscated: bannered }).map((s) => `${s.file} (${s.bytes} B, ${s.projected} B once obfuscated at x${OBFUSCATION_GROWTH}, cap ${MAX_PRECACHE_FILE_BYTES} B)`)).toEqual([]);
   });
 });

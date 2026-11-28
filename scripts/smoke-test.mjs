@@ -24,7 +24,7 @@ import path from "path";
 import { loadDotEnv } from "./dotenv.mjs";
 import { LICENSE_STORAGE_KEY, installLicenseScript, signForeignLicense, signTestLicense } from "./lib/test-license.mjs"; // --- paywall-gate ---
 import { createSmokeBlocks } from "./smoke/blocks.mjs"; // --- smoke-sharding ---
-import { MAX_PRECACHE_FILE_BYTES, OBFUSCATED_PREFIX, OBFUSCATION_GROWTH, projectedScriptBytes } from "./pwa/build.mjs"; // --- studio-chunk-split ---
+import { isLoaderChunk, MAX_PRECACHE_FILE_BYTES, OBFUSCATED_PREFIX, OBFUSCATION_GROWTH, projectedScriptBytes } from "./pwa/build.mjs"; // --- studio-chunk-split ---
 
 loadDotEnv();
 // --- smoke-sharding --- The blocks this run runs (all of them without a flag; README "Smoke test shards"). `--list` prints them
@@ -459,12 +459,14 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
   const xml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
   check("sitemap uses site URL with trailing slashes", xml.includes(`${BASE}/en/simulator/`) && xml.includes(`${BASE}/es/about/`), "");
 }
-// --- studio-chunk-split --- (finding g3-7) The offline studio: every script the landing and the studio load is in the service
-// worker's precache and under MAX_PRECACHE_FILE_BYTES – as shipped when it carries the obfuscator's banner, else (OBFUSCATE=0,
-// as npm run guard:browser builds) as it would be once obfuscated (× OBFUSCATION_GROWTH), so tier 1 sees what only the
-// obfuscated build showed (a 4.4 MB page chunk the worker skipped). And no script of the studio names the engine's exports:
-// webpack shortens them unless an import() takes the whole module, and the obfuscator keeps property names, so a name that
-// survives webpack ships in both builds.
+// --- studio-chunk-split --- (finding g3-7) The offline studio: every initial script of the landing and the studio (the
+// <script src> of their HTML) is in the service worker's precache and under MAX_PRECACHE_FILE_BYTES – as shipped when it ships
+// as it is (it carries the obfuscator's banner, or it is a loader chunk the obfuscator skips), else (OBFUSCATE=0, as npm run
+// guard:browser builds) as it would be once obfuscated (× OBFUSCATION_GROWTH), so tier 1 sees what only the obfuscated build
+// showed (a 4.4 MB page chunk the worker skipped). A chunk only an import() loads is not seen here: tests/perfGuards.test.ts
+// checks every /_next/static script of a built export, and postexport warns about one. And no script of the studio names the
+// engine's or the settings' exports: webpack shortens them unless an import() takes the whole module, and the obfuscator keeps
+// property names, so a name that survives webpack ships in both builds (f6b78b9 shipped PhysicsEngine, RANGES and defaultSettings).
 {
   const swText = await (await page.request.get(`${BASE}/sw.js`)).text();
   const swConfig = JSON.parse(swText.match(/const CONFIG = (\{[\s\S]*?\n\});/)?.[1] ?? "null");
@@ -482,22 +484,22 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
         const res = await page.request.get(new URL(src, `${ORIGIN}/`).href);
         const body = res.ok() ? await res.body() : Buffer.alloc(0);
         const text = body.toString("utf8");
-        const obfuscated = text.startsWith(OBFUSCATED_PREFIX);
-        scripts.set(rel, { ok: res.ok(), bytes: body.length, projected: projectedScriptBytes(body.length, { obfuscated }), obfuscated, listed: listed.has(rel), names: /\b(?:PhysicsEngine|FinderRequest)\b/.test(text) });
+        const final = text.startsWith(OBFUSCATED_PREFIX) || isLoaderChunk(path.posix.basename(rel));
+        scripts.set(rel, { ok: res.ok(), bytes: body.length, projected: projectedScriptBytes(body.length, { obfuscated: final }), final, listed: listed.has(rel), names: /\b(?:PhysicsEngine|RANGES|defaultSettings|settingsFromSearchParams)\b/.test(text) });
       }
       if (shell === "/en/simulator/" && scripts.get(rel).names) naming.add(rel);
     }
   }
   const rows = [...scripts].map(([rel, s]) => ({ rel, ...s }));
-  const largest = [...rows].sort((a, b) => b.projected - a.projected).slice(0, 3).map((r) => `${r.rel} ${(r.bytes / 1048576).toFixed(2)} MB${r.obfuscated ? "" : ` (projected ${(r.projected / 1048576).toFixed(2)} MB)`}${r.listed ? "" : " NOT in sw.js"}`);
+  const largest = [...rows].sort((a, b) => b.projected - a.projected).slice(0, 3).map((r) => `${r.rel} ${(r.bytes / 1048576).toFixed(2)} MB${r.final ? "" : ` (projected ${(r.projected / 1048576).toFixed(2)} MB)`}${r.listed ? "" : " NOT in sw.js"}`);
   const studioPage = rows.some((r) => r.rel.includes("/simulator/page-"));
   check(
-    "static-hosting: every script of the landing and the studio is in the service worker's precache and under its 4 MB cap (as shipped, or projected for an OBFUSCATE=0 build)",
+    "static-hosting: every initial script of the landing and the studio is in the service worker's precache and under its 4 MB cap (as shipped, or projected for an OBFUSCATE=0 build)",
     !!swConfig && rows.length >= 10 && studioPage && rows.every((r) => r.ok && r.listed && r.projected <= MAX_PRECACHE_FILE_BYTES),
-    `(${rows.length} scripts, cap ${MAX_PRECACHE_FILE_BYTES} B, x${OBFUSCATION_GROWTH} when not obfuscated; largest: ${largest.join("; ")})`,
+    `(${rows.length} scripts, cap ${MAX_PRECACHE_FILE_BYTES} B, x${OBFUSCATION_GROWTH} when not obfuscated yet; largest: ${largest.join("; ")})`,
   );
   check(
-    "static-hosting: no script of the studio names the engine's exports (PhysicsEngine, FinderRequest)",
+    "static-hosting: no script of the studio names the engine's or the settings' exports (PhysicsEngine, RANGES, defaultSettings, settingsFromSearchParams)",
     studioPage && naming.size === 0,
     `(${[...naming].join(", ") || "none"})`,
   );

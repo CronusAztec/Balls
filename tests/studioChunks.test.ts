@@ -71,6 +71,8 @@ describe("the studio's drawing chunk (studio-chunk-split)", () => {
   });
 
   it("the studio's entry is the one Next builds", () => {
+    // (O1 review) this pins the constant only: were Next to name the entry otherwise, the group would match nothing, and the size
+    // checks would notice (the page chunk over 120 % of the cap projected: the static-hosting smoke block, perfGuards' built export)
     expect(fs.existsSync(path.join(ROOT, "src/app/[locale]/simulator/page.tsx"))).toBe(true);
     expect(STUDIO_PAGE_ENTRY).toBe("app/[locale]/simulator/page");
   });
