@@ -5847,9 +5847,10 @@
       "makeClip": "Hazme un clip",
       "makeClipAnother": "Otro clip",
       "makeClipBusy": "Preparando tu clip…",
-      "makeClipTip": "Planifica un clip y lo abre, listo para grabar.",
+      "makeClipTip": "Crea un clip de este modo y lo abre, listo para grabar.",
       "makeClipNote": "Con un toque planifica una partida que termina a tiempo, añade un gancho y ajusta la duración.",
       "makeClipStartNote": "Con un toque encuentra una partida de este modo que termina a tiempo y ajusta la duración.",
+      "makeClipLoopNote": "Con un toque reproduce el bucle propio de este modo desde el inicio, listo para grabar.",
       "aboutMode": "Sobre este modo"
     },
     "dialog": {

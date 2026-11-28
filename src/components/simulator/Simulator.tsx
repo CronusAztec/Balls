@@ -153,7 +153,7 @@ import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import { clipPacingFindSec, clipStartSettings, isBareStudioVisit, nextFindTarget, type FindTargetAuto } from "@/lib/clipPacing"; // --- clip-start --- (review fix B2) --- finder-target --- (review fix B6) --- find-target-follows --- (round two A2b)
 import { cardLinkPatch, selectedMode, startSettings } from "@/lib/studioLooks"; // --- card-looks --- (--- pace-as-look --- startSettings: a mode change's own backgrounds)
-import { makeClipKind, wantsMadeClip, type MakeClipFind } from "@/lib/bot/makeClip"; // --- make-clip --- (--- make-clip-start --- the kind and a start clip's Find)
+import { makeClipAsIs, makeClipKind, wantsMadeClip, type MakeClipFind } from "@/lib/bot/makeClip"; // --- make-clip --- (--- make-clip-start --- the kind, a fixed loop and a start clip's Find)
 import MakeClipButton, { type MakeClipProps } from "./studio/MakeClipButton"; // --- make-clip ---
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
@@ -3559,6 +3559,17 @@ export default function Simulator() {
     currentMelody: customSoundId,
     pinSeed: pinBotSeed,
     findRun: (find, signal) => makeFindRef.current?.(find, signal) ?? Promise.resolve(null), // --- make-clip-start ---
+    // --- make-clip-start --- (A-g4 review) what a start clip that finds nothing, or is stopped, puts back; Paint's picture, which
+    // the start look has not (a picture run never ends, so Find would find nothing), comes off for the search
+    currentSettings: settings,
+    currentSeed: () => engineRef.current?.getPinnedSeed() ?? null,
+    clearExtras: (mode) => {
+      const picture = paintPicture;
+      if (mode !== "paint" || !picture) return () => {};
+      setPaintPicture(null);
+      return () => setPaintPicture(picture);
+    },
+    // --- end make-clip-start ---
     runJobs: batchRender.runJobs,
     stopBatch: batchRender.panel.onStop,
     batchRun: batchRender.panel.run,
@@ -3654,8 +3665,35 @@ export default function Simulator() {
     [makeBlocked, viralBot, settings.mode, start],
   );
   const makeKind = useMemo(() => makeClipKind(settings.mode, viralBot.options.platform), [settings.mode, viralBot.options.platform]); // --- make-clip-start ---
+  const makeAsIs = useMemo(() => makeClipAsIs(settings.mode, viralBot.options.platform), [settings.mode, viralBot.options.platform]); // --- make-clip-start --- (A-g4 review) a fixed loop
   // (--- make-clip-start --- a start clip's own Find makes the page search: the press stays busy, not disabled, so the button keeps its focus)
-  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked && !viralBot.making, kind: makeKind };
+  const makeClipProps: MakeClipProps = { onMake: () => void makeClip(true), busy: viralBot.making, made: madeOn, disabled: makeBlocked && !viralBot.making, kind: makeKind, asIs: makeAsIs };
+  // --- make-clip-start --- (A-g4 review) a press of the ready screen's button from the keyboard keeps the focus: the ready screen
+  // goes while a start clip's Find searches, so the focus moves to the search's Cancel, back to the button once the ready screen
+  // is back (it shows over the clip it made, as Another clip), and to Pause once the made clip plays (the ready screen goes)
+  const stageMakeRef = useRef<HTMLButtonElement>(null);
+  const finderCancelRef = useRef<HTMLButtonElement>(null);
+  const pauseButtonRef = useRef<HTMLButtonElement>(null);
+  const stageMakeFocus = useRef(false);
+  const stageMakeProps: MakeClipProps = {
+    ...makeClipProps,
+    onMake: () => {
+      stageMakeFocus.current = !!stageMakeRef.current && document.activeElement === stageMakeRef.current;
+      void makeClip(true);
+    },
+  };
+  useEffect(() => {
+    if (!stageMakeFocus.current) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected;
+    if (isSearching) {
+      if (lost) finderCancelRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (lost) (isStarted ? pauseButtonRef.current : stageMakeRef.current)?.focus({ preventScroll: true });
+    if (!viralBot.making && isStarted) stageMakeFocus.current = false; // (the press is over once its clip plays)
+  }, [isSearching, viralBot.making, isStarted]);
+  // --- end make-clip-start ---
   const [makeAtLoad] = useState(() => wantsMadeClip(searchParams.toString()));
   const madeAtLoad = useRef(false);
   useEffect(() => {
@@ -3730,6 +3768,7 @@ export default function Simulator() {
         onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats ---
         paintPicture: !!paintPicture, // --- review fix (modes-rhythm) ---
         outcome, // --- rigged ---
+        ...(made?.seedBase !== undefined ? { solutionSeedBase: made.seedBase } : {}), // --- make-clip-start --- (A-g4 review) Perfect Fit's next tilings
       }),
       // --- end page-finder-request ---
       (p) => setSearchProgress(p),
@@ -3839,6 +3878,9 @@ export default function Simulator() {
   // (this render's runFinderWith: the press waits for the look's commit), the found seed read at once (the button turns to
   // Another clip as Making ends). The press's own stop stops the search.
   makeFindRef.current = async (find, signal) => {
+    // (A-g4 review) the page reads the run's pin as the search starts: the look let a pinned seed go, and a press that finds nothing
+    // or is stopped pins it back, which the address shows only when the page saw it go (useViralBot.ts makeStartClip)
+    setPinnedSeed(engineRef.current?.getPinnedSeed() ?? null);
     const stop = () => finderAbortRef.current?.abort();
     signal.addEventListener("abort", stop, { once: true });
     try {
@@ -4661,7 +4703,7 @@ export default function Simulator() {
                     {searchOutcome !== "duration" /* --- rigged --- */ ? <p className="text-xs text-ink-3">{outcomeProgressText(t, searchOutcome, searchProgress)}</p> : searchProgress.bestDuration > 0 && <p className="text-xs text-ink-3">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
                   </div>
                 )}
-                <Button variant="secondary" size="sm" onClick={cancelFinder}>
+                <Button ref={finderCancelRef /* --- make-clip-start --- (A-g4 review) a stage press's focus while it searches */} variant="secondary" size="sm" onClick={cancelFinder}>
                   {t("Simulator.cancel")}
                 </Button>
               </div>
@@ -4687,8 +4729,9 @@ export default function Simulator() {
               <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
                 <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
-                {/* --- make-clip --- (not over a found run, which a new clip would replace, nor where none can be made) */}
-                {!searchResult?.found && !makeBlocked && <MakeClipButton make={makeClipProps} variant="secondary" size="sm" className="pointer-events-auto mt-1" testId="make-clip-ready" /* (Start stays the stage's one primary action) */ />}
+                {/* --- make-clip --- (not over a found run, which a new clip would replace, nor where none can be made; --- make-clip-start ---
+                    A-g4 review: over the run a press found for its clip, as Another clip, and while it makes one) */}
+                {(!searchResult?.found || madeOn || viralBot.making) && !makeBlocked && <MakeClipButton make={stageMakeProps} buttonRef={stageMakeRef} variant="secondary" size="sm" className="pointer-events-auto mt-1" testId="make-clip-ready" /* (Start stays the stage's one primary action) */ />}
               </div>
             </div>
           )}
@@ -4729,7 +4772,7 @@ export default function Simulator() {
             </Button>
           )}
           {isStarted && !finished && (
-            <Button variant="secondary" size="sm" className="min-w-[6.5rem]" onClick={() => setIsPaused((p) => !p)} icon={isPaused ? <IconPlay size={16} /> : <IconPause size={16} />}>
+            <Button ref={pauseButtonRef /* --- make-clip-start --- (A-g4 review) a stage press's focus once its clip plays */} variant="secondary" size="sm" className="min-w-[6.5rem]" onClick={() => setIsPaused((p) => !p)} icon={isPaused ? <IconPlay size={16} /> : <IconPause size={16} />}>
               {isPaused ? t("Simulator.resume") : t("Simulator.pause")}
             </Button>
           )}

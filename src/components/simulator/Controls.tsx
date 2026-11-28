@@ -2116,9 +2116,10 @@ export default function Controls(props: ControlsProps) {
         {props.makeClip && (
           <div className="space-y-1.5">
             <MakeClipButton make={props.makeClip} block testId="make-clip" />
-            {/* (--- make-clip-start --- round two A7) what the press does: a template's clip adds a hook, a start clip plays the mode's own finale */}
+            {/* (--- make-clip-start --- round two A7) what the press does: a template's clip adds a hook, a start clip plays the mode's own
+                finale, and (A-g4 review) a fixed loop's start look plays as it is: nothing is found */}
             <p className="text-xs leading-snug text-ink-3" data-testid="make-clip-note" data-make-kind={props.makeClip.kind}>
-              {props.makeClip.kind === "start" ? site("studio.makeClipStartNote") : site("studio.makeClipNote")}
+              {props.makeClip.kind === "start" ? site(props.makeClip.asIs ? "studio.makeClipLoopNote" : "studio.makeClipStartNote") : site("studio.makeClipNote")}
             </p>
           </div>
         )}

@@ -47,6 +47,8 @@ export interface PageFinderInputs {
   paintPicture: boolean;
   /** --- rigged --- An outcome search instead of the run length (absent: the length). */
   outcome?: FinderOutcome;
+  /** --- make-clip-start --- (A-g4 review) Perfect Fit's first solution seed to test: Make me a clip's next tilings (absent: 1). */
+  solutionSeedBase?: number;
 }
 
 /** The page's mode settings for Find: the bot's and the export's for these settings, plus the page's own inputs. */
@@ -76,6 +78,7 @@ export function pageFinderRequest(settings: SimulatorSettings, page: PageFinderI
     mode: settings.mode,
     modeSettings: pageFinderModeSettings(settings, page),
     ...(page.outcome ? { outcome: page.outcome } : {}), // --- rigged ---
+    ...(page.solutionSeedBase !== undefined ? { solutionSeedBase: page.solutionSeedBase } : {}), // --- make-clip-start --- (A-g4 review)
   };
 }
 // --- end page-finder-request ---

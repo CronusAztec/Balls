@@ -5847,9 +5847,10 @@
       "makeClip": "Zrób mi klip",
       "makeClipAnother": "Kolejny klip",
       "makeClipBusy": "Robię twój klip…",
-      "makeClipTip": "Planuje klip i otwiera go, gotowy do nagrania.",
+      "makeClipTip": "Robi klip tego trybu i otwiera go, gotowy do nagrania.",
       "makeClipNote": "Jednym kliknięciem planuje przebieg, który kończy się na czas, dodaje hook i ustawia długość.",
       "makeClipStartNote": "Jednym kliknięciem znajduje przebieg tego trybu, który kończy się na czas, i ustawia długość.",
+      "makeClipLoopNote": "Jednym kliknięciem odtwarza od początku własną pętlę tego trybu, gotową do nagrania.",
       "aboutMode": "O tym trybie"
     },
     "dialog": {

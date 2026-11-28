@@ -504,6 +504,12 @@ export interface FinderRequest {
    * No limits search, which has its own budget), and only when the runs seen so far ended on both sides of the target's window.
    */
   depthBudgetMs?: number;
+  // --- make-clip-start --- (A-g4 review)
+  /**
+   * Perfect Fit's "most on the floor" search: the first solution seed it tests (absent: 1, the Find panel's own). Make me a clip's
+   * "Another clip" starts after the solution seeds the last press tested (lib/bot/makeClip.ts), so it finds another tiling.
+   */
+  solutionSeedBase?: number;
 }
 
 export interface FinderProgress {
@@ -931,7 +937,7 @@ export function findSimulation(
     }
     // --- perfect-fit --- every box ends exactly full by construction: the search is over solution seeds (a plan a seed), or the beat
     if (request.mode === "perfectFit") {
-      resolve(findPerfectFitRun(request));
+      resolve(findPerfectFitRun(request, request.solutionSeedBase)); // (--- make-clip-start --- A-g4 review: absent, from seed 1)
       return;
     }
     // --- funnel-spin --- a ring run does not depend on the seed: the search fits the wave interval and the friction to the bar lines

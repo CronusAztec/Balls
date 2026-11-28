@@ -2,11 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { clipPacingFindSec, DEFAULT_FIND_SEC } from "@/lib/clipPacing";
 import { startSettings } from "@/lib/studioLooks";
-import { MAKE_CLIP_AS_IS, MAKE_CLIP_ENDING, MAKE_CLIP_TOLERANCE_SEC, makeClipFind, makeClipKind, makeClipPick, makeClipTemplates, type MakeClipFind } from "@/lib/bot/makeClip";
+import { MAKE_CLIP_AS_IS, MAKE_CLIP_ENDING, MAKE_CLIP_TOLERANCE_SEC, makeClipAsIs, makeClipFind, makeClipKind, makeClipPick, makeClipTemplates, type MakeClipFind } from "@/lib/bot/makeClip";
 import { readyTemplates, templatePlayOf } from "@/lib/bot/templates";
 import { BOT_PLATFORMS } from "@/lib/bot/playbook";
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { findSimulation } from "@/lib/simulation/finder";
+import { PF_FINDER_TRIES } from "@/lib/simulation/perfectFitFinder"; // --- make-clip-start --- (A-g4 review)
 import { onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings";
 import { pageFinderRequest } from "@/lib/simulation/pageFinderRequest";
 import type { SimulatorSettings } from "@/lib/settings";
@@ -18,7 +19,7 @@ import es from "../messages/es.json";
  * --- make-clip --- --- make-clip-start --- (round two A7, R6 and R8) "Make me a clip" stays on the page's mode on every
  * platform: one of the mode's own templates that ends resolved, or the mode's start look on a run the page's own Find finds
  * (lib/bot/makeClip.ts). Before, 14 modes without a template got another mode's clip (Lines, Paint, Race …) and 7 whose
- * templates all cut before the payoff (Countdown, Portal, Shatter …) got a clip that never showed their finale. The templates
+ * templates all cut before the payoff (Target, Portal, Shatter …) got a clip that never showed their finale. The templates
  * themselves (templates.ts, the crew's corpus and the bot's digests) are untouched: tests/botTemplates.test.ts pins them.
  */
 
@@ -51,13 +52,17 @@ function pageFind(s: SimulatorSettings, world: { width: number; height: number }
       onBeat: onBeatConfigOfSettings(s),
       paintPicture: false,
       ...(find.outcome ? { outcome: { kind: find.outcome, clipSec: find.targetSec } } : {}),
+      ...(find.seedBase !== undefined ? { solutionSeedBase: find.seedBase } : {}), // (A-g4 review) as Simulator.tsx runFinderWith
     }),
     () => {},
   );
 }
 
 describe("Make me a clip keeps the page's mode (make-clip-start)", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals(); // (A-g4 review) the requestAnimationFrame stub below
+  });
 
   it("plays a template for a mode whose own templates end resolved, else the mode's start look, on every platform", () => {
     for (const platform of BOT_PLATFORMS) {
@@ -81,7 +86,7 @@ describe("Make me a clip keeps the page's mode (make-clip-start)", () => {
             expect(templatePlayOf(ids[0])!.endings, `${platform} ${mode}`).toContain(MAKE_CLIP_ENDING);
           } else {
             expect(pick.settings, `${platform} ${mode} ${turn}`).toEqual(startSettings(mode));
-            expect(pick.find, `${platform} ${mode} ${turn}`).toEqual(makeClipFind(pick.settings));
+            expect(pick.find, `${platform} ${mode} ${turn}`).toEqual(makeClipFind(pick.settings, turn)); // (A-g4 review: the press's turn, Perfect Fit's next tilings)
             expect(Number.isInteger(pick.seed) && pick.seed > 0, `${platform} ${mode} ${turn}`).toBe(true);
           }
         }
@@ -132,17 +137,48 @@ describe("Make me a clip keeps the page's mode (make-clip-start)", () => {
     }
   }, 60_000);
 
+  // --- make-clip-start --- (A-g4 review) "Another clip" only where another clip can differ
+  it("plays a fixed loop as it is on every press, and gives Perfect Fit's next presses the next solution seeds", async () => {
+    for (const platform of BOT_PLATFORMS) {
+      expect(MODE_IDS.filter((mode) => makeClipAsIs(mode, platform)), platform).toEqual(MODE_IDS.filter((mode) => MAKE_CLIP_AS_IS.has(mode)));
+      for (const mode of START_MODES) {
+        const bases = [0, 1, 2].map((turn) => {
+          const pick = makeClipPick(mode, platform, turn, "salt")!;
+          return pick.kind === "start" ? pick.find?.seedBase : pick.kind;
+        });
+        // (every other search draws its own seeds: the finder's base is the clock)
+        expect(bases, `${platform} ${mode}`).toEqual(mode === "perfectFit" ? [undefined, 1 + PF_FINDER_TRIES, 1 + 2 * PF_FINDER_TRIES] : [undefined, undefined, undefined]);
+      }
+    }
+    // the first press is the Find button's own search (seed 1 up), each next one another tiling
+    const s = startSettings("perfectFit");
+    const seeds: number[] = [];
+    for (let turn = 0; turn < 3; turn++) {
+      const find = makeClipFind(s, turn)!;
+      const result = await pageFind(s, WORLDS[0], find);
+      expect([turn, result.found, result.outcome], `${turn}`).toEqual([turn, true, "most-on-floor"]);
+      expect(result.perfectFit!.seed, `${turn}`).toBeGreaterThanOrEqual(find.seedBase ?? 1);
+      expect(result.perfectFit!.seed, `${turn}`).toBeLessThan((find.seedBase ?? 1) + PF_FINDER_TRIES);
+      seeds.push(result.perfectFit!.seed);
+    }
+    expect(new Set(seeds).size, seeds.join()).toBe(3);
+    expect(seeds[0]).toBe((await pageFind(s, WORLDS[0], { targetSec: makeClipFind(s)!.targetSec, toleranceSec: MAKE_CLIP_TOLERANCE_SEC, outcome: "most-on-floor" })).perfectFit!.seed);
+  });
+
   it("leaves the templates as they are: a start clip plans none", () => {
     const before = JSON.stringify(readyTemplates("all").map((t) => [t.id, templatePlayOf(t.id)]));
     for (const platform of BOT_PLATFORMS) for (const mode of START_MODES) makeClipPick(mode, platform, 0, "salt");
     expect(JSON.stringify(readyTemplates("all").map((t) => [t.id, templatePlayOf(t.id)]))).toBe(before);
   });
 
-  it("says what the press does in every locale: a start clip's own note, and no 'another mode' note left", () => {
+  it("says what the press does in every locale: a start clip's own note, a fixed loop's, and no 'another mode' note left", () => {
     for (const messages of [en, pl, es]) {
       const studio = messages.SiteRedesign.studio as Record<string, string>;
       expect(studio.makeClipStartNote.length).toBeGreaterThan(20);
       expect(studio.makeClipStartNote).not.toBe(studio.makeClipNote);
+      // (A-g4 review) a fixed loop's own note: it finds nothing, so it never says it does
+      expect(studio.makeClipLoopNote.length).toBeGreaterThan(20);
+      expect(new Set([studio.makeClipLoopNote, studio.makeClipStartNote, studio.makeClipNote]).size).toBe(3);
       expect(studio.makeClipOther).toBeUndefined();
       expect(studio.makeClipOtherShort).toBeUndefined();
     }

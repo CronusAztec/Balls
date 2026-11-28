@@ -4,6 +4,7 @@ import { DEFAULT_FIND_SEC, clipPacingFindSec } from "@/lib/clipPacing"; // --- m
 import { startSettings } from "@/lib/studioLooks"; // --- make-clip-start ---
 import { availableOutcomes, effectiveOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes"; // --- make-clip-start ---
 import { outcomeContextOfSettings } from "@/lib/simulation/outcomeContext"; // --- make-clip-start ---
+import { PF_FINDER_TRIES } from "@/lib/simulation/perfectFitFinder"; // --- make-clip-start --- (A-g4 review: Perfect Fit's next tilings)
 import { hashString } from "./planner";
 import type { BotPlatform } from "./playbook";
 import { readyTemplates, templateById, templatePlayOf, type TemplateInfo } from "./templates";
@@ -21,7 +22,10 @@ import { readyTemplates, templateById, templatePlayOf, type TemplateInfo } from 
  *    clipPacingFindSec), pins the found seed and sets the clip length to the run and its end hold, as Find does (Simulator.tsx
  *    runFinderWith). No hook: the run's own finale ends the clip. A start look whose run is a fixed loop is played as it is.
  *    Before, such a mode got another mode's clip (lines, paint, race …) or a clip cut before its finale (target, portal …).
- * "Another" is the next turn: the mode's next template and a new plan seed, or a new Find on the start look (a new seed).
+ *    (A-g4 review) The press takes off what the start look has not (the melody, Paint's picture, whose run never ends), and a
+ *    press that finds nothing or is stopped puts the page back as it was (useViralBot.ts makeStartClip), as a template's does.
+ * "Another" is the next turn: the mode's next template and a new plan seed, or a new Find on the start look (a new seed;
+ * Perfect Fit's next solution seeds). A fixed loop has no other clip, so its button never says "Another clip" (`makeClipAsIs`).
  * templates.ts stays as it is: the crew's corpus and the bot's digests pin its plans.
  */
 
@@ -70,6 +74,14 @@ export const MAKE_CLIP_TOLERANCE_SEC = 0.5;
 export const MAKE_CLIP_AS_IS: ReadonlySet<ModeId> = new Set<ModeId>(["waveTank", "beatMachine"]);
 
 /**
+ * (A-g4 review) Whether a press on `mode` plays its start look as it is (`MAKE_CLIP_AS_IS`): every press makes the same clip, so
+ * the button says nothing of another one, and the note says what the press does instead of a run it finds.
+ */
+export function makeClipAsIs(mode: ModeId, platform: BotPlatform): boolean {
+  return MAKE_CLIP_AS_IS.has(mode) && makeClipKind(mode, platform) === "start";
+}
+
+/**
  * A start clip's target (s) where the page's own (`clipPacingFindSec`) is the page's 30 and no run of the start look comes near
  * it: Ball Drop and Land Claim start on their link base, whose runs end far inside 30 s. Seeds 1–60 in the page's two worlds
  * (800 × 450 and 450 × 450), through the page's own request (lib/simulation/pageFinderRequest.ts), as the target at or above
@@ -90,15 +102,30 @@ export interface MakeClipFind {
    * to the target. Absent: the run's length, as on every other start look.
    */
   outcome?: FinderOutcomeKind;
+  /**
+   * (A-g4 review) The first solution seed Perfect Fit's search tests (the finder's `solutionSeedBase`; absent: 1, the Find
+   * panel's own). Its search picks the tiling with the most pieces on the floor of the next `PF_FINDER_TRIES` seeds from here,
+   * the same on every press from seed 1, so each "Another clip" starts after the last one's: the next best tiling.
+   */
+  seedBase?: number;
 }
 
-/** The Find a start clip runs on `settings` (the mode's start look), or null: a fixed loop, played as it is (`MAKE_CLIP_AS_IS`). */
-export function makeClipFind(settings: SimulatorSettings): MakeClipFind | null {
+/**
+ * The Find a start clip runs on `settings` (the mode's start look) on press number `turn` (0 first), or null: a fixed loop, played
+ * as it is (`MAKE_CLIP_AS_IS`).
+ */
+export function makeClipFind(settings: SimulatorSettings, turn = 0): MakeClipFind | null {
   if (MAKE_CLIP_AS_IS.has(settings.mode)) return null;
   const own = clipPacingFindSec(settings);
   // the search the Find panel starts the look on (an outcome a visitor picked is their own search, never the press's)
   const outcome = effectiveOutcome("duration", availableOutcomes(settings.mode, outcomeContextOfSettings(settings)));
-  return { targetSec: own === DEFAULT_FIND_SEC ? (MAKE_CLIP_FIND_SEC[settings.mode] ?? own) : own, toleranceSec: MAKE_CLIP_TOLERANCE_SEC, ...(outcome && outcome !== "duration" ? { outcome } : {}) };
+  const at = Math.max(0, Math.floor(turn));
+  return {
+    targetSec: own === DEFAULT_FIND_SEC ? (MAKE_CLIP_FIND_SEC[settings.mode] ?? own) : own,
+    toleranceSec: MAKE_CLIP_TOLERANCE_SEC,
+    ...(outcome && outcome !== "duration" ? { outcome } : {}),
+    ...(outcome === "most-on-floor" && at > 0 ? { seedBase: 1 + at * PF_FINDER_TRIES } : {}), // (A-g4 review) Perfect Fit's next tilings
+  };
 }
 // --- end make-clip-start ---
 
@@ -132,7 +159,7 @@ export function makeClipPick(mode: ModeId, platform: BotPlatform, turn: number, 
   // --- make-clip-start --- (round two A7) a mode without a template that ends resolved plays its start look
   if (makeClipKind(mode, platform) === "start") {
     const settings = startSettings(mode);
-    return { kind: "start", mode, settings, find: makeClipFind(settings), seed: 1 + (hashString(`make|${mode}|${salt}|${at}`) % 100_000) };
+    return { kind: "start", mode, settings, find: makeClipFind(settings, at), seed: 1 + (hashString(`make|${mode}|${salt}|${at}`) % 100_000) };
   }
   const { ids } = makeClipTemplates(mode, platform);
   if (ids.length === 0) return null;

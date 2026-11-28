@@ -2411,6 +2411,56 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
     `(made ${made}, "${note}", opened ${JSON.stringify(opened)}, "${card.slice(0, 80)}")`,
   );
 }
+// --- make-clip-start --- (A-g4 review) Paint with a picture loaded: a picture run never ends, so the press takes the picture off
+// (the start look has none) and makes its clip on a found run, the panel's picture row gone; before, it replaced the visitor's
+// settings and ended on "Didn't find simulation". And the Wave Tank, a fixed loop: its note says it plays the loop, and a made
+// clip keeps "Make me a clip" (every press is the same clip), with the ready screen's button over it
+{
+  await page.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext("2d");
+    g.fillStyle = "#2060ff";
+    g.fillRect(0, 0, 64, 64);
+    const bytes = atob(c.toDataURL("image/png").split(",")[1]);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const dt = new DataTransfer();
+    dt.items.add(new File([arr], "smoke-make.png", { type: "image/png" }));
+    const input = document.querySelector("#paint-picture-input");
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const pictureOn = await page.getByTestId("paint-picture").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  await page.getByTestId("make-clip").click();
+  const made = await page.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const query = new URL(page.url()).searchParams;
+  const paint = { pictureOn, made, mode: query.get("mode"), pgu: query.get("pgu"), seed: query.get("seed"), canvas: (await canvasData()).seed ?? null, picture: await page.getByTestId("paint-picture").count(), missed: await page.getByText("Didn't find simulation").count() };
+  check(
+    "make a clip: on Paint with a picture loaded the press takes the picture off and makes the start look's clip on a found run",
+    paint.pictureOn && paint.made && paint.mode === "paint" && paint.pgu === "1" && !!paint.seed && paint.canvas === paint.seed && paint.picture === 0 && paint.missed === 0,
+    `(${JSON.stringify(paint)})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=waveTank&make=1`, { waitUntil: "networkidle" });
+  const tankMade = await page.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const tank = {
+    made: tankMade,
+    mode: new URL(page.url()).searchParams.get("mode"),
+    note: ((await page.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim(),
+    label: ((await page.getByTestId("make-clip").textContent().catch(() => "")) ?? "").trim(),
+    ready: ((await page.getByTestId("make-clip-ready").textContent().catch(() => "")) ?? "").trim(),
+  };
+  check(
+    "make a clip: the Wave Tank's note says the press plays its loop, and its made clip keeps Make me a clip on the button and the ready screen",
+    tank.made && tank.mode === "waveTank" && tank.note === "Plays this mode's own loop from the start, ready to record, in one press." && tank.label === "Make me a clip" && tank.ready === "Make me a clip",
+    `(${JSON.stringify(tank)})`,
+  );
+}
 });
 
 await smokeBlock("gerald-faces", async () => {
@@ -12244,7 +12294,7 @@ await smokeBlock("studio-looks", async () => {
     const ownNotes = { note: ((await p.getByTestId("make-clip-note").textContent().catch(() => "")) ?? "").trim(), ready: await p.getByTestId("make-clip-ready-note").count() };
     check(
       "make a clip: a mode without a template says the press finds a run of this mode (under the button, nothing more on the ready screen), and a mode with one says it adds a hook",
-      linesNote === "Finds a run of this mode that ends on time and sets the length, in one press." && linesReady === 0 && linesTip === "Plans a clip and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
+      linesNote === "Finds a run of this mode that ends on time and sets the length, in one press." && linesReady === 0 && linesTip === "Makes a clip of this mode and opens it, ready to record." && ownNotes.note.startsWith("Plans a run that ends on time") && ownNotes.ready === 0,
       `("${linesNote}", ready-screen notes ${linesReady}, "${linesTip}", pendulum ${JSON.stringify(ownNotes)})`,
     );
     // 5. ?make=1: a mode without a template gets its own start look on a found run, set up as the page opens; a daily challenge
@@ -12253,14 +12303,14 @@ await smokeBlock("studio-looks", async () => {
     await ready();
     const atLoad = await p.waitForFunction(() => document.querySelector('[data-testid="make-clip"]')?.getAttribute("data-make-state") === "made", null, { timeout: 45000 }).then(() => true).catch(() => false);
     await p.waitForTimeout(500);
-    const loaded = { mode: query().get("mode"), make: query().get("make"), seed: query().get("seed"), canvas: await canvasSeed(), cap: (query().get("cap") ?? "").length, rlines: query().get("rlines"), lns: query().get("lns") };
+    const loaded = { mode: query().get("mode"), make: query().get("make"), seed: query().get("seed"), canvas: await canvasSeed(), cap: (query().get("cap") ?? "").length, rlines: query().get("rlines"), lns: query().get("lns"), ready: ((await p.getByTestId("make-clip-ready").textContent().catch(() => "")) ?? "").trim() /* --- make-clip-start --- (A-g4 review) the ready screen offers Another clip over its found run */ };
     await p.goto(`${BASE}/en/simulator/?daily=1`, { waitUntil: "networkidle" });
     await ready();
     await p.waitForTimeout(800);
     const daily = { disabled: await p.getByTestId("make-clip").isDisabled().catch(() => null), ready: await p.getByTestId("make-clip-ready").count() };
     check(
-      "make a clip: ?make=1 sets a clip up as the page opens (Lines has no template: its string art on a found run, no hook), and a daily challenge offers none",
-      atLoad && loaded.mode === "lines" && loaded.rlines === "1" && loaded.lns === "64" && loaded.make === null && !!loaded.seed && loaded.canvas === loaded.seed && loaded.cap === 0 && daily.disabled === true && daily.ready === 0,
+      "make a clip: ?make=1 sets a clip up as the page opens (Lines has no template: its string art on a found run, no hook, Another clip on the ready screen), and a daily challenge offers none",
+      atLoad && loaded.mode === "lines" && loaded.rlines === "1" && loaded.lns === "64" && loaded.make === null && !!loaded.seed && loaded.canvas === loaded.seed && loaded.cap === 0 && loaded.ready === "Another clip" && daily.disabled === true && daily.ready === 0,
       `(${JSON.stringify(loaded)}, daily ${JSON.stringify(daily)})`,
     );
     // 6. in Polish: the card's link, the row's heading and names, the button

@@ -1471,18 +1471,23 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   clip: `useViralBot`'s `makeClip` plans it (the template's Simple look, the resolved ending) and opens it as Open in simulator
   does, with its settings, its hook, its melody, its seed pinned and the clip length its run needs. (--- make-clip-start ---
   round two A7) The other 21 modes (no template, like Lines, Paint and Race, or templates that all cut before the payoff, like
-  Countdown, Portal and Shatter) get a start clip: the page's start look (`startSettings`), the page's own Find Simulation at
+  Target, Portal and Shatter) get a start clip: the page's start look (`startSettings`), the page's own Find Simulation at
   the look's target (`clipPacingFindSec`; Ball Drop and Land Claim, whose runs end far inside the page's 30 s, at their own;
   Perfect Fit with the panel's own search, the most pieces on the floor), the found seed pinned and the clip length set to the
-  run and its end hold, as Find does. No hook: the run's own finale ends the clip. The Wave Tank's and Beat Machines' start
-  looks are fixed loops and play as they are. Before, a mode without a template got another mode's clip, and one whose templates
-  cut early got a clip without its finale. The page then plays the clip. The next press is "Another clip" (the mode's next
-  template and a new plan seed, or a new Find). It makes nothing while the page records, renders a batch or a fast export, races
+  run and its end hold, as Find does. No hook: the run's own finale ends the clip. The press takes off what the start look has
+  not (the melody, and Paint's picture, whose run never ends), and one that finds nothing or is stopped puts the page back as it
+  was: its settings, melody, picture and pinned seed (A-g4 review). The Wave Tank's and Beat Machines' start looks are fixed
+  loops and play as they are. Before, a mode without a template got another mode's clip, and one whose templates cut early got
+  a clip without its finale. The page then plays the clip. The next press is "Another clip" (the mode's next template and a new
+  plan seed, a new Find, or Perfect Fit's next 24 solution seeds); a fixed loop has no other clip, so its button keeps "Make me a
+  clip" and its note says it plays the loop. It makes nothing while the page records, renders a batch or a fast export, races
   in split screen or plays a daily challenge, and the clip is no part of the Bot section's stored plan. Free clips keep the
   watermark: the export's own seal decides it, as for every recording. The note under the button says what the press does
-  ("Finds a run of this mode that ends on time and sets the length, in one press." for a start clip); the button keeps its focus
-  while it plans or searches (`aria-disabled`, not `disabled`), goes from "Making your clip…" straight to "Another clip" (the
-  page reads the pinned seed as it pins it), and a press below the stage brings the stage into view as the clip plays.
+  ("Finds a run of this mode that ends on time and sets the length, in one press." for a start clip); the Mode block's button
+  keeps its focus while it plans or searches (`aria-disabled`, not `disabled`), goes from "Making your clip…" straight to
+  "Another clip" (the page reads the pinned seed as it pins it), and a press below the stage brings the stage into view as the
+  clip plays. The ready screen's button shows over the clip it made too; a press of it from the keyboard moves the focus to the
+  search's Cancel while a start clip searches, back to the button once the ready screen returns, and to Pause as the clip plays.
   `src/lib/bot/templates.ts` is untouched: the crew's corpus and the bot's digests pin its plans.
 - **Playbook** – `src/lib/bot/playbook.ts` turns the playbook's recipe (§3) into data: the families (`escape`, `rhythm`,
   `battle`), platforms and their length buckets (short 8–15 s, standard 15–30 s – the Reels default –, long 60–90 s), the safe

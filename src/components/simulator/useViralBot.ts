@@ -113,6 +113,15 @@ export interface UseViralBotOptions {
    * clip. Resolves with the found seed, or null (nothing found, the search stopped); `signal` stops the search.
    */
   findRun?: (find: MakeClipFind, signal: AbortSignal) => Promise<number | null>;
+  /** --- make-clip-start --- (A-g4 review) The settings on the page now: a start clip that finds nothing, or is stopped, puts them back. */
+  currentSettings?: SimulatorSettings;
+  /** --- make-clip-start --- (A-g4 review) The seed the page's run is pinned to now (null: none), put back with the settings. */
+  currentSeed?: () => number | null;
+  /**
+   * --- make-clip-start --- (A-g4 review) Takes off what the page holds beside its settings and melody that the start look of
+   * `mode` has not (Paint's picture: a picture run never ends, so Find finds nothing), and returns what puts it back.
+   */
+  clearExtras?: (mode: ModeId) => () => void;
   runJobs: (jobs: CustomBatchJob[]) => Promise<CustomBatchFile[]>;
   stopBatch: () => void;
   batchRun: BatchRunState;
@@ -360,17 +369,34 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
   // the page's own Find at the look's target, or the look as it is (a fixed loop) on the pick's seed
   const makeStartClip = useCallback(
     async (pick: Extract<MakeClipPick, { kind: "start" }>, signal: AbortSignal): Promise<MadeClip | null> => {
+      // (A-g4 review) what the page holds before the press: a press that finds nothing or is stopped puts it back, so the page
+      // stays as it was, as a template's press does (it changes the page only once its plan is made)
+      const before = { settings: latest.current.currentSettings, melody: latest.current.currentMelody, seed: latest.current.currentSeed?.() ?? null };
       latest.current.applySettings(pick.settings);
       await nextCommit();
       await latest.current.selectMelody(null);
+      const putBackExtras = latest.current.clearExtras?.(pick.mode) ?? (() => {}); // (A-g4 review) Paint's picture: the look has none
       await nextCommit();
-      if (signal.aborted) return null;
+      const applied = latest.current.currentSettings; // (the look on the page, as the search starts)
+      const putBack = async (): Promise<null> => {
+        await nextCommit();
+        // (a visitor who changed the page meanwhile, a mode picked or a look loaded, keeps theirs)
+        if (!before.settings || latest.current.currentSettings !== applied) return null;
+        latest.current.applySettings(before.settings);
+        await nextCommit();
+        await latest.current.selectMelody(before.melody);
+        putBackExtras();
+        await nextCommit(); // (Paint's picture back first: putting it back lets a pinned seed go)
+        if (before.seed !== null) latest.current.pinSeed(before.seed);
+        return null;
+      };
+      if (signal.aborted) return putBack();
       if (!pick.find) {
         latest.current.pinSeed(pick.seed);
         return { kind: "start", mode: pick.mode, seed: pick.seed };
       }
       const seed = (await latest.current.findRun?.(pick.find, signal)) ?? null;
-      if (seed === null || signal.aborted) return null;
+      if (seed === null || signal.aborted) return putBack();
       await nextCommit(); // (the found run's clip length on the page, as Find sets it, before the press plays it)
       return { kind: "start", mode: pick.mode, seed };
     },
